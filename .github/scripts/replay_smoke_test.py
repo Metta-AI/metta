@@ -14,10 +14,10 @@ import sys
 
 # Add parent directory to path to import utils
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from utils.smoke_test import SmokeTest
+import utils.smoke_test
 
 
-class ReplaySmokeTest(SmokeTest):
+class ReplaySmokeTest(utils.smoke_test.SmokeTest):
     """Replay smoke test implementation."""
 
     def get_command(self) -> list[str]:

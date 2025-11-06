@@ -1,17 +1,21 @@
-from mettagrid.mapgen.scene import ChildrenAction
-from mettagrid.mapgen.scenes.make_connected import MakeConnected
-from mettagrid.mapgen.scenes.room_grid import RoomGrid
-from mettagrid.test_support.mapgen import assert_connected, render_scene
+import mettagrid.mapgen.scene
+import mettagrid.mapgen.scenes.make_connected
+import mettagrid.mapgen.scenes.room_grid
+import mettagrid.test_support.mapgen
 
 
 def test_connect_room_grid():
-    scene = render_scene(
-        RoomGrid.Config(
+    scene = mettagrid.test_support.mapgen.render_scene(
+        mettagrid.mapgen.scenes.room_grid.RoomGrid.Config(
             rows=2,
             columns=3,
-            children=[ChildrenAction(scene=MakeConnected.Config(), where="full")],
+            children=[
+                mettagrid.mapgen.scene.ChildrenAction(
+                    scene=mettagrid.mapgen.scenes.make_connected.MakeConnected.Config(), where="full"
+                )
+            ],
         ),
         shape=(20, 20),
     )
 
-    assert_connected(scene.grid)
+    mettagrid.test_support.mapgen.assert_connected(scene.grid)

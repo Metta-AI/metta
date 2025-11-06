@@ -1,25 +1,25 @@
-from metta.sim.simulation_config import SimulationConfig
-from metta.tools.eval import EvaluateTool
-from metta.tools.train import TrainTool
-from mettagrid import MettaGridConfig
-from mettagrid.builder.envs import make_arena
+import metta.sim.simulation_config
+import metta.tools.eval
+import metta.tools.train
+import mettagrid
+import mettagrid.builder.envs
 
 
-def mettagrid() -> MettaGridConfig:
+def mettagrid() -> mettagrid.MettaGridConfig:
     # Lightweight config generation; no environment execution
-    return make_arena(num_agents=2)
+    return mettagrid.builder.envs.make_arena(num_agents=2)
 
 
-def simulations() -> list[SimulationConfig]:
+def simulations() -> list[metta.sim.simulation_config.SimulationConfig]:
     env = mettagrid()
-    return [SimulationConfig(suite="demo", name="basic", env=env)]
+    return [metta.sim.simulation_config.SimulationConfig(suite="demo", name="basic", env=env)]
 
 
-def evaluate() -> EvaluateTool:
+def evaluate() -> metta.tools.eval.EvaluateTool:
     """Explicit evaluate tool for testing."""
-    return EvaluateTool(simulations=simulations())
+    return metta.tools.eval.EvaluateTool(simulations=simulations())
 
 
-def train_shaped() -> TrainTool:
+def train_shaped() -> metta.tools.train.TrainTool:
     """Explicit train tool for testing."""
     ...

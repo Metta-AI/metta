@@ -1,6 +1,6 @@
 """Batch size and sampling utilities for Metta training."""
 
-from typing import Tuple
+import typing
 
 
 def calculate_batch_sizes(
@@ -8,7 +8,7 @@ def calculate_batch_sizes(
     num_agents: int,
     num_workers: int,
     async_factor: int,
-) -> Tuple[int, int, int]:
+) -> typing.Tuple[int, int, int]:
     """Calculate target batch size, actual batch size, and number of environments."""
     target_batch_size = forward_pass_minibatch_target_size // num_agents
     min_required = max(2, num_workers)  # pufferlib bug requires batch size >= 2

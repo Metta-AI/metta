@@ -1,21 +1,21 @@
+import contextlib
 import functools
 import importlib
 import itertools
+import pathlib
 import textwrap
 import threading
 import time
-from contextlib import contextmanager
-from pathlib import Path
-from typing import TypeVar
+import typing
 
-from rich.console import Console
+import rich.console
 
-T = TypeVar("T")
+T = typing.TypeVar("T")
 
 
 @functools.cache
-def get_console() -> Console:
-    return Console(soft_wrap=True)
+def get_console() -> rich.console.Console:
+    return rich.console.Console(soft_wrap=True)
 
 
 def _format_message(message: str, indent: int = 0) -> str:
@@ -41,7 +41,7 @@ step = functools.partial(_output, "white")
 debug = functools.partial(_output, "magenta")
 
 
-@contextmanager
+@contextlib.contextmanager
 def spinner(message: str = "Loading..."):
     """Context manager that shows a spinner while executing code.
 
@@ -93,7 +93,7 @@ def prompt_choice(
         return _simple_prompt_choice(prompt, choices, default, current, non_interactive)
 
     try:
-        from simple_term_menu import TerminalMenu
+        import simple_term_menu
 
         # Extract descriptions for menu display
         menu_entries = [f"{i + 1}. {desc}" for i, (_, desc) in enumerate(choices)]
@@ -115,7 +115,7 @@ def prompt_choice(
         header(prompt)
 
         # Create menu
-        terminal_menu = TerminalMenu(
+        terminal_menu = simple_term_menu.TerminalMenu(
             menu_entries,
             cursor_index=cursor_index,
             menu_cursor="▶ ",
@@ -200,7 +200,7 @@ def import_all_modules_from_subpackage(package_name: str, subpackage: str) -> No
         subpackage: The subpackage name (e.g., 'components')
     """
     # Since we're in metta/setup/utils.py, we can use relative path
-    current_file = Path(__file__)
+    current_file = pathlib.Path(__file__)
     setup_dir = current_file.parent
     subpackage_path = setup_dir / subpackage
 

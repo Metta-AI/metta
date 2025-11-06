@@ -3,32 +3,27 @@
 import numpy as np
 import pytest
 
-from mettagrid.config.mettagrid_config import (
-    ActionsConfig,
-    GameConfig,
-    MettaGridConfig,
-    MoveActionConfig,
-    NoopActionConfig,
-    ObsConfig,
-    WallConfig,
-)
-from mettagrid.envs.mettagrid_puffer_env import MettaGridPufferEnv
-from mettagrid.map_builder.random import RandomMapBuilder
-from mettagrid.simulator import Simulator
+import mettagrid.config.mettagrid_config
+import mettagrid.envs.mettagrid_puffer_env
+import mettagrid.map_builder.random
+import mettagrid.simulator
 
 
 @pytest.fixture
 def puffer_sim_config():
     """Create a basic simulation config for Puffer testing."""
-    return MettaGridConfig(
-        game=GameConfig(
+    return mettagrid.config.mettagrid_config.MettaGridConfig(
+        game=mettagrid.config.mettagrid_config.GameConfig(
             num_agents=2,
-            obs=ObsConfig(width=3, height=3, num_tokens=50),
+            obs=mettagrid.config.mettagrid_config.ObsConfig(width=3, height=3, num_tokens=50),
             max_steps=10,
             resource_names=["ore", "wood"],
-            actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
-            objects={"wall": WallConfig()},
-            map_builder=RandomMapBuilder.Config(width=7, height=5, agents=2, seed=42),
+            actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
+                move=mettagrid.config.mettagrid_config.MoveActionConfig(),
+            ),
+            objects={"wall": mettagrid.config.mettagrid_config.WallConfig()},
+            map_builder=mettagrid.map_builder.random.RandomMapBuilder.Config(width=7, height=5, agents=2, seed=42),
         )
     )
 
@@ -36,7 +31,7 @@ def puffer_sim_config():
 @pytest.fixture
 def simulator():
     """Create a simulator instance."""
-    sim = Simulator()
+    sim = mettagrid.simulator.Simulator()
     yield sim
     # Clean up after test
     sim.close()
@@ -47,7 +42,7 @@ class TestMettaGridPufferEnvCreation:
 
     def test_env_creation(self, simulator, puffer_sim_config):
         """Test that PufferEnv can be created successfully."""
-        env = MettaGridPufferEnv(simulator, puffer_sim_config)
+        env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(simulator, puffer_sim_config)
 
         assert env is not None
         assert env.num_agents == 2
@@ -56,7 +51,7 @@ class TestMettaGridPufferEnvCreation:
 
     def test_observation_space(self, simulator, puffer_sim_config):
         """Test observation space properties."""
-        env = MettaGridPufferEnv(simulator, puffer_sim_config)
+        env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(simulator, puffer_sim_config)
 
         obs_space = env.single_observation_space
         assert obs_space.shape == (50, 3)  # num_observation_tokens x 3
@@ -64,7 +59,7 @@ class TestMettaGridPufferEnvCreation:
 
     def test_action_space(self, simulator, puffer_sim_config):
         """Test action space properties."""
-        env = MettaGridPufferEnv(simulator, puffer_sim_config)
+        env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(simulator, puffer_sim_config)
 
         action_space = env.single_action_space
         assert action_space.n > 0
@@ -77,7 +72,7 @@ class TestMettaGridPufferEnvReset:
 
     def test_reset_returns_observations(self, simulator, puffer_sim_config):
         """Test that reset returns observations."""
-        env = MettaGridPufferEnv(simulator, puffer_sim_config)
+        env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(simulator, puffer_sim_config)
 
         obs, info = env.reset()
 
@@ -88,7 +83,7 @@ class TestMettaGridPufferEnvReset:
 
     def test_reset_with_seed(self, simulator, puffer_sim_config):
         """Test that reset accepts a seed parameter."""
-        env = MettaGridPufferEnv(simulator, puffer_sim_config)
+        env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(simulator, puffer_sim_config)
 
         obs1, _ = env.reset(seed=42)
         obs2, _ = env.reset(seed=42)
@@ -98,7 +93,7 @@ class TestMettaGridPufferEnvReset:
 
     def test_multiple_resets(self, simulator, puffer_sim_config):
         """Test that environment can be reset multiple times."""
-        env = MettaGridPufferEnv(simulator, puffer_sim_config)
+        env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(simulator, puffer_sim_config)
 
         for _ in range(3):
             obs, info = env.reset()
@@ -111,7 +106,7 @@ class TestMettaGridPufferEnvStep:
 
     def test_step_returns_correct_types(self, simulator, puffer_sim_config):
         """Test that step returns correctly typed outputs."""
-        env = MettaGridPufferEnv(simulator, puffer_sim_config)
+        env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(simulator, puffer_sim_config)
         env.reset()
 
         # Create noop actions for all agents
@@ -131,7 +126,7 @@ class TestMettaGridPufferEnvStep:
 
     def test_step_with_actions(self, simulator, puffer_sim_config):
         """Test stepping with different actions."""
-        env = MettaGridPufferEnv(simulator, puffer_sim_config)
+        env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(simulator, puffer_sim_config)
         env.reset()
 
         # Get action indices
@@ -147,18 +142,20 @@ class TestMettaGridPufferEnvStep:
 
     def test_episode_completion(self, simulator):
         """Test that episode completes at max_steps."""
-        config = MettaGridConfig(
-            game=GameConfig(
+        config = mettagrid.config.mettagrid_config.MettaGridConfig(
+            game=mettagrid.config.mettagrid_config.GameConfig(
                 num_agents=1,
-                obs=ObsConfig(width=3, height=3, num_tokens=20),
+                obs=mettagrid.config.mettagrid_config.ObsConfig(width=3, height=3, num_tokens=20),
                 max_steps=3,  # Short episode
                 episode_truncates=True,  # Enable truncation at max_steps
-                actions=ActionsConfig(noop=NoopActionConfig()),
-                map_builder=RandomMapBuilder.Config(width=5, height=5, agents=1, seed=42),
+                actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                    noop=mettagrid.config.mettagrid_config.NoopActionConfig()
+                ),
+                map_builder=mettagrid.map_builder.random.RandomMapBuilder.Config(width=5, height=5, agents=1, seed=42),
             )
         )
 
-        env = MettaGridPufferEnv(simulator, config)
+        env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(simulator, config)
         env.reset()
 
         noop_idx = env._sim.action_names.index("noop")
@@ -173,18 +170,20 @@ class TestMettaGridPufferEnvStep:
 
     def test_auto_reset_on_episode_end(self, simulator):
         """Test that environment automatically resets when all agents are done."""
-        config = MettaGridConfig(
-            game=GameConfig(
+        config = mettagrid.config.mettagrid_config.MettaGridConfig(
+            game=mettagrid.config.mettagrid_config.GameConfig(
                 num_agents=2,
-                obs=ObsConfig(width=3, height=3, num_tokens=20),
+                obs=mettagrid.config.mettagrid_config.ObsConfig(width=3, height=3, num_tokens=20),
                 max_steps=2,  # Very short episode
                 episode_truncates=True,  # Enable truncation at max_steps
-                actions=ActionsConfig(noop=NoopActionConfig()),
-                map_builder=RandomMapBuilder.Config(width=5, height=5, agents=2, seed=42),
+                actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                    noop=mettagrid.config.mettagrid_config.NoopActionConfig()
+                ),
+                map_builder=mettagrid.map_builder.random.RandomMapBuilder.Config(width=5, height=5, agents=2, seed=42),
             )
         )
 
-        env = MettaGridPufferEnv(simulator, config)
+        env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(simulator, config)
         env.reset()
 
         noop_idx = env._sim.action_names.index("noop")
@@ -222,7 +221,7 @@ class TestMettaGridPufferEnvBuffers:
 
     def test_buffer_properties_accessible(self, simulator, puffer_sim_config):
         """Test that buffer properties can be accessed."""
-        env = MettaGridPufferEnv(simulator, puffer_sim_config)
+        env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(simulator, puffer_sim_config)
 
         assert env.observations is not None
         assert env.rewards is not None
@@ -233,7 +232,7 @@ class TestMettaGridPufferEnvBuffers:
 
     def test_buffer_shapes(self, simulator, puffer_sim_config):
         """Test that buffers have correct shapes."""
-        env = MettaGridPufferEnv(simulator, puffer_sim_config)
+        env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(simulator, puffer_sim_config)
 
         assert env.observations.shape == (2, 50, 3)
         assert env.rewards.shape == (2,)
@@ -244,7 +243,7 @@ class TestMettaGridPufferEnvBuffers:
 
     def test_buffers_persist_across_resets(self, simulator, puffer_sim_config):
         """Test that buffer objects persist across resets."""
-        env = MettaGridPufferEnv(simulator, puffer_sim_config)
+        env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(simulator, puffer_sim_config)
 
         # Get buffer object references
         obs_buf_id = id(env.observations)
@@ -262,7 +261,7 @@ class TestMettaGridPufferEnvIntegration:
 
     def test_full_episode_workflow(self, simulator, puffer_sim_config):
         """Test complete episode from reset to completion."""
-        env = MettaGridPufferEnv(simulator, puffer_sim_config)
+        env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(simulator, puffer_sim_config)
 
         # Reset
         obs, info = env.reset()
@@ -284,7 +283,7 @@ class TestMettaGridPufferEnvIntegration:
 
     def test_close(self, simulator, puffer_sim_config):
         """Test that environment can be closed."""
-        env = MettaGridPufferEnv(simulator, puffer_sim_config)
+        env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(simulator, puffer_sim_config)
         env.reset()
 
         # Close should not raise

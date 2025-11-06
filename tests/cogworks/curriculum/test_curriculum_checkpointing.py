@@ -11,13 +11,13 @@ import tempfile
 
 import pytest
 
-from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.cogworks.curriculum.task_generator import SingleTaskGenerator
-from metta.cogworks.curriculum.task_tracker import TaskTracker
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.system_config import SystemConfig
-from mettagrid.config import GameConfig, MettaGridConfig
+import metta.cogworks.curriculum.curriculum
+import metta.cogworks.curriculum.learning_progress_algorithm
+import metta.cogworks.curriculum.task_generator
+import metta.cogworks.curriculum.task_tracker
+import metta.rl.checkpoint_manager
+import metta.rl.system_config
+import mettagrid.config
 
 
 class TestCurriculumStateSerialization:
@@ -26,17 +26,19 @@ class TestCurriculumStateSerialization:
     def test_curriculum_state_serialization(self):
         """Test that curriculum state can be saved and loaded correctly."""
         # Create a curriculum config with learning progress algorithm
-        mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
-        task_generator_config = SingleTaskGenerator.Config(env=mg_config)
+        mg_config = mettagrid.config.MettaGridConfig(game=mettagrid.config.GameConfig(num_agents=4))
+        task_generator_config = metta.cogworks.curriculum.task_generator.SingleTaskGenerator.Config(env=mg_config)
 
-        curriculum_config = CurriculumConfig(
+        curriculum_config = metta.cogworks.curriculum.curriculum.CurriculumConfig(
             task_generator=task_generator_config,
             num_active_tasks=10,
-            algorithm_config=LearningProgressConfig(num_active_tasks=10, max_memory_tasks=100, use_bidirectional=True),
+            algorithm_config=metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig(
+                num_active_tasks=10, max_memory_tasks=100, use_bidirectional=True
+            ),
         )
 
         # Create curriculum with fixed seed for reproducibility
-        curriculum = Curriculum(curriculum_config, seed=42)
+        curriculum = metta.cogworks.curriculum.curriculum.Curriculum(curriculum_config, seed=42)
 
         # Generate some tasks and performance data
         task_ids = []
@@ -78,16 +80,18 @@ class TestCurriculumStateSerialization:
     def test_curriculum_state_loading(self):
         """Test that curriculum state can be loaded correctly."""
         # Create initial curriculum
-        mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
-        task_generator_config = SingleTaskGenerator.Config(env=mg_config)
+        mg_config = mettagrid.config.MettaGridConfig(game=mettagrid.config.GameConfig(num_agents=4))
+        task_generator_config = metta.cogworks.curriculum.task_generator.SingleTaskGenerator.Config(env=mg_config)
 
-        curriculum_config = CurriculumConfig(
+        curriculum_config = metta.cogworks.curriculum.curriculum.CurriculumConfig(
             task_generator=task_generator_config,
             num_active_tasks=10,
-            algorithm_config=LearningProgressConfig(num_active_tasks=10),
+            algorithm_config=metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig(
+                num_active_tasks=10
+            ),
         )
 
-        curriculum1 = Curriculum(curriculum_config, seed=42)
+        curriculum1 = metta.cogworks.curriculum.curriculum.Curriculum(curriculum_config, seed=42)
 
         # Generate tasks and performance data
         original_tasks = {}
@@ -110,7 +114,7 @@ class TestCurriculumStateSerialization:
         state = curriculum1.get_state()
 
         # Create new curriculum with different seed and load state
-        curriculum2 = Curriculum(curriculum_config, seed=999)  # Different seed
+        curriculum2 = metta.cogworks.curriculum.curriculum.Curriculum(curriculum_config, seed=999)  # Different seed
         curriculum2.load_state(state)
 
         # Verify state restoration
@@ -132,16 +136,18 @@ class TestCurriculumStateSerialization:
     def test_learning_progress_algorithm_state(self):
         """Test LearningProgressAlgorithm state serialization."""
         # Create curriculum with learning progress algorithm
-        mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
-        task_generator_config = SingleTaskGenerator.Config(env=mg_config)
+        mg_config = mettagrid.config.MettaGridConfig(game=mettagrid.config.GameConfig(num_agents=4))
+        task_generator_config = metta.cogworks.curriculum.task_generator.SingleTaskGenerator.Config(env=mg_config)
 
-        curriculum_config = CurriculumConfig(
+        curriculum_config = metta.cogworks.curriculum.curriculum.CurriculumConfig(
             task_generator=task_generator_config,
             num_active_tasks=8,
-            algorithm_config=LearningProgressConfig(num_active_tasks=8, use_bidirectional=True, max_memory_tasks=50),
+            algorithm_config=metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig(
+                num_active_tasks=8, use_bidirectional=True, max_memory_tasks=50
+            ),
         )
 
-        curriculum = Curriculum(curriculum_config, seed=123)
+        curriculum = metta.cogworks.curriculum.curriculum.Curriculum(curriculum_config, seed=123)
 
         # Generate tasks and performance data to populate algorithm state
         for _ in range(20):
@@ -179,7 +185,7 @@ class TestCurriculumStateSerialization:
 
     def test_task_tracker_state(self):
         """Test TaskTracker state serialization."""
-        tracker = TaskTracker(max_memory_tasks=100)
+        tracker = metta.cogworks.curriculum.task_tracker.TaskTracker(max_memory_tasks=100)
 
         # Add some tasks and performance data
         for i in range(10):
@@ -200,7 +206,7 @@ class TestCurriculumStateSerialization:
         assert "cache_valid" in state
 
         # Test loading state
-        new_tracker = TaskTracker(max_memory_tasks=50)
+        new_tracker = metta.cogworks.curriculum.task_tracker.TaskTracker(max_memory_tasks=50)
         new_tracker.load_state(state)
 
         # Verify state was loaded correctly
@@ -211,16 +217,18 @@ class TestCurriculumStateSerialization:
     def test_file_size_limits(self):
         """Test that checkpoint files don't become too large."""
         # Create curriculum with many tasks
-        mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
-        task_generator_config = SingleTaskGenerator.Config(env=mg_config)
+        mg_config = mettagrid.config.MettaGridConfig(game=mettagrid.config.GameConfig(num_agents=4))
+        task_generator_config = metta.cogworks.curriculum.task_generator.SingleTaskGenerator.Config(env=mg_config)
 
-        curriculum_config = CurriculumConfig(
+        curriculum_config = metta.cogworks.curriculum.curriculum.CurriculumConfig(
             task_generator=task_generator_config,
             num_active_tasks=1000,
-            algorithm_config=LearningProgressConfig(num_active_tasks=1000, max_memory_tasks=5000),
+            algorithm_config=metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig(
+                num_active_tasks=1000, max_memory_tasks=5000
+            ),
         )
 
-        curriculum = Curriculum(curriculum_config, seed=456)
+        curriculum = metta.cogworks.curriculum.curriculum.Curriculum(curriculum_config, seed=456)
 
         # Generate many tasks with performance data
         for _ in range(500):
@@ -243,12 +251,14 @@ class TestCurriculumStateSerialization:
     def test_config_mismatch_handling(self):
         """Test handling of config mismatches during restore."""
         # Create initial curriculum
-        mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
-        task_generator_config = SingleTaskGenerator.Config(env=mg_config)
+        mg_config = mettagrid.config.MettaGridConfig(game=mettagrid.config.GameConfig(num_agents=4))
+        task_generator_config = metta.cogworks.curriculum.task_generator.SingleTaskGenerator.Config(env=mg_config)
 
-        curriculum_config1 = CurriculumConfig(task_generator=task_generator_config, num_active_tasks=10)
+        curriculum_config1 = metta.cogworks.curriculum.curriculum.CurriculumConfig(
+            task_generator=task_generator_config, num_active_tasks=10
+        )
 
-        curriculum = Curriculum(curriculum_config1, seed=42)
+        curriculum = metta.cogworks.curriculum.curriculum.Curriculum(curriculum_config1, seed=42)
 
         # Generate some tasks
         for _ in range(5):
@@ -259,12 +269,12 @@ class TestCurriculumStateSerialization:
         state = curriculum.get_state()
 
         # Create curriculum with different config
-        curriculum_config2 = CurriculumConfig(
+        curriculum_config2 = metta.cogworks.curriculum.curriculum.CurriculumConfig(
             task_generator=task_generator_config,
             num_active_tasks=20,  # Different number of active tasks
         )
 
-        curriculum2 = Curriculum(curriculum_config2, seed=789)
+        curriculum2 = metta.cogworks.curriculum.curriculum.Curriculum(curriculum_config2, seed=789)
 
         # Loading should work even with config mismatch
         # The warning will be logged but we just verify loading succeeds
@@ -276,12 +286,14 @@ class TestCurriculumStateSerialization:
 
     def test_corrupted_state_handling(self):
         """Test handling of corrupted or incomplete state."""
-        mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
-        task_generator_config = SingleTaskGenerator.Config(env=mg_config)
+        mg_config = mettagrid.config.MettaGridConfig(game=mettagrid.config.GameConfig(num_agents=4))
+        task_generator_config = metta.cogworks.curriculum.task_generator.SingleTaskGenerator.Config(env=mg_config)
 
-        curriculum_config = CurriculumConfig(task_generator=task_generator_config, num_active_tasks=10)
+        curriculum_config = metta.cogworks.curriculum.curriculum.CurriculumConfig(
+            task_generator=task_generator_config, num_active_tasks=10
+        )
 
-        curriculum = Curriculum(curriculum_config, seed=42)
+        curriculum = metta.cogworks.curriculum.curriculum.Curriculum(curriculum_config, seed=42)
 
         # Create corrupted state (missing required fields)
         corrupted_state = {
@@ -296,12 +308,14 @@ class TestCurriculumStateSerialization:
 
     def test_random_state_preservation(self):
         """Test that random state is preserved correctly."""
-        mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
-        task_generator_config = SingleTaskGenerator.Config(env=mg_config)
+        mg_config = mettagrid.config.MettaGridConfig(game=mettagrid.config.GameConfig(num_agents=4))
+        task_generator_config = metta.cogworks.curriculum.task_generator.SingleTaskGenerator.Config(env=mg_config)
 
-        curriculum_config = CurriculumConfig(task_generator=task_generator_config, num_active_tasks=10)
+        curriculum_config = metta.cogworks.curriculum.curriculum.CurriculumConfig(
+            task_generator=task_generator_config, num_active_tasks=10
+        )
 
-        curriculum = Curriculum(curriculum_config, seed=123)
+        curriculum = metta.cogworks.curriculum.curriculum.Curriculum(curriculum_config, seed=123)
 
         # Generate some tasks to advance random state
         for _ in range(10):
@@ -311,7 +325,9 @@ class TestCurriculumStateSerialization:
         state = curriculum.get_state()
 
         # Create new curriculum and load state
-        curriculum2 = Curriculum(curriculum_config, seed=0)  # Different initial seed
+        curriculum2 = metta.cogworks.curriculum.curriculum.Curriculum(
+            curriculum_config, seed=0
+        )  # Different initial seed
         curriculum2.load_state(state)
 
         # Generate more tasks and verify they're deterministic
@@ -327,20 +343,24 @@ class TestCheckpointManagerIntegration:
     def test_checkpoint_manager_curriculum_state(self):
         """Test that CheckpointManager can save and load curriculum state."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            system_config = SystemConfig(data_dir=temp_dir, local_only=True)
-            checkpoint_manager = CheckpointManager(run="test_curriculum", system_cfg=system_config)
-
-            # Create curriculum state
-            mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
-            task_generator_config = SingleTaskGenerator.Config(env=mg_config)
-
-            curriculum_config = CurriculumConfig(
-                task_generator=task_generator_config,
-                num_active_tasks=10,
-                algorithm_config=LearningProgressConfig(num_active_tasks=10),
+            system_config = metta.rl.system_config.SystemConfig(data_dir=temp_dir, local_only=True)
+            checkpoint_manager = metta.rl.checkpoint_manager.CheckpointManager(
+                run="test_curriculum", system_cfg=system_config
             )
 
-            curriculum = Curriculum(curriculum_config, seed=42)
+            # Create curriculum state
+            mg_config = mettagrid.config.MettaGridConfig(game=mettagrid.config.GameConfig(num_agents=4))
+            task_generator_config = metta.cogworks.curriculum.task_generator.SingleTaskGenerator.Config(env=mg_config)
+
+            curriculum_config = metta.cogworks.curriculum.curriculum.CurriculumConfig(
+                task_generator=task_generator_config,
+                num_active_tasks=10,
+                algorithm_config=metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig(
+                    num_active_tasks=10
+                ),
+            )
+
+            curriculum = metta.cogworks.curriculum.curriculum.Curriculum(curriculum_config, seed=42)
 
             # Generate some tasks and performance data
             for _ in range(10):
@@ -379,8 +399,10 @@ class TestCheckpointManagerIntegration:
     def test_checkpoint_manager_without_curriculum_state(self):
         """Test CheckpointManager works without curriculum state (backward compatibility)."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            system_config = SystemConfig(data_dir=temp_dir, local_only=True)
-            checkpoint_manager = CheckpointManager(run="test_backward_compat", system_cfg=system_config)
+            system_config = metta.rl.system_config.SystemConfig(data_dir=temp_dir, local_only=True)
+            checkpoint_manager = metta.rl.checkpoint_manager.CheckpointManager(
+                run="test_backward_compat", system_cfg=system_config
+            )
 
             # Save trainer state without curriculum
             import torch
@@ -403,12 +425,14 @@ class TestTaskRecreation:
 
     def test_task_recreation_with_env_cfg(self):
         """Test that tasks are recreated with proper env_cfg after loading."""
-        mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
-        task_generator_config = SingleTaskGenerator.Config(env=mg_config)
+        mg_config = mettagrid.config.MettaGridConfig(game=mettagrid.config.GameConfig(num_agents=4))
+        task_generator_config = metta.cogworks.curriculum.task_generator.SingleTaskGenerator.Config(env=mg_config)
 
-        curriculum_config = CurriculumConfig(task_generator=task_generator_config, num_active_tasks=10)
+        curriculum_config = metta.cogworks.curriculum.curriculum.CurriculumConfig(
+            task_generator=task_generator_config, num_active_tasks=10
+        )
 
-        curriculum = Curriculum(curriculum_config, seed=42)
+        curriculum = metta.cogworks.curriculum.curriculum.Curriculum(curriculum_config, seed=42)
 
         # Generate some tasks
         original_tasks = {}
@@ -425,7 +449,7 @@ class TestTaskRecreation:
 
         # Save and load state
         state = curriculum.get_state()
-        curriculum2 = Curriculum(curriculum_config, seed=999)
+        curriculum2 = metta.cogworks.curriculum.curriculum.Curriculum(curriculum_config, seed=999)
         curriculum2.load_state(state)
 
         # Verify that tasks can be retrieved and have proper data
@@ -448,12 +472,14 @@ class TestTaskRecreation:
         import time
 
         # Create curriculum with many tasks
-        mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
-        task_generator_config = SingleTaskGenerator.Config(env=mg_config)
+        mg_config = mettagrid.config.MettaGridConfig(game=mettagrid.config.GameConfig(num_agents=4))
+        task_generator_config = metta.cogworks.curriculum.task_generator.SingleTaskGenerator.Config(env=mg_config)
 
-        curriculum_config = CurriculumConfig(task_generator=task_generator_config, num_active_tasks=1000)
+        curriculum_config = metta.cogworks.curriculum.curriculum.CurriculumConfig(
+            task_generator=task_generator_config, num_active_tasks=1000
+        )
 
-        curriculum = Curriculum(curriculum_config, seed=42)
+        curriculum = metta.cogworks.curriculum.curriculum.Curriculum(curriculum_config, seed=42)
 
         # Generate many tasks
         for _ in range(100):
@@ -464,7 +490,7 @@ class TestTaskRecreation:
         state = curriculum.get_state()
 
         start_time = time.time()
-        curriculum2 = Curriculum(curriculum_config, seed=999)
+        curriculum2 = metta.cogworks.curriculum.curriculum.Curriculum(curriculum_config, seed=999)
         curriculum2.load_state(state)
         load_time = time.time() - start_time
 
@@ -481,17 +507,17 @@ class TestCurriculumRoundtripBehavior:
 
     def test_discrete_random_curriculum_roundtrip(self):
         """Test roundtrip for discrete random curriculum (no algorithm)."""
-        mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
-        task_generator_config = SingleTaskGenerator.Config(env=mg_config)
+        mg_config = mettagrid.config.MettaGridConfig(game=mettagrid.config.GameConfig(num_agents=4))
+        task_generator_config = metta.cogworks.curriculum.task_generator.SingleTaskGenerator.Config(env=mg_config)
 
-        curriculum_config = CurriculumConfig(
+        curriculum_config = metta.cogworks.curriculum.curriculum.CurriculumConfig(
             task_generator=task_generator_config,
             num_active_tasks=10,
             algorithm_config=None,  # Use default discrete random
         )
 
         # Create original curriculum
-        curriculum1 = Curriculum(curriculum_config, seed=42)
+        curriculum1 = metta.cogworks.curriculum.curriculum.Curriculum(curriculum_config, seed=42)
 
         # Simulate training activity
         task_selections = []
@@ -507,7 +533,7 @@ class TestCurriculumRoundtripBehavior:
 
         # Checkpoint and restore
         state = curriculum1.get_state()
-        curriculum2 = Curriculum(curriculum_config, seed=999)  # Different seed
+        curriculum2 = metta.cogworks.curriculum.curriculum.Curriculum(curriculum_config, seed=999)  # Different seed
         curriculum2.load_state(state)
 
         # Continue activity and verify consistent behavior
@@ -532,19 +558,19 @@ class TestCurriculumRoundtripBehavior:
 
     def test_learning_progress_curriculum_roundtrip(self):
         """Test roundtrip for learning progress curriculum with bidirectional scoring."""
-        mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
-        task_generator_config = SingleTaskGenerator.Config(env=mg_config)
+        mg_config = mettagrid.config.MettaGridConfig(game=mettagrid.config.GameConfig(num_agents=4))
+        task_generator_config = metta.cogworks.curriculum.task_generator.SingleTaskGenerator.Config(env=mg_config)
 
-        curriculum_config = CurriculumConfig(
+        curriculum_config = metta.cogworks.curriculum.curriculum.CurriculumConfig(
             task_generator=task_generator_config,
             num_active_tasks=15,
-            algorithm_config=LearningProgressConfig(
+            algorithm_config=metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig(
                 num_active_tasks=15, use_bidirectional=True, max_memory_tasks=100, ema_timescale=0.01
             ),
         )
 
         # Create and train original curriculum
-        curriculum1 = Curriculum(curriculum_config, seed=123)
+        curriculum1 = metta.cogworks.curriculum.curriculum.Curriculum(curriculum_config, seed=123)
 
         # Create diverse task performance to trigger learning progress
         task_performance = {}
@@ -575,7 +601,7 @@ class TestCurriculumRoundtripBehavior:
 
         # Checkpoint and restore
         state = curriculum1.get_state()
-        curriculum2 = Curriculum(curriculum_config, seed=456)  # Different seed
+        curriculum2 = metta.cogworks.curriculum.curriculum.Curriculum(curriculum_config, seed=456)  # Different seed
         curriculum2.load_state(state)
 
         # Verify algorithm state preservation
@@ -610,18 +636,20 @@ class TestCurriculumRoundtripBehavior:
 
     def test_curriculum_deterministic_after_restore(self):
         """Test that curriculum produces deterministic sequences after restore."""
-        mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
-        task_generator_config = SingleTaskGenerator.Config(env=mg_config)
+        mg_config = mettagrid.config.MettaGridConfig(game=mettagrid.config.GameConfig(num_agents=4))
+        task_generator_config = metta.cogworks.curriculum.task_generator.SingleTaskGenerator.Config(env=mg_config)
 
-        curriculum_config = CurriculumConfig(
+        curriculum_config = metta.cogworks.curriculum.curriculum.CurriculumConfig(
             task_generator=task_generator_config,
             num_active_tasks=10,
-            algorithm_config=LearningProgressConfig(num_active_tasks=10),
+            algorithm_config=metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig(
+                num_active_tasks=10
+            ),
         )
 
         # Create two identical curricula
-        curriculum1 = Curriculum(curriculum_config, seed=789)
-        curriculum2 = Curriculum(curriculum_config, seed=789)
+        curriculum1 = metta.cogworks.curriculum.curriculum.Curriculum(curriculum_config, seed=789)
+        curriculum2 = metta.cogworks.curriculum.curriculum.Curriculum(curriculum_config, seed=789)
 
         # Run identical training on both
         for _ in range(25):
@@ -639,7 +667,7 @@ class TestCurriculumRoundtripBehavior:
 
         # Checkpoint curriculum1 and restore to curriculum3
         state = curriculum1.get_state()
-        curriculum3 = Curriculum(curriculum_config, seed=999)  # Different seed
+        curriculum3 = metta.cogworks.curriculum.curriculum.Curriculum(curriculum_config, seed=999)  # Different seed
         curriculum3.load_state(state)
 
         # Continue with curriculum2 and curriculum3 - they should be identical
@@ -658,16 +686,18 @@ class TestCurriculumRoundtripBehavior:
 
     def test_task_state_consistency_after_roundtrip(self):
         """Test that task internal state is consistent after save/load."""
-        mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
-        task_generator_config = SingleTaskGenerator.Config(env=mg_config)
+        mg_config = mettagrid.config.MettaGridConfig(game=mettagrid.config.GameConfig(num_agents=4))
+        task_generator_config = metta.cogworks.curriculum.task_generator.SingleTaskGenerator.Config(env=mg_config)
 
-        curriculum_config = CurriculumConfig(
+        curriculum_config = metta.cogworks.curriculum.curriculum.CurriculumConfig(
             task_generator=task_generator_config,
             num_active_tasks=8,
-            algorithm_config=LearningProgressConfig(num_active_tasks=8, use_bidirectional=True),
+            algorithm_config=metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig(
+                num_active_tasks=8, use_bidirectional=True
+            ),
         )
 
-        curriculum = Curriculum(curriculum_config, seed=333)
+        curriculum = metta.cogworks.curriculum.curriculum.Curriculum(curriculum_config, seed=333)
 
         # Build up task history
         task_history = {}
@@ -699,7 +729,7 @@ class TestCurriculumRoundtripBehavior:
 
         # Checkpoint and restore
         state = curriculum.get_state()
-        curriculum2 = Curriculum(curriculum_config, seed=777)
+        curriculum2 = metta.cogworks.curriculum.curriculum.Curriculum(curriculum_config, seed=777)
         curriculum2.load_state(state)
 
         # Verify all task states are identical
@@ -731,20 +761,22 @@ class TestCurriculumRoundtripBehavior:
 
     def test_empty_curriculum_roundtrip(self):
         """Test roundtrip with minimal/empty curriculum state."""
-        mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
-        task_generator_config = SingleTaskGenerator.Config(env=mg_config)
+        mg_config = mettagrid.config.MettaGridConfig(game=mettagrid.config.GameConfig(num_agents=4))
+        task_generator_config = metta.cogworks.curriculum.task_generator.SingleTaskGenerator.Config(env=mg_config)
 
-        curriculum_config = CurriculumConfig(task_generator=task_generator_config, num_active_tasks=5)
+        curriculum_config = metta.cogworks.curriculum.curriculum.CurriculumConfig(
+            task_generator=task_generator_config, num_active_tasks=5
+        )
 
         # Create curriculum but don't use it much
-        curriculum1 = Curriculum(curriculum_config, seed=444)
+        curriculum1 = metta.cogworks.curriculum.curriculum.Curriculum(curriculum_config, seed=444)
 
         # Just create the initial task pool, no additional activity
         assert len(curriculum1._tasks) == 5  # Should be initialized at capacity
 
         # Checkpoint immediately
         state = curriculum1.get_state()
-        curriculum2 = Curriculum(curriculum_config, seed=555)
+        curriculum2 = metta.cogworks.curriculum.curriculum.Curriculum(curriculum_config, seed=555)
         curriculum2.load_state(state)
 
         # Should restore successfully

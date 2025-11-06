@@ -1,17 +1,17 @@
 import uuid
 
-from bidict import bidict
+import bidict
 
-from metta.app_backend.clients.stats_client import StatsClient
-from metta.rl.checkpoint_manager import CheckpointManager
+import metta.app_backend.clients.stats_client
+import metta.rl.checkpoint_manager
 
 
 def get_or_create_policy_ids(
-    stats_client: StatsClient,
+    stats_client: metta.app_backend.clients.stats_client.StatsClient,
     policies: list[tuple[str, str | None]],
     epoch_id: uuid.UUID | None = None,
     create: bool = True,
-) -> bidict[str, uuid.UUID]:
+) -> bidict.bidict[str, uuid.UUID]:
     """Get or create policy IDs in the stats database.
 
     Args:
@@ -27,7 +27,7 @@ def get_or_create_policy_ids(
     processed_policies = []
     for uri, description in policies:
         # Extract run_name from URI metadata
-        metadata = CheckpointManager.get_policy_metadata(uri)
+        metadata = metta.rl.checkpoint_manager.CheckpointManager.get_policy_metadata(uri)
         run_name = metadata["run_name"]
         epoch = metadata.get("epoch", 0)
         name = f"{run_name}:v{epoch}"
@@ -39,7 +39,7 @@ def get_or_create_policy_ids(
     name_to_id = policy_ids_response.policy_ids
 
     # Build URI-based bidict
-    policy_ids = bidict()
+    policy_ids = bidict.bidict()
     for uri, name, _ in processed_policies:
         if name in name_to_id:
             policy_ids[uri] = name_to_id[name]

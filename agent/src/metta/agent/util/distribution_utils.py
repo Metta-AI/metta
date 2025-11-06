@@ -1,14 +1,13 @@
-from typing import Any, Tuple
+import typing
 
 import torch
 import torch.distributed as dist
 import torch.jit
 import torch.nn.functional as F
-from torch import Tensor
 
 
 @torch.jit.script
-def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
+def sample_actions(action_logits: torch.Tensor) -> typing.Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Sample actions from logits during inference.
 
@@ -44,7 +43,9 @@ def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tenso
 
 
 @torch.jit.script
-def evaluate_actions(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
+def evaluate_actions(
+    action_logits: torch.Tensor, actions: torch.Tensor
+) -> typing.Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Evaluate provided actions against logits during training.
 
@@ -78,7 +79,7 @@ def evaluate_actions(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Te
     return log_probs, entropy, action_log_probs
 
 
-def get_from_master(x: Any) -> Any:
+def get_from_master(x: typing.Any) -> typing.Any:
     """Broadcast value from rank 0 to all ranks in distributed training. Works for everything that can be pickled."""
 
     if not dist.is_available() or not dist.is_initialized() or dist.get_world_size() == 1:

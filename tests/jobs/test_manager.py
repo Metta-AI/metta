@@ -1,20 +1,20 @@
 """Tests for JobManager."""
 
+import pathlib
 import tempfile
-from pathlib import Path
 
-from metta.jobs.job_config import JobConfig
-from metta.jobs.job_manager import JobManager
+import metta.jobs.job_config
+import metta.jobs.job_manager
 
 
 def test_job_manager_basic():
     """Test basic JobManager functionality."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        base_dir = Path(tmpdir)
-        manager = JobManager(base_dir, max_local_jobs=2, max_remote_jobs=5)
+        base_dir = pathlib.Path(tmpdir)
+        manager = metta.jobs.job_manager.JobManager(base_dir, max_local_jobs=2, max_remote_jobs=5)
 
         # Submit a simple local job
-        config = JobConfig(
+        config = metta.jobs.job_config.JobConfig(
             name="test_job",
             module="echo",
             args=["message=hello"],
@@ -38,12 +38,12 @@ def test_job_manager_basic():
 def test_job_manager_group_operations():
     """Test group operations."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        base_dir = Path(tmpdir)
-        manager = JobManager(base_dir)
+        base_dir = pathlib.Path(tmpdir)
+        manager = metta.jobs.job_manager.JobManager(base_dir)
 
         # Submit multiple jobs to same group
         for i in range(3):
-            config = JobConfig(
+            config = metta.jobs.job_config.JobConfig(
                 name=f"job_{i}",
                 module="echo",
                 args=[f"i={i}"],

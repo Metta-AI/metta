@@ -1,11 +1,11 @@
 """Discord webhook posting utility with automatic message splitting."""
 
 import time
-from typing import Any
+import typing
 
 import requests
 
-from metta.common.util.log_config import init_logging
+import metta.common.util.log_config
 
 DISCORD_MESSAGE_CHARACTER_LIMIT = 2000
 RATE_LIMIT_DELAY = 0.5  # Delay between messages to avoid rate limiting
@@ -108,7 +108,7 @@ def send_to_discord(webhook_url: str, content: str, suppress_embeds: bool = True
             chunk = chunk[:max_chunk_len]
             prefixed_chunk = MESSAGE_PREFIX + chunk
 
-        payload: dict[str, Any] = {"content": prefixed_chunk}
+        payload: dict[str, typing.Any] = {"content": prefixed_chunk}
         if suppress_embeds:
             payload["flags"] = 4  # SUPPRESS_EMBEDS flag
 
@@ -141,7 +141,7 @@ if __name__ == "__main__":
     import os
     import sys
 
-    init_logging()
+    metta.common.util.log_config.init_logging()
 
     # Check for webhook URL in environment variable
     webhook_url = os.getenv("DISCORD_WEBHOOK_URL")

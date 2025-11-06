@@ -1,30 +1,29 @@
 """AGaLiTe transformer component compatible with the PolicyAutoBuilder pipeline."""
 
-from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+import dataclasses
+import typing
 
+import pydantic
+import tensordict
 import torch
 import torch.nn as nn
-from pydantic import Field
-from tensordict import NonTensorData, TensorDict
-from torchrl.data import Composite
+import torchrl.data
 
-from metta.agent.components.agalite_core import AGaLiTeCore
-from metta.agent.components.agalite_kernel import AGaLiTeKernelConfig
-from metta.agent.components.component_config import ComponentConfig
+import metta.agent.components.agalite_core
+import metta.agent.components.agalite_kernel
+import metta.agent.components.component_config
 
 
-@dataclass(slots=True)
+@dataclasses.dataclass(slots=True)
 class SegmentMemoryRecord:
     """Snapshot of policy memory captured at the start of a replay segment."""
 
     segment_index: int
-    memory: Optional[Dict[str, Optional[List[torch.Tensor]]]]
+    memory: typing.Optional[typing.Dict[str, typing.Optional[typing.List[torch.Tensor]]]]
 
 
-class AGaLiTeTransformerConfig(ComponentConfig):
+class AGaLiTeTransformerConfig(metta.agent.components.component_config.ComponentConfig):
     in_key: str
     out_key: str
     name: str = "agalite_transformer"
@@ -39,7 +38,9 @@ class AGaLiTeTransformerConfig(ComponentConfig):
     reset_on_terminate: bool = True
     layer_norm_eps: float = 1e-5
     gru_bias: float = 2.0
-    kernel: AGaLiTeKernelConfig = Field(default_factory=AGaLiTeKernelConfig)
+    kernel: metta.agent.components.agalite_kernel.AGaLiTeKernelConfig = pydantic.Field(
+        default_factory=metta.agent.components.agalite_kernel.AGaLiTeKernelConfig
+    )
 
     def make_component(self, env=None):
         return AGaLiTeTransformer(config=self)
@@ -59,7 +60,7 @@ class AGaLiTeTransformer(nn.Module):
             raise ValueError(f"hidden_size ({self.hidden_size}) must be divisible by n_heads ({config.n_heads})")
 
         self._head_dim = self.hidden_size // config.n_heads
-        self._core = AGaLiTeCore(
+        self._core = metta.agent.components.agalite_core.AGaLiTeCore(
             n_layers=config.n_layers,
             d_model=self.hidden_size,
             d_head=self._head_dim,
@@ -75,15 +76,15 @@ class AGaLiTeTransformer(nn.Module):
         )
 
         # Per-environment memory cache used during rollout.
-        self._env_memory: Dict[str, Tuple[torch.Tensor, ...]] = {}
+        self._env_memory: typing.Dict[str, typing.Tuple[torch.Tensor, ...]] = {}
         self._env_capacity: int = 0
         self._memory_device: torch.device | None = None
-        self._pending_segment_records: List[SegmentMemoryRecord] = []
+        self._pending_segment_records: typing.List[SegmentMemoryRecord] = []
 
     # ------------------------------------------------------------------
     # Public nn.Module API
     # ------------------------------------------------------------------
-    def forward(self, td: TensorDict) -> TensorDict:
+    def forward(self, td: tensordict.TensorDict) -> tensordict.TensorDict:
         latent = td[self.in_key]
 
         total = latent.shape[0]
@@ -145,18 +146,20 @@ class AGaLiTeTransformer(nn.Module):
         self._memory_device = None
         self._pending_segment_records = []
 
-    def get_agent_experience_spec(self) -> Composite:
+    def get_agent_experience_spec(self) -> torchrl.data.Composite:
         # No additional memory needs to be stored in replay; training runs with zero-initialised state.
-        return Composite()
+        return torchrl.data.Composite()
 
-    def consume_segment_memory_records(self) -> List[SegmentMemoryRecord]:
+    def consume_segment_memory_records(self) -> typing.List[SegmentMemoryRecord]:
         records = self._pending_segment_records
         self._pending_segment_records = []
         return records
 
     def prepare_memory_batch(
-        self, snapshots: List[Optional[Dict[str, Optional[List[torch.Tensor]]]]], device: torch.device
-    ) -> Optional[Dict[str, Tuple[torch.Tensor, ...]]]:
+        self,
+        snapshots: typing.List[typing.Optional[typing.Dict[str, typing.Optional[typing.List[torch.Tensor]]]]],
+        device: torch.device,
+    ) -> typing.Optional[typing.Dict[str, typing.Tuple[torch.Tensor, ...]]]:
         if not snapshots or all(snapshot is None for snapshot in snapshots):
             return None
         return self._prepare_memory_batch(snapshots, device)
@@ -166,7 +169,7 @@ class AGaLiTeTransformer(nn.Module):
     # ------------------------------------------------------------------
     def _compute_terminations(
         self,
-        td: TensorDict,
+        td: tensordict.TensorDict,
         time_steps: int,
         batch: int,
         device: torch.device,
@@ -205,7 +208,7 @@ class AGaLiTeTransformer(nn.Module):
         else:
             for layer_key, tensors in initialized.items():
                 stored = self._env_memory[layer_key]
-                updated: List[torch.Tensor] = []
+                updated: typing.List[torch.Tensor] = []
                 for idx, new_tensor in enumerate(tensors):
                     existing = stored[idx]
                     pad = new_tensor.clone().detach()
@@ -248,8 +251,8 @@ class AGaLiTeTransformer(nn.Module):
             self._env_memory[layer_key] = tuple(stored)
 
     def _extract_segment_metadata(
-        self, td: TensorDict, batch: int, device: torch.device
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        self, td: tensordict.TensorDict, batch: int, device: torch.device
+    ) -> typing.Tuple[torch.Tensor, torch.Tensor]:
         indices = td.get("_segment_indices")
         positions = td.get("_segment_pos")
         if indices is None or positions is None:
@@ -262,13 +265,13 @@ class AGaLiTeTransformer(nn.Module):
         return indices, positions
 
     def _extract_memory_snapshots(
-        self, td: TensorDict
-    ) -> Optional[List[Optional[Dict[str, Optional[List[torch.Tensor]]]]]]:
+        self, td: tensordict.TensorDict
+    ) -> typing.Optional[typing.List[typing.Optional[typing.Dict[str, typing.Optional[typing.List[torch.Tensor]]]]]]:
         snapshots_data = td.get("segment_memory_snapshots")
         if snapshots_data is None:
             return None
 
-        if isinstance(snapshots_data, NonTensorData):
+        if isinstance(snapshots_data, tensordict.NonTensorData):
             data = snapshots_data.data
         else:
             data = snapshots_data
@@ -291,7 +294,7 @@ class AGaLiTeTransformer(nn.Module):
         self,
         segment_indices: torch.Tensor,
         segment_positions: torch.Tensor,
-        memory: Dict[str, Tuple[torch.Tensor, ...]],
+        memory: typing.Dict[str, typing.Tuple[torch.Tensor, ...]],
     ) -> None:
         if segment_indices.numel() == 0:
             return
@@ -299,21 +302,23 @@ class AGaLiTeTransformer(nn.Module):
         for batch_pos, segment_idx in enumerate(segment_indices.tolist()):
             if segment_positions[batch_pos].item() != 0:
                 continue
-            snapshot: Dict[str, List[torch.Tensor]] = {}
+            snapshot: typing.Dict[str, typing.List[torch.Tensor]] = {}
             for layer_key, tensors in memory.items():
                 snapshot[layer_key] = [tensor[batch_pos : batch_pos + 1].detach().cpu() for tensor in tensors]
             self._pending_segment_records.append(SegmentMemoryRecord(segment_index=segment_idx, memory=snapshot))
 
     def _prepare_memory_batch(
         self,
-        snapshots: List[Optional[Dict[str, Optional[List[torch.Tensor]]]]],
+        snapshots: typing.List[typing.Optional[typing.Dict[str, typing.Optional[typing.List[torch.Tensor]]]]],
         device: torch.device,
-    ) -> Dict[str, Tuple[torch.Tensor, ...]]:
+    ) -> typing.Dict[str, typing.Tuple[torch.Tensor, ...]]:
         if not snapshots:
             return self._core.initialize_memory(0, device)
 
         template = self._core.initialize_memory(1, device)
-        batched: Dict[str, List[List[torch.Tensor]]] = {key: [[] for _ in tensors] for key, tensors in template.items()}
+        batched: typing.Dict[str, typing.List[typing.List[torch.Tensor]]] = {
+            key: [[] for _ in tensors] for key, tensors in template.items()
+        }
 
         for snapshot in snapshots:
             for layer_key, template_tensors in template.items():

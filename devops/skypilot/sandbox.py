@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run
 """Wrapper script to launch a sandbox from the skypilot directory."""
 
-from devops.skypilot.recipes.sandbox import main
+import devops.skypilot.recipes.sandbox
 
 if __name__ == "__main__":
-    main()
+    devops.skypilot.recipes.sandbox.main()

@@ -1,16 +1,16 @@
 import time
-from typing import Any
+import typing
 
-from devops.skypilot.notifications.notifier import NotificationBase, NotificationConfig
-from devops.skypilot.utils.job_config import JobConfig
-from metta.common.wandb.utils import send_wandb_alert
+import devops.skypilot.notifications.notifier
+import devops.skypilot.utils.job_config
+import metta.common.wandb.utils
 
 
-class WandBNotifier(NotificationBase):
+class WandBNotifier(devops.skypilot.notifications.notifier.NotificationBase):
     def __init__(self):
         super().__init__("W&B")
 
-    def _validate_config(self, job_config: JobConfig) -> str | None:
+    def _validate_config(self, job_config: devops.skypilot.utils.job_config.JobConfig) -> str | None:
         if not job_config.metta_run_id:
             return "Missing required field: metta_run_id"
         if not job_config.wandb_project:
@@ -19,7 +19,11 @@ class WandBNotifier(NotificationBase):
             return "Missing required field: wandb_entity"
         return None
 
-    def _make_payload(self, notification: NotificationConfig, job_config: JobConfig) -> dict[str, Any]:
+    def _make_payload(
+        self,
+        notification: devops.skypilot.notifications.notifier.NotificationConfig,
+        job_config: devops.skypilot.utils.job_config.JobConfig,
+    ) -> dict[str, typing.Any]:
         alert_text_parts = [notification.description]
 
         if job_config.start_time:
@@ -41,5 +45,5 @@ class WandBNotifier(NotificationBase):
         }
         return payload
 
-    def _send(self, payload: dict[str, Any]) -> None:
-        send_wandb_alert(**payload)
+    def _send(self, payload: dict[str, typing.Any]) -> None:
+        metta.common.wandb.utils.send_wandb_alert(**payload)

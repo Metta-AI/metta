@@ -1,10 +1,10 @@
-from itertools import islice
-from typing import Iterable
+import itertools
+import typing
 
 import wandb
-from wandb.apis.public.runs import Run
+import wandb.apis.public.runs
 
-from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
+import metta.common.util.constants
 
 
 def find_training_runs(
@@ -13,12 +13,12 @@ def find_training_runs(
     state: str | None = None,
     created_after: str | None = None,
     created_before: str | None = None,
-    entity: str = METTA_WANDB_ENTITY,
-    project: str = METTA_WANDB_PROJECT,
+    entity: str = metta.common.util.constants.METTA_WANDB_ENTITY,
+    project: str = metta.common.util.constants.METTA_WANDB_PROJECT,
     order_by: str = "-created_at",
     run_names: list[str] | None = None,
     limit: int = 50,
-) -> Iterable[Run]:
+) -> typing.Iterable[wandb.apis.public.runs.Run]:
     filters = {}
     if state:
         filters["state"] = state
@@ -36,4 +36,4 @@ def find_training_runs(
         filters["tags"] = {"$in": wandb_tags}
     if run_names:
         filters["name"] = {"$in": run_names}
-    return islice(wandb.Api().runs(f"{entity}/{project}", filters=filters, order=order_by), limit)
+    return itertools.islice(wandb.Api().runs(f"{entity}/{project}", filters=filters, order=order_by), limit)

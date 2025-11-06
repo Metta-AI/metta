@@ -1,16 +1,15 @@
 """Git repository filtering using built-in git commands."""
 
-from __future__ import annotations
 
+import pathlib
 import tempfile
 import time
-from pathlib import Path
 
-from .core import GitError, run_git
-from .git import get_commit_count, get_file_list
+import gitta.core
+import gitta.git
 
 
-def filter_repo(source_path: Path, paths: list[str], make_root: str | None = None) -> Path:
+def filter_repo(source_path: pathlib.Path, paths: list[str], make_root: str | None = None) -> pathlib.Path:
     """Filter repository to only include specified paths using git subtree split.
 
     This uses git's built-in subtree split command to extract a subdirectory
@@ -60,7 +59,7 @@ def filter_repo(source_path: Path, paths: list[str], make_root: str | None = Non
     try:
         # Use git subtree split to create a branch with just this subdirectory's history
         # This preserves all commit history for files in this directory
-        run_git(
+        gitta.core.run_git(
             "-C",
             str(source_path),
             "subtree",
@@ -70,18 +69,18 @@ def filter_repo(source_path: Path, paths: list[str], make_root: str | None = Non
             "-b",
             branch_name,
         )
-    except GitError as e:
+    except gitta.core.GitError as e:
         raise RuntimeError(f"Failed to split subtree: {e}") from e
 
     # Create temporary directory for the filtered repository
-    target_dir = Path(tempfile.mkdtemp(prefix="filtered-repo-"))
+    target_dir = pathlib.Path(tempfile.mkdtemp(prefix="filtered-repo-"))
     filtered_path = target_dir / "filtered"
 
     try:
         # Clone the split branch to our target location
         # This gives us a clean repository with the subdirectory as root
         # Use -C to run from a stable directory (not the test's temp dir)
-        run_git(
+        gitta.core.run_git(
             "-C",
             str(target_dir),
             "clone",
@@ -91,23 +90,23 @@ def filter_repo(source_path: Path, paths: list[str], make_root: str | None = Non
             str(source_path),
             "filtered",
         )
-    except GitError as e:
+    except gitta.core.GitError as e:
         raise RuntimeError(f"Failed to clone filtered branch: {e}") from e
     finally:
         # Clean up the temporary branch
         try:
-            run_git("-C", str(source_path), "branch", "-D", branch_name)
-        except GitError:
+            gitta.core.run_git("-C", str(source_path), "branch", "-D", branch_name)
+        except gitta.core.GitError:
             # If cleanup fails, that's not critical - continue
             pass
 
     # Verify result
-    files = get_file_list(filtered_path)
+    files = gitta.git.get_file_list(filtered_path)
 
     if not files:
         raise RuntimeError("Filtered repository is empty!")
 
-    commit_count = get_commit_count(filtered_path)
+    commit_count = gitta.git.get_commit_count(filtered_path)
     print(f"✅ Filtered: {len(files)} files, {commit_count} commits")
 
     return filtered_path

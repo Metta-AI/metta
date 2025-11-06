@@ -1,15 +1,15 @@
-from pydantic import Field
+import pydantic
 
-from mettagrid.mapgen.scene import Scene, SceneConfig
+import mettagrid.mapgen.scene
 
 
-class BoundedLayoutConfig(SceneConfig):
-    max_width: int = Field(ge=1)
-    max_height: int = Field(ge=1)
+class BoundedLayoutConfig(mettagrid.mapgen.scene.SceneConfig):
+    max_width: int = pydantic.Field(ge=1)
+    max_height: int = pydantic.Field(ge=1)
     tag: str
 
 
-class BoundedLayout(Scene[BoundedLayoutConfig]):
+class BoundedLayout(mettagrid.mapgen.scene.Scene[BoundedLayoutConfig]):
     """
     Create a centered sub-area whose size is clamped by both the current zone size
     and the configured max_width/max_height.

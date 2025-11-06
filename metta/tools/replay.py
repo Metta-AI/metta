@@ -2,26 +2,26 @@
 
 import logging
 import os
+import pathlib
 import subprocess
-from pathlib import Path
 
-from metta.common.tool import Tool
-from metta.common.wandb.context import WandbConfig
-from metta.sim.simulation import Simulation
-from metta.sim.simulation_config import SimulationConfig
-from metta.tools.utils.auto_config import auto_wandb_config
+import metta.common.tool
+import metta.common.wandb.context
+import metta.sim.simulation
+import metta.sim.simulation_config
+import metta.tools.utils.auto_config
 
 logger = logging.getLogger(__name__)
 
 
-class ReplayTool(Tool):
+class ReplayTool(metta.common.tool.Tool):
     """Tool for generating and viewing replay files in MettaScope.
     Creates a simulation specifically to generate replay files and automatically
     opens them in the Nim MettaScope application for visualization. This tool focuses
     on replay viewing, unlike EvaluateTool which focuses on policy evaluation."""
 
-    wandb: WandbConfig = auto_wandb_config()
-    sim: SimulationConfig
+    wandb: metta.common.wandb.context.WandbConfig = metta.tools.utils.auto_config.auto_wandb_config()
+    sim: metta.sim.simulation_config.SimulationConfig
     policy_uri: str | None = None
     replay_dir: str = "./train_dir/replays"
     stats_dir: str = "./train_dir/stats"
@@ -30,7 +30,7 @@ class ReplayTool(Tool):
 
     def invoke(self, args: dict[str, str]) -> int | None:
         # Create simulation using CheckpointManager integration
-        sim = Simulation.create(
+        sim = metta.sim.simulation.Simulation.create(
             sim_config=self.sim,
             stats_dir=self.stats_dir,
             replay_dir=self.replay_dir,
@@ -78,7 +78,7 @@ def launch_mettascope(replay_url: str) -> None:
     replay_path = get_clean_path(replay_url)
 
     # Find the mettascope source directory
-    project_root = Path(__file__).resolve().parent.parent.parent
+    project_root = pathlib.Path(__file__).resolve().parent.parent.parent
     mettascope_src = project_root / "packages" / "mettagrid" / "nim" / "mettascope" / "src" / "mettascope.nim"
 
     if not mettascope_src.exists():

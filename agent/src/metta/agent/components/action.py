@@ -1,13 +1,13 @@
+import einops
+import tensordict
 import torch
 import torch.nn as nn
-from einops import repeat
-from tensordict import TensorDict
 
-from metta.agent.components.component_config import ComponentConfig
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+import metta.agent.components.component_config
+import mettagrid.policy.policy_env_interface
 
 
-class ActionEmbeddingConfig(ComponentConfig):
+class ActionEmbeddingConfig(metta.agent.components.component_config.ComponentConfig):
     out_key: str
     name: str = "action_embedding"
     num_embeddings: int = 100
@@ -52,7 +52,7 @@ class ActionEmbedding(nn.Module):
 
     def initialize_to_environment(
         self,
-        env: PolicyEnvInterface,
+        env: mettagrid.policy.policy_env_interface.PolicyEnvInterface,
         device: torch.device,
     ) -> None:
         action_names = list(env.action_names)
@@ -75,12 +75,12 @@ class ActionEmbedding(nn.Module):
         )
         self.num_actions = len(self.active_indices)
 
-    def forward(self, td: TensorDict):
+    def forward(self, td: tensordict.TensorDict):
         B_TT = td.batch_size.numel()
 
         # get embeddings then expand to match the batch size
         indices = self.active_indices.to(self.net.weight.device)
-        td[self.out_key] = repeat(self.net(indices), "a e -> b a e", b=B_TT)
+        td[self.out_key] = einops.repeat(self.net(indices), "a e -> b a e", b=B_TT)
         return td
 
     def _orthogonal_init(self, weight: torch.Tensor) -> None:

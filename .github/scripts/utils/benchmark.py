@@ -15,7 +15,7 @@ import subprocess
 import sys
 import threading
 import time
-from typing import Tuple, Union
+import typing
 
 import psutil
 
@@ -61,7 +61,7 @@ class ProcessMonitor:
         self._monitor_thread.daemon = True
         self._monitor_thread.start()
 
-    def stop(self) -> Tuple[float, float]:
+    def stop(self) -> typing.Tuple[float, float]:
         """Stop monitoring and return (duration, peak_memory_mb)."""
         self._stop_monitoring.set()
 
@@ -73,7 +73,7 @@ class ProcessMonitor:
 
 
 def run_with_benchmark(
-    cmd: Union[str, list[str]],
+    cmd: typing.Union[str, list[str]],
     name: str = "process",
     timeout: int | None = None,
     shell: bool = False,

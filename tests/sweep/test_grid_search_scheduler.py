@@ -7,37 +7,37 @@ Covers:
 - Rejecting non-categorical parameters
 """
 
-from datetime import datetime, timezone
+import datetime
 
 import pytest
 
-from metta.adaptive.models import JobTypes, RunInfo
-from metta.sweep.core import CategoricalParameterConfig
-from metta.sweep.schedulers.grid_search import GridSearchScheduler, GridSearchSchedulerConfig
+import metta.adaptive.models
+import metta.sweep.core
+import metta.sweep.schedulers.grid_search
 
 
 def _now():
-    return datetime.now(timezone.utc)
+    return datetime.datetime.now(datetime.timezone.utc)
 
 
 def test_grid_scheduler_basic_flow():
     # Build a 2x2 grid: model.color x trainer.device
     params = {
-        "model": {"color": CategoricalParameterConfig(choices=["red", "blue"])},
+        "model": {"color": metta.sweep.core.CategoricalParameterConfig(choices=["red", "blue"])},
         "trainer": {"device": ["cpu", "cuda"]},
     }
 
-    cfg = GridSearchSchedulerConfig(
+    cfg = metta.sweep.schedulers.grid_search.GridSearchSchedulerConfig(
         experiment_id="grid_exp",
         parameters=params,
         max_trials=3,  # cap below full grid of 4
     )
-    scheduler = GridSearchScheduler(cfg)
+    scheduler = metta.sweep.schedulers.grid_search.GridSearchScheduler(cfg)
 
     # First call: request 2 training slots -> should schedule 2 trainings
     jobs = scheduler.schedule([], available_training_slots=2)
     assert len(jobs) == 2
-    assert all(job.type == JobTypes.LAUNCH_TRAINING for job in jobs)
+    assert all(job.type == metta.adaptive.models.JobTypes.LAUNCH_TRAINING for job in jobs)
     for job in jobs:
         suggestion = job.metadata.get("sweep/suggestion", {})
         assert suggestion["model.color"] in {"red", "blue"}
@@ -45,7 +45,7 @@ def test_grid_scheduler_basic_flow():
 
     # Second call: no free slots -> no new jobs
     runs_in_training = [
-        RunInfo(
+        metta.adaptive.models.RunInfo(
             run_id=jobs[0].run_id,
             created_at=_now(),
             last_updated_at=_now(),
@@ -55,7 +55,7 @@ def test_grid_scheduler_basic_flow():
             has_been_evaluated=False,
             has_failed=False,
         ),
-        RunInfo(
+        metta.adaptive.models.RunInfo(
             run_id=jobs[1].run_id,
             created_at=_now(),
             last_updated_at=_now(),
@@ -71,7 +71,7 @@ def test_grid_scheduler_basic_flow():
 
     # Third call: both runs finished training -> schedule evals
     runs_train_done = [
-        RunInfo(
+        metta.adaptive.models.RunInfo(
             run_id=jobs[0].run_id,
             created_at=_now(),
             last_updated_at=_now(),
@@ -81,7 +81,7 @@ def test_grid_scheduler_basic_flow():
             has_been_evaluated=False,
             has_failed=False,
         ),
-        RunInfo(
+        metta.adaptive.models.RunInfo(
             run_id=jobs[1].run_id,
             created_at=_now(),
             last_updated_at=_now(),
@@ -95,11 +95,11 @@ def test_grid_scheduler_basic_flow():
     # status property returns TRAINING_DONE_NO_EVAL when completed but not evaluated
     jobs3 = scheduler.schedule(runs_train_done, available_training_slots=0)
     assert len(jobs3) == 2
-    assert all(job.type == JobTypes.LAUNCH_EVAL for job in jobs3)
+    assert all(job.type == metta.adaptive.models.JobTypes.LAUNCH_EVAL for job in jobs3)
 
     # Fourth call: runs completed evals (COMPLETED) -> one more training (max_trials=3)
     runs_completed = [
-        RunInfo(
+        metta.adaptive.models.RunInfo(
             run_id=jobs[0].run_id,
             created_at=_now(),
             last_updated_at=_now(),
@@ -110,7 +110,7 @@ def test_grid_scheduler_basic_flow():
             has_failed=False,
             summary=jobs[0].metadata,
         ),
-        RunInfo(
+        metta.adaptive.models.RunInfo(
             run_id=jobs[1].run_id,
             created_at=_now(),
             last_updated_at=_now(),
@@ -124,11 +124,11 @@ def test_grid_scheduler_basic_flow():
     ]
     jobs4 = scheduler.schedule(runs_completed, available_training_slots=1)
     assert len(jobs4) == 1
-    assert jobs4[0].type == JobTypes.LAUNCH_TRAINING
+    assert jobs4[0].type == metta.adaptive.models.JobTypes.LAUNCH_TRAINING
 
     # After third training is completed, experiment is complete per max_trials
     runs_done = runs_completed + [
-        RunInfo(
+        metta.adaptive.models.RunInfo(
             run_id=jobs4[0].run_id,
             created_at=_now(),
             last_updated_at=_now(),
@@ -153,9 +153,9 @@ def test_grid_scheduler_rejects_non_categorical():
             }
         }
     }
-    cfg = GridSearchSchedulerConfig(experiment_id="grid_bad", parameters=params)
+    cfg = metta.sweep.schedulers.grid_search.GridSearchSchedulerConfig(experiment_id="grid_bad", parameters=params)
     with pytest.raises(TypeError):
-        _ = GridSearchScheduler(cfg)
+        _ = metta.sweep.schedulers.grid_search.GridSearchScheduler(cfg)
 
 
 def test_grid_scheduler_accepts_list_and_nested_config():
@@ -163,10 +163,10 @@ def test_grid_scheduler_accepts_list_and_nested_config():
         # Dotted key as leaf list is allowed
         "trainer.optimizer.device": ["cpu", "cuda"],
         # Nested with CategoricalParameterConfig is allowed
-        "model": {"color": CategoricalParameterConfig(choices=["red", "blue"])},
+        "model": {"color": metta.sweep.core.CategoricalParameterConfig(choices=["red", "blue"])},
     }
-    cfg = GridSearchSchedulerConfig(experiment_id="grid_ok", parameters=params)
-    scheduler = GridSearchScheduler(cfg)
+    cfg = metta.sweep.schedulers.grid_search.GridSearchSchedulerConfig(experiment_id="grid_ok", parameters=params)
+    scheduler = metta.sweep.schedulers.grid_search.GridSearchScheduler(cfg)
 
     # Should schedule first training job
     jobs = scheduler.schedule([], available_training_slots=1)
@@ -178,10 +178,10 @@ def test_grid_scheduler_accepts_list_and_nested_config():
 
 def test_grid_scheduler_resume_hydrates_from_runs():
     params = {
-        "model": {"color": CategoricalParameterConfig(choices=["red", "blue"])},
+        "model": {"color": metta.sweep.core.CategoricalParameterConfig(choices=["red", "blue"])},
         "trainer": {"device": ["cpu", "cuda"]},
     }
-    cfg = GridSearchSchedulerConfig(experiment_id="grid_resume", parameters=params)
+    cfg = metta.sweep.schedulers.grid_search.GridSearchSchedulerConfig(experiment_id="grid_resume", parameters=params)
 
     # Pretend two runs already completed with specific suggestions
     completed_runs = []
@@ -191,7 +191,7 @@ def test_grid_scheduler_resume_hydrates_from_runs():
     ]
     for i, sugg in enumerate(suggs, start=1):
         completed_runs.append(
-            RunInfo(
+            metta.adaptive.models.RunInfo(
                 run_id=f"grid_resume_trial_{i:04d}",
                 created_at=_now(),
                 last_updated_at=_now(),
@@ -205,7 +205,7 @@ def test_grid_scheduler_resume_hydrates_from_runs():
         )
 
     # New scheduler instance (simulating restart)
-    scheduler = GridSearchScheduler(cfg)
+    scheduler = metta.sweep.schedulers.grid_search.GridSearchScheduler(cfg)
 
     # Ask to schedule up to 2 trainings; should skip used suggestions and launch remaining grid points
     jobs = scheduler.schedule(completed_runs, available_training_slots=2)
@@ -223,15 +223,17 @@ def test_grid_scheduler_resume_hydrates_from_runs():
 
 def test_grid_scheduler_eval_throttling():
     params = {
-        "model": {"color": CategoricalParameterConfig(choices=["red", "blue"])},
+        "model": {"color": metta.sweep.core.CategoricalParameterConfig(choices=["red", "blue"])},
         "trainer": {"device": ["cpu", "cuda"]},
     }
-    cfg = GridSearchSchedulerConfig(experiment_id="grid_throttle", parameters=params, max_concurrent_evals=1)
-    scheduler = GridSearchScheduler(cfg)
+    cfg = metta.sweep.schedulers.grid_search.GridSearchSchedulerConfig(
+        experiment_id="grid_throttle", parameters=params, max_concurrent_evals=1
+    )
+    scheduler = metta.sweep.schedulers.grid_search.GridSearchScheduler(cfg)
 
     # Two runs finished training => only 1 eval should be scheduled due to throttle
     runs_train_done = [
-        RunInfo(
+        metta.adaptive.models.RunInfo(
             run_id="r1",
             created_at=_now(),
             last_updated_at=_now(),
@@ -241,7 +243,7 @@ def test_grid_scheduler_eval_throttling():
             has_been_evaluated=False,
             has_failed=False,
         ),
-        RunInfo(
+        metta.adaptive.models.RunInfo(
             run_id="r2",
             created_at=_now(),
             last_updated_at=_now(),
@@ -253,13 +255,12 @@ def test_grid_scheduler_eval_throttling():
         ),
     ]
     jobs = scheduler.schedule(runs_train_done, available_training_slots=5)
-    from metta.adaptive.models import JobTypes
 
     # Exactly one eval should be scheduled due to throttle
-    eval_jobs = [j for j in jobs if j.type == JobTypes.LAUNCH_EVAL]
+    eval_jobs = [j for j in jobs if j.type == metta.adaptive.models.JobTypes.LAUNCH_EVAL]
     assert len(eval_jobs) == 1
 
     # Grid search does not block training on eval backlog: training may be scheduled simultaneously
-    train_jobs = [j for j in jobs if j.type == JobTypes.LAUNCH_TRAINING]
+    train_jobs = [j for j in jobs if j.type == metta.adaptive.models.JobTypes.LAUNCH_TRAINING]
     assert len(train_jobs) >= 1
     assert len(train_jobs) <= 5

@@ -1,22 +1,21 @@
-from __future__ import annotations
 
+import dataclasses
 import hashlib
 import html
 import json
 import os
-from dataclasses import dataclass
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Mapping, Sequence
+import pathlib
+import typing
 
-from rich.markup import escape
+import rich.markup
 
-from metta.setup.utils import error, info, step, success, warning
+import metta.setup.utils
 
-if TYPE_CHECKING:
-    from metta.setup.tools.test_runner.test_python import PackageResult
+if typing.TYPE_CHECKING:
+    import metta.setup.tools.test_runner.test_python
 
 
-@dataclass(slots=True)
+@dataclasses.dataclass(slots=True)
 class TestFailure:
     nodeid: str
     base_nodeid: str
@@ -24,14 +23,14 @@ class TestFailure:
     message: str
 
 
-@dataclass(slots=True)
+@dataclasses.dataclass(slots=True)
 class TestDuration:
     package_name: str
     nodeid: str
     duration: float
 
 
-@dataclass(slots=True)
+@dataclasses.dataclass(slots=True)
 class PackageSummary:
     package_name: str
     target: str
@@ -42,23 +41,23 @@ class PackageSummary:
     durations: list[TestDuration]
 
 
-def _load_report(report: Path) -> Mapping[str, Any] | None:
+def _load_report(report: pathlib.Path) -> typing.Mapping[str, typing.Any] | None:
     if not report.exists():
-        warning(f"Pytest JSON report missing: {report}")
+        metta.setup.utils.warning(f"Pytest JSON report missing: {report}")
         return None
     try:
         with report.open("r", encoding="utf-8") as handle:
             data = json.load(handle)
     except (OSError, json.JSONDecodeError) as exc:
-        warning(f"Unable to read pytest report {report}: {exc}")
+        metta.setup.utils.warning(f"Unable to read pytest report {report}: {exc}")
         return None
-    if isinstance(data, Mapping):
+    if isinstance(data, typing.Mapping):
         return data
-    warning(f"Unexpected JSON structure in {report}")
+    metta.setup.utils.warning(f"Unexpected JSON structure in {report}")
     return None
 
 
-def _summary_total(summary: Mapping[str, Any]) -> int | None:
+def _summary_total(summary: typing.Mapping[str, typing.Any]) -> int | None:
     total = summary.get("total")
     if isinstance(total, int):
         return total
@@ -68,14 +67,14 @@ def _summary_total(summary: Mapping[str, Any]) -> int | None:
     return int(sum(values))
 
 
-def _failure_message(entry: Mapping[str, Any]) -> str:
+def _failure_message(entry: typing.Mapping[str, typing.Any]) -> str:
     for key in ("longreprtext", "longrepr"):
         value = entry.get(key)
         if isinstance(value, str) and value.strip():
             return value.strip()
     for phase in ("setup", "call", "teardown"):
         phase_data = entry.get(phase)
-        if isinstance(phase_data, Mapping):
+        if isinstance(phase_data, typing.Mapping):
             message = phase_data.get("longreprtext")
             if isinstance(message, str) and message.strip():
                 return message.strip()
@@ -89,7 +88,7 @@ def _split_nodeid(nodeid: str) -> tuple[str, str | None]:
     return base, remainder.rstrip("]")
 
 
-def _format_rerun_command(targets: Sequence[str]) -> str:
+def _format_rerun_command(targets: typing.Sequence[str]) -> str:
     if not targets:
         return "metta pytest"
     if len(targets) == 1:
@@ -120,7 +119,7 @@ def _normalize_nodeid(nodeid: str, target: str) -> str:
     path_part, sep, remainder = nodeid.partition("::")
     if not path_part:
         return nodeid
-    target_path = Path(target)
+    target_path = pathlib.Path(target)
     normalized_path = path_part
     target_prefix = target_path.as_posix()
     if not path_part.startswith(target_prefix):
@@ -131,11 +130,11 @@ def _normalize_nodeid(nodeid: str, target: str) -> str:
     return f"{normalized_path}{suffix}"
 
 
-def summarize_test_results(results: Sequence["PackageResult"]) -> list[PackageSummary]:
+def summarize_test_results(results: typing.Sequence["PackageResult"]) -> list[PackageSummary]:
     summaries: list[PackageSummary] = []
     for result in results:
         data = _load_report(result.report_file)
-        summary_section: Mapping[str, Any] = data.get("summary", {}) if data else {}
+        summary_section: typing.Mapping[str, typing.Any] = data.get("summary", {}) if data else {}
         total = _summary_total(summary_section) if summary_section else None
 
         failures: list[TestFailure] = []
@@ -143,7 +142,7 @@ def summarize_test_results(results: Sequence["PackageResult"]) -> list[PackageSu
         tests = data.get("tests") if data else None
         if isinstance(tests, list):
             for entry in tests:
-                if not isinstance(entry, Mapping):
+                if not isinstance(entry, typing.Mapping):
                     continue
                 nodeid = entry.get("nodeid")
                 if not isinstance(nodeid, str):
@@ -185,9 +184,9 @@ def summarize_test_results(results: Sequence["PackageResult"]) -> list[PackageSu
     return summaries
 
 
-def log_results(summaries: Sequence[PackageSummary]) -> None:
+def log_results(summaries: typing.Sequence[PackageSummary]) -> None:
     if not summaries:
-        info("No Python test packages were selected.")
+        metta.setup.utils.info("No Python test packages were selected.")
         return
 
     for summary in summaries:
@@ -196,14 +195,18 @@ def log_results(summaries: Sequence[PackageSummary]) -> None:
         failure_count = len(summary.failures)
 
         if summary.returncode == 0 and failure_count == 0:
-            success(f"✓ {summary.package_name} · {total_text} · {duration_text}")
+            metta.setup.utils.success(f"✓ {summary.package_name} · {total_text} · {duration_text}")
         elif failure_count:
-            error(f"✗ {summary.package_name} · {total_text} · {duration_text} · {failure_count} failing")
+            metta.setup.utils.error(
+                f"✗ {summary.package_name} · {total_text} · {duration_text} · {failure_count} failing"
+            )
         else:
-            error(f"✗ {summary.package_name} · {total_text} · {duration_text} · exit {summary.returncode}")
+            metta.setup.utils.error(
+                f"✗ {summary.package_name} · {total_text} · {duration_text} · exit {summary.returncode}"
+            )
 
 
-def report_failures(summaries: Sequence[PackageSummary]) -> dict[str, list[TestFailure]]:
+def report_failures(summaries: typing.Sequence[PackageSummary]) -> dict[str, list[TestFailure]]:
     failure_map: dict[str, list[TestFailure]] = {
         summary.package_name: summary.failures for summary in summaries if summary.failures
     }
@@ -212,46 +215,48 @@ def report_failures(summaries: Sequence[PackageSummary]) -> dict[str, list[TestF
         return failure_map
     if not failure_map:
         if all(summary.returncode == 0 for summary in summaries):
-            success("All Python test packages passed.")
+            metta.setup.utils.success("All Python test packages passed.")
         else:
-            warning("Python test packages completed without JSON failures but returned non-zero exit codes.")
+            metta.setup.utils.warning(
+                "Python test packages completed without JSON failures but returned non-zero exit codes."
+            )
         return failure_map
 
-    error("Failing tests:")
+    metta.setup.utils.error("Failing tests:")
     for package_name, failures in failure_map.items():
-        error(package_name, indent=2)
+        metta.setup.utils.error(package_name, indent=2)
         grouped: dict[str, list[TestFailure]] = {}
         for failure in failures:
             grouped.setdefault(failure.base_nodeid, []).append(failure)
         for base_nodeid, grouped_failures in grouped.items():
-            step(f"• {base_nodeid}", indent=4)
+            metta.setup.utils.step(f"• {base_nodeid}", indent=4)
             pending_labels: list[str] = []
             for failure in grouped_failures:
                 message_lines = [line for line in failure.message.strip().splitlines() if line][:40]
-                header = escape(f"[{failure.param_id}]") if failure.param_id else ""
-                escaped_lines = [escape(line) for line in message_lines]
+                header = rich.markup.escape(f"[{failure.param_id}]") if failure.param_id else ""
+                escaped_lines = [rich.markup.escape(line) for line in message_lines]
                 if escaped_lines:
                     if header:
-                        info(f"{header} {escaped_lines[0]}", indent=6)
+                        metta.setup.utils.info(f"{header} {escaped_lines[0]}", indent=6)
                         for line in escaped_lines[1:]:
-                            info(line, indent=8)
+                            metta.setup.utils.info(line, indent=8)
                     else:
-                        info(escaped_lines[0], indent=6)
+                        metta.setup.utils.info(escaped_lines[0], indent=6)
                         for line in escaped_lines[1:]:
-                            info(line, indent=8)
+                            metta.setup.utils.info(line, indent=8)
                 elif header:
                     pending_labels.append(header)
             if pending_labels:
-                info(" ".join(pending_labels), indent=6)
+                metta.setup.utils.info(" ".join(pending_labels), indent=6)
         unique_targets = list(dict.fromkeys(failure.nodeid for failure in failures))
         command_text = _format_rerun_command(unique_targets)
-        info("Re-run locally:", indent=4)
+        metta.setup.utils.info("Re-run locally:", indent=4)
         for line in command_text.splitlines():
-            info(escape(line), indent=6)
+            metta.setup.utils.info(rich.markup.escape(line), indent=6)
     return failure_map
 
 
-def write_github_summary(summaries: Sequence[PackageSummary]) -> None:
+def write_github_summary(summaries: typing.Sequence[PackageSummary]) -> None:
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
     if not summary_path:
         return
@@ -292,7 +297,7 @@ def write_github_summary(summaries: Sequence[PackageSummary]) -> None:
         handle.write("\n")
 
 
-def write_slow_tests_github_summary(summaries: Sequence[PackageSummary], limit: int = 25) -> None:
+def write_slow_tests_github_summary(summaries: typing.Sequence[PackageSummary], limit: int = 25) -> None:
     durations: list[TestDuration] = []
     for summary in summaries:
         durations.extend(summary.durations)

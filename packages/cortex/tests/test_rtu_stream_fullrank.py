@@ -7,18 +7,17 @@ The full‑rank kernel uses [D, H] input maps (W1, W2) rather than diagonal
 weights. We test both with and without resets.
 """
 
-from __future__ import annotations
 
+import cortex.kernels.pytorch.rtu.rtu_stream_fullrank
 import numpy as np
 import pytest
 import torch
-from cortex.kernels.pytorch.rtu.rtu_stream_fullrank import rtu_stream_full_pytorch
 
 # Skip this module entirely (slow)
 pytestmark = pytest.mark.skip(reason="slow full-rank RTU parity suite")
 
 try:
-    from cortex.kernels.cuda import rtu_stream_full_cuda as _rtu_full_cuda
+    import cortex.kernels.cuda
 
     _HAS_FULL_CUDA = True
 except Exception:  # pragma: no cover
@@ -57,7 +56,7 @@ def _forward_whole_fullrank(x, params, activation: str, resets_bt=None):
     H = nu_log.shape[0]
     hc1_0 = torch.zeros(B, H, device=x.device, dtype=x.dtype)
     hc2_0 = torch.zeros(B, H, device=x.device, dtype=x.dtype)
-    y, (_h1, _h2), _ = rtu_stream_full_pytorch(
+    y, (_h1, _h2), _ = cortex.kernels.pytorch.rtu.rtu_stream_fullrank.rtu_stream_full_pytorch(
         x_btd=x,
         nu_log=nu_log,
         theta_log=theta_log,
@@ -140,7 +139,7 @@ def _run_full_pytorch(x, params, activation: str, resets_bt=None):
     H = nu_log.shape[0]
     hc1_0 = torch.zeros(B, H, device=x.device, dtype=x.dtype)
     hc2_0 = torch.zeros(B, H, device=x.device, dtype=x.dtype)
-    return rtu_stream_full_pytorch(
+    return cortex.kernels.pytorch.rtu.rtu_stream_fullrank.rtu_stream_full_pytorch(
         x_btd=x,
         nu_log=nu_log,
         theta_log=theta_log,
@@ -160,7 +159,7 @@ def _run_full_cuda(x, params, activation: str, resets_bt=None):
     H = nu_log.shape[0]
     hc1_0 = torch.zeros(B, H, device=x.device, dtype=x.dtype)
     hc2_0 = torch.zeros(B, H, device=x.device, dtype=x.dtype)
-    return _rtu_full_cuda(
+    return cortex.kernels.cuda.rtu_stream_full_cuda(
         x_btd=x,
         nu_log=nu_log,
         theta_log=theta_log,
@@ -187,7 +186,7 @@ def _run_chunks_pytorch_full(x, params, activation: str, resets_bt=None, chunks=
         t1 = min(T, t0 + sz)
         if t1 <= t0:
             break
-        y_blk, (hc1, hc2), trace = rtu_stream_full_pytorch(
+        y_blk, (hc1, hc2), trace = cortex.kernels.pytorch.rtu.rtu_stream_fullrank.rtu_stream_full_pytorch(
             x_btd=x[:, t0:t1, :],
             nu_log=nu_log,
             theta_log=theta_log,
@@ -221,7 +220,7 @@ def _run_chunks_cuda_full(x, params, activation: str, resets_bt=None, chunks=(5,
         t1 = min(T, t0 + sz)
         if t1 <= t0:
             break
-        y_blk, (hc1, hc2), trace = _rtu_full_cuda(
+        y_blk, (hc1, hc2), trace = cortex.kernels.cuda.rtu_stream_full_cuda(
             x_btd=x[:, t0:t1, :],
             nu_log=nu_log,
             theta_log=theta_log,
@@ -378,7 +377,7 @@ def _forward_stream_chunks_fullrank(x, params, activation: str, resets_bt=None, 
             break
         x_blk = x[:, t0:t1, :]
         res_blk = None if resets_bt is None else resets_bt[:, t0:t1]
-        y_blk, (hc1, hc2), trace = rtu_stream_full_pytorch(
+        y_blk, (hc1, hc2), trace = cortex.kernels.pytorch.rtu.rtu_stream_fullrank.rtu_stream_full_pytorch(
             x_btd=x_blk,
             nu_log=nu_log,
             theta_log=theta_log,
@@ -473,7 +472,7 @@ def test_fullrank_streaming_grads_match_whole(with_resets: bool) -> None:
             t1 = min(T, t0 + sz)
             if t1 <= t0:
                 break
-            y_blk, (hc1, hc2), trace = rtu_stream_full_pytorch(
+            y_blk, (hc1, hc2), trace = cortex.kernels.pytorch.rtu.rtu_stream_fullrank.rtu_stream_full_pytorch(
                 x_btd=x[:, t0:t1, :],
                 nu_log=nu,
                 theta_log=th,

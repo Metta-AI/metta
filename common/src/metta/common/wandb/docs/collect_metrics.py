@@ -12,8 +12,8 @@ import sys
 
 import wandb
 
-from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
-from metta.common.util.log_config import init_logging
+import metta.common.util.constants
+import metta.common.util.log_config
 
 
 def get_run_metrics(entity: str, project: str, run_id: str) -> set[str] | None:
@@ -80,10 +80,10 @@ def save_metrics_to_csv(metrics: set[str], filepath: str) -> None:
 
 
 def main() -> None:
-    init_logging()
+    metta.common.util.log_config.init_logging()
     # Defaults
-    entity = METTA_WANDB_ENTITY
-    project = METTA_WANDB_PROJECT
+    entity = metta.common.util.constants.METTA_WANDB_ENTITY
+    project = metta.common.util.constants.METTA_WANDB_PROJECT
     default_run_names = [
         "github.sky.main.f634b79.20250701_203512",
         "daphne.moretime.nav_memory_sequence.navigation_finetuned.06-25",

@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState, PlaybackState, RenderMode
+import mettagrid.renderer.miniscope.miniscope_state
 
 
 class TestMiniscopeState:
@@ -11,10 +11,10 @@ class TestMiniscopeState:
 
     def test_state_initialization(self):
         """Test MiniscopeState default initialization."""
-        state = MiniscopeState()
+        state = mettagrid.renderer.miniscope.miniscope_state.MiniscopeState()
 
         # Check default playback state
-        assert state.playback == PlaybackState.STOPPED
+        assert state.playback == mettagrid.renderer.miniscope.miniscope_state.PlaybackState.STOPPED
         assert state.fps == 4.0
         assert state.step_count == 0
         assert state.max_steps is None
@@ -26,7 +26,7 @@ class TestMiniscopeState:
         assert state.viewport_width == 40
 
         # Check default mode and selection
-        assert state.mode == RenderMode.FOLLOW
+        assert state.mode == mettagrid.renderer.miniscope.miniscope_state.RenderMode.FOLLOW
         assert state.selected_agent == 0
         assert state.cursor_row == 0
         assert state.cursor_col == 0
@@ -56,35 +56,35 @@ class TestMiniscopeState:
 
     def test_is_running(self):
         """Test is_running method for different playback states."""
-        state = MiniscopeState()
+        state = mettagrid.renderer.miniscope.miniscope_state.MiniscopeState()
 
-        state.playback = PlaybackState.STOPPED
+        state.playback = mettagrid.renderer.miniscope.miniscope_state.PlaybackState.STOPPED
         assert not state.is_running()
 
-        state.playback = PlaybackState.RUNNING
+        state.playback = mettagrid.renderer.miniscope.miniscope_state.PlaybackState.RUNNING
         assert state.is_running()
 
-        state.playback = PlaybackState.PAUSED
+        state.playback = mettagrid.renderer.miniscope.miniscope_state.PlaybackState.PAUSED
         assert state.is_running()
 
-        state.playback = PlaybackState.STEPPING
+        state.playback = mettagrid.renderer.miniscope.miniscope_state.PlaybackState.STEPPING
         assert state.is_running()
 
     def test_should_render_frame(self):
         """Test should_render_frame method."""
-        state = MiniscopeState()
+        state = mettagrid.renderer.miniscope.miniscope_state.MiniscopeState()
 
         # Should not render when stopped
-        state.playback = PlaybackState.STOPPED
+        state.playback = mettagrid.renderer.miniscope.miniscope_state.PlaybackState.STOPPED
         state.should_step = False
         assert not state.should_render_frame()
 
         # Should render when running
-        state.playback = PlaybackState.RUNNING
+        state.playback = mettagrid.renderer.miniscope.miniscope_state.PlaybackState.RUNNING
         assert state.should_render_frame()
 
         # Should not render when paused (unless should_step)
-        state.playback = PlaybackState.PAUSED
+        state.playback = mettagrid.renderer.miniscope.miniscope_state.PlaybackState.PAUSED
         assert not state.should_render_frame()
 
         # Should render when should_step is True
@@ -93,25 +93,25 @@ class TestMiniscopeState:
 
     def test_toggle_pause(self):
         """Test toggle_pause method."""
-        state = MiniscopeState()
+        state = mettagrid.renderer.miniscope.miniscope_state.MiniscopeState()
 
         # Start paused
-        state.playback = PlaybackState.PAUSED
+        state.playback = mettagrid.renderer.miniscope.miniscope_state.PlaybackState.PAUSED
         state.toggle_pause()
-        assert state.playback == PlaybackState.RUNNING
+        assert state.playback == mettagrid.renderer.miniscope.miniscope_state.PlaybackState.RUNNING
 
         # Toggle back to paused
         state.toggle_pause()
-        assert state.playback == PlaybackState.PAUSED
+        assert state.playback == mettagrid.renderer.miniscope.miniscope_state.PlaybackState.PAUSED
 
         # From other states, should not toggle
-        state.playback = PlaybackState.STOPPED
+        state.playback = mettagrid.renderer.miniscope.miniscope_state.PlaybackState.STOPPED
         state.toggle_pause()
-        assert state.playback == PlaybackState.STOPPED  # No change
+        assert state.playback == mettagrid.renderer.miniscope.miniscope_state.PlaybackState.STOPPED  # No change
 
     def test_speed_controls(self):
         """Test increase_speed and decrease_speed methods."""
-        state = MiniscopeState()
+        state = mettagrid.renderer.miniscope.miniscope_state.MiniscopeState()
         state.fps = 4.0
 
         # Increase speed
@@ -139,7 +139,7 @@ class TestMiniscopeState:
 
     def test_get_frame_delay(self):
         """Test get_frame_delay method."""
-        state = MiniscopeState()
+        state = mettagrid.renderer.miniscope.miniscope_state.MiniscopeState()
 
         state.fps = 4.0
         assert state.get_frame_delay() == 0.25  # 1/4
@@ -156,33 +156,33 @@ class TestMiniscopeState:
 
     def test_set_mode(self):
         """Set render mode directly without cycling."""
-        state = MiniscopeState()
+        state = mettagrid.renderer.miniscope.miniscope_state.MiniscopeState()
 
         # Follow is default; switching to PAN and SELECT works directly
-        state.set_mode(RenderMode.PAN)
-        assert state.mode == RenderMode.PAN
+        state.set_mode(mettagrid.renderer.miniscope.miniscope_state.RenderMode.PAN)
+        assert state.mode == mettagrid.renderer.miniscope.miniscope_state.RenderMode.PAN
 
-        state.set_mode(RenderMode.SELECT)
-        assert state.mode == RenderMode.SELECT
+        state.set_mode(mettagrid.renderer.miniscope.miniscope_state.RenderMode.SELECT)
+        assert state.mode == mettagrid.renderer.miniscope.miniscope_state.RenderMode.SELECT
 
         # Trying to set helper modes should be ignored
-        state.set_mode(RenderMode.VIBE_PICKER)
-        assert state.mode == RenderMode.SELECT
+        state.set_mode(mettagrid.renderer.miniscope.miniscope_state.RenderMode.VIBE_PICKER)
+        assert state.mode == mettagrid.renderer.miniscope.miniscope_state.RenderMode.SELECT
 
-        state.set_mode(RenderMode.HELP)
-        assert state.mode == RenderMode.SELECT
+        state.set_mode(mettagrid.renderer.miniscope.miniscope_state.RenderMode.HELP)
+        assert state.mode == mettagrid.renderer.miniscope.miniscope_state.RenderMode.SELECT
 
     def test_enter_vibe_picker(self):
         """Test enter_vibe_picker method."""
-        state = MiniscopeState()
+        state = mettagrid.renderer.miniscope.miniscope_state.MiniscopeState()
 
-        state.mode = RenderMode.FOLLOW
+        state.mode = mettagrid.renderer.miniscope.miniscope_state.RenderMode.FOLLOW
         state.enter_vibe_picker()
-        assert state.mode == RenderMode.VIBE_PICKER
+        assert state.mode == mettagrid.renderer.miniscope.miniscope_state.RenderMode.VIBE_PICKER
 
     def test_toggle_manual_control(self):
         """Test toggle_manual_control method."""
-        state = MiniscopeState()
+        state = mettagrid.renderer.miniscope.miniscope_state.MiniscopeState()
 
         # Initially no manual agents
         assert 0 not in state.manual_agents
@@ -203,7 +203,7 @@ class TestMiniscopeState:
 
     def test_select_agents(self):
         """Test select_next_agent and select_previous_agent methods."""
-        state = MiniscopeState()
+        state = mettagrid.renderer.miniscope.miniscope_state.MiniscopeState()
         num_agents = 4
 
         # Start with agent 0
@@ -240,7 +240,7 @@ class TestMiniscopeState:
 
     def test_move_camera(self):
         """Test move_camera method with bounds checking."""
-        state = MiniscopeState()
+        state = mettagrid.renderer.miniscope.miniscope_state.MiniscopeState()
         state.set_bounds(0, 0, 10, 10)  # 10x10 map
 
         # Start at center
@@ -266,7 +266,7 @@ class TestMiniscopeState:
 
     def test_move_cursor(self):
         """Test move_cursor method with bounds checking."""
-        state = MiniscopeState()
+        state = mettagrid.renderer.miniscope.miniscope_state.MiniscopeState()
         state.set_bounds(0, 0, 10, 10)
 
         # Start at center
@@ -287,7 +287,7 @@ class TestMiniscopeState:
 
     def test_set_bounds(self):
         """Test set_bounds method."""
-        state = MiniscopeState()
+        state = mettagrid.renderer.miniscope.miniscope_state.MiniscopeState()
 
         # Set bounds
         state.set_bounds(5, 10, 20, 30)
@@ -310,12 +310,12 @@ class TestMiniscopeState:
 
     def test_reset_for_episode(self):
         """Test reset_for_episode method."""
-        state = MiniscopeState()
+        state = mettagrid.renderer.miniscope.miniscope_state.MiniscopeState()
 
         # Set some non-default values
         state.step_count = 100
-        state.playback = PlaybackState.RUNNING
-        state.mode = RenderMode.SELECT
+        state.playback = mettagrid.renderer.miniscope.miniscope_state.PlaybackState.RUNNING
+        state.mode = mettagrid.renderer.miniscope.miniscope_state.RenderMode.SELECT
         state.selected_agent = 5
         state.manual_agents.add(1)
         state.manual_agents.add(2)
@@ -327,8 +327,8 @@ class TestMiniscopeState:
 
         # Check reset values
         assert state.step_count == 0
-        assert state.playback == PlaybackState.PAUSED
-        assert state.mode == RenderMode.FOLLOW
+        assert state.playback == mettagrid.renderer.miniscope.miniscope_state.PlaybackState.PAUSED
+        assert state.mode == mettagrid.renderer.miniscope.miniscope_state.RenderMode.FOLLOW
         assert state.selected_agent == 0  # First agent
         assert len(state.manual_agents) == 0
         assert state.user_action is None
@@ -352,7 +352,7 @@ class TestMiniscopeState:
 
     def test_set_bounds_with_offset(self):
         """Test set_bounds with non-zero min values."""
-        state = MiniscopeState()
+        state = mettagrid.renderer.miniscope.miniscope_state.MiniscopeState()
 
         # Set bounds with offset
         state.set_bounds(10, 20, 5, 5)  # Starting at (10, 20), 5x5 size

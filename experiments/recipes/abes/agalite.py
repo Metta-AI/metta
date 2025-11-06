@@ -1,32 +1,23 @@
 """Arena Basic Easy Shaped recipe targeting AGaLiTe policy variants."""
 
-from __future__ import annotations
 
-from typing import Callable
+import typing
 
-from experiments.recipes.arena_basic_easy_shaped import (
-    evaluate,
-    evaluate_in_sweep,
-    make_curriculum,
-    mettagrid,
-    play,
-    replay,
-    simulations,
-    sweep,
-    train as base_train,
-)
-from metta.agent.policies.agalite import AGaLiTeConfig
-from metta.agent.policy import PolicyArchitecture
-from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.rl.trainer_config import OptimizerConfig
-from metta.tools.train import TrainTool
+import experiments.recipes.arena_basic_easy_shaped
+import metta.agent.policies.agalite
+import metta.agent.policy
+import metta.cogworks.curriculum.curriculum
+import metta.rl.trainer_config
+import metta.tools.train
 
-_POLICY_PRESETS: dict[str, Callable[[], PolicyArchitecture]] = {
-    "agalite": AGaLiTeConfig,
+_POLICY_PRESETS: dict[
+    str, typing.Callable[[], metta.agent.policy.PolicyArchitecture]
+] = {
+    "agalite": metta.agent.policies.agalite.AGaLiTeConfig,
 }
 
 
-def _policy_from_name(name: str) -> PolicyArchitecture:
+def _policy_from_name(name: str) -> metta.agent.policy.PolicyArchitecture:
     try:
         return _POLICY_PRESETS[name]()
     except KeyError as exc:  # pragma: no cover - defensive guard
@@ -36,18 +27,18 @@ def _policy_from_name(name: str) -> PolicyArchitecture:
 
 def train(
     *,
-    curriculum: CurriculumConfig | None = None,
+    curriculum: metta.cogworks.curriculum.curriculum.CurriculumConfig | None = None,
     enable_detailed_slice_logging: bool = False,
-    policy_architecture: PolicyArchitecture | None = None,
+    policy_architecture: metta.agent.policy.PolicyArchitecture | None = None,
     agent: str | None = None,
-) -> TrainTool:
+) -> metta.tools.train.TrainTool:
     if policy_architecture is None:
         if agent is not None:
             policy_architecture = _policy_from_name(agent)
         else:
-            policy_architecture = AGaLiTeConfig()
+            policy_architecture = metta.agent.policies.agalite.AGaLiTeConfig()
 
-    tool = base_train(
+    tool = experiments.recipes.arena_basic_easy_shaped.train(
         curriculum=curriculum,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         policy_architecture=policy_architecture,
@@ -55,7 +46,9 @@ def train(
 
     hint = getattr(policy_architecture, "learning_rate_hint", None)
     optimizer = tool.trainer.optimizer
-    default_lr = OptimizerConfig.model_fields["learning_rate"].default
+    default_lr = metta.rl.trainer_config.OptimizerConfig.model_fields[
+        "learning_rate"
+    ].default
     if hint is not None and optimizer.learning_rate == default_lr:
         optimizer.learning_rate = hint
 

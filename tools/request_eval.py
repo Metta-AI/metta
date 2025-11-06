@@ -5,39 +5,34 @@ import argparse
 import asyncio
 import uuid
 
-from bidict import bidict
-from pydantic import BaseModel, model_validator
-from pydantic.fields import Field
+import bidict
+import pydantic
+import pydantic.fields
 
-from metta.app_backend.clients.eval_task_client import EvalTaskClient
-from metta.app_backend.clients.stats_client import StatsClient
-from metta.app_backend.metta_repo import TaskStatus
-from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskFilterParams, TaskResponse
-from metta.common.util.collections import group_by
-from metta.common.util.constants import (
-    DEV_OBSERVATORY_FRONTEND_URL,
-    DEV_STATS_SERVER_URI,
-    PROD_OBSERVATORY_FRONTEND_URL,
-    PROD_STATS_SERVER_URI,
-)
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.setup.utils import debug, info, success, warning
-from metta.sim.utils import get_or_create_policy_ids
+import metta.app_backend.clients.eval_task_client
+import metta.app_backend.clients.stats_client
+import metta.app_backend.metta_repo
+import metta.app_backend.routes.eval_task_routes
+import metta.common.util.collections
+import metta.common.util.constants
+import metta.rl.checkpoint_manager
+import metta.setup.utils
+import metta.sim.utils
 
 
-class EvalRequest(BaseModel):
+class EvalRequest(pydantic.BaseModel):
     """Evaluation request configuration for direct checkpoint URIs."""
 
     evals: list[str]
     policies: list[str]  # Direct checkpoint URIs
-    stats_server_uri: str = PROD_STATS_SERVER_URI
+    stats_server_uri: str = metta.common.util.constants.PROD_STATS_SERVER_URI
 
     git_hash: str | None = None
 
-    allow_duplicates: bool = Field(default=False)
-    dry_run: bool = Field(default=False)
+    allow_duplicates: bool = pydantic.fields.Field(default=False)
+    dry_run: bool = pydantic.fields.Field(default=False)
 
-    @model_validator(mode="after")
+    @pydantic.model_validator(mode="after")
     def validate(self) -> "EvalRequest":
         return self
 
@@ -45,27 +40,27 @@ class EvalRequest(BaseModel):
 def validate_and_normalize_policy_uri(policy_uri: str) -> str | None:
     """Validate that a policy URI is accessible and return normalized URI with metadata."""
     try:
-        normalized_uri = CheckpointManager.normalize_uri(policy_uri)
-        artifact = CheckpointManager.load_artifact_from_uri(normalized_uri)
+        normalized_uri = metta.rl.checkpoint_manager.CheckpointManager.normalize_uri(policy_uri)
+        artifact = metta.rl.checkpoint_manager.CheckpointManager.load_artifact_from_uri(normalized_uri)
         if artifact.state_dict is None:
             raise ValueError("Policy artifact did not contain model weights")
         del artifact
         return normalized_uri
     except Exception as e:
-        warning(f"Skipping invalid or inaccessible policy {policy_uri}: {e}")
+        metta.setup.utils.warning(f"Skipping invalid or inaccessible policy {policy_uri}: {e}")
         return None
 
 
 async def _create_remote_eval_tasks(
     request: EvalRequest,
 ) -> None:
-    info(f"Validating authentication with stats server {request.stats_server_uri}...")
-    stats_client = StatsClient.create(request.stats_server_uri)
+    metta.setup.utils.info(f"Validating authentication with stats server {request.stats_server_uri}...")
+    stats_client = metta.app_backend.clients.stats_client.StatsClient.create(request.stats_server_uri)
     if stats_client is None:
-        warning("No stats client found")
+        metta.setup.utils.warning("No stats client found")
         return
 
-    info(f"Validating {len(request.policies)} policy URIs...")
+    metta.setup.utils.info(f"Validating {len(request.policies)} policy URIs...")
 
     # Validate and normalize all policy URIs
     policy_uris: list[str] = []
@@ -75,47 +70,49 @@ async def _create_remote_eval_tasks(
             policy_uris.append(result)
 
     if not policy_uris:
-        warning("No valid policies found")
+        metta.setup.utils.warning("No valid policies found")
         return
 
     # Register policies with stats server
-    policy_ids: bidict[str, uuid.UUID] = get_or_create_policy_ids(stats_client, [(uri, None) for uri in policy_uris])
+    policy_ids: bidict.bidict[str, uuid.UUID] = metta.sim.utils.get_or_create_policy_ids(
+        stats_client, [(uri, None) for uri in policy_uris]
+    )
 
     if not policy_ids:
-        warning("Failed to register policies with stats server")
+        metta.setup.utils.warning("Failed to register policies with stats server")
         return
 
     # Check for existing tasks if not allowing duplicates
-    existing_tasks: dict[tuple[uuid.UUID, str], list[TaskResponse]] = {}
-    eval_task_client = EvalTaskClient(backend_url=request.stats_server_uri)
+    existing_tasks: dict[tuple[uuid.UUID, str], list[metta.app_backend.routes.eval_task_routes.TaskResponse]] = {}
+    eval_task_client = metta.app_backend.clients.eval_task_client.EvalTaskClient(backend_url=request.stats_server_uri)
 
     if not request.allow_duplicates:
-        info("Checking for duplicate tasks...")
-        task_filters = TaskFilterParams(
+        metta.setup.utils.info("Checking for duplicate tasks...")
+        task_filters = metta.app_backend.routes.eval_task_routes.TaskFilterParams(
             limit=1000,
-            statuses=list(set(TaskStatus.__args__) - set(["canceled", "error"])),
+            statuses=list(set(metta.app_backend.metta_repo.TaskStatus.__args__) - set(["canceled", "error"])),
             policy_ids=list(policy_ids.values()),
             git_hash=request.git_hash,
             sim_suites=request.evals,
         )
         all_tasks = await eval_task_client.get_all_tasks(filters=task_filters)
-        existing_tasks = group_by(all_tasks.tasks, lambda t: (t.policy_id, t.sim_suite))
+        existing_tasks = metta.common.util.collections.group_by(all_tasks.tasks, lambda t: (t.policy_id, t.sim_suite))
 
         if existing_tasks:
-            info("Skipping because they would be duplicates:")
+            metta.setup.utils.info("Skipping because they would be duplicates:")
             for (policy_id, sim_suite), existing in existing_tasks.items():
                 policy_name = policy_ids.inv[policy_id]
-                debug(f"{policy_name} {sim_suite}:", indent=2)
+                metta.setup.utils.debug(f"{policy_name} {sim_suite}:", indent=2)
                 for task in existing:
                     status_str = {"unprocessed": "running"}.get(task.status, task.status)
-                    debug(f"{task.id} ({status_str})", indent=4)
+                    metta.setup.utils.debug(f"{task.id} ({status_str})", indent=4)
 
     # Create task requests
     task_requests = []
     for policy_uri in policy_uris:
         policy_id = policy_ids.get(policy_uri)
         if policy_id is None:
-            warning(f"Policy '{policy_uri}' not found in policy_ids mapping, skipping")
+            metta.setup.utils.warning(f"Policy '{policy_uri}' not found in policy_ids mapping, skipping")
             continue
 
         for eval_name in request.evals:
@@ -124,7 +121,7 @@ async def _create_remote_eval_tasks(
                 continue
 
             task_requests.append(
-                TaskCreateRequest(
+                metta.app_backend.routes.eval_task_routes.TaskCreateRequest(
                     policy_id=policy_id,
                     git_hash=request.git_hash,
                     sim_suite=eval_name,
@@ -132,29 +129,33 @@ async def _create_remote_eval_tasks(
             )
 
     if not task_requests:
-        warning("No new tasks to create (all would be duplicates)")
+        metta.setup.utils.warning("No new tasks to create (all would be duplicates)")
         return
 
-    info(f"Creating {len(task_requests)} evaluation tasks for {len(policy_uris)} policies...")
+    metta.setup.utils.info(f"Creating {len(task_requests)} evaluation tasks for {len(policy_uris)} policies...")
     if request.dry_run:
-        info("Dry run, not creating tasks")
+        metta.setup.utils.info("Dry run, not creating tasks")
         return
 
-    results: list[TaskResponse] = await asyncio.gather(*[eval_task_client.create_task(task) for task in task_requests])
+    results: list[metta.app_backend.routes.eval_task_routes.TaskResponse] = await asyncio.gather(
+        *[eval_task_client.create_task(task) for task in task_requests]
+    )
 
-    for policy_id, policy_results in group_by(results, lambda result: result.policy_id).items():
+    for policy_id, policy_results in metta.common.util.collections.group_by(
+        results, lambda result: result.policy_id
+    ).items():
         policy_name = policy_ids.inv[policy_id]
-        success(f"{policy_name}:", indent=2)
+        metta.setup.utils.success(f"{policy_name}:", indent=2)
         for result in policy_results:
-            success(f"{result.sim_suite}: {result.id}", indent=4)
+            metta.setup.utils.success(f"{result.sim_suite}: {result.id}", indent=4)
 
     frontend_base_url = {
-        PROD_STATS_SERVER_URI: PROD_OBSERVATORY_FRONTEND_URL,
-        DEV_STATS_SERVER_URI: DEV_OBSERVATORY_FRONTEND_URL,
+        metta.common.util.constants.PROD_STATS_SERVER_URI: metta.common.util.constants.PROD_OBSERVATORY_FRONTEND_URL,
+        metta.common.util.constants.DEV_STATS_SERVER_URI: metta.common.util.constants.DEV_OBSERVATORY_FRONTEND_URL,
     }.get(request.stats_server_uri)
 
     if frontend_base_url:
-        info(f"Visit {frontend_base_url}/eval-tasks to view tasks")
+        metta.setup.utils.info(f"Visit {frontend_base_url}/eval-tasks to view tasks")
 
 
 def main():
@@ -183,7 +184,7 @@ def main():
     parser.add_argument(
         "--stats-server-uri",
         type=str,
-        default=PROD_STATS_SERVER_URI,
+        default=metta.common.util.constants.PROD_STATS_SERVER_URI,
         help="URI for the stats server",
     )
 

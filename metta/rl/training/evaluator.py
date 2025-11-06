@@ -1,40 +1,37 @@
 """Policy evaluation management."""
 
 import logging
-from typing import Any, Optional
-from uuid import UUID
+import typing
+import uuid
 
+import pydantic
 import torch
-from pydantic import Field
 
-from metta.app_backend.clients.stats_client import StatsClient
-from metta.cogworks.curriculum import Curriculum
-from metta.common.util.git_helpers import GitError, get_task_commit_hash
-from metta.common.util.git_repo import REPO_SLUG
-from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
-from metta.eval.eval_service import evaluate_policy
-from metta.rl.evaluate import (
-    evaluate_policy_remote_with_checkpoint_manager,
-    upload_replay_html,
-)
-from metta.rl.training import TrainerComponent
-from metta.rl.training.optimizer import is_schedulefree_optimizer
-from metta.sim.simulation_config import SimulationConfig
-from metta.tools.utils.auto_config import auto_replay_dir
-from mettagrid.base_config import Config
+import metta.app_backend.clients.stats_client
+import metta.cogworks.curriculum
+import metta.common.util.git_helpers
+import metta.common.util.git_repo
+import metta.eval.eval_request_config
+import metta.eval.eval_service
+import metta.rl.evaluate
+import metta.rl.training
+import metta.rl.training.optimizer
+import metta.sim.simulation_config
+import metta.tools.utils.auto_config
+import mettagrid.base_config
 
 logger = logging.getLogger(__name__)
 
 
-class EvaluatorConfig(Config):
+class EvaluatorConfig(mettagrid.base_config.Config):
     """Configuration for evaluation."""
 
     epoch_interval: int = 100  # 0 to disable
     evaluate_local: bool = True
     evaluate_remote: bool = False
     num_training_tasks: int = 2
-    simulations: list[SimulationConfig] = Field(default_factory=list)
-    training_replay_envs: list[SimulationConfig] = Field(
+    simulations: list[metta.sim.simulation_config.SimulationConfig] = pydantic.Field(default_factory=list)
+    training_replay_envs: list[metta.sim.simulation_config.SimulationConfig] = pydantic.Field(
         default_factory=list,
         description=(
             "Optional explicit simulation configs to use when recording training replays. "
@@ -42,19 +39,19 @@ class EvaluatorConfig(Config):
             "from the active curriculum."
         ),
     )
-    replay_dir: Optional[str] = None
-    skip_git_check: bool = Field(default=False)
-    git_hash: str | None = Field(default=None)
+    replay_dir: typing.Optional[str] = None
+    skip_git_check: bool = pydantic.Field(default=False)
+    git_hash: str | None = pydantic.Field(default=None)
 
 
-class NoOpEvaluator(TrainerComponent):
+class NoOpEvaluator(metta.rl.training.TrainerComponent):
     """No-op evaluator for when evaluation is disabled."""
 
     def __init__(self) -> None:
         super().__init__()
-        self._latest_scores = EvalRewardSummary()
+        self._latest_scores = metta.eval.eval_request_config.EvalRewardSummary()
 
-    def get_latest_scores(self) -> EvalRewardSummary:
+    def get_latest_scores(self) -> metta.eval.eval_request_config.EvalRewardSummary:
         return self._latest_scores
 
     def register(self, context) -> None:  # type: ignore[override]
@@ -65,15 +62,15 @@ class NoOpEvaluator(TrainerComponent):
         pass
 
 
-class Evaluator(TrainerComponent):
+class Evaluator(metta.rl.training.TrainerComponent):
     """Manages policy evaluation."""
 
     def __init__(
         self,
         config: EvaluatorConfig,
         device: torch.device,
-        system_cfg: Any,
-        stats_client: Optional[StatsClient] = None,
+        system_cfg: typing.Any,
+        stats_client: typing.Optional[metta.app_backend.clients.stats_client.StatsClient] = None,
     ):
         super().__init__()
         self._master_only = True
@@ -81,7 +78,7 @@ class Evaluator(TrainerComponent):
         self._device = device
         self._system_cfg = system_cfg
         self._stats_client = stats_client
-        self._latest_scores = EvalRewardSummary()
+        self._latest_scores = metta.eval.eval_request_config.EvalRewardSummary()
 
         self._configure_evaluation_settings(
             eval_cfg=self._config,
@@ -96,11 +93,11 @@ class Evaluator(TrainerComponent):
     def _configure_evaluation_settings(
         *,
         eval_cfg: EvaluatorConfig,
-        stats_client: Optional[StatsClient],
+        stats_client: typing.Optional[metta.app_backend.clients.stats_client.StatsClient],
     ) -> None:
         # Set default replay directory
         if eval_cfg.replay_dir is None:
-            eval_cfg.replay_dir = auto_replay_dir()
+            eval_cfg.replay_dir = metta.tools.utils.auto_config.auto_replay_dir()
             logger.info(f"Setting replay_dir to {eval_cfg.replay_dir}")
 
         # Configure remote evaluations
@@ -121,12 +118,14 @@ class Evaluator(TrainerComponent):
         # Get git hash if not already set
         if not eval_cfg.git_hash:
             try:
-                eval_cfg.git_hash = get_task_commit_hash(
-                    target_repo=REPO_SLUG,
+                eval_cfg.git_hash = metta.common.util.git_helpers.get_task_commit_hash(
+                    target_repo=metta.common.util.git_repo.REPO_SLUG,
                     skip_git_check=eval_cfg.skip_git_check,
                 )
-            except GitError as e:
-                raise GitError(f"{e}\n\nYou can skip this check with evaluator.skip_git_check=true") from e
+            except metta.common.util.git_helpers.GitError as e:
+                raise metta.common.util.git_helpers.GitError(
+                    f"{e}\n\nYou can skip this check with evaluator.skip_git_check=true"
+                ) from e
 
             if eval_cfg.git_hash:
                 logger.info(f"Git hash for remote evaluations: {eval_cfg.git_hash}")
@@ -141,15 +140,15 @@ class Evaluator(TrainerComponent):
 
     def evaluate(
         self,
-        policy_uri: Optional[str],
-        curriculum: Any,
+        policy_uri: typing.Optional[str],
+        curriculum: typing.Any,
         epoch: int,
         agent_step: int,
-        stats_epoch_id: Optional[UUID] = None,
-    ) -> EvalRewardSummary:
+        stats_epoch_id: typing.Optional[uuid.UUID] = None,
+    ) -> metta.eval.eval_request_config.EvalRewardSummary:
         if not policy_uri:
             logger.warning("No policy URI available for evaluation")
-            return EvalRewardSummary()
+            return metta.eval.eval_request_config.EvalRewardSummary()
 
         # Build simulation configurations
         sims = self._build_simulations(curriculum)
@@ -169,7 +168,7 @@ class Evaluator(TrainerComponent):
             except Exception as e:
                 logger.error(f"Failed to evaluate policy remotely: {e}", exc_info=True)
                 if not self._config.evaluate_local:
-                    return EvalRewardSummary()
+                    return metta.eval.eval_request_config.EvalRewardSummary()
                 logger.info("Falling back to local evaluation")
 
         # Local evaluation
@@ -185,7 +184,7 @@ class Evaluator(TrainerComponent):
             if stats_reporter and evaluation_results.replay_urls:
                 wandb_run = getattr(stats_reporter, "wandb_run", None)
                 if wandb_run:
-                    upload_replay_html(
+                    metta.rl.evaluate.upload_replay_html(
                         replay_urls=evaluation_results.replay_urls,
                         agent_step=agent_step,
                         epoch=epoch,
@@ -198,9 +197,11 @@ class Evaluator(TrainerComponent):
             self.context.latest_eval_scores = self._latest_scores
             return evaluation_results.scores
 
-        return EvalRewardSummary()
+        return metta.eval.eval_request_config.EvalRewardSummary()
 
-    def _build_simulations(self, curriculum: Curriculum) -> list[SimulationConfig]:
+    def _build_simulations(
+        self, curriculum: metta.cogworks.curriculum.Curriculum
+    ) -> list[metta.sim.simulation_config.SimulationConfig]:
         sims = []
 
         # Add training task evaluations
@@ -217,7 +218,7 @@ class Evaluator(TrainerComponent):
         else:
             for i in range(self._config.num_training_tasks):
                 sims.append(
-                    SimulationConfig(
+                    metta.sim.simulation_config.SimulationConfig(
                         suite="training",
                         name=f"train_task_{i}",
                         env=curriculum.get_task().get_env_cfg().model_copy(deep=True),
@@ -232,13 +233,13 @@ class Evaluator(TrainerComponent):
     def _evaluate_remote(
         self,
         policy_uri: str,
-        simulations: list[SimulationConfig],
-        stats_epoch_id: Optional[UUID] = None,
+        simulations: list[metta.sim.simulation_config.SimulationConfig],
+        stats_epoch_id: typing.Optional[uuid.UUID] = None,
     ) -> None:
         logger.info(f"Evaluating policy remotely from {policy_uri}")
         stats_reporter = getattr(self.context, "stats_reporter", None)
         wandb_run = getattr(stats_reporter, "wandb_run", None) if stats_reporter else None
-        evaluate_policy_remote_with_checkpoint_manager(
+        metta.rl.evaluate.evaluate_policy_remote_with_checkpoint_manager(
             policy_uri=policy_uri,
             simulations=simulations,
             stats_epoch_id=stats_epoch_id,
@@ -250,11 +251,11 @@ class Evaluator(TrainerComponent):
     def _evaluate_local(
         self,
         policy_uri: str,
-        simulations: list[SimulationConfig],
-        stats_epoch_id: Optional[UUID] = None,
-    ) -> EvalResults:
+        simulations: list[metta.sim.simulation_config.SimulationConfig],
+        stats_epoch_id: typing.Optional[uuid.UUID] = None,
+    ) -> metta.eval.eval_request_config.EvalResults:
         logger.info(f"Evaluating policy locally from {policy_uri}")
-        return evaluate_policy(
+        return metta.eval.eval_service.evaluate_policy(
             checkpoint_uri=policy_uri,
             simulations=simulations,
             replay_dir=self._config.replay_dir,
@@ -262,7 +263,7 @@ class Evaluator(TrainerComponent):
             stats_client=self._stats_client,
         )
 
-    def get_latest_scores(self) -> EvalRewardSummary:
+    def get_latest_scores(self) -> metta.eval.eval_request_config.EvalRewardSummary:
         return self._latest_scores
 
     def on_epoch_end(self, epoch: int) -> None:
@@ -274,7 +275,7 @@ class Evaluator(TrainerComponent):
             logger.warning("Evaluator: skipping epoch %s because no policy checkpoint is available", epoch)
             return
 
-        curriculum: Curriculum | None = getattr(self.context.env, "_curriculum", None)
+        curriculum: metta.cogworks.curriculum.Curriculum | None = getattr(self.context.env, "_curriculum", None)
         if curriculum is None:
             logger.warning("Evaluator: curriculum unavailable; skipping evaluation")
             return
@@ -301,7 +302,7 @@ class Evaluator(TrainerComponent):
         )
 
         optimizer = getattr(self.context, "optimizer", None)
-        is_schedulefree = optimizer is not None and is_schedulefree_optimizer(optimizer)
+        is_schedulefree = optimizer is not None and metta.rl.training.optimizer.is_schedulefree_optimizer(optimizer)
         if is_schedulefree:
             optimizer.eval()
 

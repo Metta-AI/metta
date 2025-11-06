@@ -1,21 +1,21 @@
 """Integration tests for training and evaluation with different policies."""
 
+import pathlib
 import shutil
 import tempfile
-from pathlib import Path
 
 import pytest
 import torch
 
-from cogames.cli.mission import get_mission
-from cogames.train import train
+import cogames.cli.mission
+import cogames.train
 
 
 @pytest.fixture
 def temp_checkpoint_dir():
     """Create a temporary directory for checkpoints."""
     temp_dir = tempfile.mkdtemp(prefix="cogames_test_")
-    yield Path(temp_dir)
+    yield pathlib.Path(temp_dir)
     # Cleanup after test
     shutil.rmtree(temp_dir, ignore_errors=True)
 
@@ -23,13 +23,13 @@ def temp_checkpoint_dir():
 @pytest.fixture
 def test_env_config():
     """Get a small test game configuration."""
-    return get_mission("machina_1")[1]
+    return cogames.cli.mission.get_mission("machina_1")[1]
 
 
 @pytest.mark.timeout(120)
 def test_train_lstm_policy(test_env_config, temp_checkpoint_dir):
     """Test training with LSTMPolicy for 1000 steps."""
-    train(
+    cogames.train.train(
         env_cfg=test_env_config,
         policy_class_path="mettagrid.policy.lstm.LSTMPolicy",
         device=torch.device("cpu"),
@@ -59,10 +59,10 @@ def test_train_lstm_policy(test_env_config, temp_checkpoint_dir):
 @pytest.mark.timeout(180)
 def test_train_lstm_and_load_policy_data(test_env_config, temp_checkpoint_dir):
     """Test training LSTM policy, then loading it for evaluation."""
-    from mettagrid.policy.lstm import LSTMPolicy
+    import mettagrid.policy.lstm
 
     # Train the policy
-    train(
+    cogames.train.train(
         env_cfg=test_env_config,
         policy_class_path="mettagrid.policy.lstm.LSTMPolicy",
         device=torch.device("cpu"),
@@ -82,10 +82,10 @@ def test_train_lstm_and_load_policy_data(test_env_config, temp_checkpoint_dir):
     assert len(checkpoints) > 0, f"Should have at least one checkpoint in {temp_checkpoint_dir}"
 
     # Load the checkpoint into a new policy
-    from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+    import mettagrid.policy.policy_env_interface
 
-    policy_env_info = PolicyEnvInterface.from_mg_cfg(test_env_config)
-    policy = LSTMPolicy(policy_env_info)
+    policy_env_info = mettagrid.policy.policy_env_interface.PolicyEnvInterface.from_mg_cfg(test_env_config)
+    policy = mettagrid.policy.lstm.LSTMPolicy(policy_env_info)
     policy.load_policy_data(str(checkpoints[0]))
 
     # Verify the policy network was loaded successfully

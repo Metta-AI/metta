@@ -1,11 +1,11 @@
 import os
+import pathlib
 import sys
-from pathlib import Path
 
 
 class LazyPath:
     def __init__(self, path_str):
-        self._path = Path(os.path.expanduser(path_str))
+        self._path = pathlib.Path(os.path.expanduser(path_str))
 
     def __str__(self):
         self._ensure_exists()
@@ -22,7 +22,7 @@ class LazyPath:
         self._ensure_exists()
         return getattr(self._path, name)
 
-    def __call__(self) -> Path:
+    def __call__(self) -> pathlib.Path:
         return self.get()
 
     def _ensure_exists(self):
@@ -33,6 +33,6 @@ class LazyPath:
             # Log warning but don't fail
             print(f"Warning: Could not create {self._path}: {e}", file=sys.stderr)
 
-    def get(self) -> Path:
+    def get(self) -> pathlib.Path:
         self._ensure_exists()
         return self._path

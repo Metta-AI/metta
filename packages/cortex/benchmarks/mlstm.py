@@ -1,20 +1,13 @@
-from __future__ import annotations
 
-from typing import Dict, Tuple
+import typing
 
+import cortex.kernels.pytorch.mlstm
+import cortex.kernels.triton.mlstm
 import torch
-from cortex.kernels.pytorch.mlstm import mlstm_chunkwise_simple
-from cortex.kernels.triton.mlstm import mlstm_chunkwise_triton
 
-from .common import (
-    BenchmarkCase,
-    BenchmarkDefinition,
-    BenchmarkSettings,
-    measure_callable,
-    register,
-)
+import packages.cortex.benchmarks.common
 
-CONFIGS: Tuple[Tuple[int, int, int, int, int], ...] = (
+CONFIGS: typing.Tuple[typing.Tuple[int, int, int, int, int], ...] = (
     (2, 4, 128, 64, 64),
     (2, 4, 256, 64, 64),
     (2, 4, 512, 64, 64),
@@ -27,12 +20,14 @@ CONFIGS: Tuple[Tuple[int, int, int, int, int], ...] = (
 )
 
 
-def _format_config(config: Tuple[int, int, int, int, int]) -> str:
+def _format_config(config: typing.Tuple[int, int, int, int, int]) -> str:
     b, h, t, d, chunk = config
     return f"({b}, {h}, {t}, {d}, {chunk})"
 
 
-def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, object]:
+def _run_case(
+    case: packages.cortex.benchmarks.common.BenchmarkCase, settings: packages.cortex.benchmarks.common.BenchmarkSettings
+) -> typing.Dict[str, object]:
     batch_size, num_heads, seq_len, head_dim, chunk_size = case.values
     device = torch.device(settings.device)
     dtype = settings.dtype
@@ -46,7 +41,7 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
     synchronize = device.type == "cuda"
 
     def run_pytorch():
-        return mlstm_chunkwise_simple(
+        return cortex.kernels.pytorch.mlstm.mlstm_chunkwise_simple(
             queries=queries,
             keys=keys,
             values=values,
@@ -55,14 +50,14 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
             chunk_size=chunk_size,
         )
 
-    output_pt, pytorch_time = measure_callable(
+    output_pt, pytorch_time = packages.cortex.benchmarks.common.measure_callable(
         run_pytorch,
         warmup=settings.warmup,
         iterations=settings.iterations,
         synchronize=synchronize,
     )
 
-    results: Dict[str, object] = {
+    results: typing.Dict[str, object] = {
         "pytorch_ms": pytorch_time * 1000.0,
         "triton_ms": None,
         "speedup": None,
@@ -73,7 +68,7 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
         return results
 
     def run_triton():
-        return mlstm_chunkwise_triton(
+        return cortex.kernels.triton.mlstm.mlstm_chunkwise_triton(
             queries=queries,
             keys=keys,
             values=values,
@@ -82,7 +77,7 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
             chunk_size=chunk_size,
         )
 
-    output_tr, triton_time = measure_callable(
+    output_tr, triton_time = packages.cortex.benchmarks.common.measure_callable(
         run_triton,
         warmup=settings.warmup,
         iterations=settings.iterations,
@@ -96,8 +91,8 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
     return results
 
 
-register(
-    BenchmarkDefinition(
+packages.cortex.benchmarks.common.register(
+    packages.cortex.benchmarks.common.BenchmarkDefinition(
         key="mlstm",
         title="mLSTM Triton vs PyTorch Benchmark",
         description="Compare Triton-accelerated mLSTM chunkwise kernels against PyTorch implementations.",

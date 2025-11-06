@@ -1,19 +1,19 @@
-from numpy import random
+import numpy
 
-from mettagrid.mapgen.area import AreaWhere
-from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig
-from mettagrid.mapgen.scenes.random import Random
-from mettagrid.mapgen.scenes.room_grid import RoomGrid
+import mettagrid.mapgen.area
+import mettagrid.mapgen.scene
+import mettagrid.mapgen.scenes.random
+import mettagrid.mapgen.scenes.room_grid
 
 
-class MultiLeftAndRightConfig(SceneConfig):
+class MultiLeftAndRightConfig(mettagrid.mapgen.scene.SceneConfig):
     rows: int
     columns: int
     altar_ratio: float
     total_altars: int
 
 
-class MultiLeftAndRight(Scene[MultiLeftAndRightConfig]):
+class MultiLeftAndRight(mettagrid.mapgen.scene.Scene[MultiLeftAndRightConfig]):
     """
     Produce multiple left-or-right maps in a grid, with agents assigned randomly
     to teams, and rooms all identical otherwise. Altars are placed asymmetrically
@@ -23,17 +23,17 @@ class MultiLeftAndRight(Scene[MultiLeftAndRightConfig]):
 
     def get_children(self):
         # Pregenerate seeds so that we could make rooms deterministic.
-        agent_seed = random.randint(0, int(1e9))
-        altar_seed = random.randint(0, int(1e9))
-        altar_distribution_seed = random.randint(0, int(1e9))
+        agent_seed = numpy.random.randint(0, int(1e9))
+        altar_seed = numpy.random.randint(0, int(1e9))
+        altar_distribution_seed = numpy.random.randint(0, int(1e9))
 
         # Calculate altar counts based on ratio
         more_altars = int(self.config.total_altars * self.config.altar_ratio)
         less_altars = self.config.total_altars - more_altars
 
         # Randomly determine which side gets more altars
-        random.seed(altar_distribution_seed)
-        left_altars = more_altars if random.random() < 0.5 else less_altars
+        numpy.random.seed(altar_distribution_seed)
+        left_altars = more_altars if numpy.random.random() < 0.5 else less_altars
         right_altars = self.config.total_altars - left_altars
 
         agent_groups = [
@@ -45,15 +45,15 @@ class MultiLeftAndRight(Scene[MultiLeftAndRightConfig]):
         columns = self.config.columns
 
         return [
-            ChildrenAction(
+            mettagrid.mapgen.scene.ChildrenAction(
                 where="full",
-                scene=RoomGrid.Config(
+                scene=mettagrid.mapgen.scenes.room_grid.RoomGrid.Config(
                     rows=rows,
                     columns=columns,
                     border_width=6,
                     children=[
-                        ChildrenAction(
-                            scene=RoomGrid.Config(
+                        mettagrid.mapgen.scene.ChildrenAction(
+                            scene=mettagrid.mapgen.scenes.room_grid.RoomGrid.Config(
                                 border_width=0,
                                 layout=[
                                     [
@@ -67,28 +67,28 @@ class MultiLeftAndRight(Scene[MultiLeftAndRightConfig]):
                                     ],
                                 ],
                                 children=[
-                                    ChildrenAction(
-                                        scene=Random.Config(
+                                    mettagrid.mapgen.scene.ChildrenAction(
+                                        scene=mettagrid.mapgen.scenes.random.Random.Config(
                                             agents={
                                                 agent_group: 1,
                                             },
                                             seed=agent_seed,
                                         ),
-                                        where=AreaWhere(tags=["agents"]),
+                                        where=mettagrid.mapgen.area.AreaWhere(tags=["agents"]),
                                     ),
-                                    ChildrenAction(
-                                        scene=Random.Config(
+                                    mettagrid.mapgen.scene.ChildrenAction(
+                                        scene=mettagrid.mapgen.scenes.random.Random.Config(
                                             objects={"altar": left_altars},
                                             seed=altar_seed,
                                         ),
-                                        where=AreaWhere(tags=["maybe_altars_left"]),
+                                        where=mettagrid.mapgen.area.AreaWhere(tags=["maybe_altars_left"]),
                                     ),
-                                    ChildrenAction(
-                                        scene=Random.Config(
+                                    mettagrid.mapgen.scene.ChildrenAction(
+                                        scene=mettagrid.mapgen.scenes.random.Random.Config(
                                             objects={"altar": right_altars},
                                             seed=altar_seed + 1,
                                         ),
-                                        where=AreaWhere(tags=["maybe_altars_right"]),
+                                        where=mettagrid.mapgen.area.AreaWhere(tags=["maybe_altars_right"]),
                                     ),
                                 ],
                             ),

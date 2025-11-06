@@ -1,42 +1,41 @@
-from __future__ import annotations
 
 import logging
-from typing import Dict, List
+import typing
 
-from pydantic import BaseModel
+import pydantic
 
-from metta.sim.simulation_stats_db import SimulationStatsDB
-from metta.utils.file import write_data
-from mettagrid.base_config import Config
+import metta.sim.simulation_stats_db
+import metta.utils.file
+import mettagrid.base_config
 
 logger = logging.getLogger(__name__)
 
 
-class DashboardConfig(Config):
+class DashboardConfig(mettagrid.base_config.Config):
     eval_db_uri: str
     output_path: str = "/tmp/dashboard_data.json"
 
 
-class PolicyEvalMetric(BaseModel):
+class PolicyEvalMetric(pydantic.BaseModel):
     metric: str
     group_id: str
     sum_value: float
 
 
-class PolicyEval(BaseModel):
+class PolicyEval(pydantic.BaseModel):
     policy_key: str
     policy_version: int
     eval_name: str
     replay_url: str | None
-    group_num_agents: Dict[str, int]
-    policy_eval_metrics: List[PolicyEvalMetric]
+    group_num_agents: typing.Dict[str, int]
+    policy_eval_metrics: typing.List[PolicyEvalMetric]
 
 
-class DashboardData(BaseModel):
-    policy_evals: List[PolicyEval]
+class DashboardData(pydantic.BaseModel):
+    policy_evals: typing.List[PolicyEval]
 
 
-def get_policy_eval_metrics(db: SimulationStatsDB) -> List[PolicyEval]:
+def get_policy_eval_metrics(db: metta.sim.simulation_stats_db.SimulationStatsDB) -> typing.List[PolicyEval]:
     db.con.execute(
         """
       CREATE VIEW IF NOT EXISTS episode_info AS (
@@ -134,8 +133,8 @@ def get_policy_eval_metrics(db: SimulationStatsDB) -> List[PolicyEval]:
 
 
 def write_dashboard_data(dashboard_cfg: DashboardConfig):
-    with SimulationStatsDB.from_uri(dashboard_cfg.eval_db_uri) as db:
+    with metta.sim.simulation_stats_db.SimulationStatsDB.from_uri(dashboard_cfg.eval_db_uri) as db:
         metrics = get_policy_eval_metrics(db)
         content = DashboardData(policy_evals=metrics).model_dump_json()
 
-    write_data(dashboard_cfg.output_path, content, content_type="application/json")
+    metta.utils.file.write_data(dashboard_cfg.output_path, content, content_type="application/json")

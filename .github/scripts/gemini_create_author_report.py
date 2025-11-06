@@ -8,27 +8,21 @@
 
 import json
 import logging
+import pathlib
 import random
 import sys
-from pathlib import Path
 
-from gemini_analyze_pr import PRSummary
-from gemini_analyze_pr_digest import (
-    PRDigestAnalyzer,
-    PreviousReportExtractor,
-    load_digest_data,
-    save_new_summaries,
-    save_structured_data,
-)
-from gemini_client import GeminiAIClient
+import gemini_analyze_pr
+import gemini_analyze_pr_digest
+import gemini_client
 
 
 class AuthorReportGenerator:
     """Generates comprehensive author-specific reports."""
 
-    def __init__(self, ai_client: GeminiAIClient):
+    def __init__(self, ai_client: gemini_client.GeminiAIClient):
         self.ai_client = ai_client
-        self.author_report_extractor = PreviousReportExtractor(report_type="author-report")
+        self.author_report_extractor = gemini_analyze_pr_digest.PreviousReportExtractor(report_type="author-report")
 
     def get_previous_reports_context(self, author: str, max_reports: int = 3) -> str:
         """Format recent author reports as markdown context for prompt."""
@@ -63,7 +57,7 @@ class AuthorReportGenerator:
         context_lines.append("\n**END OF PREVIOUS REVIEWS**\n")
         return "\n".join(context_lines)
 
-    def calculate_author_stats(self, pr_summaries: list[PRSummary]) -> dict:
+    def calculate_author_stats(self, pr_summaries: list[gemini_analyze_pr.PRSummary]) -> dict:
         """Calculate aggregate statistics for an author."""
         stats = {
             "total_prs": len(pr_summaries),
@@ -231,7 +225,9 @@ class AuthorReportGenerator:
         ]
         return random.choice(prompts)
 
-    def generate_author_report(self, pr_summaries: list[PRSummary], date_range: str, author: str) -> str:
+    def generate_author_report(
+        self, pr_summaries: list[gemini_analyze_pr.PRSummary], date_range: str, author: str
+    ) -> str:
         """Generate a comprehensive author report suitable for performance reviews."""
         # Handle empty PR list
         if not pr_summaries:
@@ -517,7 +513,7 @@ Please check the logs and try again.
 
 
 def create_author_report_output(
-    pr_summaries: list[PRSummary],
+    pr_summaries: list[gemini_analyze_pr.PRSummary],
     author_report: str,
     author: str,
     date_range: str,
@@ -568,9 +564,9 @@ def main():
     logging.info("Running in AUTHOR REPORT mode")
 
     # Import parse_config
-    script_dir = Path(__file__).parent.parent.parent / "scripts"
+    script_dir = pathlib.Path(__file__).parent.parent.parent / "scripts"
     sys.path.insert(0, str(script_dir))
-    from utils.config import parse_config
+    import utils.config
 
     # Define required and optional environment variables
     required_vars = [
@@ -588,7 +584,7 @@ def main():
     }
 
     # Parse configuration
-    env_values = parse_config(required_vars, optional_vars)
+    env_values = utils.config.parse_config(required_vars, optional_vars)
 
     # Extract values
     api_key = env_values["GEMINI_API_KEY"]
@@ -599,7 +595,7 @@ def main():
 
     try:
         # Load PR digest and stats
-        new_prs, stats = load_digest_data(pr_digest_file, stats_file)
+        new_prs, stats = gemini_analyze_pr_digest.load_digest_data(pr_digest_file, stats_file)
     except FileNotFoundError as e:
         print(f"Error: {e}")
         sys.exit(1)
@@ -640,7 +636,7 @@ def main():
     print(f"  - Author: {report_author}")
 
     # Initialize analyzer and process
-    analyzer = PRDigestAnalyzer(api_key)
+    analyzer = gemini_analyze_pr_digest.PRDigestAnalyzer(api_key)
     all_summaries = analyzer.analyze_digest(new_prs, cached_pr_numbers)
 
     # Filter summaries for the specific author
@@ -674,17 +670,17 @@ def main():
     print(f"✅ Found {len(author_summaries)} PRs by {report_author}")
 
     # Save individual PR files for newly processed PRs
-    new_count = save_new_summaries(all_summaries)
+    new_count = gemini_analyze_pr_digest.save_new_summaries(all_summaries)
     if new_count > 0:
         print(f"✅ Saved {new_count} new PR files")
 
     # Save structured data (author's summaries only)
-    save_structured_data(author_summaries)
+    gemini_analyze_pr_digest.save_structured_data(author_summaries)
     print("✅ Saved pr_summary_data.json")
 
     # Generate author report
     print(f"Generating author report for {report_author}...")
-    ai_client = GeminiAIClient(api_key)
+    ai_client = gemini_client.GeminiAIClient(api_key)
     author_report_generator = AuthorReportGenerator(ai_client)
 
     author_stats = author_report_generator.calculate_author_stats(author_summaries)

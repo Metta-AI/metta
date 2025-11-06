@@ -1,18 +1,17 @@
-from __future__ import annotations
 
+import abc
 import inspect
 import logging
-from abc import ABC, abstractmethod
-from pathlib import Path
-from typing import Any, ClassVar, Generic, Self, TypeVar, cast, get_args, get_origin
+import pathlib
+import typing
 
 import numpy as np
+import pydantic
 import yaml
-from pydantic import Field, ModelWrapValidatorHandler, SerializeAsAny, model_serializer, model_validator
 
-from mettagrid.base_config import Config
-from mettagrid.mapgen.types import MapGrid
-from mettagrid.util.module import load_symbol
+import mettagrid.base_config
+import mettagrid.mapgen.types
+import mettagrid.util.module
 
 logger = logging.getLogger(__name__)
 
@@ -25,29 +24,29 @@ class GameMap:
     # Two-dimensional grid of strings.
     # Possible values: "wall", "empty", "agent", etc.
     # For the full list, see `mettagrid_c.cpp`.
-    grid: MapGrid
+    grid: mettagrid.mapgen.types.MapGrid
 
-    def __init__(self, grid: MapGrid):
+    def __init__(self, grid: mettagrid.mapgen.types.MapGrid):
         self.grid = grid
 
 
-TBuilder = TypeVar("TBuilder", bound="MapBuilder[Any]")
+TBuilder = typing.TypeVar("TBuilder", bound="MapBuilder[Any]")
 
 
-class MapBuilderConfig(Config, Generic[TBuilder]):
+class MapBuilderConfig(mettagrid.base_config.Config, typing.Generic[TBuilder]):
     """
     Base class for all map builder configs.
     """
 
     # Can't use correct generic parameter because ClassVar doesn't support generics.
     # We access this field through `builder_cls()` instead.
-    _builder_cls: ClassVar[type[MapBuilder] | None] = None
+    _builder_cls: typing.ClassVar[type[MapBuilder] | None] = None
 
     @classmethod
     def builder_cls(cls) -> type[TBuilder]:
         if cls._builder_cls is None:
             raise TypeError(f"{cls.__qualname__} is not bound to a MapBuilder")
-        return cast(type[TBuilder], cls._builder_cls)
+        return typing.cast(type[TBuilder], cls._builder_cls)
 
     def create(self) -> TBuilder:
         """
@@ -57,24 +56,24 @@ class MapBuilderConfig(Config, Generic[TBuilder]):
         """
         return self.builder_cls()(self)  # type: ignore[call-arg]
 
-    def model_dump(self, **kwargs) -> dict[str, Any]:
+    def model_dump(self, **kwargs) -> dict[str, typing.Any]:
         return super().model_dump(serialize_as_any=True, **kwargs)
 
     def model_dump_json(self, **kwargs) -> str:
         return super().model_dump_json(serialize_as_any=True, **kwargs)
 
     @classmethod
-    def from_uri(cls, uri: str | Path) -> Self:
+    def from_uri(cls, uri: str | pathlib.Path) -> typing.Self:
         """Load a builder config from a YAML or JSON file."""
 
-        path = Path(uri)
+        path = pathlib.Path(uri)
         with path.open("r", encoding="utf-8") as f:
             raw = f.read()
 
         return cls.from_str(raw)
 
     @classmethod
-    def from_str(cls, data: str | bytes) -> Self:
+    def from_str(cls, data: str | bytes) -> typing.Self:
         """Load a builder config from a serialized string or mapping."""
 
         parsed = yaml.safe_load(data)
@@ -91,15 +90,17 @@ class MapBuilderConfig(Config, Generic[TBuilder]):
         return f"{builder_cls.__module__}.{builder_cls.__qualname__}.Config"
 
     # Ensure YAML/JSON dumps always include a 'type' with a nice FQCN
-    @model_serializer(mode="wrap")
+    @pydantic.model_serializer(mode="wrap")
     def _serialize_with_type(self, handler):
         data = handler(self)  # dict of the model's fields
 
         return {"type": self._type_str(), **data}
 
-    @model_validator(mode="wrap")
+    @pydantic.model_validator(mode="wrap")
     @classmethod
-    def _validate_with_type(cls, v: Any, handler: ModelWrapValidatorHandler[Self]) -> Self:
+    def _validate_with_type(
+        cls, v: typing.Any, handler: pydantic.ModelWrapValidatorHandler[typing.Self]
+    ) -> typing.Self:
         """
         Accepts any of:
         - a MapBuilderConfig instance (already specific)
@@ -119,7 +120,7 @@ class MapBuilderConfig(Config, Generic[TBuilder]):
             return handler(v)
 
         # Import the symbol named in 'type'
-        type_cls = load_symbol(t) if isinstance(t, str) else t
+        type_cls = mettagrid.util.module.load_symbol(t) if isinstance(t, str) else t
 
         if not inspect.isclass(type_cls):
             raise TypeError("'type' must point to a class")
@@ -138,21 +139,21 @@ class MapBuilderConfig(Config, Generic[TBuilder]):
         return result
 
 
-class WithMaxRetriesConfig(Config):
-    max_retries: int = Field(
+class WithMaxRetriesConfig(mettagrid.base_config.Config):
+    max_retries: int = pydantic.Field(
         default=5,
         ge=0,
         description="Number of additional map samples to try when a builder raises ValueError during build().",
     )
 
 
-AnyMapBuilderConfig = SerializeAsAny[MapBuilderConfig]
+AnyMapBuilderConfig = pydantic.SerializeAsAny[MapBuilderConfig]
 
 
-ConfigT = TypeVar("ConfigT", bound=MapBuilderConfig[Any])
+ConfigT = typing.TypeVar("ConfigT", bound=MapBuilderConfig[typing.Any])
 
 
-class MapBuilder(ABC, Generic[ConfigT]):
+class MapBuilder(abc.ABC, typing.Generic[ConfigT]):
     """
     A base class for building MettaGridEnv game maps.
 
@@ -168,33 +169,35 @@ class MapBuilder(ABC, Generic[ConfigT]):
 
         # Look for MapBuilder base class
         try:
-            base = next(base for base in getattr(cls, "__orig_bases__", ()) if get_origin(base) is MapBuilder)
+            base = next(base for base in getattr(cls, "__orig_bases__", ()) if typing.get_origin(base) is MapBuilder)
         except StopIteration:
             raise TypeError(
                 f"{cls.__name__} must inherit from MapBuilder[…], with a concrete Config class parameter"
             ) from None
 
         # Set the Config class - this allows to use MapBuilder.Config shorthand
-        Config = get_args(base)[0]
+        Config = typing.get_args(base)[0]
 
         # Should be guaranteed by the type checker.
-        assert isinstance(Config, type) and issubclass(Config, MapBuilderConfig)
+        assert isinstance(mettagrid.base_config.Config, type) and issubclass(
+            mettagrid.base_config.Config, MapBuilderConfig
+        )
 
-        if Config._builder_cls:
+        if mettagrid.base_config.Config._builder_cls:
             # Already bound to another MapBuilder class, so we need to clone it
-            class CloneConfig(Config):
+            class CloneConfig(mettagrid.base_config.Config):
                 pass
 
             Config = CloneConfig
 
-        Config._builder_cls = cls
-        cls.Config = Config  # pyright: ignore[reportAttributeAccessIssue]
+        mettagrid.base_config.Config._builder_cls = cls
+        cls.Config = mettagrid.base_config.Config  # pyright: ignore[reportAttributeAccessIssue]
         return
 
     def __init__(self, config: ConfigT):
         self.config = config
 
-    @abstractmethod
+    @abc.abstractmethod
     def build(self) -> GameMap: ...
 
     def build_for_num_agents(self, num_agents: int) -> GameMap:

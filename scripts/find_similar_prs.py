@@ -1,10 +1,10 @@
 import argparse
+import datetime
+import pathlib
 import sys
 import textwrap
-from datetime import datetime, timezone
-from pathlib import Path
 
-from metta.tools.pr_similarity import API_KEY_ENV, DEFAULT_CACHE_PATH, DEFAULT_TOP_K, find_similar_prs, require_api_key
+import metta.tools.pr_similarity
 
 
 def parse_args() -> argparse.Namespace:
@@ -13,9 +13,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--cache-path",
-        type=Path,
-        default=DEFAULT_CACHE_PATH,
-        help=f"Path to the PR embedding cache (default: {DEFAULT_CACHE_PATH}).",
+        type=pathlib.Path,
+        default=metta.tools.pr_similarity.DEFAULT_CACHE_PATH,
+        help=f"Path to the PR embedding cache (default: {metta.tools.pr_similarity.DEFAULT_CACHE_PATH}).",
     )
     parser.add_argument(
         "--model",
@@ -24,8 +24,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--top-k",
         type=int,
-        default=DEFAULT_TOP_K,
-        help=f"Number of similar PRs to return (default: {DEFAULT_TOP_K}).",
+        default=metta.tools.pr_similarity.DEFAULT_TOP_K,
+        help=f"Number of similar PRs to return (default: {metta.tools.pr_similarity.DEFAULT_TOP_K}).",
     )
     parser.add_argument(
         "--min-date",
@@ -81,7 +81,7 @@ def main() -> None:
     args = parse_args()
 
     try:
-        api_key = require_api_key(API_KEY_ENV)
+        api_key = metta.tools.pr_similarity.require_api_key(metta.tools.pr_similarity.API_KEY_ENV)
     except EnvironmentError as error:
         sys.exit(f"error: {error}")
     description = args.description.strip()
@@ -89,13 +89,13 @@ def main() -> None:
     min_date = None
     if args.min_date:
         try:
-            min_date = datetime.fromisoformat(args.min_date.strip())
+            min_date = datetime.datetime.fromisoformat(args.min_date.strip())
         except ValueError as error:
             sys.exit(f"error: invalid --min-date value: {error}")
         if min_date.tzinfo is None:
-            min_date = min_date.replace(tzinfo=timezone.utc)
+            min_date = min_date.replace(tzinfo=datetime.timezone.utc)
 
-    metadata, top_results = find_similar_prs(
+    metadata, top_results = metta.tools.pr_similarity.find_similar_prs(
         description,
         top_k=args.top_k,
         cache_path=args.cache_path,

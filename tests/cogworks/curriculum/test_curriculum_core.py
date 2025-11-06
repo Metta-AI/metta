@@ -4,11 +4,7 @@ import random
 
 import pytest
 
-from metta.cogworks.curriculum import (
-    Curriculum,
-    CurriculumConfig,
-    CurriculumTask,
-)
+import metta.cogworks.curriculum
 
 
 class TestCurriculumTask:
@@ -18,7 +14,7 @@ class TestCurriculumTask:
     def test_curriculum_task_creation(self, arena_env, task_id, expected_id):
         """Test creating a CurriculumTask with various ID types."""
         cfg = arena_env
-        task = CurriculumTask(task_id, cfg)
+        task = metta.cogworks.curriculum.CurriculumTask(task_id, cfg)
 
         assert task._task_id == expected_id
         assert task._env_cfg == cfg
@@ -29,7 +25,7 @@ class TestCurriculumTask:
 
     def test_curriculum_task_get_env_cfg(self, arena_env):
         """Test getting environment configuration from task."""
-        task = CurriculumTask(123, arena_env)
+        task = metta.cogworks.curriculum.CurriculumTask(123, arena_env)
         assert task.get_env_cfg() is arena_env
 
     @pytest.mark.parametrize(
@@ -42,7 +38,7 @@ class TestCurriculumTask:
     )
     def test_curriculum_task_complete(self, arena_env, scores, expected_completions, expected_total, expected_mean):
         """Test task completion and score tracking with various score sequences."""
-        task = CurriculumTask(123, arena_env)
+        task = metta.cogworks.curriculum.CurriculumTask(123, arena_env)
 
         for score in scores:
             task.complete(score)
@@ -65,7 +61,7 @@ class TestCurriculumConfig:
     )
     def test_curriculum_config_creation(self, single_task_generator_config, max_task_id, num_active_tasks):
         """Test creating a CurriculumConfig with various parameter combinations."""
-        config = CurriculumConfig(
+        config = metta.cogworks.curriculum.CurriculumConfig(
             task_generator=single_task_generator_config,
             max_task_id=max_task_id,
             num_active_tasks=num_active_tasks,
@@ -77,7 +73,7 @@ class TestCurriculumConfig:
 
     def test_curriculum_config_defaults(self, single_task_generator_config):
         """Test that CurriculumConfig uses correct default values."""
-        config = CurriculumConfig(task_generator=single_task_generator_config)
+        config = metta.cogworks.curriculum.CurriculumConfig(task_generator=single_task_generator_config)
 
         assert config.max_task_id == 1000000
         assert config.num_active_tasks == 10000
@@ -94,7 +90,7 @@ class TestCurriculumConfig:
     ):
         """Test that num_active_tasks validation works for invalid combinations."""
         with pytest.raises(ValueError):
-            CurriculumConfig(
+            metta.cogworks.curriculum.CurriculumConfig(
                 task_generator=single_task_generator_config, max_task_id=max_task_id, num_active_tasks=num_active_tasks
             )
 
@@ -108,7 +104,7 @@ class TestCurriculumConfig:
     )
     def test_curriculum_config_edge_case_values(self, single_task_generator_config, max_task_id, num_active_tasks):
         """Test edge case values for parameters."""
-        config = CurriculumConfig(
+        config = metta.cogworks.curriculum.CurriculumConfig(
             task_generator=single_task_generator_config,
             max_task_id=max_task_id,
             num_active_tasks=num_active_tasks,
@@ -123,7 +119,7 @@ class TestCurriculumCore:
     @pytest.mark.parametrize("seed", [0, 42, 123, 999])
     def test_curriculum_creation(self, curriculum_config, seed):
         """Test creating a Curriculum with various seeds."""
-        curriculum = Curriculum(curriculum_config, seed=seed)
+        curriculum = metta.cogworks.curriculum.Curriculum(curriculum_config, seed=seed)
 
         assert curriculum._config is curriculum_config
         assert hasattr(curriculum._task_generator, "get_task")
@@ -133,7 +129,7 @@ class TestCurriculumCore:
         # curriculum initialization now creates tasks at capacity, consuming randomness
         # Just verify that the RNG was seeded properly by creating another with same seed
         # and checking that some draws produce the same sequence after capacity initialization
-        test_curriculum = Curriculum(curriculum_config, seed=seed)
+        test_curriculum = metta.cogworks.curriculum.Curriculum(curriculum_config, seed=seed)
 
         # After initialization, both should generate the same sequence
         for _ in range(5):
@@ -141,7 +137,7 @@ class TestCurriculumCore:
 
     def test_curriculum_task_generation(self, curriculum_config):
         """Test that curriculum can generate tasks."""
-        curriculum = Curriculum(curriculum_config, seed=0)
+        curriculum = metta.cogworks.curriculum.Curriculum(curriculum_config, seed=0)
 
         # Generate multiple tasks
         tasks = []
@@ -160,7 +156,7 @@ class TestCurriculumCore:
 
     def test_curriculum_task_reuse(self, curriculum_config):
         """Test that curriculum can reuse tasks."""
-        curriculum = Curriculum(curriculum_config, seed=0)
+        curriculum = metta.cogworks.curriculum.Curriculum(curriculum_config, seed=0)
 
         # Get initial task
         initial_task = curriculum.get_task()
@@ -181,8 +177,8 @@ class TestCurriculumCore:
         seed = 42
 
         # Create two curricula with same seed
-        curriculum1 = Curriculum(curriculum_config, seed=seed)
-        curriculum2 = Curriculum(curriculum_config, seed=seed)
+        curriculum1 = metta.cogworks.curriculum.Curriculum(curriculum_config, seed=seed)
+        curriculum2 = metta.cogworks.curriculum.Curriculum(curriculum_config, seed=seed)
 
         # Generate tasks from both
         tasks1 = [curriculum1.get_task() for _ in range(5)]
@@ -198,8 +194,8 @@ class TestCurriculumCore:
         seed1, seed2 = 42, 123
 
         # Create curricula with different seeds
-        curriculum1 = Curriculum(curriculum_config, seed=seed1)
-        curriculum2 = Curriculum(curriculum_config, seed=seed2)
+        curriculum1 = metta.cogworks.curriculum.Curriculum(curriculum_config, seed=seed1)
+        curriculum2 = metta.cogworks.curriculum.Curriculum(curriculum_config, seed=seed2)
 
         # Generate tasks from both
         tasks1 = [curriculum1.get_task() for _ in range(5)]

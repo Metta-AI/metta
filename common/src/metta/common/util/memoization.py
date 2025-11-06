@@ -1,18 +1,25 @@
+import collections.abc
+import functools
 import time
-from collections.abc import Awaitable, Callable
-from functools import wraps
-from typing import Any, ParamSpec, TypeVar
+import typing
 
-P = ParamSpec("P")
+P = typing.ParamSpec("P")
 
-T = TypeVar("T")
+T = typing.TypeVar("T")
 
 
-def memoize(max_age: float) -> Callable[[Callable[P, Awaitable[T]]], Callable[P, Awaitable[T]]]:
-    def decorator(func: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
-        cache: dict[tuple[Any, ...], tuple[T, float]] = {}
+def memoize(
+    max_age: float,
+) -> collections.abc.Callable[
+    [collections.abc.Callable[P, collections.abc.Awaitable[T]]],
+    collections.abc.Callable[P, collections.abc.Awaitable[T]],
+]:
+    def decorator(
+        func: collections.abc.Callable[P, collections.abc.Awaitable[T]],
+    ) -> collections.abc.Callable[P, collections.abc.Awaitable[T]]:
+        cache: dict[tuple[typing.Any, ...], tuple[T, float]] = {}
 
-        @wraps(func)
+        @functools.wraps(func)
         async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
             key = (args, tuple(sorted(kwargs.items())))
             current_time = time.time()

@@ -1,41 +1,40 @@
-from __future__ import annotations
 
 import csv
 import math
-from dataclasses import dataclass
-from statistics import NormalDist
-from typing import Any, Iterable, Literal, Optional
+import dataclasses
+import statistics
+import typing
 
 import numpy as np
 import pandas as pd
 import scipy.stats as st  # type: ignore
 import wandb
-from metta.common.tool import Tool
-from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
-from pydantic import BaseModel, Field, model_validator
-from wandb.apis.public.runs import Run
+import metta.common.tool
+import metta.common.util.constants
+import pydantic
+import wandb.apis.public.runs
 
 
-class RunPair(BaseModel):
+class RunPair(pydantic.BaseModel):
     control: str
     candidate: str
     seed: int | None = None
 
 
-class SummarySpec(BaseModel):
-    type: Literal["auc", "eval_last_n"] = "auc"
+class SummarySpec(pydantic.BaseModel):
+    type: typing.Literal["auc", "eval_last_n"] = "auc"
 
     # auc
     step_min: int | None = None
     step_max: int | None = None
     normalize_steps: bool = True
     percent: float | None = 0.25  # default to last 25% window
-    percent_window: Literal["first", "last"] = "last"
+    percent_window: typing.Literal["first", "last"] = "last"
 
     # eval_last_n
     n: int = 5
 
-    @model_validator(mode="after")
+    @pydantic.model_validator(mode="after")
     def _validate(self) -> "SummarySpec":
         if self.type == "auc":
             if self.percent is not None and not (0 < float(self.percent) <= 1):
@@ -46,39 +45,39 @@ class SummarySpec(BaseModel):
         return self
 
 
-class FetchSpec(BaseModel):
+class FetchSpec(pydantic.BaseModel):
     samples: int | None = 2000
     min_step: int | None = None
     max_step: int | None = None
     keys: list[str] | None = None  # will default to [metric_key]
 
 
-class BootstrapSpec(BaseModel):
+class BootstrapSpec(pydantic.BaseModel):
     n_resamples: int = 10000
     alpha: float = 0.05
-    side: Literal["two-sided", "greater", "less"] = "two-sided"
-    method: Literal["bca", "percentile"] = "bca"
+    side: typing.Literal["two-sided", "greater", "less"] = "two-sided"
+    method: typing.Literal["bca", "percentile"] = "bca"
 
 
-class TTestSpec(BaseModel):
+class TTestSpec(pydantic.BaseModel):
     enabled: bool = False
     assumption_alpha: float = (
         0.05  # this is for normality testing, not for the t-test itself
     )
 
 
-class PowerSpec(BaseModel):
+class PowerSpec(pydantic.BaseModel):
     enabled: bool = False
     target_effect_size: float = 0.2
     beta: float = 0.8
 
 
-class OutputSpec(BaseModel):
+class OutputSpec(pydantic.BaseModel):
     print_table: bool = True
     csv_path: str | None = None
 
 
-@dataclass
+@dataclasses.dataclass
 class _RunSeries:
     run_id: str
     steps: np.ndarray
@@ -88,9 +87,9 @@ class _RunSeries:
 
 def get_run(
     run_id: str,
-    entity: str = METTA_WANDB_ENTITY,
-    project: str = METTA_WANDB_PROJECT,
-) -> Run | None:
+    entity: str = metta.common.util.constants.METTA_WANDB_ENTITY,
+    project: str = metta.common.util.constants.METTA_WANDB_PROJECT,
+) -> wandb.apis.public.runs.Run | None:
     try:
         api = wandb.Api(timeout=20)
     except Exception as e:  # noqa: BLE001
@@ -275,14 +274,14 @@ def _mean_confidence_interval_bca(
     samples: np.ndarray,  # bootstrap statistics
     t_hat: float,
     alpha: float,
-    jackknife_stats: Optional[np.ndarray] = None,
-    side: Literal["two-sided", "greater", "less"] = "two-sided",
+    jackknife_stats: typing.Optional[np.ndarray] = None,
+    side: typing.Literal["two-sided", "greater", "less"] = "two-sided",
 ) -> tuple[float, float]:
     # Bias-correction
     eps = 1e-12
     frac = float(np.mean(samples < t_hat))
     frac = min(max(frac, eps), 1 - eps)
-    z0 = NormalDist().inv_cdf(frac)
+    z0 = statistics.NormalDist().inv_cdf(frac)
 
     # Acceleration via jackknife if provided, else 0
     a = 0.0
@@ -295,7 +294,7 @@ def _mean_confidence_interval_bca(
             a = num / den
 
     def pct(point: float) -> float:
-        dist = NormalDist()
+        dist = statistics.NormalDist()
         zalpha = dist.inv_cdf(point)
         adj = z0 + (zalpha / (1 - a * (zalpha - z0) + eps))
         return float(dist.cdf(adj))
@@ -318,7 +317,7 @@ def _mean_confidence_interval_bca(
 def _percentile_ci(
     samples: np.ndarray,
     alpha: float,
-    side: Literal["two-sided", "greater", "less"] = "two-sided",
+    side: typing.Literal["two-sided", "greater", "less"] = "two-sided",
 ) -> tuple[float, float]:
     if side == "two-sided":
         lo = float(np.quantile(samples, alpha / 2))
@@ -336,8 +335,8 @@ def _paired_bootstrap_ci(
     diffs: np.ndarray,
     n_resamples: int,
     alpha: float,
-    method: Literal["bca", "percentile"],
-    side: Literal["two-sided", "greater", "less"] = "two-sided",
+    method: typing.Literal["bca", "percentile"],
+    side: typing.Literal["two-sided", "greater", "less"] = "two-sided",
 ) -> tuple[float, float, np.ndarray]:
     n = len(diffs)
     if n == 0:
@@ -357,7 +356,7 @@ def _paired_bootstrap_ci(
         eps = 1e-12
         frac = float(np.mean(boot < t_hat))
         frac = min(max(frac, eps), 1 - eps)
-        z0 = NormalDist().inv_cdf(frac)
+        z0 = statistics.NormalDist().inv_cdf(frac)
         a = 0.0
         if len(jack) > 1:
             t_dot = float(np.mean(jack))
@@ -366,7 +365,7 @@ def _paired_bootstrap_ci(
             den = float(6.0 * (np.sum(diffs_j**2) ** 1.5) + eps)
             if den != 0.0:
                 a = num / den
-        dist = NormalDist()
+        dist = statistics.NormalDist()
         zalpha = dist.inv_cdf(0.5)
         adj = z0 + (zalpha / (1 - a * (zalpha - z0) + eps))
         median_pct = float(dist.cdf(adj))
@@ -382,8 +381,8 @@ def _unpaired_bootstrap_ci(
     candidate: np.ndarray,
     n_resamples: int,
     alpha: float,
-    method: Literal["bca", "percentile"],
-    side: Literal["two-sided", "greater", "less"] = "two-sided",
+    method: typing.Literal["bca", "percentile"],
+    side: typing.Literal["two-sided", "greater", "less"] = "two-sided",
 ) -> tuple[float, tuple[float, float], np.ndarray]:
     if len(control) == 0 or len(candidate) == 0:
         raise ValueError("Control and candidate must have at least one sample each")
@@ -408,7 +407,7 @@ def _unpaired_bootstrap_ci(
         eps = 1e-12
         frac = float(np.mean(boot < t_hat))
         frac = min(max(frac, eps), 1 - eps)
-        z0 = NormalDist().inv_cdf(frac)
+        z0 = statistics.NormalDist().inv_cdf(frac)
         a = 0.0
         if len(jack) > 1:
             t_dot = float(np.mean(jack))
@@ -417,7 +416,7 @@ def _unpaired_bootstrap_ci(
             den = float(6.0 * (np.sum(diffs_j**2) ** 1.5) + eps)
             if den != 0.0:
                 a = num / den
-        dist = NormalDist()
+        dist = statistics.NormalDist()
         zalpha = dist.inv_cdf(0.5)
         adj = z0 + (zalpha / (1 - a * (zalpha - z0) + eps))
         median_pct = float(dist.cdf(adj))
@@ -430,8 +429,8 @@ def _unpaired_bootstrap_ci(
 
 def _ttest_optional(
     paired: bool, control: np.ndarray, candidate: np.ndarray, assumption_alpha: float
-) -> dict[str, Any]:
-    result: dict[str, Any] = {"warnings": [], "assumptions": {}}
+) -> dict[str, typing.Any]:
+    result: dict[str, typing.Any] = {"warnings": [], "assumptions": {}}
     try:
         if paired:
             if len(control) != len(candidate):
@@ -502,22 +501,22 @@ def _ttest_optional(
         return result
 
 
-class CompareTool(Tool):
+class CompareTool(metta.common.tool.Tool):
     # Inputs
-    control_run_ids: list[str] | None = Field(default=None)
-    candidate_run_ids: list[str] | None = Field(default=None)
-    pairs: list[RunPair] | None = Field(default=None)
+    control_run_ids: list[str] | None = pydantic.Field(default=None)
+    candidate_run_ids: list[str] | None = pydantic.Field(default=None)
+    pairs: list[RunPair] | None = pydantic.Field(default=None)
 
     # Analysis config
-    metric_key: str = Field(default="overview/reward")
-    summary: SummarySpec = Field(default_factory=SummarySpec)
-    fetch: FetchSpec = Field(default_factory=FetchSpec)
-    bootstrap: BootstrapSpec = Field(default_factory=BootstrapSpec)
-    ttest: TTestSpec = Field(default_factory=TTestSpec)
-    power: PowerSpec = Field(default_factory=PowerSpec)
-    output: OutputSpec = Field(default_factory=OutputSpec)
+    metric_key: str = pydantic.Field(default="overview/reward")
+    summary: SummarySpec = pydantic.Field(default_factory=SummarySpec)
+    fetch: FetchSpec = pydantic.Field(default_factory=FetchSpec)
+    bootstrap: BootstrapSpec = pydantic.Field(default_factory=BootstrapSpec)
+    ttest: TTestSpec = pydantic.Field(default_factory=TTestSpec)
+    power: PowerSpec = pydantic.Field(default_factory=PowerSpec)
+    output: OutputSpec = pydantic.Field(default_factory=OutputSpec)
 
-    @model_validator(mode="after")
+    @pydantic.model_validator(mode="after")
     def _check_inputs(self) -> "CompareTool":
         if self.pairs is not None:
             if self.control_run_ids is not None or self.candidate_run_ids is not None:
@@ -704,9 +703,9 @@ class CompareTool(Tool):
         n_candidate: int,
         point: float,
         ci: tuple[float, float],
-        boot: Optional[np.ndarray],
-        ttest: Optional[dict[str, Any]],
-        power: Optional[dict[str, Any]],
+        boot: typing.Optional[np.ndarray],
+        ttest: typing.Optional[dict[str, typing.Any]],
+        power: typing.Optional[dict[str, typing.Any]],
     ) -> None:
         if not self.output.print_table:
             return
@@ -760,7 +759,9 @@ class CompareTool(Tool):
     def _write_csv(
         self,
         path: str,
-        summaries: Iterable[tuple[str, str, float] | tuple[str, str, float, float]],
+        summaries: typing.Iterable[
+            tuple[str, str, float] | tuple[str, str, float, float]
+        ],
         point: float,
         ci: tuple[float, float],
     ) -> None:
@@ -781,12 +782,12 @@ class CompareTool(Tool):
             w.writerow(["result", "ci_low", f"{ci[0]:.9g}", ""])
             w.writerow(["result", "ci_high", f"{ci[1]:.9g}", ""])
 
-    def _power_info(self, n: int, scale: float) -> dict[str, Any]:
+    def _power_info(self, n: int, scale: float) -> dict[str, typing.Any]:
         # Simple normal-approx power calc for mean difference
         # target_effect_size is in units of the summary statistic; scale ~ std error proxy
         alpha = self.bootstrap.alpha
         side = self.bootstrap.side
-        dist = NormalDist()
+        dist = statistics.NormalDist()
         if side == "two-sided":
             z_alpha = dist.inv_cdf(1 - alpha / 2)
         else:

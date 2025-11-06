@@ -25,37 +25,37 @@
 import heapq
 import logging
 import time
-from typing import Literal
+import typing
 
 import numpy as np
 
-from mettagrid.mapgen.scene import Scene, SceneConfig
-from mettagrid.mapgen.utils.pattern import Symmetry, ascii_to_patterns_with_counts
+import mettagrid.mapgen.scene
+import mettagrid.mapgen.utils.pattern
 
 logger = logging.getLogger(__name__)
 
 dx = [0, 1, 0, -1]
 dy = [-1, 0, 1, 0]
 
-NextNodeHeuristic = Literal["scanline", "mrv", "entropy"]
+NextNodeHeuristic = typing.Literal["scanline", "mrv", "entropy"]
 
 
 def opposite_direction(d: int) -> int:
     return (d + 2) % 4
 
 
-class WFCConfig(SceneConfig):
+class WFCConfig(mettagrid.mapgen.scene.SceneConfig):
     pattern: str
     pattern_size: int = 3
     next_node_heuristic: NextNodeHeuristic = "entropy"
     periodic_input: bool = True
-    symmetry: Symmetry = "all"
+    symmetry: mettagrid.mapgen.utils.pattern.Symmetry = "all"
     attempts: int = 1000
 
 
-class WFC(Scene[WFCConfig]):
+class WFC(mettagrid.mapgen.scene.Scene[WFCConfig]):
     def post_init(self):
-        patterns_with_counts = ascii_to_patterns_with_counts(
+        patterns_with_counts = mettagrid.mapgen.utils.pattern.ascii_to_patterns_with_counts(
             self.config.pattern,
             self.config.pattern_size,
             periodic=self.config.periodic_input,

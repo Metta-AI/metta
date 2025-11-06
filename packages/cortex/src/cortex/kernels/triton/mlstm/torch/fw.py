@@ -6,17 +6,14 @@
 of the mLSTM chunkwise formulation. It should allow arbitrary large chunk sizes and head dimensions.
 """
 
+import cortex.kernels.triton.mlstm.torch.fw_parallel
+import cortex.kernels.triton.mlstm.torch.fw_recurrent
+import cortex.kernels.triton.mlstm.triton.chunkwise_kernel_param_heuristics
+import cortex.kernels.triton.mlstm.utils
 import torch
 
-from cortex.kernels.triton.mlstm.torch.fw_parallel import mlstm_chunkwise__parallel_fw_Hintra
-from cortex.kernels.triton.mlstm.torch.fw_recurrent import mlstm_chunkwise__recurrent_fw_C
-from cortex.kernels.triton.mlstm.triton.chunkwise_kernel_param_heuristics import (
-    get_xl_chunk_kernel_params,
-)
-from cortex.kernels.triton.mlstm.utils import contiguous_noctx
 
-
-@contiguous_noctx
+@cortex.kernels.triton.mlstm.utils.contiguous_noctx
 def mlstm_chunkwise_fw(
     matQ: torch.Tensor,  # (B, NH, S, DHQK)
     matK: torch.Tensor,  # (B, NH, S, DHQK)
@@ -73,13 +70,15 @@ def mlstm_chunkwise_fw(
     while S % L != 0 and L > 16:
         L //= 2
 
-    kernel_chunk_params = get_xl_chunk_kernel_params(
-        sequence_length=S,
-        target_chunk_size=None,
-        chunk_size_intra=L,
-        siz_b_L_loop=L,
-        siz_b_L_parallel=L,
-        chunk_size_inter=L,
+    kernel_chunk_params = (
+        cortex.kernels.triton.mlstm.triton.chunkwise_kernel_param_heuristics.get_xl_chunk_kernel_params(
+            sequence_length=S,
+            target_chunk_size=None,
+            chunk_size_intra=L,
+            siz_b_L_loop=L,
+            siz_b_L_parallel=L,
+            chunk_size_inter=L,
+        )
     )
 
     # Prepare optional reset-aware chunk metadata
@@ -108,23 +107,25 @@ def mlstm_chunkwise_fw(
         vecLastSegMask_inter = prefix_inclusive.eq(last_prefix).to(matQ.dtype)
 
     #! materialize the  C_k, n_k, m_k states for each chunk
-    matC_k_states, vecN_k_states, scaMinter_k_states = mlstm_chunkwise__recurrent_fw_C(
-        matK=matK,
-        matV=matV,
-        vecF=vecF,
-        vecI=vecI,
-        vecLastSegMask=vecLastSegMask_inter,
-        matC_initial=matC_initial,
-        vecN_initial=vecN_initial,
-        scaMinter_initial=scaM_initial,
-        chunk_size=kernel_chunk_params.chunk_size_inter,
-        save_states_every_nth_chunk=kernel_chunk_params.save_states_every_nth_chunk,
-        num_stages=num_stages_inter,
-        num_warps=num_warps_inter,
+    matC_k_states, vecN_k_states, scaMinter_k_states = (
+        cortex.kernels.triton.mlstm.torch.fw_recurrent.mlstm_chunkwise__recurrent_fw_C(
+            matK=matK,
+            matV=matV,
+            vecF=vecF,
+            vecI=vecI,
+            vecLastSegMask=vecLastSegMask_inter,
+            matC_initial=matC_initial,
+            vecN_initial=vecN_initial,
+            scaMinter_initial=scaM_initial,
+            chunk_size=kernel_chunk_params.chunk_size_inter,
+            save_states_every_nth_chunk=kernel_chunk_params.save_states_every_nth_chunk,
+            num_stages=num_stages_inter,
+            num_warps=num_warps_inter,
+        )
     )
 
     #! compute the outputs within each chunk
-    matH_out, vecN_out, vecM_out = mlstm_chunkwise__parallel_fw_Hintra(
+    matH_out, vecN_out, vecM_out = cortex.kernels.triton.mlstm.torch.fw_parallel.mlstm_chunkwise__parallel_fw_Hintra(
         matQ=matQ,
         matK=matK,
         matV=matV,

@@ -1,17 +1,17 @@
+import enum
 import os
+import pathlib
 import subprocess
 import sys
 import tomllib
-from enum import Enum
-from pathlib import Path
 
-from metta.common.util.fs import get_file_hash
-from metta.setup.components.base import SetupModule
-from metta.setup.registry import register_module
-from metta.setup.utils import colorize, error, info, prompt_choice, success
+import metta.common.util.fs
+import metta.setup.components.base
+import metta.setup.registry
+import metta.setup.utils
 
 
-class CommitHookMode(Enum):
+class CommitHookMode(enum.Enum):
     NONE = "none"
     CHECK = "check"
     FIX = "fix"
@@ -36,7 +36,7 @@ class CommitHookMode(Enum):
             return cls.get_default()
 
 
-class GitLeaksMode(Enum):
+class GitLeaksMode(enum.Enum):
     NONE = "none"
     CHECK = "check"
     BLOCK = "block"
@@ -61,8 +61,8 @@ class GitLeaksMode(Enum):
             return cls.get_default()
 
 
-@register_module
-class GitHooksSetup(SetupModule):
+@metta.setup.registry.register_module
+class GitHooksSetup(metta.setup.components.base.SetupModule):
     install_once = True
 
     @property
@@ -85,7 +85,7 @@ class GitHooksSetup(SetupModule):
         except subprocess.CalledProcessError:
             return False
 
-    def _get_main_repo_root(self) -> Path:
+    def _get_main_repo_root(self) -> pathlib.Path:
         """Get the main repository root, even if we're in a worktree"""
         result = subprocess.run(
             ["git", "rev-parse", "--git-common-dir"],
@@ -94,15 +94,15 @@ class GitHooksSetup(SetupModule):
             text=True,
             check=True,
         )
-        return Path(result.stdout.strip()).parent
+        return pathlib.Path(result.stdout.strip()).parent
 
-    def _get_hooks_paths(self) -> tuple[Path, Path]:
+    def _get_hooks_paths(self) -> tuple[pathlib.Path, pathlib.Path]:
         main_repo_root = self._get_main_repo_root()
         hooks_source_dir = self.repo_root / "devops" / "git-hooks"
         git_hooks_dir = main_repo_root / ".git" / "hooks"
         return hooks_source_dir, git_hooks_dir
 
-    def _get_hook_files(self, hooks_source_dir: Path) -> list[Path]:
+    def _get_hook_files(self, hooks_source_dir: pathlib.Path) -> list[pathlib.Path]:
         if not hooks_source_dir.exists():
             return []
         return [
@@ -122,7 +122,7 @@ class GitHooksSetup(SetupModule):
             if not installed_hook.exists():
                 return False
 
-            if get_file_hash(hook_file) != get_file_hash(installed_hook):
+            if metta.common.util.fs.get_file_hash(hook_file) != metta.common.util.fs.get_file_hash(installed_hook):
                 return False
         return True
 
@@ -130,10 +130,10 @@ class GitHooksSetup(SetupModule):
         """Install git hooks by symlinking from devops/git-hooks to .git/hooks"""
         # Check if we're in a worktree
         if self._is_in_worktree():
-            info("Cannot install git hooks from a worktree. Skipping...")
+            metta.setup.utils.info("Cannot install git hooks from a worktree. Skipping...")
             return
 
-        info("Installing git hooks...")
+        metta.setup.utils.info("Installing git hooks...")
 
         hooks_source_dir, git_hooks_dir = self._get_hooks_paths()
         git_hooks_dir.mkdir(exist_ok=True, parents=True)
@@ -152,9 +152,11 @@ class GitHooksSetup(SetupModule):
             hook_file.chmod(hook_file.stat().st_mode | 0o111)
 
             hook_count += 1
-            info(f"  Installed: {hook_file.name}")
+            metta.setup.utils.info(f"  Installed: {hook_file.name}")
 
-        success(f"Successfully installed {colorize(str(hook_count), 'green')} git hooks")
+        metta.setup.utils.success(
+            f"Successfully installed {metta.setup.utils.colorize(str(hook_count), 'green')} git hooks"
+        )
 
     def get_configuration_options(self) -> dict[str, tuple[str, str]]:
         return {
@@ -163,7 +165,7 @@ class GitHooksSetup(SetupModule):
         }
 
     def configure(self) -> None:
-        info("Configuring git commit hooks...")
+        metta.setup.utils.info("Configuring git commit hooks...")
 
         current_commit = CommitHookMode.parse(self.get_setting("commit_hook_mode", default=None))
         current_gitleaks = GitLeaksMode.parse(self.get_setting("gitleaks_mode", default=None))
@@ -173,14 +175,14 @@ class GitHooksSetup(SetupModule):
             commit_mode = CommitHookMode.get_default()
             gitleaks_mode = GitLeaksMode.get_default()
         else:
-            commit_mode = prompt_choice(
+            commit_mode = metta.setup.utils.prompt_choice(
                 "Select pre-commit hook behavior:",
                 [(mode, mode.get_description()) for mode in CommitHookMode],
                 default=CommitHookMode.get_default(),
                 current=current_commit,
             )
 
-            gitleaks_mode = prompt_choice(
+            gitleaks_mode = metta.setup.utils.prompt_choice(
                 "Select gitleaks secrets scanning behavior:",
                 [(mode, mode.get_description()) for mode in GitLeaksMode],
                 default=GitLeaksMode.get_default(),
@@ -192,11 +194,15 @@ class GitHooksSetup(SetupModule):
         self.set_setting("gitleaks_mode", gitleaks_mode.value)
 
         if commit_mode.value == CommitHookMode.CHECK.value:
-            info("Using default mode: check only")
+            metta.setup.utils.info("Using default mode: check only")
         else:
-            info(f"Commit hook mode set to: {colorize(commit_mode.get_description(), 'green')}")
+            metta.setup.utils.info(
+                f"Commit hook mode set to: {metta.setup.utils.colorize(commit_mode.get_description(), 'green')}"
+            )
 
-        info(f"Gitleaks mode set to: {colorize(gitleaks_mode.get_description(), 'green')}")
+        metta.setup.utils.info(
+            f"Gitleaks mode set to: {metta.setup.utils.colorize(gitleaks_mode.get_description(), 'green')}"
+        )
 
     def _check_gitleaks_installed(self) -> bool:
         try:
@@ -214,8 +220,8 @@ class GitHooksSetup(SetupModule):
             return True
 
         if not self._check_gitleaks_installed():
-            info("Gitleaks not installed. Install with: brew install gitleaks")
-            info("Skipping secrets scanning...")
+            metta.setup.utils.info("Gitleaks not installed. Install with: brew install gitleaks")
+            metta.setup.utils.info("Skipping secrets scanning...")
             return True
 
         try:
@@ -229,22 +235,22 @@ class GitHooksSetup(SetupModule):
             return True
         except subprocess.CalledProcessError as e:
             if e.stdout:
-                info(e.stdout)
+                metta.setup.utils.info(e.stdout)
             if e.stderr:
-                error(e.stderr)
+                metta.setup.utils.error(e.stderr)
 
-            error("Review the output above and remove any secrets before committing.")
+            metta.setup.utils.error("Review the output above and remove any secrets before committing.")
 
             if gitleaks_mode == GitLeaksMode.BLOCK:
-                error("Commit blocked due to detected secrets.")
+                metta.setup.utils.error("Commit blocked due to detected secrets.")
                 return False
             else:
-                info("Warning: Proceeding despite detected secrets (check mode).")
+                metta.setup.utils.info("Warning: Proceeding despite detected secrets (check mode).")
                 return True
 
     def run(self, args: list[str]) -> None:
         if not args or args[0] != "pre-commit":
-            error("Usage: metta run githooks pre-commit")
+            metta.setup.utils.error("Usage: metta run githooks pre-commit")
             sys.exit(1)
 
         hook_mode = CommitHookMode.parse(self.get_setting("commit_hook_mode", default=None))
@@ -280,9 +286,9 @@ class GitHooksSetup(SetupModule):
         if excluded_paths:
             filtered_files = []
             for f in files:
-                file_path = Path(f)
+                file_path = pathlib.Path(f)
                 should_exclude = any(
-                    file_path == Path(excluded) or file_path.is_relative_to(Path(excluded))
+                    file_path == pathlib.Path(excluded) or file_path.is_relative_to(pathlib.Path(excluded))
                     for excluded in excluded_paths
                 )
                 if not should_exclude:
@@ -307,6 +313,6 @@ class GitHooksSetup(SetupModule):
 
         except subprocess.CalledProcessError as e:
             if hook_mode == CommitHookMode.CHECK:
-                error("Linting failed. Please fix the issues before committing.")
-                error("Consider running `metta lint --fix` to fix some issues automatically.")
+                metta.setup.utils.error("Linting failed. Please fix the issues before committing.")
+                metta.setup.utils.error("Consider running `metta lint --fix` to fix some issues automatically.")
             sys.exit(e.returncode)

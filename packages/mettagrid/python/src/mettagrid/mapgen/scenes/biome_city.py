@@ -1,11 +1,11 @@
-from typing import Tuple
+import typing
 
 import numpy as np
 
-from mettagrid.mapgen.scene import Scene, SceneConfig
+import mettagrid.mapgen.scene
 
 
-class BiomeCityConfig(SceneConfig):
+class BiomeCityConfig(mettagrid.mapgen.scene.SceneConfig):
     # Grid of city blocks; roads form the gaps between blocks
     pitch: int = 10  # distance between block starts
     road_width: int = 2  # empty corridors
@@ -17,14 +17,14 @@ class BiomeCityConfig(SceneConfig):
     dither_depth: int = 5  # How many cells deep to consider as edge zone
 
 
-class BiomeCity(Scene[BiomeCityConfig]):
+class BiomeCity(mettagrid.mapgen.scene.Scene[BiomeCityConfig]):
     """
     City-like layout made of rectangular blocks separated by roads.
 
     Produces a rectilinear grid of roads (empty) and fills blocks with walls.
     """
 
-    def _clip_rect(self, x0: int, y0: int, w: int, h: int) -> Tuple[int, int, int, int]:
+    def _clip_rect(self, x0: int, y0: int, w: int, h: int) -> typing.Tuple[int, int, int, int]:
         x0 = max(0, x0)
         y0 = max(0, y0)
         w = max(0, min(w, self.width - x0))

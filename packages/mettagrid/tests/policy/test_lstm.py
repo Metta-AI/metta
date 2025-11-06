@@ -1,22 +1,22 @@
 """Unit tests for LSTM policy implementation."""
 
+import gymnasium.spaces
 import numpy as np
 import torch
-from gymnasium.spaces import Box, Discrete
 
-from mettagrid.config.id_map import ObservationFeatureSpec
-from mettagrid.config.mettagrid_config import ActionsConfig
-from mettagrid.policy.lstm import LSTMPolicy, LSTMPolicyNet
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator import AgentObservation, ObservationToken
+import mettagrid.config.id_map
+import mettagrid.config.mettagrid_config
+import mettagrid.policy.lstm
+import mettagrid.policy.policy_env_interface
+import mettagrid.simulator
 
 
-def create_mock_policy_env_info() -> PolicyEnvInterface:
+def create_mock_policy_env_info() -> mettagrid.policy.policy_env_interface.PolicyEnvInterface:
     """Create a mock PolicyEnvInterface for testing."""
-    actions_cfg = ActionsConfig()
-    obs_space = Box(low=0, high=255, shape=(7, 7, 3), dtype=np.uint8)
-    action_space = Discrete(8)
-    return PolicyEnvInterface(
+    actions_cfg = mettagrid.config.mettagrid_config.ActionsConfig()
+    obs_space = gymnasium.spaces.Box(low=0, high=255, shape=(7, 7, 3), dtype=np.uint8)
+    action_space = gymnasium.spaces.Discrete(8)
+    return mettagrid.policy.policy_env_interface.PolicyEnvInterface(
         obs_features=[],
         actions=actions_cfg,
         num_agents=1,
@@ -34,7 +34,7 @@ def test_forward_return_signature():
     The state is managed externally via in-place dict updates.
     """
     policy_env_info = create_mock_policy_env_info()
-    net = LSTMPolicyNet(policy_env_info)
+    net = mettagrid.policy.lstm.LSTMPolicyNet(policy_env_info)
     obs = torch.randint(0, 256, (4, 7, 7, 3))
 
     # This should return exactly 2 values (logits, values)
@@ -56,7 +56,7 @@ def test_forward_with_dict_state():
     and expects it to be updated in-place with the same shape.
     """
     policy_env_info = create_mock_policy_env_info()
-    net = LSTMPolicyNet(policy_env_info)
+    net = mettagrid.policy.lstm.LSTMPolicyNet(policy_env_info)
     batch_size = 4
     obs = torch.randint(0, 256, (batch_size, 7, 7, 3))
 
@@ -87,7 +87,7 @@ def test_forward_with_empty_dict_state():
     Empty dict means no LSTM state, so the dict should remain empty.
     """
     policy_env_info = create_mock_policy_env_info()
-    net = LSTMPolicyNet(policy_env_info)
+    net = mettagrid.policy.lstm.LSTMPolicyNet(policy_env_info)
     obs = torch.randint(0, 256, (4, 7, 7, 3))
 
     # Empty dict - should be treated as no state
@@ -102,7 +102,7 @@ def test_forward_with_empty_dict_state():
 def test_forward_with_none_state():
     """Test that forward_eval works with None state (no LSTM state)."""
     policy_env_info = create_mock_policy_env_info()
-    net = LSTMPolicyNet(policy_env_info)
+    net = mettagrid.policy.lstm.LSTMPolicyNet(policy_env_info)
     obs = torch.randint(0, 256, (4, 7, 7, 3))
 
     # None state means no LSTM state
@@ -118,7 +118,7 @@ def test_forward_with_none_state():
 def test_forward_method_matches_forward_eval():
     """Test that forward() method returns same signature as forward_eval()."""
     policy_env_info = create_mock_policy_env_info()
-    net = LSTMPolicyNet(policy_env_info)
+    net = mettagrid.policy.lstm.LSTMPolicyNet(policy_env_info)
     obs = torch.randint(0, 256, (4, 7, 7, 3))
 
     # Both should return (logits, values)
@@ -136,16 +136,16 @@ def test_stateful_agent_policy_requires_reset():
     raise an AssertionError.
     """
     policy_env_info = create_mock_policy_env_info()
-    policy = LSTMPolicy(policy_env_info)
+    policy = mettagrid.policy.lstm.LSTMPolicy(policy_env_info)
 
     # Get an agent policy (returns StatefulAgentPolicy wrapper)
     agent_policy = policy.agent_policy(agent_id=0)
 
     # Create a minimal mock observation
     # For LSTM, the observation needs tokens with feature, location, and value
-    feature = ObservationFeatureSpec(id=0, name="test_feature", normalization=1.0)
-    token = ObservationToken(feature=feature, location=(0, 0), value=1)
-    obs = AgentObservation(agent_id=0, tokens=[token])
+    feature = mettagrid.config.id_map.ObservationFeatureSpec(id=0, name="test_feature", normalization=1.0)
+    token = mettagrid.simulator.ObservationToken(feature=feature, location=(0, 0), value=1)
+    obs = mettagrid.simulator.AgentObservation(agent_id=0, tokens=[token])
 
     # Verify that step() fails without reset()
     try:

@@ -2,28 +2,28 @@ import tempfile
 import uuid
 
 import aioboto3
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, status
-from pydantic import BaseModel
+import fastapi
+import pydantic
 
-from metta.app_backend.auth import validate_token_via_login_service
-from metta.app_backend.metta_repo import MettaRepo
+import metta.app_backend.auth
+import metta.app_backend.metta_repo
 
 OBSERVATORY_S3_BUCKET = "observatory-private"
 
 
-class SubmitPolicyResponse(BaseModel):
+class SubmitPolicyResponse(pydantic.BaseModel):
     message: str
     submission_id: str
 
 
-def create_cogames_router(stats_repo: MettaRepo) -> APIRouter:
-    router = APIRouter(prefix="/cogames", tags=["cogames"])
+def create_cogames_router(stats_repo: metta.app_backend.metta_repo.MettaRepo) -> fastapi.APIRouter:
+    router = fastapi.APIRouter(prefix="/cogames", tags=["cogames"])
 
     @router.post("/submit_policy", response_model=SubmitPolicyResponse)
     async def submit_policy(
-        request: Request,
-        file: UploadFile = File(...),  # noqa: B008
-        name: str | None = Form(None),  # noqa: B008
+        request: fastapi.Request,
+        file: fastapi.UploadFile = fastapi.File(...),  # noqa: B008
+        name: str | None = fastapi.Form(None),  # noqa: B008
     ) -> SubmitPolicyResponse:
         """Submit a policy zip file for CoGames.
 
@@ -33,23 +33,23 @@ def create_cogames_router(stats_repo: MettaRepo) -> APIRouter:
         # Extract machine token from request headers
         token = request.headers.get("X-Auth-Token")
         if not token:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
+            raise fastapi.HTTPException(
+                status_code=fastapi.status.HTTP_401_UNAUTHORIZED,
                 detail="X-Auth-Token header required",
             )
 
         # Validate token via login service
-        user_id = await validate_token_via_login_service(token)
+        user_id = await metta.app_backend.auth.validate_token_via_login_service(token)
         if not user_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
+            raise fastapi.HTTPException(
+                status_code=fastapi.status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid or expired token",
             )
 
         # Validate file is a zip
         if not file.filename or not file.filename.endswith(".zip"):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+            raise fastapi.HTTPException(
+                status_code=fastapi.status.HTTP_400_BAD_REQUEST,
                 detail="File must be a .zip file",
             )
 
@@ -80,8 +80,8 @@ def create_cogames_router(stats_repo: MettaRepo) -> APIRouter:
                         ExtraArgs={"ContentType": "application/zip"},
                     )
         except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            raise fastapi.HTTPException(
+                status_code=fastapi.status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to upload file to S3: {str(e)}",
             ) from e
 
@@ -94,8 +94,8 @@ def create_cogames_router(stats_repo: MettaRepo) -> APIRouter:
                 name=name,
             )
         except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            raise fastapi.HTTPException(
+                status_code=fastapi.status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to record submission in database: {str(e)}",
             ) from e
 

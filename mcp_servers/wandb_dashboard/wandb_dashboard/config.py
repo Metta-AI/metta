@@ -4,12 +4,12 @@ Configuration for WandB Dashboard MCP Server
 Handles server configuration, authentication settings, and default values.
 """
 
+import dataclasses
 import os
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+import typing
 
 
-@dataclass
+@dataclasses.dataclass
 class WandBMCPConfig:
     """Configuration for the WandB Dashboard MCP Server."""
 
@@ -18,12 +18,12 @@ class WandBMCPConfig:
     version: str = "0.1.0"
 
     # WandB authentication
-    api_key: Optional[str] = field(default_factory=lambda: os.getenv("WANDB_API_KEY"))
+    api_key: typing.Optional[str] = dataclasses.field(default_factory=lambda: os.getenv("WANDB_API_KEY"))
     base_url: str = "https://api.wandb.ai"
 
     # Default entity/project (can be overridden by tools)
-    default_entity: Optional[str] = field(default_factory=lambda: os.getenv("WANDB_ENTITY"))
-    default_project: Optional[str] = field(default_factory=lambda: os.getenv("WANDB_PROJECT"))
+    default_entity: typing.Optional[str] = dataclasses.field(default_factory=lambda: os.getenv("WANDB_ENTITY"))
+    default_project: typing.Optional[str] = dataclasses.field(default_factory=lambda: os.getenv("WANDB_PROJECT"))
 
     # Dashboard defaults
     default_x_axis: str = "Step"
@@ -32,12 +32,12 @@ class WandBMCPConfig:
     default_max_runs: int = 10
 
     # Panel type mappings
-    supported_panel_types: List[str] = field(
+    supported_panel_types: typing.List[str] = dataclasses.field(
         default_factory=lambda: ["line_plot", "bar_plot", "scalar_chart", "scatter_plot"]
     )
 
     # Common metrics that are often useful in dashboards
-    common_metrics: List[str] = field(
+    common_metrics: typing.List[str] = dataclasses.field(
         default_factory=lambda: [
             "loss",
             "accuracy",
@@ -54,7 +54,7 @@ class WandBMCPConfig:
     )
 
     # Template configurations for common dashboard types
-    dashboard_templates: Dict[str, Dict] = field(
+    dashboard_templates: typing.Dict[str, typing.Dict] = dataclasses.field(
         default_factory=lambda: {
             "training_overview": {
                 "name": "Training Overview",
@@ -125,7 +125,7 @@ class WandBMCPConfig:
             log_level=os.getenv("LOG_LEVEL", "INFO"),
         )
 
-    def validate(self) -> List[str]:
+    def validate(self) -> typing.List[str]:
         """Validate the configuration and return any errors."""
         errors = []
 
@@ -140,10 +140,10 @@ class WandBMCPConfig:
 
         return errors
 
-    def get_template(self, template_name: str) -> Optional[Dict]:
+    def get_template(self, template_name: str) -> typing.Optional[typing.Dict]:
         """Get a dashboard template by name."""
         return self.dashboard_templates.get(template_name)
 
-    def list_templates(self) -> List[str]:
+    def list_templates(self) -> typing.List[str]:
         """List available dashboard template names."""
         return list(self.dashboard_templates.keys())

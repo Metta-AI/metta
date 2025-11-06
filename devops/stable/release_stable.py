@@ -14,37 +14,29 @@ Options:
   --retry-failed        Retry failed jobs (validate mode only)
 """
 
-from __future__ import annotations
 
+import contextlib
+import datetime
 import io
 import logging
+import pathlib
 import subprocess
 import sys
 import time
-from contextlib import redirect_stdout
-from datetime import datetime
-from pathlib import Path
-from typing import Optional
+import typing
 
 import typer
 
+import devops.stable.asana_bugs
+import devops.stable.display
+import devops.stable.jobs
+import devops.stable.state
 import gitta as git
-from devops.stable.asana_bugs import check_blockers
-from devops.stable.display import format_job_with_acceptance, format_training_job_section
-from devops.stable.jobs import get_all_jobs
-from devops.stable.state import (
-    Gate,
-    ReleaseState,
-    get_most_recent_state,
-    load_or_create_state,
-    load_state,
-    save_state,
-)
-from metta.common.util.fs import get_repo_root
-from metta.common.util.text_styles import bold, cyan, green, red, yellow
-from metta.jobs.job_config import JobConfig
-from metta.jobs.job_display import JobDisplay, format_progress_bar
-from metta.jobs.job_manager import ExitCode, JobManager
+import metta.common.util.fs
+import metta.common.util.text_styles
+import metta.jobs.job_config
+import metta.jobs.job_display
+import metta.jobs.job_manager
 
 # ============================================================================
 # Constants
@@ -64,29 +56,29 @@ CONTACTS = [
 def print_step_header(title: str, width: int = 60) -> None:
     """Print formatted step header."""
     print("\n" + "=" * width)
-    print(bold(title))
+    print(metta.common.util.text_styles.bold(title))
     print("=" * width + "\n")
 
 
-def is_step_complete(state: ReleaseState | None, step_name: str) -> bool:
+def is_step_complete(state: devops.stable.state.ReleaseState | None, step_name: str) -> bool:
     """Check if a pipeline step is already completed in state."""
     if not state:
         return False
     return any(g.step == step_name and g.passed for g in state.gates)
 
 
-def mark_step_complete(state: ReleaseState | None, step_name: str) -> None:
+def mark_step_complete(state: devops.stable.state.ReleaseState | None, step_name: str) -> None:
     """Mark a pipeline step as completed in state."""
     if not state:
         return
     state.gates.append(
-        Gate(
+        devops.stable.state.Gate(
             step=step_name,
             passed=True,
-            timestamp=datetime.now().isoformat(timespec="seconds"),
+            timestamp=datetime.datetime.now().isoformat(timespec="seconds"),
         )
     )
-    save_state(state)
+    devops.stable.state.save_state(state)
 
 
 def get_user_confirmation(prompt: str) -> bool:
@@ -104,7 +96,7 @@ def get_user_confirmation(prompt: str) -> bool:
             return False
 
 
-def setup_logging(log_file: Path) -> None:
+def setup_logging(log_file: pathlib.Path) -> None:
     """Configure logging to write to file.
 
     All log messages (including from background threads) will be written to the log file.
@@ -129,23 +121,23 @@ def setup_logging(log_file: Path) -> None:
     metta_logger.setLevel(logging.DEBUG)
 
 
-def state_dir() -> Path:
-    return get_repo_root() / "devops/stable/state"
+def state_dir() -> pathlib.Path:
+    return metta.common.util.fs.get_repo_root() / "devops/stable/state"
 
 
-def log_file() -> Path:
+def log_file() -> pathlib.Path:
     return state_dir() / "job_manager.log"
 
 
-def get_job_manager() -> JobManager:
+def get_job_manager() -> metta.jobs.job_manager.JobManager:
     """Get JobManager instance for release validation (uses JobManager defaults)."""
-    return JobManager(base_dir=state_dir())
+    return metta.jobs.job_manager.JobManager(base_dir=state_dir())
 
 
-def load_state_or_exit(version: str, step_name: str) -> ReleaseState:
+def load_state_or_exit(version: str, step_name: str) -> devops.stable.state.ReleaseState:
     """Load release state or exit with error message."""
     state_version = f"v{version}"
-    state = load_state(state_version)
+    state = devops.stable.state.load_state(state_version)
     if not state:
         print(f"❌ No state found for version {version}")
         print(f"   Run 'validate' before '{step_name}'")
@@ -183,7 +175,11 @@ def verify_on_rc_commit(version: str, step_name: str, skip_check: bool = False) 
     # Verify we're on the RC commit (unless skip_check is set)
     if current_commit != rc_commit:
         if skip_check:
-            print(yellow(f"⚠️  WARNING: Not on RC commit for {step_name} (check skipped with --skip-commit-match)"))
+            print(
+                metta.common.util.text_styles.yellow(
+                    f"⚠️  WARNING: Not on RC commit for {step_name} (check skipped with --skip-commit-match)"
+                )
+            )
             print(f"   Current commit:  {current_commit}")
             print(f"   RC tag commit:   {rc_commit} ({rc_tag_name})")
         else:
@@ -231,9 +227,9 @@ def verify_on_rc_commit(version: str, step_name: str, skip_check: bool = False) 
 
 
 def _submit_jobs_to_manager(
-    job_configs: list[JobConfig],
+    job_configs: list[metta.jobs.job_config.JobConfig],
     state_version: str,
-    job_manager: JobManager,
+    job_manager: metta.jobs.job_manager.JobManager,
     retry: bool,
 ) -> set[str]:
     """Submit all job configs to JobManager with retry logic.
@@ -253,11 +249,11 @@ def _submit_jobs_to_manager(
             if existing_state.exit_code in (-1, 130):
                 # Abnormal termination (-1) or interrupted (130/SIGINT) - always retry
                 reason = "abnormal termination" if existing_state.exit_code == -1 else "interrupted (SIGINT)"
-                print(yellow(f"🔄 {job_config.name} - retrying after {reason}"))
+                print(metta.common.util.text_styles.yellow(f"🔄 {job_config.name} - retrying after {reason}"))
                 should_retry = True
             elif retry and (existing_state.exit_code != 0 or not existing_state.is_successful):
                 # Failed and retry requested
-                print(yellow(f"🔄 {job_config.name} - retrying previous run"))
+                print(metta.common.util.text_styles.yellow(f"🔄 {job_config.name} - retrying previous run"))
                 should_retry = True
             else:
                 # Already completed successfully or retry not requested
@@ -284,7 +280,7 @@ def _submit_jobs_to_manager(
             print(f"  • Submitted {job_config.name.removeprefix(f'{state_version}_')}")
             submitted_jobs.add(job_name)
         except ValueError as e:
-            print(yellow(f"⚠️  {job_config.name} - failed to submit: {e}"))
+            print(metta.common.util.text_styles.yellow(f"⚠️  {job_config.name} - failed to submit: {e}"))
 
     return submitted_jobs
 
@@ -292,10 +288,10 @@ def _submit_jobs_to_manager(
 def _monitor_jobs_until_complete(
     submitted_jobs: set[str],
     state_version: str,
-    job_manager: JobManager,
+    job_manager: metta.jobs.job_manager.JobManager,
 ) -> None:
     """Monitor jobs via JobDisplay until all complete."""
-    monitor = JobDisplay(job_manager, group=state_version)
+    monitor = metta.jobs.job_display.JobDisplay(job_manager, group=state_version)
     monitor_line_count = 0
     last_display_update = 0.0
     display_interval = 3.0
@@ -326,7 +322,7 @@ def _monitor_jobs_until_complete(
             if now - last_display_update >= display_interval or first_display:
                 # Capture monitor output
                 buffer = io.StringIO()
-                with redirect_stdout(buffer):
+                with contextlib.redirect_stdout(buffer):
                     monitor.display_status(
                         clear_screen=False,
                         title=f"Release Validation: {state_version}",
@@ -351,23 +347,27 @@ def _monitor_jobs_until_complete(
             time.sleep(0.1)
 
     except KeyboardInterrupt:
-        print(yellow("\n\n⚠️  Interrupted by user (Ctrl+C)"))
-        print(yellow("   • Killing local jobs..."))
-        print(yellow("   • Leaving remote jobs running (they will continue on cluster)"))
+        print(metta.common.util.text_styles.yellow("\n\n⚠️  Interrupted by user (Ctrl+C)"))
+        print(metta.common.util.text_styles.yellow("   • Killing local jobs..."))
+        print(metta.common.util.text_styles.yellow("   • Leaving remote jobs running (they will continue on cluster)"))
         cancelled = job_manager.cancel_group(state_version, local_only=True)
-        print(yellow(f"   • Killed {cancelled} local job(s)"))
-        print(yellow("\n💡 On restart: stale local jobs will be retried, running remote jobs will be reattached"))
+        print(metta.common.util.text_styles.yellow(f"   • Killed {cancelled} local job(s)"))
+        print(
+            metta.common.util.text_styles.yellow(
+                "\n💡 On restart: stale local jobs will be retried, running remote jobs will be reattached"
+            )
+        )
         sys.exit(130)
 
 
-def step_prepare_tag(version: str, state: Optional[ReleaseState] = None, **_kwargs) -> None:
+def step_prepare_tag(version: str, state: typing.Optional[devops.stable.state.ReleaseState] = None, **_kwargs) -> None:
     """Create staging tag (v{version}-rc) to mark commit for validation."""
     tag_name = f"v{version}-rc"
     print_step_header(f"Prepare Staging Tag (v{version})")
 
     # Skip if already completed
     if is_step_complete(state, "prepare_tag"):
-        print(green(f"✅ Step already completed - tag {tag_name} exists"))
+        print(metta.common.util.text_styles.green(f"✅ Step already completed - tag {tag_name} exists"))
         return
 
     commit_sha = git.get_current_commit()
@@ -379,7 +379,7 @@ def step_prepare_tag(version: str, state: Optional[ReleaseState] = None, **_kwar
         print(f"⚠️  Tag {tag_name} already exists")
         if state:
             # Continuation from previous run - mark complete
-            print(green("   Marking as complete from previous run"))
+            print(metta.common.util.text_styles.green("   Marking as complete from previous run"))
             mark_step_complete(state, "prepare_tag")
             return
         # Fresh run - ask user if we should recreate
@@ -395,13 +395,16 @@ def step_prepare_tag(version: str, state: Optional[ReleaseState] = None, **_kwar
     print(f"Creating staging tag: {tag_name}")
     git.run_git("tag", tag_name)
     git.run_git("push", "origin", tag_name)
-    print(green(f"✅ Tag {tag_name} created and pushed\n"))
+    print(metta.common.util.text_styles.green(f"✅ Tag {tag_name} created and pushed\n"))
 
     mark_step_complete(state, "prepare_tag")
 
 
 def step_bug_check(
-    version: str, state: Optional[ReleaseState] = None, skip_commit_match: bool = False, **_kwargs
+    version: str,
+    state: typing.Optional[devops.stable.state.ReleaseState] = None,
+    skip_commit_match: bool = False,
+    **_kwargs,
 ) -> None:
     """Check for blocking bugs via Asana or manual confirmation."""
     print_step_header("Bug Status Check")
@@ -412,11 +415,11 @@ def step_bug_check(
 
     # Skip if already completed
     if is_step_complete(state, "bug_check"):
-        print(green("✅ Step already completed"))
+        print(metta.common.util.text_styles.green("✅ Step already completed"))
         return
 
     # Try automated Asana check
-    result = check_blockers()
+    result = devops.stable.asana_bugs.check_blockers()
 
     if result is True:
         print("✅ Bug check PASSED - clear for release")
@@ -442,7 +445,7 @@ def step_bug_check(
 
 def step_job_validation(
     version: str,
-    job: Optional[str] = None,
+    job: typing.Optional[str] = None,
     retry: bool = False,
     skip_commit_match: bool = False,
     **_kwargs,
@@ -460,8 +463,8 @@ def step_job_validation(
 
     # Load state and filter jobs
     state_version = f"v{version}"
-    load_or_create_state(state_version, git.get_current_commit())
-    all_job_configs = get_all_jobs()
+    devops.stable.state.load_or_create_state(state_version, git.get_current_commit())
+    all_job_configs = devops.stable.jobs.get_all_jobs()
 
     if job:
         job_configs = [t for t in all_job_configs if job in t.name]
@@ -476,7 +479,7 @@ def step_job_validation(
 
     # Run jobs via JobManager directly
     job_manager = get_job_manager()
-    log_file = get_repo_root() / "devops/stable/state/job_manager.log"
+    log_file = metta.common.util.fs.get_repo_root() / "devops/stable/state/job_manager.log"
     print(f"💡 Detailed logs: tail -f {log_file}\n")
 
     # Submit and monitor jobs
@@ -499,11 +502,13 @@ def step_job_validation(
     failed = sum(1 for j in jobs if j.status == "completed" and j.exit_code != 0)
 
     # Show progress bar
-    progress = format_progress_bar(completed, total)
+    progress = metta.jobs.job_display.format_progress_bar(completed, total)
     pct = (completed / total * 100) if total > 0 else 0
     print(f"\nProgress: {completed}/{total} ({pct:.0f}%)")
     print(f"{progress}")
-    print(f"Succeeded: {green(str(succeeded))}  Failed: {red(str(failed))}")
+    print(
+        f"Succeeded: {metta.common.util.text_styles.green(str(succeeded))}  Failed: {metta.common.util.text_styles.red(str(failed))}"
+    )
     print()
 
     # Show each job with integrated status + acceptance
@@ -519,7 +524,7 @@ def step_job_validation(
             continue
 
         # Use composable display
-        display = format_job_with_acceptance(job_state)
+        display = devops.stable.display.format_job_with_acceptance(job_state)
         print(display)
         print()
 
@@ -532,7 +537,7 @@ def step_job_validation(
         job_state = job_manager.get_job_state(f"{state_version}_{job_config.name}")
         if not job_state:
             skipped += 1
-        elif job_state.exit_code == ExitCode.SKIPPED:
+        elif job_state.exit_code == metta.jobs.job_manager.ExitCode.SKIPPED:
             skipped += 1
         elif job_state.is_successful:
             passed += 1
@@ -576,7 +581,7 @@ def step_summary(version: str, skip_commit_match: bool = False, **_kwargs) -> No
     git_log = git.git_log_since("origin/stable")
 
     # Get all jobs to display results and collect training job info
-    all_job_configs = get_all_jobs()
+    all_job_configs = devops.stable.jobs.get_all_jobs()
     training_jobs = []  # Track training jobs separately
 
     # Print job results summary
@@ -626,7 +631,7 @@ def step_summary(version: str, skip_commit_match: bool = False, **_kwargs) -> No
     print("")
     if training_jobs:
         for job_name, job_state in training_jobs:
-            formatted = format_training_job_section(job_name, job_state)
+            formatted = devops.stable.display.format_training_job_section(job_name, job_state)
             print(formatted)
             print("")
     else:
@@ -651,7 +656,7 @@ def step_release(version: str, skip_commit_match: bool = False, **_kwargs) -> No
     job_manager = get_job_manager()
 
     # Verify all jobs passed
-    all_job_configs = get_all_jobs()
+    all_job_configs = devops.stable.jobs.get_all_jobs()
 
     failed_jobs = []
     for job_config in all_job_configs:
@@ -673,7 +678,7 @@ def step_release(version: str, skip_commit_match: bool = False, **_kwargs) -> No
     training_jobs = []
 
     # Create release notes
-    release_notes_dir = Path("devops/stable/release-notes")
+    release_notes_dir = pathlib.Path("devops/stable/release-notes")
     release_notes_dir.mkdir(parents=True, exist_ok=True)
     release_notes_path = release_notes_dir / f"v{version}.md"
 
@@ -710,7 +715,7 @@ def step_release(version: str, skip_commit_match: bool = False, **_kwargs) -> No
 """
     if training_jobs:
         for job_name, job_state in training_jobs:
-            formatted = format_training_job_section(job_name, job_state)
+            formatted = devops.stable.display.format_training_job_section(job_name, job_state)
             release_notes_content += formatted + "\n\n"
     else:
         release_notes_content += "- No training jobs in this validation run\n"
@@ -773,7 +778,7 @@ def step_release(version: str, skip_commit_match: bool = False, **_kwargs) -> No
 
     # Mark state as released
     state.released = True
-    save_state(state)
+    devops.stable.state.save_state(state)
 
     # Create GitHub release using gh CLI
     print("\nCreating GitHub release...")
@@ -828,10 +833,10 @@ def generate_version() -> str:
 
     Includes seconds to prevent version collisions when running multiple times per minute.
     """
-    return datetime.now().strftime("%Y.%m.%d-%H%M%S")
+    return datetime.datetime.now().strftime("%Y.%m.%d-%H%M%S")
 
 
-def resolve_version(explicit: Optional[str], force_new: bool) -> str:
+def resolve_version(explicit: typing.Optional[str], force_new: bool) -> str:
     """Determine version based on args and state.
 
     Returns version string (bare version without any prefix).
@@ -844,7 +849,7 @@ def resolve_version(explicit: Optional[str], force_new: bool) -> str:
         v = generate_version()
         print(f"Starting new release: {v}")
         return v
-    recent = get_most_recent_state()
+    recent = devops.stable.state.get_most_recent_state()
     if recent:
         recent_version, recent_state = recent
         # Strip 'v' prefix from state filename to get bare version
@@ -866,7 +871,9 @@ app = typer.Typer(add_completion=False)
 @app.callback()
 def common(
     ctx: typer.Context,
-    version: Optional[str] = typer.Option(None, "--version", help="Version number (overrides auto-continue behavior)"),
+    version: typing.Optional[str] = typer.Option(
+        None, "--version", help="Version number (overrides auto-continue behavior)"
+    ),
     new: bool = typer.Option(False, "--new", help="Force start a new release (ignore in-progress state)"),
     skip_commit_match: bool = typer.Option(
         False, "--skip-commit-match", help="Skip verification that current commit matches RC tag"
@@ -882,7 +889,11 @@ def common(
     }
 
     print("=" * 80)
-    print(bold(cyan(f"Stable Release System - Version {resolved_version}")))
+    print(
+        metta.common.util.text_styles.bold(
+            metta.common.util.text_styles.cyan(f"Stable Release System - Version {resolved_version}")
+        )
+    )
     print("=" * 80)
     print("\nContacts:")
     for contact in CONTACTS:
@@ -893,7 +904,7 @@ def common(
 @app.command("validate")
 def cmd_validate(
     ctx: typer.Context,
-    job: Optional[str] = typer.Option(
+    job: typing.Optional[str] = typer.Option(
         None,
         "--job",
         help="Filter validation jobs by name",
@@ -909,7 +920,7 @@ def cmd_validate(
     skip_commit_match = ctx.obj["skip_commit_match"]
 
     state_version = f"v{version}"
-    state = load_or_create_state(state_version, git.get_current_commit())
+    state = devops.stable.state.load_or_create_state(state_version, git.get_current_commit())
 
     # Step 1: Prepare RC tag (automatic - skips if already done)
     step_prepare_tag(version=version, state=state)
@@ -928,9 +939,9 @@ def cmd_hotfix(ctx: typer.Context):
     skip_commit_match = ctx.obj["skip_commit_match"]
 
     state_version = f"v{version}"
-    state = load_or_create_state(state_version, git.get_current_commit())
+    state = devops.stable.state.load_or_create_state(state_version, git.get_current_commit())
 
-    print(yellow("\n⚡ HOTFIX MODE: Skipping validation\n"))
+    print(metta.common.util.text_styles.yellow("\n⚡ HOTFIX MODE: Skipping validation\n"))
 
     # Step 1: Prepare RC tag
     step_prepare_tag(version=version, state=state)
@@ -946,7 +957,7 @@ def cmd_release(ctx: typer.Context):
     skip_commit_match = ctx.obj["skip_commit_match"]
 
     state_version = f"v{version}"
-    state = load_or_create_state(state_version, git.get_current_commit())
+    state = devops.stable.state.load_or_create_state(state_version, git.get_current_commit())
 
     # Final gate: check for blocking bugs
     step_bug_check(version=version, state=state, skip_commit_match=skip_commit_match)

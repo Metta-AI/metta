@@ -26,25 +26,25 @@ import math
 
 import numpy as np
 
-from mettagrid.base_config import Config
-from mettagrid.mapgen.scene import Scene, SceneConfig
-from mettagrid.mapgen.utils.pattern import Pattern, Symmetry, ascii_to_weights_of_all_patterns
+import mettagrid.base_config
+import mettagrid.mapgen.scene
+import mettagrid.mapgen.utils.pattern
 
 
-class BaseConvChainConfig(Config):
+class BaseConvChainConfig(mettagrid.base_config.Config):
     pattern: str
     pattern_size: int
     iterations: int
     temperature: float
     periodic_input: bool = True
-    symmetry: Symmetry = "all"
+    symmetry: mettagrid.mapgen.utils.pattern.Symmetry = "all"
 
 
-class ConvChainConfig(BaseConvChainConfig, SceneConfig):
+class ConvChainConfig(BaseConvChainConfig, mettagrid.mapgen.scene.SceneConfig):
     pass
 
 
-class ConvChain(Scene[ConvChainConfig]):
+class ConvChain(mettagrid.mapgen.scene.Scene[ConvChainConfig]):
     """
     ConvChain scene generator, based on https://github.com/mxgmn/ConvChain
     (ConvChainFast.cs version).
@@ -55,7 +55,7 @@ class ConvChain(Scene[ConvChainConfig]):
     """
 
     def post_init(self):
-        self._weights = ascii_to_weights_of_all_patterns(
+        self._weights = mettagrid.mapgen.utils.pattern.ascii_to_weights_of_all_patterns(
             self.config.pattern,
             self.config.pattern_size,
             periodic=self.config.periodic_input,
@@ -128,11 +128,11 @@ class ConvChain(Scene[ConvChainConfig]):
                 self.grid[y, x] = "wall" if field[y][x] else "empty"
 
 
-class ConvChainSlowConfig(BaseConvChainConfig, SceneConfig):
+class ConvChainSlowConfig(BaseConvChainConfig, mettagrid.mapgen.scene.SceneConfig):
     pass
 
 
-class ConvChainSlow(Scene[ConvChainSlowConfig]):
+class ConvChainSlow(mettagrid.mapgen.scene.Scene[ConvChainSlowConfig]):
     """
     ConvChain scene generator, naive & slow implementation.
 
@@ -140,7 +140,7 @@ class ConvChainSlow(Scene[ConvChainSlowConfig]):
     """
 
     def post_init(self):
-        self._weights = ascii_to_weights_of_all_patterns(
+        self._weights = mettagrid.mapgen.utils.pattern.ascii_to_weights_of_all_patterns(
             self.config.pattern,
             self.config.pattern_size,
             periodic=self.config.periodic_input,
@@ -162,7 +162,7 @@ class ConvChainSlow(Scene[ConvChainSlowConfig]):
                 for x in range(i - n + 1, i + n):
                     x_wrapped = x % self.width
                     y_wrapped = y % self.height
-                    pattern = Pattern(field, x_wrapped, y_wrapped, n)
+                    pattern = mettagrid.mapgen.utils.pattern.Pattern(field, x_wrapped, y_wrapped, n)
                     value *= weights[pattern.index()]
             return value
 

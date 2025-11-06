@@ -3,14 +3,14 @@
 Setup script for tribal-village that builds the Nim shared library.
 """
 
+import pathlib
 import shutil
 import subprocess
-from pathlib import Path
 
-from setuptools import setup
-from setuptools.command.build_py import build_py
-from setuptools.command.develop import develop
-from setuptools.command.install import install
+import setuptools
+import setuptools.command.build_py
+import setuptools.command.develop
+import setuptools.command.install
 
 
 class BuildNimLibrary:
@@ -21,7 +21,7 @@ class BuildNimLibrary:
         print("Building Nim shared library...")
 
         # Get the project root directory
-        project_root = Path(__file__).parent
+        project_root = pathlib.Path(__file__).parent
         build_script = project_root / "build_lib.sh"
 
         # If a prebuilt library is already present, skip rebuilding.
@@ -71,7 +71,7 @@ class BuildNimLibrary:
         print(f"Copied {lib_file} to {package_dir / target_name}")
 
 
-class CustomBuildPy(build_py, BuildNimLibrary):
+class CustomBuildPy(setuptools.command.build_py.build_py, BuildNimLibrary):
     """Custom build_py that builds Nim library first."""
 
     def run(self):
@@ -79,7 +79,7 @@ class CustomBuildPy(build_py, BuildNimLibrary):
         super().run()
 
 
-class CustomDevelop(develop, BuildNimLibrary):
+class CustomDevelop(setuptools.command.develop.develop, BuildNimLibrary):
     """Custom develop that builds Nim library first."""
 
     def run(self):
@@ -87,7 +87,7 @@ class CustomDevelop(develop, BuildNimLibrary):
         super().run()
 
 
-class CustomInstall(install, BuildNimLibrary):
+class CustomInstall(setuptools.command.install.install, BuildNimLibrary):
     """Custom install that builds Nim library first."""
 
     def run(self):
@@ -96,7 +96,7 @@ class CustomInstall(install, BuildNimLibrary):
 
 
 if __name__ == "__main__":
-    setup(
+    setuptools.setup(
         cmdclass={
             "build_py": CustomBuildPy,
             "develop": CustomDevelop,

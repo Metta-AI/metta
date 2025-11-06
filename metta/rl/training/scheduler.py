@@ -3,13 +3,13 @@
 import logging
 import math
 
-from metta.rl.training import TrainerComponent
-from mettagrid.base_config import Config
+import metta.rl.training
+import mettagrid.base_config
 
 logger = logging.getLogger(__name__)
 
 
-class HyperparameterSchedulerConfig(Config):
+class HyperparameterSchedulerConfig(mettagrid.base_config.Config):
     """Scheduler settings applied during training."""
 
     enabled: bool = False
@@ -19,14 +19,14 @@ class HyperparameterSchedulerConfig(Config):
     ppo_ent_coef_decay: float = 1.0
 
 
-class SchedulerConfig(Config):
+class SchedulerConfig(mettagrid.base_config.Config):
     """Component-specific scheduling configuration."""
 
     interval: int = 1
     """How often to update hyperparameters (in epochs)."""
 
 
-class Scheduler(TrainerComponent):
+class Scheduler(metta.rl.training.TrainerComponent):
     """Manages hyperparameter scheduling."""
 
     def __init__(self, config: SchedulerConfig):

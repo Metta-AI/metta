@@ -1,22 +1,21 @@
 """Object info panel component for miniscope renderer."""
 
-from typing import Dict
+import typing
 
-from mettagrid.renderer.miniscope.miniscope_panel import SIDEBAR_WIDTH, PanelLayout
-from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState, RenderMode
-from mettagrid.simulator import BoundingBox, Simulation
+import mettagrid.renderer.miniscope.components.base
+import mettagrid.renderer.miniscope.miniscope_panel
+import mettagrid.renderer.miniscope.miniscope_state
+import mettagrid.simulator
 
-from .base import MiniscopeComponent
 
-
-class ObjectInfoComponent(MiniscopeComponent):
+class ObjectInfoComponent(mettagrid.renderer.miniscope.components.base.MiniscopeComponent):
     """Component for displaying object information at cursor position."""
 
     def __init__(
         self,
-        sim: Simulation,
-        state: MiniscopeState,
-        panels: PanelLayout,
+        sim: mettagrid.simulator.Simulation,
+        state: mettagrid.renderer.miniscope.miniscope_state.MiniscopeState,
+        panels: mettagrid.renderer.miniscope.miniscope_panel.PanelLayout,
     ):
         """Initialize the object info component.
 
@@ -51,7 +50,7 @@ class ObjectInfoComponent(MiniscopeComponent):
             self._panel.set_content(lines)
             return
 
-        if self.state.mode != RenderMode.SELECT:
+        if self.state.mode != mettagrid.renderer.miniscope.miniscope_state.RenderMode.SELECT:
             width = self._width if self._width else 40
             select_hint = "Switch to Select mode (press t)"
             lines = [
@@ -62,7 +61,7 @@ class ObjectInfoComponent(MiniscopeComponent):
             self._panel.set_content(lines)
             return
 
-        bbox = BoundingBox(
+        bbox = mettagrid.simulator.BoundingBox(
             min_row=0,
             max_row=self._sim.map_height,
             min_col=0,
@@ -82,13 +81,13 @@ class ObjectInfoComponent(MiniscopeComponent):
 
     def _build_lines(
         self,
-        grid_objects: Dict[int, dict],
+        grid_objects: typing.Dict[int, dict],
         cursor_row: int,
         cursor_col: int,
         panel_height: int,
     ) -> list[str]:
         """Build object information lines without color formatting."""
-        width = self._width if self._width else SIDEBAR_WIDTH
+        width = self._width if self._width else mettagrid.renderer.miniscope.miniscope_panel.SIDEBAR_WIDTH
         width = max(24, width)
 
         header = "Object Info"

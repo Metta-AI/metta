@@ -1,20 +1,19 @@
-from __future__ import annotations
 
+import contextlib
 import math
-from contextlib import contextmanager
-from pathlib import Path
-from typing import Dict, Optional
+import pathlib
+import typing
 
 import pandas as pd
 
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.sim.simulation_stats_db import SimulationStatsDB
-from metta.utils.file import local_copy
+import metta.rl.checkpoint_manager
+import metta.sim.simulation_stats_db
+import metta.utils.file
 
 # --------------------------------------------------------------------------- #
 #   Views                                                                     #
 # --------------------------------------------------------------------------- #
-EVAL_DB_VIEWS: Dict[str, str] = {
+EVAL_DB_VIEWS: typing.Dict[str, str] = {
     # All agent‑episode samples for every policy/simulation (regardless of metrics)
     "policy_simulation_agent_samples": """
     CREATE VIEW IF NOT EXISTS policy_simulation_agent_samples AS
@@ -49,20 +48,20 @@ EVAL_DB_VIEWS: Dict[str, str] = {
 }
 
 
-class EvalStatsDB(SimulationStatsDB):
-    def __init__(self, path: Path) -> None:
+class EvalStatsDB(metta.sim.simulation_stats_db.SimulationStatsDB):
+    def __init__(self, path: pathlib.Path) -> None:
         super().__init__(path)
 
     @classmethod
-    @contextmanager
+    @contextlib.contextmanager
     def from_uri(cls, path: str):
         """Download (if remote), open, and yield an EvalStatsDB."""
-        with local_copy(path) as local_path:
+        with metta.utils.file.local_copy(path) as local_path:
             db = cls(local_path)
             yield db
 
     # Extend parent schema with the extra views
-    def tables(self) -> Dict[str, str]:
+    def tables(self) -> typing.Dict[str, str]:
         return {**super().tables(), **EVAL_DB_VIEWS}
 
     def _count_agent_samples(
@@ -127,7 +126,7 @@ class EvalStatsDB(SimulationStatsDB):
         metric: str,
         agg: str,  # "AVG" or "STD"
         filter_condition: str | None = None,
-    ) -> Optional[float]:
+    ) -> typing.Optional[float]:
         """Return mean/standard deviation after zero-filling missing samples."""
         potential = self.potential_samples_for_metric(policy_key, policy_version, filter_condition)
         if potential == 0:
@@ -164,28 +163,32 @@ class EvalStatsDB(SimulationStatsDB):
             return math.sqrt(max(var, 0.0))
         raise ValueError(f"Unknown aggregation {agg}")
 
-    def get_average_metric(self, metric: str, policy_uri: str, filter_condition: str | None = None) -> Optional[float]:
+    def get_average_metric(
+        self, metric: str, policy_uri: str, filter_condition: str | None = None
+    ) -> typing.Optional[float]:
         """URI-native version to get average metric."""
-        metadata = CheckpointManager.get_policy_metadata(policy_uri)
+        metadata = metta.rl.checkpoint_manager.CheckpointManager.get_policy_metadata(policy_uri)
         pk, pv = metadata["run_name"], metadata["epoch"]
         return self._normalized_value(pk, pv, metric, "AVG", filter_condition)
 
-    def get_std_metric(self, metric: str, policy_uri: str, filter_condition: str | None = None) -> Optional[float]:
+    def get_std_metric(
+        self, metric: str, policy_uri: str, filter_condition: str | None = None
+    ) -> typing.Optional[float]:
         """URI-native version to get standard deviation metric."""
-        metadata = CheckpointManager.get_policy_metadata(policy_uri)
+        metadata = metta.rl.checkpoint_manager.CheckpointManager.get_policy_metadata(policy_uri)
         pk, pv = metadata["run_name"], metadata["epoch"]
         return self._normalized_value(pk, pv, metric, "STD", filter_condition)
 
     def sample_count_uri(
         self,
-        policy_uri: Optional[str] = None,
-        sim_name: Optional[str] = None,
-        sim_env: Optional[str] = None,
+        policy_uri: typing.Optional[str] = None,
+        sim_name: typing.Optional[str] = None,
+        sim_env: typing.Optional[str] = None,
     ) -> int:
         """URI-native version to get sample count."""
         q = "SELECT COUNT(*) AS cnt FROM policy_simulation_agent_samples WHERE 1=1"
         if policy_uri:
-            metadata = CheckpointManager.get_policy_metadata(policy_uri)
+            metadata = metta.rl.checkpoint_manager.CheckpointManager.get_policy_metadata(policy_uri)
             pk, pv = metadata["run_name"], metadata["epoch"]
             q += f" AND policy_key = '{pk}' AND policy_version = {pv}"
         if sim_name:
@@ -194,9 +197,9 @@ class EvalStatsDB(SimulationStatsDB):
             q += f" AND sim_env   = '{sim_env}'"
         return int(self.query(q)["cnt"].iloc[0])
 
-    def simulation_scores(self, policy_uri: str, metric: str) -> Dict[tuple[str, str], float]:
+    def simulation_scores(self, policy_uri: str, metric: str) -> typing.Dict[tuple[str, str], float]:
         """Return { (name,env) : normalized mean(metric) } for a policy URI."""
-        metadata = CheckpointManager.get_policy_metadata(policy_uri)
+        metadata = metta.rl.checkpoint_manager.CheckpointManager.get_policy_metadata(policy_uri)
         pk, pv = metadata["run_name"], metadata["epoch"]
         sim_rows = self.query(f"""
             SELECT DISTINCT sim_name, sim_env
@@ -204,7 +207,7 @@ class EvalStatsDB(SimulationStatsDB):
              WHERE policy_key     = '{pk}'
                AND policy_version =  {pv}
         """)
-        scores: Dict[tuple[str, str], float] = {}
+        scores: typing.Dict[tuple[str, str], float] = {}
         for _, row in sim_rows.iterrows():
             cond = f"sim_name  = '{row.sim_name}'  AND sim_env   = '{row.sim_env}'"
             val = self._normalized_value(pk, pv, metric, "AVG", cond)

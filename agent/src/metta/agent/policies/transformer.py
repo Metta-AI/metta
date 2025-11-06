@@ -1,48 +1,43 @@
 """Transformer policies built on the Metta transformer backbones."""
 
-from __future__ import annotations
 
 import contextlib
 import logging
 import math
 import os
-from typing import Dict, List, Optional, Tuple, TypeAlias
+import typing
 
+import einops
+import pydantic
+import tensordict
+import tensordict.nn
 import torch
-from einops import rearrange
-from pydantic import Field, model_validator
-from tensordict import TensorDict
-from tensordict.nn import TensorDictModule
-from torch import nn
-from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
+import torchrl.data
 
+import metta.agent.components.actor
+import metta.agent.components.obs_enc
+import metta.agent.components.obs_shim
+import metta.agent.components.obs_tokenizers
+import metta.agent.policies
+import metta.agent.policy
+import mettagrid.policy.policy_env_interface
 import pufferlib.pytorch
-from metta.agent.components.actor import ActionProbsConfig
-from metta.agent.components.obs_enc import ObsPerceiverLatent, ObsPerceiverLatentConfig
-from metta.agent.components.obs_shim import ObsShimTokens, ObsShimTokensConfig
-from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourier, ObsAttrEmbedFourierConfig
-from metta.agent.policies import gtrxl as backbone_gtrxl
-from metta.agent.policies import sliding_transformer as backbone_sliding
-from metta.agent.policies import trxl as backbone_trxl
-from metta.agent.policies import trxl_nvidia as backbone_trxl_nvidia
-from metta.agent.policy import Policy, PolicyArchitecture
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger(__name__)
 
 
-TransformerBackboneConfigType: TypeAlias = (
-    backbone_gtrxl.GTrXLConfig
-    | backbone_trxl.TRXLConfig
-    | backbone_trxl_nvidia.TRXLNvidiaConfig
-    | backbone_sliding.SlidingTransformerConfig
+TransformerBackboneConfigType: typing.TypeAlias = (
+    metta.agent.policies.gtrxl.GTrXLConfig
+    | metta.agent.policies.trxl.TRXLConfig
+    | metta.agent.policies.trxl_nvidia.TRXLNvidiaConfig
+    | metta.agent.policies.sliding_transformer.SlidingTransformerConfig
 )
 
 _BACKBONE_CONFIG_TYPES = (
-    backbone_gtrxl.GTrXLConfig,
-    backbone_trxl.TRXLConfig,
-    backbone_trxl_nvidia.TRXLNvidiaConfig,
-    backbone_sliding.SlidingTransformerConfig,
+    metta.agent.policies.gtrxl.GTrXLConfig,
+    metta.agent.policies.trxl.TRXLConfig,
+    metta.agent.policies.trxl_nvidia.TRXLNvidiaConfig,
+    metta.agent.policies.sliding_transformer.SlidingTransformerConfig,
 )
 
 
@@ -56,36 +51,44 @@ def _tensor_stats(tensor: torch.Tensor, name: str) -> str:
     )
 
 
-class TransformerPolicyConfig(PolicyArchitecture):
+class TransformerPolicyConfig(metta.agent.policy.PolicyArchitecture):
     """Configures the end-to-end transformer policy."""
 
     class_path: str = "metta.agent.policies.transformer.TransformerPolicy"
 
     # Observation preprocessing
-    obs_shim_config: ObsShimTokensConfig = ObsShimTokensConfig(in_key="env_obs", out_key="obs_tokens", max_tokens=48)
-    obs_tokenizer: ObsAttrEmbedFourierConfig = ObsAttrEmbedFourierConfig(
-        in_key="obs_tokens",
-        out_key="obs_attr_embed",
-        num_freqs=3,
-        attr_embed_dim=8,
+    obs_shim_config: metta.agent.components.obs_shim.ObsShimTokensConfig = (
+        metta.agent.components.obs_shim.ObsShimTokensConfig(in_key="env_obs", out_key="obs_tokens", max_tokens=48)
+    )
+    obs_tokenizer: metta.agent.components.obs_tokenizers.ObsAttrEmbedFourierConfig = (
+        metta.agent.components.obs_tokenizers.ObsAttrEmbedFourierConfig(
+            in_key="obs_tokens",
+            out_key="obs_attr_embed",
+            num_freqs=3,
+            attr_embed_dim=8,
+        )
     )
 
-    obs_encoder: ObsPerceiverLatentConfig = ObsPerceiverLatentConfig(
-        in_key="obs_attr_embed",
-        out_key="encoded_obs",
-        feat_dim=8 + (4 * 3) + 1,
-        latent_dim=32,
-        num_latents=12,
-        num_heads=4,
-        num_layers=1,
+    obs_encoder: metta.agent.components.obs_enc.ObsPerceiverLatentConfig = (
+        metta.agent.components.obs_enc.ObsPerceiverLatentConfig(
+            in_key="obs_attr_embed",
+            out_key="encoded_obs",
+            feat_dim=8 + (4 * 3) + 1,
+            latent_dim=32,
+            num_latents=12,
+            num_heads=4,
+            num_layers=1,
+        )
     )
 
-    transformer: TransformerBackboneConfigType = Field(default_factory=backbone_gtrxl.GTrXLConfig)
+    transformer: TransformerBackboneConfigType = pydantic.Field(default_factory=metta.agent.policies.gtrxl.GTrXLConfig)
 
     # Actor / critic head dimensions
     critic_hidden_dim: int = 512
     actor_hidden_dim: int = 256
-    action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
+    action_probs_config: metta.agent.components.actor.ActionProbsConfig = (
+        metta.agent.components.actor.ActionProbsConfig(in_key="logits")
+    )
 
     # Implementation options
     manual_init: bool | None = None
@@ -93,7 +96,7 @@ class TransformerPolicyConfig(PolicyArchitecture):
     use_aux_tokens: bool = False
     learning_rate_hint: float | None = None
 
-    @model_validator(mode="after")
+    @pydantic.model_validator(mode="after")
     def _apply_transformer_defaults(self) -> "TransformerPolicyConfig":
         config_instance = self.transformer
         if not isinstance(config_instance, _BACKBONE_CONFIG_TYPES):
@@ -111,12 +114,14 @@ class TransformerPolicyConfig(PolicyArchitecture):
         return self
 
 
-class TransformerPolicy(Policy):
+class TransformerPolicy(metta.agent.policy.Policy):
     """Shared CNN + Transformer policy scaffolding."""
 
     ConfigClass = TransformerPolicyConfig
 
-    def __init__(self, policy_env_info: "PolicyEnvInterface", config: Optional[TransformerPolicyConfig] = None) -> None:
+    def __init__(
+        self, policy_env_info: "PolicyEnvInterface", config: typing.Optional[TransformerPolicyConfig] = None
+    ) -> None:
         super().__init__(policy_env_info)
         if config is None:
             config = self.ConfigClass()
@@ -132,7 +137,9 @@ class TransformerPolicy(Policy):
         self.transformer_cfg = transformer_config
         self.latent_size = transformer_config.latent_size
         self.hidden_size = transformer_config.hidden_size
-        self._uses_sliding_backbone = isinstance(transformer_config, backbone_sliding.SlidingTransformerConfig)
+        self._uses_sliding_backbone = isinstance(
+            transformer_config, metta.agent.policies.sliding_transformer.SlidingTransformerConfig
+        )
         self.strict_attr_indices = self.config.strict_attr_indices
         self.use_aux_tokens = self.config.use_aux_tokens
         self._num_input_features = policy_env_info.observation_space.shape[0] + 1
@@ -149,15 +156,17 @@ class TransformerPolicy(Policy):
             )
             self.config.obs_encoder.latent_dim = self.latent_size
 
-        self.obs_shim = ObsShimTokens(policy_env_info, config=self.config.obs_shim_config)
-        self.obs_tokenizer = ObsAttrEmbedFourier(config=self.config.obs_tokenizer)
-        self.obs_encoder = ObsPerceiverLatent(config=self.config.obs_encoder)
+        self.obs_shim = metta.agent.components.obs_shim.ObsShimTokens(
+            policy_env_info, config=self.config.obs_shim_config
+        )
+        self.obs_tokenizer = metta.agent.components.obs_tokenizers.ObsAttrEmbedFourier(config=self.config.obs_tokenizer)
+        self.obs_encoder = metta.agent.components.obs_enc.ObsPerceiverLatent(config=self.config.obs_encoder)
 
         self._build_heads()
         self._build_transformer()
 
         self._memory_tensor: torch.Tensor | None = None
-        self._memory: Dict[int, Optional[torch.Tensor]] = {}
+        self._memory: typing.Dict[int, typing.Optional[torch.Tensor]] = {}
         self._aux_zero_cache: dict[tuple[torch.device, torch.dtype, tuple[int, ...]], torch.Tensor] = {}
 
         self._diag_enabled = os.getenv("TRANSFORMER_DIAG", "0") == "1"
@@ -181,59 +190,63 @@ class TransformerPolicy(Policy):
             self._autocast_dtype = torch.float16
 
         if self.latent_size != self.hidden_size:
-            self.input_projection = pufferlib.pytorch.layer_init(nn.Linear(self.latent_size, self.hidden_size), std=1.0)
+            self.input_projection = pufferlib.pytorch.layer_init(
+                torch.nn.Linear(self.latent_size, self.hidden_size), std=1.0
+            )
         else:
-            self.input_projection = nn.Identity()
+            self.input_projection = torch.nn.Identity()
 
         self.action_dim = int(self.action_space.n)
         if self.use_aux_tokens:
-            self.reward_proj = nn.Linear(1, self.hidden_size)
-            self.reset_proj = nn.Linear(1, self.hidden_size)
-            self.last_action_proj = nn.Linear(self.action_dim, self.hidden_size)
-            nn.init.xavier_uniform_(self.reward_proj.weight, gain=1.0)
-            nn.init.constant_(self.reward_proj.bias, 0.0)
-            nn.init.xavier_uniform_(self.reset_proj.weight, gain=1.0)
-            nn.init.constant_(self.reset_proj.bias, 0.0)
-            nn.init.xavier_uniform_(self.last_action_proj.weight, gain=1.0)
-            nn.init.constant_(self.last_action_proj.bias, 0.0)
+            self.reward_proj = torch.nn.Linear(1, self.hidden_size)
+            self.reset_proj = torch.nn.Linear(1, self.hidden_size)
+            self.last_action_proj = torch.nn.Linear(self.action_dim, self.hidden_size)
+            torch.nn.init.xavier_uniform_(self.reward_proj.weight, gain=1.0)
+            torch.nn.init.constant_(self.reward_proj.bias, 0.0)
+            torch.nn.init.xavier_uniform_(self.reset_proj.weight, gain=1.0)
+            torch.nn.init.constant_(self.reset_proj.bias, 0.0)
+            torch.nn.init.xavier_uniform_(self.last_action_proj.weight, gain=1.0)
+            torch.nn.init.constant_(self.last_action_proj.bias, 0.0)
 
     def _build_heads(self) -> None:
         manual = self.config.manual_init
 
-        def _init_linear(linear: nn.Linear, gain: float) -> nn.Linear:
+        def _init_linear(linear: torch.nn.Linear, gain: float) -> torch.nn.Linear:
             if manual:
-                nn.init.orthogonal_(linear.weight, gain)
-                nn.init.zeros_(linear.bias)
+                torch.nn.init.orthogonal_(linear.weight, gain)
+                torch.nn.init.zeros_(linear.bias)
             else:
                 linear = pufferlib.pytorch.layer_init(linear, std=gain)
             return linear
 
-        actor_linear = _init_linear(nn.Linear(self.hidden_size, self.config.actor_hidden_dim), gain=1.0)
-        self.actor_head = TensorDictModule(
-            nn.Sequential(actor_linear, nn.ReLU()),
+        actor_linear = _init_linear(torch.nn.Linear(self.hidden_size, self.config.actor_hidden_dim), gain=1.0)
+        self.actor_head = tensordict.nn.TensorDictModule(
+            torch.nn.Sequential(actor_linear, torch.nn.ReLU()),
             in_keys=["core"],
             out_keys=["actor_1"],
         )
 
-        critic_linear = _init_linear(nn.Linear(self.hidden_size, self.config.critic_hidden_dim), gain=math.sqrt(2))
-        self.critic_head = TensorDictModule(
-            nn.Sequential(critic_linear, nn.Tanh()),
+        critic_linear = _init_linear(
+            torch.nn.Linear(self.hidden_size, self.config.critic_hidden_dim), gain=math.sqrt(2)
+        )
+        self.critic_head = tensordict.nn.TensorDictModule(
+            torch.nn.Sequential(critic_linear, torch.nn.Tanh()),
             in_keys=["core"],
             out_keys=["critic_1"],
         )
 
-        value_linear = _init_linear(nn.Linear(self.config.critic_hidden_dim, 1), gain=1.0)
-        self.value_head = TensorDictModule(
+        value_linear = _init_linear(torch.nn.Linear(self.config.critic_hidden_dim, 1), gain=1.0)
+        self.value_head = tensordict.nn.TensorDictModule(
             value_linear,
             in_keys=["critic_1"],
             out_keys=["values"],
         )
 
         logits_linear = _init_linear(
-            nn.Linear(self.config.actor_hidden_dim, int(self.action_space.n)),
+            torch.nn.Linear(self.config.actor_hidden_dim, int(self.action_space.n)),
             gain=0.01,
         )
-        self.logits_head = TensorDictModule(
+        self.logits_head = tensordict.nn.TensorDictModule(
             logits_linear,
             in_keys=["actor_1"],
             out_keys=["logits"],
@@ -248,25 +261,27 @@ class TransformerPolicy(Policy):
     # Forward path
     # ------------------------------------------------------------------
     @property
-    def cnn1(self) -> nn.Module:
+    def cnn1(self) -> torch.nn.Module:
         """Expose first CNN layer for downstream tests and diagnostics."""
 
         raise AttributeError("cnn1 is not available when using token-based encoder")
 
-    def _encode_observations(self, observations: torch.Tensor) -> TensorDict:
+    def _encode_observations(self, observations: torch.Tensor) -> tensordict.TensorDict:
         """Run raw observations through preprocessing and CNN encoder."""
 
         if observations.dim() != 3:
             raise ValueError("Expected observations with shape (batch, tokens, features).")
 
         batch_size = observations.shape[0]
-        td = TensorDict({"env_obs": observations}, batch_size=[batch_size])
+        td = tensordict.TensorDict({"env_obs": observations}, batch_size=[batch_size])
         self.obs_shim(td)
         self.obs_tokenizer(td)
         self.obs_encoder(td)
         return td
 
-    def _build_aux_tokens(self, td: TensorDict, batch_size: int, tt: int, device: torch.device) -> torch.Tensor | None:
+    def _build_aux_tokens(
+        self, td: tensordict.TensorDict, batch_size: int, tt: int, device: torch.device
+    ) -> torch.Tensor | None:
         if not self.use_aux_tokens:
             return None
 
@@ -325,7 +340,9 @@ class TransformerPolicy(Policy):
             buf.zero_()
         return buf
 
-    def _pack_memory(self, memory: Optional[Dict[str, Optional[List[torch.Tensor]]]]) -> Optional[torch.Tensor]:
+    def _pack_memory(
+        self, memory: typing.Optional[typing.Dict[str, typing.Optional[typing.List[torch.Tensor]]]]
+    ) -> typing.Optional[torch.Tensor]:
         if memory is None or self.memory_len <= 0:
             return None
         hidden_states = memory.get("hidden_states")
@@ -365,7 +382,7 @@ class TransformerPolicy(Policy):
 
     def _unpack_memory(
         self, packed: torch.Tensor, device: torch.device, dtype: torch.dtype
-    ) -> Optional[Dict[str, List[torch.Tensor]]]:
+    ) -> typing.Optional[typing.Dict[str, typing.List[torch.Tensor]]]:
         if self.memory_len <= 0 or packed.numel() == 0:
             return {"hidden_states": None}
         if packed.dim() != 4:
@@ -378,11 +395,11 @@ class TransformerPolicy(Policy):
 
     def _gather_memory_batch(
         self,
-        env_ids: List[int],
+        env_ids: typing.List[int],
         batch_size: int,
         device: torch.device,
         dtype: torch.dtype,
-    ) -> Optional[Dict[str, Optional[List[torch.Tensor]]]]:
+    ) -> typing.Optional[typing.Dict[str, typing.Optional[typing.List[torch.Tensor]]]]:
         if not env_ids or self.memory_len <= 0 or self.transformer_layers <= 0:
             return {"hidden_states": None}
 
@@ -401,7 +418,7 @@ class TransformerPolicy(Policy):
         hidden_states = [layer for layer in memory_slice]
         return {"hidden_states": hidden_states}
 
-    def _extract_env_id_list(self, td: TensorDict, batch_size: int) -> List[int]:
+    def _extract_env_id_list(self, td: tensordict.TensorDict, batch_size: int) -> typing.List[int]:
         training_env_ids = td.get("training_env_ids", None)
         if training_env_ids is None or training_env_ids.numel() == 0:
             return list(range(batch_size))
@@ -412,7 +429,7 @@ class TransformerPolicy(Policy):
         return [start + idx for idx in range(batch_size)]
 
     @torch._dynamo.disable
-    def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None):
+    def forward(self, td: tensordict.TensorDict, state=None, action: typing.Optional[torch.Tensor] = None):
         td, observations, batch_size, tt, original_shape = self._prepare_observations(td)
 
         if self.strict_attr_indices:
@@ -463,7 +480,7 @@ class TransformerPolicy(Policy):
             td = td.reshape(original_shape)
         return td
 
-    def _cast_floating_tensors(self, td: TensorDict) -> None:
+    def _cast_floating_tensors(self, td: tensordict.TensorDict) -> None:
         for key, value in td.items(include_nested=True):
             if isinstance(value, torch.Tensor) and value.is_floating_point() and value.dtype != torch.float32:
                 leaf_key = key[-1] if isinstance(key, tuple) else key
@@ -471,7 +488,9 @@ class TransformerPolicy(Policy):
                     continue
                 td[key] = value.to(dtype=torch.float32)
 
-    def _forward_transformer(self, td: TensorDict, latent: torch.Tensor, batch_size: int, tt: int) -> torch.Tensor:
+    def _forward_transformer(
+        self, td: tensordict.TensorDict, latent: torch.Tensor, batch_size: int, tt: int
+    ) -> torch.Tensor:
         if tt <= 0:
             raise ValueError("bptt entries must be positive")
 
@@ -584,7 +603,7 @@ class TransformerPolicy(Policy):
 
     def _forward_sliding_transformer(
         self,
-        td: TensorDict,
+        td: tensordict.TensorDict,
         latent: torch.Tensor,
         batch_size: int,
         tt: int,
@@ -609,7 +628,9 @@ class TransformerPolicy(Policy):
         td.set(out_key, core_flat)
         return core_flat
 
-    def _prepare_observations(self, td: TensorDict) -> Tuple[TensorDict, torch.Tensor, int, int, Optional[torch.Size]]:
+    def _prepare_observations(
+        self, td: tensordict.TensorDict
+    ) -> typing.Tuple[tensordict.TensorDict, torch.Tensor, int, int, typing.Optional[torch.Size]]:
         observations = td["env_obs"]
 
         meta_bptt = td.get("bptt", None)
@@ -635,7 +656,7 @@ class TransformerPolicy(Policy):
                 td.set("bptt", torch.full((total_batch,), tt, device=device, dtype=torch.long))
             if "batch" not in td.keys():
                 td.set("batch", torch.full((total_batch,), batch_size, device=device, dtype=torch.long))
-            original_shape: Optional[torch.Size] = torch.Size([batch_size, tt])
+            original_shape: typing.Optional[torch.Size] = torch.Size([batch_size, tt])
             if self._diag_enabled and self._diag_counter < self._diag_limit:
                 logger.info("[TRANSFORMER_DIAG] prepare_obs sequence batch=%s tt=%s", batch_size, tt)
         else:
@@ -655,7 +676,7 @@ class TransformerPolicy(Policy):
 
         return td, observations, batch_size, tt, original_shape
 
-    def _enforce_strict_attr_indices(self, td: TensorDict) -> None:
+    def _enforce_strict_attr_indices(self, td: tensordict.TensorDict) -> None:
         obs = td.get("env_obs", None)
         if obs is None or obs.numel() == 0:
             return
@@ -677,10 +698,10 @@ class TransformerPolicy(Policy):
 
     def _compute_reset_mask(
         self,
-        dones: Optional[torch.Tensor],
-        truncateds: Optional[torch.Tensor],
+        dones: typing.Optional[torch.Tensor],
+        truncateds: typing.Optional[torch.Tensor],
         batch_size: int,
-    ) -> Optional[torch.Tensor]:
+    ) -> typing.Optional[torch.Tensor]:
         if dones is None and truncateds is None:
             return None
 
@@ -696,8 +717,8 @@ class TransformerPolicy(Policy):
             return None
 
         try:
-            dones = rearrange(dones, "(b t) -> t b", b=batch_size)
-            truncateds = rearrange(truncateds, "(b t) -> t b", b=batch_size)
+            dones = einops.rearrange(dones, "(b t) -> t b", b=batch_size)
+            truncateds = einops.rearrange(truncateds, "(b t) -> t b", b=batch_size)
         except ValueError:
             dones = dones.view(1, batch_size)
             truncateds = truncateds.view(1, batch_size)
@@ -719,8 +740,8 @@ class TransformerPolicy(Policy):
         return None
 
     def _detach_memory(
-        self, memory: Optional[Dict[str, Optional[List[torch.Tensor]]]]
-    ) -> Optional[Dict[str, Optional[List[torch.Tensor]]]]:
+        self, memory: typing.Optional[typing.Dict[str, typing.Optional[typing.List[torch.Tensor]]]]
+    ) -> typing.Optional[typing.Dict[str, typing.Optional[typing.List[torch.Tensor]]]]:
         if memory is None:
             return None
         hidden_states = memory.get("hidden_states") if isinstance(memory, dict) else None
@@ -728,7 +749,7 @@ class TransformerPolicy(Policy):
             return {"hidden_states": None}
         return {"hidden_states": [layer.detach() if layer is not None else None for layer in hidden_states]}
 
-    def _get_env_start(self, td: TensorDict) -> int:
+    def _get_env_start(self, td: tensordict.TensorDict) -> int:
         training_env_ids = td.get("training_env_ids", None)
         if training_env_ids is not None and training_env_ids.numel() > 0:
             env_start = int(training_env_ids.reshape(-1)[0].item())
@@ -752,7 +773,9 @@ class TransformerPolicy(Policy):
     # ------------------------------------------------------------------
     # Policy interface
     # ------------------------------------------------------------------
-    def initialize_to_environment(self, policy_env_info: PolicyEnvInterface, device: torch.device):
+    def initialize_to_environment(
+        self, policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface, device: torch.device
+    ):
         device = torch.device(device)
         self.to(device)
 
@@ -804,18 +827,18 @@ class TransformerPolicy(Policy):
     def transformer_layers(self) -> int:
         return getattr(self, "_transformer_layers", 0)
 
-    def get_agent_experience_spec(self) -> Composite:
+    def get_agent_experience_spec(self) -> torchrl.data.Composite:
         spec = {
-            "env_obs": UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
-            "dones": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
-            "truncateds": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
+            "env_obs": torchrl.data.UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
+            "dones": torchrl.data.UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
+            "truncateds": torchrl.data.UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
         }
         if self.memory_len > 0:
-            spec["transformer_memory_pre"] = UnboundedContinuous(
+            spec["transformer_memory_pre"] = torchrl.data.UnboundedContinuous(
                 shape=torch.Size([self.transformer_layers, self.memory_len, self.hidden_size]),
                 dtype=torch.float32,
             )
-        return Composite(**spec)
+        return torchrl.data.Composite(**spec)
 
 
 __all__ = [

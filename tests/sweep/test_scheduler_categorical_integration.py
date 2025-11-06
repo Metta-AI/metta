@@ -7,29 +7,26 @@ categorical parameter, ensuring:
   observations and produce subsequent valid suggestions
 """
 
-from datetime import datetime, timezone
-from typing import Any
+import datetime
+import typing
 
-from metta.adaptive.models import JobTypes, RunInfo
-from metta.sweep.core import CategoricalParameterConfig
-from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
-from metta.sweep.schedulers.batched_synced import (
-    BatchedSyncedOptimizingScheduler,
-    BatchedSyncedSchedulerConfig,
-)
+import metta.adaptive.models
+import metta.sweep.core
+import metta.sweep.protein_config
+import metta.sweep.schedulers.batched_synced
 
 
-def _make_protein_config() -> ProteinConfig:
-    return ProteinConfig(
+def _make_protein_config() -> metta.sweep.protein_config.ProteinConfig:
+    return metta.sweep.protein_config.ProteinConfig(
         metric="test/metric",
         goal="maximize",
         parameters={
             "model": {
-                "color": CategoricalParameterConfig(choices=["red", "blue", "green"]),
+                "color": metta.sweep.core.CategoricalParameterConfig(choices=["red", "blue", "green"]),
             },
             "trainer": {
                 "optimizer": {
-                    "learning_rate": ParameterConfig(
+                    "learning_rate": metta.sweep.protein_config.ParameterConfig(
                         min=1e-5,
                         max=1e-3,
                         distribution="log_normal",
@@ -39,7 +36,7 @@ def _make_protein_config() -> ProteinConfig:
                 }
             },
         },
-        settings=ProteinSettings(
+        settings=metta.sweep.protein_config.ProteinSettings(
             num_random_samples=0,  # seed with search center first
             seed_with_search_center=True,
         ),
@@ -48,7 +45,7 @@ def _make_protein_config() -> ProteinConfig:
 
 def test_scheduler_categorical_integration_batched_synced() -> None:
     protein_config = _make_protein_config()
-    scheduler_config = BatchedSyncedSchedulerConfig(
+    scheduler_config = metta.sweep.schedulers.batched_synced.BatchedSyncedSchedulerConfig(
         max_trials=4,
         batch_size=2,
         experiment_id="test_sweep_cat",
@@ -58,24 +55,24 @@ def test_scheduler_categorical_integration_batched_synced() -> None:
         protein_config=protein_config,
     )
 
-    scheduler = BatchedSyncedOptimizingScheduler(scheduler_config)
+    scheduler = metta.sweep.schedulers.batched_synced.BatchedSyncedOptimizingScheduler(scheduler_config)
 
     # First schedule: with no runs, should launch a batch of training jobs
     jobs_train = scheduler.schedule([], available_training_slots=2)
     assert len(jobs_train) == 2
     for job in jobs_train:
-        assert job.type == JobTypes.LAUNCH_TRAINING
+        assert job.type == metta.adaptive.models.JobTypes.LAUNCH_TRAINING
         assert "sweep/suggestion" in job.metadata
-        suggestion: dict[str, Any] = job.metadata["sweep/suggestion"]
+        suggestion: dict[str, typing.Any] = job.metadata["sweep/suggestion"]
         # Suggestions use flat keys with dot notation
         assert suggestion["model.color"] in {"red", "blue", "green"}
         lr = suggestion["trainer.optimizer.learning_rate"]
         assert 1e-5 <= lr <= 1e-3
 
     # Simulate training done; schedule evals
-    now = datetime.now(timezone.utc)
+    now = datetime.datetime.now(datetime.timezone.utc)
     runs_train_done = [
-        RunInfo(
+        metta.adaptive.models.RunInfo(
             run_id=job.run_id,
             has_started_training=True,
             has_completed_training=True,
@@ -91,11 +88,11 @@ def test_scheduler_categorical_integration_batched_synced() -> None:
 
     jobs_eval = scheduler.schedule(runs_train_done, available_training_slots=0)
     assert len(jobs_eval) == 2
-    assert all(job.type == JobTypes.LAUNCH_EVAL for job in jobs_eval)
+    assert all(job.type == metta.adaptive.models.JobTypes.LAUNCH_EVAL for job in jobs_eval)
 
     # Simulate eval completed with scores; schedule next batch
     runs_completed = [
-        RunInfo(
+        metta.adaptive.models.RunInfo(
             run_id=job.run_id,
             has_started_training=True,
             has_completed_training=True,
@@ -116,7 +113,7 @@ def test_scheduler_categorical_integration_batched_synced() -> None:
     jobs_next = scheduler.schedule(runs_completed, available_training_slots=2)
     assert len(jobs_next) == 2
     for job in jobs_next:
-        assert job.type == JobTypes.LAUNCH_TRAINING
+        assert job.type == metta.adaptive.models.JobTypes.LAUNCH_TRAINING
         suggestion = job.metadata["sweep/suggestion"]
         assert suggestion["model.color"] in {"red", "blue", "green"}
         lr = suggestion["trainer.optimizer.learning_rate"]

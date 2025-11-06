@@ -1,6 +1,6 @@
-from typing import Literal, Sequence
+import typing
 
-from mettagrid.mapgen.scene import Scene, SceneConfig
+import mettagrid.mapgen.scene
 
 # TODO: This is a hold over from when we had resource chests. It should probably be removed.
 DEFAULT_CORNER_CHESTS: tuple[str, str, str, str] = (
@@ -18,7 +18,7 @@ DEFAULT_EXTRACTORS: tuple[str, str, str, str] = (
 )
 
 
-class BaseHubConfig(SceneConfig):
+class BaseHubConfig(mettagrid.mapgen.scene.SceneConfig):
     assembler_object: str = "assembler"
     corner_generator: str | None = None
     spawn_symbol: str = "agent.agent"
@@ -33,16 +33,16 @@ class BaseHubConfig(SceneConfig):
     # - corner_bundle/cross_bundle can be "none" | "chests" | "extractors".
     # - When both objects and bundle are provided, objects win (per BaseHub logic).
     corner_objects: list[str] | None = None
-    corner_bundle: Literal["chests", "extractors", "none", "custom"] = "chests"
+    corner_bundle: typing.Literal["chests", "extractors", "none", "custom"] = "chests"
     cross_objects: list[str] | None = None
-    cross_bundle: Literal["none", "chests", "extractors", "custom"] = "none"
+    cross_bundle: typing.Literal["none", "chests", "extractors", "custom"] = "none"
     cross_distance: int = 4
-    layout: Literal["default", "tight"] = "default"
+    layout: typing.Literal["default", "tight"] = "default"
     charger_object: str = "charger"
     heart_chest_object: str = "chest"
 
 
-class BaseHub(Scene[BaseHubConfig]):
+class BaseHub(mettagrid.mapgen.scene.Scene[BaseHubConfig]):
     """
     Build a symmetric 11x11 base:
     - Center cell: assembler with charger two cells above
@@ -108,7 +108,7 @@ class BaseHub(Scene[BaseHubConfig]):
             self.height = original_height
             self.width = original_width
 
-    def _place_spawn_pads(self, positions: Sequence[tuple[int, int]]) -> None:
+    def _place_spawn_pads(self, positions: typing.Sequence[tuple[int, int]]) -> None:
         grid = self.grid
         h, w = self.height, self.width
 
@@ -147,7 +147,7 @@ class BaseHub(Scene[BaseHubConfig]):
             (cx - dist, cy),
         ]
 
-    def _place_named_objects(self, positions: Sequence[tuple[int, int]], names: Sequence[str]) -> None:
+    def _place_named_objects(self, positions: typing.Sequence[tuple[int, int]], names: typing.Sequence[str]) -> None:
         grid = self.grid
         h, w = self.height, self.width
 
@@ -327,7 +327,7 @@ class BaseHub(Scene[BaseHubConfig]):
         ]
         self._place_spawn_pads(valid_positions)
 
-    def _ensure_clearance(self, positions: Sequence[tuple[int, int]]) -> None:
+    def _ensure_clearance(self, positions: typing.Sequence[tuple[int, int]]) -> None:
         grid = self.grid
         h, w = self.height, self.width
 
@@ -369,7 +369,7 @@ class BaseHub(Scene[BaseHubConfig]):
 
                 grid[y, x] = "wall"
 
-    def _carve_L(self, x: int, y: int, orientation: Literal["right-down", "left-down", "right-up", "left-up"]):
+    def _carve_L(self, x: int, y: int, orientation: typing.Literal["right-down", "left-down", "right-up", "left-up"]):
         grid = self.grid
         h, w = self.height, self.width
 

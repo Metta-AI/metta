@@ -2,14 +2,14 @@ import os
 import platform
 import subprocess
 
-from metta.setup.components.base import SetupModule
-from metta.setup.registry import register_module
-from metta.setup.utils import error, info, success, warning
-from softmax.aws.secrets_manager import get_secretsmanager_secret
+import metta.setup.components.base
+import metta.setup.registry
+import metta.setup.utils
+import softmax.aws.secrets_manager
 
 
-@register_module
-class DatadogAgentSetup(SetupModule):
+@metta.setup.registry.register_module
+class DatadogAgentSetup(metta.setup.components.base.SetupModule):
     install_once = True
 
     @property
@@ -43,18 +43,20 @@ class DatadogAgentSetup(SetupModule):
             return False
 
     def _get_dd_api_key(self) -> str | None:
-        return os.environ.get("DD_API_KEY") or get_secretsmanager_secret("datadog/api-key", require_exists=False)
+        return os.environ.get("DD_API_KEY") or softmax.aws.secrets_manager.get_secretsmanager_secret(
+            "datadog/api-key", require_exists=False
+        )
 
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
-        info("Getting Datadog API key...")
+        metta.setup.utils.info("Getting Datadog API key...")
         try:
             api_key = self._get_dd_api_key()
         except Exception as e:
-            warning(f"Could not get Datadog API key: {e}")
-            warning("Skipping Datadog agent installation.")
+            metta.setup.utils.warning(f"Could not get Datadog API key: {e}")
+            metta.setup.utils.warning("Skipping Datadog agent installation.")
             return
         if not api_key:
-            warning("No Datadog API key found. Skipping Datadog agent installation.")
+            metta.setup.utils.warning("No Datadog API key found. Skipping Datadog agent installation.")
             return
 
         # Set environment variables for the install script
@@ -81,16 +83,16 @@ class DatadogAgentSetup(SetupModule):
 
         # Check if already installed
         if self.check_installed():
-            info("Datadog agent already installed.")
+            metta.setup.utils.info("Datadog agent already installed.")
             # Just restart with new config/tags if needed
             try:
                 subprocess.run(["sudo", "systemctl", "restart", "datadog-agent"], check=True)
-                success("Datadog agent restarted with updated configuration.")
+                metta.setup.utils.success("Datadog agent restarted with updated configuration.")
             except subprocess.CalledProcessError:
-                warning("Failed to restart Datadog agent.")
+                metta.setup.utils.warning("Failed to restart Datadog agent.")
             return
 
-        info("Installing Datadog agent...")
+        metta.setup.utils.info("Installing Datadog agent...")
 
         install_cmd = 'bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)"'
         result = subprocess.run(
@@ -103,7 +105,7 @@ class DatadogAgentSetup(SetupModule):
         )
 
         if result.returncode != 0:
-            error(f"Failed to install Datadog agent: {result.stdout}\n{result.stderr}")
+            metta.setup.utils.error(f"Failed to install Datadog agent: {result.stdout}\n{result.stderr}")
             return
 
-        success("Datadog agent installed successfully.")
+        metta.setup.utils.success("Datadog agent installed successfully.")

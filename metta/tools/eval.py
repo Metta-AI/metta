@@ -1,42 +1,44 @@
+import datetime
 import json
 import logging
 import sys
+import typing
 import uuid
-from datetime import datetime
-from typing import Sequence
 
+import pydantic
 import torch
-from pydantic import Field
 
-from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
-from metta.common.tool import Tool
-from metta.common.util.constants import SOFTMAX_S3_BASE
-from metta.common.wandb.context import WandbContext
-from metta.eval.eval_request_config import EvalResults
-from metta.eval.eval_service import evaluate_policy
-from metta.rl import stats as rl_stats
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.sim.simulation_config import SimulationConfig
-from metta.tools.remote_job import JobResult, RemoteJobTool
-from metta.tools.utils.auto_config import auto_wandb_config
-from metta.utils.uri import ParsedURI
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+import metta.app_backend.clients.stats_client
+import metta.common.tool
+import metta.common.util.constants
+import metta.common.wandb.context
+import metta.eval.eval_request_config
+import metta.eval.eval_service
+import metta.rl
+import metta.rl.checkpoint_manager
+import metta.sim.simulation_config
+import metta.tools.remote_job
+import metta.tools.utils.auto_config
+import metta.utils.uri
+import mettagrid.policy.policy_env_interface
 
 logger = logging.getLogger(__name__)
 
 
 def _determine_run_name(policy_uri: str) -> str:
-    parsed = ParsedURI.parse(policy_uri)
+    parsed = metta.utils.uri.ParsedURI.parse(policy_uri)
     if parsed.scheme == "file" and parsed.local_path is not None:
         return f"eval_{parsed.local_path.stem}"
-    return f"eval_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    return f"eval_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
 
-class EvaluateRemoteJobTool(RemoteJobTool):
+class EvaluateRemoteJobTool(metta.tools.remote_job.RemoteJobTool):
     # required params:
-    simulations: Sequence[SimulationConfig]  # list of simulations to run
+    simulations: typing.Sequence[metta.sim.simulation_config.SimulationConfig]  # list of simulations to run
     policy_uri: str  # policy uri to evaluate
-    replay_dir: str = Field(default=f"{SOFTMAX_S3_BASE}/replays/{str(uuid.uuid4())}")
+    replay_dir: str = pydantic.Field(
+        default=f"{metta.common.util.constants.SOFTMAX_S3_BASE}/replays/{str(uuid.uuid4())}"
+    )
     enable_replays: bool = True
     job_result_file_path: str  # path to the file where the results will be written
 
@@ -46,7 +48,7 @@ class EvaluateRemoteJobTool(RemoteJobTool):
     eval_task_id: str | None = None
     push_metrics_to_wandb: bool = False
 
-    def run_job(self) -> JobResult:
+    def run_job(self) -> metta.tools.remote_job.JobResult:
         eval_tool = EvaluateTool(
             simulations=self.simulations,
             policy_uris=[self.policy_uri],
@@ -59,32 +61,36 @@ class EvaluateRemoteJobTool(RemoteJobTool):
         )
 
         try:
-            normalized_uri = CheckpointManager.normalize_uri(self.policy_uri)
+            normalized_uri = metta.rl.checkpoint_manager.CheckpointManager.normalize_uri(self.policy_uri)
 
-            stats_client: StatsClient | None = None
+            stats_client: metta.app_backend.clients.stats_client.StatsClient | None = None
             if self.stats_server_uri is not None:
-                stats_client = HttpStatsClient.create(self.stats_server_uri)
+                stats_client = metta.app_backend.clients.stats_client.HttpStatsClient.create(self.stats_server_uri)
 
             eval_results = eval_tool.eval_policy(normalized_uri=normalized_uri, stats_client=stats_client)
             if len(eval_results.scores.simulation_scores) == 0:
-                return JobResult(result="failure", error="No simulations were run")
+                return metta.tools.remote_job.JobResult(result="failure", error="No simulations were run")
             elif len(eval_results.scores.simulation_scores) != len(self.simulations):
                 # Find missing simulations
                 missing_simulations = [
                     sim for sim in self.simulations if sim.full_name not in eval_results.scores.simulation_scores
                 ]
-                return JobResult(result="success", warnings=[f"Failed to run simulations: {missing_simulations}"])
+                return metta.tools.remote_job.JobResult(
+                    result="success", warnings=[f"Failed to run simulations: {missing_simulations}"]
+                )
 
-            return JobResult(result="success")
+            return metta.tools.remote_job.JobResult(result="success")
         except Exception as e:
-            return JobResult(result="failure", error=str(e))
+            return metta.tools.remote_job.JobResult(result="failure", error=str(e))
 
 
-class EvaluateTool(Tool):
+class EvaluateTool(metta.common.tool.Tool):
     # required params:
-    simulations: Sequence[SimulationConfig]  # list of simulations to run
-    policy_uris: str | Sequence[str] | None = None  # list of policy uris to evaluate
-    replay_dir: str = Field(default=f"{SOFTMAX_S3_BASE}/replays/{str(uuid.uuid4())}")
+    simulations: typing.Sequence[metta.sim.simulation_config.SimulationConfig]  # list of simulations to run
+    policy_uris: str | typing.Sequence[str] | None = None  # list of policy uris to evaluate
+    replay_dir: str = pydantic.Field(
+        default=f"{metta.common.util.constants.SOFTMAX_S3_BASE}/replays/{str(uuid.uuid4())}"
+    )
     enable_replays: bool = True
 
     group: str | None = None  # Separate group parameter like in train.py
@@ -96,7 +102,12 @@ class EvaluateTool(Tool):
     eval_task_id: str | None = None
     push_metrics_to_wandb: bool = False
 
-    def _log_to_wandb(self, policy_uri: str, eval_results: EvalResults, stats_client: StatsClient | None):
+    def _log_to_wandb(
+        self,
+        policy_uri: str,
+        eval_results: metta.eval.eval_request_config.EvalResults,
+        stats_client: metta.app_backend.clients.stats_client.StatsClient | None,
+    ):
         if stats_client is None:
             logger.info("Stats client is not set, skipping wandb logging")
             return
@@ -105,13 +116,13 @@ class EvaluateTool(Tool):
             logger.info("Push metrics to wandb is not set, skipping wandb logging")
             return
 
-        run_name = CheckpointManager.get_policy_metadata(policy_uri).get("run_name")
+        run_name = metta.rl.checkpoint_manager.CheckpointManager.get_policy_metadata(policy_uri).get("run_name")
         if run_name is None:
             logger.info("Could not determine run name, skipping wandb logging")
             return
 
         # Resume the existing training run without overriding its group
-        wandb = auto_wandb_config(run_name)
+        wandb = metta.tools.utils.auto_config.auto_wandb_config(run_name)
         if self.group:
             wandb.group = self.group
 
@@ -119,7 +130,7 @@ class EvaluateTool(Tool):
             logger.info("WandB is not enabled, skipping wandb logging")
             return
 
-        wandb_context = WandbContext(wandb, self)
+        wandb_context = metta.common.wandb.context.WandbContext(wandb, self)
         with wandb_context as wandb_run:
             if not wandb_run:
                 logger.info("Failed to initialize wandb run, skipping wandb logging")
@@ -138,7 +149,9 @@ class EvaluateTool(Tool):
                     logger.info("Agent step is not set, skipping wandb logging")
                     return
 
-                rl_stats.process_policy_evaluator_stats(policy_uri, eval_results, wandb_run, epoch, agent_step, False)
+                metta.rl.stats.process_policy_evaluator_stats(
+                    policy_uri, eval_results, wandb_run, epoch, agent_step, False
+                )
             except IndexError:
                 # No rows returned; log with fallback step/epoch
                 logger.info(
@@ -146,25 +159,27 @@ class EvaluateTool(Tool):
                     policy_uri,
                 )
                 try:
-                    rl_stats.process_policy_evaluator_stats(policy_uri, eval_results, wandb_run, 0, 0, False)
+                    metta.rl.stats.process_policy_evaluator_stats(policy_uri, eval_results, wandb_run, 0, 0, False)
                 except Exception as e:
                     logger.error("Fallback WandB logging failed: %s", e, exc_info=True)
             except Exception as e:
                 logger.error(f"Error logging evaluation results to wandb: {e}", exc_info=True)
                 # Best-effort fallback logging with default indices
                 try:
-                    rl_stats.process_policy_evaluator_stats(policy_uri, eval_results, wandb_run, 0, 0, False)
+                    metta.rl.stats.process_policy_evaluator_stats(policy_uri, eval_results, wandb_run, 0, 0, False)
                 except Exception as e2:
                     logger.error("Fallback WandB logging failed: %s", e2, exc_info=True)
 
-    def eval_policy(self, normalized_uri: str, stats_client: StatsClient | None) -> EvalResults:
-        policy_env_info = PolicyEnvInterface.from_mg_cfg(self.simulations[0].env)
+    def eval_policy(
+        self, normalized_uri: str, stats_client: metta.app_backend.clients.stats_client.StatsClient | None
+    ) -> metta.eval.eval_request_config.EvalResults:
+        policy_env_info = mettagrid.policy.policy_env_interface.PolicyEnvInterface.from_mg_cfg(self.simulations[0].env)
 
         # Verify the checkpoint exists (always use CPU for simulations)
         device = torch.device("cpu")
         try:
-            agent = CheckpointManager.load_from_uri(normalized_uri, policy_env_info, device)
-            metadata = CheckpointManager.get_policy_metadata(normalized_uri)
+            agent = metta.rl.checkpoint_manager.CheckpointManager.load_from_uri(normalized_uri, policy_env_info, device)
+            metadata = metta.rl.checkpoint_manager.CheckpointManager.get_policy_metadata(normalized_uri)
             del agent
         except Exception as e:
             logger.warning(f"Failed to load policy from {normalized_uri}: {e}")
@@ -177,7 +192,7 @@ class EvaluateTool(Tool):
         if self.eval_task_id:
             eval_task_id = uuid.UUID(self.eval_task_id)
 
-        eval_results = evaluate_policy(
+        eval_results = metta.eval.eval_service.evaluate_policy(
             checkpoint_uri=normalized_uri,
             simulations=list(self.simulations),
             replay_dir=(
@@ -202,26 +217,26 @@ class EvaluateTool(Tool):
             self.policy_uris = [self.policy_uris]
 
         for uri in self.policy_uris:
-            parsed_uri = ParsedURI.parse(uri)
+            parsed_uri = metta.utils.uri.ParsedURI.parse(uri)
             if parsed_uri.scheme == "wandb":
                 raise ValueError(
                     "Policy artifacts must be stored on local disk or S3. "
                     "Download the checkpoint and re-run with a file:// or s3:// URI."
                 )
 
-        stats_client: StatsClient | None = None
+        stats_client: metta.app_backend.clients.stats_client.StatsClient | None = None
         if self.stats_server_uri is not None:
-            stats_client = HttpStatsClient.create(self.stats_server_uri)
+            stats_client = metta.app_backend.clients.stats_client.HttpStatsClient.create(self.stats_server_uri)
 
         all_results = {"simulations": [sim.full_name for sim in self.simulations], "policies": []}
 
         for policy_uri in self.policy_uris:
-            normalized_uri = CheckpointManager.normalize_uri(policy_uri)
+            normalized_uri = metta.rl.checkpoint_manager.CheckpointManager.normalize_uri(policy_uri)
 
             # Verify the checkpoint exists and load metadata
             try:
-                agent = CheckpointManager.load_artifact_from_uri(normalized_uri)
-                metadata = CheckpointManager.get_policy_metadata(normalized_uri)
+                agent = metta.rl.checkpoint_manager.CheckpointManager.load_artifact_from_uri(normalized_uri)
+                metadata = metta.rl.checkpoint_manager.CheckpointManager.get_policy_metadata(normalized_uri)
                 del agent
             except Exception as e:
                 logger.warning(f"Failed to load policy from {normalized_uri}: {e}")
@@ -229,7 +244,7 @@ class EvaluateTool(Tool):
 
             results = {"policy_uri": normalized_uri, "checkpoints": []}
             eval_results = self.eval_policy(normalized_uri, stats_client)
-            metadata = CheckpointManager.get_policy_metadata(normalized_uri)
+            metadata = metta.rl.checkpoint_manager.CheckpointManager.get_policy_metadata(normalized_uri)
             results["checkpoints"].append(
                 {
                     "name": metadata.get("run_name", "unknown"),

@@ -2,18 +2,18 @@
 
 import argparse
 import os
+import pathlib
 import shlex
 import subprocess
-from pathlib import Path
 
 import sky.jobs
 import yaml
 
-from devops.skypilot.utils.job_helpers import get_jobs_controller_name
-from metta.common.util.text_styles import bold
+import devops.skypilot.utils.job_helpers
+import metta.common.util.text_styles
 
 
-def get_regions_from_yaml(yaml_path: Path) -> list[str]:
+def get_regions_from_yaml(yaml_path: pathlib.Path) -> list[str]:
     content = yaml.safe_load(yaml_path.read_text())
     any_of = content.get("resources", {}).get("any_of", [])
     return sorted({entry["region"] for entry in any_of if "region" in entry})
@@ -34,7 +34,7 @@ def main():
 
     print("Looking up EC2 instance...")
 
-    REGIONS = get_regions_from_yaml(Path("devops/skypilot/config/sk_train.yaml"))
+    REGIONS = get_regions_from_yaml(pathlib.Path("devops/skypilot/config/sk_train.yaml"))
 
     instance = None
     for region in REGIONS:
@@ -83,10 +83,10 @@ def main():
     inner_ssh_command = shlex.join(["ssh", "-t", "-i", key_path, f"ubuntu@{instance}", job_host_command])
 
     print("Looking up jobs controller...")
-    jobs_controller_name = get_jobs_controller_name()
+    jobs_controller_name = devops.skypilot.utils.job_helpers.get_jobs_controller_name()
 
     full_command = shlex.join(["ssh", "-t", jobs_controller_name, inner_ssh_command])
-    print(f"Connecting with: {bold(full_command)}")
+    print(f"Connecting with: {metta.common.util.text_styles.bold(full_command)}")
 
     subprocess.run(full_command, shell=True)
 

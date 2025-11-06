@@ -1,8 +1,8 @@
 import logging
 import os
 
-from metta.utils import file as file_utils
-from mettagrid.mapgen.utils.thumbnail import generate_thumbnail_from_replay
+import metta.utils
+import mettagrid.mapgen.utils.thumbnail
 
 logger = logging.getLogger(__name__)
 
@@ -56,10 +56,10 @@ def upload_thumbnail_to_s3(thumbnail_data: bytes, episode_id: str) -> tuple[bool
         s3_uri = episode_id_to_s3_uri(episode_id)
 
         # Use project's standard file utilities for S3 upload
-        file_utils.write_data(s3_uri, thumbnail_data, content_type="image/png")
+        metta.utils.file.write_data(s3_uri, thumbnail_data, content_type="image/png")
 
         # Convert S3 URI to HTTP URL for database storage
-        http_thumbnail_url = file_utils.http_url(s3_uri)
+        http_thumbnail_url = metta.utils.file.http_url(s3_uri)
 
         return True, http_thumbnail_url
 
@@ -90,7 +90,7 @@ def maybe_generate_and_upload_thumbnail(replay_data: dict, episode_id: str) -> t
     try:
         # Generate thumbnail using core library
         logger.debug(f"Generating thumbnail for episode {episode_id}")
-        thumbnail_data = generate_thumbnail_from_replay(replay_data)
+        thumbnail_data = mettagrid.mapgen.utils.thumbnail.generate_thumbnail_from_replay(replay_data)
 
         # Upload using project file utilities
         success, thumbnail_url = upload_thumbnail_to_s3(thumbnail_data, episode_id)

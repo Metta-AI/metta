@@ -1,19 +1,17 @@
 """Sequential stack with optional per-block torch.compile."""
 
-from __future__ import annotations
 
 import logging
-from typing import Optional
+import typing
 
+import cortex.blocks
+import cortex.blocks.base
+import cortex.cells
+import cortex.config
+import cortex.types
+import tensordict
 import torch
 import torch.nn as nn
-from tensordict import TensorDict
-
-from cortex.blocks import ColumnBlock, build_block
-from cortex.blocks.base import BaseBlock
-from cortex.cells import build_cell
-from cortex.config import CortexStackConfig
-from cortex.types import MaybeState, ResetMask, Tensor
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +19,7 @@ logger = logging.getLogger(__name__)
 class CortexStack(nn.Module):
     """Stack of blocks that preserves external hidden size."""
 
-    def __init__(self, cfg: CortexStackConfig) -> None:
+    def __init__(self, cfg: cortex.config.CortexStackConfig) -> None:
         super().__init__()
         self.cfg = cfg
         self.blocks = nn.ModuleList(self._build_blocks(cfg))
@@ -36,22 +34,22 @@ class CortexStack(nn.Module):
         if compile_requested and hasattr(torch, "compile"):
             compiled: list[nn.Module] = []
             for b in self.blocks:
-                if isinstance(b, ColumnBlock):
+                if isinstance(b, cortex.blocks.ColumnBlock):
                     b._compiled_experts = [torch.compile(e) for e in b.experts]  # type: ignore[attr-defined]
                     compiled.append(b)
                 else:
                     compiled.append(torch.compile(b))
             self._compiled_blocks = compiled
 
-    def _build_blocks(self, cfg: CortexStackConfig) -> list[BaseBlock]:
-        blocks: list[BaseBlock] = []
+    def _build_blocks(self, cfg: cortex.config.CortexStackConfig) -> list[cortex.blocks.base.BaseBlock]:
+        blocks: list[cortex.blocks.base.BaseBlock] = []
         d_hidden = cfg.d_hidden
 
         for _idx, block_cfg in enumerate(cfg.blocks):
             # For adapter blocks, cell comes from base_block, so skip cell building
             if block_cfg.cell is None:
                 # Build block without cell (adapters handle this internally)
-                block = build_block(config=block_cfg, d_hidden=d_hidden, cell=None)
+                block = cortex.blocks.build_block(config=block_cfg, d_hidden=d_hidden, cell=None)
             else:
                 # Get the appropriate hidden size for the cell
                 cell_hidden_size = block_cfg.get_cell_hidden_size(d_hidden)
@@ -62,17 +60,17 @@ class CortexStack(nn.Module):
                 dumped = block_cfg.cell.model_dump()
                 dumped["hidden_size"] = cell_hidden_size
                 cell_config = type(block_cfg.cell)(**dumped)
-                cell = build_cell(cell_config)
+                cell = cortex.cells.build_cell(cell_config)
 
                 # Use generic block builder
-                block = build_block(config=block_cfg, d_hidden=d_hidden, cell=cell)
+                block = cortex.blocks.build_block(config=block_cfg, d_hidden=d_hidden, cell=cell)
 
             blocks.append(block)
 
         return blocks
 
-    def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> TensorDict:
-        state = TensorDict({}, batch_size=[batch], device=torch.device(device))
+    def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> tensordict.TensorDict:
+        state = tensordict.TensorDict({}, batch_size=[batch], device=torch.device(device))
         for i, block in enumerate(self.blocks):
             block_key = f"{block.__class__.__name__}_{i}"
             state[block_key] = block.init_state(batch=batch, device=device, dtype=dtype)
@@ -80,23 +78,23 @@ class CortexStack(nn.Module):
 
     def forward(
         self,
-        x: Tensor,
-        state: MaybeState,
+        x: cortex.types.Tensor,
+        state: cortex.types.MaybeState,
         *,
-        resets: Optional[ResetMask] = None,
-    ) -> tuple[Tensor, MaybeState]:
+        resets: typing.Optional[cortex.types.ResetMask] = None,
+    ) -> tuple[cortex.types.Tensor, cortex.types.MaybeState]:
         # Always expect batch-first input: [B, T, H] or [B, H]
         y = x
         batch_size = x.shape[0]
-        next_state = TensorDict({}, batch_size=[batch_size])
+        next_state = tensordict.TensorDict({}, batch_size=[batch_size])
         for i, block in enumerate(self.blocks):
             block_key = f"{block.__class__.__name__}_{i}"
-            if isinstance(state, TensorDict):
+            if isinstance(state, tensordict.TensorDict):
                 block_state = state.get(block_key)
                 if block_state is None:
-                    block_state = TensorDict({}, batch_size=[batch_size], device=y.device)
+                    block_state = tensordict.TensorDict({}, batch_size=[batch_size], device=y.device)
             else:
-                block_state = TensorDict({}, batch_size=[batch_size], device=y.device)
+                block_state = tensordict.TensorDict({}, batch_size=[batch_size], device=y.device)
             if self._compiled_blocks is not None and torch.is_grad_enabled():
                 call = self._compiled_blocks[i]
             else:
@@ -104,26 +102,26 @@ class CortexStack(nn.Module):
             y, block_next_state = call(y, block_state, resets=resets)
             next_state[block_key] = (
                 block_next_state
-                if isinstance(block_next_state, TensorDict)
-                else TensorDict({}, batch_size=[batch_size])
+                if isinstance(block_next_state, tensordict.TensorDict)
+                else tensordict.TensorDict({}, batch_size=[batch_size])
             )
         y = self.norm(y)
         return y, next_state
 
     def step(
         self,
-        x: Tensor,
-        state: MaybeState = None,
+        x: cortex.types.Tensor,
+        state: cortex.types.MaybeState = None,
         **kwargs,
-    ) -> tuple[Tensor, MaybeState]:
+    ) -> tuple[cortex.types.Tensor, cortex.types.MaybeState]:
         """Single timestep forward pass."""
         return self.forward(x, state, **kwargs)
 
-    def reset_state(self, state: MaybeState, mask: ResetMask) -> MaybeState:
-        if state is None or not isinstance(state, TensorDict):
+    def reset_state(self, state: cortex.types.MaybeState, mask: cortex.types.ResetMask) -> cortex.types.MaybeState:
+        if state is None or not isinstance(state, tensordict.TensorDict):
             return state
         batch_size = state.batch_size[0] if state.batch_size else mask.shape[0]
-        new_state = TensorDict({}, batch_size=[batch_size], device=state.device)
+        new_state = tensordict.TensorDict({}, batch_size=[batch_size], device=state.device)
         for i, block in enumerate(self.blocks):
             block_key = f"{block.__class__.__name__}_{i}"
             new_state[block_key] = block.reset_state(state.get(block_key), mask)

@@ -1,10 +1,10 @@
-from metta.sim.simulation_config import SimulationConfig
+import metta.sim.simulation_config
 
-from experiments.evals.navigation import make_navigation_eval_suite
+import experiments.evals.navigation
 
 
-def get_eval_suite(name: str) -> list[SimulationConfig]:
+def get_eval_suite(name: str) -> list[metta.sim.simulation_config.SimulationConfig]:
     if name == "navigation":
-        return make_navigation_eval_suite()
+        return experiments.evals.navigation.make_navigation_eval_suite()
     else:
         raise ValueError(f"Unknown suite: {name}")

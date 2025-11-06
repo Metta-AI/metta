@@ -1,20 +1,20 @@
 """Test LayerNorm and skip connections in PreUp and PostUp blocks."""
 
+import cortex.blocks.postup
+import cortex.blocks.preup
+import cortex.cells.lstm
+import cortex.config
 import torch
 import torch.nn as nn
-from cortex.blocks.postup import PostUpBlock
-from cortex.blocks.preup import PreUpBlock
-from cortex.cells.lstm import LSTMCell
-from cortex.config import LSTMCellConfig, PostUpBlockConfig, PreUpBlockConfig
 
 
 def test_preup_block_has_layernorm():
     """Verify PreUpBlock has LayerNorm."""
-    config = PreUpBlockConfig(cell=LSTMCellConfig(hidden_size=256), proj_factor=2.0)
+    config = cortex.config.PreUpBlockConfig(cell=cortex.config.LSTMCellConfig(hidden_size=256), proj_factor=2.0)
     d_hidden = 128
-    cell = LSTMCell(LSTMCellConfig(hidden_size=256))
+    cell = cortex.cells.lstm.LSTMCell(cortex.config.LSTMCellConfig(hidden_size=256))
 
-    block = PreUpBlock(config, d_hidden, cell)
+    block = cortex.blocks.preup.PreUpBlock(config, d_hidden, cell)
 
     # Check LayerNorm exists
     assert hasattr(block, "norm")
@@ -26,11 +26,11 @@ def test_preup_block_has_layernorm():
 
 def test_postup_block_has_layernorms():
     """Verify PostUpBlock has both LayerNorms."""
-    config = PostUpBlockConfig(cell=LSTMCellConfig(hidden_size=128), proj_factor=2.0)
+    config = cortex.config.PostUpBlockConfig(cell=cortex.config.LSTMCellConfig(hidden_size=128), proj_factor=2.0)
     d_hidden = 128
-    cell = LSTMCell(LSTMCellConfig(hidden_size=128))
+    cell = cortex.cells.lstm.LSTMCell(cortex.config.LSTMCellConfig(hidden_size=128))
 
-    block = PostUpBlock(config, d_hidden, cell)
+    block = cortex.blocks.postup.PostUpBlock(config, d_hidden, cell)
 
     # Check both LayerNorms exist
     assert hasattr(block, "norm")
@@ -44,11 +44,11 @@ def test_postup_block_has_layernorms():
 
 def test_preup_residual_connection():
     """Verify PreUpBlock properly applies residual connection."""
-    config = PreUpBlockConfig(cell=LSTMCellConfig(hidden_size=256), proj_factor=2.0)
+    config = cortex.config.PreUpBlockConfig(cell=cortex.config.LSTMCellConfig(hidden_size=256), proj_factor=2.0)
     d_hidden = 128
-    cell = LSTMCell(LSTMCellConfig(hidden_size=256))
+    cell = cortex.cells.lstm.LSTMCell(cortex.config.LSTMCellConfig(hidden_size=256))
 
-    block = PreUpBlock(config, d_hidden, cell)
+    block = cortex.blocks.preup.PreUpBlock(config, d_hidden, cell)
 
     # Create input
     batch_size = 2
@@ -73,11 +73,11 @@ def test_preup_residual_connection():
 
 def test_postup_residual_connections():
     """Verify PostUpBlock properly applies dual residual connections."""
-    config = PostUpBlockConfig(cell=LSTMCellConfig(hidden_size=128), proj_factor=2.0)
+    config = cortex.config.PostUpBlockConfig(cell=cortex.config.LSTMCellConfig(hidden_size=128), proj_factor=2.0)
     d_hidden = 128
-    cell = LSTMCell(LSTMCellConfig(hidden_size=128))
+    cell = cortex.cells.lstm.LSTMCell(cortex.config.LSTMCellConfig(hidden_size=128))
 
-    block = PostUpBlock(config, d_hidden, cell)
+    block = cortex.blocks.postup.PostUpBlock(config, d_hidden, cell)
 
     # Create input
     batch_size = 2

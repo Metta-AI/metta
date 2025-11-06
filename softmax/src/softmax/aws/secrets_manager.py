@@ -1,23 +1,23 @@
-from typing import Any, Literal, overload
+import typing
 
 import boto3
 
-from metta.common.util.constants import METTA_AWS_REGION
-from softmax.utils import memoize
+import metta.common.util.constants
+import softmax.utils
 
 
-@overload
-def get_secretsmanager_secret(secret_name: str, require_exists: Literal[True] = True) -> str: ...
+@typing.overload
+def get_secretsmanager_secret(secret_name: str, require_exists: typing.Literal[True] = True) -> str: ...
 
 
-@overload
-def get_secretsmanager_secret(secret_name: str, require_exists: Literal[False]) -> str | None: ...
+@typing.overload
+def get_secretsmanager_secret(secret_name: str, require_exists: typing.Literal[False]) -> str | None: ...
 
 
-@memoize(max_age=60 * 60)
+@softmax.utils.memoize(max_age=60 * 60)
 def get_secretsmanager_secret(secret_name: str, require_exists: bool = True) -> str | None:
     """Fetch a secret value from AWS Secrets Manager"""
-    client = boto3.client("secretsmanager", region_name=METTA_AWS_REGION)
+    client = boto3.client("secretsmanager", region_name=metta.common.util.constants.METTA_AWS_REGION)
     try:
         resp = client.get_secret_value(SecretId=secret_name)
     except Exception as e:
@@ -41,9 +41,9 @@ def create_secretsmanager_secret(
     allow_overwrite: bool = False,
 ) -> dict:
     """Create a secret (JSON value) or overwrite its current value."""
-    client = boto3.client("secretsmanager", region_name=METTA_AWS_REGION)
+    client = boto3.client("secretsmanager", region_name=metta.common.util.constants.METTA_AWS_REGION)
 
-    params: dict[str, Any] = {
+    params: dict[str, typing.Any] = {
         "Name": secret_name,
         "SecretString": secret_value,
     }
@@ -53,5 +53,5 @@ def create_secretsmanager_secret(
         if not allow_overwrite:
             raise
 
-        put_params: dict[str, Any] = {"SecretId": secret_name, "SecretString": secret_value}
+        put_params: dict[str, typing.Any] = {"SecretId": secret_name, "SecretString": secret_value}
         return client.put_secret_value(**put_params)

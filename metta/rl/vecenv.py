@@ -1,61 +1,61 @@
 import logging
-from pathlib import Path
-from typing import Any, Optional
+import pathlib
+import typing
 
-from pydantic import validate_call
+import pydantic
 
+import metta.cogworks.curriculum
+import metta.common.util.log_config
+import metta.sim.replay_log_writer
+import mettagrid.envs.early_reset_handler
+import mettagrid.envs.mettagrid_puffer_env
+import mettagrid.envs.stats_tracker
+import mettagrid.simulator
+import mettagrid.util.stats_writer
 import pufferlib
 import pufferlib.vector
-from metta.cogworks.curriculum import Curriculum, CurriculumEnv
-from metta.common.util.log_config import init_logging
-from metta.sim.replay_log_writer import ReplayLogWriter
-from mettagrid.envs.early_reset_handler import EarlyResetHandler
-from mettagrid.envs.mettagrid_puffer_env import MettaGridPufferEnv
-from mettagrid.envs.stats_tracker import StatsTracker
-from mettagrid.simulator import Simulator
-from mettagrid.util.stats_writer import NoopStatsWriter, StatsWriter
 
 logger = logging.getLogger("vecenv")
 
 
-@validate_call(config={"arbitrary_types_allowed": True})
+@pydantic.validate_call(config={"arbitrary_types_allowed": True})
 def make_env_func(
-    curriculum: Curriculum,
-    stats_writer: Optional[StatsWriter] = None,
-    replay_writer: Optional[ReplayLogWriter] = None,
+    curriculum: metta.cogworks.curriculum.Curriculum,
+    stats_writer: typing.Optional[mettagrid.util.stats_writer.StatsWriter] = None,
+    replay_writer: typing.Optional[metta.sim.replay_log_writer.ReplayLogWriter] = None,
     run_dir: str | None = None,
-    buf: Optional[Any] = None,
+    buf: typing.Optional[typing.Any] = None,
     **kwargs,
 ):
     if run_dir is not None:
-        init_logging(run_dir=Path(run_dir))
+        metta.common.util.log_config.init_logging(run_dir=pathlib.Path(run_dir))
 
-    sim = Simulator()
+    sim = mettagrid.simulator.Simulator()
     # Replay writer is added first so it can complete the replay_url for stats tracker
     if replay_writer is not None:
         sim.add_event_handler(replay_writer)
-    stats_writer = stats_writer or NoopStatsWriter()
-    sim.add_event_handler(StatsTracker(stats_writer))
-    sim.add_event_handler(EarlyResetHandler())
+    stats_writer = stats_writer or mettagrid.util.stats_writer.NoopStatsWriter()
+    sim.add_event_handler(mettagrid.envs.stats_tracker.StatsTracker(stats_writer))
+    sim.add_event_handler(mettagrid.envs.early_reset_handler.EarlyResetHandler())
 
-    env = MettaGridPufferEnv(sim, curriculum.get_task().get_env_cfg(), buf)
-    env = CurriculumEnv(env, curriculum)
+    env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(sim, curriculum.get_task().get_env_cfg(), buf)
+    env = metta.cogworks.curriculum.CurriculumEnv(env, curriculum)
 
     return env
 
 
-@validate_call(config={"arbitrary_types_allowed": True})
+@pydantic.validate_call(config={"arbitrary_types_allowed": True})
 def make_vecenv(
-    curriculum: Curriculum,
+    curriculum: metta.cogworks.curriculum.Curriculum,
     vectorization: str,
     num_envs: int = 1,
     batch_size: int | None = None,
     num_workers: int = 1,
-    stats_writer: StatsWriter | None = None,
-    replay_writer: ReplayLogWriter | None = None,
+    stats_writer: mettagrid.util.stats_writer.StatsWriter | None = None,
+    replay_writer: metta.sim.replay_log_writer.ReplayLogWriter | None = None,
     run_dir: str | None = None,
     **kwargs,
-) -> Any:  # Returns pufferlib VecEnv instance
+) -> typing.Any:  # Returns pufferlib VecEnv instance
     # Determine the vectorization class
     is_serial = vectorization == "serial" or num_workers == 1
 

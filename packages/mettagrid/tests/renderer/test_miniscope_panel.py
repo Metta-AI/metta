@@ -1,10 +1,10 @@
 """Tests for MiniscopePanel and PanelLayout classes."""
 
-from rich.console import Console
-from rich.table import Table
-from rich.text import Text
+import rich.console
+import rich.table
+import rich.text
 
-from mettagrid.renderer.miniscope.miniscope_panel import MiniscopePanel, PanelLayout
+import mettagrid.renderer.miniscope.miniscope_panel
 
 
 class TestMiniscopePanel:
@@ -13,7 +13,7 @@ class TestMiniscopePanel:
     def test_panel_initialization(self):
         """Test panel initialization with different configurations."""
         # Test basic panel
-        panel = MiniscopePanel("test", width=50, height=10)
+        panel = mettagrid.renderer.miniscope.miniscope_panel.MiniscopePanel("test", width=50, height=10)
         assert panel.name == "test"
         assert panel.width == 50
         assert panel.height == 10
@@ -21,26 +21,28 @@ class TestMiniscopePanel:
         assert panel.border is False
 
         # Test panel with title and border
-        panel2 = MiniscopePanel("header", width=80, height=2, title="Status", border=True)
+        panel2 = mettagrid.renderer.miniscope.miniscope_panel.MiniscopePanel(
+            "header", width=80, height=2, title="Status", border=True
+        )
         assert panel2.title == "Status"
         assert panel2.border is True
 
     def test_panel_size_method(self):
         """Test the size() method returns correct dimensions."""
-        panel = MiniscopePanel("test", width=40, height=20)
+        panel = mettagrid.renderer.miniscope.miniscope_panel.MiniscopePanel("test", width=40, height=20)
         width, height = panel.size()
         assert width == 40
         assert height == 20
 
         # Test with None dimensions
-        panel2 = MiniscopePanel("dynamic")
+        panel2 = mettagrid.renderer.miniscope.miniscope_panel.MiniscopePanel("dynamic")
         width, height = panel2.size()
         assert width is None
         assert height is None
 
     def test_panel_set_content_strings(self):
         """Test setting panel content with list of strings."""
-        panel = MiniscopePanel("test")
+        panel = mettagrid.renderer.miniscope.miniscope_panel.MiniscopePanel("test")
         content = ["Line 1", "Line 2", "Line 3"]
         panel.set_content(content)
         assert panel.get_content() == content
@@ -48,8 +50,8 @@ class TestMiniscopePanel:
 
     def test_panel_set_content_rich_table(self):
         """Test setting panel content with Rich Table."""
-        panel = MiniscopePanel("test", width=50)
-        table = Table(title="Test Table")
+        panel = mettagrid.renderer.miniscope.miniscope_panel.MiniscopePanel("test", width=50)
+        table = rich.table.Table(title="Test Table")
         table.add_column("Column 1")
         table.add_column("Column 2")
         table.add_row("Value 1", "Value 2")
@@ -64,8 +66,8 @@ class TestMiniscopePanel:
 
     def test_panel_set_content_rich_text(self):
         """Test setting panel content with Rich Text."""
-        panel = MiniscopePanel("test")
-        text = Text("Test text with style", style="bold blue")
+        panel = mettagrid.renderer.miniscope.miniscope_panel.MiniscopePanel("test")
+        text = rich.text.Text("Test text with style", style="bold blue")
         panel.set_content(text)
         assert panel.get_rich_content() == text
 
@@ -76,7 +78,7 @@ class TestMiniscopePanel:
 
     def test_panel_clear(self):
         """Test clearing panel content."""
-        panel = MiniscopePanel("test")
+        panel = mettagrid.renderer.miniscope.miniscope_panel.MiniscopePanel("test")
         panel.set_content(["Line 1", "Line 2"])
         assert not panel.is_empty()
 
@@ -87,7 +89,7 @@ class TestMiniscopePanel:
 
     def test_panel_render_with_padding(self):
         """Test panel rendering with height padding."""
-        panel = MiniscopePanel("test", width=20, height=5)
+        panel = mettagrid.renderer.miniscope.miniscope_panel.MiniscopePanel("test", width=20, height=5)
         panel.set_content(["Line 1", "Line 2"])
 
         rendered = panel.render()
@@ -100,7 +102,7 @@ class TestMiniscopePanel:
 
     def test_panel_render_with_truncation(self):
         """Test panel rendering with height truncation."""
-        panel = MiniscopePanel("test", width=20, height=2)
+        panel = mettagrid.renderer.miniscope.miniscope_panel.MiniscopePanel("test", width=20, height=2)
         panel.set_content(["Line 1", "Line 2", "Line 3", "Line 4"])
 
         rendered = panel.render()
@@ -110,7 +112,7 @@ class TestMiniscopePanel:
 
     def test_panel_render_with_width_padding(self):
         """Test panel rendering with width padding."""
-        panel = MiniscopePanel("test", width=10, height=1)
+        panel = mettagrid.renderer.miniscope.miniscope_panel.MiniscopePanel("test", width=10, height=1)
         panel.set_content(["Hi"])
 
         rendered = panel.render()
@@ -120,7 +122,7 @@ class TestMiniscopePanel:
 
     def test_panel_render_with_width_truncation(self):
         """Test panel rendering with width truncation."""
-        panel = MiniscopePanel("test", width=5, height=1)
+        panel = mettagrid.renderer.miniscope.miniscope_panel.MiniscopePanel("test", width=5, height=1)
         panel.set_content(["This is a long line"])
 
         rendered = panel.render()
@@ -134,7 +136,7 @@ class TestPanelLayout:
 
     def test_layout_initialization(self):
         """Test that PanelLayout creates standard panels."""
-        layout = PanelLayout(Console())
+        layout = mettagrid.renderer.miniscope.miniscope_panel.PanelLayout(rich.console.Console())
 
         # Check standard panels exist
         assert layout.header is not None
@@ -160,8 +162,8 @@ class TestPanelLayout:
 
     def test_layout_add_custom_panel(self):
         """Test adding custom panels to layout."""
-        layout = PanelLayout(Console())
-        custom_panel = MiniscopePanel("custom", width=30, height=10)
+        layout = mettagrid.renderer.miniscope.miniscope_panel.PanelLayout(rich.console.Console())
+        custom_panel = mettagrid.renderer.miniscope.miniscope_panel.MiniscopePanel("custom", width=30, height=10)
 
         layout.add_panel(custom_panel)
         assert layout.get_panel("custom") == custom_panel
@@ -169,7 +171,7 @@ class TestPanelLayout:
 
     def test_layout_clear_all(self):
         """Test clearing all panel contents."""
-        layout = PanelLayout(Console())
+        layout = mettagrid.renderer.miniscope.miniscope_panel.PanelLayout(rich.console.Console())
 
         # Add content to panels
         layout.header.set_content(["Header line"])
@@ -187,8 +189,8 @@ class TestPanelLayout:
 
     def test_layout_render_basic(self):
         """Test basic rendering of panels."""
-        console = Console()
-        layout = PanelLayout(console)
+        console = rich.console.Console()
+        layout = mettagrid.renderer.miniscope.miniscope_panel.PanelLayout(console)
 
         # Set some content
         layout.header.set_content(["Header Line 1", "Header Line 2"])
@@ -206,8 +208,8 @@ class TestPanelLayout:
 
     def test_layout_render_empty_panels(self):
         """Test rendering with some empty panels."""
-        console = Console()
-        layout = PanelLayout(console)
+        console = rich.console.Console()
+        layout = mettagrid.renderer.miniscope.miniscope_panel.PanelLayout(console)
 
         # Only set map content
         layout.map_view.set_content(["Map content"])
@@ -221,8 +223,8 @@ class TestPanelLayout:
 
     def test_layout_render_to_console(self):
         """Test rendering to console using Rich API."""
-        console = Console()
-        layout = PanelLayout(console)
+        console = rich.console.Console()
+        layout = mettagrid.renderer.miniscope.miniscope_panel.PanelLayout(console)
         layout.header.set_content(["Test Header"])
 
         # Test that it renders without errors
@@ -233,8 +235,8 @@ class TestPanelLayout:
 
     def test_layout_render_with_different_content(self):
         """Test rendering when panels have different amounts of content."""
-        console = Console()
-        layout = PanelLayout(console)
+        console = rich.console.Console()
+        layout = mettagrid.renderer.miniscope.miniscope_panel.PanelLayout(console)
 
         layout.map_view.set_content([f"Map Line {i}" for i in range(10)])
         sidebar = layout.register_sidebar_panel("info")
@@ -247,7 +249,7 @@ class TestPanelLayout:
 
     def test_layout_reset_sidebar_panels(self):
         """Ensure sidebar panels can be reset between episodes."""
-        layout = PanelLayout(Console())
+        layout = mettagrid.renderer.miniscope.miniscope_panel.PanelLayout(rich.console.Console())
 
         info_panel = layout.register_sidebar_panel("info")
         help_panel = layout.register_sidebar_panel("help")

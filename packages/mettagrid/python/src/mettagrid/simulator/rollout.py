@@ -1,11 +1,11 @@
 import logging
 import time
-from typing import Optional
+import typing
 
-from mettagrid.config.mettagrid_config import MettaGridConfig
-from mettagrid.policy.policy import AgentPolicy
-from mettagrid.renderer.renderer import Renderer, RenderMode, create_renderer
-from mettagrid.simulator import Simulator
+import mettagrid.config.mettagrid_config
+import mettagrid.policy.policy
+import mettagrid.renderer.renderer
+import mettagrid.simulator
 
 logger = logging.getLogger(__name__)
 
@@ -15,23 +15,23 @@ class Rollout:
 
     def __init__(
         self,
-        config: MettaGridConfig,
-        policies: list[AgentPolicy],
+        config: mettagrid.config.mettagrid_config.MettaGridConfig,
+        policies: list[mettagrid.policy.policy.AgentPolicy],
         max_action_time_ms: int = 10000,
-        render_mode: Optional[RenderMode] = None,
+        render_mode: typing.Optional[mettagrid.renderer.renderer.RenderMode] = None,
         seed: int = 0,
         pass_sim_to_policies: bool = False,
     ):
         self._config = config
         self._policies = policies
-        self._simulator = Simulator()
+        self._simulator = mettagrid.simulator.Simulator()
         self._max_action_time_ms = max_action_time_ms
-        self._renderer: Optional[Renderer] = None
+        self._renderer: typing.Optional[mettagrid.renderer.renderer.Renderer] = None
         self._timeout_counts: list[int] = [0] * len(policies)
         self._pass_sim_to_policies = pass_sim_to_policies  # Whether to pass the simulation to the policies
         # Attach renderer if specified
         if render_mode is not None:
-            self._renderer = create_renderer(render_mode)
+            self._renderer = mettagrid.renderer.renderer.create_renderer(render_mode)
             self._simulator.add_event_handler(self._renderer)
         self._sim = self._simulator.new_simulation(config, seed)
         self._agents = self._sim.agents()

@@ -1,12 +1,11 @@
-from __future__ import annotations
 
-from enum import Enum
+import enum
 
 import numpy as np
-from numpy.typing import NDArray
-from pydantic import BaseModel, Field
+import numpy.typing
+import pydantic
 
-from mettagrid.mapgen.scene import Scene, SceneConfig
+import mettagrid.mapgen.scene
 
 DEFAULT_BUILDING_WEIGHTS: dict[str, float] = {
     "charger": 0.3,
@@ -18,7 +17,7 @@ DEFAULT_BUILDING_WEIGHTS: dict[str, float] = {
 DEFAULT_FALLBACK_WEIGHT = 0.1
 
 
-class DistributionType(str, Enum):
+class DistributionType(str, enum.Enum):
     """Types of spatial distributions for building placement."""
 
     UNIFORM = "uniform"
@@ -28,7 +27,7 @@ class DistributionType(str, Enum):
     BIMODAL = "bimodal"
 
 
-class DistributionConfig(BaseModel):
+class DistributionConfig(pydantic.BaseModel):
     """Configuration for spatial distribution of buildings."""
 
     type: DistributionType = DistributionType.UNIFORM
@@ -192,7 +191,7 @@ def _linspace_positions(count: int, interior_size: int) -> list[int]:
     return [1 + max(0, min(interior_size - 1, round(step * (i + 1)))) for i in range(count)]
 
 
-class UniformExtractorParams(SceneConfig):
+class UniformExtractorParams(mettagrid.mapgen.scene.SceneConfig):
     rows: int = 4
     cols: int = 4
     jitter: int = 1
@@ -200,7 +199,7 @@ class UniformExtractorParams(SceneConfig):
     clear_existing: bool = False
     frame_with_walls: bool = False
     target_coverage: float | None = None
-    building_names: list[str] = Field(
+    building_names: list[str] = pydantic.Field(
         default_factory=lambda: [
             "carbon_extractor",
             "oxygen_extractor",
@@ -211,12 +210,12 @@ class UniformExtractorParams(SceneConfig):
     )
     building_weights: dict[str, float] | None = None
     # Spatial distribution configuration
-    distribution: DistributionConfig = Field(default_factory=lambda: DistributionConfig())
+    distribution: DistributionConfig = pydantic.Field(default_factory=lambda: DistributionConfig())
     # Per-building-type distribution overrides
     building_distributions: dict[str, DistributionConfig] | None = None
 
 
-class UniformExtractorScene(Scene[UniformExtractorParams]):
+class UniformExtractorScene(mettagrid.mapgen.scene.Scene[UniformExtractorParams]):
     """Place extractor stations on a jittered uniform grid."""
 
     def render(self) -> None:
@@ -420,7 +419,7 @@ class UniformExtractorScene(Scene[UniformExtractorParams]):
             if carve_and_place(row, col, name):
                 placed_centers.append((row, col))
 
-    def _resolve_building_distribution(self) -> tuple[list[str], NDArray[np.float64]]:
+    def _resolve_building_distribution(self) -> tuple[list[str], numpy.typing.NDArray[np.float64]]:
         weights = self.config.building_weights
         if weights:
             filtered = [(name, float(weight)) for name, weight in weights.items() if float(weight) > 0]
@@ -444,7 +443,9 @@ class UniformExtractorScene(Scene[UniformExtractorParams]):
         probabilities = weight_array / total
         return list(names), probabilities.astype(float)
 
-    def _sample_assignments(self, count: int, names: list[str], probabilities: NDArray[np.float64]) -> list[str]:
+    def _sample_assignments(
+        self, count: int, names: list[str], probabilities: numpy.typing.NDArray[np.float64]
+    ) -> list[str]:
         if count <= 0:
             return []
         return list(self.rng.choice(names, size=count, replace=True, p=probabilities))

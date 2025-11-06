@@ -1,15 +1,14 @@
 """Defines the actual jobs that are run when validating a release."""
 
-from __future__ import annotations
 
-from datetime import datetime
+import datetime
 
-from metta.jobs.job_config import AcceptanceCriterion, JobConfig, RemoteConfig
+import metta.jobs.job_config
 
 
-def ci_job(name: str, cmd: list[str], timeout_s: int = 1800) -> JobConfig:
+def ci_job(name: str, cmd: list[str], timeout_s: int = 1800) -> metta.jobs.job_config.JobConfig:
     """Create a CI job that runs a shell command."""
-    return JobConfig(name=name, module="__unused__", timeout_s=timeout_s, metadata={"cmd": cmd})
+    return metta.jobs.job_config.JobConfig(name=name, module="__unused__", timeout_s=timeout_s, metadata={"cmd": cmd})
 
 
 def tool_job(
@@ -17,10 +16,10 @@ def tool_job(
     tool_path: str,
     args: list[str] | None = None,
     timeout_s: int = 1800,
-    remote: RemoteConfig | None = None,
-    acceptance_criteria: list[AcceptanceCriterion] | None = None,
+    remote: metta.jobs.job_config.RemoteConfig | None = None,
+    acceptance_criteria: list[metta.jobs.job_config.AcceptanceCriterion] | None = None,
     dependency_names: list[str] | None = None,
-) -> JobConfig:
+) -> metta.jobs.job_config.JobConfig:
     """Create a tool-based job (train/eval/etc).
 
     Args:
@@ -42,7 +41,7 @@ def tool_job(
     if metrics_to_track and not is_training:
         raise ValueError(f"Job {name} has metrics_to_track but is not a training job")
 
-    return JobConfig(
+    return metta.jobs.job_config.JobConfig(
         name=name,
         module=tool_path,
         args=args or [],
@@ -55,7 +54,7 @@ def tool_job(
     )
 
 
-def get_all_jobs() -> list[JobConfig]:
+def get_all_jobs() -> list[metta.jobs.job_config.JobConfig]:
     """Define all release validation jobs with explicit dependencies."""
     # CI checks
     python_ci = ci_job("python_ci", ["metta", "pytest", "--ci"])
@@ -63,7 +62,7 @@ def get_all_jobs() -> list[JobConfig]:
     cpp_benchmark = ci_job("cpp_benchmark", ["metta", "cpptest", "--benchmark"])
 
     # Local smoke test
-    smoke_run = f"stable.smoke.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    smoke_run = f"stable.smoke.{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
     smoke = tool_job(
         name="arena_local_smoke",
         tool_path="arena_basic_easy_shaped.train",
@@ -77,10 +76,10 @@ def get_all_jobs() -> list[JobConfig]:
         tool_path="arena_basic_easy_shaped.train",
         args=["trainer.total_timesteps=100000000"],
         timeout_s=7200,
-        remote=RemoteConfig(gpus=1, nodes=1),
+        remote=metta.jobs.job_config.RemoteConfig(gpus=1, nodes=1),
         acceptance_criteria=[
-            AcceptanceCriterion(metric="overview/sps", operator=">=", threshold=40000),
-            AcceptanceCriterion(metric="env_agent/heart.gained", operator=">", threshold=0.1),
+            metta.jobs.job_config.AcceptanceCriterion(metric="overview/sps", operator=">=", threshold=40000),
+            metta.jobs.job_config.AcceptanceCriterion(metric="env_agent/heart.gained", operator=">", threshold=0.1),
         ],
     )
 
@@ -90,10 +89,10 @@ def get_all_jobs() -> list[JobConfig]:
         tool_path="arena_basic_easy_shaped.train",
         args=["trainer.total_timesteps=2000000000"],
         timeout_s=172800,  # 48 hours
-        remote=RemoteConfig(gpus=4, nodes=4),
+        remote=metta.jobs.job_config.RemoteConfig(gpus=4, nodes=4),
         acceptance_criteria=[
-            AcceptanceCriterion(metric="overview/sps", operator=">=", threshold=80000),
-            AcceptanceCriterion(metric="env_agent/heart.gained", operator=">", threshold=1.0),
+            metta.jobs.job_config.AcceptanceCriterion(metric="overview/sps", operator=">=", threshold=80000),
+            metta.jobs.job_config.AcceptanceCriterion(metric="env_agent/heart.gained", operator=">", threshold=1.0),
         ],
     )
 

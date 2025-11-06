@@ -1,44 +1,44 @@
 """Policy checkpoint management component."""
 
 import logging
-from typing import Optional
+import typing
 
+import pydantic
 import torch
-from pydantic import Field
 
-from metta.agent.policy import Policy, PolicyArchitecture
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.training import DistributedHelper, TrainerComponent
-from mettagrid.base_config import Config
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+import metta.agent.policy
+import metta.rl.checkpoint_manager
+import metta.rl.training
+import mettagrid.base_config
+import mettagrid.policy.policy_env_interface
 
 logger = logging.getLogger(__name__)
 
 
-class CheckpointerConfig(Config):
+class CheckpointerConfig(mettagrid.base_config.Config):
     """Configuration for policy checkpointing."""
 
-    epoch_interval: int = Field(default=30, ge=0)  # How often to save policy checkpoints (in epochs)
+    epoch_interval: int = pydantic.Field(default=30, ge=0)  # How often to save policy checkpoints (in epochs)
 
 
-class Checkpointer(TrainerComponent):
+class Checkpointer(metta.rl.training.TrainerComponent):
     """Manages policy checkpointing with distributed awareness and URI support."""
 
     def __init__(
         self,
         *,
         config: CheckpointerConfig,
-        checkpoint_manager: CheckpointManager,
-        distributed_helper: DistributedHelper,
-        policy_architecture: PolicyArchitecture,
+        checkpoint_manager: metta.rl.checkpoint_manager.CheckpointManager,
+        distributed_helper: metta.rl.training.DistributedHelper,
+        policy_architecture: metta.agent.policy.PolicyArchitecture,
     ) -> None:
         super().__init__(epoch_interval=max(1, config.epoch_interval))
         self._master_only = True
         self._config = config
         self._checkpoint_manager = checkpoint_manager
         self._distributed = distributed_helper
-        self._policy_architecture: PolicyArchitecture = policy_architecture
-        self._latest_policy_uri: Optional[str] = None
+        self._policy_architecture: metta.agent.policy.PolicyArchitecture = policy_architecture
+        self._latest_policy_uri: typing.Optional[str] = None
 
     # ------------------------------------------------------------------
     # Registration helpers
@@ -53,20 +53,20 @@ class Checkpointer(TrainerComponent):
     # ------------------------------------------------------------------
     def load_or_create_policy(
         self,
-        game_rules: PolicyEnvInterface,
+        game_rules: mettagrid.policy.policy_env_interface.PolicyEnvInterface,
         *,
-        policy_uri: Optional[str] = None,
-    ) -> Policy:
+        policy_uri: typing.Optional[str] = None,
+    ) -> metta.agent.policy.Policy:
         """Load the latest policy checkpoint or create a new policy."""
 
-        policy: Optional[Policy] = None
-        candidate_uri: Optional[str] = policy_uri
+        policy: typing.Optional[metta.agent.policy.Policy] = None
+        candidate_uri: typing.Optional[str] = policy_uri
 
         if candidate_uri is None:
             candidate_uri = self._checkpoint_manager.get_latest_checkpoint()
 
         if self._distributed.is_master() and candidate_uri:
-            normalized_uri = CheckpointManager.normalize_uri(candidate_uri)
+            normalized_uri = metta.rl.checkpoint_manager.CheckpointManager.normalize_uri(candidate_uri)
             try:
                 load_device = torch.device(self._distributed.config.device)
                 policy = self._checkpoint_manager.load_from_uri(normalized_uri, game_rules, load_device)
@@ -84,7 +84,7 @@ class Checkpointer(TrainerComponent):
         logger.info("Creating new policy for training run")
         return self._policy_architecture.make_policy(game_rules)
 
-    def get_latest_policy_uri(self) -> Optional[str]:
+    def get_latest_policy_uri(self) -> typing.Optional[str]:
         """Return the most recent checkpoint URI tracked by this component."""
         if self._latest_policy_uri:
             return self._latest_policy_uri
@@ -111,8 +111,8 @@ class Checkpointer(TrainerComponent):
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-    def _policy_to_save(self) -> Policy:
-        policy: Policy = self.context.policy
+    def _policy_to_save(self) -> metta.agent.policy.Policy:
+        policy: metta.agent.policy.Policy = self.context.policy
         if hasattr(policy, "module"):
             return policy.module  # type: ignore[return-value]
         return policy

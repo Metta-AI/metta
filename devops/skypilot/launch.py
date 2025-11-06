@@ -17,18 +17,13 @@ warnings.filterwarnings("ignore", category=UserWarning, module="pydantic._intern
 import sky
 import yaml
 
+import devops.skypilot.utils.job_helpers
 import gitta as git
-from devops.skypilot.utils.job_helpers import (
-    check_git_state,
-    display_job_summary,
-    launch_task,
-    set_task_secrets,
-)
-from metta.common.tool.tool_path import parse_two_token_syntax, validate_module_path
-from metta.common.util.cli import get_user_confirmation
-from metta.common.util.fs import cd_repo_root
-from metta.common.util.text_styles import red
-from metta.tools.utils.auto_config import auto_run_name
+import metta.common.tool.tool_path
+import metta.common.util.cli
+import metta.common.util.fs
+import metta.common.util.text_styles
+import metta.tools.utils.auto_config
 
 logger = logging.getLogger("launch.py")
 
@@ -46,7 +41,7 @@ def _validate_sky_cluster_name(run_name: str) -> bool:
     valid = bool(re.match(pattern, run_name))
 
     if not valid:
-        print(red(f"[VALIDATION] ❌ Invalid run name: '{run_name}'"), flush=True)
+        print(metta.common.util.text_styles.red(f"[VALIDATION] ❌ Invalid run name: '{run_name}'"), flush=True)
         print("Sky cluster names must:", flush=True)
         print("  - Start with a letter (not a number)", flush=True)
         print("  - Contain only letters, numbers, dashes, underscores, or dots", flush=True)
@@ -73,14 +68,14 @@ def _validate_run_tool(module_path: str, run_id: str, filtered_args: list) -> bo
         print("[VALIDATION] ✅ Configuration validation successful")
         return True
     except subprocess.CalledProcessError as e:
-        print(red("[VALIDATION] ❌ Configuration validation failed"), flush=True)
+        print(metta.common.util.text_styles.red("[VALIDATION] ❌ Configuration validation failed"), flush=True)
         if e.stdout:
             print(e.stdout, flush=True)
         if e.stderr:
-            print(red(e.stderr), flush=True)
+            print(metta.common.util.text_styles.red(e.stderr), flush=True)
         return False
     except FileNotFoundError:
-        print(red("[VALIDATION] ❌ Could not find run.py or uv command"), flush=True)
+        print(metta.common.util.text_styles.red("[VALIDATION] ❌ Could not find run.py or uv command"), flush=True)
         return False
 
 
@@ -201,7 +196,7 @@ Examples:
     # Handle two-token syntax (e.g., 'train arena' → 'arena.train')
     module_path = args.module_path
     second_token = tool_args[0] if tool_args else None
-    resolved_path, args_consumed = parse_two_token_syntax(module_path, second_token)
+    resolved_path, args_consumed = metta.common.tool.tool_path.parse_two_token_syntax(module_path, second_token)
     module_path = resolved_path
     tool_args = tool_args[args_consumed:]  # Skip consumed args
 
@@ -220,33 +215,33 @@ Examples:
             filtered_args.append(arg)
 
     if run_id is None:
-        run_id = auto_run_name()
+        run_id = metta.tools.utils.auto_config.auto_run_name()
         logger.info(f"Using auto-generated run ID: {run_id}")
         logger.info("To specify a run ID pass run=foo")
 
     filtered_args.append(f"run={run_id}")
 
-    cd_repo_root()
+    metta.common.util.fs.cd_repo_root()
 
     # check that the parsed args.git_ref provides a valid commit hash
     if args.git_ref:
         commit_hash = git.resolve_git_ref(args.git_ref)
         if not commit_hash:
-            print(red(f"❌ Invalid git reference: '{args.git_ref}'"), flush=True)
+            print(metta.common.util.text_styles.red(f"❌ Invalid git reference: '{args.git_ref}'"), flush=True)
             return 1
     else:
         commit_hash = git.get_current_commit()
 
         # check that the commit has been pushed and there are no staged changes
         if not args.skip_git_check:
-            error_message = check_git_state(commit_hash)
+            error_message = devops.skypilot.utils.job_helpers.check_git_state(commit_hash)
             if error_message:
                 print(error_message, flush=True)
                 print("  - Skip check: add --skip-git-check flag", flush=True)
                 return 1
 
     # Validate module path (supports shorthand like 'arena.train' or two-token 'train arena')
-    if not validate_module_path(module_path):
+    if not metta.common.tool.tool_path.validate_module_path(module_path):
         print(f"❌ Invalid module path: '{module_path}'", flush=True)
         print("Module path should be like 'arena.train' or 'experiments.recipes.arena.train'", flush=True)
         return 1
@@ -317,7 +312,7 @@ Examples:
     if args.copies > 1:
         extra_details["copies"] = args.copies
 
-    display_job_summary(
+    devops.skypilot.utils.job_helpers.display_job_summary(
         job_name=run_id,
         cmd=f"{module_path} (args: {filtered_args})",
         task_args=[],  # We're showing args differently now
@@ -330,26 +325,26 @@ Examples:
 
     # For --dry-run, just exit after showing summary
     if args.dry_run:
-        print(red("Dry run: exiting"))
+        print(metta.common.util.text_styles.red("Dry run: exiting"))
         return 0
 
     # For --confirm, ask for confirmation
-    if args.confirm and not get_user_confirmation("Should we launch this task?"):
+    if args.confirm and not metta.common.util.cli.get_user_confirmation("Should we launch this task?"):
         return 0
 
     # Set secrets only when actually launching (not for dry-run or dump-config)
-    set_task_secrets(task)
+    devops.skypilot.utils.job_helpers.set_task_secrets(task)
 
     # Launch the task(s)
     if args.copies == 1:
-        launch_task(task)
+        devops.skypilot.utils.job_helpers.launch_task(task)
     else:
         for _ in range(1, args.copies + 1):
             copy_task = copy.deepcopy(task)
             copy_task = copy_task.update_envs({"METTA_RUN_ID": run_id})
             copy_task.name = run_id
             copy_task.validate_name()
-            launch_task(copy_task)
+            devops.skypilot.utils.job_helpers.launch_task(copy_task)
 
     return 0
 

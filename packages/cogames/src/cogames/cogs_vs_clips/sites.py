@@ -1,19 +1,19 @@
 """Central site definitions shared across mission modules."""
 
-from cogames.cogs_vs_clips.mission import Site
-from cogames.cogs_vs_clips.mission_utils import get_map
-from cogames.cogs_vs_clips.procedural import MachinaArena, RandomTransform
-from mettagrid.mapgen.mapgen import MapGen
-from mettagrid.mapgen.scenes.base_hub import BaseHub
+import cogames.cogs_vs_clips.mission
+import cogames.cogs_vs_clips.mission_utils
+import cogames.cogs_vs_clips.procedural
+import mettagrid.mapgen.mapgen
+import mettagrid.mapgen.scenes.base_hub
 
-TRAINING_FACILITY = Site(
+TRAINING_FACILITY = cogames.cogs_vs_clips.mission.Site(
     name="training_facility",
     description="COG Training Facility. Basic training facility with open spaces and no obstacles.",
-    map_builder=MapGen.Config(
+    map_builder=mettagrid.mapgen.mapgen.MapGen.Config(
         width=13,
         height=13,
-        instance=RandomTransform.Config(
-            scene=BaseHub.Config(
+        instance=cogames.cogs_vs_clips.procedural.RandomTransform.Config(
+            scene=mettagrid.mapgen.scenes.base_hub.BaseHub.Config(
                 spawn_count=4,
                 corner_bundle="chests",
                 cross_bundle="extractors",
@@ -24,28 +24,34 @@ TRAINING_FACILITY = Site(
     max_cogs=4,
 )
 
-HELLO_WORLD = Site(
+HELLO_WORLD = cogames.cogs_vs_clips.mission.Site(
     name="hello_world",
     description="Welcome to space.",
-    map_builder=MapGen.Config(width=100, height=100, instance=MachinaArena.Config(spawn_count=20)),
+    map_builder=mettagrid.mapgen.mapgen.MapGen.Config(
+        width=100, height=100, instance=cogames.cogs_vs_clips.procedural.MachinaArena.Config(spawn_count=20)
+    ),
     min_cogs=1,
     max_cogs=20,
 )
 
-MACHINA_1 = Site(
+MACHINA_1 = cogames.cogs_vs_clips.mission.Site(
     name="machina_1",
     description="Your first mission. Collect resources and assemble HEARTs.",
-    map_builder=MapGen.Config(width=200, height=200, instance=MachinaArena.Config(spawn_count=20)),
+    map_builder=mettagrid.mapgen.mapgen.MapGen.Config(
+        width=200, height=200, instance=cogames.cogs_vs_clips.procedural.MachinaArena.Config(spawn_count=20)
+    ),
     min_cogs=1,
     max_cogs=20,
 )
 
 # Evals site used by evaluation missions
 # Note: Individual eval missions override this with their own specific maps
-EVALS = Site(
+EVALS = cogames.cogs_vs_clips.mission.Site(
     name="evals",
     description="Evaluation missions for scripted agent testing",
-    map_builder=get_map("evals/eval_oxygen_bottleneck.map"),  # Default map (rarely used)
+    map_builder=cogames.cogs_vs_clips.mission_utils.get_map(
+        "evals/eval_oxygen_bottleneck.map"
+    ),  # Default map (rarely used)
     min_cogs=1,
     max_cogs=8,
 )

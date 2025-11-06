@@ -1,43 +1,42 @@
-from typing import Any
+import typing
 
+import pydantic
+import tensordict
 import torch
-from pydantic import Field
-from tensordict import TensorDict
-from torch import Tensor
-from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
+import torchrl.data
 
-from metta.agent.policy import Policy
-from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
-from metta.rl.loss import Loss
-from metta.rl.loss.replay_samplers import sample_minibatch_sequential
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import ComponentContext
-from mettagrid.base_config import Config
+import metta.agent.policy
+import metta.rl.advantage
+import metta.rl.loss
+import metta.rl.loss.replay_samplers
+import metta.rl.trainer_config
+import metta.rl.training
+import mettagrid.base_config
 
 
-class ActionSupervisedConfig(Config):
-    action_loss_coef: float = Field(default=0.75, ge=0)
-    value_loss_coef: float = Field(default=1.5, ge=0)
-    gae_gamma: float = Field(default=0.977, ge=0, le=1.0)  # pulling from our PPO config
-    gae_lambda: float = Field(default=0.891477, ge=0, le=1.0)  # pulling from our PPO config
-    vf_clip_coef: float = Field(default=0.1, ge=0)  # pulling from our PPO config
+class ActionSupervisedConfig(mettagrid.base_config.Config):
+    action_loss_coef: float = pydantic.Field(default=0.75, ge=0)
+    value_loss_coef: float = pydantic.Field(default=1.5, ge=0)
+    gae_gamma: float = pydantic.Field(default=0.977, ge=0, le=1.0)  # pulling from our PPO config
+    gae_lambda: float = pydantic.Field(default=0.891477, ge=0, le=1.0)  # pulling from our PPO config
+    vf_clip_coef: float = pydantic.Field(default=0.1, ge=0)  # pulling from our PPO config
     use_own_sampling: bool = True  # Does not use prioritized sampling
     use_own_rollout: bool = True  # Update when including PPO as concurent loss
     student_led: bool = True  # sigma as per Matt's document
-    action_reward_coef: float = Field(default=0.01, ge=0)  # wild ass guess at this point
+    action_reward_coef: float = pydantic.Field(default=0.01, ge=0)  # wild ass guess at this point
 
     # Controls whether to add the imitation loss to the environment rewards.
-    add_action_loss_to_rewards: bool = Field(default=True)
-    norm_adv: bool = Field(default=True)
+    add_action_loss_to_rewards: bool = pydantic.Field(default=True)
+    norm_adv: bool = pydantic.Field(default=True)
 
     def create(
         self,
-        policy: Policy,
-        trainer_cfg: TrainerConfig,
-        vec_env: Any,
+        policy: metta.agent.policy.Policy,
+        trainer_cfg: metta.rl.trainer_config.TrainerConfig,
+        vec_env: typing.Any,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
+        loss_config: typing.Any,
     ):
         """Create ActionSupervised loss instance."""
         return ActionSupervised(
@@ -46,7 +45,7 @@ class ActionSupervisedConfig(Config):
 
 
 # --------------------------ActionSupervised Loss----------------------------------
-class ActionSupervised(Loss):
+class ActionSupervised(metta.rl.loss.Loss):
     __slots__ = (
         "action_loss_coef",
         "value_loss_coef",
@@ -63,12 +62,12 @@ class ActionSupervised(Loss):
 
     def __init__(
         self,
-        policy: Policy,
-        trainer_cfg: TrainerConfig,
-        vec_env: Any,
+        policy: metta.agent.policy.Policy,
+        trainer_cfg: metta.rl.trainer_config.TrainerConfig,
+        vec_env: typing.Any,
         device: torch.device,
         instance_name: str,
-        loss_config: Any = None,
+        loss_config: typing.Any = None,
     ):
         # Get loss config from trainer_cfg if not provided
         if loss_config is None:
@@ -87,11 +86,11 @@ class ActionSupervised(Loss):
         self.student_led = self.loss_cfg.student_led
         self.action_reward_coef = self.loss_cfg.action_reward_coef
 
-    def get_experience_spec(self) -> Composite:
-        scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
+    def get_experience_spec(self) -> torchrl.data.Composite:
+        scalar_f32 = torchrl.data.UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
 
-        spec = Composite(
-            teacher_actions=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.long),
+        spec = torchrl.data.Composite(
+            teacher_actions=torchrl.data.UnboundedDiscrete(shape=torch.Size([]), dtype=torch.long),
             rewards=scalar_f32,
             dones=scalar_f32,
             truncateds=scalar_f32,
@@ -102,7 +101,7 @@ class ActionSupervised(Loss):
 
         return spec
 
-    def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
+    def run_rollout(self, td: tensordict.TensorDict, context: metta.rl.training.ComponentContext) -> None:
         if not self.use_own_rollout:
             # this will be replaced with loss run-gate scheduling
             return
@@ -126,12 +125,12 @@ class ActionSupervised(Loss):
 
     def run_train(
         self,
-        shared_loss_data: TensorDict,
-        context: ComponentContext,
+        shared_loss_data: tensordict.TensorDict,
+        context: metta.rl.training.ComponentContext,
         mb_idx: int,
-    ) -> tuple[Tensor, TensorDict, bool]:
+    ) -> tuple[torch.Tensor, tensordict.TensorDict, bool]:
         if self.use_own_sampling:
-            minibatch, _ = sample_minibatch_sequential(self.replay, mb_idx)
+            minibatch, _ = metta.rl.loss.replay_samplers.sample_minibatch_sequential(self.replay, mb_idx)
             shared_loss_data["sampled_mb"] = minibatch
             # this writes to the same key that ppo uses, assuming we're using only one method of sampling at a time
 
@@ -168,7 +167,7 @@ class ActionSupervised(Loss):
             values = policy_td["values"].detach()
 
         advantages = torch.zeros_like(values, device=self.device)
-        advantages = compute_advantage(
+        advantages = metta.rl.advantage.compute_advantage(
             values,
             minibatch["rewards"],
             minibatch["dones"],
@@ -183,7 +182,7 @@ class ActionSupervised(Loss):
 
         returns = advantages + values
         if self.norm_adv:
-            advantages = normalize_advantage_distributed(advantages)
+            advantages = metta.rl.advantage.normalize_advantage_distributed(advantages)
 
         # compute value loss
         if self.student_led:

@@ -1,7 +1,6 @@
-from __future__ import annotations
 
 import math
-from typing import Optional
+import typing
 
 import torch
 
@@ -27,7 +26,7 @@ def _fwht_(x_2d: torch.Tensor) -> torch.Tensor:
 def srht_pytorch(
     x_btd: torch.Tensor,  # [B,T,H]
     signs_h: torch.Tensor,  # [H], +/-1 floats
-    perm_h: Optional[torch.Tensor],  # [H] int64 or None
+    perm_h: typing.Optional[torch.Tensor],  # [H] int64 or None
     *,
     normalize: bool = True,
 ) -> torch.Tensor:

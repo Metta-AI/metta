@@ -1,13 +1,13 @@
-from metta.common.util.constants import SOFTMAX_S3_POLICY_PREFIX
-from metta.setup.components.base import SetupModule
-from metta.setup.profiles import UserType
-from metta.setup.registry import register_module
-from metta.setup.saved_settings import get_saved_settings
-from metta.setup.utils import info
+import metta.common.util.constants
+import metta.setup.components.base
+import metta.setup.profiles
+import metta.setup.registry
+import metta.setup.saved_settings
+import metta.setup.utils
 
 
-@register_module
-class AWSSetup(SetupModule):
+@metta.setup.registry.register_module
+class AWSSetup(metta.setup.components.base.SetupModule):
     install_once = True
 
     @property
@@ -32,15 +32,15 @@ class AWSSetup(SetupModule):
         Args:
             non_interactive: If True, skip interactive configuration prompts
         """
-        saved_settings = get_saved_settings()
-        if saved_settings.user_type == UserType.SOFTMAX_DOCKER:
-            info("""
+        saved_settings = metta.setup.saved_settings.get_saved_settings()
+        if saved_settings.user_type == metta.setup.profiles.UserType.SOFTMAX_DOCKER:
+            metta.setup.utils.info("""
             AWS access for this profile should be provided via IAM roles or environment variables.
             Skipping setup.
             """)
             return
-        if saved_settings.user_type == UserType.SOFTMAX:
-            info("""
+        if saved_settings.user_type == metta.setup.profiles.UserType.SOFTMAX:
+            metta.setup.utils.info("""
                 Your AWS access should have been provisioned.
                 If you don't have access, contact your team lead.
 
@@ -48,7 +48,7 @@ class AWSSetup(SetupModule):
             """)
             self.run_script("devops/aws/setup_aws_profiles.sh", args=["--reset"] if force else [])
         else:
-            info("Configure your AWS credentials using `aws configure`")
+            metta.setup.utils.info("Configure your AWS credentials using `aws configure`")
 
     def check_connected_as(self) -> str | None:
         try:
@@ -65,10 +65,10 @@ class AWSSetup(SetupModule):
         return True
 
     def to_config_settings(self) -> dict[str, str | bool]:
-        saved_settings = get_saved_settings()
+        saved_settings = metta.setup.saved_settings.get_saved_settings()
         if saved_settings.user_type.is_softmax:
             return dict(
                 replay_dir="s3://softmax-public/replays/",
-                policy_remote_prefix=SOFTMAX_S3_POLICY_PREFIX,
+                policy_remote_prefix=metta.common.util.constants.SOFTMAX_S3_POLICY_PREFIX,
             )
         return dict(replay_dir="./train_dir/replays/")

@@ -5,22 +5,14 @@ This module tests the MettaGridPettingZooEnv with PettingZoo's ParallelEnv inter
 """
 
 import numpy as np
-from pettingzoo.test import parallel_api_test
+import pettingzoo.test
 
-from mettagrid.builder.envs import make_arena
-from mettagrid.config.mettagrid_config import (
-    ActionsConfig,
-    AgentConfig,
-    GameConfig,
-    MettaGridConfig,
-    MoveActionConfig,
-    NoopActionConfig,
-    WallConfig,
-)
-from mettagrid.envs.pettingzoo_env import MettaGridPettingZooEnv
-from mettagrid.map_builder.ascii import AsciiMapBuilder
-from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
-from mettagrid.simulator import Simulator
+import mettagrid.builder.envs
+import mettagrid.config.mettagrid_config
+import mettagrid.envs.pettingzoo_env
+import mettagrid.map_builder.ascii
+import mettagrid.mapgen.utils.ascii_grid
+import mettagrid.simulator
 
 
 def make_pettingzoo_env(num_agents=3, max_steps=100):
@@ -47,26 +39,31 @@ def make_pettingzoo_env(num_agents=3, max_steps=100):
         ]
     else:
         # Default to num_agents=6 which works with make_arena
-        return make_arena(num_agents=num_agents)
+        return mettagrid.builder.envs.make_arena(num_agents=num_agents)
 
     # Create agents with appropriate team IDs
     agents = []
     for i in range(num_agents):
         if i < 4:
             # Numbered agents (1, 2, 3, 4) get team_id based on their number
-            agents.append(AgentConfig(team_id=i + 1))
+            agents.append(mettagrid.config.mettagrid_config.AgentConfig(team_id=i + 1))
         else:
             # @ agents get team_id 0
-            agents.append(AgentConfig(team_id=0))
+            agents.append(mettagrid.config.mettagrid_config.AgentConfig(team_id=0))
 
-    cfg = MettaGridConfig(
-        game=GameConfig(
+    cfg = mettagrid.config.mettagrid_config.MettaGridConfig(
+        game=mettagrid.config.mettagrid_config.GameConfig(
             num_agents=num_agents,
             max_steps=max_steps,
-            actions=ActionsConfig(move=MoveActionConfig(), noop=NoopActionConfig()),
-            objects={"wall": WallConfig()},
+            actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                move=mettagrid.config.mettagrid_config.MoveActionConfig(),
+                noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
+            ),
+            objects={"wall": mettagrid.config.mettagrid_config.WallConfig()},
             agents=agents,
-            map_builder=AsciiMapBuilder.Config(map_data=map_data, char_to_name_map=DEFAULT_CHAR_TO_NAME),
+            map_builder=mettagrid.map_builder.ascii.AsciiMapBuilder.Config(
+                map_data=map_data, char_to_name_map=mettagrid.mapgen.utils.ascii_grid.DEFAULT_CHAR_TO_NAME
+            ),
         )
     )
     return cfg
@@ -75,8 +72,8 @@ def make_pettingzoo_env(num_agents=3, max_steps=100):
 def test_pettingzoo_env_creation():
     """Test PettingZoo environment creation and properties."""
     cfg = make_pettingzoo_env(num_agents=3, max_steps=100)
-    simulator = Simulator()
-    env = MettaGridPettingZooEnv(simulator, cfg)
+    simulator = mettagrid.simulator.Simulator()
+    env = mettagrid.envs.pettingzoo_env.MettaGridPettingZooEnv(simulator, cfg)
 
     try:
         # Test environment properties (agent IDs are integers)
@@ -93,8 +90,8 @@ def test_pettingzoo_env_creation():
 def test_pettingzoo_env_reset():
     """Test PettingZoo environment reset functionality."""
     cfg = make_pettingzoo_env(num_agents=3, max_steps=100)
-    simulator = Simulator()
-    env = MettaGridPettingZooEnv(simulator, cfg)
+    simulator = mettagrid.simulator.Simulator()
+    env = mettagrid.envs.pettingzoo_env.MettaGridPettingZooEnv(simulator, cfg)
 
     try:
         # Test reset
@@ -119,8 +116,8 @@ def test_pettingzoo_env_reset():
 def test_pettingzoo_env_step():
     """Test PettingZoo environment step functionality."""
     cfg = make_pettingzoo_env(num_agents=3)
-    simulator = Simulator()
-    env = MettaGridPettingZooEnv(simulator, cfg)
+    simulator = mettagrid.simulator.Simulator()
+    env = mettagrid.envs.pettingzoo_env.MettaGridPettingZooEnv(simulator, cfg)
 
     try:
         observations, infos = env.reset(seed=42)
@@ -162,8 +159,8 @@ def test_pettingzoo_env_step():
 def test_pettingzoo_env_agent_removal():
     """Test that agents are properly removed when terminated."""
     cfg = make_pettingzoo_env(num_agents=3)
-    simulator = Simulator()
-    env = MettaGridPettingZooEnv(simulator, cfg)
+    simulator = mettagrid.simulator.Simulator()
+    env = mettagrid.envs.pettingzoo_env.MettaGridPettingZooEnv(simulator, cfg)
 
     try:
         observations, infos = env.reset(seed=42)
@@ -194,8 +191,8 @@ def test_pettingzoo_env_agent_removal():
 def test_pettingzoo_env_spaces():
     """Test PettingZoo environment observation and action spaces."""
     cfg = make_pettingzoo_env(num_agents=3)
-    simulator = Simulator()
-    env = MettaGridPettingZooEnv(simulator, cfg)
+    simulator = mettagrid.simulator.Simulator()
+    env = mettagrid.envs.pettingzoo_env.MettaGridPettingZooEnv(simulator, cfg)
 
     try:
         # Test space methods (agent IDs are integers)
@@ -217,8 +214,8 @@ def test_pettingzoo_env_spaces():
 def test_pettingzoo_env_state():
     """Test PettingZoo environment state functionality."""
     cfg = make_pettingzoo_env(num_agents=3)
-    simulator = Simulator()
-    env = MettaGridPettingZooEnv(simulator, cfg)
+    simulator = mettagrid.simulator.Simulator()
+    env = mettagrid.envs.pettingzoo_env.MettaGridPettingZooEnv(simulator, cfg)
 
     try:
         observations, infos = env.reset(seed=42)
@@ -239,12 +236,12 @@ def test_pettingzoo_env_state():
 def test_pettingzoo_api_compliance():
     """Test official PettingZoo API compliance."""
     cfg = make_pettingzoo_env(num_agents=3)
-    simulator = Simulator()
-    env = MettaGridPettingZooEnv(simulator, cfg)
+    simulator = mettagrid.simulator.Simulator()
+    env = mettagrid.envs.pettingzoo_env.MettaGridPettingZooEnv(simulator, cfg)
 
     try:
         # Run the official PettingZoo parallel API compliance test
-        parallel_api_test(env, num_cycles=3)
+        pettingzoo.test.parallel_api_test(env, num_cycles=3)
     finally:
         env.close()
         simulator.close()
@@ -253,8 +250,8 @@ def test_pettingzoo_api_compliance():
 def test_pettingzoo_episode_lifecycle():
     """Test the complete episode lifecycle with PettingZoo API."""
     cfg = make_pettingzoo_env(num_agents=3)
-    simulator = Simulator()
-    env = MettaGridPettingZooEnv(simulator, cfg)
+    simulator = mettagrid.simulator.Simulator()
+    env = mettagrid.envs.pettingzoo_env.MettaGridPettingZooEnv(simulator, cfg)
 
     try:
         # Reset environment
@@ -314,8 +311,8 @@ def test_pettingzoo_episode_lifecycle():
 def test_pettingzoo_action_observation_spaces():
     """Test that action and observation spaces are properly configured."""
     cfg = make_pettingzoo_env(num_agents=5)
-    simulator = Simulator()
-    env = MettaGridPettingZooEnv(simulator, cfg)
+    simulator = mettagrid.simulator.Simulator()
+    env = mettagrid.envs.pettingzoo_env.MettaGridPettingZooEnv(simulator, cfg)
 
     try:
         # Reset to ensure environment is initialized
@@ -347,8 +344,8 @@ def test_pettingzoo_action_observation_spaces():
 def test_pettingzoo_render_functionality():
     """Test that rendering works with PettingZoo interface."""
     cfg = make_pettingzoo_env(num_agents=5)
-    simulator = Simulator()
-    env = MettaGridPettingZooEnv(simulator, cfg)
+    simulator = mettagrid.simulator.Simulator()
+    env = mettagrid.envs.pettingzoo_env.MettaGridPettingZooEnv(simulator, cfg)
 
     try:
         # Reset environment

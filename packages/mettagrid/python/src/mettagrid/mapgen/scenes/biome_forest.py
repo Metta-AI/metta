@@ -1,9 +1,9 @@
 import numpy as np
 
-from mettagrid.mapgen.scene import Scene, SceneConfig
+import mettagrid.mapgen.scene
 
 
-class BiomeForestConfig(SceneConfig):
+class BiomeForestConfig(mettagrid.mapgen.scene.SceneConfig):
     clumpiness: int = 3  # number of growth passes
     seed_prob: float = 0.04  # initial random seeds density
     growth_prob: float = 0.55  # probability to grow into empty if enough neighbors
@@ -13,7 +13,7 @@ class BiomeForestConfig(SceneConfig):
     dither_depth: int = 5  # How many cells deep to consider as edge zone
 
 
-class BiomeForest(Scene[BiomeForestConfig]):
+class BiomeForest(mettagrid.mapgen.scene.Scene[BiomeForestConfig]):
     """
     Cellular automata style forest: clumpy organic shapes.
     Walls are "trees"; empty is passable ground.

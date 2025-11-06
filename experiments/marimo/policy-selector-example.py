@@ -9,11 +9,9 @@ with app.setup:
 
 @app.cell
 def _():
-    from experiments.notebooks.utils.policy_selector_widget.policy_selector_widget import (
-        create_policy_selector_widget,
-    )
+    import experiments.notebooks.utils.policy_selector_widget.policy_selector_widget
 
-    widget = create_policy_selector_widget()
+    widget = experiments.notebooks.utils.policy_selector_widget.policy_selector_widget.create_policy_selector_widget()
     try:
         test_policies = [
             {
@@ -31,7 +29,9 @@ def _():
         f"Error: {e}"
 
     widget
-    return (create_policy_selector_widget,)
+    return (
+        experiments.notebooks.utils.policy_selector_widget.policy_selector_widget.create_policy_selector_widget,
+    )
 
 
 @app.cell
@@ -42,9 +42,11 @@ def _():
 
 @app.cell
 def _():
-    from metta.app_backend.clients.scorecard_client import ScorecardClient
+    import metta.app_backend.clients.scorecard_client
 
-    client = ScorecardClient()  # production data
+    client = (
+        metta.app_backend.clients.scorecard_client.ScorecardClient()
+    )  # production data
     # client = ScorecardClient("http://localhost:8000")  # development mode
     return (client,)
 
@@ -74,12 +76,12 @@ def _(live_widget):
 @app.cell
 async def _(client, live_widget):
     # Access the widget's value to trigger reactivity in Marimo
-    from experiments.notebooks.utils.scorecard_widget.scorecard_widget.ScorecardWidget import (
-        ScorecardWidget,
-    )
+    import experiments.notebooks.utils.scorecard_widget.scorecard_widget.ScorecardWidget
 
     policies_for_scorecard = live_widget.selected_policies
-    scorecard_widget = ScorecardWidget(client=client)
+    scorecard_widget = experiments.notebooks.utils.scorecard_widget.scorecard_widget.ScorecardWidget.ScorecardWidget(
+        client=client
+    )
 
     await scorecard_widget.fetch_real_scorecard_data(
         restrict_to_metrics=["heart.gained", "reward"],

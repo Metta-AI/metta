@@ -1,12 +1,12 @@
+import tensordict
 import torch
-from tensordict import TensorDict
 
-from metta.agent.policy import Policy
-from mettagrid.config.mettagrid_config import MettaGridConfig
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+import metta.agent.policy
+import mettagrid.config.mettagrid_config
+import mettagrid.policy.policy_env_interface
 
 
-class MockAgent(Policy):
+class MockAgent(metta.agent.policy.Policy):
     """
     An agent that always does nothing. Used for tests and to run play without requiring a policy.
 
@@ -14,9 +14,11 @@ class MockAgent(Policy):
     minimal functionality for simulation runs.
     """
 
-    def __init__(self, policy_env_info: PolicyEnvInterface | None = None) -> None:
+    def __init__(self, policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface | None = None) -> None:
         if policy_env_info is None:
-            policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
+            policy_env_info = mettagrid.policy.policy_env_interface.PolicyEnvInterface.from_mg_cfg(
+                mettagrid.config.mettagrid_config.MettaGridConfig()
+            )
         super().__init__(policy_env_info)
 
         # Initialize required attributes that MettaAgent expects
@@ -54,7 +56,7 @@ class MockAgent(Policy):
         """Get the original feature mapping for persistence."""
         return self.original_feature_mapping.copy() if self.original_feature_mapping else None
 
-    def forward(self, td: TensorDict, action: torch.Tensor | None = None) -> TensorDict:
+    def forward(self, td: tensordict.TensorDict, action: torch.Tensor | None = None) -> tensordict.TensorDict:
         """
         Mock forward pass - always returns "do nothing" actions.
 

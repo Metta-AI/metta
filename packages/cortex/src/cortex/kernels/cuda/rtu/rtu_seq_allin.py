@@ -1,6 +1,6 @@
 import os
 
-from torch.utils.cpp_extension import load
+import torch.utils.cpp_extension
 
 _mod_path = os.path.dirname(__file__)
 _ext = None
@@ -14,7 +14,7 @@ def _load_ext():
         os.path.join(_mod_path, "rtu_seq_allin_binding.cpp"),
         os.path.join(_mod_path, "rtu_seq_allin_kernels.cu"),
     ]
-    _ext = load(
+    _ext = torch.utils.cpp_extension.load(
         name="rtu_seq_allin",
         sources=sources,
         extra_cflags=["-O3"],

@@ -1,21 +1,20 @@
 """Map component for miniscope renderer."""
 
-from mettagrid.renderer.miniscope.buffer import MapBuffer
-from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
-from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState, RenderMode
-from mettagrid.simulator import BoundingBox, Simulation
+import mettagrid.renderer.miniscope.buffer
+import mettagrid.renderer.miniscope.components.base
+import mettagrid.renderer.miniscope.miniscope_panel
+import mettagrid.renderer.miniscope.miniscope_state
+import mettagrid.simulator
 
-from .base import MiniscopeComponent
 
-
-class MapComponent(MiniscopeComponent):
+class MapComponent(mettagrid.renderer.miniscope.components.base.MiniscopeComponent):
     """Component for rendering the game map."""
 
     def __init__(
         self,
-        sim: Simulation,
-        state: MiniscopeState,
-        panels: PanelLayout,
+        sim: mettagrid.simulator.Simulation,
+        state: mettagrid.renderer.miniscope.miniscope_state.MiniscopeState,
+        panels: mettagrid.renderer.miniscope.miniscope_panel.PanelLayout,
     ):
         """Initialize the map component.
 
@@ -28,7 +27,7 @@ class MapComponent(MiniscopeComponent):
         self._set_panel(panels.map_view)
 
         # Create map buffer - will be initialized with data from state
-        self._map_buffer = MapBuffer(
+        self._map_buffer = mettagrid.renderer.miniscope.buffer.MapBuffer(
             object_type_names=state.object_type_names or [],
             symbol_map=state.symbol_map or {},
             initial_height=sim.map_height,
@@ -52,7 +51,7 @@ class MapComponent(MiniscopeComponent):
         """
         # Only handle cursor movement when in SELECT mode
         # Camera panning is now handled by SimControlComponent
-        if self._state.mode != RenderMode.SELECT:
+        if self._state.mode != mettagrid.renderer.miniscope.miniscope_state.RenderMode.SELECT:
             return False
 
         # Handle cursor movement with shift-key acceleration
@@ -89,7 +88,7 @@ class MapComponent(MiniscopeComponent):
         self._update_buffer_config()
 
         # Get grid objects from environment
-        bbox = BoundingBox(
+        bbox = mettagrid.simulator.BoundingBox(
             min_row=0,
             max_row=self._sim.map_height,
             min_col=0,
@@ -113,13 +112,13 @@ class MapComponent(MiniscopeComponent):
         )
 
         # Set cursor if in select mode
-        if self.state.mode == RenderMode.SELECT:
+        if self.state.mode == mettagrid.renderer.miniscope.miniscope_state.RenderMode.SELECT:
             self._map_buffer.set_cursor(self.state.cursor_row, self.state.cursor_col)
         else:
             self._map_buffer.set_cursor(None, None)
 
         # Highlight selected agent if in vibe picker mode
-        if self.state.mode == RenderMode.VIBE_PICKER:
+        if self.state.mode == mettagrid.renderer.miniscope.miniscope_state.RenderMode.VIBE_PICKER:
             self._map_buffer.set_highlighted_agent(self.state.selected_agent)
         else:
             self._map_buffer.set_highlighted_agent(None)

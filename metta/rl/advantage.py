@@ -1,13 +1,12 @@
 """Advantage computation functions for Metta training."""
 
+import contextlib
 import importlib
-from contextlib import nullcontext
 
 import einops
 import torch
-from torch import Tensor
 
-from metta.rl import mps
+import metta.rl
 
 try:
     importlib.import_module("pufferlib._C")
@@ -16,24 +15,24 @@ except ImportError:
 
 
 def compute_advantage(
-    values: Tensor,
-    rewards: Tensor,
-    dones: Tensor,
-    importance_sampling_ratio: Tensor,
-    advantages: Tensor,
+    values: torch.Tensor,
+    rewards: torch.Tensor,
+    dones: torch.Tensor,
+    importance_sampling_ratio: torch.Tensor,
+    advantages: torch.Tensor,
     gamma: float,
     gae_lambda: float,
     vtrace_rho_clip: float,
     vtrace_c_clip: float,
     device: torch.device,
-) -> Tensor:
+) -> torch.Tensor:
     """CUDA kernel for puffer advantage with automatic CPU & MPS fallback."""
 
     # Move tensors to device and compute advantage
     # for mps (macbook pro)
     # for rocm (amd gpu) - pytorch has hip version
     if str(device) == "mps" or torch.version.hip is not None:
-        return mps.advantage(
+        return metta.rl.mps.advantage(
             values, rewards, dones, importance_sampling_ratio, vtrace_rho_clip, vtrace_c_clip, gamma, gae_lambda, device
         )
 
@@ -43,7 +42,7 @@ def compute_advantage(
     values, rewards, dones, importance_sampling_ratio, advantages = tensors
 
     # Create context manager that only applies CUDA device context if needed
-    device_context = torch.cuda.device(device) if device.type == "cuda" else nullcontext()
+    device_context = torch.cuda.device(device) if device.type == "cuda" else contextlib.nullcontext()
     with device_context:
         torch.ops.pufferlib.compute_puff_advantage(
             values,
@@ -60,7 +59,7 @@ def compute_advantage(
     return advantages
 
 
-def normalize_advantage_distributed(adv: Tensor, norm_adv: bool = True) -> Tensor:
+def normalize_advantage_distributed(adv: torch.Tensor, norm_adv: bool = True) -> torch.Tensor:
     """Normalize advantages with distributed training support while preserving shape."""
     if not norm_adv:
         return adv

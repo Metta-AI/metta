@@ -11,16 +11,16 @@ Benchmarking utilities for GitHub Actions workflows.
 Provides memory and time monitoring for subprocess execution.
 """
 
+import io
 import json
 import os
 import re
 import sys
+import typing
 import zipfile
-from io import BytesIO
-from typing import Any, Tuple
 
+import github
 import requests
-from github import Github
 
 
 def download_artifact(token: str, repo: str, artifact_id: int) -> bytes | None:
@@ -36,10 +36,10 @@ def download_artifact(token: str, repo: str, artifact_id: int) -> bytes | None:
         return None
 
 
-def extract_json_from_artifact(artifact_data: bytes) -> dict[str, Any] | None:
+def extract_json_from_artifact(artifact_data: bytes) -> dict[str, typing.Any] | None:
     """Extract claude-review-analysis.json from artifact zip."""
     try:
-        with zipfile.ZipFile(BytesIO(artifact_data)) as zip_file:
+        with zipfile.ZipFile(io.BytesIO(artifact_data)) as zip_file:
             for name in zip_file.namelist():
                 if name == "claude-review-analysis.json":
                     with zip_file.open(name) as f:
@@ -49,7 +49,7 @@ def extract_json_from_artifact(artifact_data: bytes) -> dict[str, Any] | None:
     return None
 
 
-def consolidate_reviews(token: str, repo: str, run_id: int) -> Tuple[dict[str, Any], bool]:
+def consolidate_reviews(token: str, repo: str, run_id: int) -> typing.Tuple[dict[str, typing.Any], bool]:
     """Consolidate all review artifacts into a single structure."""
     # Initialize consolidated review
     consolidated = {
@@ -67,7 +67,7 @@ def consolidate_reviews(token: str, repo: str, run_id: int) -> Tuple[dict[str, A
     has_any_issues = False
     reviews_with_issues = []
 
-    g = Github(token)
+    g = github.Github(token)
     repo_obj = g.get_repo(repo)
     run = repo_obj.get_workflow_run(run_id)
 
@@ -166,7 +166,7 @@ def consolidate_reviews(token: str, repo: str, run_id: int) -> Tuple[dict[str, A
     return consolidated, has_any_issues
 
 
-def build_future_suggestions_comment(suggestions_for_future: list[dict[str, Any]]) -> str:
+def build_future_suggestions_comment(suggestions_for_future: list[dict[str, typing.Any]]) -> str:
     """Build a separate comment for suggestions on unchanged code."""
     sections = []
 
@@ -246,7 +246,7 @@ def build_future_suggestions_comment(suggestions_for_future: list[dict[str, Any]
     return "\n".join(sections)
 
 
-def create_review_comment(suggestion: dict[str, Any]) -> dict[str, Any]:
+def create_review_comment(suggestion: dict[str, typing.Any]) -> dict[str, typing.Any]:
     """Create a review comment from a suggestion."""
     comment = {
         "path": suggestion["file"],
@@ -267,7 +267,7 @@ def create_review_comment(suggestion: dict[str, Any]) -> dict[str, Any]:
     return comment
 
 
-def build_review_body(analysis: dict[str, Any], skipped_suggestions: list[str]) -> str:
+def build_review_body(analysis: dict[str, typing.Any], skipped_suggestions: list[str]) -> str:
     """Build the review body markdown."""
     sections = []
 
@@ -324,10 +324,10 @@ def build_review_body(analysis: dict[str, Any], skipped_suggestions: list[str]) 
     return "\n".join(sections)
 
 
-def create_unified_review(token: str, repo: str, pr_number: int, analysis: dict[str, Any]) -> None:
+def create_unified_review(token: str, repo: str, pr_number: int, analysis: dict[str, typing.Any]) -> None:
     """Create a unified GitHub review from the consolidated analysis."""
     # Connect to GitHub
-    g = Github(token)
+    g = github.Github(token)
     repo_obj = g.get_repo(repo)
     pr = repo_obj.get_pull(pr_number)
 

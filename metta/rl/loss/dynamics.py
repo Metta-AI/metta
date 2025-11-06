@@ -1,31 +1,30 @@
-from typing import Any
+import typing
 
 import einops
+import pydantic
+import tensordict
 import torch
 import torch.nn.functional as F
-from pydantic import Field
-from tensordict import TensorDict
-from torch import Tensor
 
-from metta.agent.policy import Policy
-from metta.rl.loss import Loss
-from metta.rl.training import ComponentContext
-from mettagrid.base_config import Config
+import metta.agent.policy
+import metta.rl.loss
+import metta.rl.training
+import mettagrid.base_config
 
 
-class DynamicsConfig(Config):
-    returns_step_look_ahead: int = Field(default=1)
-    returns_pred_coef: float = Field(default=1.0, ge=0, le=1.0)
-    reward_pred_coef: float = Field(default=1.0, ge=0, le=1.0)
+class DynamicsConfig(mettagrid.base_config.Config):
+    returns_step_look_ahead: int = pydantic.Field(default=1)
+    returns_pred_coef: float = pydantic.Field(default=1.0, ge=0, le=1.0)
+    reward_pred_coef: float = pydantic.Field(default=1.0, ge=0, le=1.0)
 
     def create(
         self,
-        policy: Policy,
-        trainer_cfg: Any,
-        vec_env: Any,
+        policy: metta.agent.policy.Policy,
+        trainer_cfg: typing.Any,
+        vec_env: typing.Any,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
+        loss_config: typing.Any,
     ):
         """Create Dynamics loss instance."""
         return Dynamics(
@@ -38,20 +37,20 @@ class DynamicsConfig(Config):
         )
 
 
-class Dynamics(Loss):
+class Dynamics(metta.rl.loss.Loss):
     """The dynamics term in the Muesli loss."""
 
     # Loss calls this method
     def run_train(
         self,
-        shared_loss_data: TensorDict,
-        context: ComponentContext,
+        shared_loss_data: tensordict.TensorDict,
+        context: metta.rl.training.ComponentContext,
         mb_idx: int,
-    ) -> tuple[Tensor, TensorDict, bool]:
+    ) -> tuple[torch.Tensor, tensordict.TensorDict, bool]:
         policy_td = shared_loss_data["policy_td"]
 
-        returns_pred: Tensor = policy_td["returns_pred"].to(dtype=torch.float32)
-        reward_pred: Tensor = policy_td["reward_pred"].to(dtype=torch.float32)
+        returns_pred: torch.Tensor = policy_td["returns_pred"].to(dtype=torch.float32)
+        reward_pred: torch.Tensor = policy_td["reward_pred"].to(dtype=torch.float32)
 
         # need to reshape from (B, T, 1) to (B, T)
         returns_pred = einops.rearrange(returns_pred, "b t 1 -> b (t 1)")

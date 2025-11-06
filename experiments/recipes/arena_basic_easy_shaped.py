@@ -1,30 +1,25 @@
-from typing import Optional, Sequence
+import typing
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from metta.agent.policies.vit import ViTDefaultConfig
-from metta.agent.policy import PolicyArchitecture
-from metta.cogworks.curriculum.curriculum import (
-    CurriculumAlgorithmConfig,
-    CurriculumConfig,
-)
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss import LossConfig
-from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.sim.simulation_config import SimulationConfig
-from metta.sweep.core import Distribution as D
-from metta.sweep.core import SweepParameters as SP
-from metta.sweep.core import make_sweep
-from metta.tools.eval import EvaluateTool
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
-from metta.tools.sweep import SweepTool
-from metta.tools.train import TrainTool
-from mettagrid import MettaGridConfig
+import metta.agent.policies.vit
+import metta.agent.policy
+import metta.cogworks.curriculum.curriculum
+import metta.cogworks.curriculum.learning_progress_algorithm
+import metta.rl.loss
+import metta.rl.trainer_config
+import metta.rl.training
+import metta.sim.simulation_config
+import metta.sweep.core
+import metta.tools.eval
+import metta.tools.play
+import metta.tools.replay
+import metta.tools.sweep
+import metta.tools.train
+import mettagrid
 
 
-def mettagrid(num_agents: int = 24) -> MettaGridConfig:
+def mettagrid(num_agents: int = 24) -> mettagrid.MettaGridConfig:
     arena_env = eb.make_arena(num_agents=num_agents)
 
     arena_env.game.agent.rewards.inventory = {
@@ -48,10 +43,12 @@ def mettagrid(num_agents: int = 24) -> MettaGridConfig:
 
 
 def make_curriculum(
-    arena_env: Optional[MettaGridConfig] = None,
+    arena_env: typing.Optional[mettagrid.MettaGridConfig] = None,
     enable_detailed_slice_logging: bool = False,
-    algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
-) -> CurriculumConfig:
+    algorithm_config: typing.Optional[
+        metta.cogworks.curriculum.curriculum.CurriculumAlgorithmConfig
+    ] = None,
+) -> metta.cogworks.curriculum.curriculum.CurriculumConfig:
     arena_env = arena_env or mettagrid()
 
     arena_tasks = cc.bucketed(arena_env)
@@ -67,7 +64,7 @@ def make_curriculum(
     arena_tasks.add_bucket("game.actions.attack.consumed_resources.laser", [1, 100])
 
     if algorithm_config is None:
-        algorithm_config = LearningProgressConfig(
+        algorithm_config = metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig(
             use_bidirectional=True,  # Enable bidirectional learning progress by default
             ema_timescale=0.001,
             exploration_bonus=0.1,
@@ -79,7 +76,9 @@ def make_curriculum(
     return arena_tasks.to_curriculum(algorithm_config=algorithm_config)
 
 
-def simulations(env: Optional[MettaGridConfig] = None) -> list[SimulationConfig]:
+def simulations(
+    env: typing.Optional[mettagrid.MettaGridConfig] = None,
+) -> list[metta.sim.simulation_config.SimulationConfig]:
     basic_env = env or mettagrid()
     basic_env.game.actions.attack.consumed_resources["laser"] = 100
 
@@ -87,53 +86,63 @@ def simulations(env: Optional[MettaGridConfig] = None) -> list[SimulationConfig]
     combat_env.game.actions.attack.consumed_resources["laser"] = 1
 
     return [
-        SimulationConfig(suite="arena", name="basic", env=basic_env),
-        SimulationConfig(suite="arena", name="combat", env=combat_env),
+        metta.sim.simulation_config.SimulationConfig(
+            suite="arena", name="basic", env=basic_env
+        ),
+        metta.sim.simulation_config.SimulationConfig(
+            suite="arena", name="combat", env=combat_env
+        ),
     ]
 
 
 def train(
-    curriculum: Optional[CurriculumConfig] = None,
+    curriculum: typing.Optional[
+        metta.cogworks.curriculum.curriculum.CurriculumConfig
+    ] = None,
     enable_detailed_slice_logging: bool = False,
-    policy_architecture: Optional[PolicyArchitecture] = None,
-) -> TrainTool:
+    policy_architecture: typing.Optional[metta.agent.policy.PolicyArchitecture] = None,
+) -> metta.tools.train.TrainTool:
     curriculum = curriculum or make_curriculum(
         enable_detailed_slice_logging=enable_detailed_slice_logging
     )
 
     eval_simulations = simulations()
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
+    trainer_cfg = metta.rl.trainer_config.TrainerConfig(
+        losses=metta.rl.loss.LossConfig(),
     )
 
     if policy_architecture is None:
-        policy_architecture = ViTDefaultConfig()
+        policy_architecture = metta.agent.policies.vit.ViTDefaultConfig()
 
-    return TrainTool(
+    return metta.tools.train.TrainTool(
         trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        evaluator=EvaluatorConfig(simulations=eval_simulations),
+        training_env=metta.rl.training.TrainingEnvironmentConfig(curriculum=curriculum),
+        evaluator=metta.rl.training.EvaluatorConfig(simulations=eval_simulations),
         policy_architecture=policy_architecture,
-        torch_profiler=TorchProfilerConfig(),
+        torch_profiler=metta.rl.trainer_config.TorchProfilerConfig(),
     )
 
 
-def evaluate(policy_uris: Optional[Sequence[str]] = None) -> EvaluateTool:
+def evaluate(
+    policy_uris: typing.Optional[typing.Sequence[str]] = None,
+) -> metta.tools.eval.EvaluateTool:
     """Evaluate policies on arena simulations."""
-    return EvaluateTool(simulations=simulations(), policy_uris=policy_uris or [])
+    return metta.tools.eval.EvaluateTool(
+        simulations=simulations(), policy_uris=policy_uris or []
+    )
 
 
-def play(policy_uri: Optional[str] = None) -> PlayTool:
+def play(policy_uri: typing.Optional[str] = None) -> metta.tools.play.PlayTool:
     """Interactive play with a policy."""
-    return PlayTool(sim=simulations()[0], policy_uri=policy_uri)
+    return metta.tools.play.PlayTool(sim=simulations()[0], policy_uri=policy_uri)
 
 
-def replay(policy_uri: Optional[str] = None) -> ReplayTool:
+def replay(policy_uri: typing.Optional[str] = None) -> metta.tools.replay.ReplayTool:
     """Generate replay from a policy."""
-    return ReplayTool(sim=simulations()[0], policy_uri=policy_uri)
+    return metta.tools.replay.ReplayTool(sim=simulations()[0], policy_uri=policy_uri)
 
 
-def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
+def evaluate_in_sweep(policy_uri: str) -> metta.tools.eval.EvaluateTool:
     """Evaluation tool for sweep runs.
 
     Uses 10 episodes per simulation with a 4-minute time limit to get
@@ -151,14 +160,14 @@ def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
     combat_env.game.actions.attack.consumed_resources["laser"] = 1
 
     simulations = [
-        SimulationConfig(
+        metta.sim.simulation_config.SimulationConfig(
             suite="sweep",
             name="basic",
             env=basic_env,
             num_episodes=10,  # 10 episodes for statistical reliability
             max_time_s=240,  # 4 minutes max per simulation
         ),
-        SimulationConfig(
+        metta.sim.simulation_config.SimulationConfig(
             suite="sweep",
             name="combat",
             env=combat_env,
@@ -167,13 +176,13 @@ def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
         ),
     ]
 
-    return EvaluateTool(
+    return metta.tools.eval.EvaluateTool(
         simulations=simulations,
         policy_uris=[policy_uri],
     )
 
 
-def sweep(sweep_name: str) -> SweepTool:
+def sweep(sweep_name: str) -> metta.tools.sweep.SweepTool:
     """
     Prototypical sweep function.
     In your own recipe, you likely only every need this. You can override other SweepTool parameters in the CLI.
@@ -201,21 +210,21 @@ def sweep(sweep_name: str) -> SweepTool:
 
     # Common parameters are accessible via SP (SweepParameters).
     parameters = [
-        SP.LEARNING_RATE,
-        SP.PPO_CLIP_COEF,
-        SP.PPO_GAE_LAMBDA,
-        SP.PPO_VF_COEF,
-        SP.ADAM_EPS,
-        SP.param(
+        metta.sweep.core.SweepParameters.LEARNING_RATE,
+        metta.sweep.core.SweepParameters.PPO_CLIP_COEF,
+        metta.sweep.core.SweepParameters.PPO_GAE_LAMBDA,
+        metta.sweep.core.SweepParameters.PPO_VF_COEF,
+        metta.sweep.core.SweepParameters.ADAM_EPS,
+        metta.sweep.core.SweepParameters.param(
             "trainer.total_timesteps",
-            D.INT_UNIFORM,
+            metta.sweep.core.Distribution.INT_UNIFORM,
             min=5e8,
             max=2e9,
             search_center=7.5e8,
         ),
     ]
 
-    return make_sweep(
+    return metta.sweep.core.make_sweep(
         name=sweep_name,
         recipe="experiments.recipes.arena_basic_easy_shaped",
         train_entrypoint="train",

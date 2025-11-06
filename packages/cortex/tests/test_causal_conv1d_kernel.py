@@ -4,10 +4,10 @@ This test compares the Triton kernel implementation against the pure PyTorch
 reference implementation, verifying both forward and backward passes.
 """
 
+import cortex.kernels.pytorch.conv1d
+import cortex.utils
 import pytest
 import torch
-from cortex.kernels.pytorch.conv1d import causal_conv1d_pytorch
-from cortex.utils import TRITON_AVAILABLE
 
 
 def get_test_device():
@@ -17,7 +17,7 @@ def get_test_device():
     return device
 
 
-@pytest.mark.skipif(not TRITON_AVAILABLE, reason="Triton not available")
+@pytest.mark.skipif(not cortex.utils.TRITON_AVAILABLE, reason="Triton not available")
 def test_causal_conv1d_triton_vs_pytorch_forward():
     """Test that Triton and PyTorch implementations produce similar forward outputs."""
     torch.manual_seed(42)
@@ -26,7 +26,7 @@ def test_causal_conv1d_triton_vs_pytorch_forward():
     if not device.type == "cuda":
         pytest.skip("Triton kernel requires CUDA")
 
-    from cortex.kernels.triton.conv1d import causal_conv1d_triton
+    import cortex.kernels.triton.conv1d
 
     dtype = torch.float32
     B = 2  # batch size
@@ -47,7 +47,7 @@ def test_causal_conv1d_triton_vs_pytorch_forward():
     resets[0, 45] = True  # Another reset for batch 0
 
     # Test PyTorch implementation (reference)
-    y_pytorch, state_pytorch = causal_conv1d_pytorch(
+    y_pytorch, state_pytorch = cortex.kernels.pytorch.conv1d.causal_conv1d_pytorch(
         conv_state=conv_state.clone(),
         x=x,
         weight=weight,
@@ -59,7 +59,7 @@ def test_causal_conv1d_triton_vs_pytorch_forward():
     )
 
     # Test Triton implementation
-    y_triton, state_triton = causal_conv1d_triton(
+    y_triton, state_triton = cortex.kernels.triton.conv1d.causal_conv1d_triton(
         conv_state=conv_state.clone(),
         x=x,
         weight=weight,
@@ -91,7 +91,7 @@ def test_causal_conv1d_triton_vs_pytorch_forward():
     )
 
 
-@pytest.mark.skipif(not TRITON_AVAILABLE, reason="Triton not available")
+@pytest.mark.skipif(not cortex.utils.TRITON_AVAILABLE, reason="Triton not available")
 def test_causal_conv1d_triton_vs_pytorch_gradients():
     """Test that Triton and PyTorch implementations produce similar gradients."""
     torch.manual_seed(42)
@@ -99,8 +99,6 @@ def test_causal_conv1d_triton_vs_pytorch_gradients():
     device = get_test_device()
     if not device.type == "cuda":
         pytest.skip("Triton kernel requires CUDA")
-
-    from cortex.kernels.triton.conv1d import causal_conv1d_triton
 
     dtype = torch.float32
     B = 2  # batch size
@@ -127,7 +125,7 @@ def test_causal_conv1d_triton_vs_pytorch_gradients():
     resets[0, 35] = True
 
     # Forward pass with PyTorch
-    y_pytorch, _ = causal_conv1d_pytorch(
+    y_pytorch, _ = cortex.kernels.pytorch.conv1d.causal_conv1d_pytorch(
         conv_state=conv_state_pytorch,
         x=x_pytorch,
         weight=weight_pytorch,
@@ -139,7 +137,7 @@ def test_causal_conv1d_triton_vs_pytorch_gradients():
     )
 
     # Forward pass with Triton
-    y_triton, _ = causal_conv1d_triton(
+    y_triton, _ = cortex.kernels.triton.conv1d.causal_conv1d_triton(
         conv_state=conv_state_triton,
         x=x_triton,
         weight=weight_triton,
@@ -206,14 +204,12 @@ def test_causal_conv1d_triton_vs_pytorch_gradients():
     )
 
 
-@pytest.mark.skipif(not TRITON_AVAILABLE, reason="Triton not available")
+@pytest.mark.skipif(not cortex.utils.TRITON_AVAILABLE, reason="Triton not available")
 def test_causal_conv1d_triton_error_conditions():
     """Test that Triton implementation properly validates inputs."""
     device = get_test_device()
     if not device.type == "cuda":
         pytest.skip("Triton kernel requires CUDA")
-
-    from cortex.kernels.triton.conv1d import causal_conv1d_triton
 
     B, T, F, KS = 2, 32, 16, 4
 
@@ -225,7 +221,7 @@ def test_causal_conv1d_triton_error_conditions():
 
     # Test 1: groups != 1 should raise ValueError
     with pytest.raises(ValueError, match="groups=1"):
-        causal_conv1d_triton(
+        cortex.kernels.triton.conv1d.causal_conv1d_triton(
             conv_state=conv_state,
             x=x,
             weight=weight,
@@ -236,7 +232,7 @@ def test_causal_conv1d_triton_error_conditions():
 
     # Test 2: missing resets should raise ValueError
     with pytest.raises(ValueError, match="per-timestep resets"):
-        causal_conv1d_triton(
+        cortex.kernels.triton.conv1d.causal_conv1d_triton(
             conv_state=conv_state,
             x=x,
             weight=weight,
@@ -247,7 +243,7 @@ def test_causal_conv1d_triton_error_conditions():
 
     # Test 3: 1D resets should raise ValueError
     with pytest.raises(ValueError, match="per-timestep resets"):
-        causal_conv1d_triton(
+        cortex.kernels.triton.conv1d.causal_conv1d_triton(
             conv_state=conv_state,
             x=x,
             weight=weight,
@@ -284,7 +280,7 @@ def test_causal_conv1d_pytorch_no_resets():
     conv_state = torch.randn(B, KS, F, device=device, dtype=dtype)
 
     # Test without resets (fast vectorized path)
-    y_fast, state_fast = causal_conv1d_pytorch(
+    y_fast, state_fast = cortex.kernels.pytorch.conv1d.causal_conv1d_pytorch(
         conv_state=conv_state.clone(),
         x=x,
         weight=conv.weight,
@@ -297,7 +293,7 @@ def test_causal_conv1d_pytorch_no_resets():
 
     # Test with batch-level resets (should still use fast path)
     resets_batch = torch.zeros(B, dtype=torch.bool, device=device)
-    y_batch_reset, state_batch_reset = causal_conv1d_pytorch(
+    y_batch_reset, state_batch_reset = cortex.kernels.pytorch.conv1d.causal_conv1d_pytorch(
         conv_state=conv_state.clone(),
         x=x,
         weight=conv.weight,
@@ -319,7 +315,7 @@ if __name__ == "__main__":
     # Run tests manually
     print("Testing causal conv1d kernel implementations...")
 
-    if TRITON_AVAILABLE and torch.cuda.is_available():
+    if cortex.utils.TRITON_AVAILABLE and torch.cuda.is_available():
         print("\n=== Testing Triton forward pass ===")
         test_causal_conv1d_triton_vs_pytorch_forward()
         print("✓ Forward pass test passed")

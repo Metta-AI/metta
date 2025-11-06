@@ -8,10 +8,10 @@
 
 import logging
 import time
-from typing import Optional
+import typing
 
 import google.generativeai as genai  # type: ignore
-from google.generativeai.types import HarmBlockThreshold, HarmCategory  # type: ignore
+import google.generativeai.types  # type: ignore
 
 # Model configuration - three tiers for different use cases
 MODEL_CONFIG = {
@@ -35,10 +35,10 @@ class GeminiAIClient:
 
         # Minimal safety settings for code analysis
         self.safety_settings = {
-            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-            HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-            HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+            google.generativeai.types.HarmCategory.HARM_CATEGORY_HATE_SPEECH: google.generativeai.types.HarmBlockThreshold.BLOCK_NONE,
+            google.generativeai.types.HarmCategory.HARM_CATEGORY_HARASSMENT: google.generativeai.types.HarmBlockThreshold.BLOCK_NONE,
+            google.generativeai.types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: google.generativeai.types.HarmBlockThreshold.BLOCK_NONE,
+            google.generativeai.types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: google.generativeai.types.HarmBlockThreshold.BLOCK_NONE,
         }
 
         logging.info("Initialized AI client with Gemini 2.5 models")
@@ -73,7 +73,7 @@ class GeminiAIClient:
             time.sleep(self.rate_limit_delay - elapsed)
         self.last_request_time = time.time()
 
-    def generate_with_retry(self, prompt: str, tier: str = "default") -> Optional[str]:
+    def generate_with_retry(self, prompt: str, tier: str = "default") -> typing.Optional[str]:
         """Generate content with retry logic.
 
         Args:

@@ -1,15 +1,14 @@
-from __future__ import annotations
 
+import abc
 import re
-from abc import abstractmethod
 
-from pydantic import Field
+import pydantic
 
-from metta.rl.system_config import SystemConfig
-from mettagrid.base_config import Config
+import metta.rl.system_config
+import mettagrid.base_config
 
 
-class Tool(Config):
+class Tool(mettagrid.base_config.Config):
     """Base class for tools.
 
     To make a tool, you need to:
@@ -24,7 +23,7 @@ class Tool(Config):
     The tool maker can optionally take arguments.
     """
 
-    system: SystemConfig = Field(default_factory=SystemConfig)
+    system: metta.rl.system_config.SystemConfig = pydantic.Field(default_factory=metta.rl.system_config.SystemConfig)
 
     @classmethod
     def tool_type_name(cls) -> str:
@@ -42,5 +41,5 @@ class Tool(Config):
         snake_case = re.sub(r"(?<!^)(?=[A-Z])", "_", class_name).lower()
         return snake_case
 
-    @abstractmethod
+    @abc.abstractmethod
     def invoke(self, args: dict[str, str]) -> int | None: ...

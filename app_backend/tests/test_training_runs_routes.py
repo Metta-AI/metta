@@ -1,10 +1,10 @@
+import typing
 import uuid
-from typing import Dict
 
+import fastapi.testclient
 import pytest
-from fastapi.testclient import TestClient
 
-from metta.app_backend.clients.stats_client import StatsClient
+import metta.app_backend.clients.stats_client
 
 
 # Example flaky run: https://github.com/Metta-AI/metta/actions/runs/18573440362/job/52952874069
@@ -13,7 +13,7 @@ class TestTrainingRunsRoutes:
     """Tests for the training runs API routes."""
 
     @pytest.fixture(scope="class")
-    def test_training_runs(self, stats_client: StatsClient) -> Dict:
+    def test_training_runs(self, stats_client: metta.app_backend.clients.stats_client.StatsClient) -> typing.Dict:
         """Create test training runs with comprehensive data."""
         # Create multiple training runs
         run1 = stats_client.create_training_run(
@@ -210,8 +210,8 @@ class TestTrainingRunsRoutes:
 
     def test_get_training_runs_empty(
         self,
-        isolated_test_client: TestClient,
-        auth_headers: Dict[str, str],
+        isolated_test_client: fastapi.testclient.TestClient,
+        auth_headers: typing.Dict[str, str],
     ) -> None:
         """Test getting training runs when none exist."""
         response = isolated_test_client.get("/training-runs", headers=auth_headers)
@@ -221,7 +221,10 @@ class TestTrainingRunsRoutes:
         assert isinstance(data["training_runs"], list)
 
     def test_get_training_runs_list(
-        self, test_client: TestClient, test_training_runs: Dict, auth_headers: Dict[str, str]
+        self,
+        test_client: fastapi.testclient.TestClient,
+        test_training_runs: typing.Dict,
+        auth_headers: typing.Dict[str, str],
     ) -> None:
         """Test listing all training runs."""
         response = test_client.get("/training-runs", headers=auth_headers)
@@ -256,7 +259,10 @@ class TestTrainingRunsRoutes:
         assert run2["url"] is None
 
     def test_get_specific_training_run(
-        self, test_client: TestClient, test_training_runs: Dict, auth_headers: Dict[str, str]
+        self,
+        test_client: fastapi.testclient.TestClient,
+        test_training_runs: typing.Dict,
+        auth_headers: typing.Dict[str, str],
     ) -> None:
         """Test getting a specific training run by ID."""
         run1 = test_training_runs["runs"][0]
@@ -272,20 +278,27 @@ class TestTrainingRunsRoutes:
         assert "created_at" in data
         assert data["url"] == "https://wandb.ai/test/run1"
 
-    def test_get_training_run_not_found(self, test_client: TestClient, auth_headers: Dict[str, str]) -> None:
+    def test_get_training_run_not_found(
+        self, test_client: fastapi.testclient.TestClient, auth_headers: typing.Dict[str, str]
+    ) -> None:
         """Test getting a non-existent training run."""
         fake_id = "00000000-0000-0000-0000-000000000000"
         response = test_client.get(f"/training-runs/{fake_id}", headers=auth_headers)
         assert response.status_code == 404
         assert "Training run not found" in response.json()["detail"]
 
-    def test_get_training_run_invalid_uuid(self, test_client: TestClient, auth_headers: Dict[str, str]) -> None:
+    def test_get_training_run_invalid_uuid(
+        self, test_client: fastapi.testclient.TestClient, auth_headers: typing.Dict[str, str]
+    ) -> None:
         """Test getting a training run with invalid UUID."""
         response = test_client.get("/training-runs/invalid-uuid", headers=auth_headers)
         assert response.status_code == 404
 
     def test_update_training_run_status(
-        self, stats_client: StatsClient, test_client: TestClient, auth_headers: Dict[str, str]
+        self,
+        stats_client: metta.app_backend.clients.stats_client.StatsClient,
+        test_client: fastapi.testclient.TestClient,
+        auth_headers: typing.Dict[str, str],
     ) -> None:
         """Test updating training run status."""
         # Create a training run
@@ -317,7 +330,10 @@ class TestTrainingRunsRoutes:
         assert data["status"] == "failed"
 
     def test_update_training_run_status_validation(
-        self, stats_client: StatsClient, test_client: TestClient, auth_headers: Dict[str, str]
+        self,
+        stats_client: metta.app_backend.clients.stats_client.StatsClient,
+        test_client: fastapi.testclient.TestClient,
+        auth_headers: typing.Dict[str, str],
     ) -> None:
         """Test status update validation."""
         # Create a training run
@@ -354,7 +370,7 @@ class TestTrainingRunsRoutes:
         assert "not found" in response.json()["detail"].lower()
 
     def test_update_training_run_status_not_found_error(
-        self, test_client: TestClient, auth_headers: Dict[str, str]
+        self, test_client: fastapi.testclient.TestClient, auth_headers: typing.Dict[str, str]
     ) -> None:
         """Test that non-existent training run returns proper 'not found' error, not 'Invalid UUID format'."""
 
@@ -367,7 +383,10 @@ class TestTrainingRunsRoutes:
         assert "Invalid UUID format" not in response.json()["detail"]
 
     def test_training_failure_updates_status(
-        self, stats_client: StatsClient, test_client: TestClient, auth_headers: Dict[str, str]
+        self,
+        stats_client: metta.app_backend.clients.stats_client.StatsClient,
+        test_client: fastapi.testclient.TestClient,
+        auth_headers: typing.Dict[str, str],
     ) -> None:
         """Test that training failures can be handled and status updated properly."""
         # Create a training run
@@ -398,7 +417,9 @@ class TestTrainingRunsRoutes:
         final_data = response.json()
         assert final_data["status"] == "completed"
 
-    def test_stats_client_update_training_run_status(self, stats_client: StatsClient) -> None:
+    def test_stats_client_update_training_run_status(
+        self, stats_client: metta.app_backend.clients.stats_client.StatsClient
+    ) -> None:
         """Test the StatsClient update_training_run_status method."""
         # Create a training run
         training_run = stats_client.create_training_run(

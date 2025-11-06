@@ -8,10 +8,10 @@ Usage:
 
 import argparse
 import glob
+import pathlib
 import re
 import subprocess
 import sys
-from pathlib import Path
 
 
 def bump_last_version(version_str: str) -> str:
@@ -33,7 +33,7 @@ def bump_last_version(version_str: str) -> str:
     return ".".join(parts)
 
 
-def update_pyproject_version(pyproject_path: Path) -> tuple[str, str]:
+def update_pyproject_version(pyproject_path: pathlib.Path) -> tuple[str, str]:
     """
     Update the version in pyproject.toml file.
 
@@ -62,13 +62,13 @@ def update_pyproject_version(pyproject_path: Path) -> tuple[str, str]:
 
 
 def update_dependency_versions(
-    project_root: Path,
+    project_root: pathlib.Path,
     package_name: str,
     old_version: str,
     new_version: str,
     dry_run: bool = False,
-    skip_path: Path = None,
-) -> list[Path]:
+    skip_path: pathlib.Path = None,
+) -> list[pathlib.Path]:
     """
     Update all references to the package version in other pyproject.toml files.
 
@@ -136,7 +136,7 @@ def update_dependency_versions(
     return updated_files
 
 
-def run_command(cmd: list[str], cwd: Path = None) -> None:
+def run_command(cmd: list[str], cwd: pathlib.Path = None) -> None:
     """Run a command and handle errors."""
     print(f"Running: {' '.join(cmd)}")
     result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
@@ -159,7 +159,7 @@ def main():
     args = parser.parse_args()
 
     # Find project root (where this script is in devops/)
-    script_path = Path(__file__).resolve()
+    script_path = pathlib.Path(__file__).resolve()
     project_root = script_path.parent.parent
 
     # Find package directory

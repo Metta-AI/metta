@@ -1,97 +1,97 @@
+import collections
+import contextlib
+import datetime
 import hashlib
 import logging
 import secrets
+import typing
 import uuid
-from collections import defaultdict
-from contextlib import asynccontextmanager
-from datetime import date, datetime, timedelta
-from typing import Any, Literal
 
-from psycopg import AsyncConnection, Connection
-from psycopg.rows import class_row
-from psycopg.types.json import Jsonb
-from psycopg_pool import AsyncConnectionPool, PoolTimeout
-from pydantic import BaseModel, Field
+import psycopg
+import psycopg.rows
+import psycopg.types.json
+import psycopg_pool
+import pydantic
 
-from metta.app_backend.query_logger import execute_single_row_query_and_log
-from metta.app_backend.schema_manager import SqlMigration, run_migrations
+import metta.app_backend.query_logger
+import metta.app_backend.schema_manager
 
-TaskStatus = Literal["unprocessed", "canceled", "done", "error"]
+TaskStatus = typing.Literal["unprocessed", "canceled", "done", "error"]
 
 
-class TaskStatusUpdate(BaseModel):
+class TaskStatusUpdate(pydantic.BaseModel):
     status: TaskStatus
     clear_assignee: bool = False
-    attributes: dict[str, Any] = Field(default_factory=dict)
+    attributes: dict[str, typing.Any] = pydantic.Field(default_factory=dict)
 
 
 # Row models for database tables
-class SavedDashboardRow(BaseModel):
+class SavedDashboardRow(pydantic.BaseModel):
     id: uuid.UUID
     name: str
     description: str | None
     type: str
-    dashboard_state: dict[str, Any]
-    created_at: datetime
-    updated_at: datetime
+    dashboard_state: dict[str, typing.Any]
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
     user_id: str
 
 
-class TrainingRunRow(BaseModel):
+class TrainingRunRow(pydantic.BaseModel):
     id: uuid.UUID
     name: str
-    created_at: datetime
+    created_at: datetime.datetime
     user_id: str
-    finished_at: datetime | None
+    finished_at: datetime.datetime | None
     status: str
     url: str | None
     description: str | None
     tags: list[str]
 
 
-class MachineTokenRow(BaseModel):
+class MachineTokenRow(pydantic.BaseModel):
     id: uuid.UUID
     name: str
-    created_at: datetime
-    expiration_time: datetime
-    last_used_at: datetime | None
+    created_at: datetime.datetime
+    expiration_time: datetime.datetime
+    last_used_at: datetime.datetime | None
 
 
-class EvalTaskRow(BaseModel):
+class EvalTaskRow(pydantic.BaseModel):
     """Row model that matches the eval_tasks table structure."""
 
     id: uuid.UUID
     policy_id: uuid.UUID
     sim_suite: str
     status: str
-    assigned_at: datetime | None
+    assigned_at: datetime.datetime | None
     assignee: str | None
-    created_at: datetime
-    attributes: dict[str, Any]
+    created_at: datetime.datetime
+    attributes: dict[str, typing.Any]
     retries: int
     user_id: str | None
-    updated_at: datetime
+    updated_at: datetime.datetime
 
 
-class EvalTaskWithPolicyName(BaseModel):
+class EvalTaskWithPolicyName(pydantic.BaseModel):
     """Extended eval task row that includes policy name from JOIN with policies table."""
 
     id: uuid.UUID
     policy_id: uuid.UUID
     sim_suite: str
     status: str
-    assigned_at: datetime | None
+    assigned_at: datetime.datetime | None
     assignee: str | None
-    created_at: datetime
-    attributes: dict[str, Any]
+    created_at: datetime.datetime
+    attributes: dict[str, typing.Any]
     retries: int
     policy_name: str
     policy_url: str
     user_id: str | None
-    updated_at: datetime
+    updated_at: datetime.datetime
 
 
-class SweepRow(BaseModel):
+class SweepRow(pydantic.BaseModel):
     id: uuid.UUID
     name: str
     project: str
@@ -100,51 +100,51 @@ class SweepRow(BaseModel):
     state: str
     run_counter: int
     user_id: str
-    created_at: datetime
-    updated_at: datetime
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
 
 
-class PolicyRow(BaseModel):
+class PolicyRow(pydantic.BaseModel):
     id: uuid.UUID
     name: str
     url: str | None
 
 
-class LeaderboardRow(BaseModel):
+class LeaderboardRow(pydantic.BaseModel):
     id: uuid.UUID
     name: str
     user_id: str
     evals: list[str]
     metric: str
-    start_date: date
+    start_date: datetime.date
     latest_episode: int
-    created_at: datetime
-    updated_at: datetime
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
 
 
-class PolicyEval(BaseModel):
+class PolicyEval(pydantic.BaseModel):
     num_agents: int
     total_score: float
 
 
-class LeaderboardPolicyScore(BaseModel):
+class LeaderboardPolicyScore(pydantic.BaseModel):
     leaderboard_id: uuid.UUID
     policy_id: uuid.UUID
     score: float
 
 
-class CoGamesSubmissionRow(BaseModel):
+class CoGamesSubmissionRow(pydantic.BaseModel):
     id: uuid.UUID
     user_id: str
     name: str | None
     s3_path: str
-    created_at: datetime
+    created_at: datetime.datetime
 
 
 # This is a list of migrations that will be applied to the eval database.
 # Do not change existing migrations, only add new ones.
 MIGRATIONS = [
-    SqlMigration(
+    metta.app_backend.schema_manager.SqlMigration(
         version=0,
         description="Initial eval schema",
         sql_statements=[
@@ -205,7 +205,7 @@ MIGRATIONS = [
             )""",
         ],
     ),
-    SqlMigration(
+    metta.app_backend.schema_manager.SqlMigration(
         version=1,
         description="Add machine tokens table",
         sql_statements=[
@@ -223,21 +223,21 @@ MIGRATIONS = [
             """CREATE INDEX idx_machine_tokens_token_hash ON machine_tokens(token_hash)""",
         ],
     ),
-    SqlMigration(
+    metta.app_backend.schema_manager.SqlMigration(
         version=2,
         description="Make training run names unique",
         sql_statements=[
             """ALTER TABLE training_runs ADD CONSTRAINT training_runs_name_unique UNIQUE (user_id, name)""",
         ],
     ),
-    SqlMigration(
+    metta.app_backend.schema_manager.SqlMigration(
         version=3,
         description="Remove machine token name uniqueness constraint",
         sql_statements=[
             """ALTER TABLE machine_tokens DROP CONSTRAINT machine_tokens_user_id_name_key""",
         ],
     ),
-    SqlMigration(
+    metta.app_backend.schema_manager.SqlMigration(
         version=4,
         description="Add saved dashboards table",
         sql_statements=[
@@ -265,7 +265,7 @@ MIGRATIONS = [
             """,
         ],
     ),
-    SqlMigration(
+    metta.app_backend.schema_manager.SqlMigration(
         version=5,
         description="Parse out eval category from eval name",
         sql_statements=[
@@ -276,7 +276,7 @@ MIGRATIONS = [
             """DROP VIEW episode_view""",
         ],
     ),
-    SqlMigration(
+    metta.app_backend.schema_manager.SqlMigration(
         version=6,
         description="Add scorecard performance indexes",
         sql_statements=[
@@ -297,21 +297,21 @@ MIGRATIONS = [
             """CREATE INDEX idx_epochs_run_id ON epochs(run_id, end_training_epoch DESC)""",
         ],
     ),
-    SqlMigration(
+    metta.app_backend.schema_manager.SqlMigration(
         version=7,
         description="Add description field to training_runs table",
         sql_statements=[
             """ALTER TABLE training_runs ADD COLUMN description TEXT""",
         ],
     ),
-    SqlMigration(
+    metta.app_backend.schema_manager.SqlMigration(
         version=8,
         description="Add tags field to training_runs table",
         sql_statements=[
             """ALTER TABLE training_runs ADD COLUMN tags TEXT[]""",
         ],
     ),
-    SqlMigration(
+    metta.app_backend.schema_manager.SqlMigration(
         version=9,
         description="Add internal_id field to episodes table and episode_agent_metrics table",
         sql_statements=[
@@ -319,7 +319,7 @@ MIGRATIONS = [
             """ALTER TABLE episode_agent_metrics ADD COLUMN episode_internal_id INTEGER""",
         ],
     ),
-    SqlMigration(
+    metta.app_backend.schema_manager.SqlMigration(
         version=10,
         description="Drop episode_agent_metrics.episode_id column",
         sql_statements=[
@@ -333,7 +333,7 @@ MIGRATIONS = [
             """ALTER TABLE episode_agent_metrics DROP COLUMN episode_id""",
         ],
     ),
-    SqlMigration(
+    metta.app_backend.schema_manager.SqlMigration(
         version=11,
         description="Add eval_tasks table",
         sql_statements=[
@@ -356,7 +356,7 @@ MIGRATIONS = [
                WHERE status = 'unprocessed'""",
         ],
     ),
-    SqlMigration(
+    metta.app_backend.schema_manager.SqlMigration(
         version=12,
         description="Add eval_task_id to episodes table",
         sql_statements=[
@@ -364,7 +364,7 @@ MIGRATIONS = [
             """CREATE INDEX idx_episodes_eval_task_id ON episodes(eval_task_id)""",
         ],
     ),
-    SqlMigration(
+    metta.app_backend.schema_manager.SqlMigration(
         version=13,
         description="Add episode_tags table",
         sql_statements=[
@@ -377,7 +377,7 @@ MIGRATIONS = [
             """CREATE INDEX idx_episode_tags_tag ON episode_tags(tag)""",
         ],
     ),
-    SqlMigration(
+    metta.app_backend.schema_manager.SqlMigration(
         version=14,
         description="Add wide_episodes view for simplified episode filtering",
         sql_statements=[
@@ -413,7 +413,7 @@ MIGRATIONS = [
             """,
         ],
     ),
-    SqlMigration(
+    metta.app_backend.schema_manager.SqlMigration(
         version=15,
         description="Add sweeps table for sweep coordination",
         sql_statements=[
@@ -432,7 +432,7 @@ MIGRATIONS = [
             """CREATE INDEX idx_sweeps_name ON sweeps(name)""",
         ],
     ),
-    SqlMigration(
+    metta.app_backend.schema_manager.SqlMigration(
         version=16,
         description="Add index on eval_tasks git_hash, assigned_at. And another on assigned_at",
         sql_statements=[
@@ -440,7 +440,7 @@ MIGRATIONS = [
             """CREATE INDEX idx_eval_tasks_assigned_at ON eval_tasks(assigned_at)""",
         ],
     ),
-    SqlMigration(
+    metta.app_backend.schema_manager.SqlMigration(
         version=17,
         description="Add retries column to eval_tasks table",
         sql_statements=[
@@ -448,7 +448,7 @@ MIGRATIONS = [
             """CREATE INDEX idx_eval_tasks_retries ON eval_tasks(retries)""",
         ],
     ),
-    SqlMigration(
+    metta.app_backend.schema_manager.SqlMigration(
         version=18,
         description="Add index on assignee, assigned_at, status",
         sql_statements=[
@@ -456,7 +456,7 @@ MIGRATIONS = [
                ON eval_tasks(assignee, assigned_at, status)""",
         ],
     ),
-    SqlMigration(
+    metta.app_backend.schema_manager.SqlMigration(
         version=19,
         description="Add internal_id to wide_episodes view",
         sql_statements=[
@@ -494,7 +494,7 @@ MIGRATIONS = [
             """,
         ],
     ),
-    SqlMigration(
+    metta.app_backend.schema_manager.SqlMigration(
         version=20,
         description="Add user_id to eval_tasks",
         sql_statements=[
@@ -502,7 +502,7 @@ MIGRATIONS = [
             """CREATE INDEX idx_eval_tasks_user_id ON eval_tasks(user_id)""",
         ],
     ),
-    SqlMigration(
+    metta.app_backend.schema_manager.SqlMigration(
         version=21,
         description="Add updated_at to eval_tasks",
         sql_statements=[
@@ -510,14 +510,14 @@ MIGRATIONS = [
             """CREATE INDEX idx_eval_tasks_updated_at ON eval_tasks(updated_at)""",
         ],
     ),
-    SqlMigration(
+    metta.app_backend.schema_manager.SqlMigration(
         version=22,
         description="Add index on episodes.primary_policy_id",
         sql_statements=[
             """CREATE INDEX IF NOT EXISTS idx_episodes_primary_policy_id ON episodes(primary_policy_id)""",
         ],
     ),
-    SqlMigration(
+    metta.app_backend.schema_manager.SqlMigration(
         version=23,
         description="Add leaderboards table",
         sql_statements=[
@@ -557,7 +557,7 @@ MIGRATIONS = [
                 SELECT * FROM my_run_free_policies;""",
         ],
     ),
-    SqlMigration(
+    metta.app_backend.schema_manager.SqlMigration(
         version=24,
         description="Convert training_runs.status from TEXT to ENUM",
         sql_statements=[
@@ -614,7 +614,7 @@ MIGRATIONS = [
             """,
         ],
     ),
-    SqlMigration(
+    metta.app_backend.schema_manager.SqlMigration(
         version=25,
         description="Add thumbnail_url field to episodes table and update wide_episodes view",
         sql_statements=[
@@ -654,7 +654,7 @@ MIGRATIONS = [
             """,
         ],
     ),
-    SqlMigration(
+    metta.app_backend.schema_manager.SqlMigration(
         version=26,
         description="Drop simulation_suite column from episodes table",
         sql_statements=[
@@ -693,7 +693,7 @@ MIGRATIONS = [
             """,
         ],
     ),
-    SqlMigration(
+    metta.app_backend.schema_manager.SqlMigration(
         version=27,
         description="Add cogames_policy_submissions table",
         sql_statements=[
@@ -716,24 +716,24 @@ logger = logging.getLogger(name="metta_repo")
 class MettaRepo:
     def __init__(self, db_uri: str) -> None:
         self.db_uri = db_uri
-        self._pool: AsyncConnectionPool | None = None
+        self._pool: psycopg_pool.AsyncConnectionPool | None = None
         # Run migrations synchronously during initialization
-        with Connection.connect(self.db_uri) as con:
-            run_migrations(con, MIGRATIONS)
+        with psycopg.Connection.connect(self.db_uri) as con:
+            metta.app_backend.schema_manager.run_migrations(con, MIGRATIONS)
 
-    async def _ensure_pool(self) -> AsyncConnectionPool:
+    async def _ensure_pool(self) -> psycopg_pool.AsyncConnectionPool:
         if self._pool is None:
-            self._pool = AsyncConnectionPool(self.db_uri, min_size=2, max_size=20, open=False)
+            self._pool = psycopg_pool.AsyncConnectionPool(self.db_uri, min_size=2, max_size=20, open=False)
             await self._pool.open()
         return self._pool
 
-    @asynccontextmanager
+    @contextlib.asynccontextmanager
     async def connect(self):
         pool = await self._ensure_pool()
         try:
             async with pool.connection(timeout=5) as conn:
                 yield conn
-        except PoolTimeout as e:
+        except psycopg_pool.PoolTimeout as e:
             stats = pool.get_stats()
             logger.error(f"Error connecting to database: {e}. Pool stats: {stats}", exc_info=True)
 
@@ -757,7 +757,7 @@ class MettaRepo:
 
     async def get_policy_by_id(self, policy_id: uuid.UUID) -> PolicyRow | None:
         async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(PolicyRow)) as cur:
+            async with con.cursor(row_factory=psycopg.rows.class_row(PolicyRow)) as cur:
                 await cur.execute(
                     """
                     SELECT id, name, url
@@ -801,7 +801,7 @@ class MettaRepo:
                 ON CONFLICT (user_id, name) DO NOTHING
                 RETURNING id
                 """,
-                (name, user_id, Jsonb(attributes), status, url, description, tags),
+                (name, user_id, psycopg.types.json.Jsonb(attributes), status, url, description, tags),
             )
             row = await result.fetchone()
             if row is None:
@@ -835,7 +835,7 @@ class MettaRepo:
         run_id: uuid.UUID,
         start_training_epoch: int,
         end_training_epoch: int,
-        attributes: dict[str, Any],
+        attributes: dict[str, typing.Any],
     ) -> uuid.UUID:
         async with self.connect() as con:
             result = await con.execute(
@@ -844,7 +844,7 @@ class MettaRepo:
                 VALUES (%s, %s, %s, %s)
                 RETURNING id
                 """,
-                (run_id, start_training_epoch, end_training_epoch, Jsonb(attributes)),
+                (run_id, start_training_epoch, end_training_epoch, psycopg.types.json.Jsonb(attributes)),
             )
             row = await result.fetchone()
             if row is None:
@@ -879,7 +879,7 @@ class MettaRepo:
         primary_policy_id: uuid.UUID,
         stats_epoch: uuid.UUID | None,
         replay_url: str | None,
-        attributes: dict[str, Any],
+        attributes: dict[str, typing.Any],
         eval_task_id: uuid.UUID | None = None,
         tags: list[str] | None = None,
         thumbnail_url: str | None = None,
@@ -915,7 +915,7 @@ class MettaRepo:
                     env_name,
                     primary_policy_id,
                     stats_epoch,
-                    Jsonb(attributes),
+                    psycopg.types.json.Jsonb(attributes),
                     eval_task_id,
                     thumbnail_url,
                 ),
@@ -1014,7 +1014,7 @@ class MettaRepo:
     async def get_training_runs(self) -> list[TrainingRunRow]:
         """Get all training runs."""
         async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(TrainingRunRow)) as cur:
+            async with con.cursor(row_factory=psycopg.rows.class_row(TrainingRunRow)) as cur:
                 await cur.execute(
                     """
                     SELECT id, name, created_at, user_id, finished_at, status, url, description,
@@ -1033,7 +1033,7 @@ class MettaRepo:
             return None
 
         async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(TrainingRunRow)) as cur:
+            async with con.cursor(row_factory=psycopg.rows.class_row(TrainingRunRow)) as cur:
                 await cur.execute(
                     """
                     SELECT id, name, created_at, user_id, finished_at, status, url, description,
@@ -1052,7 +1052,7 @@ class MettaRepo:
         token_hash = self._hash_token(token)
 
         # Set expiration time
-        expiration_time = datetime.now() + timedelta(days=expiration_days)
+        expiration_time = datetime.datetime.now() + datetime.timedelta(days=expiration_days)
 
         async with self.connect() as con:
             await con.execute(
@@ -1068,7 +1068,7 @@ class MettaRepo:
     async def list_machine_tokens(self, user_id: str) -> list[MachineTokenRow]:
         """List all machine tokens for a user."""
         async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(MachineTokenRow)) as cur:
+            async with con.cursor(row_factory=psycopg.rows.class_row(MachineTokenRow)) as cur:
                 await cur.execute(
                     """
                     SELECT id, name, created_at, expiration_time, last_used_at
@@ -1108,7 +1108,7 @@ class MettaRepo:
                 WHERE token_hash = %s AND expiration_time > CURRENT_TIMESTAMP
                 RETURNING user_id
                 """
-            result = await execute_single_row_query_and_log(
+            result = await metta.app_backend.query_logger.execute_single_row_query_and_log(
                 con,
                 query,
                 (token_hash,),
@@ -1125,7 +1125,7 @@ class MettaRepo:
         name: str,
         description: str | None,
         dashboard_type: str,
-        dashboard_state: dict[str, Any],
+        dashboard_state: dict[str, typing.Any],
     ) -> uuid.UUID:
         """Create a new saved dashboard (no upsert, always insert)."""
         async with self.connect() as con:
@@ -1136,7 +1136,7 @@ class MettaRepo:
                 ) VALUES (%s, %s, %s, %s, %s)
                 RETURNING id
                 """,
-                (user_id, name, description, dashboard_type, Jsonb(dashboard_state)),
+                (user_id, name, description, dashboard_type, psycopg.types.json.Jsonb(dashboard_state)),
             )
             row = await result.fetchone()
             if row is None:
@@ -1146,7 +1146,7 @@ class MettaRepo:
     async def list_saved_dashboards(self) -> list[SavedDashboardRow]:
         """List all saved dashboards."""
         async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(SavedDashboardRow)) as cur:
+            async with con.cursor(row_factory=psycopg.rows.class_row(SavedDashboardRow)) as cur:
                 await cur.execute(
                     """
                     SELECT id, name, description, type, dashboard_state, created_at, updated_at, user_id
@@ -1164,7 +1164,7 @@ class MettaRepo:
             return None
 
         async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(SavedDashboardRow)) as cur:
+            async with con.cursor(row_factory=psycopg.rows.class_row(SavedDashboardRow)) as cur:
                 await cur.execute(
                     """
                     SELECT id, name, description, type, dashboard_state, created_at, updated_at, user_id
@@ -1196,7 +1196,7 @@ class MettaRepo:
         self,
         user_id: str,
         dashboard_id: str,
-        dashboard_state: dict[str, Any],
+        dashboard_state: dict[str, typing.Any],
     ) -> bool:
         """Update an existing saved dashboard."""
         try:
@@ -1211,7 +1211,7 @@ class MettaRepo:
                 SET dashboard_state = %s, updated_at = CURRENT_TIMESTAMP
                 WHERE id = %s AND user_id = %s
                 """,
-                (Jsonb(dashboard_state), dashboard_uuid, user_id),
+                (psycopg.types.json.Jsonb(dashboard_state), dashboard_uuid, user_id),
             )
             return result.rowcount > 0
 
@@ -1255,11 +1255,11 @@ class MettaRepo:
         self,
         policy_id: uuid.UUID,
         sim_suite: str,
-        attributes: dict[str, Any],
+        attributes: dict[str, typing.Any],
         user_id: str | None = None,
     ) -> EvalTaskRow:
         async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(EvalTaskRow)) as cur:
+            async with con.cursor(row_factory=psycopg.rows.class_row(EvalTaskRow)) as cur:
                 await cur.execute(
                     """
                     INSERT INTO eval_tasks (policy_id, sim_suite, attributes, user_id)
@@ -1267,7 +1267,7 @@ class MettaRepo:
                     RETURNING id, policy_id, sim_suite, status, assigned_at,
                              assignee, created_at, attributes, retries, user_id, updated_at
                     """,
-                    (policy_id, sim_suite, Jsonb(attributes), user_id),
+                    (policy_id, sim_suite, psycopg.types.json.Jsonb(attributes), user_id),
                 )
                 row = await cur.fetchone()
                 if row is None:
@@ -1276,7 +1276,7 @@ class MettaRepo:
 
     async def get_available_tasks(self, limit: int = 200) -> list[EvalTaskWithPolicyName]:
         async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
+            async with con.cursor(row_factory=psycopg.rows.class_row(EvalTaskWithPolicyName)) as cur:
                 await cur.execute(
                     """
                     SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
@@ -1318,7 +1318,7 @@ class MettaRepo:
 
     async def get_claimed_tasks(self, assignee: str | None = None) -> list[EvalTaskWithPolicyName]:
         async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
+            async with con.cursor(row_factory=psycopg.rows.class_row(EvalTaskWithPolicyName)) as cur:
                 if assignee is not None:
                     await cur.execute(
                         """
@@ -1378,7 +1378,7 @@ class MettaRepo:
                 WHERE {filter_clause}
                 RETURNING id
                 """
-                params = (update.status, Jsonb(update.attributes)) + filter_params
+                params = (update.status, psycopg.types.json.Jsonb(update.attributes)) + filter_params
                 result = await con.execute(query, params)
 
                 if result.rowcount > 0:
@@ -1500,7 +1500,7 @@ class MettaRepo:
     async def get_sweep_by_name(self, name: str) -> SweepRow | None:
         """Get sweep by name."""
         async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(SweepRow)) as cur:
+            async with con.cursor(row_factory=psycopg.rows.class_row(SweepRow)) as cur:
                 await cur.execute(
                     """
                     SELECT id, name, project, entity, wandb_sweep_id, state, run_counter,
@@ -1532,7 +1532,7 @@ class MettaRepo:
 
     async def get_latest_assigned_task_for_worker(self, assignee: str) -> EvalTaskWithPolicyName | None:
         async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
+            async with con.cursor(row_factory=psycopg.rows.class_row(EvalTaskWithPolicyName)) as cur:
                 await cur.execute(
                     """
                     SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
@@ -1551,7 +1551,7 @@ class MettaRepo:
 
     async def get_task_by_id(self, task_id: uuid.UUID) -> EvalTaskWithPolicyName | None:
         async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
+            async with con.cursor(row_factory=psycopg.rows.class_row(EvalTaskWithPolicyName)) as cur:
                 await cur.execute(
                     """
                     SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
@@ -1600,7 +1600,7 @@ class MettaRepo:
             where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
             params.append(limit)
 
-            async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
+            async with con.cursor(row_factory=psycopg.rows.class_row(EvalTaskWithPolicyName)) as cur:
                 await cur.execute(
                     f"""
                     SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
@@ -1704,7 +1704,7 @@ class MettaRepo:
                     ) as attributes
                 """.strip()
 
-            async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
+            async with con.cursor(row_factory=psycopg.rows.class_row(EvalTaskWithPolicyName)) as cur:
                 await cur.execute(
                     f"""
                     SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
@@ -1733,7 +1733,7 @@ class MettaRepo:
                 (assignees,),
             )
             rows = await queryRes.fetchall()
-            res: dict[str, list[str]] = defaultdict(list)
+            res: dict[str, list[str]] = collections.defaultdict(list)
             for row in rows:
                 if row[1]:  # Only add non-null git hashes
                     res[row[0]].append(row[1])
@@ -1781,7 +1781,7 @@ class MettaRepo:
         """Update a leaderboard."""
 
         async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(LeaderboardRow)) as cur:
+            async with con.cursor(row_factory=psycopg.rows.class_row(LeaderboardRow)) as cur:
                 cur_leaderboard_cursor = await cur.execute(
                     "SELECT * FROM leaderboards WHERE id = %s AND user_id = %s",
                     (leaderboard_id, user_id),
@@ -1796,7 +1796,7 @@ class MettaRepo:
                 or cur_leaderboard.metric != metric
                 or cur_leaderboard.start_date != start_date
             ):
-                async with con.cursor(row_factory=class_row(LeaderboardRow)) as update_cur:
+                async with con.cursor(row_factory=psycopg.rows.class_row(LeaderboardRow)) as update_cur:
                     query = """
                     UPDATE leaderboards
                     SET name = %s, evals = %s, metric = %s, start_date = %s, latest_episode = 0, updated_at = NOW()
@@ -1827,7 +1827,7 @@ class MettaRepo:
     async def list_leaderboards(self) -> list[LeaderboardRow]:
         """List all leaderboards for a user."""
         async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(LeaderboardRow)) as cur:
+            async with con.cursor(row_factory=psycopg.rows.class_row(LeaderboardRow)) as cur:
                 await cur.execute(
                     """
                     SELECT id, name, user_id, evals, metric, start_date, latest_episode, created_at, updated_at
@@ -1841,7 +1841,7 @@ class MettaRepo:
     async def get_leaderboard(self, leaderboard_id: uuid.UUID) -> LeaderboardRow | None:
         """Get a specific leaderboard by ID."""
         async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(LeaderboardRow)) as cur:
+            async with con.cursor(row_factory=psycopg.rows.class_row(LeaderboardRow)) as cur:
                 await cur.execute("SELECT * FROM leaderboards WHERE id = %s", (leaderboard_id,))
                 row = await cur.fetchone()
                 return row
@@ -1864,7 +1864,7 @@ class MettaRepo:
             return result.rowcount > 0
 
     async def update_leaderboard_latest_episode(
-        self, con: AsyncConnection, leaderboard_id: uuid.UUID, latest_episode: int
+        self, con: psycopg.AsyncConnection, leaderboard_id: uuid.UUID, latest_episode: int
     ) -> None:
         """Update the latest episode for a leaderboard."""
         await con.execute(

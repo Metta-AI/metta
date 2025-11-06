@@ -1,9 +1,9 @@
 import numpy as np
 
-from mettagrid.mapgen.scene import Scene, SceneConfig
+import mettagrid.mapgen.scene
 
 
-class BiomeCavesConfig(SceneConfig):
+class BiomeCavesConfig(mettagrid.mapgen.scene.SceneConfig):
     fill_prob: float = 0.45  # initial rock density
     steps: int = 4  # cellular automata smoothing steps
     birth_limit: int = 5
@@ -13,7 +13,7 @@ class BiomeCavesConfig(SceneConfig):
     dither_depth: int = 5  # How many cells deep to consider as edge zone
 
 
-class BiomeCaves(Scene[BiomeCavesConfig]):
+class BiomeCaves(mettagrid.mapgen.scene.Scene[BiomeCavesConfig]):
     """
     Classic cellular-automata caves (rooms connected via erosion-like smoothing).
     Walls are rock; empty is cave passage.

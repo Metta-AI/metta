@@ -1,9 +1,9 @@
 import abc
-from datetime import datetime
-from typing import List, LiteralString, Sequence
+import datetime
+import typing
 
-from psycopg import AsyncConnection, Connection, sql
-from pydantic import BaseModel
+import psycopg
+import pydantic
 
 
 class Migration(abc.ABC):
@@ -16,16 +16,16 @@ class Migration(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def up(self, conn: Connection) -> None:
+    def up(self, conn: psycopg.Connection) -> None:
         pass
 
     @abc.abstractmethod
-    async def up_async(self, conn: AsyncConnection) -> None:
+    async def up_async(self, conn: psycopg.AsyncConnection) -> None:
         pass
 
 
 class SqlMigration(Migration):
-    def __init__(self, version: int, description: str, sql_statements: List[LiteralString]):
+    def __init__(self, version: int, description: str, sql_statements: typing.List[typing.LiteralString]):
         self._version = version
         self._description = description
         self._sql_statements = sql_statements
@@ -36,30 +36,30 @@ class SqlMigration(Migration):
     def description(self) -> str:
         return self._description
 
-    def up(self, conn: Connection) -> None:
+    def up(self, conn: psycopg.Connection) -> None:
         with conn.cursor() as cursor:
             for stmt in self._sql_statements:
-                cursor.execute(sql.SQL(stmt))
+                cursor.execute(psycopg.sql.SQL(stmt))
 
-    async def up_async(self, conn: AsyncConnection) -> None:
+    async def up_async(self, conn: psycopg.AsyncConnection) -> None:
         async with conn.cursor() as cursor:
             for stmt in self._sql_statements:
-                await cursor.execute(sql.SQL(stmt))
+                await cursor.execute(psycopg.sql.SQL(stmt))
 
 
-class MigrationRecord(BaseModel):
+class MigrationRecord(pydantic.BaseModel):
     version: int
     description: str
-    applied_at: datetime
+    applied_at: datetime.datetime
 
 
-def validate_migrations(migrations: Sequence[Migration]):
+def validate_migrations(migrations: typing.Sequence[Migration]):
     for i, migration in enumerate(migrations):
         if migration.version() != i:
             raise ValueError(f"Migration {i} has version {migration.version()}")
 
 
-migrations_ddl = sql.SQL("""
+migrations_ddl = psycopg.sql.SQL("""
 CREATE TABLE IF NOT EXISTS migrations (
     version INTEGER PRIMARY KEY,
     description TEXT NOT NULL,
@@ -67,14 +67,16 @@ CREATE TABLE IF NOT EXISTS migrations (
 );
 """)
 
-last_applied_migration_query = sql.SQL(
+last_applied_migration_query = psycopg.sql.SQL(
     "SELECT version, description, applied_at FROM migrations ORDER BY version DESC LIMIT 1"
 )
 
-insert_migration_query = sql.SQL("INSERT INTO migrations (version, description, applied_at) VALUES (%s, %s, %s)")
+insert_migration_query = psycopg.sql.SQL(
+    "INSERT INTO migrations (version, description, applied_at) VALUES (%s, %s, %s)"
+)
 
 
-def get_last_applied_migration(conn: Connection) -> MigrationRecord | None:
+def get_last_applied_migration(conn: psycopg.Connection) -> MigrationRecord | None:
     with conn.cursor() as cursor:
         cursor.execute(last_applied_migration_query)
         result = cursor.fetchone()
@@ -84,7 +86,7 @@ def get_last_applied_migration(conn: Connection) -> MigrationRecord | None:
         return None
 
 
-async def get_last_applied_migration_async(conn: AsyncConnection) -> MigrationRecord | None:
+async def get_last_applied_migration_async(conn: psycopg.AsyncConnection) -> MigrationRecord | None:
     async with conn.cursor() as cursor:
         await cursor.execute(last_applied_migration_query)
         result = await cursor.fetchone()
@@ -94,19 +96,19 @@ async def get_last_applied_migration_async(conn: AsyncConnection) -> MigrationRe
         return None
 
 
-def init_migrations_table(conn: Connection):
+def init_migrations_table(conn: psycopg.Connection):
     with conn.cursor() as cursor:
         cursor.execute(migrations_ddl)
         conn.commit()
 
 
-async def init_migrations_table_async(conn: AsyncConnection):
+async def init_migrations_table_async(conn: psycopg.AsyncConnection):
     async with conn.cursor() as cursor:
         await cursor.execute(migrations_ddl)
         await conn.commit()
 
 
-def run_migrations(conn: Connection, migrations: Sequence[Migration]) -> None:
+def run_migrations(conn: psycopg.Connection, migrations: typing.Sequence[Migration]) -> None:
     validate_migrations(migrations)
     init_migrations_table(conn)
     last_applied_migration = get_last_applied_migration(conn)
@@ -115,12 +117,14 @@ def run_migrations(conn: Connection, migrations: Sequence[Migration]) -> None:
         with conn.transaction():
             migration.up(conn)
             with conn.cursor() as cursor:
-                cursor.execute(insert_migration_query, (migration.version(), migration.description(), datetime.now()))
+                cursor.execute(
+                    insert_migration_query, (migration.version(), migration.description(), datetime.datetime.now())
+                )
 
     conn.commit()
 
 
-async def run_migrations_async(conn: AsyncConnection, migrations: Sequence[Migration]) -> None:
+async def run_migrations_async(conn: psycopg.AsyncConnection, migrations: typing.Sequence[Migration]) -> None:
     validate_migrations(migrations)
     await init_migrations_table_async(conn)
     last_applied_migration = await get_last_applied_migration_async(conn)
@@ -130,7 +134,7 @@ async def run_migrations_async(conn: AsyncConnection, migrations: Sequence[Migra
             await migration.up_async(conn)
             async with conn.cursor() as cursor:
                 await cursor.execute(
-                    insert_migration_query, (migration.version(), migration.description(), datetime.now())
+                    insert_migration_query, (migration.version(), migration.description(), datetime.datetime.now())
                 )
 
     await conn.commit()

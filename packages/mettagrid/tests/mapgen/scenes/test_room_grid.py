@@ -1,20 +1,19 @@
 import numpy as np
 
-from mettagrid.mapgen.area import AreaQuery
-from mettagrid.mapgen.scenes.room_grid import RoomGrid
-from mettagrid.test_support.mapgen import render_scene
-
-from .test_utils import assert_grid
+import mettagrid.mapgen.area
+import mettagrid.mapgen.scenes.room_grid
+import mettagrid.test_support.mapgen
+import packages.mettagrid.tests.mapgen.scenes.test_utils
 
 
 def test_exact():
     # Test creating a 2x3 grid of rooms
-    scene = render_scene(
-        RoomGrid.Config(rows=2, columns=3, border_width=1, border_object="wall"),
+    scene = mettagrid.test_support.mapgen.render_scene(
+        mettagrid.mapgen.scenes.room_grid.RoomGrid.Config(rows=2, columns=3, border_width=1, border_object="wall"),
         (10, 10),
     )
 
-    assert_grid(
+    packages.mettagrid.tests.mapgen.scenes.test_utils.assert_grid(
         scene,
         """
 ..#..#..##
@@ -33,8 +32,8 @@ def test_exact():
 
 def test_with_rows_columns():
     # Test creating a 2x3 grid of rooms
-    scene = render_scene(
-        RoomGrid.Config(rows=2, columns=3, border_width=1, border_object="wall"),
+    scene = mettagrid.test_support.mapgen.render_scene(
+        mettagrid.mapgen.scenes.room_grid.RoomGrid.Config(rows=2, columns=3, border_width=1, border_object="wall"),
         (10, 10),
     )
 
@@ -42,7 +41,7 @@ def test_with_rows_columns():
     # Should have walls at inner borders
     assert np.array_equal(scene.grid[4, :], ["wall"] * 10)  # Horizontal border
     assert np.array_equal(scene.grid[:, 2], ["wall"] * 10)  # Vertical border
-    areas = scene.select_areas(AreaQuery())
+    areas = scene.select_areas(mettagrid.mapgen.area.AreaQuery())
     # Verify room areas are created. The 4x2 shape is due to the border width.
     assert len(areas) == 6
     assert all(area.grid.shape == (4, 2) for area in areas)
@@ -55,12 +54,12 @@ def test_with_layout():
     # Test creating rooms with a specific layout and tags
     layout = [["room1", "room2"], ["room3", "room4"]]
 
-    scene = render_scene(
-        RoomGrid.Config(layout=layout, border_width=1, border_object="wall"),
+    scene = mettagrid.test_support.mapgen.render_scene(
+        mettagrid.mapgen.scenes.room_grid.RoomGrid.Config(layout=layout, border_width=1, border_object="wall"),
         (10, 10),
     )
 
-    areas = scene.select_areas(AreaQuery())
+    areas = scene.select_areas(mettagrid.mapgen.area.AreaQuery())
     # Verify room areas are created with correct tags
     assert len(areas) == 4
     assert all(area.grid.shape == (4, 4) for area in areas)

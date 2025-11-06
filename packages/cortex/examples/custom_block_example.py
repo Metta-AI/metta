@@ -1,37 +1,37 @@
 #!/usr/bin/env -S uv run python
 """Example showing how to create custom block types for the cortex architecture."""
 
+import cortex
+import cortex.blocks.base
+import cortex.cells.base
+import cortex.config
+import cortex.types
+import pydantic
 import torch
 import torch.nn as nn
-from cortex import register_block
-from cortex.blocks.base import BaseBlock
-from cortex.cells.base import MemoryCell
-from cortex.config import BlockConfig, CortexStackConfig, LSTMCellConfig
-from cortex.types import MaybeState, ResetMask, Tensor
-from pydantic import Field
 
 
 # Step 1: Define custom block configuration
-class GatedResidualBlockConfig(BlockConfig):
+class GatedResidualBlockConfig(cortex.config.BlockConfig):
     """Configuration for a custom gated residual block.
 
     This block applies a gate to control the residual connection.
     """
 
-    gate_activation: str = Field(default="sigmoid")
-    residual_weight: float = Field(default=0.5, ge=0.0, le=1.0)
+    gate_activation: str = pydantic.Field(default="sigmoid")
+    residual_weight: float = pydantic.Field(default=0.5, ge=0.0, le=1.0)
 
 
 # Step 2: Implement and register the custom block
-@register_block(GatedResidualBlockConfig)
-class GatedResidualBlock(BaseBlock):
+@cortex.register_block(GatedResidualBlockConfig)
+class GatedResidualBlock(cortex.blocks.base.BaseBlock):
     """A custom block with gated residual connections.
 
     This block processes input through a cell and applies a learned
     gate to blend between the cell output and the original input.
     """
 
-    def __init__(self, config: GatedResidualBlockConfig, d_hidden: int, cell: MemoryCell) -> None:
+    def __init__(self, config: GatedResidualBlockConfig, d_hidden: int, cell: cortex.cells.base.MemoryCell) -> None:
         super().__init__(d_hidden=d_hidden, cell=cell)
         self.config = config
 
@@ -51,12 +51,12 @@ class GatedResidualBlock(BaseBlock):
 
     def forward(
         self,
-        x: Tensor,
-        state: MaybeState,
+        x: cortex.types.Tensor,
+        state: cortex.types.MaybeState,
         *,
-        resets: ResetMask | None = None,
-    ) -> tuple[Tensor, MaybeState]:
-        from tensordict import TensorDict
+        resets: cortex.types.ResetMask | None = None,
+    ) -> tuple[cortex.types.Tensor, cortex.types.MaybeState]:
+        import tensordict
 
         # Extract cell state from block state
         cell_key = self.cell.__class__.__name__
@@ -73,7 +73,7 @@ class GatedResidualBlock(BaseBlock):
         output = gate * y + (1 - gate) * self.residual_weight * x
 
         # Wrap cell state in block state
-        return output, TensorDict({cell_key: new_cell_state}, batch_size=[])
+        return output, tensordict.TensorDict({cell_key: new_cell_state}, batch_size=[])
 
 
 def test_custom_block():
@@ -87,17 +87,17 @@ def test_custom_block():
     d_hidden = 128
 
     # Create a recipe with custom blocks
-    recipe = CortexStackConfig(
+    recipe = cortex.config.CortexStackConfig(
         d_hidden=d_hidden,
         blocks=[
             # Mix standard and custom blocks
             GatedResidualBlockConfig(
-                cell=LSTMCellConfig(hidden_size=128, num_layers=1),
+                cell=cortex.config.LSTMCellConfig(hidden_size=128, num_layers=1),
                 gate_activation="sigmoid",
                 residual_weight=0.3,
             ),
             GatedResidualBlockConfig(
-                cell=LSTMCellConfig(hidden_size=128, num_layers=2),
+                cell=cortex.config.LSTMCellConfig(hidden_size=128, num_layers=2),
                 gate_activation="tanh",
                 residual_weight=0.7,
             ),
@@ -115,9 +115,9 @@ def test_custom_block():
 
     # Build the stack using the standard CortexStack - no custom class needed!
     # The registry system automatically handles our custom block type
-    from cortex.stacks import CortexStack
+    import cortex.stacks
 
-    stack = CortexStack(recipe)
+    stack = cortex.stacks.CortexStack(recipe)
 
     print(f"Built custom stack with {len(stack.blocks)} blocks")
 

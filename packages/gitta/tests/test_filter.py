@@ -1,18 +1,18 @@
 """Tests for git repository filtering functionality."""
 
+import pathlib
 import subprocess
 import tempfile
-from pathlib import Path
 
 import pytest
 
-from gitta import filter_repo
+import gitta
 
 
 def create_repo_with_files():
     """Create a temporary git repository with multiple files."""
     tmpdir = tempfile.mkdtemp()
-    repo_path = Path(tmpdir)
+    repo_path = pathlib.Path(tmpdir)
 
     # Initialize repo
     subprocess.run(["git", "init"], cwd=repo_path, check=True, capture_output=True)
@@ -69,7 +69,7 @@ def test_filter_repo_not_a_git_repository():
     """Test error when path is not a git repository."""
     with tempfile.TemporaryDirectory() as tmpdir:
         with pytest.raises(ValueError, match="Not a git repository"):
-            filter_repo(Path(tmpdir), ["src/"], make_root="src/")
+            gitta.filter_repo(pathlib.Path(tmpdir), ["src/"], make_root="src/")
 
 
 def test_filter_repo_requires_make_root():
@@ -77,7 +77,7 @@ def test_filter_repo_requires_make_root():
     repo_path = create_repo_with_files()
 
     with pytest.raises(ValueError, match="requires make_root parameter"):
-        filter_repo(repo_path, ["src/"])
+        gitta.filter_repo(repo_path, ["src/"])
 
 
 def test_filter_repo_single_path_only():
@@ -85,7 +85,7 @@ def test_filter_repo_single_path_only():
     repo_path = create_repo_with_files()
 
     with pytest.raises(ValueError, match="only supports a single path"):
-        filter_repo(repo_path, ["src/", "docs/"], make_root="src/")
+        gitta.filter_repo(repo_path, ["src/", "docs/"], make_root="src/")
 
 
 def test_filter_repo_nonexistent_path():
@@ -93,7 +93,7 @@ def test_filter_repo_nonexistent_path():
     repo_path = create_repo_with_files()
 
     with pytest.raises(ValueError, match="does not exist"):
-        filter_repo(repo_path, ["nonexistent/"], make_root="nonexistent/")
+        gitta.filter_repo(repo_path, ["nonexistent/"], make_root="nonexistent/")
 
 
 def test_filter_repo_basic():
@@ -101,7 +101,7 @@ def test_filter_repo_basic():
     repo_path = create_repo_with_files()
 
     # Filter to just the src directory, making it the root
-    result_path = filter_repo(repo_path, ["src/"], make_root="src/")
+    result_path = gitta.filter_repo(repo_path, ["src/"], make_root="src/")
 
     assert result_path.exists()
     assert (result_path / ".git").exists()
@@ -132,7 +132,7 @@ def test_filter_repo_preserves_history():
     repo_path = create_repo_with_files()
 
     # Filter to just the src directory
-    result_path = filter_repo(repo_path, ["src/"], make_root="src/")
+    result_path = gitta.filter_repo(repo_path, ["src/"], make_root="src/")
 
     # Check that we have commits in the filtered repo
     result = subprocess.run(

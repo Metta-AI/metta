@@ -1,7 +1,7 @@
-from colorama import Fore, Style, init
+import colorama
 
 # Initialize colorama
-init(autoreset=True)
+colorama.init(autoreset=True)
 
 USE_COLORAMA_COLORS = True
 
@@ -9,35 +9,35 @@ USE_COLORAMA_COLORS = True
 def colorize(text, color):
     if not USE_COLORAMA_COLORS:
         return text
-    return f"{color}{text}{Style.RESET_ALL}"
+    return f"{color}{text}{colorama.Style.RESET_ALL}"
 
 
 def red(text):
-    return colorize(text, Fore.RED)
+    return colorize(text, colorama.Fore.RED)
 
 
 def green(text):
-    return colorize(text, Fore.GREEN)
+    return colorize(text, colorama.Fore.GREEN)
 
 
 def yellow(text):
-    return colorize(text, Fore.YELLOW)
+    return colorize(text, colorama.Fore.YELLOW)
 
 
 def cyan(text):
-    return colorize(text, Fore.CYAN)
+    return colorize(text, colorama.Fore.CYAN)
 
 
 def blue(text):
-    return colorize(text, Fore.BLUE)
+    return colorize(text, colorama.Fore.BLUE)
 
 
 def bold(text):
-    return colorize(text, Style.BRIGHT)
+    return colorize(text, colorama.Style.BRIGHT)
 
 
 def magenta(text):
-    return colorize(text, Fore.MAGENTA)
+    return colorize(text, colorama.Fore.MAGENTA)
 
 
 def use_colors(use_colors: bool):

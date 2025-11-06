@@ -1,14 +1,7 @@
 """Test script for the cortex stack implementation."""
 
+import cortex
 import torch
-from cortex import (
-    CortexStackConfig,
-    LSTMCellConfig,
-    PassThroughBlockConfig,
-    PostUpBlockConfig,
-    PreUpBlockConfig,
-    build_cortex,
-)
 
 
 def test_cortex_stack():
@@ -23,25 +16,25 @@ def test_cortex_stack():
     d_hidden = 256
 
     # Create a recipe with mixed block types
-    recipe = CortexStackConfig(
+    recipe = cortex.CortexStackConfig(
         d_hidden=d_hidden,
         blocks=[
-            PreUpBlockConfig(
-                cell=LSTMCellConfig(
+            cortex.PreUpBlockConfig(
+                cell=cortex.LSTMCellConfig(
                     hidden_size=None,  # Inferred as d_inner = proj_factor * d_hidden
                     num_layers=1,
                     dropout=0.1,
                 ),
                 proj_factor=2.0,
             ),
-            PassThroughBlockConfig(
-                cell=LSTMCellConfig(
+            cortex.PassThroughBlockConfig(
+                cell=cortex.LSTMCellConfig(
                     hidden_size=256,  # Must match d_hidden
                     num_layers=1,
                 ),
             ),
-            PostUpBlockConfig(
-                cell=LSTMCellConfig(
+            cortex.PostUpBlockConfig(
+                cell=cortex.LSTMCellConfig(
                     hidden_size=None,  # Inferred as d_hidden
                     num_layers=1,
                 ),
@@ -61,7 +54,7 @@ def test_cortex_stack():
     print()
 
     # Build the cortex stack
-    cortex = build_cortex(recipe)
+    cortex = cortex.build_cortex(recipe)
     print(f"Built CortexStack with {len(cortex.blocks)} blocks")
 
     # Count parameters
@@ -151,33 +144,33 @@ def test_cortex_stack():
     print("-" * 40)
 
     # Test passthrough-only stack
-    passthrough_recipe = CortexStackConfig(
+    passthrough_recipe = cortex.CortexStackConfig(
         d_hidden=128,
         blocks=[
-            PassThroughBlockConfig(
-                cell=LSTMCellConfig(hidden_size=128, num_layers=1),
+            cortex.PassThroughBlockConfig(
+                cell=cortex.LSTMCellConfig(hidden_size=128, num_layers=1),
             )
             for _ in range(3)
         ],
         post_norm=False,
     )
-    passthrough_cortex = build_cortex(passthrough_recipe)
+    passthrough_cortex = cortex.build_cortex(passthrough_recipe)
     x_test = torch.randn(2, 5, 128)
     output, _ = passthrough_cortex(x_test, state=None)
     assert output.shape == x_test.shape
     print("✓ Passthrough-only stack test passed")
 
     # Test preup-only stack
-    preup_recipe = CortexStackConfig(
+    preup_recipe = cortex.CortexStackConfig(
         d_hidden=64,
         blocks=[
-            PreUpBlockConfig(
-                cell=LSTMCellConfig(hidden_size=None, num_layers=1),
+            cortex.PreUpBlockConfig(
+                cell=cortex.LSTMCellConfig(hidden_size=None, num_layers=1),
                 proj_factor=2.0,
             )
         ],
     )
-    preup_cortex = build_cortex(preup_recipe)
+    preup_cortex = cortex.build_cortex(preup_recipe)
     x_test = torch.randn(2, 5, 64)
     output, _ = preup_cortex(x_test, state=None)
     assert output.shape == x_test.shape

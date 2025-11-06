@@ -1,24 +1,24 @@
 """Job state models for tracking job execution status."""
 
+import datetime
+import enum
 import json
 import logging
-from datetime import datetime
-from enum import StrEnum
-from typing import TYPE_CHECKING, Any, Optional
+import typing
 
-from sqlalchemy import Text
-from sqlmodel import Column, Field, SQLModel
+import sqlalchemy
+import sqlmodel
 
-from metta.jobs.job_config import JobConfig
-from metta.jobs.job_metrics import fetch_job_metrics, parse_total_timesteps
+import metta.jobs.job_config
+import metta.jobs.job_metrics
 
-if TYPE_CHECKING:
-    from metta.jobs.job_runner import Job
+if typing.TYPE_CHECKING:
+    import metta.jobs.job_runner
 
 logger = logging.getLogger(__name__)
 
 
-class JobStatus(StrEnum):
+class JobStatus(enum.StrEnum):
     """Job execution status values."""
 
     PENDING = "pending"  # Queued, waiting to start
@@ -26,52 +26,54 @@ class JobStatus(StrEnum):
     COMPLETED = "completed"  # Finished (success or failure determined by exit_code)
 
 
-class JobState(SQLModel, table=True):
+class JobState(sqlmodel.SQLModel, table=True):
     """Tracks job execution state and results.
 
     Persisted to SQLite with name as primary key.
     Config stored as JSON, exposed via property for type safety.
     """
 
-    name: str = Field(primary_key=True)
-    config_json: str = Field(default="", sa_column=Column("config", Text), exclude=True)
+    name: str = sqlmodel.Field(primary_key=True)
+    config_json: str = sqlmodel.Field(default="", sa_column=sqlmodel.Column("config", sqlalchemy.Text), exclude=True)
 
-    def __init__(self, **data: Any):
-        if "config" in data and isinstance(data["config"], JobConfig):
+    def __init__(self, **data: typing.Any):
+        if "config" in data and isinstance(data["config"], metta.jobs.job_config.JobConfig):
             data["config_json"] = json.dumps(data["config"].model_dump())
             del data["config"]
         super().__init__(**data)
 
     @property
-    def config(self) -> JobConfig:
+    def config(self) -> metta.jobs.job_config.JobConfig:
         if not self.config_json:
             raise ValueError("Config not set")
-        return JobConfig(**json.loads(self.config_json))
+        return metta.jobs.job_config.JobConfig(**json.loads(self.config_json))
 
     @config.setter
-    def config(self, value: JobConfig) -> None:
+    def config(self, value: metta.jobs.job_config.JobConfig) -> None:
         self.config_json = json.dumps(value.model_dump())
 
     # Runtime state
-    status: str = Field(default=JobStatus.PENDING)
-    request_id: Optional[str] = None  # SkyPilot request ID (remote jobs only)
-    job_id: Optional[str] = None  # SkyPilot job ID or local PID
-    skypilot_status: Optional[str] = None  # SkyPilot job status (PENDING, RUNNING, SUCCEEDED, etc.)
-    started_at: Optional[str] = None
-    completed_at: Optional[str] = None
+    status: str = sqlmodel.Field(default=JobStatus.PENDING)
+    request_id: typing.Optional[str] = None  # SkyPilot request ID (remote jobs only)
+    job_id: typing.Optional[str] = None  # SkyPilot job ID or local PID
+    skypilot_status: typing.Optional[str] = None  # SkyPilot job status (PENDING, RUNNING, SUCCEEDED, etc.)
+    started_at: typing.Optional[str] = None
+    completed_at: typing.Optional[str] = None
 
     # Results
-    exit_code: Optional[int] = None
-    logs_path: Optional[str] = None
-    acceptance_passed: Optional[bool] = None  # None = not evaluated, True/False = result
+    exit_code: typing.Optional[int] = None
+    logs_path: typing.Optional[str] = None
+    acceptance_passed: typing.Optional[bool] = None  # None = not evaluated, True/False = result
 
     # Extracted artifacts
-    wandb_url: Optional[str] = None
-    wandb_run_id: Optional[str] = None
-    checkpoint_uri: Optional[str] = None
+    wandb_url: typing.Optional[str] = None
+    wandb_run_id: typing.Optional[str] = None
+    checkpoint_uri: typing.Optional[str] = None
 
     # Metrics
-    metrics_json: str = Field(default="{}", sa_column=Column("metrics", Text), exclude=True)
+    metrics_json: str = sqlmodel.Field(
+        default="{}", sa_column=sqlmodel.Column("metrics", sqlalchemy.Text), exclude=True
+    )
 
     @property
     def metrics(self) -> dict[str, float]:
@@ -122,10 +124,10 @@ class JobState(SQLModel, table=True):
             logger.warning(f"Cannot fetch metrics for {self.name}: no wandb_run_id set")
             return
 
-        total_timesteps = parse_total_timesteps(self.config.args)
+        total_timesteps = metta.jobs.job_metrics.parse_total_timesteps(self.config.args)
 
         try:
-            metrics = fetch_job_metrics(
+            metrics = metta.jobs.job_metrics.fetch_job_metrics(
                 entity=self.config.wandb_entity,
                 project=self.config.wandb_project,
                 run_name=self.wandb_run_id,
@@ -181,8 +183,8 @@ class JobState(SQLModel, table=True):
         if not self.started_at or not self.completed_at:
             return None
 
-        start = datetime.fromisoformat(self.started_at)
-        end = datetime.fromisoformat(self.completed_at)
+        start = datetime.datetime.fromisoformat(self.started_at)
+        end = datetime.datetime.fromisoformat(self.completed_at)
         return (end - start).total_seconds()
 
     @property

@@ -1,11 +1,13 @@
-from mettagrid.mapgen.random.float import FloatUniformDistribution
-from mettagrid.mapgen.scenes.random_objects import RandomObjects
-from mettagrid.test_support.mapgen import render_scene
+import mettagrid.mapgen.random.float
+import mettagrid.mapgen.scenes.random_objects
+import mettagrid.test_support.mapgen
 
 
 def test_objects():
-    scene = render_scene(
-        RandomObjects.Config(object_ranges={"altar": FloatUniformDistribution(low=0.2, high=0.5)}),
+    scene = mettagrid.test_support.mapgen.render_scene(
+        mettagrid.mapgen.scenes.random_objects.RandomObjects.Config(
+            object_ranges={"altar": mettagrid.mapgen.random.float.FloatUniformDistribution(low=0.2, high=0.5)}
+        ),
         (10, 10),
     )
 

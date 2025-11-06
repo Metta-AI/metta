@@ -4,30 +4,31 @@ import random
 
 import pytest
 
-from metta.cogworks.curriculum.curriculum import CurriculumTask
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressAlgorithm, LearningProgressConfig
-
-from .test_helpers import CurriculumTestHelper
+import metta.cogworks.curriculum.curriculum
+import metta.cogworks.curriculum.learning_progress_algorithm
+import tests.cogworks.curriculum.test_helpers
 
 
 @pytest.fixture(params=[False, True], ids=["standard", "bidirectional"])
 def learning_progress_config(request):
     """Fixture providing both standard and bidirectional learning progress configurations."""
     use_bidirectional = request.param
-    return LearningProgressConfig(
+    return metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig(
         ema_timescale=0.001,
         max_memory_tasks=10,
         use_bidirectional=use_bidirectional,
     )
 
 
-def _register_task(algorithm: LearningProgressAlgorithm, task_id: int) -> int:
-    algorithm.on_task_created(CurriculumTask(task_id, {"task_id": task_id}))
+def _register_task(
+    algorithm: metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressAlgorithm, task_id: int
+) -> int:
+    algorithm.on_task_created(metta.cogworks.curriculum.curriculum.CurriculumTask(task_id, {"task_id": task_id}))
     return task_id
 
 
 def _create_tasks(
-    algorithm: LearningProgressAlgorithm,
+    algorithm: metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressAlgorithm,
     count: int,
     rng: random.Random | None = None,
 ) -> list[int]:
@@ -39,7 +40,7 @@ def _create_tasks(
 
 
 def _sample_task_id(
-    algorithm: LearningProgressAlgorithm,
+    algorithm: metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressAlgorithm,
     task_ids: list[int],
     rng: random.Random,
 ) -> int:
@@ -64,13 +65,17 @@ class TestLearningProgressCoreBehavior:
     def test_learning_progress_favors_fast_learning(self, random_seed, learning_progress_config):
         """Test that fast learning tasks get higher learning progress scores than slow learning."""
         # Set up algorithm with tasks (works for both standard and bidirectional)
-        algorithm = LearningProgressAlgorithm(num_tasks=2, hypers=learning_progress_config)
+        algorithm = metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressAlgorithm(
+            num_tasks=2, hypers=learning_progress_config
+        )
 
         rng = random.Random(random_seed)
         task1_id, task2_id = _create_tasks(algorithm, 2, rng)
 
         # Use helper to setup performance patterns - REDUCED from 10 to 3 iterations
-        CurriculumTestHelper.setup_learning_comparison(algorithm, (task1_id, task2_id), "fast_vs_slow", iterations=3)
+        tests.cogworks.curriculum.test_helpers.CurriculumTestHelper.setup_learning_comparison(
+            algorithm, (task1_id, task2_id), "fast_vs_slow", iterations=3
+        )
 
         # Get LP scores for both tasks via public scoring API
         scores = algorithm.score_tasks([task1_id, task2_id])
@@ -93,13 +98,15 @@ class TestLearningProgressCoreBehavior:
     def test_learning_progress_favors_changing_performance(self, random_seed, learning_progress_config):
         """Test that changing performance has higher learning progress scores than consistent performance."""
         # Set up algorithm with tasks (works for both standard and bidirectional)
-        algorithm = LearningProgressAlgorithm(num_tasks=2, hypers=learning_progress_config)
+        algorithm = metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressAlgorithm(
+            num_tasks=2, hypers=learning_progress_config
+        )
 
         rng = random.Random(random_seed)
         task1_id, task2_id = _create_tasks(algorithm, 2, rng)
 
         # Use helper to setup performance patterns - REDUCED from 5 to 3 iterations
-        CurriculumTestHelper.setup_learning_comparison(
+        tests.cogworks.curriculum.test_helpers.CurriculumTestHelper.setup_learning_comparison(
             algorithm, (task1_id, task2_id), "changing_vs_consistent", iterations=3
         )
 
@@ -124,13 +131,17 @@ class TestLearningProgressCoreBehavior:
     def test_learning_progress_sampling_favors_high_lp_tasks(self, random_seed, learning_progress_config):
         """Test that sampling favors tasks with higher learning progress scores."""
         # Set up algorithm with tasks (works for both standard and bidirectional)
-        algorithm = LearningProgressAlgorithm(num_tasks=3, hypers=learning_progress_config)
+        algorithm = metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressAlgorithm(
+            num_tasks=3, hypers=learning_progress_config
+        )
 
         rng = random.Random(random_seed)
         task1_id, task2_id, task3_id = _create_tasks(algorithm, 3, rng)
 
         # Use more iterations for reliable score differentiation
-        CurriculumTestHelper.setup_learning_comparison(algorithm, (task1_id, task2_id), "fast_vs_slow", iterations=15)
+        tests.cogworks.curriculum.test_helpers.CurriculumTestHelper.setup_learning_comparison(
+            algorithm, (task1_id, task2_id), "fast_vs_slow", iterations=15
+        )
 
         # Give Task 3 some consistent performance data so it has a score
         for _ in range(10):
@@ -181,11 +192,13 @@ class TestLearningProgressCoreBehavior:
 
     def test_learning_progress_pool_management(self, random_seed):
         """Test that the learning progress algorithm properly manages its task pool."""
-        config = LearningProgressConfig(
+        config = metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig(
             ema_timescale=0.001,
             max_memory_tasks=5,
         )
-        algorithm = LearningProgressAlgorithm(num_tasks=10, hypers=config)
+        algorithm = metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressAlgorithm(
+            num_tasks=10, hypers=config
+        )
 
         rng = random.Random(random_seed)
         task_ids = _create_tasks(algorithm, 2, rng)
@@ -201,11 +214,13 @@ class TestLearningProgressCoreBehavior:
 
     def test_learning_progress_ema_smoothing(self, random_seed):
         """Test that EMA smoothing works correctly for learning progress calculation."""
-        config = LearningProgressConfig(
+        config = metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig(
             ema_timescale=0.1,  # Higher timescale for faster convergence in test
             max_memory_tasks=10,
         )
-        algorithm = LearningProgressAlgorithm(num_tasks=1, hypers=config)
+        algorithm = metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressAlgorithm(
+            num_tasks=1, hypers=config
+        )
 
         task_id = _create_tasks(algorithm, 1, random.Random(random_seed))[0]
 
@@ -222,11 +237,13 @@ class TestLearningProgressCoreBehavior:
 
     def test_learning_progress_eviction_policy(self, random_seed):
         """Test that eviction policy prefers tasks with low learning progress."""
-        config = LearningProgressConfig(
+        config = metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig(
             ema_timescale=0.001,
             max_memory_tasks=10,
         )
-        algorithm = LearningProgressAlgorithm(num_tasks=3, hypers=config)
+        algorithm = metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressAlgorithm(
+            num_tasks=3, hypers=config
+        )
 
         rng = random.Random(random_seed)
         task1_id, task2_id, task3_id = _create_tasks(algorithm, 3, rng)
@@ -257,12 +274,14 @@ class TestLearningProgressProductionPatterns:
 
     def test_learning_progress_with_many_tasks(self, random_seed):
         """Test learning progress algorithm with production-like task counts."""
-        config = LearningProgressConfig(
+        config = metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig(
             ema_timescale=0.001,
             max_memory_tasks=50,  # REDUCED from 100 for faster testing
             enable_detailed_slice_logging=True,  # Enable detailed stats for testing
         )
-        algorithm = LearningProgressAlgorithm(num_tasks=20, hypers=config)  # REDUCED from 50
+        algorithm = metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressAlgorithm(
+            num_tasks=20, hypers=config
+        )  # REDUCED from 50
 
         rng = random.Random(random_seed)
         task_ids = _create_tasks(algorithm, 15, rng)
@@ -282,11 +301,13 @@ class TestLearningProgressProductionPatterns:
 
     def test_learning_progress_memory_management(self, random_seed):
         """Test that memory management works under production load."""
-        config = LearningProgressConfig(
+        config = metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig(
             ema_timescale=0.001,
             max_memory_tasks=10,  # Small limit to trigger cleanup
         )
-        algorithm = LearningProgressAlgorithm(num_tasks=20, hypers=config)
+        algorithm = metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressAlgorithm(
+            num_tasks=20, hypers=config
+        )
 
         rng = random.Random(random_seed)
         task_ids = _create_tasks(algorithm, 15, rng)
@@ -301,11 +322,13 @@ class TestLearningProgressProductionPatterns:
 
     def test_learning_progress_task_sampling_distribution(self, random_seed):
         """Test that task sampling follows expected distribution patterns."""
-        config = LearningProgressConfig(
+        config = metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig(
             ema_timescale=0.01,  # Higher for faster convergence
             max_memory_tasks=20,
         )
-        algorithm = LearningProgressAlgorithm(num_tasks=5, hypers=config)
+        algorithm = metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressAlgorithm(
+            num_tasks=5, hypers=config
+        )
 
         rng = random.Random(random_seed)
         task_ids = _create_tasks(algorithm, 5, rng)
@@ -348,17 +371,21 @@ class TestBidirectionalLearningProgressBehavior:
     def test_bidirectional_fast_vs_slow_learning_with_more_data(self, random_seed):
         """Test bidirectional learning progress with more data points to detect differences."""
         # Bidirectional algorithm needs more data points to calculate meaningful progress
-        config = LearningProgressConfig(
+        config = metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig(
             ema_timescale=0.001,
             max_memory_tasks=10,
             use_bidirectional=True,
         )
-        algorithm = LearningProgressAlgorithm(num_tasks=2, hypers=config)
+        algorithm = metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressAlgorithm(
+            num_tasks=2, hypers=config
+        )
 
         task1_id, task2_id = _create_tasks(algorithm, 2, random.Random(random_seed))
 
         # Use many more iterations for bidirectional algorithm to detect differences with realistic EMAs
-        CurriculumTestHelper.setup_learning_comparison(algorithm, (task1_id, task2_id), "fast_vs_slow", iterations=50)
+        tests.cogworks.curriculum.test_helpers.CurriculumTestHelper.setup_learning_comparison(
+            algorithm, (task1_id, task2_id), "fast_vs_slow", iterations=50
+        )
 
         scores = algorithm.score_tasks([task1_id, task2_id])
         lp_score_1 = scores.get(task1_id, 0.0)
@@ -372,13 +399,15 @@ class TestBidirectionalLearningProgressBehavior:
 
     def test_bidirectional_learning_progress_with_sufficient_data(self, random_seed):
         """Test that bidirectional learning progress works with sufficient task data."""
-        config = LearningProgressConfig(
+        config = metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig(
             ema_timescale=0.01,  # Higher timescale for faster response
             max_memory_tasks=10,
             use_bidirectional=True,
             sample_threshold=5,  # Lower threshold for testing
         )
-        algorithm = LearningProgressAlgorithm(num_tasks=3, hypers=config)
+        algorithm = metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressAlgorithm(
+            num_tasks=3, hypers=config
+        )
 
         rng = random.Random(random_seed)
         task_ids = _create_tasks(algorithm, 3, rng)
@@ -414,12 +443,14 @@ class TestBidirectionalLearningProgressBehavior:
 
     def test_bidirectional_learning_progress_stats(self, random_seed):
         """Test that bidirectional learning progress provides expected statistics."""
-        config = LearningProgressConfig(
+        config = metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig(
             ema_timescale=0.01,
             max_memory_tasks=10,
             use_bidirectional=True,
         )
-        algorithm = LearningProgressAlgorithm(num_tasks=2, hypers=config)
+        algorithm = metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressAlgorithm(
+            num_tasks=2, hypers=config
+        )
 
         rng = random.Random(random_seed)
         task_ids = _create_tasks(algorithm, 2, rng)

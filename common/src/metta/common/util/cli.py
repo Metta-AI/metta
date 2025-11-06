@@ -2,15 +2,15 @@
 Common utilities for CLI scripts.
 """
 
+import contextlib
 import subprocess
 import sys
 import threading
 import time
-from contextlib import contextmanager
-from typing import Callable, Iterator, Optional
+import typing
 
-from metta.common.util.log_config import init_logging
-from metta.common.util.text_styles import blue, bold, cyan, green, magenta, red, yellow
+import metta.common.util.log_config
+import metta.common.util.text_styles
 
 
 class Spinner:
@@ -19,12 +19,12 @@ class Spinner:
     def __init__(
         self,
         message: str = "Processing",
-        spinner_chars: Optional[list[str]] = None,
-        style: Optional[Callable[[str], str]] = None,
+        spinner_chars: typing.Optional[list[str]] = None,
+        style: typing.Optional[typing.Callable[[str], str]] = None,
     ):
         self.message = message
         self.spinner_chars = spinner_chars or ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-        self.style = style or yellow  # Default to yellow if no style specified
+        self.style = style or metta.common.util.text_styles.yellow  # Default to yellow if no style specified
         self._thread = None
         self._stop_event = threading.Event()
         self._spinner_index = 0
@@ -74,10 +74,12 @@ class Spinner:
         self.message = message
 
 
-@contextmanager
+@contextlib.contextmanager
 def spinner(
-    message: str = "Processing", spinner_chars: Optional[list[str]] = None, style: Optional[Callable[[str], str]] = None
-) -> Iterator[Spinner]:
+    message: str = "Processing",
+    spinner_chars: typing.Optional[list[str]] = None,
+    style: typing.Optional[typing.Callable[[str], str]] = None,
+) -> typing.Iterator[Spinner]:
     """
     Context manager for showing a spinner during long operations.
 
@@ -119,7 +121,7 @@ def get_user_confirmation(prompt: str = "Should we proceed?") -> bool:
 
     response = input(f"{prompt} (Y/n): ").strip().lower()
     if response not in ["", "y", "yes"]:
-        print(yellow("Action cancelled by user."))
+        print(metta.common.util.text_styles.yellow("Action cancelled by user."))
         return False
 
     return True
@@ -128,8 +130,8 @@ def get_user_confirmation(prompt: str = "Should we proceed?") -> bool:
 def sh(
     cmd: list[str],
     show_spinner: bool = False,
-    spinner_message: Optional[str] = None,
-    spinner_style: Optional[Callable[[str], str]] = None,
+    spinner_message: typing.Optional[str] = None,
+    spinner_style: typing.Optional[typing.Callable[[str], str]] = None,
     **kwargs,
 ) -> str:
     """
@@ -157,18 +159,18 @@ def die(msg: str, code: int = 1):
 
 def main():
     """Demo the spinner functionality."""
-    print(cyan("CLI Spinner Demo"))
-    print(cyan("=" * 40))
+    print(metta.common.util.text_styles.cyan("CLI Spinner Demo"))
+    print(metta.common.util.text_styles.cyan("=" * 40))
 
     # Demo 1: Basic spinner
-    print(f"\n{yellow('1. Basic spinner for 3 seconds:')}")
+    print(f"\n{metta.common.util.text_styles.yellow('1. Basic spinner for 3 seconds:')}")
     with spinner("Loading data"):
         time.sleep(3)
-    print(green("✓ Done!"))
+    print(metta.common.util.text_styles.green("✓ Done!"))
 
     # Demo 2: Spinner with message updates
-    print(f"\n{yellow('2. Spinner with changing messages:')}")
-    with spinner("Initializing", style=blue) as sp:
+    print(f"\n{metta.common.util.text_styles.yellow('2. Spinner with changing messages:')}")
+    with spinner("Initializing", style=metta.common.util.text_styles.blue) as sp:
         time.sleep(1)
         sp.update_message("Connecting to database")
         time.sleep(1)
@@ -176,57 +178,76 @@ def main():
         time.sleep(1)
         sp.update_message("Processing data")
         time.sleep(1)
-    print(green("✓ Complete!"))
+    print(metta.common.util.text_styles.green("✓ Complete!"))
 
     # Demo 3: Different spinner styles with different text styles
-    print(f"\n{yellow('3. Different spinner styles and text styles:')}")
+    print(f"\n{metta.common.util.text_styles.yellow('3. Different spinner styles and text styles:')}")
     spinner_styles = [
-        (["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"], f"{cyan('cyan')} Dots", cyan),
-        (["|", "/", "-", "\\"], f"{yellow('yellow')} Slash", yellow),
-        (["◐", "◓", "◑", "◒"], f"{green('green')} Circle", green),
-        (["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█", "▇", "▆", "▅", "▄", "▃", "▂"], f"{magenta('magenta')} Bar", magenta),
+        (
+            ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"],
+            f"{metta.common.util.text_styles.cyan('cyan')} Dots",
+            metta.common.util.text_styles.cyan,
+        ),
+        (
+            ["|", "/", "-", "\\"],
+            f"{metta.common.util.text_styles.yellow('yellow')} Slash",
+            metta.common.util.text_styles.yellow,
+        ),
+        (
+            ["◐", "◓", "◑", "◒"],
+            f"{metta.common.util.text_styles.green('green')} Circle",
+            metta.common.util.text_styles.green,
+        ),
+        (
+            ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█", "▇", "▆", "▅", "▄", "▃", "▂"],
+            f"{metta.common.util.text_styles.magenta('magenta')} Bar",
+            metta.common.util.text_styles.magenta,
+        ),
     ]
 
     for chars, name, text_style in spinner_styles:
         with spinner(f"Testing {name} spinner", spinner_chars=chars, style=text_style):
             time.sleep(2)
-        print(green(f"✓ {name} complete!"))
+        print(metta.common.util.text_styles.green(f"✓ {name} complete!"))
 
     # Demo 4: Interactive demo with bold green spinner
-    print(f"\n{yellow('4. Interactive demo:')}")
-    with spinner("Press Enter to continue", style=lambda x: bold(green(x))):
+    print(f"\n{metta.common.util.text_styles.yellow('4. Interactive demo:')}")
+    with spinner(
+        "Press Enter to continue",
+        style=lambda x: metta.common.util.text_styles.bold(metta.common.util.text_styles.green(x)),
+    ):
         input()
-    print(green("✓ Thanks for trying the spinner!"))
+    print(metta.common.util.text_styles.green("✓ Thanks for trying the spinner!"))
 
     # Demo 5: Command execution with spinner
-    print(f"\n{yellow('5. Running command with spinner:')}")
+    print(f"\n{metta.common.util.text_styles.yellow('5. Running command with spinner:')}")
     try:
         result = sh(
             ["echo", "Hello from subprocess"],
             show_spinner=True,
             spinner_message="Executing command",
-            spinner_style=green,
+            spinner_style=metta.common.util.text_styles.green,
         )
-        print(green(f"✓ Command output: {result}"))
+        print(metta.common.util.text_styles.green(f"✓ Command output: {result}"))
     except Exception as e:
-        print(red(f"✗ Command failed: {e}"))
+        print(metta.common.util.text_styles.red(f"✗ Command failed: {e}"))
 
     # Demo 6: Error scenario with red spinner
-    print(f"\n{yellow('6. Error handling demo:')}")
+    print(f"\n{metta.common.util.text_styles.yellow('6. Error handling demo:')}")
     try:
-        with spinner("Simulating error", style=red):
+        with spinner("Simulating error", style=metta.common.util.text_styles.red):
             time.sleep(1)
             raise ValueError("Something went wrong!")
     except ValueError:
-        print(red("✗ Error occurred as expected"))
+        print(metta.common.util.text_styles.red("✗ Error occurred as expected"))
 
     # Demo 7: Bold spinner
-    print(f"\n{yellow('7. Bold spinner demo:')}")
-    with spinner("Important operation in progress", style=bold):
+    print(f"\n{metta.common.util.text_styles.yellow('7. Bold spinner demo:')}")
+    with spinner("Important operation in progress", style=metta.common.util.text_styles.bold):
         time.sleep(2)
-    print(green("✓ Critical operation completed!"))
+    print(metta.common.util.text_styles.green("✓ Critical operation completed!"))
 
 
 if __name__ == "__main__":
-    init_logging()
+    metta.common.util.log_config.init_logging()
     main()

@@ -1,63 +1,57 @@
+import concurrent.futures
+import dataclasses
+import pathlib
 import subprocess
 import tempfile
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Annotated, Iterable, Sequence
+import typing
 
+import pydantic
 import typer
-from pydantic import BaseModel
 
-from metta.common.util.fs import get_repo_root
-from metta.setup.tools.test_runner.summary import (
-    log_results,
-    report_failures,
-    summarize_test_results,
-    write_github_summary,
-    write_slow_tests_github_summary,
-)
-from metta.setup.utils import error, info
+import metta.common.util.fs
+import metta.setup.tools.test_runner.summary
+import metta.setup.utils
 
 
-class Package(BaseModel):
+class Package(pydantic.BaseModel):
     name: str
-    target: Path
+    target: pathlib.Path
 
     @property
     def key(self) -> str:
         return self.name.lower()
 
     @property
-    def target_path(self) -> Path:
-        root = get_repo_root()
+    def target_path(self) -> pathlib.Path:
+        root = metta.common.util.fs.get_repo_root()
         if self.target.is_absolute():
             return self.target
         return root / self.target
 
 
 PACKAGES: tuple[Package, ...] = (
-    Package(name="tests", target=Path("tests")),
-    Package(name="agent", target=Path("agent/tests")),
-    Package(name="app_backend", target=Path("app_backend/tests")),
-    Package(name="common", target=Path("common/tests")),
-    Package(name="codebot", target=Path("packages/codebot/tests")),
-    Package(name="cogames", target=Path("packages/cogames/tests")),
-    Package(name="gitta", target=Path("packages/gitta/tests")),
-    Package(name="mettagrid", target=Path("packages/mettagrid/tests")),
-    Package(name="cortex", target=Path("packages/cortex/tests")),
+    Package(name="tests", target=pathlib.Path("tests")),
+    Package(name="agent", target=pathlib.Path("agent/tests")),
+    Package(name="app_backend", target=pathlib.Path("app_backend/tests")),
+    Package(name="common", target=pathlib.Path("common/tests")),
+    Package(name="codebot", target=pathlib.Path("packages/codebot/tests")),
+    Package(name="cogames", target=pathlib.Path("packages/cogames/tests")),
+    Package(name="gitta", target=pathlib.Path("packages/gitta/tests")),
+    Package(name="mettagrid", target=pathlib.Path("packages/mettagrid/tests")),
+    Package(name="cortex", target=pathlib.Path("packages/cortex/tests")),
 )
 
 
-def _run_command(args: Sequence[str]) -> int:
-    info(f"→ {' '.join(args)}")
-    completed = subprocess.run(args, cwd=get_repo_root(), check=False)
+def _run_command(args: typing.Sequence[str]) -> int:
+    metta.setup.utils.info(f"→ {' '.join(args)}")
+    completed = subprocess.run(args, cwd=metta.common.util.fs.get_repo_root(), check=False)
     return completed.returncode
 
 
 def _resolve_package_targets(
-    include: Iterable[str],
-    exclude: Iterable[str],
+    include: typing.Iterable[str],
+    exclude: typing.Iterable[str],
 ) -> list[Package]:
     package_map = {package.key: package for package in PACKAGES}
     include_keys = [name.lower() for name in include]
@@ -78,8 +72,8 @@ def _resolve_package_targets(
     return selected
 
 
-def _collect_package_targets(packages: Iterable[Package]) -> list[str]:
-    targets: list[Path] = []
+def _collect_package_targets(packages: typing.Iterable[Package]) -> list[str]:
+    targets: list[pathlib.Path] = []
     for package in packages:
         path = package.target_path
         if not path.exists():
@@ -87,7 +81,7 @@ def _collect_package_targets(packages: Iterable[Package]) -> list[str]:
         targets.append(path)
     if not targets:
         raise ValueError("No package targets resolved.")
-    return [str(t.relative_to(get_repo_root())) for t in targets]
+    return [str(t.relative_to(metta.common.util.fs.get_repo_root())) for t in targets]
 
 
 app = typer.Typer(
@@ -97,20 +91,20 @@ app = typer.Typer(
 )
 
 
-@dataclass(slots=True)
+@dataclasses.dataclass(slots=True)
 class PackageResult:
     package: Package
     target: str
     returncode: int
-    report_file: Path
+    report_file: pathlib.Path
     duration: float
 
 
 def _execute_ci_packages(
-    packages: Sequence[Package],
-    targets: Sequence[str],
-    base_cmd: Sequence[str],
-    report_dir: Path,
+    packages: typing.Sequence[Package],
+    targets: typing.Sequence[str],
+    base_cmd: typing.Sequence[str],
+    report_dir: pathlib.Path,
 ) -> list[PackageResult]:
     index_map = {package.key: index for index, package in enumerate(packages)}
     futures = []
@@ -119,8 +113,8 @@ def _execute_ci_packages(
     def _run_ci_package(
         package: Package,
         target: str,
-        base_cmd: Sequence[str],
-        report_dir: Path,
+        base_cmd: typing.Sequence[str],
+        report_dir: pathlib.Path,
     ) -> PackageResult:
         report_file = report_dir / f"{package.key}.json"
         if report_file.exists():
@@ -136,11 +130,11 @@ def _execute_ci_packages(
             duration=duration,
         )
 
-    with ThreadPoolExecutor(max_workers=len(targets)) as pool:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(targets)) as pool:
         for package, target in zip(packages, targets, strict=True):
             futures.append(pool.submit(_run_ci_package, package, target, base_cmd, report_dir))
 
-        for future in as_completed(futures):
+        for future in concurrent.futures.as_completed(futures):
             results.append(future.result())
 
     results.sort(key=lambda item: index_map.get(item.package.key, len(index_map)))
@@ -150,14 +144,14 @@ def _execute_ci_packages(
 @app.callback()
 def run(
     ctx: typer.Context,
-    targets: Annotated[list[str] | None, typer.Argument(help="Explicit pytest targets.")] = None,
+    targets: typing.Annotated[list[str] | None, typer.Argument(help="Explicit pytest targets.")] = None,
     ci: bool = typer.Option(False, "--ci", help="Use CI-style settings and parallel suite execution."),
     test: bool = typer.Option(False, "--test", help="Run unit tests (default if no flags specified)."),
     benchmark: bool = typer.Option(False, "--benchmark", help="Run benchmarks."),
-    packages: Annotated[
+    packages: typing.Annotated[
         list[str] | None, typer.Option("--package", "-p", help="Limit to specific named package(s).")
     ] = None,
-    skip_packages: Annotated[
+    skip_packages: typing.Annotated[
         list[str] | None, typer.Option("--skip-package", help="Exclude package(s) by name.")
     ] = None,
     changed: bool = typer.Option(
@@ -182,7 +176,7 @@ def run(
     cmd = ["uv", "run", "pytest"]
     if target_args:
         if package_args or skip_package_args or changed or ci:
-            error("Explicit targets cannot be combined with suite filters, --changed, or --ci.")
+            metta.setup.utils.error("Explicit targets cannot be combined with suite filters, --changed, or --ci.")
             raise typer.Exit(1)
         exit_code = _run_command([*cmd, *target_args, *extra_args])
         raise typer.Exit(exit_code)
@@ -191,7 +185,7 @@ def run(
         selected = _resolve_package_targets(package_args, skip_package_args)
         resolved_targets = _collect_package_targets(selected)
     except ValueError as exc:
-        error(str(exc))
+        metta.setup.utils.error(str(exc))
         raise typer.Exit(1) from exc
 
     if ci:
@@ -216,13 +210,13 @@ def run(
         base_cmd.extend(extra_args)
 
         with tempfile.TemporaryDirectory(prefix="pytest-json-") as temp_dir:
-            report_dir = Path(temp_dir)
+            report_dir = pathlib.Path(temp_dir)
             results = _execute_ci_packages(selected, resolved_targets, base_cmd, report_dir)
-            summaries = summarize_test_results(results)
-            log_results(summaries)
-            report_failures(summaries)
-            write_github_summary(summaries)
-            write_slow_tests_github_summary(summaries)
+            summaries = metta.setup.tools.test_runner.summary.summarize_test_results(results)
+            metta.setup.tools.test_runner.summary.log_results(summaries)
+            metta.setup.tools.test_runner.summary.report_failures(summaries)
+            metta.setup.tools.test_runner.summary.write_github_summary(summaries)
+            metta.setup.tools.test_runner.summary.write_slow_tests_github_summary(summaries)
             exit_code = max((result.returncode for result in results), default=0)
         raise typer.Exit(exit_code)
 

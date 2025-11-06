@@ -4,33 +4,28 @@ This recipe provides training and evaluation on the 13 canonical CoGs vs Clips
 evaluation missions, supporting curriculum learning with difficulty variants.
 """
 
-from typing import Optional, Sequence
+import typing
 
 import metta.cogworks.curriculum as cc
-from cogames.cogs_vs_clips.evals.eval_missions import (
-    EVAL_MISSIONS,
-)
-from cogames.cogs_vs_clips.mission_utils import get_map
-from metta.cogworks.curriculum.curriculum import (
-    CurriculumAlgorithmConfig,
-    CurriculumConfig,
-)
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss import LossConfig
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.sim.simulation_config import SimulationConfig
-from metta.tools.eval import EvaluateTool
-from metta.tools.play import PlayTool
-from metta.tools.train import TrainTool
-from mettagrid.config.mettagrid_config import MettaGridConfig
+import cogames.cogs_vs_clips.evals.eval_missions
+import cogames.cogs_vs_clips.mission_utils
+import metta.cogworks.curriculum.curriculum
+import metta.cogworks.curriculum.learning_progress_algorithm
+import metta.rl.loss
+import metta.rl.trainer_config
+import metta.rl.training
+import metta.sim.simulation_config
+import metta.tools.eval
+import metta.tools.play
+import metta.tools.train
+import mettagrid.config.mettagrid_config
 
 
 def make_eval_suite(
     num_cogs: int = 4,
     difficulty: str = "standard",
-    subset: Optional[list[str]] = None,
-) -> list[SimulationConfig]:
+    subset: typing.Optional[list[str]] = None,
+) -> list[metta.sim.simulation_config.SimulationConfig]:
     """Create a suite of eval simulations from CoGames missions.
 
     Args:
@@ -43,9 +38,13 @@ def make_eval_suite(
     """
     # Filter missions if subset specified
     if subset:
-        missions = [m for m in EVAL_MISSIONS if m().name in subset]
+        missions = [
+            m
+            for m in cogames.cogs_vs_clips.evals.eval_missions.EVAL_MISSIONS
+            if m().name in subset
+        ]
     else:
-        missions = EVAL_MISSIONS
+        missions = cogames.cogs_vs_clips.evals.eval_missions.EVAL_MISSIONS
 
     simulations = []
     for mission_cls in missions:
@@ -59,7 +58,9 @@ def make_eval_suite(
             continue
 
         # Get default map for this mission
-        map_builder = get_map(mission_template.map_name)
+        map_builder = cogames.cogs_vs_clips.mission_utils.get_map(
+            mission_template.map_name
+        )
 
         # Instantiate mission with specified agent count
         # Note: difficulty variants are applied during evaluation, not here
@@ -73,7 +74,7 @@ def make_eval_suite(
         env_cfg = instantiated.make_env()
 
         # Create simulation
-        sim = SimulationConfig(
+        sim = metta.sim.simulation_config.SimulationConfig(
             suite="cogs_vs_clips",
             name=f"{mission_template.name}_{num_cogs}cogs",
             env=env_cfg,
@@ -86,7 +87,7 @@ def make_eval_suite(
 def make_training_env(
     num_cogs: int = 4,
     mission_name: str = "extractor_hub_30",
-) -> MettaGridConfig:
+) -> mettagrid.config.mettagrid_config.MettaGridConfig:
     """Create a single training environment from a mission.
 
     Args:
@@ -98,7 +99,7 @@ def make_training_env(
     """
     # Find the mission class
     mission_cls = None
-    for m_cls in EVAL_MISSIONS:
+    for m_cls in cogames.cogs_vs_clips.evals.eval_missions.EVAL_MISSIONS:
         if m_cls().name == mission_name:
             mission_cls = m_cls
             break
@@ -107,17 +108,19 @@ def make_training_env(
         raise ValueError(f"Mission '{mission_name}' not found in EVAL_MISSIONS")
 
     mission_template = mission_cls()
-    map_builder = get_map(mission_template.map_name)
+    map_builder = cogames.cogs_vs_clips.mission_utils.get_map(mission_template.map_name)
     instantiated = mission_template.instantiate(map_builder, num_cogs, variant=None)
     return instantiated.make_env()
 
 
 def make_curriculum(
     num_cogs: int = 4,
-    base_missions: Optional[list[str]] = None,
+    base_missions: typing.Optional[list[str]] = None,
     enable_detailed_slice_logging: bool = False,
-    algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
-) -> CurriculumConfig:
+    algorithm_config: typing.Optional[
+        metta.cogworks.curriculum.curriculum.CurriculumAlgorithmConfig
+    ] = None,
+) -> metta.cogworks.curriculum.curriculum.CurriculumConfig:
     """Create a curriculum for CoGs vs Clips training.
 
     This creates a curriculum that varies:
@@ -169,7 +172,7 @@ def make_curriculum(
 
     # Configure learning progress algorithm
     if algorithm_config is None:
-        algorithm_config = LearningProgressConfig(
+        algorithm_config = metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig(
             use_bidirectional=True,
             ema_timescale=0.001,
             exploration_bonus=0.1,
@@ -186,10 +189,12 @@ def make_curriculum(
 
 def train(
     num_cogs: int = 4,
-    curriculum: Optional[CurriculumConfig] = None,
-    base_missions: Optional[list[str]] = None,
+    curriculum: typing.Optional[
+        metta.cogworks.curriculum.curriculum.CurriculumConfig
+    ] = None,
+    base_missions: typing.Optional[list[str]] = None,
     enable_detailed_slice_logging: bool = False,
-) -> TrainTool:
+) -> metta.tools.train.TrainTool:
     """Create a training tool for CoGs vs Clips.
 
     Args:
@@ -209,20 +214,22 @@ def train(
     )
 
     # Configure trainer
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
+    trainer_cfg = metta.rl.trainer_config.TrainerConfig(
+        losses=metta.rl.loss.LossConfig(),
     )
 
     # Create evaluation suite (test on all missions with standard difficulty)
     eval_suite = make_eval_suite(num_cogs=num_cogs, difficulty="standard")
 
-    evaluator_cfg = EvaluatorConfig(
+    evaluator_cfg = metta.rl.training.EvaluatorConfig(
         simulations=eval_suite,
     )
 
-    return TrainTool(
+    return metta.tools.train.TrainTool(
         trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
+        training_env=metta.rl.training.TrainingEnvironmentConfig(
+            curriculum=resolved_curriculum
+        ),
         evaluator=evaluator_cfg,
     )
 
@@ -230,7 +237,7 @@ def train(
 def train_single_mission(
     mission_name: str = "extractor_hub_30",
     num_cogs: int = 4,
-) -> TrainTool:
+) -> metta.tools.train.TrainTool:
     """Train on a single mission without curriculum.
 
     Useful for debugging or quick experiments.
@@ -247,26 +254,26 @@ def train_single_mission(
     # Create single-env curriculum
     curriculum = cc.env_curriculum(env)
 
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
+    trainer_cfg = metta.rl.trainer_config.TrainerConfig(
+        losses=metta.rl.loss.LossConfig(),
     )
 
     # Still evaluate on multiple missions
     eval_suite = make_eval_suite(num_cogs=num_cogs, difficulty="standard")
 
-    return TrainTool(
+    return metta.tools.train.TrainTool(
         trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        evaluator=EvaluatorConfig(simulations=eval_suite),
+        training_env=metta.rl.training.TrainingEnvironmentConfig(curriculum=curriculum),
+        evaluator=metta.rl.training.EvaluatorConfig(simulations=eval_suite),
     )
 
 
 def evaluate(
-    policy_uris: str | Sequence[str] | None = None,
+    policy_uris: str | typing.Sequence[str] | None = None,
     num_cogs: int = 4,
     difficulty: str = "standard",
-    subset: Optional[list[str]] = None,
-) -> EvaluateTool:
+    subset: typing.Optional[list[str]] = None,
+) -> metta.tools.eval.EvaluateTool:
     """Evaluate policies on CoGs vs Clips missions.
 
     Args:
@@ -278,7 +285,7 @@ def evaluate(
     Returns:
         EvaluateTool configured for evaluation
     """
-    return EvaluateTool(
+    return metta.tools.eval.EvaluateTool(
         simulations=make_eval_suite(
             num_cogs=num_cogs,
             difficulty=difficulty,
@@ -289,10 +296,10 @@ def evaluate(
 
 
 def play(
-    policy_uri: Optional[str] = None,
+    policy_uri: typing.Optional[str] = None,
     mission_name: str = "extractor_hub_30",
     num_cogs: int = 4,
-) -> PlayTool:
+) -> metta.tools.play.PlayTool:
     """Play a single mission with a policy.
 
     Args:
@@ -304,18 +311,18 @@ def play(
         PlayTool configured for interactive play
     """
     env = make_training_env(num_cogs=num_cogs, mission_name=mission_name)
-    sim = SimulationConfig(
+    sim = metta.sim.simulation_config.SimulationConfig(
         suite="cogs_vs_clips",
         name=f"{mission_name}_{num_cogs}cogs",
         env=env,
     )
-    return PlayTool(sim=sim, policy_uri=policy_uri)
+    return metta.tools.play.PlayTool(sim=sim, policy_uri=policy_uri)
 
 
 def play_training_env(
-    policy_uri: Optional[str] = None,
+    policy_uri: typing.Optional[str] = None,
     num_cogs: int = 4,
-) -> PlayTool:
+) -> metta.tools.play.PlayTool:
     """Play the default training environment.
 
     Args:
@@ -335,7 +342,7 @@ def play_training_env(
 # Convenience: Pre-configured training recipes for different scenarios
 
 
-def train_small_maps(num_cogs: int = 4) -> TrainTool:
+def train_small_maps(num_cogs: int = 4) -> metta.tools.train.TrainTool:
     """Train on small maps (30x30, classic layouts)."""
     return train(
         num_cogs=num_cogs,
@@ -347,7 +354,7 @@ def train_small_maps(num_cogs: int = 4) -> TrainTool:
     )
 
 
-def train_medium_maps(num_cogs: int = 4) -> TrainTool:
+def train_medium_maps(num_cogs: int = 4) -> metta.tools.train.TrainTool:
     """Train on medium maps (50x50, spread layouts)."""
     return train(
         num_cogs=num_cogs,
@@ -359,7 +366,7 @@ def train_medium_maps(num_cogs: int = 4) -> TrainTool:
     )
 
 
-def train_large_maps(num_cogs: int = 8) -> TrainTool:
+def train_large_maps(num_cogs: int = 8) -> metta.tools.train.TrainTool:
     """Train on large maps with more agents."""
     return train(
         num_cogs=num_cogs,
@@ -367,7 +374,7 @@ def train_large_maps(num_cogs: int = 8) -> TrainTool:
     )
 
 
-def train_coordination(num_cogs: int = 4) -> TrainTool:
+def train_coordination(num_cogs: int = 4) -> metta.tools.train.TrainTool:
     """Train on missions emphasizing multi-agent coordination."""
     return train(
         num_cogs=num_cogs,

@@ -1,22 +1,20 @@
 """Core curriculum implementations and utilities."""
 
-from __future__ import annotations
 
 import abc
 import logging
 import random
-from abc import ABC
-from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Union
+import typing
 
-if TYPE_CHECKING:
-    from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+if typing.TYPE_CHECKING:
+    import metta.cogworks.curriculum.learning_progress_algorithm
 
-from pydantic import ConfigDict, Field
+import pydantic
 
-from metta.cogworks.curriculum.stats import SliceAnalyzer, StatsLogger
-from metta.cogworks.curriculum.task_generator import AnyTaskGeneratorConfig, SingleTaskGenerator
-from mettagrid.base_config import Config
-from mettagrid.config.mettagrid_config import MettaGridConfig
+import metta.cogworks.curriculum.stats
+import metta.cogworks.curriculum.task_generator
+import mettagrid.base_config
+import mettagrid.config.mettagrid_config
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +22,7 @@ logger = logging.getLogger(__name__)
 class CurriculumTask:
     """A task instance with a task_id and env_cfg."""
 
-    def __init__(self, task_id: int, env_cfg, slice_values: Optional[Dict[str, Any]] = None):
+    def __init__(self, task_id: int, env_cfg, slice_values: typing.Optional[typing.Dict[str, typing.Any]] = None):
         self._task_id = task_id
         self._env_cfg = env_cfg
         self._slice_values = slice_values or {}
@@ -52,11 +50,11 @@ class CurriculumTask:
         return self._slice_values
 
 
-class CurriculumAlgorithmConfig(Config, ABC):
+class CurriculumAlgorithmConfig(mettagrid.base_config.Config, abc.ABC):
     """Hyperparameters for the CurriculumAlgorithm."""
 
-    type: str = Field(description="Type of algorithm hyperparameters")
-    initial_weights: Optional[list[float]] = None
+    type: str = pydantic.Field(description="Type of algorithm hyperparameters")
+    initial_weights: typing.Optional[list[float]] = None
 
     @abc.abstractmethod
     def algorithm_type(self) -> str:
@@ -74,14 +72,14 @@ class CurriculumAlgorithmConfig(Config, ABC):
         """
         return DiscreteRandomCurriculum(num_tasks, self)
 
-    model_config: ClassVar[ConfigDict] = ConfigDict(
+    model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
         extra="forbid",
         validate_assignment=True,
         populate_by_name=True,
     )
 
 
-class CurriculumAlgorithm(StatsLogger, ABC):
+class CurriculumAlgorithm(metta.cogworks.curriculum.stats.StatsLogger, abc.ABC):
     """
     Curriculum algorithms are responsible for:
     1. Scoring tasks based on their learning progress or other metrics
@@ -99,12 +97,12 @@ class CurriculumAlgorithm(StatsLogger, ABC):
     # Core API for task scoring and recommendations
 
     @abc.abstractmethod
-    def score_tasks(self, task_ids: List[int]) -> Dict[int, float]:
+    def score_tasks(self, task_ids: typing.List[int]) -> typing.Dict[int, float]:
         """Score tasks for selection purposes. Higher scores = more likely to be selected."""
         pass
 
     @abc.abstractmethod
-    def recommend_eviction(self, task_ids: List[int]) -> Optional[int]:
+    def recommend_eviction(self, task_ids: typing.List[int]) -> typing.Optional[int]:
         """Recommend which task to evict. Return None for random selection."""
         pass
 
@@ -118,11 +116,11 @@ class CurriculumAlgorithm(StatsLogger, ABC):
         """Update task performance. Override in subclasses that track performance."""
         pass
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> typing.Dict[str, typing.Any]:
         """Get algorithm state for checkpointing. Override in subclasses that have state."""
         return {"type": self.hypers.algorithm_type()}
 
-    def load_state(self, state: Dict[str, Any]) -> None:
+    def load_state(self, state: typing.Dict[str, typing.Any]) -> None:
         """Load algorithm state from checkpoint. Override in subclasses that have state."""
         pass
 
@@ -150,7 +148,7 @@ class CurriculumAlgorithm(StatsLogger, ABC):
         return False
 
     def __init__(
-        self, num_tasks: int, hypers: Optional[CurriculumAlgorithmConfig] = None, initialize_weights: bool = True
+        self, num_tasks: int, hypers: typing.Optional[CurriculumAlgorithmConfig] = None, initialize_weights: bool = True
     ):
         if num_tasks <= 0:
             raise ValueError(f"Number of tasks must be positive. num_tasks {num_tasks}")
@@ -162,17 +160,19 @@ class CurriculumAlgorithm(StatsLogger, ABC):
 
         # Initialize stats logging
         enable_detailed = getattr(hypers, "enable_detailed_slice_logging", False)
-        StatsLogger.__init__(self, enable_detailed_logging=enable_detailed)
+        metta.cogworks.curriculum.stats.StatsLogger.__init__(self, enable_detailed_logging=enable_detailed)
 
         # All algorithms get slice analysis capability
         max_slice_axes = getattr(hypers, "max_slice_axes", 3)
-        self.slice_analyzer = SliceAnalyzer(max_slice_axes=max_slice_axes, enable_detailed_logging=enable_detailed)
+        self.slice_analyzer = metta.cogworks.curriculum.stats.SliceAnalyzer(
+            max_slice_axes=max_slice_axes, enable_detailed_logging=enable_detailed
+        )
 
-    def get_base_stats(self) -> Dict[str, float]:
+    def get_base_stats(self) -> typing.Dict[str, float]:
         """Get basic statistics that all algorithms must provide."""
         return {"num_tasks": self.num_tasks, **self.slice_analyzer.get_base_stats()}
 
-    def get_detailed_stats(self) -> Dict[str, float]:
+    def get_detailed_stats(self) -> typing.Dict[str, float]:
         """Get detailed stats including expensive slice analysis."""
         return self.slice_analyzer.get_detailed_stats()
 
@@ -198,11 +198,11 @@ class DiscreteRandomCurriculum(CurriculumAlgorithm):
     task performance.
     """
 
-    def score_tasks(self, task_ids: List[int]) -> Dict[int, float]:
+    def score_tasks(self, task_ids: typing.List[int]) -> typing.Dict[int, float]:
         """All tasks have equal score for random selection."""
         return {task_id: 1.0 for task_id in task_ids}
 
-    def recommend_eviction(self, task_ids: List[int]) -> Optional[int]:
+    def recommend_eviction(self, task_ids: typing.List[int]) -> typing.Optional[int]:
         """No preference for eviction - let Curriculum choose randomly."""
         return None
 
@@ -215,30 +215,32 @@ class DiscreteRandomCurriculum(CurriculumAlgorithm):
         pass
 
 
-class CurriculumConfig(Config):
+class CurriculumConfig(mettagrid.base_config.Config):
     """Base configuration for Curriculum."""
 
-    task_generator: AnyTaskGeneratorConfig = Field(description="TaskGenerator configuration")
-    max_task_id: int = Field(default=1000000, gt=0, description="Maximum task ID to generate")
-    num_active_tasks: int = Field(default=10000, gt=0, description="Number of active tasks to maintain")
+    task_generator: metta.cogworks.curriculum.task_generator.AnyTaskGeneratorConfig = pydantic.Field(
+        description="TaskGenerator configuration"
+    )
+    max_task_id: int = pydantic.Field(default=1000000, gt=0, description="Maximum task ID to generate")
+    num_active_tasks: int = pydantic.Field(default=10000, gt=0, description="Number of active tasks to maintain")
 
     # Curriculum behavior options
-    min_presentations_for_eviction: int = Field(
+    min_presentations_for_eviction: int = pydantic.Field(
         default=5, gt=0, description="Minimum task presentations before eviction"
     )
 
-    algorithm_config: Optional[Union["DiscreteRandomConfig", "LearningProgressConfig"]] = Field(
+    algorithm_config: typing.Optional[typing.Union["DiscreteRandomConfig", "LearningProgressConfig"]] = pydantic.Field(
         default=None, description="Curriculum algorithm hyperparameters"
     )
 
     @classmethod
-    def from_mg(cls, mg_config: MettaGridConfig) -> "CurriculumConfig":
+    def from_mg(cls, mg_config: mettagrid.config.mettagrid_config.MettaGridConfig) -> "CurriculumConfig":
         """Create a CurriculumConfig from a MettaGridConfig."""
         return cls(
-            task_generator=SingleTaskGenerator.Config(env=mg_config),
+            task_generator=metta.cogworks.curriculum.task_generator.SingleTaskGenerator.Config(env=mg_config),
         )
 
-    model_config: ClassVar[ConfigDict] = ConfigDict(
+    model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
         extra="forbid",
         validate_assignment=True,
         populate_by_name=True,
@@ -258,7 +260,7 @@ class CurriculumConfig(Config):
         return Curriculum(self)
 
 
-class Curriculum(StatsLogger):
+class Curriculum(metta.cogworks.curriculum.stats.StatsLogger):
     """Base curriculum class that uses TaskGenerator to generate EnvConfigs and returns Tasks.
 
     Curriculum takes a CurriculumConfig, and supports get_task(). It uses the task generator
@@ -270,7 +272,7 @@ class Curriculum(StatsLogger):
 
     def __init__(self, config: CurriculumConfig, seed: int = 0):
         # Initialize StatsLogger (algorithm handles detailed stats)
-        StatsLogger.__init__(self, enable_detailed_logging=False)
+        metta.cogworks.curriculum.stats.StatsLogger.__init__(self, enable_detailed_logging=False)
 
         self._config = config
         self._task_generator = config.task_generator.create()
@@ -280,7 +282,7 @@ class Curriculum(StatsLogger):
         self._num_created = 0
         self._num_evicted = 0
 
-        self._algorithm: Optional[CurriculumAlgorithm] = None
+        self._algorithm: typing.Optional[CurriculumAlgorithm] = None
         if config.algorithm_config is not None:
             self._algorithm = config.algorithm_config.create(config.num_active_tasks)
             # Pass curriculum reference to algorithm for stats updates
@@ -385,9 +387,9 @@ class Curriculum(StatsLogger):
         # Invalidate stats cache since task performance affects curriculum stats
         self.invalidate_cache()
 
-    def get_base_stats(self) -> Dict[str, float]:
+    def get_base_stats(self) -> typing.Dict[str, float]:
         """Get basic curriculum statistics."""
-        base_stats: Dict[str, float] = {
+        base_stats: typing.Dict[str, float] = {
             "num_created": float(self._num_created),
             "num_evicted": float(self._num_evicted),
             "num_completed": float(sum(task._num_completions for task in self._tasks.values())),
@@ -407,7 +409,7 @@ class Curriculum(StatsLogger):
         # Use the StatsLogger implementation
         return super().stats()
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> typing.Dict[str, typing.Any]:
         """Get curriculum state for checkpointing."""
         state = {
             "config": self._config.model_dump(),  # Save config for validation
@@ -433,7 +435,7 @@ class Curriculum(StatsLogger):
 
         return state
 
-    def load_state(self, state: Dict[str, Any]) -> None:
+    def load_state(self, state: typing.Dict[str, typing.Any]) -> None:
         """Load curriculum state from checkpoint."""
         # Validate config matches
         if state["config"] != self._config.model_dump():
@@ -468,10 +470,6 @@ class Curriculum(StatsLogger):
         if self._algorithm is not None and "algorithm_state" in state:
             self._algorithm.load_state(state["algorithm_state"])
 
-
-# Import concrete config classes at the end to avoid circular imports
-# ruff: noqa: E402
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 
 # Rebuild the model to resolve forward references
 CurriculumConfig.model_rebuild()

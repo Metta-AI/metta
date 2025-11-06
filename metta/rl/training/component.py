@@ -1,17 +1,17 @@
 """Base training component infrastructure."""
 
+import enum
 import logging
-from enum import Enum
-from typing import Any, Optional
+import typing
 
-from pydantic import Field
+import pydantic
 
-from metta.rl.training import ComponentContext
+import metta.rl.training
 
 logger = logging.getLogger(__name__)
 
 
-class TrainerCallback(Enum):
+class TrainerCallback(enum.Enum):
     """Types of callbacks that can be invoked on trainer components."""
 
     STEP = "step"
@@ -24,16 +24,16 @@ class TrainerComponent:
     """Base class for training components."""
 
     _master_only: bool = False
-    _epoch_interval: int = Field(default=1, ge=1)
-    _step_interval: int = Field(default=1, ge=1)
+    _epoch_interval: int = pydantic.Field(default=1, ge=1)
+    _step_interval: int = pydantic.Field(default=1, ge=1)
 
-    _context: Optional[ComponentContext] = None
+    _context: typing.Optional[metta.rl.training.ComponentContext] = None
 
     def __init__(self, epoch_interval: int = 1, step_interval: int = 1) -> None:
         self._epoch_interval = epoch_interval
         self._step_interval = step_interval
 
-    def register(self, context: ComponentContext) -> None:
+    def register(self, context: metta.rl.training.ComponentContext) -> None:
         """Register this component with the trainer context."""
 
         self._context = context
@@ -58,14 +58,14 @@ class TrainerComponent:
         return epoch % interval == 0
 
     @property
-    def context(self) -> ComponentContext:
+    def context(self) -> metta.rl.training.ComponentContext:
         """Return the trainer context associated with this component."""
 
         if self._context is None:
             raise RuntimeError("TrainerComponent has not been registered with a ComponentContext")
         return self._context
 
-    def on_step(self, infos: list[dict[str, Any]]) -> None:
+    def on_step(self, infos: list[dict[str, typing.Any]]) -> None:
         """Called after each environment step."""
         pass
 

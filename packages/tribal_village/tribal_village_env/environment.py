@@ -5,11 +5,11 @@ Eliminates ALL conversion overhead by using direct numpy buffer communication.
 """
 
 import ctypes
-from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+import pathlib
+import typing
 
+import gymnasium
 import numpy as np
-from gymnasium import spaces
 
 import pufferlib
 
@@ -22,7 +22,7 @@ class TribalVillageEnv(pufferlib.PufferEnv):
     that Nim reads/writes directly.
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None, buf=None):
+    def __init__(self, config: typing.Optional[typing.Dict[str, typing.Any]] = None, buf=None):
         self.config = config or {}
         self.max_steps = self.config.get("max_steps", 512)
         self._render_mode = self.config.get("render_mode", "rgb_array")
@@ -37,7 +37,7 @@ class TribalVillageEnv(pufferlib.PufferEnv):
         else:
             lib_name = "libtribal_village.so"
 
-        package_dir = Path(__file__).resolve().parent
+        package_dir = pathlib.Path(__file__).resolve().parent
         candidate_paths = [
             package_dir.parent / lib_name,
             package_dir / lib_name,
@@ -77,13 +77,13 @@ class TribalVillageEnv(pufferlib.PufferEnv):
         self.possible_agents = self.agents.copy()
 
         # Define spaces - use direct observation shape (no sparse tokens!)
-        self.single_observation_space = spaces.Box(
+        self.single_observation_space = gymnasium.spaces.Box(
             low=0,
             high=255,
             shape=(self.obs_layers, self.obs_width, self.obs_height),
             dtype=np.uint8,
         )
-        self.single_action_space = spaces.MultiDiscrete([9, 8], dtype=np.int32)
+        self.single_action_space = gymnasium.spaces.MultiDiscrete([9, 8], dtype=np.int32)
         self.is_continuous = False
 
         super().__init__(buf)
@@ -220,7 +220,9 @@ class TribalVillageEnv(pufferlib.PufferEnv):
             getattr(self.lib, func_name).argtypes = []
             getattr(self.lib, func_name).restype = ctypes.c_int32
 
-    def reset(self, seed: Optional[int] = None, options: Optional[Dict] = None) -> Tuple[Dict, Dict]:
+    def reset(
+        self, seed: typing.Optional[int] = None, options: typing.Optional[typing.Dict] = None
+    ) -> typing.Tuple[typing.Dict, typing.Dict]:
         """Ultra-fast reset using direct buffers."""
         self.step_count = 0
 
@@ -243,7 +245,9 @@ class TribalVillageEnv(pufferlib.PufferEnv):
 
         return observations, info
 
-    def step(self, actions: Dict[str, np.ndarray]) -> Tuple[Dict, Dict, Dict, Dict, Dict]:
+    def step(
+        self, actions: typing.Dict[str, np.ndarray]
+    ) -> typing.Tuple[typing.Dict, typing.Dict, typing.Dict, typing.Dict, typing.Dict]:
         """Ultra-fast step using direct buffers."""
         self.step_count += 1
 
@@ -296,7 +300,7 @@ class TribalVillageEnv(pufferlib.PufferEnv):
             self.env_ptr = None
 
 
-def make_tribal_village_env(config: Optional[Dict[str, Any]] = None, **kwargs) -> TribalVillageEnv:
+def make_tribal_village_env(config: typing.Optional[typing.Dict[str, typing.Any]] = None, **kwargs) -> TribalVillageEnv:
     """Factory function for ultra-fast tribal village environment."""
     if config is None:
         config = {}

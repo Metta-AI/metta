@@ -1,12 +1,12 @@
 import shutil
 
-from metta.setup.components.base import SetupModule
-from metta.setup.registry import register_module
-from metta.setup.utils import info
+import metta.setup.components.base
+import metta.setup.registry
+import metta.setup.utils
 
 
-@register_module
-class HelmSetup(SetupModule):
+@metta.setup.registry.register_module
+class HelmSetup(metta.setup.components.base.SetupModule):
     HELM_PLUGINS = {
         "diff": "https://github.com/databus23/helm-diff",
         "helm-git": "https://github.com/aslafy-z/helm-git",
@@ -37,7 +37,7 @@ class HelmSetup(SetupModule):
         return True
 
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
-        info("Setting up helm plugins...")
+        metta.setup.utils.info("Setting up helm plugins...")
 
         installed_plugins = self.get_installed_plugins()
         for plugin, url in self.HELM_PLUGINS.items():

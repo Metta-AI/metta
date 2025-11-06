@@ -5,9 +5,8 @@ causal 1D convolution with support for per-timestep resets. Includes forward
 and backward passes with fp32 accumulation for numerical stability.
 """
 
-from __future__ import annotations
 
-from typing import Optional
+import typing
 
 import torch
 import triton
@@ -371,7 +370,7 @@ class _ChannelMixCausalResetFn(torch.autograd.Function):
         state: torch.Tensor,
         x: torch.Tensor,
         w: torch.Tensor,
-        bias: Optional[torch.Tensor],
+        bias: typing.Optional[torch.Tensor],
         resets: torch.Tensor,
         block_t: int,
         block_fi: int,
@@ -536,7 +535,7 @@ def channelmix_causal_conv1d_with_resets_triton(
     state: torch.Tensor,
     x: torch.Tensor,
     w: torch.Tensor,
-    bias: Optional[torch.Tensor],
+    bias: typing.Optional[torch.Tensor],
     resets: torch.Tensor,
     *,
     block_t: int = 128,

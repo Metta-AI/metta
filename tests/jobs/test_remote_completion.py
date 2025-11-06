@@ -3,18 +3,18 @@
 Tests that remote jobs properly transition to completed status when terminal states are reached.
 """
 
-from unittest.mock import MagicMock, patch
+import unittest.mock
 
-from tests.jobs.conftest import simple_job_config
+import tests.jobs.conftest
 
 
 def test_remote_job_marks_failed_when_launch_fails(temp_job_manager):
     """Remote job marked as failed immediately when launch fails (no job_id)."""
     manager = temp_job_manager()
-    config = simple_job_config("remote_job", remote=True)
+    config = tests.jobs.conftest.simple_job_config("remote_job", remote=True)
 
     # Mock _spawn_job to return a job with no job_id (launch failure)
-    mock_job = MagicMock()
+    mock_job = unittest.mock.MagicMock()
     mock_job.exit_code = 1
     # Mock all properties that JobManager accesses
     mock_job.job_id = None
@@ -23,7 +23,7 @@ def test_remote_job_marks_failed_when_launch_fails(temp_job_manager):
     mock_job.log_path = "/tmp/test.log"
     mock_job.needs_async_job_id_update.return_value = False
 
-    with patch.object(manager, "_spawn_job", return_value=mock_job):
+    with unittest.mock.patch.object(manager, "_spawn_job", return_value=mock_job):
         # Submit and immediately try to start (poll does this)
         manager.submit(config)
         manager.poll()

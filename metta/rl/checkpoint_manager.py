@@ -1,31 +1,27 @@
 import logging
 import os
+import pathlib
 import tempfile
-from pathlib import Path
-from typing import Any, Dict, Optional, TypedDict
-from zipfile import BadZipFile
+import typing
+import zipfile
 
 import boto3
 import torch
 
-from metta.agent.mocks import MockAgent
-from metta.agent.policy import Policy, PolicyArchitecture
-from metta.rl.policy_artifact import (
-    PolicyArtifact,
-    load_policy_artifact,
-    save_policy_artifact_safetensors,
-)
-from metta.rl.system_config import SystemConfig
-from metta.rl.training.optimizer import is_schedulefree_optimizer
-from metta.tools.utils.auto_config import auto_policy_storage_decision
-from metta.utils.file import local_copy, write_file
-from metta.utils.uri import ParsedURI
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+import metta.agent.mocks
+import metta.agent.policy
+import metta.rl.policy_artifact
+import metta.rl.system_config
+import metta.rl.training.optimizer
+import metta.tools.utils.auto_config
+import metta.utils.file
+import metta.utils.uri
+import mettagrid.policy.policy_env_interface
 
 logger = logging.getLogger(__name__)
 
 
-class PolicyMetadata(TypedDict):
+class PolicyMetadata(typing.TypedDict):
     """Type definition for policy metadata returned by get_policy_metadata."""
 
     run_name: str
@@ -41,21 +37,21 @@ def key_and_version(uri: str) -> tuple[str, int] | None:
         "s3://bucket/policies/my_run/checkpoints/my_run:v10.mpt" -> ("my_run", 10)
         "mock://test_agent" -> ("test_agent", 0)
     """
-    parsed = ParsedURI.parse(uri)
+    parsed = metta.utils.uri.ParsedURI.parse(uri)
     if parsed.scheme == "mock":
         # For mock URIs, extract the agent name from the path
         return (parsed.path, 0)
     if parsed.scheme == "file" and parsed.local_path:
-        file_path = Path(parsed.local_path)
+        file_path = pathlib.Path(parsed.local_path)
     elif parsed.scheme == "s3" and parsed.key:
-        file_path = Path(parsed.key)
+        file_path = pathlib.Path(parsed.key)
     else:
         raise ValueError(f"Could not extract key and version from {uri}")
 
     return _extract_run_and_epoch(file_path)
 
 
-def _extract_run_and_epoch(path: Path) -> tuple[str, int] | None:
+def _extract_run_and_epoch(path: pathlib.Path) -> tuple[str, int] | None:
     """Infer run name and epoch from a checkpoint path.
 
     Examples:
@@ -72,7 +68,7 @@ def _extract_run_and_epoch(path: Path) -> tuple[str, int] | None:
 
 
 def _get_all_checkpoints(uri: str) -> list[PolicyMetadata]:
-    parsed = ParsedURI.parse(uri)
+    parsed = metta.utils.uri.ParsedURI.parse(uri)
     if parsed.scheme == "file" and parsed.local_path:
         checkpoint_files = [ckpt for ckpt in parsed.local_path.glob("*.mpt") if ckpt.stem]
     elif parsed.scheme == "s3" and parsed.bucket:
@@ -83,7 +79,9 @@ def _get_all_checkpoints(uri: str) -> list[PolicyMetadata]:
         if response["KeyCount"] == 0:
             return []
 
-        checkpoint_files: list[Path] = [Path(obj["Key"]) for obj in response["Contents"] if obj["Key"].endswith(".mpt")]
+        checkpoint_files: list[pathlib.Path] = [
+            pathlib.Path(obj["Key"]) for obj in response["Contents"] if obj["Key"].endswith(".mpt")
+        ]
     else:
         raise ValueError(f"Cannot get checkpoints from uri: {uri}")
 
@@ -108,13 +106,13 @@ def _latest_checkpoint(uri: str) -> PolicyMetadata | None:
         return max(checkpoints, key=lambda p: p["epoch"])
 
 
-def _load_checkpoint_file(path: str, is_pt_file: bool = False) -> PolicyArtifact:
+def _load_checkpoint_file(path: str, is_pt_file: bool = False) -> metta.rl.policy_artifact.PolicyArtifact:
     """Load a checkpoint file, raising FileNotFoundError on corruption."""
     try:
-        return load_policy_artifact(Path(path), is_pt_file)
+        return metta.rl.policy_artifact.load_policy_artifact(pathlib.Path(path), is_pt_file)
     except FileNotFoundError:
         raise
-    except (BadZipFile, ValueError, TypeError) as err:
+    except (zipfile.BadZipFile, ValueError, TypeError) as err:
         raise FileNotFoundError(f"Invalid or corrupted checkpoint file: {path}") from err
 
 
@@ -124,7 +122,7 @@ class CheckpointManager:
     def __init__(
         self,
         run: str,
-        system_cfg: SystemConfig,
+        system_cfg: metta.rl.system_config.SystemConfig,
     ):
         # Validate run name
         if not run or not run.strip():
@@ -146,7 +144,7 @@ class CheckpointManager:
         self._remote_prefix = None
         if not system_cfg.local_only:
             if system_cfg.remote_prefix:
-                parsed = ParsedURI.parse(system_cfg.remote_prefix)
+                parsed = metta.utils.uri.ParsedURI.parse(system_cfg.remote_prefix)
                 if parsed.scheme != "s3" or not parsed.bucket or not parsed.key:
                     raise ValueError("remote_prefix must be an s3:// URI with bucket and key prefix")
                 # Remove trailing slash from prefix for deterministic joins
@@ -159,7 +157,7 @@ class CheckpointManager:
     def _setup_remote_prefix(self) -> None:
         """Determine and set the remote prefix for policy storage if needed."""
         if self._remote_prefix is None:
-            storage_decision = auto_policy_storage_decision(self.run)
+            storage_decision = metta.tools.utils.auto_config.auto_policy_storage_decision(self.run)
             if storage_decision.remote_prefix:
                 self._remote_prefix = storage_decision.remote_prefix
                 if storage_decision.reason == "env_override":
@@ -189,12 +187,14 @@ class CheckpointManager:
         return self._remote_prefix is not None
 
     @staticmethod
-    def load_from_uri(uri: str, game_rules: PolicyEnvInterface, device: torch.device) -> Policy:
+    def load_from_uri(
+        uri: str, game_rules: mettagrid.policy.policy_env_interface.PolicyEnvInterface, device: torch.device
+    ) -> metta.agent.policy.Policy:
         artifact = CheckpointManager.load_artifact_from_uri(uri)
         return artifact.instantiate(game_rules, device)
 
     @staticmethod
-    def load_artifact_from_uri(uri: str) -> PolicyArtifact:
+    def load_artifact_from_uri(uri: str) -> metta.rl.policy_artifact.PolicyArtifact:
         """Load a policy from a URI (file://, s3://, or mock://).
 
         Supports :latest selector for automatic resolution to the most recent checkpoint:
@@ -205,7 +205,7 @@ class CheckpointManager:
             raise ValueError(f"Invalid URI: {uri}")
 
         uri = CheckpointManager.normalize_uri(uri)
-        parsed = ParsedURI.parse(uri)
+        parsed = metta.utils.uri.ParsedURI.parse(uri)
 
         if parsed.scheme == "file" and parsed.local_path is not None:
             path = parsed.local_path
@@ -213,25 +213,25 @@ class CheckpointManager:
                 checkpoint_file = _latest_checkpoint(f"file://{path}")
                 if not checkpoint_file:
                     raise FileNotFoundError(f"No checkpoint files in {uri}")
-                local_path = ParsedURI.parse(checkpoint_file["uri"]).local_path
+                local_path = metta.utils.uri.ParsedURI.parse(checkpoint_file["uri"]).local_path
                 return _load_checkpoint_file(local_path)  # type: ignore
             if not path.exists():
                 raise FileNotFoundError(f"Checkpoint file not found: {path}")
             return _load_checkpoint_file(str(path))
 
         if parsed.scheme == "s3":
-            with local_copy(parsed.canonical) as local_path:
-                return _load_checkpoint_file(str(local_path), is_pt_file=Path(parsed.canonical).suffix == ".pt")
+            with metta.utils.file.local_copy(parsed.canonical) as local_path:
+                return _load_checkpoint_file(str(local_path), is_pt_file=pathlib.Path(parsed.canonical).suffix == ".pt")
 
         if parsed.scheme == "mock":
-            return PolicyArtifact(policy=MockAgent())
+            return metta.rl.policy_artifact.PolicyArtifact(policy=metta.agent.mocks.MockAgent())
 
         raise ValueError(f"Invalid URI: {uri}")
 
     @staticmethod
     def normalize_uri(uri: str) -> str:
         """Convert paths to file:// URIs, and resolves :latest"""
-        parsed = ParsedURI.parse(uri)
+        parsed = metta.utils.uri.ParsedURI.parse(uri)
         if uri.endswith(":latest"):
             # Remove ":latest" suffix to get the base URI
             base_uri = uri[:-7]  # remove ":latest"
@@ -257,7 +257,7 @@ class CheckpointManager:
             "uri": normalized_uri,
         }
 
-    def load_trainer_state(self) -> Optional[Dict[str, Any]]:
+    def load_trainer_state(self) -> typing.Optional[typing.Dict[str, typing.Any]]:
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
         if not trainer_file.exists():
             return None
@@ -277,10 +277,10 @@ class CheckpointManager:
 
     def save_agent(
         self,
-        agent: Policy,
+        agent: metta.agent.policy.Policy,
         epoch: int,
         *,
-        policy_architecture: PolicyArchitecture,
+        policy_architecture: metta.agent.policy.PolicyArchitecture,
     ) -> str:
         """Save agent checkpoint to disk and upload to remote storage if configured.
 
@@ -292,7 +292,7 @@ class CheckpointManager:
         filename = f"{self.run_name}:v{epoch}.mpt"
         checkpoint_path = self.checkpoint_dir / filename
 
-        save_policy_artifact_safetensors(
+        metta.rl.policy_artifact.save_policy_artifact_safetensors(
             checkpoint_path,
             policy_architecture=policy_architecture,
             state_dict=agent.state_dict(),
@@ -301,7 +301,7 @@ class CheckpointManager:
         remote_uri = None
         if self._remote_prefix:
             remote_uri = f"{self._remote_prefix}/{filename}"
-            write_file(remote_uri, str(checkpoint_path))
+            metta.utils.file.write_file(remote_uri, str(checkpoint_path))
 
         if remote_uri:
             return remote_uri
@@ -312,15 +312,15 @@ class CheckpointManager:
         optimizer,
         epoch: int,
         agent_step: int,
-        stopwatch_state: Optional[Dict[str, Any]] = None,
-        curriculum_state: Optional[Dict[str, Any]] = None,
-        loss_states: Optional[Dict[str, Any]] = None,
+        stopwatch_state: typing.Optional[typing.Dict[str, typing.Any]] = None,
+        curriculum_state: typing.Optional[typing.Dict[str, typing.Any]] = None,
+        loss_states: typing.Optional[typing.Dict[str, typing.Any]] = None,
     ):
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
 
         # For ScheduleFree optimizers, ensure we save in eval mode
-        is_schedulefree = is_schedulefree_optimizer(optimizer)
+        is_schedulefree = metta.rl.training.optimizer.is_schedulefree_optimizer(optimizer)
         if is_schedulefree:
             optimizer.eval()
 
@@ -339,7 +339,7 @@ class CheckpointManager:
             suffix=".tmp",
             delete=False,
         ) as tmp_file:
-            tmp_path = Path(tmp_file.name)
+            tmp_path = pathlib.Path(tmp_file.name)
 
             try:
                 torch.save(state, tmp_path)

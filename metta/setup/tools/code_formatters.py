@@ -1,9 +1,9 @@
 """Multi-format code formatting utilities for metta lint command."""
 
+import pathlib
 import subprocess
-from pathlib import Path
 
-from metta.setup.utils import info, warning
+import metta.setup.utils
 
 # File type aliases for user convenience
 FILE_TYPE_ALIASES = {
@@ -42,7 +42,7 @@ class FormatterConfig:
         self.check_cmd = check_cmd
 
 
-def get_formatters(repo_root: Path) -> dict[str, FormatterConfig]:
+def get_formatters(repo_root: pathlib.Path) -> dict[str, FormatterConfig]:
     """Get available formatters for different file types.
 
     Args:
@@ -110,7 +110,7 @@ def detect_file_type(file_path: str) -> str | None:
     Returns:
         File type string (python, json, etc.) or None if unsupported
     """
-    suffix = Path(file_path).suffix.lower()
+    suffix = pathlib.Path(file_path).suffix.lower()
     return EXTENSION_TO_TYPE.get(suffix)
 
 
@@ -144,7 +144,7 @@ def partition_files_by_type(file_paths: list[str]) -> dict[str, list[str]]:
 def run_formatter(
     file_type: str,
     formatter: FormatterConfig,
-    repo_root: Path,
+    repo_root: pathlib.Path,
     *,
     check_only: bool = False,
     files: list[str] | None = None,
@@ -161,12 +161,12 @@ def run_formatter(
     Returns:
         True if formatting succeeded, False otherwise
     """
-    info(f"Formatting {formatter.name}...")
+    metta.setup.utils.info(f"Formatting {formatter.name}...")
 
     # Determine which command to use
     if check_only:
         if formatter.check_cmd is None:
-            warning(f"--check not supported for {formatter.name}, skipping")
+            metta.setup.utils.warning(f"--check not supported for {formatter.name}, skipping")
             return False  # Indicate check couldn't be performed
         cmd = formatter.check_cmd.copy()
     else:

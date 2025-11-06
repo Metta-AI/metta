@@ -11,8 +11,8 @@ import os
 
 import pytest
 
-from metta.setup.profiles import UserType
-from tests.setup.test_base import BaseMettaSetupTest
+import metta.setup.profiles
+import tests.setup.test_base
 
 
 class AWSAssertionsMixin:
@@ -70,7 +70,7 @@ class AWSAssertionsMixin:
 
 @pytest.mark.setup
 @pytest.mark.profile("softmax")
-class TestAWSProfileSoftmax(AWSAssertionsMixin, BaseMettaSetupTest):
+class TestAWSProfileSoftmax(AWSAssertionsMixin, tests.setup.test_base.BaseMettaSetupTest):
     """Tests for AWS profile setup functionality."""
 
     def test_softmax_profile_aws_installation(self):
@@ -79,7 +79,7 @@ class TestAWSProfileSoftmax(AWSAssertionsMixin, BaseMettaSetupTest):
         print(f"DEBUG: ZDOTDIR={os.environ.get('ZDOTDIR')}")
         print(f"DEBUG: Test home={self.test_home}")
 
-        self._create_test_config(UserType.SOFTMAX)
+        self._create_test_config(metta.setup.profiles.UserType.SOFTMAX)
 
         # Run AWS install (bypass base class mocking)
 
@@ -152,7 +152,7 @@ class TestAWSProfileSoftmax(AWSAssertionsMixin, BaseMettaSetupTest):
         zshrc.write_text("# Test zshrc in ZDOTDIR\n")
         bashrc.write_text("# Test bashrc in $HOME\n")
 
-        self._create_test_config(UserType.SOFTMAX)
+        self._create_test_config(metta.setup.profiles.UserType.SOFTMAX)
 
         # Run AWS install (bypass base class mocking)
         result = self._run_metta_command(["install", "aws", "--force"])
@@ -187,13 +187,13 @@ class TestAWSProfileSoftmax(AWSAssertionsMixin, BaseMettaSetupTest):
 
 @pytest.mark.setup
 @pytest.mark.profile("external")
-class TestAWSProfileExternal(AWSAssertionsMixin, BaseMettaSetupTest):
+class TestAWSProfileExternal(AWSAssertionsMixin, tests.setup.test_base.BaseMettaSetupTest):
     """Ensure the external profile does not touch AWS config or shell exports."""
 
     def test_external_install_writes_no_aws_state(self):
         """Install with external profile and assert no AWS artifacts were written."""
         # Create external profile config
-        self._create_test_config(UserType.EXTERNAL)
+        self._create_test_config(metta.setup.profiles.UserType.EXTERNAL)
 
         # Run install (bypass base class mocking)
         result = self._run_metta_command(["install", "aws"])

@@ -1,39 +1,34 @@
 """Statistics processing helpers and policy-evaluator logging."""
 
+import collections
 import logging
-from collections import defaultdict
-from typing import Any
+import typing
 
 import numpy as np
 import torch
 
-from metta.common.wandb.context import WandbRun
-from metta.eval.eval_request_config import EvalResults
-from metta.rl.evaluate import upload_replay_html
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import Experience
-from metta.rl.wandb import (
-    POLICY_EVALUATOR_EPOCH_METRIC,
-    POLICY_EVALUATOR_METRIC_PREFIX,
-    POLICY_EVALUATOR_STEP_METRIC,
-    setup_policy_evaluator_metrics,
-)
-from mettagrid.profiling.stopwatch import Stopwatch
-from mettagrid.util.dict_utils import unroll_nested_dict
+import metta.common.wandb.context
+import metta.eval.eval_request_config
+import metta.rl.evaluate
+import metta.rl.trainer_config
+import metta.rl.training
+import metta.rl.wandb
+import mettagrid.profiling.stopwatch
+import mettagrid.util.dict_utils
 
 logger = logging.getLogger(__name__)
 
 
 def accumulate_rollout_stats(
     raw_infos: list,
-    stats: dict[str, Any],
+    stats: dict[str, typing.Any],
 ) -> None:
     """Accumulate rollout statistics from info dictionaries."""
-    infos = defaultdict(list)
+    infos = collections.defaultdict(list)
 
     # Batch process info dictionaries
     for i in raw_infos:
-        for k, v in unroll_nested_dict(i):
+        for k, v in mettagrid.util.dict_utils.unroll_nested_dict(i):
             # Detach any tensors before accumulating to prevent memory leaks
             if torch.is_tensor(v):
                 v = v.detach().cpu().item() if v.numel() == 1 else v.detach().cpu().numpy()
@@ -58,7 +53,7 @@ def accumulate_rollout_stats(
                     stats[k] = [stats[k], v]  # fallback: bundle as list
 
 
-def filter_movement_metrics(stats: dict[str, Any]) -> dict[str, Any]:
+def filter_movement_metrics(stats: dict[str, typing.Any]) -> dict[str, typing.Any]:
     """Filter movement metrics to only keep core values, removing derived stats."""
     filtered = {}
 
@@ -91,11 +86,11 @@ def filter_movement_metrics(stats: dict[str, Any]) -> dict[str, Any]:
 
 
 def process_training_stats(
-    raw_stats: dict[str, Any],
-    losses_stats: dict[str, Any],
-    experience: Experience,
-    trainer_config: TrainerConfig,
-) -> dict[str, Any]:
+    raw_stats: dict[str, typing.Any],
+    losses_stats: dict[str, typing.Any],
+    experience: metta.rl.training.Experience,
+    trainer_config: metta.rl.trainer_config.TrainerConfig,
+) -> dict[str, typing.Any]:
     """Process training statistics into a clean format.
 
     Args:
@@ -148,9 +143,9 @@ def process_training_stats(
 
 
 def compute_timing_stats(
-    timer: Stopwatch,
+    timer: mettagrid.profiling.stopwatch.Stopwatch,
     agent_step: int,
-) -> dict[str, Any]:
+) -> dict[str, typing.Any]:
     """Compute timing statistics from a Stopwatch timer."""
     elapsed_times = timer.get_all_elapsed()
     wall_time = timer.get_elapsed()
@@ -197,15 +192,20 @@ def compute_timing_stats(
 
 
 def process_policy_evaluator_stats(
-    policy_uri: str, eval_results: EvalResults, run: WandbRun, epoch: int, agent_step: int, should_finish_run: bool
+    policy_uri: str,
+    eval_results: metta.eval.eval_request_config.EvalResults,
+    run: metta.common.wandb.context.WandbRun,
+    epoch: int,
+    agent_step: int,
+    should_finish_run: bool,
 ) -> None:
     metrics_to_log: dict[str, float] = {
-        f"{POLICY_EVALUATOR_METRIC_PREFIX}/eval_{k}": v
+        f"{metta.rl.wandb.POLICY_EVALUATOR_METRIC_PREFIX}/eval_{k}": v
         for k, v in eval_results.scores.to_wandb_metrics_format().items()
     }
     metrics_to_log.update(
         {
-            f"overview/{POLICY_EVALUATOR_METRIC_PREFIX}/{category}_score": score
+            f"overview/{metta.rl.wandb.POLICY_EVALUATOR_METRIC_PREFIX}/{category}_score": score
             for category, score in eval_results.scores.category_scores.items()
         }
     )
@@ -215,22 +215,28 @@ def process_policy_evaluator_stats(
 
     try:
         try:
-            setup_policy_evaluator_metrics(run)
+            metta.rl.wandb.setup_policy_evaluator_metrics(run)
         except Exception:
             logger.warning("Failed to set default axes for policy evaluator metrics. Continuing")
             pass
 
-        run.log({**metrics_to_log, POLICY_EVALUATOR_STEP_METRIC: agent_step, POLICY_EVALUATOR_EPOCH_METRIC: epoch})
+        run.log(
+            {
+                **metrics_to_log,
+                metta.rl.wandb.POLICY_EVALUATOR_STEP_METRIC: agent_step,
+                metta.rl.wandb.POLICY_EVALUATOR_EPOCH_METRIC: epoch,
+            }
+        )
         logger.info(f"Logged {len(metrics_to_log)} metrics to wandb for policy {policy_uri}")
         if eval_results.replay_urls:
             try:
-                upload_replay_html(
+                metta.rl.evaluate.upload_replay_html(
                     replay_urls=eval_results.replay_urls,
                     agent_step=agent_step,  # type: ignore
                     epoch=epoch,  # type: ignore
                     wandb_run=run,
-                    step_metric_key=POLICY_EVALUATOR_STEP_METRIC,
-                    epoch_metric_key=POLICY_EVALUATOR_EPOCH_METRIC,
+                    step_metric_key=metta.rl.wandb.POLICY_EVALUATOR_STEP_METRIC,
+                    epoch_metric_key=metta.rl.wandb.POLICY_EVALUATOR_EPOCH_METRIC,
                 )
             except Exception as e:
                 logger.error(f"Failed to upload replays for {policy_uri}: {e}", exc_info=True)

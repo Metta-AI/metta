@@ -2,19 +2,18 @@
 
 """Utility to surface duplicate dependency declarations across the workspace."""
 
-from __future__ import annotations
 
+import collections
+import pathlib
 import tomllib
-from collections import defaultdict
-from pathlib import Path
-from typing import Any, Mapping
+import typing
 
 
-def extract_deps(toml_data: Mapping[str, Any]) -> dict[str, str]:
+def extract_deps(toml_data: typing.Mapping[str, typing.Any]) -> dict[str, str]:
     """Return dependency specifiers indexed by normalized package name."""
     deps: dict[str, str] = {}
     project_section = toml_data.get("project")
-    if isinstance(project_section, Mapping):
+    if isinstance(project_section, typing.Mapping):
         dependencies = project_section.get("dependencies")
         if isinstance(dependencies, list):
             for dep in dependencies:
@@ -27,8 +26,8 @@ def extract_deps(toml_data: Mapping[str, Any]) -> dict[str, str]:
 
 
 def main() -> int:
-    pyproject_files = sorted(Path(".").rglob("*/pyproject.toml"))
-    all_deps: defaultdict[str, dict[str, str]] = defaultdict(dict)
+    pyproject_files = sorted(pathlib.Path(".").rglob("*/pyproject.toml"))
+    all_deps: collections.defaultdict[str, dict[str, str]] = collections.defaultdict(dict)
 
     for file_path in pyproject_files:
         try:

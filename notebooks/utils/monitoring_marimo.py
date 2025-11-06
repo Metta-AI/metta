@@ -1,16 +1,16 @@
-from datetime import datetime
+import datetime
 
 import pandas as pd
 import wandb
 
-from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
+import metta.common.util.constants
 
 
 def monitor_training_statuses(
     run_names: list[str],
     show_metrics: list[str] | None = None,
-    entity: str = METTA_WANDB_ENTITY,
-    project: str = METTA_WANDB_PROJECT,
+    entity: str = metta.common.util.constants.METTA_WANDB_ENTITY,
+    project: str = metta.common.util.constants.METTA_WANDB_PROJECT,
 ) -> pd.DataFrame:
     """
     Marimo-compatible version of monitor_training_statuses.
@@ -37,7 +37,7 @@ def monitor_training_statuses(
                 {
                     "name": run_name,
                     "state": run.state,
-                    "created": datetime.fromisoformat(run.created_at).strftime("%Y-%m-%d %H:%M"),
+                    "created": datetime.datetime.fromisoformat(run.created_at).strftime("%Y-%m-%d %H:%M"),
                 }
             )
             if run.summary:

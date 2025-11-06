@@ -2,44 +2,44 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+import fastapi
+import pydantic
 
-from metta.app_backend.auth import create_user_or_token_dependency
-from metta.app_backend.metta_repo import MettaRepo
-from metta.app_backend.route_logger import timed_http_handler
+import metta.app_backend.auth
+import metta.app_backend.metta_repo
+import metta.app_backend.route_logger
 
 
 # Request/Response Models
-class SweepCreateRequest(BaseModel):
+class SweepCreateRequest(pydantic.BaseModel):
     project: str
     entity: str
     wandb_sweep_id: str
 
 
-class SweepCreateResponse(BaseModel):
+class SweepCreateResponse(pydantic.BaseModel):
     created: bool
     sweep_id: uuid.UUID
 
 
-class SweepInfo(BaseModel):
+class SweepInfo(pydantic.BaseModel):
     exists: bool
     wandb_sweep_id: str
 
 
-class RunIdResponse(BaseModel):
+class RunIdResponse(pydantic.BaseModel):
     run_id: str
 
 
-def create_sweep_router(metta_repo: MettaRepo) -> APIRouter:
+def create_sweep_router(metta_repo: metta.app_backend.metta_repo.MettaRepo) -> fastapi.APIRouter:
     """Create a sweep coordination router with the given MettaRepo instance."""
-    router = APIRouter(prefix="/sweeps", tags=["sweeps"])
+    router = fastapi.APIRouter(prefix="/sweeps", tags=["sweeps"])
 
     # Create the user-or-token authentication dependency
-    user_or_token = Depends(create_user_or_token_dependency(metta_repo))
+    user_or_token = fastapi.Depends(metta.app_backend.auth.create_user_or_token_dependency(metta_repo))
 
     @router.post("/{sweep_name}/create_sweep", response_model=SweepCreateResponse)
-    @timed_http_handler
+    @metta.app_backend.route_logger.timed_http_handler
     async def create_sweep(
         sweep_name: str, request: SweepCreateRequest, user: str = user_or_token
     ) -> SweepCreateResponse:
@@ -62,7 +62,7 @@ def create_sweep_router(metta_repo: MettaRepo) -> APIRouter:
         return SweepCreateResponse(created=True, sweep_id=sweep_id)
 
     @router.get("/{sweep_name}", response_model=SweepInfo)
-    @timed_http_handler
+    @metta.app_backend.route_logger.timed_http_handler
     async def get_sweep(sweep_name: str, user: str = user_or_token) -> SweepInfo:
         """Get sweep information by name."""
         sweep = await metta_repo.get_sweep_by_name(sweep_name)
@@ -73,13 +73,13 @@ def create_sweep_router(metta_repo: MettaRepo) -> APIRouter:
         return SweepInfo(exists=True, wandb_sweep_id=sweep.wandb_sweep_id)
 
     @router.post("/{sweep_name}/runs/next", response_model=RunIdResponse)
-    @timed_http_handler
+    @metta.app_backend.route_logger.timed_http_handler
     async def get_next_run_id(sweep_name: str, user: str = user_or_token) -> RunIdResponse:
         """Get the next run ID for a sweep (atomic operation)."""
         sweep = await metta_repo.get_sweep_by_name(sweep_name)
 
         if not sweep:
-            raise HTTPException(status_code=404, detail=f"Sweep '{sweep_name}' not found")
+            raise fastapi.HTTPException(status_code=404, detail=f"Sweep '{sweep_name}' not found")
 
         # Atomically increment and get next run counter
         next_counter = await metta_repo.get_next_sweep_run_counter(sweep.id)

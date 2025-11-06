@@ -1,27 +1,25 @@
 """Transformer-XL style attention cell with optional AxonLayer-backed Q/K/V projections."""
 
-from __future__ import annotations
 
-from typing import Optional, Tuple
+import typing
 
+import cortex.cells.base
+import cortex.cells.core
+import cortex.cells.registry
+import cortex.config
+import cortex.kernels.pytorch.txl
+import cortex.types
+import tensordict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from tensordict import TensorDict
-
-from cortex.cells.base import MemoryCell
-from cortex.cells.core import AxonLayer, update_parent_state
-from cortex.cells.registry import register_cell
-from cortex.config import XLCellConfig
-from cortex.kernels.pytorch.txl import txl_pytorch
-from cortex.types import MaybeState, ResetMask, Tensor
 
 
-@register_cell(XLCellConfig)
-class XLCell(MemoryCell):
+@cortex.cells.registry.register_cell(cortex.config.XLCellConfig)
+class XLCell(cortex.cells.base.MemoryCell):
     """Transformer-XL style multi-head attention with rolling memory."""
 
-    def __init__(self, cfg: XLCellConfig) -> None:
+    def __init__(self, cfg: cortex.config.XLCellConfig) -> None:
         if cfg.hidden_size is None:
             raise ValueError("XLCellConfig.hidden_size must be specified")
 
@@ -52,9 +50,9 @@ class XLCell(MemoryCell):
 
         if getattr(cfg, "use_axon_qkv", False):
             ax_cfg = getattr(cfg, "axon_qkv_config", None)
-            self.q_proj = AxonLayer(proj_in, proj_out, cfg=ax_cfg, name="q", group="xl_qkv")
-            self.k_proj = AxonLayer(proj_in, proj_out, cfg=ax_cfg, name="k", group="xl_qkv")
-            self.v_proj = AxonLayer(proj_in, proj_out, cfg=ax_cfg, name="v", group="xl_qkv")
+            self.q_proj = cortex.cells.core.AxonLayer(proj_in, proj_out, cfg=ax_cfg, name="q", group="xl_qkv")
+            self.k_proj = cortex.cells.core.AxonLayer(proj_in, proj_out, cfg=ax_cfg, name="k", group="xl_qkv")
+            self.v_proj = cortex.cells.core.AxonLayer(proj_in, proj_out, cfg=ax_cfg, name="v", group="xl_qkv")
         else:
             self.q_proj = nn.Linear(proj_in, proj_out, bias=use_bias)
             self.k_proj = nn.Linear(proj_in, proj_out, bias=use_bias)
@@ -91,7 +89,7 @@ class XLCell(MemoryCell):
         nn.init.zeros_(self.u)
         nn.init.zeros_(self.v)
 
-    def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> TensorDict:
+    def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> tensordict.TensorDict:
         if self.mem_len > 0:
             # Preallocate full memory length so downstream caches observe a fixed shape.
             mem = torch.zeros(batch, self.mem_len, self.d_model, device=device, dtype=dtype)
@@ -99,15 +97,15 @@ class XLCell(MemoryCell):
         else:
             mem = torch.zeros(batch, 0, self.d_model, device=device, dtype=dtype)
             mem_seg = torch.zeros(batch, 0, device=device, dtype=torch.long)
-        return TensorDict({"mem": mem, "mem_seg": mem_seg}, batch_size=[batch])
+        return tensordict.TensorDict({"mem": mem, "mem_seg": mem_seg}, batch_size=[batch])
 
     def forward(
         self,
-        x: Tensor,
-        state: MaybeState,
+        x: cortex.types.Tensor,
+        state: cortex.types.MaybeState,
         *,
-        resets: Optional[ResetMask] = None,
-    ) -> Tuple[Tensor, MaybeState]:
+        resets: typing.Optional[cortex.types.ResetMask] = None,
+    ) -> typing.Tuple[cortex.types.Tensor, cortex.types.MaybeState]:
         is_step = x.dim() == 2
         if is_step:
             x_seq = x.unsqueeze(1)
@@ -145,13 +143,13 @@ class XLCell(MemoryCell):
             parent_state=mem_td,
         )
 
-        new_state = TensorDict({"mem": new_mem, "mem_seg": new_mem_seg}, batch_size=[B])
+        new_state = tensordict.TensorDict({"mem": new_mem, "mem_seg": new_mem_seg}, batch_size=[B])
         # Preserve AxonLayer substates written into mem_td
-        update_parent_state(new_state, mem_td)
-        y_out: Tensor = y_seq.squeeze(1) if is_step else y_seq
+        cortex.cells.core.update_parent_state(new_state, mem_td)
+        y_out: cortex.types.Tensor = y_seq.squeeze(1) if is_step else y_seq
         return y_out, new_state
 
-    def reset_state(self, state: MaybeState, mask: ResetMask) -> MaybeState:
+    def reset_state(self, state: cortex.types.MaybeState, mask: cortex.types.ResetMask) -> cortex.types.MaybeState:
         if state is None:
             return None
 
@@ -182,18 +180,18 @@ class XLCell(MemoryCell):
         mem_new[mask_tensor] = 0.0
         mem_seg_new[mask_tensor] = 0
 
-        out_state = TensorDict({"mem": mem_new, "mem_seg": mem_seg_new}, batch_size=state.batch_size)
+        out_state = tensordict.TensorDict({"mem": mem_new, "mem_seg": mem_seg_new}, batch_size=state.batch_size)
 
         # Reset AxonLayer substates if enabled
-        if isinstance(self.q_proj, AxonLayer):
+        if isinstance(self.q_proj, cortex.cells.core.AxonLayer):
             self.q_proj.reset_state(mask, state)
-        if isinstance(self.k_proj, AxonLayer):
+        if isinstance(self.k_proj, cortex.cells.core.AxonLayer):
             self.k_proj.reset_state(mask, state)
-        if isinstance(self.v_proj, AxonLayer):
+        if isinstance(self.v_proj, cortex.cells.core.AxonLayer):
             self.v_proj.reset_state(mask, state)
 
         # Preserve any auxiliary substates present in input state
-        update_parent_state(out_state, state)
+        cortex.cells.core.update_parent_state(out_state, state)
         return out_state
 
     def _forward_block(
@@ -203,8 +201,8 @@ class XLCell(MemoryCell):
         mem_seg: torch.Tensor,
         resets_bt: torch.Tensor,
         *,
-        parent_state: TensorDict,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        parent_state: tensordict.TensorDict,
+    ) -> typing.Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         B, T, _ = x_seq.shape
         device = x_seq.device
         dtype = x_seq.dtype
@@ -220,7 +218,7 @@ class XLCell(MemoryCell):
         x_kv = torch.cat([mem, x_seq], dim=1) if M > 0 else x_seq
         L = x_kv.size(1)
 
-        if isinstance(self.q_proj, AxonLayer):
+        if isinstance(self.q_proj, cortex.cells.core.AxonLayer):
             # For Axon-backed projections, ensure resets precisely follow segment
             # boundaries across memory + current tokens. Build a length-L mask
             # directly from seg_full so K/V streaming respects historical
@@ -253,7 +251,7 @@ class XLCell(MemoryCell):
         r = self._relative_positions(L, device, dtype)
         r = self.r_proj(r)
         r = r.view(L, self.n_heads, self.d_head).permute(1, 0, 2).contiguous()
-        ctx = txl_pytorch(q, k, v, r, seg_full, self.u, self.v, M, self.scale)
+        ctx = cortex.kernels.pytorch.txl.txl_pytorch(q, k, v, r, seg_full, self.u, self.v, M, self.scale)
 
         y = ctx.transpose(1, 2).contiguous().view(B, T, self.n_heads * self.d_head)
         y = self.o_proj(y)
@@ -275,7 +273,7 @@ class XLCell(MemoryCell):
 
     def _normalize_resets(
         self,
-        resets: Optional[ResetMask],
+        resets: typing.Optional[cortex.types.ResetMask],
         batch_size: int,
         seq_len: int,
         device: torch.device,

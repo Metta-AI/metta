@@ -1,14 +1,14 @@
 """Database query logging utilities for performance monitoring."""
 
+import contextlib
 import logging
 import time
-from contextlib import asynccontextmanager
-from typing import Any, AsyncGenerator, Tuple
+import typing
 
-from psycopg import AsyncConnection, AsyncCursor
-from psycopg.abc import Query
-from psycopg.rows import TupleRow
-from psycopg.sql import Composable
+import psycopg
+import psycopg.abc
+import psycopg.rows
+import psycopg.sql
 
 # Logger for database query performance
 query_logger = logging.getLogger("db_performance")
@@ -18,10 +18,13 @@ query_logger.setLevel(logging.INFO)
 SLOW_QUERY_THRESHOLD_SECONDS = 1.0
 
 
-@asynccontextmanager
+@contextlib.asynccontextmanager
 async def timed_query(
-    con: AsyncConnection, query: Query, params: Tuple[Any, ...] = (), description: str = ""
-) -> AsyncGenerator[AsyncCursor, None]:
+    con: psycopg.AsyncConnection,
+    query: psycopg.abc.Query,
+    params: typing.Tuple[typing.Any, ...] = (),
+    description: str = "",
+) -> typing.AsyncGenerator[psycopg.AsyncCursor, None]:
     """
     Async context manager that executes a database query with timing and logging.
 
@@ -47,7 +50,7 @@ async def timed_query(
 
             # Log slow queries with details
             if execution_time > SLOW_QUERY_THRESHOLD_SECONDS:
-                query_str = query.as_string(con) if isinstance(query, Composable) else query.__str__()
+                query_str = query.as_string(con) if isinstance(query, psycopg.sql.Composable) else query.__str__()
                 query_logger.warning(
                     f"SLOW QUERY ({execution_time:.3f}s): {query_id}\nQuery: {query_str}\nParams: {params}"
                 )
@@ -61,8 +64,11 @@ async def timed_query(
 
 
 async def execute_query_and_log(
-    con: AsyncConnection, query: Query, params: Tuple[Any, ...] = (), description: str = ""
-) -> list[TupleRow]:
+    con: psycopg.AsyncConnection,
+    query: psycopg.abc.Query,
+    params: typing.Tuple[typing.Any, ...] = (),
+    description: str = "",
+) -> list[psycopg.rows.TupleRow]:
     """
     Execute an async query with timing and logging, returning the results.
 
@@ -80,8 +86,11 @@ async def execute_query_and_log(
 
 
 async def execute_single_row_query_and_log(
-    con: AsyncConnection, query: Query, params: Tuple[Any, ...] = (), description: str = ""
-) -> TupleRow | None:
+    con: psycopg.AsyncConnection,
+    query: psycopg.abc.Query,
+    params: typing.Tuple[typing.Any, ...] = (),
+    description: str = "",
+) -> psycopg.rows.TupleRow | None:
     """
     Execute an async query with timing and logging, returning the first result.
 

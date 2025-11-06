@@ -14,12 +14,11 @@ chunk, detach ``(hc1,hc2)`` and the returned ``trace_out``, and feed both back
 as inputs for the next chunk.
 """
 
-from __future__ import annotations
 
-from typing import Optional, Tuple
+import typing
 
 import torch
-from torch.autograd import Function
+import torch.autograd
 
 # ------------------------------------------------------------
 # Diagonal input-map streaming RTU (new, lightweight variant)
@@ -99,7 +98,7 @@ def _unpack_traces_diag(trace: tuple[torch.Tensor, ...]):
     )
 
 
-class _LinearRTUFunctionDiag_Streaming(Function):
+class _LinearRTUFunctionDiag_Streaming(torch.autograd.Function):
     @staticmethod
     def forward(
         ctx,
@@ -111,8 +110,8 @@ class _LinearRTUFunctionDiag_Streaming(Function):
         activation_name: str,
         hc1_init_bh: torch.Tensor,  # (B,H)
         hc2_init_bh: torch.Tensor,  # (B,H)
-        trace_in: Optional[tuple[torch.Tensor, ...]] = None,
-        resets_bt: Optional[torch.Tensor] = None,  # (B,T) bool or None
+        trace_in: typing.Optional[tuple[torch.Tensor, ...]] = None,
+        resets_bt: typing.Optional[torch.Tensor] = None,  # (B,T) bool or None
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, tuple[torch.Tensor, ...]]:
         B, T, D = x_btd.shape
         H = nu_log.shape[0]
@@ -312,8 +311,8 @@ class _LinearRTUFunctionDiag_Streaming(Function):
         grad_y_btd_2h: torch.Tensor,  # (B,T,2H)
         grad_final_hc1: torch.Tensor,  # unused
         grad_final_hc2: torch.Tensor,  # unused
-        grad_trace_out: Optional[tuple[torch.Tensor, ...]],  # None; no grads through traces
-    ) -> tuple[Optional[torch.Tensor], ...]:
+        grad_trace_out: typing.Optional[tuple[torch.Tensor, ...]],  # None; no grads through traces
+    ) -> tuple[typing.Optional[torch.Tensor], ...]:
         saved = ctx.saved_tensors
         (
             x_btd,
@@ -485,9 +484,9 @@ def rtu_stream_diag_pytorch(
     activation_name: str,
     hc1_init_bh: torch.Tensor,
     hc2_init_bh: torch.Tensor,
-    trace_in: Optional[tuple[torch.Tensor, ...]] = None,
-    resets_bt: Optional[torch.Tensor] = None,
-) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor], tuple[torch.Tensor, ...]]:
+    trace_in: typing.Optional[tuple[torch.Tensor, ...]] = None,
+    resets_bt: typing.Optional[torch.Tensor] = None,
+) -> typing.Tuple[torch.Tensor, typing.Tuple[torch.Tensor, torch.Tensor], tuple[torch.Tensor, ...]]:
     """Streaming functional RTU (diagonal input maps) that carries traces across chunks.
 
     Args:

@@ -1,21 +1,21 @@
+import abc
 import os
 import random
+import typing
 import zipfile
-from abc import ABC, abstractmethod
-from typing import Optional
 
 import boto3
+import botocore.exceptions
+import filelock
 import numpy as np
-from botocore.exceptions import NoCredentialsError
-from filelock import FileLock
-from pydantic import ConfigDict, Field
+import pydantic
 
-from metta.common.util.log_config import getRankAwareLogger
-from metta.utils.uri import ParsedURI
-from mettagrid.map_builder import MapGrid
-from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig, WithMaxRetriesConfig
+import metta.common.util.log_config
+import metta.utils.uri
+import mettagrid.map_builder
+import mettagrid.map_builder.map_builder
 
-logger = getRankAwareLogger(__name__)
+logger = metta.common.util.log_config.getRankAwareLogger(__name__)
 
 MAPS_ROOT = "s3://softmax-public/maps"
 
@@ -33,7 +33,7 @@ def pick_random_file(path, rng):
 
 
 def download_from_s3(s3_path: str, save_path: str):
-    parsed = ParsedURI.parse(s3_path)
+    parsed = metta.utils.uri.ParsedURI.parse(s3_path)
     bucket, key = parsed.require_s3()
 
     try:
@@ -44,24 +44,27 @@ def download_from_s3(s3_path: str, save_path: str):
         s3_client.download_file(Bucket=bucket, Key=key, Filename=save_path)
         logger.info(f"Successfully downloaded {parsed.canonical} to {save_path}")
 
-    except NoCredentialsError as e:
+    except botocore.exceptions.NoCredentialsError as e:
         raise e
     except Exception as e:
         raise e
 
 
-class TerrainFromNumpyConfig(MapBuilderConfig["TerrainFromNumpy"], WithMaxRetriesConfig):
+class TerrainFromNumpyConfig(
+    mettagrid.map_builder.map_builder.MapBuilderConfig["TerrainFromNumpy"],
+    mettagrid.map_builder.map_builder.WithMaxRetriesConfig,
+):
     # Allow non-pydantic types like random.Random
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-    objects: dict[str, int] = Field(default_factory=dict)
-    agents: int | dict[str, int] = Field(default=0, ge=0)
+    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True)
+    objects: dict[str, int] = pydantic.Field(default_factory=dict)
+    agents: int | dict[str, int] = pydantic.Field(default=0, ge=0)
     dir: str
-    file: Optional[str] = None
+    file: typing.Optional[str] = None
     remove_altars: bool = False
-    rng: random.Random = Field(default_factory=random.Random, exclude=True)
+    rng: random.Random = pydantic.Field(default_factory=random.Random, exclude=True)
 
 
-class TerrainFromNumpy(MapBuilder[TerrainFromNumpyConfig], ABC):
+class TerrainFromNumpy(mettagrid.map_builder.map_builder.MapBuilder[TerrainFromNumpyConfig], abc.ABC):
     """This class is used to load a terrain environment from numpy arrays on s3.
 
     It's not a MapGen scene, because we don't know the grid size until we load the file."""
@@ -75,7 +78,7 @@ class TerrainFromNumpy(MapBuilder[TerrainFromNumpyConfig], ABC):
         s3_path = f"{MAPS_ROOT}/{root}.zip"
         local_zipped_dir = root_dir + ".zip"
         # Only one process can hold this lock at a time:
-        with FileLock(local_zipped_dir + ".lock"):
+        with filelock.FileLock(local_zipped_dir + ".lock"):
             if not os.path.exists(map_dir) and not os.path.exists(local_zipped_dir):
                 download_from_s3(s3_path, local_zipped_dir)
             if not os.path.exists(root_dir) and os.path.exists(local_zipped_dir):
@@ -85,7 +88,7 @@ class TerrainFromNumpy(MapBuilder[TerrainFromNumpyConfig], ABC):
                 logger.info(f"Extracted {local_zipped_dir} to {root_dir}")
         return map_dir
 
-    def get_valid_positions(self, level: MapGrid, assemblers=False):
+    def get_valid_positions(self, level: mettagrid.map_builder.MapGrid, assemblers=False):
         # Create a boolean mask for empty cells
         empty_mask = level == "empty"
 
@@ -117,7 +120,7 @@ class TerrainFromNumpy(MapBuilder[TerrainFromNumpyConfig], ABC):
         valid_positions = list(zip(*np.where(valid_mask), strict=False))
         return valid_positions
 
-    def clean_grid(self, grid: MapGrid, assemblers=True):
+    def clean_grid(self, grid: mettagrid.map_builder.MapGrid, assemblers=True):
         grid[grid == "agent.agent"] = "empty"
         if self.config.remove_altars:
             grid[grid == "altar"] = "empty"
@@ -132,8 +135,8 @@ class TerrainFromNumpy(MapBuilder[TerrainFromNumpyConfig], ABC):
         self.config.rng.shuffle(valid_positions)
         return grid, valid_positions, agent_labels
 
-    @abstractmethod
-    def build(self) -> GameMap: ...
+    @abc.abstractmethod
+    def build(self) -> mettagrid.map_builder.map_builder.GameMap: ...
 
 
 class NavigationFromNumpy(TerrainFromNumpy):
@@ -166,11 +169,11 @@ class NavigationFromNumpy(TerrainFromNumpy):
                 grid[pos] = obj_name
                 valid_positions_set.remove(pos)
 
-        return GameMap(grid=grid)
+        return mettagrid.map_builder.map_builder.GameMap(grid=grid)
 
 
 class CogsVClippiesFromNumpy(TerrainFromNumpy):
-    def carve_out_patches(self, grid: MapGrid, valid_positions_set: set[tuple[int, int]]):
+    def carve_out_patches(self, grid: mettagrid.map_builder.MapGrid, valid_positions_set: set[tuple[int, int]]):
         # Carve out 9x9 empties at random coordinates (not in valid_positions_set) and gather the center points
         grid_shape = grid.shape
         empty_centers = []
@@ -240,7 +243,7 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
                 grid[pos] = obj_name
                 valid_positions_set.remove(pos)
 
-        return GameMap(grid=grid)
+        return mettagrid.map_builder.map_builder.GameMap(grid=grid)
 
 
 # class InContextLearningFromNumpy(TerrainFromNumpy):

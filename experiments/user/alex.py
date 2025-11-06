@@ -1,31 +1,28 @@
 # This file is for local experimentation only. It is not checked in, and therefore won't be usable on skypilot
 # You can run these functions locally with e.g. `./tools/run.py experiments.recipes.scratchpad.alex.train`
 # The VSCode "Run and Debug" section supports options to run these functions.
-from typing import List, Optional
+import typing
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from experiments.recipes import arena
-from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
-from metta.agent.policy import PolicyArchitecture
-from metta.cogworks.curriculum.curriculum import (
-    CurriculumAlgorithmConfig,
-    CurriculumConfig,
-)
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss.loss_config import LossConfig
-from metta.rl.loss.ppo import PPOConfig
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.sim.simulation_config import SimulationConfig
-from metta.tools.eval import EvaluateTool
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
-from metta.tools.train import TrainTool
-from mettagrid import MettaGridConfig
+import experiments.recipes
+import metta.agent.policies.vit_sliding_trans
+import metta.agent.policy
+import metta.cogworks.curriculum.curriculum
+import metta.cogworks.curriculum.learning_progress_algorithm
+import metta.rl.loss.loss_config
+import metta.rl.loss.ppo
+import metta.rl.trainer_config
+import metta.rl.training
+import metta.sim.simulation_config
+import metta.tools.eval
+import metta.tools.play
+import metta.tools.replay
+import metta.tools.train
+import mettagrid
 
 
-def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
+def make_mettagrid(num_agents: int = 24) -> mettagrid.MettaGridConfig:
     arena_env = eb.make_arena(num_agents=num_agents)
 
     arena_env.game.agent.rewards.inventory = {
@@ -49,10 +46,12 @@ def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
 
 
 def make_curriculum(
-    arena_env: Optional[MettaGridConfig] = None,
+    arena_env: typing.Optional[mettagrid.MettaGridConfig] = None,
     enable_detailed_slice_logging: bool = False,
-    algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
-) -> CurriculumConfig:
+    algorithm_config: typing.Optional[
+        metta.cogworks.curriculum.curriculum.CurriculumAlgorithmConfig
+    ] = None,
+) -> metta.cogworks.curriculum.curriculum.CurriculumConfig:
     arena_env = arena_env or make_mettagrid()
 
     arena_tasks = cc.bucketed(arena_env)
@@ -68,7 +67,7 @@ def make_curriculum(
     arena_tasks.add_bucket("game.actions.attack.consumed_resources.laser", [1, 100])
 
     if algorithm_config is None:
-        algorithm_config = LearningProgressConfig(
+        algorithm_config = metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig(
             use_bidirectional=True,  # Enable bidirectional learning progress by default
             ema_timescale=0.001,
             exploration_bonus=0.1,
@@ -80,7 +79,9 @@ def make_curriculum(
     return arena_tasks.to_curriculum(algorithm_config=algorithm_config)
 
 
-def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
+def make_evals(
+    env: typing.Optional[mettagrid.MettaGridConfig] = None,
+) -> typing.List[metta.sim.simulation_config.SimulationConfig]:
     basic_env = env or make_mettagrid()
     basic_env.game.actions.attack.consumed_resources["laser"] = 100
 
@@ -88,33 +89,41 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
     combat_env.game.actions.attack.consumed_resources["laser"] = 1
 
     return [
-        SimulationConfig(suite="arena", name="basic", env=basic_env),
-        SimulationConfig(suite="arena", name="combat", env=combat_env),
+        metta.sim.simulation_config.SimulationConfig(
+            suite="arena", name="basic", env=basic_env
+        ),
+        metta.sim.simulation_config.SimulationConfig(
+            suite="arena", name="combat", env=combat_env
+        ),
     ]
 
 
 def train(
-    curriculum: Optional[CurriculumConfig] = None,
+    curriculum: typing.Optional[
+        metta.cogworks.curriculum.curriculum.CurriculumConfig
+    ] = None,
     enable_detailed_slice_logging: bool = False,
-    policy_architecture: Optional[PolicyArchitecture] = None,
-) -> TrainTool:
+    policy_architecture: typing.Optional[metta.agent.policy.PolicyArchitecture] = None,
+) -> metta.tools.train.TrainTool:
     curriculum = curriculum or make_curriculum(
         enable_detailed_slice_logging=enable_detailed_slice_logging
     )
 
     eval_simulations = make_evals()
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(loss_configs={"ppo": PPOConfig()}),
+    trainer_cfg = metta.rl.trainer_config.TrainerConfig(
+        losses=metta.rl.loss.loss_config.LossConfig(
+            loss_configs={"ppo": metta.rl.loss.ppo.PPOConfig()}
+        ),
     )
     # policy_config = FastDynamicsConfig()
     # policy_config = FastLSTMResetConfig()
     # policy_config = FastConfig()
     # policy_config = ViTSmallConfig()
-    policy_config = ViTSlidingTransConfig()
-    training_env = TrainingEnvironmentConfig(curriculum=curriculum)
-    evaluator = EvaluatorConfig(simulations=eval_simulations)
+    policy_config = metta.agent.policies.vit_sliding_trans.ViTSlidingTransConfig()
+    training_env = metta.rl.training.TrainingEnvironmentConfig(curriculum=curriculum)
+    evaluator = metta.rl.training.EvaluatorConfig(simulations=eval_simulations)
 
-    return TrainTool(
+    return metta.tools.train.TrainTool(
         trainer=trainer_cfg,
         training_env=training_env,
         evaluator=evaluator,
@@ -122,23 +131,23 @@ def train(
     )
 
 
-def play() -> PlayTool:
-    env = arena.make_evals()[0].env
+def play() -> metta.tools.play.PlayTool:
+    env = experiments.recipes.arena.make_evals()[0].env
     env.game.max_steps = 100
-    cfg = arena.play(env)
+    cfg = experiments.recipes.arena.play(env)
     return cfg
 
 
-def replay() -> ReplayTool:
-    env = arena.make_mettagrid()
+def replay() -> metta.tools.replay.ReplayTool:
+    env = experiments.recipes.arena.make_mettagrid()
     env.game.max_steps = 100
-    cfg = arena.replay(env)
+    cfg = experiments.recipes.arena.replay(env)
     # cfg.policy_uri = "wandb://run/daveey.combat.lpsm.8x4"
     return cfg
 
 
-def evaluate(run: str = "local.alex.1") -> EvaluateTool:
-    cfg = arena.evaluate(policy_uris=[f"wandb://run/{run}"])
+def evaluate(run: str = "local.alex.1") -> metta.tools.eval.EvaluateTool:
+    cfg = experiments.recipes.arena.evaluate(policy_uris=[f"wandb://run/{run}"])
 
     # If your run doesn't exist, try this:
     # cfg = arena.evaluate(policy_uri="wandb://run/daveey.combat.lpsm.8x4")

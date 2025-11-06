@@ -1,19 +1,18 @@
 """Helpers for invoking the run_tool CLI within tests."""
 
-from __future__ import annotations
 
 import logging
 import os
 import signal
 import sys
+import typing
 import warnings
-from typing import Mapping, NamedTuple
 
-from metta.common.tool import run_tool as run_tool_module
-from metta.common.util import log_config as log_config_module
+import metta.common.tool
+import metta.common.util
 
 
-class _LoggerState(NamedTuple):
+class _LoggerState(typing.NamedTuple):
     """Snapshot of a logger's mutable state for restoration."""
 
     handlers: tuple[logging.Handler, ...]
@@ -58,7 +57,7 @@ def _restore_logger_state(logger: logging.Logger, state: _LoggerState) -> None:
     logger.filters.extend(state.filters)
 
 
-def _restore_environment(snapshot: Mapping[str, str]) -> None:
+def _restore_environment(snapshot: typing.Mapping[str, str]) -> None:
     """Restore environment variables to a prior snapshot."""
 
     current_keys = set(os.environ.keys())
@@ -73,7 +72,7 @@ def _restore_environment(snapshot: Mapping[str, str]) -> None:
             os.environ[key] = value
 
 
-class RunToolResult(NamedTuple):
+class RunToolResult(typing.NamedTuple):
     """Captured result from invoking the tool runner in-process."""
 
     returncode: int
@@ -85,7 +84,7 @@ def run_tool_in_process(
     *cli_args: str,
     monkeypatch,
     capsys,
-    env_overrides: Mapping[str, str] | None = None,
+    env_overrides: typing.Mapping[str, str] | None = None,
     argv0: str = "tools/run.py",
 ) -> RunToolResult:
     """Invoke `metta.common.tool.run_tool.main()` without spawning a subprocess.
@@ -112,8 +111,8 @@ def run_tool_in_process(
             monkeypatch.setenv(key, value)
 
     monkeypatch.setattr(sys, "argv", [argv0, *cli_args], raising=False)
-    log_config_module._init_console_logging.cache_clear()
-    log_config_module._add_file_logging.cache_clear()
+    metta.common.util.log_config._init_console_logging.cache_clear()
+    metta.common.util.log_config._add_file_logging.cache_clear()
 
     env_snapshot = dict(os.environ)
     root_snapshot = _capture_logger_state(logging.getLogger())
@@ -128,7 +127,7 @@ def run_tool_in_process(
         with warnings.catch_warnings():
             warnings.simplefilter("default")
             try:
-                returncode = run_tool_module.main()
+                returncode = metta.common.tool.run_tool.main()
             except SystemExit as exc:  # pragma: no cover - defensive
                 code = exc.code
                 if isinstance(code, int) or code is None:

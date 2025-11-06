@@ -1,43 +1,35 @@
-from typing import Optional
+import typing
 
-import mettagrid.mapgen.scenes.random
-from mettagrid.builder import building, empty_assemblers
+import mettagrid.builder
 
 # Local import moved to factory usage to avoid forbidden cross-package dependency at import time
-from mettagrid.config.mettagrid_config import (
-    ActionsConfig,
-    AgentConfig,
-    AgentRewards,
-    AttackActionConfig,
-    GameConfig,
-    MettaGridConfig,
-    MoveActionConfig,
-    NoopActionConfig,
-)
-from mettagrid.map_builder.map_builder import MapBuilderConfig
-from mettagrid.map_builder.perimeter_incontext import PerimeterInContextMapBuilder
-from mettagrid.map_builder.random import RandomMapBuilder
-from mettagrid.mapgen.mapgen import MapGen
+import mettagrid.config.mettagrid_config
+import mettagrid.map_builder.map_builder
+import mettagrid.map_builder.perimeter_incontext
+import mettagrid.map_builder.random
+import mettagrid.mapgen.mapgen
+import mettagrid.mapgen.scenes.random
 
 
 def make_arena(
     num_agents: int,
     combat: bool = True,
-    map_builder: MapBuilderConfig | None = None,  # custom map builder; must match num_agents
-) -> MettaGridConfig:
+    map_builder: mettagrid.map_builder.map_builder.MapBuilderConfig
+    | None = None,  # custom map builder; must match num_agents
+) -> mettagrid.config.mettagrid_config.MettaGridConfig:
     objects = {
-        "wall": building.wall,
-        "altar": building.assembler_altar,
-        "mine_red": building.assembler_mine_red,
-        "generator_red": building.assembler_generator_red,
-        "lasery": building.assembler_lasery,
-        "armory": building.assembler_armory,
+        "wall": mettagrid.builder.building.wall,
+        "altar": mettagrid.builder.building.assembler_altar,
+        "mine_red": mettagrid.builder.building.assembler_mine_red,
+        "generator_red": mettagrid.builder.building.assembler_generator_red,
+        "lasery": mettagrid.builder.building.assembler_lasery,
+        "armory": mettagrid.builder.building.assembler_armory,
     }
 
-    actions = ActionsConfig(
-        noop=NoopActionConfig(),
-        move=MoveActionConfig(),
-        attack=AttackActionConfig(
+    actions = mettagrid.config.mettagrid_config.ActionsConfig(
+        noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
+        move=mettagrid.config.mettagrid_config.MoveActionConfig(),
+        attack=mettagrid.config.mettagrid_config.AttackActionConfig(
             consumed_resources={
                 "laser": 1,
             },
@@ -51,7 +43,7 @@ def make_arena(
         actions.attack.consumed_resources = {"laser": 100}
 
     if map_builder is None:
-        map_builder = MapGen.Config(
+        map_builder = mettagrid.mapgen.mapgen.MapGen.Config(
             num_agents=num_agents,
             width=25,
             height=25,
@@ -70,18 +62,18 @@ def make_arena(
             ),
         )
 
-    return MettaGridConfig(
+    return mettagrid.config.mettagrid_config.MettaGridConfig(
         label="arena" + (".combat" if combat else ""),
-        game=GameConfig(
+        game=mettagrid.config.mettagrid_config.GameConfig(
             num_agents=num_agents,
             actions=actions,
             objects=objects,
-            agent=AgentConfig(
+            agent=mettagrid.config.mettagrid_config.AgentConfig(
                 default_resource_limit=50,
                 resource_limits={
                     "heart": 255,
                 },
-                rewards=AgentRewards(
+                rewards=mettagrid.config.mettagrid_config.AgentRewards(
                     inventory={
                         "heart": 1,
                     },
@@ -92,35 +84,37 @@ def make_arena(
     )
 
 
-def make_navigation(num_agents: int) -> MettaGridConfig:
-    nav_assembler = building.AssemblerConfig(
+def make_navigation(num_agents: int) -> mettagrid.config.mettagrid_config.MettaGridConfig:
+    nav_assembler = mettagrid.builder.building.AssemblerConfig(
         name="altar",
         type_id=8,
         map_char="_",
         render_symbol="🛣️",
-        protocols=[building.ProtocolConfig(input_resources={}, output_resources={"heart": 1}, cooldown=255)],
+        protocols=[
+            mettagrid.builder.building.ProtocolConfig(input_resources={}, output_resources={"heart": 1}, cooldown=255)
+        ],
     )
-    cfg = MettaGridConfig(
-        game=GameConfig(
+    cfg = mettagrid.config.mettagrid_config.MettaGridConfig(
+        game=mettagrid.config.mettagrid_config.GameConfig(
             num_agents=num_agents,
             objects={
                 "altar": nav_assembler,
-                "wall": building.wall,
+                "wall": mettagrid.builder.building.wall,
             },
             resource_names=["heart"],
-            actions=ActionsConfig(
-                move=MoveActionConfig(enabled=True),
-                noop=NoopActionConfig(enabled=True),
+            actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                move=mettagrid.config.mettagrid_config.MoveActionConfig(enabled=True),
+                noop=mettagrid.config.mettagrid_config.NoopActionConfig(enabled=True),
             ),
-            agent=AgentConfig(
-                rewards=AgentRewards(
+            agent=mettagrid.config.mettagrid_config.AgentConfig(
+                rewards=mettagrid.config.mettagrid_config.AgentRewards(
                     inventory={
                         "heart": 1,
                     },
                 ),
             ),
             # Always provide a concrete map builder config so tests can set width/height
-            map_builder=RandomMapBuilder.Config(agents=num_agents),
+            map_builder=mettagrid.map_builder.random.RandomMapBuilder.Config(agents=num_agents),
         )
     )
     return cfg
@@ -136,18 +130,18 @@ def make_assembly_lines(
     terrain: str = "no-terrain",
     chain_length: int = 2,
     num_sinks: int = 0,
-    dir: Optional[str] = None,
-) -> MettaGridConfig:
-    game_objects["wall"] = empty_assemblers.wall
-    cfg = MettaGridConfig(
+    dir: typing.Optional[str] = None,
+) -> mettagrid.config.mettagrid_config.MettaGridConfig:
+    game_objects["wall"] = mettagrid.builder.empty_assemblers.wall
+    cfg = mettagrid.config.mettagrid_config.MettaGridConfig(
         desync_episodes=False,
-        game=GameConfig(
+        game=mettagrid.config.mettagrid_config.GameConfig(
             max_steps=max_steps,
             num_agents=num_agents,
             objects=game_objects,
-            map_builder=MapGen.Config(
+            map_builder=mettagrid.mapgen.mapgen.MapGen.Config(
                 instances=num_agents,
-                instance=PerimeterInContextMapBuilder.Config(
+                instance=mettagrid.map_builder.perimeter_incontext.PerimeterInContextMapBuilder.Config(
                     agents=1,
                     width=width,
                     height=height,
@@ -158,12 +152,12 @@ def make_assembly_lines(
                     dir=dir,
                 ),
             ),
-            actions=ActionsConfig(
-                noop=NoopActionConfig(),
-                move=MoveActionConfig(),
+            actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
+                move=mettagrid.config.mettagrid_config.MoveActionConfig(),
             ),
-            agent=AgentConfig(
-                rewards=AgentRewards(
+            agent=mettagrid.config.mettagrid_config.AgentConfig(
+                rewards=mettagrid.config.mettagrid_config.AgentRewards(
                     inventory={
                         "heart": 1,
                     },

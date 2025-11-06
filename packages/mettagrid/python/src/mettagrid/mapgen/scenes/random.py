@@ -1,15 +1,15 @@
 import numpy as np
 
-from mettagrid.mapgen.scene import Scene, SceneConfig
+import mettagrid.mapgen.scene
 
 
-class RandomConfig(SceneConfig):
+class RandomConfig(mettagrid.mapgen.scene.SceneConfig):
     objects: dict[str, int] = {}
     agents: int | dict[str, int] = 0
     too_many_is_ok: bool = True
 
 
-class Random(Scene[RandomConfig]):
+class Random(mettagrid.mapgen.scene.Scene[RandomConfig]):
     """
     Fill the grid with random symbols, based on configuration.
 

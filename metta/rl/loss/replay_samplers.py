@@ -1,13 +1,13 @@
-from __future__ import annotations
 
+import tensordict
 import torch
-from tensordict import TensorDict
-from torch import Tensor
 
-from metta.rl.training.experience import Experience
+import metta.rl.training.experience
 
 
-def sample_minibatch_sequential(buffer: Experience, mb_idx: int) -> tuple[TensorDict, Tensor]:
+def sample_minibatch_sequential(
+    buffer: metta.rl.training.experience.Experience, mb_idx: int
+) -> tuple[tensordict.TensorDict, torch.Tensor]:
     """Simple way to sample a contiguous minibatch from the replay buffer in order."""
     segments_per_mb = buffer.minibatch_segments
     total_segments = buffer.segments

@@ -2,19 +2,18 @@
 
 from __future__ import annotations
 
+import dataclasses
+import pathlib
 import re
-from dataclasses import dataclass
-from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Optional, Tuple, Union
+import typing
 
 import torch
 
-from mettagrid.policy.policy import MultiAgentPolicy as Policy
-from mettagrid.policy.policy import TrainablePolicy
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.util.module import load_symbol
+import mettagrid.policy.policy
+import mettagrid.policy.policy_env_interface
+import mettagrid.util.module
 
-if TYPE_CHECKING:
+if typing.TYPE_CHECKING:
     pass
 
 _POLICY_CLASS_SHORTHAND: dict[str, str] = {
@@ -33,10 +32,10 @@ _POLICY_CLASS_SHORTHAND: dict[str, str] = {
 
 
 def initialize_or_load_policy(
-    policy_env_info: PolicyEnvInterface,
+    policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface,
     policy_class_path: str,
-    policy_data_path: Optional[str] = None,
-) -> Policy:
+    policy_data_path: typing.Optional[str] = None,
+) -> mettagrid.policy.policy.MultiAgentPolicy:
     """Initialize a policy from its class path and optionally load weights.
 
     Args:
@@ -51,12 +50,12 @@ def initialize_or_load_policy(
         Initialized policy instance
     """
 
-    policy_class = load_symbol(policy_class_path)
+    policy_class = mettagrid.util.module.load_symbol(policy_class_path)
 
     policy = policy_class(policy_env_info)  # type: ignore[misc]
 
     if policy_data_path:
-        if not isinstance(policy, TrainablePolicy):
+        if not isinstance(policy, mettagrid.policy.policy.TrainablePolicy):
             raise TypeError("Policy data provided, but the selected policy does not support loading checkpoints.")
 
         policy.load_policy_data(policy_data_path)
@@ -75,11 +74,11 @@ def resolve_policy_class_path(policy: str) -> str:
     full_path = _POLICY_CLASS_SHORTHAND.get(policy, policy)
 
     # Will raise an error if invalid
-    _ = load_symbol(full_path)
+    _ = mettagrid.util.module.load_symbol(full_path)
     return full_path
 
 
-def get_policy_class_shorthand(policy: str) -> Optional[str]:
+def get_policy_class_shorthand(policy: str) -> typing.Optional[str]:
     return {v: k for k, v in _POLICY_CLASS_SHORTHAND.items()}.get(policy)
 
 
@@ -89,7 +88,9 @@ _NOT_CHECKPOINT_PATTERNS = (
 )
 
 
-def find_policy_checkpoints(checkpoints_path: Path, env_name: Optional[str] = None) -> list[Path]:
+def find_policy_checkpoints(
+    checkpoints_path: pathlib.Path, env_name: typing.Optional[str] = None
+) -> list[pathlib.Path]:
     checkpoints = []
     if env_name:
         # Try to find the final checkpoint
@@ -109,8 +110,8 @@ def find_policy_checkpoints(checkpoints_path: Path, env_name: Optional[str] = No
 
 
 def resolve_policy_data_path(
-    policy_data_path: Optional[str],
-) -> Optional[str]:
+    policy_data_path: typing.Optional[str],
+) -> typing.Optional[str]:
     """Resolve a checkpoint path if provided.
 
     If the supplied path does not exist locally and AWS policy storage is configured,
@@ -120,7 +121,7 @@ def resolve_policy_data_path(
     if policy_data_path is None:
         return None
 
-    path = Path(policy_data_path).expanduser()
+    path = pathlib.Path(policy_data_path).expanduser()
     if path.is_file():
         return str(path)
 
@@ -136,11 +137,11 @@ def resolve_policy_data_path(
     raise FileNotFoundError(f"Checkpoint path not found: {path}")
 
 
-LSTMStateTuple = Tuple[torch.Tensor, torch.Tensor]
-LSTMStateDict = Dict[str, torch.Tensor]
+LSTMStateTuple = typing.Tuple[torch.Tensor, torch.Tensor]
+LSTMStateDict = typing.Dict[str, torch.Tensor]
 
 
-def _canonical_component(component: torch.Tensor, expected_layers: Optional[int]) -> torch.Tensor:
+def _canonical_component(component: torch.Tensor, expected_layers: typing.Optional[int]) -> torch.Tensor:
     """Return a ``(layers, batch, hidden)`` tensor, adding axes as needed."""
     if component.dim() > 3:
         msg = f"Expected tensor with <=3 dims, got {component.dim()}"
@@ -159,7 +160,7 @@ def _canonical_component(component: torch.Tensor, expected_layers: Optional[int]
     return component.contiguous()
 
 
-@dataclass
+@dataclasses.dataclass
 class LSTMState:
     """Canonical representation of an LSTM hidden/cell state."""
 
@@ -169,9 +170,9 @@ class LSTMState:
     @classmethod
     def from_tuple(
         cls,
-        state: Optional[LSTMStateTuple],
-        expected_layers: Optional[int],
-    ) -> Optional["LSTMState"]:
+        state: typing.Optional[LSTMStateTuple],
+        expected_layers: typing.Optional[int],
+    ) -> typing.Optional["LSTMState"]:
         if state is None:
             return None
         hidden, cell = state
@@ -184,8 +185,8 @@ class LSTMState:
     def from_dict(
         cls,
         state: LSTMStateDict,
-        expected_layers: Optional[int],
-    ) -> Optional["LSTMState"]:
+        expected_layers: typing.Optional[int],
+    ) -> typing.Optional["LSTMState"]:
         if not state:
             return None
         hidden = state.get("lstm_h")
@@ -200,9 +201,9 @@ class LSTMState:
     @classmethod
     def from_any(
         cls,
-        state: Optional[Union["LSTMState", LSTMStateTuple, LSTMStateDict]],
-        expected_layers: Optional[int],
-    ) -> Optional["LSTMState"]:
+        state: typing.Optional[typing.Union["LSTMState", LSTMStateTuple, LSTMStateDict]],
+        expected_layers: typing.Optional[int],
+    ) -> typing.Optional["LSTMState"]:
         if state is None:
             return None
         if isinstance(state, LSTMState):

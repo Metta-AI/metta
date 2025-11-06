@@ -1,22 +1,22 @@
 """Base renderer classes for game rendering."""
 
-from abc import abstractmethod
-from typing import Literal
+import abc
+import typing
 
-from typing_extensions import override
+import typing_extensions
 
-from mettagrid.simulator import SimulatorEventHandler
+import mettagrid.simulator
 
-RenderMode = Literal["gui", "unicode", "log", "none"]
+RenderMode = typing.Literal["gui", "unicode", "log", "none"]
 
 
-class Renderer(SimulatorEventHandler):
+class Renderer(mettagrid.simulator.SimulatorEventHandler):
     """Abstract base class for game renderers."""
 
     def __init__(self):
         super().__init__()
 
-    @override
+    @typing_extensions.override
     def on_episode_start(self) -> None:
         """Initialize the renderer for a new episode."""
         pass
@@ -25,12 +25,12 @@ class Renderer(SimulatorEventHandler):
         """Render the current state. Override this for interactive renderers that need to handle input."""
         pass
 
-    @override
+    @typing_extensions.override
     def on_step(self) -> None:
         """Called after each simulator step. Subclasses can access simulator state."""
         pass
 
-    @abstractmethod
+    @abc.abstractmethod
     def on_episode_end(self) -> None:
         """Clean up renderer resources."""
         pass
@@ -42,7 +42,7 @@ class NoRenderer(Renderer):
     def on_episode_start(self) -> None:
         pass
 
-    @override
+    @typing_extensions.override
     def render(self) -> None:
         pass
 
@@ -57,19 +57,19 @@ def create_renderer(render_mode: RenderMode) -> Renderer:
     """Create the appropriate renderer based on render_mode."""
     if render_mode == "unicode":
         # Text-based interactive rendering
-        from mettagrid.renderer.miniscope import MiniscopeRenderer
+        import mettagrid.renderer.miniscope
 
-        return MiniscopeRenderer()
+        return mettagrid.renderer.miniscope.MiniscopeRenderer()
     elif render_mode == "gui":
         # GUI-based interactive rendering
-        from mettagrid.renderer.mettascope import MettascopeRenderer
+        import mettagrid.renderer.mettascope
 
-        return MettascopeRenderer()
+        return mettagrid.renderer.mettascope.MettascopeRenderer()
     elif render_mode == "log":
         # Logger-based rendering for debugging
-        from mettagrid.renderer.log_renderer import LogRenderer
+        import mettagrid.renderer.log_renderer
 
-        return LogRenderer()
+        return mettagrid.renderer.log_renderer.LogRenderer()
     elif render_mode == "none":
         # No rendering
         return NoRenderer()

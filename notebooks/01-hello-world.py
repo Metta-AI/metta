@@ -20,8 +20,8 @@
 
 # %%
 import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import pathlib
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 # Setup imports for core notebook workflow
 # %load_ext autoreload
 # %autoreload 2
@@ -30,18 +30,17 @@ import time
 import warnings
 import io, contextlib
 import os, json, subprocess, tempfile, yaml
-from pathlib import Path
-from datetime import datetime
+import datetime
 
 import numpy as np  # used later
 import pandas as pd
 import matplotlib.pyplot as plt
-from omegaconf import OmegaConf
-from typing import Any, Dict  # type: ignore
-from metta.common.util.fs import get_repo_root
-from tools.renderer import setup_environment, get_policy
+import omegaconf
+import typing  # type: ignore
+import metta.common.util.fs
+import tools.renderer
 import ipywidgets as widgets
-from IPython.display import display
+import IPython.display
 
 # Suppress Pydantic deprecation warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="pydantic")
@@ -93,7 +92,7 @@ hallway_map = """###########
 
 env_cfg = get_cfg("benchmark")  # type: ignore
 # Convert to plain dict so we can edit
-env_dict: Dict[str, Any] = OmegaConf.to_container(env_cfg, resolve=True)  # type: ignore
+env_dict: typing.Dict[str, typing.Any] = omegaconf.OmegaConf.to_container(env_cfg, resolve=True)  # type: ignore
 # Override for a single 11x3 hallway map
 env_dict["game"]["num_agents"] = 1  # type: ignore
 env_dict["game"]["obs_width"] = 11  # type: ignore
@@ -114,7 +113,7 @@ env_dict["game"]["objects"]["mine_red"]["max_conversions"] = -1  # type: ignore
 env_dict["game"]["objects"]["generator_red"]["max_conversions"] = -1  # type: ignore
 env_dict["game"]["agent"]["rewards"]["inventory"]["ore_red"] = 1.0
 
-cfg = OmegaConf.create({
+cfg = omegaconf.OmegaConf.create({
     "env": env_dict,
     "renderer_job": {
         "policy_type": "opportunistic",
@@ -137,12 +136,12 @@ cfg = OmegaConf.create({
 #
 # %%
 with contextlib.redirect_stdout(io.StringIO()):
-    env, render_mode = setup_environment(cfg)
-    policy = get_policy(cfg.renderer_job.policy_type, env, cfg)
+    env, render_mode = tools.renderer.setup_environment(cfg)
+    policy = tools.renderer.get_policy(cfg.renderer_job.policy_type, env, cfg)
 
 header = widgets.HTML()
 map_box = widgets.HTML()
-display(header, map_box)
+IPython.display.display(header, map_box)
 
 # Run simulation loop
 obs, info = env.reset()
@@ -222,8 +221,8 @@ scores: list[int] = []
 
 # Re-use the same cfg (contains ore_red reward = 1.0)
 with contextlib.redirect_stdout(io.StringIO()):
-    eval_env, _ = setup_environment(cfg)
-    eval_policy = get_policy(cfg.renderer_job.policy_type, eval_env, cfg)
+    eval_env, _ = tools.renderer.setup_environment(cfg)
+    eval_policy = tools.renderer.get_policy(cfg.renderer_job.policy_type, eval_env, cfg)
 
 for ep in range(1, EVAL_EPISODES + 1):
     obs, _ = eval_env.reset()
@@ -246,7 +245,7 @@ print(f"Mean ore_red: {mean_score:.2f} ± {std_score:.2f} (n={EVAL_EPISODES})")
 
 # Display table inline
 running_avg = pd.Series(scores).expanding().mean()
-display(
+IPython.display.display(
     pd.DataFrame({"episode": list(range(1, EVAL_EPISODES + 1)), "ore_red": scores, "running_avg": running_avg})
 )
 
@@ -281,10 +280,10 @@ eval_env.close()
 # Feel free to increase `trainer.total_timesteps` later for a stronger agent.
 
 # %%
-cfg_tmp_dir = get_repo_root() / "configs" / "tmp"
+cfg_tmp_dir = metta.common.util.fs.get_repo_root() / "configs" / "tmp"
 cfg_tmp_dir.mkdir(parents=True, exist_ok=True)
 
-curriculum_name = f"hello_world_curriculum_{datetime.now():%Y%m%d_%H%M%S}.yaml"
+curriculum_name = f"hello_world_curriculum_{datetime.datetime.now():%Y%m%d_%H%M%S}.yaml"
 temp_curriculum_path = cfg_tmp_dir / curriculum_name
 
 with temp_curriculum_path.open("w") as f:
@@ -300,10 +299,10 @@ with temp_curriculum_path.open("w") as f:
     )
 
 # Unique run name (so multiple notebook runs don't collide)
-run_name = f"hello_world_train.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+run_name = f"hello_world_train.{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
 # Build command
-repo_root = get_repo_root()
+repo_root = metta.common.util.fs.get_repo_root()
 train_cmd = [
     str(repo_root / "tools" / "train.py"),
     f"run={run_name}",
@@ -342,12 +341,12 @@ temp_curriculum_path.unlink(missing_ok=True)
 
 # %%
 # Locate latest checkpoint
-ckpt_dir = Path("train_dir") / run_name / "checkpoints"
+ckpt_dir = pathlib.Path("train_dir") / run_name / "checkpoints"
 latest_ckpt = max(ckpt_dir.glob("*.pt"), key=lambda p: p.stat().st_mtime)
 print("Loading", latest_ckpt.name)
 
 # Build cfg for trained policy
-auto_cfg = OmegaConf.create({
+auto_cfg = omegaconf.OmegaConf.create({
     "env": env_dict,
     "policy_uri": f"file://{latest_ckpt.absolute()}",
     "renderer_job": {
@@ -359,12 +358,12 @@ auto_cfg = OmegaConf.create({
 })
 
 with contextlib.redirect_stdout(io.StringIO()):
-    trained_env, _ = setup_environment(auto_cfg)
-    trained_policy = get_policy("trained", trained_env, auto_cfg)
+    trained_env, _ = tools.renderer.setup_environment(auto_cfg)
+    trained_policy = tools.renderer.get_policy("trained", trained_env, auto_cfg)
 
 header2 = widgets.HTML()
 map_box2 = widgets.HTML()
-display(header2, map_box2)
+IPython.display.display(header2, map_box2)
 
 obs, _ = trained_env.reset()
 for step in range(auto_cfg.renderer_job.num_steps):

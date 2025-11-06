@@ -1,24 +1,24 @@
 import logging
-from typing import Any
+import typing
 
+import pydantic
+import tensordict
 import torch
-from pydantic import ConfigDict
-from tensordict import TensorDict
 
-from metta.agent.policy import Policy
-from metta.rl.loss import Loss
-from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
-from mettagrid.base_config import Config
+import metta.agent.policy
+import metta.rl.loss
+import metta.rl.training
+import mettagrid.base_config
 
 logger = logging.getLogger(__name__)
 
 
-class RolloutResult(Config):
+class RolloutResult(mettagrid.base_config.Config):
     """Results from a rollout phase."""
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True)
 
-    raw_infos: list[dict[str, Any]]
+    raw_infos: list[dict[str, typing.Any]]
     agent_steps: int
     training_env_id: slice
 
@@ -28,12 +28,12 @@ class CoreTrainingLoop:
 
     def __init__(
         self,
-        policy: Policy,
-        experience: Experience,
-        losses: dict[str, Loss],
+        policy: metta.agent.policy.Policy,
+        experience: metta.rl.training.Experience,
+        losses: dict[str, metta.rl.loss.Loss],
         optimizer: torch.optim.Optimizer,
         device: torch.device,
-        context: ComponentContext,
+        context: metta.rl.training.ComponentContext,
     ):
         """Initialize core training loop.
 
@@ -62,8 +62,8 @@ class CoreTrainingLoop:
 
     def rollout_phase(
         self,
-        env: TrainingEnvironment,
-        context: ComponentContext,
+        env: metta.rl.training.TrainingEnvironment,
+        context: metta.rl.training.ComponentContext,
     ) -> RolloutResult:
         """Perform rollout phase to collect experience.
 
@@ -74,7 +74,7 @@ class CoreTrainingLoop:
         Returns:
             RolloutResult with collected info
         """
-        raw_infos: list[dict[str, Any]] = []
+        raw_infos: list[dict[str, typing.Any]] = []
         self.experience.reset_for_rollout()
 
         # Notify losses of rollout start
@@ -160,7 +160,7 @@ class CoreTrainingLoop:
             with context.stopwatch("_rollout.send"):
                 env.send_actions(td["actions"].cpu().numpy())
 
-            infos_list: list[dict[str, Any]] = list(info) if info else []
+            infos_list: list[dict[str, typing.Any]] = list(info) if info else []
             if infos_list:
                 raw_infos.extend(infos_list)
 
@@ -178,7 +178,7 @@ class CoreTrainingLoop:
             env_indices = env_indices.to(device=device)
         return env_indices
 
-    def _ensure_rollout_metadata(self, td: TensorDict) -> None:
+    def _ensure_rollout_metadata(self, td: tensordict.TensorDict) -> None:
         """Populate metadata fields needed downstream while reusing cached tensors."""
 
         batch_elems = td.batch_size.numel()
@@ -210,7 +210,7 @@ class CoreTrainingLoop:
 
     def training_phase(
         self,
-        context: ComponentContext,
+        context: metta.rl.training.ComponentContext,
         update_epochs: int,
         max_grad_norm: float = 0.5,
     ) -> tuple[dict[str, float], int]:
@@ -297,7 +297,7 @@ class CoreTrainingLoop:
 
         return losses_stats, epochs_trained
 
-    def on_epoch_start(self, context: ComponentContext) -> None:
+    def on_epoch_start(self, context: metta.rl.training.ComponentContext) -> None:
         """Called at the start of each epoch.
 
         Args:
@@ -306,7 +306,7 @@ class CoreTrainingLoop:
         for loss in self.losses.values():
             loss.on_new_training_run(context)
 
-    def add_last_action_to_td(self, td: TensorDict, env: TrainingEnvironment) -> None:
+    def add_last_action_to_td(self, td: tensordict.TensorDict, env: metta.rl.training.TrainingEnvironment) -> None:
         env_ids = td["training_env_ids"]
         if env_ids.dim() == 2:
             env_ids = env_ids.squeeze(-1)

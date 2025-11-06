@@ -2,14 +2,14 @@
 
 import logging
 import re
-from typing import Optional
+import typing
 
 import wandb
 
 logger = logging.getLogger(__name__)
 
 
-def extract_skypilot_job_id(log_text: str) -> Optional[str]:
+def extract_skypilot_job_id(log_text: str) -> typing.Optional[str]:
     """Extract SkyPilot job ID from launcher logs."""
     patterns = [
         r"Job submitted with ID:\s*(\d+)",

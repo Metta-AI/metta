@@ -1,17 +1,17 @@
-from typing import List
+import typing
 
-from metta.agent.components.action import ActionEmbeddingConfig
-from metta.agent.components.actor import ActionProbsConfig, ActorKeyConfig, ActorQueryConfig
-from metta.agent.components.component_config import ComponentConfig
-from metta.agent.components.mamba.config import MambaBackboneConfig
-from metta.agent.components.misc import MLPConfig
-from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
-from metta.agent.components.obs_shim import ObsShimTokensConfig
-from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourierConfig
-from metta.agent.policy import PolicyArchitecture
+import metta.agent.components.action
+import metta.agent.components.actor
+import metta.agent.components.component_config
+import metta.agent.components.mamba.config
+import metta.agent.components.misc
+import metta.agent.components.obs_enc
+import metta.agent.components.obs_shim
+import metta.agent.components.obs_tokenizers
+import metta.agent.policy
 
 
-class MambaSlidingConfig(PolicyArchitecture):
+class MambaSlidingConfig(metta.agent.policy.PolicyArchitecture):
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
     _latent_dim = 32
@@ -20,15 +20,15 @@ class MambaSlidingConfig(PolicyArchitecture):
     _embed_dim = 16
     _core_out_dim = 32
 
-    components: List[ComponentConfig] = [
-        ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=48),
-        ObsAttrEmbedFourierConfig(
+    components: typing.List[metta.agent.components.component_config.ComponentConfig] = [
+        metta.agent.components.obs_shim.ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=48),
+        metta.agent.components.obs_tokenizers.ObsAttrEmbedFourierConfig(
             in_key="obs_shim_tokens",
             out_key="obs_attr_embed",
             attr_embed_dim=_token_embed_dim,
             num_freqs=_fourier_freqs,
         ),
-        ObsPerceiverLatentConfig(
+        metta.agent.components.obs_enc.ObsPerceiverLatentConfig(
             in_key="obs_attr_embed",
             out_key="encoded_obs",
             feat_dim=_token_embed_dim + (4 * _fourier_freqs) + 1,
@@ -37,7 +37,7 @@ class MambaSlidingConfig(PolicyArchitecture):
             num_heads=4,
             num_layers=1,
         ),
-        MambaBackboneConfig(
+        metta.agent.components.mamba.config.MambaBackboneConfig(
             in_key="encoded_obs",
             out_key="core",
             input_dim=_latent_dim,
@@ -50,7 +50,7 @@ class MambaSlidingConfig(PolicyArchitecture):
             ssm_headdim=16,
             use_mem_eff_path=True,
         ),
-        MLPConfig(
+        metta.agent.components.misc.MLPConfig(
             in_key="core",
             out_key="values",
             name="critic",
@@ -58,9 +58,11 @@ class MambaSlidingConfig(PolicyArchitecture):
             out_features=1,
             hidden_features=[128],
         ),
-        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embed_dim),
-        ActorQueryConfig(in_key="core", out_key="actor_query", hidden_size=_core_out_dim, embed_dim=_embed_dim),
-        ActorKeyConfig(
+        metta.agent.components.action.ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embed_dim),
+        metta.agent.components.actor.ActorQueryConfig(
+            in_key="core", out_key="actor_query", hidden_size=_core_out_dim, embed_dim=_embed_dim
+        ),
+        metta.agent.components.actor.ActorKeyConfig(
             query_key="actor_query",
             embedding_key="action_embedding",
             out_key="logits",
@@ -68,14 +70,16 @@ class MambaSlidingConfig(PolicyArchitecture):
         ),
     ]
 
-    action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
+    action_probs_config: metta.agent.components.actor.ActionProbsConfig = (
+        metta.agent.components.actor.ActionProbsConfig(in_key="logits")
+    )
 
 
 def _update_ssm_layer(config: MambaSlidingConfig, layer: str) -> MambaSlidingConfig:
     if layer != "Mamba2":
         raise ValueError(f"Unsupported SSM layer '{layer}'. Only 'Mamba2' is available.")
     for component in config.components:
-        if isinstance(component, MambaBackboneConfig):
+        if isinstance(component, metta.agent.components.mamba.config.MambaBackboneConfig):
             next_cfg = dict(component.ssm_cfg) if component.ssm_cfg else {}
             next_cfg["layer"] = layer
             component.ssm_cfg = next_cfg

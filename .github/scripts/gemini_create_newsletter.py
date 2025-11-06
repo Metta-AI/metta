@@ -6,35 +6,28 @@
 # ]
 # ///
 
+import datetime
 import json
 import logging
+import pathlib
 import random
 import sys
-from datetime import datetime
-from pathlib import Path
-from typing import Optional
+import typing
 
-from gemini_analyze_pr import PRSummary
-from gemini_analyze_pr_digest import (
-    PRDigestAnalyzer,
-    PreviousReportExtractor,
-    create_discord_summary,
-    load_digest_data,
-    save_new_summaries,
-    save_structured_data,
-)
-from gemini_client import GeminiAIClient
+import gemini_analyze_pr
+import gemini_analyze_pr_digest
+import gemini_client
 
 
 class NewsletterGenerator:
     """Generates newsletter summaries from multiple PR summaries."""
 
-    def __init__(self, ai_client: GeminiAIClient, is_historical: bool = False):
+    def __init__(self, ai_client: gemini_client.GeminiAIClient, is_historical: bool = False):
         self.ai_client = ai_client
         self.is_historical = is_historical
-        self.newsletter_extractor = PreviousReportExtractor(report_type="newsletter")
+        self.newsletter_extractor = gemini_analyze_pr_digest.PreviousReportExtractor(report_type="newsletter")
 
-    def get_previous_newsletter_context(self, end_date: Optional[datetime] = None) -> str:
+    def get_previous_newsletter_context(self, end_date: typing.Optional[datetime.datetime] = None) -> str:
         """Format newsletter summaries for context."""
         # For historical runs, pass the end date to filter out future newsletters
         recent_summaries = self.newsletter_extractor.get_recent_summaries(
@@ -80,7 +73,7 @@ class NewsletterGenerator:
         context_parts.append("---END OF PREVIOUS NEWSLETTERS---\n")
         return "\n".join(context_parts)
 
-    def prepare_context(self, pr_summaries: list[PRSummary], date_range: str, repository: str) -> str:
+    def prepare_context(self, pr_summaries: list[gemini_analyze_pr.PRSummary], date_range: str, repository: str) -> str:
         """Prepare context for newsletter generation."""
         stats = {"total_prs": len(pr_summaries), "by_category": {}, "by_impact": {}, "by_author": {}}
 
@@ -129,7 +122,11 @@ class NewsletterGenerator:
         return random.choice(bonus_prompts)
 
     def generate_newsletter(
-        self, pr_summaries: list[PRSummary], date_range: str, repository: str, end_date: Optional[datetime] = None
+        self,
+        pr_summaries: list[gemini_analyze_pr.PRSummary],
+        date_range: str,
+        repository: str,
+        end_date: typing.Optional[datetime.datetime] = None,
     ) -> str:
         """Generate a comprehensive newsletter summary."""
         context = self.prepare_context(pr_summaries, date_range, repository)
@@ -232,9 +229,9 @@ def main():
     logging.info("Running in NEWSLETTER mode")
 
     # Import parse_config
-    script_dir = Path(__file__).parent.parent.parent / "scripts"
+    script_dir = pathlib.Path(__file__).parent.parent.parent / "scripts"
     sys.path.insert(0, str(script_dir))
-    from utils.config import parse_config
+    import utils.config
 
     # Define required and optional environment variables
     required_vars = [
@@ -252,7 +249,7 @@ def main():
     }
 
     # Parse configuration
-    env_values = parse_config(required_vars, optional_vars)
+    env_values = utils.config.parse_config(required_vars, optional_vars)
 
     # Extract values
     api_key = env_values["GEMINI_API_KEY"]
@@ -273,7 +270,7 @@ def main():
 
     try:
         # Load PR digest and stats
-        new_prs, stats = load_digest_data(pr_digest_file, stats_file)
+        new_prs, stats = gemini_analyze_pr_digest.load_digest_data(pr_digest_file, stats_file)
     except FileNotFoundError as e:
         print(f"Error: {e}")
         sys.exit(1)
@@ -304,7 +301,7 @@ def main():
     print(f"  - Cached PRs to load: {len(cached_pr_numbers)}")
 
     # Initialize analyzer and process
-    analyzer = PRDigestAnalyzer(api_key)
+    analyzer = gemini_analyze_pr_digest.PRDigestAnalyzer(api_key)
     all_summaries = analyzer.analyze_digest(new_prs, cached_pr_numbers)
 
     if not all_summaries:
@@ -314,17 +311,17 @@ def main():
     print(f"✅ Processed {len(all_summaries)} total PR summaries")
 
     # Save individual PR files for newly processed PRs
-    new_count = save_new_summaries(all_summaries)
+    new_count = gemini_analyze_pr_digest.save_new_summaries(all_summaries)
     if new_count > 0:
         print(f"✅ Saved {new_count} new PR files")
 
     # Save structured data (all summaries)
-    save_structured_data(all_summaries)
+    gemini_analyze_pr_digest.save_structured_data(all_summaries)
     print("✅ Saved pr_summary_data.json")
 
     # Generate newsletter content
     print("Generating newsletter content...")
-    ai_client = GeminiAIClient(api_key)
+    ai_client = gemini_client.GeminiAIClient(api_key)
     newsletter_generator = NewsletterGenerator(ai_client, is_historical)
 
     # Parse end date for historical context filtering
@@ -334,7 +331,7 @@ def main():
         end_date_str = stats.get("end_date")
         if end_date_str:
             try:
-                end_date = datetime.fromisoformat(end_date_str)
+                end_date = datetime.datetime.fromisoformat(end_date_str)
             except ValueError:
                 logging.warning(f"Could not parse end date from stats: {end_date_str}")
 
@@ -349,7 +346,7 @@ def main():
     # Create Discord-formatted output
     print("Generating Discord summary...")
 
-    discord_summary = create_discord_summary(
+    discord_summary = gemini_analyze_pr_digest.create_discord_summary(
         all_summaries, newsletter_content, report_period, github_run_url, stats, github_repository
     )
 

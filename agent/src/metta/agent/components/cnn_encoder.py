@@ -1,33 +1,35 @@
 import math
-from typing import Tuple
+import typing
 
+import pydantic
+import tensordict
 import torch.nn as nn
 import torch.nn.functional as F
-from pydantic import Field
-from tensordict import TensorDict
 
+import metta.agent.components.component_config
+import mettagrid.policy.policy_env_interface
 import pufferlib.pytorch
-from metta.agent.components.component_config import ComponentConfig
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 
-class CNNEncoderConfig(ComponentConfig):
+class CNNEncoderConfig(metta.agent.components.component_config.ComponentConfig):
     """This class hardcodes for two CNNs and a two layer MLP. The box shaper and obs normalizer are not configurable."""
 
     in_key: str
     out_key: str
     name: str = "cnn_encoder"
-    cnn1_cfg: dict = Field(default_factory=lambda: {"out_channels": 64, "kernel_size": 5, "stride": 3})
-    cnn2_cfg: dict = Field(default_factory=lambda: {"out_channels": 64, "kernel_size": 3, "stride": 1})
-    fc1_cfg: dict = Field(default_factory=lambda: {"out_features": 128})
-    encoded_obs_cfg: dict = Field(default_factory=lambda: {"out_features": 128})
+    cnn1_cfg: dict = pydantic.Field(default_factory=lambda: {"out_channels": 64, "kernel_size": 5, "stride": 3})
+    cnn2_cfg: dict = pydantic.Field(default_factory=lambda: {"out_channels": 64, "kernel_size": 3, "stride": 1})
+    fc1_cfg: dict = pydantic.Field(default_factory=lambda: {"out_features": 128})
+    encoded_obs_cfg: dict = pydantic.Field(default_factory=lambda: {"out_features": 128})
 
-    def make_component(self, policy_env_interface: PolicyEnvInterface):
+    def make_component(self, policy_env_interface: mettagrid.policy.policy_env_interface.PolicyEnvInterface):
         return CNNEncoder(config=self, policy_env_interface=policy_env_interface)
 
 
 class CNNEncoder(nn.Module):
-    def __init__(self, config: CNNEncoderConfig, policy_env_interface: PolicyEnvInterface):
+    def __init__(
+        self, config: CNNEncoderConfig, policy_env_interface: mettagrid.policy.policy_env_interface.PolicyEnvInterface
+    ):
         super().__init__()
         self.config = config
 
@@ -68,15 +70,15 @@ class CNNEncoder(nn.Module):
 
     @staticmethod
     def _conv2d_output_shape(
-        input_hw: Tuple[int, int],
+        input_hw: typing.Tuple[int, int],
         kernel_size,
         stride,
         padding=0,
         dilation=1,
-    ) -> Tuple[int, int]:
+    ) -> typing.Tuple[int, int]:
         """Compute spatial output size for Conv2D with given parameters."""
 
-        def _to_pair(val) -> Tuple[int, int]:
+        def _to_pair(val) -> typing.Tuple[int, int]:
             if isinstance(val, tuple):
                 return val
             return (val, val)
@@ -97,7 +99,7 @@ class CNNEncoder(nn.Module):
 
     def _compute_flattened_size(
         self,
-        input_hw: Tuple[int, int],
+        input_hw: typing.Tuple[int, int],
         conv1_cfg: dict,
         conv2_cfg: dict,
     ) -> int:
@@ -128,7 +130,7 @@ class CNNEncoder(nn.Module):
             )
         return flattened
 
-    def forward(self, td: TensorDict) -> TensorDict:
+    def forward(self, td: tensordict.TensorDict) -> tensordict.TensorDict:
         """Forward pass through the CNN encoder stack."""
         x = td[self.config.in_key]
         x = F.relu(self.cnn1(x))

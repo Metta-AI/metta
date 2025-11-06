@@ -1,14 +1,14 @@
-from typing import Annotated, Union
+import typing
 
 import numpy as np
-from pydantic import BaseModel, BeforeValidator
+import pydantic
 
 # Useful for scene classes - they want to take an optional seed, but sometimes we
 # pass in a generator from another scene.
-MaybeSeed = Union[int, np.random.Generator, None]
+MaybeSeed = typing.Union[int, np.random.Generator, None]
 
 
-class BaseIntDistribution(BaseModel):
+class BaseIntDistribution(pydantic.BaseModel):
     def sample(self, rng: np.random.Generator) -> int: ...
 
 
@@ -44,7 +44,7 @@ def _to_int_distribution(v) -> BaseIntDistribution:
     raise TypeError("value must be an int or ('uniform', low, high) tuple")
 
 
-IntDistribution = Annotated[
+IntDistribution = typing.Annotated[
     BaseIntDistribution,
-    BeforeValidator(_to_int_distribution),
+    pydantic.BeforeValidator(_to_int_distribution),
 ]

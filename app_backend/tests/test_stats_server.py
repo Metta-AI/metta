@@ -1,7 +1,7 @@
+import typing
 import uuid
-from typing import List
 
-from metta.app_backend.clients.stats_client import StatsClient
+import metta.app_backend.clients.stats_client
 
 
 class TestStatsServerSimple:
@@ -9,7 +9,7 @@ class TestStatsServerSimple:
 
     # Remove duplicate stats_client fixture - it's already defined in conftest.py
 
-    def test_complete_workflow(self, stats_client: StatsClient) -> None:
+    def test_complete_workflow(self, stats_client: metta.app_backend.clients.stats_client.StatsClient) -> None:
         """Test the complete end-to-end workflow."""
 
         # 1. Create a training run
@@ -63,7 +63,7 @@ class TestStatsServerSimple:
         assert policy_ids.policy_ids["test_policy_v1"] == policy.id
         assert policy_ids.policy_ids["test_policy_v2"] == policy2.id
 
-    def test_multiple_episodes(self, stats_client: StatsClient) -> None:
+    def test_multiple_episodes(self, stats_client: metta.app_backend.clients.stats_client.StatsClient) -> None:
         """Test recording multiple episodes."""
 
         # Create a training run
@@ -76,7 +76,7 @@ class TestStatsServerSimple:
         policy = stats_client.create_policy(name="multi_episode_policy", epoch_id=epoch.id)
 
         # Record multiple episodes
-        episode_ids: List[uuid.UUID] = []
+        episode_ids: typing.List[uuid.UUID] = []
         for i in range(5):
             episode = stats_client.record_episode(
                 agent_policies={0: policy.id},
@@ -92,12 +92,14 @@ class TestStatsServerSimple:
         # Verify all episodes have different IDs
         assert len(set(episode_ids)) == 5
 
-    def test_policy_id_lookup_empty(self, stats_client: StatsClient) -> None:
+    def test_policy_id_lookup_empty(self, stats_client: metta.app_backend.clients.stats_client.StatsClient) -> None:
         """Test policy ID lookup with empty list."""
         policy_ids = stats_client.get_policy_ids([])
         assert policy_ids.policy_ids == {}
 
-    def test_policy_id_lookup_nonexistent(self, stats_client: StatsClient) -> None:
+    def test_policy_id_lookup_nonexistent(
+        self, stats_client: metta.app_backend.clients.stats_client.StatsClient
+    ) -> None:
         """Test policy ID lookup for non-existent policies."""
         policy_ids = stats_client.get_policy_ids(["nonexistent_policy"])
         assert policy_ids.policy_ids == {}

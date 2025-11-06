@@ -1,37 +1,28 @@
-from typing import Any, Optional
+import typing
 
-from experiments.recipes.arena_basic_easy_shaped import (
-    evaluate,
-    evaluate_in_sweep,
-    make_curriculum,
-    mettagrid,
-    play,
-    replay,
-    simulations,
-    train as base_train,
-)
-from metta.agent.policies.cortex import CortexBaseConfig
-from cortex.config import CortexStackConfig
-from metta.agent.components.cortex import CortexTDConfig
-from metta.agent.policy import PolicyArchitecture
-from metta.tools.train import TrainTool
-from mettagrid.util.module import load_symbol
-from metta.cogworks.curriculum.curriculum import CurriculumConfig
+import experiments.recipes.arena_basic_easy_shaped
+import metta.agent.policies.cortex
+import cortex.config
+import metta.agent.components.cortex
+import metta.agent.policy
+import metta.tools.train
+import mettagrid.util.module
+import metta.cogworks.curriculum.curriculum
 
 
 def _override_cortex_stack(
-    policy_cfg: CortexBaseConfig, stack: Any
-) -> CortexBaseConfig:
+    policy_cfg: metta.agent.policies.cortex.CortexBaseConfig, stack: typing.Any
+) -> metta.agent.policies.cortex.CortexBaseConfig:
     """Replace the stack inside any CortexTD components in the policy config."""
     components = []
     for comp in policy_cfg.components:
-        if isinstance(comp, CortexTDConfig):
+        if isinstance(comp, metta.agent.components.cortex.CortexTDConfig):
             new_comp = comp.model_copy()
             # Accept a config or dict; require stack_cfg only
-            if isinstance(stack, CortexStackConfig):
+            if isinstance(stack, cortex.config.CortexStackConfig):
                 new_comp.stack_cfg = stack
             elif isinstance(stack, dict):
-                new_comp.stack_cfg = CortexStackConfig(**stack)
+                new_comp.stack_cfg = cortex.config.CortexStackConfig(**stack)
             else:
                 raise TypeError(
                     "_override_cortex_stack expects a CortexStackConfig or dict"
@@ -45,24 +36,26 @@ def _override_cortex_stack(
 
 def train(
     *,
-    curriculum: Optional[CurriculumConfig] = None,
+    curriculum: typing.Optional[
+        metta.cogworks.curriculum.curriculum.CurriculumConfig
+    ] = None,
     enable_detailed_slice_logging: bool = False,
-    policy_architecture: Optional[PolicyArchitecture] = None,
-    stack: Any | None = None,
-    stack_builder: Optional[str] = None,
-    stack_cfg: Optional[dict] = None,
-) -> TrainTool:
+    policy_architecture: typing.Optional[metta.agent.policy.PolicyArchitecture] = None,
+    stack: typing.Any | None = None,
+    stack_builder: typing.Optional[str] = None,
+    stack_cfg: typing.Optional[dict] = None,
+) -> metta.tools.train.TrainTool:
     # Default to Cortex policy and apply optional stack overrides
     if policy_architecture is None:
-        policy_architecture = CortexBaseConfig()
+        policy_architecture = metta.agent.policies.cortex.CortexBaseConfig()
         if stack is not None:
             policy_architecture = _override_cortex_stack(policy_architecture, stack)
         elif stack_builder is not None:
-            builder = load_symbol(stack_builder)
+            builder = mettagrid.util.module.load_symbol(stack_builder)
             built = builder(**(stack_cfg or {}))
             policy_architecture = _override_cortex_stack(policy_architecture, built)
 
-    return base_train(
+    return experiments.recipes.arena_basic_easy_shaped.train(
         curriculum=curriculum,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         policy_architecture=policy_architecture,

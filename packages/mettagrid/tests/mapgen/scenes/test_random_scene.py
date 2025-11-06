@@ -1,6 +1,6 @@
-from mettagrid.mapgen.scenes.inline_ascii import InlineAscii
-from mettagrid.mapgen.scenes.random_scene import RandomScene, RandomSceneCandidate
-from mettagrid.test_support.mapgen import render_scene
+import mettagrid.mapgen.scenes.inline_ascii
+import mettagrid.mapgen.scenes.random_scene
+import mettagrid.test_support.mapgen
 
 
 def test_objects():
@@ -9,11 +9,15 @@ def test_objects():
 
     # 1 / 2^30 chance of failure
     for _ in range(30):
-        scene = render_scene(
-            RandomScene.Config(
+        scene = mettagrid.test_support.mapgen.render_scene(
+            mettagrid.mapgen.scenes.random_scene.RandomScene.Config(
                 candidates=[
-                    RandomSceneCandidate(scene=InlineAscii.Config(data="#"), weight=1),
-                    RandomSceneCandidate(scene=InlineAscii.Config(data="_"), weight=1),
+                    mettagrid.mapgen.scenes.random_scene.RandomSceneCandidate(
+                        scene=mettagrid.mapgen.scenes.inline_ascii.InlineAscii.Config(data="#"), weight=1
+                    ),
+                    mettagrid.mapgen.scenes.random_scene.RandomSceneCandidate(
+                        scene=mettagrid.mapgen.scenes.inline_ascii.InlineAscii.Config(data="_"), weight=1
+                    ),
                 ]
             ),
             (1, 1),

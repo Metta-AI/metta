@@ -1,13 +1,10 @@
 """Tests for BatchedSyncedOptimizingScheduler basic functionality."""
 
-from datetime import datetime, timezone
+import datetime
 
-from metta.adaptive.models import JobTypes, RunInfo
-from metta.sweep.protein_config import ParameterConfig, ProteinConfig
-from metta.sweep.schedulers.batched_synced import (
-    BatchedSyncedOptimizingScheduler,
-    BatchedSyncedSchedulerConfig,
-)
+import metta.adaptive.models
+import metta.sweep.protein_config
+import metta.sweep.schedulers.batched_synced
 
 
 class TestBatchedSyncedOptimizingScheduler:
@@ -15,11 +12,11 @@ class TestBatchedSyncedOptimizingScheduler:
 
     def test_initialization(self):
         """Test scheduler initialization."""
-        protein_config = ProteinConfig(
+        protein_config = metta.sweep.protein_config.ProteinConfig(
             metric="test_metric",
             goal="maximize",
             parameters={
-                "learning_rate": ParameterConfig(
+                "learning_rate": metta.sweep.protein_config.ParameterConfig(
                     min=0.001,
                     max=0.01,
                     distribution="log_normal",
@@ -29,7 +26,7 @@ class TestBatchedSyncedOptimizingScheduler:
             },
         )
 
-        config = BatchedSyncedSchedulerConfig(
+        config = metta.sweep.schedulers.batched_synced.BatchedSyncedSchedulerConfig(
             max_trials=20,
             recipe_module="experiments.recipes.arena",
             train_entrypoint="train",
@@ -38,7 +35,7 @@ class TestBatchedSyncedOptimizingScheduler:
             protein_config=protein_config,
         )
 
-        scheduler = BatchedSyncedOptimizingScheduler(config)
+        scheduler = metta.sweep.schedulers.batched_synced.BatchedSyncedOptimizingScheduler(config)
 
         assert scheduler.config.max_trials == 20
         assert scheduler.config.batch_size == 4  # default batch size
@@ -46,11 +43,11 @@ class TestBatchedSyncedOptimizingScheduler:
 
     def test_batch_generation_when_all_complete(self):
         """Test that scheduler generates batch only when all runs are complete."""
-        protein_config = ProteinConfig(
+        protein_config = metta.sweep.protein_config.ProteinConfig(
             metric="test_metric",
             goal="maximize",
             parameters={
-                "lr": ParameterConfig(
+                "lr": metta.sweep.protein_config.ParameterConfig(
                     min=0.001,
                     max=0.01,
                     distribution="log_normal",
@@ -60,7 +57,7 @@ class TestBatchedSyncedOptimizingScheduler:
             },
         )
 
-        config = BatchedSyncedSchedulerConfig(
+        config = metta.sweep.schedulers.batched_synced.BatchedSyncedSchedulerConfig(
             max_trials=10,
             recipe_module="test.module",
             train_entrypoint="train",
@@ -70,23 +67,23 @@ class TestBatchedSyncedOptimizingScheduler:
             protein_config=protein_config,
         )
 
-        scheduler = BatchedSyncedOptimizingScheduler(config)
+        scheduler = metta.sweep.schedulers.batched_synced.BatchedSyncedOptimizingScheduler(config)
 
         # Case 1: No existing runs - should generate batch
         jobs = scheduler.schedule([], available_training_slots=5)
 
         assert len(jobs) == 2  # Should generate batch of 2
-        assert all(job.type == JobTypes.LAUNCH_TRAINING for job in jobs)
+        assert all(job.type == metta.adaptive.models.JobTypes.LAUNCH_TRAINING for job in jobs)
         assert jobs[0].run_id.startswith("test_sweep_trial_0001_")
         assert jobs[1].run_id.startswith("test_sweep_trial_0002_")
 
     def test_wait_for_incomplete_runs(self):
         """Test that scheduler waits for all runs to complete before next batch."""
-        protein_config = ProteinConfig(
+        protein_config = metta.sweep.protein_config.ProteinConfig(
             metric="test_metric",
             goal="maximize",
             parameters={
-                "lr": ParameterConfig(
+                "lr": metta.sweep.protein_config.ParameterConfig(
                     min=0.001,
                     max=0.01,
                     distribution="log_normal",
@@ -96,7 +93,7 @@ class TestBatchedSyncedOptimizingScheduler:
             },
         )
 
-        config = BatchedSyncedSchedulerConfig(
+        config = metta.sweep.schedulers.batched_synced.BatchedSyncedSchedulerConfig(
             max_trials=10,
             batch_size=3,
             recipe_module="test.module",
@@ -105,32 +102,32 @@ class TestBatchedSyncedOptimizingScheduler:
             experiment_id="test_sweep",
             protein_config=protein_config,
         )
-        scheduler = BatchedSyncedOptimizingScheduler(config)
+        scheduler = metta.sweep.schedulers.batched_synced.BatchedSyncedOptimizingScheduler(config)
 
         # Simulate that we have runs in training
         scheduler.state.runs_in_training = {"test_sweep_trial_0001", "test_sweep_trial_0002"}
 
         # Create runs with mixed statuses
         runs = [
-            RunInfo(
+            metta.adaptive.models.RunInfo(
                 run_id="test_sweep_trial_0001",
                 has_started_training=True,
                 has_completed_training=False,  # Still training
                 has_started_eval=False,
                 has_been_evaluated=False,
                 has_failed=False,
-                created_at=datetime.now(timezone.utc),
-                last_updated_at=datetime.now(timezone.utc),
+                created_at=datetime.datetime.now(datetime.timezone.utc),
+                last_updated_at=datetime.datetime.now(datetime.timezone.utc),
             ),
-            RunInfo(
+            metta.adaptive.models.RunInfo(
                 run_id="test_sweep_trial_0002",
                 has_started_training=True,
                 has_completed_training=True,
                 has_started_eval=True,
                 has_been_evaluated=False,  # Still evaluating
                 has_failed=False,
-                created_at=datetime.now(timezone.utc),
-                last_updated_at=datetime.now(timezone.utc),
+                created_at=datetime.datetime.now(datetime.timezone.utc),
+                last_updated_at=datetime.datetime.now(datetime.timezone.utc),
             ),
         ]
 
@@ -141,11 +138,11 @@ class TestBatchedSyncedOptimizingScheduler:
 
     def test_schedule_evaluations(self):
         """Test that scheduler schedules evaluations for completed training."""
-        protein_config = ProteinConfig(
+        protein_config = metta.sweep.protein_config.ProteinConfig(
             metric="test_metric",
             goal="maximize",
             parameters={
-                "lr": ParameterConfig(
+                "lr": metta.sweep.protein_config.ParameterConfig(
                     min=0.001,
                     max=0.01,
                     distribution="log_normal",
@@ -155,7 +152,7 @@ class TestBatchedSyncedOptimizingScheduler:
             },
         )
 
-        config = BatchedSyncedSchedulerConfig(
+        config = metta.sweep.schedulers.batched_synced.BatchedSyncedSchedulerConfig(
             max_trials=10,
             batch_size=3,
             recipe_module="test.module",
@@ -164,32 +161,32 @@ class TestBatchedSyncedOptimizingScheduler:
             experiment_id="test_sweep",
             protein_config=protein_config,
         )
-        scheduler = BatchedSyncedOptimizingScheduler(config)
+        scheduler = metta.sweep.schedulers.batched_synced.BatchedSyncedOptimizingScheduler(config)
 
         # Mark runs as in training (so eval scheduler knows about them)
         scheduler.state.runs_in_training = {"test_sweep_trial_0001", "test_sweep_trial_0002"}
 
         # Create runs that need evaluation
         runs = [
-            RunInfo(
+            metta.adaptive.models.RunInfo(
                 run_id="test_sweep_trial_0001",
                 has_started_training=True,
                 has_completed_training=True,
                 has_started_eval=False,  # Needs evaluation
                 has_been_evaluated=False,
                 has_failed=False,
-                created_at=datetime.now(timezone.utc),
-                last_updated_at=datetime.now(timezone.utc),
+                created_at=datetime.datetime.now(datetime.timezone.utc),
+                last_updated_at=datetime.datetime.now(datetime.timezone.utc),
             ),
-            RunInfo(
+            metta.adaptive.models.RunInfo(
                 run_id="test_sweep_trial_0002",
                 has_started_training=True,
                 has_completed_training=True,
                 has_started_eval=False,  # Needs evaluation
                 has_been_evaluated=False,
                 has_failed=False,
-                created_at=datetime.now(timezone.utc),
-                last_updated_at=datetime.now(timezone.utc),
+                created_at=datetime.datetime.now(datetime.timezone.utc),
+                last_updated_at=datetime.datetime.now(datetime.timezone.utc),
             ),
         ]
 
@@ -197,17 +194,17 @@ class TestBatchedSyncedOptimizingScheduler:
         jobs = scheduler.schedule(runs, available_training_slots=5)
 
         assert len(jobs) == 2  # Should schedule both evaluations
-        assert all(job.type == JobTypes.LAUNCH_EVAL for job in jobs)
+        assert all(job.type == metta.adaptive.models.JobTypes.LAUNCH_EVAL for job in jobs)
         assert jobs[0].run_id == "test_sweep_trial_0001"
         assert jobs[1].run_id == "test_sweep_trial_0002"
 
     def test_no_duplicate_eval_scheduling(self):
         """Test that scheduler doesn't reschedule already dispatched evaluations."""
-        protein_config = ProteinConfig(
+        protein_config = metta.sweep.protein_config.ProteinConfig(
             metric="test_metric",
             goal="maximize",
             parameters={
-                "lr": ParameterConfig(
+                "lr": metta.sweep.protein_config.ParameterConfig(
                     min=0.001,
                     max=0.01,
                     distribution="log_normal",
@@ -217,7 +214,7 @@ class TestBatchedSyncedOptimizingScheduler:
             },
         )
 
-        config = BatchedSyncedSchedulerConfig(
+        config = metta.sweep.schedulers.batched_synced.BatchedSyncedSchedulerConfig(
             max_trials=10,
             batch_size=3,
             recipe_module="test.module",
@@ -226,22 +223,22 @@ class TestBatchedSyncedOptimizingScheduler:
             experiment_id="test_sweep",
             protein_config=protein_config,
         )
-        scheduler = BatchedSyncedOptimizingScheduler(config)
+        scheduler = metta.sweep.schedulers.batched_synced.BatchedSyncedOptimizingScheduler(config)
 
         # Mark run as already in eval
         scheduler.state.runs_in_eval = {"test_sweep_trial_0001"}
 
         # Create run that appears to need evaluation
         runs = [
-            RunInfo(
+            metta.adaptive.models.RunInfo(
                 run_id="test_sweep_trial_0001",
                 has_started_training=True,
                 has_completed_training=True,
                 has_started_eval=False,  # Looks like it needs eval
                 has_been_evaluated=False,
                 has_failed=False,
-                created_at=datetime.now(timezone.utc),
-                last_updated_at=datetime.now(timezone.utc),
+                created_at=datetime.datetime.now(datetime.timezone.utc),
+                last_updated_at=datetime.datetime.now(datetime.timezone.utc),
             ),
         ]
 
@@ -252,11 +249,11 @@ class TestBatchedSyncedOptimizingScheduler:
 
     def test_max_trials_handling(self):
         """Test that scheduler respects max_trials limit."""
-        protein_config = ProteinConfig(
+        protein_config = metta.sweep.protein_config.ProteinConfig(
             metric="test_metric",
             goal="maximize",
             parameters={
-                "lr": ParameterConfig(
+                "lr": metta.sweep.protein_config.ParameterConfig(
                     min=0.001,
                     max=0.01,
                     distribution="log_normal",
@@ -266,7 +263,7 @@ class TestBatchedSyncedOptimizingScheduler:
             },
         )
 
-        config = BatchedSyncedSchedulerConfig(
+        config = metta.sweep.schedulers.batched_synced.BatchedSyncedSchedulerConfig(
             max_trials=5,
             batch_size=3,
             recipe_module="test.module",
@@ -275,19 +272,19 @@ class TestBatchedSyncedOptimizingScheduler:
             experiment_id="test_sweep",
             protein_config=protein_config,
         )
-        scheduler = BatchedSyncedOptimizingScheduler(config)
+        scheduler = metta.sweep.schedulers.batched_synced.BatchedSyncedOptimizingScheduler(config)
 
         # All runs completed
         runs = [
-            RunInfo(
+            metta.adaptive.models.RunInfo(
                 run_id=f"test_sweep_trial_{i:04d}",
                 has_started_training=True,
                 has_completed_training=True,
                 has_started_eval=True,
                 has_been_evaluated=True,
                 has_failed=False,
-                created_at=datetime.now(timezone.utc),
-                last_updated_at=datetime.now(timezone.utc),
+                created_at=datetime.datetime.now(datetime.timezone.utc),
+                last_updated_at=datetime.datetime.now(datetime.timezone.utc),
                 summary={
                     "sweep/score": 0.5 + i * 0.1,
                     "sweep/cost": 100,
@@ -309,11 +306,11 @@ class TestBatchedSyncedOptimizingScheduler:
 
     def test_batch_with_observations(self):
         """Test that scheduler uses observations when generating new batch."""
-        protein_config = ProteinConfig(
+        protein_config = metta.sweep.protein_config.ProteinConfig(
             metric="test_metric",
             goal="maximize",
             parameters={
-                "lr": ParameterConfig(
+                "lr": metta.sweep.protein_config.ParameterConfig(
                     min=0.001,
                     max=0.01,
                     distribution="log_normal",
@@ -323,7 +320,7 @@ class TestBatchedSyncedOptimizingScheduler:
             },
         )
 
-        config = BatchedSyncedSchedulerConfig(
+        config = metta.sweep.schedulers.batched_synced.BatchedSyncedSchedulerConfig(
             max_trials=10,
             batch_size=2,
             recipe_module="test.module",
@@ -332,34 +329,34 @@ class TestBatchedSyncedOptimizingScheduler:
             experiment_id="test_sweep",
             protein_config=protein_config,
         )
-        scheduler = BatchedSyncedOptimizingScheduler(config)
+        scheduler = metta.sweep.schedulers.batched_synced.BatchedSyncedOptimizingScheduler(config)
 
         # Previous completed runs with observations in summary
         runs = [
-            RunInfo(
+            metta.adaptive.models.RunInfo(
                 run_id="test_sweep_trial_0001",
                 has_started_training=True,
                 has_completed_training=True,
                 has_started_eval=True,
                 has_been_evaluated=True,
                 has_failed=False,
-                created_at=datetime.now(timezone.utc),
-                last_updated_at=datetime.now(timezone.utc),
+                created_at=datetime.datetime.now(datetime.timezone.utc),
+                last_updated_at=datetime.datetime.now(datetime.timezone.utc),
                 summary={
                     "sweep/score": 0.5,
                     "sweep/cost": 100,
                     "sweep/suggestion": {"lr": 0.005},
                 },
             ),
-            RunInfo(
+            metta.adaptive.models.RunInfo(
                 run_id="test_sweep_trial_0002",
                 has_started_training=True,
                 has_completed_training=True,
                 has_started_eval=True,
                 has_been_evaluated=True,
                 has_failed=False,
-                created_at=datetime.now(timezone.utc),
-                last_updated_at=datetime.now(timezone.utc),
+                created_at=datetime.datetime.now(datetime.timezone.utc),
+                last_updated_at=datetime.datetime.now(datetime.timezone.utc),
                 summary={
                     "sweep/score": 0.8,
                     "sweep/cost": 100,
@@ -375,7 +372,7 @@ class TestBatchedSyncedOptimizingScheduler:
         jobs = scheduler.schedule(runs, available_training_slots=5)
 
         assert len(jobs) == 2  # Batch of 2
-        assert all(job.type == JobTypes.LAUNCH_TRAINING for job in jobs)
+        assert all(job.type == metta.adaptive.models.JobTypes.LAUNCH_TRAINING for job in jobs)
         # The jobs should have suggestions in metadata
         assert all("sweep/suggestion" in job.metadata for job in jobs)
         assert all("lr" in job.metadata["sweep/suggestion"] for job in jobs)

@@ -1,11 +1,15 @@
 import subprocess
 
-from metta.setup.components.system_packages.installers.base import PackageInstaller
-from metta.setup.components.system_packages.types import AptPackageConfig
-from metta.setup.utils import info
+import metta.setup.components.system_packages.installers.base
+import metta.setup.components.system_packages.types
+import metta.setup.utils
 
 
-class AptInstaller(PackageInstaller[AptPackageConfig]):
+class AptInstaller(
+    metta.setup.components.system_packages.installers.base.PackageInstaller[
+        metta.setup.components.system_packages.types.AptPackageConfig
+    ]
+):
     def __init__(self):
         self._apt_updated = False
 
@@ -28,17 +32,17 @@ class AptInstaller(PackageInstaller[AptPackageConfig]):
     def _get_installed_packages(self) -> list[str]:
         return self._get_list_cmd(["dpkg", "--get-selections"])
 
-    def check_installed(self, packages: list[AptPackageConfig]) -> bool:
+    def check_installed(self, packages: list[metta.setup.components.system_packages.types.AptPackageConfig]) -> bool:
         """Returns True when no changes are required."""
         installed = self._get_installed_packages()
         package_names = [p.name for p in packages]
         to_install = [pkg for pkg in package_names if pkg not in installed]
         return len(to_install) == 0
 
-    def install(self, packages: list[AptPackageConfig]) -> None:
+    def install(self, packages: list[metta.setup.components.system_packages.types.AptPackageConfig]) -> None:
         # Update package list first (once per session)
         if not self._apt_updated:
-            info("Updating apt package list...")
+            metta.setup.utils.info("Updating apt package list...")
             self._install_cmd(["sudo", "apt-get", "update"])
             self._apt_updated = True
 
@@ -47,5 +51,5 @@ class AptInstaller(PackageInstaller[AptPackageConfig]):
         to_install = [pkg for pkg in package_names if pkg not in installed]
 
         if to_install:
-            info(f"Installing {', '.join(to_install)}...")
+            metta.setup.utils.info(f"Installing {', '.join(to_install)}...")
             self._install_cmd(["sudo", "apt-get", "install", "-y", *to_install])

@@ -1,16 +1,15 @@
-from __future__ import annotations
 
 import argparse
 import importlib
 import os
+import pathlib
 import sys
-from pathlib import Path
-from typing import List, Sequence
+import typing
 
 import torch
 
 if __package__ in (None, ""):
-    _FILE = Path(__file__).resolve()
+    _FILE = pathlib.Path(__file__).resolve()
     _pkg_root = _FILE.parent  # packages/cortex/benchmarks
     _parent = _pkg_root.parent  # packages/cortex
     if str(_parent) not in sys.path:
@@ -20,13 +19,7 @@ if __package__ in (None, ""):
         sys.path.insert(0, str(_src))
     __package__ = _pkg_root.name
 
-from .common import (
-    BenchmarkCase,
-    BenchmarkDefinition,
-    BenchmarkSettings,
-    ensure_device,
-    get_registry,
-)
+import packages.cortex.benchmarks.common
 
 
 def _load_benchmarks() -> None:
@@ -43,7 +36,7 @@ def _load_benchmarks() -> None:
         importlib.import_module(fullname)
 
 
-def _format_available(registry: dict[str, BenchmarkDefinition]) -> str:
+def _format_available(registry: dict[str, packages.cortex.benchmarks.common.BenchmarkDefinition]) -> str:
     lines = ["Available benchmarks:"]
     for key in sorted(registry):
         bench = registry[key]
@@ -51,7 +44,7 @@ def _format_available(registry: dict[str, BenchmarkDefinition]) -> str:
     return "\n".join(lines)
 
 
-def _resolve_indices(requested: Sequence[int] | None, total: int) -> List[int]:
+def _resolve_indices(requested: typing.Sequence[int] | None, total: int) -> typing.List[int]:
     if not requested:
         return list(range(total))
     unique = sorted(set(requested))
@@ -69,7 +62,9 @@ def _print_device_info(device: str) -> None:
         print("Device: CPU (Triton benchmarks will be skipped)")
 
 
-def _print_header(bench: BenchmarkDefinition, device: str, warmup: int, iterations: int) -> None:
+def _print_header(
+    bench: packages.cortex.benchmarks.common.BenchmarkDefinition, device: str, warmup: int, iterations: int
+) -> None:
     print("=" * 90)
     print(bench.title)
     print("=" * 90)
@@ -82,7 +77,7 @@ def _print_header(bench: BenchmarkDefinition, device: str, warmup: int, iteratio
     print()
 
 
-def _prepare_table(bench: BenchmarkDefinition, config_width: int) -> None:
+def _prepare_table(bench: packages.cortex.benchmarks.common.BenchmarkDefinition, config_width: int) -> None:
     headers = ["Config"] + [col.header for col in bench.columns]
     widths = [config_width] + [max(len(col.header), 15) for col in bench.columns]
     row = " ".join(f"{header:<{width}}" for header, width in zip(headers, widths, strict=False))
@@ -92,10 +87,10 @@ def _prepare_table(bench: BenchmarkDefinition, config_width: int) -> None:
 
 
 def _format_row(
-    bench: BenchmarkDefinition,
+    bench: packages.cortex.benchmarks.common.BenchmarkDefinition,
     config_text: str,
     results: dict[str, object],
-    widths: List[int],
+    widths: typing.List[int],
 ) -> str:
     columns = [config_text]
     for col in bench.columns:
@@ -108,7 +103,7 @@ def _format_row(
     return " ".join(f"{col:<{width}}" for col, width in zip(columns, widths, strict=False))
 
 
-def run(argv: Sequence[str] | None = None) -> int:
+def run(argv: typing.Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run Cortex kernel benchmarks from a unified interface.")
     parser.add_argument("benchmark", nargs="?", help="Benchmark key to run (use --list to view all).")
     parser.add_argument("--list", action="store_true", help="List available benchmarks and exit.")
@@ -126,7 +121,7 @@ def run(argv: Sequence[str] | None = None) -> int:
 
     # Ensure all benchmark modules are imported so their registrations run
     _load_benchmarks()
-    registry = dict(get_registry())
+    registry = dict(packages.cortex.benchmarks.common.get_registry())
     if not registry:
         print("No benchmarks registered.", file=sys.stderr)
         return 1
@@ -148,7 +143,7 @@ def run(argv: Sequence[str] | None = None) -> int:
         print(_format_available(registry))
         return 2
 
-    device = ensure_device(args.device)
+    device = packages.cortex.benchmarks.common.ensure_device(args.device)
     if device == "cuda" and not torch.cuda.is_available():
         print("Warning: CUDA is not available; falling back to CPU.", file=sys.stderr)
         device = "cpu"
@@ -157,9 +152,9 @@ def run(argv: Sequence[str] | None = None) -> int:
     iterations = args.iterations if args.iterations is not None else bench.default_iterations
 
     indices = _resolve_indices(args.config, len(bench.configs))
-    cases = [BenchmarkCase(values=bench.configs[i], index=i) for i in indices]
+    cases = [packages.cortex.benchmarks.common.BenchmarkCase(values=bench.configs[i], index=i) for i in indices]
 
-    settings = BenchmarkSettings(device=device, warmup=warmup, iterations=iterations)
+    settings = packages.cortex.benchmarks.common.BenchmarkSettings(device=device, warmup=warmup, iterations=iterations)
 
     _print_header(bench, device, warmup, iterations)
 

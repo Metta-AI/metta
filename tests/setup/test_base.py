@@ -1,14 +1,14 @@
 import os
+import pathlib
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
-from pathlib import Path
 
 import yaml
 
-from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
+import metta.setup.profiles
 
 
 class BaseMettaSetupTest(unittest.TestCase):
@@ -35,7 +35,7 @@ class BaseMettaSetupTest(unittest.TestCase):
         cls.original_zdotdir = os.environ.get("ZDOTDIR")
 
         # Set up test home directory
-        cls.test_home = Path(cls.temp_dir) / "home"
+        cls.test_home = pathlib.Path(cls.temp_dir) / "home"
         cls.test_home.mkdir(parents=True, exist_ok=True)
         os.environ["HOME"] = str(cls.test_home)
 
@@ -56,7 +56,7 @@ class BaseMettaSetupTest(unittest.TestCase):
         cls.bashrc.write_text("# Test bashrc\n")
 
         # Get repository root
-        cls.repo_root = Path(__file__).parent.parent.parent
+        cls.repo_root = pathlib.Path(__file__).parent.parent.parent
 
     @classmethod
     def tearDownClass(cls):
@@ -107,7 +107,7 @@ class BaseMettaSetupTest(unittest.TestCase):
         if aws_dir.exists():
             shutil.rmtree(aws_dir, ignore_errors=True)
 
-    def _create_test_config(self, user_type: UserType, custom_config: bool = False) -> None:
+    def _create_test_config(self, user_type: metta.setup.profiles.UserType, custom_config: bool = False) -> None:
         """Create a test configuration file.
 
         Args:
@@ -122,7 +122,7 @@ class BaseMettaSetupTest(unittest.TestCase):
 
         if custom_config:
             # Add component configurations
-            profile_config = PROFILE_DEFINITIONS.get(user_type, {})
+            profile_config = metta.setup.profiles.PROFILE_DEFINITIONS.get(user_type, {})
             config_data["components"] = profile_config.get("components", {})
 
         config_file = self.test_config_dir / "config.yaml"
@@ -134,7 +134,7 @@ class BaseMettaSetupTest(unittest.TestCase):
 
         Falls back to UserType.EXTERNAL if not set or invalid.
         """
-        resolved = self.active_user_type or UserType.EXTERNAL
+        resolved = self.active_user_type or metta.setup.profiles.UserType.EXTERNAL
         self._create_test_config(resolved, custom_config=custom_config)
 
     def _run_metta_command(self, args: list[str]) -> "subprocess.CompletedProcess[str]":
@@ -159,19 +159,19 @@ class BaseMettaSetupTest(unittest.TestCase):
             env=os.environ.copy(),
         )
 
-    def _get_zshrc_path(self) -> Path:
+    def _get_zshrc_path(self) -> pathlib.Path:
         """Get the correct path for .zshrc based on ZDOTDIR."""
         if os.environ.get("ZDOTDIR"):
-            zdotdir = Path(os.environ["ZDOTDIR"])
+            zdotdir = pathlib.Path(os.environ["ZDOTDIR"])
             return zdotdir / ".zshrc"
         else:
             return self.test_home / ".zshrc"
 
-    def _get_bashrc_path(self) -> Path:
+    def _get_bashrc_path(self) -> pathlib.Path:
         """Get the correct path for .bashrc."""
         return self.test_home / ".bashrc"
 
-    def _check_shell_config_contains(self, shell_file: Path, expected_line: str) -> bool:
+    def _check_shell_config_contains(self, shell_file: pathlib.Path, expected_line: str) -> bool:
         """Check if shell config file contains expected line.
 
         Args:

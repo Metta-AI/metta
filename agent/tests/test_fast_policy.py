@@ -1,34 +1,34 @@
+import tensordict
 import torch
-from tensordict import TensorDict
 
-from metta.agent.policies.fast import FastConfig, FastPolicy
-from metta.rl.utils import ensure_sequence_metadata
-from mettagrid.config import MettaGridConfig
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-
-
-def _build_policy_env_info() -> PolicyEnvInterface:
-    return PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
+import metta.agent.policies.fast
+import metta.rl.utils
+import mettagrid.config
+import mettagrid.policy.policy_env_interface
 
 
-def _build_token_observations(batch_size: int, num_tokens: int) -> TensorDict:
+def _build_policy_env_info() -> mettagrid.policy.policy_env_interface.PolicyEnvInterface:
+    return mettagrid.policy.policy_env_interface.PolicyEnvInterface.from_mg_cfg(mettagrid.config.MettaGridConfig())
+
+
+def _build_token_observations(batch_size: int, num_tokens: int) -> tensordict.TensorDict:
     obs = torch.full((batch_size, num_tokens, 3), 0xFF, dtype=torch.uint8)
     # Token 0: coordinates (0,0), feature 0, value 10
     obs[:, 0] = torch.tensor([0x00, 0, 10], dtype=torch.uint8)
     # Token 1: coordinates (1,2) encoded as 0x12, feature 0, value 20
     obs[:, 1] = torch.tensor([0x12, 0, 20], dtype=torch.uint8)
-    return TensorDict({"env_obs": obs}, batch_size=[batch_size])
+    return tensordict.TensorDict({"env_obs": obs}, batch_size=[batch_size])
 
 
 def test_fast_config_creates_policy():
     policy_env_info = _build_policy_env_info()
-    policy = FastConfig().make_policy(policy_env_info)
-    assert isinstance(policy, FastPolicy)
+    policy = metta.agent.policies.fast.FastConfig().make_policy(policy_env_info)
+    assert isinstance(policy, metta.agent.policies.fast.FastPolicy)
 
 
 def test_fast_policy_initialize_sets_action_metadata():
     policy_env_info = _build_policy_env_info()
-    policy = FastPolicy(policy_env_info)
+    policy = metta.agent.policies.fast.FastPolicy(policy_env_info)
 
     logs = policy.initialize_to_environment(policy_env_info, torch.device("cpu"))
 
@@ -39,12 +39,12 @@ def test_fast_policy_initialize_sets_action_metadata():
 
 def test_fast_policy_forward_produces_actions_and_values():
     policy_env_info = _build_policy_env_info()
-    policy = FastPolicy(policy_env_info)
+    policy = metta.agent.policies.fast.FastPolicy(policy_env_info)
     policy.initialize_to_environment(policy_env_info, torch.device("cpu"))
     policy.eval()
 
     td = _build_token_observations(batch_size=1, num_tokens=4)
-    ensure_sequence_metadata(td, batch_size=1, time_steps=1)
+    metta.rl.utils.ensure_sequence_metadata(td, batch_size=1, time_steps=1)
     output_td = policy(td.clone())
 
     assert "actions" in output_td

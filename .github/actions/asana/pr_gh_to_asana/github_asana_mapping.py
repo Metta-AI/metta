@@ -1,4 +1,4 @@
-from typing import Generator
+import typing
 
 import requests
 
@@ -40,7 +40,7 @@ class GithubAsanaMapping:
         self,
         project_id: str,
         asana_token: str,
-    ) -> Generator[dict[str, str], None, None]:
+    ) -> typing.Generator[dict[str, str], None, None]:
         url = f"https://app.asana.com/api/1.0/projects/{project_id}/tasks"
         headers = {
             "Authorization": f"Bearer {asana_token}",

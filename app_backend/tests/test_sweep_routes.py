@@ -1,27 +1,27 @@
 """Tests for sweep coordination routes."""
 
+import datetime
+import unittest.mock
 import uuid
-from datetime import datetime
-from unittest.mock import MagicMock
 
+import fastapi.testclient
 import pytest
-from fastapi.testclient import TestClient
 
-from metta.app_backend.metta_repo import MettaRepo, SweepRow
-from metta.app_backend.server import create_app
+import metta.app_backend.metta_repo
+import metta.app_backend.server
 
 
 @pytest.fixture
 def mock_metta_repo():
     """Create a mock MettaRepo for testing."""
-    return MagicMock(spec=MettaRepo)
+    return unittest.mock.MagicMock(spec=metta.app_backend.metta_repo.MettaRepo)
 
 
 @pytest.fixture
 def test_client(mock_metta_repo):
     """Create a test client with mocked dependencies."""
-    app = create_app(mock_metta_repo)
-    return TestClient(app)
+    app = metta.app_backend.server.create_app(mock_metta_repo)
+    return fastapi.testclient.TestClient(app)
 
 
 def test_create_sweep_creates_new(test_client, mock_metta_repo, auth_headers):
@@ -57,7 +57,7 @@ def test_create_sweep_creates_new(test_client, mock_metta_repo, auth_headers):
 def test_create_sweep_returns_existing(test_client, mock_metta_repo, auth_headers):
     """Test returning existing sweep info (idempotent)."""
     existing_sweep_id = uuid.uuid4()
-    existing_sweep = SweepRow(
+    existing_sweep = metta.app_backend.metta_repo.SweepRow(
         id=existing_sweep_id,
         name="test_sweep",
         project="test_project",
@@ -66,8 +66,8 @@ def test_create_sweep_returns_existing(test_client, mock_metta_repo, auth_header
         state="running",
         run_counter=0,
         user_id="test@example.com",
-        created_at=datetime.now(),
-        updated_at=datetime.now(),
+        created_at=datetime.datetime.now(),
+        updated_at=datetime.datetime.now(),
     )
     mock_metta_repo.get_sweep_by_name.return_value = existing_sweep
 
@@ -112,7 +112,7 @@ def test_create_sweep_with_machine_token(test_client, mock_metta_repo):
 def test_get_sweep_exists(test_client, mock_metta_repo, auth_headers):
     """Test getting an existing sweep."""
     sweep_id = uuid.uuid4()
-    mock_metta_repo.get_sweep_by_name.return_value = SweepRow(
+    mock_metta_repo.get_sweep_by_name.return_value = metta.app_backend.metta_repo.SweepRow(
         id=sweep_id,
         name="test_sweep",
         project="test_project",
@@ -121,8 +121,8 @@ def test_get_sweep_exists(test_client, mock_metta_repo, auth_headers):
         state="running",
         run_counter=0,
         user_id="test@example.com",
-        created_at=datetime.now(),
-        updated_at=datetime.now(),
+        created_at=datetime.datetime.now(),
+        updated_at=datetime.datetime.now(),
     )
 
     response = test_client.get("/sweeps/test_sweep", headers=auth_headers)
@@ -148,7 +148,7 @@ def test_get_sweep_not_exists(test_client, mock_metta_repo, auth_headers):
 def test_get_next_run_id(test_client, mock_metta_repo, auth_headers):
     """Test getting the next run ID (atomic counter)."""
     sweep_id = uuid.uuid4()
-    mock_metta_repo.get_sweep_by_name.return_value = SweepRow(
+    mock_metta_repo.get_sweep_by_name.return_value = metta.app_backend.metta_repo.SweepRow(
         id=sweep_id,
         name="test_sweep",
         project="test_project",
@@ -157,8 +157,8 @@ def test_get_next_run_id(test_client, mock_metta_repo, auth_headers):
         state="running",
         run_counter=41,  # Will be incremented to 42
         user_id="test@example.com",
-        created_at=datetime.now(),
-        updated_at=datetime.now(),
+        created_at=datetime.datetime.now(),
+        updated_at=datetime.datetime.now(),
     )
     mock_metta_repo.get_next_sweep_run_counter.return_value = 42
 

@@ -1,21 +1,20 @@
-from __future__ import annotations
 
+import dataclasses
 import time
-from dataclasses import dataclass
-from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Tuple
+import typing
 
 import torch
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class ColumnSpec:
     key: str
     header: str
-    formatter: Callable[[Any], str]
+    formatter: typing.Callable[[typing.Any], str]
     fallback: str = "N/A"
 
 
-DEFAULT_COLUMNS: Tuple[ColumnSpec, ...] = (
+DEFAULT_COLUMNS: typing.Tuple[ColumnSpec, ...] = (
     ColumnSpec("pytorch_ms", "PyTorch (ms)", lambda v: f"{float(v):.3f}"),
     ColumnSpec("triton_ms", "Triton (ms)", lambda v: f"{float(v):.3f}"),
     ColumnSpec("speedup", "Speedup", lambda v: f"{float(v):.2f}x"),
@@ -23,27 +22,27 @@ DEFAULT_COLUMNS: Tuple[ColumnSpec, ...] = (
 )
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class BenchmarkDefinition:
     key: str
     title: str
     description: str
-    configs: Sequence[Any]
-    format_config: Callable[[Any], str]
-    run_case: Callable[["BenchmarkCase", "BenchmarkSettings"], Dict[str, Any]]
-    notes: Optional[str] = None
-    columns: Sequence[ColumnSpec] = DEFAULT_COLUMNS
+    configs: typing.Sequence[typing.Any]
+    format_config: typing.Callable[[typing.Any], str]
+    run_case: typing.Callable[["BenchmarkCase", "BenchmarkSettings"], typing.Dict[str, typing.Any]]
+    notes: typing.Optional[str] = None
+    columns: typing.Sequence[ColumnSpec] = DEFAULT_COLUMNS
     default_warmup: int = 5
     default_iterations: int = 20
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class BenchmarkCase:
-    values: Any
+    values: typing.Any
     index: int
 
 
-@dataclass
+@dataclasses.dataclass
 class BenchmarkSettings:
     device: str
     warmup: int
@@ -51,7 +50,7 @@ class BenchmarkSettings:
     dtype: torch.dtype = torch.float32
 
 
-_REGISTRY: Dict[str, BenchmarkDefinition] = {}
+_REGISTRY: typing.Dict[str, BenchmarkDefinition] = {}
 
 
 def register(definition: BenchmarkDefinition) -> BenchmarkDefinition:
@@ -61,18 +60,18 @@ def register(definition: BenchmarkDefinition) -> BenchmarkDefinition:
     return definition
 
 
-def get_registry() -> Mapping[str, BenchmarkDefinition]:
+def get_registry() -> typing.Mapping[str, BenchmarkDefinition]:
     return _REGISTRY
 
 
 def measure_callable(
-    fn: Callable[[], Any],
+    fn: typing.Callable[[], typing.Any],
     *,
     warmup: int,
     iterations: int,
     synchronize: bool,
-) -> Tuple[Any, float]:
-    last: Any = None
+) -> typing.Tuple[typing.Any, float]:
+    last: typing.Any = None
     for _ in range(max(0, warmup)):
         last = fn()
     if synchronize:
@@ -86,7 +85,7 @@ def measure_callable(
     return last, elapsed / max(1, iterations)
 
 
-def ensure_device(device: Optional[str] = None) -> str:
+def ensure_device(device: typing.Optional[str] = None) -> str:
     if device:
         return device
     return "cuda" if torch.cuda.is_available() else "cpu"

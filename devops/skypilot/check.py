@@ -2,16 +2,16 @@
 
 import datetime
 
+import rich.align
+import rich.console
+import rich.panel
+import rich.table
 import sky
 import sky.jobs
-from rich.align import Align
-from rich.console import Console
-from rich.panel import Panel
-from rich.table import Table
 
 NOW = datetime.datetime.now(datetime.timezone.utc)
 TOP_N = 10
-console = Console()
+console = rich.console.Console()
 
 
 def human_duration(seconds):
@@ -66,7 +66,7 @@ def print_cluster_table(clusters):
     if not clusters:
         return
 
-    table = Table(show_header=True, header_style="bold magenta")
+    table = rich.table.Table(show_header=True, header_style="bold magenta")
     table.add_column("NAME", style="cyan", no_wrap=True)
     table.add_column("USER", style="green")
     table.add_column("LAUNCHED", justify="right")
@@ -75,9 +75,9 @@ def print_cluster_table(clusters):
     for c in clusters:
         table.add_row(c["name"], c["user"], c["launched_at"].strftime("%Y-%m-%d %H:%M"), str(c["age"]).split(".")[0])
 
-    aligned_table = Align.center(table)
+    aligned_table = rich.align.Align.center(table)
 
-    panel = Panel(
+    panel = rich.panel.Panel(
         aligned_table,
         title=f"[bold bright_blue]🚀 Running Clusters — Top {len(clusters)} by Age[/bold bright_blue]",
         border_style="blue",
@@ -92,7 +92,7 @@ def print_job_table(jobs):
     if not jobs:
         return
 
-    table = Table(show_header=True, header_style="bold magenta")
+    table = rich.table.Table(show_header=True, header_style="bold magenta")
     table.add_column("ID/NAME", style="cyan")
     table.add_column("USER", style="green")
     table.add_column("SUBMITTED", justify="right")
@@ -107,9 +107,9 @@ def print_job_table(jobs):
             human_duration(j["duration_seconds"]),
         )
 
-    aligned_table = Align.center(table)
+    aligned_table = rich.align.Align.center(table)
 
-    panel = Panel(
+    panel = rich.panel.Panel(
         aligned_table,
         title=f"[bold bright_blue]⏱️ Running Jobs — Top {len(jobs)} by Duration[/bold bright_blue]",
         border_style="blue",

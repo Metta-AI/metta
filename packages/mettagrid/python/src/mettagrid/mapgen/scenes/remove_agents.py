@@ -1,11 +1,11 @@
-from mettagrid.mapgen.scene import Scene, SceneConfig
+import mettagrid.mapgen.scene
 
 
-class RemoveAgentsConfig(SceneConfig):
+class RemoveAgentsConfig(mettagrid.mapgen.scene.SceneConfig):
     pass
 
 
-class RemoveAgents(Scene[RemoveAgentsConfig]):
+class RemoveAgents(mettagrid.mapgen.scene.Scene[RemoveAgentsConfig]):
     """
     This class solves a frequent problem: `game.num_agents` must match the
     number of agents in the map.

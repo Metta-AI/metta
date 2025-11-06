@@ -1,22 +1,21 @@
-from __future__ import annotations
 
 import json
 import logging
+import typing
 import uuid
 import zlib
-from typing import Dict
 
 import numpy as np
 
-from metta.utils.file import http_url, write_data
-from mettagrid.simulator import SimulatorEventHandler
-from mettagrid.simulator.simulator import Simulation
-from mettagrid.util.grid_object_formatter import format_grid_object
+import metta.utils.file
+import mettagrid.simulator
+import mettagrid.simulator.simulator
+import mettagrid.util.grid_object_formatter
 
 logger = logging.getLogger("ReplayLogWriter")
 
 
-class ReplayLogWriter(SimulatorEventHandler):
+class ReplayLogWriter(mettagrid.simulator.SimulatorEventHandler):
     """EventHandler that writes replay logs to storage (S3 or local files)."""
 
     def __init__(self, replay_dir: str):
@@ -29,7 +28,7 @@ class ReplayLogWriter(SimulatorEventHandler):
         self._episode_id = None
         self._episode_replay = None
         self._should_continue = True
-        self.episodes: Dict[str, EpisodeReplay] = {}
+        self.episodes: typing.Dict[str, EpisodeReplay] = {}
 
     def on_episode_start(self) -> None:
         """Start recording a new episode."""
@@ -57,7 +56,7 @@ class ReplayLogWriter(SimulatorEventHandler):
         assert self._sim is not None
         replay_path = f"{self._replay_dir}/{self._episode_id}.json.z"
         self._episode_replay.write_replay(replay_path)
-        url = http_url(replay_path)
+        url = metta.utils.file.http_url(replay_path)
         self._sim._context["replay_url"] = url
         logger.info("Wrote replay for episode %s to %s", self._episode_id, url)
 
@@ -65,7 +64,7 @@ class ReplayLogWriter(SimulatorEventHandler):
 class EpisodeReplay:
     """Helper class for managing replay data for a single episode."""
 
-    def __init__(self, sim: Simulation):
+    def __init__(self, sim: mettagrid.simulator.simulator.Simulation):
         self.sim = sim
         self.step = 0
         self.objects = []
@@ -93,7 +92,7 @@ class EpisodeReplay:
             if len(self.objects) <= i:
                 self.objects.append({})
 
-            update_object = format_grid_object(
+            update_object = mettagrid.util.grid_object_formatter.format_grid_object(
                 grid_object,
                 actions,
                 self.sim.action_success,
@@ -145,7 +144,7 @@ class EpisodeReplay:
         replay_bytes = replay_data.encode("utf-8")  # Encode to bytes
         compressed_data = zlib.compress(replay_bytes)  # Compress the bytes
 
-        write_data(path, compressed_data, content_type="application/x-compress")
+        metta.utils.file.write_data(path, compressed_data, content_type="application/x-compress")
 
     @staticmethod
     def _validate_non_empty_string_list(values: list[str], field_name: str) -> None:

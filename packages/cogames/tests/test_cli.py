@@ -1,10 +1,10 @@
 """Tests for cogames CLI commands."""
 
+import pathlib
 import subprocess
 import tempfile
-from pathlib import Path
 
-cogames_root = Path(__file__).parent.parent
+cogames_root = pathlib.Path(__file__).parent.parent
 
 
 def test_missions_list_command():
@@ -85,7 +85,7 @@ def test_missions_help_command():
 def test_make_mission_command():
     """Test that 'cogames make-mission' creates a new mission configuration."""
     with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
-        tmp_path = Path(f.name)
+        tmp_path = pathlib.Path(f.name)
 
     try:
         # Run make-game and write to temp file

@@ -4,7 +4,7 @@ import logging
 
 import pytest
 
-from metta.common.test_support import docker_client_fixture
+import metta.common.test_support
 
 # Silence PyTorch distributed elastic warning about redirects on MacOS
 logging.getLogger("torch.distributed.elastic.multiprocessing.redirects").setLevel(logging.ERROR)
@@ -45,4 +45,4 @@ def pytest_runtest_makereport(item, call):
             print(f"===== END VERBOSE OUTPUT FOR: {item.name} =====\n")
 
 
-docker_client = docker_client_fixture()
+docker_client = metta.common.test_support.docker_client_fixture()

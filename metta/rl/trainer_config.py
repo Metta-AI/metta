@@ -1,83 +1,87 @@
-from typing import Any, ClassVar, Literal, Optional
+import typing
 
-from pydantic import ConfigDict, Field, model_validator
+import pydantic
 
-from metta.rl.loss import LossConfig
-from metta.rl.training import HeartbeatConfig, HyperparameterSchedulerConfig
-from mettagrid.base_config import Config
+import metta.rl.loss
+import metta.rl.training
+import mettagrid.base_config
 
 
-class OptimizerConfig(Config):
-    type: Literal["adam", "muon", "adamw_schedulefree", "sgd_schedulefree"] = "adam"
+class OptimizerConfig(mettagrid.base_config.Config):
+    type: typing.Literal["adam", "muon", "adamw_schedulefree", "sgd_schedulefree"] = "adam"
     # Learning rate: Type 2 default chosen by sweep
-    learning_rate: float = Field(default=0.001153637, gt=0, le=1.0)
+    learning_rate: float = pydantic.Field(default=0.001153637, gt=0, le=1.0)
     # Beta1: Standard Adam default from Kingma & Ba (2014) "Adam: A Method for Stochastic Optimization"
-    beta1: float = Field(default=0.9, ge=0, le=1.0)
+    beta1: float = pydantic.Field(default=0.9, ge=0, le=1.0)
     # Beta2: Standard Adam default from Kingma & Ba (2014)
-    beta2: float = Field(default=0.999, ge=0, le=1.0)
+    beta2: float = pydantic.Field(default=0.999, ge=0, le=1.0)
     # Epsilon: Type 2 default chosen arbitrarily
-    eps: float = Field(default=3.186531e-07, gt=0)
+    eps: float = pydantic.Field(default=3.186531e-07, gt=0)
     # Weight decay: Disabled by default, common practice for RL to avoid over-regularization
-    weight_decay: float = Field(default=0, ge=0)
+    weight_decay: float = pydantic.Field(default=0, ge=0)
     # ScheduleFree-specific parameters
-    momentum: float = Field(default=0.9, ge=0, le=1.0)  # Beta parameter for ScheduleFree
-    warmup_steps: int = Field(default=0, ge=0)  # Number of warmup steps for ScheduleFree
+    momentum: float = pydantic.Field(default=0.9, ge=0, le=1.0)  # Beta parameter for ScheduleFree
+    warmup_steps: int = pydantic.Field(default=0, ge=0)  # Number of warmup steps for ScheduleFree
 
 
-class InitialPolicyConfig(Config):
+class InitialPolicyConfig(mettagrid.base_config.Config):
     uri: str | None = None
-    type: Literal["top", "latest", "specific"] = "top"
-    range: int = Field(default=1, gt=0)
+    type: typing.Literal["top", "latest", "specific"] = "top"
+    range: int = pydantic.Field(default=1, gt=0)
     metric: str = "epoch"
-    filters: dict[str, Any] = Field(default_factory=dict)
+    filters: dict[str, typing.Any] = pydantic.Field(default_factory=dict)
 
 
-class TorchProfilerConfig(Config):
-    interval_epochs: int = Field(default=0, ge=0)  # 0 to disable
-    profile_dir: str | None = Field(default=None)
+class TorchProfilerConfig(mettagrid.base_config.Config):
+    interval_epochs: int = pydantic.Field(default=0, ge=0)  # 0 to disable
+    profile_dir: str | None = pydantic.Field(default=None)
 
     @property
     def enabled(self) -> bool:
         return self.interval_epochs > 0
 
-    @model_validator(mode="after")
+    @pydantic.model_validator(mode="after")
     def validate_fields(self) -> "TorchProfilerConfig":
         if self.enabled:
             assert self.profile_dir, "profile_dir must be set"
         return self
 
 
-class TrainerConfig(Config):
-    total_timesteps: int = Field(default=50_000_000_000, gt=0)
-    losses: LossConfig = Field(default_factory=LossConfig)
-    optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig)
+class TrainerConfig(mettagrid.base_config.Config):
+    total_timesteps: int = pydantic.Field(default=50_000_000_000, gt=0)
+    losses: metta.rl.loss.LossConfig = pydantic.Field(default_factory=metta.rl.loss.LossConfig)
+    optimizer: OptimizerConfig = pydantic.Field(default_factory=OptimizerConfig)
 
     require_contiguous_env_ids: bool = False
     verbose: bool = True
 
-    batch_size: int = Field(default=524288, gt=0)
-    minibatch_size: int = Field(default=16384, gt=0)
-    bptt_horizon: int = Field(default=64, gt=0)
-    update_epochs: int = Field(default=1, gt=0)
+    batch_size: int = pydantic.Field(default=524288, gt=0)
+    minibatch_size: int = pydantic.Field(default=16384, gt=0)
+    bptt_horizon: int = pydantic.Field(default=64, gt=0)
+    update_epochs: int = pydantic.Field(default=1, gt=0)
     scale_batches_by_world_size: bool = False
 
     compile: bool = False
-    compile_mode: Literal["default", "reduce-overhead", "max-autotune"] = "reduce-overhead"
-    detect_anomaly: bool = Field(default=False)
+    compile_mode: typing.Literal["default", "reduce-overhead", "max-autotune"] = "reduce-overhead"
+    detect_anomaly: bool = pydantic.Field(default=False)
 
-    hyperparameter_scheduler: HyperparameterSchedulerConfig = Field(default_factory=HyperparameterSchedulerConfig)
-    heartbeat: Optional[HeartbeatConfig] = Field(default_factory=HeartbeatConfig)
+    hyperparameter_scheduler: metta.rl.training.HyperparameterSchedulerConfig = pydantic.Field(
+        default_factory=metta.rl.training.HyperparameterSchedulerConfig
+    )
+    heartbeat: typing.Optional[metta.rl.training.HeartbeatConfig] = pydantic.Field(
+        default_factory=metta.rl.training.HeartbeatConfig
+    )
 
-    initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
-    profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
+    initial_policy: InitialPolicyConfig = pydantic.Field(default_factory=InitialPolicyConfig)
+    profiler: TorchProfilerConfig = pydantic.Field(default_factory=TorchProfilerConfig)
 
-    model_config: ClassVar[ConfigDict] = ConfigDict(
+    model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
         extra="forbid",
         validate_assignment=True,
         populate_by_name=True,
     )
 
-    @model_validator(mode="after")
+    @pydantic.model_validator(mode="after")
     def validate_fields(self) -> "TrainerConfig":
         if self.minibatch_size > self.batch_size:
             raise ValueError("minibatch_size must be <= batch_size")

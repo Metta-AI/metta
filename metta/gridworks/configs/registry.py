@@ -1,21 +1,20 @@
-from __future__ import annotations
 
 import ast
+import dataclasses
 import inspect
 import logging
+import pathlib
 import re
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Callable, Literal, cast, get_args
+import typing
 
-from metta.common.util.fs import get_repo_root
-from metta.gridworks.configs.lsp import LSPClient
-from mettagrid.base_config import Config
-from mettagrid.util.module import load_symbol
+import metta.common.util.fs
+import metta.gridworks.configs.lsp
+import mettagrid.base_config
+import mettagrid.util.module
 
 logger = logging.getLogger(__name__)
 
-ConfigMakerKind = Literal[
+ConfigMakerKind = typing.Literal[
     "MettaGridConfig",
     "SimulationConfig",
     "List[SimulationConfig]",
@@ -41,16 +40,16 @@ def check_return_type(return_type: str) -> ConfigMakerKind | None:
     # normalize
     return_type = re.sub(r"\blist\b", "List", return_type)
     return_type = re.sub(r"\bdict\b", "Dict", return_type)
-    if return_type in get_args(ConfigMakerKind):
-        return cast(ConfigMakerKind, return_type)
+    if return_type in typing.get_args(ConfigMakerKind):
+        return typing.cast(ConfigMakerKind, return_type)
 
     return None
 
 
-MakerFunction = Callable[[], Config | list[Config]]
+MakerFunction = typing.Callable[[], mettagrid.base_config.Config | list[mettagrid.base_config.Config]]
 
 
-@dataclass
+@dataclasses.dataclass
 class ConfigMaker:
     """Represents a function that makes a Config object, and its metadata."""
 
@@ -71,7 +70,7 @@ class ConfigMaker:
 
     @classmethod
     def from_path(cls, path: str, return_type: ConfigMakerKind, line: int) -> ConfigMaker:
-        maker = load_symbol(path)
+        maker = mettagrid.util.module.load_symbol(path)
         if not callable(maker):
             raise ValueError(f"Symbol {path} is not a callable")
 
@@ -82,20 +81,20 @@ class ConfigMaker:
             if param.default is inspect.Parameter.empty:
                 raise ValueError(f"Symbol {path} must have no required arguments (all parameters must have defaults)")
 
-        return ConfigMaker(maker=cast(MakerFunction, maker), return_type=return_type, line=line)
+        return ConfigMaker(maker=typing.cast(MakerFunction, maker), return_type=return_type, line=line)
 
 
 class ConfigMakerRegistry:
     """Registry of all config makers."""
 
-    def __init__(self, root_dirs: list[Path] | None = None):
+    def __init__(self, root_dirs: list[pathlib.Path] | None = None):
         if not root_dirs:
-            repo_root = get_repo_root()
+            repo_root = metta.common.util.fs.get_repo_root()
             root_dirs = [repo_root / "experiments"]
         else:
             root_dirs = [root_dir.resolve() for root_dir in root_dirs]
 
-        self.lsp_client = LSPClient()
+        self.lsp_client = metta.gridworks.configs.lsp.LSPClient()
 
         # Load all config makers
         # TODO - implement reloading (full and maybe incremental based on file modification time)
@@ -116,7 +115,7 @@ class ConfigMakerRegistry:
         self._config_makers = config_makers
         self._config_makers_index = {maker.path(): maker for maker in config_makers}
 
-    def load_file_config_makers(self, file_path: Path) -> list[ConfigMaker]:
+    def load_file_config_makers(self, file_path: pathlib.Path) -> list[ConfigMaker]:
         code = file_path.read_text()
         tree = ast.parse(code)
         config_makers: list[ConfigMaker] = []
@@ -141,7 +140,7 @@ class ConfigMakerRegistry:
 
         for node, hover_result in zip(function_defs, hover_results, strict=True):
             # Create full module path
-            rel_file_path = file_path.relative_to(get_repo_root())
+            rel_file_path = file_path.relative_to(metta.common.util.fs.get_repo_root())
             module_path = str(rel_file_path.with_suffix("")).replace("/", ".")
             full_path = f"{module_path}.{node.name}"
             if full_path.startswith("packages.cogames.src."):

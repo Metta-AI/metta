@@ -1,10 +1,10 @@
 import torch
 
-from metta.agent.components.agalite_kernel import AGaLiTeKernelConfig
+import metta.agent.components.agalite_kernel
 
 
 def test_dpfp_feature_shape():
-    kernel = AGaLiTeKernelConfig(name="dpfp", nu=2)
+    kernel = metta.agent.components.agalite_kernel.AGaLiTeKernelConfig(name="dpfp", nu=2)
     base = torch.randn(5, 8)
     proj = torch.randn(5, 2)
 
@@ -17,7 +17,7 @@ def test_dpfp_feature_shape():
 
 
 def test_parameterized_projection_feature_shape():
-    kernel = AGaLiTeKernelConfig(name="pp_relu", nu=3)
+    kernel = metta.agent.components.agalite_kernel.AGaLiTeKernelConfig(name="pp_relu", nu=3)
     base = torch.randn(7, 6)
     proj = torch.randn(7, kernel.nu)
 
@@ -30,7 +30,7 @@ def test_parameterized_projection_feature_shape():
 
 
 def test_gamma_map_bounded():
-    kernel = AGaLiTeKernelConfig(name="eluplus1", nu=2)
+    kernel = metta.agent.components.agalite_kernel.AGaLiTeKernelConfig(name="eluplus1", nu=2)
     gamma = torch.randn(3, 4, 5)
     proj = torch.randn(3, 4, kernel.nu)
 

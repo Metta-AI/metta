@@ -1,38 +1,34 @@
-from experiments.recipes.arena_basic_easy_shaped import (
-    evaluate,
-    evaluate_in_sweep,
-    make_curriculum,
-    mettagrid,
-    play,
-    replay,
-    simulations,
-    sweep,
-    train as base_train,
-)
-from metta.agent.policies.gtrxl import GTrXLConfig
-from metta.agent.policies.transformer import TransformerPolicyConfig
-from metta.agent.policy import PolicyArchitecture
-from metta.rl.trainer_config import OptimizerConfig
+import experiments.recipes.arena_basic_easy_shaped
+import metta.agent.policies.gtrxl
+import metta.agent.policies.transformer
+import metta.agent.policy
+import metta.rl.trainer_config
 
-DEFAULT_LR = OptimizerConfig.model_fields["learning_rate"].default
+DEFAULT_LR = metta.rl.trainer_config.OptimizerConfig.model_fields[
+    "learning_rate"
+].default
 
 
 def train(
     *,
     curriculum=None,
     enable_detailed_slice_logging: bool = False,
-    policy_architecture: PolicyArchitecture | None = None,
+    policy_architecture: metta.agent.policy.PolicyArchitecture | None = None,
 ):
     if policy_architecture is None:
-        policy_architecture = TransformerPolicyConfig(transformer=GTrXLConfig())
+        policy_architecture = metta.agent.policies.transformer.TransformerPolicyConfig(
+            transformer=metta.agent.policies.gtrxl.GTrXLConfig()
+        )
 
-    tool = base_train(
+    tool = experiments.recipes.arena_basic_easy_shaped.train(
         curriculum=curriculum,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         policy_architecture=policy_architecture,
     )
 
-    if isinstance(policy_architecture, TransformerPolicyConfig):
+    if isinstance(
+        policy_architecture, metta.agent.policies.transformer.TransformerPolicyConfig
+    ):
         hint = policy_architecture.learning_rate_hint
         optimizer = tool.trainer.optimizer
         if hint is not None and optimizer.learning_rate == DEFAULT_LR:

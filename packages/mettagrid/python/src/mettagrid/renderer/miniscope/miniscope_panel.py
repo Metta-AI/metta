@@ -1,12 +1,12 @@
 """Panel system for miniscope renderer."""
 
-from typing import List, Optional, Union
+import typing
 
-from rich.console import Console
-from rich.live import Live
-from rich.panel import Panel
-from rich.table import Table
-from rich.text import Text
+import rich.console
+import rich.live
+import rich.panel
+import rich.table
+import rich.text
 
 SIDEBAR_WIDTH = 46
 """Default character width allocated to the sidebar stack."""
@@ -24,9 +24,9 @@ class MiniscopePanel:
     def __init__(
         self,
         name: str,
-        width: Optional[int] = None,
-        height: Optional[int] = None,
-        title: Optional[str] = None,
+        width: typing.Optional[int] = None,
+        height: typing.Optional[int] = None,
+        title: typing.Optional[str] = None,
         border: bool = False,
     ):
         """Initialize a miniscope panel.
@@ -43,10 +43,12 @@ class MiniscopePanel:
         self.height = height
         self.title = title
         self.border = border
-        self._content: List[str] = []
-        self._rich_content: Optional[Union[Table, Panel, Text]] = None
+        self._content: typing.List[str] = []
+        self._rich_content: typing.Optional[typing.Union[rich.table.Table, rich.panel.Panel, rich.text.Text]] = None
 
-    def set_content(self, content: Union[List[str], Table, Panel, Text]) -> None:
+    def set_content(
+        self, content: typing.Union[typing.List[str], rich.table.Table, rich.panel.Panel, rich.text.Text]
+    ) -> None:
         """Set panel contents from plain text or a Rich renderable."""
         if isinstance(content, list):
             self._content = content
@@ -55,17 +57,17 @@ class MiniscopePanel:
             self._content = []
             self._rich_content = content
 
-    def get_content(self) -> List[str]:
+    def get_content(self) -> typing.List[str]:
         """Return panel content as a list of strings."""
         if self._rich_content:
             # Convert Rich object to strings
-            console = Console(width=self.width or 80, legacy_windows=False)
+            console = rich.console.Console(width=self.width or 80, legacy_windows=False)
             with console.capture() as capture:
                 console.print(self._rich_content)
             return capture.get().split("\n")
         return self._content
 
-    def get_rich_content(self) -> Optional[Union[Table, Panel, Text]]:
+    def get_rich_content(self) -> typing.Optional[typing.Union[rich.table.Table, rich.panel.Panel, rich.text.Text]]:
         """Return the current Rich renderable content, if any."""
         return self._rich_content
 
@@ -78,11 +80,11 @@ class MiniscopePanel:
         """Return True when the panel stores no content."""
         return not self._content and not self._rich_content
 
-    def size(self) -> tuple[Optional[int], Optional[int]]:
+    def size(self) -> tuple[typing.Optional[int], typing.Optional[int]]:
         """Return the configured (width, height)."""
         return (self.width, self.height)
 
-    def render(self) -> List[str]:
+    def render(self) -> typing.List[str]:
         """Render panel content and apply width/height constraints."""
         lines = self.get_content()
 
@@ -116,7 +118,7 @@ class MiniscopePanel:
 class PanelLayout:
     """Layout manager for miniscope panels."""
 
-    def __init__(self, console: Console):
+    def __init__(self, console: rich.console.Console):
         """Initialize the panel layout.
 
         Args:
@@ -141,9 +143,9 @@ class PanelLayout:
         self.panels["map_view"] = self.map_view
 
         # Live display for smooth updates without flicker
-        self._live: Optional[Live] = None
+        self._live: typing.Optional[rich.live.Live] = None
 
-    def get_panel(self, name: str) -> Optional[MiniscopePanel]:
+    def get_panel(self, name: str) -> typing.Optional[MiniscopePanel]:
         """Look up a panel by name."""
         return self.panels.get(name)
 
@@ -151,7 +153,7 @@ class PanelLayout:
         """Register a custom panel."""
         self.panels[panel.name] = panel
 
-    def register_sidebar_panel(self, name: str, title: Optional[str] = None) -> MiniscopePanel:
+    def register_sidebar_panel(self, name: str, title: typing.Optional[str] = None) -> MiniscopePanel:
         """Create or return a named sidebar panel."""
         if name in self._sidebar_panels:
             panel = self._sidebar_panels[name]
@@ -165,7 +167,7 @@ class PanelLayout:
         self.panels[panel.name] = panel
         return panel
 
-    def get_sidebar_panel(self, name: str) -> Optional[MiniscopePanel]:
+    def get_sidebar_panel(self, name: str) -> typing.Optional[MiniscopePanel]:
         """Fetch a sidebar panel by logical name."""
         return self._sidebar_panels.get(name)
 
@@ -185,7 +187,7 @@ class PanelLayout:
     def start_live(self) -> None:
         """Start live display mode for flicker-free updates."""
         if self._live is None:
-            self._live = Live(console=self.console, refresh_per_second=60, screen=True)
+            self._live = rich.live.Live(console=self.console, refresh_per_second=60, screen=True)
             self._live.start()
 
     def stop_live(self) -> None:
@@ -194,7 +196,7 @@ class PanelLayout:
             self._live.stop()
             self._live = None
 
-    def _compose_sidebar_content(self) -> Union[str, Text]:
+    def _compose_sidebar_content(self) -> typing.Union[str, rich.text.Text]:
         """Build the renderable content for the sidebar stack."""
         combined_lines: list[str] = []
 
@@ -215,12 +217,12 @@ class PanelLayout:
         if not combined_lines:
             return ""
 
-        return Text("\n".join(combined_lines))
+        return rich.text.Text("\n".join(combined_lines))
 
     def render_to_console(self) -> None:
         """Render the complete layout to console using Rich Table."""
         # Create main layout table with header, map/info panes, and footer
-        layout = Table.grid(padding=0, expand=True)
+        layout = rich.table.Table.grid(padding=0, expand=True)
         layout.add_column(ratio=1)  # Single column for full width content
 
         # Add header
@@ -231,7 +233,7 @@ class PanelLayout:
         sidebar_content = self._compose_sidebar_content()
 
         # Create horizontal layout - conditionally include sidebar
-        main_row = Table.grid(padding=0, expand=True)
+        main_row = rich.table.Table.grid(padding=0, expand=True)
 
         map_content = self.map_view.get_rich_content() or "\n".join(self.map_view.render())
 

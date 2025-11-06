@@ -1,13 +1,13 @@
-from typing import Optional
+import typing
 
+import tensordict
 import torch
 import torch.nn as nn
-from tensordict import TensorDict
 
-from metta.agent.components.component_config import ComponentConfig
+import metta.agent.components.component_config
 
 
-class NoiseLayerConfig(ComponentConfig):
+class NoiseLayerConfig(metta.agent.components.component_config.ComponentConfig):
     """Configuration for NoiseLayer."""
 
     in_key: str
@@ -15,8 +15,8 @@ class NoiseLayerConfig(ComponentConfig):
     std: float
     name: str = "noise_layer"
     noise_during_eval: bool = False
-    clamp_min: Optional[float] = None
-    clamp_max: Optional[float] = None
+    clamp_min: typing.Optional[float] = None
+    clamp_max: typing.Optional[float] = None
 
     def make_component(self, env=None) -> nn.Module:
         return NoiseLayer(config=self)
@@ -35,13 +35,13 @@ class NoiseLayer(nn.Module):
         self.clamp_min = config.clamp_min
         self.clamp_max = config.clamp_max
 
-    def set_noise(self, *, std: float, noise_during_eval: Optional[bool] = None) -> None:
+    def set_noise(self, *, std: float, noise_during_eval: typing.Optional[bool] = None) -> None:
         """Update noise parameters at runtime."""
         self.std = self._validate_std(std)
         if noise_during_eval is not None:
             self.noise_during_eval = bool(noise_during_eval)
 
-    def forward(self, td: TensorDict) -> TensorDict:
+    def forward(self, td: tensordict.TensorDict) -> tensordict.TensorDict:
         tensor = td[self.in_key]
         noisy_tensor = self._maybe_add_noise(tensor)
         if self.clamp_min is not None or self.clamp_max is not None:

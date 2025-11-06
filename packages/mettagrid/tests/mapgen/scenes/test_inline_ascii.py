@@ -1,14 +1,13 @@
 import pytest
 
-from mettagrid.mapgen.scenes.inline_ascii import InlineAscii
-from mettagrid.test_support.mapgen import render_scene
-
-from .test_utils import assert_grid
+import mettagrid.mapgen.scenes.inline_ascii
+import mettagrid.test_support.mapgen
+import packages.mettagrid.tests.mapgen.scenes.test_utils
 
 
 def test_basic():
-    scene = render_scene(
-        InlineAscii.Config(
+    scene = mettagrid.test_support.mapgen.render_scene(
+        mettagrid.mapgen.scenes.inline_ascii.InlineAscii.Config(
             data="""
 #.@.#
 #...#
@@ -17,7 +16,7 @@ def test_basic():
         (3, 7),
     )
 
-    assert_grid(
+    packages.mettagrid.tests.mapgen.scenes.test_utils.assert_grid(
         scene,
         """
 #.@.#..
@@ -28,8 +27,8 @@ def test_basic():
 
 
 def test_row_column():
-    scene = render_scene(
-        InlineAscii.Config(
+    scene = mettagrid.test_support.mapgen.render_scene(
+        mettagrid.mapgen.scenes.inline_ascii.InlineAscii.Config(
             data="#.@.#",
             row=1,
             column=2,
@@ -37,7 +36,7 @@ def test_row_column():
         (3, 7),
     )
 
-    assert_grid(
+    packages.mettagrid.tests.mapgen.scenes.test_utils.assert_grid(
         scene,
         """
 .......
@@ -49,8 +48,8 @@ def test_row_column():
 
 def test_overflow():
     with pytest.raises(ValueError):
-        render_scene(
-            InlineAscii.Config(
+        mettagrid.test_support.mapgen.render_scene(
+            mettagrid.mapgen.scenes.inline_ascii.InlineAscii.Config(
                 data="####",
                 row=1,
                 column=2,

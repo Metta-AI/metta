@@ -5,12 +5,12 @@ Provides intelligent task selection based on bidirectional learning progress ana
 using fast and slow exponential moving averages to detect learning opportunities.
 """
 
-from typing import Any, Dict, List, Optional
+import typing
 
 import numpy as np
 
-from .curriculum import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask
-from .task_tracker import TaskTracker
+import metta.cogworks.curriculum.curriculum
+import metta.cogworks.curriculum.task_tracker
 
 # Constants for bidirectional learning progress
 DEFAULT_SUCCESS_RATE = 0.0
@@ -18,7 +18,7 @@ DEFAULT_WEIGHT = 1.0
 RANDOM_BASELINE_CAP = 0.75
 
 
-class LearningProgressConfig(CurriculumAlgorithmConfig):
+class LearningProgressConfig(metta.cogworks.curriculum.curriculum.CurriculumAlgorithmConfig):
     """Configuration for learning progress with bidirectional scoring as default."""
 
     type: str = "learning_progress"
@@ -47,7 +47,7 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
         return LearningProgressAlgorithm(num_tasks, self)
 
 
-class LearningProgressAlgorithm(CurriculumAlgorithm):
+class LearningProgressAlgorithm(metta.cogworks.curriculum.curriculum.CurriculumAlgorithm):
     """
     Learning Progress Algorithm with integrated bidirectional scoring.
 
@@ -63,7 +63,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self.hypers: LearningProgressConfig = hypers
 
         # Initialize task tracker (moved from modules to curriculum folder)
-        self.task_tracker = TaskTracker(max_memory_tasks=hypers.max_memory_tasks)
+        self.task_tracker = metta.cogworks.curriculum.task_tracker.TaskTracker(max_memory_tasks=hypers.max_memory_tasks)
 
         # Note: slice_analyzer is already initialized in parent class via StatsLogger
 
@@ -74,10 +74,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             self._init_basic_scoring()
 
         # Cache for expensive statistics computation
-        self._stats_cache: Dict[str, Any] = {}
+        self._stats_cache: typing.Dict[str, typing.Any] = {}
         self._stats_cache_valid = False
 
-    def get_base_stats(self) -> Dict[str, float]:
+    def get_base_stats(self) -> typing.Dict[str, float]:
         """Get basic statistics that all algorithms must provide."""
         base_stats = {"num_tasks": self.num_tasks, **self.slice_analyzer.get_base_stats()}
 
@@ -88,7 +88,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         return base_stats
 
-    def stats(self, prefix: str = "") -> Dict[str, float]:
+    def stats(self, prefix: str = "") -> typing.Dict[str, float]:
         """Get all statistics with optional prefix. Always includes learning progress stats."""
         cache_key = prefix if prefix else "_default"
 
@@ -115,47 +115,47 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
     def _init_bidirectional_scoring(self):
         """Initialize bidirectional EMA tracking (integrated from BidirectionalLearningProgressScorer)."""
         # Bidirectional learning progress tracking
-        self._outcomes: Dict[int, List[float]] = {}
-        self._p_fast: Optional[np.ndarray] = None
-        self._p_slow: Optional[np.ndarray] = None
-        self._p_true: Optional[np.ndarray] = None
-        self._random_baseline: Optional[np.ndarray] = None
+        self._outcomes: typing.Dict[int, typing.List[float]] = {}
+        self._p_fast: typing.Optional[np.ndarray] = None
+        self._p_slow: typing.Optional[np.ndarray] = None
+        self._p_true: typing.Optional[np.ndarray] = None
+        self._random_baseline: typing.Optional[np.ndarray] = None
         self._task_success_rate: np.ndarray = np.array([])
-        self._counter: Dict[int, int] = {}
+        self._counter: typing.Dict[int, int] = {}
         self._update_mask: np.ndarray = np.array([])
         self._sample_levels: np.ndarray = np.array([])
 
         # Cache for task distribution and scores
-        self._task_dist: Optional[np.ndarray] = None
+        self._task_dist: typing.Optional[np.ndarray] = None
         self._stale_dist = True
-        self._score_cache: Dict[int, float] = {}
+        self._score_cache: typing.Dict[int, float] = {}
         self._cache_valid_tasks: set[int] = set()
 
     def _init_basic_scoring(self):
         """Initialize basic EMA tracking (fallback method)."""
         # EMA tracking for each task: task_id -> (ema_score, ema_squared, num_samples)
-        self._task_emas: Dict[int, tuple[float, float, int]] = {}
+        self._task_emas: typing.Dict[int, tuple[float, float, int]] = {}
         # Ensure cache is initialized for basic scoring mode
         if not hasattr(self, "_score_cache"):
-            self._score_cache: Dict[int, float] = {}
+            self._score_cache: typing.Dict[int, float] = {}
         if not hasattr(self, "_cache_valid_tasks"):
             self._cache_valid_tasks: set[int] = set()
 
-    def score_tasks(self, task_ids: List[int]) -> Dict[int, float]:
+    def score_tasks(self, task_ids: typing.List[int]) -> typing.Dict[int, float]:
         """Score tasks using the configured method (bidirectional by default)."""
         if self.hypers.use_bidirectional:
             return self._score_tasks_bidirectional(task_ids)
         else:
             return self._score_tasks_basic(task_ids)
 
-    def _score_tasks_bidirectional(self, task_ids: List[int]) -> Dict[int, float]:
+    def _score_tasks_bidirectional(self, task_ids: typing.List[int]) -> typing.Dict[int, float]:
         """Score tasks using bidirectional learning progress."""
         scores = {}
         for task_id in task_ids:
             scores[task_id] = self._get_bidirectional_learning_progress_score(task_id)
         return scores
 
-    def _score_tasks_basic(self, task_ids: List[int]) -> Dict[int, float]:
+    def _score_tasks_basic(self, task_ids: typing.List[int]) -> typing.Dict[int, float]:
         """Score tasks using basic EMA variance method."""
         scores = {}
         for task_id in task_ids:
@@ -232,7 +232,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._cache_valid_tasks.add(task_id)
         return score
 
-    def recommend_eviction(self, task_ids: List[int]) -> Optional[int]:
+    def recommend_eviction(self, task_ids: typing.List[int]) -> typing.Optional[int]:
         """Recommend which task to evict based on learning progress."""
         if not task_ids:
             return None
@@ -307,14 +307,16 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Invalidate stats cache
         self.invalidate_cache()
 
-    def get_stats(self) -> Dict[str, float]:
+    def get_stats(self) -> typing.Dict[str, float]:
         """Get learning progress statistics (compatibility method for tests)."""
         if self.hypers.use_bidirectional:
             return self._get_bidirectional_detailed_stats()
         else:
             return self._get_basic_detailed_stats()
 
-    def update_task_with_slice_values(self, task_id: int, score: float, slice_values: Dict[str, Any]) -> None:
+    def update_task_with_slice_values(
+        self, task_id: int, score: float, slice_values: typing.Dict[str, typing.Any]
+    ) -> None:
         """Update task performance including slice values for analysis."""
         # First update performance
         self.update_task_performance(task_id, score)
@@ -364,7 +366,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Invalidate cache for this task when EMA is updated
         self._cache_valid_tasks.discard(task_id)
 
-    def on_task_created(self, task: CurriculumTask) -> None:
+    def on_task_created(self, task: metta.cogworks.curriculum.curriculum.CurriculumTask) -> None:
         """Handle task creation by tracking it."""
         self.task_tracker.track_task_creation(task._task_id)
 
@@ -377,7 +379,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Invalidate stats cache when task state changes
         self.invalidate_cache()
 
-    def get_detailed_stats(self) -> Dict[str, float]:
+    def get_detailed_stats(self) -> typing.Dict[str, float]:
         """Get detailed stats including learning progress and slice distribution analysis."""
         stats = super().get_detailed_stats()  # Gets slice analyzer stats
 
@@ -393,7 +395,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         return stats
 
-    def _get_bidirectional_detailed_stats(self) -> Dict[str, float]:
+    def _get_bidirectional_detailed_stats(self) -> typing.Dict[str, float]:
         """Get detailed bidirectional learning progress statistics."""
         if not self._outcomes:
             return {
@@ -431,7 +433,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         return stats
 
-    def _get_basic_detailed_stats(self) -> Dict[str, float]:
+    def _get_basic_detailed_stats(self) -> typing.Dict[str, float]:
         """Get detailed basic learning progress statistics."""
         if not self._task_emas:
             return {
@@ -636,7 +638,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._task_dist = task_dist.astype(np.float32)
         self._stale_dist = False
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> typing.Dict[str, typing.Any]:
         """Get learning progress algorithm state for checkpointing."""
         state = {
             "type": self.hypers.algorithm_type(),
@@ -666,7 +668,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         return state
 
-    def load_state(self, state: Dict[str, Any]) -> None:
+    def load_state(self, state: typing.Dict[str, typing.Any]) -> None:
         """Load learning progress algorithm state from checkpoint."""
         # Restore task tracker
         self.task_tracker.load_state(state["task_tracker"])

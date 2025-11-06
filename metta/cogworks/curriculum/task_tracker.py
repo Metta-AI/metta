@@ -5,9 +5,9 @@ Handles task memory, performance history, and basic task metadata
 without mixing in learning progress calculations or bucket analysis.
 """
 
+import collections
 import time
-from collections import deque
-from typing import Any, Dict, Optional, Tuple
+import typing
 
 
 class TaskTracker:
@@ -17,13 +17,13 @@ class TaskTracker:
         self.max_memory_tasks = max_memory_tasks
 
         # Task memory: task_id -> (creation_time, completion_count, total_score, last_score)
-        self._task_memory: Dict[int, Tuple[float, int, float, float]] = {}
+        self._task_memory: typing.Dict[int, typing.Tuple[float, int, float, float]] = {}
 
         # Task creation order for efficient cleanup
-        self._task_creation_order = deque()  # (timestamp, task_id) pairs
+        self._task_creation_order = collections.deque()  # (timestamp, task_id) pairs
 
         # Performance tracking
-        self._completion_history = deque(maxlen=1000)  # Recent completion scores
+        self._completion_history = collections.deque(maxlen=1000)  # Recent completion scores
 
         # Cached values to avoid expensive recomputation
         self._cached_total_completions = 0
@@ -68,7 +68,7 @@ class TaskTracker:
         else:
             self._cache_valid = False
 
-    def get_task_stats(self, task_id: int) -> Optional[Dict[str, float]]:
+    def get_task_stats(self, task_id: int) -> typing.Optional[typing.Dict[str, float]]:
         """Get statistics for a specific task."""
         if task_id not in self._task_memory:
             return None
@@ -109,7 +109,7 @@ class TaskTracker:
             if self._cache_valid:
                 self._cache_valid = False
 
-    def get_global_stats(self) -> Dict[str, float]:
+    def get_global_stats(self) -> typing.Dict[str, float]:
         """Get global performance statistics."""
         if not self._completion_history:
             return {
@@ -150,7 +150,7 @@ class TaskTracker:
 
         # Cache may still be valid after cleanup if we tracked changes
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> typing.Dict[str, typing.Any]:
         """Get task tracker state for checkpointing."""
         return {
             "max_memory_tasks": self.max_memory_tasks,
@@ -169,7 +169,7 @@ class TaskTracker:
             "cache_valid": self._cache_valid,
         }
 
-    def load_state(self, state: Dict[str, Any]) -> None:
+    def load_state(self, state: typing.Dict[str, typing.Any]) -> None:
         """Load task tracker state from checkpoint."""
         self.max_memory_tasks = state["max_memory_tasks"]
 
@@ -184,10 +184,10 @@ class TaskTracker:
             )
 
         # Restore creation order
-        self._task_creation_order = deque(state["task_creation_order"])
+        self._task_creation_order = collections.deque(state["task_creation_order"])
 
         # Restore completion history
-        self._completion_history = deque(state["completion_history"], maxlen=1000)
+        self._completion_history = collections.deque(state["completion_history"], maxlen=1000)
 
         # Restore cache state
         self._cached_total_completions = state["cached_total_completions"]

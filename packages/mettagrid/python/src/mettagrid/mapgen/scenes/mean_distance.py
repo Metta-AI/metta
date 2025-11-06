@@ -1,14 +1,14 @@
 import numpy as np
 
-from mettagrid.mapgen.scene import Scene, SceneConfig
+import mettagrid.mapgen.scene
 
 
-class MeanDistanceConfig(SceneConfig):
+class MeanDistanceConfig(mettagrid.mapgen.scene.SceneConfig):
     mean_distance: float  # Mean distance parameter for objects relative to agent.
     objects: dict[str, int]
 
 
-class MeanDistance(Scene[MeanDistanceConfig]):
+class MeanDistance(mettagrid.mapgen.scene.Scene[MeanDistanceConfig]):
     """
     This scene places an agent at the center of the scene and places objects at a mean distance from the agent.
     """

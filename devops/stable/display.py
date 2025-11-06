@@ -4,14 +4,13 @@ Extracted from TaskRunner and release_stable.py to separate display concerns
 from orchestration logic.
 """
 
-from __future__ import annotations
 
 import logging
 
-from metta.common.util.text_styles import blue, cyan, green, magenta, red
-from metta.jobs.job_config import JobConfig
-from metta.jobs.job_display import format_artifact_link, format_job_status_line
-from metta.jobs.job_state import JobState
+import metta.common.util.text_styles
+import metta.jobs.job_config
+import metta.jobs.job_display
+import metta.jobs.job_state
 
 logger = logging.getLogger("metta.jobs")
 
@@ -23,17 +22,17 @@ def format_artifact(value: str) -> str:
     Kept for backward compatibility.
     """
     # Add colors to the basic format_artifact_link
-    result = format_artifact_link(value)
+    result = metta.jobs.job_display.format_artifact_link(value)
     if value.startswith("wandb://") or value.startswith("s3://") or value.startswith("file://"):
-        return magenta(result)
+        return metta.common.util.text_styles.magenta(result)
     elif value.startswith("http"):
-        return cyan(result)
+        return metta.common.util.text_styles.cyan(result)
     return result
 
 
 def format_job_result(
-    job_state: JobState,
-    job_config: JobConfig,
+    job_state: metta.jobs.job_state.JobState,
+    job_config: metta.jobs.job_config.JobConfig,
     acceptance_passed: bool,
     acceptance_error: str | None,
 ) -> str:
@@ -52,26 +51,26 @@ def format_job_result(
 
     # Header
     lines.append("=" * 80)
-    lines.append(blue(f"📋 TASK RESULT: {job_config.name}"))
+    lines.append(metta.common.util.text_styles.blue(f"📋 TASK RESULT: {job_config.name}"))
     lines.append("=" * 80)
     lines.append("")
 
     # Outcome
     if job_state.exit_code == 0 and acceptance_passed:
-        lines.append(green("✅ Outcome: PASSED"))
+        lines.append(metta.common.util.text_styles.green("✅ Outcome: PASSED"))
     else:
-        lines.append(red("❌ Outcome: FAILED"))
+        lines.append(metta.common.util.text_styles.red("❌ Outcome: FAILED"))
 
     # Exit code
     if job_state.exit_code != 0:
-        lines.append(red(f"⚠️  Exit Code: {job_state.exit_code}"))
+        lines.append(metta.common.util.text_styles.red(f"⚠️  Exit Code: {job_state.exit_code}"))
     else:
-        lines.append(green(f"✓ Exit Code: {job_state.exit_code}"))
+        lines.append(metta.common.util.text_styles.green(f"✓ Exit Code: {job_state.exit_code}"))
 
     # Acceptance criteria
     if not acceptance_passed:
         lines.append("")
-        lines.append(red(f"❗ Acceptance Criteria Failed: {acceptance_error}"))
+        lines.append(metta.common.util.text_styles.red(f"❗ Acceptance Criteria Failed: {acceptance_error}"))
 
     # Metrics
     if job_state.metrics:
@@ -107,7 +106,7 @@ def format_job_result(
     return "\n".join(lines)
 
 
-def format_training_job_section(job_name: str, job_state: JobState) -> str:
+def format_training_job_section(job_name: str, job_state: metta.jobs.job_state.JobState) -> str:
     """Format training job information for release notes or summary.
 
     Args:
@@ -139,7 +138,7 @@ def format_training_job_section(job_name: str, job_state: JobState) -> str:
     return "\n".join(lines)
 
 
-def format_job_with_acceptance(job_state: JobState) -> str:
+def format_job_with_acceptance(job_state: metta.jobs.job_state.JobState) -> str:
     """Format job status integrated with acceptance criteria.
 
     Composes job_monitor primitives with job-level acceptance logic.
@@ -153,7 +152,7 @@ def format_job_with_acceptance(job_state: JobState) -> str:
     lines = []
 
     # Job status line using primitive
-    status_line = format_job_status_line(job_state, show_duration=True)
+    status_line = metta.jobs.job_display.format_job_status_line(job_state, show_duration=True)
     lines.append(status_line)
 
     # Check for launch/execution failures first (exit_code != 0 with no metrics)
@@ -163,55 +162,75 @@ def format_job_with_acceptance(job_state: JobState) -> str:
         if not has_metrics:
             # Job failed before producing metrics - distinguish between cancelled and launch failure
             if job_state.exit_code == 130:
-                lines.append(red("  ✗ JOB CANCELLED"))
+                lines.append(metta.common.util.text_styles.red("  ✗ JOB CANCELLED"))
                 lines.append("    Job was interrupted (SIGINT)")
             else:
-                lines.append(red("  ✗ JOB FAILED TO LAUNCH"))
+                lines.append(metta.common.util.text_styles.red("  ✗ JOB FAILED TO LAUNCH"))
                 lines.append(f"    Exit code: {job_state.exit_code}")
                 lines.append(f"    Check logs for details: {job_state.logs_path or 'N/A'}")
         elif job_state.config.acceptance_criteria:
             # Job ran but failed (has metrics) - show acceptance results
             if job_state.acceptance_passed:
-                lines.append(green("  ✓ Acceptance criteria passed"))
+                lines.append(metta.common.util.text_styles.green("  ✓ Acceptance criteria passed"))
             else:
-                lines.append(red("  ✗ ACCEPTANCE CRITERIA FAILED"))
+                lines.append(metta.common.util.text_styles.red("  ✗ ACCEPTANCE CRITERIA FAILED"))
 
             # Show ALL criteria with pass/fail indicators
             for criterion in job_state.config.acceptance_criteria:
                 if criterion.metric not in job_state.metrics:
                     lines.append(
-                        red(f"    ✗ {criterion.metric}: MISSING (expected {criterion.operator} {criterion.threshold})")
+                        metta.common.util.text_styles.red(
+                            f"    ✗ {criterion.metric}: MISSING (expected {criterion.operator} {criterion.threshold})"
+                        )
                     )
                 else:
                     actual = job_state.metrics[criterion.metric]
                     target_str = f"{criterion.operator} {criterion.threshold}"
                     if criterion.evaluate(actual):
-                        lines.append(green(f"    ✓ {criterion.metric}: {actual:.1f} (target: {target_str})"))
+                        lines.append(
+                            metta.common.util.text_styles.green(
+                                f"    ✓ {criterion.metric}: {actual:.1f} (target: {target_str})"
+                            )
+                        )
                     else:
-                        lines.append(red(f"    ✗ {criterion.metric}: {actual:.1f} (target: {target_str})"))
+                        lines.append(
+                            metta.common.util.text_styles.red(
+                                f"    ✗ {criterion.metric}: {actual:.1f} (target: {target_str})"
+                            )
+                        )
     # Acceptance criteria for successful jobs
     elif job_state.config.acceptance_criteria:
         if job_state.status == "completed":
             # For completed jobs: show pass/fail with indicators
             if job_state.acceptance_passed:
-                lines.append(green("  ✓ Acceptance criteria passed"))
+                lines.append(metta.common.util.text_styles.green("  ✓ Acceptance criteria passed"))
             else:
-                lines.append(red("  ✗ ACCEPTANCE CRITERIA FAILED"))
+                lines.append(metta.common.util.text_styles.red("  ✗ ACCEPTANCE CRITERIA FAILED"))
 
             # Show ALL criteria with pass/fail indicators
             for criterion in job_state.config.acceptance_criteria:
                 if criterion.metric not in job_state.metrics:
                     lines.append(
-                        red(f"    ✗ {criterion.metric}: MISSING (expected {criterion.operator} {criterion.threshold})")
+                        metta.common.util.text_styles.red(
+                            f"    ✗ {criterion.metric}: MISSING (expected {criterion.operator} {criterion.threshold})"
+                        )
                     )
                 else:
                     actual = job_state.metrics[criterion.metric]
                     target_str = f"{criterion.operator} {criterion.threshold}"
                     # Use criterion's evaluate method
                     if criterion.evaluate(actual):
-                        lines.append(green(f"    ✓ {criterion.metric}: {actual:.1f} (target: {target_str})"))
+                        lines.append(
+                            metta.common.util.text_styles.green(
+                                f"    ✓ {criterion.metric}: {actual:.1f} (target: {target_str})"
+                            )
+                        )
                     else:
-                        lines.append(red(f"    ✗ {criterion.metric}: {actual:.1f} (target: {target_str})"))
+                        lines.append(
+                            metta.common.util.text_styles.red(
+                                f"    ✗ {criterion.metric}: {actual:.1f} (target: {target_str})"
+                            )
+                        )
         elif job_state.status == "running":
             # For running jobs: show criteria without pass/fail (not decided yet)
             lines.append("  🎯 Acceptance criteria:")

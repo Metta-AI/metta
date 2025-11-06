@@ -14,14 +14,8 @@ import time
 import numpy as np
 import pytest
 
-from mettagrid import PufferMettaGridEnv
-from mettagrid.mettagrid_c import (
-    dtype_actions,
-    dtype_observations,
-    dtype_rewards,
-    dtype_terminals,
-    dtype_truncations,
-)
+import mettagrid
+import mettagrid.mettagrid_c
 
 
 class TestBufferSharingRegression:
@@ -89,9 +83,9 @@ class TestBufferSharingRegression:
         in a way that could break buffer sharing.
         """
         # Verify step method exists and has expected signature
-        assert hasattr(PufferMettaGridEnv, "step"), "PufferMettaGridEnv missing step method"
+        assert hasattr(mettagrid.PufferMettaGridEnv, "step"), "PufferMettaGridEnv missing step method"
 
-        step_method = PufferMettaGridEnv.step
+        step_method = mettagrid.PufferMettaGridEnv.step
         sig = inspect.signature(step_method)
         params = list(sig.parameters.keys())
 
@@ -110,18 +104,20 @@ class TestBufferSharingRegression:
         """
 
         # Create test arrays with expected dtypes
-        test_obs = np.zeros((2, 32, 32, 3), dtype=dtype_observations)
-        test_rewards = np.zeros(2, dtype=dtype_rewards)
-        test_terminals = np.zeros(2, dtype=dtype_terminals)
-        test_truncations = np.zeros(2, dtype=dtype_truncations)
-        test_actions = np.zeros(2, dtype=dtype_actions)
+        test_obs = np.zeros((2, 32, 32, 3), dtype=mettagrid.mettagrid_c.dtype_observations)
+        test_rewards = np.zeros(2, dtype=mettagrid.mettagrid_c.dtype_rewards)
+        test_terminals = np.zeros(2, dtype=mettagrid.mettagrid_c.dtype_terminals)
+        test_truncations = np.zeros(2, dtype=mettagrid.mettagrid_c.dtype_truncations)
+        test_actions = np.zeros(2, dtype=mettagrid.mettagrid_c.dtype_actions)
 
         # Verify dtypes match PufferLib expectations
         assert test_obs.dtype == np.uint8, f"Observations dtype mismatch: {test_obs.dtype}"
         assert test_rewards.dtype == np.float32, f"Rewards dtype mismatch: {test_rewards.dtype}"
         assert test_terminals.dtype == bool, f"Terminals dtype mismatch: {test_terminals.dtype}"
         assert test_truncations.dtype == bool, f"Truncations dtype mismatch: {test_truncations.dtype}"
-        assert test_actions.dtype == dtype_actions, f"Actions dtype mismatch: {test_actions.dtype}"
+        assert test_actions.dtype == mettagrid.mettagrid_c.dtype_actions, (
+            f"Actions dtype mismatch: {test_actions.dtype}"
+        )
 
         print("✅ Buffer dtypes compatible with PufferLib requirements")
 

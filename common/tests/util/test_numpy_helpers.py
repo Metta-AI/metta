@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from metta.common.util.numpy_helpers import clean_numpy_types
+import metta.common.util.numpy_helpers
 
 
 class TestCleanNumpyTypes:
@@ -11,26 +11,26 @@ class TestCleanNumpyTypes:
     def test_numpy_scalar_conversion(self):
         """Test conversion of numpy scalar types to Python types."""
         # Test various numpy scalar types
-        assert clean_numpy_types(np.int32(42)) == 42
-        assert isinstance(clean_numpy_types(np.int32(42)), int)
+        assert metta.common.util.numpy_helpers.clean_numpy_types(np.int32(42)) == 42
+        assert isinstance(metta.common.util.numpy_helpers.clean_numpy_types(np.int32(42)), int)
 
-        assert clean_numpy_types(np.float64(3.14)) == 3.14
-        assert isinstance(clean_numpy_types(np.float64(3.14)), float)
+        assert metta.common.util.numpy_helpers.clean_numpy_types(np.float64(3.14)) == 3.14
+        assert isinstance(metta.common.util.numpy_helpers.clean_numpy_types(np.float64(3.14)), float)
 
-        assert clean_numpy_types(np.bool_(True)) is True
-        assert isinstance(clean_numpy_types(np.bool_(True)), bool)
+        assert metta.common.util.numpy_helpers.clean_numpy_types(np.bool_(True)) is True
+        assert isinstance(metta.common.util.numpy_helpers.clean_numpy_types(np.bool_(True)), bool)
 
     def test_numpy_array_conversion(self):
         """Test conversion of numpy arrays."""
         # Single element array should become scalar
         single_array = np.array([42])
-        result = clean_numpy_types(single_array)
+        result = metta.common.util.numpy_helpers.clean_numpy_types(single_array)
         assert result == 42
         assert isinstance(result, int)
 
         # Multi-element array should become list
         multi_array = np.array([1, 2, 3])
-        result = clean_numpy_types(multi_array)
+        result = metta.common.util.numpy_helpers.clean_numpy_types(multi_array)
         assert result == [1, 2, 3]
         assert isinstance(result, list)
         assert all(isinstance(x, int) for x in result)
@@ -44,7 +44,7 @@ class TestCleanNumpyTypes:
             "nested_dict": {"inner_int": np.int16(50), "inner_array": np.array([4.0, 5.0])},
         }
 
-        result = clean_numpy_types(test_dict)
+        result = metta.common.util.numpy_helpers.clean_numpy_types(test_dict)
 
         assert result["int_val"] == 100
         assert isinstance(result["int_val"], int)
@@ -65,7 +65,7 @@ class TestCleanNumpyTypes:
         """Test recursive conversion of lists containing numpy types."""
         test_list = [np.int32(1), np.float64(2.5), [np.int16(3), np.float32(4.5)], {"key": np.int8(5)}]
 
-        result = clean_numpy_types(test_list)
+        result = metta.common.util.numpy_helpers.clean_numpy_types(test_list)
 
         assert result[0] == 1
         assert isinstance(result[0], int)
@@ -83,11 +83,11 @@ class TestCleanNumpyTypes:
     def test_non_numpy_types_unchanged(self):
         """Test that non-numpy types are returned unchanged."""
         # Python native types should pass through unchanged
-        assert clean_numpy_types(42) == 42
-        assert clean_numpy_types(3.14) == 3.14
-        assert clean_numpy_types("hello") == "hello"
-        assert clean_numpy_types(True) is True
-        assert clean_numpy_types(None) is None
+        assert metta.common.util.numpy_helpers.clean_numpy_types(42) == 42
+        assert metta.common.util.numpy_helpers.clean_numpy_types(3.14) == 3.14
+        assert metta.common.util.numpy_helpers.clean_numpy_types("hello") == "hello"
+        assert metta.common.util.numpy_helpers.clean_numpy_types(True) is True
+        assert metta.common.util.numpy_helpers.clean_numpy_types(None) is None
 
         # Complex structures with native types
         test_data = {
@@ -99,7 +99,7 @@ class TestCleanNumpyTypes:
             "dict": {"nested": "value"},
         }
 
-        result = clean_numpy_types(test_data)
+        result = metta.common.util.numpy_helpers.clean_numpy_types(test_data)
         assert result == test_data
 
     def test_mixed_data_structure(self):
@@ -118,7 +118,7 @@ class TestCleanNumpyTypes:
             "metadata": {"experiment_name": "test_run", "version": np.int16(1), "success": np.bool_(True)},
         }
 
-        result = clean_numpy_types(test_data)
+        result = metta.common.util.numpy_helpers.clean_numpy_types(test_data)
 
         # Check that numpy types were converted
         assert isinstance(result["parameters"]["learning_rate"], float)
@@ -139,13 +139,13 @@ class TestCleanNumpyTypes:
 
     def test_empty_containers(self):
         """Test handling of empty containers."""
-        assert clean_numpy_types({}) == {}
-        assert clean_numpy_types([]) == []
+        assert metta.common.util.numpy_helpers.clean_numpy_types({}) == {}
+        assert metta.common.util.numpy_helpers.clean_numpy_types([]) == []
 
     def test_numpy_array_2d(self):
         """Test conversion of 2D numpy arrays."""
         array_2d = np.array([[1, 2], [3, 4]])
-        result = clean_numpy_types(array_2d)
+        result = metta.common.util.numpy_helpers.clean_numpy_types(array_2d)
 
         assert result == [[1, 2], [3, 4]]
         assert isinstance(result, list)

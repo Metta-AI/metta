@@ -10,18 +10,18 @@ import unittest
 
 import pytest
 
-from metta.setup.saved_settings import SavedSettings, UserType
-from tests.setup.test_base import BaseMettaSetupTest
+import metta.setup.saved_settings
+import tests.setup.test_base
 
 
 @pytest.mark.setup
 @pytest.mark.profile("softmax")
-class TestInstallSoftmax(BaseMettaSetupTest):
+class TestInstallSoftmax(tests.setup.test_base.BaseMettaSetupTest):
     """Integration tests for metta install with softmax profile (condensed)."""
 
     def test_softmax_end_to_end_flow(self):
         """Run a condensed end-to-end flow for softmax profile in one test."""
-        self._create_test_config(UserType.SOFTMAX)
+        self._create_test_config(metta.setup.saved_settings.UserType.SOFTMAX)
 
         # Full install
         r_install_all = self._run_metta_command(["install"])
@@ -55,8 +55,8 @@ class TestInstallSoftmax(BaseMettaSetupTest):
         assert r_symlink.returncode == 0
 
         # Verify config written
-        config = SavedSettings(self.test_config_dir / "config.yaml")
-        assert config.user_type == UserType.SOFTMAX
+        config = metta.setup.saved_settings.SavedSettings(self.test_config_dir / "config.yaml")
+        assert config.user_type == metta.setup.saved_settings.UserType.SOFTMAX
 
     def test_install_without_config_fails(self):
         """Installing without a config should fail in non-interactive tests."""
@@ -65,7 +65,7 @@ class TestInstallSoftmax(BaseMettaSetupTest):
 
     def test_install_once_components(self):
         """Installing install_once components repeatedly should be idempotent."""
-        self._create_test_config(UserType.SOFTMAX)
+        self._create_test_config(metta.setup.saved_settings.UserType.SOFTMAX)
         r1 = self._run_metta_command(["install", "aws"])
         assert r1.returncode == 0
         r2 = self._run_metta_command(["install", "aws"])
@@ -74,53 +74,53 @@ class TestInstallSoftmax(BaseMettaSetupTest):
 
 @pytest.mark.setup
 @pytest.mark.profile("external")
-class TestInstallExternal(BaseMettaSetupTest):
+class TestInstallExternal(tests.setup.test_base.BaseMettaSetupTest):
     def test_install_softmax_profile(self):
-        self._create_test_config(UserType.EXTERNAL)
+        self._create_test_config(metta.setup.saved_settings.UserType.EXTERNAL)
         result = self._run_metta_command(["install"])
         assert result.returncode == 0, f"Install failed: {result.stderr}"
 
 
 @pytest.mark.setup
 @pytest.mark.profile("cloud")
-class TestInstallCloud(BaseMettaSetupTest):
+class TestInstallCloud(tests.setup.test_base.BaseMettaSetupTest):
     def test_install_cloud_profile(self):
-        self._create_test_config(UserType.CLOUD)
+        self._create_test_config(metta.setup.saved_settings.UserType.CLOUD)
         result = self._run_metta_command(["install"])
         assert result.returncode == 0, f"Install failed: {result.stderr}"
-        config = SavedSettings(self.test_config_dir / "config.yaml")
-        assert config.user_type == UserType.CLOUD
+        config = metta.setup.saved_settings.SavedSettings(self.test_config_dir / "config.yaml")
+        assert config.user_type == metta.setup.saved_settings.UserType.CLOUD
         assert config.is_component_enabled("aws")
 
 
 @pytest.mark.setup
 @pytest.mark.profile("custom")
-class TestInstallCustom(BaseMettaSetupTest):
+class TestInstallCustom(tests.setup.test_base.BaseMettaSetupTest):
     def test_install_custom_profile(self):
-        self._create_test_config(UserType.EXTERNAL, custom_config=True)
+        self._create_test_config(metta.setup.saved_settings.UserType.EXTERNAL, custom_config=True)
         result = self._run_metta_command(["install"])
         assert result.returncode == 0, f"Install failed: {result.stderr}"
-        config = SavedSettings(self.test_config_dir / "config.yaml")
-        assert config.user_type == UserType.EXTERNAL
+        config = metta.setup.saved_settings.SavedSettings(self.test_config_dir / "config.yaml")
+        assert config.user_type == metta.setup.saved_settings.UserType.EXTERNAL
         assert config.is_custom_config
 
 
 @pytest.mark.setup
 @pytest.mark.profile("external")
-class TestFromScratchExternal(BaseMettaSetupTest):
+class TestFromScratchExternal(tests.setup.test_base.BaseMettaSetupTest):
     def test_fresh_install_external(self):
         """Test fresh installation with external profile."""
-        self._create_test_config(UserType.EXTERNAL, custom_config=True)
+        self._create_test_config(metta.setup.saved_settings.UserType.EXTERNAL, custom_config=True)
         install_result = self._run_metta_command(["install"])
         assert install_result.returncode == 0, f"Install failed: {install_result.stderr}"
 
 
 @pytest.mark.setup
 @pytest.mark.profile("cloud")
-class TestFromScratchCloud(BaseMettaSetupTest):
+class TestFromScratchCloud(tests.setup.test_base.BaseMettaSetupTest):
     def test_fresh_install_cloud(self):
         """Test fresh installation with cloud profile."""
-        self._create_test_config(UserType.CLOUD)
+        self._create_test_config(metta.setup.saved_settings.UserType.CLOUD)
         install_result = self._run_metta_command(["install"])
         assert install_result.returncode == 0, f"Install failed: {install_result.stderr}"
 

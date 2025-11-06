@@ -1,17 +1,17 @@
+import collections
+import contextlib
 import logging
-from collections import OrderedDict
-from contextlib import ExitStack
-from typing import Any, Optional
+import typing
 
+import tensordict
+import tensordict.nn
 import torch
-from tensordict import TensorDict
-from tensordict.nn import TensorDictSequential
-from torch.nn.parameter import UninitializedParameter
-from torchrl.data import Composite, UnboundedDiscrete
+import torch.nn.parameter
+import torchrl.data
 
-from metta.agent.policy import Policy
-from mettagrid.base_config import Config
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+import metta.agent.policy
+import mettagrid.base_config
+import mettagrid.policy.policy_env_interface
 
 logger = logging.getLogger("metta_agent")
 
@@ -21,29 +21,33 @@ def log_on_master(*args, **argv):
         logger.info(*args, **argv)
 
 
-class PolicyAutoBuilder(Policy):
+class PolicyAutoBuilder(metta.agent.policy.Policy):
     """Generic policy builder for use with configs."""
 
-    def __init__(self, policy_env_info: PolicyEnvInterface, config: Config | None = None):
+    def __init__(
+        self,
+        policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface,
+        config: mettagrid.base_config.Config | None = None,
+    ):
         super().__init__(policy_env_info)
         self.config = config
 
-        self.components = OrderedDict()
+        self.components = collections.OrderedDict()
         for component_config in self.config.components:
             name = component_config.name
             self.components[name] = component_config.make_component(policy_env_info)
 
         self.action_probs = self.config.action_probs_config.make_component()
-        self._sequential_network = TensorDictSequential(self.components, inplace=True)
-        self._sdpa_context = ExitStack()
+        self._sequential_network = tensordict.nn.TensorDictSequential(self.components, inplace=True)
+        self._sdpa_context = contextlib.ExitStack()
 
         self._total_params = sum(
             param.numel()
             for param in self.parameters()
-            if param.requires_grad and not isinstance(param, UninitializedParameter)
+            if param.requires_grad and not isinstance(param, torch.nn.parameter.UninitializedParameter)
         )
 
-    def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
+    def forward(self, td: tensordict.TensorDict, action: typing.Optional[torch.Tensor] = None) -> tensordict.TensorDict:
         td = self._sequential_network(td)
         self.action_probs(td, action)
         # Only flatten values if they exist (GRPO policies don't have critic networks)
@@ -53,7 +57,7 @@ class PolicyAutoBuilder(Policy):
 
     def initialize_to_environment(
         self,
-        policy_env_info: PolicyEnvInterface,
+        policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface,
         device: torch.device,
     ):
         self.to(device)
@@ -75,7 +79,7 @@ class PolicyAutoBuilder(Policy):
 
     def _configure_sdp(self) -> None:
         self._sdpa_context.close()
-        self._sdpa_context = ExitStack()
+        self._sdpa_context = contextlib.ExitStack()
 
         configured = False
 
@@ -119,14 +123,14 @@ class PolicyAutoBuilder(Policy):
         except RuntimeError:
             return False
 
-    def __getstate__(self) -> dict[str, Any]:
+    def __getstate__(self) -> dict[str, typing.Any]:
         state = self.__dict__.copy()
         state["_sdpa_context"] = None
         return state
 
-    def __setstate__(self, state: dict[str, Any]) -> None:
+    def __setstate__(self, state: dict[str, typing.Any]) -> None:
         self.__dict__.update(state)
-        self._sdpa_context = ExitStack()
+        self._sdpa_context = contextlib.ExitStack()
 
     def reset_memory(self):
         for _, value in self.components.items():
@@ -139,8 +143,10 @@ class PolicyAutoBuilder(Policy):
             return self._total_params
 
         params = list(self.parameters())
-        skipped_lazy_params = sum(isinstance(param, UninitializedParameter) for param in params)
-        self._total_params = sum(param.numel() for param in params if not isinstance(param, UninitializedParameter))
+        skipped_lazy_params = sum(isinstance(param, torch.nn.parameter.UninitializedParameter) for param in params)
+        self._total_params = sum(
+            param.numel() for param in params if not isinstance(param, torch.nn.parameter.UninitializedParameter)
+        )
 
         if skipped_lazy_params:
             log_on_master(
@@ -150,9 +156,9 @@ class PolicyAutoBuilder(Policy):
 
         return self._total_params
 
-    def get_agent_experience_spec(self) -> Composite:
-        spec = Composite(
-            env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
+    def get_agent_experience_spec(self) -> torchrl.data.Composite:
+        spec = torchrl.data.Composite(
+            env_obs=torchrl.data.UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
         )
         for layer in self.components.values():
             if hasattr(layer, "get_agent_experience_spec"):

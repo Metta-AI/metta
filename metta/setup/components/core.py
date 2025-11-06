@@ -3,13 +3,13 @@ import shutil
 import subprocess
 import sys
 
-from metta.setup.components.base import SetupModule
-from metta.setup.registry import register_module
-from metta.setup.utils import error, success
+import metta.setup.components.base
+import metta.setup.registry
+import metta.setup.utils
 
 
-@register_module
-class CoreSetup(SetupModule):
+@metta.setup.registry.register_module
+class CoreSetup(metta.setup.components.base.SetupModule):
     @property
     def description(self) -> str:
         return "Core Python dependencies and virtual environment"
@@ -21,13 +21,13 @@ class CoreSetup(SetupModule):
         # and have core.py and system.py checks run before requiring a full uv sync
         for system_dep in ["uv", "bazel", "git", "g++", "nimby", "nim"]:
             if not shutil.which(system_dep):
-                error(f"{system_dep} is not installed. Please install it using `./install.sh`")
+                metta.setup.utils.error(f"{system_dep} is not installed. Please install it using `./install.sh`")
                 sys.exit(1)
         try:
             subprocess.run(["uv", "--version"], check=True, capture_output=True)
             return True
         except (subprocess.CalledProcessError, FileNotFoundError):
-            error("uv is not installed. Please install it using `./install.sh`")
+            metta.setup.utils.error("uv is not installed. Please install it using `./install.sh`")
             sys.exit(1)
 
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
@@ -36,4 +36,4 @@ class CoreSetup(SetupModule):
         env = os.environ.copy()
         env["METTAGRID_FORCE_NIM_BUILD"] = "1"
         self.run_command(cmd, non_interactive=non_interactive, env=env)
-        success("Core dependencies installed")
+        metta.setup.utils.success("Core dependencies installed")

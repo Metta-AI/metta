@@ -6,7 +6,7 @@ Provides filtering by name/tags and supports multiselect functionality.
 """
 
 import pathlib
-from typing import Any, Callable, Dict, List
+import typing
 
 import anywidget
 import traitlets
@@ -294,7 +294,7 @@ class PolicySelectorWidget(anywidget.AnyWidget):
                 # Reset the trigger
                 self.load_all_policies_requested = False
 
-    def on_selection_changed(self, callback: Callable[[Dict[str, Any]], None]):
+    def on_selection_changed(self, callback: typing.Callable[[typing.Dict[str, typing.Any]], None]):
         """Register a callback for when policy selection changes.
 
         Args:
@@ -302,7 +302,7 @@ class PolicySelectorWidget(anywidget.AnyWidget):
         """
         self._callbacks["selection_changed"].append(callback)
 
-    def on_filter_changed(self, callback: Callable[[Dict[str, Any]], None]):
+    def on_filter_changed(self, callback: typing.Callable[[typing.Dict[str, typing.Any]], None]):
         """Register a callback for when filters change.
 
         Args:
@@ -310,7 +310,7 @@ class PolicySelectorWidget(anywidget.AnyWidget):
         """
         self._callbacks["filter_changed"].append(callback)
 
-    def on_api_search_requested(self, callback: Callable[[Dict[str, Any]], None]):
+    def on_api_search_requested(self, callback: typing.Callable[[typing.Dict[str, typing.Any]], None]):
         """Register a callback for when API search is requested.
 
         Args:
@@ -318,7 +318,7 @@ class PolicySelectorWidget(anywidget.AnyWidget):
         """
         self._callbacks["api_search_requested"].append(callback)
 
-    def set_policy_data(self, policies: List[Dict[str, Any]]):
+    def set_policy_data(self, policies: typing.List[typing.Dict[str, typing.Any]]):
         """Set the policy selector data.
 
         Args:
@@ -340,7 +340,7 @@ class PolicySelectorWidget(anywidget.AnyWidget):
         """
         self.search_term = term
 
-    def set_policy_type_filter(self, types: List[str]):
+    def set_policy_type_filter(self, types: typing.List[str]):
         """Set the policy type filter.
 
         Args:
@@ -348,7 +348,7 @@ class PolicySelectorWidget(anywidget.AnyWidget):
         """
         self.policy_type_filter = types
 
-    def set_tag_filter(self, tags: List[str]):
+    def set_tag_filter(self, tags: typing.List[str]):
         """Set the tag filter.
 
         Args:
@@ -356,7 +356,7 @@ class PolicySelectorWidget(anywidget.AnyWidget):
         """
         self.tag_filter = tags
 
-    def get_selected_policies(self) -> List[str]:
+    def get_selected_policies(self) -> typing.List[str]:
         """Get the currently selected policy IDs.
 
         Returns:
@@ -364,7 +364,7 @@ class PolicySelectorWidget(anywidget.AnyWidget):
         """
         return self.selected_policies
 
-    def select_policies(self, policy_ids: List[str]):
+    def select_policies(self, policy_ids: typing.List[str]):
         """Programmatically select policies.
 
         Args:
@@ -401,7 +401,7 @@ class PolicySelectorWidget(anywidget.AnyWidget):
         self.show_created_at = show_created_at
         self.max_displayed_policies = max_displayed_policies
 
-    def get_policy_by_id(self, policy_id: str) -> Dict[str, Any] | None:
+    def get_policy_by_id(self, policy_id: str) -> typing.Dict[str, typing.Any] | None:
         """Get policy metadata by ID.
 
         Args:
@@ -415,7 +415,7 @@ class PolicySelectorWidget(anywidget.AnyWidget):
                 return policy
         return None
 
-    def get_selected_policy_data(self) -> List[Dict[str, Any]]:
+    def get_selected_policy_data(self) -> typing.List[typing.Dict[str, typing.Any]]:
         """Get full metadata for currently selected policies.
 
         Returns:
@@ -473,10 +473,10 @@ class PolicySelectorWidget(anywidget.AnyWidget):
         self,
         search: str | None = None,
         policy_type: str | None = None,
-        tags: List[str] | None = None,
+        tags: typing.List[str] | None = None,
         limit: int = 100,
         offset: int = 0,
-    ) -> List[Dict[str, Any]]:
+    ) -> typing.List[typing.Dict[str, typing.Any]]:
         """Perform async search using the configured client.
 
         Args:
@@ -522,7 +522,7 @@ class PolicySelectorWidget(anywidget.AnyWidget):
             print(f"🚨 Search API error: {e}, falling back to local data")
             return self.policy_data
 
-    async def _handle_api_search(self, search_params: Dict[str, Any]):
+    async def _handle_api_search(self, search_params: typing.Dict[str, typing.Any]):
         """Handle API search request automatically."""
         search_term = search_params.get("searchTerm", "")
         policy_type = (

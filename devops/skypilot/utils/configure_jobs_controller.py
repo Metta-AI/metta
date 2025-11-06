@@ -9,16 +9,16 @@ We need the crontab to clean up some files on the jobs controller host that caus
 import shlex
 import subprocess
 
-from devops.skypilot.utils.job_helpers import get_devops_skypilot_dir, get_jobs_controller_name
-from metta.common.util.text_styles import bold, green, yellow
+import devops.skypilot.utils.job_helpers
+import metta.common.util.text_styles
 
 
 def main():
-    controller_name = get_jobs_controller_name()
-    print(f"Jobs controller: {yellow(controller_name)}")
+    controller_name = devops.skypilot.utils.job_helpers.get_jobs_controller_name()
+    print(f"Jobs controller: {metta.common.util.text_styles.yellow(controller_name)}")
 
     # Read the crontab file
-    crontab_file = get_devops_skypilot_dir() / "files" / "controller.crontab"
+    crontab_file = devops.skypilot.utils.job_helpers.get_devops_skypilot_dir() / "files" / "controller.crontab"
     if not crontab_file.exists():
         raise FileNotFoundError(f"Crontab file not found: {crontab_file}")
 
@@ -40,16 +40,16 @@ def main():
 
     ssh_command = shlex.join(["ssh", controller_name, remote_command])
     print("")
-    print(f"Installing crontab with: {bold(ssh_command)}")
+    print(f"Installing crontab with: {metta.common.util.text_styles.bold(ssh_command)}")
 
     result = subprocess.run(ssh_command, shell=True, capture_output=True, text=True)
 
     if result.returncode == 0:
-        print(green("✓ Crontab installed successfully"))
+        print(metta.common.util.text_styles.green("✓ Crontab installed successfully"))
 
         # Verify installation by listing the crontab
         verify_command = shlex.join(["ssh", controller_name, "crontab -l"])
-        print(f"Verifying with: {bold(verify_command)}")
+        print(f"Verifying with: {metta.common.util.text_styles.bold(verify_command)}")
         verify_result = subprocess.run(verify_command, shell=True, capture_output=True, text=True)
 
         if verify_result.returncode == 0:

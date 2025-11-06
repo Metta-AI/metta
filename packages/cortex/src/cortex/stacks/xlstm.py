@@ -1,15 +1,8 @@
 """xLSTM stack builder with alternating mLSTM and sLSTM blocks."""
 
-from __future__ import annotations
 
-from cortex.config import (
-    CortexStackConfig,
-    PostUpBlockConfig,
-    PreUpBlockConfig,
-    mLSTMCellConfig,
-    sLSTMCellConfig,
-)
-from cortex.stacks.base import CortexStack
+import cortex.config
+import cortex.stacks.base
 
 
 def build_xlstm_stack(
@@ -24,7 +17,7 @@ def build_xlstm_stack(
     dropout: float = 0.0,
     post_norm: bool = True,
     block_pattern: str | None = None,
-) -> CortexStack:
+) -> cortex.stacks.base.CortexStack:
     """Build xLSTM stack with alternating mLSTM and sLSTM blocks."""
     blocks = []
 
@@ -41,13 +34,13 @@ def build_xlstm_stack(
             # mLSTM with PreUpBlock
             # hidden_size is inferred by the stack builder for PreUp blocks as:
             # hidden_size = int(proj_factor * d_hidden)
-            cell_config = mLSTMCellConfig(
+            cell_config = cortex.config.mLSTMCellConfig(
                 hidden_size=None,
                 num_heads=mlstm_num_heads,
                 chunk_size=mlstm_chunk_size,
                 conv1d_kernel_size=conv1d_kernel_size,
             )
-            block_config = PreUpBlockConfig(
+            block_config = cortex.config.PreUpBlockConfig(
                 cell=cell_config,
                 proj_factor=mlstm_proj_factor,
             )
@@ -55,13 +48,13 @@ def build_xlstm_stack(
             # sLSTM with PostUpBlock
             # hidden_size is inferred by the stack builder for PostUp blocks as:
             # hidden_size = d_hidden
-            cell_config = sLSTMCellConfig(
+            cell_config = cortex.config.sLSTMCellConfig(
                 hidden_size=None,
                 num_heads=slstm_num_heads,
                 conv1d_kernel_size=conv1d_kernel_size,
                 dropout=dropout,
             )
-            block_config = PostUpBlockConfig(
+            block_config = cortex.config.PostUpBlockConfig(
                 cell=cell_config,
                 proj_factor=slstm_proj_factor,
             )
@@ -69,13 +62,13 @@ def build_xlstm_stack(
         blocks.append(block_config)
 
     # Build the stack configuration
-    stack_config = CortexStackConfig(
+    stack_config = cortex.config.CortexStackConfig(
         blocks=blocks,
         d_hidden=d_hidden,
         post_norm=post_norm,
     )
 
-    return CortexStack(stack_config)
+    return cortex.stacks.base.CortexStack(stack_config)
 
 
 __all__ = ["build_xlstm_stack"]

@@ -1,12 +1,12 @@
 import einops
+import tensordict
 import torch
 import torch.nn as nn
-from tensordict import TensorDict
 
-from metta.agent.components.component_config import ComponentConfig
+import metta.agent.components.component_config
 
 
-def _zero_masked_features(td: TensorDict, features: torch.Tensor) -> torch.Tensor:
+def _zero_masked_features(td: tensordict.TensorDict, features: torch.Tensor) -> torch.Tensor:
     mask = td.get("obs_mask")
     if mask is not None:
         mask_bool = mask.to(torch.bool)
@@ -14,7 +14,7 @@ def _zero_masked_features(td: TensorDict, features: torch.Tensor) -> torch.Tenso
     return features
 
 
-class ObsAttrCoordEmbedConfig(ComponentConfig):
+class ObsAttrCoordEmbedConfig(metta.agent.components.component_config.ComponentConfig):
     in_key: str
     out_key: str
     name: str = "obs_attr_coord_embed"
@@ -47,7 +47,7 @@ class ObsAttrCoordEmbed(nn.Module):
         nn.init.trunc_normal_(self._attr_embeds.weight, std=0.02)
         return None
 
-    def forward(self, td: TensorDict) -> TensorDict:
+    def forward(self, td: tensordict.TensorDict) -> tensordict.TensorDict:
         observations = td[self.config.in_key]
 
         coord_indices = observations[..., 0].long()
@@ -73,7 +73,7 @@ class ObsAttrCoordEmbed(nn.Module):
         return td
 
 
-class ObsAttrEmbedFourierConfig(ComponentConfig):
+class ObsAttrEmbedFourierConfig(metta.agent.components.component_config.ComponentConfig):
     in_key: str
     out_key: str
     name: str = "obs_attr_embed_fourier"
@@ -115,7 +115,7 @@ class ObsAttrEmbedFourier(nn.Module):
         self.register_buffer("frequencies", 2.0 ** torch.arange(self._num_freqs))
         return None
 
-    def forward(self, td: TensorDict) -> TensorDict:
+    def forward(self, td: tensordict.TensorDict) -> tensordict.TensorDict:
         observations = td[self.config.in_key]
 
         # Attribute embeddings (pad idx 255 stays zeroed by nn.Embedding)
@@ -166,7 +166,7 @@ class ObsAttrEmbedFourier(nn.Module):
         return td
 
 
-class ObsAttrCoordValueEmbedConfig(ComponentConfig):
+class ObsAttrCoordValueEmbedConfig(metta.agent.components.component_config.ComponentConfig):
     in_key: str
     out_key: str
     name: str = "obs_attr_coord_value_embed"
@@ -199,7 +199,7 @@ class ObsAttrCoordValueEmbed(nn.Module):
 
         return None
 
-    def forward(self, td: TensorDict) -> TensorDict:
+    def forward(self, td: tensordict.TensorDict) -> tensordict.TensorDict:
         # [B, M, 3] the 3 vector is: coord (unit8), attr_idx, attr_val
         observations = td[self.config.in_key]
 

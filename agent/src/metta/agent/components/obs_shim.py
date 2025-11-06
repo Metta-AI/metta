@@ -1,14 +1,16 @@
+import typing
 import warnings
-from typing import TYPE_CHECKING, Optional
 
+import tensordict
 import torch
 import torch.nn as nn
-from tensordict import TensorDict
 
-from metta.agent.components.component_config import ComponentConfig
+import metta.agent.components.component_config
 
-if TYPE_CHECKING:
-    from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+if typing.TYPE_CHECKING:
+    import mettagrid.policy.policy_env_interface
+
+    PolicyEnvInterface = mettagrid.policy.policy_env_interface.PolicyEnvInterface
 
 # =========================== Token-based observation shaping ===========================
 # The two nn.Module-based classes below are composed into ObsShaperTokens. You can simply call that class in your policy
@@ -109,7 +111,7 @@ class ObsTokenPadStrip(nn.Module):
         identity = torch.arange(256, dtype=torch.uint8, device=remap_tensor.device)
         self._remapping_active = not torch.equal(remap_tensor, identity)
 
-    def forward(self, td: TensorDict) -> TensorDict:
+    def forward(self, td: tensordict.TensorDict) -> tensordict.TensorDict:
         # [B, M, 3] the 3 vector is: coord (unit8), attr_idx, attr_val
         observations = td[self.in_key]
         M = observations.shape[1]
@@ -171,14 +173,14 @@ class ObsAttrValNorm(nn.Module):
     ) -> None:
         self._set_feature_normalizations(policy_env_info, device)
 
-    def _set_feature_normalizations(self, policy_env_info, device: Optional[torch.device] = None):
+    def _set_feature_normalizations(self, policy_env_info, device: typing.Optional[torch.device] = None):
         feature_list = list(policy_env_info.obs_features)
         features = {feat.id: feat.normalization for feat in feature_list}
         self._feature_normalizations = features
         self._update_norm_factors(device)
         return None
 
-    def _update_norm_factors(self, device: Optional[torch.device] = None):
+    def _update_norm_factors(self, device: typing.Optional[torch.device] = None):
         # Create a tensor for feature normalizations
         # We need to handle the case where attr_idx might be 0 (padding) or larger than defined normalizations.
         # Assuming max attr_idx is 256 (same as attr_embeds size - 1 for padding_idx).
@@ -193,7 +195,7 @@ class ObsAttrValNorm(nn.Module):
         self.register_buffer("_norm_factors", norm_tensor)
         return None
 
-    def forward(self, td: TensorDict) -> TensorDict:
+    def forward(self, td: tensordict.TensorDict) -> tensordict.TensorDict:
         observations = td[self.in_key]
         attr_indices = observations[..., 1].long()
         norm_factors = self._norm_factors[attr_indices]
@@ -205,7 +207,7 @@ class ObsAttrValNorm(nn.Module):
         return td
 
 
-class ObsShimTokensConfig(ComponentConfig):
+class ObsShimTokensConfig(metta.agent.components.component_config.ComponentConfig):
     in_key: str
     out_key: str
     max_tokens: int | None = None
@@ -232,7 +234,7 @@ class ObsShimTokens(nn.Module):
         self.attr_val_normer.initialize_to_environment(policy_env_info, device)
         return log
 
-    def forward(self, td: TensorDict) -> TensorDict:
+    def forward(self, td: tensordict.TensorDict) -> tensordict.TensorDict:
         td = self.token_pad_striper(td)
         td = self.attr_val_normer(td)
         return td
@@ -274,7 +276,7 @@ class ObsTokenToBoxShim(nn.Module):
         if self.num_layers == 0:
             raise ValueError("policy_env_info.obs_features must define at least one feature.")
 
-    def forward(self, td: TensorDict):
+    def forward(self, td: tensordict.TensorDict):
         token_observations = td[self.in_key]
         B_TT = td.batch_size.numel()
 
@@ -354,7 +356,7 @@ class ObservationNormalizer(nn.Module):
         feature_normalizations = {feat.id: feat.normalization for feat in feature_list}
         self._initialize_to_environment(feature_normalizations)
 
-    def forward(self, td: TensorDict):
+    def forward(self, td: tensordict.TensorDict):
         td[self.out_key] = td[self.in_key] / self.obs_norm
         return td
 
@@ -367,7 +369,7 @@ class ObservationNormalizer(nn.Module):
         features = {feat.id: feat.normalization for feat in feature_list}
         self._initialize_to_environment(features, device)
 
-    def _initialize_to_environment(self, features: dict[int, float], device: Optional[torch.device] = None):
+    def _initialize_to_environment(self, features: dict[int, float], device: typing.Optional[torch.device] = None):
         self.feature_normalizations = features
         if not features:
             raise ValueError("policy_env_info.obs_features must define at least one feature.")
@@ -383,7 +385,7 @@ class ObservationNormalizer(nn.Module):
             self.obs_norm = self.obs_norm.to(device)
 
 
-class ObsShimBoxConfig(ComponentConfig):
+class ObsShimBoxConfig(metta.agent.components.component_config.ComponentConfig):
     in_key: str
     out_key: str
     name: str = "obs_shim_box"
@@ -407,7 +409,7 @@ class ObsShimBox(nn.Module):
     ) -> None:
         self.observation_normalizer.initialize_to_environment(policy_env_info, device)
 
-    def forward(self, td: TensorDict):
+    def forward(self, td: tensordict.TensorDict):
         td = self.token_to_box_shim(td)
         td = self.observation_normalizer(td)
         return td

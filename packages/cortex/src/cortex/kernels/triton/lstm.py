@@ -7,17 +7,14 @@ been extended to honour batch-first reset masks, which zero the recurrent state
 before a step.
 """
 
-from __future__ import annotations
 
-from dataclasses import dataclass
+import dataclasses
 
 import torch
+import torch.amp
 import torch.nn as nn
 import triton
 import triton.language as tl
-from torch import Tensor
-from torch.amp import custom_bwd, custom_fwd
-from triton import OutOfResources
 
 # -----------------------------------------------------------------------------
 # Utility helpers (mirrors flashrnn.triton_fused.triton_utils)
@@ -885,22 +882,22 @@ def _lstm_backward_kernel(
 # Host-side helpers wrapping Triton kernels
 
 
-@dataclass
+@dataclasses.dataclass
 class _LSTMKernelInputs:
-    states_initial: Tensor  # (NS, B_eff, NH, DH)
-    Wx: Tensor  # (B_eff, T, NGI, NH, DH)
-    R: Tensor  # (NGR, NH, DH_out, DH_in)
-    b: Tensor  # (NGI, NH, DH)
-    resets: Tensor | None  # (B_eff, T)
+    states_initial: torch.Tensor  # (NS, B_eff, NH, DH)
+    Wx: torch.Tensor  # (B_eff, T, NGI, NH, DH)
+    R: torch.Tensor  # (NGR, NH, DH_out, DH_in)
+    b: torch.Tensor  # (NGI, NH, DH)
+    resets: torch.Tensor | None  # (B_eff, T)
     true_batch: int
 
 
 def _prepare_padded_inputs(
-    states_initial: Tensor,
-    Wx: Tensor,
-    R: Tensor,
-    b: Tensor,
-    resets: Tensor | None,
+    states_initial: torch.Tensor,
+    Wx: torch.Tensor,
+    R: torch.Tensor,
+    b: torch.Tensor,
+    resets: torch.Tensor | None,
 ) -> _LSTMKernelInputs:
     NS, B, NH, DH = states_initial.shape
     _, T, NGI, _, _ = Wx.shape
@@ -926,13 +923,13 @@ def _prepare_padded_inputs(
 
 def _lstm_forward(
     *,
-    states_initial: Tensor,
-    Wx: Tensor,
-    R: Tensor,
-    b: Tensor,
-    reset_mask: Tensor | None,
+    states_initial: torch.Tensor,
+    Wx: torch.Tensor,
+    R: torch.Tensor,
+    b: torch.Tensor,
+    reset_mask: torch.Tensor | None,
     output_gates_and_states_initial: bool,
-) -> tuple[tuple[Tensor, Tensor], Tensor | None]:
+) -> tuple[tuple[torch.Tensor, torch.Tensor], torch.Tensor | None]:
     """Run the Triton forward kernel and optionally collect gates."""
 
     inputs = _prepare_padded_inputs(states_initial, Wx, R, b, reset_mask)
@@ -959,9 +956,9 @@ def _lstm_forward(
     def _grid(meta):
         siz_B = meta["siz_B"]
         if siz_B < _BATCH_TILE_SIZE:
-            raise OutOfResources(required=siz_B, limit=_BATCH_TILE_SIZE, name="siz_B")
+            raise triton.OutOfResources(required=siz_B, limit=_BATCH_TILE_SIZE, name="siz_B")
         if siz_B > B_eff:
-            raise OutOfResources(required=siz_B, limit=B_eff, name="siz_B")
+            raise triton.OutOfResources(required=siz_B, limit=B_eff, name="siz_B")
         return (NH, triton.cdiv(B_eff, siz_B))
 
     _lstm_forward_kernel[_grid](
@@ -1010,15 +1007,15 @@ def _lstm_forward(
 
 def _lstm_backward(
     *,
-    delta_states_all_outside: Tensor,
-    delta_states_last_outside: Tensor,
-    R: Tensor,
-    states_all: Tensor,
-    gates_all: Tensor,
-    reset_mask: Tensor | None,
+    delta_states_all_outside: torch.Tensor,
+    delta_states_last_outside: torch.Tensor,
+    R: torch.Tensor,
+    states_all: torch.Tensor,
+    gates_all: torch.Tensor,
+    reset_mask: torch.Tensor | None,
     true_batch: int,
     backward_recurrent_clip_val: float | None,
-) -> tuple[Tensor, Tensor, Tensor, Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     dtype = R.dtype
     device = R.device
     T, NS, B_true, NH, DH = delta_states_all_outside.shape
@@ -1106,16 +1103,16 @@ def _rnn_fwbw_generator(autocast_kernel_dtype: torch.dtype) -> torch.autograd.Fu
 
     class _LSTMTRFunction(torch.autograd.Function):
         @staticmethod
-        @custom_fwd(device_type="cuda", cast_inputs=autocast_kernel_dtype)
+        @torch.amp.custom_fwd(device_type="cuda", cast_inputs=autocast_kernel_dtype)
         def forward(
             ctx,
-            states_initial: Tensor,
-            Wx: Tensor,
-            R: Tensor,
-            b: Tensor,
-            reset_mask: Tensor | None,
+            states_initial: torch.Tensor,
+            Wx: torch.Tensor,
+            R: torch.Tensor,
+            b: torch.Tensor,
+            reset_mask: torch.Tensor | None,
             backward_recurrent_clip_val: float | None = None,
-        ) -> tuple[Tensor, Tensor]:
+        ) -> tuple[torch.Tensor, torch.Tensor]:
             (states_all, last_state, states_next), gates_all = forward_seq(
                 states_initial=states_initial,
                 Wx=Wx,
@@ -1147,12 +1144,12 @@ def _rnn_fwbw_generator(autocast_kernel_dtype: torch.dtype) -> torch.autograd.Fu
             return seq_trim, last_state_out
 
         @staticmethod
-        @custom_bwd(device_type="cuda")
+        @torch.amp.custom_bwd(device_type="cuda")
         def backward(
             ctx,
-            delta_states_all_outside: Tensor,
-            delta_states_last_outside: Tensor,
-        ) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor | None, None]:
+            delta_states_all_outside: torch.Tensor,
+            delta_states_last_outside: torch.Tensor,
+        ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor | None, None]:
             (states_all, gates_all, R, clip_tensor, reset_tensor) = ctx.saved_tensors
             clip_val = clip_tensor.item()
             true_batch = ctx.true_batch
@@ -1186,12 +1183,12 @@ _LSTM_FUNC_REGISTRY = {
 
 def _lstm_triton_autograd(
     *,
-    states_initial: Tensor,
-    Wx: Tensor,
-    R: Tensor,
-    b: Tensor,
-    reset_mask: Tensor | None,
-) -> tuple[Tensor, Tensor]:
+    states_initial: torch.Tensor,
+    Wx: torch.Tensor,
+    R: torch.Tensor,
+    b: torch.Tensor,
+    reset_mask: torch.Tensor | None,
+) -> tuple[torch.Tensor, torch.Tensor]:
     registry_key = _dtype_registry_key(Wx.dtype)
     func = _LSTM_FUNC_REGISTRY[registry_key]
     return func.apply(states_initial, Wx, R, b, reset_mask)
@@ -1204,11 +1201,11 @@ def _lstm_triton_autograd(
 def lstm_sequence_triton(
     *,
     lstm: nn.LSTM,
-    x_seq: Tensor,
-    h0_bf: Tensor,
-    c0_bf: Tensor,
-    resets: Tensor | None = None,
-) -> tuple[Tensor, Tensor, Tensor]:
+    x_seq: torch.Tensor,
+    h0_bf: torch.Tensor,
+    c0_bf: torch.Tensor,
+    resets: torch.Tensor | None = None,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Run the Triton LSTM kernel for a batch-first sequence.
 
     Args:

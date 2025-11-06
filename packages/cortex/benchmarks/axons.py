@@ -1,30 +1,22 @@
-from __future__ import annotations
 
-from typing import Dict, Optional, Tuple
+import typing
 
+import cortex.cells.core
 import cortex.cells.core.axon_cell as cell_mod
+import cortex.config
 import cortex.utils as utils_mod
 import torch
-from cortex.cells.core import AxonCell
-from cortex.config import AxonConfig
 
-from .common import (
-    BenchmarkCase,
-    BenchmarkDefinition,
-    BenchmarkSettings,
-    ColumnSpec,
-    measure_callable,
-    register,
-)
+import packages.cortex.benchmarks.common
 
 
 def _run_cell(
-    cell: AxonCell,
+    cell: cortex.cells.core.AxonCell,
     x: torch.Tensor,
-    resets: Optional[torch.Tensor],
+    resets: typing.Optional[torch.Tensor],
     which: str,
     *,
-    backend_sink: Optional[list] = None,
+    backend_sink: typing.Optional[list] = None,
 ) -> torch.Tensor:
     """Run AxonCell with a forced backend choice.
 
@@ -85,7 +77,7 @@ def _run_cell(
             cell_mod.select_backend = original_cell  # type: ignore[assignment]
 
 
-CONFIGS: Tuple[Tuple[int, int, int, bool, float], ...] = (
+CONFIGS: typing.Tuple[typing.Tuple[int, int, int, bool, float], ...] = (
     (4, 128, 64, False, 0.0),
     (4, 256, 64, False, 0.0),
     (8, 256, 64, False, 0.0),
@@ -96,12 +88,14 @@ CONFIGS: Tuple[Tuple[int, int, int, bool, float], ...] = (
 )
 
 
-def _format_config(config: Tuple[int, int, int, bool, float]) -> str:
+def _format_config(config: typing.Tuple[int, int, int, bool, float]) -> str:
     b, t, h, use_resets, prob = config
     return f"({b}, {t}, {h}, {use_resets}, {prob})"
 
 
-def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, object]:
+def _run_case(
+    case: packages.cortex.benchmarks.common.BenchmarkCase, settings: packages.cortex.benchmarks.common.BenchmarkSettings
+) -> typing.Dict[str, object]:
     batch_size, seq_len, hidden_size, with_resets, reset_prob = case.values
     device = torch.device(settings.device)
     dtype = settings.dtype
@@ -111,7 +105,9 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
     if with_resets:
         resets = (torch.rand(batch_size, seq_len, device=device) < reset_prob).to(device=device)
 
-    cell = AxonCell(AxonConfig(hidden_size=hidden_size, activation="SiLU")).to(device=device, dtype=dtype)
+    cell = cortex.cells.core.AxonCell(cortex.config.AxonConfig(hidden_size=hidden_size, activation="SiLU")).to(
+        device=device, dtype=dtype
+    )
 
     synchronize = device.type == "cuda"
 
@@ -120,14 +116,14 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
     def run_pytorch():
         return _run_cell(cell, x, resets, which="pytorch", backend_sink=pt_sink)
 
-    output_pt, pytorch_time = measure_callable(
+    output_pt, pytorch_time = packages.cortex.benchmarks.common.measure_callable(
         run_pytorch,
         warmup=settings.warmup,
         iterations=settings.iterations,
         synchronize=synchronize,
     )
 
-    results: Dict[str, object] = {
+    results: typing.Dict[str, object] = {
         "pytorch_ms": pytorch_time * 1000.0,
         "triton_ms": None,
         "cuda_ms": None,
@@ -148,7 +144,7 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
     def run_triton():
         return _run_cell(cell, x, resets, which="triton", backend_sink=tr_sink)
 
-    output_tr, triton_time = measure_callable(
+    output_tr, triton_time = packages.cortex.benchmarks.common.measure_callable(
         run_triton,
         warmup=settings.warmup,
         iterations=settings.iterations,
@@ -166,7 +162,7 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
     def run_cuda():
         return _run_cell(cell, x, resets, which="cuda", backend_sink=cu_sink)
 
-    output_cu, cuda_time = measure_callable(
+    output_cu, cuda_time = packages.cortex.benchmarks.common.measure_callable(
         run_cuda,
         warmup=settings.warmup,
         iterations=settings.iterations,
@@ -181,8 +177,8 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
     return results
 
 
-register(
-    BenchmarkDefinition(
+packages.cortex.benchmarks.common.register(
+    packages.cortex.benchmarks.common.BenchmarkDefinition(
         key="axons",
         title="Axons (streaming RTU) PyTorch vs Triton vs CUDA",
         description=("Benchmark AxonCell with forced backend selection, reporting PyTorch, Triton, and CUDA timings."),
@@ -194,16 +190,22 @@ register(
             "columns report both speedups against PyTorch and max abs diff vs PyTorch outputs."
         ),
         columns=(
-            ColumnSpec("pytorch_ms", "PyTorch (ms)", lambda v: f"{float(v):.3f}"),
-            ColumnSpec("triton_ms", "Triton (ms)", lambda v: f"{float(v):.3f}"),
-            ColumnSpec("cuda_ms", "CUDA (ms)", lambda v: f"{float(v):.3f}"),
-            ColumnSpec("speedup", "TRT/PT", lambda v: f"{float(v):.2f}x"),
-            ColumnSpec("speedup_cuda", "CUDA/PT", lambda v: f"{float(v):.2f}x"),
-            ColumnSpec("max_diff", "Max Diff TRT", lambda v: f"{float(v):.2e}"),
-            ColumnSpec("max_diff_cuda", "Max Diff CUDA", lambda v: f"{float(v):.2e}"),
-            ColumnSpec("pt_backend", "PT backend", lambda v: str(v) if v is not None else "-"),
-            ColumnSpec("triton_backend", "TRT backend", lambda v: str(v) if v is not None else "-"),
-            ColumnSpec("cuda_backend", "CUDA backend", lambda v: str(v) if v is not None else "-"),
+            packages.cortex.benchmarks.common.ColumnSpec("pytorch_ms", "PyTorch (ms)", lambda v: f"{float(v):.3f}"),
+            packages.cortex.benchmarks.common.ColumnSpec("triton_ms", "Triton (ms)", lambda v: f"{float(v):.3f}"),
+            packages.cortex.benchmarks.common.ColumnSpec("cuda_ms", "CUDA (ms)", lambda v: f"{float(v):.3f}"),
+            packages.cortex.benchmarks.common.ColumnSpec("speedup", "TRT/PT", lambda v: f"{float(v):.2f}x"),
+            packages.cortex.benchmarks.common.ColumnSpec("speedup_cuda", "CUDA/PT", lambda v: f"{float(v):.2f}x"),
+            packages.cortex.benchmarks.common.ColumnSpec("max_diff", "Max Diff TRT", lambda v: f"{float(v):.2e}"),
+            packages.cortex.benchmarks.common.ColumnSpec("max_diff_cuda", "Max Diff CUDA", lambda v: f"{float(v):.2e}"),
+            packages.cortex.benchmarks.common.ColumnSpec(
+                "pt_backend", "PT backend", lambda v: str(v) if v is not None else "-"
+            ),
+            packages.cortex.benchmarks.common.ColumnSpec(
+                "triton_backend", "TRT backend", lambda v: str(v) if v is not None else "-"
+            ),
+            packages.cortex.benchmarks.common.ColumnSpec(
+                "cuda_backend", "CUDA backend", lambda v: str(v) if v is not None else "-"
+            ),
         ),
     )
 )

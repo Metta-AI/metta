@@ -10,19 +10,19 @@ This script:
 """
 
 import argparse
+import dataclasses
 import json
 import os
 import re
 import subprocess
 import sys
-from dataclasses import dataclass
-from typing import List, Optional, Tuple
+import typing
 
 try:
-    from dotenv import load_dotenv
+    import dotenv
 
     # Load environment variables from .env file if it exists
-    load_dotenv()
+    dotenv.load_dotenv()
 except ImportError:
     # python-dotenv is not installed, continue without it
     pass
@@ -30,14 +30,14 @@ except ImportError:
 import anthropic
 
 
-@dataclass
+@dataclasses.dataclass
 class RuffError:
     file_path: str
     line_number: int
     column: int
     error_code: str
     message: str
-    context_lines: List[str]
+    context_lines: typing.List[str]
 
 
 class AutoRuffFix:
@@ -58,7 +58,7 @@ class AutoRuffFix:
         """Set verbosity level."""
         self.verbose = verbose
 
-    def run_ruff(self, paths: List[str], config: Optional[str] = None) -> List[RuffError]:
+    def run_ruff(self, paths: typing.List[str], config: typing.Optional[str] = None) -> typing.List[RuffError]:
         """Run Ruff and parse the output to extract errors.
 
         Args:
@@ -115,7 +115,9 @@ class AutoRuffFix:
             print(f"Error running Ruff: {e}")
             return []
 
-    def _get_context_lines(self, file_path: str, line_number: int, context_size: Optional[int] = None) -> List[str]:
+    def _get_context_lines(
+        self, file_path: str, line_number: int, context_size: typing.Optional[int] = None
+    ) -> typing.List[str]:
         """Get context lines around the specified line in the file.
 
         Args:
@@ -166,7 +168,7 @@ class AutoRuffFix:
             print(f"Error reading file {file_path}: {e}")
             return ""
 
-    def generate_fix(self, error: RuffError, file_content: str) -> Optional[str]:
+    def generate_fix(self, error: RuffError, file_content: str) -> typing.Optional[str]:
         """Use Claude to generate a diff that fixes the given error.
 
         Args:
@@ -418,8 +420,11 @@ Example of the format I need:
         return difflib.SequenceMatcher(None, text1, text2).ratio() >= threshold
 
     def fix_errors(
-        self, errors: List[RuffError], config: Optional[str] = None, max_errors: Optional[int] = None
-    ) -> Tuple[int, int]:
+        self,
+        errors: typing.List[RuffError],
+        config: typing.Optional[str] = None,
+        max_errors: typing.Optional[int] = None,
+    ) -> typing.Tuple[int, int]:
         """Fix the given Ruff errors.
 
         Args:

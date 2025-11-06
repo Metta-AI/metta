@@ -3,28 +3,27 @@
 import pytest
 
 import metta.cogworks.curriculum as cc
-from metta.cogworks.curriculum import CurriculumConfig, SingleTaskGenerator, Span
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from mettagrid.builder.envs import make_arena, make_navigation
+import metta.cogworks.curriculum.learning_progress_algorithm
+import mettagrid.builder.envs
 
 
 @pytest.fixture(scope="function")
 def arena_env():
     """Create a basic arena environment configuration."""
-    return make_arena(num_agents=4)
+    return mettagrid.builder.envs.make_arena(num_agents=4)
 
 
 @pytest.fixture(scope="function")
 def navigation_env():
     """Create a basic navigation environment configuration."""
-    return make_navigation(num_agents=4)
+    return mettagrid.builder.envs.make_navigation(num_agents=4)
 
 
 @pytest.fixture(scope="function")
 def curriculum_config(arena_env):
     """Create a basic curriculum configuration."""
-    return CurriculumConfig(
-        task_generator=SingleTaskGenerator.Config(env=arena_env),
+    return metta.cogworks.curriculum.CurriculumConfig(
+        task_generator=metta.cogworks.curriculum.SingleTaskGenerator.Config(env=arena_env),
         max_task_id=1000,
         num_active_tasks=50,
     )
@@ -33,7 +32,7 @@ def curriculum_config(arena_env):
 @pytest.fixture(scope="function")
 def learning_progress_algorithm():
     """Create a learning progress algorithm configuration."""
-    return LearningProgressConfig(
+    return metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig(
         ema_timescale=0.001,
         exploration_bonus=0.1,
         max_memory_tasks=1000,
@@ -49,7 +48,7 @@ def production_curriculum_config(arena_env):
 
     # Add reward buckets for all resources
     for item in arena_env.game.resource_names:
-        arena_tasks.add_bucket(f"game.agent.rewards.inventory.{item}", [0, Span(0, 1.0)])
+        arena_tasks.add_bucket(f"game.agent.rewards.inventory.{item}", [0, metta.cogworks.curriculum.Span(0, 1.0)])
         arena_tasks.add_bucket(f"game.agent.rewards.inventory_max.{item}", [1, 2])
 
     # Add map size buckets
@@ -77,15 +76,15 @@ def production_navigation_curriculum(navigation_env):
             maps.append(f"varied_terrain/{terrain}_{size}")
 
     dense_tasks.add_bucket("game.map_builder.instance.dir", maps)
-    dense_tasks.add_bucket("game.map_builder.instance.objects.altar", [Span(3, 50)])
+    dense_tasks.add_bucket("game.map_builder.instance.objects.altar", [metta.cogworks.curriculum.Span(3, 50)])
 
     # Sparse tasks
     sparse_env = navigation_env.model_copy()
-    sparse_env.game.map_builder = make_navigation(num_agents=4).game.map_builder
+    sparse_env.game.map_builder = mettagrid.builder.envs.make_navigation(num_agents=4).game.map_builder
     sparse_tasks = cc.bucketed(sparse_env)
-    sparse_tasks.add_bucket("game.map_builder.width", [Span(60, 120)])
-    sparse_tasks.add_bucket("game.map_builder.height", [Span(60, 120)])
-    sparse_tasks.add_bucket("game.map_builder.objects.altar", [Span(1, 10)])
+    sparse_tasks.add_bucket("game.map_builder.width", [metta.cogworks.curriculum.Span(60, 120)])
+    sparse_tasks.add_bucket("game.map_builder.height", [metta.cogworks.curriculum.Span(60, 120)])
+    sparse_tasks.add_bucket("game.map_builder.objects.altar", [metta.cogworks.curriculum.Span(1, 10)])
 
     nav_tasks = cc.merge([dense_tasks, sparse_tasks])
     return nav_tasks.to_curriculum()
@@ -94,7 +93,7 @@ def production_navigation_curriculum(navigation_env):
 @pytest.fixture(scope="function")
 def single_task_generator_config(arena_env):
     """Create a single task generator configuration."""
-    return SingleTaskGenerator.Config(env=arena_env)
+    return metta.cogworks.curriculum.SingleTaskGenerator.Config(env=arena_env)
 
 
 @pytest.fixture(scope="function")
@@ -115,8 +114,8 @@ def task_generator_set_config(arena_env):
 @pytest.fixture(scope="function")
 def curriculum_with_algorithm(arena_env, learning_progress_algorithm):
     """Create a curriculum with learning progress algorithm."""
-    return CurriculumConfig(
-        task_generator=SingleTaskGenerator.Config(env=arena_env),
+    return metta.cogworks.curriculum.CurriculumConfig(
+        task_generator=metta.cogworks.curriculum.SingleTaskGenerator.Config(env=arena_env),
         algorithm_config=learning_progress_algorithm,
     )
 
@@ -124,8 +123,8 @@ def curriculum_with_algorithm(arena_env, learning_progress_algorithm):
 @pytest.fixture(scope="function")
 def curriculum_without_algorithm(arena_env):
     """Create a curriculum without algorithm."""
-    return CurriculumConfig(
-        task_generator=SingleTaskGenerator.Config(env=arena_env),
+    return metta.cogworks.curriculum.CurriculumConfig(
+        task_generator=metta.cogworks.curriculum.SingleTaskGenerator.Config(env=arena_env),
     )
 
 
@@ -149,4 +148,4 @@ def random_seed():
 @pytest.fixture(scope="function")
 def performance_test_environment():
     """Create a minimal environment for performance testing."""
-    return make_arena(num_agents=4)
+    return mettagrid.builder.envs.make_arena(num_agents=4)

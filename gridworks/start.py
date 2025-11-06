@@ -2,15 +2,15 @@
 
 import argparse
 import os
+import pathlib
 import shutil
 import subprocess
 import sys
 import threading
 import time
 import webbrowser
-from pathlib import Path
 
-from metta.common.util.fs import cd_repo_root
+import metta.common.util.fs
 
 
 def main():
@@ -18,8 +18,8 @@ def main():
     parser.add_argument("--dev", action="store_true", help="Run in development mode")
     args = parser.parse_args()
 
-    cd_repo_root()
-    repo_root = Path.cwd()
+    metta.common.util.fs.cd_repo_root()
+    repo_root = pathlib.Path.cwd()
     gridworks_dir = repo_root / "gridworks"
 
     print(f"Starting servers from repo root: {repo_root}")

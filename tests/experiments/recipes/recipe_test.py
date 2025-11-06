@@ -10,12 +10,8 @@ Usage:
 
 import sys
 
-from devops.skypilot.utils.testing_helpers import (
-    BaseTestRunner,
-    SkyPilotTestLauncher,
-    TestCondition,
-)
-from metta.common.util.text_styles import bold, cyan, yellow
+import devops.skypilot.utils.testing_helpers
+import metta.common.util.text_styles
 
 # Recipe configurations
 RECIPES = {
@@ -50,7 +46,7 @@ RECIPES = {
 }
 
 # Test condition - normal completion with short training
-TEST_CONDITION = TestCondition(
+TEST_CONDITION = devops.skypilot.utils.testing_helpers.TestCondition(
     name="Normal Completion",
     extra_args=["trainer.total_timesteps=50000"],
     description="Exit normally after 50k timesteps",
@@ -61,7 +57,7 @@ TEST_CONDITION = TestCondition(
 BASE_ARGS = ["--no-spot", "--gpus=4", "--nodes", "1"]
 
 
-class RecipeTestRunner(BaseTestRunner):
+class RecipeTestRunner(devops.skypilot.utils.testing_helpers.BaseTestRunner):
     """Test runner for recipe validation tests."""
 
     def __init__(self):
@@ -76,22 +72,24 @@ class RecipeTestRunner(BaseTestRunner):
     def launch_tests(self, args):
         """Launch recipe test jobs."""
         # Create launcher
-        launcher = SkyPilotTestLauncher(base_name=args.base_name, skip_git_check=args.skip_git_check)
+        launcher = devops.skypilot.utils.testing_helpers.SkyPilotTestLauncher(
+            base_name=args.base_name, skip_git_check=args.skip_git_check
+        )
 
         # Check git state
         if not launcher.check_git_state():
             sys.exit(1)
 
         # Show test configuration
-        print(f"\n{bold('=== Recipe Test Configuration ===')}")
-        print(f"{cyan('Recipes to test:')}")
+        print(f"\n{metta.common.util.text_styles.bold('=== Recipe Test Configuration ===')}")
+        print(f"{metta.common.util.text_styles.cyan('Recipes to test:')}")
         for recipe_key, recipe in RECIPES.items():
-            print(f"  • {yellow(recipe_key)}: {recipe['description']}")
-        print(f"\n{cyan('Test condition:')} {TEST_CONDITION.description}")
-        print(f"{cyan('Nodes:')} 1")
-        print(f"{cyan('CI tests:')} Disabled")
-        print(f"\n{cyan('Total jobs to launch:')} {len(RECIPES)}")
-        print(f"{cyan('Output file:')} {args.output_file}")
+            print(f"  • {metta.common.util.text_styles.yellow(recipe_key)}: {recipe['description']}")
+        print(f"\n{metta.common.util.text_styles.cyan('Test condition:')} {TEST_CONDITION.description}")
+        print(f"{metta.common.util.text_styles.cyan('Nodes:')} 1")
+        print(f"{metta.common.util.text_styles.cyan('CI tests:')} Disabled")
+        print(f"\n{metta.common.util.text_styles.cyan('Total jobs to launch:')} {len(RECIPES)}")
+        print(f"{metta.common.util.text_styles.cyan('Output file:')} {args.output_file}")
 
         # Launch jobs
         for recipe_key, recipe in RECIPES.items():
@@ -119,7 +117,7 @@ class RecipeTestRunner(BaseTestRunner):
 
         # Save results
         output_path = launcher.save_results(args.output_file)
-        print(f"{cyan('Results saved to:')} {output_path.absolute()}")
+        print(f"{metta.common.util.text_styles.cyan('Results saved to:')} {output_path.absolute()}")
 
         # Print summary
         launcher.print_summary()

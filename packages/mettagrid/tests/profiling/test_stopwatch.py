@@ -3,13 +3,13 @@ import time
 
 import pytest
 
-from mettagrid.profiling.stopwatch import Checkpoint, Stopwatch, with_instance_timer, with_timer
+import mettagrid.profiling.stopwatch
 
 
 @pytest.fixture
 def stopwatch():
     """Stopwatch fixture with logging enabled."""
-    return Stopwatch(log_level=logging.INFO)
+    return mettagrid.profiling.stopwatch.Stopwatch(log_level=logging.INFO)
 
 
 @pytest.fixture(autouse=True)
@@ -22,7 +22,7 @@ def cleanup():
 class TestStopwatch:
     """Test suite for Stopwatch class."""
 
-    def test_basic_timing(self, stopwatch: Stopwatch):
+    def test_basic_timing(self, stopwatch: mettagrid.profiling.stopwatch.Stopwatch):
         """Test basic start/stop timing."""
         # Start timing
         start_time = time.time()
@@ -41,7 +41,7 @@ class TestStopwatch:
         total = stopwatch.get_elapsed()
         assert total == pytest.approx(elapsed, abs=0.001)
 
-    def test_named_timers(self, stopwatch: Stopwatch):
+    def test_named_timers(self, stopwatch: mettagrid.profiling.stopwatch.Stopwatch):
         """Test using multiple named timers."""
         # Start multiple timers
         stopwatch.start("timer1")
@@ -64,7 +64,7 @@ class TestStopwatch:
 
     def test_context_manager(self, caplog: pytest.LogCaptureFixture):
         """Test using stopwatch as context manager."""
-        stopwatch = Stopwatch(log_level=logging.INFO)
+        stopwatch = mettagrid.profiling.stopwatch.Stopwatch(log_level=logging.INFO)
 
         # Test with time() method
         with stopwatch.time("test_context"):
@@ -87,7 +87,7 @@ class TestStopwatch:
             assert "test_callable took" in stopwatch_logs[0].message
             assert "s" in stopwatch_logs[0].message  # Should show seconds
 
-    def test_checkpoint_functionality(self, stopwatch: Stopwatch):
+    def test_checkpoint_functionality(self, stopwatch: mettagrid.profiling.stopwatch.Stopwatch):
         """Test checkpoint recording."""
         stopwatch.start("test_timer")
         time.sleep(0.1)
@@ -110,7 +110,7 @@ class TestStopwatch:
         # Verify anonymous checkpoint naming
         assert any(k.startswith("_lap_") for k in timer.checkpoints)
 
-    def test_lap_functionality(self, stopwatch: Stopwatch):
+    def test_lap_functionality(self, stopwatch: mettagrid.profiling.stopwatch.Stopwatch):
         """Test lap functionality."""
         stopwatch.start("lap_timer")
 
@@ -139,7 +139,7 @@ class TestStopwatch:
     @pytest.mark.skip(
         reason="Flaky: https://github.com/Metta-AI/metta/actions/runs/18603552017/job/53047664892?pr=3322"
     )
-    def test_rate_calculations(self, stopwatch: Stopwatch):
+    def test_rate_calculations(self, stopwatch: mettagrid.profiling.stopwatch.Stopwatch):
         """Test rate calculation methods."""
         # Start timing
         start_time = time.time()
@@ -171,7 +171,7 @@ class TestStopwatch:
 
         stopwatch.stop("rate_timer")
 
-    def test_reset_functionality(self, stopwatch: Stopwatch):
+    def test_reset_functionality(self, stopwatch: mettagrid.profiling.stopwatch.Stopwatch):
         """Test resetting timers."""
         # Start and stop a timer
         stopwatch.start("A")
@@ -196,7 +196,7 @@ class TestStopwatch:
         assert len(stopwatch._timers) == 4  # 3 + global; reset zeroes all timers
         assert stopwatch.GLOBAL_TIMER_NAME in stopwatch._timers
 
-    def test_get_last_elapsed(self, stopwatch: Stopwatch):
+    def test_get_last_elapsed(self, stopwatch: mettagrid.profiling.stopwatch.Stopwatch):
         """Test getting last elapsed time."""
         # First run - measure actual time
         start1 = time.time()
@@ -231,7 +231,7 @@ class TestStopwatch:
         assert total == pytest.approx(expected_total, abs=0.02)
         assert total == pytest.approx(elapsed1 + elapsed2, abs=0.01)
 
-    def test_running_timer_elapsed(self, stopwatch: Stopwatch):
+    def test_running_timer_elapsed(self, stopwatch: mettagrid.profiling.stopwatch.Stopwatch):
         """Test getting elapsed time while timer is running."""
         stopwatch.start("running_test")
         time.sleep(0.1)
@@ -265,11 +265,11 @@ class TestStopwatch:
             (172800, "2.0 days"),
         ],
     )
-    def test_format_time(self, stopwatch: Stopwatch, seconds: float, expected: str):
+    def test_format_time(self, stopwatch: mettagrid.profiling.stopwatch.Stopwatch, seconds: float, expected: str):
         """Test time formatting."""
         assert stopwatch.format_time(seconds) == expected
 
-    def test_estimate_remaining(self, stopwatch: Stopwatch):
+    def test_estimate_remaining(self, stopwatch: mettagrid.profiling.stopwatch.Stopwatch):
         """Test remaining time estimation."""
         steps_completed = 25
         total_steps = 100
@@ -292,7 +292,7 @@ class TestStopwatch:
 
     def test_log_progress(self, caplog: pytest.LogCaptureFixture):
         """Test progress logging."""
-        stopwatch = Stopwatch(log_level=logging.INFO)
+        stopwatch = mettagrid.profiling.stopwatch.Stopwatch(log_level=logging.INFO)
 
         stopwatch.start("progress_test")
         time.sleep(0.1)
@@ -316,7 +316,7 @@ class TestStopwatch:
 
         stopwatch.stop("progress_test")
 
-    def test_summaries(self, stopwatch: Stopwatch):
+    def test_summaries(self, stopwatch: mettagrid.profiling.stopwatch.Stopwatch):
         """Test getting timer summaries."""
         # Create some timers with activity
         stopwatch.start("timer1")
@@ -341,7 +341,7 @@ class TestStopwatch:
 
         stopwatch.stop("timer2")
 
-    def test_get_all_elapsed(self, stopwatch: Stopwatch):
+    def test_get_all_elapsed(self, stopwatch: mettagrid.profiling.stopwatch.Stopwatch):
         """Test getting all elapsed times."""
         # Create timers
         stopwatch.start("timer1")
@@ -364,7 +364,7 @@ class TestStopwatch:
 
     def test_edge_cases(self, caplog: pytest.LogCaptureFixture):
         """Test edge cases and error handling."""
-        stopwatch = Stopwatch(log_level=logging.INFO)
+        stopwatch = mettagrid.profiling.stopwatch.Stopwatch(log_level=logging.INFO)
 
         with caplog.at_level(logging.WARNING, logger=stopwatch.logger.name):
             caplog.clear()
@@ -399,7 +399,7 @@ class TestStopwatch:
         # Cleanup
         stopwatch.stop("double_start")
 
-    def test_global_timer(self, stopwatch: Stopwatch):
+    def test_global_timer(self, stopwatch: mettagrid.profiling.stopwatch.Stopwatch):
         """Test global timer behavior."""
         start_time = time.time()
         stopwatch.start()
@@ -417,7 +417,7 @@ class TestStopwatch:
         stopwatch.reset()
         assert stopwatch.get_elapsed() == 0.0
 
-    def test_get_filename(self, stopwatch: Stopwatch):
+    def test_get_filename(self, stopwatch: mettagrid.profiling.stopwatch.Stopwatch):
         """Test get_filename method."""
         # Test unknown (no references)
         assert stopwatch.get_filename("unknown_timer") == "unknown"
@@ -441,7 +441,7 @@ class TestStopwatch:
         timer2.references.add(("same.py", 20))
         assert stopwatch.get_filename("samefile_test") == "same.py"
 
-    def test_lap_all_with_running_and_stopped_timers(self, stopwatch: Stopwatch):
+    def test_lap_all_with_running_and_stopped_timers(self, stopwatch: mettagrid.profiling.stopwatch.Stopwatch):
         tol = 0.02  # Keep tight tolerance for comparing against actual measurements
 
         # Track when each timer was last started/stopped
@@ -629,7 +629,7 @@ class TestStopwatch:
                     f"Timer {name}: checkpoint time {delta_time} != lap time {lap_time} for lap {lap_index}"
                 )
 
-    def test_get_lap_steps_first_lap(self, stopwatch: Stopwatch):
+    def test_get_lap_steps_first_lap(self, stopwatch: mettagrid.profiling.stopwatch.Stopwatch):
         """Test that get_lap_steps correctly handles the first lap.
 
         Currently, get_lap_steps returns None when there's only one checkpoint,
@@ -667,7 +667,7 @@ class TestStopwatchIntegration:
 
     def test_multiple_concurrent_timers(self):
         """Test managing multiple concurrent timers."""
-        sw = Stopwatch()
+        sw = mettagrid.profiling.stopwatch.Stopwatch()
 
         # Start multiple timers in sequence
         sw.start("download")
@@ -691,7 +691,7 @@ class TestStopwatchIntegration:
 
     def test_lap_rate_tracking(self):
         """Test tracking rates across multiple laps."""
-        sw = Stopwatch()
+        sw = mettagrid.profiling.stopwatch.Stopwatch()
 
         sw.start("training")
         start_time = time.time()
@@ -736,7 +736,7 @@ class TestStopwatchIntegration:
 
     def test_real_world_scenario(self):
         """Test a realistic usage scenario."""
-        sw = Stopwatch()
+        sw = mettagrid.profiling.stopwatch.Stopwatch()
 
         # Simulate a data processing pipeline
         sw.start()  # Start global timer
@@ -772,7 +772,7 @@ class TestStopwatchIntegration:
 
     def test_logging_scenarios(self, caplog: pytest.LogCaptureFixture):
         """Test various logging scenarios in integration."""
-        sw = Stopwatch(log_level=logging.INFO)
+        sw = mettagrid.profiling.stopwatch.Stopwatch(log_level=logging.INFO)
 
         with caplog.at_level(logging.INFO, logger=sw.logger.name):
             caplog.clear()
@@ -812,34 +812,38 @@ class TestStopwatchIntegration:
     def test_timer_decorators(self, caplog: pytest.LogCaptureFixture):
         """Test both @with_timer and @with_instance_timer decorators."""
 
-        sw = Stopwatch()
+        sw = mettagrid.profiling.stopwatch.Stopwatch()
 
         class TestClass:
             def __init__(self):
-                self.timer = Stopwatch(log_level=logging.INFO)  # Default timer attribute with logging
-                self.instance_timer = Stopwatch(log_level=logging.INFO)  # Custom timer attribute with logging
+                self.timer = mettagrid.profiling.stopwatch.Stopwatch(
+                    log_level=logging.INFO
+                )  # Default timer attribute with logging
+                self.instance_timer = mettagrid.profiling.stopwatch.Stopwatch(
+                    log_level=logging.INFO
+                )  # Custom timer attribute with logging
                 self.call_count = 0
 
-            @with_timer(sw, "external_timer")
+            @mettagrid.profiling.stopwatch.with_timer(sw, "external_timer")
             def external_timed_method(self, value: int) -> int:
                 """Method timed with external timer."""
                 self.call_count += 1
                 time.sleep(0.05)
                 return value * 2
 
-            @with_instance_timer("instance_timer_default")
+            @mettagrid.profiling.stopwatch.with_instance_timer("instance_timer_default")
             def instance_timed_method(self, value: int) -> int:
                 """Method timed with instance timer (default attr)."""
                 time.sleep(0.03)
                 return value + 1
 
-            @with_instance_timer("custom_timer", timer_attr="instance_timer")
+            @mettagrid.profiling.stopwatch.with_instance_timer("custom_timer", timer_attr="instance_timer")
             def custom_attr_method(self, value: int) -> int:
                 """Method timed with custom timer attribute."""
                 time.sleep(0.02)
                 return value * 3
 
-            @with_instance_timer("logged_method", log_level=logging.INFO)
+            @mettagrid.profiling.stopwatch.with_instance_timer("logged_method", log_level=logging.INFO)
             def logged_method(self, x: int, y: int = 10) -> int:
                 """Method with logging enabled."""
                 time.sleep(0.03)
@@ -898,7 +902,7 @@ class TestStopwatchIntegration:
         assert "Method timed with instance timer" in test_obj.instance_timed_method.__doc__
 
         # Test exception handling for both decorators
-        @with_timer(sw, "exception_timer")
+        @mettagrid.profiling.stopwatch.with_timer(sw, "exception_timer")
         def failing_external():
             time.sleep(0.02)
             raise ValueError("External exception")
@@ -912,9 +916,9 @@ class TestStopwatchIntegration:
         # Test instance timer exception handling
         class ExceptionTestClass:
             def __init__(self):
-                self.timer = Stopwatch()
+                self.timer = mettagrid.profiling.stopwatch.Stopwatch()
 
-            @with_instance_timer("exception_instance_timer")
+            @mettagrid.profiling.stopwatch.with_instance_timer("exception_instance_timer")
             def failing_instance_method(self):
                 time.sleep(0.02)
                 raise RuntimeError("Instance exception")
@@ -929,7 +933,7 @@ class TestStopwatchIntegration:
         # Test error case: with_instance_timer on non-instance method
         with pytest.raises(ValueError, match="with_instance_timer can only be used on instance methods"):
 
-            @with_instance_timer("standalone_timer")
+            @mettagrid.profiling.stopwatch.with_instance_timer("standalone_timer")
             def standalone_function():
                 pass
 
@@ -943,7 +947,7 @@ class TestStopwatchIntegration:
             def __init__(self):
                 pass  # No timer attribute
 
-            @with_instance_timer("test_timer")
+            @mettagrid.profiling.stopwatch.with_instance_timer("test_timer")
             def method_without_timer(self):
                 return "test"
 
@@ -954,9 +958,11 @@ class TestStopwatchIntegration:
         # Test custom timer attribute name that doesn't exist
         class CustomTimerClass:
             def __init__(self):
-                self.timer = Stopwatch()  # Has 'timer' but decorator looks for 'custom_timer'
+                self.timer = (
+                    mettagrid.profiling.stopwatch.Stopwatch()
+                )  # Has 'timer' but decorator looks for 'custom_timer'
 
-            @with_instance_timer("test_timer", timer_attr="custom_timer")
+            @mettagrid.profiling.stopwatch.with_instance_timer("test_timer", timer_attr="custom_timer")
             def method_with_missing_custom_attr(self):
                 return "test"
 
@@ -968,7 +974,7 @@ class TestStopwatchIntegration:
 class TestStopwatchSaveLoad:
     """Test save/load functionality of Stopwatch."""
 
-    def test_save_load_basic(self, stopwatch: Stopwatch):
+    def test_save_load_basic(self, stopwatch: mettagrid.profiling.stopwatch.Stopwatch):
         """Test basic save and load functionality."""
         # Create some timer state
         stopwatch.start("timer1")
@@ -990,7 +996,7 @@ class TestStopwatchSaveLoad:
         assert len(state["timers"]) >= 2  # At least timer1, timer2 (and global)
 
         # Create new stopwatch and load state
-        new_stopwatch = Stopwatch()
+        new_stopwatch = mettagrid.profiling.stopwatch.Stopwatch()
         new_stopwatch.load_state(state)
 
         # Verify timers were restored
@@ -1002,7 +1008,7 @@ class TestStopwatchSaveLoad:
         assert "checkpoint1" in timer2.checkpoints
         assert timer2.checkpoints["checkpoint1"]["steps"] == 100
 
-    def test_save_load_running_timers(self, stopwatch: Stopwatch):
+    def test_save_load_running_timers(self, stopwatch: mettagrid.profiling.stopwatch.Stopwatch):
         """Test saving and loading with running timers."""
         # Start multiple timers
         stopwatch.start("running1")
@@ -1028,7 +1034,7 @@ class TestStopwatchSaveLoad:
         assert state["timers"]["stopped1"]["_was_running"] is False
 
         # Load with resume_running=True (default)
-        new_stopwatch = Stopwatch()
+        new_stopwatch = mettagrid.profiling.stopwatch.Stopwatch()
         new_stopwatch.load_state(state, resume_running=True)
 
         # Verify timers are running
@@ -1046,7 +1052,7 @@ class TestStopwatchSaveLoad:
         assert new_stopwatch.get_elapsed("running1") > orig_elapsed1 + 0.09
         assert new_stopwatch.get_elapsed("running2") > orig_elapsed2 + 0.09
 
-    def test_save_load_no_resume(self, stopwatch: Stopwatch):
+    def test_save_load_no_resume(self, stopwatch: mettagrid.profiling.stopwatch.Stopwatch):
         """Test loading with resume_running=False."""
         # Start a timer
         stopwatch.start("test_timer")
@@ -1056,7 +1062,7 @@ class TestStopwatchSaveLoad:
         state = stopwatch.save_state()
 
         # Load without resuming
-        new_stopwatch = Stopwatch()
+        new_stopwatch = mettagrid.profiling.stopwatch.Stopwatch()
         new_stopwatch.load_state(state, resume_running=False)
 
         # Timer should not be running
@@ -1066,7 +1072,7 @@ class TestStopwatchSaveLoad:
         saved_elapsed = state["timers"]["test_timer"]["total_elapsed"]
         assert new_stopwatch.get_elapsed("test_timer") == pytest.approx(saved_elapsed, abs=0.1)
 
-    def test_save_load_complex_state(self, stopwatch: Stopwatch):
+    def test_save_load_complex_state(self, stopwatch: mettagrid.profiling.stopwatch.Stopwatch):
         """Test saving/loading complex timer state with multiple features."""
         # Create complex state
         stopwatch.start("complex_timer")
@@ -1088,7 +1094,7 @@ class TestStopwatchSaveLoad:
         state = stopwatch.save_state()
 
         # Load into new stopwatch
-        new_stopwatch = Stopwatch()
+        new_stopwatch = mettagrid.profiling.stopwatch.Stopwatch()
         new_stopwatch.load_state(state)
 
         # Verify all aspects were preserved
@@ -1117,20 +1123,20 @@ class TestStopwatchSaveLoad:
 
     def test_save_load_empty_state(self):
         """Test saving/loading empty stopwatch."""
-        sw = Stopwatch()
+        sw = mettagrid.profiling.stopwatch.Stopwatch()
 
         # Save empty state (only has global timer)
         state = sw.save_state()
 
         # Load into new stopwatch
-        new_sw = Stopwatch()
+        new_sw = mettagrid.profiling.stopwatch.Stopwatch()
         new_sw.load_state(state)
 
         # Should have global timer
         assert new_sw.GLOBAL_TIMER_NAME in new_sw._timers
         assert len(new_sw._timers) >= 1
 
-    def test_load_invalid_state(self, stopwatch: Stopwatch):
+    def test_load_invalid_state(self, stopwatch: mettagrid.profiling.stopwatch.Stopwatch):
         """Test loading invalid state formats."""
         # Test completely invalid state
         with pytest.raises(ValueError, match="Invalid state format"):
@@ -1144,7 +1150,7 @@ class TestStopwatchSaveLoad:
         with pytest.raises(ValueError, match="Invalid state format"):
             stopwatch.load_state({})
 
-    def test_save_load_preserves_global_timer(self, stopwatch: Stopwatch):
+    def test_save_load_preserves_global_timer(self, stopwatch: mettagrid.profiling.stopwatch.Stopwatch):
         """Test that global timer is always preserved."""
         # Start global timer
         stopwatch.start()
@@ -1153,14 +1159,14 @@ class TestStopwatchSaveLoad:
 
         # Save and load
         state = stopwatch.save_state()
-        new_stopwatch = Stopwatch()
+        new_stopwatch = mettagrid.profiling.stopwatch.Stopwatch()
         new_stopwatch.load_state(state)
 
         # Check global timer exists and has correct elapsed time
         assert new_stopwatch.GLOBAL_TIMER_NAME in new_stopwatch._timers
         assert new_stopwatch.get_elapsed() == pytest.approx(stopwatch.get_elapsed(), abs=0.1)
 
-    def test_elapsed_time_accuracy_with_running_timers(self, stopwatch: Stopwatch):
+    def test_elapsed_time_accuracy_with_running_timers(self, stopwatch: mettagrid.profiling.stopwatch.Stopwatch):
         """Test that elapsed time is accurately preserved for running timers."""
         # Start timer and let it run
         stopwatch.start("accuracy_test")
@@ -1178,7 +1184,7 @@ class TestStopwatchSaveLoad:
         assert saved_elapsed == pytest.approx(elapsed_before_save, abs=0.01)
 
         # Load immediately
-        new_stopwatch = Stopwatch()
+        new_stopwatch = mettagrid.profiling.stopwatch.Stopwatch()
         new_stopwatch.load_state(state, resume_running=True)
 
         # Stop immediately and check elapsed time
@@ -1187,7 +1193,7 @@ class TestStopwatchSaveLoad:
         # Total elapsed should be close to saved elapsed (plus tiny bit for stop operation)
         assert new_stopwatch.get_elapsed("accuracy_test") == pytest.approx(saved_elapsed, abs=0.01)
 
-    def test_multiple_save_load_cycles(self, stopwatch: Stopwatch):
+    def test_multiple_save_load_cycles(self, stopwatch: mettagrid.profiling.stopwatch.Stopwatch):
         """Test multiple save/load cycles maintain accuracy."""
         # Initial timer
         stopwatch.start("cycle_test")
@@ -1199,7 +1205,7 @@ class TestStopwatchSaveLoad:
 
         # First save/load cycle
         state1 = stopwatch.save_state()
-        sw2 = Stopwatch()
+        sw2 = mettagrid.profiling.stopwatch.Stopwatch()
         sw2.load_state(state1, resume_running=True)
 
         time.sleep(0.1)
@@ -1211,7 +1217,7 @@ class TestStopwatchSaveLoad:
 
         # Second save/load cycle
         state2 = sw2.save_state()
-        sw3 = Stopwatch()
+        sw3 = mettagrid.profiling.stopwatch.Stopwatch()
         sw3.load_state(state2, resume_running=True)
 
         time.sleep(0.1)
@@ -1227,7 +1233,7 @@ class TestStopwatchSaveLoad:
         final_elapsed = sw3.get_elapsed("cycle_test")
         assert final_elapsed > 0.29
 
-    def test_load_clears_existing_timers(self, stopwatch: Stopwatch):
+    def test_load_clears_existing_timers(self, stopwatch: mettagrid.profiling.stopwatch.Stopwatch):
         """Test that loading state clears existing timers."""
         # Create initial timers
         stopwatch.start("existing1")
@@ -1239,7 +1245,7 @@ class TestStopwatchSaveLoad:
         stopwatch.stop("existing2")
 
         # Create new state with different timers
-        new_sw = Stopwatch()
+        new_sw = mettagrid.profiling.stopwatch.Stopwatch()
         new_sw.start("new1")
         time.sleep(0.05)
         new_sw.stop("new1")
@@ -1261,7 +1267,7 @@ class TestStopwatchSaveLoad:
 def test_cleanup_old_checkpoints_preserves_order():
     """Test that _cleanup_old_checkpoints maintains chronological order."""
 
-    stopwatch = Stopwatch(max_laps=3)
+    stopwatch = mettagrid.profiling.stopwatch.Stopwatch(max_laps=3)
     timer_name = "test_timer"
 
     # Create a timer and add checkpoints in chronological order
@@ -1278,7 +1284,7 @@ def test_cleanup_old_checkpoints_preserves_order():
 
     # Add all checkpoints
     for name, elapsed, steps in checkpoints_data:
-        timer.checkpoints[name] = Checkpoint(elapsed_time=elapsed, steps=steps)
+        timer.checkpoints[name] = mettagrid.profiling.stopwatch.Checkpoint(elapsed_time=elapsed, steps=steps)
 
     # Verify initial state - should have 6 checkpoints with "_start"
     assert len(timer.checkpoints) == 6
@@ -1325,7 +1331,7 @@ def test_cleanup_old_checkpoints_preserves_order():
 def test_multiple_laps_after_cleanup():
     """Test multiple lap indices after cleanup."""
 
-    stopwatch = Stopwatch(max_laps=2)  # Very restrictive to force cleanup
+    stopwatch = mettagrid.profiling.stopwatch.Stopwatch(max_laps=2)  # Very restrictive to force cleanup
 
     timer = stopwatch._get_timer()
 
@@ -1338,7 +1344,7 @@ def test_multiple_laps_after_cleanup():
     ]
 
     for name, elapsed, steps in checkpoints_data:
-        timer.checkpoints[name] = Checkpoint(elapsed_time=elapsed, steps=steps)
+        timer.checkpoints[name] = mettagrid.profiling.stopwatch.Checkpoint(elapsed_time=elapsed, steps=steps)
         timer.lap_counter += 1
 
     print("Before cleanup - all checkpoints:")

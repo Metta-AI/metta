@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """Run a `metta ci` stage and publish a concise GitHub summary."""
 
-from __future__ import annotations
 
 import argparse
 import os
+import pathlib
 import subprocess
 import sys
-from pathlib import Path
-from typing import Iterable, List
+import typing
 
 FAIL_MARKER = "Re-run locally:"
 
@@ -17,18 +16,18 @@ def _title_for_stage(stage: str) -> str:
     return stage.replace("-", " ").title()
 
 
-def _write_summary(title: str, lines: Iterable[str]) -> None:
+def _write_summary(title: str, lines: typing.Iterable[str]) -> None:
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
     if not summary_path:
         return
-    with Path(summary_path).open("a", encoding="utf-8") as handle:
+    with pathlib.Path(summary_path).open("a", encoding="utf-8") as handle:
         handle.write(f"## {title}\n")
         for line in lines:
             handle.write(f"{line}\n")
         handle.write("\n")
 
 
-def _extract_python_failures(output: str) -> List[str]:
+def _extract_python_failures(output: str) -> typing.List[str]:
     failures: list[str] = []
     for raw in output.splitlines():
         line = raw.strip()
@@ -44,7 +43,7 @@ def _extract_python_failures(output: str) -> List[str]:
     return ordered
 
 
-def _extract_cpp_failures(output: str) -> List[str]:
+def _extract_cpp_failures(output: str) -> typing.List[str]:
     failures: list[str] = []
     for raw in output.splitlines():
         line = raw.strip()
@@ -61,7 +60,7 @@ def _extract_cpp_failures(output: str) -> List[str]:
     return ordered
 
 
-def _extract_re_run_commands(output: str) -> List[str]:
+def _extract_re_run_commands(output: str) -> typing.List[str]:
     commands: list[str] = []
     lines = output.splitlines()
     for idx, raw in enumerate(lines):
@@ -99,7 +98,7 @@ def _extract_lint_failures(output: str) -> tuple[list[str], list[str]]:
     return sorted(formatters), sorted(linters)
 
 
-def _summarize(stage: str, success: bool, output: str) -> List[str]:
+def _summarize(stage: str, success: bool, output: str) -> typing.List[str]:
     bullet = "✅" if success else "❌"
     lines: list[str] = [f"- {bullet} Stage `{stage}` {'passed' if success else 'failed'}."]
     if success:

@@ -1,5 +1,5 @@
-from mettagrid.config.mettagrid_config import MettaGridConfig
-from mettagrid.simulator import Action, Simulation
+import mettagrid.config.mettagrid_config
+import mettagrid.simulator
 
 
 class TestInventoryRegeneration:
@@ -8,7 +8,7 @@ class TestInventoryRegeneration:
     def test_energy_regeneration_basic(self):
         """Test that energy regenerates at the specified interval."""
         # Create a simple environment with energy regeneration
-        cfg = MettaGridConfig.EmptyRoom(num_agents=2, with_walls=True).with_ascii_map(
+        cfg = mettagrid.config.mettagrid_config.MettaGridConfig.EmptyRoom(num_agents=2, with_walls=True).with_ascii_map(
             [
                 ["#", "#", "#", "#"],
                 ["#", "@", "@", "#"],
@@ -23,7 +23,7 @@ class TestInventoryRegeneration:
         cfg.game.agent.initial_inventory = {"energy": 10}  # Start with 10 energy
         cfg.game.actions.noop.enabled = True
 
-        sim = Simulation(cfg)
+        sim = mettagrid.simulator.Simulation(cfg)
 
         # Reset environment
 
@@ -45,7 +45,7 @@ class TestInventoryRegeneration:
 
         # Step 1: No regeneration yet
         for i in range(sim.num_agents):
-            sim.agent(i).set_action(Action(name="noop"))
+            sim.agent(i).set_action(mettagrid.simulator.Action(name="noop"))
         sim.step()
 
         for i in range(sim.num_agents):
@@ -54,7 +54,7 @@ class TestInventoryRegeneration:
 
         # Step 2: No regeneration yet
         for i in range(sim.num_agents):
-            sim.agent(i).set_action(Action(name="noop"))
+            sim.agent(i).set_action(mettagrid.simulator.Action(name="noop"))
         sim.step()
 
         for i in range(sim.num_agents):
@@ -63,7 +63,7 @@ class TestInventoryRegeneration:
 
         # Step 3: Regeneration should occur (current_step % 3 == 0)
         for i in range(sim.num_agents):
-            sim.agent(i).set_action(Action(name="noop"))
+            sim.agent(i).set_action(mettagrid.simulator.Action(name="noop"))
         sim.step()
 
         for i in range(sim.num_agents):
@@ -72,7 +72,7 @@ class TestInventoryRegeneration:
 
         # Step 4: No regeneration
         for i in range(sim.num_agents):
-            sim.agent(i).set_action(Action(name="noop"))
+            sim.agent(i).set_action(mettagrid.simulator.Action(name="noop"))
         sim.step()
 
         for i in range(sim.num_agents):
@@ -81,7 +81,7 @@ class TestInventoryRegeneration:
 
         # Step 5: No regeneration
         for i in range(sim.num_agents):
-            sim.agent(i).set_action(Action(name="noop"))
+            sim.agent(i).set_action(mettagrid.simulator.Action(name="noop"))
         sim.step()
 
         for i in range(sim.num_agents):
@@ -90,7 +90,7 @@ class TestInventoryRegeneration:
 
         # Step 6: Regeneration should occur again
         for i in range(sim.num_agents):
-            sim.agent(i).set_action(Action(name="noop"))
+            sim.agent(i).set_action(mettagrid.simulator.Action(name="noop"))
         sim.step()
 
         for i in range(sim.num_agents):
@@ -99,7 +99,7 @@ class TestInventoryRegeneration:
 
     def test_regeneration_disabled_with_zero_interval(self):
         """Test that regeneration is disabled when interval is 0."""
-        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
+        cfg = mettagrid.config.mettagrid_config.MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
             [
                 ["#", "#", "#"],
                 ["#", "@", "#"],
@@ -113,18 +113,18 @@ class TestInventoryRegeneration:
         cfg.game.agent.initial_inventory = {"energy": 10}
         cfg.game.actions.noop.enabled = True
 
-        sim = Simulation(cfg)
+        sim = mettagrid.simulator.Simulation(cfg)
 
         # Take many steps
         for _ in range(10):
-            sim.agent(0).set_action(Action(name="noop"))
+            sim.agent(0).set_action(mettagrid.simulator.Action(name="noop"))
             sim.step()
             energy = sim.agent(0).inventory.get("energy", 0)
             assert energy == 10, f"Energy should not regenerate with interval=0, got {energy}"
 
     def test_regeneration_with_resource_limits(self):
         """Test that regeneration respects resource limits."""
-        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
+        cfg = mettagrid.config.mettagrid_config.MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
             [
                 ["#", "#", "#"],
                 ["#", "@", "#"],
@@ -139,17 +139,17 @@ class TestInventoryRegeneration:
         cfg.game.agent.resource_limits = {"energy": 100}  # Max 100 energy
         cfg.game.actions.noop.enabled = True
 
-        sim = Simulation(cfg)
+        sim = mettagrid.simulator.Simulation(cfg)
 
         # Take a step - should regenerate but cap at 100
-        sim.agent(0).set_action(Action(name="noop"))
+        sim.agent(0).set_action(mettagrid.simulator.Action(name="noop"))
         sim.step()
 
         energy = sim.agent(0).inventory.get("energy", 0)
         assert energy == 100, f"Energy should cap at 100 (limit), got {energy}"
 
         # Take another step - should stay at 100
-        sim.agent(0).set_action(Action(name="noop"))
+        sim.agent(0).set_action(mettagrid.simulator.Action(name="noop"))
         sim.step()
 
         energy = sim.agent(0).inventory.get("energy", 0)

@@ -1,16 +1,18 @@
 """State management for miniscope renderer."""
 
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import TYPE_CHECKING, Dict, List, Optional, Set
+import dataclasses
+import enum
+import typing
 
 import numpy as np
 
-if TYPE_CHECKING:
-    from mettagrid.simulator import Action
+if typing.TYPE_CHECKING:
+    import mettagrid.simulator
+
+    Action = mettagrid.simulator.Action
 
 
-class RenderMode(str, Enum):
+class RenderMode(str, enum.Enum):
     """Render mode for the miniscope."""
 
     FOLLOW = "follow"
@@ -20,7 +22,7 @@ class RenderMode(str, Enum):
     HELP = "help"
 
 
-class PlaybackState(Enum):
+class PlaybackState(enum.Enum):
     """Playback state for the renderer."""
 
     STOPPED = "stopped"
@@ -29,7 +31,7 @@ class PlaybackState(Enum):
     STEPPING = "stepping"  # Single step mode
 
 
-@dataclass
+@dataclasses.dataclass
 class MiniscopeState:
     """State container for miniscope renderer."""
 
@@ -37,7 +39,7 @@ class MiniscopeState:
     playback: PlaybackState = PlaybackState.STOPPED
     fps: float = 4.0
     step_count: int = 0
-    max_steps: Optional[int] = None
+    max_steps: typing.Optional[int] = None
 
     # Camera and viewport
     camera_row: int = 0
@@ -47,20 +49,20 @@ class MiniscopeState:
 
     # Mode and selection
     mode: RenderMode = RenderMode.FOLLOW
-    selected_agent: Optional[int] = 0
+    selected_agent: typing.Optional[int] = 0
     cursor_row: int = 0
     cursor_col: int = 0
 
     # Agent control
-    manual_agents: Set[int] = field(default_factory=set)
-    user_action: Optional["Action"] = None
+    manual_agents: typing.Set[int] = dataclasses.field(default_factory=set)
+    user_action: typing.Optional["Action"] = None
     should_step: bool = False
 
     # User input
-    user_input: Optional[str] = None
+    user_input: typing.Optional[str] = None
 
     # Rewards tracking
-    total_rewards: Optional[np.ndarray] = None
+    total_rewards: typing.Optional[np.ndarray] = None
 
     # Map bounds (computed from grid)
     min_row: int = 0
@@ -69,14 +71,14 @@ class MiniscopeState:
     map_width: int = 0
 
     # Shared data for components
-    object_type_names: Optional[List[str]] = None
-    resource_names: Optional[List[str]] = None
-    symbol_map: Optional[Dict[str, str]] = None
-    vibes: Optional[List[str]] = None
+    object_type_names: typing.Optional[typing.List[str]] = None
+    resource_names: typing.Optional[typing.List[str]] = None
+    symbol_map: typing.Optional[typing.Dict[str, str]] = None
+    vibes: typing.Optional[typing.List[str]] = None
 
     # Sidebar panel visibility
-    sidebar_visibility: Dict[str, bool] = field(default_factory=dict)
-    _saved_sidebar_visibility: Optional[Dict[str, bool]] = field(default=None)
+    sidebar_visibility: typing.Dict[str, bool] = dataclasses.field(default_factory=dict)
+    _saved_sidebar_visibility: typing.Optional[typing.Dict[str, bool]] = dataclasses.field(default=None)
 
     def is_running(self) -> bool:
         """Check if the renderer should continue running."""

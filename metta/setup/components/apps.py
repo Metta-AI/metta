@@ -1,34 +1,34 @@
 import os
 import platform
 
+import pydantic.main
+import typing_extensions
 import yaml
-from pydantic.main import BaseModel
-from typing_extensions import override
 
-from metta.common.util.fs import get_repo_root
-from metta.setup.components.base import SetupModule
-from metta.setup.components.system import get_package_installer
-from metta.setup.components.system_packages.installers.brew import BrewInstaller
-from metta.setup.registry import register_module
+import metta.common.util.fs
+import metta.setup.components.base
+import metta.setup.components.system
+import metta.setup.components.system_packages.installers.brew
+import metta.setup.registry
 
 
-class AppConfig(BaseModel):
+class AppConfig(pydantic.main.BaseModel):
     cask: str | None = None
     alternate_app_path: str | None = None
 
 
-class SystemAppsConfig(BaseModel):
+class SystemAppsConfig(pydantic.main.BaseModel):
     apps: dict[str, AppConfig]
 
 
 def get_system_apps_config() -> SystemAppsConfig:
-    with open(get_repo_root() / "metta/setup/components/system_packages/apps.yaml", "r") as f:
+    with open(metta.common.util.fs.get_repo_root() / "metta/setup/components/system_packages/apps.yaml", "r") as f:
         data = yaml.safe_load(f) or {}
     return SystemAppsConfig(**data)
 
 
-@register_module
-class AppsSetup(SetupModule):
+@metta.setup.registry.register_module
+class AppsSetup(metta.setup.components.base.SetupModule):
     @property
     def description(self) -> str:
         return "Applications"
@@ -36,7 +36,7 @@ class AppsSetup(SetupModule):
     def dependencies(self) -> list[str]:
         return ["system"]
 
-    @override
+    @typing_extensions.override
     def check_installed(self) -> bool:
         return not bool(self._get_uninstalled_apps())
 
@@ -55,9 +55,13 @@ class AppsSetup(SetupModule):
                 uninstalled.append(app)
         return uninstalled
 
-    def _get_brew_installer_if_available(self) -> BrewInstaller | None:
-        installer = get_package_installer()
-        if not installer or not isinstance(installer, BrewInstaller):
+    def _get_brew_installer_if_available(
+        self,
+    ) -> metta.setup.components.system_packages.installers.brew.BrewInstaller | None:
+        installer = metta.setup.components.system.get_package_installer()
+        if not installer or not isinstance(
+            installer, metta.setup.components.system_packages.installers.brew.BrewInstaller
+        ):
             return None
         return installer
 

@@ -1,113 +1,126 @@
 """Training environment wrapper for vectorized environments."""
 
+import abc
+import dataclasses
 import logging
 import os
+import pathlib
 import platform
+import typing
 import uuid
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, List, Literal, Tuple
 
 import numpy as np
+import pydantic
 import torch
-from pydantic import Field
-from torch import Tensor
 
-from metta.cogworks.curriculum import Curriculum, CurriculumConfig, env_curriculum
-from metta.rl.vecenv import make_vecenv
-from metta.utils.batch import calculate_batch_sizes
-from mettagrid.base_config import Config
-from mettagrid.builder.envs import make_arena
-from mettagrid.mettagrid_c import dtype_actions
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+import metta.cogworks.curriculum
+import metta.rl.vecenv
+import metta.utils.batch
+import mettagrid.base_config
+import mettagrid.builder.envs
+import mettagrid.mettagrid_c
+import mettagrid.policy.policy_env_interface
 
 logger = logging.getLogger(__name__)
 
 
-def guess_vectorization() -> Literal["serial", "multiprocessing"]:
+def guess_vectorization() -> typing.Literal["serial", "multiprocessing"]:
     if platform.system() == "Darwin":
         return "serial"
     return "multiprocessing"
 
 
-class TrainingEnvironmentConfig(Config):
+class TrainingEnvironmentConfig(mettagrid.base_config.Config):
     """Configuration for training environment."""
 
-    curriculum: CurriculumConfig = env_curriculum(make_arena(num_agents=24))
+    curriculum: metta.cogworks.curriculum.CurriculumConfig = metta.cogworks.curriculum.env_curriculum(
+        mettagrid.builder.envs.make_arena(num_agents=24)
+    )
     """Curriculum configuration for task selection"""
 
-    num_workers: int = Field(default=1, ge=1)
+    num_workers: int = pydantic.Field(default=1, ge=1)
     """Number of parallel workers for environment"""
 
-    async_factor: int = Field(default=2, ge=1)
+    async_factor: int = pydantic.Field(default=2, ge=1)
     """Async factor for environment parallelization"""
 
-    auto_workers: bool = Field(default=True)
+    auto_workers: bool = pydantic.Field(default=True)
     """Whether to auto-tune worker count based on available CPU/GPU resources"""
 
-    forward_pass_minibatch_target_size: int = Field(default=4096, gt=0)
+    forward_pass_minibatch_target_size: int = pydantic.Field(default=4096, gt=0)
     """Target size for forward pass minibatches"""
 
-    zero_copy: bool = Field(default=True)
+    zero_copy: bool = pydantic.Field(default=True)
     """Whether to use zero-copy optimization to avoid memory copies (default assumes multiprocessing)"""
 
-    vectorization: Literal["serial", "multiprocessing"] = Field(default_factory=guess_vectorization)
+    vectorization: typing.Literal["serial", "multiprocessing"] = pydantic.Field(default_factory=guess_vectorization)
     """Vectorization mode: 'serial' or 'parallel'"""
 
-    seed: int = Field(default=0)
+    seed: int = pydantic.Field(default=0)
     """Random seed for environment"""
 
-    write_replays: bool = Field(
+    write_replays: bool = pydantic.Field(
         default=False,
         description="Enable writing training episode replays to disk.",
     )
-    replay_dir: Path = Field(
-        default_factory=lambda: Path("./train_dir/replays/training"),
+    replay_dir: pathlib.Path = pydantic.Field(
+        default_factory=lambda: pathlib.Path("./train_dir/replays/training"),
         description="Base directory where training replays will be stored when writing is enabled.",
     )
 
 
-@dataclass
+@dataclasses.dataclass
 class BatchInfo:
     target_batch_size: int
     batch_size: int
     num_envs: int
 
 
-class TrainingEnvironment(ABC):
+class TrainingEnvironment(abc.ABC):
     """Abstract base class for training environment."""
 
-    @abstractmethod
+    @abc.abstractmethod
     def close(self) -> None:
         """Close the environment."""
 
-    @abstractmethod
-    def get_observations(self) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, List[dict], slice, Tensor, int]:
+    @abc.abstractmethod
+    def get_observations(
+        self,
+    ) -> typing.Tuple[
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        typing.List[dict],
+        slice,
+        torch.Tensor,
+        int,
+    ]:
         """Get the observations."""
 
-    @abstractmethod
+    @abc.abstractmethod
     def send_actions(self, actions: np.ndarray) -> None:
         """Send the actions."""
 
     @property
-    @abstractmethod
+    @abc.abstractmethod
     def batch_info(self) -> BatchInfo:
         """Get the batch information."""
 
     @property
-    @abstractmethod
-    def single_action_space(self) -> Any:
+    @abc.abstractmethod
+    def single_action_space(self) -> typing.Any:
         """Get the single action space."""
 
     @property
-    @abstractmethod
-    def single_observation_space(self) -> Any:
+    @abc.abstractmethod
+    def single_observation_space(self) -> typing.Any:
         """Get the single observation space."""
 
     @property
-    @abstractmethod
-    def policy_env_info(self) -> PolicyEnvInterface:
+    @abc.abstractmethod
+    def policy_env_info(self) -> mettagrid.policy.policy_env_interface.PolicyEnvInterface:
         """Get the environment policy interface information."""
 
 
@@ -126,13 +139,13 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         self._curriculum = None
         self._vecenv = None
 
-        self._curriculum = Curriculum(cfg.curriculum)
+        self._curriculum = metta.cogworks.curriculum.Curriculum(cfg.curriculum)
         env_cfg = self._curriculum.get_task().get_env_cfg()
         self._num_agents = env_cfg.game.num_agents
 
-        self._replay_directory: Path | None = None
+        self._replay_directory: pathlib.Path | None = None
         if cfg.write_replays:
-            base_dir = Path(cfg.replay_dir).expanduser()
+            base_dir = pathlib.Path(cfg.replay_dir).expanduser()
             target_dir = (base_dir / self._id).resolve()
             target_dir.mkdir(parents=True, exist_ok=True)
             self._replay_directory = target_dir
@@ -151,7 +164,7 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
                 num_workers = max(1, ideal_workers)
 
         # Calculate batch sizes
-        self._target_batch_size, self._batch_size, self._num_envs = calculate_batch_sizes(
+        self._target_batch_size, self._batch_size, self._num_envs = metta.utils.batch.calculate_batch_sizes(
             forward_pass_minibatch_target_size=cfg.forward_pass_minibatch_target_size,
             num_agents=self._num_agents,
             num_workers=num_workers,
@@ -160,7 +173,7 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
 
         self._num_workers = num_workers
 
-        self._vecenv = make_vecenv(
+        self._vecenv = metta.rl.vecenv.make_vecenv(
             self._curriculum,
             cfg.vectorization,
             num_envs=self._num_envs,
@@ -178,7 +191,7 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         self._vecenv.async_reset(cfg.seed)
 
         # Create policy environment interface from config
-        self._policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
+        self._policy_env_info = mettagrid.policy.policy_env_interface.PolicyEnvInterface.from_mg_cfg(env_cfg)
 
     def __repr__(self) -> str:
         return (
@@ -195,7 +208,7 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         self._vecenv.close()
 
     @property
-    def policy_env_info(self) -> PolicyEnvInterface:
+    def policy_env_info(self) -> mettagrid.policy.policy_env_interface.PolicyEnvInterface:
         return self._policy_env_info
 
     @property
@@ -213,25 +226,37 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         return self._num_envs * self._num_agents
 
     @property
-    def single_action_space(self) -> Any:
+    def single_action_space(self) -> typing.Any:
         # Use the underlying driver environment's action space, which remains single-agent Discrete
         return self._vecenv.driver_env.single_action_space
 
     @property
-    def single_observation_space(self) -> Any:
+    def single_observation_space(self) -> typing.Any:
         return self._vecenv.single_observation_space
 
     @property
-    def vecenv(self) -> Any:
+    def vecenv(self) -> typing.Any:
         """Return the underlying PufferLib vectorized environment."""
         return self._vecenv
 
     @property
-    def driver_env(self) -> Any:
+    def driver_env(self) -> typing.Any:
         """Expose the driver environment for components that need direct access."""
         return self._vecenv.driver_env
 
-    def get_observations(self) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, List[dict], slice, Tensor, int]:
+    def get_observations(
+        self,
+    ) -> typing.Tuple[
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        typing.List[dict],
+        slice,
+        torch.Tensor,
+        int,
+    ]:
         o, r, d, t, ta, info, env_id, mask = self._vecenv.recv()
 
         training_env_id = slice(env_id[0], env_id[-1] + 1)
@@ -248,6 +273,6 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         return o, r, d, t, ta, info, training_env_id, mask, num_steps
 
     def send_actions(self, actions: np.ndarray) -> None:
-        if actions.dtype != dtype_actions:
-            actions = actions.astype(dtype_actions, copy=False)
+        if actions.dtype != mettagrid.mettagrid_c.dtype_actions:
+            actions = actions.astype(mettagrid.mettagrid_c.dtype_actions, copy=False)
         self._vecenv.send(actions)

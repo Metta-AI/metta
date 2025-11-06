@@ -4,21 +4,20 @@ file.py
 Read and write files to local or s3 destinations.
 """
 
-from __future__ import annotations
 
+import contextlib
 import logging
 import os
+import pathlib
 import shutil
 import tempfile
-from contextlib import contextmanager
-from pathlib import Path
-from typing import Union
-from urllib.parse import urlparse
+import typing
+import urllib.parse
 
 import boto3
-from botocore.exceptions import ClientError, NoCredentialsError
+import botocore.exceptions
 
-from metta.utils.uri import ParsedURI
+import metta.utils.uri
 
 # --------------------------------------------------------------------------- #
 #  Public IO helpers                                                           #
@@ -30,14 +29,14 @@ def exists(path: str) -> bool:
     Return *True* if *path* points to an existing local file or S3 object.
     Network errors are propagated so callers can decide how to handle them.
     """
-    parsed = ParsedURI.parse(path)
+    parsed = metta.utils.uri.ParsedURI.parse(path)
 
     if parsed.scheme == "s3":
         bucket, key = parsed.require_s3()
         try:
             boto3.client("s3").head_object(Bucket=bucket, Key=key)
             return True
-        except ClientError as e:
+        except botocore.exceptions.ClientError as e:
             if e.response["Error"]["Code"] in {"404", "403", "NoSuchKey"}:
                 return False
             raise
@@ -52,14 +51,14 @@ def exists(path: str) -> bool:
     return False
 
 
-def write_data(path: str, data: Union[str, bytes], *, content_type: str = "application/octet-stream") -> None:
+def write_data(path: str, data: typing.Union[str, bytes], *, content_type: str = "application/octet-stream") -> None:
     """Write in-memory bytes/str to *local*, *s3://* destinations."""
     logger = logging.getLogger(__name__)
 
     if isinstance(data, str):
         data = data.encode()
 
-    parsed = ParsedURI.parse(path)
+    parsed = metta.utils.uri.ParsedURI.parse(path)
 
     if parsed.scheme == "s3":
         bucket, key = parsed.require_s3()
@@ -67,7 +66,7 @@ def write_data(path: str, data: Union[str, bytes], *, content_type: str = "appli
             boto3.client("s3").put_object(Body=data, Bucket=bucket, Key=key, ContentType=content_type)
             logger.info("Wrote %d B → %s", len(data), http_url(parsed.canonical))
             return
-        except NoCredentialsError as e:  # pragma: no cover - environment dependent
+        except botocore.exceptions.NoCredentialsError as e:  # pragma: no cover - environment dependent
             logger.error("AWS credentials not found; run 'aws sso login --profile softmax'", exc_info=True)
             raise e
 
@@ -85,7 +84,7 @@ def write_file(path: str, local_file: str, *, content_type: str = "application/o
     """Upload a file from disk to *s3://*, or copy locally."""
     logger = logging.getLogger(__name__)
 
-    parsed = ParsedURI.parse(path)
+    parsed = metta.utils.uri.ParsedURI.parse(path)
 
     if parsed.scheme == "s3":
         bucket, key = parsed.require_s3()
@@ -97,7 +96,7 @@ def write_file(path: str, local_file: str, *, content_type: str = "application/o
         dst = parsed.local_path
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(local_file, dst)
-        logger.info("Copied %s → %s (size %d B)", local_file, dst, Path(local_file).stat().st_size)
+        logger.info("Copied %s → %s (size %d B)", local_file, dst, pathlib.Path(local_file).stat().st_size)
         return
 
     raise ValueError(f"Unsupported URI for write_file: {path}")
@@ -107,7 +106,7 @@ def read(path: str) -> bytes:
     """Read bytes from a local path or S3 object."""
     logger = logging.getLogger(__name__)
 
-    parsed = ParsedURI.parse(path)
+    parsed = metta.utils.uri.ParsedURI.parse(path)
 
     if parsed.scheme == "s3":
         bucket, key = parsed.require_s3()
@@ -115,7 +114,7 @@ def read(path: str) -> bytes:
             body = boto3.client("s3").get_object(Bucket=bucket, Key=key)["Body"].read()
             logger.info("Read %d B from %s", len(body), parsed.canonical)
             return body
-        except NoCredentialsError:  # pragma: no cover - environment dependent
+        except botocore.exceptions.NoCredentialsError:  # pragma: no cover - environment dependent
             logger.error("AWS credentials not found -- have you run devops/aws/setup_sso.py?", exc_info=True)
             raise
 
@@ -127,7 +126,7 @@ def read(path: str) -> bytes:
     raise ValueError(f"Unsupported URI for read(): {path}")
 
 
-@contextmanager
+@contextlib.contextmanager
 def local_copy(path: str):
     """
     Yield a local *Path* for *path* (supports local paths and *s3://* URIs).
@@ -140,7 +139,7 @@ def local_copy(path: str):
         with local_copy(uri) as p:
             do_something_with(Path(p))
     """
-    parsed = ParsedURI.parse(path)
+    parsed = metta.utils.uri.ParsedURI.parse(path)
 
     if parsed.scheme == "s3":
         data = read(parsed.canonical)
@@ -149,7 +148,7 @@ def local_copy(path: str):
         tmp.flush()
         tmp.close()
         try:
-            yield Path(tmp.name)
+            yield pathlib.Path(tmp.name)
         finally:
             try:
                 os.remove(tmp.name)
@@ -161,7 +160,7 @@ def local_copy(path: str):
 
 def http_url(path: str) -> str:
     """Convert *s3://* URIs to a public browser URL."""
-    parsed = ParsedURI.parse(path)
+    parsed = metta.utils.uri.ParsedURI.parse(path)
     if parsed.scheme == "s3" and parsed.bucket and parsed.key:
         return f"https://{parsed.bucket}.s3.amazonaws.com/{parsed.key}"
     return parsed.canonical if parsed.scheme == "file" else parsed.raw
@@ -173,5 +172,5 @@ def is_public_uri(url: str | None) -> bool:
     """
     if not url:
         return False
-    parsed = urlparse(url)
+    parsed = urllib.parse.urlparse(url)
     return parsed.scheme in ("http", "https") and bool(parsed.netloc)

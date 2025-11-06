@@ -1,33 +1,32 @@
+import collections
 import copy
-from collections import OrderedDict, defaultdict
-from dataclasses import dataclass, field
-from typing import Any, Mapping
+import dataclasses
+import typing
 
+import tensordict
 import torch
-from tensordict import TensorDict
-from torch import Tensor
-from torchrl.data import Composite
+import torchrl.data
 
-from metta.agent.policy import Policy
-from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
+import metta.agent.policy
+import metta.rl.training
 
 
-@dataclass(slots=True)
+@dataclasses.dataclass(slots=True)
 class Loss:
     """Base class coordinating rollout and training behaviour for concrete losses."""
 
-    policy: Policy
-    trainer_cfg: Any
-    env: TrainingEnvironment
+    policy: metta.agent.policy.Policy
+    trainer_cfg: typing.Any
+    env: metta.rl.training.TrainingEnvironment
     device: torch.device
     instance_name: str
-    loss_cfg: Any
+    loss_cfg: typing.Any
 
-    policy_experience_spec: Composite | None = None
-    replay: Experience | None = None
+    policy_experience_spec: torchrl.data.Composite | None = None
+    replay: metta.rl.training.Experience | None = None
     loss_tracker: dict[str, list[float]] | None = None
-    _zero_tensor: Tensor | None = None
-    _context: ComponentContext | None = None
+    _zero_tensor: torch.Tensor | None = None
+    _context: metta.rl.training.ComponentContext | None = None
 
     rollout_start_epoch: int = 0
     rollout_end_epoch: float = float("inf")
@@ -37,20 +36,22 @@ class Loss:
     rollout_active_in_cycle: list[int] | None = None
     train_cycle_length: int | None = None
     train_active_in_cycle: list[int] | None = None
-    _state_attrs: set[str] = field(default_factory=set, init=False, repr=False)
+    _state_attrs: set[str] = dataclasses.field(default_factory=set, init=False, repr=False)
 
     def __post_init__(self) -> None:
         self.policy_experience_spec = self.policy.get_agent_experience_spec()
-        self.loss_tracker = defaultdict(list)
+        self.loss_tracker = collections.defaultdict(list)
         self._zero_tensor = torch.tensor(0.0, device=self.device, dtype=torch.float32)
         self.register_state_attr("loss_tracker")
         self._configure_schedule()
 
-    def attach_context(self, context: ComponentContext) -> None:
+    def attach_context(self, context: metta.rl.training.ComponentContext) -> None:
         """Register the shared trainer context for this loss instance."""
         self._context = context
 
-    def _require_context(self, context: ComponentContext | None = None) -> ComponentContext:
+    def _require_context(
+        self, context: metta.rl.training.ComponentContext | None = None
+    ) -> metta.rl.training.ComponentContext:
         if context is not None:
             self._context = context
             return context
@@ -58,22 +59,22 @@ class Loss:
             raise RuntimeError("Loss has not been attached to a ComponentContext")
         return self._context
 
-    def get_experience_spec(self) -> Composite:
+    def get_experience_spec(self) -> torchrl.data.Composite:
         """Optional extension of the experience replay buffer spec required by this loss."""
-        return Composite()
+        return torchrl.data.Composite()
 
     # --------- Control flow hooks; override in subclasses when custom behaviour is needed ---------
 
-    def on_new_training_run(self, context: ComponentContext | None = None) -> None:
+    def on_new_training_run(self, context: metta.rl.training.ComponentContext | None = None) -> None:
         """Called at the very beginning of a training epoch."""
         self._require_context(context)
 
-    def on_rollout_start(self, context: ComponentContext | None = None) -> None:
+    def on_rollout_start(self, context: metta.rl.training.ComponentContext | None = None) -> None:
         """Called before starting a rollout phase."""
         self._ensure_context(context)
         self.policy.reset_memory()
 
-    def rollout(self, td: TensorDict, context: ComponentContext | None = None) -> None:
+    def rollout(self, td: tensordict.TensorDict, context: metta.rl.training.ComponentContext | None = None) -> None:
         """Rollout step executed while experience buffer requests more data."""
         ctx = self._ensure_context(context)
         if not self._should_run("rollout", ctx.epoch):
@@ -82,16 +83,16 @@ class Loss:
             raise RuntimeError("ComponentContext.training_env_id must be set before calling Loss.rollout")
         self.run_rollout(td, ctx)
 
-    def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
+    def run_rollout(self, td: tensordict.TensorDict, context: metta.rl.training.ComponentContext) -> None:
         """Override in subclasses to implement rollout logic."""
         return
 
     def train(
         self,
-        shared_loss_data: TensorDict,
-        context: ComponentContext | None,
+        shared_loss_data: tensordict.TensorDict,
+        context: metta.rl.training.ComponentContext | None,
         mb_idx: int,
-    ) -> tuple[Tensor, TensorDict, bool]:
+    ) -> tuple[torch.Tensor, tensordict.TensorDict, bool]:
         """Training step executed while scheduler allows it."""
         ctx = self._ensure_context(context)
         if not self._should_run("train", ctx.epoch):
@@ -100,22 +101,22 @@ class Loss:
 
     def run_train(
         self,
-        shared_loss_data: TensorDict,
-        context: ComponentContext,
+        shared_loss_data: tensordict.TensorDict,
+        context: metta.rl.training.ComponentContext,
         mb_idx: int,
-    ) -> tuple[Tensor, TensorDict, bool]:
+    ) -> tuple[torch.Tensor, tensordict.TensorDict, bool]:
         """Override in subclasses to implement training logic."""
         return self._zero(), shared_loss_data, False
 
-    def on_mb_end(self, context: ComponentContext | None, mb_idx: int) -> None:
+    def on_mb_end(self, context: metta.rl.training.ComponentContext | None, mb_idx: int) -> None:
         """Hook executed at the end of each minibatch."""
         self._ensure_context(context)
 
-    def on_train_phase_end(self, context: ComponentContext | None = None) -> None:
+    def on_train_phase_end(self, context: metta.rl.training.ComponentContext | None = None) -> None:
         """Hook executed after the training phase completes."""
         self._ensure_context(context)
 
-    def save_loss_states(self, context: ComponentContext | None = None) -> None:
+    def save_loss_states(self, context: metta.rl.training.ComponentContext | None = None) -> None:
         """Save loss states at the end of training (optional)."""
         self._ensure_context(context)
 
@@ -165,7 +166,7 @@ class Loss:
 
     # Internal utilities -------------------------------------------------
 
-    def _ensure_context(self, context: ComponentContext | None) -> ComponentContext:
+    def _ensure_context(self, context: metta.rl.training.ComponentContext | None) -> metta.rl.training.ComponentContext:
         if context is not None:
             self._context = context
             return context
@@ -173,11 +174,11 @@ class Loss:
             raise RuntimeError("Loss has not been attached to a ComponentContext")
         return self._context
 
-    def _zero(self) -> Tensor:
+    def _zero(self) -> torch.Tensor:
         assert self._zero_tensor is not None
         return self._zero_tensor
 
-    def attach_replay_buffer(self, experience: Experience) -> None:
+    def attach_replay_buffer(self, experience: metta.rl.training.Experience) -> None:
         """Attach the replay buffer to the loss."""
         self.replay = experience
 
@@ -194,16 +195,18 @@ class Loss:
                 raise AttributeError(f"Loss has no attribute '{name}' to register for state tracking")
             self._state_attrs.add(name)
 
-    def state_dict(self) -> OrderedDict[str, Any]:
+    def state_dict(self) -> collections.OrderedDict[str, typing.Any]:
         """Return a CPU-friendly snapshot of registered attributes."""
 
-        state = OrderedDict()
+        state = collections.OrderedDict()
         for name in sorted(self._state_attrs):
             value = getattr(self, name)
             state[name] = self._clone_state_value(value)
         return state
 
-    def load_state_dict(self, state_dict: Mapping[str, Any], *, strict: bool = True) -> tuple[list[str], list[str]]:
+    def load_state_dict(
+        self, state_dict: typing.Mapping[str, typing.Any], *, strict: bool = True
+    ) -> tuple[list[str], list[str]]:
         """Restore registered attributes from a state dictionary."""
 
         missing_keys: list[str] = [name for name in self._state_attrs if name not in state_dict]
@@ -223,27 +226,27 @@ class Loss:
     # ------------------------------------------------------------------
     # Internal helpers for state cloning/restoration
     # ------------------------------------------------------------------
-    def _clone_state_value(self, value: Any) -> Any:
-        if isinstance(value, Tensor):
+    def _clone_state_value(self, value: typing.Any) -> typing.Any:
+        if isinstance(value, torch.Tensor):
             return value.detach().clone().cpu()
-        if isinstance(value, Mapping):
+        if isinstance(value, typing.Mapping):
             return {k: self._clone_state_value(v) for k, v in value.items()}
-        if isinstance(value, defaultdict):
+        if isinstance(value, collections.defaultdict):
             return {k: copy.deepcopy(v) for k, v in value.items()}
         if hasattr(value, "clone") and callable(value.clone):
             return value.clone()
         return copy.deepcopy(value)
 
-    def _restore_state_value(self, name: str, stored_value: Any) -> None:
+    def _restore_state_value(self, name: str, stored_value: typing.Any) -> None:
         current = getattr(self, name, None)
 
-        if isinstance(current, Tensor):
-            tensor = stored_value if isinstance(stored_value, Tensor) else torch.as_tensor(stored_value)
+        if isinstance(current, torch.Tensor):
+            tensor = stored_value if isinstance(stored_value, torch.Tensor) else torch.as_tensor(stored_value)
             setattr(self, name, tensor.to(device=current.device, dtype=current.dtype))
             return
 
-        if isinstance(current, defaultdict):
-            rebuilt = defaultdict(current.default_factory)
+        if isinstance(current, collections.defaultdict):
+            rebuilt = collections.defaultdict(current.default_factory)
             for key, value in (stored_value or {}).items():
                 rebuilt[key] = copy.deepcopy(value)
             setattr(self, name, rebuilt)
@@ -253,7 +256,7 @@ class Loss:
             setattr(self, name, {k: copy.deepcopy(v) for k, v in (stored_value or {}).items()})
             return
 
-        if isinstance(stored_value, Tensor):
+        if isinstance(stored_value, torch.Tensor):
             setattr(self, name, stored_value.to(device=self.device))
             return
 

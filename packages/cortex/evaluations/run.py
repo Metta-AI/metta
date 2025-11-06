@@ -1,24 +1,18 @@
-from __future__ import annotations
 
 import argparse
+import dataclasses
 import logging
 import os
 import random
-from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional, Tuple, cast
+import typing
 
+import cortex.stacks
+import model  # type: ignore[import-not-found]
+import stacks  # type: ignore[import-not-found]
+import synthetic_datasets
 import torch
 import torch.nn as nn
-from cortex.stacks import CortexStack
-from model import SequenceClassifier  # type: ignore[import-not-found]
-from stacks import STACKS, StackSpec  # type: ignore[import-not-found]
-from synthetic_datasets import (  # type: ignore[import-not-found]
-    DelayedRecallDataset,
-    DyckDataset,
-    MajorityDataset,
-    MajorityHeadPadDataset,
-)
-from torch.utils.data import DataLoader
+import torch.utils.data
 
 # Globals used by optional Axons parity probe
 AXONS_PARITY_PROBE: int = 0
@@ -51,10 +45,12 @@ def _ensure_disjoint_splits(train_ds, val_ds, test_ds) -> None:
     assert s_va.isdisjoint(s_te), "val/test split leak detected"
 
 
-@dataclass
+@dataclasses.dataclass
 class TaskSpec:
     name: str
-    make_splits: Callable[[], Tuple[torch.utils.data.Dataset, torch.utils.data.Dataset, torch.utils.data.Dataset]]
+    make_splits: typing.Callable[
+        [], typing.Tuple[torch.utils.data.Dataset, torch.utils.data.Dataset, torch.utils.data.Dataset]
+    ]
     vocab_size: int
     n_classes: int
 
@@ -82,7 +78,7 @@ class TwoNeedleXORFast(torch.utils.data.Dataset):
         tail: int = 64,
         seed: int = 0,
         start_idx: int = 0,
-        end_idx: Optional[int] = None,
+        end_idx: typing.Optional[int] = None,
     ) -> None:
         super().__init__()
         assert 0 < tail < L
@@ -96,11 +92,13 @@ class TwoNeedleXORFast(torch.utils.data.Dataset):
         self.ids = list(range(start_idx, end_idx))
 
     @staticmethod
-    def _generate_all(num_samples: int, L: int, tail: int, seed: int) -> Tuple[List[torch.Tensor], torch.Tensor]:
+    def _generate_all(
+        num_samples: int, L: int, tail: int, seed: int
+    ) -> typing.Tuple[typing.List[torch.Tensor], torch.Tensor]:
         rng = random.Random(seed)
         head_len = L - tail
-        seqs: List[torch.Tensor] = []
-        labels: List[int] = []
+        seqs: typing.List[torch.Tensor] = []
+        labels: typing.List[int] = []
         for _ in range(num_samples):
             seq = torch.zeros(L, dtype=torch.long)
             i = rng.randrange(head_len)
@@ -123,7 +121,7 @@ class TwoNeedleXORFast(torch.utils.data.Dataset):
     def __len__(self) -> int:  # type: ignore[override]
         return len(self._seqs)
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:  # type: ignore[override]
+    def __getitem__(self, idx: int) -> typing.Tuple[torch.Tensor, torch.Tensor]:  # type: ignore[override]
         return self._seqs[idx], self._labels[idx]
 
     @classmethod
@@ -136,7 +134,7 @@ class TwoNeedleXORFast(torch.utils.data.Dataset):
         train_frac: float = 0.8,
         val_frac: float = 0.1,
         seed: int = 0,
-    ) -> Tuple["TwoNeedleXORFast", "TwoNeedleXORFast", "TwoNeedleXORFast"]:
+    ) -> typing.Tuple["TwoNeedleXORFast", "TwoNeedleXORFast", "TwoNeedleXORFast"]:
         n_train = int(num_samples * train_frac)
         n_val = int(num_samples * val_frac)
         assert n_train > 0 and n_val > 0 and (num_samples - n_train - n_val) > 0
@@ -160,7 +158,7 @@ class AssocRecallFast(torch.utils.data.Dataset):
         n_val: int = 256,
         seed: int = 0,
         start_idx: int = 0,
-        end_idx: Optional[int] = None,
+        end_idx: typing.Optional[int] = None,
     ) -> None:
         super().__init__()
         assert 0 < tail < L
@@ -185,13 +183,13 @@ class AssocRecallFast(torch.utils.data.Dataset):
         n_key: int,
         n_val: int,
         seed: int,
-    ) -> Tuple[List[torch.Tensor], torch.Tensor]:
+    ) -> typing.Tuple[typing.List[torch.Tensor], torch.Tensor]:
         rng = random.Random(seed)
         base = max(n_key, n_val)
         PAD_TOKEN = cls.PAD * base + 0
         head_len = L - tail
-        seqs: List[torch.Tensor] = []
-        labels: List[int] = []
+        seqs: typing.List[torch.Tensor] = []
+        labels: typing.List[int] = []
         for _ in range(num_samples):
             seq = [PAD_TOKEN] * L
             pos = rng.sample(range(head_len), 2 * K)
@@ -215,7 +213,7 @@ class AssocRecallFast(torch.utils.data.Dataset):
     def __len__(self) -> int:  # type: ignore[override]
         return len(self._seqs)
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:  # type: ignore[override]
+    def __getitem__(self, idx: int) -> typing.Tuple[torch.Tensor, torch.Tensor]:  # type: ignore[override]
         return self._seqs[idx], self._labels[idx]
 
     @classmethod
@@ -231,7 +229,7 @@ class AssocRecallFast(torch.utils.data.Dataset):
         train_frac: float = 0.8,
         val_frac: float = 0.1,
         seed: int = 0,
-    ) -> Tuple["AssocRecallFast", "AssocRecallFast", "AssocRecallFast"]:
+    ) -> typing.Tuple["AssocRecallFast", "AssocRecallFast", "AssocRecallFast"]:
         n_train = int(num_samples * train_frac)
         n_val = int(num_samples * val_frac)
         assert n_train > 0 and n_val > 0 and (num_samples - n_train - n_val) > 0
@@ -276,7 +274,7 @@ def make_task(task: str, *, num_samples: int, seed: int) -> TaskSpec:
         delay = 512
 
         def _splits():
-            return DelayedRecallDataset.splits(num_samples=num_samples, delay=delay, seed=seed)
+            return synthetic_datasets.DelayedRecallDataset.splits(num_samples=num_samples, delay=delay, seed=seed)
 
         return TaskSpec(name=task, make_splits=_splits, vocab_size=3, n_classes=2)
 
@@ -284,7 +282,7 @@ def make_task(task: str, *, num_samples: int, seed: int) -> TaskSpec:
         length = 1024
 
         def _splits():
-            return MajorityDataset.splits(num_samples=num_samples, length=length, seed=seed)
+            return synthetic_datasets.MajorityDataset.splits(num_samples=num_samples, length=length, seed=seed)
 
         return TaskSpec(name=task, make_splits=_splits, vocab_size=3, n_classes=2)
 
@@ -293,7 +291,7 @@ def make_task(task: str, *, num_samples: int, seed: int) -> TaskSpec:
         tail_pad_len = 256  # choose chunk-size=256 to make last chunk all PAD
 
         def _splits():
-            return MajorityHeadPadDataset.splits(
+            return synthetic_datasets.MajorityHeadPadDataset.splits(
                 num_samples=num_samples, length=length, tail_pad_len=tail_pad_len, seed=seed
             )
 
@@ -303,7 +301,7 @@ def make_task(task: str, *, num_samples: int, seed: int) -> TaskSpec:
         n_pairs = 50
 
         def _splits():
-            return DyckDataset.splits(num_samples=num_samples, n_pairs=n_pairs, seed=seed)
+            return synthetic_datasets.DyckDataset.splits(num_samples=num_samples, n_pairs=n_pairs, seed=seed)
 
         return TaskSpec(name=task, make_splits=_splits, vocab_size=2, n_classes=2)
 
@@ -352,7 +350,7 @@ def _enable_determinism() -> None:
 
 def train_one(
     *,
-    stack: CortexStack,
+    stack: cortex.stacks.CortexStack,
     d_hidden: int,
     task: TaskSpec,
     device: torch.device,
@@ -365,17 +363,19 @@ def train_one(
     rtu_disable_traces_last_chunk: bool = False,
     reset_state_before_last_chunk: bool = False,
     axons_parity_probe: int = 0,
-) -> Dict[str, float]:
+) -> typing.Dict[str, float]:
     train_ds, val_ds, test_ds = task.make_splits()
     _ensure_disjoint_splits(train_ds, val_ds, test_ds)
     # Ensure identical shuffle order across runs by seeding a dedicated generator
     g = torch.Generator()
     g.manual_seed(torch.initial_seed())
-    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, generator=g)
-    val_loader = DataLoader(val_ds, batch_size=batch_size)
-    test_loader = DataLoader(test_ds, batch_size=batch_size)
+    train_loader = torch.utils.data.DataLoader(train_ds, batch_size=batch_size, shuffle=True, generator=g)
+    val_loader = torch.utils.data.DataLoader(val_ds, batch_size=batch_size)
+    test_loader = torch.utils.data.DataLoader(test_ds, batch_size=batch_size)
 
-    model = SequenceClassifier(stack=stack, vocab_size=task.vocab_size, d_hidden=d_hidden, n_classes=task.n_classes)
+    model = model.SequenceClassifier(
+        stack=stack, vocab_size=task.vocab_size, d_hidden=d_hidden, n_classes=task.n_classes
+    )
     model.to(device)
 
     # Count and log model parameters
@@ -416,7 +416,7 @@ def train_one(
     # Generic chunked processing (TBPTT on last chunk) for any stack when enabled
     chunk_enabled = bool(chunk_size and chunk_size > 0)
     if chunk_enabled:
-        logging.info("chunked processing enabled: chunk_size=%d", int(cast(int, chunk_size)))
+        logging.info("chunked processing enabled: chunk_size=%d", int(typing.cast(int, chunk_size)))
 
     def _zero_rtu_traces_in_state(state) -> tuple[int, int]:
         """Zero Axon eligibility traces wherever they appear in the nested state.
@@ -496,7 +496,7 @@ def train_one(
         logging.debug("[traces] summary: scanned=%d zeroed=%d", scanned, zeroed)
         return scanned, zeroed
 
-    def _run_epoch(loader: DataLoader, train: bool) -> Tuple[float, float]:
+    def _run_epoch(loader: torch.utils.data.DataLoader, train: bool) -> typing.Tuple[float, float]:
         model.train(train)
         total_loss = 0.0
         correct = 0
@@ -648,7 +648,7 @@ def main() -> None:
         required=True,
     )
     # Build stack choices dynamically from the registry so new entries in STACKS are auto-discovered.
-    stack_choices = sorted(list(STACKS.keys())) + ["all"]
+    stack_choices = sorted(list(stacks.STACKS.keys())) + ["all"]
     parser.add_argument("--stack", choices=stack_choices, default="all")
     parser.add_argument("--epochs", type=int, default=5)
     parser.add_argument("--batch-size", type=int, default=64)
@@ -734,13 +734,13 @@ def main() -> None:
 
     task = make_task(args.task, num_samples=args.num_samples, seed=args.seed)
 
-    to_run: Dict[str, StackSpec]
+    to_run: typing.Dict[str, stacks.StackSpec]
     if args.stack == "all":
-        to_run = STACKS
+        to_run = stacks.STACKS
     else:
-        to_run = {args.stack: STACKS[args.stack]}
+        to_run = {args.stack: stacks.STACKS[args.stack]}
 
-    results: Dict[str, Dict[str, float]] = {}
+    results: typing.Dict[str, typing.Dict[str, float]] = {}
     for name, spec in to_run.items():
         logging.info("starting stack=%s d_hidden=%d", name, spec.d_hidden)
         stack = spec.builder().to(device)

@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 # This script should be run from within the metta workspace environment
 
+import collections
 import os
-from collections import defaultdict
-from pathlib import Path
+import pathlib
 
 import yaml
 
-from metta.common.util.fs import get_repo_root
+import metta.common.util.fs
 
 
 def parse_metrics_file(filepath):
     """Parse the wandb_metrics.csv file and return organized metrics."""
-    sections = defaultdict(lambda: defaultdict(list))
+    sections = collections.defaultdict(lambda: collections.defaultdict(list))
 
     with open(filepath, "r") as f:
         lines = f.readlines()
@@ -46,7 +46,7 @@ def analyze_metric_patterns(metrics):
         "timing": ["msec/", "frac/", "active_frac/"],
     }
 
-    categorized = defaultdict(list)
+    categorized = collections.defaultdict(list)
     for metric in metrics:
         for category, pattern_list in patterns.items():
             if any(p in metric for p in pattern_list):
@@ -236,7 +236,7 @@ cd common/src/metta/common/wandb
 """
 
     # Create output directory
-    readme_path = Path(output_dir) / "README.md"
+    readme_path = pathlib.Path(output_dir) / "README.md"
     readme_path.parent.mkdir(parents=True, exist_ok=True)
 
     with open(readme_path, "w") as f:
@@ -276,7 +276,7 @@ def get_section_description(section, descriptions=None):
 
 def group_related_metrics(metrics):
     """Group metrics by their base name, consolidating all related statistics."""
-    groups = defaultdict(list)
+    groups = collections.defaultdict(list)
 
     for metric in metrics:
         # Remove the section prefix to get the metric path
@@ -318,7 +318,7 @@ def group_related_metrics(metrics):
 
 def generate_section_readme(section, subsections, output_dir, descriptions):
     """Generate README for a specific section."""
-    section_dir = Path(output_dir) / section
+    section_dir = pathlib.Path(output_dir) / section
     section_dir.mkdir(parents=True, exist_ok=True)
 
     # Analyze all metrics in this section
@@ -497,7 +497,7 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     metrics_file = os.path.join(script_dir, "wandb_metrics.csv")
 
-    root_dir = get_repo_root()
+    root_dir = metta.common.util.fs.get_repo_root()
     output_dir = os.path.join(root_dir, "docs", "wandb", "metrics")
 
     if not os.path.exists(metrics_file):

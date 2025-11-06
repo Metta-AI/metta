@@ -1,22 +1,22 @@
 """Helper for distributed training operations."""
 
 import os
-from typing import Any, Optional
+import typing
 
 import torch
 import torch.distributed
 
-from metta.agent.policy import DistributedPolicy, Policy
-from metta.common.util.log_config import getRankAwareLogger
-from metta.rl.system_config import SystemConfig
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import TrainingEnvironmentConfig
-from mettagrid.base_config import Config
+import metta.agent.policy
+import metta.common.util.log_config
+import metta.rl.system_config
+import metta.rl.trainer_config
+import metta.rl.training
+import mettagrid.base_config
 
-logger = getRankAwareLogger(__name__)
+logger = metta.common.util.log_config.getRankAwareLogger(__name__)
 
 
-class TorchDistributedConfig(Config):
+class TorchDistributedConfig(mettagrid.base_config.Config):
     device: str
     is_master: bool
     world_size: int
@@ -26,7 +26,7 @@ class TorchDistributedConfig(Config):
 
 
 class DistributedHelper:
-    def __init__(self, system_cfg: SystemConfig):
+    def __init__(self, system_cfg: metta.rl.system_config.SystemConfig):
         assert not torch.distributed.is_initialized(), "Distributed already initialized"
 
         # Set up PyTorch optimizations (applies to both distributed and non-distributed)
@@ -87,7 +87,9 @@ class DistributedHelper:
                 )
                 break
 
-    def _setup_distributed_training(self, system_cfg: SystemConfig) -> Optional[dict[str, Any]]:
+    def _setup_distributed_training(
+        self, system_cfg: metta.rl.system_config.SystemConfig
+    ) -> typing.Optional[dict[str, typing.Any]]:
         """Return distributed config values or None if world_size = 1"""
         if "LOCAL_RANK" not in os.environ or torch.device(system_cfg.device).type != "cuda":
             return None
@@ -141,8 +143,8 @@ class DistributedHelper:
 
     def scale_batch_config(
         self,
-        trainer_cfg: TrainerConfig,
-        env_cfg: TrainingEnvironmentConfig,
+        trainer_cfg: metta.rl.trainer_config.TrainerConfig,
+        env_cfg: metta.rl.training.TrainingEnvironmentConfig,
     ) -> None:
         """Scale batch sizes for distributed training if configured.
 
@@ -174,7 +176,9 @@ class DistributedHelper:
             else getattr(trainer_cfg, "forward_pass_minibatch_target_size", "n/a"),
         )
 
-    def wrap_policy(self, policy: Policy, device: Optional[torch.device] = None) -> Policy | DistributedPolicy:
+    def wrap_policy(
+        self, policy: metta.agent.policy.Policy, device: typing.Optional[torch.device] = None
+    ) -> metta.agent.policy.Policy | metta.agent.policy.DistributedPolicy:
         """Wrap policy for distributed training if needed.
 
         Args:
@@ -190,7 +194,7 @@ class DistributedHelper:
         if device is None:
             device = torch.device(self.config.device)
 
-        distributed_policy = DistributedPolicy(policy, device)
+        distributed_policy = metta.agent.policy.DistributedPolicy(policy, device)
         logger.info(f"Wrapped policy with DDP on rank {self.get_rank()}")
         return distributed_policy
 
@@ -199,7 +203,7 @@ class DistributedHelper:
         if self.is_distributed:
             torch.distributed.barrier()
 
-    def broadcast_from_master(self, obj: Any) -> Any:
+    def broadcast_from_master(self, obj: typing.Any) -> typing.Any:
         """Broadcast object from master to all processes."""
         if not self.is_distributed:
             return obj
@@ -229,7 +233,7 @@ class DistributedHelper:
         torch.distributed.all_gather(gathered, tensor)
         return gathered
 
-    def all_reduce(self, tensor: torch.Tensor, op: Any = torch.distributed.ReduceOp.SUM) -> torch.Tensor:
+    def all_reduce(self, tensor: torch.Tensor, op: typing.Any = torch.distributed.ReduceOp.SUM) -> torch.Tensor:
         """Reduce tensor across all processes.
 
         Args:

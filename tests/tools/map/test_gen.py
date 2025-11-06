@@ -1,6 +1,6 @@
-from pathlib import Path
+import pathlib
 
-MAZE_CONFIG = Path(__file__).parent / "maze.yaml"
+MAZE_CONFIG = pathlib.Path(__file__).parent / "maze.yaml"
 MAP_MODULE = "mettagrid.mapgen.tools"
 
 

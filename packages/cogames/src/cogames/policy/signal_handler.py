@@ -1,9 +1,9 @@
+import collections.abc
 import signal
-from collections.abc import Callable
-from types import FrameType, TracebackType
-from typing import Any
+import types
+import typing
 
-SignalHandler = Callable[[int, FrameType | None], Any] | int | signal.Handlers | None
+SignalHandler = collections.abc.Callable[[int, types.FrameType | None], typing.Any] | int | signal.Handlers | None
 
 
 class DeferSigintContextManager:
@@ -31,7 +31,7 @@ class DeferSigintContextManager:
         self,
         exc_type: type[BaseException] | None,
         exc: BaseException | None,
-        traceback: TracebackType | None,
+        traceback: types.TracebackType | None,
     ) -> None:
         if not self._have_rebound_handler:
             self._rebind_and_call_old_handler()
@@ -48,7 +48,7 @@ class DeferSigintContextManager:
             elif callable(handler):
                 handler(signal.SIGINT, None)
 
-    def handle(self, sig: int, frame: FrameType | None) -> None:
+    def handle(self, sig: int, frame: types.FrameType | None) -> None:
         self.sigint_count += 1
         if self.sigint_count > 1:
             self._rebind_and_call_old_handler()

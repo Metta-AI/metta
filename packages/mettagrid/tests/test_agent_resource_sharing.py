@@ -1,5 +1,5 @@
-from mettagrid.config.mettagrid_config import MettaGridConfig
-from mettagrid.simulator import Simulation
+import mettagrid.config.mettagrid_config
+import mettagrid.simulator
 
 
 class TestAgentResourceSharing:
@@ -8,7 +8,7 @@ class TestAgentResourceSharing:
     def test_basic_resource_sharing(self):
         """Test that agents can share resources when one moves onto another."""
         # Create a simple environment with 2 agents
-        cfg = MettaGridConfig.EmptyRoom(num_agents=2, with_walls=True).with_ascii_map(
+        cfg = mettagrid.config.mettagrid_config.MettaGridConfig.EmptyRoom(num_agents=2, with_walls=True).with_ascii_map(
             [
                 ["#", "#", "#", "#"],
                 ["#", "@", "@", "#"],
@@ -25,7 +25,7 @@ class TestAgentResourceSharing:
         cfg.game.actions.move.enabled = True
         cfg.game.actions.noop.enabled = True
 
-        sim = Simulation(cfg)
+        sim = mettagrid.simulator.Simulation(cfg)
 
         # Get initial state
         grid_objects = sim.grid_objects()

@@ -1,26 +1,26 @@
 """Pre-upsampling block that expands dimensions before applying the cell."""
 
-from __future__ import annotations
 
-from typing import Optional, Tuple
+import typing
 
+import cortex.blocks.base
+import cortex.blocks.registry
+import cortex.cells.base
+import cortex.cells.mlstm
+import cortex.config
+import cortex.types
+import tensordict
 import torch
 import torch.nn as nn
-from tensordict import TensorDict
-
-from cortex.blocks.base import BaseBlock
-from cortex.blocks.registry import register_block
-from cortex.cells.base import MemoryCell
-from cortex.cells.mlstm import mLSTMCell
-from cortex.config import PreUpBlockConfig
-from cortex.types import MaybeState, ResetMask, Tensor
 
 
-@register_block(PreUpBlockConfig)
-class PreUpBlock(BaseBlock):
+@cortex.blocks.registry.register_block(cortex.config.PreUpBlockConfig)
+class PreUpBlock(cortex.blocks.base.BaseBlock):
     """Block that projects up before applying cell, with gated skip connections."""
 
-    def __init__(self, config: PreUpBlockConfig, d_hidden: int, cell: MemoryCell) -> None:
+    def __init__(
+        self, config: cortex.config.PreUpBlockConfig, d_hidden: int, cell: cortex.cells.base.MemoryCell
+    ) -> None:
         super().__init__(d_hidden=d_hidden, cell=cell)
         self.config = config
         self.d_inner = int(config.proj_factor * d_hidden)
@@ -36,17 +36,17 @@ class PreUpBlock(BaseBlock):
 
     def _should_apply_cell_act(self) -> bool:
         """Check whether the wrapped cell is an mLSTM."""
-        if isinstance(self.cell, mLSTMCell) and not self.cell.use_axon_qkv:
+        if isinstance(self.cell, cortex.cells.mlstm.mLSTMCell) and not self.cell.use_axon_qkv:
             return True
         return False
 
     def forward(
         self,
-        x: Tensor,
-        state: MaybeState,
+        x: cortex.types.Tensor,
+        state: cortex.types.MaybeState,
         *,
-        resets: Optional[ResetMask] = None,
-    ) -> Tuple[Tensor, MaybeState]:
+        resets: typing.Optional[cortex.types.ResetMask] = None,
+    ) -> typing.Tuple[cortex.types.Tensor, cortex.types.MaybeState]:
         # Always expect batch-first input: [B, T, H] or [B, H]
         is_step = x.dim() == 2
         batch_size = x.shape[0]
@@ -87,7 +87,7 @@ class PreUpBlock(BaseBlock):
             y = self.out_proj(y_).reshape(B, T, self.d_hidden)
 
         y = residual + y
-        return y, TensorDict({cell_key: new_cell_state}, batch_size=[batch_size])
+        return y, tensordict.TensorDict({cell_key: new_cell_state}, batch_size=[batch_size])
 
 
 __all__ = ["PreUpBlock"]

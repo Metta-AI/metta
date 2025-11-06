@@ -1,9 +1,9 @@
 """Tests for sLSTM cell implementation (Triton vs vanilla parity)."""
 
+import cortex.blocks
+import cortex.cells.slstm
+import cortex.config
 import torch
-from cortex.blocks import PostUpBlock
-from cortex.cells.slstm import sLSTMCell
-from cortex.config import PostUpBlockConfig, sLSTMCellConfig
 
 
 def get_test_device():
@@ -25,14 +25,14 @@ def test_slstm_parallel_vs_sequential_close() -> None:
     H = 64  # hidden size (must be divisible by num_heads; DH should be power of 2)
     num_heads = 4
 
-    cfg = sLSTMCellConfig(
+    cfg = cortex.config.sLSTMCellConfig(
         hidden_size=H,
         num_heads=num_heads,
         conv1d_kernel_size=4,
         dropout=0.0,
     )
 
-    cell = sLSTMCell(cfg).to(device=device, dtype=dtype)
+    cell = cortex.cells.slstm.sLSTMCell(cfg).to(device=device, dtype=dtype)
     cell.eval()
 
     x = torch.randn(B, T, H, device=device, dtype=dtype)
@@ -66,21 +66,21 @@ def test_slstm_with_postup_block() -> None:
 
     # Create PostUp block config with sLSTM cell
     # The cell operates on the base dimension D directly
-    slstm_config = sLSTMCellConfig(
+    slstm_config = cortex.config.sLSTMCellConfig(
         hidden_size=D,  # PostUp uses base dimension for the cell
         num_heads=4,
         conv1d_kernel_size=4,
         dropout=0.0,
     )
 
-    postup_config = PostUpBlockConfig(
+    postup_config = cortex.config.PostUpBlockConfig(
         cell=slstm_config,
         proj_factor=proj_factor,
     )
 
     # Create the cell and PostUp block
-    cell = sLSTMCell(slstm_config).to(device=device, dtype=dtype)
-    block = PostUpBlock(postup_config, d_hidden=D, cell=cell).to(device=device, dtype=dtype)
+    cell = cortex.cells.slstm.sLSTMCell(slstm_config).to(device=device, dtype=dtype)
+    block = cortex.blocks.PostUpBlock(postup_config, d_hidden=D, cell=cell).to(device=device, dtype=dtype)
     block.eval()
 
     # Create input
@@ -127,14 +127,14 @@ def test_slstm_sequential_vs_parallel_with_smaller_seq() -> None:
     H = 64  # hidden size (head_dim should be power of 2 for Triton)
     num_heads = 4
 
-    cfg = sLSTMCellConfig(
+    cfg = cortex.config.sLSTMCellConfig(
         hidden_size=H,
         num_heads=num_heads,
         conv1d_kernel_size=4,
         dropout=0.0,
     )
 
-    cell = sLSTMCell(cfg).to(device=device, dtype=dtype)
+    cell = cortex.cells.slstm.sLSTMCell(cfg).to(device=device, dtype=dtype)
     cell.eval()
 
     x = torch.randn(B, T, H, device=device, dtype=dtype)
@@ -206,14 +206,14 @@ def test_slstm_gradient_flow() -> None:
     H = 64  # head_dim should be power of 2 for Triton
     num_heads = 4
 
-    cfg = sLSTMCellConfig(
+    cfg = cortex.config.sLSTMCellConfig(
         hidden_size=H,
         num_heads=num_heads,
         conv1d_kernel_size=4,
         dropout=0.0,
     )
 
-    cell = sLSTMCell(cfg).to(device=device, dtype=dtype)
+    cell = cortex.cells.slstm.sLSTMCell(cfg).to(device=device, dtype=dtype)
     cell.train()  # Ensure we're in training mode
 
     x = torch.randn(B, T, H, device=device, dtype=dtype, requires_grad=True)
@@ -252,14 +252,14 @@ def test_slstm_state_reset() -> None:
     H = 64  # head_dim should be power of 2 for Triton
     num_heads = 4
 
-    cfg = sLSTMCellConfig(
+    cfg = cortex.config.sLSTMCellConfig(
         hidden_size=H,
         num_heads=num_heads,
         conv1d_kernel_size=4,
         dropout=0.0,
     )
 
-    cell = sLSTMCell(cfg).to(device=device, dtype=dtype)
+    cell = cortex.cells.slstm.sLSTMCell(cfg).to(device=device, dtype=dtype)
 
     # Initialize state
     state = cell.init_state(B, device=device, dtype=dtype)
@@ -305,14 +305,14 @@ def test_slstm_no_conv() -> None:
     num_heads = 4
 
     # Config with conv1d_kernel_size=0 to disable conv
-    cfg = sLSTMCellConfig(
+    cfg = cortex.config.sLSTMCellConfig(
         hidden_size=H,
         num_heads=num_heads,
         conv1d_kernel_size=0,  # Disable conv
         dropout=0.0,
     )
 
-    cell = sLSTMCell(cfg).to(device=device, dtype=dtype)
+    cell = cortex.cells.slstm.sLSTMCell(cfg).to(device=device, dtype=dtype)
     cell.eval()
 
     x = torch.randn(B, T, H, device=device, dtype=dtype)
@@ -350,14 +350,14 @@ def test_slstm_different_head_counts() -> None:
         if H % num_heads != 0:
             continue
 
-        cfg = sLSTMCellConfig(
+        cfg = cortex.config.sLSTMCellConfig(
             hidden_size=H,
             num_heads=num_heads,
             conv1d_kernel_size=4,
             dropout=0.0,
         )
 
-        cell = sLSTMCell(cfg).to(device=device, dtype=dtype)
+        cell = cortex.cells.slstm.sLSTMCell(cfg).to(device=device, dtype=dtype)
         cell.eval()
 
         x = torch.randn(B, T, H, device=device, dtype=dtype)
@@ -389,14 +389,14 @@ def test_slstm_with_dropout() -> None:
     num_heads = 4
     dropout_rate = 0.1
 
-    cfg = sLSTMCellConfig(
+    cfg = cortex.config.sLSTMCellConfig(
         hidden_size=H,
         num_heads=num_heads,
         conv1d_kernel_size=4,
         dropout=dropout_rate,
     )
 
-    cell = sLSTMCell(cfg).to(device=device, dtype=dtype)
+    cell = cortex.cells.slstm.sLSTMCell(cfg).to(device=device, dtype=dtype)
 
     x = torch.randn(B, T, H, device=device, dtype=dtype)
 
@@ -430,7 +430,7 @@ def test_slstm_backward_sequential_vs_parallel() -> None:
     H = 64  # hidden size (head_dim should be power of 2 for Triton)
     num_heads = 4
 
-    cfg = sLSTMCellConfig(
+    cfg = cortex.config.sLSTMCellConfig(
         hidden_size=H,
         num_heads=num_heads,
         conv1d_kernel_size=4,
@@ -438,8 +438,8 @@ def test_slstm_backward_sequential_vs_parallel() -> None:
     )
 
     # Create two identical cells for parallel and sequential paths
-    cell_parallel = sLSTMCell(cfg).to(device=device, dtype=dtype)
-    cell_sequential = sLSTMCell(cfg).to(device=device, dtype=dtype)
+    cell_parallel = cortex.cells.slstm.sLSTMCell(cfg).to(device=device, dtype=dtype)
+    cell_sequential = cortex.cells.slstm.sLSTMCell(cfg).to(device=device, dtype=dtype)
 
     # Ensure both cells have identical parameters
     cell_sequential.load_state_dict(cell_parallel.state_dict())
@@ -515,7 +515,7 @@ def test_slstm_triton_vs_pytorch_with_resets() -> None:
     H = 64  # head_dim should be power of 2 for Triton
     num_heads = 4
 
-    cfg = sLSTMCellConfig(
+    cfg = cortex.config.sLSTMCellConfig(
         hidden_size=H,
         num_heads=num_heads,
         conv1d_kernel_size=4,
@@ -523,8 +523,8 @@ def test_slstm_triton_vs_pytorch_with_resets() -> None:
     )
 
     # Create two cells with identical weights
-    cell_triton = sLSTMCell(cfg).to(device=device, dtype=dtype)
-    cell_pytorch = sLSTMCell(cfg).to(device=device, dtype=dtype)
+    cell_triton = cortex.cells.slstm.sLSTMCell(cfg).to(device=device, dtype=dtype)
+    cell_pytorch = cortex.cells.slstm.sLSTMCell(cfg).to(device=device, dtype=dtype)
     cell_pytorch.load_state_dict(cell_triton.state_dict())
 
     cell_triton.train()  # Triton path used in parallel sequence mode

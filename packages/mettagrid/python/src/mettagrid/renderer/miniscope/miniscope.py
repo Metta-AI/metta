@@ -7,30 +7,19 @@ import sys
 import termios
 import time
 import tty
-from typing import List, Optional
+import typing
 
-from rich.console import Console
+import rich.console
 
-from mettagrid.config.vibes import VIBES as VIBE_DATA
-from mettagrid.renderer.renderer import Renderer
-
-from .components import (
-    AgentControlComponent,
-    AgentInfoComponent,
-    HelpPanelComponent,
-    MapComponent,
-    MiniscopeComponent,
-    ObjectInfoComponent,
-    SimControlComponent,
-    SymbolsTableComponent,
-    VibePickerComponent,
-)
-from .miniscope_panel import LAYOUT_PADDING, RESERVED_VERTICAL_LINES, SIDEBAR_WIDTH, PanelLayout
-from .miniscope_state import MiniscopeState, PlaybackState, RenderMode
-from .symbol import DEFAULT_SYMBOL_MAP
+import mettagrid.config.vibes
+import mettagrid.renderer.miniscope.components
+import mettagrid.renderer.miniscope.miniscope_panel
+import mettagrid.renderer.miniscope.miniscope_state
+import mettagrid.renderer.miniscope.symbol
+import mettagrid.renderer.renderer
 
 
-class MiniscopeRenderer(Renderer):
+class MiniscopeRenderer(mettagrid.renderer.renderer.Renderer):
     """Emoji-based renderer for MettaGridEnv using component architecture."""
 
     def __init__(self, interactive: bool = True):
@@ -42,7 +31,7 @@ class MiniscopeRenderer(Renderer):
         super().__init__()
 
         # Renderer state
-        self._state = MiniscopeState()
+        self._state = mettagrid.renderer.miniscope.miniscope_state.MiniscopeState()
 
         # Rich console for rendering - reduce size by 1 to prevent wrapping
         try:
@@ -59,13 +48,13 @@ class MiniscopeRenderer(Renderer):
             console_height = 39
             self._initial_terminal_columns = console_width + 1
             self._initial_terminal_lines = console_height + 1
-        self._console = Console(width=console_width, height=console_height)
+        self._console = rich.console.Console(width=console_width, height=console_height)
 
         # Panel layout
-        self._panels = PanelLayout(self._console)
+        self._panels = mettagrid.renderer.miniscope.miniscope_panel.PanelLayout(self._console)
 
         # Components list
-        self._components: List[MiniscopeComponent] = []
+        self._components: typing.List[mettagrid.renderer.miniscope.components.MiniscopeComponent] = []
 
         # Terminal settings
         self._old_terminal_settings = None
@@ -91,22 +80,22 @@ class MiniscopeRenderer(Renderer):
         # Initialize configuration in state
         self._state.object_type_names = self._sim.object_type_names
         self._state.resource_names = self._sim.resource_names
-        self._state.symbol_map = DEFAULT_SYMBOL_MAP.copy()
+        self._state.symbol_map = mettagrid.renderer.miniscope.symbol.DEFAULT_SYMBOL_MAP.copy()
 
         # Add custom symbols from game config
         for obj in self._sim.config.game.objects.values():
             self._state.symbol_map[obj.name] = obj.render_symbol
 
-        self._state.vibes = [g.symbol for g in VIBE_DATA] if VIBE_DATA else None
+        self._state.vibes = [g.symbol for g in mettagrid.config.vibes.VIBES] if mettagrid.config.vibes.VIBES else None
 
         # Configure viewport once using the initial terminal size
         self._apply_initial_viewport_size()
 
         # Rebuild sidebar panel stack for this episode
         sidebar_defs = [
-            ("1", "agent_info", AgentInfoComponent),
-            ("2", "object_info", ObjectInfoComponent),
-            ("3", "symbols", SymbolsTableComponent),
+            ("1", "agent_info", mettagrid.renderer.miniscope.components.AgentInfoComponent),
+            ("2", "object_info", mettagrid.renderer.miniscope.components.ObjectInfoComponent),
+            ("3", "symbols", mettagrid.renderer.miniscope.components.SymbolsTableComponent),
         ]
         self._sidebar_hotkeys = {hotkey: name for hotkey, name, _ in sidebar_defs}
 
@@ -124,14 +113,44 @@ class MiniscopeRenderer(Renderer):
         self._components = []
 
         # Create components - all get the same PanelLayout
-        self._components.append(MapComponent(sim=self._sim, state=self._state, panels=self._panels))
-        self._components.append(SimControlComponent(sim=self._sim, state=self._state, panels=self._panels))
-        self._components.append(AgentControlComponent(sim=self._sim, state=self._state, panels=self._panels))
-        self._components.append(AgentInfoComponent(sim=self._sim, state=self._state, panels=self._panels))
-        self._components.append(ObjectInfoComponent(sim=self._sim, state=self._state, panels=self._panels))
-        self._components.append(SymbolsTableComponent(sim=self._sim, state=self._state, panels=self._panels))
-        self._components.append(VibePickerComponent(sim=self._sim, state=self._state, panels=self._panels))
-        self._components.append(HelpPanelComponent(sim=self._sim, state=self._state, panels=self._panels))
+        self._components.append(
+            mettagrid.renderer.miniscope.components.MapComponent(sim=self._sim, state=self._state, panels=self._panels)
+        )
+        self._components.append(
+            mettagrid.renderer.miniscope.components.SimControlComponent(
+                sim=self._sim, state=self._state, panels=self._panels
+            )
+        )
+        self._components.append(
+            mettagrid.renderer.miniscope.components.AgentControlComponent(
+                sim=self._sim, state=self._state, panels=self._panels
+            )
+        )
+        self._components.append(
+            mettagrid.renderer.miniscope.components.AgentInfoComponent(
+                sim=self._sim, state=self._state, panels=self._panels
+            )
+        )
+        self._components.append(
+            mettagrid.renderer.miniscope.components.ObjectInfoComponent(
+                sim=self._sim, state=self._state, panels=self._panels
+            )
+        )
+        self._components.append(
+            mettagrid.renderer.miniscope.components.SymbolsTableComponent(
+                sim=self._sim, state=self._state, panels=self._panels
+            )
+        )
+        self._components.append(
+            mettagrid.renderer.miniscope.components.VibePickerComponent(
+                sim=self._sim, state=self._state, panels=self._panels
+            )
+        )
+        self._components.append(
+            mettagrid.renderer.miniscope.components.HelpPanelComponent(
+                sim=self._sim, state=self._state, panels=self._panels
+            )
+        )
 
         # Set up terminal (hide cursor and set up input handling)
         self._setup_terminal()
@@ -140,7 +159,7 @@ class MiniscopeRenderer(Renderer):
         self._panels.start_live()
 
         # Start paused
-        self._state.playback = PlaybackState.PAUSED
+        self._state.playback = mettagrid.renderer.miniscope.miniscope_state.PlaybackState.PAUSED
         self._last_frame_time = time.time()
 
     def on_step(self) -> None:
@@ -153,7 +172,7 @@ class MiniscopeRenderer(Renderer):
 
     def on_episode_end(self) -> None:
         """Clean up renderer resources."""
-        self._state.playback = PlaybackState.STOPPED
+        self._state.playback = mettagrid.renderer.miniscope.miniscope_state.PlaybackState.STOPPED
         self._panels.stop_live()
         self._cleanup_terminal()
 
@@ -171,7 +190,10 @@ class MiniscopeRenderer(Renderer):
 
         while True:
             # Check if we should exit (episode done or stopped)
-            if self._sim.is_done() or self._state.playback == PlaybackState.STOPPED:
+            if (
+                self._sim.is_done()
+                or self._state.playback == mettagrid.renderer.miniscope.miniscope_state.PlaybackState.STOPPED
+            ):
                 break
 
             # Clear previous user action before reading new input
@@ -209,7 +231,7 @@ class MiniscopeRenderer(Renderer):
                 break
 
             # If paused, keep looping until we get a user action or unpause
-            if self._state.playback == PlaybackState.PAUSED:
+            if self._state.playback == mettagrid.renderer.miniscope.miniscope_state.PlaybackState.PAUSED:
                 was_paused_last_frame = True
                 time.sleep(1.0 / 60.0)  # Sleep at 60 FPS for smooth interaction
                 continue
@@ -237,14 +259,14 @@ class MiniscopeRenderer(Renderer):
 
         # Modal input handling: if in VIBE_PICKER mode, route directly to vibe picker
         # This ensures the picker gets ALL input and blocks everything else
-        if self._state.mode == RenderMode.VIBE_PICKER:
+        if self._state.mode == mettagrid.renderer.miniscope.miniscope_state.RenderMode.VIBE_PICKER:
             for component in self._components:
-                if isinstance(component, VibePickerComponent):
+                if isinstance(component, mettagrid.renderer.miniscope.components.VibePickerComponent):
                     component.handle_input(ch)
                     return
 
         # Modal input handling: if in HELP mode, any key exits
-        if self._state.mode == RenderMode.HELP:
+        if self._state.mode == mettagrid.renderer.miniscope.miniscope_state.RenderMode.HELP:
             self._state.exit_help()
             return
 
@@ -269,7 +291,7 @@ class MiniscopeRenderer(Renderer):
         # Render using Rich Console API
         self._panels.render_to_console()
 
-    def _show_help_screen(self, help_lines: List[str]) -> None:
+    def _show_help_screen(self, help_lines: typing.List[str]) -> None:
         """Show the help screen and wait for input."""
         self._console.clear()
         for line in help_lines:
@@ -285,7 +307,7 @@ class MiniscopeRenderer(Renderer):
             finally:
                 termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
 
-    def _get_input(self) -> Optional[str]:
+    def _get_input(self) -> typing.Optional[str]:
         """Get keyboard input if available."""
         if self._terminal_fd is None:
             return None
@@ -300,7 +322,7 @@ class MiniscopeRenderer(Renderer):
         if self._state.should_step:
             return True
 
-        if self._state.playback == PlaybackState.RUNNING:
+        if self._state.playback == mettagrid.renderer.miniscope.miniscope_state.PlaybackState.RUNNING:
             current_time = time.time()
             frame_delay = self._state.get_frame_delay()
             time_elapsed = current_time - self._last_frame_time
@@ -310,14 +332,14 @@ class MiniscopeRenderer(Renderer):
 
     def _sleep_for_fps(self) -> None:
         """Sleep to maintain target FPS."""
-        if self._state.playback == PlaybackState.RUNNING:
+        if self._state.playback == mettagrid.renderer.miniscope.miniscope_state.PlaybackState.RUNNING:
             current_time = time.time()
             frame_delay = self._state.get_frame_delay()
             time_elapsed = current_time - self._last_frame_time
 
             if time_elapsed < frame_delay:
                 time.sleep(frame_delay - time_elapsed)
-        elif self._state.playback == PlaybackState.PAUSED:
+        elif self._state.playback == mettagrid.renderer.miniscope.miniscope_state.PlaybackState.PAUSED:
             # Sleep a bit when paused to avoid busy waiting
             time.sleep(0.05)
 
@@ -330,7 +352,7 @@ class MiniscopeRenderer(Renderer):
         columns = max(2, self._initial_terminal_columns)
         lines = max(2, self._initial_terminal_lines)
 
-        viewport_height = max(1, lines - RESERVED_VERTICAL_LINES)
+        viewport_height = max(1, lines - mettagrid.renderer.miniscope.miniscope_panel.RESERVED_VERTICAL_LINES)
         if self._state.map_height:
             viewport_height = min(viewport_height, self._state.map_height)
 
@@ -339,10 +361,15 @@ class MiniscopeRenderer(Renderer):
 
         if sidebar_visible:
             # Reserve space for sidebar
-            available_width = max(2, columns - SIDEBAR_WIDTH - LAYOUT_PADDING)
+            available_width = max(
+                2,
+                columns
+                - mettagrid.renderer.miniscope.miniscope_panel.SIDEBAR_WIDTH
+                - mettagrid.renderer.miniscope.miniscope_panel.LAYOUT_PADDING,
+            )
         else:
             # Use full width when sidebar is hidden
-            available_width = max(2, columns - LAYOUT_PADDING)
+            available_width = max(2, columns - mettagrid.renderer.miniscope.miniscope_panel.LAYOUT_PADDING)
 
         viewport_width = max(1, available_width // 2)
         if self._state.map_width:

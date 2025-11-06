@@ -1,13 +1,13 @@
-from typing import Mapping, Tuple
+import typing
 
+import einops
+import tensordict
 import torch
 import torch.nn as nn
-from einops import rearrange
-from tensordict import TensorDict
-from torch.nn.modules.module import _IncompatibleKeys
-from torchrl.data import Composite, UnboundedDiscrete
+import torch.nn.modules.module
+import torchrl.data
 
-from metta.agent.components.component_config import ComponentConfig
+import metta.agent.components.component_config
 
 
 class LstmTrainStep:
@@ -20,7 +20,7 @@ class LstmTrainStep:
         h_t: torch.Tensor,
         c_t: torch.Tensor,
         reset_mask: torch.Tensor,
-    ) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+    ) -> typing.Tuple[torch.Tensor, typing.Tuple[torch.Tensor, torch.Tensor]]:
         outputs = []
         for t in range(latent.size(0)):
             latent_t = latent[t].unsqueeze(0)
@@ -34,7 +34,7 @@ class LstmTrainStep:
         return hidden, (h_t, c_t)
 
 
-class LSTMResetConfig(ComponentConfig):
+class LSTMResetConfig(metta.agent.components.component_config.ComponentConfig):
     in_key: str
     out_key: str
     name: str = "lstm_reset"
@@ -112,9 +112,9 @@ class LSTMReset(nn.Module):
 
     def load_state_dict(
         self,
-        state_dict: Mapping[str, torch.Tensor],
+        state_dict: typing.Mapping[str, torch.Tensor],
         strict: bool = True,
-    ) -> _IncompatibleKeys:
+    ) -> torch.nn.modules.module._IncompatibleKeys:
         load_info = super().load_state_dict(state_dict, strict=strict)
         self.reset_memory()
         return load_info
@@ -133,7 +133,7 @@ class LSTMReset(nn.Module):
         self._allocated_envs = required_envs
 
     @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
-    def forward(self, td: TensorDict):
+    def forward(self, td: tensordict.TensorDict):
         latent = td[self.config.in_key]  # → (batch * TT, hidden_size)
 
         B = td.batch_size.numel()
@@ -176,12 +176,12 @@ class LSTMReset(nn.Module):
             td["lstm_h"] = h_0.permute(1, 0, 2).detach()
             td["lstm_c"] = c_0.permute(1, 0, 2).detach()
 
-        latent = rearrange(latent, "(b t) h -> t b h", b=B, t=TT)
+        latent = einops.rearrange(latent, "(b t) h -> t b h", b=B, t=TT)
         if TT != 1:
             h_0 = td["lstm_h"]
             c_0 = td["lstm_c"]
-            h_0 = rearrange(h_0, "(b t) x y -> b t x y", b=B, t=TT)[:, 0].permute(1, 0, 2)
-            c_0 = rearrange(c_0, "(b t) x y -> b t x y", b=B, t=TT)[:, 0].permute(1, 0, 2)
+            h_0 = einops.rearrange(h_0, "(b t) x y -> b t x y", b=B, t=TT)[:, 0].permute(1, 0, 2)
+            c_0 = einops.rearrange(c_0, "(b t) x y -> b t x y", b=B, t=TT)[:, 0].permute(1, 0, 2)
 
             hidden, (h_n, c_n) = self._forward_train_step(latent, h_0, c_0, reset_mask)
 
@@ -190,7 +190,7 @@ class LSTMReset(nn.Module):
             self.lstm_h[:, training_env_ids] = h_n.detach()
             self.lstm_c[:, training_env_ids] = c_n.detach()
 
-        hidden = rearrange(hidden, "t b h -> (b t) h")
+        hidden = einops.rearrange(hidden, "t b h -> (b t) h")
 
         td[self.out_key] = hidden
 
@@ -201,26 +201,26 @@ class LSTMReset(nn.Module):
         reset_mask = reset_mask.view(1, latent.size(1), -1, 1)  # Shape: [1, B, TT, 1]
         return self._train_step(latent, h_t, c_t, reset_mask)
 
-    def get_agent_experience_spec(self) -> Composite:
-        return Composite(
+    def get_agent_experience_spec(self) -> torchrl.data.Composite:
+        return torchrl.data.Composite(
             {
-                "lstm_h": UnboundedDiscrete(
+                "lstm_h": torchrl.data.UnboundedDiscrete(
                     shape=torch.Size([self.num_layers, self.hidden_size]),
                     dtype=torch.float32,
                 ),
-                "lstm_c": UnboundedDiscrete(
+                "lstm_c": torchrl.data.UnboundedDiscrete(
                     shape=torch.Size([self.num_layers, self.hidden_size]),
                     dtype=torch.float32,
                 ),
-                "dones": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
-                "truncateds": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
+                "dones": torchrl.data.UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
+                "truncateds": torchrl.data.UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
             }
         )
 
-    def get_memory(self) -> Tuple[torch.Tensor, torch.Tensor]:
+    def get_memory(self) -> typing.Tuple[torch.Tensor, torch.Tensor]:
         return self.lstm_h, self.lstm_c
 
-    def set_memory(self, memory: Tuple[torch.Tensor, torch.Tensor]) -> None:
+    def set_memory(self, memory: typing.Tuple[torch.Tensor, torch.Tensor]) -> None:
         """Cannot be called at the Policy level - use policy.<path_to_this_layer>.set_memory()"""
         self.lstm_h, self.lstm_c = memory[0], memory[1]
         self._allocated_envs = self.lstm_h.size(1)

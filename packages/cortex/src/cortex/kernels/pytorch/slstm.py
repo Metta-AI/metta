@@ -1,8 +1,7 @@
 """PyTorch sLSTM sequence kernel with stabilized exponential gating."""
 
-from __future__ import annotations
 
-from typing import Tuple
+import typing
 
 import torch
 
@@ -92,7 +91,7 @@ def slstm_sequence_pytorch(
     b: torch.Tensor,  # (4, NH, DH) bias per gate
     initial_states: torch.Tensor,  # (4, B, NH, DH) states (h, c, n, m)
     resets: torch.Tensor | None = None,  # (B, T) reset mask
-) -> Tuple[torch.Tensor, torch.Tensor]:
+) -> typing.Tuple[torch.Tensor, torch.Tensor]:
     """Run sLSTM sequence using pure PyTorch (ground truth implementation).
 
     This is the reference implementation that Triton kernels should match exactly.

@@ -1,7 +1,7 @@
-from typing import Optional
+import typing
 
-from metta.app_backend.clients.base_client import get_machine_token
-from metta.app_backend.sweep_client import SweepClient
+import metta.app_backend.clients.base_client
+import metta.app_backend.sweep_client
 
 
 class CogwebClient:
@@ -13,14 +13,16 @@ class CogwebClient:
         """Initialize the Cogweb client. Note: Use get_client() factory method for cached instances."""
         self._base_url = base_url
         self._auth_token = auth_token
-        self._sweep_client = SweepClient(base_url, auth_token)
+        self._sweep_client = metta.app_backend.sweep_client.SweepClient(base_url, auth_token)
 
     @classmethod
-    def get_client(cls, base_url: str = "http://localhost:8000", auth_token: Optional[str] = None) -> "CogwebClient":
+    def get_client(
+        cls, base_url: str = "http://localhost:8000", auth_token: typing.Optional[str] = None
+    ) -> "CogwebClient":
         """Factory method to get or create a cached CogwebClient instance."""
         # Resolve auth token if not provided
         if auth_token is None:
-            auth_token = get_machine_token(base_url)
+            auth_token = metta.app_backend.clients.base_client.get_machine_token(base_url)
 
         # If still None, use empty string (SweepClient will handle authentication errors)
         if auth_token is None:
@@ -41,7 +43,7 @@ class CogwebClient:
         """Clear the instance cache. Useful for testing."""
         cls._instances.clear()
 
-    def sweep_client(self) -> SweepClient:
+    def sweep_client(self) -> metta.app_backend.sweep_client.SweepClient:
         """Get the sweep client for direct access to sweep operations."""
         return self._sweep_client
 

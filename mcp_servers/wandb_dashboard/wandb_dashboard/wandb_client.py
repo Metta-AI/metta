@@ -7,11 +7,10 @@ Handles authentication, error handling, and provides convenient methods for MCP 
 
 import json
 import logging
-from typing import Any, Dict, List, Optional
+import typing
 
 import wandb
 import wandb_workspaces.reports.v2 as wr
-from wandb import Api
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +18,7 @@ logger = logging.getLogger(__name__)
 class WandBClient:
     """Client wrapper for WandB API operations."""
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: typing.Optional[str] = None):
         """Initialize the WandB client.
 
         Args:
@@ -34,7 +33,7 @@ class WandBClient:
         try:
             # Try to use existing wandb authentication first
             try:
-                self.api = Api()
+                self.api = wandb.Api()
                 # Test the API by getting viewer info
                 _ = self.api.viewer
                 logger.info("WandB API client initialized successfully using cached credentials")
@@ -45,22 +44,22 @@ class WandBClient:
             # If cached credentials don't work, try explicit login
             if self.api_key:
                 wandb.login(key=self.api_key)
-                self.api = Api()
+                self.api = wandb.Api()
                 logger.info("WandB API client initialized successfully with provided API key")
             else:
                 logger.warning("No API key provided and cached credentials failed")
                 # Still try to initialize API in case wandb is configured
-                self.api = Api()
+                self.api = wandb.Api()
                 logger.info("WandB API client initialized (authentication may be limited)")
 
         except Exception as e:
             logger.error(f"Failed to initialize WandB API: {e}", exc_info=True)
             raise
 
-    def _create_fresh_api_client(self) -> Api:
+    def _create_fresh_api_client(self) -> wandb.Api:
         """Create a fresh API client to bypass caching issues."""
         try:
-            fresh_api = Api()
+            fresh_api = wandb.Api()
             # Test the API
             _ = fresh_api.viewer
             logger.info("Created fresh WandB API client")
@@ -101,8 +100,11 @@ class WandBClient:
         return entity, project, report_id
 
     async def list_workspaces(
-        self, entity: str, project: Optional[str] = None, filters: Optional[Dict[str, Any]] = None
-    ) -> List[Dict[str, Any]]:
+        self,
+        entity: str,
+        project: typing.Optional[str] = None,
+        filters: typing.Optional[typing.Dict[str, typing.Any]] = None,
+    ) -> typing.List[typing.Dict[str, typing.Any]]:
         """List available workspaces/dashboards for an entity/project.
 
         Args:
@@ -162,8 +164,8 @@ class WandBClient:
             raise
 
     async def get_project_metrics(
-        self, entity: str, project: str, run_filters: Optional[Dict[str, Any]] = None
-    ) -> List[Dict[str, Any]]:
+        self, entity: str, project: str, run_filters: typing.Optional[typing.Dict[str, typing.Any]] = None
+    ) -> typing.List[typing.Dict[str, typing.Any]]:
         """Get available metrics for a project.
 
         Args:
@@ -285,7 +287,7 @@ class WandBClient:
             logger.error(f"Failed to get project metrics: {e}", exc_info=True)
             raise
 
-    async def get_run_details(self, entity: str, project: str, run_id: str) -> Dict[str, Any]:
+    async def get_run_details(self, entity: str, project: str, run_id: str) -> typing.Dict[str, typing.Any]:
         """Get detailed information about a specific run.
 
         Args:
@@ -369,8 +371,13 @@ class WandBClient:
         return str(value)
 
     async def create_dashboard(
-        self, entity: str, project: str, name: str, description: str = "", sections: List[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        self,
+        entity: str,
+        project: str,
+        name: str,
+        description: str = "",
+        sections: typing.List[typing.Dict[str, typing.Any]] = None,
+    ) -> typing.Dict[str, typing.Any]:
         """Create a new WandB dashboard/report."""
         try:
             logger.info(f"Creating dashboard '{name}' for {entity}/{project}")
@@ -473,7 +480,9 @@ class WandBClient:
             # Return JSON-serializable error info
             return {"status": "error", "error": str(e), "name": name, "entity": entity, "project": project}
 
-    async def update_dashboard(self, dashboard_url: str, modifications: Dict[str, Any]) -> Dict[str, Any]:
+    async def update_dashboard(
+        self, dashboard_url: str, modifications: typing.Dict[str, typing.Any]
+    ) -> typing.Dict[str, typing.Any]:
         """Update an existing dashboard/report in-place with true modifications."""
         try:
             logger.info(f"Updating dashboard: {dashboard_url}")
@@ -551,7 +560,7 @@ class WandBClient:
             logger.error(f"Failed to update dashboard: {e}", exc_info=True)
             return {"status": "error", "error": str(e), "url": dashboard_url}
 
-    async def clone_dashboard(self, source_url: str, new_name: str) -> Dict[str, Any]:
+    async def clone_dashboard(self, source_url: str, new_name: str) -> typing.Dict[str, typing.Any]:
         """Clone an existing dashboard."""
         try:
             logger.info(f"Cloning dashboard from {source_url} as '{new_name}'")
@@ -609,7 +618,7 @@ class WandBClient:
             logger.error(f"Failed to clone dashboard: {e}", exc_info=True)
             return {"status": "error", "error": str(e), "source_url": source_url, "new_name": new_name}
 
-    async def get_dashboard_config(self, dashboard_url: str) -> Dict[str, Any]:
+    async def get_dashboard_config(self, dashboard_url: str) -> typing.Dict[str, typing.Any]:
         """Get configuration of an existing dashboard/report."""
         try:
             logger.info(f"Getting configuration for dashboard: {dashboard_url}")
@@ -683,8 +692,8 @@ class WandBClient:
             return {"status": "error", "error": str(e), "url": dashboard_url}
 
     async def add_panel_to_dashboard(
-        self, dashboard_url: str, section_name: str, panel_type: str, panel_config: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, dashboard_url: str, section_name: str, panel_type: str, panel_config: typing.Dict[str, typing.Any]
+    ) -> typing.Dict[str, typing.Any]:
         """Add a panel to an existing dashboard."""
         try:
             logger.info(f"Adding {panel_type} panel to '{section_name}' in dashboard: {dashboard_url}")
@@ -762,7 +771,9 @@ class WandBClient:
             logger.error(f"Failed to add panel to dashboard: {e}", exc_info=True)
             return {"status": "error", "error": str(e), "url": dashboard_url}
 
-    async def update_panel(self, dashboard_url: str, panel_identifier: dict, new_content: str) -> Dict[str, Any]:
+    async def update_panel(
+        self, dashboard_url: str, panel_identifier: dict, new_content: str
+    ) -> typing.Dict[str, typing.Any]:
         """Update content of an existing panel/block in a dashboard."""
         try:
             logger.info(f"Updating panel in dashboard: {dashboard_url}")
@@ -877,7 +888,7 @@ class WandBClient:
             logger.error(f"Failed to update panel: {e}", exc_info=True)
             return {"status": "error", "error": str(e), "url": dashboard_url}
 
-    async def remove_panel(self, dashboard_url: str, panel_identifier: dict) -> Dict[str, Any]:
+    async def remove_panel(self, dashboard_url: str, panel_identifier: dict) -> typing.Dict[str, typing.Any]:
         """Remove an existing panel/block from a dashboard."""
         try:
             logger.info(f"Removing panel from dashboard: {dashboard_url}")
@@ -994,8 +1005,13 @@ class WandBClient:
             return {"status": "error", "error": str(e), "url": dashboard_url}
 
     async def create_custom_chart(
-        self, entity: str, project: str, metrics: List[str], chart_type: str, config: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self,
+        entity: str,
+        project: str,
+        metrics: typing.List[str],
+        chart_type: str,
+        config: typing.Dict[str, typing.Any],
+    ) -> typing.Dict[str, typing.Any]:
         """Create a custom chart/visualization with specified metrics and configuration."""
         try:
             logger.info(f"Creating custom {chart_type} chart for {entity}/{project} with metrics: {metrics}")
@@ -1144,7 +1160,9 @@ This chart was created using the WandB MCP server's `create_custom_chart` tool.
             logger.error(f"Failed to create custom chart: {e}", exc_info=True)
             return {"status": "error", "error": str(e)}
 
-    async def bulk_delete_dashboards(self, dashboard_urls: List[str], confirmed: bool = False) -> Dict[str, Any]:
+    async def bulk_delete_dashboards(
+        self, dashboard_urls: typing.List[str], confirmed: bool = False
+    ) -> typing.Dict[str, typing.Any]:
         """Bulk delete multiple WandB dashboards with confirmation.
 
         Args:

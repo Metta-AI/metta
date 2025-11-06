@@ -1,34 +1,33 @@
 """Evaluation helpers for CoGames policies."""
 
-from __future__ import annotations
 
+import collections
+import dataclasses
+import datetime
 import json
 import math
 import re
-from collections import defaultdict
-from dataclasses import dataclass
-from datetime import datetime
-from typing import TYPE_CHECKING, Literal, Optional
+import typing
 
 import numpy as np
+import pydantic
+import rich.console
+import rich.table
 import typer
 import yaml  # type: ignore[import]
-from pydantic import BaseModel, Field
-from rich.console import Console
-from rich.table import Table
 
-from mettagrid import MettaGridConfig
-from mettagrid.policy.policy import PolicySpec
-from mettagrid.policy.utils import initialize_or_load_policy
-from mettagrid.simulator.rollout import Rollout
+import mettagrid
+import mettagrid.policy.policy
+import mettagrid.policy.utils
+import mettagrid.simulator.rollout
 
-if TYPE_CHECKING:
-    from mettagrid.mettagrid_c import EpisodeStats
+if typing.TYPE_CHECKING:
+    import mettagrid.mettagrid_c
 
 _SKIP_STATS = [r"^action\.invalid_arg\..+$"]
 
 
-@dataclass
+@dataclasses.dataclass
 class MissionEvaluationResult:
     # Name of the mission
     mission_name: str
@@ -52,7 +51,7 @@ class MissionEvaluationResult:
     episodes: int
 
 
-class MissionPolicySummary(BaseModel):
+class MissionPolicySummary(pydantic.BaseModel):
     # Possibly non-unique
     policy_name: str
     # Number of agents assigned to this policy for this mission
@@ -63,7 +62,7 @@ class MissionPolicySummary(BaseModel):
     action_timeouts: int
 
 
-class MissionSummary(BaseModel):
+class MissionSummary(pydantic.BaseModel):
     # Name of the mission
     mission_name: str
     # Total number of episodes simulated for this mission
@@ -77,14 +76,14 @@ class MissionSummary(BaseModel):
     per_episode_per_policy_avg_rewards: dict[int, list[float | None]]
 
 
-class MissionResultsSummary(BaseModel):
-    generated_at: datetime = Field(default_factory=datetime.utcnow)
+class MissionResultsSummary(pydantic.BaseModel):
+    generated_at: datetime.datetime = pydantic.Field(default_factory=datetime.datetime.utcnow)
     missions: list[MissionSummary]
 
 
 def _build_results_summary(
     mission_results: list[MissionEvaluationResult],
-    policy_specs: list[PolicySpec],
+    policy_specs: list[mettagrid.policy.policy.PolicySpec],
 ) -> MissionResultsSummary:
     if not mission_results:
         return MissionResultsSummary(missions=[])
@@ -94,7 +93,7 @@ def _build_results_summary(
     for mr in mission_results:
         policy_summaries: list[MissionPolicySummary] = []
 
-        per_episode_per_policy_avg_rewards: dict[int, list[float | None]] = defaultdict(list)
+        per_episode_per_policy_avg_rewards: dict[int, list[float | None]] = collections.defaultdict(list)
         for episode_idx, rewards in enumerate(mr.per_episode_rewards):
             episode_assignments = mr.per_episode_assignments[episode_idx]
             per_policy_totals = np.zeros(len(policy_specs), dtype=float)
@@ -134,7 +133,7 @@ def _build_results_summary(
     return MissionResultsSummary(missions=summaries)
 
 
-def _compute_policy_agent_counts(num_agents: int, policy_specs: list[PolicySpec]) -> list[int]:
+def _compute_policy_agent_counts(num_agents: int, policy_specs: list[mettagrid.policy.policy.PolicySpec]) -> list[int]:
     total = sum(spec.proportion for spec in policy_specs)
     if total <= 0:
         raise ValueError("Total policy proportion must be positive.")
@@ -153,14 +152,14 @@ def _compute_policy_agent_counts(num_agents: int, policy_specs: list[PolicySpec]
 
 
 def evaluate(
-    console: Console,
-    missions: list[tuple[str, MettaGridConfig]],
-    policy_specs: list[PolicySpec],
+    console: rich.console.Console,
+    missions: list[tuple[str, mettagrid.MettaGridConfig]],
+    policy_specs: list[mettagrid.policy.policy.PolicySpec],
     episodes: int,
     action_timeout_ms: int,
-    max_steps: Optional[int] = None,
+    max_steps: typing.Optional[int] = None,
     seed: int = 42,
-    output_format: Optional[Literal["yaml", "json"]] = None,
+    output_format: typing.Optional[typing.Literal["yaml", "json"]] = None,
 ) -> MissionResultsSummary:
     if not missions:
         raise ValueError("At least one mission must be provided for evaluation.")
@@ -198,10 +197,10 @@ def evaluate(
 
 
 def _output_results(
-    console: Console,
-    policy_specs: list[PolicySpec],
+    console: rich.console.Console,
+    policy_specs: list[mettagrid.policy.policy.PolicySpec],
     summary: MissionResultsSummary,
-    output_format: Optional[Literal["yaml", "json"]],
+    output_format: typing.Optional[typing.Literal["yaml", "json"]],
 ) -> None:
     if output_format:
         if output_format == "json":
@@ -211,7 +210,7 @@ def _output_results(
         console.print(serialized)
         return
 
-    name_count: defaultdict[str, int] = defaultdict(int)
+    name_count: collections.defaultdict[str, int] = collections.defaultdict(int)
     display_names: list[str] = []
     for policy_spec in policy_specs:
         name_count[policy_spec.name] += 1
@@ -221,7 +220,7 @@ def _output_results(
             display_names.append(policy_spec.name)
 
     console.print("\n[bold cyan]Policy Assignments[/bold cyan]")
-    assignment_table = Table(show_header=True, header_style="bold magenta")
+    assignment_table = rich.table.Table(show_header=True, header_style="bold magenta")
     assignment_table.add_column("Mission")
     assignment_table.add_column("Policy")
     assignment_table.add_column("Num Agents", justify="right")
@@ -236,7 +235,7 @@ def _output_results(
 
     console.print("\n[bold cyan]Average Policy Stats[/bold cyan]")
     for i, policy_name in enumerate(display_names):
-        policy_table = Table(title=policy_name, show_header=True, header_style="bold magenta")
+        policy_table = rich.table.Table(title=policy_name, show_header=True, header_style="bold magenta")
         policy_table.add_column("Mission")
         policy_table.add_column("Metric")
         policy_table.add_column("Average", justify="right")
@@ -250,7 +249,7 @@ def _output_results(
         console.print(policy_table)
 
     console.print("\n[bold cyan]Average Game Stats[/bold cyan]")
-    game_stats_table = Table(show_header=True, header_style="bold magenta")
+    game_stats_table = rich.table.Table(show_header=True, header_style="bold magenta")
     game_stats_table.add_column("Mission")
     game_stats_table.add_column("Metric")
     game_stats_table.add_column("Average", justify="right")
@@ -260,7 +259,7 @@ def _output_results(
     console.print(game_stats_table)
 
     console.print("\n[bold cyan]Average Reward per Agent[/bold cyan]")
-    summary_table = Table(show_header=True, header_style="bold magenta")
+    summary_table = rich.table.Table(show_header=True, header_style="bold magenta")
     summary_table.add_column("Mission")
     summary_table.add_column("Episode", justify="right")
     for display_name in display_names:
@@ -276,7 +275,7 @@ def _output_results(
 
     if any(policy.action_timeouts for mission in summary.missions for policy in mission.policy_summaries):
         console.print("\n[bold cyan]Action Generation Timeouts per Policy[/bold cyan]")
-        timeouts_table = Table(show_header=True, header_style="bold magenta")
+        timeouts_table = rich.table.Table(show_header=True, header_style="bold magenta")
         timeouts_table.add_column("Mission")
         timeouts_table.add_column("Policy")
         timeouts_table.add_column("Timeouts", justify="right")
@@ -293,19 +292,19 @@ def _output_results(
 
 def _evaluate_single_mission(
     mission_name: str,
-    env_cfg: MettaGridConfig,
-    policy_specs: list[PolicySpec],
+    env_cfg: mettagrid.MettaGridConfig,
+    policy_specs: list[mettagrid.policy.policy.PolicySpec],
     episodes: int,
     action_timeout_ms: int,
-    max_steps: Optional[int],
+    max_steps: typing.Optional[int],
     seed: int,
 ) -> MissionEvaluationResult:
     # Create PolicyEnvInterface from config to get observation shape for policies that require it (e.g., LSTM)
-    from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+    import mettagrid.policy.policy_env_interface
 
-    policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
+    policy_env_info = mettagrid.policy.policy_env_interface.PolicyEnvInterface.from_mg_cfg(env_cfg)
     policy_instances = [
-        initialize_or_load_policy(
+        mettagrid.policy.utils.initialize_or_load_policy(
             policy_env_info,
             spec.policy_class_path,
             spec.policy_data_path,
@@ -334,7 +333,7 @@ def _evaluate_single_mission(
                 for agent_id in range(env_cfg.game.num_agents)
             ]
 
-            rollout = Rollout(
+            rollout = mettagrid.simulator.rollout.Rollout(
                 env_cfg,
                 agent_policies,
                 max_action_time_ms=action_timeout_ms,
@@ -354,8 +353,8 @@ def _evaluate_single_mission(
                     policy_idx = int(assignments[agent_id])
                     per_policy_timeouts[policy_idx] += timeout_count
 
-    summed_game_stats: dict[str, float] = defaultdict(float)
-    summed_policy_stats: list[dict[str, float]] = [defaultdict(float) for _ in policy_specs]
+    summed_game_stats: dict[str, float] = collections.defaultdict(float)
+    summed_policy_stats: list[dict[str, float]] = [collections.defaultdict(float) for _ in policy_specs]
 
     for episode_idx, stats in enumerate(per_episode_stats):
         game_stats = stats.get("game", {})

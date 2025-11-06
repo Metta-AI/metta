@@ -1,36 +1,25 @@
 """Arena Basic Easy Shaped recipe targeting the SmolLLM policy."""
 
-from __future__ import annotations
 
 import importlib.util
-from typing import Optional
+import typing
 
 import metta.cogworks.curriculum as cc
-from experiments.recipes.arena_basic_easy_shaped import (
-    evaluate,
-    evaluate_in_sweep,
-    mettagrid,
-    play,
-    replay,
-    simulations,
-    sweep as _arena_sweep,
-    train as base_train,
-)
-from metta.agent.policies.smollm import SmolLLMConfig
-from metta.agent.policy import PolicyArchitecture
-from metta.cogworks.curriculum.curriculum import (
-    CurriculumAlgorithmConfig,
-    CurriculumConfig,
-)
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.tools.train import TrainTool
-from metta.tools.sweep import SweepTool
-from mettagrid import MettaGridConfig
+import experiments.recipes.arena_basic_easy_shaped
+import metta.agent.policies.smollm
+import metta.agent.policy
+import metta.cogworks.curriculum.curriculum
+import metta.cogworks.curriculum.learning_progress_algorithm
+import metta.tools.train
+import metta.tools.sweep
+import mettagrid
 
 _FLASH_ATTENTION_AVAILABLE = importlib.util.find_spec("flash_attn") is not None
 
 
-def _select_attn_implementation(attn_implementation: Optional[str]) -> Optional[str]:
+def _select_attn_implementation(
+    attn_implementation: typing.Optional[str],
+) -> typing.Optional[str]:
     """Prefer FlashAttention when installed; otherwise fall back to eager attention."""
 
     if attn_implementation is not None:
@@ -42,12 +31,14 @@ def _select_attn_implementation(attn_implementation: Optional[str]) -> Optional[
 
 def train(
     *,
-    curriculum: Optional[CurriculumConfig] = None,
+    curriculum: typing.Optional[
+        metta.cogworks.curriculum.curriculum.CurriculumConfig
+    ] = None,
     enable_detailed_slice_logging: bool = False,
     freeze_llm: bool = True,
-    model_name: Optional[str] = None,
-    attn_implementation: Optional[str] = None,
-    policy_architecture: Optional[PolicyArchitecture] = None,
+    model_name: typing.Optional[str] = None,
+    attn_implementation: typing.Optional[str] = None,
+    policy_architecture: typing.Optional[metta.agent.policy.PolicyArchitecture] = None,
 ):
     if policy_architecture is None:
         config_kwargs = {
@@ -58,13 +49,13 @@ def train(
             "value_head_rank": 8,
         }
         config_kwargs["model_name"] = model_name or "HuggingFaceTB/SmolLM2-135M"
-        policy_architecture = SmolLLMConfig(**config_kwargs)
+        policy_architecture = metta.agent.policies.smollm.SmolLLMConfig(**config_kwargs)
 
     resolved_curriculum = curriculum or make_curriculum(
         enable_detailed_slice_logging=enable_detailed_slice_logging,
     )
 
-    tool = base_train(
+    tool = experiments.recipes.arena_basic_easy_shaped.train(
         curriculum=resolved_curriculum,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         policy_architecture=policy_architecture,
@@ -73,7 +64,9 @@ def train(
     return _apply_smollm_defaults(tool)
 
 
-def _apply_smollm_defaults(tool: TrainTool) -> TrainTool:
+def _apply_smollm_defaults(
+    tool: metta.tools.train.TrainTool,
+) -> metta.tools.train.TrainTool:
     """Clamp heavy training defaults to keep SmolLLM within memory limits."""
 
     trainer = tool.trainer
@@ -127,14 +120,16 @@ __all__ = [
 
 
 def make_curriculum(
-    arena_env: Optional[MettaGridConfig] = None,
+    arena_env: typing.Optional[mettagrid.MettaGridConfig] = None,
     *,
     enable_detailed_slice_logging: bool = False,
-    algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
-) -> CurriculumConfig:
+    algorithm_config: typing.Optional[
+        metta.cogworks.curriculum.curriculum.CurriculumAlgorithmConfig
+    ] = None,
+) -> metta.cogworks.curriculum.curriculum.CurriculumConfig:
     """SmolLLM-friendly arena curriculum that avoids legacy converter fields."""
 
-    env = arena_env or mettagrid()
+    env = arena_env or experiments.recipes.arena_basic_easy_shaped.mettagrid()
     tasks = cc.bucketed(env)
 
     for item in ["ore_red", "battery_red", "laser", "armor"]:
@@ -146,7 +141,7 @@ def make_curriculum(
     tasks.add_bucket("game.actions.attack.consumed_resources.laser", [1, 100])
 
     if algorithm_config is None:
-        algorithm_config = LearningProgressConfig(
+        algorithm_config = metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig(
             use_bidirectional=True,
             ema_timescale=0.001,
             exploration_bonus=0.1,
@@ -161,7 +156,7 @@ def make_curriculum(
 def sweep(
     sweep_name: str,
     **kwargs: object,
-) -> SweepTool:
+) -> metta.tools.sweep.SweepTool:
     """Expose the canonical arena sweep for SmolLLM recipes."""
 
     return _delegate_sweep(sweep_name, **kwargs)
@@ -170,11 +165,11 @@ def sweep(
 def sweep_async_progressive(
     sweep_name: str,
     **kwargs: object,
-) -> SweepTool:
+) -> metta.tools.sweep.SweepTool:
     """Backward-compatible alias retained for historical CLI invocations."""
 
     return _delegate_sweep(sweep_name, **kwargs)
 
 
-def _delegate_sweep(sweep_name: str, **kwargs: object) -> SweepTool:
-    return _arena_sweep(sweep_name, **kwargs)
+def _delegate_sweep(sweep_name: str, **kwargs: object) -> metta.tools.sweep.SweepTool:
+    return experiments.recipes.arena_basic_easy_shaped.sweep(sweep_name, **kwargs)

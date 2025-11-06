@@ -4,10 +4,10 @@ import argparse
 import os
 import subprocess
 import sys
-from typing import Optional
+import typing
 
 
-def find_test_binary(bin_name: str) -> Optional[str]:
+def find_test_binary(bin_name: str) -> typing.Optional[str]:
     """Locate the test binary in the Bazel runfiles alongside this script."""
     script_dir = os.path.dirname(__file__)
     candidate = os.path.join(script_dir, bin_name)

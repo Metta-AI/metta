@@ -1,27 +1,26 @@
 """MCP server for PR similarity lookups."""
 
-from __future__ import annotations
 
 import asyncio
+import dataclasses
+import datetime
 import json
 import logging
 import os
+import pathlib
 import sys
-from dataclasses import dataclass
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, cast
+import typing
 
+import mcp.server
+import mcp.server.stdio
 import mcp.types as types
-from mcp.server import Server
-from mcp.server.stdio import stdio_server
 
-if TYPE_CHECKING:
-    from metta.tools.pr_similarity import EmbeddingRecord as EmbeddingRecordType
+if typing.TYPE_CHECKING:
+    import metta.tools.pr_similarity
 
 
-def _find_repo_root() -> Path:
-    current = Path(__file__).resolve()
+def _find_repo_root() -> pathlib.Path:
+    current = pathlib.Path(__file__).resolve()
     for parent in current.parents:
         if (parent / ".git").exists():
             return parent
@@ -50,8 +49,8 @@ find_similar_prs = PR_SIMILARITY.find_similar_prs
 load_cache = PR_SIMILARITY.load_cache
 require_api_key = PR_SIMILARITY.require_api_key
 
-if TYPE_CHECKING:
-    EmbeddingRecord = EmbeddingRecordType
+if typing.TYPE_CHECKING:
+    EmbeddingRecord = metta.tools.pr_similarity.EmbeddingRecord
 else:
     EmbeddingRecord = PR_SIMILARITY.EmbeddingRecord
 
@@ -60,18 +59,18 @@ SERVER_NAME = "metta-pr-similarity"
 RESOURCE_URI = "pr-similarity://cache-info"
 
 
-@dataclass
+@dataclasses.dataclass
 class ServerContext:
-    cache_path: Path
+    cache_path: pathlib.Path
     api_key: str | None
     default_model: str | None
     task_type: str
 
 
-def determine_cache_path() -> Path:
+def determine_cache_path() -> pathlib.Path:
     override = os.getenv(CACHE_ENV)
     if override:
-        return Path(override).expanduser().resolve()
+        return pathlib.Path(override).expanduser().resolve()
     return (REPO_ROOT / DEFAULT_CACHE_PATH).resolve()
 
 
@@ -84,9 +83,8 @@ def summarize_description(description: str, limit: int = 240) -> str:
 
 def build_context() -> ServerContext:
     cache_path = determine_cache_path()
-    from metta.tools.pr_similarity import resolve_cache_paths
 
-    meta_path, vectors_path = resolve_cache_paths(cache_path)
+    meta_path, vectors_path = metta.tools.pr_similarity.resolve_cache_paths(cache_path)
     try:
         api_key = require_api_key(API_KEY_ENV)
     except EnvironmentError as error:
@@ -114,7 +112,7 @@ def build_context() -> ServerContext:
     )
 
 
-def format_record(score: float, record: EmbeddingRecord, rank: int) -> Dict[str, Any]:
+def format_record(score: float, record: EmbeddingRecord, rank: int) -> typing.Dict[str, typing.Any]:
     merged_at = record.merged_at
     return {
         "rank": rank,
@@ -132,11 +130,11 @@ def format_record(score: float, record: EmbeddingRecord, rank: int) -> Dict[str,
     }
 
 
-def build_server(context: ServerContext) -> Server:
-    app = Server(SERVER_NAME)
+def build_server(context: ServerContext) -> mcp.server.Server:
+    app = mcp.server.Server(SERVER_NAME)
 
     @app.list_tools()
-    async def list_tools() -> List[types.Tool]:
+    async def list_tools() -> typing.List[types.Tool]:
         return [
             types.Tool(
                 name="find_similar_prs",
@@ -183,7 +181,7 @@ def build_server(context: ServerContext) -> Server:
         ]
 
     @app.call_tool()
-    async def call_tool(name: str, arguments: Dict[str, Any]) -> List[types.Content]:
+    async def call_tool(name: str, arguments: typing.Dict[str, typing.Any]) -> typing.List[types.Content]:
         if name != "find_similar_prs":
             return [types.TextContent(type="text", text=f"Unknown tool: {name}")]
 
@@ -225,7 +223,7 @@ def build_server(context: ServerContext) -> Server:
             min_merged_at_text = str(min_merged_at_arg).strip()
             if min_merged_at_text:
                 try:
-                    parsed_min = datetime.fromisoformat(min_merged_at_text)
+                    parsed_min = datetime.datetime.fromisoformat(min_merged_at_text)
                 except ValueError:
                     return [
                         types.TextContent(
@@ -234,7 +232,7 @@ def build_server(context: ServerContext) -> Server:
                         ),
                     ]
                 if parsed_min.tzinfo is None:
-                    parsed_min = parsed_min.replace(tzinfo=timezone.utc)
+                    parsed_min = parsed_min.replace(tzinfo=datetime.timezone.utc)
                 min_authored_at = parsed_min
         api_key_candidate = None
         if api_key_override is not None:
@@ -284,10 +282,10 @@ def build_server(context: ServerContext) -> Server:
         ]
 
     @app.list_resources()
-    async def list_resources() -> List[types.Resource]:
+    async def list_resources() -> typing.List[types.Resource]:
         return [
             types.Resource(
-                uri=cast(Any, RESOURCE_URI),
+                uri=typing.cast(typing.Any, RESOURCE_URI),
                 name="PR Similarity Cache Info",
                 description=(
                     "Metadata about the PR embedding cache used for similarity search "
@@ -332,7 +330,7 @@ async def main() -> None:
     )
     server = build_server(context)
 
-    async with stdio_server() as (read_stream, write_stream):
+    async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
         logger.info("Entering MCP stdio server loop")
         await server.run(read_stream, write_stream, server.create_initialization_options())
 

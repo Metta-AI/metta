@@ -1,20 +1,20 @@
 import numpy as np
 
-from mettagrid.base_config import Config
-from mettagrid.mapgen.scene import AnySceneConfig, ChildrenAction, Scene, SceneConfig
+import mettagrid.base_config
+import mettagrid.mapgen.scene
 
 
-class RandomSceneCandidate(Config):
-    scene: AnySceneConfig
+class RandomSceneCandidate(mettagrid.base_config.Config):
+    scene: mettagrid.mapgen.scene.AnySceneConfig
     weight: float = 1
 
 
-class RandomSceneConfig(SceneConfig):
+class RandomSceneConfig(mettagrid.mapgen.scene.SceneConfig):
     candidates: list[RandomSceneCandidate]
 
 
-class RandomScene(Scene[RandomSceneConfig]):
-    def get_children(self) -> list[ChildrenAction]:
+class RandomScene(mettagrid.mapgen.scene.Scene[RandomSceneConfig]):
+    def get_children(self) -> list[mettagrid.mapgen.scene.ChildrenAction]:
         candidates = self.config.candidates
         weights = np.array([c.weight for c in candidates], dtype=np.float32)
         weights /= weights.sum()
@@ -23,7 +23,7 @@ class RandomScene(Scene[RandomSceneConfig]):
         scene = candidates[idx].scene
 
         return [
-            ChildrenAction(scene=scene, where="full"),
+            mettagrid.mapgen.scene.ChildrenAction(scene=scene, where="full"),
         ]
 
     def render(self):

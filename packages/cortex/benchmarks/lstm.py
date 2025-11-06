@@ -1,21 +1,14 @@
-from __future__ import annotations
 
-from typing import Dict, Tuple
+import typing
 
+import cortex.kernels.pytorch.lstm
+import cortex.kernels.triton.lstm
 import torch
 import torch.nn as nn
-from cortex.kernels.pytorch.lstm import lstm_sequence_pytorch
-from cortex.kernels.triton.lstm import lstm_sequence_triton
 
-from .common import (
-    BenchmarkCase,
-    BenchmarkDefinition,
-    BenchmarkSettings,
-    measure_callable,
-    register,
-)
+import packages.cortex.benchmarks.common
 
-CONFIGS: Tuple[Tuple[int, int, int], ...] = (
+CONFIGS: typing.Tuple[typing.Tuple[int, int, int], ...] = (
     (16, 128, 64),
     (16, 256, 64),
     (16, 512, 64),
@@ -29,12 +22,14 @@ CONFIGS: Tuple[Tuple[int, int, int], ...] = (
 )
 
 
-def _format_config(config: Tuple[int, int, int]) -> str:
+def _format_config(config: typing.Tuple[int, int, int]) -> str:
     batch_size, seq_len, hidden_size = config
     return f"({batch_size}, {seq_len}, {hidden_size})"
 
 
-def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, object]:
+def _run_case(
+    case: packages.cortex.benchmarks.common.BenchmarkCase, settings: packages.cortex.benchmarks.common.BenchmarkSettings
+) -> typing.Dict[str, object]:
     batch_size, seq_len, hidden_size = case.values
     device = torch.device(settings.device)
     dtype = settings.dtype
@@ -54,7 +49,7 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
     synchronize = device.type == "cuda"
 
     def run_pytorch():
-        return lstm_sequence_pytorch(
+        return cortex.kernels.pytorch.lstm.lstm_sequence_pytorch(
             lstm=lstm,
             x_seq=x_seq,
             h0_bf=h0_bf,
@@ -62,14 +57,14 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
             resets=None,
         )
 
-    (y_pt, hn_pt, cn_pt), pytorch_time = measure_callable(
+    (y_pt, hn_pt, cn_pt), pytorch_time = packages.cortex.benchmarks.common.measure_callable(
         run_pytorch,
         warmup=settings.warmup,
         iterations=settings.iterations,
         synchronize=synchronize,
     )
 
-    results: Dict[str, object] = {
+    results: typing.Dict[str, object] = {
         "pytorch_ms": pytorch_time * 1000.0,
         "triton_ms": None,
         "speedup": None,
@@ -80,7 +75,7 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
         return results
 
     def run_triton():
-        return lstm_sequence_triton(
+        return cortex.kernels.triton.lstm.lstm_sequence_triton(
             lstm=lstm,
             x_seq=x_seq,
             h0_bf=h0_bf,
@@ -88,7 +83,7 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
             resets=None,
         )
 
-    (y_tr, hn_tr, cn_tr), triton_time = measure_callable(
+    (y_tr, hn_tr, cn_tr), triton_time = packages.cortex.benchmarks.common.measure_callable(
         run_triton,
         warmup=settings.warmup,
         iterations=settings.iterations,
@@ -107,8 +102,8 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
     return results
 
 
-register(
-    BenchmarkDefinition(
+packages.cortex.benchmarks.common.register(
+    packages.cortex.benchmarks.common.BenchmarkDefinition(
         key="lstm",
         title="LSTM Triton vs PyTorch Benchmark",
         description="Compare Triton-accelerated LSTM kernels against PyTorch implementations.",

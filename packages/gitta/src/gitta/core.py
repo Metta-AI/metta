@@ -1,14 +1,13 @@
 """Low-level git command execution helpers shared across gitta."""
 
-from __future__ import annotations
 
 import logging
 import os
+import pathlib
 import shlex
 import subprocess
 import time
-from pathlib import Path
-from typing import Iterable, Mapping, Optional
+import typing
 
 logger = logging.getLogger(__name__)
 
@@ -47,10 +46,10 @@ class NotAGitRepoError(GitError):
 
 
 def run_git_cmd(
-    args: Iterable[str],
-    cwd: Optional[Path] = None,
-    timeout: Optional[float] = None,
-    env_overrides: Optional[Mapping[str, str]] = None,
+    args: typing.Iterable[str],
+    cwd: typing.Optional[pathlib.Path] = None,
+    timeout: typing.Optional[float] = None,
+    env_overrides: typing.Optional[typing.Mapping[str, str]] = None,
     check: bool = True,
 ) -> str:
     """
@@ -119,7 +118,7 @@ def run_git_cmd(
             raise NotAGitRepoError(f"Not in a git repository: {stderr}")
 
         if "dubious ownership" in stderr:
-            repo_path = cwd or Path.cwd()
+            repo_path = cwd or pathlib.Path.cwd()
             raise DubiousOwnershipError(
                 f"{stderr}\n\nTo fix this, run:\n  git config --global --add safe.directory {repo_path}"
             )
@@ -140,6 +139,6 @@ def run_git(*args: str) -> str:
     return run_git_cmd(list(args))
 
 
-def run_git_in_dir(dir: str | Path, *args: str) -> str:
+def run_git_in_dir(dir: str | pathlib.Path, *args: str) -> str:
     """Run a git command in a specific directory and return its output."""
-    return run_git_cmd(list(args), cwd=Path(dir))
+    return run_git_cmd(list(args), cwd=pathlib.Path(dir))

@@ -23,14 +23,14 @@ Run with: uv run python packages/mettagrid/demos/demo_train_pettingzoo.py (from 
 
 import time
 
+import gymnasium
 import numpy as np
-from gymnasium import spaces
-from pettingzoo.test import parallel_api_test
+import pettingzoo.test
 
 # PettingZoo adapter imports
-from mettagrid.builder.envs import make_arena
-from mettagrid.envs.pettingzoo_env import MettaGridPettingZooEnv
-from mettagrid.simulator import Simulator
+import mettagrid.builder.envs
+import mettagrid.envs.pettingzoo_env
+import mettagrid.simulator
 
 
 def demo_pettingzoo_api():
@@ -39,11 +39,11 @@ def demo_pettingzoo_api():
     print("=" * 60)
 
     # Create simulator and config
-    simulator = Simulator()
-    config = make_arena(num_agents=24)
+    simulator = mettagrid.simulator.Simulator()
+    config = mettagrid.builder.envs.make_arena(num_agents=24)
 
     # Create PettingZoo environment
-    env = MettaGridPettingZooEnv(
+    env = mettagrid.envs.pettingzoo_env.MettaGridPettingZooEnv(
         simulator=simulator,
         cfg=config,
     )
@@ -56,7 +56,7 @@ def demo_pettingzoo_api():
     print(f"   - Reset successful: {len(observations)} observations")
 
     print("   - Running PettingZoo API compliance test...")
-    parallel_api_test(env, num_cycles=2)
+    pettingzoo.test.parallel_api_test(env, num_cycles=2)
     print("PettingZoo API compliance passed!")
 
 
@@ -66,11 +66,11 @@ def demo_random_rollout():
     print("=" * 60)
 
     # Create simulator and config
-    simulator = Simulator()
-    config = make_arena(num_agents=24)
+    simulator = mettagrid.simulator.Simulator()
+    config = mettagrid.builder.envs.make_arena(num_agents=24)
 
     # Create PettingZoo environment
-    env = MettaGridPettingZooEnv(
+    env = mettagrid.envs.pettingzoo_env.MettaGridPettingZooEnv(
         simulator=simulator,
         cfg=config,
     )
@@ -87,7 +87,7 @@ def demo_random_rollout():
         actions = {}
         for agent in env.agents:
             action_space = env.action_space(agent)
-            assert isinstance(action_space, spaces.Discrete)
+            assert isinstance(action_space, gymnasium.spaces.Discrete)
             actions[agent] = int(action_space.sample())
 
         _, rewards, terminations, truncations, _ = env.step(actions)
@@ -118,11 +118,11 @@ def demo_simple_marl_training():
     print("=" * 60)
 
     # Create simulator and config
-    simulator = Simulator()
-    config = make_arena(num_agents=24)
+    simulator = mettagrid.simulator.Simulator()
+    config = mettagrid.builder.envs.make_arena(num_agents=24)
 
     # Create PettingZoo environment
-    env = MettaGridPettingZooEnv(
+    env = mettagrid.envs.pettingzoo_env.MettaGridPettingZooEnv(
         simulator=simulator,
         cfg=config,
     )
@@ -134,7 +134,7 @@ def demo_simple_marl_training():
     policies = {}
     for agent in env.possible_agents:
         action_space = env.action_space(agent)
-        assert isinstance(action_space, spaces.Discrete)
+        assert isinstance(action_space, gymnasium.spaces.Discrete)
         policies[agent] = np.ones(action_space.n) / action_space.n
 
     _, _ = env.reset(seed=42)
@@ -149,13 +149,13 @@ def demo_simple_marl_training():
         for agent in env.agents:
             if agent in policies:
                 action_space = env.action_space(agent)
-                assert isinstance(action_space, spaces.Discrete)
+                assert isinstance(action_space, gymnasium.spaces.Discrete)
                 probs = policies[agent]
                 probs = probs / probs.sum()
                 actions[agent] = int(np.random.choice(action_space.n, p=probs))
             else:
                 action_space = env.action_space(agent)
-                assert isinstance(action_space, spaces.Discrete)
+                assert isinstance(action_space, gymnasium.spaces.Discrete)
                 actions[agent] = int(action_space.sample())
 
         _, rewards, terminations, truncations, _ = env.step(actions)
@@ -164,7 +164,7 @@ def demo_simple_marl_training():
             if agent in policies and agent in actions and reward > 0:
                 action_taken = int(actions[agent])
                 action_space = env.action_space(agent)
-                assert isinstance(action_space, spaces.Discrete)
+                assert isinstance(action_space, gymnasium.spaces.Discrete)
                 policies[agent][action_taken] *= 1.1
                 policies[agent] /= policies[agent].sum()
 

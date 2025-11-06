@@ -2,11 +2,11 @@
 Tests for token profiler functionality including common prefix detection.
 """
 
+import pathlib
 import unittest
-from pathlib import Path
-from unittest.mock import MagicMock
+import unittest.mock
 
-from codebot.codeclip.token_profiler import TokenProfiler
+import codebot.codeclip.token_profiler
 
 
 class TestTokenProfiler(unittest.TestCase):
@@ -14,13 +14,13 @@ class TestTokenProfiler(unittest.TestCase):
 
     def test_process_file_stores_path(self):
         """Test that process_file stores the file path for common prefix calculation."""
-        profiler = TokenProfiler()
+        profiler = codebot.codeclip.token_profiler.TokenProfiler()
 
         # Mock the token counting functionality
-        profiler.count_tokens = MagicMock(return_value=100)
+        profiler.count_tokens = unittest.mock.MagicMock(return_value=100)
 
         # Process a file
-        file_path = Path("/Users/jack/src/metta/test.py")
+        file_path = pathlib.Path("/Users/jack/src/metta/test.py")
         profiler.process_file(file_path, "content")
 
         # Check that the path was stored

@@ -7,12 +7,12 @@
 Save key/value benchmark data to a file compatible with Bencher.
 """
 
+import datetime
 import json
 import os
 import platform
 import socket
 import sys
-from datetime import datetime, timezone
 
 
 def get_machine_info():
@@ -31,7 +31,7 @@ def get_commit_info():
     """Get commit information from GitHub environment."""
     github_sha = os.environ.get("GITHUB_SHA", "unknown")
     github_ref_name = os.environ.get("GITHUB_REF_NAME", "unknown")
-    current_time = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    current_time = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     return {
         "id": github_sha,

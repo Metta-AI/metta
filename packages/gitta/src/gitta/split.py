@@ -1,34 +1,33 @@
 """PR splitting functionality."""
 
-from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import os
 import re
 import sys
 import tempfile
-from dataclasses import dataclass
-from typing import Any, cast
+import typing
 
-from anthropic import Anthropic
-from anthropic.types import TextBlock
+import anthropic
+import anthropic.types
 
-from .core import GitError, run_git, run_git_cmd
-from .git import get_current_branch, get_remote_url
-from .github import create_pr
+import gitta.core
+import gitta.git
+import gitta.github
 
 
-@dataclass
+@dataclasses.dataclass
 class FileDiff:
     filename: str
     additions: list[str]
     deletions: list[str]
-    hunks: list[dict[str, Any]]
+    hunks: list[dict[str, typing.Any]]
     raw_diff: str
 
 
-@dataclass
+@dataclasses.dataclass
 class SplitDecision:
     group1_files: list[str]
     group2_files: list[str]
@@ -54,7 +53,7 @@ class PRSplitter:
         commit_timeout: float | None = None,
     ):
         self.anthropic_api_key = anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY")
-        self._anthropic: Anthropic | None = None
+        self._anthropic: anthropic.Anthropic | None = None
         self.github_token = github_token or os.environ.get("GITHUB_TOKEN")
         self.model = model or os.environ.get("GITTA_SPLIT_MODEL") or DEFAULT_MODEL
 
@@ -79,14 +78,14 @@ class PRSplitter:
         self.base_branch: str | None = None
         self.current_branch: str | None = None
 
-    def _get_anthropic_client(self) -> Anthropic:
+    def _get_anthropic_client(self) -> anthropic.Anthropic:
         api_key = self.anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
             raise ValueError("Anthropic API key not provided and ANTHROPIC_API_KEY environment variable not set")
 
         if self._anthropic is None or api_key != self.anthropic_api_key:
             self.anthropic_api_key = api_key
-            self._anthropic = Anthropic(api_key=api_key)
+            self._anthropic = anthropic.Anthropic(api_key=api_key)
 
         return self._anthropic
 
@@ -94,14 +93,14 @@ class PRSplitter:
         # Try to find the merge base with common default branches
         for branch in ["main", "master", "develop"]:
             try:
-                run_git("rev-parse", f"origin/{branch}")
+                gitta.core.run_git("rev-parse", f"origin/{branch}")
                 return f"origin/{branch}"
-            except GitError:
+            except gitta.core.GitError:
                 continue
-        raise GitError("Could not determine base branch")
+        raise gitta.core.GitError("Could not determine base branch")
 
     def get_diff(self, base: str, head: str) -> str:
-        return run_git("diff", f"{base}...{head}")
+        return gitta.core.run_git("diff", f"{base}...{head}")
 
     def parse_diff(self, diff_text: str) -> list[FileDiff]:
         files = []
@@ -212,10 +211,10 @@ Return a JSON response with this exact structure:
         )
 
         # Parse the AI response
-        text_block = next((block for block in response.content if isinstance(block, TextBlock)), None)
+        text_block = next((block for block in response.content if isinstance(block, anthropic.types.TextBlock)), None)
         if text_block is None:
             raise ValueError("Anthropic response did not include a text block")
-        content = cast(str, text_block.text)
+        content = typing.cast(str, text_block.text)
 
         # Try to extract JSON from the response
         try:
@@ -284,7 +283,7 @@ Return a JSON response with this exact structure:
             raise ValueError("Base branch is not set")
 
         # Create and checkout new branch from base
-        run_git("checkout", "-b", branch_name, self.base_branch)
+        gitta.core.run_git("checkout", "-b", branch_name, self.base_branch)
 
         # Apply the patch
         with tempfile.NamedTemporaryFile(mode="w", suffix=".patch", delete=False) as f:
@@ -292,10 +291,10 @@ Return a JSON response with this exact structure:
             patch_file = f.name
 
         try:
-            run_git("apply", patch_file)
+            gitta.core.run_git("apply", patch_file)
 
             # Stage all changes
-            run_git("add", "-A")
+            gitta.core.run_git("add", "-A")
 
         finally:
             os.unlink(patch_file)
@@ -305,12 +304,12 @@ Return a JSON response with this exact structure:
         if self.skip_hooks:
             commit_args.append("--no-verify")
         commit_args.extend(["-m", message])
-        run_git_cmd(commit_args, timeout=self.commit_timeout)
+        gitta.core.run_git_cmd(commit_args, timeout=self.commit_timeout)
 
     def ensure_clean_worktree(self) -> None:
-        status = run_git("status", "--porcelain")
+        status = gitta.core.run_git("status", "--porcelain")
         if status.strip():
-            raise GitError(
+            raise gitta.core.GitError(
                 "Working tree has uncommitted changes. Please commit or stash them before running the PR splitter."
             )
 
@@ -345,7 +344,7 @@ Return a JSON response with this exact structure:
 
     def get_repo_from_remote(self) -> str | None:
         try:
-            remote_url = get_remote_url()
+            remote_url = gitta.git.get_remote_url()
             if not remote_url:
                 return None
 
@@ -361,16 +360,16 @@ Return a JSON response with this exact structure:
     def branch_exists(self, branch_name: str) -> bool:
         try:
             # Check local branch
-            run_git("rev-parse", "--verify", branch_name)
+            gitta.core.run_git("rev-parse", "--verify", branch_name)
             return True
-        except GitError:
+        except gitta.core.GitError:
             pass
 
         try:
             # Check remote branch
-            run_git("rev-parse", "--verify", f"origin/{branch_name}")
+            gitta.core.run_git("rev-parse", "--verify", f"origin/{branch_name}")
             return True
-        except GitError:
+        except gitta.core.GitError:
             pass
 
         return False
@@ -405,7 +404,7 @@ Return a JSON response with this exact structure:
         base_branch_name = self.base_branch.replace("origin/", "")
 
         try:
-            pr_data = create_pr(
+            pr_data = gitta.github.create_pr(
                 repo=repo, title=title, body=body, head=branch, base=base_branch_name, token=self.github_token
             )
             print(f"Created PR: {pr_data['html_url']}")
@@ -419,7 +418,7 @@ Return a JSON response with this exact structure:
         self.ensure_clean_worktree()
 
         # Get branch information
-        current_branch = get_current_branch()
+        current_branch = gitta.git.get_current_branch()
         base_branch = self.get_base_branch()
 
         self.current_branch = current_branch
@@ -458,9 +457,9 @@ Return a JSON response with this exact structure:
 
         # Validate that both groups have at least one file
         if not split_decision.group1_files:
-            raise GitError("Cannot split: Group 1 is empty. Both groups must contain at least one file.")
+            raise gitta.core.GitError("Cannot split: Group 1 is empty. Both groups must contain at least one file.")
         if not split_decision.group2_files:
-            raise GitError("Cannot split: Group 2 is empty. Both groups must contain at least one file.")
+            raise gitta.core.GitError("Cannot split: Group 2 is empty. Both groups must contain at least one file.")
 
         # Verify all files are accounted for
         all_files = set(f.filename for f in files)
@@ -476,7 +475,7 @@ Return a JSON response with this exact structure:
             if unknown:
                 error_parts.append(f"Unknown files (not in diff): {', '.join(sorted(unknown))}")
 
-            raise GitError(
+            raise gitta.core.GitError(
                 f"AI split decision has file mismatch. {' | '.join(error_parts)}. "
                 "Please retry the split operation or manually adjust the split."
             )
@@ -507,8 +506,8 @@ Return a JSON response with this exact structure:
 
         # Push branches
         print("\n📤 Pushing branches...")
-        run_git("push", "origin", branch1_name)
-        run_git("push", "origin", branch2_name)
+        gitta.core.run_git("push", "origin", branch1_name)
+        gitta.core.run_git("push", "origin", branch2_name)
 
         # Create PRs
         print("\n🔧 Creating pull requests...")
@@ -519,7 +518,7 @@ Return a JSON response with this exact structure:
         self.create_github_pr(branch2_name, split_decision.group2_title, pr2_body)
 
         # Return to original branch
-        run_git("checkout", current_branch)
+        gitta.core.run_git("checkout", current_branch)
 
         print("\n✨ PR split complete!")
 

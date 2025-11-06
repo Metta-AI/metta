@@ -5,26 +5,26 @@ Provides common functionality for running commands, measuring performance,
 and reporting results.
 """
 
+import abc
 import time
-from abc import ABC, abstractmethod
-from typing import Tuple
+import typing
 
-from .benchmark import run_with_benchmark, write_github_output
+import scripts.utils.benchmark
 
 
-class SmokeTest(ABC):
+class SmokeTest(abc.ABC):
     """Base class for all smoke tests."""
 
     def __init__(self) -> None:
         self.test_name = self.__class__.__name__.replace("SmokeTest", "").lower()
         self.timeout = self.get_timeout()
 
-    @abstractmethod
+    @abc.abstractmethod
     def get_command(self) -> list[str]:
         """Return the command to run for this test."""
         pass
 
-    @abstractmethod
+    @abc.abstractmethod
     def get_timeout(self) -> int:
         """Return the timeout for this test in seconds."""
         pass
@@ -43,7 +43,7 @@ class SmokeTest(ABC):
         """Override to print additional configuration."""
         return []
 
-    def process_result(self, result: dict) -> Tuple[bool, str]:
+    def process_result(self, result: dict) -> typing.Tuple[bool, str]:
         """
         Process the benchmark result.
 
@@ -100,7 +100,7 @@ class SmokeTest(ABC):
         full_output = result["stdout"] + "\n" + result["stderr"]
         return result["success"], full_output
 
-    def run_test(self) -> Tuple[bool, str, float, float]:
+    def run_test(self) -> typing.Tuple[bool, str, float, float]:
         """
         Run the test with benchmarking.
 
@@ -110,7 +110,7 @@ class SmokeTest(ABC):
         cmd = self.get_command()
         print(f"\nRunning {self.test_name}...")
 
-        result = run_with_benchmark(cmd=cmd, name=self.test_name, timeout=self.timeout)
+        result = scripts.utils.benchmark.run_with_benchmark(cmd=cmd, name=self.test_name, timeout=self.timeout)
 
         success, full_output = self.process_result(result)
         return success, full_output, result["duration"], result["memory_peak_mb"]
@@ -133,7 +133,7 @@ class SmokeTest(ABC):
             "exit_code": "0" if success else "1",
         }
         outputs.update(extra_outputs)
-        write_github_output(outputs)
+        scripts.utils.benchmark.write_github_output(outputs)
 
     def run(self) -> int:
         """Main entry point for the smoke test."""

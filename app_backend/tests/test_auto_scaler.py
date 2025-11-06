@@ -1,11 +1,11 @@
 import logging
 import math
-from unittest.mock import AsyncMock, Mock
+import unittest.mock
 
 import pytest
 
-from metta.app_backend.eval_task_orchestrator import AutoScaler
-from metta.app_backend.routes.eval_task_routes import TaskAvgRuntimeResponse, TaskCountResponse
+import metta.app_backend.eval_task_orchestrator
+import metta.app_backend.routes.eval_task_routes
 
 # Query constants used by AutoScaler
 UNPROCESSED_QUERY = "status = 'unprocessed' OR status = 'running'"
@@ -19,12 +19,14 @@ class TestAutoScaler:
     @pytest.fixture
     def mock_task_client(self):
         """Create a mock EvalTaskClient."""
-        mock_client = Mock()
-        mock_client.count_tasks = AsyncMock()
-        mock_client.get_avg_runtime = AsyncMock()
+        mock_client = unittest.mock.Mock()
+        mock_client.count_tasks = unittest.mock.AsyncMock()
+        mock_client.get_avg_runtime = unittest.mock.AsyncMock()
         # Ensure the mock returns actual values, not more mocks
-        mock_client.count_tasks.return_value = TaskCountResponse(count=0)
-        mock_client.get_avg_runtime.return_value = TaskAvgRuntimeResponse(avg_runtime=None)
+        mock_client.count_tasks.return_value = metta.app_backend.routes.eval_task_routes.TaskCountResponse(count=0)
+        mock_client.get_avg_runtime.return_value = metta.app_backend.routes.eval_task_routes.TaskAvgRuntimeResponse(
+            avg_runtime=None
+        )
         return mock_client
 
     @pytest.fixture
@@ -35,13 +37,17 @@ class TestAutoScaler:
     @pytest.fixture
     def auto_scaler(self, mock_task_client, logger):
         """Create an AutoScaler with mocked dependencies."""
-        return AutoScaler(task_client=mock_task_client, default_task_runtime_seconds=120.0)
+        return metta.app_backend.eval_task_orchestrator.AutoScaler(
+            task_client=mock_task_client, default_task_runtime_seconds=120.0
+        )
 
     @pytest.mark.asyncio
     async def test_get_desired_workers_uses_historical_runtime(self, mock_task_client, logger):
         """Test scaling calculation uses historical runtime when enough data is available."""
         # Create a fresh AutoScaler instance to avoid fixture issues
-        auto_scaler = AutoScaler(task_client=mock_task_client, default_task_runtime_seconds=120.0)
+        auto_scaler = metta.app_backend.eval_task_orchestrator.AutoScaler(
+            task_client=mock_task_client, default_task_runtime_seconds=120.0
+        )
 
         # Setup the mock to return specific responses for different calls
         call_count = 0
@@ -50,15 +56,19 @@ class TestAutoScaler:
             nonlocal call_count
             call_count += 1
             if call_count == 1:  # First call: unprocessed tasks
-                return TaskCountResponse(count=5)
+                return metta.app_backend.routes.eval_task_routes.TaskCountResponse(count=5)
             elif call_count == 2:  # Second call: tasks created in last day
-                return TaskCountResponse(count=100)
+                return metta.app_backend.routes.eval_task_routes.TaskCountResponse(count=100)
             elif call_count == 3:  # Third call: done tasks in last day
-                return TaskCountResponse(count=25)  # > 20, so will call get_avg_runtime
-            return TaskCountResponse(count=0)
+                return metta.app_backend.routes.eval_task_routes.TaskCountResponse(
+                    count=25
+                )  # > 20, so will call get_avg_runtime
+            return metta.app_backend.routes.eval_task_routes.TaskCountResponse(count=0)
 
         mock_task_client.count_tasks.side_effect = mock_count_tasks
-        mock_task_client.get_avg_runtime.return_value = TaskAvgRuntimeResponse(avg_runtime=150.0)
+        mock_task_client.get_avg_runtime.return_value = (
+            metta.app_backend.routes.eval_task_routes.TaskAvgRuntimeResponse(avg_runtime=150.0)
+        )
 
         result = await auto_scaler.get_desired_workers(num_workers=2)
 
@@ -77,17 +87,23 @@ class TestAutoScaler:
         # Reset the mock call counts
         mock_task_client.reset_mock()
 
-        auto_scaler = AutoScaler(task_client=mock_task_client, default_task_runtime_seconds=120.0)
+        auto_scaler = metta.app_backend.eval_task_orchestrator.AutoScaler(
+            task_client=mock_task_client, default_task_runtime_seconds=120.0
+        )
 
         # Setup the mock to return specific responses based on the exact queries used
         async def mock_count_tasks(where_clause):
             if where_clause == UNPROCESSED_QUERY:
-                return TaskCountResponse(count=5)
+                return metta.app_backend.routes.eval_task_routes.TaskCountResponse(count=5)
             elif where_clause == TASKS_CREATED_LAST_DAY_QUERY:
-                return TaskCountResponse(count=100)  # tasks created in last day
+                return metta.app_backend.routes.eval_task_routes.TaskCountResponse(
+                    count=100
+                )  # tasks created in last day
             elif where_clause == DONE_TASKS_LAST_DAY_QUERY:
-                return TaskCountResponse(count=15)  # done tasks <= 20, so won't call get_avg_runtime
-            return TaskCountResponse(count=0)
+                return metta.app_backend.routes.eval_task_routes.TaskCountResponse(
+                    count=15
+                )  # done tasks <= 20, so won't call get_avg_runtime
+            return metta.app_backend.routes.eval_task_routes.TaskCountResponse(count=0)
 
         mock_task_client.count_tasks.side_effect = mock_count_tasks
 
@@ -108,17 +124,25 @@ class TestAutoScaler:
         # Reset the mock call counts
         mock_task_client.reset_mock()
 
-        auto_scaler = AutoScaler(task_client=mock_task_client, default_task_runtime_seconds=120.0)
+        auto_scaler = metta.app_backend.eval_task_orchestrator.AutoScaler(
+            task_client=mock_task_client, default_task_runtime_seconds=120.0
+        )
 
         # Setup the mock to return specific responses based on the exact queries used
         async def mock_count_tasks(where_clause):
             if where_clause == UNPROCESSED_QUERY:
-                return TaskCountResponse(count=100)  # > 5 * 2 workers, triggers backlog
+                return metta.app_backend.routes.eval_task_routes.TaskCountResponse(
+                    count=100
+                )  # > 5 * 2 workers, triggers backlog
             elif where_clause == TASKS_CREATED_LAST_DAY_QUERY:
-                return TaskCountResponse(count=500)  # tasks created in last day
+                return metta.app_backend.routes.eval_task_routes.TaskCountResponse(
+                    count=500
+                )  # tasks created in last day
             elif where_clause == DONE_TASKS_LAST_DAY_QUERY:
-                return TaskCountResponse(count=10)  # done tasks <= 20, so won't call get_avg_runtime
-            return TaskCountResponse(count=0)
+                return metta.app_backend.routes.eval_task_routes.TaskCountResponse(
+                    count=10
+                )  # done tasks <= 20, so won't call get_avg_runtime
+            return metta.app_backend.routes.eval_task_routes.TaskCountResponse(count=0)
 
         mock_task_client.count_tasks.side_effect = mock_count_tasks
 
@@ -139,11 +163,15 @@ class TestAutoScaler:
         """Test scaling using historical average runtime."""
         # Setup: enough completed tasks to use historical average
         mock_task_client.count_tasks.side_effect = [
-            TaskCountResponse(count=5),  # unprocessed tasks
-            TaskCountResponse(count=200),  # tasks created in last day
-            TaskCountResponse(count=25),  # done tasks in last day (>= 20, use historical)
+            metta.app_backend.routes.eval_task_routes.TaskCountResponse(count=5),  # unprocessed tasks
+            metta.app_backend.routes.eval_task_routes.TaskCountResponse(count=200),  # tasks created in last day
+            metta.app_backend.routes.eval_task_routes.TaskCountResponse(
+                count=25
+            ),  # done tasks in last day (>= 20, use historical)
         ]
-        mock_task_client.get_avg_runtime.return_value = TaskAvgRuntimeResponse(avg_runtime=300.0)
+        mock_task_client.get_avg_runtime.return_value = (
+            metta.app_backend.routes.eval_task_routes.TaskAvgRuntimeResponse(avg_runtime=300.0)
+        )
 
         result = await auto_scaler.get_desired_workers(num_workers=2)
 
@@ -157,11 +185,15 @@ class TestAutoScaler:
     async def test_get_desired_workers_with_null_avg_runtime(self, auto_scaler, mock_task_client):
         """Test scaling when historical average runtime is null."""
         mock_task_client.count_tasks.side_effect = [
-            TaskCountResponse(count=3),  # unprocessed tasks
-            TaskCountResponse(count=150),  # tasks created in last day
-            TaskCountResponse(count=30),  # done tasks in last day (>= 20, try historical)
+            metta.app_backend.routes.eval_task_routes.TaskCountResponse(count=3),  # unprocessed tasks
+            metta.app_backend.routes.eval_task_routes.TaskCountResponse(count=150),  # tasks created in last day
+            metta.app_backend.routes.eval_task_routes.TaskCountResponse(
+                count=30
+            ),  # done tasks in last day (>= 20, try historical)
         ]
-        mock_task_client.get_avg_runtime.return_value = TaskAvgRuntimeResponse(avg_runtime=None)
+        mock_task_client.get_avg_runtime.return_value = (
+            metta.app_backend.routes.eval_task_routes.TaskAvgRuntimeResponse(avg_runtime=None)
+        )
 
         result = await auto_scaler.get_desired_workers(num_workers=1)
 
@@ -173,7 +205,9 @@ class TestAutoScaler:
     @pytest.mark.asyncio
     async def test_compute_desired_workers_calculation(self, auto_scaler, mock_task_client):
         """Test the internal _compute_desired_workers calculation."""
-        mock_task_client.count_tasks.return_value = TaskCountResponse(count=1000)
+        mock_task_client.count_tasks.return_value = metta.app_backend.routes.eval_task_routes.TaskCountResponse(
+            count=1000
+        )
 
         # Test with specific average runtime
         avg_runtime = 180.0  # 3 minutes per task
@@ -189,8 +223,12 @@ class TestAutoScaler:
     @pytest.mark.asyncio
     async def test_get_avg_task_runtime_with_sufficient_data(self, auto_scaler, mock_task_client):
         """Test _get_avg_task_runtime with enough historical data."""
-        mock_task_client.count_tasks.return_value = TaskCountResponse(count=50)  # > 20 done tasks
-        mock_task_client.get_avg_runtime.return_value = TaskAvgRuntimeResponse(avg_runtime=250.0)
+        mock_task_client.count_tasks.return_value = metta.app_backend.routes.eval_task_routes.TaskCountResponse(
+            count=50
+        )  # > 20 done tasks
+        mock_task_client.get_avg_runtime.return_value = (
+            metta.app_backend.routes.eval_task_routes.TaskAvgRuntimeResponse(avg_runtime=250.0)
+        )
 
         result = await auto_scaler._get_avg_task_runtime()
 
@@ -200,7 +238,9 @@ class TestAutoScaler:
     @pytest.mark.asyncio
     async def test_get_avg_task_runtime_with_insufficient_data(self, auto_scaler, mock_task_client):
         """Test _get_avg_task_runtime with insufficient historical data."""
-        mock_task_client.count_tasks.return_value = TaskCountResponse(count=15)  # < 20 done tasks
+        mock_task_client.count_tasks.return_value = metta.app_backend.routes.eval_task_routes.TaskCountResponse(
+            count=15
+        )  # < 20 done tasks
 
         result = await auto_scaler._get_avg_task_runtime()
 
@@ -214,7 +254,9 @@ class TestAutoScaler:
         # Reset the mock call counts
         mock_task_client.reset_mock()
 
-        auto_scaler = AutoScaler(task_client=mock_task_client, default_task_runtime_seconds=120.0)
+        auto_scaler = metta.app_backend.eval_task_orchestrator.AutoScaler(
+            task_client=mock_task_client, default_task_runtime_seconds=120.0
+        )
 
         current_workers = 3
         unclaimed_tasks = current_workers * 5  # Exactly at threshold
@@ -222,12 +264,16 @@ class TestAutoScaler:
         # Setup the mock to return specific responses based on the exact queries used
         async def mock_count_tasks(where_clause):
             if where_clause == UNPROCESSED_QUERY:
-                return TaskCountResponse(count=unclaimed_tasks)  # exactly at threshold (= not >)
+                return metta.app_backend.routes.eval_task_routes.TaskCountResponse(
+                    count=unclaimed_tasks
+                )  # exactly at threshold (= not >)
             elif where_clause == TASKS_CREATED_LAST_DAY_QUERY:
-                return TaskCountResponse(count=100)
+                return metta.app_backend.routes.eval_task_routes.TaskCountResponse(count=100)
             elif where_clause == DONE_TASKS_LAST_DAY_QUERY:
-                return TaskCountResponse(count=10)  # <= 20, so won't call get_avg_runtime
-            return TaskCountResponse(count=0)
+                return metta.app_backend.routes.eval_task_routes.TaskCountResponse(
+                    count=10
+                )  # <= 20, so won't call get_avg_runtime
+            return metta.app_backend.routes.eval_task_routes.TaskCountResponse(count=0)
 
         mock_task_client.count_tasks.side_effect = mock_count_tasks
 
@@ -248,11 +294,13 @@ class TestAutoScaler:
         unclaimed_tasks = 1000  # Very large backlog
 
         mock_task_client.count_tasks.side_effect = [
-            TaskCountResponse(count=unclaimed_tasks),
-            TaskCountResponse(count=200),  # tasks created in last day
-            TaskCountResponse(count=25),  # done tasks in last day
+            metta.app_backend.routes.eval_task_routes.TaskCountResponse(count=unclaimed_tasks),
+            metta.app_backend.routes.eval_task_routes.TaskCountResponse(count=200),  # tasks created in last day
+            metta.app_backend.routes.eval_task_routes.TaskCountResponse(count=25),  # done tasks in last day
         ]
-        mock_task_client.get_avg_runtime.return_value = TaskAvgRuntimeResponse(avg_runtime=60.0)
+        mock_task_client.get_avg_runtime.return_value = (
+            metta.app_backend.routes.eval_task_routes.TaskAvgRuntimeResponse(avg_runtime=60.0)
+        )
 
         result = await auto_scaler.get_desired_workers(num_workers=current_workers)
 
@@ -265,9 +313,9 @@ class TestAutoScaler:
     async def test_zero_tasks_scenario(self, auto_scaler, mock_task_client):
         """Test behavior when there are no tasks."""
         mock_task_client.count_tasks.side_effect = [
-            TaskCountResponse(count=0),  # no unprocessed tasks
-            TaskCountResponse(count=0),  # no tasks created in last day
-            TaskCountResponse(count=0),  # no done tasks
+            metta.app_backend.routes.eval_task_routes.TaskCountResponse(count=0),  # no unprocessed tasks
+            metta.app_backend.routes.eval_task_routes.TaskCountResponse(count=0),  # no tasks created in last day
+            metta.app_backend.routes.eval_task_routes.TaskCountResponse(count=0),  # no done tasks
         ]
 
         result = await auto_scaler.get_desired_workers(num_workers=2)

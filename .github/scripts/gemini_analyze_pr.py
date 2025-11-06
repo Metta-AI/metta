@@ -6,19 +6,19 @@
 # ]
 # ///
 
+import dataclasses
+import datetime
 import json
 import logging
+import pathlib
 import re
 import sys
-from dataclasses import dataclass
-from datetime import datetime
-from pathlib import Path
-from typing import Literal, Optional
+import typing
 
-from gemini_client import MODEL_CONFIG, GeminiAIClient
+import gemini_client
 
 
-@dataclass
+@dataclasses.dataclass
 class PRSummary:
     """Complete PR summary with metadata and quality assessments."""
 
@@ -31,39 +31,39 @@ class PRSummary:
     summary: str
     key_changes: list[str]
     developer_impact: str
-    technical_notes: Optional[str]
+    technical_notes: typing.Optional[str]
     impact_level: str
     category: str
 
     # Quality assessments
-    code_quality_score: Optional[int] = None
-    code_quality_notes: Optional[str] = None
-    best_practices_score: Optional[int] = None
-    best_practices_notes: Optional[str] = None
-    documentation_score: Optional[int] = None
-    documentation_notes: Optional[str] = None
-    testing_score: Optional[int] = None
-    testing_notes: Optional[str] = None
-    strengths: Optional[list[str]] = None
-    areas_for_improvement: Optional[list[str]] = None
+    code_quality_score: typing.Optional[int] = None
+    code_quality_notes: typing.Optional[str] = None
+    best_practices_score: typing.Optional[int] = None
+    best_practices_notes: typing.Optional[str] = None
+    documentation_score: typing.Optional[int] = None
+    documentation_notes: typing.Optional[str] = None
+    testing_score: typing.Optional[int] = None
+    testing_notes: typing.Optional[str] = None
+    strengths: typing.Optional[list[str]] = None
+    areas_for_improvement: typing.Optional[list[str]] = None
 
     # Statistics
-    additions: Optional[int] = None
-    deletions: Optional[int] = None
-    files_changed: Optional[int] = None
-    test_coverage_impact: Optional[str] = None
-    review_cycles: Optional[int] = None
+    additions: typing.Optional[int] = None
+    deletions: typing.Optional[int] = None
+    files_changed: typing.Optional[int] = None
+    test_coverage_impact: typing.Optional[str] = None
+    review_cycles: typing.Optional[int] = None
 
     # Metadata
-    source: Literal["cache", "new"] = "new"
-    labels: Optional[list[str]] = None
+    source: typing.Literal["cache", "new"] = "new"
+    labels: typing.Optional[list[str]] = None
     draft: bool = False
 
 
 class PRAnalyzer:
     """Analyzes a single PR and generates a comprehensive summary."""
 
-    def __init__(self, ai_client: GeminiAIClient):
+    def __init__(self, ai_client: gemini_client.GeminiAIClient):
         self.ai_client = ai_client
 
     def categorize_pr(self, pr_data: dict) -> str:
@@ -375,7 +375,7 @@ class PRAnalyzer:
 
         return parsed
 
-    def analyze(self, pr_data: dict, model_tier: str = "default") -> Optional[dict]:
+    def analyze(self, pr_data: dict, model_tier: str = "default") -> typing.Optional[dict]:
         """Analyze a single PR and return structured summary data."""
         pr_number = pr_data["number"]
         logging.info(f"Analyzing PR #{pr_number}: {pr_data['title']}")
@@ -441,7 +441,7 @@ class PRAnalyzer:
         }
 
 
-def save_pr_summary(pr_summary: PRSummary, output_dir: Path) -> str:
+def save_pr_summary(pr_summary: PRSummary, output_dir: pathlib.Path) -> str:
     """Save individual PR summary as a text file with quality metrics if available."""
     filename = f"pr_{pr_summary.pr_number}.txt"
     filepath = output_dir / filename
@@ -519,7 +519,7 @@ AREAS FOR IMPROVEMENT
 
     content += f"""
 ================================================================================
-Generated using {MODEL_CONFIG["default"]} on {datetime.now().isoformat()}
+Generated using {gemini_client.MODEL_CONFIG["default"]} on {datetime.datetime.now().isoformat()}
 """
 
     with open(filepath, "w", encoding="utf-8") as f:
@@ -528,7 +528,7 @@ Generated using {MODEL_CONFIG["default"]} on {datetime.now().isoformat()}
     return str(filepath)
 
 
-def load_pr_summary(pr_number: int, summaries_dir: Path) -> Optional[PRSummary]:
+def load_pr_summary(pr_number: int, summaries_dir: pathlib.Path) -> typing.Optional[PRSummary]:
     """Load a single PR summary from cache."""
     summary_file = summaries_dir / f"pr_{pr_number}.txt"
 
@@ -716,7 +716,7 @@ def main():
         sys.exit(1)
 
     # Initialize client and analyzer
-    ai_client = GeminiAIClient(api_key)
+    ai_client = gemini_client.GeminiAIClient(api_key)
     analyzer = PRAnalyzer(ai_client)
 
     # Analyze the PR

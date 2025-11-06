@@ -1,25 +1,24 @@
 """Rollout phase functions for Metta training."""
 
 import logging
-from typing import Any
+import typing
 
 import numpy as np
 import torch
-from torch import Tensor
 
-from mettagrid.profiling.stopwatch import Stopwatch
+import mettagrid.profiling.stopwatch
 
 logger = logging.getLogger(__name__)
 
 
-PufferlibVecEnv = Any
+PufferlibVecEnv = typing.Any
 
 
 def get_observation(
     vecenv: PufferlibVecEnv,
     device: torch.device,
-    timer: Stopwatch,
-) -> tuple[Tensor, Tensor, Tensor, Tensor, list, slice, Tensor, int]:
+    timer: mettagrid.profiling.stopwatch.Stopwatch,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, list, slice, torch.Tensor, int]:
     """Get observations from vectorized environment and convert to tensors."""
     with timer("_rollout.env"):
         o, r, d, t, ta, info, env_id, mask = vecenv.recv()
@@ -40,9 +39,9 @@ def get_observation(
 
 def send_observation(
     vecenv: PufferlibVecEnv,
-    actions: Tensor,
+    actions: torch.Tensor,
     dtype_actions: np.dtype,
-    timer: Stopwatch,
+    timer: mettagrid.profiling.stopwatch.Stopwatch,
 ) -> None:
     """Send actions back to the vectorized environment."""
     with timer("_rollout.env"):

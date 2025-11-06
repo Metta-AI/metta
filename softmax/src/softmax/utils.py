@@ -1,5 +1,5 @@
+import functools
 import time
-from functools import wraps
 
 
 def memoize(max_age: int = 60):
@@ -7,7 +7,7 @@ def memoize(max_age: int = 60):
         cache = {}
         cache_time = {}
 
-        @wraps(func)
+        @functools.wraps(func)
         def wrapper(*args, **kwargs):
             key = hash((args, tuple(sorted(kwargs.items()))))
             current_time = time.time()

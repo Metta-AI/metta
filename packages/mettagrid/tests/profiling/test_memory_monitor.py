@@ -1,23 +1,23 @@
 import sys
 
-from mettagrid.profiling.memory_monitor import get_object_size
+import mettagrid.profiling.memory_monitor
 
 
 def test_basic_memory_calculation():
     """Test that memory size calculation works for basic types."""
     # Simple types
-    assert get_object_size(42) == sys.getsizeof(42)
-    assert get_object_size("hello") == sys.getsizeof("hello")
+    assert mettagrid.profiling.memory_monitor.get_object_size(42) == sys.getsizeof(42)
+    assert mettagrid.profiling.memory_monitor.get_object_size("hello") == sys.getsizeof("hello")
 
     # List with items
     test_list = [1, 2, 3, 4, 5]
     expected = sys.getsizeof(test_list) + sum(sys.getsizeof(i) for i in test_list)
-    assert get_object_size(test_list) == expected
+    assert mettagrid.profiling.memory_monitor.get_object_size(test_list) == expected
 
     # Dict with items
     test_dict = {"a": 1, "b": 2}
     expected = sys.getsizeof(test_dict) + sum(sys.getsizeof(k) + sys.getsizeof(v) for k, v in test_dict.items())
-    assert get_object_size(test_dict) == expected
+    assert mettagrid.profiling.memory_monitor.get_object_size(test_dict) == expected
 
 
 def test_object_with_attributes():
@@ -29,7 +29,7 @@ def test_object_with_attributes():
             self.y = "test"
 
     obj = TestObj()
-    size = get_object_size(obj)
+    size = mettagrid.profiling.memory_monitor.get_object_size(obj)
 
     # Should include object + __dict__ + attributes
     min_expected = sys.getsizeof(obj) + sys.getsizeof(obj.__dict__)
@@ -41,5 +41,7 @@ def test_memory_growth():
     small = list(range(10))
     large = list(range(10000))
 
-    assert get_object_size(small) < get_object_size(large)
-    assert get_object_size(large) > 100000  # Should be > 100KB
+    assert mettagrid.profiling.memory_monitor.get_object_size(
+        small
+    ) < mettagrid.profiling.memory_monitor.get_object_size(large)
+    assert mettagrid.profiling.memory_monitor.get_object_size(large) > 100000  # Should be > 100KB

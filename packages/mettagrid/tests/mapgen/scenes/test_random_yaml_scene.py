@@ -1,7 +1,7 @@
 import os
 
-from mettagrid.mapgen.scenes.random_yaml_scene import RandomYamlScene, RandomYamlSceneCandidate
-from mettagrid.test_support.mapgen import render_scene
+import mettagrid.mapgen.scenes.random_yaml_scene
+import mettagrid.test_support.mapgen
 
 
 def test_objects():
@@ -13,11 +13,11 @@ def test_objects():
 
     # 1 / 2^30 chance of failure
     for _ in range(30):
-        scene = render_scene(
-            RandomYamlScene.Config(
+        scene = mettagrid.test_support.mapgen.render_scene(
+            mettagrid.mapgen.scenes.random_yaml_scene.RandomYamlScene.Config(
                 candidates=[
-                    RandomYamlSceneCandidate(scene_file=f"{dir}/1.yaml"),
-                    RandomYamlSceneCandidate(scene_file=f"{dir}/2.yaml"),
+                    mettagrid.mapgen.scenes.random_yaml_scene.RandomYamlSceneCandidate(scene_file=f"{dir}/1.yaml"),
+                    mettagrid.mapgen.scenes.random_yaml_scene.RandomYamlSceneCandidate(scene_file=f"{dir}/2.yaml"),
                 ]
             ),
             (1, 1),

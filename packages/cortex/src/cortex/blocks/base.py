@@ -1,32 +1,30 @@
 """Base abstract block interface for wrapping memory cells."""
 
-from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from typing import Optional, Tuple
+import abc
+import typing
 
+import cortex.cells.base
+import cortex.types
+import tensordict
 import torch
 import torch.nn as nn
-from tensordict import TensorDict
-
-from cortex.cells.base import MemoryCell
-from cortex.types import MaybeState, ResetMask, Tensor
 
 
-class BaseBlock(nn.Module, ABC):
+class BaseBlock(nn.Module, abc.ABC):
     """Abstract block wrapping a memory cell with optional projections."""
 
-    def __init__(self, d_hidden: int, cell: MemoryCell) -> None:
+    def __init__(self, d_hidden: int, cell: cortex.cells.base.MemoryCell) -> None:
         super().__init__()
         self.d_hidden = d_hidden
         self.cell = cell
 
-    def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> TensorDict:
+    def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> tensordict.TensorDict:
         cell_state = self.cell.init_state(batch=batch, device=device, dtype=dtype)
         cell_key = self.cell.__class__.__name__
-        return TensorDict({cell_key: cell_state}, batch_size=[batch])
+        return tensordict.TensorDict({cell_key: cell_state}, batch_size=[batch])
 
-    def reset_state(self, state: MaybeState, mask: ResetMask) -> MaybeState:
+    def reset_state(self, state: cortex.types.MaybeState, mask: cortex.types.ResetMask) -> cortex.types.MaybeState:
         if state is None:
             return None
         cell_key = self.cell.__class__.__name__
@@ -39,16 +37,16 @@ class BaseBlock(nn.Module, ABC):
             if state.batch_size
             else (new_cell_state.batch_size[0] if new_cell_state.batch_size else mask.shape[0])
         )
-        return TensorDict({cell_key: new_cell_state}, batch_size=[batch_size])
+        return tensordict.TensorDict({cell_key: new_cell_state}, batch_size=[batch_size])
 
-    @abstractmethod
+    @abc.abstractmethod
     def forward(
         self,
-        x: Tensor,
-        state: MaybeState,
+        x: cortex.types.Tensor,
+        state: cortex.types.MaybeState,
         *,
-        resets: Optional[ResetMask] = None,
-    ) -> Tuple[Tensor, MaybeState]: ...
+        resets: typing.Optional[cortex.types.ResetMask] = None,
+    ) -> typing.Tuple[cortex.types.Tensor, cortex.types.MaybeState]: ...
 
 
 __all__ = ["BaseBlock"]

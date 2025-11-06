@@ -5,29 +5,26 @@
 import importlib.metadata
 import json
 import logging
+import pathlib
 import sys
-from pathlib import Path
-from typing import Literal, Optional, TypeVar
+import typing
 
+import click.core
+import packaging.version
+import rich.table
 import typer
 import yaml  # type: ignore[import]
-from click.core import ParameterSource
-from packaging.version import Version
-from rich.table import Table
 
-from cogames import evaluate as evaluate_module
-from cogames import game, verbose
-from cogames import play as play_module
-from cogames import train as train_module
-from cogames.cli.base import console
-from cogames.cli.login import DEFAULT_COGAMES_SERVER, perform_login
-from cogames.cli.mission import describe_mission, get_mission_name_and_config, get_mission_names_and_configs
-from cogames.cli.policy import get_policy_spec, get_policy_specs, policy_arg_example, policy_arg_w_proportion_example
-from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, submit_command
-from cogames.curricula import make_rotation
-from cogames.device import resolve_training_device
-from mettagrid.renderer.renderer import RenderMode
-from mettagrid.simulator import Simulator
+import cogames
+import cogames.cli.base
+import cogames.cli.login
+import cogames.cli.mission
+import cogames.cli.policy
+import cogames.cli.submit
+import cogames.curricula
+import cogames.device
+import mettagrid.renderer.renderer
+import mettagrid.simulator
 
 # Always add current directory to Python path
 sys.path.insert(0, ".")
@@ -35,7 +32,7 @@ sys.path.insert(0, ".")
 logger = logging.getLogger("cogames.main")
 
 
-T = TypeVar("T")
+T = typing.TypeVar("T")
 
 
 app = typer.Typer(
@@ -52,18 +49,18 @@ app = typer.Typer(
 @app.command("mission", hidden=True)
 def games_cmd(
     ctx: typer.Context,
-    mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Name of the mission"),
-    cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
-    variant: Optional[list[str]] = typer.Option(  # noqa: B008
+    mission: typing.Optional[str] = typer.Option(None, "--mission", "-m", help="Name of the mission"),
+    cogs: typing.Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
+    variant: typing.Optional[list[str]] = typer.Option(  # noqa: B008
         None,
         "--variant",
         "-v",
         help="Mission variant (can be used multiple times, e.g., --variant solar_flare --variant dark_side)",
     ),
-    format_: Optional[Literal["yaml", "json"]] = typer.Option(
+    format_: typing.Optional[typing.Literal["yaml", "json"]] = typer.Option(
         None, "--format", help="Output mission configuration in YAML or JSON."
     ),
-    save: Optional[Path] = typer.Option(  # noqa: B008
+    save: typing.Optional[pathlib.Path] = typer.Option(  # noqa: B008
         None,
         "--save",
         "-s",
@@ -72,21 +69,25 @@ def games_cmd(
     print_cvc_config: bool = typer.Option(False, "--print-cvc-config", help="Print Mission config (CVC config)"),
     print_mg_config: bool = typer.Option(False, "--print-mg-config", help="Print MettaGridConfig"),
 ) -> None:
-    resolved_mission, env_cfg, mission_cfg = get_mission_name_and_config(ctx, mission, variant, cogs)
+    resolved_mission, env_cfg, mission_cfg = cogames.cli.mission.get_mission_name_and_config(
+        ctx, mission, variant, cogs
+    )
 
     if print_cvc_config or print_mg_config:
         try:
-            verbose.print_configs(console, env_cfg, mission_cfg, print_cvc_config, print_mg_config)
+            cogames.verbose.print_configs(
+                cogames.cli.base.console, env_cfg, mission_cfg, print_cvc_config, print_mg_config
+            )
         except Exception as exc:
-            console.print(f"[red]Error printing config: {exc}[/red]")
+            cogames.cli.base.console.print(f"[red]Error printing config: {exc}[/red]")
             raise typer.Exit(1) from exc
 
     if save is not None:
         try:
-            game.save_mission_config(env_cfg, save)
-            console.print(f"[green]Mission configuration saved to: {save}[/green]")
+            cogames.game.save_mission_config(env_cfg, save)
+            cogames.cli.base.console.print(f"[green]Mission configuration saved to: {save}[/green]")
         except ValueError as exc:  # pragma: no cover - user input
-            console.print(f"[red]Error saving configuration: {exc}[/red]")
+            cogames.cli.base.console.print(f"[red]Error saving configuration: {exc}[/red]")
             raise typer.Exit(1) from exc
         return
 
@@ -94,65 +95,69 @@ def games_cmd(
         try:
             data = env_cfg.model_dump(mode="json")
             if format_ == "json":
-                console.print(json.dumps(data, indent=2))
+                cogames.cli.base.console.print(json.dumps(data, indent=2))
             else:
-                console.print(yaml.safe_dump(data, sort_keys=False))
+                cogames.cli.base.console.print(yaml.safe_dump(data, sort_keys=False))
         except Exception as exc:  # pragma: no cover - serialization errors
-            console.print(f"[red]Error formatting configuration: {exc}[/red]")
+            cogames.cli.base.console.print(f"[red]Error formatting configuration: {exc}[/red]")
             raise typer.Exit(1) from exc
         return
 
     try:
-        describe_mission(resolved_mission, env_cfg)
+        cogames.cli.mission.describe_mission(resolved_mission, env_cfg)
     except ValueError as exc:  # pragma: no cover - user input
-        console.print(f"[red]Error: {exc}[/red]")
+        cogames.cli.base.console.print(f"[red]Error: {exc}[/red]")
         raise typer.Exit(1) from exc
 
 
 @app.command(name="play", help="Play a game")
 def play_cmd(
     ctx: typer.Context,
-    mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Name of the mission"),
-    cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
-    variant: Optional[list[str]] = typer.Option(  # noqa: B008
+    mission: typing.Optional[str] = typer.Option(None, "--mission", "-m", help="Name of the mission"),
+    cogs: typing.Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
+    variant: typing.Optional[list[str]] = typer.Option(  # noqa: B008
         None,
         "--variant",
         "-v",
         help="Mission variant (can be used multiple times, e.g., --variant solar_flare --variant dark_side)",
     ),
-    policy: str = typer.Option("noop", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
+    policy: str = typer.Option("noop", "--policy", "-p", help=f"Policy ({cogames.cli.policy.policy_arg_example})"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
-    render: RenderMode = typer.Option("gui", "--render", "-r", help="Render mode"),  # noqa: B008
+    render: mettagrid.renderer.renderer.RenderMode = typer.Option("gui", "--render", "-r", help="Render mode"),  # noqa: B008
     print_cvc_config: bool = typer.Option(
         False, "--print-cvc-config", help="Print Mission config (CVC config) and exit"
     ),
     print_mg_config: bool = typer.Option(False, "--print-mg-config", help="Print MettaGridConfig and exit"),
 ) -> None:
-    resolved_mission, env_cfg, mission_cfg = get_mission_name_and_config(ctx, mission, variant, cogs)
+    resolved_mission, env_cfg, mission_cfg = cogames.cli.mission.get_mission_name_and_config(
+        ctx, mission, variant, cogs
+    )
 
     if print_cvc_config or print_mg_config:
         try:
-            verbose.print_configs(console, env_cfg, mission_cfg, print_cvc_config, print_mg_config)
+            cogames.verbose.print_configs(
+                cogames.cli.base.console, env_cfg, mission_cfg, print_cvc_config, print_mg_config
+            )
         except Exception as exc:
-            console.print(f"[red]Error printing config: {exc}[/red]")
+            cogames.cli.base.console.print(f"[red]Error printing config: {exc}[/red]")
             raise typer.Exit(1) from exc
 
-    policy_spec = get_policy_spec(ctx, policy)
-    console.print(f"[cyan]Playing {resolved_mission}[/cyan]")
-    console.print(f"Max Steps: {steps}, Render: {render}")
+    policy_spec = cogames.cli.policy.get_policy_spec(ctx, policy)
+    cogames.cli.base.console.print(f"[cyan]Playing {resolved_mission}[/cyan]")
+    cogames.cli.base.console.print(f"Max Steps: {steps}, Render: {render}")
 
     if ctx.get_parameter_source("steps") in (
-        ParameterSource.COMMANDLINE,
-        ParameterSource.ENVIRONMENT,
-        ParameterSource.PROMPT,
+        click.core.ParameterSource.COMMANDLINE,
+        click.core.ParameterSource.ENVIRONMENT,
+        click.core.ParameterSource.PROMPT,
     ):
         env_cfg.game.max_steps = steps
 
     if cogs is not None:
         env_cfg.game.num_agents = cogs
 
-    play_module.play(
-        console,
+    cogames.play.play(
+        cogames.cli.base.console,
         env_cfg=env_cfg,
         policy_spec=policy_spec,
         seed=42,
@@ -165,25 +170,29 @@ def play_cmd(
 @app.command("make-game", hidden=True)
 def make_mission(
     ctx: typer.Context,
-    base_mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Base mission to start configuring from"),
-    num_agents: Optional[int] = typer.Option(None, "--agents", "-a", help="Number of agents", min=1),
-    width: Optional[int] = typer.Option(None, "--width", "-w", help="Map width", min=1),
-    height: Optional[int] = typer.Option(None, "--height", "-h", help="Map height", min=1),
-    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (yml or json)"),  # noqa: B008
+    base_mission: typing.Optional[str] = typer.Option(
+        None, "--mission", "-m", help="Base mission to start configuring from"
+    ),
+    num_agents: typing.Optional[int] = typer.Option(None, "--agents", "-a", help="Number of agents", min=1),
+    width: typing.Optional[int] = typer.Option(None, "--width", "-w", help="Map width", min=1),
+    height: typing.Optional[int] = typer.Option(None, "--height", "-h", help="Map height", min=1),
+    output: typing.Optional[pathlib.Path] = typer.Option(None, "--output", "-o", help="Output file path (yml or json)"),  # noqa: B008
 ) -> None:
     try:
-        resolved_mission, env_cfg, _ = get_mission_name_and_config(ctx, base_mission)
+        resolved_mission, env_cfg, _ = cogames.cli.mission.get_mission_name_and_config(ctx, base_mission)
 
         # Update map dimensions if explicitly provided and supported
         if width is not None:
             if not hasattr(env_cfg.game.map_builder, "width"):
-                console.print("[yellow]Warning: Map builder does not support custom width. Ignoring --width.[/yellow]")
+                cogames.cli.base.console.print(
+                    "[yellow]Warning: Map builder does not support custom width. Ignoring --width.[/yellow]"
+                )
             else:
                 env_cfg.game.map_builder.width = width  # type: ignore[attr-defined]
 
         if height is not None:
             if not hasattr(env_cfg.game.map_builder, "height"):
-                console.print(
+                cogames.cli.base.console.print(
                     "[yellow]Warning: Map builder does not support custom height. Ignoring --height.[/yellow]"
                 )
             else:
@@ -194,31 +203,33 @@ def make_mission(
 
         # Validate the environment configuration
 
-        _ = Simulator().new_simulation(env_cfg)
+        _ = mettagrid.simulator.Simulator().new_simulation(env_cfg)
 
         if output:
-            game.save_mission_config(env_cfg, output)
-            console.print(f"[green]Modified {resolved_mission} configuration saved to: {output}[/green]")
+            cogames.game.save_mission_config(env_cfg, output)
+            cogames.cli.base.console.print(
+                f"[green]Modified {resolved_mission} configuration saved to: {output}[/green]"
+            )
         else:
-            console.print("\n[yellow]To save this configuration, use the --output option.[/yellow]")
+            cogames.cli.base.console.print("\n[yellow]To save this configuration, use the --output option.[/yellow]")
 
     except Exception as exc:  # pragma: no cover - user input
-        console.print(f"[red]Error: {exc}[/red]")
+        cogames.cli.base.console.print(f"[red]Error: {exc}[/red]")
         raise typer.Exit(1) from exc
 
 
 @app.command(name="train", help="Train a policy on a mission")
 def train_cmd(
     ctx: typer.Context,
-    missions: Optional[list[str]] = typer.Option(None, "--mission", "-m", help="Missions to train on"),  # noqa: B008
-    cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
-    variant: Optional[list[str]] = typer.Option(  # noqa: B008
+    missions: typing.Optional[list[str]] = typer.Option(None, "--mission", "-m", help="Missions to train on"),  # noqa: B008
+    cogs: typing.Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
+    variant: typing.Optional[list[str]] = typer.Option(  # noqa: B008
         None,
         "--variant",
         "-v",
         help="Mission variant (can be used multiple times, e.g., --variant solar_flare --variant dark_side)",
     ),
-    policy: str = typer.Option("lstm", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
+    policy: str = typer.Option("lstm", "--policy", "-p", help=f"Policy ({cogames.cli.policy.policy_arg_example})"),
     checkpoints_path: str = typer.Option(
         "./train_dir",
         "--checkpoints",
@@ -233,19 +244,19 @@ def train_cmd(
     seed: int = typer.Option(42, "--seed", help="Seed for training", min=0),
     batch_size: int = typer.Option(4096, "--batch-size", help="Batch size for training", min=1),
     minibatch_size: int = typer.Option(4096, "--minibatch-size", help="Minibatch size for training", min=1),
-    num_workers: Optional[int] = typer.Option(
+    num_workers: typing.Optional[int] = typer.Option(
         None,
         "--num-workers",
         help="Number of worker processes (defaults to number of CPU cores)",
         min=1,
     ),
-    parallel_envs: Optional[int] = typer.Option(
+    parallel_envs: typing.Optional[int] = typer.Option(
         None,
         "--parallel-envs",
         help="Number of parallel environments",
         min=1,
     ),
-    vector_batch_size: Optional[int] = typer.Option(
+    vector_batch_size: typing.Optional[int] = typer.Option(
         None,
         "--vector-batch-size",
         help="Override vectorized environment batch size",
@@ -253,30 +264,34 @@ def train_cmd(
     ),
     log_outputs: bool = typer.Option(False, "--log-outputs", help="Log training outputs"),
 ) -> None:
-    selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs)
+    selected_missions = cogames.cli.mission.get_mission_names_and_configs(
+        ctx, missions, variants_arg=variant, cogs=cogs
+    )
     if len(selected_missions) == 1:
         mission_name, env_cfg = selected_missions[0]
         supplier = None
-        console.print(f"Training on mission: {mission_name}\n")
+        cogames.cli.base.console.print(f"Training on mission: {mission_name}\n")
     elif len(selected_missions) > 1:
         env_cfg = None
-        supplier = make_rotation(selected_missions)
-        console.print("Training on missions:\n" + "\n".join(f"- {m}" for m, _ in selected_missions) + "\n")
+        supplier = cogames.curricula.make_rotation(selected_missions)
+        cogames.cli.base.console.print(
+            "Training on missions:\n" + "\n".join(f"- {m}" for m, _ in selected_missions) + "\n"
+        )
     else:
         # Should not get here
         raise ValueError("Please specify at least one mission")
 
-    policy_spec = get_policy_spec(ctx, policy)
-    torch_device = resolve_training_device(console, device)
+    policy_spec = cogames.cli.policy.get_policy_spec(ctx, policy)
+    torch_device = cogames.device.resolve_training_device(cogames.cli.base.console, device)
 
     try:
-        train_module.train(
+        cogames.train.train(
             env_cfg=env_cfg,
             policy_class_path=policy_spec.policy_class_path,
             initial_weights_path=policy_spec.policy_data_path,
             device=torch_device,
             num_steps=steps,
-            checkpoints_path=Path(checkpoints_path),
+            checkpoints_path=pathlib.Path(checkpoints_path),
             seed=seed,
             batch_size=batch_size,
             minibatch_size=minibatch_size,
@@ -289,10 +304,10 @@ def train_cmd(
         )
 
     except ValueError as exc:  # pragma: no cover - user input
-        console.print(f"[red]Error: {exc}[/red]")
+        cogames.cli.base.console.print(f"[red]Error: {exc}[/red]")
         raise typer.Exit(1) from exc
 
-    console.print(f"[green]Training complete. Checkpoints saved to: {checkpoints_path}[/green]")
+    cogames.cli.base.console.print(f"[green]Training complete. Checkpoints saved to: {checkpoints_path}[/green]")
 
 
 @app.command(
@@ -302,24 +317,24 @@ def train_cmd(
 @app.command("evaluate", hidden=True)
 def evaluate_cmd(
     ctx: typer.Context,
-    missions: Optional[list[str]] = typer.Option(  # noqa: B008
+    missions: typing.Optional[list[str]] = typer.Option(  # noqa: B008
         None,
         "--mission",
         "-m",
         help="Missions to evaluate (supports wildcards, e.g., --mission training_facility.*)",
     ),
-    cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
-    variant: Optional[list[str]] = typer.Option(  # noqa: B008
+    cogs: typing.Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
+    variant: typing.Optional[list[str]] = typer.Option(  # noqa: B008
         None,
         "--variant",
         "-v",
         help="Mission variant (can be used multiple times, e.g., --variant solar_flare --variant dark_side)",
     ),
-    policies: Optional[list[str]] = typer.Option(  # noqa: B008
+    policies: typing.Optional[list[str]] = typer.Option(  # noqa: B008
         None,
         "--policy",
         "-p",
-        help=f"Policies to evaluate: ({policy_arg_w_proportion_example}...)",
+        help=f"Policies to evaluate: ({cogames.cli.policy.policy_arg_w_proportion_example}...)",
     ),
     episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes", min=1),
     action_timeout_ms: int = typer.Option(
@@ -328,28 +343,30 @@ def evaluate_cmd(
         help="Max milliseconds afforded to generate each action before noop is used by default",
         min=1,
     ),
-    steps: Optional[int] = typer.Option(1000, "--steps", "-s", help="Max steps per episode", min=1),
-    format_: Optional[Literal["yaml", "json"]] = typer.Option(
+    steps: typing.Optional[int] = typer.Option(1000, "--steps", "-s", help="Max steps per episode", min=1),
+    format_: typing.Optional[typing.Literal["yaml", "json"]] = typer.Option(
         None,
         "--format",
         help="Output results in YAML or JSON format",
     ),
 ) -> None:
-    selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs, steps=steps)
+    selected_missions = cogames.cli.mission.get_mission_names_and_configs(
+        ctx, missions, variants_arg=variant, cogs=cogs, steps=steps
+    )
 
     # Override num_agents if --cogs was explicitly provided
     if cogs is not None:
         for _, env_cfg in selected_missions:
             env_cfg.game.num_agents = cogs
 
-    policy_specs = get_policy_specs(ctx, policies)
+    policy_specs = cogames.cli.policy.get_policy_specs(ctx, policies)
 
-    console.print(
+    cogames.cli.base.console.print(
         f"[cyan]Preparing evaluation for {len(policy_specs)} policies across {len(selected_missions)} mission(s)[/cyan]"
     )
 
-    evaluate_module.evaluate(
-        console,
+    cogames.evaluate.evaluate(
+        cogames.cli.base.console,
         missions=selected_missions,
         policy_specs=policy_specs,
         action_timeout_ms=action_timeout_ms,
@@ -361,22 +378,22 @@ def evaluate_cmd(
 @app.command(name="version", help="Show version information")
 def version_cmd() -> None:
     def public_version(dist_name: str) -> str:
-        return str(Version(importlib.metadata.version(dist_name)).public)
+        return str(packaging.version.Version(importlib.metadata.version(dist_name)).public)
 
-    table = Table(show_header=False, box=None, show_lines=False, pad_edge=False)
+    table = rich.table.Table(show_header=False, box=None, show_lines=False, pad_edge=False)
     table.add_column("", justify="right", style="bold cyan")
     table.add_column("", justify="right")
 
     for dist_name in ["mettagrid", "pufferlib-core", "cogames"]:
         table.add_row(dist_name, public_version(dist_name))
 
-    console.print(table)
+    cogames.cli.base.console.print(table)
 
 
 @app.command(name="login", help="Authenticate with CoGames server")
 def login_cmd(
     server: str = typer.Option(
-        DEFAULT_COGAMES_SERVER,
+        cogames.cli.login.DEFAULT_COGAMES_SERVER,
         "--server",
         "-s",
         help="CoGames server URL",
@@ -395,26 +412,28 @@ def login_cmd(
         min=1,
     ),
 ) -> None:
-    from urllib.parse import urlparse
+    import urllib.parse
 
     # Check if we already have a token
-    from cogames.auth import BaseCLIAuthenticator
+    import cogames.auth
 
-    temp_auth = BaseCLIAuthenticator(
+    temp_auth = cogames.auth.BaseCLIAuthenticator(
         token_file_name="cogames.yaml",
         token_storage_key="login_tokens",
     )
 
     if temp_auth.has_saved_token(server) and not force:
-        console.print(f"[green]Already authenticated with {urlparse(server).hostname}[/green]")
+        cogames.cli.base.console.print(
+            f"[green]Already authenticated with {urllib.parse.urlparse(server).hostname}[/green]"
+        )
         return
 
     # Perform authentication
-    console.print(f"[cyan]Authenticating with {server}...[/cyan]")
-    if perform_login(auth_server_url=server, force=force, timeout=timeout):
-        console.print("[green]Authentication successful![/green]")
+    cogames.cli.base.console.print(f"[cyan]Authenticating with {server}...[/cyan]")
+    if cogames.cli.login.perform_login(auth_server_url=server, force=force, timeout=timeout):
+        cogames.cli.base.console.print("[green]Authentication successful![/green]")
     else:
-        console.print("[red]Authentication failed![/red]")
+        cogames.cli.base.console.print("[red]Authentication failed![/red]")
         raise typer.Exit(1)
 
 
@@ -425,27 +444,27 @@ def submit_cmd(
         ...,
         "--policy",
         "-p",
-        help=f"Policy specification: {policy_arg_example}",
+        help=f"Policy specification: {cogames.cli.policy.policy_arg_example}",
     ),
-    name: Optional[str] = typer.Option(
+    name: typing.Optional[str] = typer.Option(
         None,
         "--name",
         "-n",
         help="Optional name for the submission",
     ),
-    include_files: Optional[list[str]] = typer.Option(  # noqa: B008
+    include_files: typing.Optional[list[str]] = typer.Option(  # noqa: B008
         None,
         "--include-files",
         "-f",
         help="Files or directories to include in submission (can be specified multiple times)",
     ),
     login_server: str = typer.Option(
-        DEFAULT_COGAMES_SERVER,
+        cogames.cli.login.DEFAULT_COGAMES_SERVER,
         "--login-server",
         help="Login/authentication server URL",
     ),
     server: str = typer.Option(
-        DEFAULT_SUBMIT_SERVER,
+        cogames.cli.submit.DEFAULT_SUBMIT_SERVER,
         "--server",
         "-s",
         help="Submission server URL",
@@ -469,7 +488,7 @@ def submit_cmd(
     The policy will be tested in an isolated environment before submission
     (unless --skip-validation is used).
     """
-    submit_command(
+    cogames.cli.submit.submit_command(
         ctx=ctx,
         policy=policy,
         name=name,

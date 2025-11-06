@@ -23,25 +23,25 @@ Usage:
     ./metta/util/live_run_monitor.py  # Monitor last 10 runs (fetch 50, display 10)
 """
 
+import collections
+import datetime
 import logging
 import os
 import sys
 import threading
 import time
-from collections import deque
-from datetime import datetime
-from typing import TYPE_CHECKING, Annotated, Deque, Optional
+import typing
 
+import rich.console
+import rich.live
+import rich.table
+import rich.text
 import typer
-from rich.console import Console, Group
-from rich.live import Live
-from rich.table import Table
-from rich.text import Text
 
-from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
+import metta.common.util.constants
 
-if TYPE_CHECKING:
-    from metta.adaptive.models import JobStatus, RunInfo
+if typing.TYPE_CHECKING:
+    import metta.adaptive.models
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +64,7 @@ class RateLimiter:
     Background tasks may use acquire() with a short timeout if needed.
     """
 
-    def __init__(self, max_rpm: int = 60, burst_rpm: Optional[int] = None) -> None:
+    def __init__(self, max_rpm: int = 60, burst_rpm: typing.Optional[int] = None) -> None:
         self.max_rpm = max(1, int(max_rpm))
         self.capacity = int(burst_rpm) if burst_rpm is not None else self.max_rpm
         self.tokens = float(self.capacity)
@@ -72,7 +72,7 @@ class RateLimiter:
         self.last_refill = time.monotonic()
         self._lock = threading.Lock()
         # Stats
-        self._acquired_times: Deque[float] = deque()
+        self._acquired_times: typing.Deque[float] = collections.deque()
         self.calls_total: int = 0
         self.errors_total: int = 0
 
@@ -94,7 +94,7 @@ class RateLimiter:
                 return True
             return False
 
-    def acquire(self, tokens: float = 1.0, timeout: Optional[float] = None) -> bool:
+    def acquire(self, tokens: float = 1.0, timeout: typing.Optional[float] = None) -> bool:
         deadline = None if timeout is None else time.monotonic() + timeout
         while True:
             with self._lock:
@@ -124,31 +124,30 @@ class RateLimiter:
 
 def _get_status_color(status: "JobStatus") -> str:
     """Get color for run status."""
-    from metta.adaptive.models import JobStatus
 
-    if status == JobStatus.COMPLETED:
+    if status == metta.adaptive.models.JobStatus.COMPLETED:
         return "bright_blue"
-    elif status == JobStatus.IN_TRAINING:
+    elif status == metta.adaptive.models.JobStatus.IN_TRAINING:
         return "bright_green"
-    elif status == JobStatus.PENDING:
+    elif status == metta.adaptive.models.JobStatus.PENDING:
         return "bright_black"
-    elif status == JobStatus.TRAINING_DONE_NO_EVAL:
+    elif status == metta.adaptive.models.JobStatus.TRAINING_DONE_NO_EVAL:
         return "green"
-    elif status == JobStatus.IN_EVAL:
+    elif status == metta.adaptive.models.JobStatus.IN_EVAL:
         return "bright_cyan"
-    elif status == JobStatus.FAILED:
+    elif status == metta.adaptive.models.JobStatus.FAILED:
         return "bright_red"
-    elif status == JobStatus.STALE:
+    elif status == metta.adaptive.models.JobStatus.STALE:
         return "bright_black"
     else:
         return "white"
 
 
-def make_rich_monitor_table(runs: list["RunInfo"], score_metric: str = "env_agent/heart.gained") -> Table:
+def make_rich_monitor_table(runs: list["RunInfo"], score_metric: str = "env_agent/heart.gained") -> rich.table.Table:
     """Create rich table for run monitoring."""
 
     # Create table
-    table = Table(show_header=True, header_style="bold magenta")
+    table = rich.table.Table(show_header=True, header_style="bold magenta")
     table.add_column("Run ID", style="cyan")
     table.add_column("Status")
     table.add_column("Progress", style="yellow", width=25)
@@ -158,7 +157,7 @@ def make_rich_monitor_table(runs: list["RunInfo"], score_metric: str = "env_agen
     for run in runs:
         # Format run ID with clickable link to WandB
         wandb_url = f"https://wandb.ai/metta-research/metta/runs/{run.run_id}"
-        run_id_text = Text(run.run_id, style="link " + wandb_url)
+        run_id_text = rich.text.Text(run.run_id, style="link " + wandb_url)
 
         # Format progress in Gsteps with percentage
         if run.total_timesteps and run.current_steps is not None:
@@ -189,7 +188,7 @@ def make_rich_monitor_table(runs: list["RunInfo"], score_metric: str = "env_agen
         # Status with color
         status = run.status
         status_color = _get_status_color(status)
-        status_text = Text(status.value, style=status_color)
+        status_text = rich.text.Text(status.value, style=status_color)
 
         table.add_row(
             run_id_text,
@@ -203,12 +202,12 @@ def make_rich_monitor_table(runs: list["RunInfo"], score_metric: str = "env_agen
 
 
 def create_run_banner(
-    group: Optional[str],
-    name_filter: Optional[str],
+    group: typing.Optional[str],
+    name_filter: typing.Optional[str],
     runs: list["RunInfo"],
     display_limit: int = 10,
     score_metric: str = "env_agent/heart.gained",
-    api_rpm: Optional[float] = None,
+    api_rpm: typing.Optional[float] = None,
 ):
     """Create a banner with run information."""
 
@@ -219,18 +218,17 @@ def create_run_banner(
             # Parse created_at if it's a string from WandB
             created_at = run.created_at
             if isinstance(created_at, str):
-                from dateutil import parser
+                import dateutil
 
-                created_at = parser.parse(created_at)
+                created_at = dateutil.parser.parse(created_at)
 
             if earliest_created is None or created_at < earliest_created:
                 earliest_created = created_at
 
     if earliest_created:
-        # Use timezone-aware current time to match WandB timestamps
-        from datetime import timezone
-
-        current_time = datetime.now(timezone.utc) if earliest_created.tzinfo else datetime.now()
+        current_time = (
+            datetime.datetime.now(datetime.timezone.utc) if earliest_created.tzinfo else datetime.datetime.now()
+        )
         runtime = current_time - earliest_created
         runtime_hours = runtime.total_seconds() / 3600.0
         runtime_str = f"{runtime_hours:.1f} hours"
@@ -266,18 +264,15 @@ def create_run_banner(
     else:
         filter_desc = "all runs"
 
-    # Create inline banner with styled parts
-    from rich.text import Text as RichText
-
     # First line with fetch/display info
-    line1 = RichText(
+    line1 = rich.text.Text(
         f"🔄 LIVE RUN MONITOR: {filter_desc} | Fetched: {total_runs} runs, "
         f"displaying at most {display_limit} runs | Score: {score_metric}. "
     )
     line1.append("Use --help to change limits.", style="dim")
 
     # Cost line with warning
-    cost_line = RichText(f"💰 Total Cost: ${total_cost:.2f} ")
+    cost_line = rich.text.Text(f"💰 Total Cost: ${total_cost:.2f} ")
 
     banner_lines = [
         line1,
@@ -292,19 +287,17 @@ def create_run_banner(
 
     banner_lines.extend(
         [
-            f"🔄 Last Update: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            f"🔄 Last Update: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
             "─" * 100,
         ]
     )
 
-    from rich.console import Group
-
-    return Group(*[Text(line) if isinstance(line, str) else line for line in banner_lines])
+    return rich.console.Group(*[rich.text.Text(line) if isinstance(line, str) else line for line in banner_lines])
 
 
 def live_monitor_runs(
-    group: Optional[str] = None,
-    name_filter: Optional[str] = None,
+    group: typing.Optional[str] = None,
+    name_filter: typing.Optional[str] = None,
     refresh_interval: int = 30,
     entity: str = "metta-research",
     project: str = "metta",
@@ -313,7 +306,7 @@ def live_monitor_runs(
     fetch_limit: int = 50,
     score_metric: str = "env_agent/heart.gained",
     max_rpm: int = 60,
-    burst_rpm: Optional[int] = None,
+    burst_rpm: typing.Optional[int] = None,
     runs_cache_ttl_sec: int = 60,
 ) -> None:
     """Live monitor runs with rich terminal display.
@@ -323,13 +316,13 @@ def live_monitor_runs(
         display_limit: Maximum number of runs to display in table (default: 10)
     """
 
-    console = Console()
+    console = rich.console.Console()
 
     # Always use adaptive store
     try:
-        from metta.adaptive.stores.wandb import WandbStore
+        import metta.adaptive.stores.wandb
 
-        store = WandbStore(entity=entity, project=project)
+        store = metta.adaptive.stores.wandb.WandbStore(entity=entity, project=project)
     except ImportError:
         print("Error: Cannot import adaptive WandbStore. Make sure dependencies are installed.")
         sys.exit(1)
@@ -370,7 +363,7 @@ def live_monitor_runs(
                     all_runs = cached_all_runs
                 else:
                     # Stale/no cache; show an informative message instead of blocking
-                    return Text("API rate limit in effect; waiting for budget...", style="bright_yellow")
+                    return rich.text.Text("API rate limit in effect; waiting for budget...", style="bright_yellow")
             # Take only the display_limit for the table
             runs = all_runs[:display_limit]
 
@@ -388,7 +381,7 @@ def live_monitor_runs(
 
                 warning_msg += "\n   Waiting for runs to appear..."
 
-                return Text(warning_msg, style="bright_yellow")
+                return rich.text.Text(warning_msg, style="bright_yellow")
 
             # Create banner using all fetched runs for accurate statistics
             banner = create_run_banner(
@@ -404,19 +397,19 @@ def live_monitor_runs(
             table = make_rich_monitor_table(runs, score_metric)
 
             # Create a renderable group
-            display = Group(
+            display = rich.console.Group(
                 banner,
-                Text(""),  # Empty line
+                rich.text.Text(""),  # Empty line
                 table,
-                Text(""),  # Empty line
-                Text("(CMD + Click to see run in WandB)", style="dim"),
+                rich.text.Text(""),  # Empty line
+                rich.text.Text("(CMD + Click to see run in WandB)", style="dim"),
             )
             return display
 
         except Exception as e:
             error_msg = f"Error fetching run data: {str(e)}"
             logger.error(error_msg, exc_info=True)
-            return Text(error_msg, style="bright_red")
+            return rich.text.Text(error_msg, style="bright_red")
 
     # Start monitoring
     filter_desc_parts = []
@@ -436,7 +429,7 @@ def live_monitor_runs(
     console.print("Press Ctrl+C to exit\n")
 
     try:
-        with Live(generate_display(), console=console, refresh_per_second=1, screen=clear_screen) as live:
+        with rich.live.Live(generate_display(), console=console, refresh_per_second=1, screen=clear_screen) as live:
             while True:
                 time.sleep(refresh_interval)
                 live.update(generate_display())
@@ -451,55 +444,53 @@ def live_monitor_runs(
 
 
 def live_monitor_runs_test(
-    group: Optional[str] = None, refresh_interval: int = 30, clear_screen: bool = True, display_limit: int = 10
+    group: typing.Optional[str] = None, refresh_interval: int = 30, clear_screen: bool = True, display_limit: int = 10
 ) -> None:
     """Test mode for live run monitoring with mock data."""
-    from datetime import datetime, timedelta
 
-    from metta.adaptive.models import JobStatus, RunInfo
-
-    console = Console()
+    console = rich.console.Console()
 
     def generate_test_runs():
         """Generate mock runs for testing."""
         runs = []
-        base_time = datetime.now() - timedelta(hours=2)
+        base_time = datetime.datetime.now() - datetime.timedelta(hours=2)
 
         for i in range(min(8, display_limit + 2)):  # Generate a few more than display limit
             run_id = f"test_run_{i:03d}"
 
             # Vary the status
             if i < 2:
-                status = JobStatus.COMPLETED
+                status = metta.adaptive.models.JobStatus.COMPLETED
                 summary = {"env_agent/heart.gained": 0.85 + i * 0.05}
                 current_steps = 1000000000
                 total_timesteps = 1000000000
             elif i < 4:
-                status = JobStatus.IN_TRAINING
+                status = metta.adaptive.models.JobStatus.IN_TRAINING
                 summary = {"env_agent/heart.gained": 0.75 + i * 0.05}
                 current_steps = 500000000 + i * 100000000
                 total_timesteps = 1000000000
             elif i < 6:
-                status = JobStatus.PENDING
+                status = metta.adaptive.models.JobStatus.PENDING
                 summary = None
                 current_steps = None
                 total_timesteps = None
             else:
-                status = JobStatus.FAILED
+                status = metta.adaptive.models.JobStatus.FAILED
                 summary = None
                 current_steps = None
                 total_timesteps = None
 
-            run = RunInfo(
+            run = metta.adaptive.models.RunInfo(
                 run_id=run_id,
-                has_started_training=status != JobStatus.PENDING,
-                has_completed_training=status in [JobStatus.COMPLETED, JobStatus.FAILED],
-                has_started_eval=status == JobStatus.COMPLETED,
-                has_been_evaluated=status == JobStatus.COMPLETED,
-                has_failed=status == JobStatus.FAILED,
+                has_started_training=status != metta.adaptive.models.JobStatus.PENDING,
+                has_completed_training=status
+                in [metta.adaptive.models.JobStatus.COMPLETED, metta.adaptive.models.JobStatus.FAILED],
+                has_started_eval=status == metta.adaptive.models.JobStatus.COMPLETED,
+                has_been_evaluated=status == metta.adaptive.models.JobStatus.COMPLETED,
+                has_failed=status == metta.adaptive.models.JobStatus.FAILED,
                 summary=summary,
-                cost=4.50 + i if status != JobStatus.PENDING else 0.0,
-                created_at=base_time + timedelta(minutes=i * 15),
+                cost=4.50 + i if status != metta.adaptive.models.JobStatus.PENDING else 0.0,
+                created_at=base_time + datetime.timedelta(minutes=i * 15),
                 current_steps=current_steps,
                 total_timesteps=total_timesteps,
             )
@@ -517,12 +508,12 @@ def live_monitor_runs_test(
         table = make_rich_monitor_table(runs)
 
         # Create a renderable group
-        display = Group(
-            Text(banner),
-            Text(""),  # Empty line
+        display = rich.console.Group(
+            rich.text.Text(banner),
+            rich.text.Text(""),  # Empty line
             table,
-            Text(""),  # Empty line
-            Text("🧪 TEST MODE - Mock data displayed above", style="bright_magenta"),
+            rich.text.Text(""),  # Empty line
+            rich.text.Text("🧪 TEST MODE - Mock data displayed above", style="bright_magenta"),
         )
         return display
 
@@ -531,7 +522,7 @@ def live_monitor_runs_test(
     console.print("Press Ctrl+C to exit\n")
 
     try:
-        with Live(generate_display(), console=console, refresh_per_second=1, screen=clear_screen) as live:
+        with rich.live.Live(generate_display(), console=console, refresh_per_second=1, screen=clear_screen) as live:
             while True:
                 time.sleep(refresh_interval)
                 live.update(generate_display())
@@ -548,34 +539,42 @@ def live_monitor_runs_test(
 @app.callback(invoke_without_command=True)
 def cli(
     ctx: typer.Context,
-    group: Annotated[str | None, typer.Option("--group", "-g", help="WandB group to monitor")] = None,
-    name_filter: Annotated[
+    group: typing.Annotated[str | None, typer.Option("--group", "-g", help="WandB group to monitor")] = None,
+    name_filter: typing.Annotated[
         str | None, typer.Option("--name-filter", help=f"Regex filter for run names (e.g., '{os.getenv('USER')}.*')")
     ] = None,
-    refresh: Annotated[int, typer.Option("--refresh", "-r", help="Refresh interval in seconds")] = 30,
-    entity: Annotated[str, typer.Option("--entity", "-e", help="WandB entity")] = METTA_WANDB_ENTITY,
-    project: Annotated[str, typer.Option("--project", "-p", help="WandB project")] = METTA_WANDB_PROJECT,
-    test: Annotated[
+    refresh: typing.Annotated[int, typer.Option("--refresh", "-r", help="Refresh interval in seconds")] = 30,
+    entity: typing.Annotated[
+        str, typer.Option("--entity", "-e", help="WandB entity")
+    ] = metta.common.util.constants.METTA_WANDB_ENTITY,
+    project: typing.Annotated[
+        str, typer.Option("--project", "-p", help="WandB project")
+    ] = metta.common.util.constants.METTA_WANDB_PROJECT,
+    test: typing.Annotated[
         bool, typer.Option("--test", help="Run in test mode with mock data (no WandB connection required)")
     ] = False,
-    no_clear: Annotated[bool, typer.Option("--no-clear", help="Don't clear screen, append output instead")] = False,
-    fetch_limit: Annotated[int, typer.Option("--fetch-limit", help="Maximum number of runs to fetch from WandB")] = 50,
-    display_limit: Annotated[
+    no_clear: typing.Annotated[
+        bool, typer.Option("--no-clear", help="Don't clear screen, append output instead")
+    ] = False,
+    fetch_limit: typing.Annotated[
+        int, typer.Option("--fetch-limit", help="Maximum number of runs to fetch from WandB")
+    ] = 50,
+    display_limit: typing.Annotated[
         int, typer.Option("--display-limit", help="Maximum number of runs to display in table")
     ] = 10,
-    score_metric: Annotated[
+    score_metric: typing.Annotated[
         str,
         typer.Option(
             "--score-metric",
             help="Metric key in run.summary to use for score",
         ),
     ] = "env_agent/heart.gained",
-    max_rpm: Annotated[int, typer.Option("--max-rpm", help="Global API request budget per minute")] = 60,
-    burst_rpm: Annotated[
-        Optional[int],
+    max_rpm: typing.Annotated[int, typer.Option("--max-rpm", help="Global API request budget per minute")] = 60,
+    burst_rpm: typing.Annotated[
+        typing.Optional[int],
         typer.Option("--burst-rpm", help="Optional burst capacity for the rate limiter"),
     ] = None,
-    runs_cache_ttl_sec: Annotated[
+    runs_cache_ttl_sec: typing.Annotated[
         int,
         typer.Option("--runs-cache-ttl-sec", help="TTL for cached run list when rate-limited"),
     ] = 60,

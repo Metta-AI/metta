@@ -26,17 +26,16 @@ Environment variables:
     ENABLE_GITHUB_STATUS         (optional) only run if true, default false
 """
 
-from __future__ import annotations
 
 import argparse
 import os
+import pathlib
 import sys
 import time
-from pathlib import Path
 
 # Allow importing metta.common from repo if present (no install needed)
-REPO_ROOT = Path(__file__).resolve().parents[2]
-CANDIDATES = [REPO_ROOT / "common" / "src", Path("/workspace/metta/common/src")]
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+CANDIDATES = [REPO_ROOT / "common" / "src", pathlib.Path("/workspace/metta/common/src")]
 for p in CANDIDATES:
     if p.exists():
         sys.path.insert(0, str(p))
@@ -69,9 +68,9 @@ def main() -> int:
 
     # Read SkyPilot job ID from file if not in environment
     job_id = os.getenv("SKYPILOT_JOB_ID", "").strip()
-    if not job_id and Path("/tmp/.sky_tmp/sky_job_id").exists():
+    if not job_id and pathlib.Path("/tmp/.sky_tmp/sky_job_id").exists():
         try:
-            job_id = Path("/tmp/.sky_tmp/sky_job_id").read_text().strip()
+            job_id = pathlib.Path("/tmp/.sky_tmp/sky_job_id").read_text().strip()
             os.environ["SKYPILOT_JOB_ID"] = job_id
         except Exception as e:
             print(f"[WARN] Could not read SkyPilot job ID: {e}")

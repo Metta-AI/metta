@@ -1,5 +1,5 @@
-from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig, ProtocolConfig
-from mettagrid.simulator import Action, Simulation
+import mettagrid.config.mettagrid_config
+import mettagrid.simulator
 
 
 class TestAssemblerPartialUsage:
@@ -7,16 +7,20 @@ class TestAssemblerPartialUsage:
 
     def test_partial_usage_disabled(self):
         """Test that assemblers cannot be used during cooldown when allow_partial_usage is False."""
-        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True)
+        cfg = mettagrid.config.mettagrid_config.MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True)
 
         cfg.game.resource_names = ["iron", "steel"]
         cfg.game.agent.initial_inventory = {"iron": 100, "steel": 0}
 
         # Configure assembler with partial usage disabled
-        cfg.game.objects["assembler"] = AssemblerConfig(
+        cfg.game.objects["assembler"] = mettagrid.config.mettagrid_config.AssemblerConfig(
             name="assembler",
             map_char="Z",
-            protocols=[ProtocolConfig(input_resources={"iron": 10}, output_resources={"steel": 5}, cooldown=10)],
+            protocols=[
+                mettagrid.config.mettagrid_config.ProtocolConfig(
+                    input_resources={"iron": 10}, output_resources={"steel": 5}, cooldown=10
+                )
+            ],
             allow_partial_usage=False,  # Disable partial usage
         )
 
@@ -31,14 +35,14 @@ class TestAssemblerPartialUsage:
         cfg.game.actions.move.enabled = True
         cfg.game.actions.noop.enabled = True
 
-        sim = Simulation(cfg)
+        sim = mettagrid.simulator.Simulation(cfg)
         agent = sim.agent(0)
 
         iron_idx = sim.resource_names.index("iron")
         steel_idx = sim.resource_names.index("steel")
 
         # First usage - move east to interact with assembler
-        agent.set_action(Action(name="move_east"))
+        agent.set_action(mettagrid.simulator.Action(name="move_east"))
         sim.step()
 
         # Verify resource change using inventory property
@@ -58,11 +62,11 @@ class TestAssemblerPartialUsage:
 
         # Wait 5 ticks (50% cooldown)
         for _ in range(5):
-            agent.set_action(Action(name="noop"))
+            agent.set_action(mettagrid.simulator.Action(name="noop"))
             sim.step()
 
         # Try to use during cooldown (should fail with partial usage disabled)
-        agent.set_action(Action(name="move_south"))
+        agent.set_action(mettagrid.simulator.Action(name="move_south"))
         sim.step()
 
         # Verify resources using inventory property
@@ -86,16 +90,20 @@ class TestAssemblerPartialUsage:
 
     def test_partial_usage_scaling(self):
         """Test resource scaling at different cooldown progress levels."""
-        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True)
+        cfg = mettagrid.config.mettagrid_config.MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True)
 
         cfg.game.resource_names = ["iron", "steel"]
         cfg.game.agent.initial_inventory = {"iron": 100, "steel": 0}
 
         # Protocol: 20 iron -> 10 steel, 100 tick cooldown
-        cfg.game.objects["assembler"] = AssemblerConfig(
+        cfg.game.objects["assembler"] = mettagrid.config.mettagrid_config.AssemblerConfig(
             name="assembler",
             map_char="Z",
-            protocols=[ProtocolConfig(input_resources={"iron": 20}, output_resources={"steel": 10}, cooldown=100)],
+            protocols=[
+                mettagrid.config.mettagrid_config.ProtocolConfig(
+                    input_resources={"iron": 20}, output_resources={"steel": 10}, cooldown=100
+                )
+            ],
             allow_partial_usage=True,
         )
 
@@ -110,14 +118,14 @@ class TestAssemblerPartialUsage:
         cfg.game.actions.move.enabled = True
         cfg.game.actions.noop.enabled = True
 
-        sim = Simulation(cfg)
+        sim = mettagrid.simulator.Simulation(cfg)
         agent = sim.agent(0)
 
         iron_idx = sim.resource_names.index("iron")
         steel_idx = sim.resource_names.index("steel")
 
         # First full usage - move east to interact with assembler
-        agent.set_action(Action(name="move_east"))
+        agent.set_action(mettagrid.simulator.Action(name="move_east"))
         sim.step()
 
         # Verify using inventory property
@@ -142,7 +150,7 @@ class TestAssemblerPartialUsage:
 
         # Test at 12% progress (12 ticks into 100 tick cooldown)
         for _ in range(12):
-            agent.set_action(Action(name="noop"))
+            agent.set_action(mettagrid.simulator.Action(name="noop"))
             sim.step()
 
         # Verify cooldown has decreased to 88 ticks remaining
@@ -158,7 +166,7 @@ class TestAssemblerPartialUsage:
         steel_before = inventory_before.get("steel", 0)
 
         # Try to use at 12% cooldown progress
-        agent.set_action(Action(name="move_east"))
+        agent.set_action(mettagrid.simulator.Action(name="move_east"))
         sim.step()
 
         # Get inventory after
@@ -187,7 +195,7 @@ class TestAssemblerPartialUsage:
         # Input: 20 * 0.01 = 0.2, rounded up = 1
         # Output: 10 * 0.01 = 0.1, rounded down = 0
 
-        agent.set_action(Action(name="move_east"))
+        agent.set_action(mettagrid.simulator.Action(name="move_east"))
         sim.step()
 
         inventory_final = agent.inventory

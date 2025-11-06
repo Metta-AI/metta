@@ -9,43 +9,38 @@ This script:
 4. Monitors container status and reports results
 """
 
+import abc
 import asyncio
+import datetime
 import logging
 import math
 import os
 import sys
-from abc import ABC, abstractmethod
-from datetime import datetime, timedelta, timezone
 
-from ddtrace.trace import tracer
-from pydantic import BaseModel
+import ddtrace.trace
+import pydantic
 
-from metta.app_backend.clients.eval_task_client import EvalTaskClient
-from metta.app_backend.container_managers.factory import create_container_manager
-from metta.app_backend.routes.eval_task_routes import (
-    EvalTaskResponse,
-    TaskClaimRequest,
-    TaskStatusUpdate,
-    TaskUpdateRequest,
-)
-from metta.app_backend.worker_managers.base import AbstractWorkerManager
-from metta.app_backend.worker_managers.container_manager import ContainerWorkerManager
-from metta.app_backend.worker_managers.worker import Worker
-from metta.common.datadog.tracing import init_tracing, trace
-from metta.common.util.collections import group_by
-from metta.common.util.constants import DEV_STATS_SERVER_URI
+import metta.app_backend.clients.eval_task_client
+import metta.app_backend.container_managers.factory
+import metta.app_backend.routes.eval_task_routes
+import metta.app_backend.worker_managers.base
+import metta.app_backend.worker_managers.container_manager
+import metta.app_backend.worker_managers.worker
+import metta.common.datadog.tracing
+import metta.common.util.collections
+import metta.common.util.constants
 
 logger = logging.getLogger(__name__)
 
 
-class WorkerInfo(BaseModel):
-    worker: Worker
+class WorkerInfo(pydantic.BaseModel):
+    worker: metta.app_backend.worker_managers.worker.Worker
     git_hashes: list[str] = []
-    assigned_task: EvalTaskResponse | None = None
+    assigned_task: metta.app_backend.routes.eval_task_routes.EvalTaskResponse | None = None
 
 
-class AbstractWorkerScaler(ABC):
-    @abstractmethod
+class AbstractWorkerScaler(abc.ABC):
+    @abc.abstractmethod
     async def get_desired_workers(self, num_workers: int) -> int:
         pass
 
@@ -63,7 +58,11 @@ class AutoScaler(AbstractWorkerScaler):
     DONE_FILTER = "status = 'done'"
     UNPROCESSED_FILTER = "status = 'unprocessed' OR status = 'running'"
 
-    def __init__(self, task_client: EvalTaskClient, default_task_runtime_seconds: float):
+    def __init__(
+        self,
+        task_client: metta.app_backend.clients.eval_task_client.EvalTaskClient,
+        default_task_runtime_seconds: float,
+    ):
         self._task_client = task_client
         self._default_task_runtime_seconds = default_task_runtime_seconds
 
@@ -98,8 +97,8 @@ class AutoScaler(AbstractWorkerScaler):
 class EvalTaskOrchestrator:
     def __init__(
         self,
-        task_client: EvalTaskClient,
-        worker_manager: AbstractWorkerManager,
+        task_client: metta.app_backend.clients.eval_task_client.EvalTaskClient,
+        worker_manager: metta.app_backend.worker_managers.base.AbstractWorkerManager,
         worker_scaler: AbstractWorkerScaler,
         poll_interval: float = 5.0,
         worker_idle_timeout_minutes: float = 60.0,
@@ -110,9 +109,13 @@ class EvalTaskOrchestrator:
         self._poll_interval = poll_interval
         self._worker_idle_timeout_minutes = worker_idle_timeout_minutes
 
-    @trace("orchestrator.claim_task")
-    async def _attempt_claim_task(self, task: EvalTaskResponse, worker: WorkerInfo) -> bool:
-        claim_request = TaskClaimRequest(tasks=[task.id], assignee=worker.worker.name)
+    @metta.common.datadog.tracing.trace("orchestrator.claim_task")
+    async def _attempt_claim_task(
+        self, task: metta.app_backend.routes.eval_task_routes.EvalTaskResponse, worker: WorkerInfo
+    ) -> bool:
+        claim_request = metta.app_backend.routes.eval_task_routes.TaskClaimRequest(
+            tasks=[task.id], assignee=worker.worker.name
+        )
         claimed_ids = await self._task_client.claim_tasks(claim_request)
         if task.id in claimed_ids.claimed:
             logger.info(f"Assigned task {task.id} to worker {worker.worker.name}")
@@ -121,7 +124,9 @@ class EvalTaskOrchestrator:
             logger.debug("Failed to claim task; someone else must have it")
             return False
 
-    async def _get_available_workers(self, claimed_tasks: list[EvalTaskResponse]) -> dict[str, WorkerInfo]:
+    async def _get_available_workers(
+        self, claimed_tasks: list[metta.app_backend.routes.eval_task_routes.EvalTaskResponse]
+    ) -> dict[str, WorkerInfo]:
         alive_workers = await self._worker_manager.discover_alive_workers()
 
         worker_names = [w.name for w in alive_workers]
@@ -139,14 +144,17 @@ class EvalTaskOrchestrator:
         return alive_workers_by_name
 
     async def _kill_dead_workers_and_tasks(
-        self, claimed_tasks: list[EvalTaskResponse], alive_workers_by_name: dict[str, WorkerInfo]
+        self,
+        claimed_tasks: list[metta.app_backend.routes.eval_task_routes.EvalTaskResponse],
+        alive_workers_by_name: dict[str, WorkerInfo],
     ) -> None:
         try:
             for task in claimed_tasks:
                 if task.assignee and task.assignee not in alive_workers_by_name:
                     reason = "worker_dead"
-                elif task.assigned_at and task.assigned_at.replace(tzinfo=timezone.utc) < (
-                    datetime.now(timezone.utc) - timedelta(minutes=self._worker_idle_timeout_minutes)
+                elif task.assigned_at and task.assigned_at.replace(tzinfo=datetime.timezone.utc) < (
+                    datetime.datetime.now(datetime.timezone.utc)
+                    - datetime.timedelta(minutes=self._worker_idle_timeout_minutes)
                 ):
                     reason = "worker_timeout"
                 else:
@@ -156,9 +164,9 @@ class EvalTaskOrchestrator:
 
                 logger.info(f"Releasing claim on task {task.id} because {reason}. Setting status to {status}")
                 await self._task_client.update_task_status(
-                    TaskUpdateRequest(
+                    metta.app_backend.routes.eval_task_routes.TaskUpdateRequest(
                         updates={
-                            task.id: TaskStatusUpdate(
+                            task.id: metta.app_backend.routes.eval_task_routes.TaskStatusUpdate(
                                 status=status,
                                 clear_assignee=True,
                                 attributes={f"unassign_reason_{task.retries}": reason},
@@ -175,7 +183,9 @@ class EvalTaskOrchestrator:
             logger.error(f"Error killing dead workers and tasks: {e}", exc_info=True)
 
     async def _assign_task_to_worker(
-        self, worker: WorkerInfo, available_tasks_by_git_hash: dict[str | None, list[EvalTaskResponse]]
+        self,
+        worker: WorkerInfo,
+        available_tasks_by_git_hash: dict[str | None, list[metta.app_backend.routes.eval_task_routes.EvalTaskResponse]],
     ) -> None:
         # Assign a task to a worker, prioritizing its existing git hashes
         for git_hash in worker.git_hashes:
@@ -197,9 +207,9 @@ class EvalTaskOrchestrator:
 
     async def _assign_tasks_to_workers(self, alive_workers_by_name: dict[str, WorkerInfo]) -> None:
         available_tasks = await self._task_client.get_available_tasks()
-        available_tasks_by_git_hash: dict[str | None, list[EvalTaskResponse]] = group_by(
-            available_tasks.tasks, key_fn=lambda t: t.git_hash
-        )
+        available_tasks_by_git_hash: dict[
+            str | None, list[metta.app_backend.routes.eval_task_routes.EvalTaskResponse]
+        ] = metta.common.util.collections.group_by(available_tasks.tasks, key_fn=lambda t: t.git_hash)
         for worker in alive_workers_by_name.values():
             # Only assign tasks to workers that are running and don't have an assigned task
             if not worker.assigned_task and worker.worker.status == "Running":
@@ -223,7 +233,7 @@ class EvalTaskOrchestrator:
                     self._worker_manager.cleanup_worker(worker.worker.name)
                     del alive_workers_by_name[worker.worker.name]
 
-    @trace("orchestrator.run_cycle")
+    @metta.common.datadog.tracing.trace("orchestrator.run_cycle")
     async def run_cycle(self) -> None:
         claimed_tasks = await self._task_client.get_claimed_tasks()
         alive_workers_by_name = await self._get_available_workers(claimed_tasks.tasks)
@@ -238,17 +248,17 @@ class EvalTaskOrchestrator:
         logger.info(f"Backend URL: {getattr(self._task_client, '_base_url', 'unknown')}")
         logger.info(f"Worker idle timeout: {self._worker_idle_timeout_minutes} minutes")
 
-        with tracer.trace("orchestrator.startup"):
+        with ddtrace.trace.tracer.trace("orchestrator.startup"):
             logger.info("Orchestrator startup trace")
 
         while True:
-            start_time = datetime.now(timezone.utc)
+            start_time = datetime.datetime.now(datetime.timezone.utc)
             try:
                 await self.run_cycle()
             except Exception as e:
                 logger.error(f"Error in orchestrator loop: {e}", exc_info=True)
 
-            elapsed_time = (datetime.now(timezone.utc) - start_time).total_seconds()
+            elapsed_time = (datetime.datetime.now(datetime.timezone.utc) - start_time).total_seconds()
             sleep_time = max(0, self._poll_interval - elapsed_time)
             await asyncio.sleep(sleep_time)
 
@@ -266,17 +276,17 @@ def init_logging():
 
 async def main() -> None:
     init_logging()
-    init_tracing()
+    metta.common.datadog.tracing.init_tracing()
 
-    backend_url = os.environ.get("BACKEND_URL", DEV_STATS_SERVER_URI)
+    backend_url = os.environ.get("BACKEND_URL", metta.common.util.constants.DEV_STATS_SERVER_URI)
     docker_image = os.environ.get("DOCKER_IMAGE", "metta-policy-evaluator-local:latest")
     poll_interval = float(os.environ.get("POLL_INTERVAL", "5"))
     worker_idle_timeout_minutes = float(os.environ.get("WORKER_IDLE_TIMEOUT", "60"))
     machine_token = os.environ["MACHINE_TOKEN"]
 
-    task_client = EvalTaskClient(backend_url)
-    container_manager = create_container_manager()
-    worker_manager = ContainerWorkerManager(
+    task_client = metta.app_backend.clients.eval_task_client.EvalTaskClient(backend_url)
+    container_manager = metta.app_backend.container_managers.factory.create_container_manager()
+    worker_manager = metta.app_backend.worker_managers.container_manager.ContainerWorkerManager(
         container_manager=container_manager,
         backend_url=backend_url,
         docker_image=docker_image,

@@ -8,8 +8,8 @@ Can be extended (e.g. see SimulationStatsDb) with additional context on top of t
 import datetime
 import logging
 import os
-from pathlib import Path
-from typing import Dict
+import pathlib
+import typing
 
 import duckdb
 import pandas as pd
@@ -62,7 +62,7 @@ class EpisodeStatsDB:
     Can be extended (e.g. see SimulationStatsDb) with additional context on top of this data.
     """
 
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: pathlib.Path) -> None:
         self.path = path
         os.makedirs(path.parent, exist_ok=True)
         self.con = duckdb.connect(path)
@@ -78,16 +78,16 @@ class EpisodeStatsDB:
                 raise
         self.con.commit()
 
-    def tables(self) -> Dict[str, str]:
+    def tables(self) -> typing.Dict[str, str]:
         """Return all tables in the database."""
         return EPISODE_DB_TABLES
 
     def record_episode(
         self,
         episode_id: str,
-        attributes: Dict[str, str],
-        agent_metrics: Dict[int, Dict[str, float]],
-        agent_groups: Dict[int, int],
+        attributes: typing.Dict[str, str],
+        agent_metrics: typing.Dict[int, typing.Dict[str, float]],
+        agent_groups: typing.Dict[int, int],
         step_count: int,
         replay_url: str | None,
         created_at: datetime.datetime,
@@ -129,7 +129,7 @@ class EpisodeStatsDB:
         self.con.commit()
         self.con.execute("CHECKPOINT")
 
-    def _add_metrics(self, episode_id: str, metrics: Dict[int, Dict[str, float]], entity: str) -> None:
+    def _add_metrics(self, episode_id: str, metrics: typing.Dict[int, typing.Dict[str, float]], entity: str) -> None:
         if len(metrics) == 0:
             return
 

@@ -1,32 +1,34 @@
-from types import SimpleNamespace
-from unittest.mock import Mock
+import types
+import unittest.mock
 
 import torch
 
-from metta.rl.training.evaluator import Evaluator, EvaluatorConfig
-from metta.sim.simulation_config import SimulationConfig
-from mettagrid.config.mettagrid_config import MettaGridConfig
+import metta.rl.training.evaluator
+import metta.sim.simulation_config
+import mettagrid.config.mettagrid_config
 
 
 class _FakeTask:
-    def __init__(self, env_cfg: MettaGridConfig):
+    def __init__(self, env_cfg: mettagrid.config.mettagrid_config.MettaGridConfig):
         self._env_cfg = env_cfg
 
-    def get_env_cfg(self) -> MettaGridConfig:
+    def get_env_cfg(self) -> mettagrid.config.mettagrid_config.MettaGridConfig:
         return self._env_cfg
 
 
-def _make_evaluator(cfg: EvaluatorConfig) -> Evaluator:
-    system_cfg = SimpleNamespace(vectorization="serial")
-    return Evaluator(config=cfg, device=torch.device("cpu"), system_cfg=system_cfg, stats_client=None)
+def _make_evaluator(cfg: metta.rl.training.evaluator.EvaluatorConfig) -> metta.rl.training.evaluator.Evaluator:
+    system_cfg = types.SimpleNamespace(vectorization="serial")
+    return metta.rl.training.evaluator.Evaluator(
+        config=cfg, device=torch.device("cpu"), system_cfg=system_cfg, stats_client=None
+    )
 
 
 def test_build_simulations_defaults_to_curriculum_tasks() -> None:
-    env_cfg = MettaGridConfig.EmptyRoom(num_agents=1)
-    curriculum = Mock()
+    env_cfg = mettagrid.config.mettagrid_config.MettaGridConfig.EmptyRoom(num_agents=1)
+    curriculum = unittest.mock.Mock()
     curriculum.get_task.side_effect = [_FakeTask(env_cfg), _FakeTask(env_cfg)]
 
-    cfg = EvaluatorConfig(
+    cfg = metta.rl.training.evaluator.EvaluatorConfig(
         epoch_interval=1,
         evaluate_local=False,
         evaluate_remote=False,
@@ -47,11 +49,11 @@ def test_build_simulations_defaults_to_curriculum_tasks() -> None:
 
 
 def test_build_simulations_respects_training_replay_overrides() -> None:
-    env_cfg = MettaGridConfig.EmptyRoom(num_agents=2)
-    custom_sim = SimulationConfig(suite="custom", name="custom_env", env=env_cfg)
-    curriculum = Mock()
+    env_cfg = mettagrid.config.mettagrid_config.MettaGridConfig.EmptyRoom(num_agents=2)
+    custom_sim = metta.sim.simulation_config.SimulationConfig(suite="custom", name="custom_env", env=env_cfg)
+    curriculum = unittest.mock.Mock()
 
-    cfg = EvaluatorConfig(
+    cfg = metta.rl.training.evaluator.EvaluatorConfig(
         epoch_interval=1,
         evaluate_local=False,
         evaluate_remote=False,

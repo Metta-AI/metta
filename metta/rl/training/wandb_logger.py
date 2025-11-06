@@ -1,30 +1,30 @@
 """Trainer component for logging metrics to wandb."""
 
-from typing import Dict
+import typing
 
-from metta.common.wandb.context import WandbRun
-from metta.rl.training import TrainerComponent
-from metta.rl.wandb import log_model_parameters, setup_wandb_metrics
+import metta.common.wandb.context
+import metta.rl.training
+import metta.rl.wandb
 
 
-class WandbLogger(TrainerComponent):
+class WandbLogger(metta.rl.training.TrainerComponent):
     """Logs core training metrics to wandb at epoch boundaries."""
 
-    def __init__(self, wandb_run: WandbRun, epoch_interval: int = 1):
+    def __init__(self, wandb_run: metta.common.wandb.context.WandbRun, epoch_interval: int = 1):
         super().__init__(epoch_interval=epoch_interval)
         self._wandb_run = wandb_run
         self._last_agent_step = 0
         # Track cumulative elapsed times to compute per-epoch deltas robustly
-        self._prev_elapsed: Dict[str, float] = {}
+        self._prev_elapsed: typing.Dict[str, float] = {}
 
     def register(self, context) -> None:  # type: ignore[override]
         super().register(context)
-        setup_wandb_metrics(self._wandb_run)
-        log_model_parameters(self.context.policy, self._wandb_run)
+        metta.rl.wandb.setup_wandb_metrics(self._wandb_run)
+        metta.rl.wandb.log_model_parameters(self.context.policy, self._wandb_run)
 
     def on_epoch_end(self, epoch: int) -> None:  # noqa: D401 - documented in base class
         context = self.context
-        payload: Dict[str, float] = {
+        payload: typing.Dict[str, float] = {
             "metric/agent_step": float(context.agent_step),
             "metric/epoch": float(context.epoch),
             "metric/train_time": float(context.stopwatch.get_last_elapsed("_train")),

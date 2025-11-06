@@ -1,12 +1,14 @@
-from pathlib import Path
+import pathlib
 
 import pytest
 
-from metta.gridworks.configs.registry import ConfigMakerRegistry
+import metta.gridworks.configs.registry
 
 
 @pytest.mark.skip(reason="Flaky test")
 def test_registry():
-    registry = ConfigMakerRegistry(root_dirs=[Path("tests/gridworks/configs/fixtures")])
+    registry = metta.gridworks.configs.registry.ConfigMakerRegistry(
+        root_dirs=[pathlib.Path("tests/gridworks/configs/fixtures")]
+    )
 
     assert registry.size() > 0

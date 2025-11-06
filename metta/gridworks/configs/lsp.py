@@ -7,7 +7,7 @@ import queue
 import subprocess
 import threading
 import time
-from typing import IO
+import typing
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ class LSPClient:
             bufsize=0,
         )
 
-        def read_messages(reader: IO[bytes], out_q: queue.Queue[dict]):
+        def read_messages(reader: typing.IO[bytes], out_q: queue.Queue[dict]):
             # background reader: pushes decoded JSON-RPC messages into a queue
             while True:
                 # read headers

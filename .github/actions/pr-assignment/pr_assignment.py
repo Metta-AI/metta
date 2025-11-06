@@ -15,10 +15,10 @@ import random
 import re
 import subprocess
 import sys
-from typing import List, Optional, Set, Tuple
+import typing
 
 
-def run_gh_command(args: List[str]) -> Tuple[bool, str]:
+def run_gh_command(args: typing.List[str]) -> typing.Tuple[bool, str]:
     """Execute GitHub CLI commands with error handling to prevent script failures from non-critical operations."""
     try:
         result = subprocess.run(["gh"] + args, capture_output=True, text=True, check=True)
@@ -45,7 +45,7 @@ def get_pr_info(pr_number: str, repo: str) -> dict:
         return {}
 
 
-def is_empty(value: Optional[str]) -> bool:
+def is_empty(value: typing.Optional[str]) -> bool:
     """Safely handle potentially None values from configuration parsing."""
     return not value or not value.strip()
 
@@ -55,14 +55,14 @@ def is_true(value: str) -> bool:
     return value.lower() == "true"
 
 
-def parse_list(value: str) -> List[str]:
+def parse_list(value: str) -> typing.List[str]:
     """Convert action input strings to usable lists, filtering empty values from malformed input."""
     if is_empty(value):
         return []
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
-def select_random(items: List[str], exclude: Optional[str] = None) -> Optional[str]:
+def select_random(items: typing.List[str], exclude: typing.Optional[str] = None) -> typing.Optional[str]:
     """Ensure fair distribution of assignments while preventing self-assignment to PR authors."""
     if not items:
         return None
@@ -75,7 +75,7 @@ def select_random(items: List[str], exclude: Optional[str] = None) -> Optional[s
     return random.choice(filtered_items)
 
 
-def clear_assignees(pr_number: str, repo: str, current_assignees: List[str]) -> bool:
+def clear_assignees(pr_number: str, repo: str, current_assignees: typing.List[str]) -> bool:
     """Remove existing assignments to reset state before applying new assignment logic."""
     if not current_assignees:
         print("No existing assignees to clear")
@@ -91,7 +91,7 @@ def clear_assignees(pr_number: str, repo: str, current_assignees: List[str]) -> 
     return cleared
 
 
-def clear_reviewers(pr_number: str, repo: str, current_reviewers: List[str]) -> bool:
+def clear_reviewers(pr_number: str, repo: str, current_reviewers: typing.List[str]) -> bool:
     """Reset review state to prevent accumulation of stale review requests."""
     if not current_reviewers:
         print("No existing review requests to clear")
@@ -107,7 +107,7 @@ def clear_reviewers(pr_number: str, repo: str, current_reviewers: List[str]) -> 
     return cleared
 
 
-def clear_labels(pr_number: str, repo: str, current_labels: List[str]) -> bool:
+def clear_labels(pr_number: str, repo: str, current_labels: typing.List[str]) -> bool:
     """Remove existing labels to ensure clean state for forced label application."""
     if not current_labels:
         print("No existing labels to clear")
@@ -123,7 +123,7 @@ def clear_labels(pr_number: str, repo: str, current_labels: List[str]) -> bool:
     return cleared
 
 
-def add_assignees(pr_number: str, repo: str, assignees: List[str]) -> Set[str]:
+def add_assignees(pr_number: str, repo: str, assignees: typing.List[str]) -> typing.Set[str]:
     """Track successful assignments to build accurate summary comments and handle partial failures."""
     added = set()
     for assignee in assignees:
@@ -134,7 +134,7 @@ def add_assignees(pr_number: str, repo: str, assignees: List[str]) -> Set[str]:
     return added
 
 
-def add_reviewers(pr_number: str, repo: str, reviewers: List[str]) -> Set[str]:
+def add_reviewers(pr_number: str, repo: str, reviewers: typing.List[str]) -> typing.Set[str]:
     """Track successful review requests to build accurate summary comments and handle partial failures."""
     added = set()
     for reviewer in reviewers:
@@ -145,7 +145,7 @@ def add_reviewers(pr_number: str, repo: str, reviewers: List[str]) -> Set[str]:
     return added
 
 
-def add_labels(pr_number: str, repo: str, labels: List[str]) -> Set[str]:
+def add_labels(pr_number: str, repo: str, labels: typing.List[str]) -> typing.Set[str]:
     """Track successful label applications to build accurate summary comments and handle partial failures."""
     added = set()
     for label in labels:
@@ -161,7 +161,7 @@ def post_comment(pr_number: str, repo: str, comment: str) -> None:
     run_gh_command(["pr", "comment", pr_number, "--body", comment, "--repo", repo])
 
 
-def detect_version_change(pr_title: str) -> Optional[str]:
+def detect_version_change(pr_title: str) -> typing.Optional[str]:
     """
     Detect version change type from Dependabot PR title.
     Returns 'major', 'minor', 'patch', or None.

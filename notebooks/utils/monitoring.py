@@ -1,14 +1,14 @@
+import datetime
 import subprocess
-from datetime import datetime
-from typing import Any
+import typing
 
+import IPython.display
 import ipywidgets as widgets
 import pandas as pd
 import wandb
-from IPython.display import display
 
-from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
-from metta.common.util.fs import get_repo_root
+import metta.common.util.constants
+import metta.common.util.fs
 
 
 def get_sky_jobs_data() -> pd.DataFrame:
@@ -17,7 +17,7 @@ def get_sky_jobs_data() -> pd.DataFrame:
             ["sky", "jobs", "queue"],
             capture_output=True,
             text=True,
-            cwd=get_repo_root(),
+            cwd=metta.common.util.fs.get_repo_root(),
         )
 
         if result.returncode != 0:
@@ -99,8 +99,8 @@ def sky_job_exists(job_name: str) -> bool:
 def monitor_training_statuses(
     run_names: list[str],
     show_metrics: list[str] | None = None,
-    entity: str = METTA_WANDB_ENTITY,
-    project: str = METTA_WANDB_PROJECT,
+    entity: str = metta.common.util.constants.METTA_WANDB_ENTITY,
+    project: str = metta.common.util.constants.METTA_WANDB_PROJECT,
 ) -> pd.DataFrame:
     if show_metrics is None:
         show_metrics = ["_step", "overview/reward"]
@@ -123,7 +123,7 @@ def monitor_training_statuses(
                 {
                     "name": run_name,
                     "state": run.state,
-                    "created": datetime.fromisoformat(run.created_at).strftime("%Y-%m-%d %H:%M"),
+                    "created": datetime.datetime.fromisoformat(run.created_at).strftime("%Y-%m-%d %H:%M"),
                 }
             )
             if run.summary:
@@ -154,7 +154,7 @@ def display_training_table_widget(df: pd.DataFrame) -> None:
     # Create styled HTML table
     html_rows = []
 
-    def wrap_with_component(component: str, value: Any, additional_style: str = "") -> str:
+    def wrap_with_component(component: str, value: typing.Any, additional_style: str = "") -> str:
         return f"<{component} style='padding: 8px; text-align: right; {additional_style}'>{value}</{component}>"
 
     # Header
@@ -219,4 +219,4 @@ def display_training_table_widget(df: pd.DataFrame) -> None:
     </table>
     """
 
-    display(widgets.HTML(table_html))
+    IPython.display.display(widgets.HTML(table_html))

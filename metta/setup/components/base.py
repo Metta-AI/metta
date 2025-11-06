@@ -1,27 +1,27 @@
+import abc
 import os
+import pathlib
 import subprocess
-from abc import ABC, abstractmethod
-from pathlib import Path
-from typing import Any, TypeVar
+import typing
 
-from pydantic import BaseModel
+import pydantic
 
-from metta.common.util.fs import get_repo_root
-from metta.setup.saved_settings import get_saved_settings
-from metta.setup.utils import error
+import metta.common.util.fs
+import metta.setup.saved_settings
+import metta.setup.utils
 
-T = TypeVar("T")
+T = typing.TypeVar("T")
 
 
-class SetupModuleStatus(BaseModel):
+class SetupModuleStatus(pydantic.BaseModel):
     installed: bool
     connected_as: str | None
     expected: str | None
 
 
-class SetupModule(ABC):
+class SetupModule(abc.ABC):
     install_once: bool = False
-    repo_root: Path = get_repo_root()
+    repo_root: pathlib.Path = metta.common.util.fs.get_repo_root()
 
     def __init__(self):
         self._non_interactive = False
@@ -31,7 +31,7 @@ class SetupModule(ABC):
         return self.__class__.__name__.replace("Setup", "").lower()
 
     @property
-    @abstractmethod
+    @abc.abstractmethod
     def description(self) -> str:
         pass
 
@@ -43,7 +43,7 @@ class SetupModule(ABC):
         """Check if this module applies to the current environment (OS)."""
         return True
 
-    @abstractmethod
+    @abc.abstractmethod
     def check_installed(self) -> bool:
         """Check if this module is already installed and configured and no changes are needed."""
         pass
@@ -51,7 +51,8 @@ class SetupModule(ABC):
     def is_enabled(self) -> bool:
         """Check if this module should be installed based on applicability and settings."""
         return self._is_applicable() and all(
-            get_saved_settings().is_component_enabled(dep) for dep in ([self.name] + self.dependencies())
+            metta.setup.saved_settings.get_saved_settings().is_component_enabled(dep)
+            for dep in ([self.name] + self.dependencies())
         )
 
     def dependencies(self) -> list[str]:
@@ -84,7 +85,7 @@ class SetupModule(ABC):
     def run_command(
         self,
         cmd: list[str],
-        cwd: Path | None = None,
+        cwd: pathlib.Path | None = None,
         check: bool = True,
         capture_output: bool = True,
         input: str | None = None,
@@ -141,7 +142,7 @@ class SetupModule(ABC):
                 }
             )
 
-        params: dict[str, str | bool | Path | None | dict[str, str] | int] = dict(
+        params: dict[str, str | bool | pathlib.Path | None | dict[str, str] | int] = dict(
             cwd=cwd, check=check, capture_output=capture_output, text=True, input=input, env=env
         )
 
@@ -177,7 +178,7 @@ class SetupModule(ABC):
         """
         return False
 
-    def get_configuration_options(self) -> dict[str, tuple[Any, str]]:
+    def get_configuration_options(self) -> dict[str, tuple[typing.Any, str]]:
         """
         Dict of {setting_name: (default_value, description)}
         """
@@ -187,7 +188,7 @@ class SetupModule(ABC):
         """This method is called by 'metta configure <component>'.
         Override this to provide custom configuration logic.
         """
-        error(f"Component {self.name} does not support configure commands.")
+        metta.setup.utils.error(f"Component {self.name} does not support configure commands.")
 
     def run(self, args: list[str]) -> None:
         """Run a component-specific command.
@@ -198,7 +199,7 @@ class SetupModule(ABC):
         Args:
             args: Command arguments passed after the component name
         """
-        error(f"Component {self.name} does not support running commands.")
+        metta.setup.utils.error(f"Component {self.name} does not support running commands.")
 
     def get_setting(self, key: str, default: T) -> T:
         """Get a module-specific setting from the configuration.
@@ -211,11 +212,11 @@ class SetupModule(ABC):
             The setting value or default
         """
         full_key = f"module_settings.{self.name}.{key}"
-        value = get_saved_settings().get(full_key, None)
+        value = metta.setup.saved_settings.get_saved_settings().get(full_key, None)
         # Only return saved value if it differs from default
         return value if value is not None else default
 
-    def set_setting(self, key: str, value: Any) -> None:
+    def set_setting(self, key: str, value: typing.Any) -> None:
         """Save a module-specific setting to the configuration.
 
         Only saves if value differs from the default defined in get_configuration_options().
@@ -235,12 +236,12 @@ class SetupModule(ABC):
                 return
 
         full_key = f"module_settings.{self.name}.{key}"
-        get_saved_settings().set(full_key, value)
+        metta.setup.saved_settings.get_saved_settings().set(full_key, value)
 
     def _remove_setting(self, full_key: str) -> None:
         """Remove a setting from the configuration."""
         keys = full_key.split(".")
-        saved_settings = get_saved_settings()
+        saved_settings = metta.setup.saved_settings.get_saved_settings()
         config = saved_settings._config
         for k in keys[:-1]:
             if k not in config:
@@ -274,6 +275,6 @@ class SetupModule(ABC):
         """Get the status of this module. Does not check if the module is enabled."""
         installed = self.check_installed()
         connected_as = self.check_connected_as() if installed else None
-        expected = get_saved_settings().get_expected_connection(self.name)
+        expected = metta.setup.saved_settings.get_saved_settings().get_expected_connection(self.name)
 
         return SetupModuleStatus(installed=installed, connected_as=connected_as, expected=expected)

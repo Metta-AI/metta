@@ -1,17 +1,16 @@
-from __future__ import annotations
 
 import logging
-from typing import override
+import typing
 
-from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVariant
-from cogames.cogs_vs_clips.mission_utils import get_map
-from cogames.cogs_vs_clips.sites import EVALS
-from mettagrid.config.mettagrid_config import ProtocolConfig
+import cogames.cogs_vs_clips.mission
+import cogames.cogs_vs_clips.mission_utils
+import cogames.cogs_vs_clips.sites
+import mettagrid.config.mettagrid_config
 
 logger = logging.getLogger(__name__)
 
 
-class EvalVariant(MissionVariant):
+class EvalVariant(cogames.cogs_vs_clips.mission.MissionVariant):
     name: str = "eval_mission"
 
     map_name: str
@@ -36,7 +35,7 @@ class EvalVariant(MissionVariant):
     energy_regen: int = 1
     inventory_regen_interval: int = 1
 
-    @override
+    @typing.override
     def modify_mission(self, mission) -> None:
         # Apply pre-make_env efficiency and regen knobs
         mission.charger.efficiency = self.charger_eff
@@ -48,9 +47,9 @@ class EvalVariant(MissionVariant):
         mission.inventory_regen_interval = self.inventory_regen_interval
         mission.clip_rate = self.clip_rate
 
-    @override
+    @typing.override
     def modify_env(self, mission, env) -> None:
-        env.game.map_builder = get_map(
+        env.game.map_builder = cogames.cogs_vs_clips.mission_utils.get_map(
             self.map_name,
             fixed_spawn_order=True,  # spawn positions are always fixed for evals
         )
@@ -61,7 +60,7 @@ class EvalVariant(MissionVariant):
         if assembler_obj is not None and hasattr(assembler_obj, "heart_cost"):
             # Set small single-agent recipe and prepend explicit heart/red-heart entries
             if hasattr(assembler_obj, "recipes"):
-                tiny = ProtocolConfig(
+                tiny = mettagrid.config.mettagrid_config.ProtocolConfig(
                     input_resources={
                         "carbon": 2,
                         "oxygen": 2,
@@ -118,10 +117,10 @@ class EvalVariant(MissionVariant):
                     pass
 
 
-OxygenBottleneck = Mission(
+OxygenBottleneck = cogames.cogs_vs_clips.mission.Mission(
     name="oxygen_bottleneck",
     description="Oxygen paces assembly; batch other resources.",
-    site=EVALS,
+    site=cogames.cogs_vs_clips.sites.EVALS,
     variants=[
         EvalVariant(
             map_name="evals/eval_oxygen_bottleneck.map",
@@ -138,10 +137,10 @@ OxygenBottleneck = Mission(
 )
 
 
-EnergyStarved = Mission(
+EnergyStarved = cogames.cogs_vs_clips.mission.Mission(
     name="energy_starved",
     description="Low regen; requires careful charging and routing.",
-    site=EVALS,
+    site=cogames.cogs_vs_clips.sites.EVALS,
     variants=[
         EvalVariant(
             map_name="evals/eval_energy_starved.map",
@@ -163,10 +162,10 @@ EnergyStarved = Mission(
 # -----------------------------
 
 
-ExtractorHub30 = Mission(
+ExtractorHub30 = cogames.cogs_vs_clips.mission.Mission(
     name="extractor_hub_30",
     description="Small 30x30 extractor hub.",
-    site=EVALS,
+    site=cogames.cogs_vs_clips.sites.EVALS,
     variants=[
         EvalVariant(
             map_name="evals/extractor_hub_30x30.map",
@@ -179,10 +178,10 @@ ExtractorHub30 = Mission(
 )
 
 
-ExtractorHub50 = Mission(
+ExtractorHub50 = cogames.cogs_vs_clips.mission.Mission(
     name="extractor_hub_50",
     description="Medium 50x50 extractor hub.",
-    site=EVALS,
+    site=cogames.cogs_vs_clips.sites.EVALS,
     variants=[
         EvalVariant(
             map_name="evals/extractor_hub_50x50.map",
@@ -195,10 +194,10 @@ ExtractorHub50 = Mission(
 )
 
 
-ExtractorHub70 = Mission(
+ExtractorHub70 = cogames.cogs_vs_clips.mission.Mission(
     name="extractor_hub_70",
     description="Large 70x70 extractor hub.",
-    site=EVALS,
+    site=cogames.cogs_vs_clips.sites.EVALS,
     variants=[
         EvalVariant(
             map_name="evals/extractor_hub_70x70.map",
@@ -211,10 +210,10 @@ ExtractorHub70 = Mission(
 )
 
 
-ExtractorHub80 = Mission(
+ExtractorHub80 = cogames.cogs_vs_clips.mission.Mission(
     name="extractor_hub_80",
     description="Large 80x80 extractor hub.",
-    site=EVALS,
+    site=cogames.cogs_vs_clips.sites.EVALS,
     variants=[
         EvalVariant(
             map_name="evals/extractor_hub_80x80.map",
@@ -227,10 +226,10 @@ ExtractorHub80 = Mission(
 )
 
 
-ExtractorHub100 = Mission(
+ExtractorHub100 = cogames.cogs_vs_clips.mission.Mission(
     name="extractor_hub_100",
     description="Extra large 100x100 extractor hub.",
-    site=EVALS,
+    site=cogames.cogs_vs_clips.sites.EVALS,
     variants=[
         EvalVariant(
             map_name="evals/extractor_hub_100x100.map",
@@ -248,10 +247,10 @@ ExtractorHub100 = Mission(
 # -----------------------------
 
 
-CollectResourcesClassic = Mission(
+CollectResourcesClassic = cogames.cogs_vs_clips.mission.Mission(
     name="collect_resources_classic",
     description="Collect resources on the classic layout; balanced routing near base.",
-    site=EVALS,
+    site=cogames.cogs_vs_clips.sites.EVALS,
     variants=[
         EvalVariant(
             map_name="evals/eval_collect_resources.map",
@@ -270,10 +269,10 @@ CollectResourcesClassic = Mission(
 )
 
 
-CollectResourcesSpread = Mission(
+CollectResourcesSpread = cogames.cogs_vs_clips.mission.Mission(
     name="collect_resources_spread",
     description="Collect resources (scattered nearby), rally and chorus glyph at assembler.",
-    site=EVALS,
+    site=cogames.cogs_vs_clips.sites.EVALS,
     variants=[
         EvalVariant(
             map_name="evals/eval_collect_resources_medium.map",
@@ -292,10 +291,10 @@ CollectResourcesSpread = Mission(
 )
 
 
-CollectFar = Mission(
+CollectFar = cogames.cogs_vs_clips.mission.Mission(
     name="collect_far",
     description="Collect resources scattered far; coordinate routes, chorus glyph, single carrier deposits.",
-    site=EVALS,
+    site=cogames.cogs_vs_clips.sites.EVALS,
     variants=[
         EvalVariant(
             map_name="evals/eval_collect_resources_hard.map",
@@ -314,10 +313,10 @@ CollectFar = Mission(
 )
 
 
-DivideAndConquer = Mission(
+DivideAndConquer = cogames.cogs_vs_clips.mission.Mission(
     name="divide_and_conquer",
     description="Resources split by regions; specialize per resource and reconvene at base.",
-    site=EVALS,
+    site=cogames.cogs_vs_clips.sites.EVALS,
     variants=[
         EvalVariant(
             map_name="evals/eval_divide_and_conquer.map",
@@ -336,10 +335,10 @@ DivideAndConquer = Mission(
 )
 
 
-GoTogether = Mission(
+GoTogether = cogames.cogs_vs_clips.mission.Mission(
     name="go_together",
     description="Objects favor collective glyphing; travel and return as a pack.",
-    site=EVALS,
+    site=cogames.cogs_vs_clips.sites.EVALS,
     variants=[
         EvalVariant(
             map_name="evals/eval_balanced_spread.map",
@@ -354,14 +353,14 @@ GoTogether = Mission(
             max_uses_carbon=30,
             max_uses_oxygen=25,
         ),
-        NumCogsVariant(num_cogs=2),
+        cogames.cogs_vs_clips.mission.NumCogsVariant(num_cogs=2),
     ],
 )
 
-SingleUseSwarm = Mission(
+SingleUseSwarm = cogames.cogs_vs_clips.mission.Mission(
     name="single_use_swarm",
     description="Multi-agent variant of SingleUseWorld; stations max_uses=1, team must fan out and reconverge.",
-    site=EVALS,
+    site=cogames.cogs_vs_clips.sites.EVALS,
     variants=[
         EvalVariant(
             map_name="evals/eval_single_use_world.map",
@@ -377,11 +376,11 @@ SingleUseSwarm = Mission(
             max_uses_germanium=1,
             max_uses_silicon=1,
         ),
-        NumCogsVariant(num_cogs=2),
+        cogames.cogs_vs_clips.mission.NumCogsVariant(num_cogs=2),
     ],
 )
 
-EVAL_MISSIONS: list[Mission] = [
+EVAL_MISSIONS: list[cogames.cogs_vs_clips.mission.Mission] = [
     EnergyStarved,
     OxygenBottleneck,
     ExtractorHub30,

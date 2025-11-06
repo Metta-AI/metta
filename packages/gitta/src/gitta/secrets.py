@@ -14,12 +14,11 @@ Example usage:
     value = get_secret("MY_SECRET", "my-app/secret", required=False)
 """
 
-from __future__ import annotations
 
 import logging
 import os
 import time
-from typing import Literal, overload
+import typing
 
 import boto3
 
@@ -30,21 +29,21 @@ _SECRET_CACHE: dict[str, tuple[str | None, float]] = {}
 _CACHE_TTL = 3600  # 1 hour in seconds
 
 
-@overload
+@typing.overload
 def get_secret(
     env_var: str,
     aws_secret_name: str | None = None,
     *,
-    required: Literal[True] = True,
+    required: typing.Literal[True] = True,
 ) -> str: ...
 
 
-@overload
+@typing.overload
 def get_secret(
     env_var: str,
     aws_secret_name: str | None = None,
     *,
-    required: Literal[False],
+    required: typing.Literal[False],
 ) -> str | None: ...
 
 

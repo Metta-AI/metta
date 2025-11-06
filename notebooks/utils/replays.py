@@ -1,7 +1,7 @@
 import re
 
-from experiments.notebooks.utils.metrics import get_run
-from IPython.display import IFrame, display
+import experiments.notebooks.utils.metrics
+import IPython.display
 
 
 def show_replay(
@@ -11,7 +11,7 @@ def show_replay(
     height: int = 600,
     autoplay: bool = False,
 ) -> None:
-    run = get_run(run_name)
+    run = experiments.notebooks.utils.metrics.get_run(run_name)
     if run is None:
         return
 
@@ -42,11 +42,11 @@ def show_replay(
 
     print(f"Loading MettaScope viewer for {run_name} at step {selected['step']:,}...")
     print(f"\nDirect link: {url}")
-    display(IFrame(src=url, width=width, height=height))
+    IPython.display.display(IPython.display.IFrame(src=url, width=width, height=height))
 
 
 def get_available_replays(run_name: str) -> list[dict]:
-    run = get_run(run_name)
+    run = experiments.notebooks.utils.metrics.get_run(run_name)
     if run is None:
         return []
 

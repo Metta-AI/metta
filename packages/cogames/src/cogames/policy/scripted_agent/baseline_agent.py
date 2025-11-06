@@ -13,22 +13,22 @@ Just simple, clean, correct behavior.
 
 from __future__ import annotations
 
+import collections
+import dataclasses
+import enum
 import random
-from collections import deque
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import TYPE_CHECKING, Callable, Optional, Tuple
+import typing
 
-from cogames.policy import StatefulPolicyImpl
-from mettagrid.config.mettagrid_config import CardinalDirections
-from mettagrid.config.vibes import VIBE_BY_NAME
-from mettagrid.policy.policy import MultiAgentPolicy, StatefulAgentPolicy
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator import Action
-from mettagrid.simulator.interface import AgentObservation
+import cogames.policy
+import mettagrid.config.mettagrid_config
+import mettagrid.config.vibes
+import mettagrid.policy.policy
+import mettagrid.policy.policy_env_interface
+import mettagrid.simulator
+import mettagrid.simulator.interface
 
-if TYPE_CHECKING:
-    from mettagrid.simulator import Simulation
+if typing.TYPE_CHECKING:
+    Simulation = mettagrid.simulator.Simulation
 
 # Debug flag - set to True to enable detailed logging
 DEBUG = False
@@ -37,14 +37,14 @@ DEBUG = False
 AGENT_SENTINEL = 0x55
 
 
-class CellType(Enum):
+class CellType(enum.Enum):
     """Occupancy map cell states."""
 
     FREE = 1  # Passable (can walk through)
     OBSTACLE = 2  # Impassable (walls, stations, extractors)
 
 
-class Phase(Enum):
+class Phase(enum.Enum):
     """Goal-driven phases for the baseline agent."""
 
     GATHER = "gather"  # Collect resources (explore if needed)
@@ -55,7 +55,7 @@ class Phase(Enum):
     UNCLIP = "unclip"  # Unclip extractors
 
 
-@dataclass
+@dataclasses.dataclass
 class ExtractorInfo:
     """Tracks a discovered extractor with full state."""
 
@@ -71,7 +71,7 @@ class ExtractorInfo:
     remaining_uses: int = 999  # How many uses left
 
 
-@dataclass
+@dataclasses.dataclass
 class ObjectState:
     """State of a single object at a position."""
 
@@ -91,7 +91,7 @@ class ObjectState:
     agent_visitation_counts: int = 0  # How many times visited (for tracking)
 
 
-@dataclass
+@dataclasses.dataclass
 class ParsedObservation:
     """Parsed observation data in a clean format."""
 
@@ -115,31 +115,31 @@ class ParsedObservation:
     nearby_objects: dict[tuple[int, int], ObjectState]
 
 
-@dataclass
+@dataclasses.dataclass
 class SharedAgentState:
     """Shared state for all agents."""
 
     # Cached grid_objects for position lookups - shared across all agents per step
-    cached_grid_objects: Optional[dict] = None
+    cached_grid_objects: typing.Optional[dict] = None
     cached_grid_objects_step: int = -1
 
     # Shared knowledge across all agents
-    extractors: dict[str, list[ExtractorInfo]] = field(
+    extractors: dict[str, list[ExtractorInfo]] = dataclasses.field(
         default_factory=lambda: {"carbon": [], "oxygen": [], "germanium": [], "silicon": []}
     )
 
     # Shared station positions (discovered by any agent)
-    stations: dict[str, tuple[int, int] | None] = field(
+    stations: dict[str, tuple[int, int] | None] = dataclasses.field(
         default_factory=lambda: {"assembler": None, "chest": None, "charger": None}
     )
 
 
-@dataclass
+@dataclasses.dataclass
 class SimpleAgentState:
     """State for a single agent."""
 
     agent_id: int
-    simulation: Simulation
+    simulation: mettagrid.simulator.Simulation
     shared_state: SharedAgentState
 
     phase: Phase = Phase.GATHER  # Start gathering immediately
@@ -162,61 +162,68 @@ class SimpleAgentState:
     scrambler: int = 0
 
     # Current target
-    target_position: Optional[tuple[int, int]] = None
-    target_resource: Optional[str] = None
+    target_position: typing.Optional[tuple[int, int]] = None
+    target_resource: typing.Optional[str] = None
 
     # Map knowledge
     map_height: int = 0
     map_width: int = 0
-    occupancy: list[list[int]] = field(default_factory=list)  # 1=free, 2=obstacle (initialized in reset)
+    occupancy: list[list[int]] = dataclasses.field(default_factory=list)  # 1=free, 2=obstacle (initialized in reset)
 
     # Note: Station positions are now in shared self._stations, not per-agent
 
     # Track last action for position updates
-    last_action: Action = field(default_factory=lambda: Action(name="noop"))
+    last_action: mettagrid.simulator.Action = dataclasses.field(
+        default_factory=lambda: mettagrid.simulator.Action(name="noop")
+    )
 
     # Current glyph (vibe) for interacting with assembler
     current_glyph: str = "default"
 
     # Extractor activation state
-    waiting_at_extractor: Optional[tuple[int, int]] = None
+    waiting_at_extractor: typing.Optional[tuple[int, int]] = None
     wait_steps: int = 0
-    pending_use_resource: Optional[str] = None
+    pending_use_resource: typing.Optional[str] = None
     pending_use_amount: int = 0
 
     # Random walk state (for exploration within GATHER phase)
     explore_direction: int = -1
 
     # Frontier exploration state (tracking visited cells)
-    visited_map: Optional[list[list[int]]] = None
-    exploration_target: Optional[tuple[int, int]] = None  # Commit to exploration target
+    visited_map: typing.Optional[list[list[int]]] = None
+    exploration_target: typing.Optional[tuple[int, int]] = None  # Commit to exploration target
     exploration_target_step: int = 0  # When we set the target
 
     # Track unreachable extractors (position -> consecutive failed pathfind attempts)
-    unreachable_extractors: dict[tuple[int, int], int] = field(default_factory=dict)
+    unreachable_extractors: dict[tuple[int, int], int] = dataclasses.field(default_factory=dict)
 
     # Agent positions (cleared and refreshed every step)
-    agent_occupancy: set[tuple[int, int]] = field(default_factory=set)
+    agent_occupancy: set[tuple[int, int]] = dataclasses.field(default_factory=set)
 
     # Stuck detection
-    last_position: Optional[tuple[int, int]] = None
+    last_position: typing.Optional[tuple[int, int]] = None
     stuck_counter: int = 0
-    position_history: list[tuple[int, int]] = field(default_factory=list)  # Last 10 positions
+    position_history: list[tuple[int, int]] = dataclasses.field(default_factory=list)  # Last 10 positions
     stuck_loop_detected: bool = False
-    stuck_escape_target: Optional[tuple[int, int]] = None
+    stuck_escape_target: typing.Optional[tuple[int, int]] = None
     stuck_escape_step: int = 0
 
     # Agent position update frequency (to avoid constant re-planning)
     agent_positions_last_updated: int = 0
 
     # Path caching for efficient navigation (per-agent)
-    cached_path: Optional[list[tuple[int, int]]] = None
-    cached_path_target: Optional[tuple[int, int]] = None
+    cached_path: typing.Optional[list[tuple[int, int]]] = None
+    cached_path_target: typing.Optional[tuple[int, int]] = None
     cached_path_reach_adjacent: bool = False
 
 
-class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
-    def __init__(self, policy_env_info: PolicyEnvInterface, shared_state: SharedAgentState, agent_id: int):
+class BaselineAgentPolicyImpl(cogames.policy.StatefulPolicyImpl[SimpleAgentState]):
+    def __init__(
+        self,
+        policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface,
+        shared_state: SharedAgentState,
+        agent_id: int,
+    ):
         self._shared_state = shared_state
         self._agent_id = agent_id
 
@@ -258,7 +265,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         # Resource requirements for one heart
         self._heart_recipe = {"carbon": 20, "oxygen": 20, "germanium": 5, "silicon": 50}
 
-    def initial_agent_state(self, simulation: Optional["Simulation"]) -> SimpleAgentState:
+    def initial_agent_state(self, simulation: typing.Optional["Simulation"]) -> SimpleAgentState:
         """Get initial state for an agent."""
         assert simulation is not None
         return SimpleAgentState(
@@ -271,7 +278,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         )
 
     def parse_observation(
-        self, state: SimpleAgentState, obs: AgentObservation, debug: bool = False
+        self, state: SimpleAgentState, obs: mettagrid.simulator.interface.AgentObservation, debug: bool = False
     ) -> ParsedObservation:
         """Parse token-based observation into structured format.
 
@@ -345,7 +352,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             nearby_objects=nearby_objects,  # Spatial data from observations
         )
 
-    def reset(self, simulation: Optional["Simulation"]) -> None:
+    def reset(self, simulation: typing.Optional["Simulation"]) -> None:
         """Reset the policy state."""
         # Only reset shared state once (when agent 0 is reset)
         if self._agent_id == 0:
@@ -363,7 +370,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
                 "charger": None,
             }
 
-    def _check_stuck_and_escape(self, s: SimpleAgentState) -> Optional[Action]:
+    def _check_stuck_and_escape(self, s: SimpleAgentState) -> typing.Optional[mettagrid.simulator.Action]:
         """Check if agent is stuck in a loop and return escape action if needed."""
         if not s.stuck_loop_detected:
             return None
@@ -416,7 +423,9 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
         return None
 
-    def step_with_state(self, obs: AgentObservation, state: SimpleAgentState) -> Tuple[Action, SimpleAgentState]:
+    def step_with_state(
+        self, obs: mettagrid.simulator.interface.AgentObservation, state: SimpleAgentState
+    ) -> typing.Tuple[mettagrid.simulator.Action, SimpleAgentState]:
         """Compute action for one agent (returns action index)."""
         state.step_count += 1
 
@@ -486,7 +495,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
                     s.stuck_loop_detected = True
                     s.stuck_escape_step = s.step_count
 
-    def _update_state_from_obs(self, s: SimpleAgentState, obs: AgentObservation) -> None:
+    def _update_state_from_obs(self, s: SimpleAgentState, obs: mettagrid.simulator.interface.AgentObservation) -> None:
         """Update agent state from observation."""
 
         # STEP 1: Get agent position directly from environment
@@ -703,7 +712,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             "silicon": max(0, self._heart_recipe["silicon"] - s.silicon),
         }
 
-    def _execute_phase(self, s: SimpleAgentState) -> Action:
+    def _execute_phase(self, s: SimpleAgentState) -> mettagrid.simulator.Action:
         """Execute action for current phase."""
         if s.phase == Phase.GATHER:
             return self._do_gather(s)
@@ -717,7 +726,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             return self._do_unclip(s)
         return self._actions.noop.Noop()
 
-    def _explore_frontier(self, s: SimpleAgentState) -> Action:
+    def _explore_frontier(self, s: SimpleAgentState) -> mettagrid.simulator.Action:
         """
         Frontier-based exploration: move toward areas we haven't visited recently.
         Uses a 'visited' tracking system to encourage exploring new areas.
@@ -827,9 +836,11 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             return self._move_towards(s, best_target)
 
         # No good target found, pick a random direction
-        return self._actions.move.Move(random.choice(CardinalDirections))
+        return self._actions.move.Move(random.choice(mettagrid.config.mettagrid_config.CardinalDirections))
 
-    def _explore_directed(self, s: SimpleAgentState, target_area: tuple[int, int], radius: int = 5) -> Action:
+    def _explore_directed(
+        self, s: SimpleAgentState, target_area: tuple[int, int], radius: int = 5
+    ) -> mettagrid.simulator.Action:
         """
         Directed exploration: move toward a specific area to explore it.
         Useful for searching specific regions of the map.
@@ -843,8 +854,8 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         return self._explore_frontier(s)
 
     def _explore_until(
-        self, s: SimpleAgentState, condition: Callable[[], bool], reason: str = "Exploring"
-    ) -> Action | None:
+        self, s: SimpleAgentState, condition: typing.Callable[[], bool], reason: str = "Exploring"
+    ) -> mettagrid.simulator.Action | None:
         """
         Explore until a condition is met.
 
@@ -861,7 +872,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
         return self._explore(s)
 
-    def _explore(self, s: SimpleAgentState) -> Action:
+    def _explore(self, s: SimpleAgentState) -> mettagrid.simulator.Action:
         """Execute exploration using frontier-based strategy."""
         return self._explore_frontier(s)
 
@@ -884,7 +895,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
         return None
 
-    def _do_gather(self, s: SimpleAgentState) -> Action:
+    def _do_gather(self, s: SimpleAgentState) -> mettagrid.simulator.Action:
         """
         Gather resources from nearest extractors.
         Opportunistically uses ANY extractor for ANY needed resource.
@@ -977,7 +988,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
         return action
 
-    def _do_assemble(self, s: SimpleAgentState) -> Action:
+    def _do_assemble(self, s: SimpleAgentState) -> mettagrid.simulator.Action:
         """Assemble hearts at assembler."""
         # Explore until we find assembler
         explore_action = self._explore_until(
@@ -988,7 +999,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
         # First, ensure we have the correct glyph (heart) for assembling
         if s.current_glyph != "heart":
-            vibe_action = self._actions.change_vibe.ChangeVibe(VIBE_BY_NAME["heart"])
+            vibe_action = self._actions.change_vibe.ChangeVibe(mettagrid.config.vibes.VIBE_BY_NAME["heart"])
             s.current_glyph = "heart"
             return vibe_action
 
@@ -1006,7 +1017,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         # Not adjacent yet, move towards it
         return self._move_towards(s, assembler, reach_adjacent=True)
 
-    def _do_deliver(self, s: SimpleAgentState) -> Action:
+    def _do_deliver(self, s: SimpleAgentState) -> mettagrid.simulator.Action:
         """Deliver hearts to chest."""
         # Explore until we find chest
         explore_action = self._explore_until(
@@ -1019,7 +1030,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         # - "default" vibe: DEPOSIT resources (positive values)
         # - specific resource vibes (e.g., "heart"): WITHDRAW resources (negative values)
         if s.current_glyph != "default":
-            vibe_action = self._actions.change_vibe.ChangeVibe(VIBE_BY_NAME["default"])
+            vibe_action = self._actions.change_vibe.ChangeVibe(mettagrid.config.vibes.VIBE_BY_NAME["default"])
             s.current_glyph = "default"
             return vibe_action
 
@@ -1037,7 +1048,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         # Not adjacent yet, move towards it
         return self._move_towards(s, chest, reach_adjacent=True)
 
-    def _do_recharge(self, s: SimpleAgentState) -> Action:
+    def _do_recharge(self, s: SimpleAgentState) -> mettagrid.simulator.Action:
         """Recharge at charger."""
         # Explore until we find charger
         explore_action = self._explore_until(
@@ -1060,14 +1071,14 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         # Not adjacent yet, move towards it
         return self._move_towards(s, charger, reach_adjacent=True)
 
-    def _do_unclip(self, s: SimpleAgentState) -> Action:
+    def _do_unclip(self, s: SimpleAgentState) -> mettagrid.simulator.Action:
         """Unclip extractors (TODO: implement)."""
         # TODO: Find nearest clipped extractor, go to it, activate it to unclip
         # For now, just return to GATHER phase
         s.phase = Phase.GATHER
         return self._actions.noop.Noop()
 
-    def _find_nearest_extractor(self, s: SimpleAgentState, resource_type: str) -> Optional[ExtractorInfo]:
+    def _find_nearest_extractor(self, s: SimpleAgentState, resource_type: str) -> typing.Optional[ExtractorInfo]:
         """Find the nearest AVAILABLE extractor of the given type."""
         extractors = s.shared_state.extractors.get(resource_type, [])
         if not extractors:
@@ -1090,7 +1101,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         *,
         reach_adjacent: bool = False,
         allow_goal_block: bool = False,
-    ) -> Action:
+    ) -> mettagrid.simulator.Action:
         """Pathfind toward a target using BFS with obstacle awareness.
 
         Uses path caching to avoid recomputing BFS every step - only recomputes when:
@@ -1215,7 +1226,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         allow_goal_block: bool,
     ) -> list[tuple[int, int]]:
         goal_set = set(goals)
-        queue: deque[tuple[int, int]] = deque([start])
+        queue: collections.deque[tuple[int, int]] = collections.deque([start])
         came_from: dict[tuple[int, int], tuple[int, int] | None] = {start: None}
 
         def walkable(r: int, c: int) -> bool:
@@ -1291,7 +1302,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         print(f"  Stations: {stations}")
         print(f"  Target: {s.target_position}, Target resource: {s.target_resource}")
 
-    def _move_into_cell(self, s: SimpleAgentState, target: tuple[int, int]) -> Action:
+    def _move_into_cell(self, s: SimpleAgentState, target: tuple[int, int]) -> mettagrid.simulator.Action:
         """Return the action that attempts to step into the target cell."""
         tr, tc = target
         if s.row == tr and s.col == tc:
@@ -1315,15 +1326,15 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 # ============================================================================
 
 
-class BaselinePolicy(MultiAgentPolicy):
-    def __init__(self, policy_env_info: PolicyEnvInterface):
+class BaselinePolicy(mettagrid.policy.policy.MultiAgentPolicy):
+    def __init__(self, policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface):
         super().__init__(policy_env_info)
         self._shared_state = SharedAgentState()
-        self._agent_policies: dict[int, StatefulAgentPolicy[SimpleAgentState]] = {}
+        self._agent_policies: dict[int, mettagrid.policy.policy.StatefulAgentPolicy[SimpleAgentState]] = {}
 
-    def agent_policy(self, agent_id: int) -> StatefulAgentPolicy[SimpleAgentState]:
+    def agent_policy(self, agent_id: int) -> mettagrid.policy.policy.StatefulAgentPolicy[SimpleAgentState]:
         if agent_id not in self._agent_policies:
-            self._agent_policies[agent_id] = StatefulAgentPolicy(
+            self._agent_policies[agent_id] = mettagrid.policy.policy.StatefulAgentPolicy(
                 BaselineAgentPolicyImpl(self._policy_env_info, self._shared_state, agent_id), self._policy_env_info
             )
         return self._agent_policies[agent_id]

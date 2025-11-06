@@ -1,17 +1,16 @@
 """Policy definition for SmolLLM-backed agents."""
 
-from __future__ import annotations
 
-from typing import List, Literal, Optional
+import typing
 
-from metta.agent.components.actor import ActionProbsConfig
-from metta.agent.components.component_config import ComponentConfig
-from metta.agent.components.obs_shim import ObsShimTokensConfig
-from metta.agent.components.smollm import SmolLLMBackboneConfig
-from metta.agent.policy import PolicyArchitecture
+import metta.agent.components.actor
+import metta.agent.components.component_config
+import metta.agent.components.obs_shim
+import metta.agent.components.smollm
+import metta.agent.policy
 
 
-class SmolLLMConfig(PolicyArchitecture):
+class SmolLLMConfig(metta.agent.policy.PolicyArchitecture):
     """Policy configuration for SmolLLM-backed agents."""
 
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
@@ -20,38 +19,40 @@ class SmolLLMConfig(PolicyArchitecture):
     max_sequence_length: int = 32
     token_stride: int = 1
     freeze_llm: bool = True
-    torch_dtype: Literal["auto", "float32", "float16", "bfloat16"] = "auto"
-    attn_implementation: Optional[str] = "flash_attention_2"
+    torch_dtype: typing.Literal["auto", "float32", "float16", "bfloat16"] = "auto"
+    attn_implementation: typing.Optional[str] = "flash_attention_2"
 
     tokens_key: str = "smollm_tokens"
     logits_key: str = "smollm_logits"
     values_key: str = "values"
-    hidden_key: Optional[str] = None
+    hidden_key: typing.Optional[str] = None
 
-    actor_head_rank: Optional[int] = None
-    value_head_rank: Optional[int] = None
+    actor_head_rank: typing.Optional[int] = None
+    value_head_rank: typing.Optional[int] = None
     use_lora: bool = False
     lora_rank: int = 8
     lora_alpha: int = 16
     lora_dropout: float = 0.05
-    lora_target_modules: Optional[List[str]] = None
+    lora_target_modules: typing.Optional[typing.List[str]] = None
 
-    components: List[ComponentConfig] = []
-    action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="smollm_logits")
+    components: typing.List[metta.agent.components.component_config.ComponentConfig] = []
+    action_probs_config: metta.agent.components.actor.ActionProbsConfig = (
+        metta.agent.components.actor.ActionProbsConfig(in_key="smollm_logits")
+    )
 
     def model_post_init(self, __context: object) -> None:  # type: ignore[override]
         self.components = self.build_components()
         if self.action_probs_config.in_key != self.logits_key:
             self.action_probs_config = self.action_probs_config.model_copy(update={"in_key": self.logits_key})
 
-    def build_components(self) -> List[ComponentConfig]:
+    def build_components(self) -> typing.List[metta.agent.components.component_config.ComponentConfig]:
         return [
-            ObsShimTokensConfig(
+            metta.agent.components.obs_shim.ObsShimTokensConfig(
                 in_key="env_obs",
                 out_key=self.tokens_key,
                 max_tokens=self.max_sequence_length,
             ),
-            SmolLLMBackboneConfig(
+            metta.agent.components.smollm.SmolLLMBackboneConfig(
                 in_key=self.tokens_key,
                 logits_key=self.logits_key,
                 values_key=self.values_key,

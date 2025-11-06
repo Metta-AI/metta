@@ -4,13 +4,13 @@ import re
 import shutil
 import subprocess
 
-from metta.setup.components.base import SetupModule
-from metta.setup.registry import register_module
-from metta.setup.utils import info, warning
+import metta.setup.components.base
+import metta.setup.registry
+import metta.setup.utils
 
 
-@register_module
-class NodejsSetup(SetupModule):
+@metta.setup.registry.register_module
+class NodejsSetup(metta.setup.components.base.SetupModule):
     @property
     def description(self) -> str:
         return "Node.js infrastructure - pnpm and turborepo"
@@ -43,7 +43,7 @@ class NodejsSetup(SetupModule):
             try:
                 # Try to enable corepack
                 self.run_command(["corepack", "enable"], capture_output=True, check=True)
-                info("Corepack enabled successfully")
+                metta.setup.utils.info("Corepack enabled successfully")
                 return True
             except subprocess.CalledProcessError as e:
                 error_output = e.output
@@ -51,30 +51,30 @@ class NodejsSetup(SetupModule):
                 match = re.search(r"EEXIST: file already exists, symlink .* -> '([^']+)'", error_output)
                 if match:
                     conflicting_path = match.group(1)
-                    warning(f"Removing dead symlink: {conflicting_path}")
+                    metta.setup.utils.warning(f"Removing dead symlink: {conflicting_path}")
                     try:
                         if os.path.islink(conflicting_path):
                             os.remove(conflicting_path)
-                            info(f"Removed conflicting file: {conflicting_path}")
+                            metta.setup.utils.info(f"Removed conflicting file: {conflicting_path}")
                         else:
-                            warning(f"Conflicting file not found: {conflicting_path}")
+                            metta.setup.utils.warning(f"Conflicting file not found: {conflicting_path}")
                     except OSError as rm_err:
-                        warning(f"Failed to remove {conflicting_path}: {rm_err}")
+                        metta.setup.utils.warning(f"Failed to remove {conflicting_path}: {rm_err}")
                         raise RuntimeError(f"Cannot remove conflicting file: {conflicting_path}") from rm_err
                     continue
                 else:
                     # Not an EEXIST error or couldn't parse it
-                    warning(f"Corepack enable failed: {error_output}")
+                    metta.setup.utils.warning(f"Corepack enable failed: {error_output}")
                     raise
 
-        warning("Failed to enable corepack after removing dead symlinks")
+        metta.setup.utils.warning("Failed to enable corepack after removing dead symlinks")
         return False
 
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
-        info("Setting up pnpm...")
+        metta.setup.utils.info("Setting up pnpm...")
 
         if force:
-            info("Uninstalling pnpm first...")
+            metta.setup.utils.info("Uninstalling pnpm first...")
             self.run_command(["corepack", "disable"])
 
         # First enable corepack to make pnpm command available
@@ -83,13 +83,13 @@ class NodejsSetup(SetupModule):
                 raise RuntimeError("Failed to set up pnpm via corepack")
 
         # Let pnpm setup itself - this handles shell profile configuration
-        info("Running pnpm setup to configure shell profiles...")
+        metta.setup.utils.info("Running pnpm setup to configure shell profiles...")
         try:
             self.run_command(["pnpm", "setup"], capture_output=False)
-            info("pnpm setup completed successfully")
+            metta.setup.utils.info("pnpm setup completed successfully")
         except subprocess.CalledProcessError as e:
             # pnpm setup can fail if there's already a config, but that's usually OK
-            warning(f"pnpm setup returned non-zero exit code: {e}. Continuing...")
+            metta.setup.utils.warning(f"pnpm setup returned non-zero exit code: {e}. Continuing...")
 
         # Set PNPM_HOME for current process if pnpm setup configured it
         # Use platform-specific default locations that match pnpm setup behavior
@@ -99,7 +99,7 @@ class NodejsSetup(SetupModule):
             pnpm_home = os.path.expanduser("~/.local/share/pnpm")
 
         if os.path.exists(pnpm_home):
-            info(f"Setting PNPM_HOME to {pnpm_home} for current process")
+            metta.setup.utils.info(f"Setting PNPM_HOME to {pnpm_home} for current process")
             os.environ["PNPM_HOME"] = pnpm_home
             # Add to PATH for current process
             current_path = os.environ.get("PATH", "")
@@ -108,13 +108,13 @@ class NodejsSetup(SetupModule):
 
         # Install global turbo if pnpm is working
         if self._cmd_exists("pnpm"):
-            info("Installing turbo globally...")
+            metta.setup.utils.info("Installing turbo globally...")
             self.run_command(["pnpm", "install", "--global", "turbo"], capture_output=False)
         else:
-            warning("pnpm not working properly, skipping global turbo install")
+            metta.setup.utils.warning("pnpm not working properly, skipping global turbo install")
 
-        info("Installing project dependencies...")
+        metta.setup.utils.info("Installing project dependencies...")
         # pnpm install with frozen lockfile to avoid prompts
         self.run_command(["pnpm", "install", "--frozen-lockfile"], capture_output=False, cwd=self.repo_root)
 
-        info("Nodejs setup completed! You may need to restart your shell to use global packages.")
+        metta.setup.utils.info("Nodejs setup completed! You may need to restart your shell to use global packages.")

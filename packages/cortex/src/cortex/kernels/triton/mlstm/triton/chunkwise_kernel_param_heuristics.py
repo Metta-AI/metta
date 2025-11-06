@@ -2,15 +2,15 @@
 #  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
 
 # Maximilian Beck
+import dataclasses
 import logging
-from dataclasses import dataclass
 
-from cortex.kernels.triton.mlstm.utils.kernels import is_power_of_2
+import cortex.kernels.triton.mlstm.utils.kernels
 
 LOGGER = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclasses.dataclass
 class XLChunkParams:
     """Dataclass to store all chunk size related params for the XL chunk kernel."""
 
@@ -76,7 +76,9 @@ def select_heuristic_xl_chunk_kernel_params(
 
     if sequence_length < DEFAULT_CHUNK_SIZE:
         # choose the maximum possible chunk size, ignore target_chunk_size
-        assert is_power_of_2(sequence_length), "Sequence length must be a power of 2."
+        assert cortex.kernels.triton.mlstm.utils.kernels.is_power_of_2(sequence_length), (
+            "Sequence length must be a power of 2."
+        )
         chunk_size_intra = sequence_length
         chunk_size_inter = sequence_length
         siz_b_L_parallel = sequence_length

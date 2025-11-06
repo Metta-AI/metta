@@ -7,12 +7,12 @@ are generated, and mapping them back after suggestions are returned.
 """
 
 import logging
-from typing import Any, Dict, Tuple
+import typing
 
-from metta.common.util.numpy_helpers import clean_numpy_types
-from metta.sweep.core import CategoricalParameterConfig, ParameterConfig
-from metta.sweep.protein import Protein
-from metta.sweep.protein_config import ProteinConfig
+import metta.common.util.numpy_helpers
+import metta.sweep.core
+import metta.sweep.protein
+import metta.sweep.protein_config
 
 logger = logging.getLogger(__name__)
 
@@ -20,11 +20,11 @@ logger = logging.getLogger(__name__)
 class ProteinOptimizer:
     """Adapter for Protein optimizer."""
 
-    def __init__(self, config: ProteinConfig):
+    def __init__(self, config: metta.sweep.protein_config.ProteinConfig):
         """Initialize with Protein configuration."""
         self.config = config
         # Categorical mapping: flat_key -> (value_to_index, index_to_value)
-        self._categorical_maps: dict[str, Tuple[Dict[Any, int], Dict[int, Any]]] = {}
+        self._categorical_maps: dict[str, typing.Tuple[typing.Dict[typing.Any, int], typing.Dict[int, typing.Any]]] = {}
         # Numeric-only Protein dict derived from config (categoricals converted)
         self._protein_numeric_dict: dict | None = None
 
@@ -32,7 +32,7 @@ class ProteinOptimizer:
         if config.method != "bayes":
             raise ValueError(f"Unsupported optimization method: {config.method}. Only 'bayes' is supported.")
 
-    def suggest(self, observations: list[dict[str, Any]], n_suggestions: int = 1) -> list[dict[str, Any]]:
+    def suggest(self, observations: list[dict[str, typing.Any]], n_suggestions: int = 1) -> list[dict[str, typing.Any]]:
         """Generate hyperparameter suggestions."""
         # Lazily build the numeric-only Protein config + categorical maps
         if self._protein_numeric_dict is None:
@@ -55,7 +55,7 @@ class ProteinOptimizer:
             "randomize_acquisition": protein_settings.get("randomize_acquisition", False),
         }
 
-        protein = Protein(protein_dict, **bayes_settings)
+        protein = metta.sweep.protein.Protein(protein_dict, **bayes_settings)
 
         # Load all observations
         for obs in observations:
@@ -85,7 +85,7 @@ class ProteinOptimizer:
             # Single suggestion case: returns (suggestion, info)
             suggestion, info = result
             decoded = self._decode_categoricals(suggestion)
-            suggestions.append(clean_numpy_types(decoded))
+            suggestions.append(metta.common.util.numpy_helpers.clean_numpy_types(decoded))
             logger.debug(f"Generated suggestion with info: {info}")
         else:
             # Multiple suggestions case
@@ -101,7 +101,7 @@ class ProteinOptimizer:
                     raise ValueError(f"Expected (suggestion, info) tuple, got: {item}")
                 suggestion, info = item
                 decoded = self._decode_categoricals(suggestion)
-                suggestions.append(clean_numpy_types(decoded))
+                suggestions.append(metta.common.util.numpy_helpers.clean_numpy_types(decoded))
                 logger.debug(f"Generated suggestion with info: {info}")
 
         return suggestions
@@ -119,9 +119,9 @@ class ProteinOptimizer:
             out: dict = {}
             for key, value in params.items():
                 full_key = f"{prefix}.{key}" if prefix else key
-                if isinstance(value, ParameterConfig):
+                if isinstance(value, metta.sweep.core.ParameterConfig):
                     out[key] = value
-                elif isinstance(value, CategoricalParameterConfig):
+                elif isinstance(value, metta.sweep.core.CategoricalParameterConfig):
                     choices = list(value.choices)
                     if len(choices) == 0:
                         raise ValueError(f"Categorical parameter '{full_key}' must have at least one choice")
@@ -133,7 +133,7 @@ class ProteinOptimizer:
                     n = max(1, len(choices))
                     max_idx = max(0, n - 1)
                     mean_idx = (max_idx) / 2.0
-                    out[key] = ParameterConfig(
+                    out[key] = metta.sweep.core.ParameterConfig(
                         min=0,
                         max=max_idx,
                         distribution="int_uniform",
@@ -149,7 +149,7 @@ class ProteinOptimizer:
 
         numeric_params = convert_params(self.config.parameters)
         # Build a temporary ProteinConfig with numeric-only parameters
-        numeric_config = ProteinConfig(
+        numeric_config = metta.sweep.protein_config.ProteinConfig(
             metric=self.config.metric,
             goal=self.config.goal,
             parameters=numeric_params,
@@ -161,7 +161,7 @@ class ProteinOptimizer:
     def _encode_categoricals(self, suggestion: dict) -> dict:
         """Map categorical values to indices using learned maps."""
 
-        def recurse(obj: Any, prefix: str = "") -> Any:
+        def recurse(obj: typing.Any, prefix: str = "") -> typing.Any:
             if not isinstance(obj, dict):
                 return obj
             out: dict = {}
@@ -187,7 +187,7 @@ class ProteinOptimizer:
     def _decode_categoricals(self, suggestion: dict) -> dict:
         """Map numeric indices back to categorical values."""
 
-        def recurse(obj: Any, prefix: str = "") -> Any:
+        def recurse(obj: typing.Any, prefix: str = "") -> typing.Any:
             if not isinstance(obj, dict):
                 return obj
             out: dict = {}

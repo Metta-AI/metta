@@ -1,16 +1,9 @@
 import numpy as np
 import pytest
 
-from mettagrid.config.mettagrid_config import (
-    ActionsConfig,
-    GameConfig,
-    MettaGridConfig,
-    MoveActionConfig,
-    NoopActionConfig,
-    ObsConfig,
-)
-from mettagrid.map_builder.random import RandomMapBuilder
-from mettagrid.simulator import Simulation
+import mettagrid.config.mettagrid_config
+import mettagrid.map_builder.random
+import mettagrid.simulator
 
 
 @pytest.fixture
@@ -18,19 +11,24 @@ def simulation(num_agents: int):
     """Create and initialize the environment with specified number of agents."""
     seed = 42
 
-    cfg = MettaGridConfig(
-        game=GameConfig(
+    cfg = mettagrid.config.mettagrid_config.MettaGridConfig(
+        game=mettagrid.config.mettagrid_config.GameConfig(
             num_agents=num_agents,
-            obs=ObsConfig(num_tokens=100),
+            obs=mettagrid.config.mettagrid_config.ObsConfig(num_tokens=100),
             max_steps=0,  # env lasts forever
-            actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
-            map_builder=RandomMapBuilder.Config(agents=num_agents, width=20, height=20, seed=seed),
+            actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
+                move=mettagrid.config.mettagrid_config.MoveActionConfig(),
+            ),
+            map_builder=mettagrid.map_builder.random.RandomMapBuilder.Config(
+                agents=num_agents, width=20, height=20, seed=seed
+            ),
         )
     )
 
     print(f"\nConfiguring environment with {num_agents} agents")
 
-    sim = Simulation(cfg, seed=seed)
+    sim = mettagrid.simulator.Simulation(cfg, seed=seed)
 
     # Verify deterministic grid generation
     initial_hash = sim.initial_grid_hash
@@ -123,14 +121,19 @@ def test_create_env_performance(benchmark):
 
     def create_env():
         """Create a new environment."""
-        cfg = MettaGridConfig(
-            game=GameConfig(
+        cfg = mettagrid.config.mettagrid_config.MettaGridConfig(
+            game=mettagrid.config.mettagrid_config.GameConfig(
                 num_agents=8,
-                actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
-                map_builder=RandomMapBuilder.Config(agents=8, width=20, height=20, seed=42),
+                actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                    noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
+                    move=mettagrid.config.mettagrid_config.MoveActionConfig(),
+                ),
+                map_builder=mettagrid.map_builder.random.RandomMapBuilder.Config(
+                    agents=8, width=20, height=20, seed=42
+                ),
             )
         )
-        sim = Simulation(cfg, seed=42)
+        sim = mettagrid.simulator.Simulation(cfg, seed=42)
         # Cleanup
         sim.close()
         del sim

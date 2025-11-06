@@ -1,12 +1,12 @@
 """CLI login functionality for CoGames."""
 
-from cogames.auth import BaseCLIAuthenticator
+import cogames.auth
 
 # Default CoGames server URL
 DEFAULT_COGAMES_SERVER = "https://softmax.com/api"
 
 
-class CoGamesAuthenticator(BaseCLIAuthenticator):
+class CoGamesAuthenticator(cogames.auth.BaseCLIAuthenticator):
     """CLI Authenticator for CoGames, storing tokens in cogames.yaml under 'login_tokens' key."""
 
     def __init__(self):

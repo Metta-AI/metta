@@ -1,11 +1,11 @@
 """Tests for PR splitting functionality without mocks."""
 
 import json
+import pathlib
 import subprocess
 import tempfile
-from pathlib import Path
 
-from gitta.split import FileDiff, PRSplitter, SplitDecision
+import gitta.split
 
 
 def test_parse_diff():
@@ -33,7 +33,7 @@ index 0000000..789012
 +"""
 
     # Create a splitter without needing API key for basic parsing
-    splitter = PRSplitter()
+    splitter = gitta.split.PRSplitter()
     files = splitter.parse_diff(diff_text)
 
     assert len(files) == 2
@@ -48,17 +48,17 @@ index 0000000..789012
 
 def test_create_patch_file():
     """Test creating a patch from selected files."""
-    splitter = PRSplitter()
+    splitter = gitta.split.PRSplitter()
 
     files = [
-        FileDiff(
+        gitta.split.FileDiff(
             filename="file1.py",
             additions=["+line1"],
             deletions=["-line2"],
             hunks=[],
             raw_diff="diff --git a/file1.py b/file1.py\n+line1\n-line2",
         ),
-        FileDiff(
+        gitta.split.FileDiff(
             filename="file2.py",
             additions=["+line3"],
             deletions=[],
@@ -78,7 +78,7 @@ def test_create_patch_file():
 
 def test_verify_split():
     """Test verification of split diffs."""
-    splitter = PRSplitter()
+    splitter = gitta.split.PRSplitter()
 
     original = """diff --git a/file.py b/file.py
 +added line 1
@@ -144,7 +144,7 @@ def test_split_decision_json_parsing():
         }
     )
 
-    decision = SplitDecision(**json.loads(json_str))
+    decision = gitta.split.SplitDecision(**json.loads(json_str))
     assert decision.group1_files == ["file1.py", "file2.py"]
     assert decision.group2_files == ["file3.py"]
     assert "backend" in decision.group1_description.lower()
@@ -154,7 +154,7 @@ def test_real_git_diff():
     """Test with a real git repository and actual diffs."""
     # Create temporary repo
     with tempfile.TemporaryDirectory() as tmpdir:
-        repo_path = Path(tmpdir)
+        repo_path = pathlib.Path(tmpdir)
 
         # Initialize repo
         subprocess.run(["git", "init"], cwd=repo_path, check=True, capture_output=True)
@@ -179,7 +179,7 @@ def test_real_git_diff():
         result = subprocess.run(["git", "diff", "HEAD"], cwd=repo_path, capture_output=True, text=True, check=True)
 
         # Parse it
-        splitter = PRSplitter()
+        splitter = gitta.split.PRSplitter()
         files = splitter.parse_diff(result.stdout)
 
         assert len(files) == 2

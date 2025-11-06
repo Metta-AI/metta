@@ -1,15 +1,14 @@
-from __future__ import annotations
 
+import pathlib
 import subprocess
 import sys
-from pathlib import Path
 
 import pytest
 
 pytestmark = pytest.mark.setup
 
 
-def test_metta_cli_imports_are_lightweight(tmp_path: Path) -> None:
+def test_metta_cli_imports_are_lightweight(tmp_path: pathlib.Path) -> None:
     """Ensure importing the CLI does not pull in heavyweight modules or regress in cost."""
 
     cmd = [sys.executable, "-X", "importtime", "-c", "import metta.setup.metta_cli"]

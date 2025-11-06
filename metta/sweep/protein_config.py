@@ -5,52 +5,54 @@ The canonical parameter spec (`ParameterConfig`) now lives in
 `metta.sweep.core` and should be imported from there.
 """
 
-from typing import Any, Dict, Literal
+import typing
 
-from pydantic import Field
+import pydantic
 
-from metta.sweep.core import ParameterConfig
-from mettagrid.base_config import Config
+import metta.sweep.core
+import mettagrid.base_config
 
 
-class ProteinSettings(Config):
+class ProteinSettings(mettagrid.base_config.Config):
     """Settings for the Protein optimizer algorithm."""
 
     # Common settings for all methods
-    max_suggestion_cost: float = Field(default=10800, description="Maximum cost for a single suggestion")
-    global_search_scale: float = Field(default=1.0, description="Scale factor for global search")
-    random_suggestions: int = Field(default=15, description="Number of random suggestions to generate")
-    suggestions_per_pareto: int = Field(default=256, description="Number of suggestions per Pareto point")
+    max_suggestion_cost: float = pydantic.Field(default=10800, description="Maximum cost for a single suggestion")
+    global_search_scale: float = pydantic.Field(default=1.0, description="Scale factor for global search")
+    random_suggestions: int = pydantic.Field(default=15, description="Number of random suggestions to generate")
+    suggestions_per_pareto: int = pydantic.Field(default=256, description="Number of suggestions per Pareto point")
 
     # Bayesian optimization specific settings
-    resample_frequency: int = Field(default=10, description="How often to resample Pareto points")
-    num_random_samples: int = Field(default=0, description="Number of random samples before using GP")
-    seed_with_search_center: bool = Field(default=True, description="Whether to seed with the search center")
-    expansion_rate: float = Field(default=0.25, description="Rate of search space expansion")
-    acquisition_fn: Literal["naive", "ei", "ucb"] = Field(
+    resample_frequency: int = pydantic.Field(default=10, description="How often to resample Pareto points")
+    num_random_samples: int = pydantic.Field(default=0, description="Number of random samples before using GP")
+    seed_with_search_center: bool = pydantic.Field(default=True, description="Whether to seed with the search center")
+    expansion_rate: float = pydantic.Field(default=0.25, description="Rate of search space expansion")
+    acquisition_fn: typing.Literal["naive", "ei", "ucb"] = pydantic.Field(
         default="naive", description="Acquisition function for Bayesian optimization"
     )
-    ucb_beta: float = Field(default=2.0, description="Beta parameter for UCB acquisition function")
-    randomize_acquisition: bool = Field(
+    ucb_beta: float = pydantic.Field(default=2.0, description="Beta parameter for UCB acquisition function")
+    randomize_acquisition: bool = pydantic.Field(
         default=False, description="Whether to randomize acquisition function parameters for diversity"
     )
 
 
-class ProteinConfig(Config):
+class ProteinConfig(mettagrid.base_config.Config):
     """Configuration for Protein hyperparameter optimization."""
 
     # Optimization metadata
-    metric: str = Field(description="Metric to optimize (e.g., 'navigation', 'arena/combat')")
-    goal: Literal["maximize", "minimize"] = Field(
+    metric: str = pydantic.Field(description="Metric to optimize (e.g., 'navigation', 'arena/combat')")
+    goal: typing.Literal["maximize", "minimize"] = pydantic.Field(
         default="maximize", description="Whether to maximize or minimize the metric"
     )
-    method: Literal["bayes"] = Field(default="bayes", description="Optimization method")
+    method: typing.Literal["bayes"] = pydantic.Field(default="bayes", description="Optimization method")
 
     # Parameters to optimize - nested dict structure
-    parameters: Dict[str, Any] = Field(default_factory=dict, description="Nested dict of parameters to optimize")
+    parameters: typing.Dict[str, typing.Any] = pydantic.Field(
+        default_factory=dict, description="Nested dict of parameters to optimize"
+    )
 
     # Protein algorithm settings
-    settings: ProteinSettings = Field(
+    settings: ProteinSettings = pydantic.Field(
         default_factory=ProteinSettings, description="Protein optimizer algorithm settings"
     )
 
@@ -73,7 +75,7 @@ class ProteinConfig(Config):
             for key, value in params.items():
                 full_key = f"{prefix}.{key}" if prefix else key
 
-                if isinstance(value, ParameterConfig):
+                if isinstance(value, metta.sweep.core.ParameterConfig):
                     # Convert ParameterConfig to dict format
                     result[full_key] = value.model_dump()
                 elif isinstance(value, dict):

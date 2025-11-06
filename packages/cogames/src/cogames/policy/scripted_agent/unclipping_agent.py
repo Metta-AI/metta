@@ -6,26 +6,19 @@ This agent can detect clipped extractors and craft unclip items to restore them.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional
+import dataclasses
+import typing
 
-from mettagrid.policy.policy import MultiAgentPolicy, StatefulAgentPolicy
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+import cogames.policy.scripted_agent.baseline_agent
+import mettagrid.policy.policy
+import mettagrid.policy.policy_env_interface
 
-from .baseline_agent import (
-    BaselineAgentPolicyImpl,
-    ExtractorInfo,
-    Phase,
-    SharedAgentState,
-    SimpleAgentState,
-)
-
-if TYPE_CHECKING:
+if typing.TYPE_CHECKING:
     pass
 
 
-@dataclass
-class UnclippingAgentState(SimpleAgentState):
+@dataclasses.dataclass
+class UnclippingAgentState(cogames.policy.scripted_agent.baseline_agent.SimpleAgentState):
     """Extended state for unclipping agent."""
 
     # Unclip items inventory
@@ -35,11 +28,11 @@ class UnclippingAgentState(SimpleAgentState):
     scrambler: int = 0
 
     # Unclip tracking
-    blocked_by_clipped_extractor: Optional[tuple[int, int]] = None
-    unclip_target_resource: Optional[str] = None  # Which resource is clipped
+    blocked_by_clipped_extractor: typing.Optional[tuple[int, int]] = None
+    unclip_target_resource: typing.Optional[str] = None  # Which resource is clipped
 
 
-class UnclippingAgentPolicyImpl(BaselineAgentPolicyImpl):
+class UnclippingAgentPolicyImpl(cogames.policy.scripted_agent.baseline_agent.BaselineAgentPolicyImpl):
     """
     Agent that can unclip extractors by crafting and using unclip items.
 
@@ -50,7 +43,12 @@ class UnclippingAgentPolicyImpl(BaselineAgentPolicyImpl):
     - scrambler (from germanium) unclips silicon extractors
     """
 
-    def __init__(self, policy_env_info: PolicyEnvInterface, shared_state: SharedAgentState, agent_id: int):
+    def __init__(
+        self,
+        policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface,
+        shared_state: cogames.policy.scripted_agent.baseline_agent.SharedAgentState,
+        agent_id: int,
+    ):
         super().__init__(policy_env_info, shared_state, agent_id)
         self._unclip_recipes = self._load_unclip_recipes()
 
@@ -93,7 +91,7 @@ class UnclippingAgentPolicyImpl(BaselineAgentPolicyImpl):
 
         return recipes
 
-    def _get_unclip_item_name(self, clipped_resource: str) -> Optional[str]:
+    def _get_unclip_item_name(self, clipped_resource: str) -> typing.Optional[str]:
         """Get the unclip item name for a clipped resource."""
         resource_to_item = {
             "oxygen": "decoder",
@@ -122,22 +120,22 @@ class UnclippingAgentPolicyImpl(BaselineAgentPolicyImpl):
         """Override to add unclipping phase priorities."""
         # Priority 1: Recharge if energy low
         if s.energy < 30:
-            if s.phase != Phase.RECHARGE:
+            if s.phase != cogames.policy.scripted_agent.baseline_agent.Phase.RECHARGE:
                 print(f"[Agent {s.agent_id}] Phase: {s.phase.name} -> RECHARGE (energy={s.energy})")
-                s.phase = Phase.RECHARGE
+                s.phase = cogames.policy.scripted_agent.baseline_agent.Phase.RECHARGE
             return
 
         # Stay in RECHARGE until energy is fully restored (>= 90)
-        if s.phase == Phase.RECHARGE:
+        if s.phase == cogames.policy.scripted_agent.baseline_agent.Phase.RECHARGE:
             if s.energy >= 90:
-                s.phase = Phase.GATHER
+                s.phase = cogames.policy.scripted_agent.baseline_agent.Phase.GATHER
                 s.target_position = None
             return
 
         # Priority 2: Deliver hearts if we have any
         if s.hearts > 0:
-            if s.phase != Phase.DELIVER:
-                s.phase = Phase.DELIVER
+            if s.phase != cogames.policy.scripted_agent.baseline_agent.Phase.DELIVER:
+                s.phase = cogames.policy.scripted_agent.baseline_agent.Phase.DELIVER
             return
 
         # Priority 3: Assemble if we have all resources
@@ -149,14 +147,14 @@ class UnclippingAgentPolicyImpl(BaselineAgentPolicyImpl):
         )
 
         if can_assemble:
-            if s.phase != Phase.ASSEMBLE:
-                s.phase = Phase.ASSEMBLE
+            if s.phase != cogames.policy.scripted_agent.baseline_agent.Phase.ASSEMBLE:
+                s.phase = cogames.policy.scripted_agent.baseline_agent.Phase.ASSEMBLE
             return
 
         # Priority 4: Unclip if blocked and have unclip item
         if s.blocked_by_clipped_extractor is not None and self._has_unclip_item(s):
-            if s.phase != Phase.UNCLIP:
-                s.phase = Phase.UNCLIP
+            if s.phase != cogames.policy.scripted_agent.baseline_agent.Phase.UNCLIP:
+                s.phase = cogames.policy.scripted_agent.baseline_agent.Phase.UNCLIP
             return
 
         # Priority 5: Craft unclip item if blocked but don't have item
@@ -174,21 +172,23 @@ class UnclippingAgentPolicyImpl(BaselineAgentPolicyImpl):
                 has_enough = current_amount >= total_needed
 
                 if has_enough:
-                    if s.phase != Phase.CRAFT_UNCLIP:
-                        s.phase = Phase.CRAFT_UNCLIP
+                    if s.phase != cogames.policy.scripted_agent.baseline_agent.Phase.CRAFT_UNCLIP:
+                        s.phase = cogames.policy.scripted_agent.baseline_agent.Phase.CRAFT_UNCLIP
                     return
                 else:
                     # Stay in GATHER to collect more craft resource
-                    if s.phase != Phase.GATHER:
-                        s.phase = Phase.GATHER
+                    if s.phase != cogames.policy.scripted_agent.baseline_agent.Phase.GATHER:
+                        s.phase = cogames.policy.scripted_agent.baseline_agent.Phase.GATHER
                     return
 
         # Priority 6: Default to GATHER
-        if s.phase != Phase.GATHER:
-            s.phase = Phase.GATHER
+        if s.phase != cogames.policy.scripted_agent.baseline_agent.Phase.GATHER:
+            s.phase = cogames.policy.scripted_agent.baseline_agent.Phase.GATHER
             s.target_position = None
 
-    def _find_any_needed_extractor(self, s: UnclippingAgentState) -> Optional[tuple[ExtractorInfo, str]]:
+    def _find_any_needed_extractor(
+        self, s: UnclippingAgentState
+    ) -> typing.Optional[tuple[cogames.policy.scripted_agent.baseline_agent.ExtractorInfo, str]]:
         """
         Override to detect clipped extractors.
 
@@ -256,37 +256,37 @@ class UnclippingAgentPolicyImpl(BaselineAgentPolicyImpl):
 
     def _execute_phase(self, s: UnclippingAgentState) -> int:
         """Override to handle CRAFT_UNCLIP and UNCLIP phases."""
-        if s.phase == Phase.GATHER:
+        if s.phase == cogames.policy.scripted_agent.baseline_agent.Phase.GATHER:
             return self._do_gather(s)
-        elif s.phase == Phase.ASSEMBLE:
+        elif s.phase == cogames.policy.scripted_agent.baseline_agent.Phase.ASSEMBLE:
             return self._do_assemble(s)
-        elif s.phase == Phase.DELIVER:
+        elif s.phase == cogames.policy.scripted_agent.baseline_agent.Phase.DELIVER:
             return self._do_deliver(s)
-        elif s.phase == Phase.RECHARGE:
+        elif s.phase == cogames.policy.scripted_agent.baseline_agent.Phase.RECHARGE:
             return self._do_recharge(s)
-        elif s.phase == Phase.CRAFT_UNCLIP:
+        elif s.phase == cogames.policy.scripted_agent.baseline_agent.Phase.CRAFT_UNCLIP:
             return self._do_craft_unclip(s)
-        elif s.phase == Phase.UNCLIP:
+        elif s.phase == cogames.policy.scripted_agent.baseline_agent.Phase.UNCLIP:
             return self._do_unclip(s)
         return self._NOOP
 
     def _do_craft_unclip(self, s: UnclippingAgentState) -> int:
         """Craft unclip item at assembler."""
         if s.unclip_target_resource is None:
-            s.phase = Phase.GATHER
+            s.phase = cogames.policy.scripted_agent.baseline_agent.Phase.GATHER
             return self._NOOP
 
         # Get craft resource needed
         craft_resource = self._unclip_recipes.get(s.unclip_target_resource)
         if craft_resource is None:
-            s.phase = Phase.GATHER
+            s.phase = cogames.policy.scripted_agent.baseline_agent.Phase.GATHER
             return self._NOOP
 
         # Check if we have enough craft resource (need 1)
         current_amount = getattr(s, craft_resource, 0)
         if current_amount < 1:
             # Need to gather craft resource first
-            s.phase = Phase.GATHER
+            s.phase = cogames.policy.scripted_agent.baseline_agent.Phase.GATHER
             return self._NOOP
 
         # Explore until we find assembler
@@ -320,7 +320,7 @@ class UnclippingAgentPolicyImpl(BaselineAgentPolicyImpl):
     def _do_unclip(self, s: UnclippingAgentState) -> int:
         """Use unclip item on clipped extractor."""
         if s.blocked_by_clipped_extractor is None:
-            s.phase = Phase.GATHER
+            s.phase = cogames.policy.scripted_agent.baseline_agent.Phase.GATHER
             s.unclip_target_resource = None
             return self._NOOP
 
@@ -347,21 +347,21 @@ class UnclippingAgentPolicyImpl(BaselineAgentPolicyImpl):
 # ============================================================================
 
 
-class UnclippingPolicy(MultiAgentPolicy):
+class UnclippingPolicy(mettagrid.policy.policy.MultiAgentPolicy):
     """Multi-agent policy wrapper for UnclippingAgent.
 
     This class wraps UnclippingAgent to work with the policy interface.
     It handles multiple agents, each with their own UnclippingAgent instance.
     """
 
-    def __init__(self, policy_env_info: PolicyEnvInterface):
+    def __init__(self, policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface):
         super().__init__(policy_env_info)
-        self._shared_state = SharedAgentState()
-        self._agent_policies: dict[int, StatefulAgentPolicy[UnclippingAgentState]] = {}
+        self._shared_state = cogames.policy.scripted_agent.baseline_agent.SharedAgentState()
+        self._agent_policies: dict[int, mettagrid.policy.policy.StatefulAgentPolicy[UnclippingAgentState]] = {}
 
-    def agent_policy(self, agent_id: int) -> StatefulAgentPolicy[UnclippingAgentState]:
+    def agent_policy(self, agent_id: int) -> mettagrid.policy.policy.StatefulAgentPolicy[UnclippingAgentState]:
         if agent_id not in self._agent_policies:
-            self._agent_policies[agent_id] = StatefulAgentPolicy(
+            self._agent_policies[agent_id] = mettagrid.policy.policy.StatefulAgentPolicy(
                 UnclippingAgentPolicyImpl(self._policy_env_info, self._shared_state, agent_id),
                 self._policy_env_info,
             )

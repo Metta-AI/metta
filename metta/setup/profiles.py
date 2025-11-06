@@ -1,11 +1,11 @@
-from enum import Enum
+import enum
 
-from typing_extensions import NotRequired, TypedDict
+import typing_extensions
 
-from metta.common.util.constants import METTA_AWS_ACCOUNT_ID, METTA_SKYPILOT_URL, METTA_WANDB_ENTITY
+import metta.common.util.constants
 
 
-class UserType(Enum):
+class UserType(enum.Enum):
     EXTERNAL = "external"
     CLOUD = "cloud"
     SOFTMAX = "softmax"
@@ -27,12 +27,12 @@ class UserType(Enum):
         return descriptions.get(self, self.value)
 
 
-class ComponentConfig(TypedDict):
+class ComponentConfig(typing_extensions.TypedDict):
     enabled: bool
-    expected_connection: NotRequired[str | None]
+    expected_connection: typing_extensions.NotRequired[str | None]
 
 
-class ProfileConfig(TypedDict):
+class ProfileConfig(typing_extensions.TypedDict):
     components: dict[str, ComponentConfig]
 
 
@@ -76,8 +76,8 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "nodejs": {"enabled": False},
             "githooks": {"enabled": True},
             "observatory-key": {"enabled": False},
-            "aws": {"enabled": True, "expected_connection": METTA_AWS_ACCOUNT_ID},
-            "wandb": {"enabled": True, "expected_connection": METTA_WANDB_ENTITY},
+            "aws": {"enabled": True, "expected_connection": metta.common.util.constants.METTA_AWS_ACCOUNT_ID},
+            "wandb": {"enabled": True, "expected_connection": metta.common.util.constants.METTA_WANDB_ENTITY},
             "skypilot": {"enabled": False},
             "tailscale": {"enabled": False},
             "notebookwidgets": {"enabled": False},
@@ -94,9 +94,9 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "nodejs": {"enabled": True},
             "githooks": {"enabled": True},
             "observatory-key": {"enabled": True, "expected_connection": "@stem.ai"},
-            "aws": {"enabled": True, "expected_connection": METTA_AWS_ACCOUNT_ID},
-            "wandb": {"enabled": True, "expected_connection": METTA_WANDB_ENTITY},
-            "skypilot": {"enabled": True, "expected_connection": METTA_SKYPILOT_URL},
+            "aws": {"enabled": True, "expected_connection": metta.common.util.constants.METTA_AWS_ACCOUNT_ID},
+            "wandb": {"enabled": True, "expected_connection": metta.common.util.constants.METTA_WANDB_ENTITY},
+            "skypilot": {"enabled": True, "expected_connection": metta.common.util.constants.METTA_SKYPILOT_URL},
             "tailscale": {"enabled": True, "expected_connection": "@stem.ai"},
             "notebookwidgets": {"enabled": False},
             "scratchpad": {"enabled": True},

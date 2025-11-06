@@ -1,25 +1,24 @@
 import logging
-from typing import List, Optional
+import typing
 
 import numpy as np
+import tensordict
+import tensordict.nn
 import torch
-from tensordict import TensorDict
-from tensordict.nn import TensorDictModule as TDM
-from torch import nn
-from torchrl.data import Composite, UnboundedDiscrete
+import torchrl.data
 
+import metta.agent.components.actor
+import metta.agent.components.cnn_encoder
+import metta.agent.components.lstm
+import metta.agent.components.obs_shim
+import metta.agent.policy
+import mettagrid.policy.policy_env_interface
 import pufferlib.pytorch
-from metta.agent.components.actor import ActionProbs, ActionProbsConfig
-from metta.agent.components.cnn_encoder import CNNEncoder, CNNEncoderConfig
-from metta.agent.components.lstm import LSTM, LSTMConfig
-from metta.agent.components.obs_shim import ObsShimBox, ObsShimBoxConfig
-from metta.agent.policy import Policy, PolicyArchitecture
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger(__name__)
 
 
-class FastConfig(PolicyArchitecture):
+class FastConfig(metta.agent.policy.PolicyArchitecture):
     """
     Fast uses a CNN encoder so is not flexible to changing observation features but it runs faster than the ViT encoder.
 
@@ -30,18 +29,24 @@ class FastConfig(PolicyArchitecture):
 
     class_path: str = "metta.agent.policies.fast.FastPolicy"
 
-    obs_shim_config: ObsShimBoxConfig = ObsShimBoxConfig(in_key="env_obs", out_key="obs_normalizer")
-    cnn_encoder_config: CNNEncoderConfig = CNNEncoderConfig(in_key="obs_normalizer", out_key="encoded_obs")
-    lstm_config: LSTMConfig = LSTMConfig(
+    obs_shim_config: metta.agent.components.obs_shim.ObsShimBoxConfig = (
+        metta.agent.components.obs_shim.ObsShimBoxConfig(in_key="env_obs", out_key="obs_normalizer")
+    )
+    cnn_encoder_config: metta.agent.components.cnn_encoder.CNNEncoderConfig = (
+        metta.agent.components.cnn_encoder.CNNEncoderConfig(in_key="obs_normalizer", out_key="encoded_obs")
+    )
+    lstm_config: metta.agent.components.lstm.LSTMConfig = metta.agent.components.lstm.LSTMConfig(
         in_key="encoded_obs", out_key="core", latent_size=128, hidden_size=128, num_layers=2
     )
     critic_hidden_dim: int = 1024
     actor_hidden_dim: int = 512
-    action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
+    action_probs_config: metta.agent.components.actor.ActionProbsConfig = (
+        metta.agent.components.actor.ActionProbsConfig(in_key="logits")
+    )
 
 
-class FastPolicy(Policy):
-    def __init__(self, policy_env_info: "PolicyEnvInterface", config: Optional[FastConfig] = None):
+class FastPolicy(metta.agent.policy.Policy):
+    def __init__(self, policy_env_info: "PolicyEnvInterface", config: typing.Optional[FastConfig] = None):
         super().__init__(policy_env_info)
         self.config = config or FastConfig()
         self.policy_env_info = policy_env_info
@@ -54,40 +59,44 @@ class FastPolicy(Policy):
         self.out_width = policy_env_info.obs_width
         self.out_height = policy_env_info.obs_height
 
-        self.obs_shim = ObsShimBox(policy_env_info=policy_env_info, config=self.config.obs_shim_config)
+        self.obs_shim = metta.agent.components.obs_shim.ObsShimBox(
+            policy_env_info=policy_env_info, config=self.config.obs_shim_config
+        )
 
-        self.cnn_encoder = CNNEncoder(config=self.config.cnn_encoder_config, policy_env_interface=policy_env_info)
+        self.cnn_encoder = metta.agent.components.cnn_encoder.CNNEncoder(
+            config=self.config.cnn_encoder_config, policy_env_interface=policy_env_info
+        )
 
-        self.lstm = LSTM(config=self.config.lstm_config)
+        self.lstm = metta.agent.components.lstm.LSTM(config=self.config.lstm_config)
 
         module = pufferlib.pytorch.layer_init(
-            nn.Linear(self.config.lstm_config.hidden_size, self.config.actor_hidden_dim), std=1.0
+            torch.nn.Linear(self.config.lstm_config.hidden_size, self.config.actor_hidden_dim), std=1.0
         )
-        self.actor_1 = TDM(module, in_keys=["core"], out_keys=["actor_1"])
+        self.actor_1 = tensordict.nn.TensorDictModule(module, in_keys=["core"], out_keys=["actor_1"])
 
         # Critic branch
         # critic_1 uses gain=sqrt(2) because it's followed by tanh (YAML: nonlinearity: nn.Tanh)
         module = pufferlib.pytorch.layer_init(
-            nn.Linear(self.config.lstm_config.hidden_size, self.config.critic_hidden_dim), std=np.sqrt(2)
+            torch.nn.Linear(self.config.lstm_config.hidden_size, self.config.critic_hidden_dim), std=np.sqrt(2)
         )
-        self.critic_1 = TDM(module, in_keys=["core"], out_keys=["critic_1"])
-        self.critic_activation = nn.Tanh()
-        module = pufferlib.pytorch.layer_init(nn.Linear(self.config.critic_hidden_dim, 1), std=1.0)
-        self.value_head = TDM(module, in_keys=["critic_1"], out_keys=["values"])
+        self.critic_1 = tensordict.nn.TensorDictModule(module, in_keys=["core"], out_keys=["critic_1"])
+        self.critic_activation = torch.nn.Tanh()
+        module = pufferlib.pytorch.layer_init(torch.nn.Linear(self.config.critic_hidden_dim, 1), std=1.0)
+        self.value_head = tensordict.nn.TensorDictModule(module, in_keys=["critic_1"], out_keys=["values"])
 
         # Actor branch
-        self.actor_logits = TDM(
+        self.actor_logits = tensordict.nn.TensorDictModule(
             pufferlib.pytorch.layer_init(
-                nn.Linear(self.config.actor_hidden_dim, int(self.action_space.n)),
+                torch.nn.Linear(self.config.actor_hidden_dim, int(self.action_space.n)),
                 std=0.01,
             ),
             in_keys=["actor_1"],
             out_keys=["logits"],
         )
-        self.action_probs = ActionProbs(config=self.config.action_probs_config)
+        self.action_probs = metta.agent.components.actor.ActionProbs(config=self.config.action_probs_config)
 
     @torch._dynamo.disable  # Avoid graph breaks from TensorDict operations hurting performance
-    def forward(self, td: TensorDict, state=None, action: torch.Tensor = None):
+    def forward(self, td: tensordict.TensorDict, state=None, action: torch.Tensor = None):
         self.obs_shim(td)
         self.cnn_encoder(td)
         self.lstm(td)
@@ -104,9 +113,9 @@ class FastPolicy(Policy):
 
     def initialize_to_environment(
         self,
-        policy_env_info: PolicyEnvInterface,
+        policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface,
         device: torch.device,
-    ) -> List[str]:
+    ) -> typing.List[str]:
         device = torch.device(device)
         self.to(device)
 
@@ -117,11 +126,11 @@ class FastPolicy(Policy):
     def reset_memory(self):
         self.lstm.reset_memory()
 
-    def get_agent_experience_spec(self) -> Composite:
-        return Composite(
-            env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
-            dones=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
-            truncateds=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
+    def get_agent_experience_spec(self) -> torchrl.data.Composite:
+        return torchrl.data.Composite(
+            env_obs=torchrl.data.UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
+            dones=torchrl.data.UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
+            truncateds=torchrl.data.UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
         )
 
     @property

@@ -1,14 +1,17 @@
+import fastapi.testclient
 import pytest
-from fastapi.testclient import TestClient
 
-from metta.app_backend.clients.stats_client import StatsClient
-from metta.app_backend.routes.score_routes import PolicyScoresRequest
+import metta.app_backend.clients.stats_client
+import metta.app_backend.routes.score_routes
 
 
 @pytest.mark.slow
 class TestScoreRoutes:
     def test_get_policy_scores_basic(
-        self, test_client: TestClient, stats_client: StatsClient, create_test_data
+        self,
+        test_client: fastapi.testclient.TestClient,
+        stats_client: metta.app_backend.clients.stats_client.StatsClient,
+        create_test_data,
     ) -> None:
         """Test aggregated metric stats (min, max, avg) for policies across evals/metrics."""
         # Create two policies in a single training run
@@ -60,7 +63,7 @@ class TestScoreRoutes:
             replay_url="https://example.com/replay/p1_e2",
         )
 
-        request = PolicyScoresRequest(
+        request = metta.app_backend.routes.score_routes.PolicyScoresRequest(
             policy_ids=[p.id for p in policies],
             eval_names=[eval_name],
             metrics=["reward", "score"],

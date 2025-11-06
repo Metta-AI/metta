@@ -1,15 +1,15 @@
 import importlib
 import logging
-from typing import Any, Callable
+import typing
 
 logger = logging.getLogger(__name__)
 
-_METRIC_REGISTRY: dict[str, Callable[..., float | None]] = {}
+_METRIC_REGISTRY: dict[str, typing.Callable[..., float | None]] = {}
 
 _metrics_imported = False
 
 
-def get_system_health_metrics() -> dict[str, Callable[..., float | None]]:
+def get_system_health_metrics() -> dict[str, typing.Callable[..., float | None]]:
     global _metrics_imported
     if not _metrics_imported:
         importlib.import_module("softmax.dashboard.metrics")  # register metrics
@@ -20,10 +20,10 @@ def get_system_health_metrics() -> dict[str, Callable[..., float | None]]:
 def system_health_metric(
     *,
     metric_key: str,
-) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+) -> typing.Callable[[typing.Callable[..., typing.Any]], typing.Callable[..., typing.Any]]:
     """Decorator to register a metric goal alongside a collector helper."""
 
-    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+    def decorator(func: typing.Callable[..., typing.Any]) -> typing.Callable[..., typing.Any]:
         _METRIC_REGISTRY[metric_key] = func
         return func
 

@@ -40,22 +40,22 @@ def _():
 def _():
     import altair as alt
     import pandas as pd
-    from experiments.notebooks.utils.metrics import fetch_metrics
-    from experiments.notebooks.utils.monitoring import sky_job_exists, get_sky_jobs_data
-    from experiments.notebooks.utils.monitoring_marimo import monitor_training_statuses
-    from experiments.notebooks.utils.training import launch_training
-    from experiments.notebooks.utils.replays import show_replay
+    import experiments.notebooks.utils.metrics
+    import experiments.notebooks.utils.monitoring
+    import experiments.notebooks.utils.monitoring_marimo
+    import experiments.notebooks.utils.training
+    import experiments.notebooks.utils.replays
 
     print("Setup complete!")
     return (
         alt,
-        fetch_metrics,
-        get_sky_jobs_data,
-        launch_training,
-        monitor_training_statuses,
+        experiments.notebooks.utils.metrics.fetch_metrics,
+        experiments.notebooks.utils.monitoring.get_sky_jobs_data,
+        experiments.notebooks.utils.training.launch_training,
+        experiments.notebooks.utils.monitoring_marimo.monitor_training_statuses,
         pd,
-        show_replay,
-        sky_job_exists,
+        experiments.notebooks.utils.replays.show_replay,
+        experiments.notebooks.utils.monitoring.sky_job_exists,
     )
 
 

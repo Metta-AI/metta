@@ -1,17 +1,17 @@
-from typing import List
+import typing
 
-from metta.agent.components.action import ActionEmbeddingConfig
-from metta.agent.components.actor import ActionProbsConfig, ActorKeyConfig, ActorQueryConfig
-from metta.agent.components.component_config import ComponentConfig
-from metta.agent.components.hrm import HRMReasoningConfig
-from metta.agent.components.misc import MLPConfig
-from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
-from metta.agent.components.obs_shim import ObsShimTokensConfig
-from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourierConfig
-from metta.agent.policy import PolicyArchitecture
+import metta.agent.components.action
+import metta.agent.components.actor
+import metta.agent.components.component_config
+import metta.agent.components.hrm
+import metta.agent.components.misc
+import metta.agent.components.obs_enc
+import metta.agent.components.obs_shim
+import metta.agent.components.obs_tokenizers
+import metta.agent.policy
 
 
-class HRMPolicyConfig(PolicyArchitecture):
+class HRMPolicyConfig(metta.agent.policy.PolicyArchitecture):
     """Component-based Hierarchical Reasoning Model (HRM) policy configuration."""
 
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
@@ -23,16 +23,16 @@ class HRMPolicyConfig(PolicyArchitecture):
     _actor_hidden = 512
     _critic_hidden = 1024
 
-    components: List[ComponentConfig] = [
+    components: typing.List[metta.agent.components.component_config.ComponentConfig] = [
         # Token-based observation pipeline
-        ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=48),
-        ObsAttrEmbedFourierConfig(
+        metta.agent.components.obs_shim.ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=48),
+        metta.agent.components.obs_tokenizers.ObsAttrEmbedFourierConfig(
             in_key="obs_shim_tokens",
             out_key="obs_attr_embed",
             attr_embed_dim=_token_embed_dim,
             num_freqs=_fourier_freqs,
         ),
-        ObsPerceiverLatentConfig(
+        metta.agent.components.obs_enc.ObsPerceiverLatentConfig(
             in_key="obs_attr_embed",
             out_key="hrm_obs_encoded",
             feat_dim=_token_embed_dim + (4 * _fourier_freqs) + 1,
@@ -42,7 +42,7 @@ class HRMPolicyConfig(PolicyArchitecture):
             num_layers=2,
         ),
         # Hierarchical reasoning
-        HRMReasoningConfig(
+        metta.agent.components.hrm.HRMReasoningConfig(
             in_key="hrm_obs_encoded",
             out_key="core",
             embed_dim=_embed_dim,
@@ -51,7 +51,7 @@ class HRMPolicyConfig(PolicyArchitecture):
             ffn_expansion=4.0,
         ),
         # Actor and Critic using ViT-style components
-        MLPConfig(
+        metta.agent.components.misc.MLPConfig(
             in_key="core",
             out_key="actor_hidden",
             name="actor_mlp",
@@ -59,7 +59,7 @@ class HRMPolicyConfig(PolicyArchitecture):
             hidden_features=[_actor_hidden],
             out_features=_actor_hidden,
         ),
-        MLPConfig(
+        metta.agent.components.misc.MLPConfig(
             in_key="core",
             out_key="values",
             name="critic",
@@ -67,14 +67,14 @@ class HRMPolicyConfig(PolicyArchitecture):
             out_features=1,
             hidden_features=[_critic_hidden],
         ),
-        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embedding_dim),
-        ActorQueryConfig(
+        metta.agent.components.action.ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embedding_dim),
+        metta.agent.components.actor.ActorQueryConfig(
             in_key="actor_hidden",
             out_key="actor_query",
             hidden_size=_actor_hidden,
             embed_dim=_embedding_dim,
         ),
-        ActorKeyConfig(
+        metta.agent.components.actor.ActorKeyConfig(
             query_key="actor_query",
             embedding_key="action_embedding",
             out_key="logits",
@@ -82,10 +82,12 @@ class HRMPolicyConfig(PolicyArchitecture):
         ),
     ]
 
-    action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
+    action_probs_config: metta.agent.components.actor.ActionProbsConfig = (
+        metta.agent.components.actor.ActionProbsConfig(in_key="logits")
+    )
 
 
-class HRMTinyConfig(PolicyArchitecture):
+class HRMTinyConfig(metta.agent.policy.PolicyArchitecture):
     """Tiny version of HRM for testing and low-memory environments."""
 
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
@@ -97,16 +99,16 @@ class HRMTinyConfig(PolicyArchitecture):
     _actor_hidden = 256
     _critic_hidden = 512
 
-    components: List[ComponentConfig] = [
+    components: typing.List[metta.agent.components.component_config.ComponentConfig] = [
         # Token-based observation pipeline (minimal config)
-        ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=48),
-        ObsAttrEmbedFourierConfig(
+        metta.agent.components.obs_shim.ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=48),
+        metta.agent.components.obs_tokenizers.ObsAttrEmbedFourierConfig(
             in_key="obs_shim_tokens",
             out_key="obs_attr_embed",
             attr_embed_dim=_token_embed_dim,
             num_freqs=_fourier_freqs,
         ),
-        ObsPerceiverLatentConfig(
+        metta.agent.components.obs_enc.ObsPerceiverLatentConfig(
             in_key="obs_attr_embed",
             out_key="hrm_obs_encoded",
             feat_dim=_token_embed_dim + (4 * _fourier_freqs) + 1,
@@ -116,7 +118,7 @@ class HRMTinyConfig(PolicyArchitecture):
             num_layers=2,
         ),
         # Hierarchical reasoning (minimal layers, smaller FFN)
-        HRMReasoningConfig(
+        metta.agent.components.hrm.HRMReasoningConfig(
             in_key="hrm_obs_encoded",
             out_key="core",
             embed_dim=_embed_dim,
@@ -125,7 +127,7 @@ class HRMTinyConfig(PolicyArchitecture):
             ffn_expansion=2.0,
         ),
         # Actor and Critic using ViT-style components
-        MLPConfig(
+        metta.agent.components.misc.MLPConfig(
             in_key="core",
             out_key="actor_hidden",
             name="actor_mlp",
@@ -133,7 +135,7 @@ class HRMTinyConfig(PolicyArchitecture):
             hidden_features=[_actor_hidden],
             out_features=_actor_hidden,
         ),
-        MLPConfig(
+        metta.agent.components.misc.MLPConfig(
             in_key="core",
             out_key="values",
             name="critic",
@@ -141,14 +143,14 @@ class HRMTinyConfig(PolicyArchitecture):
             out_features=1,
             hidden_features=[_critic_hidden],
         ),
-        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embedding_dim),
-        ActorQueryConfig(
+        metta.agent.components.action.ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embedding_dim),
+        metta.agent.components.actor.ActorQueryConfig(
             in_key="actor_hidden",
             out_key="actor_query",
             hidden_size=_actor_hidden,
             embed_dim=_embedding_dim,
         ),
-        ActorKeyConfig(
+        metta.agent.components.actor.ActorKeyConfig(
             query_key="actor_query",
             embedding_key="action_embedding",
             out_key="logits",
@@ -156,4 +158,6 @@ class HRMTinyConfig(PolicyArchitecture):
         ),
     ]
 
-    action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
+    action_probs_config: metta.agent.components.actor.ActionProbsConfig = (
+        metta.agent.components.actor.ActionProbsConfig(in_key="logits")
+    )

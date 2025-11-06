@@ -1,16 +1,15 @@
-from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional, Sequence
+import dataclasses
+import typing
 
-if TYPE_CHECKING:
-    from mettagrid.config.id_map import ObservationFeatureSpec
-    from mettagrid.simulator.simulator import Simulation
+if typing.TYPE_CHECKING:
+    import mettagrid.config.id_map
+    import mettagrid.simulator.simulator
 
 
-@dataclass
+@dataclasses.dataclass
 class ObservationToken:
-    feature: ObservationFeatureSpec
+    feature: mettagrid.config.id_map.ObservationFeatureSpec
     location: tuple[int, int]
     value: int
 
@@ -21,13 +20,13 @@ class ObservationToken:
         return self.location[0]
 
 
-@dataclass
+@dataclasses.dataclass
 class AgentObservation:
     agent_id: int
-    tokens: Sequence[ObservationToken]
+    tokens: typing.Sequence[ObservationToken]
 
 
-@dataclass
+@dataclasses.dataclass
 class Action:
     name: str
 
@@ -36,7 +35,7 @@ class SimulatorEventHandler:
     """Handler for Simulator events."""
 
     def __init__(self):
-        self._sim: Optional["Simulation"] = None
+        self._sim: typing.Optional["Simulation"] = None
 
     def set_simulation(self, simulation: "Simulation") -> None:
         self._sim = simulation

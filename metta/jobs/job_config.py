@@ -1,14 +1,14 @@
 """Core job specification models shared across Metta job systems."""
 
-from typing import Any, Literal
+import typing
 
-from pydantic import Field
+import pydantic
 
-from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
-from mettagrid.base_config import Config
+import metta.common.util.constants
+import mettagrid.base_config
 
 
-class RemoteConfig(Config):
+class RemoteConfig(mettagrid.base_config.Config):
     """Infrastructure requirements for remote execution via SkyPilot."""
 
     gpus: int = 1
@@ -16,7 +16,7 @@ class RemoteConfig(Config):
     spot: bool = True
 
 
-class AcceptanceCriterion(Config):
+class AcceptanceCriterion(mettagrid.base_config.Config):
     """Single acceptance criterion for a metric.
 
     Defines a threshold that a metric must meet for the job to be considered successful.
@@ -24,7 +24,7 @@ class AcceptanceCriterion(Config):
     """
 
     metric: str
-    operator: Literal[">=", ">", "<=", "<", "=="]
+    operator: typing.Literal[">=", ">", "<=", "<", "=="]
     threshold: float
 
     def evaluate(self, actual: float) -> bool:
@@ -42,7 +42,7 @@ class AcceptanceCriterion(Config):
         return False
 
 
-class JobConfig(Config):
+class JobConfig(mettagrid.base_config.Config):
     """Job specification combining execution config with task parameters.
 
     remote=None runs locally, remote=RemoteConfig(...) runs remotely.
@@ -53,14 +53,18 @@ class JobConfig(Config):
 
     name: str
     module: str
-    args: list[str] = Field(default_factory=list)
+    args: list[str] = pydantic.Field(default_factory=list)
     timeout_s: int = 7200
     remote: RemoteConfig | None = None
     group: str | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, typing.Any] = pydantic.Field(default_factory=dict)
     is_training_job: bool = False  # Explicit flag for WandB tracking
-    metrics_to_track: list[str] = Field(default_factory=list)  # Metrics to fetch from WandB (training only)
-    wandb_entity: str = METTA_WANDB_ENTITY  # WandB entity for metrics (defaults to metta project)
-    wandb_project: str = METTA_WANDB_PROJECT  # WandB project for metrics (defaults to metta project)
-    acceptance_criteria: list[AcceptanceCriterion] = Field(default_factory=list)  # Thresholds for job success
-    dependency_names: list[str] = Field(default_factory=list)  # Job names this job depends on
+    metrics_to_track: list[str] = pydantic.Field(default_factory=list)  # Metrics to fetch from WandB (training only)
+    wandb_entity: str = (
+        metta.common.util.constants.METTA_WANDB_ENTITY
+    )  # WandB entity for metrics (defaults to metta project)
+    wandb_project: str = (
+        metta.common.util.constants.METTA_WANDB_PROJECT
+    )  # WandB project for metrics (defaults to metta project)
+    acceptance_criteria: list[AcceptanceCriterion] = pydantic.Field(default_factory=list)  # Thresholds for job success
+    dependency_names: list[str] = pydantic.Field(default_factory=list)  # Job names this job depends on

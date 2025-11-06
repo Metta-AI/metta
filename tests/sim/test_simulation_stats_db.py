@@ -1,29 +1,28 @@
-from __future__ import annotations
 
 import datetime
+import pathlib
 import uuid
-from pathlib import Path
 
+import duckdb
 import pytest
-from duckdb import DuckDBPyConnection
 
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.sim.simulation_stats_db import SimulationStatsDB
+import metta.rl.checkpoint_manager
+import metta.sim.simulation_stats_db
 
 _DUMMY_AGENT_MAP = {0: ("dummy_policy", 0)}
 
 
 class TestHelpers:
     @staticmethod
-    def get_count(con: DuckDBPyConnection, query: str) -> int:
+    def get_count(con: duckdb.DuckDBPyConnection, query: str) -> int:
         result = con.execute(query).fetchone()
         assert result is not None
         return result[0]
 
     @staticmethod
-    def create_worker_db(path: Path, sim_steps: int = 0, replay_url: str | None = None) -> str:
+    def create_worker_db(path: pathlib.Path, sim_steps: int = 0, replay_url: str | None = None) -> str:
         path.parent.mkdir(parents=True, exist_ok=True)
-        db = SimulationStatsDB(path)
+        db = metta.sim.simulation_stats_db.SimulationStatsDB(path)
 
         episode_id = str(uuid.uuid4())
         attributes = {"seed": "0", "map_w": "1", "map_h": "1"}
@@ -45,35 +44,35 @@ class TestHelpers:
         return episode_id
 
     @staticmethod
-    def create_db_with_tables(path: Path) -> SimulationStatsDB:
+    def create_db_with_tables(path: pathlib.Path) -> metta.sim.simulation_stats_db.SimulationStatsDB:
         """Create a database with all tables initialized."""
-        db = SimulationStatsDB(path)
+        db = metta.sim.simulation_stats_db.SimulationStatsDB(path)
         for _, sql in db.tables().items():
             db.con.execute(sql)
         return db
 
     @staticmethod
-    def verify_episode_exists(db: SimulationStatsDB, episode_id: str) -> bool:
+    def verify_episode_exists(db: metta.sim.simulation_stats_db.SimulationStatsDB, episode_id: str) -> bool:
         """Check if an episode exists in the database."""
         result = db.con.execute("SELECT COUNT(*) FROM episodes WHERE id = ?", (episode_id,)).fetchone()
         return result is not None and result[0] > 0
 
     @staticmethod
-    def get_episode_ids(db: SimulationStatsDB) -> list[str]:
+    def get_episode_ids(db: metta.sim.simulation_stats_db.SimulationStatsDB) -> list[str]:
         """Get all episode IDs from the database."""
         return [row[0] for row in db.con.execute("SELECT id FROM episodes").fetchall()]
 
 
-def test_from_uri_context_manager(tmp_path: Path):
+def test_from_uri_context_manager(tmp_path: pathlib.Path):
     db_path = tmp_path / "test_db.duckdb"
     ep_id = TestHelpers.create_worker_db(db_path)
 
-    with SimulationStatsDB.from_uri(str(db_path)) as db:
+    with metta.sim.simulation_stats_db.SimulationStatsDB.from_uri(str(db_path)) as db:
         episode_ids = TestHelpers.get_episode_ids(db)
         assert ep_id in episode_ids
 
 
-def test_insert_agent_policies(tmp_path: Path):
+def test_insert_agent_policies(tmp_path: pathlib.Path):
     db_path = tmp_path / "policies.duckdb"
     db = TestHelpers.create_db_with_tables(db_path)
 
@@ -89,7 +88,7 @@ def test_insert_agent_policies(tmp_path: Path):
     db.close()
 
 
-def test_insert_agent_policies_empty_inputs(tmp_path: Path):
+def test_insert_agent_policies_empty_inputs(tmp_path: pathlib.Path):
     db_path = tmp_path / "empty_policies.duckdb"
     db = TestHelpers.create_db_with_tables(db_path)
 
@@ -103,15 +102,15 @@ def test_insert_agent_policies_empty_inputs(tmp_path: Path):
 
 
 @pytest.mark.skip(reason="DuckDB auto-attachment conflict - passes on main branch")
-def test_merge_in(tmp_path: Path):
+def test_merge_in(tmp_path: pathlib.Path):
     db1_path = tmp_path / "db1.duckdb"
     db2_path = tmp_path / "db2.duckdb"
 
     ep1 = TestHelpers.create_worker_db(db1_path)
     ep2 = TestHelpers.create_worker_db(db2_path)
 
-    db1 = SimulationStatsDB(db1_path)
-    db2 = SimulationStatsDB(db2_path)
+    db1 = metta.sim.simulation_stats_db.SimulationStatsDB(db1_path)
+    db2 = metta.sim.simulation_stats_db.SimulationStatsDB(db2_path)
 
     db1.merge_in(db2)
 
@@ -123,9 +122,9 @@ def test_merge_in(tmp_path: Path):
     db2.close()
 
 
-def test_tables(tmp_path: Path):
+def test_tables(tmp_path: pathlib.Path):
     db_path = tmp_path / "tables.duckdb"
-    db = SimulationStatsDB(db_path)
+    db = metta.sim.simulation_stats_db.SimulationStatsDB(db_path)
 
     tables = db.tables()
     assert "episodes" in tables
@@ -136,7 +135,7 @@ def test_tables(tmp_path: Path):
     db.close()
 
 
-def test_insert_simulation(tmp_path: Path):
+def test_insert_simulation(tmp_path: pathlib.Path):
     db_path = tmp_path / "sim_table.duckdb"
     db = TestHelpers.create_db_with_tables(db_path)
 
@@ -154,7 +153,7 @@ def test_insert_simulation(tmp_path: Path):
     db.close()
 
 
-def test_get_replay_urls(tmp_path: Path):
+def test_get_replay_urls(tmp_path: pathlib.Path):
     """Test retrieving replay URLs with various filters."""
     db_path = tmp_path / "replay_urls.duckdb"
     db = TestHelpers.create_db_with_tables(db_path)
@@ -208,20 +207,22 @@ def test_get_replay_urls(tmp_path: Path):
 
     # Test filtering by policy URI (policy1 version 1)
     policy1_v1_urls = db.get_replay_urls(
-        policy_uri=CheckpointManager.normalize_uri("policy1/checkpoints/policy1:v1.mpt")
+        policy_uri=metta.rl.checkpoint_manager.CheckpointManager.normalize_uri("policy1/checkpoints/policy1:v1.mpt")
     )
     assert len(policy1_v1_urls) == 1
     assert replay_urls[0] in policy1_v1_urls
 
     # Test filtering by policy URI (policy1 version 2)
     policy1_v2_urls = db.get_replay_urls(
-        policy_uri=CheckpointManager.normalize_uri("policy1/checkpoints/policy1:v2.mpt")
+        policy_uri=metta.rl.checkpoint_manager.CheckpointManager.normalize_uri("policy1/checkpoints/policy1:v2.mpt")
     )
     assert len(policy1_v2_urls) == 1
     assert replay_urls[1] in policy1_v2_urls
 
     # Test filtering by policy URI (policy2 version 1)
-    policy2_urls = db.get_replay_urls(policy_uri=CheckpointManager.normalize_uri("policy2/checkpoints/policy2:v1.mpt"))
+    policy2_urls = db.get_replay_urls(
+        policy_uri=metta.rl.checkpoint_manager.CheckpointManager.normalize_uri("policy2/checkpoints/policy2:v1.mpt")
+    )
     assert len(policy2_urls) == 1
     assert replay_urls[2] in policy2_urls
 
@@ -233,7 +234,7 @@ def test_get_replay_urls(tmp_path: Path):
 
     # Test combining policy URI and environment filters
     combined_urls = db.get_replay_urls(
-        policy_uri=CheckpointManager.normalize_uri("policy1/checkpoints/policy1:v1.mpt"),
+        policy_uri=metta.rl.checkpoint_manager.CheckpointManager.normalize_uri("policy1/checkpoints/policy1:v1.mpt"),
         env="env1",
     )
     assert len(combined_urls) == 1
@@ -242,7 +243,7 @@ def test_get_replay_urls(tmp_path: Path):
     db.close()
 
 
-def test_from_shards_and_context(tmp_path: Path):
+def test_from_shards_and_context(tmp_path: pathlib.Path):
     """Test creating a SimulationStatsDB from shards and context.
 
     This test creates a shard database with a test episode, then uses the
@@ -256,7 +257,7 @@ def test_from_shards_and_context(tmp_path: Path):
     ep_id = TestHelpers.create_worker_db(shard_path)
 
     # Verify episode was correctly created in the shard
-    shard_db = SimulationStatsDB(shard_path)
+    shard_db = metta.sim.simulation_stats_db.SimulationStatsDB(shard_path)
 
     # Check if our episode exists in the shard
     shard_episodes = shard_db.con.execute("SELECT id FROM episodes").fetchall()
@@ -285,16 +286,20 @@ def test_from_shards_and_context(tmp_path: Path):
     assert not merged_path.exists(), "Merged DB already exists"
 
     # Create agent map with URIs (new API)
-    agent_map = {0: CheckpointManager.normalize_uri("test_policy/checkpoints/test_policy:v1.mpt")}
+    agent_map = {
+        0: metta.rl.checkpoint_manager.CheckpointManager.normalize_uri("test_policy/checkpoints/test_policy:v1.mpt")
+    }
 
     # Now call the actual from_shards_and_context method using URI
-    merged_db = SimulationStatsDB.from_shards_and_context(
+    merged_db = metta.sim.simulation_stats_db.SimulationStatsDB.from_shards_and_context(
         sim_id="sim_id",
         dir_with_shards=shard_dir,
         agent_map=agent_map,
         sim_name="test_sim",
         sim_env="test_env",
-        policy_uri=CheckpointManager.normalize_uri("test_policy/checkpoints/test_policy:v1.mpt"),
+        policy_uri=metta.rl.checkpoint_manager.CheckpointManager.normalize_uri(
+            "test_policy/checkpoints/test_policy:v1.mpt"
+        ),
     )
 
     # Verify merged database was created
@@ -375,7 +380,7 @@ def test_from_shards_and_context(tmp_path: Path):
 
 
 @pytest.mark.skip(reason="DuckDB auto-attachment conflict - passes on main branch")
-def test_sequential_policy_merges(tmp_path: Path):
+def test_sequential_policy_merges(tmp_path: pathlib.Path):
     """Test that policies are preserved during sequential merges.
 
     This test simulates the workflow in the actual code where:
@@ -418,7 +423,7 @@ def test_sequential_policy_merges(tmp_path: Path):
     db2.close()
 
     # Now verify that export_path contains both policies
-    result_db = SimulationStatsDB(export_path)
+    result_db = metta.sim.simulation_stats_db.SimulationStatsDB(export_path)
 
     # Check if both episodes exist
     episode_ids = TestHelpers.get_episode_ids(result_db)
@@ -450,7 +455,7 @@ def test_sequential_policy_merges(tmp_path: Path):
 
 
 @pytest.mark.skip(reason="DuckDB auto-attachment conflict - passes on main branch")
-def test_export_preserves_all_policies(tmp_path: Path):
+def test_export_preserves_all_policies(tmp_path: pathlib.Path):
     """Test that export correctly preserves all policies when merging."""
     # Create a database with two policies
     db_path = tmp_path / "source.duckdb"
@@ -468,7 +473,7 @@ def test_export_preserves_all_policies(tmp_path: Path):
     db.close()
 
     # Check exported database
-    exported_db = SimulationStatsDB(export_path)
+    exported_db = metta.sim.simulation_stats_db.SimulationStatsDB(export_path)
     rows = exported_db.con.execute("SELECT DISTINCT policy_key, policy_version FROM simulations").fetchall()
     policies = [f"{row[0]}:v{row[1]}" for row in rows]
 
@@ -495,7 +500,7 @@ def test_export_preserves_all_policies(tmp_path: Path):
     new_db.close()
 
     # Check the updated export - should contain all three policies
-    final_db = SimulationStatsDB(export_path)
+    final_db = metta.sim.simulation_stats_db.SimulationStatsDB(export_path)
     rows = final_db.con.execute("SELECT DISTINCT policy_key, policy_version FROM simulations").fetchall()
     final_policies = [f"{row[0]}:v{row[1]}" for row in rows]
 

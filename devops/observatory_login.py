@@ -4,17 +4,13 @@
 
 import argparse
 import sys
-from urllib.parse import urlparse
+import urllib.parse
 
-from cogames.auth import BaseCLIAuthenticator
-from metta.common.util.constants import (
-    DEV_STATS_SERVER_URI,
-    OBSERVATORY_AUTH_SERVER_URL,
-    PROD_STATS_SERVER_URI,
-)
+import cogames.auth
+import metta.common.util.constants
 
 
-class CLIAuthenticator(BaseCLIAuthenticator):
+class CLIAuthenticator(cogames.auth.BaseCLIAuthenticator):
     """CLI Authenticator for Observatory, storing tokens in observatory_tokens.yaml."""
 
     def __init__(self):
@@ -29,11 +25,11 @@ def main():
     parser = argparse.ArgumentParser(description="Authenticate with Observatory")
     parser.add_argument(
         "auth_server_url",
-        help=f"Stats server API URI (e.g., {OBSERVATORY_AUTH_SERVER_URL} or {DEV_STATS_SERVER_URI})",
+        help=f"Stats server API URI (e.g., {metta.common.util.constants.OBSERVATORY_AUTH_SERVER_URL} or {metta.common.util.constants.DEV_STATS_SERVER_URI})",
     )
     parser.add_argument(
         "token_key",
-        help=f"key to store the token under in the YAML file (e.g. {PROD_STATS_SERVER_URI})",
+        help=f"key to store the token under in the YAML file (e.g. {metta.common.util.constants.PROD_STATS_SERVER_URI})",
     )
     parser.add_argument("--force", action="store_true", help="Get a new token even if one already exists")
     parser.add_argument("--timeout", type=int, default=300, help="Authentication timeout in seconds (default: 300)")
@@ -45,7 +41,7 @@ def main():
 
     # Check if we already have a token
     if authenticator.has_saved_token(args.token_key) and not args.force:
-        print(f"Found existing token for {urlparse(args.auth_server_url).hostname}")
+        print(f"Found existing token for {urllib.parse.urlparse(args.auth_server_url).hostname}")
         sys.exit(0)
 
     # Perform authentication

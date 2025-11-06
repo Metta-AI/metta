@@ -1,10 +1,10 @@
 """Training utilities for Metta RL."""
 
+import tensordict
 import torch
-from tensordict import TensorDict
 
 
-def ensure_sequence_metadata(td: TensorDict, *, batch_size: int, time_steps: int) -> None:
+def ensure_sequence_metadata(td: tensordict.TensorDict, *, batch_size: int, time_steps: int) -> None:
     """Attach required sequence metadata to ``td`` if missing."""
 
     total = batch_size * time_steps

@@ -1,15 +1,14 @@
-from __future__ import annotations
 
+import dataclasses
 import math
+import typing
 import warnings
-from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from metta.agent.components.transformer_utils import empty_memory, normalize_memory, update_memory_window
+import metta.agent.components.transformer_utils
 
 
 class NvidiaPositionalEmbedding(nn.Module):
@@ -20,7 +19,7 @@ class NvidiaPositionalEmbedding(nn.Module):
         inv_freq = 1.0 / (10000 ** (torch.arange(0.0, d_model, 2.0) / d_model))
         self.register_buffer("inv_freq", inv_freq)
 
-    def forward(self, positions: torch.Tensor, batch_size: Optional[int] = None) -> torch.Tensor:
+    def forward(self, positions: torch.Tensor, batch_size: typing.Optional[int] = None) -> torch.Tensor:
         sinusoid_inp = torch.outer(positions, self.inv_freq)
         pos_emb = torch.cat([sinusoid_inp.sin(), sinusoid_inp.cos()], dim=-1)
         if batch_size is not None:
@@ -90,8 +89,8 @@ class NvidiaRelPartialLearnableMultiHeadAttn(nn.Module):
         rel_pos: torch.Tensor,
         r_w_bias: torch.Tensor,
         r_r_bias: torch.Tensor,
-        attn_mask: Optional[torch.Tensor] = None,
-        mems: Optional[torch.Tensor] = None,
+        attn_mask: typing.Optional[torch.Tensor] = None,
+        mems: typing.Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         qlen, batch_size = content.size(0), content.size(1)
 
@@ -171,8 +170,8 @@ class NvidiaRelPartialLearnableDecoderLayer(nn.Module):
         rel_pos: torch.Tensor,
         r_w_bias: torch.Tensor,
         r_r_bias: torch.Tensor,
-        attn_mask: Optional[torch.Tensor],
-        mems: Optional[torch.Tensor],
+        attn_mask: typing.Optional[torch.Tensor],
+        mems: typing.Optional[torch.Tensor],
     ) -> torch.Tensor:
         output = self.attn(inputs, rel_pos, r_w_bias, r_r_bias, attn_mask, mems)
         return self.ff(output)
@@ -230,8 +229,8 @@ class NvidiaTransformerCore(nn.Module):
     def forward(
         self,
         inputs: torch.Tensor,
-        memory: Optional[List[torch.Tensor]] = None,
-    ) -> Tuple[torch.Tensor, Optional[List[torch.Tensor]]]:
+        memory: typing.Optional[typing.List[torch.Tensor]] = None,
+    ) -> typing.Tuple[torch.Tensor, typing.Optional[typing.List[torch.Tensor]]]:
         if inputs.dim() == 2:
             inputs = inputs.unsqueeze(0)
         if inputs.dim() != 3:
@@ -243,7 +242,9 @@ class NvidiaTransformerCore(nn.Module):
 
         normalized = memory
         if normalized is None or len(normalized) != self.n_layers:
-            normalized = empty_memory(self.n_layers, batch_size, self.d_model, device, dtype)
+            normalized = metta.agent.components.transformer_utils.empty_memory(
+                self.n_layers, batch_size, self.d_model, device, dtype
+            )
 
         mem_enabled = normalized is not None
         mem_list = normalized if mem_enabled else None
@@ -260,7 +261,7 @@ class NvidiaTransformerCore(nn.Module):
         pos_emb = self.drop(pos_emb)
 
         core_out = self.drop(inputs)
-        hiddens: List[torch.Tensor] = [core_out]
+        hiddens: typing.List[torch.Tensor] = [core_out]
 
         for layer, mem_layer in zip(self.layers, mem_list or [], strict=False):
             mem_in = None if mem_layer.size(0) == 0 else mem_layer
@@ -268,11 +269,15 @@ class NvidiaTransformerCore(nn.Module):
             hiddens.append(core_out)
 
         core_out = self.drop(core_out)
-        new_memory = update_memory_window(hiddens[1:], mem_list, self.mem_len)
+        new_memory = metta.agent.components.transformer_utils.update_memory_window(hiddens[1:], mem_list, self.mem_len)
         return core_out, new_memory
 
-    def initialize_memory(self, batch_size: int, *, device: torch.device, dtype: torch.dtype) -> List[torch.Tensor]:
-        return empty_memory(self.n_layers, batch_size, self.d_model, device, dtype)
+    def initialize_memory(
+        self, batch_size: int, *, device: torch.device, dtype: torch.dtype
+    ) -> typing.List[torch.Tensor]:
+        return metta.agent.components.transformer_utils.empty_memory(
+            self.n_layers, batch_size, self.d_model, device, dtype
+        )
 
 
 class NvidiaTransformerModule(nn.Module):
@@ -338,15 +343,15 @@ class NvidiaTransformerModule(nn.Module):
     def forward(
         self,
         inputs: torch.Tensor,
-        memory: Optional[Dict[str, Optional[List[torch.Tensor]]]] = None,
-    ) -> Tuple[torch.Tensor, Dict[str, Optional[List[torch.Tensor]]]]:
+        memory: typing.Optional[typing.Dict[str, typing.Optional[typing.List[torch.Tensor]]]] = None,
+    ) -> typing.Tuple[torch.Tensor, typing.Dict[str, typing.Optional[typing.List[torch.Tensor]]]]:
         if inputs.dim() == 2:
             inputs = inputs.unsqueeze(0)
         if inputs.dim() != 3:
             raise ValueError(f"Expected tensor of shape (T, B, D), received {inputs.shape}")
 
         stored_memory = memory.get("hidden_states") if isinstance(memory, dict) else None
-        normalized = normalize_memory(
+        normalized = metta.agent.components.transformer_utils.normalize_memory(
             self.memory_len,
             self.n_layers,
             stored_memory,
@@ -362,7 +367,7 @@ class NvidiaTransformerModule(nn.Module):
         core_out = self.output_dropout(core_out)
         return core_out, {"hidden_states": new_memory if mem_enabled and new_memory else None}
 
-    def initialize_memory(self, batch_size: int) -> Dict[str, Optional[List[torch.Tensor]]]:
+    def initialize_memory(self, batch_size: int) -> typing.Dict[str, typing.Optional[typing.List[torch.Tensor]]]:
         if self.memory_len <= 0:
             return {"hidden_states": None}
         device = next(self.parameters()).device
@@ -371,7 +376,7 @@ class NvidiaTransformerModule(nn.Module):
         return {"hidden_states": hidden_states if hidden_states else None}
 
 
-@dataclass
+@dataclasses.dataclass
 class TRXLNvidiaConfig:
     """Backbone parameters for the NVIDIA-optimized Transformer-XL variant."""
 
@@ -433,6 +438,6 @@ __all__ = ["NvidiaTransformerModule", "TRXLNvidiaConfig", "trxl_nvidia_policy_co
 def trxl_nvidia_policy_config():
     """Create a `TransformerPolicyConfig` preloaded with the NVIDIA Transformer-XL backbone."""
 
-    from metta.agent.policies.transformer import TransformerPolicyConfig
+    import metta.agent.policies.transformer
 
-    return TransformerPolicyConfig(transformer=TRXLNvidiaConfig())
+    return metta.agent.policies.transformer.TransformerPolicyConfig(transformer=TRXLNvidiaConfig())

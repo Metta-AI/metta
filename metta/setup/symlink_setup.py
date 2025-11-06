@@ -1,24 +1,24 @@
 #!/usr/bin/env -S uv run
 import os
-from pathlib import Path
-from typing import Annotated, Optional
+import pathlib
+import typing
 
+import rich.console
 import typer
-from rich.console import Console
 
-from metta.common.util.fs import get_repo_root
-from metta.setup.utils import debug, error, info, success, warning
+import metta.common.util.fs
+import metta.setup.utils
 
-console = Console()
+console = rich.console.Console()
 app = typer.Typer(
     help="Symlink setup for global metta command",
     rich_markup_mode="rich",
     no_args_is_help=True,
 )
 
-repo_root = get_repo_root()
+repo_root = metta.common.util.fs.get_repo_root()
 wrapper_script = repo_root / "metta" / "setup" / "installer" / "bin" / "metta"
-local_bin = Path.home() / ".local" / "bin"
+local_bin = pathlib.Path.home() / ".local" / "bin"
 target_symlink = local_bin / "metta"
 
 
@@ -27,7 +27,7 @@ def _local_bin_is_in_path() -> bool:
     return str(local_bin) in path_dirs
 
 
-def _check_existing_metta() -> Optional[str]:
+def _check_existing_metta() -> typing.Optional[str]:
     if not target_symlink.exists():
         return None
 
@@ -48,7 +48,7 @@ def setup_path(force: bool = False, quiet: bool = False) -> None:
     try:
         local_bin.mkdir(parents=True, exist_ok=True)
     except Exception as e:
-        error(f"""
+        metta.setup.utils.error(f"""
         Failed to create {local_bin}: {e}
         Please create this directory manually and re-run the installer.
         """)
@@ -58,18 +58,18 @@ def setup_path(force: bool = False, quiet: bool = False) -> None:
 
     if existing in ("ours", "other-but-same-content"):
         if not quiet:
-            success("metta is already symlinked correctly.")
+            metta.setup.utils.success("metta is already symlinked correctly.")
         return
     elif existing == "other":
         if force:
-            info(f"Replacing existing metta command at {target_symlink}")
+            metta.setup.utils.info(f"Replacing existing metta command at {target_symlink}")
             try:
                 target_symlink.unlink()
             except Exception as e:
-                error(f"Failed to remove existing file: {e}")
+                metta.setup.utils.error(f"Failed to remove existing file: {e}")
                 return
         else:
-            debug(f"""
+            metta.setup.utils.debug(f"""
             A 'metta' command already exists at {target_symlink}
             Run with --force if you want to replace it.
             """)
@@ -77,9 +77,9 @@ def setup_path(force: bool = False, quiet: bool = False) -> None:
 
     try:
         target_symlink.symlink_to(wrapper_script)
-        success(f"Created symlink: {target_symlink} → {wrapper_script}")
+        metta.setup.utils.success(f"Created symlink: {target_symlink} → {wrapper_script}")
     except Exception as e:
-        error(f"""
+        metta.setup.utils.error(f"""
         Failed to create symlink: {e}
         You can create it manually with:
           ln -s {wrapper_script} {target_symlink}
@@ -87,10 +87,10 @@ def setup_path(force: bool = False, quiet: bool = False) -> None:
         return
 
     if _local_bin_is_in_path():
-        success("metta command is now available")
+        metta.setup.utils.success("metta command is now available")
     else:
-        warning(f"{local_bin} is not in your PATH")
-        info("""
+        metta.setup.utils.warning(f"{local_bin} is not in your PATH")
+        metta.setup.utils.info("""
         To use metta globally, add this to your shell profile:
           export PATH="$HOME/.local/bin:$PATH"
 
@@ -102,10 +102,10 @@ def setup_path(force: bool = False, quiet: bool = False) -> None:
 
 @app.command(name="setup")
 def cmd_setup(
-    force: Annotated[
+    force: typing.Annotated[
         bool, typer.Option("--force", help="Create or replace symlink to make metta command globally available.")
     ] = False,
-    quiet: Annotated[bool, typer.Option("--quiet", help="Do not print success messages.")] = False,
+    quiet: typing.Annotated[bool, typer.Option("--quiet", help="Do not print success messages.")] = False,
 ):
     setup_path(force=force, quiet=quiet)
 
@@ -114,14 +114,14 @@ def cmd_setup(
 def cmd_check():
     status = _check_existing_metta()
     if status in ("ours", "other-but-same-content"):
-        success("metta command is properly installed")
+        metta.setup.utils.success("metta command is properly installed")
     elif status == "other":
-        warning("""
+        metta.setup.utils.warning("""
         metta command is installed from a different checkout
         Run 'metta symlink-setup setup --force' to reinstall from this checkout
         """)
     else:
-        warning("""
+        metta.setup.utils.warning("""
         metta command is not installed
         Run 'metta symlink-setup setup' to install
         """)

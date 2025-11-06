@@ -5,15 +5,15 @@ An anywidget-based implementation of the observatory scorecard component.
 Provides interactive policy evaluation scorecards with hover and click functionality.
 """
 
+import logging
 import pathlib
-from logging import warning
-from typing import Any, Callable, Dict, List, Literal
+import typing
 
 import anywidget
 import traitlets
 
-from metta.app_backend.clients.scorecard_client import ScorecardClient
-from metta.app_backend.routes.scorecard_routes import ScorecardData
+import metta.app_backend.clients.scorecard_client
+import metta.app_backend.routes.scorecard_routes
 
 # FIXME: we need something like `dotenv` and `.env.local` files up in here.
 _DEV = False
@@ -50,7 +50,7 @@ class ScorecardWidget(anywidget.AnyWidget):
     selected_cell = traitlets.Dict(allow_none=True, default_value=None).tag(sync=True)
     replay_opened = traitlets.Dict(allow_none=True, default_value=None).tag(sync=True)
 
-    def __init__(self, client: ScorecardClient | None = None, **kwargs):
+    def __init__(self, client: metta.app_backend.clients.scorecard_client.ScorecardClient | None = None, **kwargs):
         super().__init__(**kwargs)
         self._callbacks = {
             "selected_cell": [],
@@ -59,7 +59,7 @@ class ScorecardWidget(anywidget.AnyWidget):
         }
         self.client = client
         if not self.client:
-            self.client = ScorecardClient()
+            self.client = metta.app_backend.clients.scorecard_client.ScorecardClient()
 
         # This print should work now!
         print("🚀 ScorecardWidget initialized successfully!")
@@ -86,7 +86,7 @@ class ScorecardWidget(anywidget.AnyWidget):
         for callback in self._callbacks["metric_changed"]:
             callback(change["new"])
 
-    def on_cell_selected(self, callback: Callable[[Dict[str, str]], None]):
+    def on_cell_selected(self, callback: typing.Callable[[typing.Dict[str, str]], None]):
         """Register a callback for when a cell is selected.
 
         Args:
@@ -94,7 +94,7 @@ class ScorecardWidget(anywidget.AnyWidget):
         """
         self._callbacks["selected_cell"].append(callback)
 
-    def on_replay_opened(self, callback: Callable[[Dict[str, str]], None]):
+    def on_replay_opened(self, callback: typing.Callable[[typing.Dict[str, str]], None]):
         """Register a callback for when a replay is opened.
 
         Args:
@@ -102,7 +102,7 @@ class ScorecardWidget(anywidget.AnyWidget):
         """
         self._callbacks["replay_opened"].append(callback)
 
-    def on_metric_changed(self, callback: Callable[[str], None]):
+    def on_metric_changed(self, callback: typing.Callable[[str], None]):
         """Register a callback for when the metric is changed.
 
         Args:
@@ -112,10 +112,10 @@ class ScorecardWidget(anywidget.AnyWidget):
 
     def set_data(
         self,
-        cells: Dict[str, Dict[str, Dict[str, Any]]],
-        eval_names: List[str],
-        policy_names: List[str],
-        policy_average_scores: Dict[str, float],
+        cells: typing.Dict[str, typing.Dict[str, typing.Dict[str, typing.Any]]],
+        eval_names: typing.List[str],
+        policy_names: typing.List[str],
+        policy_average_scores: typing.Dict[str, float],
         selected_metric: str = "reward",
     ):
         """Set the scorecard data.
@@ -139,10 +139,10 @@ class ScorecardWidget(anywidget.AnyWidget):
 
     def set_multi_metric_data(
         self,
-        cells: Dict[str, Dict[str, Dict[str, Any]]],
-        eval_names: List[str],
-        policy_names: List[str],
-        metrics: List[str],
+        cells: typing.Dict[str, typing.Dict[str, typing.Dict[str, typing.Any]]],
+        eval_names: typing.List[str],
+        policy_names: typing.List[str],
+        metrics: typing.List[str],
         selected_metric: str | None = None,
     ):
         """Set scorecard data with multiple metrics per cell.
@@ -215,7 +215,7 @@ class ScorecardWidget(anywidget.AnyWidget):
         restrict_to_metrics: list[str] | None = None,
         restrict_to_policy_names: list[str] | None = None,
         restrict_to_eval_names: list[str] | None = None,
-        policy_selector: Literal["best", "latest"] = "best",
+        policy_selector: typing.Literal["best", "latest"] = "best",
         max_policies: int = 30,
         primary_metric: str | None = None,
         include_run_free_policies: bool = False,
@@ -307,11 +307,11 @@ class ScorecardWidget(anywidget.AnyWidget):
         if not valid_metrics:
             print(f"Available metrics: {sorted(available_metrics)}")
             if restrict_to_metrics:
-                warning(f"None of the requested metrics {restrict_to_metrics} are available")
-            warning(f"Available metrics are: {sorted(available_metrics)}")
+                logging.warning(f"None of the requested metrics {restrict_to_metrics} are available")
+            logging.warning(f"Available metrics are: {sorted(available_metrics)}")
             raise Exception("No valid metrics found")
 
-        scorecard_data: ScorecardData = await self.client.generate_scorecard(
+        scorecard_data: metta.app_backend.routes.scorecard_routes.ScorecardData = await self.client.generate_scorecard(
             training_run_ids=training_run_ids,
             run_free_policy_ids=run_free_policy_ids,
             eval_names=eval_names,
@@ -321,7 +321,7 @@ class ScorecardWidget(anywidget.AnyWidget):
 
         all_policies = training_run_ids + run_free_policy_ids
         if len(all_policies) != len(scorecard_data.policyNames):
-            warning(
+            logging.warning(
                 (
                     "Number of policies in scorecard data "
                     f"({len(scorecard_data.policyNames)}) does not match number of policies in your query "
@@ -331,11 +331,11 @@ class ScorecardWidget(anywidget.AnyWidget):
             raise Exception("Number of policies in scorecard data does not match number of policies in your query")
 
         if not scorecard_data.policyNames:
-            warning("No scorecard data found in the database for your query:")
-            warning(f"  training_run_ids={training_run_ids}")
-            warning(f"  run_free_policy_ids={run_free_policy_ids}")
-            warning(f"  eval_names={eval_names}")
-            warning(f"  primary_metric={primary_metric}")
+            logging.warning("No scorecard data found in the database for your query:")
+            logging.warning(f"  training_run_ids={training_run_ids}")
+            logging.warning(f"  run_free_policy_ids={run_free_policy_ids}")
+            logging.warning(f"  eval_names={eval_names}")
+            logging.warning(f"  primary_metric={primary_metric}")
             raise Exception("No scorecard data found in database for your query")
 
         cells = self._make_cells_from_scorecard_data(
@@ -354,10 +354,10 @@ class ScorecardWidget(anywidget.AnyWidget):
 
     def _make_cells_from_scorecard_data(
         self,
-        scorecard_data: ScorecardData,
+        scorecard_data: metta.app_backend.routes.scorecard_routes.ScorecardData,
         max_policies: int,
         primary_metric: str,
-    ) -> Dict[str, Dict[str, Dict[str, Any]]]:
+    ) -> typing.Dict[str, typing.Dict[str, typing.Dict[str, typing.Any]]]:
         policy_names = list(scorecard_data.policyNames)
         if len(policy_names) > max_policies:
             # Sort by average score and take top N

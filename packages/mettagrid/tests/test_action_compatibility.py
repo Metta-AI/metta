@@ -2,42 +2,37 @@
 
 import pytest
 
-from mettagrid.config.mettagrid_config import (
-    ActionsConfig,
-    AgentConfig,
-    AttackActionConfig,
-    GameConfig,
-    MettaGridConfig,
-    MoveActionConfig,
-    NoopActionConfig,
-    ObsConfig,
-    WallConfig,
-)
-from mettagrid.simulator import Action, Simulation
-from mettagrid.test_support.actions import get_agent_position
-from mettagrid.test_support.map_builders import ObjectNameMapBuilder
+import mettagrid.config.mettagrid_config
+import mettagrid.simulator
+import mettagrid.test_support.actions
+import mettagrid.test_support.map_builders
 
 # Rebuild GameConfig after MapBuilderConfig is imported
-GameConfig.model_rebuild()
+mettagrid.config.mettagrid_config.GameConfig.model_rebuild()
 
 
-def create_sim(game_config: GameConfig, game_map: list[list[str]], seed: int = 42) -> Simulation:
+def create_sim(
+    game_config: mettagrid.config.mettagrid_config.GameConfig, game_map: list[list[str]], seed: int = 42
+) -> mettagrid.simulator.Simulation:
     """Helper to create a Simulation from config and map."""
-    cfg = MettaGridConfig(game=game_config)
-    cfg.game.map_builder = ObjectNameMapBuilder.Config(map_data=game_map)
-    return Simulation(cfg, seed=seed)
+    cfg = mettagrid.config.mettagrid_config.MettaGridConfig(game=game_config)
+    cfg.game.map_builder = mettagrid.test_support.map_builders.ObjectNameMapBuilder.Config(map_data=game_map)
+    return mettagrid.simulator.Simulation(cfg, seed=seed)
 
 
-def create_basic_config() -> GameConfig:
+def create_basic_config() -> mettagrid.config.mettagrid_config.GameConfig:
     """Create a minimal valid game configuration."""
-    return GameConfig(
+    return mettagrid.config.mettagrid_config.GameConfig(
         resource_names=["ore", "wood"],
         num_agents=1,
-        obs=ObsConfig(width=7, height=7, num_tokens=50),
+        obs=mettagrid.config.mettagrid_config.ObsConfig(width=7, height=7, num_tokens=50),
         max_steps=100,
-        agent=AgentConfig(freeze_duration=0, resource_limits={"ore": 10, "wood": 10}),
-        actions=ActionsConfig(move=MoveActionConfig(), noop=NoopActionConfig()),
-        objects={"wall": WallConfig(swappable=False)},
+        agent=mettagrid.config.mettagrid_config.AgentConfig(freeze_duration=0, resource_limits={"ore": 10, "wood": 10}),
+        actions=mettagrid.config.mettagrid_config.ActionsConfig(
+            move=mettagrid.config.mettagrid_config.MoveActionConfig(),
+            noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
+        ),
+        objects={"wall": mettagrid.config.mettagrid_config.WallConfig(swappable=False)},
     )
 
 
@@ -93,13 +88,16 @@ class TestActionOrdering:
         action_names1 = sim1.action_names
 
         # Create config with different action order
-        reordered_config = GameConfig(
+        reordered_config = mettagrid.config.mettagrid_config.GameConfig(
             resource_names=basic_config.resource_names,
             num_agents=basic_config.num_agents,
             max_steps=basic_config.max_steps,
             obs=basic_config.obs,
             agent=basic_config.agent,
-            actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
+            actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
+                move=mettagrid.config.mettagrid_config.MoveActionConfig(),
+            ),
             objects=basic_config.objects,
         )
 
@@ -134,7 +132,7 @@ class TestActionValidation:
 
         # Try to use an action that doesn't exist
         try:
-            sim.agent(0).set_action(Action(name="invalid_action_that_does_not_exist"))
+            sim.agent(0).set_action(mettagrid.simulator.Action(name="invalid_action_that_does_not_exist"))
             # This should raise a KeyError when trying to convert action name to index
             raise AssertionError("Should have raised KeyError for invalid action name")
         except KeyError:
@@ -146,7 +144,7 @@ class TestActionValidation:
         sim = create_sim(basic_config, simple_map, 42)
 
         # Use a valid action
-        sim.agent(0).set_action(Action(name="noop"))
+        sim.agent(0).set_action(mettagrid.simulator.Action(name="noop"))
         sim.step()
 
         # Should complete without error
@@ -159,14 +157,15 @@ class TestResourceRequirements:
     def test_action_with_resource_requirement(self, basic_config, simple_map):
         """Test that actions fail when resource requirements aren't met."""
         # Create new config with resource requirement
-        config = GameConfig(
+        config = mettagrid.config.mettagrid_config.GameConfig(
             resource_names=basic_config.resource_names,
             num_agents=basic_config.num_agents,
             max_steps=basic_config.max_steps,
             obs=basic_config.obs,
             agent=basic_config.agent,
-            actions=ActionsConfig(
-                move=MoveActionConfig(enabled=True, required_resources={"ore": 1}), noop=NoopActionConfig()
+            actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                move=mettagrid.config.mettagrid_config.MoveActionConfig(enabled=True, required_resources={"ore": 1}),
+                noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
             ),
             objects=basic_config.objects,
         )
@@ -177,22 +176,23 @@ class TestResourceRequirements:
         assert move_action_name is not None, "Expected move action in action names"
 
         # Agent starts with no resources, so move should fail
-        sim.agent(0).set_action(Action(name=move_action_name))
+        sim.agent(0).set_action(mettagrid.simulator.Action(name=move_action_name))
         sim.step()
         assert not sim.agent(0).last_action_success, "Move should fail without required resources"
 
     def test_action_consumes_resources(self, basic_config, simple_map):
         """Test that actions consume resources when configured."""
-        config = GameConfig(
+        config = mettagrid.config.mettagrid_config.GameConfig(
             resource_names=basic_config.resource_names,
             num_agents=basic_config.num_agents,
             max_steps=basic_config.max_steps,
             obs=basic_config.obs,
-            agent=AgentConfig(
+            agent=mettagrid.config.mettagrid_config.AgentConfig(
                 freeze_duration=0, resource_limits={"ore": 10, "wood": 10}, initial_inventory={"ore": 5, "wood": 3}
             ),
-            actions=ActionsConfig(
-                move=MoveActionConfig(enabled=True, consumed_resources={"ore": 1}), noop=NoopActionConfig()
+            actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                move=mettagrid.config.mettagrid_config.MoveActionConfig(enabled=True, consumed_resources={"ore": 1}),
+                noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
             ),
             objects=basic_config.objects,
         )
@@ -201,7 +201,7 @@ class TestResourceRequirements:
         agent = sim.agent(0)
 
         # Step once to populate observations
-        agent.set_action(Action(name="noop"))
+        agent.set_action(mettagrid.simulator.Action(name="noop"))
         sim.step()
 
         # Get initial inventory using the inventory property
@@ -214,14 +214,14 @@ class TestResourceRequirements:
         assert initial_wood == 3, f"Expected initial wood to be 3, got {initial_wood}"
 
         # Get agent position before move
-        agent_pos = get_agent_position(sim, 0)
+        agent_pos = mettagrid.test_support.actions.get_agent_position(sim, 0)
 
         # Move east (which consumes ore)
-        agent.set_action(Action(name="move_east"))
+        agent.set_action(mettagrid.simulator.Action(name="move_east"))
         sim.step()
 
         action_success = sim.agent(0).last_action_success
-        new_pos = get_agent_position(sim, 0)
+        new_pos = mettagrid.test_support.actions.get_agent_position(sim, 0)
         position_changed = new_pos != agent_pos
 
         # Get final inventory
@@ -254,7 +254,7 @@ class TestActionSpace:
 
     def test_single_action_space(self, basic_config, multi_agent_map):
         """Test action space for multi-agent environment."""
-        config = GameConfig(
+        config = mettagrid.config.mettagrid_config.GameConfig(
             resource_names=basic_config.resource_names,
             num_agents=3,
             max_steps=basic_config.max_steps,
@@ -272,7 +272,7 @@ class TestActionSpace:
         # When stepping, we need to provide actions for all agents
         # Create actions for all 3 agents using the noop action
         for i in range(sim.num_agents):
-            sim.agent(i).set_action(Action(name="noop"))
+            sim.agent(i).set_action(mettagrid.simulator.Action(name="noop"))
 
         # This should work without error
         sim.step()
@@ -287,18 +287,18 @@ class TestSpecialActions:
 
     def test_attack_action_registration(self, basic_config, simple_map):
         """Test that attack action is properly registered when enabled."""
-        config = GameConfig(
+        config = mettagrid.config.mettagrid_config.GameConfig(
             resource_names=basic_config.resource_names,
             num_agents=basic_config.num_agents,
             max_steps=basic_config.max_steps,
             obs=basic_config.obs,
             agent=basic_config.agent,
-            actions=ActionsConfig(
-                attack=AttackActionConfig(
+            actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                attack=mettagrid.config.mettagrid_config.AttackActionConfig(
                     enabled=True, required_resources={}, consumed_resources={}, defense_resources={}
                 ),
-                move=MoveActionConfig(),
-                noop=NoopActionConfig(),
+                move=mettagrid.config.mettagrid_config.MoveActionConfig(),
+                noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
             ),
             objects=basic_config.objects,
         )
@@ -325,7 +325,7 @@ class TestResourceOrdering:
     def test_resource_order(self, basic_config, simple_map):
         """Test that resources maintain their order."""
         # Config with ore first
-        config1 = GameConfig(
+        config1 = mettagrid.config.mettagrid_config.GameConfig(
             resource_names=["ore", "wood"],
             num_agents=basic_config.num_agents,
             max_steps=basic_config.max_steps,
@@ -336,7 +336,7 @@ class TestResourceOrdering:
         )
 
         # Config with wood first
-        config2 = GameConfig(
+        config2 = mettagrid.config.mettagrid_config.GameConfig(
             resource_names=["wood", "ore"],
             num_agents=basic_config.num_agents,
             max_steps=basic_config.max_steps,

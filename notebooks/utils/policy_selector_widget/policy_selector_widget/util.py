@@ -2,14 +2,14 @@
 Utility functions for the Policy Selector Widget
 """
 
-from typing import Any, Dict, List
+import typing
 
-from metta.app_backend.clients.scorecard_client import ScorecardClient
+import metta.app_backend.clients.scorecard_client
 
 
 async def fetch_policies_from_backend(
     base_url: str = "http://localhost:8000",
-) -> List[Dict[str, Any]]:
+) -> typing.List[typing.Dict[str, typing.Any]]:
     """Fetch policies from the backend API.
 
     Args:
@@ -18,7 +18,7 @@ async def fetch_policies_from_backend(
     Returns:
         List of policy metadata dictionaries
     """
-    client = ScorecardClient(base_url=base_url)
+    client = metta.app_backend.clients.scorecard_client.ScorecardClient(base_url=base_url)
     try:
         response = await client.get_policies()
         return response.policies
@@ -28,11 +28,11 @@ async def fetch_policies_from_backend(
 
 
 def filter_policies(
-    policies: List[Dict[str, Any]],
+    policies: typing.List[typing.Dict[str, typing.Any]],
     search_term: str = "",
-    policy_types: List[str] = None,
-    tags: List[str] = None,
-) -> List[Dict[str, Any]]:
+    policy_types: typing.List[str] = None,
+    tags: typing.List[str] = None,
+) -> typing.List[typing.Dict[str, typing.Any]]:
     """Filter policies based on search criteria.
 
     Args:
@@ -63,8 +63,8 @@ def filter_policies(
 
 
 def group_policies_by_type(
-    policies: List[Dict[str, Any]],
-) -> Dict[str, List[Dict[str, Any]]]:
+    policies: typing.List[typing.Dict[str, typing.Any]],
+) -> typing.Dict[str, typing.List[typing.Dict[str, typing.Any]]]:
     """Group policies by their type.
 
     Args:
@@ -83,7 +83,9 @@ def group_policies_by_type(
     return groups
 
 
-def sort_policies(policies: List[Dict[str, Any]], sort_by: str = "name", reverse: bool = False) -> List[Dict[str, Any]]:
+def sort_policies(
+    policies: typing.List[typing.Dict[str, typing.Any]], sort_by: str = "name", reverse: bool = False
+) -> typing.List[typing.Dict[str, typing.Any]]:
     """Sort policies by a given field.
 
     Args:

@@ -1,33 +1,33 @@
 import logging
-from typing import Sequence
+import typing
 
-from metta.app_backend.clients.stats_client import HttpStatsClient
-from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
-from metta.common.tool.tool import Tool
-from metta.common.util.constants import PROD_STATS_SERVER_URI
-from metta.common.util.git_helpers import get_task_commit_hash
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.sim.simulation_config import SimulationConfig
-from metta.sim.utils import get_or_create_policy_ids
+import metta.app_backend.clients.stats_client
+import metta.app_backend.routes.eval_task_routes
+import metta.common.tool.tool
+import metta.common.util.constants
+import metta.common.util.git_helpers
+import metta.rl.checkpoint_manager
+import metta.sim.simulation_config
+import metta.sim.utils
 
 logger = logging.getLogger(__name__)
 
 
-class EvalRemoteTool(Tool):
-    stats_server_uri: str = PROD_STATS_SERVER_URI
+class EvalRemoteTool(metta.common.tool.tool.Tool):
+    stats_server_uri: str = metta.common.util.constants.PROD_STATS_SERVER_URI
 
     policy_uri: str
-    simulations: Sequence[SimulationConfig]
+    simulations: typing.Sequence[metta.sim.simulation_config.SimulationConfig]
 
     def invoke(self, args: dict[str, str]) -> int | None:
-        stats_client = HttpStatsClient.create(self.stats_server_uri)
-        normalized_uri = CheckpointManager.normalize_uri(self.policy_uri)
-        policy_id = get_or_create_policy_ids(stats_client, [(normalized_uri, "")])[normalized_uri]
+        stats_client = metta.app_backend.clients.stats_client.HttpStatsClient.create(self.stats_server_uri)
+        normalized_uri = metta.rl.checkpoint_manager.CheckpointManager.normalize_uri(self.policy_uri)
+        policy_id = metta.sim.utils.get_or_create_policy_ids(stats_client, [(normalized_uri, "")])[normalized_uri]
 
-        git_hash = get_task_commit_hash(skip_git_check=True)
+        git_hash = metta.common.util.git_helpers.get_task_commit_hash(skip_git_check=True)
 
         task = stats_client.create_task(
-            TaskCreateRequest(
+            metta.app_backend.routes.eval_task_routes.TaskCreateRequest(
                 policy_id=policy_id,
                 sim_suite=self.simulations[0].suite,
                 attributes={

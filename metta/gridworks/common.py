@@ -1,16 +1,18 @@
-from typing_extensions import TypedDict
+import typing_extensions
 
-from mettagrid.base_config import Config
+import mettagrid.base_config
 
 
-class ErrorResult(TypedDict):
+class ErrorResult(typing_extensions.TypedDict):
     error: str
 
 
-def dump_config_with_implicit_info(config: Config | list[Config] | dict[str, Config]) -> dict:
+def dump_config_with_implicit_info(
+    config: mettagrid.base_config.Config | list[mettagrid.base_config.Config] | dict[str, mettagrid.base_config.Config],
+) -> dict:
     fields_unset: list[str] = []
 
-    def traverse(obj: Config, prefix: str = ""):
+    def traverse(obj: mettagrid.base_config.Config, prefix: str = ""):
         def with_prefix(field: str) -> str:
             return f"{prefix}.{field}" if prefix else field
 
@@ -21,7 +23,7 @@ def dump_config_with_implicit_info(config: Config | list[Config] | dict[str, Con
 
         for field in obj.model_fields_set:
             value = getattr(obj, field)
-            if isinstance(value, Config):
+            if isinstance(value, mettagrid.base_config.Config):
                 traverse(value, with_prefix(field))
 
     if isinstance(config, list):

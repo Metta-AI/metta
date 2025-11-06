@@ -1,21 +1,21 @@
 import logging
-from typing import Literal, Tuple
+import typing
 
 import numpy as np
 
-from mettagrid.map_builder import MapGrid
-from mettagrid.mapgen.scene import Scene, SceneConfig
+import mettagrid.map_builder
+import mettagrid.mapgen.scene
 
 logger = logging.getLogger(__name__)
 
-Direction = Literal["horizontal", "vertical"]
+Direction = typing.Literal["horizontal", "vertical"]
 
 
-class BSPLayoutConfig(SceneConfig):
+class BSPLayoutConfig(mettagrid.mapgen.scene.SceneConfig):
     area_count: int
 
 
-class BSPLayout(Scene[BSPLayoutConfig]):
+class BSPLayout(mettagrid.mapgen.scene.Scene[BSPLayoutConfig]):
     """
     This scene doesn't render anything, it just creates areas that can be used by other scenes.
     """
@@ -33,7 +33,7 @@ class BSPLayout(Scene[BSPLayoutConfig]):
             self.make_area(zone.x, zone.y, zone.width, zone.height, tags=["zone"])
 
 
-class BSPConfig(SceneConfig):
+class BSPConfig(mettagrid.mapgen.scene.SceneConfig):
     rooms: int
     min_room_size: int
     min_room_size_ratio: float
@@ -41,7 +41,7 @@ class BSPConfig(SceneConfig):
     skip_corridors: bool = False
 
 
-class BSP(Scene[BSPConfig]):
+class BSP(mettagrid.mapgen.scene.Scene[BSPConfig]):
     """
     Binary Space Partitioning. (Roguelike dungeon generator)
 
@@ -128,7 +128,7 @@ class Zone:
         self.height = height
         self.rng = rng
 
-    def split(self) -> Tuple["Zone", "Zone"]:
+    def split(self) -> typing.Tuple["Zone", "Zone"]:
         # Split in random direction, unless the room is too wide or too tall.
         if self.width > self.height * 2:
             # Note: vertical split means vertical line, not vertical layout
@@ -147,7 +147,7 @@ class Zone:
         min_size = size // 3  # TODO - configurable proportion
         return self.rng.integers(min_size, size - min_size + 1, dtype=int)
 
-    def horizontal_split(self) -> Tuple["Zone", "Zone"]:
+    def horizontal_split(self) -> typing.Tuple["Zone", "Zone"]:
         first_height = self.random_divide(self.height)
         return (
             Zone(self.x, self.y, self.width, first_height, self.rng),
@@ -160,7 +160,7 @@ class Zone:
             ),
         )
 
-    def vertical_split(self) -> Tuple["Zone", "Zone"]:
+    def vertical_split(self) -> typing.Tuple["Zone", "Zone"]:
         (child1, child2) = self.transpose().horizontal_split()
         return (child1.transpose(), child2.transpose())
 
@@ -222,7 +222,7 @@ class Surface:
         self,
         min_x: int,
         ys: list[int],
-        side: Literal["up", "down"],
+        side: typing.Literal["up", "down"],
         rng: np.random.Generator,
     ):
         self.min_x = min_x
@@ -243,7 +243,7 @@ class Surface:
         # Last column of the surface
         return self.min_x + len(self.ys) - 1
 
-    def random_position(self) -> Tuple[int, int]:
+    def random_position(self) -> typing.Tuple[int, int]:
         # Choose a position from which we can draw a vertical corridor.
         valid_xs = []
 
@@ -266,7 +266,7 @@ class Surface:
         return (x + self.min_x, self.ys[x])
 
     @staticmethod
-    def from_zone(grid: MapGrid, zone: Zone, side: Literal["up", "down"]) -> "Surface":
+    def from_zone(grid: mettagrid.map_builder.MapGrid, zone: Zone, side: typing.Literal["up", "down"]) -> "Surface":
         # Scan the entire zone, starting from the top or bottom, and collect all the y values that are part of
         # the surface.
         min_x = None
@@ -315,7 +315,7 @@ class Line:
     Full corridor between two rooms can be represented as multiple lines.
     """
 
-    def __init__(self, direction: Direction, start: Tuple[int, int], length: int):
+    def __init__(self, direction: Direction, start: typing.Tuple[int, int], length: int):
         self.direction = direction
 
         if length < 0:
@@ -422,7 +422,7 @@ class BSPTree:
     def get_all_zones(self) -> list["Zone"]:
         return self.zones
 
-    def get_sibling_pairs(self) -> list[Tuple["Zone", "Zone"]]:
+    def get_sibling_pairs(self) -> list[typing.Tuple["Zone", "Zone"]]:
         pairs = []
         for i in range(len(self.zones) - 2, 0, -2):
             pairs.append((self.zones[i], self.zones[i + 1]))

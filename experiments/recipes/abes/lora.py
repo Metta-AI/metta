@@ -1,46 +1,38 @@
 """Arena Basic Easy Shaped recipe that trains LoRA adapters on SmolLLM."""
 
-from __future__ import annotations
 
-from typing import Optional
+import typing
 
-from experiments.recipes.abes import smollm as smollm_recipe
-from experiments.recipes.arena_basic_easy_shaped import (
-    evaluate,
-    evaluate_in_sweep,
-    mettagrid,
-    play,
-    replay,
-    simulations,
-    sweep as _arena_sweep,
-    train as base_train,
-)
-from metta.agent.policies.smollm import SmolLLMConfig
-from metta.agent.policy import PolicyArchitecture
-from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.tools.sweep import SweepTool
-from metta.tools.train import TrainTool
+import experiments.recipes.abes
+import experiments.recipes.arena_basic_easy_shaped
+import metta.agent.policies.smollm
+import metta.agent.policy
+import metta.cogworks.curriculum.curriculum
+import metta.tools.sweep
+import metta.tools.train
 
 DEFAULT_LORA_TARGETS = ["q_proj", "k_proj", "v_proj", "o_proj"]
 
 
 def train(
     *,
-    curriculum: Optional[CurriculumConfig] = None,
+    curriculum: typing.Optional[
+        metta.cogworks.curriculum.curriculum.CurriculumConfig
+    ] = None,
     enable_detailed_slice_logging: bool = False,
-    model_name: Optional[str] = None,
-    attn_implementation: Optional[str] = None,
-    policy_architecture: Optional[PolicyArchitecture] = None,
+    model_name: typing.Optional[str] = None,
+    attn_implementation: typing.Optional[str] = None,
+    policy_architecture: typing.Optional[metta.agent.policy.PolicyArchitecture] = None,
     lora_rank: int = 16,
     lora_alpha: int = 32,
     lora_dropout: float = 0.05,
-    lora_target_modules: Optional[list[str]] = None,
-) -> TrainTool:
+    lora_target_modules: typing.Optional[list[str]] = None,
+) -> metta.tools.train.TrainTool:
     if policy_architecture is None:
         config_kwargs = {
             "freeze_llm": True,
             "use_lora": True,
-            "attn_implementation": smollm_recipe._select_attn_implementation(
+            "attn_implementation": experiments.recipes.abes.smollm._select_attn_implementation(
                 attn_implementation
             ),  # noqa: SLF001
             "lora_rank": lora_rank,
@@ -52,13 +44,13 @@ def train(
             "value_head_rank": None,
         }
         config_kwargs["model_name"] = model_name or "HuggingFaceTB/SmolLM2-135M"
-        policy_architecture = SmolLLMConfig(**config_kwargs)
+        policy_architecture = metta.agent.policies.smollm.SmolLLMConfig(**config_kwargs)
 
-    resolved_curriculum = curriculum or smollm_recipe.make_curriculum(
+    resolved_curriculum = curriculum or experiments.recipes.abes.smollm.make_curriculum(
         enable_detailed_slice_logging=enable_detailed_slice_logging,
     )
 
-    tool = base_train(
+    tool = experiments.recipes.arena_basic_easy_shaped.train(
         curriculum=resolved_curriculum,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         policy_architecture=policy_architecture,
@@ -67,7 +59,9 @@ def train(
     return _apply_lora_defaults(tool)
 
 
-def _apply_lora_defaults(tool: TrainTool) -> TrainTool:
+def _apply_lora_defaults(
+    tool: metta.tools.train.TrainTool,
+) -> metta.tools.train.TrainTool:
     """Adjust training defaults for LoRA fine-tuning."""
 
     trainer = tool.trainer
@@ -119,13 +113,13 @@ __all__ = [
 ]
 
 
-make_curriculum = smollm_recipe.make_curriculum
+make_curriculum = experiments.recipes.abes.smollm.make_curriculum
 
 
 def sweep(
     sweep_name: str,
     **kwargs: object,
-) -> SweepTool:
+) -> metta.tools.sweep.SweepTool:
     """Expose the canonical arena sweep for SmolLLM LoRA recipes."""
 
     return _delegate_sweep(sweep_name, **kwargs)
@@ -134,11 +128,11 @@ def sweep(
 def sweep_async_progressive(
     sweep_name: str,
     **kwargs: object,
-) -> SweepTool:
+) -> metta.tools.sweep.SweepTool:
     """Backward-compatible alias maintained for historical CLI usage."""
 
     return _delegate_sweep(sweep_name, **kwargs)
 
 
-def _delegate_sweep(sweep_name: str, **kwargs: object) -> SweepTool:
-    return _arena_sweep(sweep_name, **kwargs)
+def _delegate_sweep(sweep_name: str, **kwargs: object) -> metta.tools.sweep.SweepTool:
+    return experiments.recipes.arena_basic_easy_shaped.sweep(sweep_name, **kwargs)

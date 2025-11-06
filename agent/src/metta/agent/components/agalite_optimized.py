@@ -5,7 +5,7 @@ This replaces the loop-based discounted sum with efficient parallel operations.
 
 import torch
 
-from metta.ops import agalite_kernels
+import metta.ops
 
 
 @torch.jit.script
@@ -51,7 +51,7 @@ def discounted_sum(start_state: torch.Tensor, x: torch.Tensor, discounts: torch.
     """Compute discounted sums using fused kernels when available."""
 
     try:
-        return agalite_kernels.fused_discounted_sum(start_state, x, discounts)
+        return metta.ops.agalite_kernels.fused_discounted_sum(start_state, x, discounts)
     except RuntimeError:
         return _python_discounted_sum(start_state, x, discounts)
 

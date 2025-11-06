@@ -1,27 +1,20 @@
-from __future__ import annotations
 
 import contextlib
+import dataclasses
 import time
-from dataclasses import dataclass
-from typing import Dict, Iterator, Optional, Tuple
+import typing
 
+import cortex.cells.core
 import cortex.cells.core.axon_cell as cell_mod
+import cortex.config
 import cortex.utils as utils_mod
 import torch
 import torch.nn as nn
-from cortex.cells.core import AxonCell
-from cortex.config import AxonConfig
 
-from .common import (
-    BenchmarkCase,
-    BenchmarkDefinition,
-    BenchmarkSettings,
-    ColumnSpec,
-    register,
-)
+import packages.cortex.benchmarks.common
 
 
-@dataclass
+@dataclasses.dataclass
 class _BenchResult:
     ms_per_iter: float
     toks_per_s: float
@@ -31,7 +24,7 @@ def _count_params(module: nn.Module) -> int:
     return sum(p.numel() for p in module.parameters() if p.requires_grad)
 
 
-def _force_axon_backend(which: str) -> Iterator[None]:  # type: ignore[override]
+def _force_axon_backend(which: str) -> typing.Iterator[None]:  # type: ignore[override]
     """Force a specific backend by monkeypatching the selector.
 
     AxonCell imports the selector into its module namespace, so we patch both
@@ -41,13 +34,13 @@ def _force_axon_backend(which: str) -> Iterator[None]:  # type: ignore[override]
     if which == "auto":
         # no-op context manager
         @contextlib.contextmanager
-        def _noop() -> Iterator[None]:
+        def _noop() -> typing.Iterator[None]:
             yield
 
         return _noop()
 
     @contextlib.contextmanager
-    def _ctx() -> Iterator[None]:
+    def _ctx() -> typing.Iterator[None]:
         orig_utils = utils_mod.select_backend
         orig_cell = getattr(cell_mod, "select_backend", None)
 
@@ -85,7 +78,7 @@ def _benchmark_step(
     *,
     x: torch.Tensor,
     target: torch.Tensor,
-    params: Tuple[nn.Parameter, ...],
+    params: typing.Tuple[nn.Parameter, ...],
     warmup: int,
     iterations: int,
     device: torch.device,
@@ -119,7 +112,7 @@ def _benchmark_step(
 
 
 # Config tuple: (B, T, H, with_resets, p_reset, activation, axon_backend, use_srht)
-CONFIGS: Tuple[Tuple[int, int, int, bool, float, str, str, bool], ...] = (
+CONFIGS: typing.Tuple[typing.Tuple[int, int, int, bool, float, str, str, bool], ...] = (
     (8, 512, 512, False, 0.0, "identity", "auto", True),
     (8, 512, 512, True, 0.1, "identity", "auto", True),
     (8, 256, 256, False, 0.0, "identity", "auto", True),
@@ -130,12 +123,14 @@ CONFIGS: Tuple[Tuple[int, int, int, bool, float, str, str, bool], ...] = (
 )
 
 
-def _format_config(cfg: Tuple[int, int, int, bool, float, str, str, bool]) -> str:
+def _format_config(cfg: typing.Tuple[int, int, int, bool, float, str, str, bool]) -> str:
     b, t, h, use_resets, p, act, backend, use_srht = cfg
     return f"(B={b}, T={t}, H={h}, resets={use_resets}, p={p}, act={act}, backend={backend}, srht={use_srht})"
 
 
-def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, object]:
+def _run_case(
+    case: packages.cortex.benchmarks.common.BenchmarkCase, settings: packages.cortex.benchmarks.common.BenchmarkSettings
+) -> typing.Dict[str, object]:
     bsz, seqlen, hidden, with_resets, reset_prob, activation, backend, use_srht = case.values
     device = torch.device(settings.device)
     dtype = settings.dtype
@@ -155,14 +150,14 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
         return y.reshape(t.shape[0], t.shape[1], hidden)
 
     # AxonCell configured as linear-like
-    ax_cfg = AxonConfig(
+    ax_cfg = cortex.config.AxonConfig(
         hidden_size=hidden,
         activation=activation,
         cuda_seq_threshold=1000,
         use_srht=bool(use_srht),
         out_dim=hidden,
     )
-    axon = AxonCell(ax_cfg).to(device=device, dtype=dtype)
+    axon = cortex.cells.core.AxonCell(ax_cfg).to(device=device, dtype=dtype)
 
     def run_axon(t: torch.Tensor) -> torch.Tensor:
         y, _ = axon(t, state=None, resets=resets)
@@ -191,7 +186,7 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
             device=device,
         )
 
-    peak_gb: Optional[float]
+    peak_gb: typing.Optional[float]
     if device.type == "cuda":
         peak_gb = float(torch.cuda.max_memory_allocated()) / (1024**3)
     else:
@@ -209,8 +204,8 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
     }
 
 
-register(
-    BenchmarkDefinition(
+packages.cortex.benchmarks.common.register(
+    packages.cortex.benchmarks.common.BenchmarkDefinition(
         key="linear_vs_axon",
         title="PyTorch Linear vs AxonCell (forward+backward)",
         description=(
@@ -221,14 +216,16 @@ register(
         format_config=_format_config,
         run_case=_run_case,
         columns=(
-            ColumnSpec("linear_ms", "Linear (ms)", lambda v: f"{float(v):.3f}"),
-            ColumnSpec("axon_ms", "Axon (ms)", lambda v: f"{float(v):.3f}"),
-            ColumnSpec("speedup", "Speedup", lambda v: f"{float(v):.2f}x"),
-            ColumnSpec("linear_toks_s", "Linear tok/s", lambda v: f"{float(v):.1f}"),
-            ColumnSpec("axon_toks_s", "Axon tok/s", lambda v: f"{float(v):.1f}"),
-            ColumnSpec("linear_params", "Linear Params", lambda v: f"{int(v):,}"),
-            ColumnSpec("axon_params", "Axon Params", lambda v: f"{int(v):,}"),
-            ColumnSpec("peak_mem_gib", "Peak CUDA (GiB)", lambda v: f"{float(v):.2f}"),
+            packages.cortex.benchmarks.common.ColumnSpec("linear_ms", "Linear (ms)", lambda v: f"{float(v):.3f}"),
+            packages.cortex.benchmarks.common.ColumnSpec("axon_ms", "Axon (ms)", lambda v: f"{float(v):.3f}"),
+            packages.cortex.benchmarks.common.ColumnSpec("speedup", "Speedup", lambda v: f"{float(v):.2f}x"),
+            packages.cortex.benchmarks.common.ColumnSpec("linear_toks_s", "Linear tok/s", lambda v: f"{float(v):.1f}"),
+            packages.cortex.benchmarks.common.ColumnSpec("axon_toks_s", "Axon tok/s", lambda v: f"{float(v):.1f}"),
+            packages.cortex.benchmarks.common.ColumnSpec("linear_params", "Linear Params", lambda v: f"{int(v):,}"),
+            packages.cortex.benchmarks.common.ColumnSpec("axon_params", "Axon Params", lambda v: f"{int(v):,}"),
+            packages.cortex.benchmarks.common.ColumnSpec(
+                "peak_mem_gib", "Peak CUDA (GiB)", lambda v: f"{float(v):.2f}"
+            ),
         ),
         default_warmup=5,
         default_iterations=20,

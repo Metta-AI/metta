@@ -1,11 +1,11 @@
 """Route timing and logging utilities for performance monitoring."""
 
+import functools
 import logging
 import time
-from functools import wraps
-from typing import Any, Callable
+import typing
 
-from fastapi import HTTPException, Request, Response
+import fastapi
 
 # Logger for route performance
 route_logger = logging.getLogger("route_performance")
@@ -21,16 +21,16 @@ def timed_http_handler(func):
     """
     timed_func = timed_route(func.__name__)(func)
 
-    @wraps(func)
+    @functools.wraps(func)
     async def wrapper(*args, **kwargs):
         try:
             return await timed_func(*args, **kwargs)
-        except HTTPException:
+        except fastapi.HTTPException:
             raise
         except Exception as e:
             operation = func.__name__.replace("_", " ")
             route_logger.error(f"Failed to {operation}", exc_info=True)
-            raise HTTPException(status_code=500, detail=f"Failed to {operation}: {str(e)}") from e
+            raise fastapi.HTTPException(status_code=500, detail=f"Failed to {operation}: {str(e)}") from e
 
     return wrapper
 
@@ -46,16 +46,16 @@ def timed_route(route_name: str = ""):
         route_name: Optional custom name for the route (defaults to function name)
     """
 
-    def decorator(func: Callable) -> Callable:
-        @wraps(func)
-        async def wrapper(*args, **kwargs) -> Any:
+    def decorator(func: typing.Callable) -> typing.Callable:
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs) -> typing.Any:
             start_time = time.time()
             name = route_name or func.__name__
 
             # Extract request info if available
             request_info = ""
             for arg in args:
-                if isinstance(arg, Request):
+                if isinstance(arg, fastapi.Request):
                     request_info = f" {arg.method} {arg.url.path}"
                     break
 
@@ -83,7 +83,7 @@ def timed_route(route_name: str = ""):
     return decorator
 
 
-def log_route_timing(request: Request, response: Response, start_time: float) -> None:
+def log_route_timing(request: fastapi.Request, response: fastapi.Response, start_time: float) -> None:
     """
     Log route timing information. Can be used as middleware or called manually.
 

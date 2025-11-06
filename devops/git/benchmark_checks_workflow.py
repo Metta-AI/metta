@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 
+import datetime
 import json
 import os
 import statistics
 import subprocess
 import sys
 import time
+import typing
 import uuid
-from datetime import UTC, datetime
-from typing import Any, Optional
 
-from metta.common.util.constants import METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO
+import metta.common.util.constants
 
-REPO = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+REPO = f"{metta.common.util.constants.METTA_GITHUB_ORGANIZATION}/{metta.common.util.constants.METTA_GITHUB_REPO}"
 WORKFLOW_FILENAME = "checks.yml"
 WORKFLOW_NAME = "Test and Benchmark"
 RUN_LINT = "true"
@@ -47,12 +47,12 @@ class WorkflowRunDetails:
     """Container for detailed workflow run information"""
 
     def __init__(self):
-        self.total_duration: Optional[float] = None
-        self.conclusion: Optional[str] = None
-        self.setup_env_duration: Optional[float] = None
-        self.run_tests_duration: Optional[float] = None
+        self.total_duration: typing.Optional[float] = None
+        self.conclusion: typing.Optional[str] = None
+        self.setup_env_duration: typing.Optional[float] = None
+        self.run_tests_duration: typing.Optional[float] = None
         self.job_durations: dict[str, float] = {}
-        self.matrix_aggregates: dict[str, dict[str, Any]] = {}
+        self.matrix_aggregates: dict[str, dict[str, typing.Any]] = {}
 
 
 def format_duration(seconds: float) -> str:
@@ -62,9 +62,9 @@ def format_duration(seconds: float) -> str:
     return f"{m}m{s}s"
 
 
-def parse_time(timestamp: str) -> datetime:
+def parse_time(timestamp: str) -> datetime.datetime:
     """Parse ISO timestamp string to datetime"""
-    return datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    return datetime.datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
 
 
 def trigger_workflow(branch: str) -> str:
@@ -206,7 +206,7 @@ def find_workflow_runs_batch(branch: str, run_ids: list[str]) -> dict[str, str]:
     return found_runs
 
 
-def get_job_details(run_id: str) -> dict[str, Any]:
+def get_job_details(run_id: str) -> dict[str, typing.Any]:
     """Fetch job details for a workflow run"""
     result = subprocess.run(
         ["gh", "run", "view", run_id, "--json", "jobs"],
@@ -224,7 +224,7 @@ def get_job_details(run_id: str) -> dict[str, Any]:
         raise WorkflowRunError(f"Failed to parse job details: {e}") from e
 
 
-def get_step_timing(job_id: str, step_name: str) -> Optional[float]:
+def get_step_timing(job_id: str, step_name: str) -> typing.Optional[float]:
     """Get timing for a specific step within a job"""
     result = subprocess.run(
         ["gh", "api", f"/repos/{REPO}/actions/jobs/{job_id}"],
@@ -252,7 +252,7 @@ def get_step_timing(job_id: str, step_name: str) -> Optional[float]:
         return None
 
 
-def aggregate_matrix_jobs(jobs: dict[str, Any], details: WorkflowRunDetails) -> None:
+def aggregate_matrix_jobs(jobs: dict[str, typing.Any], details: WorkflowRunDetails) -> None:
     """Aggregate matrix job timings to find worst-case performance"""
 
     for matrix_name, pattern in MATRIX_JOB_PATTERNS.items():
@@ -297,7 +297,7 @@ def aggregate_matrix_jobs(jobs: dict[str, Any], details: WorkflowRunDetails) -> 
 
 def save_run_ids(run_ids_by_branch: dict[str, list[str]], script_dir: str) -> str:
     """Save run IDs to a JSON file with timestamp"""
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     script_name = os.path.basename(sys.argv[0]) if sys.argv else "benchmark_checks_workflow.py"
 
     filename = f"runs_{timestamp}.json"
@@ -425,7 +425,7 @@ def wait_for_run_completion(run_id: str) -> tuple[WorkflowRunDetails, str]:
         time.sleep(POLL_INTERVAL)
 
 
-def trigger_all_runs(branches: list[str], repeats: int) -> dict[str, list[tuple[str, datetime]]]:
+def trigger_all_runs(branches: list[str], repeats: int) -> dict[str, list[tuple[str, datetime.datetime]]]:
     print("\n🚀 Triggering all workflow runs...")
     triggered_by_branch = {branch: [] for branch in branches}
 
@@ -434,14 +434,14 @@ def trigger_all_runs(branches: list[str], repeats: int) -> dict[str, list[tuple[
             print(f"▶️  Trigger {i + 1}/{repeats} for `{branch}`")
             try:
                 uuid_tag = trigger_workflow(branch)
-                triggered_by_branch[branch].append((uuid_tag, datetime.now(UTC)))
+                triggered_by_branch[branch].append((uuid_tag, datetime.datetime.now(datetime.UTC)))
             except Exception as e:
                 print(f"❌ Failed to trigger workflow on `{branch}`: {e}")
 
     return triggered_by_branch
 
 
-def resolve_run_numbers(triggered_runs: dict[str, list[tuple[str, datetime]]]) -> dict[str, list[str]]:
+def resolve_run_numbers(triggered_runs: dict[str, list[tuple[str, datetime.datetime]]]) -> dict[str, list[str]]:
     minutes_to_wait = 10
     total_seconds = minutes_to_wait * 60
 
@@ -482,7 +482,7 @@ def resolve_run_numbers(triggered_runs: dict[str, list[tuple[str, datetime]]]) -
     return resolved_by_branch
 
 
-def wait_for_all_runs(run_ids_by_branch: dict[str, list[str]]) -> dict[str, dict[str, Any]]:
+def wait_for_all_runs(run_ids_by_branch: dict[str, list[str]]) -> dict[str, dict[str, typing.Any]]:
     print("\n⏳ Waiting for all workflow runs to complete...")
     results_by_branch = {
         branch: {"successful": [], "failed": [], "detailed_timings": []} for branch in run_ids_by_branch
@@ -524,7 +524,7 @@ def wait_for_all_runs(run_ids_by_branch: dict[str, list[str]]) -> dict[str, dict
     return results_by_branch
 
 
-def summarize(results_by_branch: dict[str, dict[str, Any]]):
+def summarize(results_by_branch: dict[str, dict[str, typing.Any]]):
     print("\n📊 Benchmark Summary:")
     print("=" * 100)
 
@@ -590,9 +590,9 @@ def summarize(results_by_branch: dict[str, dict[str, Any]]):
 
             if worst_durations:
                 # Find which job was worst most often
-                from collections import Counter
+                import collections
 
-                job_counter = Counter(worst_job_names)
+                job_counter = collections.Counter(worst_job_names)
                 most_common_worst = job_counter.most_common(1)[0]
 
                 # Get the count from the first timing's aggregate

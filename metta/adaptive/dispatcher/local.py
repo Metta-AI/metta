@@ -4,8 +4,8 @@ import logging
 import subprocess
 import threading
 
-from metta.adaptive.models import JobDefinition
-from metta.adaptive.utils import get_display_id
+import metta.adaptive.models
+import metta.adaptive.utils
 
 logger = logging.getLogger(__name__)
 
@@ -66,13 +66,13 @@ class LocalDispatcher:
 
                 # Log to logger with appropriate prefix
                 # Extract trial portion for cleaner display
-                display_id = get_display_id(run_id)
+                display_id = metta.adaptive.utils.get_display_id(run_id)
                 logger.info(f"[{display_id}] {line}")
 
         except Exception as e:
             logger.error(f"Error streaming output for PID {pid}: {e}", exc_info=True)
 
-    def dispatch(self, job: JobDefinition) -> str:
+    def dispatch(self, job: metta.adaptive.models.JobDefinition) -> str:
         """Dispatch job locally as subprocess."""
         # Reap any finished processes first to prevent zombie accumulation
         self._reap_finished_processes()
@@ -89,7 +89,7 @@ class LocalDispatcher:
             cmd_parts.append(f"{k}={v}")
 
         # Extract trial portion for cleaner display
-        display_id = get_display_id(job.run_id)
+        display_id = metta.adaptive.utils.get_display_id(job.run_id)
 
         logger.info(f"Dispatching {display_id}: {' '.join(cmd_parts)}")
 

@@ -1,20 +1,20 @@
+import datetime
 import functools
 import logging
 import os
+import pathlib
 import sys
-from datetime import datetime
-from pathlib import Path
 
+import rich.logging
 import rich.traceback
-from rich.logging import RichHandler
 
-from metta.common.util.constants import RANK_ENV_VARS
+import metta.common.util.constants
 
 logger = logging.getLogger(__name__)
 
 
 def get_node_rank() -> str | None:
-    for var in RANK_ENV_VARS:
+    for var in metta.common.util.constants.RANK_ENV_VARS:
         if rank := os.environ.get(var):
             return rank
     return None
@@ -66,7 +66,7 @@ def getRankAwareLogger(name: str | None = None) -> RankAwareLogger:
 
 class MillisecondFormatter(logging.Formatter):
     def formatTime(self, record: logging.LogRecord, datefmt: str | None = None) -> str:
-        created = datetime.fromtimestamp(record.created)
+        created = datetime.datetime.fromtimestamp(record.created)
         # Convert microseconds to milliseconds (keep only 3 digits)
         msec = created.microsecond // 1000
         if datefmt:
@@ -81,7 +81,7 @@ class MillisecondFormatter(logging.Formatter):
             return created.strftime(f"[%H:%M:%S.{msec:03d}]")
 
 
-class AlwaysShowTimeRichHandler(RichHandler):
+class AlwaysShowTimeRichHandler(rich.logging.RichHandler):
     def emit(self, record: logging.LogRecord) -> None:
         # Force a unique timestamp for each record
         record.created = record.created + (record.relativeCreated % 1000) / 1000000
@@ -210,7 +210,7 @@ def _init_console_logging() -> None:
 
 
 # Safe to be called repeatedly, but if it is called with different run_dirs, it will add multiple file output handlers
-def init_logging(run_dir: Path | None = None) -> None:
+def init_logging(run_dir: pathlib.Path | None = None) -> None:
     _init_console_logging()
     if run_dir:
         _add_file_logging(run_dir)

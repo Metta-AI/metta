@@ -1,13 +1,12 @@
-from __future__ import annotations
 
+import pathlib
 import threading
 import time
-from pathlib import Path
 
-from metta.common.util.fs import wait_for_file
+import metta.common.util.fs
 
 
-def test_wait_for_file_requires_minimum_stability(tmp_path: Path) -> None:
+def test_wait_for_file_requires_minimum_stability(tmp_path: pathlib.Path) -> None:
     """File stability must be checked at least once even with tiny durations."""
 
     target = tmp_path / "artifact.bin"
@@ -24,7 +23,7 @@ def test_wait_for_file_requires_minimum_stability(tmp_path: Path) -> None:
     thread.start()
 
     start = time.monotonic()
-    assert wait_for_file(
+    assert metta.common.util.fs.wait_for_file(
         target,
         timeout=5.0,
         check_interval=0.1,

@@ -4,7 +4,7 @@ import os
 
 import pytest
 
-from metta.tests_support import run_tool_in_process
+import metta.tests_support
 
 
 @pytest.fixture
@@ -20,7 +20,9 @@ def invoke_run_tool(monkeypatch, capsys, with_extra_imports_root):  # noqa: ANN0
     """Fixture that invokes run_tool.main() in-process."""
 
     def _invoke(*args: str):
-        return run_tool_in_process(*args, monkeypatch=monkeypatch, capsys=capsys, argv0="run_tool.py")
+        return metta.tests_support.run_tool_in_process(
+            *args, monkeypatch=monkeypatch, capsys=capsys, argv0="run_tool.py"
+        )
 
     return _invoke
 

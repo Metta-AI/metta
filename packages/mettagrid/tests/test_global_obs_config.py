@@ -1,34 +1,29 @@
 """Test global observation configuration functionality."""
 
-from mettagrid.config.mettagrid_config import (
-    ActionsConfig,
-    AgentConfig,
-    AgentRewards,
-    GameConfig,
-    GlobalObsConfig,
-    MettaGridConfig,
-    MoveActionConfig,
-    NoopActionConfig,
-    ObsConfig,
-    WallConfig,
-)
-from mettagrid.simulator import Action, Simulation
-from mettagrid.test_support.map_builders import ObjectNameMapBuilder
+import mettagrid.config.mettagrid_config
+import mettagrid.simulator
+import mettagrid.test_support.map_builders
 
 
-def create_test_sim(global_obs_config: dict[str, bool]) -> Simulation:
+def create_test_sim(global_obs_config: dict[str, bool]) -> mettagrid.simulator.Simulation:
     """Create test simulation with specified global_obs configuration."""
-    game_config = GameConfig(
+    game_config = mettagrid.config.mettagrid_config.GameConfig(
         num_agents=2,
-        obs=ObsConfig(width=11, height=11, num_tokens=100),
+        obs=mettagrid.config.mettagrid_config.ObsConfig(width=11, height=11, num_tokens=100),
         max_steps=100,
         resource_names=["item1", "item2"],
-        global_obs=GlobalObsConfig(**global_obs_config),
-        agent=AgentConfig(
-            default_resource_limit=10, freeze_duration=0, rewards=AgentRewards(), action_failure_penalty=0
+        global_obs=mettagrid.config.mettagrid_config.GlobalObsConfig(**global_obs_config),
+        agent=mettagrid.config.mettagrid_config.AgentConfig(
+            default_resource_limit=10,
+            freeze_duration=0,
+            rewards=mettagrid.config.mettagrid_config.AgentRewards(),
+            action_failure_penalty=0,
         ),
-        actions=ActionsConfig(noop=NoopActionConfig(enabled=True), move=MoveActionConfig(enabled=True)),
-        objects={"wall": WallConfig(swappable=False)},
+        actions=mettagrid.config.mettagrid_config.ActionsConfig(
+            noop=mettagrid.config.mettagrid_config.NoopActionConfig(enabled=True),
+            move=mettagrid.config.mettagrid_config.MoveActionConfig(enabled=True),
+        ),
+        objects={"wall": mettagrid.config.mettagrid_config.WallConfig(swappable=False)},
     )
 
     game_map = [
@@ -37,14 +32,14 @@ def create_test_sim(global_obs_config: dict[str, bool]) -> Simulation:
         ["wall", "wall", "wall", "wall"],
     ]
 
-    cfg = MettaGridConfig(game=game_config)
-    cfg.game.map_builder = ObjectNameMapBuilder.Config(map_data=game_map)
+    cfg = mettagrid.config.mettagrid_config.MettaGridConfig(game=game_config)
+    cfg.game.map_builder = mettagrid.test_support.map_builders.ObjectNameMapBuilder.Config(map_data=game_map)
 
-    sim = Simulation(cfg, seed=42)
+    sim = mettagrid.simulator.Simulation(cfg, seed=42)
 
     # Step once to populate observations
     for i in range(sim.num_agents):
-        sim.agent(i).set_action(Action(name="noop"))
+        sim.agent(i).set_action(mettagrid.simulator.Action(name="noop"))
     sim.step()
 
     return sim
@@ -120,28 +115,33 @@ def test_all_global_tokens_disabled():
 def test_global_obs_default_values():
     """Test that global_obs uses default values when not specified."""
     # Test with no global_obs specified - should use defaults (all True)
-    game_config = GameConfig(
+    game_config = mettagrid.config.mettagrid_config.GameConfig(
         num_agents=1,
-        obs=ObsConfig(width=11, height=11, num_tokens=100),
+        obs=mettagrid.config.mettagrid_config.ObsConfig(width=11, height=11, num_tokens=100),
         max_steps=100,
         resource_names=["item1"],
         # No global_obs specified - should use defaults
-        agent=AgentConfig(
-            default_resource_limit=10, freeze_duration=0, rewards=AgentRewards(), action_failure_penalty=0
+        agent=mettagrid.config.mettagrid_config.AgentConfig(
+            default_resource_limit=10,
+            freeze_duration=0,
+            rewards=mettagrid.config.mettagrid_config.AgentRewards(),
+            action_failure_penalty=0,
         ),
-        actions=ActionsConfig(noop=NoopActionConfig(enabled=True)),
-        objects={"wall": WallConfig(swappable=False)},
+        actions=mettagrid.config.mettagrid_config.ActionsConfig(
+            noop=mettagrid.config.mettagrid_config.NoopActionConfig(enabled=True)
+        ),
+        objects={"wall": mettagrid.config.mettagrid_config.WallConfig(swappable=False)},
     )
 
     game_map = [["agent.agent"]]
 
-    cfg = MettaGridConfig(game=game_config)
-    cfg.game.map_builder = ObjectNameMapBuilder.Config(map_data=game_map)
+    cfg = mettagrid.config.mettagrid_config.MettaGridConfig(game=game_config)
+    cfg.game.map_builder = mettagrid.test_support.map_builders.ObjectNameMapBuilder.Config(map_data=game_map)
 
-    sim = Simulation(cfg, seed=42)
+    sim = mettagrid.simulator.Simulation(cfg, seed=42)
 
     # Step once to populate observations
-    sim.agent(0).set_action(Action(name="noop"))
+    sim.agent(0).set_action(mettagrid.simulator.Action(name="noop"))
     sim.step()
 
     # Should have all global tokens by default

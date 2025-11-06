@@ -1,15 +1,12 @@
-from __future__ import annotations
 
-from typing import Optional, Tuple
+import typing
 
+import cortex.cells.core.axon_cell
+import cortex.config
+import cortex.types
+import tensordict
 import torch
 import torch.nn as nn
-from tensordict import TensorDict
-
-from cortex.config import AxonConfig
-from cortex.types import MaybeState, ResetMask, Tensor
-
-from .axon_cell import AxonCell
 
 
 class AxonLayer(nn.Module):
@@ -19,9 +16,9 @@ class AxonLayer(nn.Module):
         self,
         in_features: int,
         out_features: int,
-        cfg: Optional[AxonConfig] = None,
+        cfg: typing.Optional[cortex.config.AxonConfig] = None,
         *,
-        name: Optional[str] = None,
+        name: typing.Optional[str] = None,
         group: str = "axon",
     ) -> None:
         super().__init__()
@@ -33,7 +30,7 @@ class AxonLayer(nn.Module):
 
         # Build Axon config with enforced IO sizes
         if cfg is None:
-            cfg = AxonConfig(hidden_size=self.in_features, out_dim=self.out_features)
+            cfg = cortex.config.AxonConfig(hidden_size=self.in_features, out_dim=self.out_features)
             # Sensible defaults for a "linear-like" replacement
             cfg.activation = "identity"
             # Choose input mixing: if power-of-two dim, prefer SRHT; otherwise use untraced linear
@@ -50,24 +47,26 @@ class AxonLayer(nn.Module):
             cfg.activation = "identity"
 
         # Wrapped AxonCell (allow out_dim != hidden_size)
-        self.cell = AxonCell(cfg, enforce_out_dim_eq_hidden=False)
+        self.cell = cortex.cells.core.axon_cell.AxonCell(cfg, enforce_out_dim_eq_hidden=False)
 
         # Plain linear branch
         self.linear = nn.Linear(self.in_features, self.out_features, bias=True)
         # No gating/normalization inside this wrapper
 
     # Expose state path for debugging/tests
-    def state_path(self) -> Tuple[str, str]:
+    def state_path(self) -> typing.Tuple[str, str]:
         return self._state_group, self._state_key
 
-    def _ensure_state(self, batch: int, device: torch.device, dtype: torch.dtype, state: MaybeState) -> TensorDict:
+    def _ensure_state(
+        self, batch: int, device: torch.device, dtype: torch.dtype, state: cortex.types.MaybeState
+    ) -> tensordict.TensorDict:
         """Ensure state[group][name] exists with correct batch/device/dtype and return the group TensorDict."""
         if state is None:
             raise ValueError("AxonLayer requires an explicit parent TensorDict state.")
 
         # Parent state path: create group/key lazily
         if self._state_group not in state.keys():
-            state[self._state_group] = TensorDict({}, batch_size=[batch])
+            state[self._state_group] = tensordict.TensorDict({}, batch_size=[batch])
         group_td = state.get(self._state_group)
         assert group_td is not None
         if self._state_key not in group_td.keys():
@@ -83,11 +82,11 @@ class AxonLayer(nn.Module):
 
     def forward(
         self,
-        x: Tensor,
-        state: MaybeState | None = None,
+        x: cortex.types.Tensor,
+        state: cortex.types.MaybeState | None = None,
         *,
-        resets: Optional[ResetMask] = None,
-    ) -> Tensor:
+        resets: typing.Optional[cortex.types.ResetMask] = None,
+    ) -> cortex.types.Tensor:
         is_step = x.dim() == 2
         if is_step:
             B, H_in = x.shape
@@ -110,7 +109,9 @@ class AxonLayer(nn.Module):
         return y
 
     @torch.no_grad()
-    def reset_state(self, mask: ResetMask, state: MaybeState | None = None) -> MaybeState | None:
+    def reset_state(
+        self, mask: cortex.types.ResetMask, state: cortex.types.MaybeState | None = None
+    ) -> cortex.types.MaybeState | None:
         """Reset AxonCell substate in-place on the parent TensorDict and return the parent."""
         if state is None:
             raise ValueError("AxonLayer.reset_state requires a parent TensorDict state.")
@@ -122,7 +123,7 @@ class AxonLayer(nn.Module):
         return state
 
 
-def update_parent_state(parent: TensorDict, source: TensorDict) -> TensorDict:
+def update_parent_state(parent: tensordict.TensorDict, source: tensordict.TensorDict) -> tensordict.TensorDict:
     """Merge auxiliary entries from ``source`` into ``parent`` without clobbering fresh values."""
     for key in source.keys():
         if key in parent.keys():

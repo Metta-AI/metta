@@ -1,12 +1,10 @@
 # Maximilian Beck
-from typing import Optional
+import typing
 
+import cortex.kernels.triton.slstm.triton_fused.triton_utils
 import torch
 import triton
 import triton.language as tl
-from triton import OutOfResources
-
-from .triton_utils import is_power_of_2, next_multiple_of, torch2triton_dtype
 
 # Dimensions:
 # B: batch size
@@ -506,7 +504,7 @@ def forward_sequence(
     Wx: torch.Tensor,  # (B, T, NGI, NH, DH) inputs
     R: torch.Tensor,  # (NGR, NH, Dout, Din) recurrent weights (Dout == Din == D)
     b: torch.Tensor,  # (NGI, NGI, DH) biases
-    resets: Optional[torch.Tensor] = None,  # (B, T) reset mask applied before timestep updates
+    resets: typing.Optional[torch.Tensor] = None,  # (B, T) reset mask applied before timestep updates
     output_gates_and_states_initial: bool = False,
 ) -> (
     tuple[
@@ -542,7 +540,7 @@ def forward_sequence(
     assert R.dtype == dtype, f"dtype mismatch: R.dtype: {R.dtype}, Wx.dtype: {dtype}."
 
     has_resets = resets is not None
-    resets_prepared: Optional[torch.Tensor]
+    resets_prepared: typing.Optional[torch.Tensor]
     if has_resets:
         if resets.dim() == 1:
             resets = resets.unsqueeze(1).expand(B, T)
@@ -551,10 +549,12 @@ def forward_sequence(
     else:
         resets_prepared = None
 
-    assert is_power_of_2(DH), f"DH must be a power of 2, got {DH}."
+    assert cortex.kernels.triton.slstm.triton_fused.triton_utils.is_power_of_2(DH), (
+        f"DH must be a power of 2, got {DH}."
+    )
     MIN_BATCH_SIZE = 16  # we need at least 16 batches for tl.dot() (16x16 tensor cores)
     ## batch size padding to be a multiple of MIN_BATCH_SIZE
-    effective_B = next_multiple_of(B, MIN_BATCH_SIZE)
+    effective_B = cortex.kernels.triton.slstm.triton_fused.triton_utils.next_multiple_of(B, MIN_BATCH_SIZE)
     if effective_B != B:
         states_initial = torch.cat(
             [
@@ -609,12 +609,12 @@ def forward_sequence(
         assert siz_B >= MIN_BATCH_SIZE, "siz_B must be at least 16"
         if siz_B > effective_B:
             # skip when batch tile exceeds effective B
-            raise OutOfResources(required=siz_B, limit=effective_B, name="siz_B")
+            raise triton.OutOfResources(required=siz_B, limit=effective_B, name="siz_B")
         # Ensure tile sizes fit DH
         if TN > DH:
-            raise OutOfResources(required=TN, limit=DH, name="TN")
+            raise triton.OutOfResources(required=TN, limit=DH, name="TN")
         if TK > DH:
-            raise OutOfResources(required=TK, limit=DH, name="TK")
+            raise triton.OutOfResources(required=TK, limit=DH, name="TK")
         g = (NH, triton.cdiv(B, siz_B))
         return g
 
@@ -635,7 +635,7 @@ def forward_sequence(
         resets=resets_kshaped,
         OUTPUT_GATES=output_gates_and_states_initial,
         HAS_RESETS=has_resets,
-        DTYPE=torch2triton_dtype(dtype),
+        DTYPE=cortex.kernels.triton.slstm.triton_fused.triton_utils.torch2triton_dtype(dtype),
     )
 
     states_out = states_all.permute(1, 2, 3, 0, 4)

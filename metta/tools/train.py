@@ -1,83 +1,68 @@
 import contextlib
+import datetime
 import os
 import platform
-from datetime import timedelta
-from typing import Any, Optional
+import typing
 
+import pydantic
 import torch
-from pydantic import Field, model_validator
 
-from metta.agent.policies.vit import ViTDefaultConfig
-from metta.agent.policy import Policy, PolicyArchitecture
-from metta.agent.util.torch_backends import build_sdpa_context
-from metta.app_backend.clients.stats_client import StatsClient
-from metta.common.tool import Tool
-from metta.common.util.heartbeat import record_heartbeat
-from metta.common.util.log_config import getRankAwareLogger, init_logging
-from metta.common.wandb.context import WandbConfig, WandbContext
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.trainer import Trainer
-from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
-from metta.rl.training import (
-    Checkpointer,
-    CheckpointerConfig,
-    ContextCheckpointer,
-    DistributedHelper,
-    Evaluator,
-    EvaluatorConfig,
-    GradientReporter,
-    GradientReporterConfig,
-    Heartbeat,
-    Monitor,
-    ProgressLogger,
-    Scheduler,
-    SchedulerConfig,
-    StatsReporter,
-    StatsReporterConfig,
-    TorchProfiler,
-    TrainerComponent,
-    TrainingEnvironmentConfig,
-    Uploader,
-    UploaderConfig,
-    VectorizedTrainingEnvironment,
-    WandbAborter,
-    WandbAborterConfig,
-    WandbLogger,
-)
-from metta.tools.utils.auto_config import (
-    auto_run_name,
-    auto_stats_server_uri,
-    auto_wandb_config,
-)
+import metta.agent.policies.vit
+import metta.agent.policy
+import metta.agent.util.torch_backends
+import metta.app_backend.clients.stats_client
+import metta.common.tool
+import metta.common.util.heartbeat
+import metta.common.util.log_config
+import metta.common.wandb.context
+import metta.rl.checkpoint_manager
+import metta.rl.trainer
+import metta.rl.trainer_config
+import metta.rl.training
+import metta.tools.utils.auto_config
 
-logger = getRankAwareLogger(__name__)
+logger = metta.common.util.log_config.getRankAwareLogger(__name__)
 
 
-class TrainTool(Tool):
-    run: Optional[str] = None
+class TrainTool(metta.common.tool.Tool):
+    run: typing.Optional[str] = None
 
-    trainer: TrainerConfig = Field(default_factory=TrainerConfig)
-    training_env: TrainingEnvironmentConfig
-    policy_architecture: PolicyArchitecture = Field(default_factory=ViTDefaultConfig)
-    initial_policy_uri: Optional[str] = None
-    uploader: UploaderConfig = Field(default_factory=UploaderConfig)
-    checkpointer: CheckpointerConfig = Field(default_factory=CheckpointerConfig)
-    gradient_reporter: GradientReporterConfig = Field(default_factory=GradientReporterConfig)
+    trainer: metta.rl.trainer_config.TrainerConfig = pydantic.Field(
+        default_factory=metta.rl.trainer_config.TrainerConfig
+    )
+    training_env: metta.rl.training.TrainingEnvironmentConfig
+    policy_architecture: metta.agent.policy.PolicyArchitecture = pydantic.Field(
+        default_factory=metta.agent.policies.vit.ViTDefaultConfig
+    )
+    initial_policy_uri: typing.Optional[str] = None
+    uploader: metta.rl.training.UploaderConfig = pydantic.Field(default_factory=metta.rl.training.UploaderConfig)
+    checkpointer: metta.rl.training.CheckpointerConfig = pydantic.Field(
+        default_factory=metta.rl.training.CheckpointerConfig
+    )
+    gradient_reporter: metta.rl.training.GradientReporterConfig = pydantic.Field(
+        default_factory=metta.rl.training.GradientReporterConfig
+    )
 
-    stats_server_uri: Optional[str] = auto_stats_server_uri()
-    wandb: WandbConfig = WandbConfig.Unconfigured()
-    group: Optional[str] = None
-    evaluator: EvaluatorConfig = Field(default_factory=EvaluatorConfig)
-    torch_profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
+    stats_server_uri: typing.Optional[str] = metta.tools.utils.auto_config.auto_stats_server_uri()
+    wandb: metta.common.wandb.context.WandbConfig = metta.common.wandb.context.WandbConfig.Unconfigured()
+    group: typing.Optional[str] = None
+    evaluator: metta.rl.training.EvaluatorConfig = pydantic.Field(default_factory=metta.rl.training.EvaluatorConfig)
+    torch_profiler: metta.rl.trainer_config.TorchProfilerConfig = pydantic.Field(
+        default_factory=metta.rl.trainer_config.TorchProfilerConfig
+    )
 
-    context_checkpointer: dict[str, Any] = Field(default_factory=dict)
-    stats_reporter: StatsReporterConfig = Field(default_factory=StatsReporterConfig)
-    wandb_aborter: WandbAborterConfig = Field(default_factory=WandbAborterConfig)
+    context_checkpointer: dict[str, typing.Any] = pydantic.Field(default_factory=dict)
+    stats_reporter: metta.rl.training.StatsReporterConfig = pydantic.Field(
+        default_factory=metta.rl.training.StatsReporterConfig
+    )
+    wandb_aborter: metta.rl.training.WandbAborterConfig = pydantic.Field(
+        default_factory=metta.rl.training.WandbAborterConfig
+    )
 
     map_preview_uri: str | None = None
     disable_macbook_optimize: bool = False
 
-    @model_validator(mode="after")
+    @pydantic.model_validator(mode="after")
     def validate_fields(self) -> "TrainTool":
         if self.evaluator.epoch_interval != 0:
             if self.evaluator.epoch_interval < self.checkpointer.epoch_interval:
@@ -94,10 +79,10 @@ class TrainTool(Tool):
             self.run = args["run"]
 
         if self.run is None:
-            self.run = auto_run_name(prefix="local")
+            self.run = metta.tools.utils.auto_config.auto_run_name(prefix="local")
 
-        if self.wandb == WandbConfig.Unconfigured():
-            self.wandb = auto_wandb_config(self.run)
+        if self.wandb == metta.common.wandb.context.WandbConfig.Unconfigured():
+            self.wandb = metta.tools.utils.auto_config.auto_wandb_config(self.run)
 
         if self.group:
             self.wandb.group = self.group
@@ -108,24 +93,26 @@ class TrainTool(Tool):
         if self.evaluator and self.evaluator.evaluate_local:
             # suppress NCCL watchdog timeouts while ranks wait for master to complete evals
             logger.warning("Local policy evaluation can be inefficient - consider switching to remote evaluation!")
-            self.system.nccl_timeout = timedelta(hours=4)
+            self.system.nccl_timeout = datetime.timedelta(hours=4)
 
-        distributed_helper = DistributedHelper(self.system)
+        distributed_helper = metta.rl.training.DistributedHelper(self.system)
         distributed_helper.scale_batch_config(self.trainer, self.training_env)
 
         self.training_env.seed += distributed_helper.get_rank()
-        env = VectorizedTrainingEnvironment(self.training_env)
+        env = metta.rl.training.VectorizedTrainingEnvironment(self.training_env)
 
         self._configure_torch_backends()
 
-        checkpoint_manager = CheckpointManager(run=self.run or "default", system_cfg=self.system)
+        checkpoint_manager = metta.rl.checkpoint_manager.CheckpointManager(
+            run=self.run or "default", system_cfg=self.system
+        )
 
         # this check is not in the model validator because we setup the remote prefix in `invoke` rather than `init``
         if self.evaluator.evaluate_remote and not checkpoint_manager.remote_checkpoints_enabled:
             raise ValueError("without a remote prefix we cannot use remote evaluation")
 
-        init_logging(run_dir=checkpoint_manager.run_dir)
-        record_heartbeat()
+        metta.common.util.log_config.init_logging(run_dir=checkpoint_manager.run_dir)
+        metta.common.util.heartbeat.record_heartbeat()
 
         policy_checkpointer, policy = self._load_or_create_policy(checkpoint_manager, distributed_helper, env)
         trainer = self._initialize_trainer(env, policy, distributed_helper)
@@ -172,11 +159,11 @@ class TrainTool(Tool):
 
     def _load_or_create_policy(
         self,
-        checkpoint_manager: CheckpointManager,
-        distributed_helper: DistributedHelper,
-        env: VectorizedTrainingEnvironment,
-    ) -> tuple[Checkpointer, Policy]:
-        policy_checkpointer = Checkpointer(
+        checkpoint_manager: metta.rl.checkpoint_manager.CheckpointManager,
+        distributed_helper: metta.rl.training.DistributedHelper,
+        env: metta.rl.training.VectorizedTrainingEnvironment,
+    ) -> tuple[metta.rl.training.Checkpointer, metta.agent.policy.Policy]:
+        policy_checkpointer = metta.rl.training.Checkpointer(
             config=self.checkpointer,
             checkpoint_manager=checkpoint_manager,
             distributed_helper=distributed_helper,
@@ -190,11 +177,11 @@ class TrainTool(Tool):
 
     def _initialize_trainer(
         self,
-        env: VectorizedTrainingEnvironment,
-        policy: Policy,
-        distributed_helper: DistributedHelper,
-    ) -> Trainer:
-        trainer = Trainer(
+        env: metta.rl.training.VectorizedTrainingEnvironment,
+        policy: metta.agent.policy.Policy,
+        distributed_helper: metta.rl.training.DistributedHelper,
+    ) -> metta.rl.trainer.Trainer:
+        trainer = metta.rl.trainer.Trainer(
             self.trainer,
             env,
             policy,
@@ -211,27 +198,29 @@ class TrainTool(Tool):
     def _register_components(
         self,
         *,
-        trainer: Trainer,
-        distributed_helper: DistributedHelper,
-        checkpoint_manager: CheckpointManager,
-        stats_client: Optional[StatsClient],
-        policy_checkpointer: Checkpointer,
+        trainer: metta.rl.trainer.Trainer,
+        distributed_helper: metta.rl.training.DistributedHelper,
+        checkpoint_manager: metta.rl.checkpoint_manager.CheckpointManager,
+        stats_client: typing.Optional[metta.app_backend.clients.stats_client.StatsClient],
+        policy_checkpointer: metta.rl.training.Checkpointer,
         wandb_run,
     ) -> None:
-        components: list[TrainerComponent] = []
+        components: list[metta.rl.training.TrainerComponent] = []
 
         heartbeat_cfg = getattr(self.trainer, "heartbeat", None)
         if heartbeat_cfg is not None:
-            components.append(Heartbeat(epoch_interval=heartbeat_cfg.epoch_interval))
+            components.append(metta.rl.training.Heartbeat(epoch_interval=heartbeat_cfg.epoch_interval))
 
         # Ensure learning-rate schedules stay in sync across ranks
         hyper_cfg = getattr(self.trainer, "hyperparameter_scheduler", None)
         if hyper_cfg and getattr(hyper_cfg, "enabled", False):
             interval = getattr(hyper_cfg, "epoch_interval", 1) or 1
-            hyper_component = Scheduler(SchedulerConfig(interval=max(1, int(interval))))
+            hyper_component = metta.rl.training.Scheduler(
+                metta.rl.training.SchedulerConfig(interval=max(1, int(interval)))
+            )
             components.append(hyper_component)
 
-        stats_component: TrainerComponent | None = None
+        stats_component: metta.rl.training.TrainerComponent | None = None
 
         if distributed_helper.is_master():
             stats_config = self.stats_reporter.model_copy(update={"report_to_wandb": bool(wandb_run)})
@@ -240,9 +229,9 @@ class TrainTool(Tool):
             )
 
             if self.gradient_reporter.epoch_interval:
-                components.append(GradientReporter(self.gradient_reporter))
+                components.append(metta.rl.training.GradientReporter(self.gradient_reporter))
 
-            stats_component = StatsReporter.from_config(
+            stats_component = metta.rl.training.StatsReporter.from_config(
                 stats_config,
                 stats_client=stats_client,
                 wandb_run=wandb_run,
@@ -255,7 +244,7 @@ class TrainTool(Tool):
 
             self.evaluator = self.evaluator.model_copy(deep=True)
             components.append(
-                Evaluator(
+                metta.rl.training.Evaluator(
                     config=self.evaluator,
                     device=torch.device(self.system.device),
                     system_cfg=self.system,
@@ -264,7 +253,7 @@ class TrainTool(Tool):
             )
 
             components.append(
-                Uploader(
+                metta.rl.training.Uploader(
                     config=self.uploader,
                     checkpoint_manager=checkpoint_manager,
                     distributed_helper=distributed_helper,
@@ -272,8 +261,8 @@ class TrainTool(Tool):
                 )
             )
 
-            components.append(Monitor(enabled=reporting_enabled))
-            components.append(ProgressLogger())
+            components.append(metta.rl.training.Monitor(enabled=reporting_enabled))
+            components.append(metta.rl.training.ProgressLogger())
         else:
             components.append(policy_checkpointer)
 
@@ -283,17 +272,17 @@ class TrainTool(Tool):
                 self.context_checkpointer,
             )
 
-        trainer_checkpointer = ContextCheckpointer(
+        trainer_checkpointer = metta.rl.training.ContextCheckpointer(
             checkpoint_manager=checkpoint_manager,
             distributed_helper=distributed_helper,
         )
         components.append(trainer_checkpointer)
 
-        components.append(WandbAborter(wandb_run=wandb_run, config=self.wandb_aborter))
+        components.append(metta.rl.training.WandbAborter(wandb_run=wandb_run, config=self.wandb_aborter))
 
         if distributed_helper.is_master() and getattr(self.torch_profiler, "interval_epochs", 0):
             components.append(
-                TorchProfiler(
+                metta.rl.training.TorchProfiler(
                     profiler_config=self.torch_profiler,
                     wandb_run=wandb_run,
                     run_dir=checkpoint_manager.run_dir,
@@ -307,7 +296,7 @@ class TrainTool(Tool):
             trainer.register(component)
 
         if wandb_run is not None and distributed_helper.is_master():
-            trainer.register(WandbLogger(wandb_run))
+            trainer.register(metta.rl.training.WandbLogger(wandb_run))
 
     def _configure_torch_backends(self) -> None:
         if not torch.cuda.is_available():
@@ -328,7 +317,7 @@ class TrainTool(Tool):
             else:
                 os.environ["FLASH_ATTENTION"] = "1"
 
-        context = build_sdpa_context(
+        context = metta.agent.util.torch_backends.build_sdpa_context(
             prefer_flash=True,
             prefer_mem_efficient=True,
             prefer_math=True,
@@ -343,9 +332,9 @@ class TrainTool(Tool):
 
     def _log_run_configuration(
         self,
-        distributed_helper: DistributedHelper,
-        checkpoint_manager: CheckpointManager,
-        env: VectorizedTrainingEnvironment,
+        distributed_helper: metta.rl.training.DistributedHelper,
+        checkpoint_manager: metta.rl.checkpoint_manager.CheckpointManager,
+        env: metta.rl.training.VectorizedTrainingEnvironment,
     ) -> None:
         if not distributed_helper.is_master():
             return
@@ -359,19 +348,21 @@ class TrainTool(Tool):
             config_file.write(self.model_dump_json(indent=2))
         logger.info(f"Config saved to {config_path}")
 
-    def _maybe_create_stats_client(self, distributed_helper: DistributedHelper) -> Optional[StatsClient]:
+    def _maybe_create_stats_client(
+        self, distributed_helper: metta.rl.training.DistributedHelper
+    ) -> typing.Optional[metta.app_backend.clients.stats_client.StatsClient]:
         if not (distributed_helper.is_master() and self.stats_server_uri):
             return None
         try:
-            return StatsClient.create(stats_server_uri=self.stats_server_uri)
+            return metta.app_backend.clients.stats_client.StatsClient.create(stats_server_uri=self.stats_server_uri)
 
         except Exception as exc:
             logger.warning("Failed to initialize stats client: %s", exc)
             return None
 
-    def _build_wandb_manager(self, distributed_helper: DistributedHelper):
+    def _build_wandb_manager(self, distributed_helper: metta.rl.training.DistributedHelper):
         if distributed_helper.is_master() and self.wandb.enabled:
-            return WandbContext(self.wandb, self)
+            return metta.common.wandb.context.WandbContext(self.wandb, self)
         return contextlib.nullcontext(None)
 
     def _minimize_config_for_debugging(self) -> None:

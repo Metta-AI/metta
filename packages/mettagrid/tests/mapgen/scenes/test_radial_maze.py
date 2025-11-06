@@ -1,11 +1,11 @@
-from mettagrid.mapgen.scenes.radial_maze import RadialMaze
-from mettagrid.test_support.mapgen import render_scene
+import mettagrid.mapgen.scenes.radial_maze
+import mettagrid.test_support.mapgen
 
 
 def test_basic():
     """Test basic functionality of RadialMaze scene."""
-    scene = render_scene(
-        RadialMaze.Config(arms=4, arm_width=2, arm_length=5),
+    scene = mettagrid.test_support.mapgen.render_scene(
+        mettagrid.mapgen.scenes.radial_maze.RadialMaze.Config(arms=4, arm_width=2, arm_length=5),
         (15, 15),
     )
 
@@ -28,8 +28,8 @@ def test_different_arm_counts():
     empty_counts = []
 
     for arms in [4, 6, 8]:
-        scene = render_scene(
-            RadialMaze.Config(arms=arms, arm_width=1, arm_length=4),
+        scene = mettagrid.test_support.mapgen.render_scene(
+            mettagrid.mapgen.scenes.radial_maze.RadialMaze.Config(arms=arms, arm_width=1, arm_length=4),
             (13, 13),
         )
 
@@ -56,8 +56,8 @@ def test_arm_width_variations():
 
     # Note: width=1 and width=2 (or 3 and 4) are the same.
     for arm_width in [2, 4, 6]:
-        scene = render_scene(
-            RadialMaze.Config(arms=5, arm_width=arm_width, arm_length=20),
+        scene = mettagrid.test_support.mapgen.render_scene(
+            mettagrid.mapgen.scenes.radial_maze.RadialMaze.Config(arms=5, arm_width=arm_width, arm_length=20),
             (45, 45),
         )
 
@@ -76,8 +76,8 @@ def test_arm_width_variations():
 
 def test_large_maze():
     """Test radial maze with larger dimensions."""
-    scene = render_scene(
-        RadialMaze.Config(arms=6, arm_width=3, arm_length=8),
+    scene = mettagrid.test_support.mapgen.render_scene(
+        mettagrid.mapgen.scenes.radial_maze.RadialMaze.Config(arms=6, arm_width=3, arm_length=8),
         (25, 25),
     )
 
@@ -97,8 +97,8 @@ def test_large_maze():
 
 def test_auto_arm_length():
     """Test radial maze with automatic arm length calculation."""
-    scene = render_scene(
-        RadialMaze.Config(
+    scene = mettagrid.test_support.mapgen.render_scene(
+        mettagrid.mapgen.scenes.radial_maze.RadialMaze.Config(
             arms=4,
             arm_width=1,
             arm_length=None,  # Should auto-calculate
@@ -117,8 +117,8 @@ def test_auto_arm_length():
 
 def test_minimum_arms():
     """Test with minimum number of arms."""
-    scene = render_scene(
-        RadialMaze.Config(
+    scene = mettagrid.test_support.mapgen.render_scene(
+        mettagrid.mapgen.scenes.radial_maze.RadialMaze.Config(
             arms=4,  # minimum allowed
             arm_width=1,
             arm_length=3,
@@ -133,8 +133,8 @@ def test_minimum_arms():
 
 def test_maximum_arms():
     """Test with maximum number of arms."""
-    scene = render_scene(
-        RadialMaze.Config(
+    scene = mettagrid.test_support.mapgen.render_scene(
+        mettagrid.mapgen.scenes.radial_maze.RadialMaze.Config(
             arms=12,  # maximum allowed
             arm_width=1,
             arm_length=4,
@@ -153,8 +153,8 @@ def test_maximum_arms():
 
 def test_small_grid():
     """Test radial maze on a small grid."""
-    scene = render_scene(
-        RadialMaze.Config(arms=4, arm_width=1, arm_length=2),
+    scene = mettagrid.test_support.mapgen.render_scene(
+        mettagrid.mapgen.scenes.radial_maze.RadialMaze.Config(arms=4, arm_width=1, arm_length=2),
         (7, 7),
     )
 

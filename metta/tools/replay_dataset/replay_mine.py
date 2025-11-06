@@ -10,31 +10,28 @@ This script:
 """
 
 import argparse
+import dataclasses
+import datetime
 import json
 import logging
+import pathlib
 import sys
+import typing
 import zlib
-from dataclasses import dataclass
-from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Any
 
 import pandas as pd
 
-from metta.common.util.constants import (
-    PROD_STATS_SERVER_URI,
-    SOFTMAX_S3_REPLAYS_PREFIX,
-)
-from metta.utils.file import local_copy
+import metta.common.util.constants
+import metta.utils.file
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclasses.dataclass
 class ReplaySample:
     """A single training sample extracted from a replay."""
 
-    observation: dict[str, Any]
+    observation: dict[str, typing.Any]
     action: int
     agent_id: int
     episode_id: str
@@ -57,12 +54,12 @@ class ReplayMiner:
         self.environment = environment
         self.samples: list[ReplaySample] = []
 
-    def load_replay(self, replay_url: str) -> dict[str, Any] | None:
+    def load_replay(self, replay_url: str) -> dict[str, typing.Any] | None:
         """Load and decompress a replay file from S3 or local path.
 
         Returns None if replay is not version 2 (skipped).
         """
-        with local_copy(replay_url) as local_path:
+        with metta.utils.file.local_copy(replay_url) as local_path:
             compressed = local_path.read_bytes()
             decompressed = zlib.decompress(compressed)
             replay_data = json.loads(decompressed)
@@ -75,7 +72,7 @@ class ReplayMiner:
 
             return replay_data
 
-    def extract_samples_from_replay(self, replay_data: dict[str, Any], episode_id: str) -> list[ReplaySample]:
+    def extract_samples_from_replay(self, replay_data: dict[str, typing.Any], episode_id: str) -> list[ReplaySample]:
         """Extract (observation, action) pairs from a single replay."""
         samples = []
         max_steps = replay_data["max_steps"]
@@ -110,7 +107,7 @@ class ReplayMiner:
 
         return samples
 
-    def _extract_timeseries(self, data: Any, max_steps: int) -> list[Any]:
+    def _extract_timeseries(self, data: typing.Any, max_steps: int) -> list[typing.Any]:
         """Convert replay time series format to per-timestep list."""
         if not isinstance(data, list):
             # Static value - replicate for all timesteps
@@ -136,7 +133,7 @@ class ReplayMiner:
         # Single value
         return [data] * max_steps
 
-    def _extract_location_timeseries(self, data: Any, max_steps: int) -> list[list[float]]:
+    def _extract_location_timeseries(self, data: typing.Any, max_steps: int) -> list[list[float]]:
         """Extract location time series."""
         if isinstance(data, list) and len(data) == 3:
             # Static location
@@ -167,9 +164,9 @@ class ReplayMiner:
 
     def _get_replay_urls_from_api(self) -> list[str]:
         """Query replay URLs via HTTP stats API for a specific date."""
-        from metta.app_backend.clients.stats_client import HttpStatsClient
+        import metta.app_backend.clients.stats_client
 
-        with HttpStatsClient(backend_url=self.stats_db_uri) as client:
+        with metta.app_backend.clients.stats_client.HttpStatsClient(backend_url=self.stats_db_uri) as client:
             # Build SQL query to get replay URLs for the specified date
             query = f"""
                 SELECT replay_url
@@ -191,17 +188,15 @@ class ReplayMiner:
 
     def _get_replay_urls_from_db(self) -> list[str]:
         """Query replay URLs via direct database access."""
-        from metta.sim.simulation_stats_db import SimulationStatsDB
+        import metta.sim.simulation_stats_db
 
-        with SimulationStatsDB.from_uri(self.stats_db_uri) as db:
+        with metta.sim.simulation_stats_db.SimulationStatsDB.from_uri(self.stats_db_uri) as db:
             return db.get_replay_urls(env=self.environment)
 
     def get_earliest_replay_date(self) -> str | None:
         """Query database for earliest replay date with replays."""
         if self.stats_db_uri.startswith("http://") or self.stats_db_uri.startswith("https://"):
-            from metta.app_backend.clients.stats_client import HttpStatsClient
-
-            with HttpStatsClient(backend_url=self.stats_db_uri) as client:
+            with metta.app_backend.clients.stats_client.HttpStatsClient(backend_url=self.stats_db_uri) as client:
                 query = """
                     SELECT MIN(DATE(created_at)) as earliest_date
                     FROM episodes
@@ -210,9 +205,7 @@ class ReplayMiner:
                 result = client.sql_query(query)
                 return result.rows[0][0] if result.rows and result.rows[0][0] else None
         else:
-            from metta.sim.simulation_stats_db import SimulationStatsDB
-
-            with SimulationStatsDB.from_uri(self.stats_db_uri) as db:
+            with metta.sim.simulation_stats_db.SimulationStatsDB.from_uri(self.stats_db_uri) as db:
                 # Query for earliest date with replays
                 cursor = db._connection.execute(
                     """
@@ -224,7 +217,7 @@ class ReplayMiner:
                 row = cursor.fetchone()
                 return row[0] if row and row[0] else None
 
-    def mine_replays(self) -> dict[str, Any]:
+    def mine_replays(self) -> dict[str, typing.Any]:
         """Query database, download replays, and extract samples for a specific date."""
         logger.info(f"Mining replays from {self.stats_db_uri}")
         logger.info(f"Date: {self.date}")
@@ -271,7 +264,7 @@ class ReplayMiner:
 
         # Create local directory if needed (S3 paths are handled by pandas automatically)
         if not output_uri.startswith("s3://"):
-            output_path = Path(output_uri)
+            output_path = pathlib.Path(output_uri)
             output_path.parent.mkdir(parents=True, exist_ok=True)
             logger.info(f"Saving to local path: {output_uri}")
         else:
@@ -341,7 +334,7 @@ def main():
     parser.add_argument(
         "--stats-db-uri",
         type=str,
-        default=PROD_STATS_SERVER_URI,
+        default=metta.common.util.constants.PROD_STATS_SERVER_URI,
         help="Stats database URI (HTTP API, local path, or s3://)",
     )
     parser.add_argument(
@@ -369,14 +362,14 @@ def main():
     parser.add_argument(
         "--output-prefix",
         type=str,
-        default=SOFTMAX_S3_REPLAYS_PREFIX,
+        default=metta.common.util.constants.SOFTMAX_S3_REPLAYS_PREFIX,
         help="Output directory or S3 prefix (default: production S3 bucket)",
     )
 
     args = parser.parse_args()
 
     try:
-        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        yesterday = (datetime.datetime.now() - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
 
         # Determine processing mode and date range
         if args.backfill_all:
@@ -410,11 +403,11 @@ def main():
 
         # Generate list of dates to process
         dates_to_process = []
-        current = datetime.strptime(start_date, "%Y-%m-%d")
-        end = datetime.strptime(end_date, "%Y-%m-%d")
+        current = datetime.datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.datetime.strptime(end_date, "%Y-%m-%d")
         while current <= end:
             dates_to_process.append(current.strftime("%Y-%m-%d"))
-            current += timedelta(days=1)
+            current += datetime.timedelta(days=1)
 
         logger.info(f"Total dates to process: {len(dates_to_process)}")
 

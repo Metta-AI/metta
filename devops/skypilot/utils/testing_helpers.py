@@ -3,29 +3,23 @@ Framework for launching and checking SkyPilot test jobs.
 """
 
 import argparse
+import dataclasses
+import datetime
 import json
+import pathlib
 import re
 import subprocess
 import sys
-from dataclasses import dataclass
-from datetime import datetime
-from pathlib import Path
-from typing import Any, Optional
+import typing
 
 import sky
 
-from devops.skypilot.utils.job_helpers import (
-    check_git_state,
-    check_job_statuses,
-    get_job_id_from_request_id,
-    get_request_id_from_launch_output,
-    tail_job_log,
-)
-from metta.common.util.retry import retry_function
-from metta.common.util.text_styles import bold, cyan, green, magenta, red, yellow
+import devops.skypilot.utils.job_helpers
+import metta.common.util.retry
+import metta.common.util.text_styles
 
 
-@dataclass
+@dataclasses.dataclass
 class TestCondition:
     """Configuration for a test condition."""
 
@@ -35,18 +29,18 @@ class TestCondition:
     ci: bool = False
 
 
-@dataclass
+@dataclasses.dataclass
 class LaunchedJob:
     """Information about a launched job."""
 
-    job_id: Optional[str]
-    request_id: Optional[str]
+    job_id: typing.Optional[str]
+    request_id: typing.Optional[str]
     run_name: str
-    test_config: dict[str, Any]
+    test_config: dict[str, typing.Any]
     launch_time: str
     success: bool
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, typing.Any]:
         """Convert to dictionary for JSON serialization."""
         return {
             "job_id": self.job_id,
@@ -69,7 +63,7 @@ class SkyPilotTestLauncher:
 
     def generate_run_name(self, test_name: str, extra_suffix: str = "") -> str:
         """Generate a descriptive run name with timestamp."""
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         suffix = f"_{extra_suffix}" if extra_suffix else ""
 
         # Replace slashes with underscores for Sky compatibility
@@ -82,27 +76,29 @@ class SkyPilotTestLauncher:
         if self.skip_git_check:
             return True
 
-        print(f"\n{bold('Checking git state...')}")
+        print(f"\n{metta.common.util.text_styles.bold('Checking git state...')}")
         import gitta as git
 
         commit_hash = git.get_current_commit()
-        error_message = check_git_state(commit_hash)
+        error_message = devops.skypilot.utils.job_helpers.check_git_state(commit_hash)
 
         if error_message:
             print(error_message)
             print("  - Skip check: add --skip-git-check flag")
             return False
 
-        print(f"{green('✅ Git state is clean')}")
+        print(f"{metta.common.util.text_styles.green('✅ Git state is clean')}")
         return True
 
-    def _execute_launch_command(self, cmd: list[str]) -> tuple[Optional[str], Optional[str], dict[str, Any]]:
+    def _execute_launch_command(
+        self, cmd: list[str]
+    ) -> tuple[typing.Optional[str], typing.Optional[str], dict[str, typing.Any]]:
         """Execute the launch command and extract IDs. Returns (job_id, request_id, debug_info)."""
         result = subprocess.run(cmd, capture_output=True, text=True)
         full_output = result.stdout + "\n" + result.stderr
 
         # Extract request ID
-        request_id = get_request_id_from_launch_output(full_output)
+        request_id = devops.skypilot.utils.job_helpers.get_request_id_from_launch_output(full_output)
 
         if not request_id:
             # Check for known error patterns
@@ -117,26 +113,30 @@ class SkyPilotTestLauncher:
             }
             raise Exception(f"Failed to get request ID from launch output. Debug: {debug_info}")
 
-        print(f"  {green('✅ Launched successfully')} - Request ID: {yellow(request_id)}")
+        print(
+            f"  {metta.common.util.text_styles.green('✅ Launched successfully')} - Request ID: {metta.common.util.text_styles.yellow(request_id)}"
+        )
 
         # Try to get job ID with retries using retry_function
         def get_job_id_with_wait() -> str:
-            job_id = get_job_id_from_request_id(request_id, wait_seconds=2.0)
+            job_id = devops.skypilot.utils.job_helpers.get_job_id_from_request_id(request_id, wait_seconds=2.0)
             if not job_id:
                 raise Exception("Job ID not available yet")
             return job_id
 
         try:
-            job_id = retry_function(
+            job_id = metta.common.util.retry.retry_function(
                 get_job_id_with_wait,
                 max_retries=2,
                 initial_delay=2.0,
             )
-            print(f"  {green('✅ Job ID retrieved:')} {yellow(job_id)}")
+            print(
+                f"  {metta.common.util.text_styles.green('✅ Job ID retrieved:')} {metta.common.util.text_styles.yellow(job_id)}"
+            )
         except Exception:
             # Job ID not available yet, but launch was successful
             job_id = None
-            print(f"  {cyan('ℹ️  Job ID not available yet (may need more time)')}")
+            print(f"  {metta.common.util.text_styles.cyan('ℹ️  Job ID not available yet (may need more time)')}")
 
         return job_id, request_id, {}
 
@@ -146,7 +146,7 @@ class SkyPilotTestLauncher:
         run_name: str,
         base_args: list[str],
         extra_args: list[str],
-        test_config: dict[str, Any],
+        test_config: dict[str, typing.Any],
         enable_ci_tests: bool = False,
         max_attempts: int = 3,
     ) -> LaunchedJob:
@@ -167,14 +167,16 @@ class SkyPilotTestLauncher:
             cmd.append("--skip-git-check")
 
         # Display launch info
-        print(f"\n{bold('Launching job:')} {magenta(run_name)}")
+        print(
+            f"\n{metta.common.util.text_styles.bold('Launching job:')} {metta.common.util.text_styles.magenta(run_name)}"
+        )
         print("  Test Configuration: {")
         for key, value in test_config.items():
-            print(f"    {cyan(f'{key}:')} {value}")
+            print(f"    {metta.common.util.text_styles.cyan(f'{key}:')} {value}")
         print("  }")
 
         try:
-            job_id, request_id, debug_info = retry_function(
+            job_id, request_id, debug_info = metta.common.util.retry.retry_function(
                 lambda: self._execute_launch_command(cmd),
                 max_retries=max_attempts - 1,
             )
@@ -184,7 +186,7 @@ class SkyPilotTestLauncher:
                 request_id=request_id,
                 run_name=run_name,
                 test_config=test_config,
-                launch_time=datetime.now().isoformat(),
+                launch_time=datetime.datetime.now().isoformat(),
                 success=True,
             )
             self.launched_jobs.append(job)
@@ -192,26 +194,26 @@ class SkyPilotTestLauncher:
 
         except Exception as e:
             # All retries exhausted
-            print(f"  {red(f'❌ Failed to launch job after {max_attempts} attempts')}")
-            print(f"  {red('Final error:')} {str(e)}")
+            print(f"  {metta.common.util.text_styles.red(f'❌ Failed to launch job after {max_attempts} attempts')}")
+            print(f"  {metta.common.util.text_styles.red('Final error:')} {str(e)}")
 
             job = LaunchedJob(
                 job_id=None,
                 request_id=None,
                 run_name=run_name,
                 test_config={**test_config, "error": str(e)},
-                launch_time=datetime.now().isoformat(),
+                launch_time=datetime.datetime.now().isoformat(),
                 success=False,
             )
             self.failed_launches.append(job)
             return job
 
-    def save_results(self, output_file: str = "skypilot_test_jobs.json") -> Path:
+    def save_results(self, output_file: str = "skypilot_test_jobs.json") -> pathlib.Path:
         """Save launch results to JSON file."""
         output_data = {
             "test_run_info": {
                 "base_name": self.base_name,
-                "launch_time": datetime.now().isoformat(),
+                "launch_time": datetime.datetime.now().isoformat(),
                 "total_jobs": len(self.launched_jobs) + len(self.failed_launches),
                 "successful_launches": len(self.launched_jobs),
                 "failed_launches": len(self.failed_launches),
@@ -220,7 +222,7 @@ class SkyPilotTestLauncher:
             "failed_launches": [job.to_dict() for job in self.failed_launches],
         }
 
-        output_path = Path(output_file)
+        output_path = pathlib.Path(output_file)
         with open(output_path, "w") as f:
             json.dump(output_data, f, indent=2)
 
@@ -228,23 +230,23 @@ class SkyPilotTestLauncher:
 
     def print_summary(self) -> None:
         """Print launch summary."""
-        print(f"\n{bold('=== Launch Summary ===')}")
+        print(f"\n{metta.common.util.text_styles.bold('=== Launch Summary ===')}")
         if len(self.launched_jobs) > 0:
-            print(f"{green('Successfully launched:')} {len(self.launched_jobs)} jobs")
+            print(f"{metta.common.util.text_styles.green('Successfully launched:')} {len(self.launched_jobs)} jobs")
         if len(self.failed_launches) > 0:
-            print(f"{red('Failed to launch:')} {len(self.failed_launches)} jobs")
+            print(f"{metta.common.util.text_styles.red('Failed to launch:')} {len(self.failed_launches)} jobs")
 
         if self.launched_jobs:
             self._print_summary_table()
 
         if self.failed_launches:
-            print(f"\n{red('Failed launches:')}")
+            print(f"\n{metta.common.util.text_styles.red('Failed launches:')}")
             for job in self.failed_launches:
                 print(f"  • {job.run_name}")
 
     def _print_summary_table(self) -> None:
         """Print a summary table of launched jobs with dynamic column widths."""
-        print("\n" + bold("Launched Jobs Summary:"))
+        print("\n" + metta.common.util.text_styles.bold("Launched Jobs Summary:"))
 
         if self.launched_jobs:
             # Get all unique keys from test configs
@@ -315,9 +317,9 @@ class JobSummaryParser:
     """Parse job summary information from logs."""
 
     @staticmethod
-    def parse_job_summary(log_content: str) -> dict[str, Optional[str]]:
+    def parse_job_summary(log_content: str) -> dict[str, typing.Optional[str]]:
         """Parse job summary information from log content."""
-        summary: dict[str, Optional[str]] = {
+        summary: dict[str, typing.Optional[str]] = {
             "exit_code": None,
             "termination_reason": None,
             "metta_run_id": None,
@@ -361,62 +363,62 @@ class StatusFormatter:
     def format_status(status: str) -> str:
         """Format status with color coding."""
         if status in ["RUNNING", "PROVISIONING"]:
-            return cyan(status)
+            return metta.common.util.text_styles.cyan(status)
         elif status == "SUCCEEDED":
-            return green(status)
+            return metta.common.util.text_styles.green(status)
         elif status in ["FAILED", "CANCELLED", "FAILED_SETUP"]:
-            return red(status)
+            return metta.common.util.text_styles.red(status)
         else:
-            return yellow(status)
+            return metta.common.util.text_styles.yellow(status)
 
     @staticmethod
-    def format_exit_code(code: Optional[str]) -> str:
+    def format_exit_code(code: typing.Optional[str]) -> str:
         """Format exit code with color coding."""
         if code is None:
             return "-"
         elif code == "0":
-            return green(code)
+            return metta.common.util.text_styles.green(code)
         else:
-            return red(code)
+            return metta.common.util.text_styles.red(code)
 
     @staticmethod
-    def format_restart_count(count: Optional[str]) -> str:
+    def format_restart_count(count: typing.Optional[str]) -> str:
         """Format restart count with color coding."""
         if count is None:
             return "-"
         elif count == "0":
-            return green(count)
+            return metta.common.util.text_styles.green(count)
         else:
-            return yellow(count)
+            return metta.common.util.text_styles.yellow(count)
 
     @staticmethod
-    def format_termination_reason(reason: Optional[str]) -> str:
+    def format_termination_reason(reason: typing.Optional[str]) -> str:
         """Format termination reason with color coding."""
         if reason is None:
             return "-"
         elif reason == "job_completed":
-            return green(reason)
+            return metta.common.util.text_styles.green(reason)
         elif reason in ["heartbeat_timeout", "max_runtime_reached"]:
-            return yellow(reason)
+            return metta.common.util.text_styles.yellow(reason)
         else:
-            return red(reason)
+            return metta.common.util.text_styles.red(reason)
 
 
 class SkyPilotJobChecker:
     """Check status of SkyPilot jobs."""
 
     def __init__(self, input_file: str = "skypilot_test_jobs.json"):
-        self.input_file = Path(input_file)
+        self.input_file = pathlib.Path(input_file)
         self.jobs_data: dict = {}
         self.job_statuses: dict[int, dict] = {}
-        self.job_summaries: dict[int, dict[str, Optional[str]]] = {}
+        self.job_summaries: dict[int, dict[str, typing.Optional[str]]] = {}
         self.parser = JobSummaryParser()
         self.formatter = StatusFormatter()
 
     def load_jobs(self) -> bool:
         """Load job data from JSON file."""
         if not self.input_file.exists():
-            print(red(f"Error: Input file '{self.input_file}' not found"))
+            print(metta.common.util.text_styles.red(f"Error: Input file '{self.input_file}' not found"))
             return False
 
         with open(self.input_file, "r") as f:
@@ -428,18 +430,18 @@ class SkyPilotJobChecker:
         """Check status of all jobs."""
         launched_jobs = self.jobs_data.get("launched_jobs", [])
         if not launched_jobs:
-            print(yellow("No launched jobs found in the input file"))
+            print(metta.common.util.text_styles.yellow("No launched jobs found in the input file"))
             return
 
         # Get all job IDs and check their statuses
         job_ids = [int(job["job_id"]) for job in launched_jobs if job.get("job_id")]
-        self.job_statuses = check_job_statuses(job_ids)
+        self.job_statuses = devops.skypilot.utils.job_helpers.check_job_statuses(job_ids)
 
     def parse_all_summaries(self, tail_lines: int = 200) -> None:
         """Parse job summaries from logs for all jobs."""
         launched_jobs = self.jobs_data.get("launched_jobs", [])
 
-        print(f"\n{cyan('Parsing job logs for detailed information...')}")
+        print(f"\n{metta.common.util.text_styles.cyan('Parsing job logs for detailed information...')}")
         total_jobs = len([job for job in launched_jobs if job.get("job_id")])
         processed = 0
 
@@ -448,12 +450,12 @@ class SkyPilotJobChecker:
             if job_id_str:
                 processed += 1
                 print(
-                    f"  [{processed}/{total_jobs}] Processing job {yellow(job_id_str)}...",
+                    f"  [{processed}/{total_jobs}] Processing job {metta.common.util.text_styles.yellow(job_id_str)}...",
                     end="\r",
                 )
 
                 job_id = int(job_id_str)
-                log_content = tail_job_log(job_id_str, tail_lines)
+                log_content = devops.skypilot.utils.job_helpers.tail_job_log(job_id_str, tail_lines)
 
                 # Clear the progress line
                 print(" " * 100, end="\r")
@@ -465,29 +467,31 @@ class SkyPilotJobChecker:
                     log_lines = log_content.strip().split("\n")
                     last_lines = log_lines[-5:] if len(log_lines) > 5 else log_lines
 
-                    print(f"{green(f'[{processed}/{total_jobs}]')} Job {yellow(job_id_str)}:")
-                    print(f"  {bold('Last log lines:')}")
+                    print(
+                        f"{metta.common.util.text_styles.green(f'[{processed}/{total_jobs}]')} Job {metta.common.util.text_styles.yellow(job_id_str)}:"
+                    )
+                    print(f"  {metta.common.util.text_styles.bold('Last log lines:')}")
                     for line in last_lines:
                         truncated = line[:100] + "..." if len(line) > 100 else line
                         print(f"    {truncated}")
                     print()
                 else:
                     print(
-                        f"{yellow(f'[{processed}/{total_jobs}]')} Job {yellow(job_id_str)}: "
-                        f"{yellow('No job logs found')}"
+                        f"{metta.common.util.text_styles.yellow(f'[{processed}/{total_jobs}]')} Job {metta.common.util.text_styles.yellow(job_id_str)}: "
+                        f"{metta.common.util.text_styles.yellow('No job logs found')}"
                     )
                     self.job_summaries[job_id] = {}
 
-        print(f"{green('✔')} Parsed logs for {processed} jobs\n")
+        print(f"{metta.common.util.text_styles.green('✔')} Parsed logs for {processed} jobs\n")
 
     def print_quick_summary(self) -> dict[str, int]:
         """Print a quick status summary and return status counts."""
         launched_jobs = self.jobs_data.get("launched_jobs", [])
 
-        print(f"\n{bold('Job Status Summary:')}")
+        print(f"\n{metta.common.util.text_styles.bold('Job Status Summary:')}")
 
         if not launched_jobs:
-            print(yellow("No jobs found"))
+            print(metta.common.util.text_styles.yellow("No jobs found"))
             return {}
 
         # Collect status counts
@@ -575,7 +579,7 @@ class SkyPilotJobChecker:
 
                 # Format special columns
                 if header == "job_id":
-                    value_display = yellow(value)
+                    value_display = metta.common.util.text_styles.yellow(value)
                 elif header == "status":
                     value_display = self.formatter.format_status(value)
                 else:
@@ -592,7 +596,7 @@ class SkyPilotJobChecker:
         print("─" * table_width)
 
         # Print status summary
-        print(f"\n{bold('Status Summary:')}")
+        print(f"\n{metta.common.util.text_styles.bold('Status Summary:')}")
         for status, count in sorted(status_counts.items()):
             print(f"  {self.formatter.format_status(status)}: {count}")
 
@@ -604,7 +608,7 @@ class SkyPilotJobChecker:
         if not launched_jobs:
             return
 
-        print(f"\n{bold('Detailed Job Status:')}")
+        print(f"\n{metta.common.util.text_styles.bold('Detailed Job Status:')}")
 
         # Determine columns based on job data
         base_headers = ["Job ID", "Status", "Restarts", "Termination", "Exit Code"]
@@ -690,7 +694,7 @@ class SkyPilotJobChecker:
             row_parts = []
 
             # Job ID
-            job_id_display = yellow(job_id_str)
+            job_id_display = metta.common.util.text_styles.yellow(job_id_str)
             row_parts.append(self._format_cell(job_id_display, col_widths["Job ID"]))
 
             # Status
@@ -736,7 +740,7 @@ class SkyPilotJobChecker:
         """Show detailed logs for each job."""
         launched_jobs = self.jobs_data.get("launched_jobs", [])
 
-        print(f"\n{bold('Detailed Logs:')}")
+        print(f"\n{metta.common.util.text_styles.bold('Detailed Logs:')}")
 
         for job in launched_jobs:
             job_id_str = job.get("job_id")
@@ -750,31 +754,39 @@ class SkyPilotJobChecker:
 
             # Display job header
             print("\n" + "=" * 80)
-            print(f"{bold('Job ID:')} {yellow(job_id_str)} ({self.formatter.format_status(status)})")
-            print(f"{bold('Run Name:')} {cyan(job['run_name'])}")
+            print(
+                f"{metta.common.util.text_styles.bold('Job ID:')} {metta.common.util.text_styles.yellow(job_id_str)} ({self.formatter.format_status(status)})"
+            )
+            print(
+                f"{metta.common.util.text_styles.bold('Run Name:')} {metta.common.util.text_styles.cyan(job['run_name'])}"
+            )
 
             # Display test configuration
             for key, value in job.items():
                 if key not in ["job_id", "request_id", "run_name", "launch_time", "success"]:
-                    print(f"{bold(f'{key.title()}:')} {value}")
+                    print(f"{metta.common.util.text_styles.bold(f'{key.title()}:')} {value}")
 
             # Show parsed summary info
             if any(summary.values()):
-                print(f"{bold('Exit Code:')} {self.formatter.format_exit_code(summary.get('exit_code'))}")
-                print(f"{bold('Restart Count:')} {self.formatter.format_restart_count(summary.get('restart_count'))}")
                 print(
-                    f"{bold('Termination:')} "
+                    f"{metta.common.util.text_styles.bold('Exit Code:')} {self.formatter.format_exit_code(summary.get('exit_code'))}"
+                )
+                print(
+                    f"{metta.common.util.text_styles.bold('Restart Count:')} {self.formatter.format_restart_count(summary.get('restart_count'))}"
+                )
+                print(
+                    f"{metta.common.util.text_styles.bold('Termination:')} "
                     f"{self.formatter.format_termination_reason(summary.get('termination_reason'))}"
                 )
 
             print("=" * 80)
 
             # Get and display log content
-            log_content = tail_job_log(job_id_str, tail_lines)
+            log_content = devops.skypilot.utils.job_helpers.tail_job_log(job_id_str, tail_lines)
             if log_content:
                 print(log_content)
             else:
-                print(yellow("No log content available"))
+                print(metta.common.util.text_styles.yellow("No log content available"))
 
             print("\n" + "-" * 80)
 
@@ -873,10 +885,10 @@ Examples:
 
         # Summary header
         test_info = checker.jobs_data.get("test_run_info", {})
-        print(bold(f"\n=== Checking {len(launched_jobs)} {self.test_type} Jobs ==="))
-        print(f"{cyan('Test run:')} {test_info.get('base_name', 'Unknown')}")
-        print(f"{cyan('Launch time:')} {test_info.get('launch_time', 'Unknown')}")
-        print(f"{cyan('Input file:')} {args.input_file}")
+        print(metta.common.util.text_styles.bold(f"\n=== Checking {len(launched_jobs)} {self.test_type} Jobs ==="))
+        print(f"{metta.common.util.text_styles.cyan('Test run:')} {test_info.get('base_name', 'Unknown')}")
+        print(f"{metta.common.util.text_styles.cyan('Launch time:')} {test_info.get('launch_time', 'Unknown')}")
+        print(f"{metta.common.util.text_styles.cyan('Input file:')} {args.input_file}")
 
         # Check job statuses
         checker.check_statuses()
@@ -895,17 +907,17 @@ Examples:
             checker.show_detailed_logs(args.tail_lines)
 
         # Print hints
-        print(f"\n{bold('Hints:')}")
-        print(f"  • Use {cyan('check -l')} to view detailed job logs")
-        print(f"  • Use {cyan('check -n <lines>')} to change log lines to tail")
-        print(f"  • Use {cyan('sky jobs logs <job_id>')} to view a single job's full log")
+        print(f"\n{metta.common.util.text_styles.bold('Hints:')}")
+        print(f"  • Use {metta.common.util.text_styles.cyan('check -l')} to view detailed job logs")
+        print(f"  • Use {metta.common.util.text_styles.cyan('check -n <lines>')} to change log lines to tail")
+        print(f"  • Use {metta.common.util.text_styles.cyan('sky jobs logs <job_id>')} to view a single job's full log")
 
     def kill_tests(self, args) -> None:
         """Kill all jobs from a test run."""
         # Load jobs data
-        input_path = Path(args.input_file)
+        input_path = pathlib.Path(args.input_file)
         if not input_path.exists():
-            print(red(f"Error: Input file '{input_path}' not found"))
+            print(metta.common.util.text_styles.red(f"Error: Input file '{input_path}' not found"))
             print(f"Run '{self.prog_name} launch' first to create the job file")
             sys.exit(1)
 
@@ -919,46 +931,50 @@ Examples:
         job_ids = [job["job_id"] for job in launched_jobs if job.get("job_id")]
 
         if not job_ids:
-            print(yellow("No jobs found to kill"))
+            print(metta.common.util.text_styles.yellow("No jobs found to kill"))
             return
 
         # Show what will be killed
         test_info = jobs_data.get("test_run_info", {})
-        print(bold(f"\n=== Kill {len(job_ids)} {self.test_type} Jobs ==="))
-        print(f"{cyan('Test run:')} {test_info.get('base_name', 'Unknown')}")
-        print(f"{cyan('Launch time:')} {test_info.get('launch_time', 'Unknown')}")
-        print(f"{cyan('Jobs to kill:')} {', '.join(job_ids)}")
+        print(metta.common.util.text_styles.bold(f"\n=== Kill {len(job_ids)} {self.test_type} Jobs ==="))
+        print(f"{metta.common.util.text_styles.cyan('Test run:')} {test_info.get('base_name', 'Unknown')}")
+        print(f"{metta.common.util.text_styles.cyan('Launch time:')} {test_info.get('launch_time', 'Unknown')}")
+        print(f"{metta.common.util.text_styles.cyan('Jobs to kill:')} {', '.join(job_ids)}")
 
         # Kill each job
-        print(f"\n{cyan('Killing jobs...')}")
+        print(f"\n{metta.common.util.text_styles.cyan('Killing jobs...')}")
         killed_count = 0
         completed_count = 0
         failed_kills = []
 
         for i, job_id in enumerate(job_ids):
-            print(f"  [{i + 1}/{len(job_ids)}] Killing job {yellow(job_id)}...", end="", flush=True)
+            print(
+                f"  [{i + 1}/{len(job_ids)}] Killing job {metta.common.util.text_styles.yellow(job_id)}...",
+                end="",
+                flush=True,
+            )
 
             success, status = self._kill_job_with_retry(job_id)
 
             if success:
                 if status == "Killed":
                     killed_count += 1
-                    print(f" {red('✗')} {status}")
+                    print(f" {metta.common.util.text_styles.red('✗')} {status}")
                 else:  # "Already completed" or "Not found"
                     completed_count += 1
-                    print(f" {green('✓')} {status}")
+                    print(f" {metta.common.util.text_styles.green('✓')} {status}")
             else:
                 failed_kills.append((job_id, status))
-                print(f" {red('✗ Failed')}: {status}")
+                print(f" {metta.common.util.text_styles.red('✗ Failed')}: {status}")
 
         # Summary
-        print(f"\n{bold('=== Summary ===')}")
+        print(f"\n{metta.common.util.text_styles.bold('=== Summary ===')}")
         if killed_count > 0:
-            print(f"{yellow('Killed:')} {killed_count} jobs")
+            print(f"{metta.common.util.text_styles.yellow('Killed:')} {killed_count} jobs")
         if completed_count > 0:
-            print(f"{green('Already completed:')} {completed_count} jobs")
+            print(f"{metta.common.util.text_styles.green('Already completed:')} {completed_count} jobs")
         if failed_kills:
-            print(f"{red('Failed:')} {len(failed_kills)} jobs")
+            print(f"{metta.common.util.text_styles.red('Failed:')} {len(failed_kills)} jobs")
 
         # Exit with error if any kills failed
         if failed_kills:
@@ -987,7 +1003,7 @@ Examples:
                 raise
 
         try:
-            success, status = retry_function(
+            success, status = metta.common.util.retry.retry_function(
                 execute_kill,
                 max_retries=max_attempts - 1,
                 initial_delay=1.0,

@@ -3,18 +3,18 @@
 import gzip
 import logging
 import os
+import pathlib
 import shutil
 import tempfile
-from pathlib import Path
-from typing import Any, Optional
+import typing
 
 import torch.profiler
 import wandb
 
-from metta.common.wandb.context import WandbRun
-from metta.rl.training import ComponentContext, TrainerComponent
-from metta.rl.utils import should_run
-from metta.utils.file import http_url, is_public_uri, write_file
+import metta.common.wandb.context
+import metta.rl.training
+import metta.rl.utils
+import metta.utils.file
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +26,9 @@ class TorchProfileSession:
         self,
         *,
         master: bool,
-        profiler_config: Any,
-        wandb_run: WandbRun | None,
-        run_dir: Path | None,
+        profiler_config: typing.Any,
+        wandb_run: metta.common.wandb.context.WandbRun | None,
+        run_dir: pathlib.Path | None,
     ) -> None:
         self._master = master
         self._profiler_config = profiler_config
@@ -42,7 +42,7 @@ class TorchProfileSession:
 
     def on_epoch_end(self, epoch: int) -> None:
         force = (epoch == self._first_profile_epoch) if not self._active else False
-        if should_run(epoch, getattr(self._profiler_config, "interval_epochs", 0), force=force):
+        if metta.rl.utils.should_run(epoch, getattr(self._profiler_config, "interval_epochs", 0), force=force):
             self._setup_profiler(epoch)
 
     def _setup_profiler(self, epoch: int) -> None:
@@ -111,10 +111,10 @@ class TorchProfileSession:
         try:
             self._export_profile(prof, temp_json_path)
             self._compress_trace(temp_json_path, final_gz_path)
-            write_file(upload_path, final_gz_path, content_type="application/gzip")
-            upload_url = http_url(upload_path)
+            metta.utils.file.write_file(upload_path, final_gz_path, content_type="application/gzip")
+            upload_url = metta.utils.file.http_url(upload_path)
 
-            if is_public_uri(upload_url) and self._wandb_run:
+            if metta.utils.file.is_public_uri(upload_url) and self._wandb_run:
                 link_summary = {
                     "torch_traces/link": wandb.Html(
                         f'<a href="{upload_url}">Torch Trace (Epoch {self._start_epoch})</a>'
@@ -138,15 +138,15 @@ class TorchProfileSession:
             logger.debug("Unable to delete temporary torch profile %s", input_path)
 
 
-class TorchProfiler(TrainerComponent):
+class TorchProfiler(metta.rl.training.TrainerComponent):
     """Manages torch profiling during training."""
 
     def __init__(
         self,
         *,
-        profiler_config: Any,
-        wandb_run: Optional[WandbRun] = None,
-        run_dir: Optional[Path] = None,
+        profiler_config: typing.Any,
+        wandb_run: typing.Optional[metta.common.wandb.context.WandbRun] = None,
+        run_dir: typing.Optional[pathlib.Path] = None,
         is_master: bool = True,
     ) -> None:
         interval = getattr(profiler_config, "interval_epochs", 0)
@@ -155,11 +155,11 @@ class TorchProfiler(TrainerComponent):
         self._wandb_run = wandb_run
         self._run_dir = run_dir
         self._is_master = is_master
-        self._session: Optional[TorchProfileSession] = None
+        self._session: typing.Optional[TorchProfileSession] = None
         self._original_train_epoch = None
         self._master_only = True
 
-    def register(self, context: ComponentContext) -> None:  # type: ignore[override]
+    def register(self, context: metta.rl.training.ComponentContext) -> None:  # type: ignore[override]
         super().register(context)
         interval = getattr(self._config, "interval_epochs", 0)
         if not interval:

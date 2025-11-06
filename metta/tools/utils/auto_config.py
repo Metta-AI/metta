@@ -1,29 +1,29 @@
+import dataclasses
+import datetime
 import os
-from dataclasses import dataclass
-from datetime import datetime
-from typing import Any, Literal
+import typing
 
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+import pydantic
+import pydantic_settings
 
-from metta.common.util.collections import remove_falsey, remove_none_values
-from metta.common.util.constants import METTA_AWS_ACCOUNT_ID
-from metta.common.wandb.context import WandbConfig
-from metta.setup.components.aws import AWSSetup as _AWSSetup
-from metta.setup.components.wandb import WandbSetup
+import metta.common.util.collections
+import metta.common.util.constants
+import metta.common.wandb.context
+import metta.setup.components.aws
+import metta.setup.components.wandb
 
 
-class SupportedWandbEnvOverrides(BaseSettings):
-    model_config = SettingsConfigDict(
+class SupportedWandbEnvOverrides(pydantic_settings.BaseSettings):
+    model_config = pydantic_settings.SettingsConfigDict(
         extra="ignore",
     )
 
-    WANDB_ENABLED: bool | None = Field(default=None, description="Enable Weights & Biases")
-    WANDB_PROJECT: str | None = Field(default=None, description="Weights & Biases project")
-    WANDB_ENTITY: str | None = Field(default=None, description="Weights & Biases entity")
+    WANDB_ENABLED: bool | None = pydantic.Field(default=None, description="Enable Weights & Biases")
+    WANDB_PROJECT: str | None = pydantic.Field(default=None, description="Weights & Biases project")
+    WANDB_ENTITY: str | None = pydantic.Field(default=None, description="Weights & Biases entity")
 
     def to_config_settings(self) -> dict[str, str | bool]:
-        return remove_none_values(
+        return metta.common.util.collections.remove_none_values(
             {
                 "enabled": self.WANDB_ENABLED,
                 "project": self.WANDB_PROJECT,
@@ -35,8 +35,8 @@ class SupportedWandbEnvOverrides(BaseSettings):
 supported_tool_overrides = SupportedWandbEnvOverrides()
 
 
-def _merge_wandb_settings(*settings_dicts: dict[str, Any]) -> dict[str, Any]:
-    merged: dict[str, Any] = {}
+def _merge_wandb_settings(*settings_dicts: dict[str, typing.Any]) -> dict[str, typing.Any]:
+    merged: dict[str, typing.Any] = {}
     for settings in settings_dicts:
         for key, value in settings.items():
             if value is None:
@@ -46,14 +46,14 @@ def _merge_wandb_settings(*settings_dicts: dict[str, Any]) -> dict[str, Any]:
 
 
 def auto_wandb_config(run: str | None = None, group: str | None = None, tags: list[str] | None = None) -> "WandbConfig":
-    wandb_setup_module = WandbSetup()
+    wandb_setup_module = metta.setup.components.wandb.WandbSetup()
     merged_settings = _merge_wandb_settings(
-        WandbConfig.Off().model_dump(),
+        metta.common.wandb.context.WandbConfig.Off().model_dump(),
         wandb_setup_module.to_config_settings(),  # type: ignore[arg-type]
         supported_tool_overrides.to_config_settings(),
     )
 
-    cfg = WandbConfig(**merged_settings)
+    cfg = metta.common.wandb.context.WandbConfig(**merged_settings)
 
     if run:
         cfg.run_id = run
@@ -68,13 +68,13 @@ def auto_wandb_config(run: str | None = None, group: str | None = None, tags: li
     return cfg
 
 
-class SupportedObservatoryEnvOverrides(BaseSettings):
-    model_config = SettingsConfigDict(
+class SupportedObservatoryEnvOverrides(pydantic_settings.BaseSettings):
+    model_config = pydantic_settings.SettingsConfigDict(
         extra="ignore",
     )
 
-    STATS_SERVER_ENABLED: bool | None = Field(default=None, description="If true, use the stats server")
-    STATS_SERVER_URI: str | None = Field(default=None, description="Stats server URI")
+    STATS_SERVER_ENABLED: bool | None = pydantic.Field(default=None, description="If true, use the stats server")
+    STATS_SERVER_URI: str | None = pydantic.Field(default=None, description="Stats server URI")
 
     def to_config_settings(self) -> dict[str, str | None]:
         # If explicitly disabled, do not use stats server
@@ -90,24 +90,26 @@ supported_observatory_env_overrides = SupportedObservatoryEnvOverrides()
 
 
 def auto_stats_server_uri() -> str | None:
-    from metta.setup.components.observatory_key import ObservatoryKeySetup
+    import metta.setup.components.observatory_key
 
     return {
-        **ObservatoryKeySetup().to_config_settings(),  # type: ignore
+        **metta.setup.components.observatory_key.ObservatoryKeySetup().to_config_settings(),  # type: ignore
         **supported_observatory_env_overrides.to_config_settings(),
     }.get("stats_server_uri")
 
 
-class SupportedAwsEnvOverrides(BaseSettings):
-    model_config = SettingsConfigDict(
+class SupportedAwsEnvOverrides(pydantic_settings.BaseSettings):
+    model_config = pydantic_settings.SettingsConfigDict(
         extra="ignore",
     )
 
-    REPLAY_DIR: str | None = Field(default=None, description="Replay directory")
-    POLICY_REMOTE_PREFIX: str | None = Field(default=None, description="Override policy remote prefix (s3://...)")
+    REPLAY_DIR: str | None = pydantic.Field(default=None, description="Replay directory")
+    POLICY_REMOTE_PREFIX: str | None = pydantic.Field(
+        default=None, description="Override policy remote prefix (s3://...)"
+    )
 
     def to_config_settings(self) -> dict[str, str]:
-        return remove_none_values(
+        return metta.common.util.collections.remove_none_values(
             {
                 "replay_dir": self.REPLAY_DIR,
                 "policy_remote_prefix": self.POLICY_REMOTE_PREFIX,
@@ -118,7 +120,7 @@ class SupportedAwsEnvOverrides(BaseSettings):
 supported_aws_env_overrides = SupportedAwsEnvOverrides()
 
 # Expose AWS setup factory at module scope so tests and consumers can override it.
-AWSSetup = _AWSSetup
+AWSSetup = metta.setup.components.aws.AWSSetup
 
 
 def auto_replay_dir() -> str:
@@ -136,11 +138,11 @@ def _join_prefix(prefix: str, run: str | None) -> str:
     return f"{cleaned_prefix}/{run}"
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class PolicyStorageDecision:
     base_prefix: str | None
     remote_prefix: str | None
-    reason: Literal[
+    reason: typing.Literal[
         "env_override",
         "softmax_connected",
         "aws_not_enabled",
@@ -172,7 +174,7 @@ def auto_policy_storage_decision(run: str | None = None) -> PolicyStorageDecisio
     cleaned_base = base_prefix.rstrip("/")
 
     connected_account = aws_setup_module.check_connected_as()
-    if connected_account != METTA_AWS_ACCOUNT_ID:
+    if connected_account != metta.common.util.constants.METTA_AWS_ACCOUNT_ID:
         return PolicyStorageDecision(base_prefix=cleaned_base, remote_prefix=None, reason="not_connected")
 
     remote = _join_prefix(cleaned_base, run) if run else None
@@ -181,11 +183,11 @@ def auto_policy_storage_decision(run: str | None = None) -> PolicyStorageDecisio
 
 def auto_run_name(prefix: str | None = None) -> str:
     return ".".join(
-        remove_falsey(
+        metta.common.util.collections.remove_falsey(
             [
                 prefix,
                 os.getenv("USER", "unknown"),
-                datetime.now().strftime("%Y%m%d.%H%M%S"),
+                datetime.datetime.now().strftime("%Y%m%d.%H%M%S"),
             ]
         )
     )

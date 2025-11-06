@@ -1,11 +1,11 @@
 import math
 import random
-from copy import deepcopy
+import copy
 
 import numpy as np
 import pyro
 import torch
-from pyro.contrib import gp as gp
+import pyro.contrib
 
 import pufferlib
 
@@ -208,7 +208,7 @@ class Hyperparameters:
         return np.array(values)
 
     def to_dict(self, sample, fill=None):
-        params = deepcopy(self.spaces) if fill is None else fill
+        params = copy.deepcopy(self.spaces) if fill is None else fill
         self._fill(params, self.spaces, sample)
         return params
 
@@ -326,12 +326,12 @@ def create_gp(x_dim, scale_length=1.0):
     X = scale_length * torch.ones((1, x_dim))
     y = torch.zeros((1,))
 
-    matern_kernel = gp.kernels.Matern32(input_dim=x_dim, lengthscale=X)
-    linear_kernel = gp.kernels.Polynomial(x_dim, degree=1)
-    kernel = gp.kernels.Sum(linear_kernel, matern_kernel)
+    matern_kernel = pyro.contrib.gp.kernels.Matern32(input_dim=x_dim, lengthscale=X)
+    linear_kernel = pyro.contrib.gp.kernels.Polynomial(x_dim, degree=1)
+    kernel = pyro.contrib.gp.kernels.Sum(linear_kernel, matern_kernel)
 
     # Params taken from HEBO: https://arxiv.org/abs/2012.03826
-    model = gp.models.GPRegression(X, y, kernel=kernel, jitter=1.0e-4)
+    model = pyro.contrib.gp.models.GPRegression(X, y, kernel=kernel, jitter=1.0e-4)
     model.noise = pyro.nn.PyroSample(pyro.distributions.LogNormal(math.log(1e-2), 0.5))
     optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
     return model, optimizer
@@ -399,7 +399,7 @@ class Protein:
 
         self.gp_score.set_data(params, torch.from_numpy(y_norm))
         self.gp_score.train()
-        gp.util.train(self.gp_score, self.score_opt)
+        pyro.contrib.gp.util.train(self.gp_score, self.score_opt)
         self.gp_score.eval()
 
         # Log costs
@@ -415,7 +415,7 @@ class Protein:
         self.gp_cost.mean_function = lambda x: 1
         self.gp_cost.set_data(params, torch.from_numpy(log_c_norm))
         self.gp_cost.train()
-        gp.util.train(self.gp_cost, self.cost_opt)
+        pyro.contrib.gp.util.train(self.gp_cost, self.cost_opt)
         self.gp_cost.eval()
 
         candidates, pareto_idxs = pareto_points(self.success_observations)
@@ -566,12 +566,7 @@ class Protein:
 
 
 def _carbs_params_from_puffer_sweep(sweep_config):
-    from carbs import (
-        LinearSpace,
-        LogitSpace,
-        LogSpace,
-        Param,
-    )
+    import carbs
 
     param_spaces = {}
     for name, param in sweep_config.items():
@@ -591,17 +586,17 @@ def _carbs_params_from_puffer_sweep(sweep_config):
             max=param["max"],
         )
         if distribution == "uniform":
-            space = LinearSpace(**kwargs)
+            space = carbs.LinearSpace(**kwargs)
         elif distribution in ("int_uniform", "uniform_pow2"):
-            space = LinearSpace(**kwargs, is_integer=True)
+            space = carbs.LinearSpace(**kwargs, is_integer=True)
         elif distribution == "log_normal":
-            space = LogSpace(**kwargs)
+            space = carbs.LogSpace(**kwargs)
         elif distribution == "logit_normal":
-            space = LogitSpace(**kwargs)
+            space = carbs.LogitSpace(**kwargs)
         else:
             raise ValueError(f"Invalid distribution: {distribution}")
 
-        param_spaces[name] = Param(name=name, space=space, search_center=search_center)
+        param_spaces[name] = carbs.Param(name=name, space=space, search_center=search_center)
 
     return param_spaces
 
@@ -619,12 +614,7 @@ class Carbs:
         for e in flat_spaces:
             print(e.name, e.space)
 
-        from carbs import (
-            CARBS,
-            CARBSParams,
-        )
-
-        carbs_params = CARBSParams(
+        carbs_params = carbs.CARBSParams(
             better_direction_sign=1,
             is_wandb_logging_enabled=False,
             resample_frequency=resample_frequency,
@@ -632,7 +622,7 @@ class Carbs:
             max_suggestion_cost=max_suggestion_cost,
             is_saved_on_every_observation=False,
         )
-        self.carbs = CARBS(carbs_params, flat_spaces)
+        self.carbs = carbs.CARBS(carbs_params, flat_spaces)
 
     def suggest(self, args):
         self.suggestion = self.carbs.suggest().suggestion
@@ -642,10 +632,9 @@ class Carbs:
                     args[k][name] = self.suggestion[name]
 
     def observe(self, hypers, score, cost, is_failure=False):
-        from carbs import ObservationInParam
 
         self.carbs.observe(
-            ObservationInParam(
+            carbs.ObservationInParam(
                 input=self.suggestion,
                 output=score,
                 cost=cost,

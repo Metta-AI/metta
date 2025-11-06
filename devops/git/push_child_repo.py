@@ -11,15 +11,15 @@ Assumes any repo to publish is in packages/<repo>.
 """
 
 import argparse
+import pathlib
 import sys
-from pathlib import Path
 
 import gitta as git
-from metta.common.util.constants import METTA_GITHUB_ORGANIZATION
+import metta.common.util.constants
 
 
 def get_remote_url(package_name: str) -> str:
-    return f"https://github.com/{METTA_GITHUB_ORGANIZATION}/{package_name}.git"
+    return f"https://github.com/{metta.common.util.constants.METTA_GITHUB_ORGANIZATION}/{package_name}.git"
 
 
 def sync_repo(package_name: str, dry_run: bool = False, skip_confirmation: bool = False):
@@ -39,7 +39,7 @@ def sync_repo(package_name: str, dry_run: bool = False, skip_confirmation: bool 
     print("\nFiltering repository...")
     try:
         # Filter to package path and make it the repository root
-        filtered_path = git.filter_repo(Path.cwd(), paths, make_root=package_path + "/")
+        filtered_path = git.filter_repo(pathlib.Path.cwd(), paths, make_root=package_path + "/")
     except Exception as e:
         print(f"Filter failed: {e}")
         sys.exit(1)

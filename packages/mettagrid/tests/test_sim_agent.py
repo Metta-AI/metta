@@ -2,40 +2,34 @@
 
 import numpy as np
 
-from mettagrid.config.mettagrid_config import (
-    ActionsConfig,
-    AgentConfig,
-    GameConfig,
-    MettaGridConfig,
-    MoveActionConfig,
-    NoopActionConfig,
-    ObsConfig,
-    WallConfig,
-)
-from mettagrid.simulator import Action, Simulation
-from mettagrid.test_support.map_builders import ObjectNameMapBuilder
+import mettagrid.config.mettagrid_config
+import mettagrid.simulator
+import mettagrid.test_support.map_builders
 
 
-def create_test_sim(initial_inventory: dict[str, int] | None = None) -> Simulation:
+def create_test_sim(initial_inventory: dict[str, int] | None = None) -> mettagrid.simulator.Simulation:
     """Create a test simulation with optional initial inventory."""
     if initial_inventory is None:
         initial_inventory = {"wood": 5, "stone": 3, "iron": 1}
 
-    game_config = GameConfig(
+    game_config = mettagrid.config.mettagrid_config.GameConfig(
         max_steps=50,
         num_agents=2,
-        obs=ObsConfig(width=3, height=3, num_tokens=50),
+        obs=mettagrid.config.mettagrid_config.ObsConfig(width=3, height=3, num_tokens=50),
         resource_names=["wood", "stone", "iron"],
-        actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
-        objects={"wall": WallConfig()},
-        agent=AgentConfig(
+        actions=mettagrid.config.mettagrid_config.ActionsConfig(
+            noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
+            move=mettagrid.config.mettagrid_config.MoveActionConfig(),
+        ),
+        objects={"wall": mettagrid.config.mettagrid_config.WallConfig()},
+        agent=mettagrid.config.mettagrid_config.AgentConfig(
             resource_limits={"wood": 10, "stone": 10, "iron": 10},
             initial_inventory=initial_inventory,
         ),
     )
 
-    cfg = MettaGridConfig(game=game_config)
-    cfg.game.map_builder = ObjectNameMapBuilder.Config(
+    cfg = mettagrid.config.mettagrid_config.MettaGridConfig(game=game_config)
+    cfg.game.map_builder = mettagrid.test_support.map_builders.ObjectNameMapBuilder.Config(
         map_data=[
             ["wall", "wall", "wall", "wall", "wall"],
             ["wall", "agent.default", "empty", "agent.default", "wall"],
@@ -44,7 +38,7 @@ def create_test_sim(initial_inventory: dict[str, int] | None = None) -> Simulati
         ]
     )
 
-    return Simulation(cfg, seed=42)
+    return mettagrid.simulator.Simulation(cfg, seed=42)
 
 
 class TestSimulationAgentProperties:
@@ -66,7 +60,7 @@ class TestSimulationAgentProperties:
 
         # Step once to populate observations
         for i in range(sim.num_agents):
-            sim.agent(i).set_action(Action(name="noop"))
+            sim.agent(i).set_action(mettagrid.simulator.Action(name="noop"))
         sim.step()
 
         agent = sim.agent(0)
@@ -87,7 +81,7 @@ class TestSimulationAgentProperties:
 
         # Step once to populate observations
         for i in range(sim.num_agents):
-            sim.agent(i).set_action(Action(name="noop"))
+            sim.agent(i).set_action(mettagrid.simulator.Action(name="noop"))
         sim.step()
 
         agent = sim.agent(0)
@@ -104,7 +98,7 @@ class TestSimulationAgentProperties:
 
         # Step once
         for i in range(sim.num_agents):
-            sim.agent(i).set_action(Action(name="noop"))
+            sim.agent(i).set_action(mettagrid.simulator.Action(name="noop"))
         sim.step()
 
         agent = sim.agent(0)
@@ -124,9 +118,9 @@ class TestSimulationAgentProperties:
         assert agent.step_reward == 0.0
 
         # Step with noop
-        agent.set_action(Action(name="noop"))
+        agent.set_action(mettagrid.simulator.Action(name="noop"))
         for i in range(1, sim.num_agents):
-            sim.agent(i).set_action(Action(name="noop"))
+            sim.agent(i).set_action(mettagrid.simulator.Action(name="noop"))
         sim.step()
 
         # Reward should still be accessible (may be 0 or some value)
@@ -146,7 +140,7 @@ class TestSimulationAgentProperties:
         # Take a few steps
         for _ in range(3):
             for i in range(sim.num_agents):
-                sim.agent(i).set_action(Action(name="noop"))
+                sim.agent(i).set_action(mettagrid.simulator.Action(name="noop"))
             sim.step()
 
         # Episode reward should be accessible
@@ -164,11 +158,11 @@ class TestSimulationAgentActions:
         agent = sim.agent(0)
 
         # Set action should not raise
-        agent.set_action(Action(name="noop"))
+        agent.set_action(mettagrid.simulator.Action(name="noop"))
 
         # Complete the step for all agents
         for i in range(1, sim.num_agents):
-            sim.agent(i).set_action(Action(name="noop"))
+            sim.agent(i).set_action(mettagrid.simulator.Action(name="noop"))
 
         sim.step()
 
@@ -180,8 +174,8 @@ class TestSimulationAgentActions:
         sim = create_test_sim()
 
         # Agent 0: noop, Agent 1: move
-        sim.agent(0).set_action(Action(name="noop"))
-        sim.agent(1).set_action(Action(name="move_east"))
+        sim.agent(0).set_action(mettagrid.simulator.Action(name="noop"))
+        sim.agent(1).set_action(mettagrid.simulator.Action(name="move_east"))
 
         sim.step()
 
@@ -204,7 +198,7 @@ class TestSimulationAgentInventoryModification:
 
         # Step to update observations
         for i in range(sim.num_agents):
-            sim.agent(i).set_action(Action(name="noop"))
+            sim.agent(i).set_action(mettagrid.simulator.Action(name="noop"))
         sim.step()
 
         # Check inventory was updated
@@ -224,7 +218,7 @@ class TestSimulationAgentInventoryModification:
 
         # Step to update observations
         for i in range(sim.num_agents):
-            sim.agent(i).set_action(Action(name="noop"))
+            sim.agent(i).set_action(mettagrid.simulator.Action(name="noop"))
         sim.step()
 
         # Check inventory
@@ -245,7 +239,7 @@ class TestSimulationAgentInventoryModification:
 
         # Step to update observations
         for i in range(sim.num_agents):
-            sim.agent(i).set_action(Action(name="noop"))
+            sim.agent(i).set_action(mettagrid.simulator.Action(name="noop"))
         sim.step()
 
         # All resources should be 0
@@ -268,7 +262,7 @@ class TestMultipleAgents:
 
         # Step
         for i in range(sim.num_agents):
-            sim.agent(i).set_action(Action(name="noop"))
+            sim.agent(i).set_action(mettagrid.simulator.Action(name="noop"))
         sim.step()
 
         # Check they have different inventory

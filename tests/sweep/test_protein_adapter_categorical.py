@@ -1,14 +1,14 @@
-from typing import Any
+import typing
 
 import pytest
 
-from metta.sweep.core import CategoricalParameterConfig, ParameterConfig
-from metta.sweep.optimizer.protein import ProteinOptimizer
-from metta.sweep.protein_config import ProteinConfig, ProteinSettings
+import metta.sweep.core
+import metta.sweep.optimizer.protein
+import metta.sweep.protein_config
 
 
 class DummyProtein:
-    def __init__(self, protein_dict: dict, **kwargs: Any):
+    def __init__(self, protein_dict: dict, **kwargs: typing.Any):
         # Capture flattened numeric-only dict (categoricals converted)
         self.protein_dict = protein_dict
         self.kwargs = kwargs
@@ -27,23 +27,23 @@ class DummyProtein:
 
 def test_protein_adapter_encodes_observations_and_decodes_suggestions(monkeypatch):
     # Build a config containing a categorical parameter
-    config = ProteinConfig(
+    config = metta.sweep.protein_config.ProteinConfig(
         metric="evaluator/eval_sweep/score",
         goal="maximize",
         parameters={
             "model": {
-                "color": CategoricalParameterConfig(choices=["red", "blue", "butt"]),
+                "color": metta.sweep.core.CategoricalParameterConfig(choices=["red", "blue", "butt"]),
             },
             # include at least one numeric parameter to ensure path still works
             "trainer": {
                 "optimizer": {
-                    "learning_rate": ParameterConfig(
+                    "learning_rate": metta.sweep.core.ParameterConfig(
                         min=1e-5, max=1e-3, distribution="log_normal", mean=1e-4, scale="auto"
                     ),
                 }
             },
         },
-        settings=ProteinSettings(num_random_samples=0),
+        settings=metta.sweep.protein_config.ProteinSettings(num_random_samples=0),
     )
 
     # Monkeypatch the Protein class used in the adapter
@@ -51,7 +51,7 @@ def test_protein_adapter_encodes_observations_and_decodes_suggestions(monkeypatc
 
     monkeypatch.setattr(adapter_module, "Protein", DummyProtein)
 
-    optimizer = ProteinOptimizer(config)
+    optimizer = metta.sweep.optimizer.protein.ProteinOptimizer(config)
 
     # Provide an observation with a categorical value and ensure it is encoded to int
     observations = [
@@ -81,12 +81,12 @@ def test_protein_adapter_encodes_observations_and_decodes_suggestions(monkeypatc
 
 
 def test_empty_categorical_choices_raises(monkeypatch):
-    config = ProteinConfig(
+    config = metta.sweep.protein_config.ProteinConfig(
         metric="evaluator/eval_sweep/score",
         goal="maximize",
         parameters={
             "model": {
-                "color": CategoricalParameterConfig(choices=[]),
+                "color": metta.sweep.core.CategoricalParameterConfig(choices=[]),
             },
         },
     )
@@ -96,6 +96,6 @@ def test_empty_categorical_choices_raises(monkeypatch):
 
     monkeypatch.setattr(adapter_module, "Protein", DummyProtein)
 
-    optimizer = ProteinOptimizer(config)
+    optimizer = metta.sweep.optimizer.protein.ProteinOptimizer(config)
     with pytest.raises(ValueError):
         optimizer.suggest(observations=[], n_suggestions=1)

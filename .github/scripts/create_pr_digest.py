@@ -6,14 +6,14 @@
 # ]
 # ///
 
+import datetime
 import json
 import logging
 import os
+import pathlib
 import sys
-from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple
-from zoneinfo import ZoneInfo
+import typing
+import zoneinfo
 
 import requests
 
@@ -21,12 +21,12 @@ import requests
 class CachedPRSummary:
     """Represents a PR summary loaded from cache."""
 
-    def __init__(self, pr_number: int, summary_file: Path):
+    def __init__(self, pr_number: int, summary_file: pathlib.Path):
         self.pr_number = pr_number
         self.summary_file = summary_file
         self._metadata = None
 
-    def load_metadata(self) -> Optional[Dict]:
+    def load_metadata(self) -> typing.Optional[typing.Dict]:
         """Load and parse metadata from the cached summary file."""
         if self._metadata is not None:
             return self._metadata
@@ -63,14 +63,14 @@ class CachedPRSummary:
             logging.error(f"Error loading metadata from {self.summary_file}: {e}")
             return None
 
-    def is_in_date_range(self, since: datetime, until: datetime) -> bool:
+    def is_in_date_range(self, since: datetime.datetime, until: datetime.datetime) -> bool:
         """Check if this PR was merged within the given date range."""
         metadata = self.load_metadata()
         if not metadata or not metadata.get("merged_at"):
             return False
 
         try:
-            merged_at = datetime.fromisoformat(metadata["merged_at"].replace("Z", "+00:00"))
+            merged_at = datetime.datetime.fromisoformat(metadata["merged_at"].replace("Z", "+00:00"))
             return since <= merged_at <= until
         except Exception as e:
             logging.error(f"Error parsing merge date for PR #{self.pr_number}: {e}")
@@ -88,7 +88,7 @@ class CachedPRSummary:
 class PRDigestCreator:
     """Creates a digest of merged PRs, utilizing cache effectively."""
 
-    def __init__(self, token: str, repository: str, filter_author: Optional[str] = None):
+    def __init__(self, token: str, repository: str, filter_author: typing.Optional[str] = None):
         self.token = token
         self.repository = repository
         self.filter_author = filter_author
@@ -100,9 +100,9 @@ class PRDigestCreator:
                 "User-Agent": "PR-Digest-Creator/1.0",
             }
         )
-        self.summaries_dir = Path("pr-summaries")
+        self.summaries_dir = pathlib.Path("pr-summaries")
 
-    def load_all_cached_summaries(self) -> Dict[int, CachedPRSummary]:
+    def load_all_cached_summaries(self) -> typing.Dict[int, CachedPRSummary]:
         """Load all cached PR summaries from disk."""
         cached_summaries = {}
 
@@ -121,7 +121,9 @@ class PRDigestCreator:
 
         return cached_summaries
 
-    def get_merged_prs_in_range(self, since: datetime, until: datetime, include_drafts: bool = False) -> List[Dict]:
+    def get_merged_prs_in_range(
+        self, since: datetime.datetime, until: datetime.datetime, include_drafts: bool = False
+    ) -> typing.List[typing.Dict]:
         """Fetch list of merged PRs within the date range from GitHub API."""
         url = f"https://api.github.com/repos/{self.repository}/pulls"
         params = {"state": "closed", "sort": "updated", "direction": "desc", "per_page": 100}
@@ -154,7 +156,7 @@ class PRDigestCreator:
                 if not date_field:
                     continue
 
-                closed_at = datetime.fromisoformat(date_field.replace("Z", "+00:00"))
+                closed_at = datetime.datetime.fromisoformat(date_field.replace("Z", "+00:00"))
 
                 # Apply author filter if specified
                 if self.filter_author and pr["user"]["login"].lower() != self.filter_author.lower():
@@ -193,7 +195,7 @@ class PRDigestCreator:
         logging.info(f"Found {len(all_prs)} merged PRs{author_msg} in date range from GitHub API")
         return all_prs
 
-    def get_pr_details(self, pr_number: int) -> Optional[Dict]:
+    def get_pr_details(self, pr_number: int) -> typing.Optional[typing.Dict]:
         """Get detailed information for a specific PR including diff."""
         try:
             # Get basic PR info
@@ -236,15 +238,15 @@ class PRDigestCreator:
 
     def create_digest(
         self, since_str: str, until_str: str, include_drafts: bool = False
-    ) -> Tuple[List[Dict], Dict[str, int]]:
+    ) -> typing.Tuple[typing.List[typing.Dict], typing.Dict[str, int]]:
         """Create a complete digest of PRs for the time period.
 
         Returns:
             - List of PR details (for PRs that need to be processed)
             - Statistics dictionary
         """
-        since = datetime.fromisoformat(since_str.replace("Z", "+00:00"))
-        until = datetime.fromisoformat(until_str.replace("Z", "+00:00"))
+        since = datetime.datetime.fromisoformat(since_str.replace("Z", "+00:00"))
+        until = datetime.datetime.fromisoformat(until_str.replace("Z", "+00:00"))
 
         author_msg = f" by {self.filter_author}" if self.filter_author else ""
         logging.info(f"Creating PR digest for {self.repository}{author_msg} from {since_str} to {until_str}")
@@ -364,7 +366,7 @@ def main():
     # Determine the end date
     if historical_end_date and is_historical:
         try:
-            until_date = datetime.strptime(historical_end_date, "%Y-%m-%d")
+            until_date = datetime.datetime.strptime(historical_end_date, "%Y-%m-%d")
             # Make it end of day in UTC
             until_date = until_date.replace(hour=23, minute=59, second=59)
             logging.info(f"Using end date {historical_end_date}")
@@ -372,10 +374,10 @@ def main():
             logging.error(f"Invalid historical date format: {historical_end_date}. Expected YYYY-MM-DD")
             sys.exit(1)
     else:
-        until_date = datetime.now()
+        until_date = datetime.datetime.now()
 
     days = int(days_to_scan)
-    since_date = until_date - timedelta(days=days)
+    since_date = until_date - datetime.timedelta(days=days)
     since = since_date.isoformat() + "Z"
     until = until_date.isoformat() + "Z"
 
@@ -391,7 +393,7 @@ def main():
         prs_to_process, stats = creator.create_digest(since, until, include_drafts)
 
         # Save PRs that need processing to file
-        output_path = Path(output_file)
+        output_path = pathlib.Path(output_file)
         with open(output_path, "w") as f:
             json.dump(prs_to_process, f, indent=2)
 
@@ -403,7 +405,7 @@ def main():
         print(f"✅ Saved {len(prs_to_process)} PRs to process in {output_path}")
 
         # Save statistics for the workflow
-        stats_file = Path("pr_digest_stats.json")
+        stats_file = pathlib.Path("pr_digest_stats.json")
         stats["is_historical"] = is_historical
 
         with open(stats_file, "w") as f:
@@ -421,7 +423,7 @@ def main():
                 f.write(f"has_new_prs={'true' if stats['new_prs_to_fetch'] > 0 else 'false'}\n")
 
                 # Convert to PST (note: this handles daylight saving automatically)
-                pst_zone = ZoneInfo("America/Los_Angeles")
+                pst_zone = zoneinfo.ZoneInfo("America/Los_Angeles")
                 since_pst = since_date.astimezone(pst_zone)
                 until_pst = until_date.astimezone(pst_zone)
 

@@ -5,25 +5,23 @@ including step-by-step processing, batched sequence processing, and handling
 of per-timestep resets.
 """
 
-from __future__ import annotations
 
+import cortex.types
 import torch
 import torch.nn as nn
 import torch.nn.functional
 
-from cortex.types import Tensor
-
 
 def causal_conv1d_pytorch(
-    conv_state: Tensor,
-    x: Tensor,
-    weight: Tensor,
-    bias: Tensor | None,
+    conv_state: cortex.types.Tensor,
+    x: cortex.types.Tensor,
+    weight: cortex.types.Tensor,
+    bias: cortex.types.Tensor | None,
     groups: int,
     pad: int,
     conv: nn.Conv1d | None = None,
-    resets: Tensor | None = None,
-) -> tuple[Tensor, Tensor]:
+    resets: cortex.types.Tensor | None = None,
+) -> tuple[cortex.types.Tensor, cortex.types.Tensor]:
     """Unified causal conv1d kernel supporting step and sequence processing.
 
     This kernel handles three modes:

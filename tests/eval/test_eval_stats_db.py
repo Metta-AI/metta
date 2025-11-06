@@ -1,23 +1,25 @@
 #!/usr/bin/env python3
 
 import datetime
+import pathlib
 import tempfile
 import uuid
-from pathlib import Path
 
 import pytest
 
-from metta.eval.eval_stats_db import EvalStatsDB
-from metta.rl.checkpoint_manager import CheckpointManager
+import metta.eval.eval_stats_db
+import metta.rl.checkpoint_manager
 
-TestEvalStatsDb = tuple[EvalStatsDB, str, str]  # (db, policy_key, policy_version)
+TestEvalStatsDb = tuple[metta.eval.eval_stats_db.EvalStatsDB, str, str]  # (db, policy_key, policy_version)
 
 
-def _create_test_db_with_missing_metrics(db_path: Path) -> TestEvalStatsDb:
-    db = EvalStatsDB(db_path)
+def _create_test_db_with_missing_metrics(db_path: pathlib.Path) -> TestEvalStatsDb:
+    db = metta.eval.eval_stats_db.EvalStatsDB(db_path)
 
     checkpoint_filename = "test_policy/checkpoints/test_policy:v1.mpt"
-    metadata = CheckpointManager.get_policy_metadata(CheckpointManager.normalize_uri(f"/tmp/{checkpoint_filename}"))
+    metadata = metta.rl.checkpoint_manager.CheckpointManager.get_policy_metadata(
+        metta.rl.checkpoint_manager.CheckpointManager.normalize_uri(f"/tmp/{checkpoint_filename}")
+    )
     pk, pv = metadata["run_name"], metadata["epoch"]
     _agent_step, _total_time, _score = (
         metadata.get("agent_step", 1000),
@@ -70,7 +72,7 @@ def _create_test_db_with_missing_metrics(db_path: Path) -> TestEvalStatsDb:
 @pytest.fixture
 def test_db():
     with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / "test.duckdb"
+        db_path = pathlib.Path(tmpdir) / "test.duckdb"
         db, pk, pv = _create_test_db_with_missing_metrics(db_path)
         yield db, pk, pv
         db.close()
@@ -79,8 +81,8 @@ def test_db():
 def test_metrics_normalization(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
     checkpoint_filename = "test_policy/checkpoints/test_policy:v1.mpt"
-    policy_uri = CheckpointManager.normalize_uri(f"/tmp/{checkpoint_filename}")
-    metadata = CheckpointManager.get_policy_metadata(policy_uri)
+    policy_uri = metta.rl.checkpoint_manager.CheckpointManager.normalize_uri(f"/tmp/{checkpoint_filename}")
+    metadata = metta.rl.checkpoint_manager.CheckpointManager.get_policy_metadata(policy_uri)
     pk, pv = metadata["run_name"], metadata["epoch"]
 
     # hearts_collected: only 2/5 potential samples recorded (value 3 each)
@@ -104,7 +106,7 @@ def test_metrics_normalization(test_db: TestEvalStatsDb) -> None:
 def test_simulation_scores_normalization(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
     checkpoint_filename = "test_policy/checkpoints/test_policy:v1.mpt"
-    policy_uri = CheckpointManager.normalize_uri(f"/tmp/{checkpoint_filename}")
+    policy_uri = metta.rl.checkpoint_manager.CheckpointManager.normalize_uri(f"/tmp/{checkpoint_filename}")
 
     scores = db.simulation_scores(policy_uri, "hearts_collected")
     assert len(scores) == 1
@@ -127,18 +129,18 @@ def test_simulation_scores_normalization(test_db: TestEvalStatsDb) -> None:
 def test_no_metrics(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
     checkpoint_filename = "test_policy/checkpoints/test_policy:v1.mpt"
-    policy_uri = CheckpointManager.normalize_uri(f"/tmp/{checkpoint_filename}")
+    policy_uri = metta.rl.checkpoint_manager.CheckpointManager.normalize_uri(f"/tmp/{checkpoint_filename}")
 
     assert db.get_average_metric("nonexistent", policy_uri) == 0.0
 
-    invalid_uri = CheckpointManager.normalize_uri("/tmp/none/checkpoints/none:v99.mpt")
+    invalid_uri = metta.rl.checkpoint_manager.CheckpointManager.normalize_uri("/tmp/none/checkpoints/none:v99.mpt")
     assert db.get_average_metric("hearts_collected", invalid_uri) is None
 
 
 def test_empty_database():
     with tempfile.TemporaryDirectory() as tmp:
-        db = EvalStatsDB(Path(tmp) / "empty.duckdb")
-        test_uri = CheckpointManager.normalize_uri("/tmp/test/checkpoints/test:v1.mpt")
+        db = metta.eval.eval_stats_db.EvalStatsDB(pathlib.Path(tmp) / "empty.duckdb")
+        test_uri = metta.rl.checkpoint_manager.CheckpointManager.normalize_uri("/tmp/test/checkpoints/test:v1.mpt")
         assert db.get_average_metric("reward", test_uri) is None
         pk, pv = "test", 1
         assert db.potential_samples_for_metric(pk, pv) == 0

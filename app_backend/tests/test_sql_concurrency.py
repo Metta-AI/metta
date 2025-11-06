@@ -3,25 +3,25 @@
 import asyncio
 import time
 
+import fastapi
 import httpx
 import pytest
-from fastapi import FastAPI
 
-from metta.app_backend.test_support.base_async_test import BaseAsyncTest
+import metta.app_backend.test_support.base_async_test
 
 
 @pytest.mark.slow
-class TestSQLConcurrency(BaseAsyncTest):
+class TestSQLConcurrency(metta.app_backend.test_support.base_async_test.BaseAsyncTest):
     """Tests for SQL route concurrency to validate async behavior."""
 
     @pytest.fixture(scope="function")
-    def base_url(self, test_app: FastAPI) -> str:
+    def base_url(self, test_app: fastapi.FastAPI) -> str:
         """Get the base URL for the test app."""
         # For this test, we'll use httpx.AsyncClient with the app directly
         return "http://test"
 
     @pytest.mark.asyncio
-    async def test_sql_query_concurrency(self, test_app: FastAPI, auth_headers: dict) -> None:
+    async def test_sql_query_concurrency(self, test_app: fastapi.FastAPI, auth_headers: dict) -> None:
         """
         Test that slow SQL queries don't block fast queries.
 
@@ -78,7 +78,7 @@ class TestSQLConcurrency(BaseAsyncTest):
             print(f"✓ Concurrency validated: {slow_duration / fast_duration:.1f}x difference")
 
     @pytest.mark.asyncio
-    async def test_multiple_concurrent_queries(self, test_app: FastAPI, auth_headers: dict) -> None:
+    async def test_multiple_concurrent_queries(self, test_app: fastapi.FastAPI, auth_headers: dict) -> None:
         """
         Test multiple concurrent queries to further validate async behavior.
 

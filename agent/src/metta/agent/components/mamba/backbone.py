@@ -1,39 +1,35 @@
-from __future__ import annotations
 
+import dataclasses
 import logging
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Tuple
+import typing
 
+import einops
+import tensordict
 import torch
 import torch.nn as nn
-from einops import rearrange
-from tensordict import TensorDict
-from torchrl.data import Composite
+import torchrl.data
 
-from metta.agent.components.utils import zero_long
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-
-from .config import MambaBackboneConfig
+import metta.agent.components.mamba.config
+import metta.agent.components.utils
+import mettagrid.policy.policy_env_interface
 
 logger = logging.getLogger(__name__)
 
-if TYPE_CHECKING:
-    from .wrapper import MambaConfig as _WrapperConfigType
-    from .wrapper import MambaWrapperModel as _WrapperModelType
+if typing.TYPE_CHECKING:
+    import metta.agent.components.mamba.wrapper
 else:
-    _WrapperConfigType = Any
-    _WrapperModelType = Any
+    _WrapperConfigType = typing.Any
+    _WrapperModelType = typing.Any
 
-_WRAPPER_TYPES: Optional[Tuple[type, type]] = None
+_WRAPPER_TYPES: typing.Optional[typing.Tuple[type, type]] = None
 
 
-def _load_wrapper_types() -> Tuple[type, type]:
+def _load_wrapper_types() -> typing.Tuple[type, type]:
     global _WRAPPER_TYPES
     if _WRAPPER_TYPES is not None:
         return _WRAPPER_TYPES
     try:
-        from .wrapper import MambaConfig as wrapper_config
-        from .wrapper import MambaWrapperModel as wrapper_model
+        pass
     except ModuleNotFoundError as exc:
         if exc.name == "mamba_ssm":
             raise RuntimeError(
@@ -41,11 +37,14 @@ def _load_wrapper_types() -> Tuple[type, type]:
                 "or disable Mamba-based recipes."
             ) from exc
         raise
-    _WRAPPER_TYPES = (wrapper_config, wrapper_model)
+    _WRAPPER_TYPES = (
+        metta.agent.components.mamba.wrapper.MambaConfig,
+        metta.agent.components.mamba.wrapper.MambaWrapperModel,
+    )
     return _WRAPPER_TYPES
 
 
-@dataclass
+@dataclasses.dataclass
 class _EnvState:
     inference_params: "_CacheWrapper"
     position: int = 0
@@ -75,12 +74,16 @@ class _CacheWrapper:
 class MambaBackboneComponent(nn.Module):
     """Streaming-friendly Mamba backbone matching the policy wrapper contract."""
 
-    def __init__(self, config: MambaBackboneConfig, env: Optional[PolicyEnvInterface] = None):
+    def __init__(
+        self,
+        config: metta.agent.components.mamba.config.MambaBackboneConfig,
+        env: typing.Optional[mettagrid.policy.policy_env_interface.PolicyEnvInterface] = None,
+    ):
         super().__init__()
         self.config = config
         self.in_key = config.in_key
         self.out_key = config.out_key
-        self.pool: Literal["cls", "mean", "none"] = config.pool
+        self.pool: typing.Literal["cls", "mean", "none"] = config.pool
         self.use_aux_tokens = config.use_aux_tokens
         self.last_action_dim = max(1, config.last_action_dim)
         self.max_cache_size = max(1, config.max_cache_size)
@@ -106,10 +109,10 @@ class MambaBackboneComponent(nn.Module):
         self.norm = nn.LayerNorm(config.d_model)
         self.dropout = nn.Dropout(config.dropout_p)
 
-        self._env_states: Dict[int, _EnvState] = {}
+        self._env_states: typing.Dict[int, _EnvState] = {}
         self._init_parameters()
 
-    def _build_wrapper_config(self, ssm_cfg: dict[str, object]) -> _WrapperConfigType:
+    def _build_wrapper_config(self, ssm_cfg: dict[str, object]) -> metta.agent.components.mamba.wrapper.MambaConfig:
         return self._wrapper_config_type(
             d_model=self.config.d_model,
             d_intermediate=self.config.d_intermediate,
@@ -122,7 +125,7 @@ class MambaBackboneComponent(nn.Module):
             attn_cfg=self.config.attn_cfg,
         )
 
-    def _rebuild_wrapper(self, *, enable_mem_eff: Optional[bool] = None) -> None:
+    def _rebuild_wrapper(self, *, enable_mem_eff: typing.Optional[bool] = None) -> None:
         ssm_cfg = dict(self.config.resolved_ssm_cfg())
         if enable_mem_eff is not None:
             ssm_cfg["use_mem_eff_path"] = enable_mem_eff
@@ -176,7 +179,7 @@ class MambaBackboneComponent(nn.Module):
     # ------------------------------------------------------------------
     # Token preparation
     # ------------------------------------------------------------------
-    def _build_tokens(self, td: TensorDict) -> tuple[torch.Tensor, torch.Tensor]:
+    def _build_tokens(self, td: tensordict.TensorDict) -> tuple[torch.Tensor, torch.Tensor]:
         """Return (tokens, reset_flags) prepared for the Mamba wrapper.
 
         tokens has shape [batch, time, num_tokens, d_model] with sequence
@@ -195,7 +198,7 @@ class MambaBackboneComponent(nn.Module):
         tt = int(td.get("bptt", torch.ones(1, device=device))[0].item())
         batch = max(batch_flat // tt, 1)
 
-        x = rearrange(x, "(b tt) s d -> b tt s d", b=batch, tt=tt)
+        x = einops.rearrange(x, "(b tt) s d -> b tt s d", b=batch, tt=tt)
 
         zeros = torch.zeros(batch_flat, device=device)
         rewards = td.get("rewards", zeros)
@@ -205,7 +208,7 @@ class MambaBackboneComponent(nn.Module):
 
         if self.use_aux_tokens:
             zeros = torch.zeros(batch_flat, device=device)
-            rewards = rearrange(rewards, "(b tt) -> b tt 1 1", b=batch, tt=tt).float()
+            rewards = einops.rearrange(rewards, "(b tt) -> b tt 1 1", b=batch, tt=tt).float()
             reward_token = self.reward_proj(rewards)
 
             resets = reset_flags.float().reshape(batch, tt, 1, 1)
@@ -220,7 +223,7 @@ class MambaBackboneComponent(nn.Module):
                     last_actions = last_actions.unsqueeze(-1)
                 last_actions = last_actions.reshape(batch_flat, -1)[..., : self.last_action_dim]
 
-            last_actions = rearrange(last_actions, "(b tt) d -> b tt 1 d", b=batch, tt=tt)
+            last_actions = einops.rearrange(last_actions, "(b tt) d -> b tt 1 d", b=batch, tt=tt)
             action_token = self.action_proj(last_actions.float())
         else:
             reward_token = torch.zeros_like(x[..., :1, :])
@@ -232,7 +235,7 @@ class MambaBackboneComponent(nn.Module):
         return tokens, reset_flags
 
     def _dummy_actions(self, batch: int, seq_len: int, device: torch.device) -> torch.Tensor:
-        return zero_long((batch, seq_len), device=device)
+        return metta.agent.components.utils.zero_long((batch, seq_len), device=device)
 
     def _pool(self, hidden: torch.Tensor) -> torch.Tensor:
         if self.pool == "cls":
@@ -262,7 +265,7 @@ class MambaBackboneComponent(nn.Module):
     # ------------------------------------------------------------------
     # Forward
     # ------------------------------------------------------------------
-    def forward(self, td: TensorDict) -> TensorDict:
+    def forward(self, td: tensordict.TensorDict) -> tensordict.TensorDict:
         tokens, reset_flags = self._build_tokens(td)
         device = tokens.device
         dtype = tokens.dtype
@@ -341,10 +344,12 @@ class MambaBackboneComponent(nn.Module):
     # ------------------------------------------------------------------
     # Integration hooks
     # ------------------------------------------------------------------
-    def get_agent_experience_spec(self) -> Composite:
-        return Composite({})
+    def get_agent_experience_spec(self) -> torchrl.data.Composite:
+        return torchrl.data.Composite({})
 
-    def initialize_to_environment(self, env: PolicyEnvInterface, device: torch.device) -> Optional[str]:
+    def initialize_to_environment(
+        self, env: mettagrid.policy.policy_env_interface.PolicyEnvInterface, device: torch.device
+    ) -> typing.Optional[str]:
         self._env_states.clear()
         return None
 

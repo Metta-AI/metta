@@ -1,20 +1,15 @@
 """Simplified adaptive experiment controller."""
 
+import datetime
 import logging
 import time
-from datetime import datetime, timezone
-from typing import Callable, Optional
+import typing
 
-from metta.common.util.retry import retry_function
-
-from .adaptive_config import AdaptiveConfig
-from .models import JobDefinition, JobStatus, JobTypes, RunInfo
-from .protocols import (
-    Dispatcher,
-    ExperimentScheduler,
-    Store,
-)
-from .utils import make_monitor_table
+import metta.adaptive.adaptive_config
+import metta.adaptive.models
+import metta.adaptive.protocols
+import metta.adaptive.utils
+import metta.common.util.retry
 
 logger = logging.getLogger(__name__)
 
@@ -29,10 +24,10 @@ class AdaptiveController:
     def __init__(
         self,
         experiment_id: str,
-        scheduler: ExperimentScheduler,
-        dispatcher: Dispatcher,
-        store: Store,
-        config: AdaptiveConfig,
+        scheduler: metta.adaptive.protocols.ExperimentScheduler,
+        dispatcher: metta.adaptive.protocols.Dispatcher,
+        store: metta.adaptive.protocols.Store,
+        config: metta.adaptive.adaptive_config.AdaptiveConfig,
     ):
         self.experiment_id = experiment_id
         self.scheduler = scheduler
@@ -45,9 +40,21 @@ class AdaptiveController:
 
     def run(
         self,
-        on_training_completed: Optional[Callable[[RunInfo, Store, list[RunInfo]], None]] = None,
-        on_eval_completed: Optional[Callable[[RunInfo, Store, list[RunInfo]], None]] = None,
-        on_job_dispatch: Optional[Callable[[JobDefinition, Store], None]] = None,
+        on_training_completed: typing.Optional[
+            typing.Callable[
+                [metta.adaptive.models.RunInfo, metta.adaptive.protocols.Store, list[metta.adaptive.models.RunInfo]],
+                None,
+            ]
+        ] = None,
+        on_eval_completed: typing.Optional[
+            typing.Callable[
+                [metta.adaptive.models.RunInfo, metta.adaptive.protocols.Store, list[metta.adaptive.models.RunInfo]],
+                None,
+            ]
+        ] = None,
+        on_job_dispatch: typing.Optional[
+            typing.Callable[[metta.adaptive.models.JobDefinition, metta.adaptive.protocols.Store], None]
+        ] = None,
     ) -> None:
         """Main adaptive experiment loop - everything inline."""
         logger.info(f"[AdaptiveController] Starting experiment {self.experiment_id}")
@@ -69,7 +76,7 @@ class AdaptiveController:
 
                 # Display monitoring table every interval
                 if runs:
-                    table_lines = make_monitor_table(
+                    table_lines = metta.adaptive.utils.make_monitor_table(
                         runs=runs,
                         title="Run Status Table",
                         logger_prefix="[AdaptiveController]",
@@ -88,7 +95,7 @@ class AdaptiveController:
                             if run.has_completed_training and not already_processed:
                                 logger.info(f"[AdaptiveController] Running on_training_completed for {run.run_id}")
                                 on_training_completed(run, self.store, runs)
-                                processed_at = datetime.now(timezone.utc)
+                                processed_at = datetime.datetime.now(datetime.timezone.utc)
                                 self.store.update_run_summary(
                                     run.run_id,
                                     {
@@ -110,14 +117,14 @@ class AdaptiveController:
                             if run.has_been_evaluated and not already_processed:
                                 logger.info(f"[AdaptiveController] Running on_eval_completed for {run.run_id}")
 
-                                retry_function(
+                                metta.common.util.retry.retry_function(
                                     lambda r=run, rs=runs: on_eval_completed(r, self.store, rs),  # type: ignore
                                     max_retries=3,
                                     initial_delay=1.0,
                                     max_delay=30.0,
                                 )
 
-                                processed_at = datetime.now(timezone.utc)
+                                processed_at = datetime.datetime.now(datetime.timezone.utc)
                                 self.store.update_run_summary(
                                     run.run_id,
                                     {
@@ -133,7 +140,10 @@ class AdaptiveController:
 
                 # 2. Calculate available training slots (only count runs actually using training resources)
                 active_training_count = sum(
-                    1 for run in runs if run.status in (JobStatus.PENDING, JobStatus.IN_TRAINING)
+                    1
+                    for run in runs
+                    if run.status
+                    in (metta.adaptive.models.JobStatus.PENDING, metta.adaptive.models.JobStatus.IN_TRAINING)
                 )
                 available_training_slots = max(0, self.config.max_parallel - active_training_count)
 
@@ -151,7 +161,7 @@ class AdaptiveController:
                     continue
 
                 # 5. Validate training job constraint
-                training_jobs = [j for j in new_jobs if j.type == JobTypes.LAUNCH_TRAINING]
+                training_jobs = [j for j in new_jobs if j.type == metta.adaptive.models.JobTypes.LAUNCH_TRAINING]
                 if len(training_jobs) > available_training_slots:
                     logger.error(
                         f"[AdaptiveController] Scheduler requested {len(training_jobs)} training jobs "
@@ -176,12 +186,12 @@ class AdaptiveController:
                         self.dispatched_jobs.add(job_key)
 
                         # Initialize run in store (only for training jobs, eval reuses same run)
-                        if job.type == JobTypes.LAUNCH_TRAINING:
+                        if job.type == metta.adaptive.models.JobTypes.LAUNCH_TRAINING:
                             # Pass job metadata as initial summary data
                             self.store.init_run(job.run_id, group=self.experiment_id, initial_summary=job.metadata)
 
                         # Mark eval jobs as started in store
-                        elif job.type == JobTypes.LAUNCH_EVAL:
+                        elif job.type == metta.adaptive.models.JobTypes.LAUNCH_EVAL:
                             self.store.update_run_summary(job.run_id, {"has_started_eval": True})
 
                         # Call job dispatch hook if provided (after wandb initialization)

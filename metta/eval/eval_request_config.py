@@ -1,11 +1,13 @@
-from pydantic import Field
+import pydantic
 
-from mettagrid.base_config import Config
+import mettagrid.base_config
 
 
-class EvalRewardSummary(Config):
-    category_scores: dict[str, float] = Field(default_factory=dict, description="Average reward for each category")
-    simulation_scores: dict[tuple[str, str], float] = Field(
+class EvalRewardSummary(mettagrid.base_config.Config):
+    category_scores: dict[str, float] = pydantic.Field(
+        default_factory=dict, description="Average reward for each category"
+    )
+    simulation_scores: dict[tuple[str, str], float] = pydantic.Field(
         default_factory=dict, description="Average reward for each simulation (category, short_sim_name)"
     )
 
@@ -24,6 +26,8 @@ class EvalRewardSummary(Config):
         }
 
 
-class EvalResults(Config):
-    scores: EvalRewardSummary = Field(..., description="Evaluation scores")
-    replay_urls: dict[str, list[str]] = Field(default_factory=dict, description="Replay URLs for each simulation")
+class EvalResults(mettagrid.base_config.Config):
+    scores: EvalRewardSummary = pydantic.Field(..., description="Evaluation scores")
+    replay_urls: dict[str, list[str]] = pydantic.Field(
+        default_factory=dict, description="Replay URLs for each simulation"
+    )

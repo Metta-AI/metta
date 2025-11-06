@@ -4,19 +4,19 @@ import os
 import psutil
 import pytest
 
-from mettagrid.config.mettagrid_config import MettaGridConfig
-from mettagrid.simulator import Simulation
+import mettagrid.config.mettagrid_config
+import mettagrid.simulator
 
 
 def test_mettagrid_env_init():
     """Test that the Simulation can be initialized properly."""
-    sim = Simulation(MettaGridConfig())
+    sim = mettagrid.simulator.Simulation(mettagrid.config.mettagrid_config.MettaGridConfig())
     assert sim is not None, "Failed to initialize Simulation"
 
 
 def test_mettagrid_env_reset():
     """Test that the Simulation can be reset multiple times without memory leaks."""
-    sim = Simulation(MettaGridConfig())
+    sim = mettagrid.simulator.Simulation(mettagrid.config.mettagrid_config.MettaGridConfig())
     # Reset the environment multiple times
     for _ in range(10):
         observation = sim._c_sim.observations()
@@ -50,7 +50,7 @@ def test_mettagrid_env_no_memory_leaks():
 
     for i in range(num_iterations):
         # Create the environment
-        sim = Simulation(MettaGridConfig())
+        sim = mettagrid.simulator.Simulation(mettagrid.config.mettagrid_config.MettaGridConfig())
 
         # Reset the environment multiple times
         for _ in range(5):

@@ -6,9 +6,8 @@ focus on state bookkeeping while preserving a clear ground-truth path for
 future Triton ports.
 """
 
-from __future__ import annotations
 
-from typing import Optional
+import typing
 
 import torch
 import torch.nn as nn
@@ -18,7 +17,7 @@ def _validate_inputs(
     x_seq: torch.Tensor,
     h0_bf: torch.Tensor,
     c0_bf: torch.Tensor,
-    resets: Optional[torch.Tensor],
+    resets: typing.Optional[torch.Tensor],
 ) -> None:
     if x_seq.dim() != 3:
         raise ValueError(f"Expected x_seq to be 3D [B, T, H], got shape {tuple(x_seq.shape)}")
@@ -39,7 +38,7 @@ def lstm_sequence_pytorch(
     x_seq: torch.Tensor,
     h0_bf: torch.Tensor,
     c0_bf: torch.Tensor,
-    resets: Optional[torch.Tensor] = None,
+    resets: typing.Optional[torch.Tensor] = None,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Run an ``nn.LSTM`` over a batch-first sequence with optional resets.
 

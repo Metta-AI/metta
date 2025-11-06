@@ -1,19 +1,18 @@
-from __future__ import annotations
 
+import cortex.cells.core
 import pytest
+import tensordict
 import torch
-from cortex.cells.core import AxonLayer
-from tensordict import TensorDict
 
 
 @torch.inference_mode(False)
 def test_axon_layer_shapes_and_grads_sequence() -> None:
     B, T, Hin, Hout = 4, 16, 32, 48
-    layer = AxonLayer(Hin, Hout)
+    layer = cortex.cells.core.AxonLayer(Hin, Hout)
 
     x = torch.randn(B, T, Hin, dtype=torch.float32)
     target = torch.randn(B, T, Hout, dtype=torch.float32)
-    state = TensorDict({}, batch_size=[B])
+    state = tensordict.TensorDict({}, batch_size=[B])
 
     y = layer(x, state=state, resets=None)
     assert y.shape == (B, T, Hout)
@@ -29,10 +28,10 @@ def test_axon_layer_shapes_and_grads_sequence() -> None:
 
 def test_axon_layer_state_auto_parent_and_reset() -> None:
     B, T, Hin, Hout = 3, 8, 16, 16
-    layer = AxonLayer(Hin, Hout, name="proj")
+    layer = cortex.cells.core.AxonLayer(Hin, Hout, name="proj")
 
     x = torch.randn(B, T, Hin)
-    state = TensorDict({}, batch_size=[B])
+    state = tensordict.TensorDict({}, batch_size=[B])
 
     # First call creates state under state["axon"]["proj"]
     y = layer(x, state=state, resets=None)
@@ -58,20 +57,20 @@ def test_axon_layer_state_auto_parent_and_reset() -> None:
 
 def test_axon_layer_requires_explicit_state_per_batch() -> None:
     B1, B2, H = 5, 7, 24
-    layer = AxonLayer(H, H)
+    layer = cortex.cells.core.AxonLayer(H, H)
 
     x1 = torch.randn(B1, H)
     with pytest.raises(ValueError):
         layer(x1, state=None, resets=None)
 
-    state1 = TensorDict({}, batch_size=[B1])
+    state1 = tensordict.TensorDict({}, batch_size=[B1])
     y1 = layer(x1, state=state1, resets=None)
     assert y1.shape == (B1, H)
     assert "axon" in state1.keys()
 
     # Different batch size should re-initialize internal state without error
     x2 = torch.randn(B2, H)
-    state2 = TensorDict({}, batch_size=[B2])
+    state2 = tensordict.TensorDict({}, batch_size=[B2])
     y2 = layer(x2, state=state2, resets=None)
     assert y2.shape == (B2, H)
     assert "axon" in state2.keys()
@@ -79,9 +78,9 @@ def test_axon_layer_requires_explicit_state_per_batch() -> None:
 
 def test_axon_layer_updates_parent_state_on_each_call() -> None:
     B, T, Hin, Hout = 2, 4, 8, 8
-    layer = AxonLayer(Hin, Hout, name="proj")
+    layer = cortex.cells.core.AxonLayer(Hin, Hout, name="proj")
 
-    state = TensorDict({}, batch_size=[B])
+    state = tensordict.TensorDict({}, batch_size=[B])
     x1 = torch.randn(B, T, Hin)
     x2 = torch.randn(B, T, Hin)
 

@@ -7,19 +7,19 @@
 # ///
 """Fetch GitHub PR digest with incremental caching."""
 
+import dataclasses
+import datetime
 import json
 import os
+import pathlib
 import sys
 import time
-from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from typing import List, Optional
+import typing
 
 import requests
 
 
-@dataclass
+@dataclasses.dataclass
 class PullRequestDigest:
     """PR information for digest."""
 
@@ -30,18 +30,18 @@ class PullRequestDigest:
     html_url: str
     diff: str
     author: str
-    labels: List[str]
+    labels: typing.List[str]
 
 
-@dataclass
+@dataclasses.dataclass
 class CacheData:
     """Cache with metadata."""
 
     version: str = "1.0"
     repository: str = ""
-    pr_digests: List[PullRequestDigest] = None
+    pr_digests: typing.List[PullRequestDigest] = None
     last_updated: str = ""
-    last_pr_merged_at: Optional[str] = None
+    last_pr_merged_at: typing.Optional[str] = None
 
     def __post_init__(self):
         if self.pr_digests is None:
@@ -75,7 +75,9 @@ class GitHubClient:
         response.raise_for_status()
         return response
 
-    def search_merged_prs(self, repo: str, since: datetime, after_timestamp: Optional[str] = None) -> List[int]:
+    def search_merged_prs(
+        self, repo: str, since: datetime.datetime, after_timestamp: typing.Optional[str] = None
+    ) -> typing.List[int]:
         """Search for merged PR numbers."""
         query_parts = [f"repo:{repo}", "is:pr", "is:merged", f"merged:>={since.date().isoformat()}"]
 
@@ -138,7 +140,7 @@ class GitHubClient:
         )
 
 
-def load_cache(cache_file: Path) -> CacheData | None:
+def load_cache(cache_file: pathlib.Path) -> CacheData | None:
     """Load cache if it exists and is valid."""
     if not cache_file.exists():
         return None
@@ -165,14 +167,14 @@ def load_cache(cache_file: Path) -> CacheData | None:
         return None
 
 
-def save_cache(cache_file: Path, cache_data: CacheData) -> None:
+def save_cache(cache_file: pathlib.Path, cache_data: CacheData) -> None:
     """Save cache data."""
     cache_file.parent.mkdir(parents=True, exist_ok=True)
 
     data = {
         "version": cache_data.version,
         "repository": cache_data.repository,
-        "pr_digests": [asdict(pr) for pr in cache_data.pr_digests],
+        "pr_digests": [dataclasses.asdict(pr) for pr in cache_data.pr_digests],
         "last_updated": cache_data.last_updated,
         "last_pr_merged_at": cache_data.last_pr_merged_at,
     }
@@ -186,11 +188,13 @@ def prune_cache(cache_data: CacheData, max_age_days: int = 60) -> CacheData:
     if not cache_data.pr_digests:
         return cache_data
 
-    cutoff_date = datetime.now(timezone.utc) - timedelta(days=max_age_days)
+    cutoff_date = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=max_age_days)
     original_count = len(cache_data.pr_digests)
 
     cache_data.pr_digests = [
-        pr for pr in cache_data.pr_digests if datetime.fromisoformat(pr.merged_at.replace("Z", "+00:00")) >= cutoff_date
+        pr
+        for pr in cache_data.pr_digests
+        if datetime.datetime.fromisoformat(pr.merged_at.replace("Z", "+00:00")) >= cutoff_date
     ]
 
     pruned_count = original_count - len(cache_data.pr_digests)
@@ -213,10 +217,10 @@ def main() -> None:
     if "{repository}" in cache_file_env:
         # If template, replace repository name
         safe_repo_name = repository.replace("/", "_")
-        cache_file = Path(cache_file_env.replace("{repository}", safe_repo_name))
+        cache_file = pathlib.Path(cache_file_env.replace("{repository}", safe_repo_name))
     else:
         # Use as-is or create safe default
-        cache_file = Path(cache_file_env)
+        cache_file = pathlib.Path(cache_file_env)
         if cache_file.name == "cache.json":
             safe_repo_name = repository.replace("/", "_")
             cache_file = cache_file.parent / f"{safe_repo_name}-cache.json"
@@ -227,8 +231,8 @@ def main() -> None:
 
     # Initialize
     client = GitHubClient(github_token)
-    since_date = datetime.now(timezone.utc) - timedelta(days=days_to_scan)
-    end_date = datetime.now(timezone.utc)
+    since_date = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days_to_scan)
+    end_date = datetime.datetime.now(datetime.timezone.utc)
 
     # Load cache
     cache_data = None if force_refresh else load_cache(cache_file)
@@ -242,7 +246,7 @@ def main() -> None:
         cached_prs = [
             pr
             for pr in cache_data.pr_digests
-            if datetime.fromisoformat(pr.merged_at.replace("Z", "+00:00")) >= since_date
+            if datetime.datetime.fromisoformat(pr.merged_at.replace("Z", "+00:00")) >= since_date
         ]
 
         if cached_prs:
@@ -280,16 +284,16 @@ def main() -> None:
         cache_data = CacheData(
             repository=repository,
             pr_digests=all_prs,
-            last_updated=datetime.now(timezone.utc).isoformat(),
+            last_updated=datetime.datetime.now(datetime.timezone.utc).isoformat(),
             last_pr_merged_at=all_prs[0].merged_at if all_prs else None,
         )
         save_cache(cache_file, cache_data)
         print(f"Updated cache with {len(all_prs)} total PRs")
 
     # Write output
-    output_file = Path("pr_digest_output.json")
+    output_file = pathlib.Path("pr_digest_output.json")
     with open(output_file, "w") as f:
-        json.dump([asdict(pr) for pr in all_prs], f, indent=2)
+        json.dump([dataclasses.asdict(pr) for pr in all_prs], f, indent=2)
 
     # Set GitHub outputs
     github_output = os.getenv("GITHUB_OUTPUT")

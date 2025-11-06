@@ -1,14 +1,14 @@
 """Shared fixtures and utilities for job system tests."""
 
+import pathlib
 import shutil
 import tempfile
-from pathlib import Path
-from typing import Any
+import typing
 
 import pytest
 
-from metta.jobs.job_config import JobConfig
-from metta.jobs.job_manager import JobManager
+import metta.jobs.job_config
+import metta.jobs.job_manager
 
 
 class MockStream:
@@ -85,11 +85,11 @@ def temp_job_manager():
         max_local_jobs: int = 1,
         max_remote_jobs: int = 10,
         remote_poll_interval_s: float = 5.0,
-    ) -> JobManager:
-        tmp_dir = Path(tempfile.mkdtemp())
+    ) -> metta.jobs.job_manager.JobManager:
+        tmp_dir = pathlib.Path(tempfile.mkdtemp())
         # Create logs directory to prevent FileNotFoundError in monitoring threads
         (tmp_dir / "logs").mkdir(parents=True, exist_ok=True)
-        manager = JobManager(
+        manager = metta.jobs.job_manager.JobManager(
             base_dir=tmp_dir,
             max_local_jobs=max_local_jobs,
             max_remote_jobs=max_remote_jobs,
@@ -111,15 +111,14 @@ def simple_job_config(
     module: str = "test.module",
     remote: bool = False,
     timeout_s: int = 60,
-    **kwargs: Any,
-) -> JobConfig:
+    **kwargs: typing.Any,
+) -> metta.jobs.job_config.JobConfig:
     """Create a simple JobConfig for testing."""
-    from metta.jobs.job_config import RemoteConfig
 
-    return JobConfig(
+    return metta.jobs.job_config.JobConfig(
         name=name,
         module=module,
-        remote=RemoteConfig() if remote else None,
+        remote=metta.jobs.job_config.RemoteConfig() if remote else None,
         timeout_s=timeout_s,
         **kwargs,
     )

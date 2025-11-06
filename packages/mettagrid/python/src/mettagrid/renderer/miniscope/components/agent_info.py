@@ -1,25 +1,24 @@
 """Agent info panel component for miniscope renderer."""
 
-from typing import Dict, Optional
+import typing
 
 import numpy as np
 
-from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
-from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
-from mettagrid.renderer.miniscope.symbol import get_symbol_for_object
-from mettagrid.simulator import BoundingBox, Simulation
+import mettagrid.renderer.miniscope.components.base
+import mettagrid.renderer.miniscope.miniscope_panel
+import mettagrid.renderer.miniscope.miniscope_state
+import mettagrid.renderer.miniscope.symbol
+import mettagrid.simulator
 
-from .base import MiniscopeComponent
 
-
-class AgentInfoComponent(MiniscopeComponent):
+class AgentInfoComponent(mettagrid.renderer.miniscope.components.base.MiniscopeComponent):
     """Component for displaying agent information."""
 
     def __init__(
         self,
-        sim: Simulation,
-        state: MiniscopeState,
-        panels: PanelLayout,
+        sim: mettagrid.simulator.Simulation,
+        state: mettagrid.renderer.miniscope.miniscope_state.MiniscopeState,
+        panels: mettagrid.renderer.miniscope.miniscope_panel.PanelLayout,
     ):
         """Initialize the agent info component.
 
@@ -46,7 +45,7 @@ class AgentInfoComponent(MiniscopeComponent):
         """Get symbol map from state."""
         return self.state.symbol_map if self.state else {}
 
-    def _get_vibes(self) -> Optional[list[str]]:
+    def _get_vibes(self) -> typing.Optional[list[str]]:
         """Get vibes from state."""
         return self.state.vibes if self.state else None
 
@@ -60,7 +59,7 @@ class AgentInfoComponent(MiniscopeComponent):
             self._panel.set_content(["Agent info unavailable"])
             return
 
-        bbox = BoundingBox(
+        bbox = mettagrid.simulator.BoundingBox(
             min_row=0,
             max_row=self._sim.map_height,
             min_col=0,
@@ -78,9 +77,9 @@ class AgentInfoComponent(MiniscopeComponent):
 
     def _build_lines(
         self,
-        grid_objects: Dict[int, dict],
-        selected_agent: Optional[int],
-        total_rewards: Optional[np.ndarray],
+        grid_objects: typing.Dict[int, dict],
+        selected_agent: typing.Optional[int],
+        total_rewards: typing.Optional[np.ndarray],
         manual_agents: set[int],
     ) -> list[str]:
         """Build fixed-width lines for agent info display."""
@@ -116,7 +115,9 @@ class AgentInfoComponent(MiniscopeComponent):
         object_type_names = self._get_object_type_names()
         agent_symbol = ""
         if symbol_map and object_type_names:
-            agent_symbol = get_symbol_for_object(agent_obj, object_type_names, symbol_map)
+            agent_symbol = mettagrid.renderer.miniscope.symbol.get_symbol_for_object(
+                agent_obj, object_type_names, symbol_map
+            )
 
         vibes = self._get_vibes()
         vibe_id = agent_obj.get("vibe")

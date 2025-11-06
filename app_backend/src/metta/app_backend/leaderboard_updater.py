@@ -1,16 +1,16 @@
 import asyncio
+import datetime
 import logging
+import typing
 import uuid
-from datetime import datetime
-from typing import Optional
 
-from psycopg import AsyncConnection
-from pydantic import BaseModel
+import psycopg
+import pydantic
 
-from metta.app_backend.metta_repo import LeaderboardRow, MettaRepo
+import metta.app_backend.metta_repo
 
 
-class EvalScore(BaseModel):
+class EvalScore(pydantic.BaseModel):
     eval_name: str
     total_score: float
     num_agents: int
@@ -24,9 +24,9 @@ logger = logging.getLogger("leaderboard_updater")
 
 
 class LeaderboardUpdater:
-    def __init__(self, repo: MettaRepo):
+    def __init__(self, repo: metta.app_backend.metta_repo.MettaRepo):
         self.repo = repo
-        self.task: Optional[asyncio.Task] = None
+        self.task: typing.Optional[asyncio.Task] = None
         self.running = False
 
     async def start(self):
@@ -90,7 +90,9 @@ class LeaderboardUpdater:
 
                 return {row[0]: row[1] for row in rows}
 
-    async def _get_updated_policies(self, leaderboard: LeaderboardRow, latest_episode_id: int) -> list[uuid.UUID]:
+    async def _get_updated_policies(
+        self, leaderboard: metta.app_backend.metta_repo.LeaderboardRow, latest_episode_id: int
+    ) -> list[uuid.UUID]:
         """Get the policies that have had new relevant episodes."""
 
         async with self.repo.connect() as con:
@@ -123,7 +125,7 @@ class LeaderboardUpdater:
                 return latest_episode_id_row[0] or 0
 
     async def _check_leaderboard_consistency(
-        self, con: AsyncConnection, leaderboard_id: uuid.UUID, updated_at: datetime
+        self, con: psycopg.AsyncConnection, leaderboard_id: uuid.UUID, updated_at: datetime.datetime
     ) -> None:
         """
         If the leaderboard was updated during processing, throw an exception which will rollback this
@@ -138,7 +140,7 @@ class LeaderboardUpdater:
             raise RuntimeError(f"Leaderboard {leaderboard_id} was updated during processing")
 
     async def _batch_upsert_leaderboard_policy_scores(
-        self, leaderboard_id: uuid.UUID, policy_scores: dict[uuid.UUID, float], updated_at: datetime
+        self, leaderboard_id: uuid.UUID, policy_scores: dict[uuid.UUID, float], updated_at: datetime.datetime
     ) -> None:
         """Batch upsert leaderboard policy scores for multiple policies, chunked to avoid overwhelming the system."""
         if not policy_scores:
@@ -160,7 +162,9 @@ class LeaderboardUpdater:
 
             await self._check_leaderboard_consistency(con, leaderboard_id, updated_at)
 
-    async def _update_leaderboard(self, leaderboard: LeaderboardRow, chunk_size: int = 5000):
+    async def _update_leaderboard(
+        self, leaderboard: metta.app_backend.metta_repo.LeaderboardRow, chunk_size: int = 5000
+    ):
         """This function maintains the (leaderboard_id, policy_id) -> score mapping in the leaderboard_policy_scores
         table.
 

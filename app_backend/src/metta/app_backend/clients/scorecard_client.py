@@ -1,23 +1,16 @@
-from typing import Generic, Literal, TypeVar
+import typing
 
+import pydantic
 import requests
-from pydantic import RootModel
 
-from metta.app_backend.clients.base_client import BaseAppBackendClient
-from metta.app_backend.routes.scorecard_routes import (
-    EvalsRequest,
-    MetricsRequest,
-    PoliciesResponse,
-    PoliciesSearchRequest,
-    ScorecardData,
-    ScorecardRequest,
-)
-from metta.app_backend.routes.sql_routes import AIQueryRequest, AIQueryResponse, SQLQueryRequest, SQLQueryResponse
+import metta.app_backend.clients.base_client
+import metta.app_backend.routes.scorecard_routes
+import metta.app_backend.routes.sql_routes
 
-T = TypeVar("T")
+T = typing.TypeVar("T")
 
 
-class ListModel(RootModel[list[T]], Generic[T]):
+class ListModel(pydantic.RootModel[list[T]], typing.Generic[T]):
     @classmethod
     def model_validate(cls, obj) -> list[T]:
         # Use RootModel's validation to ensure we get a proper list
@@ -28,9 +21,11 @@ class ListModel(RootModel[list[T]], Generic[T]):
         return self.root
 
 
-class ScorecardClient(BaseAppBackendClient):
+class ScorecardClient(metta.app_backend.clients.base_client.BaseAppBackendClient):
     async def get_policies(self):
-        return await self._make_request(PoliciesResponse, "GET", "/scorecard/policies")
+        return await self._make_request(
+            metta.app_backend.routes.scorecard_routes.PoliciesResponse, "GET", "/scorecard/policies"
+        )
 
     async def search_policies(
         self,
@@ -40,7 +35,7 @@ class ScorecardClient(BaseAppBackendClient):
         user_id: str | None = None,
         limit: int = 100,
         offset: int = 0,
-    ) -> PoliciesResponse:
+    ) -> metta.app_backend.routes.scorecard_routes.PoliciesResponse:
         """Search policies with filtering and pagination.
 
         Args:
@@ -54,7 +49,7 @@ class ScorecardClient(BaseAppBackendClient):
         Returns:
             PoliciesResponse containing matching policies
         """
-        payload = PoliciesSearchRequest(
+        payload = metta.app_backend.routes.scorecard_routes.PoliciesSearchRequest(
             search=search,
             policy_type=policy_type,
             tags=tags,
@@ -63,7 +58,10 @@ class ScorecardClient(BaseAppBackendClient):
             offset=offset,
         )
         return await self._make_request(
-            PoliciesResponse, "POST", "/scorecard/policies/search", json=payload.model_dump(mode="json")
+            metta.app_backend.routes.scorecard_routes.PoliciesResponse,
+            "POST",
+            "/scorecard/policies/search",
+            json=payload.model_dump(mode="json"),
         )
 
     def search_policies_sync(
@@ -74,7 +72,7 @@ class ScorecardClient(BaseAppBackendClient):
         user_id: str | None = None,
         limit: int = 100,
         offset: int = 0,
-    ) -> PoliciesResponse:
+    ) -> metta.app_backend.routes.scorecard_routes.PoliciesResponse:
         """Synchronous version of search_policies for use in widgets and Jupyter notebooks.
 
         Args:
@@ -89,7 +87,7 @@ class ScorecardClient(BaseAppBackendClient):
             PoliciesResponse containing matching policies
         """
         # Create the request payload
-        payload = PoliciesSearchRequest(
+        payload = metta.app_backend.routes.scorecard_routes.PoliciesSearchRequest(
             search=search,
             policy_type=policy_type,
             tags=tags,
@@ -103,9 +101,11 @@ class ScorecardClient(BaseAppBackendClient):
         url = f"{base_url}/scorecard/policies/search"
 
         # Build headers
-        from metta.common.util.collections import remove_none_values
+        import metta.common.util.collections
 
-        headers = remove_none_values({"X-Auth-Token": self._machine_token, "Content-Type": "application/json"})
+        headers = metta.common.util.collections.remove_none_values(
+            {"X-Auth-Token": self._machine_token, "Content-Type": "application/json"}
+        )
 
         # Make synchronous request using requests library
         response = requests.post(url, json=payload.model_dump(mode="json"), headers=headers, timeout=10)
@@ -114,24 +114,32 @@ class ScorecardClient(BaseAppBackendClient):
         response.raise_for_status()
 
         # Parse response
-        return PoliciesResponse.model_validate(response.json())
+        return metta.app_backend.routes.scorecard_routes.PoliciesResponse.model_validate(response.json())
 
     async def sql_query(self, sql: str):
-        payload = SQLQueryRequest(
+        payload = metta.app_backend.routes.sql_routes.SQLQueryRequest(
             query=sql,
         )
-        return await self._make_request(SQLQueryResponse, "POST", "/sql/query", json=payload.model_dump(mode="json"))
+        return await self._make_request(
+            metta.app_backend.routes.sql_routes.SQLQueryResponse,
+            "POST",
+            "/sql/query",
+            json=payload.model_dump(mode="json"),
+        )
 
     async def generate_ai_query(self, description: str):
-        payload = AIQueryRequest(
+        payload = metta.app_backend.routes.sql_routes.AIQueryRequest(
             description=description,
         )
         return await self._make_request(
-            AIQueryResponse, "POST", "/sql/generate-query", json=payload.model_dump(mode="json")
+            metta.app_backend.routes.sql_routes.AIQueryResponse,
+            "POST",
+            "/sql/generate-query",
+            json=payload.model_dump(mode="json"),
         )
 
     async def get_eval_names(self, training_run_ids: list[str], run_free_policy_ids: list[str]) -> list[str]:
-        payload = EvalsRequest(
+        payload = metta.app_backend.routes.scorecard_routes.EvalsRequest(
             training_run_ids=training_run_ids,
             run_free_policy_ids=run_free_policy_ids,
         )
@@ -142,7 +150,7 @@ class ScorecardClient(BaseAppBackendClient):
     async def get_available_metrics(
         self, training_run_ids: list[str], run_free_policy_ids: list[str], eval_names: list[str]
     ) -> list:
-        payload = MetricsRequest(
+        payload = metta.app_backend.routes.scorecard_routes.MetricsRequest(
             training_run_ids=training_run_ids,
             run_free_policy_ids=run_free_policy_ids,
             eval_names=eval_names,
@@ -157,9 +165,9 @@ class ScorecardClient(BaseAppBackendClient):
         run_free_policy_ids: list[str],
         eval_names: list[str],
         metric: str,
-        policy_selector: Literal["best", "latest"] = "best",
-    ) -> ScorecardData:
-        payload = ScorecardRequest(
+        policy_selector: typing.Literal["best", "latest"] = "best",
+    ) -> metta.app_backend.routes.scorecard_routes.ScorecardData:
+        payload = metta.app_backend.routes.scorecard_routes.ScorecardRequest(
             training_run_ids=training_run_ids,
             run_free_policy_ids=run_free_policy_ids,
             eval_names=eval_names,
@@ -167,5 +175,8 @@ class ScorecardClient(BaseAppBackendClient):
             training_run_policy_selector=policy_selector,
         )
         return await self._make_request(
-            ScorecardData, "POST", "/scorecard/scorecard", json=payload.model_dump(mode="json")
+            metta.app_backend.routes.scorecard_routes.ScorecardData,
+            "POST",
+            "/scorecard/scorecard",
+            json=payload.model_dump(mode="json"),
         )

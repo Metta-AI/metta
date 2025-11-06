@@ -1,24 +1,27 @@
 #!/usr/bin/env -S uv run
 import logging
-from typing import Annotated, Optional
+import typing
 
 import typer
 import yaml
 
-from mettagrid.mapgen.mapgen import MapGen
-from mettagrid.mapgen.scene import SceneConfig
-from mettagrid.mapgen.utils.show import ShowMode, show_game_map
+import mettagrid.mapgen.mapgen
+import mettagrid.mapgen.scene
+import mettagrid.mapgen.utils.show
 
 logger = logging.getLogger(__name__)
 
 
 def main(
-    scene: Annotated[str, typer.Argument(help="Path to the scene config file")],
-    width: Annotated[int, typer.Option(help="Width of the map")],
-    height: Annotated[int, typer.Option(help="Height of the map")],
-    show_mode: Annotated[ShowMode, typer.Option(help="Show mode: ascii, ascii_border, or none")] = "ascii_border",
-    scene_override: Annotated[
-        Optional[list[str]], typer.Option("--scene-override", help="OmegaConf-style overrides for the scene config")
+    scene: typing.Annotated[str, typer.Argument(help="Path to the scene config file")],
+    width: typing.Annotated[int, typer.Option(help="Width of the map")],
+    height: typing.Annotated[int, typer.Option(help="Height of the map")],
+    show_mode: typing.Annotated[
+        mettagrid.mapgen.utils.show.ShowMode, typer.Option(help="Show mode: ascii, ascii_border, or none")
+    ] = "ascii_border",
+    scene_override: typing.Annotated[
+        typing.Optional[list[str]],
+        typer.Option("--scene-override", help="OmegaConf-style overrides for the scene config"),
     ] = None,
 ):
     """
@@ -27,18 +30,18 @@ def main(
     with open(scene, "r") as fh:
         yaml_cfg = yaml.safe_load(fh)
 
-    scene_cfg = SceneConfig.model_validate(yaml_cfg)
+    scene_cfg = mettagrid.mapgen.scene.SceneConfig.model_validate(yaml_cfg)
     for override in scene_override or []:
         key, value = override.split("=", 1)
         scene_cfg.override(key, value)
 
-    mapgen_cfg = MapGen.Config(
+    mapgen_cfg = mettagrid.mapgen.mapgen.MapGen.Config(
         width=width,
         height=height,
         instance=scene_cfg,
     )
     game_map = mapgen_cfg.create().build()
-    show_game_map(game_map, show_mode)
+    mettagrid.mapgen.utils.show.show_game_map(game_map, show_mode)
 
 
 if __name__ == "__main__":

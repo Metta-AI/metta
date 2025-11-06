@@ -7,9 +7,8 @@ The ToolRegistry class manages tool types (classes).
 Tool loading and path resolution is in tool.py.
 """
 
-from __future__ import annotations
 
-from metta.common.tool import Tool
+import metta.common.tool
 
 # -----------------------------------------------------------------------------
 # Tool Registry
@@ -23,7 +22,7 @@ class ToolRegistry:
     """
 
     _instance: ToolRegistry | None = None
-    name_to_tool: dict[str, type[Tool]]  # tool_type_name -> Tool class
+    name_to_tool: dict[str, type[metta.common.tool.Tool]]  # tool_type_name -> Tool class
 
     def __new__(cls) -> ToolRegistry:
         if cls._instance is None:
@@ -34,23 +33,23 @@ class ToolRegistry:
 
     def _register_tools(self) -> None:
         """Lazy import and register all tools."""
-        from metta.tools.analyze import AnalysisTool
-        from metta.tools.eval import EvaluateTool
-        from metta.tools.eval_remote import EvalRemoteTool
-        from metta.tools.play import PlayTool
-        from metta.tools.replay import ReplayTool
-        from metta.tools.sweep import SweepTool
-        from metta.tools.train import TrainTool
+        import metta.tools.analyze
+        import metta.tools.eval
+        import metta.tools.eval_remote
+        import metta.tools.play
+        import metta.tools.replay
+        import metta.tools.sweep
+        import metta.tools.train
 
-        self.register(TrainTool)
-        self.register(EvaluateTool)
-        self.register(EvalRemoteTool)
-        self.register(PlayTool)
-        self.register(ReplayTool)
-        self.register(AnalysisTool)
-        self.register(SweepTool)
+        self.register(metta.tools.train.TrainTool)
+        self.register(metta.tools.eval.EvaluateTool)
+        self.register(metta.tools.eval_remote.EvalRemoteTool)
+        self.register(metta.tools.play.PlayTool)
+        self.register(metta.tools.replay.ReplayTool)
+        self.register(metta.tools.analyze.AnalysisTool)
+        self.register(metta.tools.sweep.SweepTool)
 
-    def register(self, tool_class: type[Tool]) -> None:
+    def register(self, tool_class: type[metta.common.tool.Tool]) -> None:
         """Register a tool class, using its tool_type_name() as the key."""
         tool_type = tool_class.tool_type_name()
         assert tool_type, f"Tool class {tool_class.__name__} must have a non-empty tool_type_name"

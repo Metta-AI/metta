@@ -1,13 +1,13 @@
 """Tests for AdaptiveController - the core orchestration component."""
 
-from datetime import datetime
-from unittest.mock import Mock
+import datetime
+import unittest.mock
 
 import pytest
 
-from metta.adaptive.adaptive_config import AdaptiveConfig
-from metta.adaptive.adaptive_controller import AdaptiveController
-from metta.adaptive.models import JobDefinition, JobTypes, RunInfo
+import metta.adaptive.adaptive_config
+import metta.adaptive.adaptive_controller
+import metta.adaptive.models
 
 
 class TestAdaptiveController:
@@ -16,7 +16,7 @@ class TestAdaptiveController:
     @pytest.fixture
     def mock_scheduler(self):
         """Mock scheduler that returns controllable job lists."""
-        scheduler = Mock()
+        scheduler = unittest.mock.Mock()
         scheduler.is_experiment_complete.return_value = False
         scheduler.schedule.return_value = []
         return scheduler
@@ -24,26 +24,26 @@ class TestAdaptiveController:
     @pytest.fixture
     def mock_dispatcher(self):
         """Mock dispatcher for job execution."""
-        dispatcher = Mock()
+        dispatcher = unittest.mock.Mock()
         dispatcher.dispatch.return_value = "dispatch_id_123"
         return dispatcher
 
     @pytest.fixture
     def mock_store(self):
         """Mock store for run persistence."""
-        store = Mock()
+        store = unittest.mock.Mock()
         store.fetch_runs.return_value = []
         return store
 
     @pytest.fixture
     def config(self):
         """Basic adaptive config."""
-        return AdaptiveConfig(max_parallel=2, monitoring_interval=1)
+        return metta.adaptive.adaptive_config.AdaptiveConfig(max_parallel=2, monitoring_interval=1)
 
     @pytest.fixture
     def controller(self, mock_scheduler, mock_dispatcher, mock_store, config):
         """Basic controller setup."""
-        return AdaptiveController(
+        return metta.adaptive.adaptive_controller.AdaptiveController(
             experiment_id="test_experiment",
             scheduler=mock_scheduler,
             dispatcher=mock_dispatcher,
@@ -74,10 +74,10 @@ class TestAdaptiveController:
     def test_job_dispatch_flow(self, controller, mock_scheduler, mock_dispatcher, mock_store):
         """Test basic job dispatch and tracking."""
         # Setup: scheduler provides one training job
-        training_job = JobDefinition(
+        training_job = metta.adaptive.models.JobDefinition(
             run_id="test_run_001",
             cmd="experiments.recipes.arena.train",
-            type=JobTypes.LAUNCH_TRAINING,
+            type=metta.adaptive.models.JobTypes.LAUNCH_TRAINING,
         )
         mock_scheduler.schedule.return_value = [training_job]
         mock_store.fetch_runs.return_value = []
@@ -94,15 +94,15 @@ class TestAdaptiveController:
         mock_store.init_run.assert_called_once_with("test_run_001", group="test_experiment", initial_summary={})
 
         # Verify job tracking
-        expected_job_key = ("test_run_001", JobTypes.LAUNCH_TRAINING.value)
+        expected_job_key = ("test_run_001", metta.adaptive.models.JobTypes.LAUNCH_TRAINING.value)
         assert expected_job_key in controller.dispatched_jobs
 
     def test_resource_constraint_validation(self, controller, mock_scheduler, mock_store):
         """Test that scheduler respects available training slots."""
         # Setup: 2 active training runs (max_parallel=2)
         active_runs = [
-            RunInfo(run_id="run1", has_started_training=True, has_completed_training=False),
-            RunInfo(run_id="run2", has_started_training=True, has_completed_training=False),
+            metta.adaptive.models.RunInfo(run_id="run1", has_started_training=True, has_completed_training=False),
+            metta.adaptive.models.RunInfo(run_id="run2", has_started_training=True, has_completed_training=False),
         ]
         mock_store.fetch_runs.return_value = active_runs
 
@@ -119,10 +119,10 @@ class TestAdaptiveController:
 
     def test_eval_completion_hook(self, controller, mock_store):
         """Test that eval completion hook is called correctly."""
-        hook_mock = Mock()
+        hook_mock = unittest.mock.Mock()
 
         # Setup: run with evaluation completed but not yet processed
-        evaluated_run = RunInfo(
+        evaluated_run = metta.adaptive.models.RunInfo(
             run_id="test_run_001",
             has_been_evaluated=True,
             summary={},  # No processing flag yet
@@ -144,17 +144,17 @@ class TestAdaptiveController:
         update_dict = call_args[0][1]
         assert update_dict["adaptive/post_eval_processed"] is True
         assert "adaptive/post_eval_processed_at" in update_dict
-        assert isinstance(update_dict["adaptive/post_eval_processed_at"], datetime)
+        assert isinstance(update_dict["adaptive/post_eval_processed_at"], datetime.datetime)
 
     def test_job_dispatch_hook(self, controller, mock_scheduler, mock_dispatcher, mock_store):
         """Test that job dispatch hook is called after store operations."""
-        dispatch_hook = Mock()
+        dispatch_hook = unittest.mock.Mock()
 
         # Setup: scheduler provides one training job
-        training_job = JobDefinition(
+        training_job = metta.adaptive.models.JobDefinition(
             run_id="test_run_001",
             cmd="experiments.recipes.arena.train",
-            type=JobTypes.LAUNCH_TRAINING,
+            type=metta.adaptive.models.JobTypes.LAUNCH_TRAINING,
         )
         mock_scheduler.schedule.return_value = [training_job]
         mock_store.fetch_runs.return_value = []
@@ -167,14 +167,14 @@ class TestAdaptiveController:
 
     def test_duplicate_job_prevention(self, controller, mock_scheduler, mock_dispatcher, mock_store):
         """Test that duplicate jobs are not dispatched."""
-        training_job = JobDefinition(
+        training_job = metta.adaptive.models.JobDefinition(
             run_id="test_run_001",
             cmd="experiments.recipes.arena.train",
-            type=JobTypes.LAUNCH_TRAINING,
+            type=metta.adaptive.models.JobTypes.LAUNCH_TRAINING,
         )
 
         # Pre-populate dispatched jobs
-        controller.dispatched_jobs.add(("test_run_001", JobTypes.LAUNCH_TRAINING.value))
+        controller.dispatched_jobs.add(("test_run_001", metta.adaptive.models.JobTypes.LAUNCH_TRAINING.value))
 
         mock_scheduler.schedule.return_value = [training_job]
         mock_store.fetch_runs.return_value = []
@@ -188,10 +188,10 @@ class TestAdaptiveController:
 
     def test_eval_job_handling(self, controller, mock_scheduler, mock_dispatcher, mock_store):
         """Test evaluation job dispatch flow."""
-        eval_job = JobDefinition(
+        eval_job = metta.adaptive.models.JobDefinition(
             run_id="test_run_001",
             cmd="experiments.recipes.arena.evaluate",
-            type=JobTypes.LAUNCH_EVAL,
+            type=metta.adaptive.models.JobTypes.LAUNCH_EVAL,
         )
 
         mock_scheduler.schedule.return_value = [eval_job]

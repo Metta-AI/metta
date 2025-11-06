@@ -4,34 +4,34 @@ import logging
 import subprocess
 import uuid
 
-from metta.adaptive.dispatcher.local import LocalDispatcher
-from metta.adaptive.models import JobDefinition, JobTypes
-from metta.adaptive.protocols import Dispatcher
-from metta.adaptive.utils import get_display_id
-from metta.common.util.constants import SKYPILOT_LAUNCH_PATH
+import metta.adaptive.dispatcher.local
+import metta.adaptive.models
+import metta.adaptive.protocols
+import metta.adaptive.utils
+import metta.common.util.constants
 
 logger = logging.getLogger(__name__)
 
 
-class SkypilotDispatcher(Dispatcher):
+class SkypilotDispatcher(metta.adaptive.protocols.Dispatcher):
     """Dispatch training via Skypilot while keeping evals local."""
 
     def __init__(self) -> None:
-        self._local_dispatcher = LocalDispatcher(capture_output=True)
+        self._local_dispatcher = metta.adaptive.dispatcher.local.LocalDispatcher(capture_output=True)
 
-    def dispatch(self, job: JobDefinition) -> str:
-        display_id = get_display_id(job.run_id)
+    def dispatch(self, job: metta.adaptive.models.JobDefinition) -> str:
+        display_id = metta.adaptive.utils.get_display_id(job.run_id)
 
-        if job.type == JobTypes.LAUNCH_EVAL:
+        if job.type == metta.adaptive.models.JobTypes.LAUNCH_EVAL:
             logger.info("Delegating evaluation %s to LocalDispatcher", display_id)
             return self._local_dispatcher.dispatch(job)
 
         logger.info("Dispatching training %s to Skypilot", display_id)
         return self._dispatch_skypilot(job, display_id)
 
-    def _dispatch_skypilot(self, job: JobDefinition, display_id: str) -> str:
+    def _dispatch_skypilot(self, job: metta.adaptive.models.JobDefinition, display_id: str) -> str:
         cmd_parts = [
-            SKYPILOT_LAUNCH_PATH,
+            metta.common.util.constants.SKYPILOT_LAUNCH_PATH,
             "--no-spot",
             "--heartbeat-timeout=10000",
         ]

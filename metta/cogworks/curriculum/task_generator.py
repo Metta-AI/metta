@@ -1,48 +1,40 @@
-from __future__ import annotations
 
+import abc
 import logging
 import random
-from abc import ABC, abstractmethod
-from typing import Annotated, Any, ClassVar, Optional, Sequence, Type, TypeVar
+import typing
 
-from pydantic import (
-    ConfigDict,
-    Field,
-    SerializeAsAny,
-    WrapValidator,
-    field_validator,
-    model_serializer,
-)
-from typing_extensions import Generic
+import pydantic
+import typing_extensions
 
-from mettagrid.base_config import Config
-from mettagrid.config.mettagrid_config import MettaGridConfig
-from mettagrid.util.module import load_symbol
+import mettagrid.base_config
+import mettagrid.config.mettagrid_config
+import mettagrid.util.module
 
 logger = logging.getLogger(__name__)
 
-TTaskGenerator = TypeVar("TTaskGenerator", bound="TaskGenerator")
+TTaskGenerator = typing.TypeVar("TTaskGenerator", bound="TaskGenerator")
 
 
-class TaskGeneratorConfig(Config, Generic[TTaskGenerator]):
+class TaskGeneratorConfig(mettagrid.base_config.Config, typing_extensions.Generic[TTaskGenerator]):
     """Base configuration for TaskGenerator.
 
     Subclasses *optionally* know which TaskGenerator they build via `_generator_cls`
     (auto-filled when nested inside a TaskGenerator subclass).
     """
 
-    _generator_cls: ClassVar[Optional[Type[TTaskGenerator]]] = None  # type: ignore[misc]
+    _generator_cls: typing.ClassVar[typing.Optional[typing.Type[TTaskGenerator]]] = None  # type: ignore[misc]
 
     # pydantic configuration
-    model_config: ClassVar[ConfigDict] = ConfigDict(
+    model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
         extra="forbid",
         validate_assignment=True,
         populate_by_name=True,
     )
 
-    label: Optional[str] = Field(default=None, description="Label for the task generator")
+    label: typing.Optional[str] = pydantic.Field(default=None, description="Label for the task generator")
 
-    overrides: dict[str, Any] = Field(
+    overrides: dict[str, typing.Any] = pydantic.Field(
         default_factory=dict, description="Overrides to apply as dict with dot-separated keys"
     )
 
@@ -56,7 +48,7 @@ class TaskGeneratorConfig(Config, Generic[TTaskGenerator]):
         return self.generator_cls()(self)  # type: ignore[call-arg]
 
     @classmethod
-    def generator_cls(cls) -> Type[TTaskGenerator]:
+    def generator_cls(cls) -> typing.Type[TTaskGenerator]:
         if cls._generator_cls is None:
             raise TypeError(
                 f"{cls.__name__} is not bound to a TaskGenerator; "
@@ -66,27 +58,27 @@ class TaskGeneratorConfig(Config, Generic[TTaskGenerator]):
 
     def to_curriculum(self, num_active_tasks: int = 16, algorithm_config=None):
         """Create a CurriculumConfig from this TaskGeneratorConfig."""
-        from metta.cogworks.curriculum.curriculum import CurriculumConfig
-        from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+        import metta.cogworks.curriculum.curriculum
+        import metta.cogworks.curriculum.learning_progress_algorithm
 
         if algorithm_config is None:
-            algorithm_config = LearningProgressConfig()
+            algorithm_config = metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig()
 
-        return CurriculumConfig(
+        return metta.cogworks.curriculum.curriculum.CurriculumConfig(
             task_generator=self, num_active_tasks=num_active_tasks, algorithm_config=algorithm_config
         )
 
-    @model_serializer(mode="wrap")
+    @pydantic.model_serializer(mode="wrap")
     def _serialize_with_type(self, handler):
         """Ensure YAML/JSON dumps always include a 'type' with a nice FQCN."""
         data = handler(self)  # dict of the model's fields
-        typ_cls: Type[Any] = self._generator_cls or self.__class__
+        typ_cls: typing.Type[typing.Any] = self._generator_cls or self.__class__
         # Prefer the *generator* class if known, fall back to the config class
         type_str = f"{typ_cls.__module__}.{typ_cls.__name__}"
         return {"type": type_str, **data}
 
 
-class TaskGenerator(ABC):
+class TaskGenerator(abc.ABC):
     """Base class for generating tasks with deterministic seeding.
 
     TaskGenerator supports .get_task(task_id) where task_id is used as the seed.
@@ -96,7 +88,7 @@ class TaskGenerator(ABC):
     it will be *automatically bound*.
     """
 
-    Config: ClassVar[type[TaskGeneratorConfig[Any]]]
+    Config: typing.ClassVar[type[TaskGeneratorConfig[typing.Any]]]
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -108,14 +100,14 @@ class TaskGenerator(ABC):
         self._config = config
         self._overrides = config.overrides
 
-    def get_task(self, task_id: int) -> MettaGridConfig:
+    def get_task(self, task_id: int) -> mettagrid.config.mettagrid_config.MettaGridConfig:
         """Generate a task (MettaGridConfig) using task_id as seed."""
         rng = random.Random()
         rng.seed(task_id)
         return self._apply_overrides(self._generate_task(task_id, rng), self._config.overrides)
 
-    @abstractmethod
-    def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
+    @abc.abstractmethod
+    def _generate_task(self, task_id: int, rng: random.Random) -> mettagrid.config.mettagrid_config.MettaGridConfig:
         """Generate a task with the given task_id and RNG.
 
         This method should be overridden by subclasses to implement
@@ -130,7 +122,9 @@ class TaskGenerator(ABC):
         """
         raise NotImplementedError("TaskGenerator._generate_task() must be overridden by subclasses")
 
-    def _apply_overrides(self, mg_config: MettaGridConfig, overrides: dict[str, Any]) -> MettaGridConfig:
+    def _apply_overrides(
+        self, mg_config: mettagrid.config.mettagrid_config.MettaGridConfig, overrides: dict[str, typing.Any]
+    ) -> mettagrid.config.mettagrid_config.MettaGridConfig:
         """Apply overrides to an MettaGridConfig using dot-separated keys."""
         if not overrides:
             return mg_config
@@ -148,13 +142,15 @@ class SingleTaskGenerator(TaskGenerator):
     class Config(TaskGeneratorConfig["SingleTaskGenerator"]):
         """Configuration for SingleTaskGenerator."""
 
-        env: MettaGridConfig = Field(description="The environment configuration to always return")
+        env: mettagrid.config.mettagrid_config.MettaGridConfig = pydantic.Field(
+            description="The environment configuration to always return"
+        )
 
     def __init__(self, config: "SingleTaskGenerator.Config"):
         super().__init__(config)
         self._config = config
 
-    def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
+    def _generate_task(self, task_id: int, rng: random.Random) -> mettagrid.config.mettagrid_config.MettaGridConfig:
         """Always return the same MettaGridConfig."""
         return self._config.env.model_copy(deep=True)
 
@@ -172,12 +168,14 @@ class TaskGeneratorSet(TaskGenerator):
     class Config(TaskGeneratorConfig["TaskGeneratorSet"]):
         """Configuration for TaskGeneratorSet."""
 
-        task_generators: list[AnyTaskGeneratorConfig] = Field(
+        task_generators: list[AnyTaskGeneratorConfig] = pydantic.Field(
             default_factory=list, description="Task generator configurations to sample from"
         )
-        weights: list[float] = Field(default_factory=list, description="Weights for sampling each task generator")
+        weights: list[float] = pydantic.Field(
+            default_factory=list, description="Weights for sampling each task generator"
+        )
 
-        @field_validator("weights")
+        @pydantic.field_validator("weights")
         @classmethod
         def validate_weights(cls, v, info):
             """Ensure weights are positive."""
@@ -200,7 +198,7 @@ class TaskGeneratorSet(TaskGenerator):
         self._sub_task_generators = [gen_config.create() for gen_config in self._config.task_generators]
         self._weights = self._config.weights if self._config.weights else [1.0] * len(self._sub_task_generators)
 
-    def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
+    def _generate_task(self, task_id: int, rng: random.Random) -> mettagrid.config.mettagrid_config.MettaGridConfig:
         chosen_generator = rng.choices(self._sub_task_generators, weights=self._weights)[0]
         result = chosen_generator.get_task(task_id)
 
@@ -216,11 +214,11 @@ class TaskGeneratorSet(TaskGenerator):
 ################################################################################
 # BucketedTaskGenerator
 ################################################################################
-class Span(Config):
+class Span(mettagrid.base_config.Config):
     """A range of values with minimum and maximum bounds."""
 
-    range_min: float | int = Field(description="Range minimum")
-    range_max: float | int = Field(description="Range maximum")
+    range_min: float | int = pydantic.Field(description="Range minimum")
+    range_max: float | int = pydantic.Field(description="Range maximum")
 
     def __init__(self, range_min: float | int | None = None, range_max: float | int | None = None, **kwargs):
         """Initialize Span with positional arguments or keyword arguments."""
@@ -231,7 +229,7 @@ class Span(Config):
             # Called with keyword arguments (normal Pydantic behavior)
             super().__init__(**kwargs)
 
-    @field_validator("range_max")
+    @pydantic.field_validator("range_max")
     @classmethod
     def validate_range(cls, v, info):
         """Ensure range_min is less than range_max."""
@@ -256,19 +254,25 @@ class BucketedTaskGenerator(TaskGenerator):
     class Config(TaskGeneratorConfig["BucketedTaskGenerator"]):
         """Configuration for BucketedTaskGenerator."""
 
-        child_generator_config: AnyTaskGeneratorConfig = Field(description="Child task generator configuration")
-        buckets: dict[str, Sequence[int | float | str | Span]] = Field(
+        child_generator_config: AnyTaskGeneratorConfig = pydantic.Field(
+            description="Child task generator configuration"
+        )
+        buckets: dict[str, typing.Sequence[int | float | str | Span]] = pydantic.Field(
             default_factory=dict, description="Buckets for sampling, keys are config paths"
         )
 
-        def add_bucket(self, path: str, values: Sequence[int | float | str | Span]) -> "BucketedTaskGenerator.Config":
+        def add_bucket(
+            self, path: str, values: typing.Sequence[int | float | str | Span]
+        ) -> "BucketedTaskGenerator.Config":
             """Add a bucket of values for a specific configuration path."""
             assert path not in self.buckets, f"Bucket {path} already exists"
             self.buckets[path] = values
             return self
 
         @classmethod
-        def from_mg(cls, mg_config: MettaGridConfig) -> "BucketedTaskGenerator.Config":
+        def from_mg(
+            cls, mg_config: mettagrid.config.mettagrid_config.MettaGridConfig
+        ) -> "BucketedTaskGenerator.Config":
             """Create a BucketedTaskGenerator.Config from an MettaGridConfig."""
             return cls(child_generator_config=SingleTaskGenerator.Config(env=mg_config))
 
@@ -278,7 +282,9 @@ class BucketedTaskGenerator(TaskGenerator):
         assert config.buckets, "Buckets must be non-empty"
         self._child_generator = config.child_generator_config.create()
 
-    def _get_bucket_value(self, bucket_values: Sequence[int | float | str | Span], rng: random.Random) -> Any:
+    def _get_bucket_value(
+        self, bucket_values: typing.Sequence[int | float | str | Span], rng: random.Random
+    ) -> typing.Any:
         bucket_value = rng.choice(bucket_values)
 
         if isinstance(bucket_value, Span):
@@ -289,7 +295,7 @@ class BucketedTaskGenerator(TaskGenerator):
                 bucket_value = rng.uniform(min_val, max_val)
         return bucket_value
 
-    def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
+    def _generate_task(self, task_id: int, rng: random.Random) -> mettagrid.config.mettagrid_config.MettaGridConfig:
         """Generate task by calling child generator then applying bucket overrides."""
         # First, sample values from each bucket
         overrides = {}
@@ -308,7 +314,7 @@ class BucketedTaskGenerator(TaskGenerator):
         return self._apply_overrides(mg_config, overrides)
 
 
-def _validate_open_task_generator(v: Any, handler):
+def _validate_open_task_generator(v: typing.Any, handler):
     """Accepts any of:
     - a TaskGeneratorConfig instance (already specific)
     - a dict with {"type": "<FQCN-of-TaskGenerator-or-Config>", ...params...}
@@ -324,7 +330,7 @@ def _validate_open_task_generator(v: Any, handler):
             return handler(v)
 
         # Import the symbol named in 'type'
-        target = load_symbol(t) if isinstance(t, str) else t
+        target = mettagrid.util.module.load_symbol(t) if isinstance(t, str) else t
 
         # If it's a Generator, use its nested Config
         if isinstance(target, type) and issubclass(target, TaskGenerator):
@@ -359,6 +365,6 @@ def _validate_open_task_generator(v: Any, handler):
     return handler(v)
 
 
-AnyTaskGeneratorConfig = SerializeAsAny[
-    Annotated[TaskGeneratorConfig[Any], WrapValidator(_validate_open_task_generator)]
+AnyTaskGeneratorConfig = pydantic.SerializeAsAny[
+    typing.Annotated[TaskGeneratorConfig[typing.Any], pydantic.WrapValidator(_validate_open_task_generator)]
 ]

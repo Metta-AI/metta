@@ -1,13 +1,13 @@
 """Shared test utilities for curriculum tests."""
 
-from typing import Tuple, Union
+import typing
 
 import numpy as np
 import pytest
 
 import metta.cogworks.curriculum as cc
-from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressAlgorithm, LearningProgressConfig
+import metta.cogworks.curriculum.curriculum
+import metta.cogworks.curriculum.learning_progress_algorithm
 
 
 class CurriculumTestHelper:
@@ -20,8 +20,8 @@ class CurriculumTestHelper:
 
     @staticmethod
     def setup_learning_comparison(
-        algorithm: LearningProgressAlgorithm,
-        task_ids: Union[int, Tuple[int, ...]],
+        algorithm: metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressAlgorithm,
+        task_ids: typing.Union[int, typing.Tuple[int, ...]],
         pattern: str = "fast_vs_slow",
         iterations: int = 20,
     ) -> None:
@@ -76,11 +76,14 @@ class CurriculumTestHelper:
     @staticmethod
     def create_curriculum_with_capacity(capacity: int, **kwargs):
         """Create a curriculum with specific capacity for testing."""
-        from metta.cogworks.curriculum import SingleTaskGenerator
-        from mettagrid.config.mettagrid_config import MettaGridConfig
+        import mettagrid.config.mettagrid_config
 
-        task_gen_config = SingleTaskGenerator.Config(env=MettaGridConfig())
-        config = CurriculumConfig(task_generator=task_gen_config, num_active_tasks=capacity, **kwargs)
+        task_gen_config = metta.cogworks.curriculum.SingleTaskGenerator.Config(
+            env=mettagrid.config.mettagrid_config.MettaGridConfig()
+        )
+        config = metta.cogworks.curriculum.curriculum.CurriculumConfig(
+            task_generator=task_gen_config, num_active_tasks=capacity, **kwargs
+        )
         return config
 
     @staticmethod
@@ -91,19 +94,23 @@ class CurriculumTestHelper:
             curriculum_type: Type of curriculum ('basic', 'with_algorithm', 'production')
             **kwargs: Additional configuration parameters
         """
-        from metta.cogworks.curriculum import SingleTaskGenerator
-        from mettagrid.config.mettagrid_config import MettaGridConfig
 
-        base_config = SingleTaskGenerator.Config(env=MettaGridConfig())
+        base_config = metta.cogworks.curriculum.SingleTaskGenerator.Config(
+            env=mettagrid.config.mettagrid_config.MettaGridConfig()
+        )
 
         if curriculum_type == "basic":
-            return CurriculumConfig(task_generator=base_config, **kwargs)
+            return metta.cogworks.curriculum.curriculum.CurriculumConfig(task_generator=base_config, **kwargs)
         elif curriculum_type == "with_algorithm":
-            algorithm = LearningProgressConfig(**kwargs.get("algorithm_params", {}))
-            return CurriculumConfig(task_generator=base_config, algorithm_config=algorithm, **kwargs)
+            algorithm = metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig(
+                **kwargs.get("algorithm_params", {})
+            )
+            return metta.cogworks.curriculum.curriculum.CurriculumConfig(
+                task_generator=base_config, algorithm_config=algorithm, **kwargs
+            )
         elif curriculum_type == "production":
             # Create production-like curriculum with buckets
-            tasks = cc.bucketed(MettaGridConfig())
+            tasks = cc.bucketed(mettagrid.config.mettagrid_config.MettaGridConfig())
             tasks.add_bucket("test.param", [1, 2, 3])
             return tasks.to_curriculum(**kwargs)
         else:

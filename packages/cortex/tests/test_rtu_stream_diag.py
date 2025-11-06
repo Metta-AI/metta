@@ -6,15 +6,14 @@ Covers:
 3) Both behaviors hold with and without resets.
 """
 
-from __future__ import annotations
 
+import cortex.kernels.pytorch.rtu.rtu_stream_diag
 import numpy as np
 import pytest
 import torch
-from cortex.kernels.pytorch.rtu.rtu_stream_diag import rtu_stream_diag_pytorch
 
 try:  # Triton availability for GPU tests
-    from cortex.kernels.triton import rtu_stream_diag_triton as _rtu_triton_stream
+    import cortex.kernels.triton
 
     _HAS_TRITON = True
 except Exception:  # pragma: no cover
@@ -22,7 +21,7 @@ except Exception:  # pragma: no cover
 
 # CUDA fused sequential (all-in) availability
 try:
-    from cortex.kernels.cuda import rtu_stream_diag_cuda as _rtu_cuda_seq_stream
+    import cortex.kernels.cuda
 
     _HAS_CUDA_SEQ = True
 except Exception:  # pragma: no cover
@@ -49,7 +48,7 @@ def _forward_whole(x, params, activation: str, resets_bt=None):
     H = params[0].shape[0]
     hc1_0 = torch.zeros(B, H, device=x.device, dtype=x.dtype)
     hc2_0 = torch.zeros(B, H, device=x.device, dtype=x.dtype)
-    y, (h1, h2), _trace = rtu_stream_diag_pytorch(
+    y, (h1, h2), _trace = cortex.kernels.pytorch.rtu.rtu_stream_diag.rtu_stream_diag_pytorch(
         x_btd=x,
         nu_log=nu_log,
         theta_log=theta_log,
@@ -80,7 +79,7 @@ def _forward_stream_chunks(x, params, activation: str, resets_bt=None, chunks=(3
             break
         x_blk = x[:, t0:t1, :]
         res_blk = None if resets_bt is None else resets_bt[:, t0:t1]
-        y_blk, (hc1, hc2), trace = rtu_stream_diag_pytorch(
+        y_blk, (hc1, hc2), trace = cortex.kernels.pytorch.rtu.rtu_stream_diag.rtu_stream_diag_pytorch(
             x_btd=x_blk,
             nu_log=nu_log,
             theta_log=theta_log,
@@ -255,7 +254,7 @@ def test_streaming_vs_whole_grad_parity_with_resets() -> None:
     # Whole sequence (autograd)
     hc1_0 = torch.zeros(B, H, device=device, dtype=dtype)
     hc2_0 = torch.zeros(B, H, device=device, dtype=dtype)
-    y_w, _state, _trace = rtu_stream_diag_pytorch(
+    y_w, _state, _trace = cortex.kernels.pytorch.rtu.rtu_stream_diag.rtu_stream_diag_pytorch(
         x_btd=x,
         nu_log=nu_log,
         theta_log=theta_log,
@@ -279,7 +278,7 @@ def test_streaming_vs_whole_grad_parity_with_resets() -> None:
         t0 = 0
         for sz in chunks:
             t1 = min(T, t0 + sz)
-            y_blk, (hc1, hc2), trace = rtu_stream_diag_pytorch(
+            y_blk, (hc1, hc2), trace = cortex.kernels.pytorch.rtu.rtu_stream_diag.rtu_stream_diag_pytorch(
                 x_btd=x[:, t0:t1, :],
                 nu_log=nu_log,
                 theta_log=theta_log,
@@ -354,7 +353,7 @@ def test_triton_streaming_diag_forward_and_grad_parity(with_resets: bool) -> Non
     hc2_0 = torch.zeros(B, H, device=device, dtype=dtype)
 
     # Forward (PyTorch)
-    y_pt, (h1_pt, h2_pt), tr_out_pt = rtu_stream_diag_pytorch(
+    y_pt, (h1_pt, h2_pt), tr_out_pt = cortex.kernels.pytorch.rtu.rtu_stream_diag.rtu_stream_diag_pytorch(
         x_btd=x,
         nu_log=nu_pt,
         theta_log=th_pt,
@@ -370,7 +369,7 @@ def test_triton_streaming_diag_forward_and_grad_parity(with_resets: bool) -> Non
     g_pt = torch.autograd.grad(loss_pt, (nu_pt, th_pt, w1_pt, w2_pt, x), retain_graph=True)
 
     # Forward (Triton)
-    y_tr, (h1_tr, h2_tr), tr_out_tr = _rtu_triton_stream(
+    y_tr, (h1_tr, h2_tr), tr_out_tr = cortex.kernels.triton.rtu_stream_diag_triton(
         x_btd=x,
         nu_log=nu_tr,
         theta_log=th_tr,
@@ -452,7 +451,7 @@ def test_triton_streaming_diag_chunked_forward_and_grad_parity(with_resets: bool
         w2_pt = w20.clone().detach().requires_grad_(True)
         hc1_0 = torch.zeros(B, H, device=device, dtype=dtype)
         hc2_0 = torch.zeros(B, H, device=device, dtype=dtype)
-        y_ref, (_, _), _ = rtu_stream_diag_pytorch(
+        y_ref, (_, _), _ = cortex.kernels.pytorch.rtu.rtu_stream_diag.rtu_stream_diag_pytorch(
             x_btd=x,
             nu_log=nu_pt,
             theta_log=th_pt,
@@ -490,7 +489,7 @@ def test_triton_streaming_diag_chunked_forward_and_grad_parity(with_resets: bool
                 t1 = min(T, t0 + sz)
                 if t1 <= t0:
                     break
-                y_blk, (hc1, hc2), trace = _rtu_triton_stream(
+                y_blk, (hc1, hc2), trace = cortex.kernels.triton.rtu_stream_diag_triton(
                     x_btd=x[:, t0:t1, :],
                     nu_log=nu_tr,
                     theta_log=th_tr,
@@ -586,7 +585,7 @@ def test_cuda_seq_streaming_diag_forward_and_grad_parity(with_resets: bool) -> N
     w2_cu = w20.clone().detach().requires_grad_(True)
 
     # Forward PyTorch
-    y_pt, (h1_pt, h2_pt), _ = rtu_stream_diag_pytorch(
+    y_pt, (h1_pt, h2_pt), _ = cortex.kernels.pytorch.rtu.rtu_stream_diag.rtu_stream_diag_pytorch(
         x_btd=x,
         nu_log=nu_pt,
         theta_log=th_pt,
@@ -602,7 +601,7 @@ def test_cuda_seq_streaming_diag_forward_and_grad_parity(with_resets: bool) -> N
     g_pt = torch.autograd.grad(loss_pt, (nu_pt, th_pt, w1_pt, w2_pt, x), retain_graph=True)
 
     # Forward CUDA
-    y_cu, (h1_cu, h2_cu), _ = _rtu_cuda_seq_stream(
+    y_cu, (h1_cu, h2_cu), _ = cortex.kernels.cuda.rtu_stream_diag_cuda(
         x_btd=x,
         nu_log=nu_cu,
         theta_log=th_cu,
@@ -673,7 +672,7 @@ def test_cuda_seq_streaming_diag_whole_vs_chunked_parity(with_resets: bool) -> N
         w2_wh = w20.clone().detach().requires_grad_(True)
         hc1_0 = torch.zeros(B, H, device=device, dtype=dtype)
         hc2_0 = torch.zeros(B, H, device=device, dtype=dtype)
-        y_wh, (_, _), _ = _rtu_cuda_seq_stream(
+        y_wh, (_, _), _ = cortex.kernels.cuda.rtu_stream_diag_cuda(
             x_btd=x,
             nu_log=nu_wh,
             theta_log=th_wh,
@@ -711,7 +710,7 @@ def test_cuda_seq_streaming_diag_whole_vs_chunked_parity(with_resets: bool) -> N
                 t1 = min(T, t0 + sz)
                 if t1 <= t0:
                     break
-                y_blk, (hc1, hc2), trace = _rtu_cuda_seq_stream(
+                y_blk, (hc1, hc2), trace = cortex.kernels.cuda.rtu_stream_diag_cuda(
                     x_btd=x[:, t0:t1, :],
                     nu_log=nu_bind,
                     theta_log=th_bind,
@@ -803,7 +802,7 @@ def test_triton_streaming_diag_whole_vs_chunked_parity(with_resets: bool) -> Non
         w2_wh = w20.clone().detach().requires_grad_(True)
         hc1_0 = torch.zeros(B, H, device=device, dtype=dtype)
         hc2_0 = torch.zeros(B, H, device=device, dtype=dtype)
-        y_wh, (_, _), _ = _rtu_triton_stream(
+        y_wh, (_, _), _ = cortex.kernels.triton.rtu_stream_diag_triton(
             x_btd=x,
             nu_log=nu_wh,
             theta_log=th_wh,
@@ -841,7 +840,7 @@ def test_triton_streaming_diag_whole_vs_chunked_parity(with_resets: bool) -> Non
                 t1 = min(T, t0 + sz)
                 if t1 <= t0:
                     break
-                y_blk, (hc1, hc2), trace = _rtu_triton_stream(
+                y_blk, (hc1, hc2), trace = cortex.kernels.triton.rtu_stream_diag_triton(
                     x_btd=x[:, t0:t1, :],
                     nu_log=nu,
                     theta_log=th,

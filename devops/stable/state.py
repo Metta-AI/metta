@@ -6,24 +6,23 @@ This module handles:
 - Git utility functions
 """
 
-from __future__ import annotations
 
+import datetime
+import pathlib
 import re
-from datetime import UTC, datetime
-from pathlib import Path
-from typing import Optional
+import typing
 
-from pydantic import BaseModel, Field
+import pydantic
 
-from metta.common.util.fs import get_repo_root
+import metta.common.util.fs
 
 # ============================================================================
 # Helper Functions
 # ============================================================================
 
 
-def get_state_path(version: str) -> Path:
-    state_dir = get_repo_root() / "devops/stable/state"
+def get_state_path(version: str) -> pathlib.Path:
+    state_dir = metta.common.util.fs.get_repo_root() / "devops/stable/state"
     state_dir.mkdir(parents=True, exist_ok=True)
     return state_dir / f"{version}.json"
 
@@ -33,7 +32,7 @@ def get_state_path(version: str) -> Path:
 # ============================================================================
 
 
-class Gate(BaseModel):
+class Gate(pydantic.BaseModel):
     """Tracks completion of pipeline-level gates (prepare_tag, bug_check, etc.)."""
 
     step: str
@@ -41,15 +40,15 @@ class Gate(BaseModel):
     timestamp: str
 
 
-class ReleaseState(BaseModel):
+class ReleaseState(pydantic.BaseModel):
     version: str
     created_at: str
-    commit_sha: Optional[str] = None
-    gates: list[Gate] = Field(default_factory=list)
+    commit_sha: typing.Optional[str] = None
+    gates: list[Gate] = pydantic.Field(default_factory=list)
     released: bool = False
 
 
-def load_state(version: str) -> Optional[ReleaseState]:
+def load_state(version: str) -> typing.Optional[ReleaseState]:
     path = get_state_path(version)
     if not path.exists():
         return None
@@ -69,19 +68,19 @@ def load_or_create_state(version: str, commit_sha: str) -> ReleaseState:
     # Create new state
     state = ReleaseState(
         version=version,
-        created_at=datetime.now(UTC).isoformat(timespec="seconds"),
+        created_at=datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds"),
         commit_sha=commit_sha,
     )
     save_state(state)
     return state
 
 
-def get_most_recent_state() -> Optional[tuple[str, ReleaseState]]:
+def get_most_recent_state() -> typing.Optional[tuple[str, ReleaseState]]:
     """
     Only considers state files with valid timestamp-based version format vYYYY.MM.DD-HHMMSS.json
     Also accepts legacy 4-digit format vYYYY.MM.DD-HHMM.json for backward compatibility.
     """
-    state_base = get_repo_root() / "devops/stable/state"
+    state_base = metta.common.util.fs.get_repo_root() / "devops/stable/state"
     if not state_base.exists():
         return None
 
@@ -111,7 +110,7 @@ def get_most_recent_state() -> Optional[tuple[str, ReleaseState]]:
     return None
 
 
-def save_state(state: ReleaseState) -> Path:
+def save_state(state: ReleaseState) -> pathlib.Path:
     path = get_state_path(state.version)
 
     # Simple write - no atomicity needed for sequential execution

@@ -1,27 +1,11 @@
 import numpy as np
 import pytest
 
-from mettagrid.config.mettagrid_config import (
-    ActionsConfig,
-    AgentConfig,
-    AttackActionConfig,
-    ChangeVibeActionConfig,
-    GameConfig,
-    MettaGridConfig,
-    MoveActionConfig,
-    NoopActionConfig,
-    WallConfig,
-)
-from mettagrid.map_builder.utils import create_grid
-from mettagrid.mettagrid_c import (
-    dtype_actions,
-    dtype_observations,
-    dtype_rewards,
-    dtype_terminals,
-    dtype_truncations,
-)
-from mettagrid.simulator import Simulation
-from mettagrid.test_support.map_builders import ObjectNameMapBuilder
+import mettagrid.config.mettagrid_config
+import mettagrid.map_builder.utils
+import mettagrid.mettagrid_c
+import mettagrid.simulator
+import mettagrid.test_support.map_builders
 
 NUM_AGENTS = 2
 OBS_HEIGHT = 3
@@ -43,7 +27,7 @@ def create_minimal_simulation(max_steps=10, width=5, height=5, config_overrides:
         Simulation instance (access underlying C++ env via sim._c_sim)
     """
     # Define a simple map: empty with walls around perimeter
-    game_map = create_grid(height, width)
+    game_map = mettagrid.map_builder.utils.create_grid(height, width)
     game_map[0, :] = "wall"
     game_map[-1, :] = "wall"
     game_map[:, 0] = "wall"
@@ -55,18 +39,18 @@ def create_minimal_simulation(max_steps=10, width=5, height=5, config_overrides:
     mid_x = width // 2
     game_map[mid_y, mid_x] = "agent.red"
 
-    game_config = GameConfig(
+    game_config = mettagrid.config.mettagrid_config.GameConfig(
         max_steps=max_steps,
         num_agents=NUM_AGENTS,
         resource_names=["laser", "armor"],
-        actions=ActionsConfig(
-            noop=NoopActionConfig(enabled=True),
-            move=MoveActionConfig(enabled=True),
-            attack=AttackActionConfig(enabled=False),
-            change_vibe=ChangeVibeActionConfig(enabled=True, number_of_vibes=4),
+        actions=mettagrid.config.mettagrid_config.ActionsConfig(
+            noop=mettagrid.config.mettagrid_config.NoopActionConfig(enabled=True),
+            move=mettagrid.config.mettagrid_config.MoveActionConfig(enabled=True),
+            attack=mettagrid.config.mettagrid_config.AttackActionConfig(enabled=False),
+            change_vibe=mettagrid.config.mettagrid_config.ChangeVibeActionConfig(enabled=True, number_of_vibes=4),
         ),
-        objects={"wall": WallConfig()},
-        agent=AgentConfig(),
+        objects={"wall": mettagrid.config.mettagrid_config.WallConfig()},
+        agent=mettagrid.config.mettagrid_config.AgentConfig(),
     )
 
     # Apply config overrides if provided
@@ -74,13 +58,13 @@ def create_minimal_simulation(max_steps=10, width=5, height=5, config_overrides:
         game_config = game_config.model_copy(update=config_overrides)
 
     # Create MettaGridConfig wrapper
-    config = MettaGridConfig(game=game_config)
+    config = mettagrid.config.mettagrid_config.MettaGridConfig(game=game_config)
 
     # Set up map builder
     map_list = game_map.tolist()
-    config.game.map_builder = ObjectNameMapBuilder.Config(map_data=map_list)
+    config.game.map_builder = mettagrid.test_support.map_builders.ObjectNameMapBuilder.Config(map_data=map_list)
 
-    return Simulation(config, seed=42)
+    return mettagrid.simulator.Simulation(config, seed=42)
 
 
 # These tests validate low-level C++ buffer management using MettaGrid directly.
@@ -144,7 +128,7 @@ class TestBuffers:
         terminals = np.zeros(NUM_AGENTS, dtype=bool)
         truncations = np.zeros(NUM_AGENTS, dtype=bool)
         rewards = np.zeros(NUM_AGENTS, dtype=np.float32)
-        actions = np.zeros(NUM_AGENTS, dtype=dtype_actions)
+        actions = np.zeros(NUM_AGENTS, dtype=mettagrid.mettagrid_c.dtype_actions)
 
         # Wrong number of agents
         observations = np.zeros((3, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=np.uint8)
@@ -176,33 +160,35 @@ class TestBuffers:
         c_sim = sim._c_sim
 
         # Correct buffers for comparison
-        observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=dtype_observations)
-        terminals = np.zeros(NUM_AGENTS, dtype=dtype_terminals)
-        truncations = np.zeros(NUM_AGENTS, dtype=dtype_truncations)
-        rewards = np.zeros(NUM_AGENTS, dtype=dtype_rewards)
-        actions = np.zeros(NUM_AGENTS, dtype=dtype_actions)
+        observations = np.zeros(
+            (NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=mettagrid.mettagrid_c.dtype_observations
+        )
+        terminals = np.zeros(NUM_AGENTS, dtype=mettagrid.mettagrid_c.dtype_terminals)
+        truncations = np.zeros(NUM_AGENTS, dtype=mettagrid.mettagrid_c.dtype_truncations)
+        rewards = np.zeros(NUM_AGENTS, dtype=mettagrid.mettagrid_c.dtype_rewards)
+        actions = np.zeros(NUM_AGENTS, dtype=mettagrid.mettagrid_c.dtype_actions)
 
         # Wrong observation dtype
         wrong_obs = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=np.float32)
-        assert wrong_obs.dtype != dtype_observations
+        assert wrong_obs.dtype != mettagrid.mettagrid_c.dtype_observations
         with pytest.raises(TypeError):
             c_sim.set_buffers(wrong_obs, terminals, truncations, rewards, actions)
 
         # Wrong terminals dtype
         wrong_terminals = np.zeros(NUM_AGENTS, dtype=np.int32)
-        assert wrong_terminals.dtype != dtype_terminals
+        assert wrong_terminals.dtype != mettagrid.mettagrid_c.dtype_terminals
         with pytest.raises(TypeError):
             c_sim.set_buffers(observations, wrong_terminals, truncations, rewards, actions)
 
         # Wrong truncations dtype
         wrong_truncations = np.zeros(NUM_AGENTS, dtype=np.int32)
-        assert wrong_truncations.dtype != dtype_truncations
+        assert wrong_truncations.dtype != mettagrid.mettagrid_c.dtype_truncations
         with pytest.raises(TypeError):
             c_sim.set_buffers(observations, terminals, wrong_truncations, rewards, actions)
 
         # Wrong rewards dtype
         wrong_rewards = np.zeros(NUM_AGENTS, dtype=np.float64)
-        assert wrong_rewards.dtype != dtype_rewards
+        assert wrong_rewards.dtype != mettagrid.mettagrid_c.dtype_rewards
         with pytest.raises(TypeError):
             c_sim.set_buffers(observations, terminals, truncations, wrong_rewards, actions)
 
@@ -218,7 +204,7 @@ class TestBuffers:
         rewards = np.zeros(NUM_AGENTS, dtype=np.float32)
 
         with pytest.raises(TypeError):
-            actions = np.zeros(NUM_AGENTS, dtype=dtype_actions)
+            actions = np.zeros(NUM_AGENTS, dtype=mettagrid.mettagrid_c.dtype_actions)
             c_sim.set_buffers(observations, terminals, truncations, rewards, actions)
 
         # Test with other non-contiguous buffers
@@ -227,7 +213,7 @@ class TestBuffers:
         temp = np.zeros((NUM_AGENTS * 2), dtype=bool)
         non_contiguous_terminals = temp[::2][:NUM_AGENTS]
         with pytest.raises(TypeError):
-            actions = np.zeros(NUM_AGENTS, dtype=dtype_actions)
+            actions = np.zeros(NUM_AGENTS, dtype=mettagrid.mettagrid_c.dtype_actions)
             c_sim.set_buffers(observations, non_contiguous_terminals, truncations, rewards, actions)
 
     def test_set_buffers_happy_path(self):
@@ -239,7 +225,7 @@ class TestBuffers:
         truncations = np.zeros(NUM_AGENTS, dtype=bool)
         rewards = np.zeros(NUM_AGENTS, dtype=np.float32)
 
-        actions = np.zeros(NUM_AGENTS, dtype=dtype_actions)
+        actions = np.zeros(NUM_AGENTS, dtype=mettagrid.mettagrid_c.dtype_actions)
         c_sim.set_buffers(observations, terminals, truncations, rewards, actions)
 
         # Verify buffers are set up correctly by accessing observations
@@ -268,7 +254,7 @@ class TestBuffers:
         assert truncations.dtype == bool, "Truncations should be bool"
         assert rewards.dtype == np.float32, "Rewards should be float32"
 
-        actions = np.zeros(NUM_AGENTS, dtype=dtype_actions)
+        actions = np.zeros(NUM_AGENTS, dtype=mettagrid.mettagrid_c.dtype_actions)
         c_sim.set_buffers(observations, terminals, truncations, rewards, actions)
 
         # Manually set values in all buffers to test memory sharing
@@ -324,7 +310,7 @@ class TestBuffers:
         truncations = np.zeros(NUM_AGENTS, dtype=bool)
         rewards = np.zeros(NUM_AGENTS, dtype=np.float32)
 
-        actions = np.zeros(NUM_AGENTS, dtype=dtype_actions)
+        actions = np.zeros(NUM_AGENTS, dtype=mettagrid.mettagrid_c.dtype_actions)
         c_sim.set_buffers(observations, terminals, truncations, rewards, actions)
         # current_step = 0
 
@@ -351,7 +337,7 @@ class TestBuffers:
         truncations = np.zeros(NUM_AGENTS, dtype=bool)
         rewards = np.zeros(NUM_AGENTS, dtype=np.float32)
 
-        actions = np.zeros(NUM_AGENTS, dtype=dtype_actions)
+        actions = np.zeros(NUM_AGENTS, dtype=mettagrid.mettagrid_c.dtype_actions)
         c_sim.set_buffers(observations, terminals, truncations, rewards, actions)
         # current_step = 0
 
@@ -376,7 +362,7 @@ class TestBuffers:
         truncations = np.zeros(NUM_AGENTS, dtype=bool)
         rewards = np.zeros(NUM_AGENTS, dtype=np.float32)
 
-        actions = np.zeros(NUM_AGENTS, dtype=dtype_actions)
+        actions = np.zeros(NUM_AGENTS, dtype=mettagrid.mettagrid_c.dtype_actions)
         c_sim.set_buffers(observations, terminals, truncations, rewards, actions)
 
         # Take a step to get valid baseline values
@@ -425,7 +411,7 @@ class TestBuffers:
         truncations = np.zeros(NUM_AGENTS, dtype=bool)
         rewards = np.zeros(NUM_AGENTS, dtype=np.float32)
 
-        actions = np.zeros(NUM_AGENTS, dtype=dtype_actions)
+        actions = np.zeros(NUM_AGENTS, dtype=mettagrid.mettagrid_c.dtype_actions)
         c_sim.set_buffers(observations, terminals, truncations, rewards, actions)
 
         # Verify all agents have independent buffer space
@@ -467,7 +453,7 @@ class TestBuffers:
         truncations = np.zeros(NUM_AGENTS, dtype=bool)
         rewards = np.zeros(NUM_AGENTS, dtype=np.float32)
 
-        actions = np.zeros(NUM_AGENTS, dtype=dtype_actions)
+        actions = np.zeros(NUM_AGENTS, dtype=mettagrid.mettagrid_c.dtype_actions)
         c_sim.set_buffers(observations, terminals, truncations, rewards, actions)
 
         # Get initial episode rewards - should be zero

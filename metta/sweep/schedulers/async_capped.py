@@ -23,39 +23,34 @@ Implementation notes:
   run with the suggestion in `initial_summary` (see AdaptiveController).
 """
 
-from __future__ import annotations
 
+import dataclasses
 import logging
-from dataclasses import dataclass, field
-from typing import Any
+import typing
 
-from pydantic import Field
+import pydantic
 
-from metta.adaptive.models import JobDefinition, JobStatus, RunInfo
-from metta.adaptive.utils import (
-    create_eval_job,
-    create_training_job,
-    generate_run_id,
-)
-from mettagrid.base_config import Config
+import metta.adaptive.models
+import metta.adaptive.utils
+import mettagrid.base_config
 
 logger = logging.getLogger(__name__)
 
 
-class AsyncCappedSchedulerConfig(Config):
+class AsyncCappedSchedulerConfig(mettagrid.base_config.Config):
     """Configuration for the asynchronous optimizing scheduler."""
 
     max_trials: int = 10
     recipe_module: str = "experiments.recipes.arena"
     train_entrypoint: str = "train"
     eval_entrypoint: str = "evaluate"
-    train_overrides: dict[str, Any] = Field(default_factory=dict)
-    eval_overrides: dict[str, Any] = Field(default_factory=dict)
+    train_overrides: dict[str, typing.Any] = pydantic.Field(default_factory=dict)
+    eval_overrides: dict[str, typing.Any] = pydantic.Field(default_factory=dict)
     stats_server_uri: str | None = None
     gpus: int = 1
     nodes: int = 1
     experiment_id: str = "async"
-    protein_config: Any = Field(description="ProteinConfig for optimization")
+    protein_config: typing.Any = pydantic.Field(description="ProteinConfig for optimization")
     force_eval: bool = False
 
     # New settings
@@ -64,7 +59,7 @@ class AsyncCappedSchedulerConfig(Config):
     min_suggestion_distance: float = 0.0  # optional distance floor for external use
 
 
-@dataclass
+@dataclasses.dataclass
 class AsyncSchedulerState:
     """State tracking for the asynchronous scheduler.
 
@@ -74,13 +69,13 @@ class AsyncSchedulerState:
     - in_progress_suggestions: map run_id -> suggestion dict (as recorded at dispatch time)
     """
 
-    runs_in_training: set[str] = field(default_factory=set)
-    runs_in_eval: set[str] = field(default_factory=set)
-    runs_completed: set[str] = field(default_factory=set)
-    runs_pending_force_eval: set[str] = field(default_factory=set)
-    in_progress_suggestions: dict[str, dict[str, Any]] = field(default_factory=dict)
+    runs_in_training: set[str] = dataclasses.field(default_factory=set)
+    runs_in_eval: set[str] = dataclasses.field(default_factory=set)
+    runs_completed: set[str] = dataclasses.field(default_factory=set)
+    runs_pending_force_eval: set[str] = dataclasses.field(default_factory=set)
+    in_progress_suggestions: dict[str, dict[str, typing.Any]] = dataclasses.field(default_factory=dict)
 
-    def model_dump(self) -> dict[str, Any]:
+    def model_dump(self) -> dict[str, typing.Any]:
         return {
             "runs_in_training": list(self.runs_in_training),
             "runs_in_eval": list(self.runs_in_eval),
@@ -90,7 +85,7 @@ class AsyncSchedulerState:
         }
 
     @classmethod
-    def model_validate(cls, data: dict[str, Any]) -> "AsyncSchedulerState":
+    def model_validate(cls, data: dict[str, typing.Any]) -> "AsyncSchedulerState":
         return cls(
             runs_in_training=set(data.get("runs_in_training", [])),
             runs_in_eval=set(data.get("runs_in_eval", [])),
@@ -104,10 +99,10 @@ class AsyncCappedOptimizingScheduler:
     """Asynchronous scheduler with capped eval concurrency and CL fantasies."""
 
     def __init__(self, config: AsyncCappedSchedulerConfig, state: AsyncSchedulerState | None = None):
-        from metta.sweep.optimizer.protein import ProteinOptimizer
+        import metta.sweep.optimizer.protein
 
         self.config = config
-        self.optimizer = ProteinOptimizer(config.protein_config)
+        self.optimizer = metta.sweep.optimizer.protein.ProteinOptimizer(config.protein_config)
         self.state = state or AsyncSchedulerState()
         self._state_initialized = False
         logger.info(
@@ -117,7 +112,7 @@ class AsyncCappedOptimizingScheduler:
         )
 
     # ---------- State management ----------
-    def _update_state_from_runs(self, runs: list[RunInfo]) -> None:
+    def _update_state_from_runs(self, runs: list[metta.adaptive.models.RunInfo]) -> None:
         if not runs:
             return
 
@@ -132,12 +127,12 @@ class AsyncCappedOptimizingScheduler:
             for run in runs:
                 status = run.status
                 if (
-                    status == JobStatus.IN_TRAINING
-                    or status == JobStatus.PENDING
-                    or status == JobStatus.TRAINING_DONE_NO_EVAL
+                    status == metta.adaptive.models.JobStatus.IN_TRAINING
+                    or status == metta.adaptive.models.JobStatus.PENDING
+                    or status == metta.adaptive.models.JobStatus.TRAINING_DONE_NO_EVAL
                 ):
                     self.state.runs_in_training.add(run.run_id)
-                if status == JobStatus.IN_EVAL:
+                if status == metta.adaptive.models.JobStatus.IN_EVAL:
                     if self.config.force_eval:
                         logger.info(
                             "[AsyncCappedOptimizingScheduler] force_eval=True: will re-dispatch eval for %s",
@@ -146,11 +141,19 @@ class AsyncCappedOptimizingScheduler:
                         self.state.runs_pending_force_eval.add(run.run_id)
                     else:
                         self.state.runs_in_eval.add(run.run_id)
-                if status in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.STALE):
+                if status in (
+                    metta.adaptive.models.JobStatus.COMPLETED,
+                    metta.adaptive.models.JobStatus.FAILED,
+                    metta.adaptive.models.JobStatus.STALE,
+                ):
                     self.state.runs_completed.add(run.run_id)
 
                 # Recover suggestion for in-progress runs from summary if present
-                if status not in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.STALE):
+                if status not in (
+                    metta.adaptive.models.JobStatus.COMPLETED,
+                    metta.adaptive.models.JobStatus.FAILED,
+                    metta.adaptive.models.JobStatus.STALE,
+                ):
                     suggestion = self._extract_suggestion(run)
                     if suggestion is not None:
                         self.state.in_progress_suggestions[run.run_id] = suggestion
@@ -161,17 +164,21 @@ class AsyncCappedOptimizingScheduler:
         for run_id in list(self.state.runs_in_training):
             if run_id in run_by_id:
                 st = run_by_id[run_id].status
-                if st == JobStatus.IN_EVAL:
+                if st == metta.adaptive.models.JobStatus.IN_EVAL:
                     self.state.runs_in_training.discard(run_id)
                     self.state.runs_in_eval.add(run_id)
-                elif st in (JobStatus.FAILED, JobStatus.STALE):
+                elif st in (metta.adaptive.models.JobStatus.FAILED, metta.adaptive.models.JobStatus.STALE):
                     self.state.runs_in_training.discard(run_id)
                     self.state.runs_completed.add(run_id)
 
         for run_id in list(self.state.runs_in_eval):
             if run_id in run_by_id:
                 st = run_by_id[run_id].status
-                if st in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.STALE):
+                if st in (
+                    metta.adaptive.models.JobStatus.COMPLETED,
+                    metta.adaptive.models.JobStatus.FAILED,
+                    metta.adaptive.models.JobStatus.STALE,
+                ):
                     self.state.runs_in_eval.discard(run_id)
                     self.state.runs_completed.add(run_id)
 
@@ -181,8 +188,10 @@ class AsyncCappedOptimizingScheduler:
                 del self.state.in_progress_suggestions[run_id]
 
     # ---------- Scheduling ----------
-    def schedule(self, runs: list[RunInfo], available_training_slots: int) -> list[JobDefinition]:
-        jobs: list[JobDefinition] = []
+    def schedule(
+        self, runs: list[metta.adaptive.models.RunInfo], available_training_slots: int
+    ) -> list[metta.adaptive.models.JobDefinition]:
+        jobs: list[metta.adaptive.models.JobDefinition] = []
 
         # Update state
         self._update_state_from_runs(runs)
@@ -198,7 +207,7 @@ class AsyncCappedOptimizingScheduler:
                 if run is None:
                     self.state.runs_pending_force_eval.discard(run_id)
                     continue
-                job = create_eval_job(
+                job = metta.adaptive.utils.create_eval_job(
                     run_id=run_id,
                     experiment_id=self.config.experiment_id,
                     recipe_module=self.config.recipe_module,
@@ -213,11 +222,11 @@ class AsyncCappedOptimizingScheduler:
                 logger.info("[AsyncCappedOptimizingScheduler] Scheduling forced re-evaluation for %s", run_id)
         # Then, schedule normal eval candidates up to remaining capacity
         if eval_capacity > 0:
-            eval_candidates = [r for r in runs if r.status == JobStatus.TRAINING_DONE_NO_EVAL]
+            eval_candidates = [r for r in runs if r.status == metta.adaptive.models.JobStatus.TRAINING_DONE_NO_EVAL]
             for candidate in eval_candidates:
                 if eval_capacity <= 0:
                     break
-                job = create_eval_job(
+                job = metta.adaptive.utils.create_eval_job(
                     run_id=candidate.run_id,
                     experiment_id=self.config.experiment_id,
                     recipe_module=self.config.recipe_module,
@@ -233,7 +242,7 @@ class AsyncCappedOptimizingScheduler:
 
         # If any runs still need evaluation, do not schedule new training
         if (
-            any(r.status == JobStatus.TRAINING_DONE_NO_EVAL for r in runs)
+            any(r.status == metta.adaptive.models.JobStatus.TRAINING_DONE_NO_EVAL for r in runs)
             or len(self.state.runs_pending_force_eval) > 0
             or len(self.state.runs_in_eval) > 0
         ):
@@ -279,11 +288,11 @@ class AsyncCappedOptimizingScheduler:
         base_trial_num = total_created
         for i, suggestion in enumerate(suggestions):
             trial_num = base_trial_num + i + 1
-            run_id = generate_run_id(self.config.experiment_id, trial_num)
+            run_id = metta.adaptive.utils.generate_run_id(self.config.experiment_id, trial_num)
 
             merged_overrides = dict(self.config.train_overrides)
             merged_overrides.update(suggestion)
-            job = create_training_job(
+            job = metta.adaptive.utils.create_training_job(
                 run_id=run_id,
                 experiment_id=self.config.experiment_id,
                 recipe_module=self.config.recipe_module,
@@ -303,10 +312,19 @@ class AsyncCappedOptimizingScheduler:
 
         return jobs
 
-    def is_experiment_complete(self, runs: list[RunInfo]) -> bool:
-        finished = [r for r in runs if r.status in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.STALE)]
+    def is_experiment_complete(self, runs: list[metta.adaptive.models.RunInfo]) -> bool:
+        finished = [
+            r
+            for r in runs
+            if r.status
+            in (
+                metta.adaptive.models.JobStatus.COMPLETED,
+                metta.adaptive.models.JobStatus.FAILED,
+                metta.adaptive.models.JobStatus.STALE,
+            )
+        ]
         if len(finished) >= self.config.max_trials:
-            completed = [r for r in runs if r.status == JobStatus.COMPLETED]
+            completed = [r for r in runs if r.status == metta.adaptive.models.JobStatus.COMPLETED]
             logger.info(
                 "[AsyncCappedOptimizingScheduler] Experiment complete! %s/%s trials finished (%s successful)",
                 len(finished),
@@ -317,10 +335,10 @@ class AsyncCappedOptimizingScheduler:
         return False
 
     # ---------- Helpers ----------
-    def _collect_observations(self, runs: list[RunInfo]) -> list[dict[str, Any]]:
-        obs: list[dict[str, Any]] = []
+    def _collect_observations(self, runs: list[metta.adaptive.models.RunInfo]) -> list[dict[str, typing.Any]]:
+        obs: list[dict[str, typing.Any]] = []
         for run in runs:
-            if run.status != JobStatus.COMPLETED:
+            if run.status != metta.adaptive.models.JobStatus.COMPLETED:
                 continue
             summary = run.summary if isinstance(run.summary, dict) else {}
             if not summary:
@@ -341,7 +359,7 @@ class AsyncCappedOptimizingScheduler:
                     continue
         return obs
 
-    def _extract_suggestion(self, run: RunInfo) -> dict[str, Any] | None:
+    def _extract_suggestion(self, run: metta.adaptive.models.RunInfo) -> dict[str, typing.Any] | None:
         if run.summary and isinstance(run.summary, dict):
             sg = run.summary.get("sweep/suggestion")
             if isinstance(sg, dict):
@@ -349,8 +367,8 @@ class AsyncCappedOptimizingScheduler:
         return None
 
     def _build_constant_liar_fantasies(
-        self, runs: list[RunInfo], observations: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+        self, runs: list[metta.adaptive.models.RunInfo], observations: list[dict[str, typing.Any]]
+    ) -> list[dict[str, typing.Any]]:
         """Construct Constant Liar fantasies for in-progress suggestions.
 
         We treat any run not yet completed as pending (PENDING, IN_TRAINING,
@@ -382,10 +400,14 @@ class AsyncCappedOptimizingScheduler:
         # Build set of pending run_ids
         pending_ids: set[str] = set()
         for r in runs:
-            if r.status not in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.STALE):
+            if r.status not in (
+                metta.adaptive.models.JobStatus.COMPLETED,
+                metta.adaptive.models.JobStatus.FAILED,
+                metta.adaptive.models.JobStatus.STALE,
+            ):
                 pending_ids.add(r.run_id)
 
-        fantasies: list[dict[str, Any]] = []
+        fantasies: list[dict[str, typing.Any]] = []
         for run_id in pending_ids:
             suggestion = self.state.in_progress_suggestions.get(run_id)
             if not isinstance(suggestion, dict):

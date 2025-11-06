@@ -1,18 +1,17 @@
-from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
+import pathlib
 import re
 import subprocess
-from dataclasses import asdict, dataclass
-from pathlib import Path
-from typing import Dict, List
+import typing
 
 PR_NUMBER_RE = re.compile(r"#(\d+)\b")
 LOG_FORMAT = "%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%b%x1e"
 
 
-@dataclass
+@dataclasses.dataclass
 class PullRequestEntry:
     pr_number: int
     title: str
@@ -25,8 +24,8 @@ class PullRequestEntry:
     additions: int
     deletions: int
 
-    def to_dict(self) -> Dict[str, object]:
-        return asdict(self)
+    def to_dict(self) -> typing.Dict[str, object]:
+        return dataclasses.asdict(self)
 
 
 def _run_git_log() -> str:
@@ -68,7 +67,7 @@ def _extract_entry(raw_entry: str) -> PullRequestEntry | None:
         return None
 
     commit_sha, author, author_email, authored_at, subject, body_first = fields[:6]
-    body_lines: List[str] = [body_first] if body_first else []
+    body_lines: typing.List[str] = [body_first] if body_first else []
     for line in lines[1:]:
         body_lines.append(line)
 
@@ -103,9 +102,9 @@ def _extract_entry(raw_entry: str) -> PullRequestEntry | None:
     )
 
 
-def collect_pull_requests() -> Dict[int, PullRequestEntry]:
+def collect_pull_requests() -> typing.Dict[int, PullRequestEntry]:
     output = _run_git_log()
-    entries: Dict[int, PullRequestEntry] = {}
+    entries: typing.Dict[int, PullRequestEntry] = {}
     for raw_entry in output.split("\x1e"):
         entry = _extract_entry(raw_entry)
         if entry is None:
@@ -114,12 +113,12 @@ def collect_pull_requests() -> Dict[int, PullRequestEntry]:
     return entries
 
 
-def load_existing(path: Path) -> Dict[int, PullRequestEntry]:
+def load_existing(path: pathlib.Path) -> typing.Dict[int, PullRequestEntry]:
     if not path.exists():
         return {}
     with path.open("r", encoding="utf-8") as handle:
         raw_entries = json.load(handle)
-    entries: Dict[int, PullRequestEntry] = {}
+    entries: typing.Dict[int, PullRequestEntry] = {}
     for raw_entry in raw_entries:
         pr_number = int(raw_entry["pr_number"])
         entries[pr_number] = PullRequestEntry(
@@ -138,15 +137,15 @@ def load_existing(path: Path) -> Dict[int, PullRequestEntry]:
 
 
 def merge_entries(
-    existing: Dict[int, PullRequestEntry],
-    discovered: Dict[int, PullRequestEntry],
-) -> List[PullRequestEntry]:
+    existing: typing.Dict[int, PullRequestEntry],
+    discovered: typing.Dict[int, PullRequestEntry],
+) -> typing.List[PullRequestEntry]:
     merged = {**existing}
     merged.update(discovered)
     return [merged[key] for key in sorted(merged)]
 
 
-def write_entries(path: Path, entries: List[PullRequestEntry]) -> None:
+def write_entries(path: pathlib.Path, entries: typing.List[PullRequestEntry]) -> None:
     payload = [entry.to_dict() for entry in entries]
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
@@ -157,8 +156,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--output",
-        type=Path,
-        default=Path("pr_history.json"),
+        type=pathlib.Path,
+        default=pathlib.Path("pr_history.json"),
         help="Path to the JSON file to update (default: pr_history.json)",
     )
     return parser.parse_args()

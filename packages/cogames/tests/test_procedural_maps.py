@@ -2,9 +2,9 @@ import math
 
 import pytest
 
-from cogames.cogs_vs_clips.procedural import MachinaArenaConfig
-from mettagrid.mapgen.mapgen import MapGen
-from mettagrid.mapgen.scenes.base_hub import DEFAULT_CORNER_CHESTS, DEFAULT_EXTRACTORS, BaseHub
+import cogames.cogs_vs_clips.procedural
+import mettagrid.mapgen.mapgen
+import mettagrid.mapgen.scenes.base_hub
 
 
 def _collect_types(tree: dict) -> list[str]:
@@ -46,11 +46,11 @@ def test_procedural_builder_builds_and_has_expected_layers(
     width: int, height: int, density_scale: float, max_biome_frac: float, max_dungeon_frac: float
 ):
     for seed in [0, 1, 2]:
-        cfg = MapGen.Config(
+        cfg = mettagrid.mapgen.mapgen.MapGen.Config(
             width=width,
             height=height,
             seed=seed,
-            instance=MachinaArenaConfig(
+            instance=cogames.cogs_vs_clips.procedural.MachinaArenaConfig(
                 spawn_count=3,
                 base_biome="caves",
                 building_coverage=0.01,
@@ -87,10 +87,10 @@ def test_procedural_builder_builds_and_has_expected_layers(
     ],
 )
 def test_zone_counts_respect_max_zone_fraction(width: int, height: int, max_biome_frac: float, max_dungeon_frac: float):
-    cfg = MapGen.Config(
+    cfg = mettagrid.mapgen.mapgen.MapGen.Config(
         width=width,
         height=height,
-        instance=MachinaArenaConfig(
+        instance=cogames.cogs_vs_clips.procedural.MachinaArenaConfig(
             spawn_count=2,
             base_biome="caves",
             biome_weights={"caves": 1.0, "forest": 1.0},
@@ -125,11 +125,11 @@ def test_zone_counts_respect_max_zone_fraction(width: int, height: int, max_biom
 
 def test_uniform_extractors_configuration_pass_through():
     buildings = {"chest": 1.0, "charger": 0.3, "carbon_extractor": 0.7}
-    cfg = MapGen.Config(
+    cfg = mettagrid.mapgen.mapgen.MapGen.Config(
         width=100,
         height=100,
         seed=123,
-        instance=MachinaArenaConfig(
+        instance=cogames.cogs_vs_clips.procedural.MachinaArenaConfig(
             spawn_count=2,
             building_weights=buildings,
             building_coverage=0.0125,
@@ -151,11 +151,11 @@ CROSS_COORDS = [(10, 6), (14, 10), (10, 14), (6, 10)]
 
 
 def _build_base_hub_only(*, corner_bundle: str | None, cross_bundle: str | None, cross_distance: int = 4):
-    cfg = MapGen.Config(
+    cfg = mettagrid.mapgen.mapgen.MapGen.Config(
         width=21,
         height=21,
         border_width=0,
-        instance=BaseHub.Config(
+        instance=mettagrid.mapgen.scenes.base_hub.BaseHub.Config(
             spawn_count=0,
             include_inner_wall=False,
             corner_bundle=corner_bundle or "chests",
@@ -171,9 +171,14 @@ def _build_base_hub_only(*, corner_bundle: str | None, cross_bundle: str | None,
 @pytest.mark.parametrize(
     "corner_bundle,cross_bundle,expected_corner,expected_cross",
     [
-        ("chests", "none", DEFAULT_CORNER_CHESTS, ("empty",) * 4),
-        ("extractors", "none", DEFAULT_EXTRACTORS, ("empty",) * 4),
-        ("chests", "extractors", DEFAULT_CORNER_CHESTS, DEFAULT_EXTRACTORS),
+        ("chests", "none", mettagrid.mapgen.scenes.base_hub.DEFAULT_CORNER_CHESTS, ("empty",) * 4),
+        ("extractors", "none", mettagrid.mapgen.scenes.base_hub.DEFAULT_EXTRACTORS, ("empty",) * 4),
+        (
+            "chests",
+            "extractors",
+            mettagrid.mapgen.scenes.base_hub.DEFAULT_CORNER_CHESTS,
+            mettagrid.mapgen.scenes.base_hub.DEFAULT_EXTRACTORS,
+        ),
     ],
 )
 def test_base_hub_grid_matches_bundles(
@@ -198,8 +203,12 @@ def test_base_hub_grid_matches_bundles(
 
 
 def test_procedural_builder_deterministic_with_seed():
-    cfg1 = MapGen.Config(width=50, height=50, seed=42, instance=MachinaArenaConfig(spawn_count=2))
-    cfg2 = MapGen.Config(width=50, height=50, seed=42, instance=MachinaArenaConfig(spawn_count=2))
+    cfg1 = mettagrid.mapgen.mapgen.MapGen.Config(
+        width=50, height=50, seed=42, instance=cogames.cogs_vs_clips.procedural.MachinaArenaConfig(spawn_count=2)
+    )
+    cfg2 = mettagrid.mapgen.mapgen.MapGen.Config(
+        width=50, height=50, seed=42, instance=cogames.cogs_vs_clips.procedural.MachinaArenaConfig(spawn_count=2)
+    )
 
     b1 = cfg1.create()
     b2 = cfg2.create()

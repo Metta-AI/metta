@@ -2,17 +2,17 @@
 
 import importlib.util
 import json
+import pathlib
 import sys
-from pathlib import Path
 
 import yaml
 
-from mettagrid.config.mettagrid_config import MettaGridConfig
+import mettagrid.config.mettagrid_config
 
 _SUPPORTED_MISSION_EXTENSIONS = [".yaml", ".yml", ".json", ".py"]
 
 
-def load_mission_config_from_python(path: Path) -> MettaGridConfig:
+def load_mission_config_from_python(path: pathlib.Path) -> mettagrid.config.mettagrid_config.MettaGridConfig:
     """Load a mission configuration from a Python file.
 
     The Python file should define a function called 'get_config()' that returns a MettaGridConfig.
@@ -47,7 +47,7 @@ def load_mission_config_from_python(path: Path) -> MettaGridConfig:
             "or a 'config' variable that returns/contains a MettaGridConfig"
         )
 
-    if not isinstance(config, MettaGridConfig):
+    if not isinstance(config, mettagrid.config.mettagrid_config.MettaGridConfig):
         raise ValueError(f"Python file {path} must return a MettaGridConfig instance")
 
     # Clean up the temporary module
@@ -56,7 +56,7 @@ def load_mission_config_from_python(path: Path) -> MettaGridConfig:
     return config
 
 
-def save_mission_config(config: MettaGridConfig, output_path: Path) -> None:
+def save_mission_config(config: mettagrid.config.mettagrid_config.MettaGridConfig, output_path: pathlib.Path) -> None:
     """Save a mission configuration to file.
 
     Args:
@@ -78,7 +78,7 @@ def save_mission_config(config: MettaGridConfig, output_path: Path) -> None:
         )
 
 
-def load_mission_config(path: Path) -> MettaGridConfig:
+def load_mission_config(path: pathlib.Path) -> mettagrid.config.mettagrid_config.MettaGridConfig:
     """Load a mission configuration from file.
 
     Args:
@@ -101,4 +101,4 @@ def load_mission_config(path: Path) -> MettaGridConfig:
             f"Unsupported file format: {path.suffix}. Supported: {', '.join(_SUPPORTED_MISSION_EXTENSIONS)}"
         )
 
-    return MettaGridConfig(**config_dict)
+    return mettagrid.config.mettagrid_config.MettaGridConfig(**config_dict)

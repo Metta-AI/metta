@@ -1,15 +1,15 @@
 import pytest
+import tensordict
 import torch
-from tensordict import TensorDict
 
 pytest.importorskip("mamba_ssm", reason="Mamba components require the mamba-ssm CUDA package.")
 
-from metta.agent.components.mamba import MambaBackboneConfig
-from metta.agent.components.mamba.backbone import MambaBackboneComponent
+import metta.agent.components.mamba
+import metta.agent.components.mamba.backbone
 
 
 def test_mamba_backbone_forward_rollout():
-    config = MambaBackboneConfig(
+    config = metta.agent.components.mamba.MambaBackboneConfig(
         in_key="encoded",
         out_key="core",
         input_dim=16,
@@ -18,9 +18,9 @@ def test_mamba_backbone_forward_rollout():
         n_layer=2,
         max_cache_size=16,
     )
-    component = MambaBackboneComponent(config)
+    component = metta.agent.components.mamba.backbone.MambaBackboneComponent(config)
 
-    td = TensorDict(
+    td = tensordict.TensorDict(
         {
             "encoded": torch.randn(4, 16),
             "dones": torch.zeros(4),
@@ -36,7 +36,7 @@ def test_mamba_backbone_forward_rollout():
 
 
 def test_mamba_backbone_forward_training():
-    config = MambaBackboneConfig(
+    config = metta.agent.components.mamba.MambaBackboneConfig(
         in_key="encoded",
         out_key="core",
         input_dim=16,
@@ -45,9 +45,9 @@ def test_mamba_backbone_forward_training():
         n_layer=2,
         max_cache_size=16,
     )
-    component = MambaBackboneComponent(config)
+    component = metta.agent.components.mamba.backbone.MambaBackboneComponent(config)
 
-    td = TensorDict(
+    td = tensordict.TensorDict(
         {
             "encoded": torch.randn(6, 2, 16),
             "bptt": torch.full((6,), 2, dtype=torch.long),
@@ -61,7 +61,7 @@ def test_mamba_backbone_forward_training():
 
 
 def test_mamba_config_resolves_stride_multiple():
-    cfg = MambaBackboneConfig(
+    cfg = metta.agent.components.mamba.MambaBackboneConfig(
         in_key="encoded",
         out_key="core",
         input_dim=8,

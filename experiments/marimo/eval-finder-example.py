@@ -53,27 +53,22 @@ def _(mo):
 @app.cell
 def _():
     # Import the eval finder widget
-    from experiments.notebooks.utils.eval_finder_widget.eval_finder_widget import (
-        EvalFinderWidget,
-    )
-    from experiments.notebooks.utils.eval_finder_widget.eval_finder_widget.util import (
-        create_demo_eval_finder_widget,
-        fetch_eval_data_for_policies,
-    )
-    from metta.app_backend.clients.scorecard_client import ScorecardClient
+    import experiments.notebooks.utils.eval_finder_widget.eval_finder_widget
+    import experiments.notebooks.utils.eval_finder_widget.eval_finder_widget.util
+    import metta.app_backend.clients.scorecard_client
 
     # Comment one of these out, uncomment the other.
     client = (
-        ScorecardClient()
+        metta.app_backend.clients.scorecard_client.ScorecardClient()
     )  # production: https://api.observatory.softmax-research.net
     # client = ScorecardClient(backend_url="http://localhost:8000")  # development
 
     print("🎯 Eval Finder Widget imported successfully!")
     return (
-        EvalFinderWidget,
+        experiments.notebooks.utils.eval_finder_widget.eval_finder_widget.EvalFinderWidget,
         client,
-        create_demo_eval_finder_widget,
-        fetch_eval_data_for_policies,
+        experiments.notebooks.utils.eval_finder_widget.eval_finder_widget.util.create_demo_eval_finder_widget,
+        experiments.notebooks.utils.eval_finder_widget.eval_finder_widget.util.fetch_eval_data_for_policies,
     )
 
 
@@ -347,9 +342,7 @@ async def _(
     run_free_policies,
     training_run_policies,
 ):
-    from experiments.notebooks.utils.scorecard_widget.scorecard_widget.ScorecardWidget import (
-        ScorecardWidget,
-    )
+    import experiments.notebooks.utils.scorecard_widget.scorecard_widget.ScorecardWidget
 
     # Get the selected policy IDs from the selector
     selected_policy_ids = policy_selector.value
@@ -371,7 +364,9 @@ async def _(
         if selected_evals:  # Check the actual list, not the state object
             try:
                 # Generate scorecard using the selected evaluations and policies
-                scorecard_widget = ScorecardWidget(client=client)
+                scorecard_widget = experiments.notebooks.utils.scorecard_widget.scorecard_widget.ScorecardWidget.ScorecardWidget(
+                    client=client
+                )
                 await scorecard_widget.fetch_real_scorecard_data(
                     restrict_to_policy_names=selected_policy_names,  # Only selected policies!
                     restrict_to_metrics=["reward"],  # Focus on reward metric

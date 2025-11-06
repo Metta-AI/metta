@@ -1,23 +1,22 @@
 """Factory functions for building Cortex stacks from configuration."""
 
-from __future__ import annotations
 
-from typing import Any
+import typing
 
-from cortex.config import CortexStackConfig
-from cortex.stacks import CortexStack
-from cortex.utils import configure_tf32_precision
+import cortex.config
+import cortex.stacks
+import cortex.utils
 
 
-def build_cortex(config: CortexStackConfig) -> CortexStack:
+def build_cortex(config: cortex.config.CortexStackConfig) -> cortex.stacks.CortexStack:
     """Build Cortex stack from configuration object."""
-    configure_tf32_precision()
-    return CortexStack(config)
+    cortex.utils.configure_tf32_precision()
+    return cortex.stacks.CortexStack(config)
 
 
-def build_from_dict(data: dict[str, Any]) -> CortexStack:
+def build_from_dict(data: dict[str, typing.Any]) -> cortex.stacks.CortexStack:
     """Build Cortex stack from dictionary configuration."""
-    cfg = CortexStackConfig(**data)
+    cfg = cortex.config.CortexStackConfig(**data)
     return build_cortex(cfg)
 
 

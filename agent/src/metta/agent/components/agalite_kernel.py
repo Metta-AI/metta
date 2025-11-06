@@ -1,13 +1,12 @@
 """Kernel configuration utilities for AGaLiTe feature maps."""
 
-from __future__ import annotations
 
-from typing import Callable, Literal
+import typing
 
 import torch
 import torch.nn.functional as F
 
-from mettagrid.base_config import Config
+import mettagrid.base_config
 
 
 def _elu_plus_one(x: torch.Tensor) -> torch.Tensor:
@@ -15,13 +14,13 @@ def _elu_plus_one(x: torch.Tensor) -> torch.Tensor:
     return F.elu(x, alpha=1.0) + 1.0
 
 
-class AGaLiTeKernelConfig(Config):
+class AGaLiTeKernelConfig(mettagrid.base_config.Config):
     """Configures feature map activations for AGaLiTe attention."""
 
-    name: Literal["relu", "eluplus1", "dpfp", "pp_relu", "pp_eluplus1"] = "relu"
+    name: typing.Literal["relu", "eluplus1", "dpfp", "pp_relu", "pp_eluplus1"] = "relu"
     nu: int = 4
 
-    def feature_activation(self) -> Callable[[torch.Tensor], torch.Tensor]:
+    def feature_activation(self) -> typing.Callable[[torch.Tensor], torch.Tensor]:
         """Activation applied to key/query projections (φ and ψ maps)."""
         if self.name == "relu":
             return F.relu
@@ -33,11 +32,11 @@ class AGaLiTeKernelConfig(Config):
             return _elu_plus_one
         raise ValueError(f"Unsupported AGaLiTe kernel '{self.name}'.")
 
-    def gamma_activation(self) -> Callable[[torch.Tensor], torch.Tensor]:
+    def gamma_activation(self) -> typing.Callable[[torch.Tensor], torch.Tensor]:
         """Activation used for γ projections. Always sigmoid per paper."""
         return torch.sigmoid
 
-    def project_activation(self) -> Callable[[torch.Tensor], torch.Tensor]:
+    def project_activation(self) -> typing.Callable[[torch.Tensor], torch.Tensor]:
         """Activation for auxiliary projections p1/p2/p3."""
         return self.feature_activation()
 

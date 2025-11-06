@@ -1,27 +1,25 @@
 """Causal Convolutional layers for Cortex cells."""
 
-from __future__ import annotations
 
-from typing import Optional, Tuple
+import typing
 
+import cortex.cells.base
+import cortex.cells.registry
+import cortex.config
+import cortex.kernels.pytorch.conv1d
+import cortex.types
+import cortex.utils
+import tensordict
 import torch
 import torch.nn as nn
 import torch.nn.functional
-from tensordict import TensorDict
-
-from cortex.cells.base import MemoryCell
-from cortex.cells.registry import register_cell
-from cortex.config import CausalConv1dConfig
-from cortex.kernels.pytorch.conv1d import causal_conv1d_pytorch
-from cortex.types import MaybeState, ResetMask, Tensor
-from cortex.utils import select_backend
 
 
-@register_cell(CausalConv1dConfig)
-class CausalConv1d(MemoryCell):
+@cortex.cells.registry.register_cell(cortex.config.CausalConv1dConfig)
+class CausalConv1d(cortex.cells.base.MemoryCell):
     """Causal 1D convolution with depthwise or channel-mixing modes and stateful buffering."""
 
-    def __init__(self, cfg: CausalConv1dConfig) -> None:
+    def __init__(self, cfg: cortex.config.CausalConv1dConfig) -> None:
         super().__init__(hidden_size=cfg.feature_dim)
         self.cfg = cfg
 
@@ -48,21 +46,21 @@ class CausalConv1d(MemoryCell):
         if self.conv is not None:
             self.conv.reset_parameters()
 
-    def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> TensorDict:
+    def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> tensordict.TensorDict:
         """Initialize convolution state buffer."""
         if self.cfg.kernel_size == 0:
-            return TensorDict({}, batch_size=[batch])
+            return tensordict.TensorDict({}, batch_size=[batch])
 
         conv_state = torch.zeros(batch, self.cfg.kernel_size, self.cfg.feature_dim, device=device, dtype=dtype)
-        return TensorDict({"conv": conv_state}, batch_size=[batch])
+        return tensordict.TensorDict({"conv": conv_state}, batch_size=[batch])
 
     def forward(
         self,
-        x: Tensor,
-        state: MaybeState,
+        x: cortex.types.Tensor,
+        state: cortex.types.MaybeState,
         *,
-        resets: Optional[ResetMask] = None,
-    ) -> Tuple[Tensor, MaybeState]:
+        resets: typing.Optional[cortex.types.ResetMask] = None,
+    ) -> typing.Tuple[cortex.types.Tensor, cortex.types.MaybeState]:
         """Apply causal convolution with optional resets."""
         # Handle both [B, F] and [B, T, F] inputs
         is_step = x.dim() == 2
@@ -102,14 +100,14 @@ class CausalConv1d(MemoryCell):
         triton_fn = "cortex.kernels.triton.conv1d:causal_conv1d_triton" if self.cfg.channel_mixing else None
 
         # Select backend at runtime
-        backend_fn = select_backend(
+        backend_fn = cortex.utils.select_backend(
             triton_fn=triton_fn,
-            pytorch_fn=causal_conv1d_pytorch,
+            pytorch_fn=cortex.kernels.pytorch.conv1d.causal_conv1d_pytorch,
             tensor=x,
             allow_triton=True,
         )
 
-        if backend_fn == causal_conv1d_pytorch:
+        if backend_fn == cortex.kernels.pytorch.conv1d.causal_conv1d_pytorch:
             # PyTorch backend (supports all modes)
             y, conv_state = backend_fn(
                 conv_state=conv_state,
@@ -132,12 +130,12 @@ class CausalConv1d(MemoryCell):
                 resets=resets if not is_step else None,
             )
 
-        new_state = TensorDict({"conv": conv_state}, batch_size=[B])
+        new_state = tensordict.TensorDict({"conv": conv_state}, batch_size=[B])
         if is_step:
             return y.squeeze(1), new_state
         return y, new_state
 
-    def reset_state(self, state: MaybeState, mask: ResetMask) -> MaybeState:
+    def reset_state(self, state: cortex.types.MaybeState, mask: cortex.types.ResetMask) -> cortex.types.MaybeState:
         """Reset state for masked batch elements."""
         if state is None or "conv" not in state:
             return state

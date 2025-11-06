@@ -1,13 +1,12 @@
 #  Copyright (c) NXAI GmbH.
 #  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
 
+import cortex.kernels.triton.mlstm.triton
+import cortex.kernels.triton.mlstm.triton.kernel_param_heuristics
+import cortex.kernels.triton.mlstm.utils
+import cortex.kernels.triton.mlstm.utils.kernels
 import torch
 import triton
-
-from cortex.kernels.triton.mlstm.triton import mlstm_chunkwise__recurrent_fw_C_kernel
-from cortex.kernels.triton.mlstm.triton.kernel_param_heuristics import get_head_dim_block_size
-from cortex.kernels.triton.mlstm.utils import torch2triton_dtype
-from cortex.kernels.triton.mlstm.utils.kernels import is_power_of_2
 
 
 def mlstm_chunkwise__recurrent_fw_C(
@@ -36,14 +35,18 @@ def mlstm_chunkwise__recurrent_fw_C(
     assert save_states_every_nth_chunk > 0, "save_states_every_nth_chunk must be positive."
     assert save_states_every_nth_chunk <= NC, "save_states_every_nth_chunk must be <= NC."
 
-    assert is_power_of_2(save_states_every_nth_chunk), (
+    assert cortex.kernels.triton.mlstm.utils.kernels.is_power_of_2(save_states_every_nth_chunk), (
         f"save_states_every_nth_chunk must be a power of 2. Got {save_states_every_nth_chunk}."
     )
 
-    assert is_power_of_2(L), "Chunk size must be a power of 2."
+    assert cortex.kernels.triton.mlstm.utils.kernels.is_power_of_2(L), "Chunk size must be a power of 2."
 
-    siz_b_DHQK = get_head_dim_block_size(head_dim=DHQK, min_block_size=64)
-    siz_b_DHHV = get_head_dim_block_size(head_dim=DHHV, min_block_size=64)
+    siz_b_DHQK = cortex.kernels.triton.mlstm.triton.kernel_param_heuristics.get_head_dim_block_size(
+        head_dim=DHQK, min_block_size=64
+    )
+    siz_b_DHHV = cortex.kernels.triton.mlstm.triton.kernel_param_heuristics.get_head_dim_block_size(
+        head_dim=DHHV, min_block_size=64
+    )
 
     num_b_DHQK = triton.cdiv(DHQK, siz_b_DHQK)
     num_b_DHHV = triton.cdiv(DHHV, siz_b_DHHV)
@@ -92,7 +95,7 @@ def mlstm_chunkwise__recurrent_fw_C(
     # Provide default all-ones last-segment mask when none is given
     if vecLastSegMask is None:
         vecLastSegMask = torch.ones((B, NH, NC, L), device=matK.device, dtype=torch.float32)
-    mlstm_chunkwise__recurrent_fw_C_kernel[grid](
+    cortex.kernels.triton.mlstm.triton.mlstm_chunkwise__recurrent_fw_C_kernel[grid](
         matK=matK,
         matV=matV,
         vecF=vecF,
@@ -137,7 +140,7 @@ def mlstm_chunkwise__recurrent_fw_C(
         siz_b_DHHV=siz_b_DHHV,
         save_states_every_nth_chunk=save_states_every_nth_chunk,
         USE_INITIAL_STATE=USE_INITIAL_STATE,
-        DTYPE=torch2triton_dtype(matK.dtype),
+        DTYPE=cortex.kernels.triton.mlstm.utils.torch2triton_dtype(matK.dtype),
         num_stages=num_stages,
         num_warps=num_warps,
     )

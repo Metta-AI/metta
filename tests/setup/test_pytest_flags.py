@@ -1,6 +1,5 @@
 """Tests for metta pytest command flags."""
 
-from __future__ import annotations
 
 import subprocess
 import sys

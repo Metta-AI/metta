@@ -1,14 +1,14 @@
 """Tests for the retry utilities with exponential backoff and jitter."""
 
+import dataclasses
 import time
-from dataclasses import dataclass
 
 import pytest
 
-from metta.common.util.retry import calculate_backoff_delay, retry_function, retry_on_exception
+import metta.common.util.retry
 
 
-@dataclass
+@dataclasses.dataclass
 class CallTracker:
     """Helper to track function calls and control behavior."""
 
@@ -40,14 +40,14 @@ class TestRetryFunction:
         def successful_func():
             return "success"
 
-        result = retry_function(successful_func, initial_delay=0.01)
+        result = metta.common.util.retry.retry_function(successful_func, initial_delay=0.01)
         assert result == "success"
 
     def test_success_after_retries(self):
         """Test success after some retries."""
         tracker = CallTracker([], [Exception("fail"), "success"])
 
-        result = retry_function(tracker, initial_delay=0.01)
+        result = metta.common.util.retry.retry_function(tracker, initial_delay=0.01)
         assert result == "success"
         assert tracker.call_count == 2
 
@@ -58,14 +58,14 @@ class TestRetryFunction:
             raise ValueError("always fails")
 
         with pytest.raises(ValueError, match="always fails"):
-            retry_function(always_fails, max_retries=2, initial_delay=0.01)
+            metta.common.util.retry.retry_function(always_fails, max_retries=2, initial_delay=0.01)
 
     def test_specific_exceptions_only(self):
         """Test that only specific exceptions trigger retries."""
         tracker = CallTracker([], [ValueError("retry me"), RuntimeError("don't retry")])
 
         with pytest.raises(RuntimeError, match="don't retry"):
-            retry_function(tracker, exceptions=(ValueError,), initial_delay=0.01)
+            metta.common.util.retry.retry_function(tracker, exceptions=(ValueError,), initial_delay=0.01)
 
         # Should have tried twice: ValueError was retried, RuntimeError was not
         assert tracker.call_count == 2
@@ -83,7 +83,7 @@ class TestRetryFunction:
 
         tracker = CallTracker([], [Exception("fail")] * 3 + ["success"])
 
-        retry_function(
+        metta.common.util.retry.retry_function(
             tracker,
             max_retries=3,
             initial_delay=1.0,
@@ -103,7 +103,7 @@ class TestRetryFunction:
 
         tracker = CallTracker([], [Exception("fail")] * 5 + ["success"])
 
-        retry_function(
+        metta.common.util.retry.retry_function(
             tracker,
             max_retries=5,
             initial_delay=1.0,
@@ -122,7 +122,7 @@ class TestRetryDecorator:
         """Test decorator works and preserves metadata."""
         call_count = 0
 
-        @retry_on_exception(max_retries=2, initial_delay=0.01)
+        @metta.common.util.retry.retry_on_exception(max_retries=2, initial_delay=0.01)
         def flaky_function(value):
             """Test function docstring."""
             nonlocal call_count
@@ -142,7 +142,7 @@ class TestRetryDecorator:
     def test_decorator_with_arguments(self):
         """Test decorator passes arguments correctly."""
 
-        @retry_on_exception(max_retries=1, initial_delay=0.01)
+        @metta.common.util.retry.retry_on_exception(max_retries=1, initial_delay=0.01)
         def add(a, b, offset=0):
             if add.first_call:
                 add.first_call = False
@@ -157,7 +157,7 @@ class TestRetryDecorator:
     def test_decorator_specific_exceptions(self):
         """Test decorator with specific exception types."""
 
-        @retry_on_exception(exceptions=(ValueError,), initial_delay=0.01)
+        @metta.common.util.retry.retry_on_exception(exceptions=(ValueError,), initial_delay=0.01)
         def selective_retry():
             if hasattr(selective_retry, "called"):
                 raise RuntimeError("This won't be retried")
@@ -174,28 +174,31 @@ class TestBackoffCalculation:
     def test_exponential_growth(self):
         """Test exponential growth without jitter."""
         # Test with jitter disabled
-        assert calculate_backoff_delay(0, jitter=False) == 1.0
-        assert calculate_backoff_delay(1, jitter=False) == 2.0
-        assert calculate_backoff_delay(2, jitter=False) == 4.0
-        assert calculate_backoff_delay(3, jitter=False) == 8.0
+        assert metta.common.util.retry.calculate_backoff_delay(0, jitter=False) == 1.0
+        assert metta.common.util.retry.calculate_backoff_delay(1, jitter=False) == 2.0
+        assert metta.common.util.retry.calculate_backoff_delay(2, jitter=False) == 4.0
+        assert metta.common.util.retry.calculate_backoff_delay(3, jitter=False) == 8.0
 
     def test_custom_parameters(self):
         """Test with custom initial delay and backoff factor."""
-        assert calculate_backoff_delay(0, initial_delay=5.0, jitter=False) == 5.0
-        assert calculate_backoff_delay(2, initial_delay=5.0, jitter=False) == 20.0
+        assert metta.common.util.retry.calculate_backoff_delay(0, initial_delay=5.0, jitter=False) == 5.0
+        assert metta.common.util.retry.calculate_backoff_delay(2, initial_delay=5.0, jitter=False) == 20.0
 
-        assert calculate_backoff_delay(1, backoff_factor=3.0, jitter=False) == 3.0
-        assert calculate_backoff_delay(2, backoff_factor=3.0, jitter=False) == 9.0
+        assert metta.common.util.retry.calculate_backoff_delay(1, backoff_factor=3.0, jitter=False) == 3.0
+        assert metta.common.util.retry.calculate_backoff_delay(2, backoff_factor=3.0, jitter=False) == 9.0
 
     def test_max_delay_cap(self):
         """Test that delay is capped at max_delay."""
-        assert calculate_backoff_delay(10, max_delay=10.0, jitter=False) == 10.0
-        assert calculate_backoff_delay(5, initial_delay=100.0, max_delay=50.0, jitter=False) == 50.0
+        assert metta.common.util.retry.calculate_backoff_delay(10, max_delay=10.0, jitter=False) == 10.0
+        assert (
+            metta.common.util.retry.calculate_backoff_delay(5, initial_delay=100.0, max_delay=50.0, jitter=False)
+            == 50.0
+        )
 
     def test_jitter_adds_randomness(self):
         """Test that jitter produces random delays within expected range."""
         # For attempt=2: 1.0 * 2^2 = 4.0
-        delays = [calculate_backoff_delay(2, jitter=True) for _ in range(20)]
+        delays = [metta.common.util.retry.calculate_backoff_delay(2, jitter=True) for _ in range(20)]
 
         # All delays should be between 0 and 4.0
         assert all(0 <= d <= 4.0 for d in delays)

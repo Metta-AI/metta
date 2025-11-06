@@ -6,36 +6,36 @@ This test exercises the adapter path without monkeypatching:
 - Numeric parameter bounds are respected
 """
 
-from typing import Any
+import typing
 
-from metta.sweep.core import CategoricalParameterConfig, ParameterConfig
-from metta.sweep.optimizer.protein import ProteinOptimizer
-from metta.sweep.protein_config import ProteinConfig, ProteinSettings
+import metta.sweep.core
+import metta.sweep.optimizer.protein
+import metta.sweep.protein_config
 
 
 def test_e2e_categorical_single_and_multi_suggestions() -> None:
     """Verify end-to-end categorical handling with real optimizer."""
     # Build a config containing one categorical and one numeric parameter
-    config = ProteinConfig(
+    config = metta.sweep.protein_config.ProteinConfig(
         metric="score",
         goal="maximize",
         parameters={
             "model": {
-                "color": CategoricalParameterConfig(choices=["red", "blue", "green"]),
+                "color": metta.sweep.core.CategoricalParameterConfig(choices=["red", "blue", "green"]),
             },
             "trainer": {
                 "optimizer": {
-                    "learning_rate": ParameterConfig(
+                    "learning_rate": metta.sweep.core.ParameterConfig(
                         min=1e-5, max=1e-3, distribution="log_normal", mean=1e-4, scale="auto"
                     ),
                 }
             },
         },
         # Use defaults but ensure we seed with search center for deterministic first suggestion
-        settings=ProteinSettings(num_random_samples=0, seed_with_search_center=True),
+        settings=metta.sweep.protein_config.ProteinSettings(num_random_samples=0, seed_with_search_center=True),
     )
 
-    optimizer = ProteinOptimizer(config)
+    optimizer = metta.sweep.optimizer.protein.ProteinOptimizer(config)
 
     # 1) Single suggestion with no observations should return the search center.
     # For a 3-choice categorical, the center index is 1 -> "blue".
@@ -50,7 +50,7 @@ def test_e2e_categorical_single_and_multi_suggestions() -> None:
 
     # 2) Provide an observation that includes a categorical value and request multiple suggestions.
     # Ensure all returned categorical values are valid strings from the choices.
-    observations: list[dict[str, Any]] = [
+    observations: list[dict[str, typing.Any]] = [
         {
             # Use flat keys to align with Protein's expectations
             "suggestion": {"model.color": "green", "trainer.optimizer.learning_rate": 2e-4},

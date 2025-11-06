@@ -1,30 +1,30 @@
 import logging
 import os
 
+import fastapi
+import fastapi.middleware.cors
+import typing_extensions
 import uvicorn
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from typing_extensions import TypedDict
 
-from metta.common.util.log_config import init_logging
-from metta.gridworks.routes.configs import make_configs_router
-from metta.gridworks.routes.schemas import make_schemas_router
+import metta.common.util.log_config
+import metta.gridworks.routes.configs
+import metta.gridworks.routes.schemas
 
 logger = logging.getLogger(__name__)
 
 
 def make_app():
-    app = FastAPI()
+    app = fastapi.FastAPI()
 
     app.add_middleware(
-        CORSMiddleware,
+        fastapi.middleware.cors.CORSMiddleware,
         allow_origins=["http://localhost:3000"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
-    class RepoRootResult(TypedDict):
+    class RepoRootResult(typing_extensions.TypedDict):
         repo_root: str
 
     @app.get("/repo-root")
@@ -33,14 +33,14 @@ def make_app():
             "repo_root": os.getcwd(),
         }
 
-    app.include_router(make_configs_router())
-    app.include_router(make_schemas_router())
+    app.include_router(metta.gridworks.routes.configs.make_configs_router())
+    app.include_router(metta.gridworks.routes.schemas.make_schemas_router())
 
     return app
 
 
 def main() -> None:
-    init_logging()
+    metta.common.util.log_config.init_logging()
     uvicorn.run(
         "metta.gridworks.server:make_app",
         port=8001,

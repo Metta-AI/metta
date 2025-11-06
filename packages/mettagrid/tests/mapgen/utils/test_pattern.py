@@ -1,12 +1,7 @@
 import numpy as np
 import pytest
 
-from mettagrid.mapgen.utils.pattern import (
-    Pattern,
-    ascii_to_patterns_with_counts,
-    ascii_to_weights_of_all_patterns,
-    parse_ascii_into_grid,
-)
+import mettagrid.mapgen.utils.pattern
 
 
 class TestParseAscii:
@@ -16,7 +11,7 @@ class TestParseAscii:
             #.#
             ###
         """
-        grid = parse_ascii_into_grid(source)
+        grid = mettagrid.mapgen.utils.pattern.parse_ascii_into_grid(source)
 
         expected = np.array(
             [
@@ -31,14 +26,14 @@ class TestParseAscii:
 
     def test_error_cases(self):
         with pytest.raises(ValueError):
-            parse_ascii_into_grid("""
+            mettagrid.mapgen.utils.pattern.parse_ascii_into_grid("""
                 ###
                 #.
                 ###
             """)  # Inconsistent width
 
         with pytest.raises(ValueError):
-            parse_ascii_into_grid("""
+            mettagrid.mapgen.utils.pattern.parse_ascii_into_grid("""
                 123
                 4 5
                 678
@@ -52,10 +47,10 @@ class TestPattern:
             #.#
             ###
         """
-        grid = parse_ascii_into_grid(source)
+        grid = mettagrid.mapgen.utils.pattern.parse_ascii_into_grid(source)
 
         # Create pattern from top-left corner
-        pattern = Pattern(grid, 0, 0, 2)
+        pattern = mettagrid.mapgen.utils.pattern.Pattern(grid, 0, 0, 2)
         expected = np.array(
             [
                 [True, True],
@@ -66,7 +61,7 @@ class TestPattern:
         assert np.array_equal(pattern.data, expected)
 
         # Create pattern from bottom-right corner with wrapping
-        pattern = Pattern(grid, 2, 2, 2)
+        pattern = mettagrid.mapgen.utils.pattern.Pattern(grid, 2, 2, 2)
         expected = np.array(
             [
                 [True, True],
@@ -82,8 +77,8 @@ class TestPattern:
             ##
             ##
         """
-        grid = parse_ascii_into_grid(source)
-        pattern = Pattern(grid, 0, 0, 2)
+        grid = mettagrid.mapgen.utils.pattern.parse_ascii_into_grid(source)
+        pattern = mettagrid.mapgen.utils.pattern.Pattern(grid, 0, 0, 2)
 
         # Index should be 15 (1+2+4+8) for a 2x2 grid of all True
         assert pattern.index() == 15
@@ -93,8 +88,8 @@ class TestPattern:
             #.
             .#
         """
-        grid = parse_ascii_into_grid(source)
-        pattern = Pattern(grid, 0, 0, 2)
+        grid = mettagrid.mapgen.utils.pattern.parse_ascii_into_grid(source)
+        pattern = mettagrid.mapgen.utils.pattern.Pattern(grid, 0, 0, 2)
 
         # Index should be 9 (1+8) for a 2x2 grid with True at (0,0) and (1,1)
         assert pattern.index() == 9
@@ -106,8 +101,8 @@ class TestPattern:
             ##.
             .#.
         """
-        grid = parse_ascii_into_grid(source)
-        pattern = Pattern(grid, 0, 0, 3)
+        grid = mettagrid.mapgen.utils.pattern.parse_ascii_into_grid(source)
+        pattern = mettagrid.mapgen.utils.pattern.Pattern(grid, 0, 0, 3)
 
         # Test with symmetry="none"
         variations = pattern.variations("none")
@@ -136,7 +131,9 @@ class TestPatternsWithCounts:
             ##
             ##
         """
-        patterns = ascii_to_patterns_with_counts(source, 2, periodic=False, symmetry="none")
+        patterns = mettagrid.mapgen.utils.pattern.ascii_to_patterns_with_counts(
+            source, 2, periodic=False, symmetry="none"
+        )
 
         # There should be 1 pattern (only one 2x2 pattern in a 2x2 source)
         assert len(patterns) == 1
@@ -150,7 +147,9 @@ class TestPatternsWithCounts:
             ##
             ##
         """
-        patterns = ascii_to_patterns_with_counts(source, 2, periodic=True, symmetry="none")
+        patterns = mettagrid.mapgen.utils.pattern.ascii_to_patterns_with_counts(
+            source, 2, periodic=True, symmetry="none"
+        )
 
         assert len(patterns) == 1
 
@@ -164,7 +163,9 @@ class TestPatternsWithCounts:
             #.#
             ###
         """
-        patterns = ascii_to_patterns_with_counts(source, 2, periodic=False, symmetry="none")
+        patterns = mettagrid.mapgen.utils.pattern.ascii_to_patterns_with_counts(
+            source, 2, periodic=False, symmetry="none"
+        )
 
         # Check we have the expected number of unique patterns
         # 2x2 window in a 3x3 grid gives 4 possible positions
@@ -181,7 +182,9 @@ class TestPatternsWithCounts:
             #.#
             ###
         """
-        patterns = ascii_to_patterns_with_counts(source, 2, periodic=False, symmetry="all")
+        patterns = mettagrid.mapgen.utils.pattern.ascii_to_patterns_with_counts(
+            source, 2, periodic=False, symmetry="all"
+        )
         assert len(patterns) == 4
 
         # With symmetry, there might be more patterns, but the total count should be the same
@@ -196,7 +199,9 @@ class TestWeightsOfAllPatterns:
             ##
             ##
         """
-        weights = ascii_to_weights_of_all_patterns(source, 2, periodic=False, symmetry="none")
+        weights = mettagrid.mapgen.utils.pattern.ascii_to_weights_of_all_patterns(
+            source, 2, periodic=False, symmetry="none"
+        )
 
         # For a 2x2 pattern, there are 2^4 = 16 possible patterns (0-15)
         assert len(weights) == 16
@@ -215,7 +220,9 @@ class TestWeightsOfAllPatterns:
             #.#
             ###
         """
-        weights = ascii_to_weights_of_all_patterns(source, 2, periodic=False, symmetry="none")
+        weights = mettagrid.mapgen.utils.pattern.ascii_to_weights_of_all_patterns(
+            source, 2, periodic=False, symmetry="none"
+        )
 
         # For a 2x2 pattern, there are still 16 possible patterns
         assert len(weights) == 16
@@ -230,7 +237,9 @@ class TestWeightsOfAllPatterns:
             #.#
             ###
         """
-        weights = ascii_to_weights_of_all_patterns(source, 2, periodic=False, symmetry="all")
+        weights = mettagrid.mapgen.utils.pattern.ascii_to_weights_of_all_patterns(
+            source, 2, periodic=False, symmetry="all"
+        )
 
         # With symmetry, the total weight should increase
         assert sum(weights) == 4 * 8  # 4 patterns * 8 variations per pattern

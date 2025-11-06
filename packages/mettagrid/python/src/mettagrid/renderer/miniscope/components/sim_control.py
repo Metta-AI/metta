@@ -1,23 +1,22 @@
 """Simulation control component for miniscope renderer."""
 
 import numpy as np
-from rich.text import Text
+import rich.text
 
-from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
-from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState, PlaybackState, RenderMode
-from mettagrid.simulator import Simulation
+import mettagrid.renderer.miniscope.components.base
+import mettagrid.renderer.miniscope.miniscope_panel
+import mettagrid.renderer.miniscope.miniscope_state
+import mettagrid.simulator
 
-from .base import MiniscopeComponent
 
-
-class SimControlComponent(MiniscopeComponent):
+class SimControlComponent(mettagrid.renderer.miniscope.components.base.MiniscopeComponent):
     """Component for displaying simulation status and handling playback controls."""
 
     def __init__(
         self,
-        sim: Simulation,
-        state: MiniscopeState,
-        panels: PanelLayout,
+        sim: mettagrid.simulator.Simulation,
+        state: mettagrid.renderer.miniscope.miniscope_state.MiniscopeState,
+        panels: mettagrid.renderer.miniscope.miniscope_panel.PanelLayout,
     ):
         """Initialize the simulation control component."""
         super().__init__(sim=sim, state=state, panels=panels)
@@ -40,19 +39,19 @@ class SimControlComponent(MiniscopeComponent):
 
         # Handle mode selection
         elif ch in ["f", "F"]:
-            self._state.set_mode(RenderMode.FOLLOW)
+            self._state.set_mode(mettagrid.renderer.miniscope.miniscope_state.RenderMode.FOLLOW)
             return True
         elif ch in ["p", "P"]:
-            self._state.set_mode(RenderMode.PAN)
+            self._state.set_mode(mettagrid.renderer.miniscope.miniscope_state.RenderMode.PAN)
             return True
         elif ch in ["t", "T"]:
-            self._state.set_mode(RenderMode.SELECT)
+            self._state.set_mode(mettagrid.renderer.miniscope.miniscope_state.RenderMode.SELECT)
             return True
 
         # Handle quit
         elif ch in ["q", "Q"]:
             self._sim.end_episode()
-            self._state.playback = PlaybackState.STOPPED
+            self._state.playback = mettagrid.renderer.miniscope.miniscope_state.PlaybackState.STOPPED
             return True
 
         # Handle help
@@ -97,7 +96,11 @@ class SimControlComponent(MiniscopeComponent):
 
         # Format values
         mode_text = self.state.mode.value.upper()
-        status = "PAUSED" if self.state.playback == PlaybackState.PAUSED else "PLAYING"
+        status = (
+            "PAUSED"
+            if self.state.playback == mettagrid.renderer.miniscope.miniscope_state.PlaybackState.PAUSED
+            else "PLAYING"
+        )
         sps = f"{self.state.fps:.1f}" if self.state.fps < 10 else f"{int(self.state.fps)}"
         camera_pos = f"({self.state.camera_row},{self.state.camera_col})"
 
@@ -111,14 +114,14 @@ class SimControlComponent(MiniscopeComponent):
         controls = "?=Help  SPACE=Play/Pause  <>=Speed  F=Follow P=Pan T=Select  IJKL=Pan  Q=Quit"
 
         terminal_width = self._panels.console.width if self._panels and self._panels.console else 120
-        controls_text = Text(controls)
-        squares_text = Text(squares)
+        controls_text = rich.text.Text(controls)
+        squares_text = rich.text.Text(squares)
         padding_available = terminal_width - controls_text.cell_len - squares_text.cell_len
         padding_length = max(1, padding_available)
         first_line = f"{controls_text.plain}{' ' * padding_length}{squares_text.plain}\n"
 
         # Build status text
-        text = Text()
+        text = rich.text.Text()
         text.append(first_line)
         text.append(
             f"Step {self.state.step_count} | "

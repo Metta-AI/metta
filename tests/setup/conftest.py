@@ -3,14 +3,14 @@ Pytest configuration for setup integration tests.
 """
 
 import os
+import pathlib
 import tempfile
-from pathlib import Path
-from typing import Generator
+import typing
 
 import pytest
 
-from metta.common.util.fs import get_repo_root
-from tests.setup.test_base import BaseMettaSetupTest
+import metta.common.util.fs
+import tests.setup.test_base
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -41,15 +41,17 @@ def pytest_configure(config: pytest.Config) -> None:
 
     # Propagate active profile into BaseMettaSetupTest for convenience
     active_profile = config.getoption("--metta-profile") or os.environ.get("METTA_TEST_PROFILE")
-    BaseMettaSetupTest.active_profile_name = active_profile
+    tests.setup.test_base.BaseMettaSetupTest.active_profile_name = active_profile
     try:
-        from metta.setup.profiles import UserType
+        import metta.setup.profiles
 
-        BaseMettaSetupTest.active_user_type = (
-            UserType(active_profile) if active_profile in {u.value for u in UserType} else None
+        tests.setup.test_base.BaseMettaSetupTest.active_user_type = (
+            metta.setup.profiles.UserType(active_profile)
+            if active_profile in {u.value for u in metta.setup.profiles.UserType}
+            else None
         )
     except Exception:
-        BaseMettaSetupTest.active_user_type = None
+        tests.setup.test_base.BaseMettaSetupTest.active_user_type = None
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
@@ -60,7 +62,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     """
     active_profile = config.getoption("--metta-profile") or os.environ.get("METTA_TEST_PROFILE")
     active_setup = config.getoption("--metta-setup") or os.environ.get("METTA_TEST_SETUP")
-    setup_dir = Path(__file__).parent.resolve()
+    setup_dir = pathlib.Path(__file__).parent.resolve()
 
     def skip_profile_marker(required: str) -> pytest.MarkDecorator:
         return pytest.mark.skip(
@@ -71,7 +73,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     for item in items:
         # Apply only to tests under tests/setup/**
         try:
-            item_path = Path(str(item.fspath)).resolve()
+            item_path = pathlib.Path(str(item.fspath)).resolve()
         except Exception:
             continue
         try:
@@ -96,16 +98,16 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 
 
 @pytest.fixture(scope="session")
-def repo_root() -> Path:
+def repo_root() -> pathlib.Path:
     """Get the repository root directory."""
-    return get_repo_root()
+    return metta.common.util.fs.get_repo_root()
 
 
 @pytest.fixture(scope="function")
-def temp_test_env() -> Generator[Path, None, None]:
+def temp_test_env() -> typing.Generator[pathlib.Path, None, None]:
     """Create a temporary test environment."""
     temp_dir = tempfile.mkdtemp(prefix="metta_test_")
-    test_home = Path(temp_dir) / "home"
+    test_home = pathlib.Path(temp_dir) / "home"
     test_home.mkdir(parents=True, exist_ok=True)
 
     # Store original environment variables
@@ -149,7 +151,7 @@ def temp_test_env() -> Generator[Path, None, None]:
 
 
 @pytest.fixture(scope="function")
-def clean_config(temp_test_env: Path) -> Path:
+def clean_config(temp_test_env: pathlib.Path) -> pathlib.Path:
     """Create a clean configuration directory."""
     config_dir = temp_test_env / ".metta"
     config_dir.mkdir(parents=True, exist_ok=True)

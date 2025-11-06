@@ -1,32 +1,35 @@
 """Arena recipe with HRM policy architecture."""
 
-from metta.agent.policies.hrm import HRMTinyConfig
-from metta.agent.policy import PolicyArchitecture
+import metta.agent.policies.hrm
+import metta.agent.policy
 
-from experiments.recipes import arena as base
+import experiments.recipes
 
-mettagrid = base.mettagrid
-make_curriculum = base.make_curriculum
-simulations = base.simulations
-play = base.play
-replay = base.replay
-evaluate = base.evaluate
+mettagrid = experiments.recipes.arena.mettagrid
+make_curriculum = experiments.recipes.arena.make_curriculum
+simulations = experiments.recipes.arena.simulations
+play = experiments.recipes.arena.play
+replay = experiments.recipes.arena.replay
+evaluate = experiments.recipes.arena.evaluate
 
 
 def train(
     *,
     curriculum=None,
     enable_detailed_slice_logging: bool = False,
-    policy_architecture: PolicyArchitecture | None = None,
+    policy_architecture: metta.agent.policy.PolicyArchitecture | None = None,
 ):
     """Train with HRM policy architecture (defaults to HRMTinyConfig for memory efficiency)."""
-    tool = base.train(
+    tool = experiments.recipes.arena.train(
         curriculum=curriculum,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
     )
     # Update policy architecture
     tool = tool.model_copy(
-        update={"policy_architecture": policy_architecture or HRMTinyConfig()}
+        update={
+            "policy_architecture": policy_architecture
+            or metta.agent.policies.hrm.HRMTinyConfig()
+        }
     )
     return tool
 
@@ -34,13 +37,18 @@ def train(
 def train_shaped(
     rewards: bool = True,
     converters: bool = True,
-    policy_architecture: PolicyArchitecture | None = None,
+    policy_architecture: metta.agent.policy.PolicyArchitecture | None = None,
 ):
     """Train with HRM policy architecture using shaped rewards (defaults to HRMTinyConfig)."""
-    tool = base.train_shaped(rewards=rewards, converters=converters)
+    tool = experiments.recipes.arena.train_shaped(
+        rewards=rewards, converters=converters
+    )
     # Update policy architecture
     tool = tool.model_copy(
-        update={"policy_architecture": policy_architecture or HRMTinyConfig()}
+        update={
+            "policy_architecture": policy_architecture
+            or metta.agent.policies.hrm.HRMTinyConfig()
+        }
     )
     return tool
 

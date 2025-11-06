@@ -1,18 +1,18 @@
 """GUI renderer using mettascope."""
 
 import json
+import pathlib
 import sys
-from pathlib import Path
-from typing import Optional
+import typing
 
 import numpy as np
 
-from mettagrid.renderer.renderer import Renderer
-from mettagrid.simulator import Action
-from mettagrid.util.grid_object_formatter import format_grid_object
+import mettagrid.renderer.renderer
+import mettagrid.simulator
+import mettagrid.util.grid_object_formatter
 
 
-class MettascopeRenderer(Renderer):
+class MettascopeRenderer(mettagrid.renderer.renderer.Renderer):
     """Renderer for GUI mode using mettascope."""
 
     def __init__(self):
@@ -87,7 +87,7 @@ class MettascopeRenderer(Renderer):
 
         for grid_object in self._sim.grid_objects().values():
             grid_objects.append(
-                format_grid_object(
+                mettagrid.util.grid_object_formatter.format_grid_object(
                     grid_object,
                     placeholder_actions,
                     self._sim.action_success,
@@ -129,7 +129,7 @@ class MettascopeRenderer(Renderer):
 
                 print(f"DEBUG: Setting action '{action_name}' for agent {action.agent_id}")
                 try:
-                    self._sim.agent(action.agent_id).set_action(Action(name=action_name))
+                    self._sim.agent(action.agent_id).set_action(mettagrid.simulator.Action(name=action_name))
                 except KeyError as e:
                     print(f"ERROR: Unknown action '{action_name}' - {e}")
                     available_actions = [a for a in self._sim.action_ids.keys() if "change_vibe" in a]
@@ -144,11 +144,11 @@ class MettascopeRenderer(Renderer):
 # sources remain in ``packages/mettagrid/nim/mettascope`` and the copy step
 # never runs.  To support both layouts we try the packaged location first and,
 # if it is missing the bindings, walk upwards looking for the repository copy.
-package_root = Path(__file__).resolve().parent
+package_root = pathlib.Path(__file__).resolve().parent
 
 
-def _resolve_nim_root() -> tuple[Optional[Path], list[Path]]:
-    search_paths: list[Path] = []
+def _resolve_nim_root() -> tuple[typing.Optional[pathlib.Path], list[pathlib.Path]]:
+    search_paths: list[pathlib.Path] = []
 
     packaged = package_root / "nim" / "mettascope"
     search_paths.append(packaged)

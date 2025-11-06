@@ -1,10 +1,10 @@
 """Utility functions for CoGames CLI."""
 
+import rich.console
 import torch
-from rich.console import Console
 
 
-def resolve_training_device(console: Console, requested: str) -> torch.device:
+def resolve_training_device(console: rich.console.Console, requested: str) -> torch.device:
     normalized = requested.strip().lower()
 
     def cuda_usable() -> bool:

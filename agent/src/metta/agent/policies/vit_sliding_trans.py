@@ -1,19 +1,19 @@
 import logging
-from typing import List
+import typing
 
-from metta.agent.components.actor import ActionProbsConfig, ActorHeadConfig
-from metta.agent.components.component_config import ComponentConfig
-from metta.agent.components.misc import MLPConfig
-from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
-from metta.agent.components.obs_shim import ObsShimTokensConfig
-from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourierConfig
-from metta.agent.policies.sliding_transformer import SlidingTransformerConfig
-from metta.agent.policy import PolicyArchitecture
+import metta.agent.components.actor
+import metta.agent.components.component_config
+import metta.agent.components.misc
+import metta.agent.components.obs_enc
+import metta.agent.components.obs_shim
+import metta.agent.components.obs_tokenizers
+import metta.agent.policies.sliding_transformer
+import metta.agent.policy
 
 logger = logging.getLogger(__name__)
 
 
-class ViTSlidingTransConfig(PolicyArchitecture):
+class ViTSlidingTransConfig(metta.agent.policy.PolicyArchitecture):
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
     _latent_dim = 64
@@ -22,15 +22,15 @@ class ViTSlidingTransConfig(PolicyArchitecture):
     _core_out_dim = 32
     _memory_num_layers = 2
 
-    components: List[ComponentConfig] = [
-        ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=48),
-        ObsAttrEmbedFourierConfig(
+    components: typing.List[metta.agent.components.component_config.ComponentConfig] = [
+        metta.agent.components.obs_shim.ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=48),
+        metta.agent.components.obs_tokenizers.ObsAttrEmbedFourierConfig(
             in_key="obs_shim_tokens",
             out_key="obs_attr_embed",
             attr_embed_dim=_token_embed_dim,
             num_freqs=_fourier_freqs,
         ),
-        ObsPerceiverLatentConfig(
+        metta.agent.components.obs_enc.ObsPerceiverLatentConfig(
             in_key="obs_attr_embed",
             out_key="encoded_obs",
             feat_dim=_token_embed_dim + (4 * _fourier_freqs) + 1,
@@ -39,14 +39,14 @@ class ViTSlidingTransConfig(PolicyArchitecture):
             num_heads=4,
             num_layers=2,
         ),
-        SlidingTransformerConfig(
+        metta.agent.policies.sliding_transformer.SlidingTransformerConfig(
             in_key="encoded_obs",
             out_key="core",
             hidden_size=_core_out_dim,
             latent_size=_latent_dim,
             num_layers=_memory_num_layers,
         ),
-        MLPConfig(
+        metta.agent.components.misc.MLPConfig(
             in_key="core",
             out_key="values",
             name="critic",
@@ -54,7 +54,9 @@ class ViTSlidingTransConfig(PolicyArchitecture):
             out_features=1,
             hidden_features=[1024],
         ),
-        ActorHeadConfig(in_key="core", out_key="logits", input_dim=_core_out_dim),
+        metta.agent.components.actor.ActorHeadConfig(in_key="core", out_key="logits", input_dim=_core_out_dim),
     ]
 
-    action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
+    action_probs_config: metta.agent.components.actor.ActionProbsConfig = (
+        metta.agent.components.actor.ActionProbsConfig(in_key="logits")
+    )

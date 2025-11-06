@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
+import metta.agent.util.distribution_utils
 
 # Global seed for reproducibility
 SEED = 42
@@ -59,13 +59,13 @@ class TestSampleActions:
         batch = sample_logits_data["batch"]
         batch_size = batch.shape[0]
 
-        action, logprob, ent, norm = sample_actions(single)
+        action, logprob, ent, norm = metta.agent.util.distribution_utils.sample_actions(single)
         assert action.shape == (1,)
         assert logprob.shape == (1,)
         assert ent.shape == (1,)
         assert norm.shape == single.shape
 
-        action, logprob, ent, norm = sample_actions(batch)
+        action, logprob, ent, norm = metta.agent.util.distribution_utils.sample_actions(batch)
         assert action.shape == (batch_size,)
         assert logprob.shape == (batch_size,)
         assert ent.shape == (batch_size,)
@@ -75,12 +75,12 @@ class TestSampleActions:
         logits = sample_logits_data["deterministic"]
 
         for i in range(6):
-            action, _, _, _ = sample_actions(logits)
+            action, _, _, _ = metta.agent.util.distribution_utils.sample_actions(logits)
             assert action.item() == 1, f"Deterministic sampling failed on iteration {i}"
 
     def test_single_element_tensor_shape(self):
         logits = torch.randn(1, 9)
-        actions, logprob, entropy, norm = sample_actions(logits)
+        actions, logprob, entropy, norm = metta.agent.util.distribution_utils.sample_actions(logits)
         assert actions.shape == (1,)
         assert logprob.shape == (1,)
         assert entropy.shape == (1,)
@@ -94,7 +94,7 @@ class TestEvaluateActions:
     def test_provided_actions(self, sample_logits_data):
         logits = sample_logits_data["batch"]
         actions = torch.tensor([0, 1, 2][: logits.shape[0]], dtype=torch.long)
-        logprob, _, norm = evaluate_actions(logits, actions)
+        logprob, _, norm = metta.agent.util.distribution_utils.evaluate_actions(logits, actions)
         expected = norm.gather(-1, actions.unsqueeze(-1)).squeeze(-1)
         assert torch.allclose(logprob, expected)
 
@@ -102,7 +102,7 @@ class TestEvaluateActions:
         logits = sample_logits_data["batch"]
         batch_size, vocab_size = logits.shape
         actions = torch.randint(0, vocab_size, (batch_size,))
-        logprob, ent, norm = evaluate_actions(logits, actions)
+        logprob, ent, norm = metta.agent.util.distribution_utils.evaluate_actions(logits, actions)
         assert logprob.shape == (batch_size,)
         assert ent.shape == (batch_size,)
         assert norm.shape == logits.shape
@@ -128,7 +128,9 @@ def run_multiple_evaluation_iterations(func, data, actions, iterations=10):
 )
 def test_sampling_output_shapes(benchmark_data, data_key):
     data = benchmark_data[data_key]
-    actions, logprob, entropy, norm = run_multiple_sampling_iterations(sample_actions, data)
+    actions, logprob, entropy, norm = run_multiple_sampling_iterations(
+        metta.agent.util.distribution_utils.sample_actions, data
+    )
 
     assert actions.shape[0] == data.shape[0]
     assert logprob.shape[0] == data.shape[0]
@@ -147,7 +149,9 @@ def test_sampling_output_shapes(benchmark_data, data_key):
 def test_evaluation_output_shapes(benchmark_data, data_key, action_key):
     data = benchmark_data[data_key]
     actions = benchmark_data[action_key]
-    logprob, entropy, norm = run_multiple_evaluation_iterations(evaluate_actions, data, actions)
+    logprob, entropy, norm = run_multiple_evaluation_iterations(
+        metta.agent.util.distribution_utils.evaluate_actions, data, actions
+    )
 
     assert logprob.shape[0] == data.shape[0]
     assert entropy.shape[0] == data.shape[0]
@@ -157,8 +161,8 @@ def test_evaluation_output_shapes(benchmark_data, data_key, action_key):
 class TestCompatibility:
     def test_sample_then_evaluate_consistency(self, sample_logits_data):
         logits = sample_logits_data["batch"]
-        act, lp, ent, norm = sample_actions(logits)
-        eval_lp, eval_ent, eval_norm = evaluate_actions(logits, act)
+        act, lp, ent, norm = metta.agent.util.distribution_utils.sample_actions(logits)
+        eval_lp, eval_ent, eval_norm = metta.agent.util.distribution_utils.evaluate_actions(logits, act)
 
         assert torch.allclose(lp, eval_lp), "Logprobs mismatch"
         assert torch.allclose(ent, eval_ent), "Entropy mismatch"

@@ -6,15 +6,15 @@ Demo showing how to create an MettaGridConfig and build a game map using the map
 
 import argparse
 import logging
-from typing import get_args
+import typing
 
-from mettagrid.builder import building
-from mettagrid.config.mettagrid_config import MettaGridConfig
-from mettagrid.map_builder.random import RandomMapBuilder
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.policy.random import RandomMultiAgentPolicy
-from mettagrid.renderer.renderer import RenderMode
-from mettagrid.simulator.rollout import Rollout
+import mettagrid.builder
+import mettagrid.config.mettagrid_config
+import mettagrid.map_builder.random
+import mettagrid.policy.policy_env_interface
+import mettagrid.policy.random
+import mettagrid.renderer.renderer
+import mettagrid.simulator.rollout
 
 logger = logging.getLogger("mettagrid.demo")
 
@@ -25,7 +25,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--render",
         type=str,
-        choices=get_args(RenderMode),
+        choices=typing.get_args(mettagrid.renderer.renderer.RenderMode),
         default="log",
         help="Render mode: gui (mettascope), unicode (miniscope), log (logger), or none (headless)",
     )
@@ -59,7 +59,7 @@ def parse_args() -> argparse.Namespace:
 def main():
     args = parse_args()
 
-    cfg = MettaGridConfig()
+    cfg = mettagrid.config.mettagrid_config.MettaGridConfig()
     cfg.game.num_agents = args.agents
     cfg.game.max_steps = args.steps
 
@@ -69,11 +69,11 @@ def main():
 
     # Define objects used in the map
     cfg.game.objects = {
-        "wall": building.wall,
-        "altar": building.assembler_altar,
+        "wall": mettagrid.builder.building.wall,
+        "altar": mettagrid.builder.building.assembler_altar,
     }
 
-    cfg.game.map_builder = RandomMapBuilder.Config(
+    cfg.game.map_builder = mettagrid.map_builder.random.RandomMapBuilder.Config(
         agents=args.agents,
         width=args.width,
         height=args.height,
@@ -97,11 +97,13 @@ def main():
     # Create a modified config for the policy
     policy_cfg = cfg.model_copy(deep=True)
     policy_cfg.game.actions.change_vibe.enabled = False
-    policy = RandomMultiAgentPolicy(PolicyEnvInterface.from_mg_cfg(policy_cfg))
+    policy = mettagrid.policy.random.RandomMultiAgentPolicy(
+        mettagrid.policy.policy_env_interface.PolicyEnvInterface.from_mg_cfg(policy_cfg)
+    )
     agent_policies = policy.agent_policies(cfg.game.num_agents)
 
     # Create rollout with renderer
-    rollout = Rollout(config=cfg, policies=agent_policies, render_mode=args.render)
+    rollout = mettagrid.simulator.rollout.Rollout(config=cfg, policies=agent_policies, render_mode=args.render)
 
     logger.info("\n=== Running simulation ===")
     rollout.run_until_done()

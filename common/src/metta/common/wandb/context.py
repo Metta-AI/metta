@@ -1,19 +1,19 @@
 import logging
 import os
 import socket
-from typing import TYPE_CHECKING, Any
+import typing
 
-from mettagrid.base_config import Config
+import mettagrid.base_config
 
-if TYPE_CHECKING:
-    from wandb.sdk.wandb_run import Run as WandbRun
+if typing.TYPE_CHECKING:
+    import wandb.sdk.wandb_run
 else:
-    WandbRun = Any
+    WandbRun = typing.Any
 
 logger = logging.getLogger(__name__)
 
 
-class WandbConfig(Config):
+class WandbConfig(mettagrid.base_config.Config):
     enabled: bool
     project: str
     entity: str
@@ -57,7 +57,7 @@ class WandbContext:
     def __init__(
         self,
         wandb_config: WandbConfig,
-        run_config: Config | dict[str, Any] | str | None = None,
+        run_config: mettagrid.base_config.Config | dict[str, typing.Any] | str | None = None,
         timeout: int = 30,
         run_config_name: str | None = None,
     ):
@@ -74,13 +74,13 @@ class WandbContext:
         self.wandb_config = wandb_config
         self.run_config = run_config
         self.run_config_name = run_config_name
-        self.run: WandbRun | None = None
+        self.run: wandb.sdk.wandb_run.Run | None = None
         self.timeout = timeout  # Add configurable timeout (wandb default is 90 seconds)
         self.wandb_host = "api.wandb.ai"
         self.wandb_port = 443
         self._generated_ipc_file_path: str | None = None  # To store path if generated
 
-    def __enter__(self) -> WandbRun | None:
+    def __enter__(self) -> wandb.sdk.wandb_run.Run | None:
         if not self.wandb_config.enabled:
             return None
 
@@ -97,7 +97,7 @@ class WandbContext:
         logger.info(f"Initializing W&B run with timeout={self.timeout}s")
 
         import wandb
-        from wandb.errors import CommError
+        import wandb.errors
 
         try:
             tags = list(self.wandb_config.tags)
@@ -109,7 +109,7 @@ class WandbContext:
                 if isinstance(self.run_config, dict):
                     key = self.run_config_name or "extra_config_dict"
                     config = {key: self.run_config}
-                elif isinstance(self.run_config, Config):
+                elif isinstance(self.run_config, mettagrid.base_config.Config):
                     # Assume it's a Config object with model_dump method
                     class_name = self.run_config.__class__.__name__
                     key = self.run_config_name or class_name or "extra_config_object"
@@ -155,7 +155,7 @@ class WandbContext:
                 )
             logger.info(f"Successfully initialized W&B run: {self.run.name} ({self.run.id})")
 
-        except (TimeoutError, CommError) as e:
+        except (TimeoutError, wandb.errors.CommError) as e:
             error_type = "timeout" if isinstance(e, TimeoutError) else "communication"
             logger.error(f"W&B initialization failed due to {error_type} error: {str(e)}", exc_info=True)
             logger.info("Continuing without W&B logging")
@@ -169,7 +169,7 @@ class WandbContext:
         return self.run
 
     @staticmethod
-    def cleanup_run(run: WandbRun | None):
+    def cleanup_run(run: wandb.sdk.wandb_run.Run | None):
         if run:
             import wandb
 

@@ -1,18 +1,15 @@
+import dataclasses
 import logging
+import multiprocessing
 import os
+import pathlib
 import re
 import urllib.request
-from dataclasses import dataclass
-from multiprocessing import Pool
-from pathlib import Path
 
 import yaml
 
-from mettagrid.mapgen.scene import SceneConfig
-from mettagrid.mapgen.utils.make_scene_config import (
-    make_convchain_config_from_pattern,
-    make_wfc_config_from_pattern,
-)
+import mettagrid.mapgen.scene
+import mettagrid.mapgen.utils.make_scene_config
 
 # This script extracts maps from Dungeon Crawl Stone Soup into individual yaml scene files.
 
@@ -49,7 +46,7 @@ def is_trivial(ascii_map):
     return False
 
 
-@dataclass
+@dataclasses.dataclass
 class DCSSMap:
     name: str
     pattern: str
@@ -84,7 +81,7 @@ def get_maps() -> list[DCSSMap]:
     return maps
 
 
-dir = Path(__file__).parent.parent / "scenes" / "dcss"
+dir = pathlib.Path(__file__).parent.parent / "scenes" / "dcss"
 
 
 def process_map_entry(map_entry: DCSSMap):
@@ -92,17 +89,17 @@ def process_map_entry(map_entry: DCSSMap):
     pattern = map_entry.pattern
     logger.info(f"Processing map: {name}")
 
-    def save_config(config: SceneConfig, dir: Path):
+    def save_config(config: mettagrid.mapgen.scene.SceneConfig, dir: pathlib.Path):
         dir.mkdir(parents=True, exist_ok=True)
         with open(dir / f"{name}.yaml", "w") as fh:
             yaml.dump(config.model_dump(exclude_unset=True, exclude_defaults=True), fh)
 
     # convchain
-    convchain_config = make_convchain_config_from_pattern(pattern)
+    convchain_config = mettagrid.mapgen.utils.make_scene_config.make_convchain_config_from_pattern(pattern)
     save_config(convchain_config, dir / "convchain")
 
     # wfc
-    wfc_config = make_wfc_config_from_pattern(map_entry.pattern)
+    wfc_config = mettagrid.mapgen.utils.make_scene_config.make_wfc_config_from_pattern(map_entry.pattern)
     if wfc_config is None:
         logger.warning(f"Invalid pattern for WFC: {map_entry.name}")
         return
@@ -115,7 +112,7 @@ def generate_scenes_from_dcss_maps():
 
     cpus = os.cpu_count() or 1
 
-    with Pool(cpus) as pool:
+    with multiprocessing.Pool(cpus) as pool:
         pool.map(process_map_entry, maps)
 
 

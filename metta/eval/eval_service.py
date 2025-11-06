@@ -1,15 +1,15 @@
 import logging
+import pathlib
 import uuid
-from pathlib import Path
 
-from metta.app_backend.clients.stats_client import StatsClient
-from metta.common.util.collections import is_unique
-from metta.common.util.heartbeat import record_heartbeat
-from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
-from metta.eval.eval_stats_db import EvalStatsDB
-from metta.sim.simulation import Simulation, SimulationCompatibilityError
-from metta.sim.simulation_config import SimulationConfig
-from metta.sim.simulation_stats_db import SimulationStatsDB
+import metta.app_backend.clients.stats_client
+import metta.common.util.collections
+import metta.common.util.heartbeat
+import metta.eval.eval_request_config
+import metta.eval.eval_stats_db
+import metta.sim.simulation
+import metta.sim.simulation_config
+import metta.sim.simulation_stats_db
 
 logger = logging.getLogger(__name__)
 
@@ -17,21 +17,21 @@ logger = logging.getLogger(__name__)
 def evaluate_policy(
     *,
     checkpoint_uri: str,
-    simulations: list[SimulationConfig],
+    simulations: list[metta.sim.simulation_config.SimulationConfig],
     replay_dir: str | None,
     stats_dir: str = "/tmp/stats",
     export_stats_db_uri: str | None = None,
     stats_epoch_id: uuid.UUID | None = None,
     eval_task_id: uuid.UUID | None = None,
-    stats_client: StatsClient | None,
-) -> EvalResults:
+    stats_client: metta.app_backend.clients.stats_client.StatsClient | None,
+) -> metta.eval.eval_request_config.EvalResults:
     """Evaluate one policy URI, merging all simulations into a single StatsDB."""
     logger.info(f"Evaluating checkpoint {checkpoint_uri}")
-    if not is_unique([sim.full_name for sim in simulations]):
+    if not metta.common.util.collections.is_unique([sim.full_name for sim in simulations]):
         raise ValueError("Simulation names must be unique")
 
     sims = [
-        Simulation(
+        metta.sim.simulation.Simulation(
             cfg=sim,
             policy_uri=checkpoint_uri,
             stats_dir=stats_dir,
@@ -44,13 +44,15 @@ def evaluate_policy(
     ]
     successful_simulations = 0
     replay_urls: dict[str, list[str]] = {}
-    merged_db: SimulationStatsDB = SimulationStatsDB(Path(f"{stats_dir}/all_{uuid.uuid4().hex[:8]}.duckdb"))
+    merged_db: metta.sim.simulation_stats_db.SimulationStatsDB = metta.sim.simulation_stats_db.SimulationStatsDB(
+        pathlib.Path(f"{stats_dir}/all_{uuid.uuid4().hex[:8]}.duckdb")
+    )
     for sim in sims:
         try:
-            record_heartbeat()
+            metta.common.util.heartbeat.record_heartbeat()
             logger.info("=== Simulation '%s' ===", sim.full_name)
             sim_result = sim.simulate()
-            record_heartbeat()
+            metta.common.util.heartbeat.record_heartbeat()
             if replay_dir is not None:
                 sim_replay_urls = sim_result.stats_db.get_replay_urls(
                     policy_uri=checkpoint_uri, sim_suite=sim._config.suite, env=sim._config.name
@@ -61,7 +63,7 @@ def evaluate_policy(
             sim_result.stats_db.close()
             merged_db.merge_in(sim_result.stats_db)
             successful_simulations += 1
-        except SimulationCompatibilityError as e:
+        except metta.sim.simulation.SimulationCompatibilityError as e:
             # Only skip for NPC-related compatibility issues
             error_msg = str(e).lower()
             if "npc" in error_msg or "non-player" in error_msg:
@@ -77,7 +79,7 @@ def evaluate_policy(
         raise RuntimeError("No simulations could be run successfully")
     logger.info("Completed %d/%d simulations successfully", successful_simulations, len(simulations))
 
-    eval_stats_db = EvalStatsDB(merged_db.path)
+    eval_stats_db = metta.eval.eval_stats_db.EvalStatsDB(merged_db.path)
     logger.info("Evaluation complete for checkpoint %s", checkpoint_uri)
     scores = extract_scores(checkpoint_uri, simulations, eval_stats_db)
 
@@ -85,7 +87,7 @@ def evaluate_policy(
         logger.info("Exporting merged stats DB → %s", export_stats_db_uri)
         merged_db.export(export_stats_db_uri)
 
-    results = EvalResults(
+    results = metta.eval.eval_request_config.EvalResults(
         scores=scores,
         replay_urls=replay_urls,
     )
@@ -94,8 +96,10 @@ def evaluate_policy(
 
 
 def extract_scores(
-    checkpoint_uri: str, simulations: list[SimulationConfig], stats_db: EvalStatsDB
-) -> EvalRewardSummary:
+    checkpoint_uri: str,
+    simulations: list[metta.sim.simulation_config.SimulationConfig],
+    stats_db: metta.eval.eval_stats_db.EvalStatsDB,
+) -> metta.eval.eval_request_config.EvalRewardSummary:
     suites = {sim_config.suite for sim_config in simulations}
 
     def suite_score(suite: str) -> float | None:
@@ -105,7 +109,7 @@ def extract_scores(
 
     category_scores = {suite: score for suite in suites if (score := suite_score(suite)) is not None}
 
-    return EvalRewardSummary(
+    return metta.eval.eval_request_config.EvalRewardSummary(
         category_scores=category_scores,
         simulation_scores=stats_db.simulation_scores(checkpoint_uri, "reward"),
     )

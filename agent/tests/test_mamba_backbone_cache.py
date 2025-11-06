@@ -1,16 +1,16 @@
 import pytest
+import tensordict
 import torch
-from tensordict import TensorDict
 
 pytest.importorskip("mamba_ssm", reason="Mamba components require the mamba-ssm CUDA package.")
 
-from metta.agent.components.mamba import MambaBackboneConfig
-from metta.agent.components.mamba.backbone import MambaBackboneComponent
+import metta.agent.components.mamba
+import metta.agent.components.mamba.backbone
 
 
-def _make_backbone(d_model: int = 32) -> MambaBackboneComponent:
-    return MambaBackboneComponent(
-        MambaBackboneConfig(
+def _make_backbone(d_model: int = 32) -> metta.agent.components.mamba.backbone.MambaBackboneComponent:
+    return metta.agent.components.mamba.backbone.MambaBackboneComponent(
+        metta.agent.components.mamba.MambaBackboneConfig(
             in_key="encoded",
             out_key="core",
             input_dim=16,
@@ -25,7 +25,7 @@ def _make_backbone(d_model: int = 32) -> MambaBackboneComponent:
 def test_rollout_updates_and_resets_cache():
     component = _make_backbone()
 
-    td = TensorDict(  # 2 envs, single step
+    td = tensordict.TensorDict(  # 2 envs, single step
         {
             "encoded": torch.randn(2, 16),
             "dones": torch.zeros(2),
@@ -54,7 +54,7 @@ def test_rollout_updates_and_resets_cache():
 def test_training_keeps_shape_and_updates_cache():
     component = _make_backbone()
 
-    td = TensorDict(
+    td = tensordict.TensorDict(
         {
             "encoded": torch.randn(4, 2, 16),
             "bptt": torch.full((4,), 2, dtype=torch.long),

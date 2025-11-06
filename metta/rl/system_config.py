@@ -1,15 +1,15 @@
+import datetime
 import os
+import pathlib
 import platform
 import random
-from datetime import timedelta
-from pathlib import Path
-from typing import ClassVar, Literal
+import typing
 
 import numpy as np
+import pydantic
 import torch
-from pydantic import ConfigDict, Field
 
-from mettagrid.base_config import Config
+import mettagrid.base_config
 
 
 def guess_device() -> str:
@@ -25,29 +25,29 @@ def guess_device() -> str:
     return f"cuda:{local_rank}"
 
 
-def guess_vectorization() -> Literal["serial", "multiprocessing"]:
+def guess_vectorization() -> typing.Literal["serial", "multiprocessing"]:
     if platform.system() == "Darwin":
         return "serial"
     return "multiprocessing"
 
 
-def guess_data_dir() -> Path:
+def guess_data_dir() -> pathlib.Path:
     if os.environ.get("DATA_DIR"):
-        return Path(os.environ["DATA_DIR"])
-    return Path("./train_dir")
+        return pathlib.Path(os.environ["DATA_DIR"])
+    return pathlib.Path("./train_dir")
 
 
-class SystemConfig(Config):
-    vectorization: Literal["serial", "multiprocessing"] = Field(default_factory=guess_vectorization)
-    seed: int = Field(default_factory=lambda: np.random.randint(0, 1000000))
-    torch_deterministic: bool = Field(default=True)
-    device: str = Field(default_factory=guess_device)
-    data_dir: Path = Field(default_factory=guess_data_dir)
-    remote_prefix: str | None = Field(default=None)
-    local_only: bool = Field(default=False)
-    nccl_timeout: timedelta = Field(default=timedelta(minutes=10))
+class SystemConfig(mettagrid.base_config.Config):
+    vectorization: typing.Literal["serial", "multiprocessing"] = pydantic.Field(default_factory=guess_vectorization)
+    seed: int = pydantic.Field(default_factory=lambda: np.random.randint(0, 1000000))
+    torch_deterministic: bool = pydantic.Field(default=True)
+    device: str = pydantic.Field(default_factory=guess_device)
+    data_dir: pathlib.Path = pydantic.Field(default_factory=guess_data_dir)
+    remote_prefix: str | None = pydantic.Field(default=None)
+    local_only: bool = pydantic.Field(default=False)
+    nccl_timeout: datetime.timedelta = pydantic.Field(default=datetime.timedelta(minutes=10))
 
-    model_config: ClassVar[ConfigDict] = ConfigDict(
+    model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
         extra="forbid",
         validate_assignment=True,
         populate_by_name=True,

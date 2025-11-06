@@ -1,21 +1,17 @@
-from typing import List
+import typing
 
-from metta.agent.components.action import ActionEmbeddingConfig
-from metta.agent.components.actor import (
-    ActionProbsConfig,
-    ActorKeyConfig,
-    ActorQueryConfig,
-)
-from metta.agent.components.component_config import ComponentConfig
-from metta.agent.components.drama import DramaWorldModelConfig
-from metta.agent.components.misc import MLPConfig
-from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
-from metta.agent.components.obs_shim import ObsShimTokensConfig
-from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourierConfig
-from metta.agent.policy import PolicyArchitecture
+import metta.agent.components.action
+import metta.agent.components.actor
+import metta.agent.components.component_config
+import metta.agent.components.drama
+import metta.agent.components.misc
+import metta.agent.components.obs_enc
+import metta.agent.components.obs_shim
+import metta.agent.components.obs_tokenizers
+import metta.agent.policy
 
 
-class DramaPolicyConfig(PolicyArchitecture):
+class DramaPolicyConfig(metta.agent.policy.PolicyArchitecture):
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
     _latent_dim = 48
@@ -24,15 +20,15 @@ class DramaPolicyConfig(PolicyArchitecture):
     _embed_dim = 12
     _core_out_dim = 96
 
-    components: List[ComponentConfig] = [
-        ObsShimTokensConfig(in_key="env_obs", out_key="obs_tokens", max_tokens=48),
-        ObsAttrEmbedFourierConfig(
+    components: typing.List[metta.agent.components.component_config.ComponentConfig] = [
+        metta.agent.components.obs_shim.ObsShimTokensConfig(in_key="env_obs", out_key="obs_tokens", max_tokens=48),
+        metta.agent.components.obs_tokenizers.ObsAttrEmbedFourierConfig(
             in_key="obs_tokens",
             out_key="obs_attr_embed",
             attr_embed_dim=_token_embed_dim,
             num_freqs=_fourier_freqs,
         ),
-        ObsPerceiverLatentConfig(
+        metta.agent.components.obs_enc.ObsPerceiverLatentConfig(
             in_key="obs_attr_embed",
             out_key="encoded_obs",
             feat_dim=_token_embed_dim + (4 * _fourier_freqs) + 1,
@@ -41,7 +37,7 @@ class DramaPolicyConfig(PolicyArchitecture):
             num_heads=2,
             num_layers=1,
         ),
-        DramaWorldModelConfig(
+        metta.agent.components.drama.DramaWorldModelConfig(
             in_key="encoded_obs",
             out_key="core",
             action_key="last_actions",
@@ -50,7 +46,7 @@ class DramaPolicyConfig(PolicyArchitecture):
             d_intermediate=_core_out_dim * 2,
             n_layer=1,
         ),
-        MLPConfig(
+        metta.agent.components.misc.MLPConfig(
             in_key="core",
             out_key="values",
             name="critic",
@@ -58,9 +54,11 @@ class DramaPolicyConfig(PolicyArchitecture):
             out_features=1,
             hidden_features=[192],
         ),
-        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embed_dim),
-        ActorQueryConfig(in_key="core", out_key="actor_query", hidden_size=_core_out_dim, embed_dim=_embed_dim),
-        ActorKeyConfig(
+        metta.agent.components.action.ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embed_dim),
+        metta.agent.components.actor.ActorQueryConfig(
+            in_key="core", out_key="actor_query", hidden_size=_core_out_dim, embed_dim=_embed_dim
+        ),
+        metta.agent.components.actor.ActorKeyConfig(
             query_key="actor_query",
             embedding_key="action_embedding",
             out_key="logits",
@@ -68,7 +66,9 @@ class DramaPolicyConfig(PolicyArchitecture):
         ),
     ]
 
-    action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
+    action_probs_config: metta.agent.components.actor.ActionProbsConfig = (
+        metta.agent.components.actor.ActionProbsConfig(in_key="logits")
+    )
 
 
 __all__ = ["DramaPolicyConfig"]

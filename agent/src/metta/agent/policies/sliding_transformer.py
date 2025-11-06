@@ -1,16 +1,15 @@
-from __future__ import annotations
 
-from typing import Any, Literal
+import typing
 
+import einops
+import tensordict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from einops import rearrange
-from tensordict import TensorDict
-from torchrl.data import Composite, UnboundedDiscrete
+import torchrl.data
 
-from metta.agent.components.component_config import ComponentConfig
-from metta.agent.components.transformer_utils import sinusoidal_position_encoding
+import metta.agent.components.component_config
+import metta.agent.components.transformer_utils
 
 
 class TransformerBlock(nn.Module):
@@ -67,7 +66,7 @@ class TransformerBlock(nn.Module):
         return x, k, v
 
 
-class SlidingTransformerConfig(ComponentConfig):
+class SlidingTransformerConfig(metta.agent.components.component_config.ComponentConfig):
     """Hyperparameters for the sliding-window transformer backbone."""
 
     name: str = "sliding_transformer"
@@ -80,10 +79,10 @@ class SlidingTransformerConfig(ComponentConfig):
     n_heads: int = 1
     d_ff: int = 64
     max_cache_size: int = 80
-    pool: Literal["cls", "mean", "none"] = "mean"
+    pool: typing.Literal["cls", "mean", "none"] = "mean"
     memory_len: int = 0
 
-    def model_post_init(self, __context: Any) -> None:  # type: ignore[override]
+    def model_post_init(self, __context: typing.Any) -> None:  # type: ignore[override]
         if self.latent_size is None:
             object.__setattr__(self, "latent_size", self.hidden_size)
         if self.hidden_size % self.n_heads != 0:
@@ -200,7 +199,7 @@ class SlidingTransformer(nn.Module):
 
         # av need to handle switching between rollout/train and eval
 
-    def forward(self, td: TensorDict):
+    def forward(self, td: tensordict.TensorDict):
         B = td.batch_size.numel()
         if td["bptt"][0] != 1:
             TT = td["bptt"][0]
@@ -236,11 +235,11 @@ class SlidingTransformer(nn.Module):
             x = x.unsqueeze(-2)
 
         # Reshape all inputs to be [B, TT, Seq, Dims]
-        x = rearrange(x, "(b tt) ... d -> b tt (...) d", tt=TT)
-        reward = rearrange(reward, "(b tt) ... -> b tt (...) 1", tt=TT)
-        last_actions = rearrange(last_actions, "(b tt) ... d -> b tt (...) d", tt=TT)
+        x = einops.rearrange(x, "(b tt) ... d -> b tt (...) d", tt=TT)
+        reward = einops.rearrange(reward, "(b tt) ... -> b tt (...) 1", tt=TT)
+        last_actions = einops.rearrange(last_actions, "(b tt) ... d -> b tt (...) d", tt=TT)
         resets = torch.logical_or(dones.bool(), truncateds.bool()).float()
-        resets = rearrange(resets, "(b tt) ... -> b tt (...) 1", tt=TT)
+        resets = einops.rearrange(resets, "(b tt) ... -> b tt (...) 1", tt=TT)
 
         # Project inputs to tokens
         reward_token = self.reward_proj(reward)
@@ -254,7 +253,7 @@ class SlidingTransformer(nn.Module):
         x = torch.cat([cls_token, x, reward_reset_token, action_token], dim=2)
 
         S = x.shape[2]  # Number of tokens per time-step
-        x = rearrange(x, "b tt s d -> b (tt s) d")
+        x = einops.rearrange(x, "b tt s d -> b (tt s) d")
 
         if TT == 1:  # rollout
             # 1. Add positional encoding
@@ -271,7 +270,9 @@ class SlidingTransformer(nn.Module):
                 self.position_counter = torch.cat([self.position_counter, pos_filler])
 
             current_pos = self.position_counter[training_env_ids]
-            pos_enc = sinusoidal_position_encoding(current_pos, self.hidden_size)
+            pos_enc = metta.agent.components.transformer_utils.sinusoidal_position_encoding(
+                current_pos, self.hidden_size
+            )
             x = x + pos_enc.unsqueeze(1)  # Add to all S tokens for this timestep
 
             # 2. Process through transformer layers
@@ -306,7 +307,7 @@ class SlidingTransformer(nn.Module):
             elif self.config.pool == "mean":
                 pooled_output = output.mean(dim=1)
             elif self.config.pool == "none":
-                pooled_output = rearrange(output, "b s d -> b (s d)")
+                pooled_output = einops.rearrange(output, "b s d -> b (s d)")
             else:
                 raise ValueError(f"Unsupported pool mode: {self.config.pool}")
             td.set(self.out_key, pooled_output)
@@ -325,9 +326,9 @@ class SlidingTransformer(nn.Module):
             # The cache is from the step before this sequence started
             start_pos = td["transformer_position"].view(B, TT)[:, 0]
             positions = start_pos.unsqueeze(1) + torch.arange(TT, device=x.device)
-            pos_enc = sinusoidal_position_encoding(positions, self.hidden_size)
+            pos_enc = metta.agent.components.transformer_utils.sinusoidal_position_encoding(positions, self.hidden_size)
             pos_enc = pos_enc.unsqueeze(2).expand(-1, -1, S, -1)
-            pos_enc = rearrange(pos_enc, "b tt s d -> b (tt s) d")
+            pos_enc = einops.rearrange(pos_enc, "b tt s d -> b (tt s) d")
             x = x + pos_enc
 
             # 2. Prepare causal mask
@@ -372,27 +373,27 @@ class SlidingTransformer(nn.Module):
 
             # 4. Get final output
             output = self.final_norm(x)
-            output = rearrange(output, "b (tt s) d -> b tt s d", tt=TT)
+            output = einops.rearrange(output, "b (tt s) d -> b tt s d", tt=TT)
             if self.config.pool == "cls":
                 pooled_output = output[:, :, 0, :]  # Select CLS token
             elif self.config.pool == "mean":
                 pooled_output = output.mean(dim=2)  # pool over S dimension
             elif self.config.pool == "none":
-                pooled_output = rearrange(output, "b tt s d -> b tt (s d)")
+                pooled_output = einops.rearrange(output, "b tt s d -> b tt (s d)")
             else:
                 raise ValueError(f"Unsupported pool mode: {self.config.pool}")
 
-            pooled_output = rearrange(pooled_output, "b tt ... -> (b tt) ...")
+            pooled_output = einops.rearrange(pooled_output, "b tt ... -> (b tt) ...")
             td.set(self.out_key, pooled_output)
 
             return td
 
-    def get_agent_experience_spec(self) -> Composite:
-        return Composite(
+    def get_agent_experience_spec(self) -> torchrl.data.Composite:
+        return torchrl.data.Composite(
             {
-                "transformer_position": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.long),
-                "dones": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
-                "truncateds": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
+                "transformer_position": torchrl.data.UnboundedDiscrete(shape=torch.Size([]), dtype=torch.long),
+                "dones": torchrl.data.UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
+                "truncateds": torchrl.data.UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
             }
         )
 

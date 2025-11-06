@@ -1,49 +1,49 @@
+import pathlib
 import tempfile
-from pathlib import Path
-from unittest.mock import patch
+import unittest.mock
 
+import pydantic
 import pytest
 import torch
 import torch.nn as nn
-from pydantic import Field
 
-from metta.agent.components.component_config import ComponentConfig
-from metta.agent.mocks import MockAgent
-from metta.agent.policy import PolicyArchitecture
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.system_config import SystemConfig
-from mettagrid.base_config import Config
+import metta.agent.components.component_config
+import metta.agent.mocks
+import metta.agent.policy
+import metta.rl.checkpoint_manager
+import metta.rl.system_config
+import mettagrid.base_config
 
 
-class MockActionComponentConfig(ComponentConfig):
+class MockActionComponentConfig(metta.agent.components.component_config.ComponentConfig):
     name: str = "mock"
 
     def make_component(self, env=None) -> nn.Module:  # pragma: no cover - simple stub
         return nn.Identity()
 
 
-class MockAgentPolicyArchitecture(PolicyArchitecture):
+class MockAgentPolicyArchitecture(metta.agent.policy.PolicyArchitecture):
     class_path: str = "metta.agent.mocks.mock_agent.MockAgent"
-    action_probs_config: Config = Field(default_factory=MockActionComponentConfig)
+    action_probs_config: mettagrid.base_config.Config = pydantic.Field(default_factory=MockActionComponentConfig)
 
     def make_policy(self, policy_env_info):  # pragma: no cover - tests use provided agent
-        return MockAgent()
+        return metta.agent.mocks.MockAgent()
 
 
 @pytest.fixture
 def test_system_cfg():
     with tempfile.TemporaryDirectory() as tmpdir:
-        yield SystemConfig(data_dir=Path(tmpdir), local_only=True)
+        yield metta.rl.system_config.SystemConfig(data_dir=pathlib.Path(tmpdir), local_only=True)
 
 
 @pytest.fixture
 def checkpoint_manager(test_system_cfg):
-    return CheckpointManager(run="test_run", system_cfg=test_system_cfg)
+    return metta.rl.checkpoint_manager.CheckpointManager(run="test_run", system_cfg=test_system_cfg)
 
 
 @pytest.fixture
 def mock_agent():
-    return MockAgent()
+    return metta.agent.mocks.MockAgent()
 
 
 @pytest.fixture
@@ -59,10 +59,10 @@ class TestBasicSaveLoad:
         checkpoint_manager.save_agent(mock_agent, epoch=3, policy_architecture=mock_policy_architecture)
 
         latest_uri = f"file://{checkpoint_manager.checkpoint_dir}:latest"
-        artifact = CheckpointManager.load_artifact_from_uri(latest_uri)
+        artifact = metta.rl.checkpoint_manager.CheckpointManager.load_artifact_from_uri(latest_uri)
 
         assert artifact.state_dict is not None
-        metadata = CheckpointManager.get_policy_metadata(latest_uri)
+        metadata = metta.rl.checkpoint_manager.CheckpointManager.get_policy_metadata(latest_uri)
         assert metadata["run_name"] == "test_run"
         assert metadata["epoch"] == 7
 
@@ -75,29 +75,29 @@ class TestBasicSaveLoad:
 
         assert agent_file.exists()
 
-        metadata = CheckpointManager.get_policy_metadata(agent_file.as_uri())
+        metadata = metta.rl.checkpoint_manager.CheckpointManager.get_policy_metadata(agent_file.as_uri())
         assert metadata["run_name"] == "test_run"
         assert metadata["epoch"] == 5
 
-        artifact = CheckpointManager.load_artifact_from_uri(agent_file.as_uri())
+        artifact = metta.rl.checkpoint_manager.CheckpointManager.load_artifact_from_uri(agent_file.as_uri())
         assert artifact.state_dict is not None
 
     def test_remote_prefix_upload(self, test_system_cfg, mock_agent, mock_policy_architecture):
         test_system_cfg.local_only = False
         test_system_cfg.remote_prefix = "s3://bucket/checkpoints"
-        manager = CheckpointManager(run="test_run", system_cfg=test_system_cfg)
+        manager = metta.rl.checkpoint_manager.CheckpointManager(run="test_run", system_cfg=test_system_cfg)
 
         expected_filename = "test_run:v3.mpt"
         expected_remote = f"s3://bucket/checkpoints/{expected_filename}"
 
-        with patch("metta.rl.checkpoint_manager.write_file") as mock_write:
+        with unittest.mock.patch("metta.rl.checkpoint_manager.write_file") as mock_write:
             remote_uri = manager.save_agent(mock_agent, epoch=3, policy_architecture=mock_policy_architecture)
 
         assert remote_uri == expected_remote
         mock_write.assert_called_once()
         remote_arg, local_arg = mock_write.call_args[0]
         assert remote_arg == expected_remote
-        assert Path(local_arg).name == expected_filename
+        assert pathlib.Path(local_arg).name == expected_filename
 
     def test_multiple_epoch_saves_and_selection(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         epochs = [1, 5, 10]
@@ -108,7 +108,7 @@ class TestBasicSaveLoad:
         latest_checkpoint = checkpoint_manager.get_latest_checkpoint()
         assert latest_checkpoint is not None
         assert latest_checkpoint.endswith(":v10.mpt")
-        artifact = CheckpointManager.load_artifact_from_uri(latest_checkpoint)
+        artifact = metta.rl.checkpoint_manager.CheckpointManager.load_artifact_from_uri(latest_checkpoint)
         assert artifact.state_dict is not None
 
     def test_trainer_state_save_load(self, checkpoint_manager, mock_agent, mock_policy_architecture):
@@ -148,4 +148,4 @@ class TestErrorHandling:
 
         for invalid_name in invalid_names:
             with pytest.raises(ValueError):
-                CheckpointManager(run=invalid_name, system_cfg=test_system_cfg)
+                metta.rl.checkpoint_manager.CheckpointManager(run=invalid_name, system_cfg=test_system_cfg)

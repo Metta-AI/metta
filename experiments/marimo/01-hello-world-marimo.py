@@ -41,9 +41,9 @@ def _(mo):
 def _():
     import marimo as mo
     import sys
-    from pathlib import Path
+    import pathlib
 
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
     # Setup imports for core notebook workflow
     # magic command not supported in marimo; please file an issue to add support
     # %load_ext autoreload
@@ -52,9 +52,8 @@ def _():
     import time
     import warnings
     import io, contextlib
-    from contextlib import contextmanager
     import os, json, subprocess, tempfile, yaml
-    from datetime import datetime
+    import datetime
     import multiprocessing
     import threading
     import traceback
@@ -62,56 +61,46 @@ def _():
     import numpy as np  # used later
     import pandas as pd
     import matplotlib.pyplot as plt
-    from omegaconf import OmegaConf
-    from typing import Any, Dict  # type: ignore
-    from metta.common.util.fs import get_repo_root
+    import omegaconf
+    import typing  # type: ignore
+    import metta.common.util.fs
     import anywidget
     import traitlets
-    from IPython.display import display
-    from mettagrid import MettaGridEnv
+    import IPython.display
+    import mettagrid
 
     # Import MettaScope replay viewer
     try:
-        from experiments.notebooks.utils.replays import show_replay
+        import experiments.notebooks.utils.replays
 
         replay_available = True
     except ImportError:
         replay_available = False
         print("⚠️ MettaScope replay viewer not available")
 
-    from metta.rl.checkpoint_manager import CheckpointManager
+    import metta.rl.checkpoint_manager
 
-    from metta.common.wandb.context import WandbConfig
+    import metta.common.wandb.context
     import wandb
     import torch
 
-    from tensordict import TensorDict
+    import tensordict
 
     import logging
-    from metta.tools.train import TrainTool
-    from metta.rl.trainer_config import TrainerConfig
-    from metta.rl.training import (
-        EvaluatorConfig,
-        TrainingEnvironmentConfig,
-        PolicyEnvInterface,
-    )
+    import metta.tools.train
+    import metta.rl.trainer_config
+    import metta.rl.training
 
-    from metta.cogworks.curriculum import (
-        env_curriculum,
-        CurriculumConfig,
-        SingleTaskGenerator,
-    )
+    import metta.cogworks.curriculum
 
     # Additional imports for cells
-    from mettagrid.builder.envs import make_arena
-    from mettagrid.map_builder.ascii import AsciiMapBuilder
-    from mettagrid.config.mettagrid_config import (
-        AgentRewards,
-    )
-    from mettagrid.base_config import Config
-    from mettagrid.test_support.actions import generate_valid_random_actions
-    from metta.sim.simulation_config import SimulationConfig
-    from metta.agent.utils import obs_to_td
+    import mettagrid.builder.envs
+    import mettagrid.map_builder.ascii
+    import mettagrid.config.mettagrid_config
+    import mettagrid.base_config
+    import mettagrid.test_support.actions
+    import metta.sim.simulation_config
+    import metta.agent.utils
     import pprint
     import textwrap
     import signal
@@ -148,10 +137,7 @@ def _():
     # Suppress Pydantic deprecation warnings
     warnings.filterwarnings("ignore", category=DeprecationWarning, module="pydantic")
 
-    # Policy implementations
-    from typing import Protocol, List
-
-    class RendererToolConfig(Config):
+    class RendererToolConfig(mettagrid.base_config.Config):
         policy_type: str = "random"
         policy_uri: str | None = None
         num_steps: int = 50000
@@ -160,7 +146,7 @@ def _():
         sleep_time: float = 0.0
         renderer_type: str = "human"
 
-    class Policy(Protocol):
+    class Policy(typing.Protocol):
         """Protocol for policy classes."""
 
         def predict(self, obs: np.ndarray) -> np.ndarray:
@@ -170,7 +156,7 @@ def _():
     class BasePolicy:
         """Base class for all policies."""
 
-        def __init__(self, env: MettaGridEnv) -> None:
+        def __init__(self, env: mettagrid.MettaGridEnv) -> None:
             self.env = env
             self.num_agents = env.num_agents
             self.action_space = env.action_space
@@ -185,7 +171,9 @@ def _():
 
         def predict(self, obs: np.ndarray) -> np.ndarray:
             """Return valid random actions for all agents."""
-            return generate_valid_random_actions(self.env, self.num_agents)
+            return mettagrid.test_support.actions.generate_valid_random_actions(
+                self.env, self.num_agents
+            )
 
     class OpportunisticPolicy(BasePolicy):
         """Wander; pick up if front, else rotate toward adjacent resource; else roam."""
@@ -199,14 +187,14 @@ def _():
         DELTA_TO_ORIENT = {v: k for k, v in ORIENT_TO_DELTA.items()}
         ORIENT_NAMES = {0: "north", 1: "south", 2: "west", 3: "east"}
 
-        def __init__(self, env: MettaGridEnv) -> None:
+        def __init__(self, env: mettagrid.MettaGridEnv) -> None:
             super().__init__(env)
             self._initialize_action_indices()
 
         def _initialize_action_indices(self) -> None:
             """Determine indices of move/rotate/pickup actions for this env."""
             try:
-                action_names: List[str] = list(self.env.action_names)
+                action_names: typing.List[str] = list(self.env.action_names)
                 lookup = {name: idx for idx, name in enumerate(action_names)}
                 self.rotate_variants = {
                     orient: lookup.get(f"rotate_{self.ORIENT_NAMES[orient]}")
@@ -236,7 +224,9 @@ def _():
                 (o for o in grid_objects.values() if o.get("agent_id") == 0), None
             )
             if agent is None:
-                return generate_valid_random_actions(self.env, self.num_agents)
+                return mettagrid.test_support.actions.generate_valid_random_actions(
+                    self.env, self.num_agents
+                )
 
             ar, ac = agent["r"], agent["c"]
             agent_ori = int(agent.get("agent:orientation", 0))
@@ -277,16 +267,18 @@ def _():
                                             action_idx = self.noop_idx
                                     if action_idx is None:
                                         action_idx = self.noop_idx
-                                    return generate_valid_random_actions(
+                                    return mettagrid.test_support.actions.generate_valid_random_actions(
                                         self.env,
                                         self.num_agents,
                                         force_action_type=action_idx,
                                     )
 
             # Otherwise, wander randomly
-            return generate_valid_random_actions(self.env, self.num_agents)
+            return mettagrid.test_support.actions.generate_valid_random_actions(
+                self.env, self.num_agents
+            )
 
-    def get_policy(policy_type: str, env: MettaGridEnv) -> Policy:
+    def get_policy(policy_type: str, env: mettagrid.MettaGridEnv) -> Policy:
         """Get a policy based on the specified type."""
         if policy_type == "random":
             return RandomPolicy(env)
@@ -295,7 +287,7 @@ def _():
         else:
             raise Exception("Unknown policy type")
 
-    @contextmanager
+    @contextlib.contextmanager
     def cancellable_context():
         """Base context manager for clean cancellation with signal handling"""
         # Only handle signals if we're in the main thread
@@ -315,7 +307,7 @@ def _():
             if is_main_thread:
                 signal.signal(signal.SIGINT, original_handler)
 
-    @contextmanager
+    @contextlib.contextmanager
     def training_context():
         """Context manager for training with cleanup of ML resources"""
         with cancellable_context():
@@ -341,8 +333,8 @@ def _():
                 print("Training cleanup completed")
                 raise  # Re-raise to let cancellable_context handle the exit
 
-    @contextmanager
-    def simulation_context(env: MettaGridEnv):
+    @contextlib.contextmanager
+    def simulation_context(env: mettagrid.MettaGridEnv):
         """Context manager for simulation with cleanup of environment resources"""
         with cancellable_context():
             try:
@@ -363,38 +355,38 @@ def _():
 
     print("Setup done")
     return (
-        AgentRewards,
-        AsciiMapBuilder,
-        Config,
-        EvaluatorConfig,
-        MettaGridEnv,
+        mettagrid.config.mettagrid_config.AgentRewards,
+        mettagrid.map_builder.ascii.AsciiMapBuilder,
+        mettagrid.base_config.Config,
+        metta.rl.training.EvaluatorConfig,
+        mettagrid.MettaGridEnv,
         OpportunisticPolicy,
-        Path,
-        CheckpointManager,
+        pathlib.Path,
+        metta.rl.checkpoint_manager.CheckpointManager,
         RendererToolConfig,
-        SimulationConfig,
-        TensorDict,
-        TrainTool,
-        TrainerConfig,
-        WandbConfig,
+        metta.sim.simulation_config.SimulationConfig,
+        tensordict.TensorDict,
+        metta.tools.train.TrainTool,
+        metta.rl.trainer_config.TrainerConfig,
+        metta.common.wandb.context.WandbConfig,
         contextlib,
-        datetime,
-        display,
-        env_curriculum,
-        generate_valid_random_actions,
-        get_repo_root,
+        datetime.datetime,
+        IPython.display.display,
+        metta.cogworks.curriculum.env_curriculum,
+        mettagrid.test_support.actions.generate_valid_random_actions,
+        metta.common.util.fs.get_repo_root,
         io,
         logging,
-        make_arena,
+        mettagrid.builder.envs.make_arena,
         mo,
         multiprocessing,
         np,
-        obs_to_td,
+        metta.agent.utils.obs_to_td,
         os,
         threading,
         pd,
         pprint,
-        show_replay,
+        experiments.notebooks.utils.replays.show_replay,
         signal,
         simulation_context,
         textwrap,

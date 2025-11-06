@@ -3,21 +3,21 @@ Tests for the codeclip CLI functionality.
 """
 
 import os
+import pathlib
 import tempfile
 import unittest
-from pathlib import Path
-from unittest.mock import patch
+import unittest.mock
 
-from typer.testing import CliRunner
+import typer.testing
 
-from codebot.codeclip.cli import app
+import codebot.codeclip.cli
 
 
 class TestCodeclipCLI(unittest.TestCase):
     """Test cases for the codeclip CLI."""
 
     def setUp(self):
-        self.runner = CliRunner()
+        self.runner = typer.testing.CliRunner()
         self.test_dir = tempfile.TemporaryDirectory()
         self.original_cwd = os.getcwd()
         os.chdir(self.test_dir.name)
@@ -45,7 +45,7 @@ class TestCodeclipCLI(unittest.TestCase):
         }
 
         for dir_name, files in dirs.items():
-            dir_path = Path(self.test_dir.name) / dir_name
+            dir_path = pathlib.Path(self.test_dir.name) / dir_name
             dir_path.mkdir(parents=True, exist_ok=True)
             for file_name, content in files.items():
                 file_path = dir_path / file_name
@@ -56,7 +56,7 @@ class TestCodeclipCLI(unittest.TestCase):
         self._create_test_structure()
 
         # Test with multiple directories (using -s for stdout output)
-        result = self.runner.invoke(app, ["project1", "project2", "-s"])
+        result = self.runner.invoke(codebot.codeclip.cli.app, ["project1", "project2", "-s"])
         self.assertEqual(result.exit_code, 0)
 
         # Check that files from both directories are included
@@ -70,22 +70,22 @@ class TestCodeclipCLI(unittest.TestCase):
         self._create_test_structure()
 
         # Create a subdirectory and change to it
-        subdir = Path(self.test_dir.name) / "subdir"
+        subdir = pathlib.Path(self.test_dir.name) / "subdir"
         subdir.mkdir()
         os.chdir(subdir)
 
         # Test with relative path (using -s for stdout output)
-        result = self.runner.invoke(app, ["../project1", "-s"])
+        result = self.runner.invoke(codebot.codeclip.cli.app, ["../project1", "-s"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("project1/main.py", result.output)
 
     def test_process_current_directory(self):
         """Test processing current directory with explicit '.'."""
         # Create files in current directory
-        Path("test.py").write_text("print('test')\n")
-        Path("README.md").write_text("# Test\n")
+        pathlib.Path("test.py").write_text("print('test')\n")
+        pathlib.Path("README.md").write_text("# Test\n")
 
-        result = self.runner.invoke(app, [".", "-s"])
+        result = self.runner.invoke(codebot.codeclip.cli.app, [".", "-s"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("test.py", result.output)
         self.assertIn("README.md", result.output)
@@ -95,7 +95,7 @@ class TestCodeclipCLI(unittest.TestCase):
         self._create_test_structure()
 
         # Test filtering for Python files only
-        result = self.runner.invoke(app, ["-e", "py", "project1", "project2", "-s"])
+        result = self.runner.invoke(codebot.codeclip.cli.app, ["-e", "py", "project1", "project2", "-s"])
         self.assertEqual(result.exit_code, 0)
 
         # Should include .py files
@@ -107,11 +107,11 @@ class TestCodeclipCLI(unittest.TestCase):
 
     def test_readmes_only_flag(self):
         """Test readmes-only flag (-r)."""
-        Path("test.py").write_text("print('test')\n")
-        Path("README.md").write_text("# Test Project\n")
+        pathlib.Path("test.py").write_text("print('test')\n")
+        pathlib.Path("README.md").write_text("# Test Project\n")
 
         # Test with readmes-only flag (using -s for stdout output)
-        result = self.runner.invoke(app, [".", "-r", "-s"])
+        result = self.runner.invoke(codebot.codeclip.cli.app, [".", "-r", "-s"])
         self.assertEqual(result.exit_code, 0)
 
         # Should have XML format (we always use XML now)
@@ -128,9 +128,9 @@ class TestCodeclipCLI(unittest.TestCase):
 
     def test_xml_output_format(self):
         """Test XML output format (default)."""
-        Path("test.py").write_text("print('test')\n")
+        pathlib.Path("test.py").write_text("print('test')\n")
 
-        result = self.runner.invoke(app, [".", "-s"])
+        result = self.runner.invoke(codebot.codeclip.cli.app, [".", "-s"])
         self.assertEqual(result.exit_code, 0)
 
         # Should have XML tags (new format)
@@ -142,14 +142,14 @@ class TestCodeclipCLI(unittest.TestCase):
     def test_parent_readme_inclusion(self):
         """Test that parent README files are included."""
         # Create a parent README
-        Path("README.md").write_text("# Parent README\n")
+        pathlib.Path("README.md").write_text("# Parent README\n")
 
         # Create a subdirectory with files
-        subdir = Path("subdir")
+        subdir = pathlib.Path("subdir")
         subdir.mkdir()
         (subdir / "code.py").write_text("print('code')\n")
 
-        result = self.runner.invoke(app, ["subdir", "-s"])
+        result = self.runner.invoke(codebot.codeclip.cli.app, ["subdir", "-s"])
         self.assertEqual(result.exit_code, 0)
 
         # Should include both the subdirectory file and parent README
@@ -157,13 +157,13 @@ class TestCodeclipCLI(unittest.TestCase):
         self.assertIn("README.md", result.output)
         self.assertIn("Parent README", result.output)
 
-    @patch("codebot.codeclip.cli.copy_to_clipboard")
+    @unittest.mock.patch("codebot.codeclip.cli.copy_to_clipboard")
     def test_clipboard_default(self, mock_copy):
         """Test clipboard integration on macOS (default behavior)."""
-        Path("test.py").write_text("print('test')\n")
+        pathlib.Path("test.py").write_text("print('test')\n")
 
         # Clipboard is now the default behavior (no flags needed)
-        result = self.runner.invoke(app, ["."])
+        result = self.runner.invoke(codebot.codeclip.cli.app, ["."])
         self.assertEqual(result.exit_code, 0)
 
         # Check that clipboard copy was called
@@ -175,9 +175,9 @@ class TestCodeclipCLI(unittest.TestCase):
 
     def test_stdout_flag(self):
         """Test that -s flag outputs to stdout."""
-        Path("test.py").write_text("print('test')\n")
+        pathlib.Path("test.py").write_text("print('test')\n")
 
-        result = self.runner.invoke(app, [".", "-s"])
+        result = self.runner.invoke(codebot.codeclip.cli.app, [".", "-s"])
         self.assertEqual(result.exit_code, 0)
 
         # Should have file content in stdout
@@ -208,12 +208,12 @@ class TestCodeclipCLI(unittest.TestCase):
         }
 
         for file_path, content in structure.items():
-            path = Path(file_path)
+            path = pathlib.Path(file_path)
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content)
 
         # Test 1: Path pattern - ignore specific path y/z (not all 'z' directories)
-        result = self.runner.invoke(app, [".", "-i", "y/z", "-s"])
+        result = self.runner.invoke(codebot.codeclip.cli.app, [".", "-i", "y/z", "-s"])
         self.assertEqual(result.exit_code, 0)
 
         # Should NOT include y/z (path pattern match)
@@ -225,7 +225,7 @@ class TestCodeclipCLI(unittest.TestCase):
         self.assertIn("other/z file", result.output)
 
         # Test 2: Directory name pattern - ignore ALL 'cache' directories
-        result = self.runner.invoke(app, [".", "-i", "cache", "-s"])
+        result = self.runner.invoke(codebot.codeclip.cli.app, [".", "-i", "cache", "-s"])
         self.assertEqual(result.exit_code, 0)
 
         # Should NOT include ANY cache directories
@@ -237,7 +237,7 @@ class TestCodeclipCLI(unittest.TestCase):
         self.assertNotIn("other cache", result.output)
 
         # Test 3: Path pattern - ignore specific path build/cache only
-        result = self.runner.invoke(app, [".", "-i", "build/cache", "-s"])
+        result = self.runner.invoke(codebot.codeclip.cli.app, [".", "-i", "build/cache", "-s"])
         self.assertEqual(result.exit_code, 0)
 
         # Should NOT include build/cache (path pattern match)
@@ -251,7 +251,7 @@ class TestCodeclipCLI(unittest.TestCase):
         self.assertIn("other cache", result.output)
 
         # Test 4: Mix of directory name and path patterns
-        result = self.runner.invoke(app, [".", "-i", "z", "-i", "build/cache", "-s"])
+        result = self.runner.invoke(codebot.codeclip.cli.app, [".", "-i", "z", "-i", "build/cache", "-s"])
         self.assertEqual(result.exit_code, 0)
 
         # Should NOT include any 'z' directories (name pattern)

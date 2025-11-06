@@ -1,6 +1,6 @@
-from mettagrid import MettaGridConfig
-from mettagrid.builder.envs import make_navigation
+import mettagrid
+import mettagrid.builder.envs
 
 
-def mettagrid() -> MettaGridConfig:
-    return make_navigation(num_agents=1)
+def mettagrid() -> mettagrid.MettaGridConfig:
+    return mettagrid.builder.envs.make_navigation(num_agents=1)

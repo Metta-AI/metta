@@ -1,14 +1,14 @@
 """Base class for tests requiring function-scoped async fixtures."""
 
 import asyncio
-from typing import AsyncGenerator
+import typing
 
+import fastapi
+import fastapi.testclient
 import pytest
 import pytest_asyncio
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
-from metta.app_backend.metta_repo import MettaRepo
+import metta.app_backend.metta_repo
 
 
 class BaseAsyncTest:
@@ -23,9 +23,9 @@ class BaseAsyncTest:
     """
 
     @pytest_asyncio.fixture(scope="function")
-    async def stats_repo(self, db_uri: str) -> AsyncGenerator[MettaRepo, None]:
+    async def stats_repo(self, db_uri: str) -> typing.AsyncGenerator[metta.app_backend.metta_repo.MettaRepo, None]:
         """Create a MettaRepo instance with async cleanup for the test database."""
-        repo = MettaRepo(db_uri)
+        repo = metta.app_backend.metta_repo.MettaRepo(db_uri)
         yield repo
         # Ensure pool is closed gracefully
         if repo._pool is not None:
@@ -36,13 +36,13 @@ class BaseAsyncTest:
                 pass
 
     @pytest.fixture(scope="function")
-    def test_app(self, stats_repo: MettaRepo) -> FastAPI:
+    def test_app(self, stats_repo: metta.app_backend.metta_repo.MettaRepo) -> fastapi.FastAPI:
         """Create a test FastAPI app with dependency injection."""
-        from metta.app_backend.server import create_app
+        import metta.app_backend.server
 
-        return create_app(stats_repo)
+        return metta.app_backend.server.create_app(stats_repo)
 
     @pytest.fixture(scope="function")
-    def test_client(self, test_app: FastAPI) -> TestClient:
+    def test_client(self, test_app: fastapi.FastAPI) -> fastapi.testclient.TestClient:
         """Create a test client."""
-        return TestClient(test_app)
+        return fastapi.testclient.TestClient(test_app)

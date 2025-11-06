@@ -13,21 +13,21 @@ import signal
 import sys
 import tempfile
 import traceback
+import typing
 import warnings
-from typing import Any
 
-from pydantic import BaseModel, TypeAdapter
-from rich.console import Console
-from typing_extensions import TypeVar
+import pydantic
+import rich.console
+import typing_extensions
 
-from metta.common.tool import Tool
-from metta.common.tool.recipe_registry import recipe_registry
-from metta.common.tool.tool_path import parse_two_token_syntax, resolve_and_load_tool_maker
-from metta.common.tool.tool_registry import tool_registry
-from metta.common.util.log_config import init_logging
-from metta.common.util.text_styles import bold, cyan, green, red, yellow
-from metta.rl.system_config import seed_everything
-from mettagrid.base_config import Config
+import metta.common.tool
+import metta.common.tool.recipe_registry
+import metta.common.tool.tool_path
+import metta.common.tool.tool_registry
+import metta.common.util.log_config
+import metta.common.util.text_styles
+import metta.rl.system_config
+import mettagrid.base_config
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ def init_mettagrid_system_environment() -> None:
     logging.getLogger("torch.distributed.elastic.multiprocessing.redirects").setLevel(logging.ERROR)
 
 
-T = TypeVar("T", bound=Config)
+T = typing_extensions.TypeVar("T", bound=mettagrid.base_config.Config)
 
 # --------------------------------------------------------------------------------------
 # Output handling
@@ -88,7 +88,7 @@ def output_exception(message: str) -> None:
 # --------------------------------------------------------------------------------------
 
 
-def parse_value(value_str: str) -> Any:
+def parse_value(value_str: str) -> typing.Any:
     """Parse a string value into appropriate Python type (minimal heuristics)."""
     lower = value_str.lower()
 
@@ -122,9 +122,9 @@ def parse_value(value_str: str) -> Any:
     return value_str
 
 
-def parse_cli_args(cli_args: list[str]) -> dict[str, Any]:
+def parse_cli_args(cli_args: list[str]) -> dict[str, typing.Any]:
     """Parse CLI arguments in key=value format, keeping dotted keys flat."""
-    parsed: dict[str, Any] = {}
+    parsed: dict[str, typing.Any] = {}
     for arg in cli_args:
         # Unlike earlier versions, we no longer lstrip('-'); args should be plain key=value
         if "=" not in arg:
@@ -144,9 +144,9 @@ def deep_merge(dst: dict, src: dict) -> dict:
     return dst
 
 
-def nestify(flat: dict[str, Any]) -> dict[str, Any]:
+def nestify(flat: dict[str, typing.Any]) -> dict[str, typing.Any]:
     """Turn {'a.b.c': 1, 'x': 2} into {'a': {'b': {'c': 1}}, 'x': 2}."""
-    out: dict[str, Any] = {}
+    out: dict[str, typing.Any] = {}
     for k, v in flat.items():
         parts = k.split(".")
         node = functools.reduce(lambda acc, p: {p: acc}, reversed(parts), v)
@@ -154,29 +154,31 @@ def nestify(flat: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def get_tool_fields(tool_class: type[Tool]) -> set[str]:
+def get_tool_fields(tool_class: type[metta.common.tool.Tool]) -> set[str]:
     """Get all field names from a Tool class and its parent classes."""
     fields = set()
     for base in tool_class.__mro__:
-        if base is Tool:
+        if base is metta.common.tool.Tool:
             break
-        if issubclass(base, BaseModel) and hasattr(base, "model_fields"):
+        if issubclass(base, pydantic.BaseModel) and hasattr(base, "model_fields"):
             fields.update(base.model_fields.keys())
     return fields
 
 
-def get_function_params(tool_maker: Any) -> set[str]:
+def get_function_params(tool_maker: typing.Any) -> set[str]:
     """Get the parameters of a function or callable (not used for Tool classes)."""
-    if inspect.isclass(tool_maker) and issubclass(tool_maker, Tool):
+    if inspect.isclass(tool_maker) and issubclass(tool_maker, metta.common.tool.Tool):
         # Important: do NOT read Tool.__init__ for params (it's usually **data).
         return set()
     else:
         return set(inspect.signature(tool_maker).parameters.keys())
 
 
-def classify_remaining_args(remaining_args: dict[str, Any], tool_fields: set[str]) -> tuple[dict[str, Any], list[str]]:
+def classify_remaining_args(
+    remaining_args: dict[str, typing.Any], tool_fields: set[str]
+) -> tuple[dict[str, typing.Any], list[str]]:
     """Classify remaining arguments as tool overrides or unknown arguments."""
-    overrides: dict[str, Any] = {}
+    overrides: dict[str, typing.Any] = {}
     unknown: list[str] = []
 
     for key, value in remaining_args.items():
@@ -194,15 +196,17 @@ def classify_remaining_args(remaining_args: dict[str, Any], tool_fields: set[str
     return overrides, unknown
 
 
-def type_parse(value: Any, annotation: Any) -> Any:
+def type_parse(value: typing.Any, annotation: typing.Any) -> typing.Any:
     """Type-aware coercion using Pydantic when a function annotation is present."""
     if annotation is inspect._empty:
         return value
-    adapter = TypeAdapter(annotation)
+    adapter = pydantic.TypeAdapter(annotation)
     return adapter.validate_python(value)
 
 
-def get_pydantic_field_info(model_class: type[BaseModel], prefix: str = "") -> list[tuple[str, str, Any, bool]]:
+def get_pydantic_field_info(
+    model_class: type[pydantic.BaseModel], prefix: str = ""
+) -> list[tuple[str, str, typing.Any, bool]]:
     """Recursively get field information from a Pydantic model.
     Returns list of (path, type_str, default, required) tuples.
     """
@@ -231,7 +235,7 @@ def get_pydantic_field_info(model_class: type[BaseModel], prefix: str = "") -> l
 
         # Check if it's a nested Pydantic model
         try:
-            if inspect.isclass(actual_type) and issubclass(actual_type, BaseModel):
+            if inspect.isclass(actual_type) and issubclass(actual_type, pydantic.BaseModel):
                 # Add the parent field first (before nested fields for better ordering)
                 type_name = actual_type.__name__
                 # Don't show the full default object representation for complex models
@@ -261,11 +265,11 @@ def get_pydantic_field_info(model_class: type[BaseModel], prefix: str = "") -> l
     return fields_info
 
 
-def list_tool_arguments(tool_maker: Any, console: Console) -> None:
+def list_tool_arguments(tool_maker: typing.Any, console: rich.console.Console) -> None:
     """List all available arguments for a tool."""
     console.print("\n[bold cyan]Available Arguments[/bold cyan]\n")
 
-    if inspect.isclass(tool_maker) and issubclass(tool_maker, Tool):
+    if inspect.isclass(tool_maker) and issubclass(tool_maker, metta.common.tool.Tool):
         console.print("[yellow]Tool Configuration Fields:[/yellow]\n")
 
         fields_info = get_pydantic_field_info(tool_maker)
@@ -290,7 +294,7 @@ def list_tool_arguments(tool_maker: Any, console: Console) -> None:
                 if not required and default is not None:
                     if callable(default):
                         console.print(" [green](default: <factory>)[/green]", end="")
-                    elif isinstance(default, BaseModel):
+                    elif isinstance(default, pydantic.BaseModel):
                         console.print(f" [green](default: <{type(default).__name__}>)[/green]", end="")
                     elif isinstance(default, str) and (default.startswith("<") and default.endswith(">")):
                         pass
@@ -317,7 +321,7 @@ def list_tool_arguments(tool_maker: Any, console: Console) -> None:
                 ann_str = str(param.annotation).replace("typing.", "")
                 console.print(f": [dim]{ann_str}[/dim]", end="")
             if param.default is not inspect._empty:
-                if isinstance(param.default, BaseModel):
+                if isinstance(param.default, pydantic.BaseModel):
                     console.print(f" [green](default: {type(param.default).__name__})[/green]", end="")
                 elif callable(param.default):
                     console.print(" [green](default: <function>)[/green]", end="")
@@ -330,7 +334,7 @@ def list_tool_arguments(tool_maker: Any, console: Console) -> None:
 
             if param.annotation is not inspect._empty:
                 try:
-                    if inspect.isclass(param.annotation) and issubclass(param.annotation, BaseModel):
+                    if inspect.isclass(param.annotation) and issubclass(param.annotation, pydantic.BaseModel):
                         nested_fields = get_pydantic_field_info(param.annotation, name)
                         if nested_fields:
                             for path, type_str, default, required in sorted(nested_fields):
@@ -365,7 +369,7 @@ def list_tool_arguments(tool_maker: Any, console: Console) -> None:
                         console.print("  [dim]Unable to determine Tool fields (function requires runtime values)[/dim]")
                         return
 
-                if isinstance(result, Tool):
+                if isinstance(result, metta.common.tool.Tool):
                     fields_info = get_pydantic_field_info(type(result))
                     for path, type_str, default, required in sorted(fields_info):
                         depth = path.count(".")
@@ -392,11 +396,11 @@ def list_tool_arguments(tool_maker: Any, console: Console) -> None:
 # --------------------------------------------------------------------------------------
 
 
-def list_all_recipes(console: Console) -> None:
+def list_all_recipes(console: rich.console.Console) -> None:
     """List all available recipes and their tools."""
     console.print("\n[bold cyan]Available Recipes:[/bold cyan]\n")
 
-    recipes = recipe_registry.get_all()
+    recipes = metta.common.tool.recipe_registry.recipe_registry.get_all()
 
     if not recipes:
         console.print("[yellow]No recipes found.[/yellow]")
@@ -412,10 +416,10 @@ def list_all_recipes(console: Console) -> None:
             console.print()
 
 
-def list_module_tools(module_path: str, console: Console) -> bool:
+def list_module_tools(module_path: str, console: rich.console.Console) -> bool:
     """List all tools available in a module. Returns True if successful."""
     # Try to load recipe (handles both short and full paths)
-    recipe = recipe_registry.get(module_path)
+    recipe = metta.common.tool.recipe_registry.recipe_registry.get(module_path)
 
     if not recipe:
         return False
@@ -488,7 +492,7 @@ constructor/function vs configuration overrides based on introspection.
 
     # Parse known args; keep unknowns to validate separation between runner flags and tool args
     known_args, unknown_args = parser.parse_known_args()
-    console = Console()
+    console = rich.console.Console()
 
     # If help is requested without a tool path, show general help
     if known_args.help and not known_args.tool_path:
@@ -496,7 +500,7 @@ constructor/function vs configuration overrides based on introspection.
         return 0
 
     # Initialize logging and environment
-    init_logging()
+    metta.common.util.log_config.init_logging()
     init_mettagrid_system_environment()
 
     # Enforce: unknown long options (starting with '-') are considered runner flags and not tool args.
@@ -504,7 +508,7 @@ constructor/function vs configuration overrides based on introspection.
     dash_unknowns = [a for a in unknown_args if a.startswith("-")]
     if dash_unknowns:
         output_error(
-            f"{red('Error:')} Unknown runner option(s): "
+            f"{metta.common.util.text_styles.red('Error:')} Unknown runner option(s): "
             + ", ".join(dash_unknowns)
             + "\nUse `--` to separate runner options from tool args, e.g.:\n"
             + f"  {os.path.basename(sys.argv[0])} {known_args.tool_path} -- trainer.total_timesteps=100000"
@@ -536,9 +540,9 @@ constructor/function vs configuration overrides based on introspection.
 
         # Check if it's a bare tool name (like 'train', 'evaluate')
         # If it's a known tool type, list all recipes that support it
-        if tool_path in tool_registry.name_to_tool:
+        if tool_path in metta.common.tool.tool_registry.tool_registry.name_to_tool:
             console.print(f"\n[bold]Recipes supporting '{tool_path}':[/bold]\n")
-            recipes = recipe_registry.get_all()
+            recipes = metta.common.tool.recipe_registry.recipe_registry.get_all()
             found_any = False
 
             for recipe in sorted(recipes, key=lambda r: r.module_name):
@@ -561,10 +565,10 @@ constructor/function vs configuration overrides based on introspection.
     # Try two-part form first if next arg looks like a module name (not key=value)
 
     second_token = raw_positional_args[0] if raw_positional_args else None
-    resolved_tool_path, args_consumed = parse_two_token_syntax(tool_path, second_token)
+    resolved_tool_path, args_consumed = metta.common.tool.tool_path.parse_two_token_syntax(tool_path, second_token)
 
     # Try to load the tool maker with the resolved path
-    tool_maker = resolve_and_load_tool_maker(resolved_tool_path)
+    tool_maker = metta.common.tool.tool_path.resolve_and_load_tool_maker(resolved_tool_path)
 
     # Rebuild the arg list to parse (skip consumed args)
     all_args = raw_positional_args[args_consumed:] + unknown_args
@@ -573,18 +577,20 @@ constructor/function vs configuration overrides based on introspection.
     try:
         cli_args = parse_cli_args(all_args)
     except ValueError as e:
-        output_error(f"{red('Error:')} {e}")
+        output_error(f"{metta.common.util.text_styles.red('Error:')} {e}")
         return 2  # Exit code 2 for usage errors
 
     # Build nested payload from dotted paths for Pydantic validation
     nested_cli = nestify(cli_args)
 
     if tool_maker is None:
-        output_error(f"{red('Error:')} Could not find tool '{tool_path}'")
+        output_error(f"{metta.common.util.text_styles.red('Error:')} Could not find tool '{tool_path}'")
 
         return 1
 
-    output_info(f"\n{bold(cyan('Loading tool:'))} {tool_maker.__module__}.{tool_maker.__name__}")
+    output_info(
+        f"\n{metta.common.util.text_styles.bold(metta.common.util.text_styles.cyan('Loading tool:'))} {tool_maker.__module__}.{tool_maker.__name__}"
+    )
 
     # If help flag is set, list arguments and exit
     if known_args.help:
@@ -598,10 +604,10 @@ constructor/function vs configuration overrides based on introspection.
     # ----------------------------------------------------------------------------------
     func_args_for_invoke: dict[str, str] = {}  # what we pass to tool.invoke (as strings)
     try:
-        if inspect.isclass(tool_maker) and issubclass(tool_maker, Tool):
+        if inspect.isclass(tool_maker) and issubclass(tool_maker, metta.common.tool.Tool):
             if known_args.verbose and nested_cli:
                 cls_name = tool_maker.__name__
-                output_info(f"\n{cyan(f'Creating {cls_name} from nested CLI payload:')}")
+                output_info(f"\n{metta.common.util.text_styles.cyan(f'Creating {cls_name} from nested CLI payload:')}")
                 for k in sorted(nested_cli.keys()):
                     output_info(f"  {k} = {nested_cli[k]}")
             tool_cfg = tool_maker.model_validate(nested_cli)
@@ -609,12 +615,12 @@ constructor/function vs configuration overrides based on introspection.
         else:
             # Tool maker function that returns a Tool instance
             sig = inspect.signature(tool_maker)
-            func_kwargs: dict[str, Any] = {}
+            func_kwargs: dict[str, typing.Any] = {}
             consumed_keys: set[str] = set()
 
             if known_args.verbose and (cli_args or nested_cli):
                 func_name = getattr(tool_maker, "__name__", str(tool_maker))
-                output_info(f"\n{cyan(f'Creating {func_name}:')}")
+                output_info(f"\n{metta.common.util.text_styles.cyan(f'Creating {func_name}:')}")
 
             for name, p in sig.parameters.items():
                 # Prefer nested group if provided (e.g., param 'trainer' and CLI has 'trainer.*')
@@ -622,13 +628,13 @@ constructor/function vs configuration overrides based on introspection.
                     provided = nested_cli[name]
 
                     # If the parameter has a default dict or BaseModel, start from it and merge overrides.
-                    base: Any | None = None
+                    base: typing.Any | None = None
                     if p.default is not inspect._empty:
                         default_val = p.default
                         if isinstance(default_val, dict) and isinstance(provided, dict):
                             base = copy.deepcopy(default_val)
                             deep_merge(base, provided)
-                        elif isinstance(default_val, BaseModel) and isinstance(provided, dict):
+                        elif isinstance(default_val, pydantic.BaseModel) and isinstance(provided, dict):
                             base = default_val.model_copy(update=provided, deep=True)
 
                     data = base if base is not None else provided
@@ -636,7 +642,7 @@ constructor/function vs configuration overrides based on introspection.
                     # If annotated as a Pydantic model class, validate against it.
                     ann = p.annotation
                     try:
-                        if inspect.isclass(ann) and issubclass(ann, BaseModel):
+                        if inspect.isclass(ann) and issubclass(ann, pydantic.BaseModel):
                             val = ann.model_validate(data)
                         else:
                             val = type_parse(data, ann)
@@ -682,17 +688,19 @@ constructor/function vs configuration overrides based on introspection.
         hint = ""
         if ("missing" in msg and "positional argument" in msg) and (" self" in msg or " cls" in msg):
             hint = (
-                f"\n{yellow('Hint:')} It looks like an unbound method was passed. "
+                f"\n{metta.common.util.text_styles.yellow('Hint:')} It looks like an unbound method was passed. "
                 "Pass the Tool subclass itself or a factory function that doesn't require 'self'/'cls'."
             )
-        output_exception(f"{red('Error creating tool configuration:')} {e}{hint}")
+        output_exception(f"{metta.common.util.text_styles.red('Error creating tool configuration:')} {e}{hint}")
         return 1
     except Exception as e:
-        output_exception(f"{red('Error creating tool configuration:')} {e}")
+        output_exception(f"{metta.common.util.text_styles.red('Error creating tool configuration:')} {e}")
         return 1
 
-    if not isinstance(tool_cfg, Tool):
-        output_error(f"{red('Error:')} {known_args.tool_path} must return a Tool instance, got {type(tool_cfg)}")
+    if not isinstance(tool_cfg, metta.common.tool.Tool):
+        output_error(
+            f"{metta.common.util.text_styles.red('Error:')} {known_args.tool_path} must return a Tool instance, got {type(tool_cfg)}"
+        )
         return 1
 
     # ----------------------------------------------------------------------------------
@@ -702,34 +710,36 @@ constructor/function vs configuration overrides based on introspection.
     override_args, unknown_args = classify_remaining_args(remaining_args, tool_fields)
 
     if unknown_args:
-        output_info(f"\n{red('Error: Unknown arguments:')} {', '.join(unknown_args)}")
+        output_info(f"\n{metta.common.util.text_styles.red('Error: Unknown arguments:')} {', '.join(unknown_args)}")
         # Only show function params list if the entrypoint is a function
-        if not (inspect.isclass(tool_maker) and issubclass(tool_maker, Tool)):
-            output_info(f"\n{yellow('Available function parameters:')}")
+        if not (inspect.isclass(tool_maker) and issubclass(tool_maker, metta.common.tool.Tool)):
+            output_info(f"\n{metta.common.util.text_styles.yellow('Available function parameters:')}")
             for param in get_function_params(tool_maker):
                 output_info(f"  - {param}")
-        output_info(f"\n{yellow('Available tool fields for overrides:')}")
+        output_info(f"\n{metta.common.util.text_styles.yellow('Available tool fields for overrides:')}")
         for field in sorted(tool_fields):
             output_info(f"  - {field}")
         return 2  # Exit code 2 for usage errors
 
     if override_args:
         if known_args.verbose:
-            output_info(f"\n{cyan('Applying overrides:')}")
+            output_info(f"\n{metta.common.util.text_styles.cyan('Applying overrides:')}")
             for key, value in override_args.items():
                 output_info(f"  {key}={value}")
         for key, value in override_args.items():
             try:
                 tool_cfg = tool_cfg.override(key, value)
             except Exception as e:
-                output_exception(f"{red('Error applying override')} {key}={value}: {e}")
+                output_exception(f"{metta.common.util.text_styles.red('Error applying override')} {key}={value}: {e}")
                 return 1
 
     # ----------------------------------------------------------------------------------
     # Dry run check - exit here if --dry-run flag is set
     # ----------------------------------------------------------------------------------
     if known_args.dry_run:
-        output_info(f"\n{bold(green('✅ Configuration validation successful'))}")
+        output_info(
+            f"\n{metta.common.util.text_styles.bold(metta.common.util.text_styles.green('✅ Configuration validation successful'))}"
+        )
         if known_args.verbose:
             output_info(f"Tool type: {type(tool_cfg).__name__}")
             output_info(f"Module: {tool_maker.__module__}.{tool_maker.__name__}")
@@ -739,16 +749,16 @@ constructor/function vs configuration overrides based on introspection.
     # Seed & Run
     # ----------------------------------------------------------------------------------
     if hasattr(tool_cfg, "system"):
-        seed_everything(tool_cfg.system)
+        metta.rl.system_config.seed_everything(tool_cfg.system)
 
-    output_info(f"\n{bold(green('Running tool...'))}\n")
+    output_info(f"\n{metta.common.util.text_styles.bold(metta.common.util.text_styles.green('Running tool...'))}\n")
 
     try:
         result = tool_cfg.invoke(func_args_for_invoke)
     except KeyboardInterrupt:
         return 130  # Interrupted by Ctrl-C
     except Exception:
-        output_exception(red("Tool invocation failed"))
+        output_exception(metta.common.util.text_styles.red("Tool invocation failed"))
         return 1
 
     return result if result is not None else 0

@@ -1,16 +1,16 @@
 import hashlib
 import math
 import os
+import pathlib
 import shutil
 import tempfile
 import time
-from pathlib import Path
-from typing import Any, Callable, Optional, TypeVar
+import typing
 
-T = TypeVar("T")
+T = typing.TypeVar("T")
 
 
-def get_repo_root() -> Path:
+def get_repo_root() -> pathlib.Path:
     """
     Get the repository root directory.
 
@@ -20,7 +20,7 @@ def get_repo_root() -> Path:
     Raises:
         SystemExit: If repository root cannot be found
     """
-    current = Path.cwd().resolve()
+    current = pathlib.Path.cwd().resolve()
     search_paths = [current] + list(current.parents)
 
     for parent in search_paths:
@@ -43,8 +43,8 @@ def cd_repo_root():
 
 
 def atomic_write(
-    write_func: Callable[[Path], Any],
-    target_path: Path | str,
+    write_func: typing.Callable[[pathlib.Path], typing.Any],
+    target_path: pathlib.Path | str,
     suffix: str = ".tmp",
 ) -> None:
     """
@@ -64,13 +64,13 @@ def atomic_write(
 
         atomic_write(save_model, "model.pt")
     """
-    target_path = Path(target_path)
+    target_path = pathlib.Path(target_path)
     target_dir = target_path.parent
     target_dir.mkdir(parents=True, exist_ok=True)
 
     # Create temporary file in the same directory to ensure atomic move
     with tempfile.NamedTemporaryFile(mode="wb", dir=target_dir, suffix=suffix, delete=False) as tmp_file:
-        tmp_path = Path(tmp_file.name)
+        tmp_path = pathlib.Path(tmp_file.name)
 
     try:
         write_func(tmp_path)
@@ -84,12 +84,12 @@ def atomic_write(
 
 
 def wait_for_file(
-    file_path: Path | str,
+    file_path: pathlib.Path | str,
     timeout: float = 300.0,
     check_interval: float = 0.1,
     stability_duration: float = 0.5,
     min_size: int = 1,
-    progress_callback: Optional[Callable[[float, str], None]] = None,
+    progress_callback: typing.Optional[typing.Callable[[float, str], None]] = None,
 ) -> bool:
     """
     Wait for a file to be created and fully written.
@@ -118,7 +118,7 @@ def wait_for_file(
         else:
             raise TimeoutError("Model file not found")
     """
-    file_path = Path(file_path)
+    file_path = pathlib.Path(file_path)
     start_time = time.time()
 
     # Wait for file to exist
@@ -171,7 +171,7 @@ def wait_for_file(
     return True
 
 
-def get_file_hash(filepath: Path | str, hash_func: Callable[[], Any] = hashlib.sha256) -> str:
+def get_file_hash(filepath: pathlib.Path | str, hash_func: typing.Callable[[], typing.Any] = hashlib.sha256) -> str:
     hash_obj = hash_func()
     with open(filepath, "rb") as f:
         while chunk := f.read(8192):

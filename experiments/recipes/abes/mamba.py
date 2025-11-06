@@ -3,30 +3,19 @@ import os
 import platform
 import subprocess
 import sys
-from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+import pathlib
+import typing
 
-from metta.agent.policy import PolicyArchitecture
-from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.rl.trainer_config import TorchProfilerConfig
-from metta.tools.train import TrainTool
+import metta.agent.policy
+import metta.cogworks.curriculum.curriculum
+import metta.rl.trainer_config
+import metta.tools.train
 
-from experiments.recipes.arena_basic_easy_shaped import (
-    evaluate,
-    evaluate_in_sweep,
-    make_curriculum,
-    mettagrid,
-    play,
-    replay,
-    simulations,
-)
-from experiments.recipes.arena_basic_easy_shaped import (
-    train as base_train,
-)
+import experiments.recipes.arena_basic_easy_shaped
 
 logger = logging.getLogger(__name__)
 
-if TYPE_CHECKING:  # pragma: no cover
+if typing.TYPE_CHECKING:  # pragma: no cover
     pass
 
 
@@ -41,15 +30,15 @@ def _supports_mem_eff_path() -> bool:
     """Return True if the fused causal-conv1d kernels are available."""
 
     try:
-        from causal_conv1d import causal_conv1d_fn  # type: ignore[attr-defined]
+        import causal_conv1d  # type: ignore[attr-defined]
     except ModuleNotFoundError:
         return False
 
-    return callable(causal_conv1d_fn)
+    return callable(causal_conv1d.causal_conv1d_fn)
 
 
 def _apply_overrides(
-    tool: TrainTool,
+    tool: metta.tools.train.TrainTool,
     *,
     learning_rate: float,
     batch_size: int,
@@ -64,7 +53,7 @@ def _apply_overrides(
     tool.training_env.forward_pass_minibatch_target_size = (
         forward_pass_minibatch_target_size
     )
-    tool.torch_profiler = TorchProfilerConfig(interval_epochs=0)
+    tool.torch_profiler = metta.rl.trainer_config.TorchProfilerConfig(interval_epochs=0)
 
 
 def _ensure_cuda_extras_installed() -> None:
@@ -72,7 +61,9 @@ def _ensure_cuda_extras_installed() -> None:
         return
 
     script_path = (
-        Path(__file__).resolve().parents[4] / "scripts" / "install_cuda_extras.py"
+        pathlib.Path(__file__).resolve().parents[4]
+        / "scripts"
+        / "install_cuda_extras.py"
     )
     if not script_path.exists():
         logger.warning(
@@ -95,20 +86,22 @@ def _ensure_cuda_extras_installed() -> None:
 
 def train(
     *,
-    curriculum: Optional[CurriculumConfig] = None,
+    curriculum: typing.Optional[
+        metta.cogworks.curriculum.curriculum.CurriculumConfig
+    ] = None,
     enable_detailed_slice_logging: bool = False,
-    policy_architecture: PolicyArchitecture | None = None,
+    policy_architecture: metta.agent.policy.PolicyArchitecture | None = None,
     ssm_layer: str = DEFAULT_SSM_LAYER,
     learning_rate: float = DEFAULT_LEARNING_RATE,
     batch_size: int = DEFAULT_BATCH_SIZE,
     minibatch_size: int = DEFAULT_MINIBATCH_SIZE,
     forward_pass_minibatch_target_size: int = DEFAULT_FORWARD_PASS_MINIBATCH_TARGET_SIZE,
-) -> TrainTool:
+) -> metta.tools.train.TrainTool:
     _ensure_cuda_extras_installed()
 
     try:
-        from metta.agent.components.mamba import MambaBackboneConfig
-        from metta.agent.policies.mamba_sliding import MambaSlidingConfig
+        import metta.agent.components.mamba
+        import metta.agent.policies.mamba_sliding
     except ModuleNotFoundError as exc:
         if exc.name == "mamba_ssm":
             raise RuntimeError(
@@ -121,7 +114,9 @@ def train(
         msg = f"Unsupported SSM layer '{ssm_layer}'. Only '{DEFAULT_SSM_LAYER}' is available."
         raise ValueError(msg)
 
-    policy = policy_architecture or MambaSlidingConfig()
+    policy = (
+        policy_architecture or metta.agent.policies.mamba_sliding.MambaSlidingConfig()
+    )
 
     mem_eff_supported = _supports_mem_eff_path()
     if not mem_eff_supported:
@@ -131,7 +126,7 @@ def train(
         )
 
     for component in policy.components:
-        if isinstance(component, MambaBackboneConfig):
+        if isinstance(component, metta.agent.components.mamba.MambaBackboneConfig):
             component.ssm_cfg = {**component.ssm_cfg, "layer": ssm_layer}
             component.use_mem_eff_path = bool(
                 mem_eff_supported and component.use_mem_eff_path
@@ -139,7 +134,7 @@ def train(
             if not mem_eff_supported:
                 component.auto_align_stride = True
 
-    tool = base_train(
+    tool = experiments.recipes.arena_basic_easy_shaped.train(
         curriculum=curriculum,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         policy_architecture=policy,

@@ -1,22 +1,22 @@
 import fnmatch
 import logging
-from typing import Dict, List
+import typing
 
-from tabulate import tabulate
+import tabulate
 
-from metta.eval.analysis_config import AnalysisConfig
-from metta.eval.eval_stats_db import EvalStatsDB
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.utils.file import local_copy
+import metta.eval.analysis_config
+import metta.eval.eval_stats_db
+import metta.rl.checkpoint_manager
+import metta.utils.file
 
 
-def analyze(policy_uri: str, config: AnalysisConfig) -> None:
+def analyze(policy_uri: str, config: metta.eval.analysis_config.AnalysisConfig) -> None:
     logger = logging.getLogger(__name__)
     logger.info(f"Analyzing policy: {policy_uri}")
     logger.info(f"Using eval DB: {config.eval_db_uri}")
 
-    with local_copy(config.eval_db_uri) as local_path:
-        stats_db = EvalStatsDB(local_path)
+    with metta.utils.file.local_copy(config.eval_db_uri) as local_path:
+        stats_db = metta.eval.eval_stats_db.EvalStatsDB(local_path)
 
         sample_count = stats_db.sample_count_uri(policy_uri, sim_name=config.sim_name)
         if sample_count == 0:
@@ -40,8 +40,8 @@ def analyze(policy_uri: str, config: AnalysisConfig) -> None:
 # --------------------------------------------------------------------------- #
 #   helpers                                                                   #
 # --------------------------------------------------------------------------- #
-def get_available_metrics(stats_db: EvalStatsDB, policy_uri: str) -> List[str]:
-    metadata = CheckpointManager.get_policy_metadata(policy_uri)
+def get_available_metrics(stats_db: metta.eval.eval_stats_db.EvalStatsDB, policy_uri: str) -> typing.List[str]:
+    metadata = metta.rl.checkpoint_manager.CheckpointManager.get_policy_metadata(policy_uri)
     pk, pv = metadata["run_name"], metadata["epoch"]
     result = stats_db.query(
         f"""
@@ -55,7 +55,7 @@ def get_available_metrics(stats_db: EvalStatsDB, policy_uri: str) -> List[str]:
     return [] if result.empty else result["metric"].tolist()
 
 
-def filter_metrics(available_metrics: List[str], patterns: List[str]) -> List[str]:
+def filter_metrics(available_metrics: typing.List[str], patterns: typing.List[str]) -> typing.List[str]:
     if not patterns or patterns == ["*"]:
         return available_metrics
     selected = []
@@ -65,11 +65,11 @@ def filter_metrics(available_metrics: List[str], patterns: List[str]) -> List[st
 
 
 def get_metrics_data(
-    stats_db: EvalStatsDB,
+    stats_db: metta.eval.eval_stats_db.EvalStatsDB,
     policy_uri: str,
-    metrics: List[str],
+    metrics: typing.List[str],
     sim_name: str | None = None,
-) -> Dict[str, Dict[str, float]]:
+) -> typing.Dict[str, typing.Dict[str, float]]:
     """
     Return {metric: {"mean": μ, "std": σ,
                      "count": K_recorded,
@@ -78,11 +78,11 @@ def get_metrics_data(
         • K_recorded  – rows in policy_simulation_agent_metrics.
         • N_potential – total agent-episode pairs for that filter.
     """
-    metadata = CheckpointManager.get_policy_metadata(policy_uri)
+    metadata = metta.rl.checkpoint_manager.CheckpointManager.get_policy_metadata(policy_uri)
     pk, pv = metadata["run_name"], metadata["epoch"]
     filter_condition = f"sim_name = '{sim_name}'" if sim_name else None
 
-    data: Dict[str, Dict[str, float]] = {}
+    data: typing.Dict[str, typing.Dict[str, float]] = {}
     for m in metrics:
         mean = stats_db.get_average_metric(m, policy_uri, filter_condition)
         if mean is None:
@@ -101,7 +101,7 @@ def get_metrics_data(
     return data
 
 
-def print_metrics_table(metrics_data: Dict[str, Dict[str, float]], policy_uri: str) -> None:
+def print_metrics_table(metrics_data: typing.Dict[str, typing.Dict[str, float]], policy_uri: str) -> None:
     logger = logging.getLogger(__name__)
     if not metrics_data:
         logger.warning(f"No metrics data available for policy: {policy_uri}")
@@ -120,5 +120,5 @@ def print_metrics_table(metrics_data: Dict[str, Dict[str, float]], policy_uri: s
     ]
 
     logger.info(f"\nMetrics for policy: {policy_uri}\n")
-    print(tabulate(rows, headers=headers, tablefmt="grid"))
+    print(tabulate.tabulate(rows, headers=headers, tablefmt="grid"))
     logger.info("")

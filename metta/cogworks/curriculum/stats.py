@@ -5,24 +5,24 @@ Provides StatsLogger base class for consistent statistics interfaces and
 SliceAnalyzer for analyzing probability distributions across parameter slices.
 """
 
-from abc import ABC, abstractmethod
-from collections import defaultdict, deque
-from typing import Any, Dict, List, Optional
+import abc
+import collections
+import typing
 
 import numpy as np
 
 
 def _make_default_dict_int():
     """Factory function for creating defaultdict(int) - needed for pickling."""
-    return defaultdict(int)
+    return collections.defaultdict(int)
 
 
 def _make_deque_maxlen_100():
     """Factory function for creating deque(maxlen=100) - needed for pickling."""
-    return deque(maxlen=100)
+    return collections.deque(maxlen=100)
 
 
-class StatsLogger(ABC):
+class StatsLogger(abc.ABC):
     """Base class for curriculum statistics logging.
 
     Provides consistent interface for all curriculum components to report
@@ -31,15 +31,15 @@ class StatsLogger(ABC):
 
     def __init__(self, enable_detailed_logging: bool = False):
         self.enable_detailed_logging = enable_detailed_logging
-        self._stats_cache: Dict[str, Any] = {}
+        self._stats_cache: typing.Dict[str, typing.Any] = {}
         self._stats_cache_valid = False
 
-    @abstractmethod
-    def get_base_stats(self) -> Dict[str, float]:
+    @abc.abstractmethod
+    def get_base_stats(self) -> typing.Dict[str, float]:
         """Get basic statistics that all algorithms should provide."""
         pass
 
-    def get_detailed_stats(self) -> Dict[str, float]:
+    def get_detailed_stats(self) -> typing.Dict[str, float]:
         """Get detailed statistics (expensive operations).
 
         Only computed when enable_detailed_logging=True.
@@ -51,7 +51,7 @@ class StatsLogger(ABC):
         """Invalidate the stats cache."""
         self._stats_cache_valid = False
 
-    def stats(self, prefix: str = "") -> Dict[str, float]:
+    def stats(self, prefix: str = "") -> typing.Dict[str, float]:
         """Get all statistics with optional prefix.
 
         Args:
@@ -97,28 +97,32 @@ class SliceAnalyzer:
         self.enable_detailed_logging = enable_detailed_logging
 
         # Slice tracking: slice_name -> task_id -> value
-        self._slice_tracking: Dict[str, Dict[int, Any]] = defaultdict(dict)
+        self._slice_tracking: typing.Dict[str, typing.Dict[int, typing.Any]] = collections.defaultdict(dict)
 
         # Completion counts per slice bin: slice_name -> bin_index -> count
-        self._slice_completion_counts: Dict[str, Dict[int, int]] = defaultdict(_make_default_dict_int)
+        self._slice_completion_counts: typing.Dict[str, typing.Dict[int, int]] = collections.defaultdict(
+            _make_default_dict_int
+        )
 
         # Slice binning configuration: slice_name -> bin_edges
-        self._slice_bins: Dict[str, List[float]] = {}
+        self._slice_bins: typing.Dict[str, typing.List[float]] = {}
 
         # Track if slice contains discrete vs continuous values
-        self._slice_is_discrete: Dict[str, bool] = {}
+        self._slice_is_discrete: typing.Dict[str, bool] = {}
 
         # Recent completion history for density analysis
-        self._slice_completion_history: Dict[str, deque] = defaultdict(_make_deque_maxlen_100)
+        self._slice_completion_history: typing.Dict[str, collections.deque] = collections.defaultdict(
+            _make_deque_maxlen_100
+        )
 
         # Monitored slices (limited by max_slice_axes)
         self._monitored_slices: set = set()
 
         # Cache for expensive density statistics
-        self._density_stats_cache: Optional[Dict[str, Dict[str, float]]] = None
+        self._density_stats_cache: typing.Optional[typing.Dict[str, typing.Dict[str, float]]] = None
         self._density_cache_valid = False
 
-    def extract_slice_values(self, task) -> Dict[str, Any]:
+    def extract_slice_values(self, task) -> typing.Dict[str, typing.Any]:
         """Extract slice values from a task's environment configuration."""
         slice_values = {}
 
@@ -131,7 +135,7 @@ class SliceAnalyzer:
 
         return slice_values
 
-    def update_task_completion(self, task_id: int, slice_values: Dict[str, Any], score: float) -> None:
+    def update_task_completion(self, task_id: int, slice_values: typing.Dict[str, typing.Any], score: float) -> None:
         """Update slice analysis with task completion data.
 
         Args:
@@ -162,7 +166,7 @@ class SliceAnalyzer:
         # Invalidate density cache when completion data changes
         self._density_cache_valid = False
 
-    def get_slice_distribution_stats(self) -> Dict[str, Dict[str, float]]:
+    def get_slice_distribution_stats(self) -> typing.Dict[str, typing.Dict[str, float]]:
         """Get probability distribution statistics across parameter slices."""
         # Return cached result if valid
         if self._density_cache_valid and self._density_stats_cache is not None:
@@ -245,7 +249,7 @@ class SliceAnalyzer:
         self._density_cache_valid = True
         return stats
 
-    def get_underexplored_regions(self, slice_name: str) -> List[int]:
+    def get_underexplored_regions(self, slice_name: str) -> typing.List[int]:
         """Get bin indices for underexplored regions in a slice."""
         if slice_name not in self._slice_completion_counts:
             return []
@@ -264,7 +268,7 @@ class SliceAnalyzer:
 
         return underexplored
 
-    def get_base_stats(self) -> Dict[str, float]:
+    def get_base_stats(self) -> typing.Dict[str, float]:
         """Get basic slice analysis statistics."""
         total_tracked_slices = len(self._monitored_slices)
         total_tasks_tracked = len(
@@ -277,7 +281,7 @@ class SliceAnalyzer:
             "max_slice_axes": self.max_slice_axes,
         }
 
-    def get_detailed_stats(self) -> Dict[str, float]:
+    def get_detailed_stats(self) -> typing.Dict[str, float]:
         """Get detailed slice distribution statistics (expensive)."""
         if not self.enable_detailed_logging:
             return {}
@@ -316,7 +320,7 @@ class SliceAnalyzer:
         # Invalidate density cache when tasks are removed
         self._density_cache_valid = False
 
-    def _initialize_slice_bins(self, slice_name: str, sample_value: Any) -> None:
+    def _initialize_slice_bins(self, slice_name: str, sample_value: typing.Any) -> None:
         """Initialize binning for a new slice based on sample value."""
         if isinstance(sample_value, (int, float)):
             # Continuous values - create bins
@@ -336,7 +340,7 @@ class SliceAnalyzer:
             self._slice_bins[slice_name] = [sample_value]
             self._slice_is_discrete[slice_name] = True
 
-    def _get_bin_index(self, slice_name: str, value: Any) -> Optional[int]:
+    def _get_bin_index(self, slice_name: str, value: typing.Any) -> typing.Optional[int]:
         """Get bin index for a value in the specified slice."""
         if slice_name not in self._slice_bins:
             return None

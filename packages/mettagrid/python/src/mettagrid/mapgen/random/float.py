@@ -1,11 +1,11 @@
-from typing import Annotated
+import typing
 
 import numpy as np
-from pydantic import BaseModel, BeforeValidator
-from scipy import stats
+import pydantic
+import scipy
 
 
-class BaseFloatDistribution(BaseModel):
+class BaseFloatDistribution(pydantic.BaseModel):
     def sample(self, rng: np.random.Generator) -> float: ...
 
 
@@ -46,7 +46,7 @@ class FloatLognormalDistribution(BaseFloatDistribution):
         log_high = np.log(self.high)
 
         # Calculate normalized sigmas using the inverse of the normal CDF
-        normalized_sigmas = stats.norm.ppf(1 - (1 - probability) / 2)
+        normalized_sigmas = scipy.stats.norm.ppf(1 - (1 - probability) / 2)
         mu = (log_low + log_high) / 2
         sigma = (log_high - log_low) / (2 * normalized_sigmas)
 
@@ -93,7 +93,7 @@ def _to_float_distribution(v) -> BaseFloatDistribution:
     )
 
 
-FloatDistribution = Annotated[
+FloatDistribution = typing.Annotated[
     BaseFloatDistribution,
-    BeforeValidator(_to_float_distribution),
+    pydantic.BeforeValidator(_to_float_distribution),
 ]

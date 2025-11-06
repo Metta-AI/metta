@@ -1,15 +1,15 @@
 """Trainer state checkpoint management component."""
 
 import logging
-from typing import Any, Dict, Optional
+import typing
 
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.training import ComponentContext, DistributedHelper, TrainerComponent
+import metta.rl.checkpoint_manager
+import metta.rl.training
 
 logger = logging.getLogger(__name__)
 
 
-class ContextCheckpointer(TrainerComponent):
+class ContextCheckpointer(metta.rl.training.TrainerComponent):
     """Persist and restore optimizer/timing state alongside policy checkpoints."""
 
     trainer_attr = "trainer_checkpointer"
@@ -17,13 +17,13 @@ class ContextCheckpointer(TrainerComponent):
     def __init__(
         self,
         *,
-        checkpoint_manager: CheckpointManager,
-        distributed_helper: DistributedHelper,
+        checkpoint_manager: metta.rl.checkpoint_manager.CheckpointManager,
+        distributed_helper: metta.rl.training.DistributedHelper,
     ) -> None:
         super().__init__(epoch_interval=1)
         self._checkpoint_manager = checkpoint_manager
         self._distributed = distributed_helper
-        self._last_synced_policy_epoch: Optional[int] = None
+        self._last_synced_policy_epoch: typing.Optional[int] = None
 
     # ------------------------------------------------------------------
     # Lifecycle helpers
@@ -38,9 +38,9 @@ class ContextCheckpointer(TrainerComponent):
     # ------------------------------------------------------------------
     # Public API used by Trainer
     # ------------------------------------------------------------------
-    def restore(self, context: ComponentContext) -> None:
+    def restore(self, context: metta.rl.training.ComponentContext) -> None:
         """Load trainer state if checkpoints exist and broadcast to all ranks."""
-        payload: Optional[Dict[str, Any]] = None
+        payload: typing.Optional[typing.Dict[str, typing.Any]] = None
 
         if self._distributed.is_master():
             raw = self._checkpoint_manager.load_trainer_state()

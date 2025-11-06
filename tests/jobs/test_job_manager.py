@@ -4,20 +4,20 @@ Combines tests for lifecycle, queueing, and error handling.
 """
 
 import time
-from unittest.mock import patch
+import unittest.mock
 
 import pytest
 
-from metta.jobs.job_manager import ExitCode
-from tests.jobs.conftest import MockProcess, simple_job_config
+import metta.jobs.job_manager
+import tests.jobs.conftest
 
 
 def test_job_lifecycle_complete_flow(temp_job_manager):
     """Jobs transition through states and eventually complete with correct exit code."""
     manager = temp_job_manager()
-    mock_process = MockProcess(exit_code=0, complete_after_polls=2)
-    with patch("subprocess.Popen", return_value=mock_process):
-        config = simple_job_config("test_job")
+    mock_process = tests.jobs.conftest.MockProcess(exit_code=0, complete_after_polls=2)
+    with unittest.mock.patch("subprocess.Popen", return_value=mock_process):
+        config = tests.jobs.conftest.simple_job_config("test_job")
         manager.submit(config)
 
         # Job should not be immediately completed (should be pending or running)
@@ -43,9 +43,9 @@ def test_job_lifecycle_complete_flow(temp_job_manager):
 def test_job_with_non_zero_exit_code(temp_job_manager):
     """Jobs that fail capture non-zero exit code."""
     manager = temp_job_manager()
-    mock_process = MockProcess(exit_code=42, complete_after_polls=1)
-    with patch("subprocess.Popen", return_value=mock_process):
-        config = simple_job_config("test_job")
+    mock_process = tests.jobs.conftest.MockProcess(exit_code=42, complete_after_polls=1)
+    with unittest.mock.patch("subprocess.Popen", return_value=mock_process):
+        config = tests.jobs.conftest.simple_job_config("test_job")
         manager.submit(config)
 
         time.sleep(0.2)
@@ -58,7 +58,7 @@ def test_job_with_non_zero_exit_code(temp_job_manager):
 def test_pending_job_when_no_slots(temp_job_manager):
     """Jobs stay pending when all worker slots full."""
     manager = temp_job_manager(max_local_jobs=0)
-    config = simple_job_config("test_job")
+    config = tests.jobs.conftest.simple_job_config("test_job")
     manager.submit(config)
 
     job_state = manager.get_job_state("test_job")
@@ -69,10 +69,10 @@ def test_pending_job_when_no_slots(temp_job_manager):
 def test_respects_max_local_jobs_limit(temp_job_manager):
     """Never runs more than max_local_jobs concurrently."""
     manager = temp_job_manager(max_local_jobs=2)
-    mock_processes = [MockProcess(exit_code=0, complete_after_polls=100) for _ in range(4)]
-    with patch("subprocess.Popen", side_effect=mock_processes):
+    mock_processes = [tests.jobs.conftest.MockProcess(exit_code=0, complete_after_polls=100) for _ in range(4)]
+    with unittest.mock.patch("subprocess.Popen", side_effect=mock_processes):
         for i in range(4):
-            config = simple_job_config(f"job_{i}", remote=False)
+            config = tests.jobs.conftest.simple_job_config(f"job_{i}", remote=False)
             manager.submit(config)
 
         all_jobs = manager.get_all_jobs()
@@ -86,12 +86,12 @@ def test_respects_max_local_jobs_limit(temp_job_manager):
 def test_queued_job_starts_when_slot_frees(temp_job_manager):
     """Pending jobs eventually start when slots become available."""
     manager = temp_job_manager(max_local_jobs=1)
-    mock_proc1 = MockProcess(exit_code=0, complete_after_polls=2)
-    mock_proc2 = MockProcess(exit_code=0, complete_after_polls=100)
+    mock_proc1 = tests.jobs.conftest.MockProcess(exit_code=0, complete_after_polls=2)
+    mock_proc2 = tests.jobs.conftest.MockProcess(exit_code=0, complete_after_polls=100)
 
-    with patch("subprocess.Popen", side_effect=[mock_proc1, mock_proc2]):
-        config1 = simple_job_config("job_1", remote=False)
-        config2 = simple_job_config("job_2", remote=False)
+    with unittest.mock.patch("subprocess.Popen", side_effect=[mock_proc1, mock_proc2]):
+        config1 = tests.jobs.conftest.simple_job_config("job_1", remote=False)
+        config2 = tests.jobs.conftest.simple_job_config("job_2", remote=False)
         manager.submit(config1)
         manager.submit(config2)
 
@@ -119,7 +119,7 @@ def test_queued_job_starts_when_slot_frees(temp_job_manager):
 def test_cannot_submit_duplicate_job_name(temp_job_manager):
     """Submitting job with duplicate name raises error."""
     manager = temp_job_manager()
-    config = simple_job_config("test_job")
+    config = tests.jobs.conftest.simple_job_config("test_job")
     manager.submit(config)
 
     with pytest.raises(ValueError, match="already exists"):
@@ -130,7 +130,7 @@ def test_can_query_jobs(temp_job_manager):
     """Can retrieve job state and query all jobs."""
     manager = temp_job_manager()
     for i in range(3):
-        config = simple_job_config(f"job_{i}")
+        config = tests.jobs.conftest.simple_job_config(f"job_{i}")
         manager.submit(config)
 
     job_state = manager.get_job_state("job_1")
@@ -148,9 +148,9 @@ def test_can_query_jobs(temp_job_manager):
 def test_delete_job(temp_job_manager):
     """Can delete completed jobs."""
     manager = temp_job_manager()
-    mock_process = MockProcess(exit_code=0, complete_after_polls=1)
-    with patch("subprocess.Popen", return_value=mock_process):
-        config = simple_job_config("test_job")
+    mock_process = tests.jobs.conftest.MockProcess(exit_code=0, complete_after_polls=1)
+    with unittest.mock.patch("subprocess.Popen", return_value=mock_process):
+        config = tests.jobs.conftest.simple_job_config("test_job")
         manager.submit(config)
         assert manager.get_job_state("test_job") is not None
 
@@ -174,7 +174,7 @@ def test_empty_manager(temp_job_manager):
 def test_job_timeout_configured(temp_job_manager):
     """Jobs can be configured with timeout."""
     manager = temp_job_manager()
-    config = simple_job_config("test_job", timeout_s=30)
+    config = tests.jobs.conftest.simple_job_config("test_job", timeout_s=30)
     manager.submit(config)
 
     job_state = manager.get_job_state("test_job")
@@ -184,9 +184,9 @@ def test_job_timeout_configured(temp_job_manager):
 def test_concurrent_poll_calls_safe(temp_job_manager):
     """Multiple poll() calls don't cause issues."""
     manager = temp_job_manager()
-    mock_process = MockProcess(exit_code=0, complete_after_polls=5)
-    with patch("subprocess.Popen", return_value=mock_process):
-        config = simple_job_config("test_job")
+    mock_process = tests.jobs.conftest.MockProcess(exit_code=0, complete_after_polls=5)
+    with unittest.mock.patch("subprocess.Popen", return_value=mock_process):
+        config = tests.jobs.conftest.simple_job_config("test_job")
         manager.submit(config)
 
         for _ in range(20):
@@ -200,11 +200,11 @@ def test_concurrent_poll_calls_safe(temp_job_manager):
 def test_local_and_remote_queues_independent(temp_job_manager):
     """Local and remote jobs have independent concurrency limits."""
     manager = temp_job_manager(max_local_jobs=1, max_remote_jobs=1)
-    mock_local = MockProcess(exit_code=0, complete_after_polls=100)
+    mock_local = tests.jobs.conftest.MockProcess(exit_code=0, complete_after_polls=100)
 
-    with patch("subprocess.Popen", return_value=mock_local):
-        local_config = simple_job_config("local_job", remote=False)
-        remote_config = simple_job_config("remote_job", remote=True)
+    with unittest.mock.patch("subprocess.Popen", return_value=mock_local):
+        local_config = tests.jobs.conftest.simple_job_config("local_job", remote=False)
+        remote_config = tests.jobs.conftest.simple_job_config("remote_job", remote=True)
 
         manager.submit(local_config)
         manager.submit(remote_config)
@@ -216,16 +216,16 @@ def test_local_and_remote_queues_independent(temp_job_manager):
 def test_job_waits_for_dependency_completion(temp_job_manager):
     """Jobs wait for dependencies to complete before starting."""
     manager = temp_job_manager()
-    mock_proc1 = MockProcess(exit_code=0, complete_after_polls=2)
-    mock_proc2 = MockProcess(exit_code=0, complete_after_polls=100)
+    mock_proc1 = tests.jobs.conftest.MockProcess(exit_code=0, complete_after_polls=2)
+    mock_proc2 = tests.jobs.conftest.MockProcess(exit_code=0, complete_after_polls=100)
 
-    with patch("subprocess.Popen", side_effect=[mock_proc1, mock_proc2]):
+    with unittest.mock.patch("subprocess.Popen", side_effect=[mock_proc1, mock_proc2]):
         # Submit job1 first
-        config1 = simple_job_config("job_1")
+        config1 = tests.jobs.conftest.simple_job_config("job_1")
         manager.submit(config1)
 
         # Submit job2 with dependency on job1
-        config2 = simple_job_config("job_2", dependency_names=["job_1"])
+        config2 = tests.jobs.conftest.simple_job_config("job_2", dependency_names=["job_1"])
         manager.submit(config2)
 
         # Job1 should be running, job2 should be pending
@@ -263,15 +263,15 @@ def test_job_waits_for_dependency_completion(temp_job_manager):
 def test_job_skipped_when_dependency_fails(temp_job_manager):
     """Jobs are automatically skipped when dependency fails with non-zero exit code."""
     manager = temp_job_manager()
-    mock_proc1 = MockProcess(exit_code=1, complete_after_polls=1)
+    mock_proc1 = tests.jobs.conftest.MockProcess(exit_code=1, complete_after_polls=1)
 
-    with patch("subprocess.Popen", return_value=mock_proc1):
+    with unittest.mock.patch("subprocess.Popen", return_value=mock_proc1):
         # Submit job1 that will fail
-        config1 = simple_job_config("job_1")
+        config1 = tests.jobs.conftest.simple_job_config("job_1")
         manager.submit(config1)
 
         # Submit job2 with dependency on job1
-        config2 = simple_job_config("job_2", dependency_names=["job_1"])
+        config2 = tests.jobs.conftest.simple_job_config("job_2", dependency_names=["job_1"])
         manager.submit(config2)
 
         # Wait for job1 to fail and job2 to be skipped
@@ -290,21 +290,23 @@ def test_job_skipped_when_dependency_fails(temp_job_manager):
         # Job2 should be skipped (marked completed with ExitCode.SKIPPED)
         job2_state = manager.get_job_state("job_2")
         assert job2_state.status == "completed", f"Expected job_2 completed (skipped), got {job2_state.status}"
-        assert job2_state.exit_code == ExitCode.SKIPPED, f"Expected ExitCode.SKIPPED, got {job2_state.exit_code}"
+        assert job2_state.exit_code == metta.jobs.job_manager.ExitCode.SKIPPED, (
+            f"Expected ExitCode.SKIPPED, got {job2_state.exit_code}"
+        )
 
 
 def test_transitive_dependency_skip_and_retry(temp_job_manager):
     """Test transitive dependency skipping: A→B→C, if B fails, C is skipped. Retrying B resets C."""
     manager = temp_job_manager()
-    mock_fail = MockProcess(exit_code=1, complete_after_polls=1)
-    mock_success = MockProcess(exit_code=0, complete_after_polls=2)
+    mock_fail = tests.jobs.conftest.MockProcess(exit_code=1, complete_after_polls=1)
+    mock_success = tests.jobs.conftest.MockProcess(exit_code=0, complete_after_polls=2)
 
     # Need mocks for: job_a (fail), job_a (retry success), job_b (success), job_c (success)
-    with patch("subprocess.Popen", side_effect=[mock_fail, mock_success, mock_success, mock_success]):
+    with unittest.mock.patch("subprocess.Popen", side_effect=[mock_fail, mock_success, mock_success, mock_success]):
         # Create chain: job_a → job_b → job_c
-        config_a = simple_job_config("job_a")
-        config_b = simple_job_config("job_b", dependency_names=["job_a"])
-        config_c = simple_job_config("job_c", dependency_names=["job_b"])
+        config_a = tests.jobs.conftest.simple_job_config("job_a")
+        config_b = tests.jobs.conftest.simple_job_config("job_b", dependency_names=["job_a"])
+        config_c = tests.jobs.conftest.simple_job_config("job_c", dependency_names=["job_b"])
 
         manager.submit(config_a)
         manager.submit(config_b)
@@ -326,11 +328,15 @@ def test_transitive_dependency_skip_and_retry(temp_job_manager):
 
         job_b_state = manager.get_job_state("job_b")
         assert job_b_state.status == "completed"
-        assert job_b_state.exit_code == ExitCode.SKIPPED, "job_b should be skipped due to job_a failure"
+        assert job_b_state.exit_code == metta.jobs.job_manager.ExitCode.SKIPPED, (
+            "job_b should be skipped due to job_a failure"
+        )
 
         job_c_state = manager.get_job_state("job_c")
         assert job_c_state.status == "completed"
-        assert job_c_state.exit_code == ExitCode.SKIPPED, "job_c should be skipped due to job_b being skipped"
+        assert job_c_state.exit_code == metta.jobs.job_manager.ExitCode.SKIPPED, (
+            "job_c should be skipped due to job_b being skipped"
+        )
 
         # Now retry job_a - this should transitively reset both job_b and job_c
         manager.delete_job("job_a")
@@ -352,9 +358,13 @@ def test_transitive_dependency_skip_and_retry(temp_job_manager):
 
         job_b_final = manager.get_job_state("job_b")
         # job_b should either be running or completed successfully (not skipped)
-        assert job_b_final.exit_code != ExitCode.SKIPPED, "job_b should be reset and run, not skipped"
+        assert job_b_final.exit_code != metta.jobs.job_manager.ExitCode.SKIPPED, (
+            "job_b should be reset and run, not skipped"
+        )
 
         # job_c should also be reset and either pending/running/completed (not skipped)
         job_c_final = manager.get_job_state("job_c")
         if job_c_final.status == "completed":
-            assert job_c_final.exit_code != ExitCode.SKIPPED, "job_c should be reset and run, not remain skipped"
+            assert job_c_final.exit_code != metta.jobs.job_manager.ExitCode.SKIPPED, (
+                "job_c should be reset and run, not remain skipped"
+            )

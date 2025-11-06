@@ -2,25 +2,25 @@
 Token profiling functionality with integrated flame graph generation and proper common prefix handling
 """
 
+import dataclasses
 import json
 import logging
 import os
+import pathlib
 import re
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+import typing
 
 import tiktoken
 
-from .file import get_context
+import codebot.codeclip.file
 
 
-@dataclass
+@dataclasses.dataclass
 class TokenNode:
     """Node for tracking token counts in a hierarchy."""
 
     label: str
-    parent: Optional["TokenNode"]
+    parent: typing.Optional["TokenNode"]
     total_tokens: int = 0
 
     @property
@@ -43,20 +43,20 @@ class TokenProfiler:
     def __init__(self):
         self.encoding = tiktoken.get_encoding("cl100k_base")
         # Cache nodes by full path
-        self.node_cache: Dict[str, TokenNode] = {}
+        self.node_cache: typing.Dict[str, TokenNode] = {}
         # Track file types
-        self.type_counts: Dict[str, int] = {}
+        self.type_counts: typing.Dict[str, int] = {}
         self.total_tokens = 0
         # Store paths for common prefix calculation
-        self.file_paths: List[str] = []
+        self.file_paths: typing.List[str] = []
         # Track individual file tokens
-        self.file_tokens: Dict[str, int] = {}
+        self.file_tokens: typing.Dict[str, int] = {}
 
     def count_tokens(self, content: str) -> int:
         """Count tokens in content using configured encoding."""
         return len(self.encoding.encode(content))
 
-    def get_or_create_node(self, path: Path) -> TokenNode:
+    def get_or_create_node(self, path: pathlib.Path) -> TokenNode:
         """Get existing node or create new one with proper hierarchy."""
         str_path = str(path)
 
@@ -75,7 +75,7 @@ class TokenProfiler:
         self.node_cache[str_path] = node
         return node
 
-    def process_file(self, filepath: Path, content: str, token_count: Optional[int] = None) -> None:
+    def process_file(self, filepath: pathlib.Path, content: str, token_count: typing.Optional[int] = None) -> None:
         """Process single file and update relevant counts."""
         # Use provided token count or calculate it
         if token_count is None:
@@ -100,7 +100,9 @@ class TokenProfiler:
         self.type_counts[ext] = self.type_counts.get(ext, 0) + token_count
         self.total_tokens += token_count
 
-    def format_hierarchical_report(self, common_prefix: str, requested_paths: Optional[List[Path]] = None) -> str:
+    def format_hierarchical_report(
+        self, common_prefix: str, requested_paths: typing.Optional[typing.List[pathlib.Path]] = None
+    ) -> str:
         """Generate hierarchical token distribution report.
 
         Args:
@@ -116,7 +118,7 @@ class TokenProfiler:
         prefix_len = len(common_prefix) if common_prefix else 0
 
         # Sort by path depth then alphabetically
-        paths = sorted(self.node_cache.keys(), key=lambda x: (len(Path(x).parts), x))
+        paths = sorted(self.node_cache.keys(), key=lambda x: (len(pathlib.Path(x).parts), x))
 
         # Convert requested paths to absolute for comparison
         abs_requested_paths = {str(p.resolve()) for p in (requested_paths or [])}
@@ -124,7 +126,7 @@ class TokenProfiler:
         # Find the project root to use as base for display
         for path in paths:
             node = self.node_cache[path]
-            path_obj = Path(path)
+            path_obj = pathlib.Path(path)
 
             # Skip the path if it's the common prefix or shorter
             if path == common_prefix or len(path) < prefix_len:
@@ -152,7 +154,7 @@ class TokenProfiler:
                     for req_path in abs_requested_paths:
                         try:
                             # Check if this directory is a child of a requested path
-                            Path(path_obj_abs).relative_to(req_path)
+                            pathlib.Path(path_obj_abs).relative_to(req_path)
                             # Make sure it's not the requested path itself
                             if path_obj_abs != req_path:
                                 should_show = True
@@ -206,7 +208,7 @@ class TokenProfiler:
         return "\n".join(lines)
 
 
-def extract_files_from_context(context: str) -> Dict[str, str]:
+def extract_files_from_context(context: str) -> typing.Dict[str, str]:
     """Extract file paths and contents from context string."""
     files = {}
 
@@ -225,12 +227,12 @@ def extract_files_from_context(context: str) -> Dict[str, str]:
 
 
 def profile_code_context(
-    paths: List[Union[str, Path]],
-    extensions: Optional[Tuple[str, ...]] = None,
+    paths: typing.List[typing.Union[str, pathlib.Path]],
+    extensions: typing.Optional[typing.Tuple[str, ...]] = None,
     include_git_diff: bool = False,
     readmes_only: bool = False,
-    ignore_dirs: Optional[Tuple[str, ...]] = None,
-) -> Tuple[str, Dict]:
+    ignore_dirs: typing.Optional[typing.Tuple[str, ...]] = None,
+) -> typing.Tuple[str, typing.Dict]:
     """
     Profile token distribution for the given paths.
 
@@ -245,7 +247,7 @@ def profile_code_context(
         Tuple of (formatted report, profile data)
     """
     # Get the context and token info first
-    context, token_info = get_context(
+    context, token_info = codebot.codeclip.file.get_context(
         paths=paths,
         extensions=extensions,
         include_git_diff=include_git_diff,
@@ -270,20 +272,17 @@ def profile_code_context(
     # Get per-file token counts from token_info to avoid re-tokenization
     file_token_counts = token_info.get("file_token_counts", {})
 
-    # Resolve requested paths
-    from .file import resolve_codebase_path
-
-    requested_paths = [resolve_codebase_path(p) for p in paths]
+    requested_paths = [codebot.codeclip.file.resolve_codebase_path(p) for p in paths]
 
     # Process files using pre-calculated token counts
     for filepath, content in files.items():
         # Use pre-calculated token count if available
         token_count = file_token_counts.get(filepath)
-        profiler.process_file(Path(filepath), content, token_count=token_count)
+        profiler.process_file(pathlib.Path(filepath), content, token_count=token_count)
 
     # Find common path prefix for the title
     common_prefix = os.path.commonprefix(file_paths)
-    base_dir = Path(common_prefix).name if common_prefix else "/"
+    base_dir = pathlib.Path(common_prefix).name if common_prefix else "/"
 
     # Summary statistics
     total_tokens = profiler.total_tokens
@@ -298,10 +297,7 @@ def profile_code_context(
         "",
     ]
 
-    # Resolve requested paths for filtering
-    from .file import resolve_codebase_path
-
-    requested_paths = [resolve_codebase_path(p) for p in paths]
+    requested_paths = [codebot.codeclip.file.resolve_codebase_path(p) for p in paths]
 
     report = (
         "\n".join(summary)
@@ -326,7 +322,9 @@ def profile_code_context(
     return report, profile_data
 
 
-def generate_flamegraph(data: Dict[str, Any], output_path: str, title: str = "Flame Graph", width: int = 1200) -> None:
+def generate_flamegraph(
+    data: typing.Dict[str, typing.Any], output_path: str, title: str = "Flame Graph", width: int = 1200
+) -> None:
     """
     Generate an interactive flame graph visualization from hierarchical data.
 
@@ -391,7 +389,7 @@ def generate_flamegraph(data: Dict[str, Any], output_path: str, title: str = "Fl
                 current_level = current_level[part]
 
     # Update title with token count and directory name
-    base_dir = Path(common_prefix).name if common_prefix else "Project"
+    base_dir = pathlib.Path(common_prefix).name if common_prefix else "Project"
     full_title = f"{base_dir} Token Distribution - Total: {total_tokens:,} tokens"
 
     # Generate the HTML
@@ -402,7 +400,9 @@ def generate_flamegraph(data: Dict[str, Any], output_path: str, title: str = "Fl
         f.write(html)
 
 
-def _generate_flamegraph_html(data_dict: Dict[str, Any], title: str = "Flame Graph", width: int = 1200) -> str:
+def _generate_flamegraph_html(
+    data_dict: typing.Dict[str, typing.Any], title: str = "Flame Graph", width: int = 1200
+) -> str:
     """
     Generate HTML with D3 flame graph from hierarchical dictionary.
 

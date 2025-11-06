@@ -1,15 +1,15 @@
-from typing import Any
+import typing
 
-from devops.skypilot.notifications.notifier import NotificationBase, NotificationConfig
-from devops.skypilot.utils.job_config import JobConfig
-from gitta import post_commit_status
+import devops.skypilot.notifications.notifier
+import devops.skypilot.utils.job_config
+import gitta
 
 
-class GitHubNotifier(NotificationBase):
+class GitHubNotifier(devops.skypilot.notifications.notifier.NotificationBase):
     def __init__(self):
         super().__init__("GitHub")
 
-    def _validate_config(self, job_config: JobConfig) -> str | None:
+    def _validate_config(self, job_config: devops.skypilot.utils.job_config.JobConfig) -> str | None:
         if not job_config.github_pat:
             return "Missing required field: github_pat"
         if not job_config.github_repository:
@@ -24,7 +24,11 @@ class GitHubNotifier(NotificationBase):
 
         return None
 
-    def _make_payload(self, notification: NotificationConfig, job_config: JobConfig) -> dict[str, Any]:
+    def _make_payload(
+        self,
+        notification: devops.skypilot.notifications.notifier.NotificationConfig,
+        job_config: devops.skypilot.utils.job_config.JobConfig,
+    ) -> dict[str, typing.Any]:
         description = notification.description
         if job_config.skypilot_job_id:
             description += f" - [ jl {job_config.skypilot_job_id} ]"
@@ -44,5 +48,5 @@ class GitHubNotifier(NotificationBase):
         }
         return payload
 
-    def _send(self, payload: dict[str, Any]) -> None:
-        post_commit_status(**payload)
+    def _send(self, payload: dict[str, typing.Any]) -> None:
+        gitta.post_commit_status(**payload)

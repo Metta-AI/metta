@@ -1,29 +1,29 @@
 from __future__ import annotations
 
+import dataclasses
+import functools
 import logging
-from dataclasses import dataclass
-from functools import cached_property
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
+import typing
 
 import numpy as np
+
+import mettagrid.config.id_map
 
 # Don't use `from ... import ...` here because it will cause a circular import.
 import mettagrid.config.mettagrid_c_config as mettagrid_c_config
 import mettagrid.config.mettagrid_config as mettagrid_config
-from mettagrid.config.id_map import IdMap, ObservationFeatureSpec
-from mettagrid.map_builder.map_builder import GameMap
-from mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
-from mettagrid.mettagrid_c import PackedCoordinate
-from mettagrid.profiling.stopwatch import Stopwatch, with_instance_timer
-from mettagrid.simulator.interface import Action, AgentObservation, ObservationToken, SimulatorEventHandler
+import mettagrid.map_builder.map_builder
+import mettagrid.mettagrid_c
+import mettagrid.profiling.stopwatch
+import mettagrid.simulator.interface
 
-if TYPE_CHECKING:
-    from mettagrid.mettagrid_c import EpisodeStats
+if typing.TYPE_CHECKING:
+    EpisodeStats = mettagrid.mettagrid_c.EpisodeStats
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclasses.dataclass
 class BoundingBox:
     min_row: int
     max_row: int
@@ -36,19 +36,20 @@ class Simulation:
         self,
         config: mettagrid_config.MettaGridConfig,
         seed: int = 0,
-        event_handlers: Optional[Sequence[SimulatorEventHandler]] | None = None,
-        simulator: Optional[Simulator] | None = None,
+        event_handlers: typing.Optional[typing.Sequence[mettagrid.simulator.interface.SimulatorEventHandler]]
+        | None = None,
+        simulator: typing.Optional[Simulator] | None = None,
     ):
         self._config = config
         self._seed = seed
         self._event_handlers = event_handlers or []
         self._simulator = simulator
-        self._context: Dict[str, Any] = {}
+        self._context: typing.Dict[str, typing.Any] = {}
 
         for handler in self._event_handlers:
             handler.set_simulation(self)
 
-        self._timer = Stopwatch(log_level=logger.getEffectiveLevel())
+        self._timer = mettagrid.profiling.stopwatch.Stopwatch(log_level=logger.getEffectiveLevel())
         self._timer.start()
 
         game_config_dict = self._config.game.model_dump()
@@ -64,7 +65,7 @@ class Simulation:
             raise e
 
         # Create C++ environment
-        self.__c_sim = MettaGridCpp(c_cfg, map_grid, self._seed)
+        self.__c_sim = mettagrid.mettagrid_c.MettaGrid(c_cfg, map_grid, self._seed)
 
         # Compute action_ids from config actions
         self._action_ids: dict[str, int] = {
@@ -72,14 +73,16 @@ class Simulation:
         }
 
         # Build feature dict from id_map
-        self._features: dict[int, ObservationFeatureSpec] = {feature.id: feature for feature in self.id_map.features()}
+        self._features: dict[int, mettagrid.config.id_map.ObservationFeatureSpec] = {
+            feature.id: feature for feature in self.id_map.features()
+        }
 
         self._start_episode()
 
         self._timer.start("thread_idle")
 
-    @cached_property
-    def id_map(self) -> IdMap:
+    @functools.cached_property
+    def id_map(self) -> mettagrid.config.id_map.IdMap:
         """Get the observation feature ID map for this simulation."""
         return self._config.id_map()
 
@@ -89,7 +92,7 @@ class Simulation:
     def agent(self, agent_id: int) -> SimulationAgent:
         return SimulationAgent(self, agent_id)
 
-    def observations(self) -> list[AgentObservation]:
+    def observations(self) -> list[mettagrid.simulator.interface.AgentObservation]:
         return [self.agent(agent_id).observation for agent_id in range(self.num_agents)]
 
     def is_done(self) -> bool:
@@ -107,7 +110,7 @@ class Simulation:
         """Force the episode to end by setting all agents to truncated state."""
         self.__c_sim.truncations()[:] = True
 
-    @with_instance_timer("step", timer_attr="_timer")
+    @mettagrid.profiling.stopwatch.with_instance_timer("step", timer_attr="_timer")
     def step(self) -> None:
         """Execute one timestep of the environment dynamics.
 
@@ -146,7 +149,7 @@ class Simulation:
         return self._config
 
     @property
-    def _c_sim(self) -> MettaGridCpp:
+    def _c_sim(self) -> mettagrid.mettagrid_c.MettaGrid:
         return self.__c_sim
 
     @property
@@ -155,7 +158,7 @@ class Simulation:
         return self.__c_sim.get_episode_rewards()
 
     @property
-    def episode_stats(self) -> EpisodeStats:
+    def episode_stats(self) -> mettagrid.mettagrid_c.EpisodeStats:
         return self.__c_sim.get_episode_stats()
 
     @property
@@ -183,10 +186,10 @@ class Simulation:
         return self._config.game.resource_names
 
     @property
-    def features(self) -> Sequence[ObservationFeatureSpec]:
+    def features(self) -> typing.Sequence[mettagrid.config.id_map.ObservationFeatureSpec]:
         return list(self._features.values())
 
-    def get_feature(self, feature_id: int) -> ObservationFeatureSpec:
+    def get_feature(self, feature_id: int) -> mettagrid.config.id_map.ObservationFeatureSpec:
         """Get a feature by its ID."""
         return self._features[feature_id]
 
@@ -221,8 +224,8 @@ class Simulation:
         return self._seed
 
     def grid_objects(
-        self, bbox: Optional[BoundingBox] = None, ignore_types: Optional[List[str]] = None
-    ) -> Dict[int, Dict[str, Any]]:
+        self, bbox: typing.Optional[BoundingBox] = None, ignore_types: typing.Optional[typing.List[str]] = None
+    ) -> typing.Dict[int, typing.Dict[str, typing.Any]]:
         """Get grid objects information, optionally filtered by bounding box and type.
 
         Args:
@@ -238,7 +241,7 @@ class Simulation:
         ignore_list = ignore_types if ignore_types is not None else []
         return self.__c_sim.grid_objects(bbox.min_row, bbox.max_row, bbox.min_col, bbox.max_col, ignore_list)
 
-    def _make_map(self) -> GameMap:
+    def _make_map(self) -> mettagrid.map_builder.map_builder.GameMap:
         map_builder = self._config.game.map_builder.create()
         game_map = map_builder.build_for_num_agents(self._config.game.num_agents)
 
@@ -251,7 +254,7 @@ class Simulator:
         self._event_handlers = []
         self._current_simulation = None
 
-    def add_event_handler(self, handler: SimulatorEventHandler) -> None:
+    def add_event_handler(self, handler: mettagrid.simulator.interface.SimulatorEventHandler) -> None:
         self._event_handlers.append(handler)
 
     def new_simulation(self, config: mettagrid_config.MettaGridConfig, seed: int = 0) -> Simulation:
@@ -281,7 +284,7 @@ class Simulator:
         if self._current_simulation is not None:
             self._current_simulation.close()
 
-    def _compute_config_invariants(self, config: mettagrid_config.MettaGridConfig) -> dict[str, Any]:
+    def _compute_config_invariants(self, config: mettagrid_config.MettaGridConfig) -> dict[str, typing.Any]:
         return {
             "num_agents": config.game.num_agents,
             "action_names": [action.name for action in config.game.actions.actions()],
@@ -300,14 +303,14 @@ class SimulationAgent:
     def id(self) -> int:
         return self._agent_id
 
-    def set_action(self, action: Action | str) -> None:
+    def set_action(self, action: mettagrid.simulator.interface.Action | str) -> None:
         # Convert action to index
         action_name = action if isinstance(action, str) else action.name
         action_idx = self._sim.action_ids[action_name]
         self._sim._c_sim.actions()[self._agent_id] = action_idx
 
     @property
-    def observation(self) -> AgentObservation:
+    def observation(self) -> mettagrid.simulator.interface.AgentObservation:
         tokens = []
         agent_obs = self._sim._c_sim.observations()[self._agent_id]
         for o in agent_obs:
@@ -315,13 +318,13 @@ class SimulationAgent:
             if feature_id == 0xFF:
                 break
             tokens.append(
-                ObservationToken(
+                mettagrid.simulator.interface.ObservationToken(
                     feature=self._sim.get_feature(feature_id),
-                    location=PackedCoordinate.unpack(location) or (0, 0),
+                    location=mettagrid.mettagrid_c.PackedCoordinate.unpack(location) or (0, 0),
                     value=int(value),
                 )
             )
-        return AgentObservation(agent_id=self._agent_id, tokens=tokens)
+        return mettagrid.simulator.interface.AgentObservation(agent_id=self._agent_id, tokens=tokens)
 
     @property
     def step_reward(self) -> float:
@@ -336,7 +339,7 @@ class SimulationAgent:
         return self._sim._c_sim.action_success()[self._agent_id]
 
     @property
-    def inventory(self) -> Dict[str, int]:
+    def inventory(self) -> typing.Dict[str, int]:
         """Get the agent's current inventory from observations.
 
         Inventory tokens appear at the agent's center position in the observation window.
@@ -355,7 +358,7 @@ class SimulationAgent:
         return inv
 
     @property
-    def global_observations(self) -> Dict[str, int]:
+    def global_observations(self) -> typing.Dict[str, int]:
         """Get global observation tokens from observations.
 
         Global observation tokens appear at the agent's center position in the observation window,
@@ -381,7 +384,7 @@ class SimulationAgent:
 
         return global_obs
 
-    def set_inventory(self, inventory: Dict[str, int]) -> None:
+    def set_inventory(self, inventory: typing.Dict[str, int]) -> None:
         """Set an agent's inventory by resource name.
 
         Any resources not mentioned will be cleared in the underlying C++ call.

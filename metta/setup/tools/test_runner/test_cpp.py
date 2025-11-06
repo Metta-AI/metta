@@ -1,11 +1,11 @@
 import os
 import subprocess
-from typing import Annotated
+import typing
 
 import typer
 
-from metta.common.util.fs import get_repo_root
-from metta.setup.utils import error, info, success
+import metta.common.util.fs
+import metta.setup.utils
 
 app = typer.Typer(
     help="MettaGrid C++ test runner",
@@ -14,17 +14,17 @@ app = typer.Typer(
 
 
 def _run_target(target: str, *, verbose: bool) -> None:
-    mettagrid_dir = get_repo_root() / "packages" / "mettagrid"
+    mettagrid_dir = metta.common.util.fs.get_repo_root() / "packages" / "mettagrid"
     env = os.environ.copy()
     if verbose:
         env["VERBOSE"] = "1"
     cmd = ["make", target]
-    info(f"Running MettaGrid {target}...")
+    metta.setup.utils.info(f"Running MettaGrid {target}...")
     exit_code = subprocess.run(cmd, cwd=mettagrid_dir, env=env, check=False).returncode
     if exit_code != 0:
-        error(f"C++ {target} failed!")
+        metta.setup.utils.error(f"C++ {target} failed!")
         raise typer.Exit(exit_code)
-    success(f"C++ {target} completed successfully!")
+    metta.setup.utils.success(f"C++ {target} completed successfully!")
 
 
 @app.callback()
@@ -39,7 +39,7 @@ def command(
         "--test",
         help="Run unit tests.",
     ),
-    verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Show verbose build output.")] = False,
+    verbose: typing.Annotated[bool, typer.Option("--verbose", "-v", help="Show verbose build output.")] = False,
 ) -> None:
     targets = {k: v for k, v in [("benchmark", benchmark), ("test", test)] if v}
     for target in targets.keys() or ["test"]:

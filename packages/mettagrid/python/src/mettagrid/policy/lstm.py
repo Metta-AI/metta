@@ -1,24 +1,22 @@
 import logging
-from typing import Dict, List, Optional, Tuple, Union
+import typing
 
+import einops
 import numpy as np
 import torch
 import torch.nn as nn
-from einops import rearrange
 
+import mettagrid.policy.policy
+import mettagrid.policy.policy_env_interface
+import mettagrid.policy.utils
+import mettagrid.simulator
 import pufferlib.pytorch
-from mettagrid.policy.policy import AgentPolicy, StatefulAgentPolicy, StatefulPolicyImpl, TrainablePolicy
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.policy.utils import LSTMState, LSTMStateDict
-from mettagrid.simulator import Action as MettaGridAction
-from mettagrid.simulator import AgentObservation as MettaGridObservation
-from mettagrid.simulator import Simulation
 
 logger = logging.getLogger("mettagrid.policy.lstm_policy")
 
 
 class LSTMPolicyNet(torch.nn.Module):
-    def __init__(self, policy_env_info: PolicyEnvInterface):
+    def __init__(self, policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface):
         super().__init__()
         # Public: Required by PufferLib for RNN state management
         self.hidden_size = 128
@@ -39,8 +37,14 @@ class LSTMPolicyNet(torch.nn.Module):
     def forward_eval(
         self,
         observations: torch.Tensor,
-        state: Optional[Union[LSTMState, Tuple[torch.Tensor, torch.Tensor], Dict[str, torch.Tensor]]] = None,
-    ) -> Tuple[List[torch.Tensor], torch.Tensor]:
+        state: typing.Optional[
+            typing.Union[
+                mettagrid.policy.utils.LSTMState,
+                typing.Tuple[torch.Tensor, torch.Tensor],
+                typing.Dict[str, torch.Tensor],
+            ]
+        ] = None,
+    ) -> typing.Tuple[typing.List[torch.Tensor], torch.Tensor]:
         # Handle different input shapes:
         # - bptt_horizon=1: (batch_size, *obs_shape) e.g. (128, 7, 7, 3)
         # - bptt_horizon>1: (segments, bptt_horizon, *obs_shape) e.g. (128, 2, 7, 7, 3)
@@ -75,7 +79,7 @@ class LSTMPolicyNet(torch.nn.Module):
             observations = observations / 255.0
 
         hidden = self._net(observations)
-        hidden = rearrange(hidden, "(b t) h -> b t h", t=bptt_horizon, b=segments)
+        hidden = einops.rearrange(hidden, "(b t) h -> b t h", t=bptt_horizon, b=segments)
 
         # Handle state being passed as either a dict (from PufferLib) or tuple (from our API)
         rnn_state = None
@@ -133,7 +137,7 @@ class LSTMPolicyNet(torch.nn.Module):
                 c = c.unsqueeze(0).unsqueeze(1)
             state["lstm_h"], state["lstm_c"] = h, c
 
-        hidden = rearrange(hidden, "b t h -> (b t) h")
+        hidden = einops.rearrange(hidden, "b t h -> (b t) h")
         logits = self._action_head(hidden)
 
         values = self._value_head(hidden)
@@ -143,20 +147,29 @@ class LSTMPolicyNet(torch.nn.Module):
     def forward(
         self,
         observations: torch.Tensor,
-        state: Optional[Union[Tuple[torch.Tensor, torch.Tensor], Dict[str, torch.Tensor]]] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        state: typing.Optional[
+            typing.Union[typing.Tuple[torch.Tensor, torch.Tensor], typing.Dict[str, torch.Tensor]]
+        ] = None,
+    ) -> typing.Tuple[torch.Tensor, torch.Tensor]:
         return self.forward_eval(observations, state)
 
 
-class LSTMAgentPolicy(StatefulPolicyImpl[LSTMState]):
+class LSTMAgentPolicy(mettagrid.policy.policy.StatefulPolicyImpl[mettagrid.policy.utils.LSTMState]):
     """Per-agent policy implementation that uses the shared LSTM network."""
 
-    def __init__(self, net: LSTMPolicyNet, device: torch.device, policy_env_info: PolicyEnvInterface):
+    def __init__(
+        self,
+        net: LSTMPolicyNet,
+        device: torch.device,
+        policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface,
+    ):
         self._net = net
         self._device = device
         self._policy_env_info = policy_env_info
 
-    def initial_agent_state(self, simulation: Optional[Simulation] = None) -> LSTMState:
+    def initial_agent_state(
+        self, simulation: typing.Optional[mettagrid.simulator.Simulation] = None
+    ) -> mettagrid.policy.utils.LSTMState:
         """Get initial state for a new agent.
 
         For LSTM, we return a zero-initialized state with shape (num_layers, hidden_size).
@@ -166,13 +179,13 @@ class LSTMAgentPolicy(StatefulPolicyImpl[LSTMState]):
         # Create zero tensors with shape (num_layers, hidden_size) for a single agent
         hidden = torch.zeros((num_layers, hidden_size), device=self._device)
         cell = torch.zeros((num_layers, hidden_size), device=self._device)
-        return LSTMState(hidden=hidden, cell=cell)
+        return mettagrid.policy.utils.LSTMState(hidden=hidden, cell=cell)
 
     def step_with_state(
         self,
-        obs: MettaGridObservation,
-        state: Optional[LSTMState],
-    ) -> Tuple[MettaGridAction, Optional[LSTMState]]:
+        obs: mettagrid.simulator.AgentObservation,
+        state: typing.Optional[mettagrid.policy.utils.LSTMState],
+    ) -> typing.Tuple[mettagrid.simulator.Action, typing.Optional[mettagrid.policy.utils.LSTMState]]:
         """Get action and update state for this agent."""
         tokens = []
         for token in obs.tokens:
@@ -190,7 +203,7 @@ class LSTMAgentPolicy(StatefulPolicyImpl[LSTMState]):
         with torch.no_grad():
             self._net.eval()
             # For inference, we pass state through a dict so forward_eval can populate it
-            state_dict: LSTMStateDict = {"lstm_h": None, "lstm_c": None}
+            state_dict: mettagrid.policy.utils.LSTMStateDict = {"lstm_h": None, "lstm_c": None}
             if state is not None:
                 hidden, cell = state.to_tuple()
                 state_dict["lstm_h"], state_dict["lstm_c"] = hidden, cell
@@ -214,12 +227,12 @@ class LSTMAgentPolicy(StatefulPolicyImpl[LSTMState]):
                         logger.error(f"NaN in parameter {name}")
 
             # Extract the new state from the dict
-            new_state: Optional[LSTMState] = None
+            new_state: typing.Optional[mettagrid.policy.utils.LSTMState] = None
             if "lstm_h" in state_dict and "lstm_c" in state_dict:
                 h, c = state_dict["lstm_h"], state_dict["lstm_c"]
                 tuple_state = (h.detach(), c.detach())
                 layers = self._net._rnn.num_layers * (2 if self._net._rnn.bidirectional else 1)
-                new_state = LSTMState.from_tuple(tuple_state, layers)
+                new_state = mettagrid.policy.utils.LSTMState.from_tuple(tuple_state, layers)
 
             # Sample action from the logits
             dist = torch.distributions.Categorical(logits=logits)
@@ -229,10 +242,10 @@ class LSTMAgentPolicy(StatefulPolicyImpl[LSTMState]):
             return action, new_state.detach() if new_state is not None else None
 
 
-class LSTMPolicy(TrainablePolicy):
+class LSTMPolicy(mettagrid.policy.policy.TrainablePolicy):
     """LSTM-based policy that creates StatefulPolicy wrappers for each agent."""
 
-    def __init__(self, policy_env_info: PolicyEnvInterface):
+    def __init__(self, policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface):
         super().__init__(policy_env_info)
         self._device = torch.device("cpu")
         self._policy_env_info = policy_env_info
@@ -242,9 +255,9 @@ class LSTMPolicy(TrainablePolicy):
     def network(self) -> nn.Module:
         return self._net
 
-    def agent_policy(self, agent_id: int) -> AgentPolicy:
+    def agent_policy(self, agent_id: int) -> mettagrid.policy.policy.AgentPolicy:
         """Create a StatefulPolicy wrapper for a specific agent."""
-        return StatefulAgentPolicy(self._agent_policy, self._policy_env_info)
+        return mettagrid.policy.policy.StatefulAgentPolicy(self._agent_policy, self._policy_env_info)
 
     def is_recurrent(self) -> bool:
         return True

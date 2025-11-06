@@ -2,11 +2,11 @@ import importlib
 import re
 import signal
 
-from devops.skypilot.notifications.notifier import NotificationConfig
-from devops.skypilot.utils.job_config import JobConfig
-from metta.common.util.log_config import getRankAwareLogger
+import devops.skypilot.notifications.notifier
+import devops.skypilot.utils.job_config
+import metta.common.util.log_config
 
-logger = getRankAwareLogger(__name__)
+logger = metta.common.util.log_config.getRankAwareLogger(__name__)
 
 
 def get_exit_code_description(exit_code: int) -> str:
@@ -39,13 +39,15 @@ def get_exit_code_description(exit_code: int) -> str:
     return f"Unknown exit code ({exit_code})"
 
 
-def get_notification_config(termination_reason: str, job_config: JobConfig) -> NotificationConfig | None:
+def get_notification_config(
+    termination_reason: str, job_config: devops.skypilot.utils.job_config.JobConfig
+) -> devops.skypilot.notifications.notifier.NotificationConfig | None:
     # Collect exit code from job_failed_*
     if termination_reason.startswith("job_failed_"):
         match = re.match(r"job_failed_(-?\d+)", termination_reason)
         if match:
             exit_code = int(match.group(1))
-            return NotificationConfig(
+            return devops.skypilot.notifications.notifier.NotificationConfig(
                 title="🚨 SkyPilot Job Failed",
                 description=f"Job failed with code {exit_code}: {get_exit_code_description(exit_code)}",
                 github_state="failure",
@@ -53,31 +55,31 @@ def get_notification_config(termination_reason: str, job_config: JobConfig) -> N
 
     # Static notification mappings with channel-specific routing
     notification_map = {
-        "heartbeat_timeout": NotificationConfig(
+        "heartbeat_timeout": devops.skypilot.notifications.notifier.NotificationConfig(
             title="🚨 SkyPilot Job Heartbeat Timeout",
             description=f"Job failed - no heartbeat for {job_config.heartbeat_timeout} seconds",
             github_state="failure",
         ),
-        "max_runtime_reached": NotificationConfig(
+        "max_runtime_reached": devops.skypilot.notifications.notifier.NotificationConfig(
             title="✅ SkyPilot Job Completed",
             description=f"Job ran successfully for {job_config.max_runtime_hours} hours",
             github_state="success",
             send_discord=False,
             send_wandb=False,
         ),
-        "nccl_tests_failed": NotificationConfig(
+        "nccl_tests_failed": devops.skypilot.notifications.notifier.NotificationConfig(
             title="🔧 SkyPilot Job NCCL Test Error",
             description="NCCL tests failed",
             github_state="error",
             send_wandb=False,
         ),
-        "rapid_restarts": NotificationConfig(
+        "rapid_restarts": devops.skypilot.notifications.notifier.NotificationConfig(
             title="⚠️ SkyPilot Job Failing Repeatedly",
             description=f"Job terminated after {job_config.restart_count} restarts with average runtime < 3 minutes",
             github_state="failure",
             # Critical issue - notify all channels
         ),
-        "job_completed": NotificationConfig(
+        "job_completed": devops.skypilot.notifications.notifier.NotificationConfig(
             title="✅ SkyPilot Job Completed",
             description="Job ran to completion.",
             github_state="success",
@@ -89,7 +91,9 @@ def get_notification_config(termination_reason: str, job_config: JobConfig) -> N
     return notification_map.get(termination_reason)
 
 
-def send_notifications(termination_reason: str, job_config: JobConfig) -> dict[str, bool]:
+def send_notifications(
+    termination_reason: str, job_config: devops.skypilot.utils.job_config.JobConfig
+) -> dict[str, bool]:
     """Send notifications based on termination reason."""
     results: dict[str, bool] = {}
 

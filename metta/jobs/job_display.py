@@ -4,21 +4,20 @@ Query-based display that observes JobManager state without managing jobs directl
 JobManager owns job execution and state, JobDisplay only queries and displays.
 """
 
-from __future__ import annotations
 
+import datetime
+import pathlib
 import time
-from datetime import timedelta
-from pathlib import Path
 
-from sky.server.common import get_server_url
-from sqlmodel import Session
+import sky.server.common
+import sqlmodel
 
-from metta.jobs.job_manager import JobManager
-from metta.jobs.job_state import JobState
+import metta.jobs.job_manager
+import metta.jobs.job_state
 
 
 class JobDisplay:
-    def __init__(self, job_manager: JobManager, group: str | None = None):
+    def __init__(self, job_manager: metta.jobs.job_manager.JobManager, group: str | None = None):
         self.job_manager = job_manager
         self.group = group
         self._start_time = time.time()
@@ -55,7 +54,7 @@ class JobDisplay:
         3. Last few non-empty lines if no specific error found
         """
         try:
-            log_file = Path(logs_path)
+            log_file = pathlib.Path(logs_path)
             if not log_file.exists():
                 return []
 
@@ -98,7 +97,7 @@ class JobDisplay:
 
     def _display_log_tail(self, logs_path: str, num_lines: int) -> bool:
         try:
-            log_file = Path(logs_path)
+            log_file = pathlib.Path(logs_path)
             if log_file.exists():
                 lines = log_file.read_text(errors="ignore").splitlines()
                 if lines:
@@ -208,16 +207,16 @@ class JobDisplay:
             # Close the completed jobs section
             print("└" + "─" * 60)
 
-    def _get_pending_reason(self, job_state: JobState) -> str:
+    def _get_pending_reason(self, job_state: metta.jobs.job_state.JobState) -> str:
         """Get human-readable reason why a job is pending."""
 
         # Check if job has dependencies
         if job_state.config.dependency_names:
             # Check which dependencies are not satisfied
             unsatisfied = []
-            with Session(self.job_manager._engine) as session:
+            with sqlmodel.Session(self.job_manager._engine) as session:
                 for dep_name in job_state.config.dependency_names:
-                    dep_state = session.get(JobState, dep_name)
+                    dep_state = session.get(metta.jobs.job_state.JobState, dep_name)
                     if not dep_state:
                         unsatisfied.append(dep_name)
                     elif dep_state.status != "completed":
@@ -240,7 +239,7 @@ class JobDisplay:
 
     def _display_active_job(
         self,
-        job_state: JobState,
+        job_state: metta.jobs.job_state.JobState,
         show_running_logs: bool = True,
         log_tail_lines: int = 10,
     ) -> None:
@@ -320,7 +319,7 @@ class JobDisplay:
                 else:
                     # Show SkyPilot dashboard link for remote jobs
                     if request_id and job_id:
-                        dashboard_url = f"{get_server_url()}/dashboard/jobs/{job_id}"
+                        dashboard_url = f"{sky.server.common.get_server_url()}/dashboard/jobs/{job_id}"
                         print(f"│    🚀 SkyPilot: {dashboard_url}")
                     # Show WandB URL if this is a training job
                     if job_state.wandb_url and self._should_show_training_artifacts(name):
@@ -337,7 +336,7 @@ class JobDisplay:
 
     def _display_completed_job(
         self,
-        job_state: JobState,
+        job_state: metta.jobs.job_state.JobState,
         show_artifacts: bool = True,
     ) -> None:
         """Display condensed summary for a succeeded job."""
@@ -369,7 +368,7 @@ class JobDisplay:
 
     def _display_failed_job(
         self,
-        job_state: JobState,
+        job_state: metta.jobs.job_state.JobState,
     ) -> None:
         """Display condensed summary for a failed job with error context."""
         name = job_state.name
@@ -449,7 +448,7 @@ def format_duration(seconds: float) -> str:
     if seconds < 60:
         return f"{int(seconds)}s"
 
-    delta = timedelta(seconds=int(seconds))
+    delta = datetime.timedelta(seconds=int(seconds))
     hours, remainder = divmod(delta.seconds, 3600)
     minutes, secs = divmod(remainder, 60)
 
@@ -468,7 +467,7 @@ def format_duration(seconds: float) -> str:
 
 def extract_log_tail(logs_path: str, num_lines: int = 5) -> list[str]:
     try:
-        log_file = Path(logs_path)
+        log_file = pathlib.Path(logs_path)
         if not log_file.exists():
             return []
 
@@ -490,7 +489,7 @@ def format_artifact_link(uri: str) -> str:
     return uri
 
 
-def format_job_status_line(job_state: JobState, show_duration: bool = True) -> str:
+def format_job_status_line(job_state: metta.jobs.job_state.JobState, show_duration: bool = True) -> str:
     name = job_state.name
     status = job_state.status
 

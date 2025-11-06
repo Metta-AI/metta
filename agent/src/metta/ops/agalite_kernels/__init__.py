@@ -1,20 +1,20 @@
-from __future__ import annotations
+import __future__
 
 import os
 import threading
 import warnings
-from pathlib import Path
-from typing import Optional, Tuple
+import pathlib
+import typing
 
 import torch
-from torch.utils import cpp_extension
+import torch.utils
 
 _EXTENSION = None
 _LOAD_ATTEMPTED = False
 _LOAD_LOCK = threading.Lock()
 
 
-def _load_extension() -> Optional[object]:
+def _load_extension() -> typing.Optional[object]:
     global _EXTENSION, _LOAD_ATTEMPTED
     with _LOAD_LOCK:
         if _EXTENSION is not None:
@@ -23,12 +23,12 @@ def _load_extension() -> Optional[object]:
             return None
         _LOAD_ATTEMPTED = True
 
-        src_dir = Path(__file__).resolve().parent
+        src_dir = pathlib.Path(__file__).resolve().parent
         sources = [str(src_dir / "agalite_kernels.cpp")]
         extra_cflags = ["-O3", "-std=c++17"]
-        extra_cuda_cflags: Optional[list[str]] = None
+        extra_cuda_cflags: typing.Optional[list[str]] = None
 
-        cuda_home = cpp_extension.CUDA_HOME
+        cuda_home = torch.utils.cpp_extension.CUDA_HOME
         if cuda_home and torch.cuda.is_available() and os.environ.get("METTA_FORCE_CPU_AGALITE_KERNEL", "0") != "1":
             sources.append(str(src_dir / "agalite_kernels.cu"))
             extra_cuda_cflags = ["-O3"]
@@ -36,7 +36,7 @@ def _load_extension() -> Optional[object]:
         try:
             build_dir = src_dir / "_build"
             build_dir.mkdir(parents=True, exist_ok=True)
-            _EXTENSION = cpp_extension.load(
+            _EXTENSION = torch.utils.cpp_extension.load(
                 name="agalite_kernels",
                 sources=sources,
                 extra_cflags=extra_cflags,
@@ -54,7 +54,7 @@ def _load_extension() -> Optional[object]:
         return _EXTENSION
 
 
-def _prepare_start_state(start_state: torch.Tensor, x: torch.Tensor) -> Tuple[torch.Tensor, Tuple[int, ...]]:
+def _prepare_start_state(start_state: torch.Tensor, x: torch.Tensor) -> typing.Tuple[torch.Tensor, typing.Tuple[int, ...]]:
     broadcast_shape = x.shape[1:]
     aligned = start_state
     for _ in range(len(broadcast_shape) - start_state.dim()):
@@ -92,7 +92,7 @@ class _DiscountedSumFunction(torch.autograd.Function):
         return output_flat.view_as(x_contig)
 
     @staticmethod
-    def backward(ctx, grad_output: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def backward(ctx, grad_output: torch.Tensor) -> typing.Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         ext = _load_extension()
         if ext is None:
             raise RuntimeError("AGaLiTe fused kernels unavailable")

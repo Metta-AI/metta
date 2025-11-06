@@ -1,24 +1,23 @@
-from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import os
+import pathlib
 import re
 import subprocess
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Dict, List, Tuple
+import typing
 
 import boto3
+import botocore.exceptions
+import google
+import google.genai
 import numpy as np
-from botocore.exceptions import ClientError
-from google import genai
-from google.genai import types
 
-from metta.tools.pr_similarity import resolve_cache_paths
+import metta.tools.pr_similarity
 
 DEFAULT_MODEL = "gemini-embedding-001"
-DEFAULT_CACHE_PATH = Path("mcp_servers/pr_similarity/cache/pr_embeddings")
+DEFAULT_CACHE_PATH = pathlib.Path("mcp_servers/pr_similarity/cache/pr_embeddings")
 API_KEY_ENV = "GEMINI_API_KEY"
 DEFAULT_BATCH_SIZE = 16
 TASK_TYPE = "semantic_similarity"
@@ -27,7 +26,7 @@ PR_NUMBER_RE = re.compile(r"#(\d+)\b")
 LOG_FORMAT = "%H%x1f%an%x1f%aI%x1f%cI%x1f%s%x1f%b%x1e"
 
 
-def _require_merged_at(entry: Dict[str, object]) -> str:
+def _require_merged_at(entry: typing.Dict[str, object]) -> str:
     merged_at = entry.get("merged_at")
     if not merged_at:
         raise ValueError(
@@ -37,7 +36,7 @@ def _require_merged_at(entry: Dict[str, object]) -> str:
     return str(merged_at)
 
 
-@dataclass
+@dataclasses.dataclass
 class PullRequestSnapshot:
     pr_number: int
     title: str
@@ -51,10 +50,10 @@ class PullRequestSnapshot:
     merged_at: str
 
 
-@dataclass
+@dataclasses.dataclass
 class EmbeddingRecord:
     pr_number: int
-    vector: List[float]
+    vector: typing.List[float]
     title: str
     description: str
     author: str
@@ -72,7 +71,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--cache-path",
-        type=Path,
+        type=pathlib.Path,
         default=DEFAULT_CACHE_PATH,
         help=f"Where to store the embedding cache (default: {DEFAULT_CACHE_PATH}).",
     )
@@ -167,7 +166,7 @@ def _extract_snapshot(raw_entry: str) -> PullRequestSnapshot | None:
         return None
 
     commit_sha, author, authored_at, merged_at, subject, body_first = header_fields[:6]
-    body_lines: List[str] = []
+    body_lines: typing.List[str] = []
     if body_first:
         body_lines.append(body_first)
     body_lines.extend(lines[1:])
@@ -203,8 +202,8 @@ def _extract_snapshot(raw_entry: str) -> PullRequestSnapshot | None:
     )
 
 
-def collect_snapshots() -> List[PullRequestSnapshot]:
-    snapshots: Dict[int, PullRequestSnapshot] = {}
+def collect_snapshots() -> typing.List[PullRequestSnapshot]:
+    snapshots: typing.Dict[int, PullRequestSnapshot] = {}
     for raw_entry in _run_git_log().split("\x1e"):
         snapshot = _extract_snapshot(raw_entry)
         if snapshot is None:
@@ -213,8 +212,10 @@ def collect_snapshots() -> List[PullRequestSnapshot]:
     return [snapshots[key] for key in sorted(snapshots)]
 
 
-def load_existing_cache(path: Path) -> Tuple[Dict[int, EmbeddingRecord], Dict[str, object]]:
-    meta_path, vectors_path = resolve_cache_paths(path)
+def load_existing_cache(
+    path: pathlib.Path,
+) -> typing.Tuple[typing.Dict[int, EmbeddingRecord], typing.Dict[str, object]]:
+    meta_path, vectors_path = metta.tools.pr_similarity.resolve_cache_paths(path)
 
     if meta_path.exists() and vectors_path.exists():
         with meta_path.open("r", encoding="utf-8") as handle:
@@ -230,7 +231,7 @@ def load_existing_cache(path: Path) -> Tuple[Dict[int, EmbeddingRecord], Dict[st
             "task_type": data.get("task_type", TASK_TYPE),
         }
 
-        entries: Dict[int, EmbeddingRecord] = {}
+        entries: typing.Dict[int, EmbeddingRecord] = {}
         for item in data.get("entries", []):
             pr_number = int(item["pr_number"])
             vector = vector_by_pr.get(pr_number)
@@ -262,7 +263,7 @@ def load_existing_cache(path: Path) -> Tuple[Dict[int, EmbeddingRecord], Dict[st
             "task_type": data.get("task_type", TASK_TYPE),
         }
 
-        entries: Dict[int, EmbeddingRecord] = {}
+        entries: typing.Dict[int, EmbeddingRecord] = {}
         for item in data.get("entries", []):
             record = EmbeddingRecord(
                 pr_number=int(item["pr_number"]),
@@ -306,40 +307,40 @@ def build_embedding_text(snapshot: PullRequestSnapshot) -> str:
     return "\n".join(segments)
 
 
-def chunked(items: List[PullRequestSnapshot], size: int) -> List[List[PullRequestSnapshot]]:
+def chunked(items: typing.List[PullRequestSnapshot], size: int) -> typing.List[typing.List[PullRequestSnapshot]]:
     return [items[i : i + size] for i in range(0, len(items), size)]
 
 
 def generate_embeddings(
-    client: genai.Client,
-    snapshots: List[PullRequestSnapshot],
+    client: google.genai.Client,
+    snapshots: typing.List[PullRequestSnapshot],
     model: str,
-) -> List[List[float]]:
+) -> typing.List[typing.List[float]]:
     texts = [build_embedding_text(snapshot) for snapshot in snapshots]
-    config = types.EmbedContentConfig(task_type=TASK_TYPE)
+    config = google.genai.types.EmbedContentConfig(task_type=TASK_TYPE)
     response = client.models.embed_content(
         model=model,
         contents=texts,
         config=config,
     )
-    vectors: List[List[float]] = []
+    vectors: typing.List[typing.List[float]] = []
     for embedding in response.embeddings:
         vectors.append(list(embedding.values))
     return vectors
 
 
 def write_cache(
-    path: Path,
-    metadata: Dict[str, object],
-    records: Dict[int, EmbeddingRecord],
+    path: pathlib.Path,
+    metadata: typing.Dict[str, object],
+    records: typing.Dict[int, EmbeddingRecord],
 ) -> None:
-    meta_path, vectors_path = resolve_cache_paths(path)
+    meta_path, vectors_path = metta.tools.pr_similarity.resolve_cache_paths(path)
     meta_path.parent.mkdir(parents=True, exist_ok=True)
 
     ordered = [records[key] for key in sorted(records)]
     entries_payload = []
-    vectors: List[List[float]] = []
-    pr_numbers: List[int] = []
+    vectors: typing.List[typing.List[float]] = []
+    pr_numbers: typing.List[int] = []
 
     for record in ordered:
         entries_payload.append(
@@ -374,7 +375,7 @@ def write_cache(
 
 
 def download_cache_from_s3(
-    cache_path: Path,
+    cache_path: pathlib.Path,
     bucket: str = "softmax-public",
     prefix: str = "pr-cache/",
 ) -> bool:
@@ -382,7 +383,7 @@ def download_cache_from_s3(
 
     Returns True if cache was downloaded or already exists, False if download failed.
     """
-    meta_path, vectors_path = resolve_cache_paths(cache_path)
+    meta_path, vectors_path = metta.tools.pr_similarity.resolve_cache_paths(cache_path)
 
     if meta_path.exists() and vectors_path.exists():
         print(f"Cache already exists at {cache_path}")
@@ -395,7 +396,7 @@ def download_cache_from_s3(
         s3.download_file(bucket, prefix + vectors_path.name, str(vectors_path))
         print(f"Downloaded PR similarity cache from s3://{bucket}/{prefix}")
         return True
-    except ClientError as e:
+    except botocore.exceptions.ClientError as e:
         if e.response.get("Error", {}).get("Code") == "404":
             print("Cache not found in S3 (this is expected on first run)")
         else:
@@ -406,9 +407,9 @@ def download_cache_from_s3(
         return False
 
 
-def upload_cache_to_s3(cache_path: Path, bucket: str = "softmax-public", prefix: str = "pr-cache/") -> None:
+def upload_cache_to_s3(cache_path: pathlib.Path, bucket: str = "softmax-public", prefix: str = "pr-cache/") -> None:
     """Upload cache files to S3."""
-    meta_path, vectors_path = resolve_cache_paths(cache_path)
+    meta_path, vectors_path = metta.tools.pr_similarity.resolve_cache_paths(cache_path)
 
     if not meta_path.exists() or not vectors_path.exists():
         raise FileNotFoundError(f"Cache files not found: {meta_path} or {vectors_path}")
@@ -445,7 +446,7 @@ def main() -> None:
     if args.download_from_s3:
         print("Downloading cache from S3...")
         download_succeeded = download_cache_from_s3(args.cache_path, args.s3_bucket, args.s3_prefix)
-        meta_path, vectors_path = resolve_cache_paths(args.cache_path)
+        meta_path, vectors_path = metta.tools.pr_similarity.resolve_cache_paths(args.cache_path)
         cache_exists_locally = meta_path.exists() and vectors_path.exists()
 
         if not download_succeeded and not cache_exists_locally and not args.force_rebuild:
@@ -469,7 +470,7 @@ def main() -> None:
     if args.max_prs is not None:
         snapshots = snapshots[: args.max_prs]
 
-    eligible_snapshots: List[PullRequestSnapshot] = []
+    eligible_snapshots: typing.List[PullRequestSnapshot] = []
     for snapshot in snapshots:
         if count_description_lines(snapshot.description) <= args.min_description_lines:
             continue
@@ -502,7 +503,7 @@ def main() -> None:
             print("Embedding cache already up to date.")
         return
 
-    client = genai.Client(api_key=api_key)
+    client = google.genai.Client(api_key=api_key)
 
     for batch in chunked(pending, args.batch_size):
         vectors = generate_embeddings(client, batch, args.model)

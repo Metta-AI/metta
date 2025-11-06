@@ -1,25 +1,24 @@
 """Help panel component for miniscope renderer."""
 
-from typing import List
+import typing
 
-from rich import box
-from rich.table import Table
+import rich
+import rich.table
 
-from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
-from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
-from mettagrid.simulator import Simulation
+import mettagrid.renderer.miniscope.components.base
+import mettagrid.renderer.miniscope.miniscope_panel
+import mettagrid.renderer.miniscope.miniscope_state
+import mettagrid.simulator
 
-from .base import MiniscopeComponent
 
-
-class HelpPanelComponent(MiniscopeComponent):
+class HelpPanelComponent(mettagrid.renderer.miniscope.components.base.MiniscopeComponent):
     """Component for displaying help information."""
 
     def __init__(
         self,
-        sim: Simulation,
-        state: MiniscopeState,
-        panels: PanelLayout,
+        sim: mettagrid.simulator.Simulation,
+        state: mettagrid.renderer.miniscope.miniscope_state.MiniscopeState,
+        panels: mettagrid.renderer.miniscope.miniscope_panel.PanelLayout,
     ):
         """Initialize the help panel component.
 
@@ -97,16 +96,16 @@ class HelpPanelComponent(MiniscopeComponent):
 
         self._panel.set_content(lines)
 
-    def render_as_table(self) -> List[str]:
+    def render_as_table(self) -> typing.List[str]:
         """Render the help panel as a Rich table.
 
         Returns:
             List of strings representing the help table
         """
-        table = Table(
+        table = rich.table.Table(
             title="🎮 MINISCOPE HELP 🎮",
             show_header=True,
-            box=box.ROUNDED,
+            box=rich.box.ROUNDED,
             padding=(0, 1),
             width=self._width,
         )

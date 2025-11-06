@@ -15,11 +15,11 @@ Simple and focused - just gets the ZIP files for you to process as needed.
 
 import fnmatch
 import os
+import pathlib
 import sys
-from pathlib import Path
-from typing import Any, Optional
+import typing
 
-from github import Github
+import github
 
 
 class GitHubActionsOutput:
@@ -49,10 +49,12 @@ class GitHubAPI:
 
     def __init__(self, token: str, repo: str):
         self.token = token
-        self.github = Github(token)
+        self.github = github.Github(token)
         self.repo = self.github.get_repo(repo)
 
-    def get_workflow_runs(self, workflow_filename: str, exclude_run_id: Optional[str] = None) -> list[dict[str, Any]]:
+    def get_workflow_runs(
+        self, workflow_filename: str, exclude_run_id: typing.Optional[str] = None
+    ) -> list[dict[str, typing.Any]]:
         """Get successful workflow runs for the specified workflow."""
         try:
             workflow = self.repo.get_workflow(workflow_filename)
@@ -96,7 +98,7 @@ class GitHubAPI:
             print(f"❌ Error fetching workflow runs: {e}")
             return []
 
-    def get_run_artifacts(self, run_id: int) -> list[dict[str, Any]]:
+    def get_run_artifacts(self, run_id: int) -> list[dict[str, typing.Any]]:
         """Get artifacts for a specific workflow run."""
         try:
             run = self.repo.get_workflow_run(run_id)
@@ -119,7 +121,7 @@ class GitHubAPI:
             print(f"❌ Error fetching artifacts for run {run_id}: {e}")
             return []
 
-    def download_artifact(self, download_url: str, output_path: Path) -> bool:
+    def download_artifact(self, download_url: str, output_path: pathlib.Path) -> bool:
         """Download an artifact ZIP file."""
         try:
             import requests
@@ -143,7 +145,7 @@ class GitHubAPI:
 class ArtifactFetcher:
     """Main class for fetching artifacts and saving them as ZIP files."""
 
-    def __init__(self, config: dict[str, Any]):
+    def __init__(self, config: dict[str, typing.Any]):
         self.config = config
         self.github_api = GitHubAPI(config["github_token"], config["repo"])
         self.output = GitHubActionsOutput()
@@ -153,7 +155,7 @@ class ArtifactFetcher:
         """Check if artifact name matches the pattern."""
         return fnmatch.fnmatch(artifact_name.lower(), pattern.lower())
 
-    def find_and_collect_artifacts(self) -> tuple[list[dict[str, Any]], int]:
+    def find_and_collect_artifacts(self) -> tuple[list[dict[str, typing.Any]], int]:
         """Find artifacts matching the specified pattern, collecting until we have num_artifacts."""
         print(
             f"🔍 Searching for {self.config['num_artifacts']} "
@@ -216,14 +218,14 @@ class ArtifactFetcher:
             print(f"❌ Error fetching workflow runs: {e}")
             return [], 0
 
-    def download_artifact(self, artifact_info: dict[str, Any]) -> dict[str, Any]:
+    def download_artifact(self, artifact_info: dict[str, typing.Any]) -> dict[str, typing.Any]:
         """Download a single artifact as a ZIP file."""
         artifact_name = artifact_info["artifact_name"]
         run_id = artifact_info["run_id"]
         download_url = artifact_info["download_url"]
 
         # Create output directory
-        output_dir = Path(self.config["output_directory"])
+        output_dir = pathlib.Path(self.config["output_directory"])
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # Create unique filename: artifact-name_run-id.zip
@@ -254,7 +256,7 @@ class ArtifactFetcher:
             print(f"❌ Error downloading artifact {artifact_name}: {e}")
             return {**artifact_info, "status": "error", "error": str(e)}
 
-    def run(self) -> dict[str, Any]:
+    def run(self) -> dict[str, typing.Any]:
         """Main execution method."""
         # Find and collect the requested number of artifacts
         matching_artifacts, runs_searched = self.find_and_collect_artifacts()
@@ -285,7 +287,7 @@ class ArtifactFetcher:
 
         return {"success": True, "artifacts_found": successful_downloads, "downloaded_artifacts": downloaded_artifacts}
 
-    def _print_summary(self, downloaded_artifacts: list[dict[str, Any]], runs_searched: int) -> None:
+    def _print_summary(self, downloaded_artifacts: list[dict[str, typing.Any]], runs_searched: int) -> None:
         """Print a summary of the download operation."""
         print("\n📊 Download Summary:")
         print(f"{'Artifact Name':<30} {'Run ID':<12} {'Date':<12} {'Size':<12} {'Status'}")
@@ -324,9 +326,9 @@ def main():
     print("🚀 Starting Fetch Artifacts action")
 
     # Import parse_config
-    script_dir = Path(__file__).parent.parent.parent / "scripts"
+    script_dir = pathlib.Path(__file__).parent.parent.parent / "scripts"
     sys.path.insert(0, str(script_dir))
-    from utils.config import parse_config
+    import utils.config
 
     try:
         required_vars = [
@@ -341,7 +343,7 @@ def main():
             "INPUT_OUTPUT_DIRECTORY": "downloaded-artifacts",
         }
 
-        env_values = parse_config(required_vars, optional_vars)
+        env_values = utils.config.parse_config(required_vars, optional_vars)
 
         # Transform to config dict
         config = {

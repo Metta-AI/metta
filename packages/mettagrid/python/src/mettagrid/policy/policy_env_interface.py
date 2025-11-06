@@ -1,15 +1,15 @@
 """Policy environment interface for providing environment information to policies."""
 
-from dataclasses import dataclass
+import dataclasses
 
 import gymnasium as gym
 
-from mettagrid.config.id_map import ObservationFeatureSpec
-from mettagrid.config.mettagrid_config import ActionsConfig, MettaGridConfig
-from mettagrid.mettagrid_c import dtype_observations
+import mettagrid.config.id_map
+import mettagrid.config.mettagrid_config
+import mettagrid.mettagrid_c
 
 
-@dataclass
+@dataclasses.dataclass
 class PolicyEnvInterface:
     """Interface providing environment information needed by policies.
 
@@ -18,8 +18,8 @@ class PolicyEnvInterface:
     and agent counts.
     """
 
-    obs_features: list[ObservationFeatureSpec]
-    actions: ActionsConfig
+    obs_features: list[mettagrid.config.id_map.ObservationFeatureSpec]
+    actions: mettagrid.config.mettagrid_config.ActionsConfig
     num_agents: int
     observation_space: gym.spaces.Box
     action_space: gym.spaces.Discrete
@@ -27,7 +27,7 @@ class PolicyEnvInterface:
     obs_height: int
 
     @staticmethod
-    def from_mg_cfg(mg_cfg: MettaGridConfig) -> "PolicyEnvInterface":
+    def from_mg_cfg(mg_cfg: mettagrid.config.mettagrid_config.MettaGridConfig) -> "PolicyEnvInterface":
         """Create PolicyEnvInterface from MettaGridConfig.
 
         Args:
@@ -41,7 +41,10 @@ class PolicyEnvInterface:
             actions=mg_cfg.game.actions,
             num_agents=mg_cfg.game.num_agents,
             observation_space=gym.spaces.Box(
-                0, 255, (mg_cfg.game.obs.num_tokens, mg_cfg.game.obs.token_dim), dtype=dtype_observations
+                0,
+                255,
+                (mg_cfg.game.obs.num_tokens, mg_cfg.game.obs.token_dim),
+                dtype=mettagrid.mettagrid_c.dtype_observations,
             ),
             action_space=gym.spaces.Discrete(len(mg_cfg.game.actions.actions())),
             obs_width=mg_cfg.game.obs.width,

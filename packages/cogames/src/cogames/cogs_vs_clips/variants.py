@@ -1,19 +1,16 @@
-from typing import override
+import typing
 
-from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_VARIANTS
-from cogames.cogs_vs_clips.mission import MissionVariant
-from cogames.cogs_vs_clips.procedural import (
-    BaseHubVariant,
-    MachinaArenaVariant,
-)
-from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, ProtocolConfig
+import cogames.cogs_vs_clips.evals.difficulty_variants
+import cogames.cogs_vs_clips.mission
+import cogames.cogs_vs_clips.procedural
+import mettagrid.config.mettagrid_config
 
 
-class MinedOutVariant(MissionVariant):
+class MinedOutVariant(cogames.cogs_vs_clips.mission.MissionVariant):
     name: str = "mined_out"
     description: str = "Some resources are depleted. You must be efficient to survive."
 
-    @override
+    @typing.override
     def modify_mission(self, mission):
         mission.carbon_extractor.efficiency -= 50
         mission.oxygen_extractor.efficiency -= 50
@@ -21,29 +18,29 @@ class MinedOutVariant(MissionVariant):
         mission.silicon_extractor.efficiency -= 50
 
 
-class DarkSideVariant(MissionVariant):
+class DarkSideVariant(cogames.cogs_vs_clips.mission.MissionVariant):
     name: str = "dark_side"
     description: str = "You're on the dark side of the asteroid. You recharge slower."
 
-    @override
+    @typing.override
     def modify_mission(self, mission):
         mission.energy_regen_amount = 0
 
 
-class LonelyHeartVariant(MissionVariant):
+class LonelyHeartVariant(cogames.cogs_vs_clips.mission.MissionVariant):
     name: str = "lonely_heart"
     description: str = "Making hearts for one agent is easy."
 
-    @override
+    @typing.override
     def modify_mission(self, mission):
         mission.assembler.heart_cost = 1
 
-    @override
+    @typing.override
     def modify_env(self, mission, env):
         simplified_inputs = {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1, "energy": 1}
 
         assembler = env.game.objects["assembler"]
-        if not isinstance(assembler, AssemblerConfig):
+        if not isinstance(assembler, mettagrid.config.mettagrid_config.AssemblerConfig):
             raise TypeError("Expected 'assembler' to be AssemblerConfig")
 
         for idx, proto in enumerate(assembler.protocols):
@@ -54,10 +51,10 @@ class LonelyHeartVariant(MissionVariant):
             assembler.protocols[idx] = updated
 
         germanium = env.game.objects["germanium_extractor"]
-        if not isinstance(germanium, AssemblerConfig):
+        if not isinstance(germanium, mettagrid.config.mettagrid_config.AssemblerConfig):
             raise TypeError("Expected 'germanium_extractor' to be AssemblerConfig")
         germanium.max_uses = 0
-        updated_protocols: list[ProtocolConfig] = []
+        updated_protocols: list[mettagrid.config.mettagrid_config.ProtocolConfig] = []
         for proto in germanium.protocols:
             new_proto = proto.model_copy(deep=True)
             output = dict(new_proto.output_resources)
@@ -69,38 +66,38 @@ class LonelyHeartVariant(MissionVariant):
             germanium.protocols = updated_protocols
 
 
-class SuperChargedVariant(MissionVariant):
+class SuperChargedVariant(cogames.cogs_vs_clips.mission.MissionVariant):
     name: str = "super_charged"
     description: str = "The sun is shining on you. You recharge faster."
 
-    @override
+    @typing.override
     def modify_mission(self, mission):
         mission.energy_regen_amount += 2
 
 
-class RoughTerrainVariant(MissionVariant):
+class RoughTerrainVariant(cogames.cogs_vs_clips.mission.MissionVariant):
     name: str = "rough_terrain"
     description: str = "The terrain is rough. Moving is more energy intensive."
 
-    @override
+    @typing.override
     def modify_mission(self, mission):
         mission.move_energy_cost += 2
 
 
-class SolarFlareVariant(MissionVariant):
+class SolarFlareVariant(cogames.cogs_vs_clips.mission.MissionVariant):
     name: str = "solar_flare"
     description: str = "Chargers have been damaged by the solar flare."
 
-    @override
+    @typing.override
     def modify_mission(self, mission):
         mission.charger.efficiency -= 50
 
 
-class PackRatVariant(MissionVariant):
+class PackRatVariant(cogames.cogs_vs_clips.mission.MissionVariant):
     name: str = "pack_rat"
     description: str = "Raise heart, cargo, energy, and gear caps to 255."
 
-    @override
+    @typing.override
     def modify_mission(self, mission):
         mission.heart_capacity = max(mission.heart_capacity, 255)
         mission.energy_capacity = max(mission.energy_capacity, 255)
@@ -108,21 +105,21 @@ class PackRatVariant(MissionVariant):
         mission.gear_capacity = max(mission.gear_capacity, 255)
 
 
-class EnergizedVariant(MissionVariant):
+class EnergizedVariant(cogames.cogs_vs_clips.mission.MissionVariant):
     name: str = "energized"
     description: str = "Max energy and full regen so agents never run dry."
 
-    @override
+    @typing.override
     def modify_mission(self, mission):
         mission.energy_capacity = max(mission.energy_capacity, 255)
         mission.energy_regen_amount = mission.energy_capacity
 
 
-class NeutralFacedVariant(MissionVariant):
+class NeutralFacedVariant(cogames.cogs_vs_clips.mission.MissionVariant):
     name: str = "neutral_faced"
     description: str = "Disable vibe swapping; keep neutral face."
 
-    @override
+    @typing.override
     def modify_env(self, mission, env):
         change_vibe = env.game.actions.change_vibe
         change_vibe.enabled = False
@@ -131,19 +128,19 @@ class NeutralFacedVariant(MissionVariant):
         neutral_vibe_name = "default"
         env.game.vibe_names = [neutral_vibe_name]
         for name, obj in env.game.objects.items():
-            if isinstance(obj, AssemblerConfig) and obj.protocols:
+            if isinstance(obj, mettagrid.config.mettagrid_config.AssemblerConfig) and obj.protocols:
                 primary_protocol = obj.protocols[0].model_copy(deep=True)
                 primary_protocol.vibes = [neutral_vibe_name]
                 obj.protocols = [primary_protocol]
-            elif isinstance(obj, ChestConfig) and name == "chest":
+            elif isinstance(obj, mettagrid.config.mettagrid_config.ChestConfig) and name == "chest":
                 obj.vibe_transfers = {neutral_vibe_name: {"heart": 255}}
 
 
-class HeartChorusVariant(MissionVariant):
+class HeartChorusVariant(cogames.cogs_vs_clips.mission.MissionVariant):
     name: str = "heart_chorus"
     description: str = "Heart-centric reward shaping with gentle resource bonuses."
 
-    @override
+    @typing.override
     def modify_env(self, mission, env):
         env.game.agent.rewards.stats = {
             "heart.gained": 1.0,
@@ -156,7 +153,7 @@ class HeartChorusVariant(MissionVariant):
         }
 
 
-class Small50Variant(MissionVariant):
+class Small50Variant(cogames.cogs_vs_clips.mission.MissionVariant):
     name: str = "small_50"
     description: str = "Set map size to 50x50 for quick runs."
 
@@ -164,14 +161,14 @@ class Small50Variant(MissionVariant):
         env.game.map_builder = env.game.map_builder.model_copy(update={"width": 50, "height": 50})
 
 
-class CogToolsOnlyVariant(MissionVariant):
+class CogToolsOnlyVariant(cogames.cogs_vs_clips.mission.MissionVariant):
     name: str = "cog_tools_only"
     description: str = "Gear tools (decoder/modulator/scrambler/resonator) require only the 'gear/cog' vibe."
 
-    @override
+    @typing.override
     def modify_env(self, mission, env) -> None:
         assembler_cfg = env.game.objects["assembler"]
-        if not isinstance(assembler_cfg, AssemblerConfig):
+        if not isinstance(assembler_cfg, mettagrid.config.mettagrid_config.AssemblerConfig):
             raise TypeError("Expected 'assembler' to be AssemblerConfig")
         gear_outputs = {"decoder", "modulator", "scrambler", "resonator"}
         for protocol in assembler_cfg.protocols:
@@ -179,11 +176,11 @@ class CogToolsOnlyVariant(MissionVariant):
                 protocol.vibes = ["gear"]
 
 
-class SeedOneHeartInputsVariant(MissionVariant):
+class SeedOneHeartInputsVariant(cogames.cogs_vs_clips.mission.MissionVariant):
     name: str = "seed_one_heart_inputs"
     description: str = "Agents start with exactly one HEART recipe worth of inputs."
 
-    @override
+    @typing.override
     def modify_env(self, mission, env) -> None:
         heart_cost = mission.assembler.heart_cost
         inputs = {
@@ -199,11 +196,11 @@ class SeedOneHeartInputsVariant(MissionVariant):
             agent_cfg.initial_inventory[k] = v
 
 
-class ChestsTwoHeartsVariant(MissionVariant):
+class ChestsTwoHeartsVariant(cogames.cogs_vs_clips.mission.MissionVariant):
     name: str = "chests_two_hearts"
     description: str = "Base resource chests start with two HEARTs worth of resources."
 
-    @override
+    @typing.override
     def modify_env(self, mission, env) -> None:
         heart_cost = mission.assembler.heart_cost
         two_hearts = {
@@ -213,16 +210,16 @@ class ChestsTwoHeartsVariant(MissionVariant):
             "silicon": heart_cost * 5 * 2,
         }
         chest_cfg = env.game.objects["chest"]
-        if not isinstance(chest_cfg, ChestConfig):
+        if not isinstance(chest_cfg, mettagrid.config.mettagrid_config.ChestConfig):
             raise TypeError("Expected 'chest' to be ChestConfig")
         chest_cfg.initial_inventory = two_hearts
 
 
-class FiveHeartsTuningVariant(MissionVariant):
+class FiveHeartsTuningVariant(cogames.cogs_vs_clips.mission.MissionVariant):
     name: str = "five_hearts_tuning"
     description: str = "Tune extractors so the base can produce five HEARTs (germanium fixed)."
 
-    @override
+    @typing.override
     def modify_mission(self, mission):
         heart_cost = mission.assembler.heart_cost
         one_heart = {
@@ -253,11 +250,11 @@ class FiveHeartsTuningVariant(MissionVariant):
         mission.germanium_extractor.efficiency = int(one_heart["germanium"] * five)
 
 
-class ClipBaseExceptCarbonVariant(MissionVariant):
+class ClipBaseExceptCarbonVariant(cogames.cogs_vs_clips.mission.MissionVariant):
     name: str = "clip_base_except_carbon"
     description: str = "Start base extractors clipped except carbon."
 
-    @override
+    @typing.override
     def modify_mission(self, mission):
         mission.carbon_extractor.start_clipped = False
         mission.oxygen_extractor.start_clipped = True
@@ -265,37 +262,37 @@ class ClipBaseExceptCarbonVariant(MissionVariant):
         mission.silicon_extractor.start_clipped = True
 
 
-class ClipRateOnVariant(MissionVariant):
+class ClipRateOnVariant(cogames.cogs_vs_clips.mission.MissionVariant):
     name: str = "clip_rate_on"
     description: str = "Enable global clipping with a small non-zero clip rate."
 
-    @override
+    @typing.override
     def modify_mission(self, mission):
         mission.clip_rate = 0.02
 
 
 # Biome variants (weather) for procedural maps
-class DesertVariant(MachinaArenaVariant):
+class DesertVariant(cogames.cogs_vs_clips.procedural.MachinaArenaVariant):
     name: str = "desert"
     description: str = "The desert sands make navigation challenging."
 
-    @override
+    @typing.override
     def modify_node(self, node):
         node.biome_weights = {"desert": 1.0, "caves": 0.0, "forest": 0.0, "city": 0.0}
         node.base_biome = "desert"
 
 
-class ForestVariant(MachinaArenaVariant):
+class ForestVariant(cogames.cogs_vs_clips.procedural.MachinaArenaVariant):
     name: str = "forest"
     description: str = "Dense forests obscure your view."
 
-    @override
+    @typing.override
     def modify_node(self, node):
         node.biome_weights = {"forest": 1.0, "caves": 0.0, "desert": 0.0, "city": 0.0}
         node.base_biome = "forest"
 
 
-class CityVariant(MachinaArenaVariant):
+class CityVariant(cogames.cogs_vs_clips.procedural.MachinaArenaVariant):
     name: str = "city"
     description: str = "Ancient city ruins provide structured pathways."
 
@@ -309,67 +306,67 @@ class CityVariant(MachinaArenaVariant):
         # Tighten the city grid itself
 
 
-class CavesVariant(MachinaArenaVariant):
+class CavesVariant(cogames.cogs_vs_clips.procedural.MachinaArenaVariant):
     name: str = "caves"
     description: str = "Winding cave systems create a natural maze."
 
-    @override
+    @typing.override
     def modify_node(self, node):
         node.biome_weights = {"caves": 1.0, "desert": 0.0, "forest": 0.0, "city": 0.0}
         node.base_biome = "caves"
 
 
-class StoreBaseVariant(BaseHubVariant):
+class StoreBaseVariant(cogames.cogs_vs_clips.procedural.BaseHubVariant):
     name: str = "store_base"
     description: str = "Sanctum corners hold storage chests; cross remains clear."
 
-    @override
+    @typing.override
     def modify_node(self, node):
         node.corner_bundle = "chests"
         node.cross_bundle = "none"
         node.cross_distance = 7
 
 
-class ExtractorBaseVariant(BaseHubVariant):
+class ExtractorBaseVariant(cogames.cogs_vs_clips.procedural.BaseHubVariant):
     name: str = "extractor_base"
     description: str = "Sanctum corners host extractors; cross remains clear."
 
-    @override
+    @typing.override
     def modify_node(self, node):
         node.corner_bundle = "extractors"
         node.cross_bundle = "none"
         node.cross_distance = 7
 
 
-class BothBaseVariant(BaseHubVariant):
+class BothBaseVariant(cogames.cogs_vs_clips.procedural.BaseHubVariant):
     name: str = "both_base"
     description: str = "Sanctum corners store chests and cross arms host extractors."
 
-    @override
+    @typing.override
     def modify_node(self, node):
         node.corner_bundle = "chests"
         node.cross_bundle = "extractors"
         node.cross_distance = 7
 
 
-class CyclicalUnclipVariant(MissionVariant):
+class CyclicalUnclipVariant(cogames.cogs_vs_clips.mission.MissionVariant):
     name: str = "cyclical_unclip"
     description: str = "Required resources for unclipping recipes are cyclical. \
                         So Germanium extractors require silicon-based unclipping recipes."
 
-    @override
+    @typing.override
     def modify_env(self, mission, env):
         if env.game.clipper is not None:
             env.game.clipper.unclipping_protocols = [
-                ProtocolConfig(input_resources={"scrambler": 1}, cooldown=1),
-                ProtocolConfig(input_resources={"resonator": 1}, cooldown=1),
-                ProtocolConfig(input_resources={"modulator": 1}, cooldown=1),
-                ProtocolConfig(input_resources={"decoder": 1}, cooldown=1),
+                mettagrid.config.mettagrid_config.ProtocolConfig(input_resources={"scrambler": 1}, cooldown=1),
+                mettagrid.config.mettagrid_config.ProtocolConfig(input_resources={"resonator": 1}, cooldown=1),
+                mettagrid.config.mettagrid_config.ProtocolConfig(input_resources={"modulator": 1}, cooldown=1),
+                mettagrid.config.mettagrid_config.ProtocolConfig(input_resources={"decoder": 1}, cooldown=1),
             ]
 
 
 # TODO - validate that all variant names are unique
-VARIANTS: list[MissionVariant] = [
+VARIANTS: list[cogames.cogs_vs_clips.mission.MissionVariant] = [
     MinedOutVariant(),
     DarkSideVariant(),
     SuperChargedVariant(),
@@ -395,5 +392,5 @@ VARIANTS: list[MissionVariant] = [
     ClipBaseExceptCarbonVariant(),
     CyclicalUnclipVariant(),
     ClipRateOnVariant(),
-    *DIFFICULTY_VARIANTS,
+    *cogames.cogs_vs_clips.evals.difficulty_variants.DIFFICULTY_VARIANTS,
 ]

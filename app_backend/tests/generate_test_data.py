@@ -19,53 +19,49 @@ Requirements:
     - Database initialized and accessible
 """
 
+import typing
 import uuid
-from typing import Dict, List, Optional, TypedDict
 
 import httpx
 
-from metta.app_backend.clients.stats_client import StatsClient
-from metta.app_backend.routes.stats_routes import (
-    EpochResponse,
-    PolicyResponse,
-    TrainingRunResponse,
-)
-from metta.common.util.log_config import init_logging
+import metta.app_backend.clients.stats_client
+import metta.app_backend.routes.stats_routes
+import metta.common.util.log_config
 
 
-class EpochConfig(TypedDict):
+class EpochConfig(typing.TypedDict):
     start: int
     end: int
     lr: str
     performance: str
 
 
-class TrainingRunConfig(TypedDict):
+class TrainingRunConfig(typing.TypedDict):
     user: str
     token: str
     name: str
     description: str
-    tags: List[str]
-    url: Optional[str]
+    tags: typing.List[str]
+    url: typing.Optional[str]
     algorithm: str
     env_type: str
-    epochs: List[EpochConfig]
+    epochs: typing.List[EpochConfig]
 
 
-class TaskSuite(TypedDict):
-    tasks: List[str]
-    metrics: List[str]
+class TaskSuite(typing.TypedDict):
+    tasks: typing.List[str]
+    metrics: typing.List[str]
 
 
-class PolicyData(TypedDict):
-    policy: PolicyResponse
-    epoch: EpochResponse
+class PolicyData(typing.TypedDict):
+    policy: metta.app_backend.routes.stats_routes.PolicyResponse
+    epoch: metta.app_backend.routes.stats_routes.EpochResponse
     config: EpochConfig
     name: str
 
 
-class CreatedRunData(TypedDict):
-    run: TrainingRunResponse
+class CreatedRunData(typing.TypedDict):
+    run: metta.app_backend.routes.stats_routes.TrainingRunResponse
     config: TrainingRunConfig
 
 
@@ -82,7 +78,7 @@ def create_machine_token(base_url: str, user_email: str, token_name: str) -> str
 
 
 def update_training_run_metadata(
-    base_url: str, token: str, run_id: uuid.UUID, description: str, tags: List[str]
+    base_url: str, token: str, run_id: uuid.UUID, description: str, tags: typing.List[str]
 ) -> None:
     """Update training run description and tags."""
     with httpx.Client(base_url=base_url) as client:
@@ -118,7 +114,7 @@ def generate_test_data():
     user3_token = create_machine_token(base_url, "charlie@example.com", "test_data_generator_charlie")
 
     # Training run configurations with rich metadata
-    training_runs_config: List[TrainingRunConfig] = [
+    training_runs_config: typing.List[TrainingRunConfig] = [
         # Alice's runs - Deep Learning experiments
         {
             "user": "alice@example.com",
@@ -212,7 +208,7 @@ def generate_test_data():
     ]
 
     # Evaluation suites and tasks for comprehensive testing
-    eval_suites: Dict[str, TaskSuite] = {
+    eval_suites: typing.Dict[str, TaskSuite] = {
         "navigation": {
             "tasks": ["maze_easy", "maze_hard", "obstacle_course", "multi_goal", "dynamic_obstacles"],
             "metrics": ["reward", "success_rate", "path_efficiency", "collision_count", "time_to_goal"],
@@ -237,13 +233,15 @@ def generate_test_data():
 
     print("🏃 Creating training runs and episodes...")
 
-    created_runs: List[CreatedRunData] = []
+    created_runs: typing.List[CreatedRunData] = []
 
     for run_config in training_runs_config:
         print(f"  📊 Creating training run: {run_config['name']} for {run_config['user']}")
 
         # Create StatsClient for this user
-        stats_client = StatsClient(backend_url=base_url, machine_token=run_config["token"])
+        stats_client = metta.app_backend.clients.stats_client.StatsClient(
+            backend_url=base_url, machine_token=run_config["token"]
+        )
 
         # Create training run
         training_run = stats_client.create_training_run(
@@ -265,7 +263,7 @@ def generate_test_data():
         created_runs.append({"run": training_run, "config": run_config})
 
         # Create epochs and policies for this run
-        policies: List[PolicyData] = []
+        policies: typing.List[PolicyData] = []
         for _i, epoch_config in enumerate(run_config["epochs"]):
             epoch = stats_client.create_epoch(
                 run_id=training_run.id,
@@ -340,7 +338,7 @@ def generate_test_data():
                     difficulty_factor = task_difficulty.get(task, 0.8)
 
                     # Generate metrics for this episode
-                    agent_metrics: Dict[int, Dict[str, float]] = {}
+                    agent_metrics: typing.Dict[int, typing.Dict[str, float]] = {}
                     num_agents = 2 if suite_name == "cooperation" else 1
 
                     for agent_id in range(num_agents):
@@ -446,7 +444,7 @@ def generate_test_data():
 
 
 if __name__ == "__main__":
-    init_logging()
+    metta.common.util.log_config.init_logging()
     try:
         generate_test_data()
     except Exception as e:

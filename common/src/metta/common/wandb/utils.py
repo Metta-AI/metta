@@ -3,25 +3,25 @@ W&B utility functions for logging and alerts.
 """
 
 import logging
-from typing import Any
+import typing
 
 import wandb
-from wandb.apis.public.runs import Run
-from wandb.errors import CommError
+import wandb.apis.public.runs
+import wandb.errors
 
-from metta.common.util.retry import retry_on_exception
-from metta.common.wandb.context import WandbRun
+import metta.common.util.retry
+import metta.common.wandb.context
 
 logger = logging.getLogger(__name__)
 
 
 # Create a custom retry decorator for wandb API calls with sensible defaults
-wandb_retry = retry_on_exception(
+wandb_retry = metta.common.util.retry.retry_on_exception(
     max_retries=3,
     initial_delay=2.0,
     max_delay=30.0,
     backoff_factor=2.0,
-    exceptions=(CommError, TimeoutError, ConnectionError, OSError),
+    exceptions=(wandb.errors.CommError, TimeoutError, ConnectionError, OSError),
 )
 
 
@@ -45,7 +45,7 @@ def send_wandb_alert(title: str, text: str, run_id: str, project: str, entity: s
         wandb.finish()
 
 
-def log_to_wandb_summary(data: dict[str, Any]) -> None:
+def log_to_wandb_summary(data: dict[str, typing.Any]) -> None:
     """Log key-value pairs to wandb summary for cross-run comparison."""
     if wandb.run is None:
         raise RuntimeError("No active wandb run. Use WandbContext to initialize a run.")
@@ -62,12 +62,12 @@ def log_to_wandb_summary(data: dict[str, Any]) -> None:
 
 
 @wandb_retry
-def get_wandb_run(path: str) -> Run:
+def get_wandb_run(path: str) -> wandb.apis.public.runs.Run:
     """Get wandb run object with retry."""
     return wandb.Api(timeout=60).run(path)
 
 
-def abort_requested(wandb_run: WandbRun | None) -> bool:
+def abort_requested(wandb_run: metta.common.wandb.context.WandbRun | None) -> bool:
     """Check if wandb run has an 'abort' tag."""
     if wandb_run is None:
         return False

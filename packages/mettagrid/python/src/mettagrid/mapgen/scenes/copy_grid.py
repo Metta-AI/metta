@@ -1,16 +1,16 @@
-from pydantic import ConfigDict, Field
+import pydantic
 
-from mettagrid.map_builder import MapGrid
-from mettagrid.mapgen.scene import Scene, SceneConfig
-
-
-class CopyGridConfig(SceneConfig):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    grid: MapGrid = Field(exclude=True)  # full outer grid
+import mettagrid.map_builder
+import mettagrid.mapgen.scene
 
 
-class CopyGrid(Scene[CopyGridConfig]):
+class CopyGridConfig(mettagrid.mapgen.scene.SceneConfig):
+    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True)
+
+    grid: mettagrid.map_builder.MapGrid = pydantic.Field(exclude=True)  # full outer grid
+
+
+class CopyGrid(mettagrid.mapgen.scene.Scene[CopyGridConfig]):
     """
     This is a helper scene that allows us to use the preexisting grid as a scene.
 

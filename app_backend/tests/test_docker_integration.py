@@ -4,10 +4,10 @@ import uuid
 
 import pytest
 import requests
-from testcontainers.core.container import DockerContainer
-from testcontainers.postgres import PostgresContainer
+import testcontainers.core.container
+import testcontainers.postgres
 
-from metta.common.util.fs import get_repo_root
+import metta.common.util.fs
 
 
 @pytest.mark.skip(reason="Skipping Docker integration tests for now")
@@ -31,7 +31,7 @@ class TestDockerIntegration:
         container = None
         try:
             self.logger.info("Starting PostgreSQL container")
-            container = PostgresContainer(
+            container = testcontainers.postgres.PostgresContainer(
                 image="postgres:17",
                 username="test_user",
                 password="test_password",
@@ -54,14 +54,14 @@ class TestDockerIntegration:
                     self.logger.error(f"Failed to stop PostgreSQL container: {e}")
 
     @pytest.fixture(scope="class")
-    def app_backend_container(self, postgres_container: PostgresContainer, docker_client):
+    def app_backend_container(self, postgres_container: testcontainers.postgres.PostgresContainer, docker_client):
         """Build and start the app_backend Docker container."""
         # Generate a unique network name for this test run
         unique_id = uuid.uuid4().hex[:8]
         network_name = f"test-app-backend-network-{unique_id}"
 
         try:
-            project_root = get_repo_root()
+            project_root = metta.common.util.fs.get_repo_root()
             client = docker_client
 
             # Build the Docker image first
@@ -88,7 +88,7 @@ class TestDockerIntegration:
             # Start the app container
             self.logger.info("Starting app backend container")
             container = (
-                DockerContainer(image="test-app-backend:latest")
+                testcontainers.core.container.DockerContainer(image="test-app-backend:latest")
                 .with_exposed_ports(8000)
                 .with_env("STATS_DB_URI", db_uri)
                 .with_env(

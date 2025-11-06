@@ -1,10 +1,10 @@
-from mettagrid.mapgen.scenes.wfc import WFC
-from mettagrid.test_support.mapgen import render_scene
+import mettagrid.mapgen.scenes.wfc
+import mettagrid.test_support.mapgen
 
 
 def test_basic():
-    scene = render_scene(
-        WFC.Config(
+    scene = mettagrid.test_support.mapgen.render_scene(
+        mettagrid.mapgen.scenes.wfc.WFC.Config(
             pattern="""
                 .#...
                 ###..

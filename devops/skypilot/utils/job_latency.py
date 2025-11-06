@@ -13,19 +13,19 @@ import logging
 import os
 import re
 import sys
-from typing import Final
+import typing
 
-from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
-from metta.common.util.log_config import init_logging
-from metta.common.wandb.context import WandbConfig, WandbContext
-from metta.common.wandb.utils import log_to_wandb_summary
-from mettagrid.base_config import Config
+import metta.common.util.constants
+import metta.common.util.log_config
+import metta.common.wandb.context
+import metta.common.wandb.utils
+import mettagrid.base_config
 
-_EPOCH: Final = datetime.timezone.utc
-_FMT: Final = "%Y-%m-%d-%H-%M-%S-%f"
+_EPOCH: typing.Final = datetime.timezone.utc
+_FMT: typing.Final = "%Y-%m-%d-%H-%M-%S-%f"
 
 # Regex for SkyPilot task ID format
-_TS_RE: Final = re.compile(r"^sky(?:-managed)?-(?P<ts>\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}-\d{6,9})_")
+_TS_RE: typing.Final = re.compile(r"^sky(?:-managed)?-(?P<ts>\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}-\d{6,9})_")
 
 
 def parse_submission_timestamp(task_id: str) -> datetime.datetime:
@@ -52,7 +52,7 @@ def calculate_queue_latency() -> float:
 
 
 if __name__ == "__main__":
-    init_logging()
+    metta.common.util.log_config.init_logging()
     logger = logging.getLogger("metta_agent")
 
     script_start_time = datetime.datetime.now(_EPOCH).isoformat()
@@ -88,19 +88,21 @@ if __name__ == "__main__":
         exit_code = 1
 
     finally:
-        wandb_config = WandbConfig(
+        wandb_config = metta.common.wandb.context.WandbConfig(
             enabled=True,
-            project=os.environ.get("WANDB_PROJECT", METTA_WANDB_PROJECT),
-            entity=os.environ.get("WANDB_ENTITY", METTA_WANDB_ENTITY),
+            project=os.environ.get("WANDB_PROJECT", metta.common.util.constants.METTA_WANDB_PROJECT),
+            entity=os.environ.get("WANDB_ENTITY", metta.common.util.constants.METTA_WANDB_ENTITY),
             run_id=os.environ.get("METTA_RUN_ID"),
             job_type="skypilot_latency",
             tags=["skypilot", "latency"],
         )
 
         try:
-            with WandbContext(wandb_config, Config(), timeout=15) as run:
+            with metta.common.wandb.context.WandbContext(
+                wandb_config, mettagrid.base_config.Config(), timeout=15
+            ) as run:
                 if run:
-                    log_to_wandb_summary(metrics)
+                    metta.common.wandb.utils.log_to_wandb_summary(metrics)
                     logger.info(f"Logged metrics to W&B run: {run.id}")
                 else:
                     logger.warning("W&B run not initialized (offline or no connection)")

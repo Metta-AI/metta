@@ -1,10 +1,8 @@
 """Utilities for configuring PyTorch scaled dot-product attention backends."""
 
-from __future__ import annotations
 
 import contextlib
-from contextlib import contextmanager
-from typing import Optional
+import typing
 
 import torch
 
@@ -15,7 +13,7 @@ def build_sdpa_context(
     prefer_mem_efficient: bool = True,
     prefer_math: bool = True,
     set_priority: bool = True,
-) -> Optional[contextlib.AbstractContextManager]:
+) -> typing.Optional[contextlib.AbstractContextManager]:
     """Return a context manager that configures SDPA backends, if possible.
 
     The helper prefers the modern ``torch.nn.attention.sdpa_kernel`` API while
@@ -45,7 +43,7 @@ def _modern_sdpa_context(
     prefer_mem_efficient: bool,
     prefer_math: bool,
     set_priority: bool,
-) -> Optional[contextlib.AbstractContextManager]:
+) -> typing.Optional[contextlib.AbstractContextManager]:
     nn_attention = getattr(torch.nn, "attention", None)
     if nn_attention is None:
         return None
@@ -80,7 +78,7 @@ def _legacy_sdpa_context(
     enable_flash: bool,
     enable_mem_efficient: bool,
     enable_math: bool,
-) -> Optional[contextlib.AbstractContextManager]:
+) -> typing.Optional[contextlib.AbstractContextManager]:
     cuda_backends = getattr(torch.backends, "cuda", None)
     if cuda_backends is None:
         return None
@@ -95,7 +93,7 @@ def _legacy_sdpa_context(
         if not callable(enable_fn):
             continue
         query_fn = getattr(cuda_backends, query_name, None)
-        previous: Optional[bool]
+        previous: typing.Optional[bool]
         if callable(query_fn):
             try:
                 previous = bool(query_fn())
@@ -108,7 +106,7 @@ def _legacy_sdpa_context(
     if not toggles:
         return None
 
-    @contextmanager
+    @contextlib.contextmanager
     def _context():
         for enable_fn, _, desired_value in toggles:
             enable_fn(desired_value)

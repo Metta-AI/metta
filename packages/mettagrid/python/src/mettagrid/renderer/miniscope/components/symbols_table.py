@@ -1,20 +1,19 @@
 """Symbols table component for miniscope renderer."""
 
-from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
-from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
-from mettagrid.simulator import Simulation
+import mettagrid.renderer.miniscope.components.base
+import mettagrid.renderer.miniscope.miniscope_panel
+import mettagrid.renderer.miniscope.miniscope_state
+import mettagrid.simulator
 
-from .base import MiniscopeComponent
 
-
-class SymbolsTableComponent(MiniscopeComponent):
+class SymbolsTableComponent(mettagrid.renderer.miniscope.components.base.MiniscopeComponent):
     """Component for displaying game symbols and their meanings."""
 
     def __init__(
         self,
-        sim: Simulation,
-        state: MiniscopeState,
-        panels: PanelLayout,
+        sim: mettagrid.simulator.Simulation,
+        state: mettagrid.renderer.miniscope.miniscope_state.MiniscopeState,
+        panels: mettagrid.renderer.miniscope.miniscope_panel.PanelLayout,
         max_rows: int = 1000,
     ):
         """Initialize the symbols table component.

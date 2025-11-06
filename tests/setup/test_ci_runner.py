@@ -1,6 +1,5 @@
 """Tests for the metta ci command."""
 
-from __future__ import annotations
 
 import subprocess
 import sys
@@ -8,7 +7,7 @@ import sys
 import pytest
 import typer
 
-from metta.setup.tools.ci_runner import ALLOWED_SKIP_PACKAGES, _normalize_python_stage_args
+import metta.setup.tools.ci_runner
 
 pytestmark = pytest.mark.setup
 
@@ -90,11 +89,11 @@ def test_ci_non_python_stage_rejects_extra_args() -> None:
 
 
 def test_normalize_python_stage_args_allows_known_package() -> None:
-    package = next(iter(ALLOWED_SKIP_PACKAGES))
-    result = _normalize_python_stage_args(["--skip-package", package])
+    package = next(iter(metta.setup.tools.ci_runner.ALLOWED_SKIP_PACKAGES))
+    result = metta.setup.tools.ci_runner._normalize_python_stage_args(["--skip-package", package])
     assert result == ["--skip-package", package]
 
 
 def test_normalize_python_stage_args_rejects_unknown_package() -> None:
     with pytest.raises(typer.Exit):
-        _normalize_python_stage_args(["--skip-package", "does-not-exist"])
+        metta.setup.tools.ci_runner._normalize_python_stage_args(["--skip-package", "does-not-exist"])

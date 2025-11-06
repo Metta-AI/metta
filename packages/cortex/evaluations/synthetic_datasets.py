@@ -1,15 +1,15 @@
 import random
-from typing import List, Optional, Tuple
+import typing
 
 import torch
-from torch.utils.data import Dataset
+import torch.utils.data
 
 ################################################################################
 # Utility helpers
 ################################################################################
 
 
-def _split_sizes(total: int, train_frac: float, val_frac: float) -> Tuple[int, int, int]:
+def _split_sizes(total: int, train_frac: float, val_frac: float) -> typing.Tuple[int, int, int]:
     """Return number of samples in train/val/test given total and fractions."""
     n_train = int(total * train_frac)
     n_val = int(total * val_frac)
@@ -23,7 +23,7 @@ def _split_sizes(total: int, train_frac: float, val_frac: float) -> Tuple[int, i
 ################################################################################
 
 
-class DelayedRecallDataset(Dataset):
+class DelayedRecallDataset(torch.utils.data.Dataset):
     """Binary delayed‑recall / T‑maze synthetic dataset.
 
     Each sequence:
@@ -41,7 +41,7 @@ class DelayedRecallDataset(Dataset):
         *,
         seed: int = 0,
         start_idx: int = 0,
-        end_idx: Optional[int] = None,
+        end_idx: typing.Optional[int] = None,
     ) -> None:
         super().__init__()
         self.num_samples = num_samples
@@ -59,10 +59,10 @@ class DelayedRecallDataset(Dataset):
         self.ids = list(range(start_idx, end_idx))
 
     @staticmethod
-    def _generate_all(num_samples: int, delay: int, seed: int) -> Tuple[List[torch.Tensor], torch.Tensor]:
+    def _generate_all(num_samples: int, delay: int, seed: int) -> typing.Tuple[typing.List[torch.Tensor], torch.Tensor]:
         rng = random.Random(seed)
-        seqs: List[torch.Tensor] = []
-        labels: List[int] = []
+        seqs: typing.List[torch.Tensor] = []
+        labels: typing.List[int] = []
         seq_len = delay + 1
         for _ in range(num_samples):
             cue = rng.randint(0, 1)  # 0/1 equally likely
@@ -76,7 +76,7 @@ class DelayedRecallDataset(Dataset):
     def __len__(self) -> int:  # type: ignore[override]
         return len(self._seqs)
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:  # type: ignore[override]
+    def __getitem__(self, idx: int) -> typing.Tuple[torch.Tensor, torch.Tensor]:  # type: ignore[override]
         return self._seqs[idx], self._labels[idx]
 
     @classmethod
@@ -88,7 +88,7 @@ class DelayedRecallDataset(Dataset):
         train_frac: float = 0.8,
         val_frac: float = 0.1,
         seed: int = 0,
-    ) -> Tuple["DelayedRecallDataset", "DelayedRecallDataset", "DelayedRecallDataset"]:
+    ) -> typing.Tuple["DelayedRecallDataset", "DelayedRecallDataset", "DelayedRecallDataset"]:
         n_train, n_val, _ = _split_sizes(num_samples, train_frac, val_frac)
         train = cls(num_samples, delay, seed=seed, start_idx=0, end_idx=n_train)
         val = cls(num_samples, delay, seed=seed, start_idx=n_train, end_idx=n_train + n_val)
@@ -101,7 +101,7 @@ class DelayedRecallDataset(Dataset):
 ################################################################################
 
 
-class MajorityDataset(Dataset):
+class MajorityDataset(torch.utils.data.Dataset):
     """Binary majority‑vote dataset (integrator).
 
     Sequence tokens: {0 (pad), 1 ("+1"), 2 ("‑1")}
@@ -118,7 +118,7 @@ class MajorityDataset(Dataset):
         nonzero_prob: float = 0.3,
         seed: int = 0,
         start_idx: int = 0,
-        end_idx: Optional[int] = None,
+        end_idx: typing.Optional[int] = None,
     ) -> None:
         super().__init__()
         self.num_samples, self.length = num_samples, length
@@ -134,9 +134,9 @@ class MajorityDataset(Dataset):
     @staticmethod
     def _generate_all(
         num_samples: int, length: int, nonzero_prob: float, seed: int
-    ) -> Tuple[List[torch.Tensor], torch.Tensor]:
-        seqs: List[torch.Tensor] = []
-        labels: List[int] = []
+    ) -> typing.Tuple[typing.List[torch.Tensor], torch.Tensor]:
+        seqs: typing.List[torch.Tensor] = []
+        labels: typing.List[int] = []
         for _ in range(num_samples):
             # mask deciding which positions carry ±1 vs pad
             mask = torch.rand(length) < nonzero_prob
@@ -153,7 +153,7 @@ class MajorityDataset(Dataset):
     def __len__(self) -> int:  # type: ignore[override]
         return len(self._seqs)
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:  # type: ignore[override]
+    def __getitem__(self, idx: int) -> typing.Tuple[torch.Tensor, torch.Tensor]:  # type: ignore[override]
         return self._seqs[idx], self._labels[idx]
 
     @classmethod
@@ -166,7 +166,7 @@ class MajorityDataset(Dataset):
         val_frac: float = 0.1,
         nonzero_prob: float = 0.3,
         seed: int = 0,
-    ) -> Tuple["MajorityDataset", "MajorityDataset", "MajorityDataset"]:
+    ) -> typing.Tuple["MajorityDataset", "MajorityDataset", "MajorityDataset"]:
         n_train, n_val, _ = _split_sizes(num_samples, train_frac, val_frac)
         train = cls(
             num_samples,
@@ -199,7 +199,7 @@ class MajorityDataset(Dataset):
 ################################################################################
 
 
-class DyckDataset(Dataset):
+class DyckDataset(torch.utils.data.Dataset):
     """Dyck‑1 balanced‑parentheses membership (binary).
 
     Token mapping: 0 = "(", 1 = ")". Label: 1 if sequence is well‑formed, else 0.
@@ -216,7 +216,7 @@ class DyckDataset(Dataset):
         seed: int = 0,
         neg_fraction: float = 0.5,
         start_idx: int = 0,
-        end_idx: Optional[int] = None,
+        end_idx: typing.Optional[int] = None,
     ) -> None:
         super().__init__()
         self.num_samples, self.n_pairs = num_samples, n_pairs
@@ -228,7 +228,7 @@ class DyckDataset(Dataset):
         self.ids = list(range(start_idx, end_idx))
 
     @staticmethod
-    def _gen_balanced(gen: random.Random, n_pairs: int) -> List[int]:
+    def _gen_balanced(gen: random.Random, n_pairs: int) -> typing.List[int]:
         """Sample a uniformly random Dyck-1 string of length 2*n_pairs.
 
         Enforces both constraints at each step:
@@ -238,7 +238,7 @@ class DyckDataset(Dataset):
         By construction, the sequence ends with balance==0 and has exactly
         n_pairs opens and n_pairs closes.
         """
-        seq: List[int] = []
+        seq: typing.List[int] = []
         opens = 0
         closes = 0
         for _ in range(2 * n_pairs):
@@ -260,10 +260,10 @@ class DyckDataset(Dataset):
     @classmethod
     def _generate_all(
         cls, num_samples: int, n_pairs: int, seed: int, neg_fraction: float
-    ) -> Tuple[List[torch.Tensor], torch.Tensor]:
+    ) -> typing.Tuple[typing.List[torch.Tensor], torch.Tensor]:
         gen = random.Random(seed)
-        seqs: List[torch.Tensor] = []
-        labels: List[int] = []
+        seqs: typing.List[torch.Tensor] = []
+        labels: typing.List[int] = []
         for _ in range(num_samples):
             seq = cls._gen_balanced(gen, n_pairs)
             label = 1
@@ -280,7 +280,7 @@ class DyckDataset(Dataset):
     def __len__(self) -> int:  # type: ignore[override]
         return len(self._seqs)
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:  # type: ignore[override]
+    def __getitem__(self, idx: int) -> typing.Tuple[torch.Tensor, torch.Tensor]:  # type: ignore[override]
         return self._seqs[idx], self._labels[idx]
 
     @classmethod
@@ -293,7 +293,7 @@ class DyckDataset(Dataset):
         val_frac: float = 0.1,
         seed: int = 0,
         neg_fraction: float = 0.5,
-    ) -> Tuple["DyckDataset", "DyckDataset", "DyckDataset"]:
+    ) -> typing.Tuple["DyckDataset", "DyckDataset", "DyckDataset"]:
         n_train, n_val, _ = _split_sizes(num_samples, train_frac, val_frac)
         train = cls(
             num_samples,
@@ -326,7 +326,7 @@ class DyckDataset(Dataset):
 ################################################################################
 
 
-class MajorityHeadPadDataset(Dataset):
+class MajorityHeadPadDataset(torch.utils.data.Dataset):
     """Majority task where all non‑zero events are restricted to the head.
 
     - Sequence length = ``length``.
@@ -353,7 +353,7 @@ class MajorityHeadPadDataset(Dataset):
         nonzero_prob: float = 0.3,
         seed: int = 0,
         start_idx: int = 0,
-        end_idx: Optional[int] = None,
+        end_idx: typing.Optional[int] = None,
     ) -> None:
         super().__init__()
         assert 0 < tail_pad_len < length, "tail_pad_len must be in (0, length)"
@@ -371,9 +371,9 @@ class MajorityHeadPadDataset(Dataset):
     @staticmethod
     def _generate_all(
         num_samples: int, length: int, tail_pad_len: int, nonzero_prob: float, seed: int
-    ) -> Tuple[List[torch.Tensor], torch.Tensor]:
-        seqs: List[torch.Tensor] = []
-        labels: List[int] = []
+    ) -> typing.Tuple[typing.List[torch.Tensor], torch.Tensor]:
+        seqs: typing.List[torch.Tensor] = []
+        labels: typing.List[int] = []
         head_len = length - tail_pad_len
         gen = torch.Generator().manual_seed(seed)
         for _ in range(num_samples):
@@ -398,7 +398,7 @@ class MajorityHeadPadDataset(Dataset):
     def __len__(self) -> int:  # type: ignore[override]
         return len(self._seqs)
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:  # type: ignore[override]
+    def __getitem__(self, idx: int) -> typing.Tuple[torch.Tensor, torch.Tensor]:  # type: ignore[override]
         return self._seqs[idx], self._labels[idx]
 
     @classmethod
@@ -412,7 +412,7 @@ class MajorityHeadPadDataset(Dataset):
         val_frac: float = 0.1,
         nonzero_prob: float = 0.3,
         seed: int = 0,
-    ) -> Tuple["MajorityHeadPadDataset", "MajorityHeadPadDataset", "MajorityHeadPadDataset"]:
+    ) -> typing.Tuple["MajorityHeadPadDataset", "MajorityHeadPadDataset", "MajorityHeadPadDataset"]:
         n_train, n_val, _ = _split_sizes(num_samples, train_frac, val_frac)
         train = cls(
             num_samples,

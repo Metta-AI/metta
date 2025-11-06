@@ -1,9 +1,9 @@
 import sys
-from typing import Dict, List, Tuple, Union
+import typing
 
 import numpy as np
 import torch
-from torch.distributions.utils import logits_to_probs
+import torch.distributions.utils
 
 numpy_to_torch_dtype_dict = {
     np.dtype("float64"): torch.float64,
@@ -34,8 +34,8 @@ LITTLE_BYTE_ORDER = sys.byteorder == "little"
 # starting element of the observation
 # number of elements of the observation to take
 # could be a namedtuple or dataclass
-NativeDTypeValue = Tuple[torch.dtype, List[int], int, int]
-NativeDType = Union[NativeDTypeValue, Dict[str, Union[NativeDTypeValue, "NativeDType"]]]
+NativeDTypeValue = typing.Tuple[torch.dtype, typing.List[int], int, int]
+NativeDType = typing.Union[NativeDTypeValue, typing.Dict[str, typing.Union[NativeDTypeValue, "NativeDType"]]]
 
 
 # TODO: handle discrete obs
@@ -177,7 +177,7 @@ def log_prob(logits, value):
 def entropy(logits):
     min_real = torch.finfo(logits.dtype).min
     logits = torch.clamp(logits, min=min_real)
-    p_log_p = logits * logits_to_probs(logits)
+    p_log_p = logits * torch.distributions.utils.logits_to_probs(logits)
     return -p_log_p.sum(-1)
 
 
@@ -206,7 +206,7 @@ def sample_logits(logits, action=None):
 
     # This can fail on nans etc
     normalized_logits = logits - logits.logsumexp(dim=-1, keepdim=True)
-    probs = logits_to_probs(logits)
+    probs = torch.distributions.utils.logits_to_probs(logits)
 
     if action is None:
         probs = torch.nan_to_num(probs, 1e-8, 1e-8, 1e-8)

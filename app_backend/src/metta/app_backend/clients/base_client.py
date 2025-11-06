@@ -1,14 +1,14 @@
-from typing import Any, Type, TypeVar
+import typing
 
 import httpx
-from pydantic import BaseModel
+import pydantic
 
-from metta.common.auth.auth_config_reader_writer import observatory_auth_config
-from metta.common.util.collections import remove_none_values
-from metta.common.util.constants import PROD_STATS_SERVER_URI
+import metta.common.auth.auth_config_reader_writer
+import metta.common.util.collections
+import metta.common.util.constants
 
-T = TypeVar("T", bound=BaseModel)
-ClientT = TypeVar("ClientT", bound="BaseAppBackendClient")
+T = typing.TypeVar("T", bound=pydantic.BaseModel)
+ClientT = typing.TypeVar("ClientT", bound="BaseAppBackendClient")
 
 
 class NotAuthenticatedError(Exception):
@@ -28,7 +28,7 @@ def get_machine_token(stats_server_uri: str | None = None) -> str | None:
         return None
 
     # Use the same authenticator pattern as the login script
-    token = observatory_auth_config.load_token(stats_server_uri)
+    token = metta.common.auth.auth_config_reader_writer.observatory_auth_config.load_token(stats_server_uri)
 
     if not token or token.lower() == "none":
         return None
@@ -37,7 +37,9 @@ def get_machine_token(stats_server_uri: str | None = None) -> str | None:
 
 
 class BaseAppBackendClient:
-    def __init__(self, backend_url: str = PROD_STATS_SERVER_URI, machine_token: str | None = None) -> None:
+    def __init__(
+        self, backend_url: str = metta.common.util.constants.PROD_STATS_SERVER_URI, machine_token: str | None = None
+    ) -> None:
         self._http_client = httpx.AsyncClient(
             base_url=backend_url,
             timeout=30.0,
@@ -48,22 +50,24 @@ class BaseAppBackendClient:
     async def __aenter__(self):
         return self
 
-    async def __aexit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: Any) -> None:
+    async def __aexit__(
+        self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: typing.Any
+    ) -> None:
         await self.close()
 
     async def close(self):
         await self._http_client.aclose()
 
-    async def _make_request(self, response_type: Type[T], method: str, url: str, **kwargs):
-        headers = remove_none_values({"X-Auth-Token": self._machine_token})
+    async def _make_request(self, response_type: typing.Type[T], method: str, url: str, **kwargs):
+        headers = metta.common.util.collections.remove_none_values({"X-Auth-Token": self._machine_token})
         response = await self._http_client.request(method, url, headers=headers, **kwargs)
         response.raise_for_status()
         return response_type.model_validate(response.json())
 
     async def _validate_authenticated(self) -> str:
-        from metta.app_backend.server import WhoAmIResponse
+        import metta.app_backend.server
 
-        auth_user = await self._make_request(WhoAmIResponse, "GET", "/whoami")
+        auth_user = await self._make_request(metta.app_backend.server.WhoAmIResponse, "GET", "/whoami")
         if auth_user.user_email in ["unknown", None]:
             raise NotAuthenticatedError(f"Not authenticated. User: {auth_user.user_email}")
         return auth_user.user_email

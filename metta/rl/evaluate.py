@@ -1,47 +1,46 @@
-from __future__ import annotations
 
 import logging
+import typing
 import uuid
-from typing import TYPE_CHECKING, Any
 
 import wandb
 
-from metta.app_backend.clients.stats_client import StatsClient
-from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskResponse
-from metta.common.util.collections import remove_none_keys
-from metta.common.util.constants import METTASCOPE_REPLAY_URL_PREFIX
-from metta.common.wandb.context import WandbRun
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.sim.simulation_config import SimulationConfig
-from metta.sim.utils import get_or_create_policy_ids
+import metta.app_backend.clients.stats_client
+import metta.app_backend.routes.eval_task_routes
+import metta.common.util.collections
+import metta.common.util.constants
+import metta.common.wandb.context
+import metta.rl.checkpoint_manager
+import metta.sim.simulation_config
+import metta.sim.utils
 
 logger = logging.getLogger(__name__)
 
 
 # Avoid circular import: evaluator.py → evaluate.py → evaluator.py
 # EvaluatorConfig is only used as a type hint, never instantiated here
-if TYPE_CHECKING:
-    from metta.rl.training.evaluator import EvaluatorConfig
+if typing.TYPE_CHECKING:
+    import metta.rl.training.evaluator
 
 
 def evaluate_policy_remote_with_checkpoint_manager(
     policy_uri: str,
-    simulations: list[SimulationConfig],
+    simulations: list[metta.sim.simulation_config.SimulationConfig],
     stats_epoch_id: uuid.UUID | None,
-    stats_client: StatsClient | None,
-    wandb_run: WandbRun | None,
-    evaluation_cfg: EvaluatorConfig | None,
-) -> TaskResponse | None:
+    stats_client: metta.app_backend.clients.stats_client.StatsClient | None,
+    wandb_run: metta.common.wandb.context.WandbRun | None,
+    evaluation_cfg: metta.rl.training.evaluator.EvaluatorConfig | None,
+) -> metta.app_backend.routes.eval_task_routes.TaskResponse | None:
     """Create a remote evaluation task using a policy URI."""
     if not (wandb_run and stats_client and policy_uri):
         logger.warning("Remote evaluation requires wandb_run, stats_client, and policy_uri")
         return None
 
     # Normalize the policy URI
-    normalized_uri = CheckpointManager.normalize_uri(policy_uri)
+    normalized_uri = metta.rl.checkpoint_manager.CheckpointManager.normalize_uri(policy_uri)
 
     # Process policy registration using the new format
-    stats_server_policy_id = get_or_create_policy_ids(
+    stats_server_policy_id = metta.sim.utils.get_or_create_policy_ids(
         stats_client,
         [(normalized_uri, wandb_run.notes)],  # New format: (uri, description)
         stats_epoch_id,
@@ -53,7 +52,7 @@ def evaluate_policy_remote_with_checkpoint_manager(
 
     # Create evaluation task
     task = stats_client.create_task(
-        TaskCreateRequest(
+        metta.app_backend.routes.eval_task_routes.TaskCreateRequest(
             policy_id=stats_server_policy_id,
             sim_suite=simulations[0].name,
             attributes={
@@ -72,7 +71,7 @@ def upload_replay_html(
     replay_urls: dict[str, list[str]],
     agent_step: int,
     epoch: int,
-    wandb_run: WandbRun,
+    wandb_run: metta.common.wandb.context.WandbRun,
     step_metric_key: str | None = None,
     epoch_metric_key: str | None = None,
 ) -> None:
@@ -114,18 +113,18 @@ def upload_replay_html(
 
 
 def _form_mettascope_link(url: str, name: str) -> str:
-    return f'<a href="{METTASCOPE_REPLAY_URL_PREFIX}{url}" target="_blank">{name}</a>'
+    return f'<a href="{metta.common.util.constants.METTASCOPE_REPLAY_URL_PREFIX}{url}" target="_blank">{name}</a>'
 
 
 def _upload_replay_html(
     html_content: str,
     agent_step: int,
     epoch: int,
-    wandb_run: WandbRun,
+    wandb_run: metta.common.wandb.context.WandbRun,
     step_metric_key: str | None = None,
     epoch_metric_key: str | None = None,
 ) -> None:
-    payload: dict[str, Any] = remove_none_keys(
+    payload: dict[str, typing.Any] = metta.common.util.collections.remove_none_keys(
         {"replays/all": wandb.Html(html_content), step_metric_key: agent_step, epoch_metric_key: epoch}
     )
     if step_metric_key or epoch_metric_key:

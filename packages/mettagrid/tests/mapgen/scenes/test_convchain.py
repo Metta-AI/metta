@@ -1,10 +1,10 @@
-from mettagrid.mapgen.scenes.convchain import ConvChain
-from mettagrid.test_support.mapgen import render_scene
+import mettagrid.mapgen.scenes.convchain
+import mettagrid.test_support.mapgen
 
 
 def test_basic():
-    scene = render_scene(
-        ConvChain.Config(
+    scene = mettagrid.test_support.mapgen.render_scene(
+        mettagrid.mapgen.scenes.convchain.ConvChain.Config(
             pattern="""
                 ##..#
                 #....

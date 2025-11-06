@@ -1,14 +1,14 @@
+import collections.abc
+import datetime
 import json
 import logging
-from collections.abc import Mapping
-from datetime import datetime, timezone
-from typing import Any, List, Optional
+import typing
 
+import dateutil
 import wandb
-from dateutil import parser
 
-from metta.adaptive.models import RunInfo
-from metta.common.util.retry import retry_on_exception
+import metta.adaptive.models
+import metta.common.util.retry
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class WandbStore:
     STATUS_FAILED = "failed"
     STATUS_CANCELLED = "cancelled"
 
-    def __init__(self, entity: str, project: str, evaluator_prefix: Optional[str] = None):
+    def __init__(self, entity: str, project: str, evaluator_prefix: typing.Optional[str] = None):
         self.entity = entity
         self.project = project
         # Optional evaluator metrics prefix (e.g., "evaluator/eval_sweep") used to detect eval completion
@@ -32,13 +32,13 @@ class WandbStore:
         self.evaluator_prefix = evaluator_prefix
         # Don't store api instance - create fresh one each time to avoid caching
 
-    @retry_on_exception(max_retries=3, initial_delay=1.0, max_delay=30.0)
+    @metta.common.util.retry.retry_on_exception(max_retries=3, initial_delay=1.0, max_delay=30.0)
     def init_run(
         self,
         run_id: str,
         group: str | None = None,
         tags: list[str] | None = None,
-        initial_summary: dict[str, Any] | None = None,
+        initial_summary: dict[str, typing.Any] | None = None,
     ) -> None:
         """Initialize a new run in WandB with optional initial summary data."""
         logger.info(f"[WandbStore] Initializing run {run_id} for group {group}")
@@ -76,8 +76,10 @@ class WandbStore:
             # Re-raise to prevent dispatch - critical for resource management
             raise RuntimeError(f"Failed to initialize WandB run {run_id}: {e}") from e
 
-    @retry_on_exception(max_retries=3, initial_delay=1.0, max_delay=30.0)
-    def fetch_runs(self, filters: dict, limit: Optional[int] = None) -> List[RunInfo]:
+    @metta.common.util.retry.retry_on_exception(max_retries=3, initial_delay=1.0, max_delay=30.0)
+    def fetch_runs(
+        self, filters: dict, limit: typing.Optional[int] = None
+    ) -> typing.List[metta.adaptive.models.RunInfo]:
         """Fetch runs matching filter criteria.
 
         Args:
@@ -122,7 +124,7 @@ class WandbStore:
             logger.error(f"[WandbStore] Error fetching runs: {e}", exc_info=True)
             raise
 
-    @retry_on_exception(max_retries=3, initial_delay=1.0, max_delay=30.0)
+    @metta.common.util.retry.retry_on_exception(max_retries=3, initial_delay=1.0, max_delay=30.0)
     def update_run_summary(self, run_id: str, summary_update: dict) -> bool:
         """Update run summary in WandB."""
         try:
@@ -157,7 +159,7 @@ class WandbStore:
             logger.error(f"[WandbStore] Error updating run summary for run {run_id}: {e}", exc_info=True)
             return False
 
-    def _convert_run_to_info(self, run: Any) -> RunInfo:
+    def _convert_run_to_info(self, run: typing.Any) -> metta.adaptive.models.RunInfo:
         """Convert WandB run to RunInfo."""
         summary = normalize_summary(run.summary)
 
@@ -275,17 +277,17 @@ class WandbStore:
             if isinstance(run.created_at, str):
                 try:
                     # Parse ISO format datetime string
-                    created_at = parser.parse(run.created_at)
+                    created_at = dateutil.parser.parse(run.created_at)
                     # Ensure it has UTC timezone
                     if created_at.tzinfo is None:
-                        created_at = created_at.replace(tzinfo=timezone.utc)
+                        created_at = created_at.replace(tzinfo=datetime.timezone.utc)
                 except Exception:
                     created_at = None
-            elif isinstance(run.created_at, datetime):
+            elif isinstance(run.created_at, datetime.datetime):
                 created_at = run.created_at
                 # Ensure it has UTC timezone
                 if created_at.tzinfo is None:
-                    created_at = created_at.replace(tzinfo=timezone.utc)
+                    created_at = created_at.replace(tzinfo=datetime.timezone.utc)
             else:
                 created_at = None
 
@@ -293,16 +295,16 @@ class WandbStore:
         timestamp = summary.get("_timestamp")
         if timestamp is not None:
             try:
-                last_updated_at = datetime.fromtimestamp(float(timestamp), tz=timezone.utc)
+                last_updated_at = datetime.datetime.fromtimestamp(float(timestamp), tz=datetime.timezone.utc)
             except (TypeError, ValueError):
-                last_updated_at = created_at or datetime.now(timezone.utc)
+                last_updated_at = created_at or datetime.datetime.now(datetime.timezone.utc)
         elif created_at:
             last_updated_at = created_at
         else:
-            last_updated_at = datetime.now(timezone.utc)
+            last_updated_at = datetime.datetime.now(datetime.timezone.utc)
 
         # Create RunInfo with all fields set in constructor
-        info = RunInfo(
+        info = metta.adaptive.models.RunInfo(
             run_id=run.id,
             group=run.group if hasattr(run, "group") else None,
             tags=run.tags if hasattr(run, "tags") else None,
@@ -325,7 +327,7 @@ class WandbStore:
         return info
 
 
-def normalize_summary(summary: Any) -> dict[str, Any]:
+def normalize_summary(summary: typing.Any) -> dict[str, typing.Any]:
     """Best-effort conversion of a WandB run summary to a plain dict."""
 
     if summary is None:
@@ -336,7 +338,7 @@ def normalize_summary(summary: Any) -> dict[str, Any]:
         raw = summary._json_dict  # type: ignore[attr-defined]
         return normalize_summary(raw)
 
-    if isinstance(summary, Mapping):
+    if isinstance(summary, collections.abc.Mapping):
         return dict(summary)
 
     if isinstance(summary, str):
@@ -348,7 +350,7 @@ def normalize_summary(summary: Any) -> dict[str, Any]:
         except json.JSONDecodeError:
             logger.warning("WandB summary string is not valid JSON; ignoring.")
             return {}
-        if isinstance(parsed, Mapping):
+        if isinstance(parsed, collections.abc.Mapping):
             return dict(parsed)
         logger.warning("WandB summary JSON parsed to %s, not dict; ignoring.", type(parsed).__name__)
         return {}
@@ -357,13 +359,13 @@ def normalize_summary(summary: Any) -> dict[str, Any]:
     return {}
 
 
-def normalize_config(config: Any) -> dict[str, Any]:
+def normalize_config(config: typing.Any) -> dict[str, typing.Any]:
     """Convert a WandB run config to a plain dict."""
 
     if config is None:
         return {}
 
-    if isinstance(config, Mapping):
+    if isinstance(config, collections.abc.Mapping):
         return dict(config)
 
     if hasattr(config, "to_dict"):
@@ -375,7 +377,7 @@ def normalize_config(config: Any) -> dict[str, Any]:
     if hasattr(config, "json_config"):
         try:
             parsed = json.loads(config.json_config)
-            if isinstance(parsed, Mapping):
+            if isinstance(parsed, collections.abc.Mapping):
                 return dict(parsed)
         except Exception:
             pass
@@ -398,7 +400,7 @@ def normalize_config(config: Any) -> dict[str, Any]:
             return {}
         try:
             parsed = json.loads(config)
-            if isinstance(parsed, Mapping):
+            if isinstance(parsed, collections.abc.Mapping):
                 return dict(parsed)
         except json.JSONDecodeError:
             return {}

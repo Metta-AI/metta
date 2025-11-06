@@ -3,27 +3,30 @@
 import numpy as np
 
 import metta.cogworks.curriculum as cc
-from metta.cogworks.curriculum import Curriculum, CurriculumConfig, SingleTaskGenerator
-from metta.cogworks.curriculum.curriculum_env import CurriculumEnv
-from mettagrid.config.mettagrid_config import MettaGridConfig
-from mettagrid.envs.mettagrid_puffer_env import MettaGridPufferEnv
-from mettagrid.envs.stats_tracker import StatsTracker
-from mettagrid.simulator import Simulator
-from mettagrid.util.stats_writer import NoopStatsWriter
+import metta.cogworks.curriculum.curriculum_env
+import mettagrid.config.mettagrid_config
+import mettagrid.envs.mettagrid_puffer_env
+import mettagrid.envs.stats_tracker
+import mettagrid.simulator
+import mettagrid.util.stats_writer
 
 
 def test_curriculum_env_with_stats_tracker_runs_episodes():
     """Test that curriculum-wrapped environment with stats tracker runs episodes correctly."""
-    env_cfg = MettaGridConfig.EmptyRoom(num_agents=2)
+    env_cfg = mettagrid.config.mettagrid_config.MettaGridConfig.EmptyRoom(num_agents=2)
     env_cfg.game.max_steps = 50
 
-    curriculum = Curriculum(CurriculumConfig(task_generator=SingleTaskGenerator.Config(env=env_cfg)))
-    stats_writer = NoopStatsWriter()
+    curriculum = metta.cogworks.curriculum.Curriculum(
+        metta.cogworks.curriculum.CurriculumConfig(
+            task_generator=metta.cogworks.curriculum.SingleTaskGenerator.Config(env=env_cfg)
+        )
+    )
+    stats_writer = mettagrid.util.stats_writer.NoopStatsWriter()
 
-    sim = Simulator()
-    sim.add_event_handler(StatsTracker(stats_writer))
-    env = MettaGridPufferEnv(sim, curriculum.get_task().get_env_cfg())
-    env = CurriculumEnv(env, curriculum)
+    sim = mettagrid.simulator.Simulator()
+    sim.add_event_handler(mettagrid.envs.stats_tracker.StatsTracker(stats_writer))
+    env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(sim, curriculum.get_task().get_env_cfg())
+    env = metta.cogworks.curriculum.curriculum_env.CurriculumEnv(env, curriculum)
 
     num_episodes = 3
     episodes_completed = 0
@@ -59,14 +62,14 @@ def test_curriculum_env_with_stats_tracker_runs_episodes():
 
 def test_curriculum_with_multiple_tasks_runs_both():
     """Test that curriculum with 2 tasks runs both tasks."""
-    env_cfg = MettaGridConfig.EmptyRoom(num_agents=2)
+    env_cfg = mettagrid.config.mettagrid_config.MettaGridConfig.EmptyRoom(num_agents=2)
 
     # Create a curriculum with 2 tasks (different max_steps values)
     # Use None for algorithm_config to get random selection for more predictable testing
     tasks = cc.bucketed(env_cfg)
     tasks.add_bucket("game.max_steps", [20, 50])  # 2 tasks: one with 20 steps, one with 50 steps
     curriculum_config = tasks.to_curriculum(num_active_tasks=2, algorithm_config=None)
-    curriculum = Curriculum(curriculum_config)
+    curriculum = metta.cogworks.curriculum.Curriculum(curriculum_config)
 
     # First verify that the curriculum can generate both tasks
     # by sampling multiple times directly
@@ -78,14 +81,14 @@ def test_curriculum_with_multiple_tasks_runs_both():
     # Both values should be possible to generate
     assert 20 in direct_samples or 50 in direct_samples, "Curriculum should be able to generate at least one task"
 
-    stats_writer = NoopStatsWriter()
+    stats_writer = mettagrid.util.stats_writer.NoopStatsWriter()
 
-    sim = Simulator()
-    sim.add_event_handler(StatsTracker(stats_writer))
+    sim = mettagrid.simulator.Simulator()
+    sim.add_event_handler(mettagrid.envs.stats_tracker.StatsTracker(stats_writer))
     # Don't pre-initialize with a task - let CurriculumEnv handle it
     initial_task = curriculum.get_task()
-    env = MettaGridPufferEnv(sim, initial_task.get_env_cfg())
-    env = CurriculumEnv(env, curriculum)
+    env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(sim, initial_task.get_env_cfg())
+    env = metta.cogworks.curriculum.curriculum_env.CurriculumEnv(env, curriculum)
 
     # Track which tasks we've seen by their max_steps value
     seen_max_steps = set()

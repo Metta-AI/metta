@@ -1,11 +1,11 @@
-from dataclasses import dataclass
+import dataclasses
 
 # provide some constants from C++ code @ packages/mettagrid/cpp/include/mettagrid/objects/constants.hpp
 
 # TODO - consider if there is a better way to keep this in sync, perhaps by connecting to the enums via pybind?
 
 
-@dataclass
+@dataclasses.dataclass
 class TokenTypes:
     # Object type IDs
     WALL_TYPE_ID: int = 1

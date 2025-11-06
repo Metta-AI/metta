@@ -6,10 +6,10 @@ Implementation of dashboard creation, modification, and management tools using t
 
 import json
 import logging
-from typing import Any, Dict, List, Optional
+import typing
 
-from .config import WandBMCPConfig
-from .wandb_client import WandBClient
+import mcp_servers.wandb_dashboard.wandb_dashboard.config
+import mcp_servers.wandb_dashboard.wandb_dashboard.wandb_client
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ class WandBDashboardToolsStub:
     """Stub implementation of WandB dashboard tools when authentication fails."""
 
     def __init__(self):
-        self.config = WandBMCPConfig()
+        self.config = mcp_servers.wandb_dashboard.wandb_dashboard.config.WandBMCPConfig()
 
     def _auth_error_response(self, operation: str) -> str:
         """Return a consistent authentication error response."""
@@ -32,25 +32,34 @@ class WandBDashboardToolsStub:
         return json.dumps(error_result, indent=2)
 
     async def create_dashboard(
-        self, name: str, entity: str, project: str, description: str = "", sections: List[Dict[str, Any]] = None
+        self,
+        name: str,
+        entity: str,
+        project: str,
+        description: str = "",
+        sections: typing.List[typing.Dict[str, typing.Any]] = None,
     ) -> str:
         return self._auth_error_response("create_dashboard")
 
-    async def update_dashboard(self, dashboard_url: str, modifications: Dict[str, Any]) -> str:
+    async def update_dashboard(self, dashboard_url: str, modifications: typing.Dict[str, typing.Any]) -> str:
         return self._auth_error_response("update_dashboard")
 
-    async def list_dashboards(self, entity: str, project: Optional[str] = None, filters: Dict[str, Any] = None) -> str:
+    async def list_dashboards(
+        self, entity: str, project: typing.Optional[str] = None, filters: typing.Dict[str, typing.Any] = None
+    ) -> str:
         return self._auth_error_response("list_dashboards")
 
     async def get_dashboard_config(self, dashboard_url: str) -> str:
         return self._auth_error_response("get_dashboard_config")
 
     async def add_panel(
-        self, dashboard_url: str, section_name: str, panel_type: str, panel_config: Dict[str, Any]
+        self, dashboard_url: str, section_name: str, panel_type: str, panel_config: typing.Dict[str, typing.Any]
     ) -> str:
         return self._auth_error_response("add_panel")
 
-    async def list_available_metrics(self, entity: str, project: str, run_filters: Dict[str, Any] = None) -> str:
+    async def list_available_metrics(
+        self, entity: str, project: str, run_filters: typing.Dict[str, typing.Any] = None
+    ) -> str:
         return self._auth_error_response("list_available_metrics")
 
     async def clone_dashboard(self, source_url: str, new_name: str) -> str:
@@ -63,11 +72,16 @@ class WandBDashboardToolsStub:
         return self._auth_error_response("remove_panel")
 
     async def create_custom_chart(
-        self, entity: str, project: str, metrics: List[str], chart_type: str, config: Dict[str, Any]
+        self,
+        entity: str,
+        project: str,
+        metrics: typing.List[str],
+        chart_type: str,
+        config: typing.Dict[str, typing.Any],
     ) -> str:
         return self._auth_error_response("create_custom_chart")
 
-    async def bulk_delete_dashboards(self, dashboard_urls: List[str], confirmed: bool = False) -> str:
+    async def bulk_delete_dashboards(self, dashboard_urls: typing.List[str], confirmed: bool = False) -> str:
         return self._auth_error_response("bulk_delete_dashboards")
 
     async def _delete_single_dashboard(self, dashboard_url: str) -> str:
@@ -84,11 +98,16 @@ class WandBDashboardTools:
     """Tools for managing WandB dashboards through the Workspace API."""
 
     def __init__(self):
-        self.client = WandBClient()
-        self.config = WandBMCPConfig()
+        self.client = mcp_servers.wandb_dashboard.wandb_dashboard.wandb_client.WandBClient()
+        self.config = mcp_servers.wandb_dashboard.wandb_dashboard.config.WandBMCPConfig()
 
     async def create_dashboard(
-        self, name: str, entity: str, project: str, description: str = "", sections: List[Dict[str, Any]] = None
+        self,
+        name: str,
+        entity: str,
+        project: str,
+        description: str = "",
+        sections: typing.List[typing.Dict[str, typing.Any]] = None,
     ) -> str:
         """Create a real WandB dashboard using the WandB API."""
         try:
@@ -138,7 +157,7 @@ class WandBDashboardTools:
             error_result = {"status": "error", "message": f"Failed to create dashboard: {str(e)}"}
             return json.dumps(error_result, indent=2)
 
-    async def update_dashboard(self, dashboard_url: str, modifications: Dict[str, Any]) -> str:
+    async def update_dashboard(self, dashboard_url: str, modifications: typing.Dict[str, typing.Any]) -> str:
         """Update an existing dashboard using the WandB API."""
         try:
             logger.info(f"Updating dashboard: {dashboard_url}")
@@ -159,7 +178,9 @@ class WandBDashboardTools:
             error_result = {"status": "error", "message": f"Failed to update dashboard: {str(e)}"}
             return json.dumps(error_result, indent=2)
 
-    async def list_dashboards(self, entity: str, project: Optional[str] = None, filters: Dict[str, Any] = None) -> str:
+    async def list_dashboards(
+        self, entity: str, project: typing.Optional[str] = None, filters: typing.Dict[str, typing.Any] = None
+    ) -> str:
         """List available dashboards for an entity/project."""
         try:
             logger.info(f"Listing dashboards for {entity}/{project or 'all projects'}")
@@ -200,7 +221,7 @@ class WandBDashboardTools:
             return json.dumps(error_result, indent=2)
 
     async def add_panel(
-        self, dashboard_url: str, section_name: str, panel_type: str, panel_config: Dict[str, Any]
+        self, dashboard_url: str, section_name: str, panel_type: str, panel_config: typing.Dict[str, typing.Any]
     ) -> str:
         """Add a panel to an existing dashboard using the WandB API."""
         try:
@@ -224,7 +245,9 @@ class WandBDashboardTools:
             error_result = {"status": "error", "message": f"Failed to add panel: {str(e)}"}
             return json.dumps(error_result, indent=2)
 
-    async def list_available_metrics(self, entity: str, project: str, run_filters: Dict[str, Any] = None) -> str:
+    async def list_available_metrics(
+        self, entity: str, project: str, run_filters: typing.Dict[str, typing.Any] = None
+    ) -> str:
         """List available metrics for a project."""
         try:
             logger.info(f"Listing metrics for {entity}/{project}")
@@ -310,7 +333,12 @@ class WandBDashboardTools:
             return json.dumps(error_result, indent=2)
 
     async def create_custom_chart(
-        self, entity: str, project: str, metrics: List[str], chart_type: str, config: Dict[str, Any]
+        self,
+        entity: str,
+        project: str,
+        metrics: typing.List[str],
+        chart_type: str,
+        config: typing.Dict[str, typing.Any],
     ) -> str:
         """Create a custom chart/visualization with specified metrics and configuration."""
         try:
@@ -332,7 +360,7 @@ class WandBDashboardTools:
             error_result = {"status": "error", "message": f"Failed to create custom chart: {str(e)}"}
             return json.dumps(error_result, indent=2)
 
-    async def bulk_delete_dashboards(self, dashboard_urls: List[str], confirmed: bool = False) -> str:
+    async def bulk_delete_dashboards(self, dashboard_urls: typing.List[str], confirmed: bool = False) -> str:
         """Bulk delete multiple dashboards with confirmation using the WandB API."""
         try:
             logger.info(f"Bulk deleting {len(dashboard_urls)} dashboards, confirmed={confirmed}")

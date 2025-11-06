@@ -1,48 +1,50 @@
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Any, Literal
+import abc
+import dataclasses
+import typing
 
-from devops.skypilot.utils.job_config import JobConfig
-from metta.common.util.log_config import getRankAwareLogger
-from metta.common.util.retry import retry_function
+import devops.skypilot.utils.job_config
+import metta.common.util.log_config
+import metta.common.util.retry
 
-logger = getRankAwareLogger(__name__)
+logger = metta.common.util.log_config.getRankAwareLogger(__name__)
 
 
-@dataclass
+@dataclasses.dataclass
 class NotificationConfig:
     """Configuration for a notification."""
 
     title: str
     description: str
-    github_state: Literal["success", "failure", "error", "pending"]
+    github_state: typing.Literal["success", "failure", "error", "pending"]
     send_discord: bool = True
     send_wandb: bool = True
     send_github: bool = True
 
 
-class NotificationBase(ABC):
+class NotificationBase(abc.ABC):
     """Base class for all notifiers."""
 
     def __init__(self, name: str):
         self.name = name
 
-    @abstractmethod
-    def _validate_config(self, job_config: JobConfig) -> str | None:
+    @abc.abstractmethod
+    def _validate_config(self, job_config: devops.skypilot.utils.job_config.JobConfig) -> str | None:
         """Validate job config and return error message if invalid, None if valid."""
         pass
 
-    @abstractmethod
-    def _make_payload(self, notification: NotificationConfig, job_config: JobConfig) -> dict[str, Any]:
+    @abc.abstractmethod
+    def _make_payload(
+        self, notification: NotificationConfig, job_config: devops.skypilot.utils.job_config.JobConfig
+    ) -> dict[str, typing.Any]:
         """Create the notification payload."""
         pass
 
-    @abstractmethod
-    def _send(self, payload: dict[str, Any]) -> None:
+    @abc.abstractmethod
+    def _send(self, payload: dict[str, typing.Any]) -> None:
         """Send the actual notification. Should raise exception on failure."""
         pass
 
-    def send(self, notification: NotificationConfig, job_config: JobConfig) -> bool:
+    def send(self, notification: NotificationConfig, job_config: devops.skypilot.utils.job_config.JobConfig) -> bool:
         """Main entry point for sending notifications."""
 
         # Validate configuration
@@ -63,7 +65,7 @@ class NotificationBase(ABC):
 
         # Send with retry
         try:
-            retry_function(
+            metta.common.util.retry.retry_function(
                 lambda: self._send(payload),
                 max_retries=3,
                 initial_delay=2.0,

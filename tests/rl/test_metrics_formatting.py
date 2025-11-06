@@ -1,8 +1,8 @@
-from unittest.mock import MagicMock
+import unittest.mock
 
-from metta.eval.eval_request_config import EvalRewardSummary
-from metta.rl import stats as rl_stats
-from metta.rl.training.stats_reporter import build_wandb_payload
+import metta.eval.eval_request_config
+import metta.rl
+import metta.rl.training.stats_reporter
 
 
 class TestMetricsFormattingMain:
@@ -28,7 +28,7 @@ class TestMetricsFormattingMain:
         memory_stats = {"total_mb": 2048}
         parameters = {"learning_rate": 0.001, "batch_size": 32}
 
-        evals = EvalRewardSummary(
+        evals = metta.eval.eval_request_config.EvalRewardSummary(
             category_scores={"navigation": 0.8, "survival": 0.6},
             simulation_scores={
                 ("navigation", "maze"): 0.7,
@@ -39,7 +39,7 @@ class TestMetricsFormattingMain:
 
         hyperparameters = {"learning_rate": 0.001}
 
-        result = build_wandb_payload(
+        result = metta.rl.training.stats_reporter.build_wandb_payload(
             processed_stats,
             timing_info,
             weight_stats,
@@ -113,17 +113,17 @@ class TestMetricsFormattingMain:
             "single_value": 42,
         }
 
-        losses = MagicMock()
+        losses = unittest.mock.MagicMock()
         losses.stats.return_value = {"policy_loss": 0.5}
 
-        experience = MagicMock()
+        experience = unittest.mock.MagicMock()
         experience.stats.return_value = {"buffer_size": 1000}
 
-        trainer_config = MagicMock()
+        trainer_config = unittest.mock.MagicMock()
         trainer_config.ppo.l2_reg_loss_coef = 0
         trainer_config.ppo.l2_init_loss_coef = 0
 
-        result = rl_stats.process_training_stats(raw_stats, losses, experience, trainer_config)
+        result = metta.rl.stats.process_training_stats(raw_stats, losses, experience, trainer_config)
 
         assert result["mean_stats"]["reward"] == 2.0
         assert result["mean_stats"]["episode_length"] == 20

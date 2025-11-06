@@ -1,20 +1,18 @@
-from __future__ import annotations
 
-from typing import Any
+import typing
 
-from pufferlib import PufferEnv
-
-from .curriculum import Curriculum
+import metta.cogworks.curriculum.curriculum
+import pufferlib
 
 
-class CurriculumEnv(PufferEnv):
+class CurriculumEnv(pufferlib.PufferEnv):
     """Environment wrapper that integrates with a curriculum system.
 
     This wrapper passes all function calls to the wrapped environment, with special
     handling for reset() and step() methods to integrate with curriculum task management.
     """
 
-    def __init__(self, env: Any, curriculum: Curriculum):
+    def __init__(self, env: typing.Any, curriculum: metta.cogworks.curriculum.curriculum.Curriculum):
         """Initialize the curriculum environment wrapper.
 
         Args:

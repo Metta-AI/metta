@@ -1,12 +1,12 @@
 import subprocess
 
-from metta.setup.components.base import SetupModule
-from metta.setup.registry import register_module
-from metta.setup.utils import info, warning
+import metta.setup.components.base
+import metta.setup.registry
+import metta.setup.utils
 
 
-@register_module
-class NotebookWidgetsSetup(SetupModule):
+@metta.setup.registry.register_module
+class NotebookWidgetsSetup(metta.setup.components.base.SetupModule):
     install_once = False
 
     _widgets = [
@@ -57,7 +57,7 @@ class NotebookWidgetsSetup(SetupModule):
         return True
 
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
-        info("Setting up Metta's custom Python notebook widgets...")
+        metta.setup.utils.info("Setting up Metta's custom Python notebook widgets...")
         try:
             for widget in self._widgets:
                 if self.should_install_widget(widget) or force:
@@ -83,7 +83,7 @@ class NotebookWidgetsSetup(SetupModule):
                         check=True,
                         cwd=self.widget_root / widget,
                     )
-            info(
+            metta.setup.utils.info(
                 "The notebook widgets are now compiled. Check out "
                 "./experiments/notebooks/*_example.ipynb "
                 "to see them in action and learn how to use them. "
@@ -95,7 +95,7 @@ class NotebookWidgetsSetup(SetupModule):
             )
 
         except subprocess.CalledProcessError:
-            warning("""
+            metta.setup.utils.warning("""
                 NotebookWidgets compilation failed. You can compile them manually:
                 1. cd ./experiments/notebooks/utils/scorecard_widget
                 2. pnpm install

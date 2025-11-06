@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 import os
+import pathlib
 import sys
-from pathlib import Path
 
-from metta.common.util.lazypath import LazyPath
+import metta.common.util.lazypath
 
 # Repo root path calculation
-REPO_ROOT = Path(__file__).resolve().parents[5]  # Navigate up to repo root
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[5]  # Navigate up to repo root
 
 OBSERVATORY_AUTH_SERVER_URL = "https://observatory.softmax-research.net/api"
 PROD_STATS_SERVER_URI = "https://api.observatory.softmax-research.net"
@@ -23,7 +23,7 @@ METTA_AWS_ACCOUNT_ID = "751442549699"
 METTA_AWS_REGION = "us-east-1"
 METTA_SKYPILOT_URL = "skypilot-api.softmax-research.net"
 SKYPILOT_LAUNCH_PATH = str(REPO_ROOT / "devops" / "skypilot" / "launch.py")
-METTA_ENV_FILE = LazyPath(os.path.expanduser("~/.metta_env_path"))
+METTA_ENV_FILE = metta.common.util.lazypath.LazyPath(os.path.expanduser("~/.metta_env_path"))
 SOFTMAX_S3_BUCKET = "softmax-public"
 SOFTMAX_S3_BASE = f"s3://{SOFTMAX_S3_BUCKET}"
 SOFTMAX_S3_POLICY_PREFIX = f"{SOFTMAX_S3_BASE}/policies"
@@ -64,7 +64,7 @@ def main():
         val = val()
 
     # If it's a Path, cast to string
-    if isinstance(val, Path):
+    if isinstance(val, pathlib.Path):
         print(str(val))
     else:
         print(val)

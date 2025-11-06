@@ -5,10 +5,9 @@ including parallel and recurrent processing modes, as well as the
 chunkwise implementation for efficient sequence processing.
 """
 
-from __future__ import annotations
 
 import math
-from typing import Optional
+import typing
 
 import torch
 
@@ -22,7 +21,7 @@ def mlstm_recurrent_step_stabilized_simple(
     v: torch.Tensor,
     igate_preact: torch.Tensor,
     fgate_preact: torch.Tensor,
-    reset_mask: Optional[torch.Tensor] = None,  # B - boolean mask for resets
+    reset_mask: typing.Optional[torch.Tensor] = None,  # B - boolean mask for resets
     eps: float = 1e-6,
     **kwargs,
 ) -> tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
@@ -92,10 +91,10 @@ def mlstm_chunkwise_simple(
     values: torch.Tensor,  # B, NH, S, DH
     igate_preact: torch.Tensor,  # B, NH, S
     fgate_preact: torch.Tensor,  # B, NH, S
-    initial_C: Optional[torch.Tensor] = None,  # B, NH, DH, DH
-    initial_n: Optional[torch.Tensor] = None,  # B, NH, DH or (B, NH, DH, 1)
-    initial_m: Optional[torch.Tensor] = None,  # B, NH, 1, 1
-    reset_mask: Optional[torch.Tensor] = None,  # B, S - boolean mask for resets
+    initial_C: typing.Optional[torch.Tensor] = None,  # B, NH, DH, DH
+    initial_n: typing.Optional[torch.Tensor] = None,  # B, NH, DH or (B, NH, DH, 1)
+    initial_m: typing.Optional[torch.Tensor] = None,  # B, NH, 1, 1
+    reset_mask: typing.Optional[torch.Tensor] = None,  # B, S - boolean mask for resets
     chunk_size: int = 64,
     return_last_state: bool = False,
     eps: float = 1e-6,

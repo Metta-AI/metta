@@ -1,24 +1,23 @@
-from __future__ import annotations
 
-from typing import Annotated, Any
+import typing
 
 import numpy as np
-from pydantic import StringConstraints, field_validator
+import pydantic
 
-from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
-from mettagrid.mapgen.utils.ascii_grid import merge_with_global_defaults
+import mettagrid.map_builder.map_builder
+import mettagrid.mapgen.utils.ascii_grid
 
 
-class AsciiMapBuilderConfig(MapBuilderConfig):
+class AsciiMapBuilderConfig(mettagrid.map_builder.map_builder.MapBuilderConfig):
     map_data: list[list[str]]
     char_to_name_map: dict[
-        Annotated[str, StringConstraints(min_length=1, max_length=1)],  # keys are single characters
-        Annotated[str, StringConstraints(pattern=r"^[\w\.]+$")],  # values are object names
+        typing.Annotated[str, pydantic.StringConstraints(min_length=1, max_length=1)],  # keys are single characters
+        typing.Annotated[str, pydantic.StringConstraints(pattern=r"^[\w\.]+$")],  # values are object names
     ]
 
-    @field_validator("map_data", mode="before")
+    @pydantic.field_validator("map_data", mode="before")
     @classmethod
-    def _validate_multiline_map_data(cls, value: Any):
+    def _validate_multiline_map_data(cls, value: typing.Any):
         # coerce single multi-line string -> list[list[str]]
         if isinstance(value, str):
             return [list(line) for line in value.splitlines()]
@@ -27,7 +26,7 @@ class AsciiMapBuilderConfig(MapBuilderConfig):
             return [list(line) for line in value]
         return value
 
-    @field_validator("map_data", mode="after")
+    @pydantic.field_validator("map_data", mode="after")
     @classmethod
     def _validate_map_data_lines(cls, map_data: list[str]):
         width = len(map_data[0])
@@ -37,10 +36,10 @@ class AsciiMapBuilderConfig(MapBuilderConfig):
             )
         return map_data
 
-    @field_validator("char_to_name_map", mode="after")
+    @pydantic.field_validator("char_to_name_map", mode="after")
     @classmethod
     def _validate_char_to_name_map(cls, value: dict[str, str]):
-        return merge_with_global_defaults(value)
+        return mettagrid.mapgen.utils.ascii_grid.merge_with_global_defaults(value)
 
     @property
     def width(self) -> int:
@@ -51,7 +50,7 @@ class AsciiMapBuilderConfig(MapBuilderConfig):
         return len(self.map_data)
 
 
-class AsciiMapBuilder(MapBuilder[AsciiMapBuilderConfig]):
+class AsciiMapBuilder(mettagrid.map_builder.map_builder.MapBuilder[AsciiMapBuilderConfig]):
     """
     Builds a game map from an ASCII string.
     """
@@ -68,5 +67,5 @@ class AsciiMapBuilder(MapBuilder[AsciiMapBuilderConfig]):
             return self.config.char_to_name_map[char]
         raise ValueError(f"Unknown character: '{char}'. Available: {list(self.config.char_to_name_map.keys())}")
 
-    def build(self) -> GameMap:
-        return GameMap(self._level)
+    def build(self) -> mettagrid.map_builder.map_builder.GameMap:
+        return mettagrid.map_builder.map_builder.GameMap(self._level)

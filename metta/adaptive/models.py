@@ -1,32 +1,32 @@
 """Data models for adaptive experiment orchestration."""
 
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
-from enum import StrEnum, auto
-from typing import Any
+import dataclasses
+import datetime
+import enum
+import typing
 
 
-class JobTypes(StrEnum):
-    LAUNCH_TRAINING = auto()
-    LAUNCH_EVAL = auto()
+class JobTypes(enum.StrEnum):
+    LAUNCH_TRAINING = enum.auto()
+    LAUNCH_EVAL = enum.auto()
 
 
-@dataclass
+@dataclasses.dataclass
 class JobDefinition:
     run_id: str
     cmd: str  # e.g., "experiments.recipes.arena.train_shaped" or "experiments.recipes.arena.evaluate"
     gpus: int = 1
     nodes: int = 1
     # Single source for recipe arguments (serialized as --args key=value)
-    args: dict[str, Any] = field(default_factory=dict)
+    args: dict[str, typing.Any] = dataclasses.field(default_factory=dict)
     # Single source for config overrides (serialized as --overrides key=value)
-    overrides: dict[str, Any] = field(default_factory=dict)
+    overrides: dict[str, typing.Any] = dataclasses.field(default_factory=dict)
     type: JobTypes = JobTypes.LAUNCH_TRAINING  # JobTypes enum value
-    created_at: datetime = field(default_factory=datetime.now)
-    metadata: dict[str, Any] = field(default_factory=dict)
+    created_at: datetime.datetime = dataclasses.field(default_factory=datetime.datetime.now)
+    metadata: dict[str, typing.Any] = dataclasses.field(default_factory=dict)
 
 
-class JobStatus(StrEnum):
+class JobStatus(enum.StrEnum):
     PENDING = "PENDING"  # Initialized but not started
     IN_TRAINING = "IN TRAINING"
     TRAINING_DONE_NO_EVAL = "TRAINING DONE (NO EVAL)"
@@ -36,7 +36,7 @@ class JobStatus(StrEnum):
     FAILED = "FAILED"  # Job failed during training or evaluation
 
 
-@dataclass
+@dataclasses.dataclass
 class RunInfo:
     """Standardized run information returned by Store"""
 
@@ -45,10 +45,10 @@ class RunInfo:
     tags: list | None = None
 
     # Timestamps
-    created_at: datetime | None = None
-    started_at: datetime | None = None
-    completed_at: datetime | None = None
-    last_updated_at: datetime | None = None
+    created_at: datetime.datetime | None = None
+    started_at: datetime.datetime | None = None
+    completed_at: datetime.datetime | None = None
+    last_updated_at: datetime.datetime | None = None
 
     # Configuration and results
     # TODO Clean up run lifecycle management
@@ -68,12 +68,14 @@ class RunInfo:
     @property
     def status(self) -> JobStatus:
         time_since_last_updated = (
-            datetime.now(timezone.utc) - self.last_updated_at if self.last_updated_at else timedelta(seconds=0)
+            datetime.datetime.now(datetime.timezone.utc) - self.last_updated_at
+            if self.last_updated_at
+            else datetime.timedelta(seconds=0)
         )
         if (
             not self.has_failed
             and not self.has_completed_training
-            and time_since_last_updated > timedelta(seconds=1200)
+            and time_since_last_updated > datetime.timedelta(seconds=1200)
         ):
             return JobStatus.STALE
         if self.has_failed:

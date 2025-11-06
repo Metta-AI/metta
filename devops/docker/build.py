@@ -5,18 +5,20 @@ import shutil
 import subprocess
 import sys
 
-from metta.common.util.cli import get_user_confirmation
-from metta.common.util.fs import cd_repo_root
+import metta.common.util.cli
+import metta.common.util.fs
 
 
 def main():
-    cd_repo_root()
+    metta.common.util.fs.cd_repo_root()
 
     parser = argparse.ArgumentParser(description="Build the metta image")
     parser.add_argument("--image-name", default="mettaai/metta:latest")
     args = parser.parse_args()
 
-    if not get_user_confirmation("Images should normally be built by CI. Do you want to proceed?"):
+    if not metta.common.util.cli.get_user_confirmation(
+        "Images should normally be built by CI. Do you want to proceed?"
+    ):
         sys.exit(0)
 
     if shutil.which("docker") is None:

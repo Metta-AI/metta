@@ -5,12 +5,12 @@ Creates __init__.py files in subdirectories that don't have them,
 allowing Python to import recipes from those directories.
 """
 
-from pathlib import Path
+import pathlib
 
-from metta.common.util.fs import cd_repo_root
+import metta.common.util.fs
 
 
-def ensure_recipe_packages(base_dir: Path = Path("experiments/recipes")) -> list[Path]:
+def ensure_recipe_packages(base_dir: pathlib.Path = pathlib.Path("experiments/recipes")) -> list[pathlib.Path]:
     """Create __init__.py files in subdirectories missing them.
 
     Returns:
@@ -42,7 +42,7 @@ def ensure_recipe_packages(base_dir: Path = Path("experiments/recipes")) -> list
 if __name__ == "__main__":
     import sys
 
-    cd_repo_root()
+    metta.common.util.fs.cd_repo_root()
 
     created = ensure_recipe_packages()
 

@@ -1,23 +1,23 @@
+import contextlib
+import dataclasses
 import functools
 import inspect
 import logging
 import threading
 import time
-from contextlib import contextmanager
-from dataclasses import asdict, dataclass, field
-from typing import Any, Callable, ContextManager, Final, Tuple, TypedDict, TypeVar, cast
+import typing
 
-F = TypeVar("F", bound=Callable[..., Any])
+F = typing.TypeVar("F", bound=typing.Callable[..., typing.Any])
 
 
-class Checkpoint(TypedDict):
+class Checkpoint(typing.TypedDict):
     """A checkpoint/lap marker in a timer."""
 
     elapsed_time: float
     steps: int
 
 
-@dataclass
+@dataclasses.dataclass
 class Timer:
     """State and statistics for a single timer."""
 
@@ -25,9 +25,9 @@ class Timer:
     start_time: float | None = None
     total_elapsed: float = 0.0
     last_elapsed: float = 0.0
-    checkpoints: dict[str, Checkpoint] = field(default_factory=dict)
+    checkpoints: dict[str, Checkpoint] = dataclasses.field(default_factory=dict)
     lap_counter: int = 0
-    references: set[tuple[str, int]] = field(default_factory=set)  # Changed to set of tuples
+    references: set[tuple[str, int]] = dataclasses.field(default_factory=set)  # Changed to set of tuples
     max_laps: int = 4
 
     def is_running(self) -> bool:
@@ -44,7 +44,7 @@ class Timer:
             self.checkpoints = dict(checkpoints_to_keep)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "Timer":
+    def from_dict(cls, data: dict[str, typing.Any]) -> "Timer":
         """Create a Timer instance from a dictionary created using .asdict()."""
         references_data = data.get("references", [])
 
@@ -63,7 +63,7 @@ class Timer:
         )
 
 
-def _capture_caller_info(extra_skip_frames: int = 0) -> Tuple[str, int]:
+def _capture_caller_info(extra_skip_frames: int = 0) -> typing.Tuple[str, int]:
     """Capture the filename and line number of the caller."""
     frame = inspect.currentframe()
     try:
@@ -93,7 +93,7 @@ def with_timer(timer: "Stopwatch", name: str, log_level: int | None = None):
             with timer.time(name, log_level=log_level, filename=filename, lineno=lineno):
                 return func(*args, **kwargs)
 
-        return cast(F, wrapper)
+        return typing.cast(F, wrapper)
 
     return decorator
 
@@ -115,7 +115,7 @@ def with_instance_timer(name: str, log_level: int | None = None, timer_attr: str
             with timer.time(name, log_level=log_level, filename=filename, lineno=lineno):
                 return func(*args, **kwargs)
 
-        return cast(F, wrapper)
+        return typing.cast(F, wrapper)
 
     return decorator
 
@@ -134,13 +134,13 @@ def with_lock(func: F) -> F:
         with self._lock:
             return func(self, *args, **kwargs)
 
-    return cast(F, wrapper)
+    return typing.cast(F, wrapper)
 
 
 class Stopwatch:
     """A thread-safe utility class for timing code execution with support for multiple named timers."""
 
-    _GLOBAL_TIMER_NAME: Final[str] = "global"  # Reserved name for the global timer
+    _GLOBAL_TIMER_NAME: typing.Final[str] = "global"  # Reserved name for the global timer
 
     def __init__(self, log_level: int | None = None, max_laps: int = 4):
         self.logger = logging.getLogger(f"Stopwatch.{id(self)}")
@@ -263,7 +263,7 @@ class Stopwatch:
         timer.start_time = None
         return elapsed
 
-    @contextmanager
+    @contextlib.contextmanager
     def time(
         self,
         name: str | None = None,
@@ -288,7 +288,7 @@ class Stopwatch:
                 display_name = name or self.GLOBAL_TIMER_NAME
                 self.logger.log(log_level, f"{display_name} took {elapsed:.3f}s")
 
-    def __call__(self, name: str | None = None, log_level: int | None = None) -> ContextManager["Stopwatch"]:
+    def __call__(self, name: str | None = None, log_level: int | None = None) -> typing.ContextManager["Stopwatch"]:
         """Make Stopwatch callable to return context manager.
 
         Args:
@@ -476,7 +476,9 @@ class Stopwatch:
         else:
             return f"{seconds / 86400:.1f} days"
 
-    def estimate_remaining(self, current_steps: int, total_steps: int, name: str | None = None) -> Tuple[float, str]:
+    def estimate_remaining(
+        self, current_steps: int, total_steps: int, name: str | None = None
+    ) -> typing.Tuple[float, str]:
         """Estimate remaining time based on current rate."""
         rate = self.get_rate(current_steps, name)
         if rate <= 0:
@@ -505,7 +507,7 @@ class Stopwatch:
         )
 
     @with_lock
-    def get_summary(self, name: str | None = None) -> dict[str, Any]:
+    def get_summary(self, name: str | None = None) -> dict[str, typing.Any]:
         """Get summary statistics for a timer."""
         timer = self._get_timer(name)
         return {
@@ -517,7 +519,7 @@ class Stopwatch:
             "max_laps": timer.max_laps,
         }
 
-    def get_all_summaries(self) -> dict[str, dict[str, Any]]:
+    def get_all_summaries(self) -> dict[str, dict[str, typing.Any]]:
         """Get summaries for all timers."""
         with self._lock:
             timer_items = list(self._timers.items())
@@ -549,7 +551,7 @@ class Stopwatch:
 
     def _get_lap_checkpoints(
         self, lap_index: int = -1, name: str | None = None
-    ) -> Tuple[Checkpoint, Checkpoint] | None:
+    ) -> typing.Tuple[Checkpoint, Checkpoint] | None:
         """Get the start and end checkpoints for a specified lap.
 
         Args:
@@ -636,7 +638,7 @@ class Stopwatch:
             return "multifile"
 
     @with_lock
-    def save_state(self) -> dict[str, Any]:
+    def save_state(self) -> dict[str, typing.Any]:
         """Save the complete state of all timers to a serializable dictionary.
 
         Returns:
@@ -652,7 +654,7 @@ class Stopwatch:
 
         for name, timer in self._timers.items():
             # Convert timer to dict using dataclass asdict
-            timer_dict = asdict(timer)
+            timer_dict = dataclasses.asdict(timer)
 
             # Convert set to list for JSON serialization
             timer_dict["references"] = list(timer.references)
@@ -675,7 +677,7 @@ class Stopwatch:
         return state
 
     @with_lock
-    def load_state(self, state: dict[str, Any], resume_running: bool = True) -> None:
+    def load_state(self, state: dict[str, typing.Any], resume_running: bool = True) -> None:
         """Load timer state from a dictionary.
 
         Args:

@@ -1,7 +1,7 @@
-from mettagrid.base_config import Config
+import mettagrid.base_config
 
 
-class AnalysisConfig(Config):
+class AnalysisConfig(mettagrid.base_config.Config):
     # Policy URI to analyze
     policy_uri: str | None = None
 

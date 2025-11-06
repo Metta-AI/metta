@@ -19,12 +19,12 @@ import sky  # noqa: E402
 import sky.exceptions  # noqa: E402
 import yaml  # noqa: E402
 
+import devops.skypilot.utils.cost_monitor  # noqa: E402
+import devops.skypilot.utils.job_helpers  # noqa: E402
 import gitta as git  # noqa: E402
-from devops.skypilot.utils.cost_monitor import get_instance_cost  # noqa: E402
-from devops.skypilot.utils.job_helpers import set_task_secrets  # noqa: E402
-from metta.common.util.cli import spinner  # noqa: E402
-from metta.common.util.retry import retry_function  # noqa: E402
-from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow  # noqa: E402
+import metta.common.util.cli  # noqa: E402
+import metta.common.util.retry  # noqa: E402
+import metta.common.util.text_styles  # noqa: E402
 
 
 class CredentialWarningHandler(logging.Handler):
@@ -37,9 +37,9 @@ class CredentialWarningHandler(logging.Handler):
 
             # Check for specific credential-related messages
             if "refresh failed" in message or "Token has expired" in message:
-                print(f"\n{yellow('⚠️  AWS credentials need refresh')}")
+                print(f"\n{metta.common.util.text_styles.yellow('⚠️  AWS credentials need refresh')}")
                 print("   Your AWS session is expiring but still functional")
-                print(f"   Run {green('aws sso login')} when convenient to refresh\n")
+                print(f"   Run {metta.common.util.text_styles.green('aws sso login')} when convenient to refresh\n")
 
 
 # Set up custom logging for botocore.credentials
@@ -52,7 +52,7 @@ credentials_logger.propagate = False
 
 def get_existing_clusters():
     """Get existing clusters."""
-    with spinner("Fetching existing clusters", style=cyan):
+    with metta.common.util.cli.spinner("Fetching existing clusters", style=metta.common.util.text_styles.cyan):
         request_id = sky.status()
         cluster_records = sky.get(request_id)
     return cluster_records
@@ -95,11 +95,11 @@ def format_cluster_info(cluster):
 
     # Status formatting
     status_map = {
-        "UP": (green, "running"),
-        "STOPPED": (red, "stopped"),
-        "INIT": (cyan, "launching"),
+        "UP": (metta.common.util.text_styles.green, "running"),
+        "STOPPED": (metta.common.util.text_styles.red, "stopped"),
+        "INIT": (metta.common.util.text_styles.cyan, "launching"),
     }
-    color_func, status_msg = status_map.get(status, (yellow, status.lower()))
+    color_func, status_msg = status_map.get(status, (metta.common.util.text_styles.yellow, status.lower()))
 
     # GPU info
     gpu_info = ""
@@ -124,9 +124,9 @@ def print_cluster_status(clusters, title=None):
         if cluster["status"].name == "INIT":
             cluster_name = cluster["name"]
             print(
-                f"    💡 If stuck in INIT for >10min, try: {green(f'uv run sky launch -c {cluster_name} --no-setup')}"
+                f"    💡 If stuck in INIT for >10min, try: {metta.common.util.text_styles.green(f'uv run sky launch -c {cluster_name} --no-setup')}"
             )
-            print(f"    📊 Check logs: {green(f'uv run sky logs {cluster_name}')}")
+            print(f"    📊 Check logs: {metta.common.util.text_styles.green(f'uv run sky logs {cluster_name}')}")
 
 
 def print_management_commands(clusters):
@@ -138,12 +138,12 @@ def print_management_commands(clusters):
     first_stopped_cluster = next((c["name"] for c in clusters if c["status"].name == "STOPPED"), None)
 
     print("\n📦 Manage sandboxes:")
-    print(f"  Launch new:     {green('./devops/skypilot/sandbox.py --new')}")
-    print(f"  Connect:        {green(f'ssh {first_cluster_name}')}")
+    print(f"  Launch new:     {metta.common.util.text_styles.green('./devops/skypilot/sandbox.py --new')}")
+    print(f"  Connect:        {metta.common.util.text_styles.green(f'ssh {first_cluster_name}')}")
     if first_stopped_cluster:
-        print(f"  Restart:        {green(f'uv run sky start {first_stopped_cluster}')}")
-    print(f"  Stop:           {green(f'uv run sky stop {first_cluster_name}')}")
-    print(f"  Delete:         {red(f'uv run sky down {first_cluster_name}')}")
+        print(f"  Restart:        {metta.common.util.text_styles.green(f'uv run sky start {first_stopped_cluster}')}")
+    print(f"  Stop:           {metta.common.util.text_styles.green(f'uv run sky stop {first_cluster_name}')}")
+    print(f"  Delete:         {metta.common.util.text_styles.red(f'uv run sky down {first_cluster_name}')}")
 
 
 def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us-east-1", cloud: str = "aws"):
@@ -183,14 +183,18 @@ def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us
     # Try to calculate cost
     hourly_cost = None
     try:
-        with spinner(f"Calculating cost for {instance_type}", style=cyan):
-            hourly_cost = get_instance_cost(instance_type=instance_type, region=region, use_spot=False)
+        with metta.common.util.cli.spinner(
+            f"Calculating cost for {instance_type}", style=metta.common.util.text_styles.cyan
+        ):
+            hourly_cost = devops.skypilot.utils.cost_monitor.get_instance_cost(
+                instance_type=instance_type, region=region, use_spot=False
+            )
 
         if hourly_cost is not None:
             hourly_cost *= estimated_multiplier
 
     except Exception as e:
-        print(f"\n{yellow('⚠️  Unable to calculate cost:')} {str(e)}")
+        print(f"\n{metta.common.util.text_styles.yellow('⚠️  Unable to calculate cost:')} {str(e)}")
         print("   Continuing without cost information...\n")
 
     return instance_type, region, hourly_cost
@@ -199,7 +203,9 @@ def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us
 def print_cost_info(hourly_cost, num_gpus):
     """Print cost information in a consistent format."""
     if hourly_cost is not None:
-        print(f"Approximate cost: {green(f'~${hourly_cost:.2f}/hour')} (on-demand pricing)")
+        print(
+            f"Approximate cost: {metta.common.util.text_styles.green(f'~${hourly_cost:.2f}/hour')} (on-demand pricing)"
+        )
     else:
         # Provide a rough estimate when we can't calculate exact cost
         gpu_cost_estimates = {
@@ -209,7 +215,9 @@ def print_cost_info(hourly_cost, num_gpus):
             8: "~$5.60-7.20/hour",
         }
         estimate = gpu_cost_estimates.get(num_gpus, f"~${0.70 * num_gpus:.2f}-{0.90 * num_gpus:.2f}/hour")
-        print(f"Approximate cost: {yellow(estimate)} (estimated for {num_gpus} L4 GPU{'s' if num_gpus > 1 else ''})")
+        print(
+            f"Approximate cost: {metta.common.util.text_styles.yellow(estimate)} (estimated for {num_gpus} L4 GPU{'s' if num_gpus > 1 else ''})"
+        )
 
 
 def check_cluster_status(cluster_name: str) -> str:
@@ -244,13 +252,15 @@ def wait_for_cluster_ready(cluster_name: str, timeout_seconds: int = 300) -> boo
         if remaining <= 0:
             raise TimeoutError(f"Cluster did not reach UP state within {timeout_seconds} seconds")
 
-        with spinner(f"Checking cluster status (remaining: {int(remaining)}s)", style=cyan):
+        with metta.common.util.cli.spinner(
+            f"Checking cluster status (remaining: {int(remaining)}s)", style=metta.common.util.text_styles.cyan
+        ):
             status = check_cluster_status(cluster_name)
 
         if status == "UP":
             return True
         elif status == "INIT":
-            print(f"{yellow('⏳')} Cluster still initializing...")
+            print(f"{metta.common.util.text_styles.yellow('⏳')} Cluster still initializing...")
             raise Exception("Cluster still in INIT state")  # Will trigger retry
         elif status is None:
             raise Exception("Cluster not found in status output")
@@ -258,16 +268,16 @@ def wait_for_cluster_ready(cluster_name: str, timeout_seconds: int = 300) -> boo
             raise Exception(f"Cluster in unexpected state: {status}")
 
     try:
-        retry_function(
+        metta.common.util.retry.retry_function(
             check_and_validate_status,
             max_retries=timeout_seconds // 5,
             max_delay=5.0,
             exceptions=(Exception,),
         )
-        print(f"{green('✓')} Cluster is now UP and ready")
+        print(f"{metta.common.util.text_styles.green('✓')} Cluster is now UP and ready")
         return True
     except Exception as e:
-        print(f"\n{red('✗')} {str(e)}")
+        print(f"\n{metta.common.util.text_styles.red('✗')} {str(e)}")
         return False
 
 
@@ -277,12 +287,14 @@ def handle_check_mode(clusters):
     user_sandboxes = get_user_sandboxes(clusters)
 
     if not user_sandboxes:
-        print(f"{green('✓')} No active sandboxes found for user {bold(username)}")
+        print(
+            f"{metta.common.util.text_styles.green('✓')} No active sandboxes found for user {metta.common.util.text_styles.bold(username)}"
+        )
         print("\nLaunch your first sandbox:")
-        print(f"  {green('./devops/skypilot/sandbox.py --new')}")
+        print(f"  {metta.common.util.text_styles.green('./devops/skypilot/sandbox.py --new')}")
         return 0
 
-    print(f"{bold(f'Found {len(user_sandboxes)} sandbox(es) for user {username}:')}")
+    print(f"{metta.common.util.text_styles.bold(f'Found {len(user_sandboxes)} sandbox(es) for user {username}:')}")
 
     # Count by status
     status_counts = {"UP": 0, "STOPPED": 0, "INIT": 0}
@@ -296,13 +308,13 @@ def handle_check_mode(clusters):
         print(f"  • {color_func(cluster['name'])} ({status_msg}){gpu_info}")
 
     # Summary
-    print(f"\n{bold('Summary:')}")
+    print(f"\n{metta.common.util.text_styles.bold('Summary:')}")
     if status_counts["UP"] > 0:
-        print(f"  {green(str(status_counts['UP']) + ' running')}")
+        print(f"  {metta.common.util.text_styles.green(str(status_counts['UP']) + ' running')}")
     if status_counts["STOPPED"] > 0:
-        print(f"  {red(str(status_counts['STOPPED']) + ' stopped')}")
+        print(f"  {metta.common.util.text_styles.red(str(status_counts['STOPPED']) + ' stopped')}")
     if status_counts["INIT"] > 0:
-        print(f"  {cyan(str(status_counts['INIT']) + ' launching')}")
+        print(f"  {metta.common.util.text_styles.cyan(str(status_counts['INIT']) + ' launching')}")
 
     print_management_commands(user_sandboxes)
     return 0
@@ -363,7 +375,9 @@ Common management commands:
 
     # Validate conflicting arguments
     if args.sweep_controller and args.gpus > 1:
-        print(f"{red('✗')} Error: --sweep-controller mode is CPU-only and cannot use GPUs.")
+        print(
+            f"{metta.common.util.text_styles.red('✗')} Error: --sweep-controller mode is CPU-only and cannot use GPUs."
+        )
         print(f"  Either use --sweep-controller without --gpus, or use regular mode with --gpus {args.gpus}")
         return 1
 
@@ -373,7 +387,7 @@ Common management commands:
     try:
         existing_clusters = get_existing_clusters()
     except Exception as e:
-        print(f"{red('✗')} Failed to fetch existing clusters: {str(e)}")
+        print(f"{metta.common.util.text_styles.red('✗')} Failed to fetch existing clusters: {str(e)}")
         return 1
 
     # Handle --check mode
@@ -392,13 +406,17 @@ Common management commands:
 
     # Determine configuration based on --sweep-controller flag
     if args.sweep_controller:
-        print(f"\n🚀 Launching {blue(cluster_name)} in {bold('CPU-ONLY MODE')}")
+        print(
+            f"\n🚀 Launching {metta.common.util.text_styles.blue(cluster_name)} in {metta.common.util.text_styles.bold('CPU-ONLY MODE')}"
+        )
         config_path = "./devops/skypilot/config/sandbox_cheap.yaml"
     else:
-        print(f"\n🚀 Launching {blue(cluster_name)} with {bold(str(args.gpus))} L4 GPU(s)")
+        print(
+            f"\n🚀 Launching {metta.common.util.text_styles.blue(cluster_name)} with {metta.common.util.text_styles.bold(str(args.gpus))} L4 GPU(s)"
+        )
         config_path = "./devops/skypilot/config/sandbox.yaml"
 
-    print(f"🔌 Git ref: {cyan(git_ref)}")
+    print(f"🔌 Git ref: {metta.common.util.text_styles.cyan(git_ref)}")
 
     # Load configuration
     config = load_sandbox_config(config_path)
@@ -411,22 +429,32 @@ Common management commands:
     if args.sweep_controller:
         # For CPU-only mode, read the instance type from config
         instance_type = resources.get("instance_type", "m6i.2xlarge")
-        print(f"Instance type: {bold(instance_type)} in {bold(region)}")
+        print(
+            f"Instance type: {metta.common.util.text_styles.bold(instance_type)} in {metta.common.util.text_styles.bold(region)}"
+        )
 
         # Try to calculate on-demand cost dynamically
         hourly_cost = None
         try:
-            with spinner(f"Calculating cost for {instance_type}", style=cyan):
-                hourly_cost = get_instance_cost(instance_type=instance_type, region=region, use_spot=False)
+            with metta.common.util.cli.spinner(
+                f"Calculating cost for {instance_type}", style=metta.common.util.text_styles.cyan
+            ):
+                hourly_cost = devops.skypilot.utils.cost_monitor.get_instance_cost(
+                    instance_type=instance_type, region=region, use_spot=False
+                )
         except Exception:
             hourly_cost = None
 
         if hourly_cost is not None:
-            print(f"Approximate cost: {green(f'~${hourly_cost:.3f}/hour')} (on-demand pricing)")
+            print(
+                f"Approximate cost: {metta.common.util.text_styles.green(f'~${hourly_cost:.3f}/hour')} (on-demand pricing)"
+            )
         else:
             # Fallback hint when cost API is unavailable
             if instance_type == "m6i.2xlarge":
-                print(f"Approximate cost: {green('~$0.384/hour')} (on-demand pricing, us-east-1)")
+                print(
+                    f"Approximate cost: {metta.common.util.text_styles.green('~$0.384/hour')} (on-demand pricing, us-east-1)"
+                )
             else:
                 print("Approximate cost: (unavailable) – check AWS pricing for your region.")
     else:
@@ -438,16 +466,18 @@ Common management commands:
         instance_type, region, hourly_cost = get_gpu_instance_info(args.gpus, gpu_type, region, cloud)
 
         if instance_type:
-            print(f"Instance type: {bold(instance_type)} in {bold(region)}")
+            print(
+                f"Instance type: {metta.common.util.text_styles.bold(instance_type)} in {metta.common.util.text_styles.bold(region)}"
+            )
 
         print_cost_info(hourly_cost, args.gpus)
 
     autostop_hours = 48
 
     # Prepare task
-    with spinner("Preparing task configuration", style=cyan):
+    with metta.common.util.cli.spinner("Preparing task configuration", style=metta.common.util.text_styles.cyan):
         task = sky.Task.from_yaml(config_path)
-        set_task_secrets(task)
+        devops.skypilot.utils.job_helpers.set_task_secrets(task)
 
         if not args.sweep_controller:
             # Only override GPU resources for non-cheap mode
@@ -462,8 +492,8 @@ Common management commands:
     try:
         sky_info = sky.api_info()
         if sky_info["status"] == "healthy" and sky_info["user"] is None:
-            print(red("✗ You are not authenticated with SkyPilot."))
-            print(f"  {green('metta install skypilot')}")
+            print(metta.common.util.text_styles.red("✗ You are not authenticated with SkyPilot."))
+            print(f"  {metta.common.util.text_styles.green('metta install skypilot')}")
             print("to authenticate before launching a sandbox.")
             return 1
 
@@ -479,25 +509,31 @@ Common management commands:
         _result = sky.stream_and_get(request_id)
 
     except sky.exceptions.ResourcesUnavailableError as e:
-        print(f"\n{red('✗ Failed to provision resources')}")
-        print(f"\n{yellow('Tip:')} The requested resources are not available in {region}.")
+        print(f"\n{metta.common.util.text_styles.red('✗ Failed to provision resources')}")
+        print(
+            f"\n{metta.common.util.text_styles.yellow('Tip:')} The requested resources are not available in {region}."
+        )
         print("You can try:")
-        print(f"  • Run with {green('--retry-until-up')} flag to keep retrying")
-        print(f"  • Try a different region by modifying {cyan('sandbox.yaml')}")
+        print(f"  • Run with {metta.common.util.text_styles.green('--retry-until-up')} flag to keep retrying")
+        print(f"  • Try a different region by modifying {metta.common.util.text_styles.cyan('sandbox.yaml')}")
         print("  • Use a different GPU type or instance size")
         print(f"\nError details: {str(e)}")
         return 1
     except Exception as e:
-        print(f"\n{red('✗ Launch failed:')} {str(e)}")
+        print(f"\n{metta.common.util.text_styles.red('✗ Launch failed:')} {str(e)}")
         return 1
 
     # Wait for cluster to be ready using retry utility
     if not wait_for_cluster_ready(cluster_name, args.wait_timeout):
         print("Current status might still be INIT. You can:")
-        print(f"  • Check status manually: {green(f'uv run sky status {cluster_name}')}")
-        print(f"  • Try connecting anyway: {green(f'ssh {cluster_name}')}")
-        print(f"  • Re-run launch to retry: {green(f'uv run sky launch -c {cluster_name} --no-setup')}")
-        print(f"  • Increase timeout: {green(f'--wait-timeout {args.wait_timeout + 300}')}")
+        print(f"  • Check status manually: {metta.common.util.text_styles.green(f'uv run sky status {cluster_name}')}")
+        print(f"  • Try connecting anyway: {metta.common.util.text_styles.green(f'ssh {cluster_name}')}")
+        print(
+            f"  • Re-run launch to retry: {metta.common.util.text_styles.green(f'uv run sky launch -c {cluster_name} --no-setup')}"
+        )
+        print(
+            f"  • Increase timeout: {metta.common.util.text_styles.green(f'--wait-timeout {args.wait_timeout + 300}')}"
+        )
         return 1
 
     # Run setup job
@@ -505,22 +541,24 @@ Common management commands:
     try:
         setup_result = sky.tail_logs(cluster_name, job_id=1, follow=True)
         if setup_result != 0:
-            print(f"{red('✗')} Setup job failed with exit code {setup_result}")
-            print(f"You can check logs with: {green(f'uv run sky logs {cluster_name}')}")
+            print(f"{metta.common.util.text_styles.red('✗')} Setup job failed with exit code {setup_result}")
+            print(f"You can check logs with: {metta.common.util.text_styles.green(f'uv run sky logs {cluster_name}')}")
             return 1
     except Exception as e:
-        print(f"{red('✗')} Failed to tail setup logs: {str(e)}")
-        print(f"You can check logs manually with: {green(f'uv run sky logs {cluster_name}')}")
+        print(f"{metta.common.util.text_styles.red('✗')} Failed to tail setup logs: {str(e)}")
+        print(
+            f"You can check logs manually with: {metta.common.util.text_styles.green(f'uv run sky logs {cluster_name}')}"
+        )
         return 1
 
     # Configure SSH access
-    with spinner("Configuring SSH access", style=cyan):
+    with metta.common.util.cli.spinner("Configuring SSH access", style=metta.common.util.text_styles.cyan):
         try:
             subprocess.run(["sky", "status", cluster_name], check=True, capture_output=True)
         except subprocess.CalledProcessError as e:
-            print(f"\n{yellow('⚠')} SSH setup may not be complete. You can try:")
-            print(f"  • Manual SSH: {green(f'ssh {cluster_name}')}")
-            print(f"  • Update SSH config: {green(f'uv run sky status {cluster_name}')}")
+            print(f"\n{metta.common.util.text_styles.yellow('⚠')} SSH setup may not be complete. You can try:")
+            print(f"  • Manual SSH: {metta.common.util.text_styles.green(f'ssh {cluster_name}')}")
+            print(f"  • Update SSH config: {metta.common.util.text_styles.green(f'uv run sky status {cluster_name}')}")
             print(f"Error: {str(e)}")
 
     # For CPU-only mode, SCP the additional files over
@@ -529,7 +567,7 @@ Common management commands:
         scp_success = True
 
         # Transfer .sky folder
-        with spinner("Copying ~/.sky folder", style=cyan):
+        with metta.common.util.cli.spinner("Copying ~/.sky folder", style=metta.common.util.text_styles.cyan):
             try:
                 sky_path = os.path.expanduser("~/.sky")
                 if os.path.exists(sky_path):
@@ -538,16 +576,16 @@ Common management commands:
                         check=True,
                         capture_output=True,
                     )
-                    print(f"  {green('✓')} ~/.sky folder transferred")
+                    print(f"  {metta.common.util.text_styles.green('✓')} ~/.sky folder transferred")
                 else:
-                    print(f"  {yellow('⚠')} ~/.sky folder not found locally")
+                    print(f"  {metta.common.util.text_styles.yellow('⚠')} ~/.sky folder not found locally")
                     scp_success = False
             except subprocess.CalledProcessError as e:
-                print(f"  {red('✗')} Failed to transfer ~/.sky folder: {str(e)}")
+                print(f"  {metta.common.util.text_styles.red('✗')} Failed to transfer ~/.sky folder: {str(e)}")
                 scp_success = False
 
         # Transfer .aws folder (for AWS CLI configuration and SSO)
-        with spinner("Copying ~/.aws folder", style=cyan):
+        with metta.common.util.cli.spinner("Copying ~/.aws folder", style=metta.common.util.text_styles.cyan):
             try:
                 aws_path = os.path.expanduser("~/.aws")
                 if os.path.exists(aws_path):
@@ -556,23 +594,23 @@ Common management commands:
                         check=True,
                         capture_output=True,
                     )
-                    print(f"  {green('✓')} ~/.aws folder transferred")
+                    print(f"  {metta.common.util.text_styles.green('✓')} ~/.aws folder transferred")
                     # Check if SSO is configured
                     config_path = os.path.join(aws_path, "config")
                     if os.path.exists(config_path):
                         with open(config_path, "r") as f:
                             if "sso_session" in f.read() or "sso_start_url" in f.read():
-                                print(f"    {yellow('Note:')} AWS SSO detected")
+                                print(f"    {metta.common.util.text_styles.yellow('Note:')} AWS SSO detected")
                                 print("    Run 'aws sso login' if tokens expired")
                 else:
-                    print(f"  {yellow('⚠')} ~/.aws folder not found locally")
+                    print(f"  {metta.common.util.text_styles.yellow('⚠')} ~/.aws folder not found locally")
                     print("    AWS credentials will need to be configured via environment variables")
             except subprocess.CalledProcessError as e:
-                print(f"  {red('✗')} Failed to transfer ~/.aws folder: {str(e)}")
+                print(f"  {metta.common.util.text_styles.red('✗')} Failed to transfer ~/.aws folder: {str(e)}")
                 scp_success = False
 
         # Transfer observatory tokens
-        with spinner("Copying ~/.metta/config.yaml", style=cyan):
+        with metta.common.util.cli.spinner("Copying ~/.metta/config.yaml", style=metta.common.util.text_styles.cyan):
             try:
                 obs_path = os.path.expanduser("~/.metta/config.yaml")
                 if os.path.exists(obs_path):
@@ -581,26 +619,28 @@ Common management commands:
                         check=True,
                         capture_output=True,
                     )
-                    print(f"  {green('✓')} Observatory tokens transferred")
+                    print(f"  {metta.common.util.text_styles.green('✓')} Observatory tokens transferred")
                 else:
-                    print(f"  {yellow('⚠')} Observatory tokens not found locally")
+                    print(f"  {metta.common.util.text_styles.yellow('⚠')} Observatory tokens not found locally")
             except subprocess.CalledProcessError as e:
-                print(f"  {red('✗')} Failed to transfer observatory tokens: {str(e)}")
+                print(f"  {metta.common.util.text_styles.red('✗')} Failed to transfer observatory tokens: {str(e)}")
                 scp_success = False
 
         if not scp_success:
-            print(f"\n{yellow('⚠')} Some files failed to transfer.")
+            print(f"\n{metta.common.util.text_styles.yellow('⚠')} Some files failed to transfer.")
             print("  You can manually copy them later with:")
-            print(f"    {green(f'scp -r ~/.sky {cluster_name}:~/')}")
-            print(f"    {green(f'scp ~/.metta/config.yaml {cluster_name}:~/.metta/')}")
+            print(f"    {metta.common.util.text_styles.green(f'scp -r ~/.sky {cluster_name}:~/')}")
+            print(f"    {metta.common.util.text_styles.green(f'scp ~/.metta/config.yaml {cluster_name}:~/.metta/')}")
 
     # Success!
-    print(f"\n{green('✓')} Sandbox is ready!")
+    print(f"\n{metta.common.util.text_styles.green('✓')} Sandbox is ready!")
     print("\nConnect to your sandbox:")
-    print(f"  {green(f'ssh {cluster_name}')}")
-    print(f"\n\n⚠️ The cluster will be automatically stopped after {bold(str(autostop_hours))} hours.")
+    print(f"  {metta.common.util.text_styles.green(f'ssh {cluster_name}')}")
+    print(
+        f"\n\n⚠️ The cluster will be automatically stopped after {metta.common.util.text_styles.bold(str(autostop_hours))} hours."
+    )
     print("To disable autostop:")
-    print(f"  {green(f'uv run sky autostop --cancel {cluster_name}')}")
+    print(f"  {metta.common.util.text_styles.green(f'uv run sky autostop --cancel {cluster_name}')}")
 
     return 0
 

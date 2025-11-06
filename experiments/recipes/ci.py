@@ -1,14 +1,18 @@
-from experiments.recipes import arena
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
-from metta.tools.train import TrainTool
-from metta.sim.simulation_config import SimulationConfig
+import experiments.recipes
+import metta.tools.play
+import metta.tools.replay
+import metta.tools.train
+import metta.sim.simulation_config
 
 # CI-friendly runtime: tiny steps and small batches.
 
 
-def train() -> TrainTool:
-    cfg = arena.train(curriculum=arena.make_curriculum(arena.mettagrid()))
+def train() -> metta.tools.train.TrainTool:
+    cfg = experiments.recipes.arena.train(
+        curriculum=experiments.recipes.arena.make_curriculum(
+            experiments.recipes.arena.mettagrid()
+        )
+    )
 
     cfg.wandb.enabled = False
     cfg.system.vectorization = "serial"
@@ -26,10 +30,14 @@ def train() -> TrainTool:
     return cfg
 
 
-def replay() -> ReplayTool:
-    env = arena.mettagrid()
+def replay() -> metta.tools.replay.ReplayTool:
+    env = experiments.recipes.arena.mettagrid()
     env.game.max_steps = 100
-    cfg = ReplayTool(sim=SimulationConfig(suite="arena", name="eval", env=env))
+    cfg = metta.tools.replay.ReplayTool(
+        sim=metta.sim.simulation_config.SimulationConfig(
+            suite="arena", name="eval", env=env
+        )
+    )
     cfg.wandb.enabled = False
     cfg.system.vectorization = "serial"
     cfg.open_browser_on_start = False
@@ -38,16 +46,20 @@ def replay() -> ReplayTool:
     return cfg
 
 
-def replay_null() -> ReplayTool:
+def replay_null() -> metta.tools.replay.ReplayTool:
     cfg = replay()
     cfg.policy_uri = None
     return cfg
 
 
-def play() -> PlayTool:
-    env = arena.mettagrid()
+def play() -> metta.tools.play.PlayTool:
+    env = experiments.recipes.arena.mettagrid()
     env.game.max_steps = 100
-    cfg = PlayTool(sim=SimulationConfig(suite="arena", name="eval", env=env))
+    cfg = metta.tools.play.PlayTool(
+        sim=metta.sim.simulation_config.SimulationConfig(
+            suite="arena", name="eval", env=env
+        )
+    )
     cfg.wandb.enabled = False
     cfg.system.vectorization = "serial"
     cfg.open_browser_on_start = False
@@ -55,7 +67,7 @@ def play() -> PlayTool:
     return cfg
 
 
-def play_null() -> PlayTool:
+def play_null() -> metta.tools.play.PlayTool:
     # Mock policy test.
     cfg = play()
     cfg.policy_uri = None

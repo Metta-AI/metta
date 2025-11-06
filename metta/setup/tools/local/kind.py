@@ -1,26 +1,26 @@
+import pathlib
 import subprocess
 import sys
-from pathlib import Path
-from typing import Annotated, Callable
+import typing
 
+import rich.console
 import typer
-from rich.console import Console
 
-from devops.docker.push_image import push_image
-from metta.common.util.constants import DEV_STATS_SERVER_URI, METTA_AWS_ACCOUNT_ID, METTA_AWS_REGION
-from metta.common.util.fs import get_repo_root
-from metta.setup.utils import error, info, success
+import devops.docker.push_image
+import metta.common.util.constants
+import metta.common.util.fs
+import metta.setup.utils
 
-repo_root = get_repo_root()
-console = Console()
+repo_root = metta.common.util.fs.get_repo_root()
+console = rich.console.Console()
 
 
 class Kind:
     cluster_name: str
     namespace: str
     helm_release_name: str
-    helm_chart_path: Path
-    environment_values_file: Path | None
+    helm_chart_path: pathlib.Path
+    environment_values_file: pathlib.Path | None
     context: str
 
     def _check_namespace_exists(self) -> bool:
@@ -29,12 +29,12 @@ class Kind:
         )
         return result.returncode == 0
 
-    def _ensure_docker_img_built(self, img_name: str, load_fn: Callable[[], None]) -> None:
+    def _ensure_docker_img_built(self, img_name: str, load_fn: typing.Callable[[], None]) -> None:
         result = subprocess.run(["docker", "image", "inspect", img_name], capture_output=True)
         if result.returncode != 0:
-            info(f"Building {img_name} image...")
+            metta.setup.utils.info(f"Building {img_name} image...")
             load_fn()
-        info(f"Loading {img_name} into Kind...")
+        metta.setup.utils.info(f"Loading {img_name} into Kind...")
         subprocess.run(["kind", "load", "docker-image", img_name, "--name", self.cluster_name], check=True)
 
     def _use_appropriate_context(self) -> None:
@@ -68,17 +68,17 @@ class Kind:
     def up(self) -> None:
         """Start orchestrator in Kind cluster using Helm."""
         self._use_appropriate_context()
-        info("Creating namespace if needed...")
+        metta.setup.utils.info("Creating namespace if needed...")
 
         self._maybe_load_secrets()
 
-        info("Updating Helm dependencies...")
+        metta.setup.utils.info("Updating Helm dependencies...")
         subprocess.run(["helm", "dependency", "update", str(self.helm_chart_path)], check=True)
-        success("Helm dependencies updated")
+        metta.setup.utils.success("Helm dependencies updated")
 
         result = subprocess.run(["helm", "list", "-n", self.namespace, "-q"], capture_output=True, text=True)
         cmd = "upgrade" if self.helm_release_name in result.stdout else "install"
-        info(f"Running {cmd} for {self.helm_release_name}...")
+        metta.setup.utils.info(f"Running {cmd} for {self.helm_release_name}...")
 
         helm_cmd = [
             "helm",
@@ -94,15 +94,15 @@ class Kind:
 
         subprocess.run(helm_cmd, check=True)
 
-        info("Orchestrator deployed via Helm")
+        metta.setup.utils.info("Orchestrator deployed via Helm")
 
-        info("To view pods: metta local kind get-pods")
-        info("To view logs: metta local kind logs <pod-name>")
-        info("To stop: metta local kind down")
+        metta.setup.utils.info("To view pods: metta local kind get-pods")
+        metta.setup.utils.info("To view logs: metta local kind logs <pod-name>")
+        metta.setup.utils.info("To stop: metta local kind down")
 
     def down(self) -> None:
         """Stop orchestrator and worker pods."""
-        info("Stopping...")
+        metta.setup.utils.info("Stopping...")
         self._use_appropriate_context()
 
         subprocess.run(
@@ -114,14 +114,14 @@ class Kind:
             check=True,
         )
 
-        success("Stopped (cluster preserved for faster restarts)")
+        metta.setup.utils.success("Stopped (cluster preserved for faster restarts)")
 
     def clean(self) -> None:
         """Delete the Kind cluster."""
-        info("Deleting cluster...")
+        metta.setup.utils.info("Deleting cluster...")
         self._use_appropriate_context()
         subprocess.run(["kind", "delete", "cluster", "--name", self.cluster_name], check=True)
-        success("Cluster deleted")
+        metta.setup.utils.success("Cluster deleted")
 
     def get_pods(self) -> None:
         """Get list of pods in the cluster."""
@@ -176,28 +176,30 @@ class KindLocal(Kind):
     namespace = "orchestrator"
     helm_release_name = "orchestrator"
     helm_chart_path = repo_root / "devops/charts/orchestrator"
-    environment_values_file: Path | None = repo_root / "devops/charts/orchestrator/environments/kind.yaml"
+    environment_values_file: pathlib.Path | None = repo_root / "devops/charts/orchestrator/environments/kind.yaml"
     context = f"kind-{cluster_name}"
 
     def _create_namespace(self) -> None:
         result = subprocess.run(["kubectl", "create", "namespace", self.namespace], check=True)
         if result.returncode != 0:
-            error(f"Failed to create namespace {self.namespace}")
+            metta.setup.utils.error(f"Failed to create namespace {self.namespace}")
             raise Exception(f"Failed to create namespace {self.namespace}")
 
     def _maybe_load_secrets(self) -> None:
         wandb_api_key = self._get_wandb_api_key()
         if not wandb_api_key:
-            error("No WANDB API key found. Please run 'wandb login' and try again.")
+            metta.setup.utils.error("No WANDB API key found. Please run 'wandb login' and try again.")
             sys.exit(1)
 
         # Lazy import to avoid loading app_backend dependencies when using metta CLI for linting.
         # This keeps the metta-cli install mode lightweight and fast.
-        from metta.app_backend.clients.base_client import get_machine_token  # pylint: disable=import-outside-toplevel
+        import metta.app_backend.clients.base_client  # pylint: disable=import-outside-toplevel
 
-        machine_token = get_machine_token(DEV_STATS_SERVER_URI)
+        machine_token = metta.app_backend.clients.base_client.get_machine_token(
+            metta.common.util.constants.DEV_STATS_SERVER_URI
+        )
 
-        info("Creating secrets...")
+        metta.setup.utils.info("Creating secrets...")
         self._create_secret("wandb-api-secret", f"api-key={wandb_api_key}")
         self._create_secret("machine-token-secret", f"token={machine_token}")
 
@@ -206,29 +208,31 @@ class KindLocal(Kind):
         cluster_exists = self.cluster_name in result.stdout.split()
 
         if not cluster_exists:
-            info("Creating Kind cluster...")
+            metta.setup.utils.info("Creating Kind cluster...")
             subprocess.run(["kind", "create", "cluster", "--name", self.cluster_name], check=True)
         else:
             result = subprocess.run(["kubectl", "cluster-info", "--context", self.context], capture_output=True)
             if result.returncode != 0:
-                info("Cluster exists but is not healthy. Recreating...")
+                metta.setup.utils.info("Cluster exists but is not healthy. Recreating...")
                 subprocess.run(["kind", "delete", "cluster", "--name", self.cluster_name], check=True)
                 subprocess.run(["kind", "create", "cluster", "--name", self.cluster_name], check=True)
         self._use_appropriate_context()
 
-        from metta.setup.local_commands import build_policy_evaluator_img_internal
+        import metta.setup.local_commands
 
-        self._ensure_docker_img_built("metta-policy-evaluator-local:latest", build_policy_evaluator_img_internal)
-        success("Kind cluster ready")
+        self._ensure_docker_img_built(
+            "metta-policy-evaluator-local:latest", metta.setup.local_commands.build_policy_evaluator_img_internal
+        )
+        metta.setup.utils.success("Kind cluster ready")
 
         if not self._check_namespace_exists():
             self._create_namespace()
-        success(f"{self.namespace} ready")
+        metta.setup.utils.success(f"{self.namespace} ready")
 
 
 class EksProd(Kind):
-    aws_account_id = METTA_AWS_ACCOUNT_ID
-    aws_region = METTA_AWS_REGION
+    aws_account_id = metta.common.util.constants.METTA_AWS_ACCOUNT_ID
+    aws_region = metta.common.util.constants.METTA_AWS_REGION
     cluster_name = "main"
     namespace = "orchestrator"
     context = f"arn:aws:eks:{aws_region}:{aws_account_id}:cluster/{cluster_name}"
@@ -237,16 +241,15 @@ class EksProd(Kind):
     environment_values_file = None
 
     def build(self):
-        info("Building AMD64 for EKS...")
+        metta.setup.utils.info("Building AMD64 for EKS...")
 
         local_image_name = "metta-policy-evaluator-local:latest-amd64"
-        from metta.setup.local_commands import build_policy_evaluator_img_internal
 
-        build_policy_evaluator_img_internal(
+        metta.setup.local_commands.build_policy_evaluator_img_internal(
             tag=local_image_name,
             build_args=["--platform", "linux/amd64"],
         )
-        push_image(
+        devops.docker.push_image.push_image(
             local_image_name=local_image_name,
             remote_image_name="metta-policy-evaluator:latest",
             region=self.aws_region,
@@ -289,12 +292,12 @@ def cmd_get_pods():
 
 
 @kind_app.command(name="logs")
-def cmd_logs(pod_name: Annotated[str | None, typer.Argument(help="Pod name")] = None):
+def cmd_logs(pod_name: typing.Annotated[str | None, typer.Argument(help="Pod name")] = None):
     kind_local.logs(pod_name)
 
 
 @kind_app.command(name="enter")
-def cmd_enter(pod_name: Annotated[str | None, typer.Argument(help="Pod name")] = None):
+def cmd_enter(pod_name: typing.Annotated[str | None, typer.Argument(help="Pod name")] = None):
     kind_local.enter(pod_name)
 
 

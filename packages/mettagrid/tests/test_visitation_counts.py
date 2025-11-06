@@ -6,41 +6,34 @@ import time
 import numpy as np
 import pytest
 
-from mettagrid.config.mettagrid_config import (
-    ActionsConfig,
-    GameConfig,
-    GlobalObsConfig,
-    MettaGridConfig,
-    MoveActionConfig,
-    WallConfig,
-)
-from mettagrid.config.obs_config import ObsConfig
-from mettagrid.map_builder.ascii import AsciiMapBuilder
-from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
-from mettagrid.simulator import Simulation
+import mettagrid.config.mettagrid_config
+import mettagrid.config.obs_config
+import mettagrid.map_builder.ascii
+import mettagrid.mapgen.utils.ascii_grid
+import mettagrid.simulator
 
 
 @pytest.fixture
 def env_with_visitation():
     """Environment with visitation counts enabled."""
 
-    config = MettaGridConfig(
-        game=GameConfig(
+    config = mettagrid.config.mettagrid_config.MettaGridConfig(
+        game=mettagrid.config.mettagrid_config.GameConfig(
             num_agents=1,
-            obs=ObsConfig(width=5, height=5, num_tokens=100),
+            obs=mettagrid.config.obs_config.ObsConfig(width=5, height=5, num_tokens=100),
             max_steps=100,
             resource_names=["wood", "stone"],
-            actions=ActionsConfig(
-                move=MoveActionConfig(),  # Enable 8-way movement
+            actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                move=mettagrid.config.mettagrid_config.MoveActionConfig(),  # Enable 8-way movement
             ),
-            objects={"wall": WallConfig(type_id=1)},
-            global_obs=GlobalObsConfig(
+            objects={"wall": mettagrid.config.mettagrid_config.WallConfig(type_id=1)},
+            global_obs=mettagrid.config.mettagrid_config.GlobalObsConfig(
                 episode_completion_pct=True,
                 last_action=True,
                 last_reward=True,
                 visitation_counts=True,  # Enable visitation counts
             ),
-            map_builder=AsciiMapBuilder.Config(
+            map_builder=mettagrid.map_builder.ascii.AsciiMapBuilder.Config(
                 map_data=[
                     [".", ".", ".", ".", ".", ".", "."],
                     [".", ".", ".", ".", ".", ".", "."],
@@ -50,11 +43,11 @@ def env_with_visitation():
                     [".", ".", ".", ".", ".", ".", "."],
                     [".", ".", ".", ".", ".", ".", "."],
                 ],
-                char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                char_to_name_map=mettagrid.mapgen.utils.ascii_grid.DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
-    return Simulation(config)
+    return mettagrid.simulator.Simulation(config)
 
 
 @pytest.fixture
@@ -62,23 +55,23 @@ def env_without_visitation():
     """Environment with visitation counts disabled."""
     # Create custom configuration matching original test setup
 
-    config = MettaGridConfig(
-        game=GameConfig(
+    config = mettagrid.config.mettagrid_config.MettaGridConfig(
+        game=mettagrid.config.mettagrid_config.GameConfig(
             num_agents=1,
-            obs=ObsConfig(width=5, height=5, num_tokens=100),
+            obs=mettagrid.config.obs_config.ObsConfig(width=5, height=5, num_tokens=100),
             max_steps=100,
             resource_names=["wood", "stone"],
-            actions=ActionsConfig(
-                move=MoveActionConfig(),  # Enable 8-way movement
+            actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                move=mettagrid.config.mettagrid_config.MoveActionConfig(),  # Enable 8-way movement
             ),
-            objects={"wall": WallConfig(type_id=1)},
-            global_obs=GlobalObsConfig(
+            objects={"wall": mettagrid.config.mettagrid_config.WallConfig(type_id=1)},
+            global_obs=mettagrid.config.mettagrid_config.GlobalObsConfig(
                 episode_completion_pct=True,
                 last_action=True,
                 last_reward=True,
                 visitation_counts=False,  # Disable visitation counts
             ),
-            map_builder=AsciiMapBuilder.Config(
+            map_builder=mettagrid.map_builder.ascii.AsciiMapBuilder.Config(
                 map_data=[
                     [".", ".", ".", ".", ".", ".", "."],
                     [".", ".", ".", ".", ".", ".", "."],
@@ -88,11 +81,11 @@ def env_without_visitation():
                     [".", ".", ".", ".", ".", ".", "."],
                     [".", ".", ".", ".", ".", ".", "."],
                 ],
-                char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                char_to_name_map=mettagrid.mapgen.utils.ascii_grid.DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
-    return Simulation(config)
+    return mettagrid.simulator.Simulation(config)
 
 
 @pytest.fixture
@@ -100,18 +93,18 @@ def env_default():
     """Environment with default config (no visitation_counts specified)."""
     # Create custom configuration matching original test setup
 
-    config = MettaGridConfig(
-        game=GameConfig(
+    config = mettagrid.config.mettagrid_config.MettaGridConfig(
+        game=mettagrid.config.mettagrid_config.GameConfig(
             num_agents=1,
-            obs=ObsConfig(width=5, height=5, num_tokens=100),
+            obs=mettagrid.config.obs_config.ObsConfig(width=5, height=5, num_tokens=100),
             max_steps=100,
             resource_names=["wood", "stone"],
-            actions=ActionsConfig(
-                move=MoveActionConfig(),  # Enable 8-way movement
+            actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                move=mettagrid.config.mettagrid_config.MoveActionConfig(),  # Enable 8-way movement
             ),
-            objects={"wall": WallConfig(type_id=1)},
+            objects={"wall": mettagrid.config.mettagrid_config.WallConfig(type_id=1)},
             # No explicit visitation_counts setting - uses default (False)
-            map_builder=AsciiMapBuilder.Config(
+            map_builder=mettagrid.map_builder.ascii.AsciiMapBuilder.Config(
                 map_data=[
                     [".", ".", ".", ".", ".", ".", "."],
                     [".", ".", ".", ".", ".", ".", "."],
@@ -121,11 +114,11 @@ def env_default():
                     [".", ".", ".", ".", ".", ".", "."],
                     [".", ".", ".", ".", ".", ".", "."],
                 ],
-                char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                char_to_name_map=mettagrid.mapgen.utils.ascii_grid.DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
-    return Simulation(config)
+    return mettagrid.simulator.Simulation(config)
 
 
 # Helper functions
@@ -203,15 +196,19 @@ def performance_config():
         [".", ".", ".", ".", ".", ".", "."],
     ]
 
-    config = MettaGridConfig(
-        game=GameConfig(
+    config = mettagrid.config.mettagrid_config.MettaGridConfig(
+        game=mettagrid.config.mettagrid_config.GameConfig(
             num_agents=1,
-            obs=ObsConfig(width=11, height=11, num_tokens=200),
+            obs=mettagrid.config.obs_config.ObsConfig(width=11, height=11, num_tokens=200),
             max_steps=1000,
             resource_names=["wood", "stone"],
-            actions=ActionsConfig(move=MoveActionConfig()),
-            objects={"wall": WallConfig(type_id=1)},
-            map_builder=AsciiMapBuilder.Config(map_data=simple_map, char_to_name_map=DEFAULT_CHAR_TO_NAME),
+            actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                move=mettagrid.config.mettagrid_config.MoveActionConfig()
+            ),
+            objects={"wall": mettagrid.config.mettagrid_config.WallConfig(type_id=1)},
+            map_builder=mettagrid.map_builder.ascii.AsciiMapBuilder.Config(
+                map_data=simple_map, char_to_name_map=mettagrid.mapgen.utils.ascii_grid.DEFAULT_CHAR_TO_NAME
+            ),
         )
     )
     return config
@@ -238,14 +235,14 @@ def test_visitation_performance_impact(performance_config):
     """Disabled visitation should not be materially slower."""
     # enabled
     cfg_on = copy.deepcopy(performance_config)
-    cfg_on.game.global_obs = GlobalObsConfig(visitation_counts=True)
-    sim_enabled = Simulation(cfg_on)
+    cfg_on.game.global_obs = mettagrid.config.mettagrid_config.GlobalObsConfig(visitation_counts=True)
+    sim_enabled = mettagrid.simulator.Simulation(cfg_on)
     enabled_time = _median_runtime(sim_enabled)
 
     # disabled
     cfg_off = copy.deepcopy(performance_config)
-    cfg_off.game.global_obs = GlobalObsConfig(visitation_counts=False)
-    sim_disabled = Simulation(cfg_off)
+    cfg_off.game.global_obs = mettagrid.config.mettagrid_config.GlobalObsConfig(visitation_counts=False)
+    sim_disabled = mettagrid.simulator.Simulation(cfg_off)
     disabled_time = _median_runtime(sim_disabled)
 
     # allow small jitter (≤10% slowdown)

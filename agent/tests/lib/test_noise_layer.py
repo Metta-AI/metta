@@ -1,22 +1,26 @@
+import tensordict
 import torch
-from tensordict import TensorDict
 
-from metta.agent.components.noise import NoiseLayer, NoiseLayerConfig
+import metta.agent.components.noise
 
 BASE_CONFIG = dict(in_key="features", out_key="noisy")
 
 
-def _build_td(batch_size: int = 4, features: int = 6) -> TensorDict:
+def _build_td(batch_size: int = 4, features: int = 6) -> tensordict.TensorDict:
     data = torch.randn(batch_size, features)
-    return TensorDict({"features": data}, batch_size=[batch_size])
+    return tensordict.TensorDict({"features": data}, batch_size=[batch_size])
 
 
-def _make_layer(std: float, *, seed: int, noise_during_eval: bool = False) -> NoiseLayer:
+def _make_layer(std: float, *, seed: int, noise_during_eval: bool = False) -> metta.agent.components.noise.NoiseLayer:
     torch.manual_seed(seed)
-    return NoiseLayer(NoiseLayerConfig(**BASE_CONFIG, std=std, noise_during_eval=noise_during_eval))
+    return metta.agent.components.noise.NoiseLayer(
+        metta.agent.components.noise.NoiseLayerConfig(**BASE_CONFIG, std=std, noise_during_eval=noise_during_eval)
+    )
 
 
-def _run(layer: NoiseLayer, td: TensorDict, *, seed: int, out_key: str | None = None) -> torch.Tensor:
+def _run(
+    layer: metta.agent.components.noise.NoiseLayer, td: tensordict.TensorDict, *, seed: int, out_key: str | None = None
+) -> torch.Tensor:
     torch.manual_seed(seed)
     key = BASE_CONFIG["out_key"] if out_key is None else out_key
     return layer(td.clone())[key]
@@ -65,7 +69,9 @@ def test_noise_layer_eval_enabled_when_requested() -> None:
 
 
 def test_noise_layer_set_noise_updates_parameters() -> None:
-    layer = NoiseLayer(NoiseLayerConfig(in_key="features", out_key="features", std=0.0))
+    layer = metta.agent.components.noise.NoiseLayer(
+        metta.agent.components.noise.NoiseLayerConfig(in_key="features", out_key="features", std=0.0)
+    )
     layer.train()
 
     td = _build_td()

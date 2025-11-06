@@ -1,11 +1,11 @@
-from typing import Literal
+import typing
 
 import numpy as np
 import numpy.typing as npt
 
-from mettagrid.mapgen.utils.ascii_grid import char_grid_to_lines
+import mettagrid.mapgen.utils.ascii_grid
 
-Symmetry = Literal["all", "horizontal", "none"]
+Symmetry = typing.Literal["all", "horizontal", "none"]
 
 
 def parse_ascii_into_grid(ascii_source: str) -> npt.NDArray[np.bool_]:
@@ -21,7 +21,7 @@ def parse_ascii_into_grid(ascii_source: str) -> npt.NDArray[np.bool_]:
     #.#
     #.#
     """
-    lines, width, height = char_grid_to_lines(ascii_source)
+    lines, width, height = mettagrid.mapgen.utils.ascii_grid.char_grid_to_lines(ascii_source)
     for line in lines:
         if not all(c == "#" or c == "." for c in line):
             raise ValueError("Pattern must be composed of # and . characters")

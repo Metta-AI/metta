@@ -1,26 +1,20 @@
 """Arena recipe with GRPO (Group Relative Policy Optimization) for comparison testing."""
 
-from metta.agent.policies.vit_grpo import ViTGRPOConfig
-from metta.rl.loss import LossConfig
-from metta.rl.loss.grpo import GRPOConfig
-from metta.rl.trainer_config import OptimizerConfig, TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.tools.train import TrainTool
+import metta.agent.policies.vit_grpo
+import metta.rl.loss
+import metta.rl.loss.grpo
+import metta.rl.trainer_config
+import metta.rl.training
+import metta.tools.train
 
 # Import everything from the base arena recipe
-from experiments.recipes.arena import (
-    make_curriculum,
-    simulations,
-)
-from experiments.recipes.arena import train_shaped as base_train_shaped
-from experiments.recipes.arena_basic_easy_shaped import (
-    train as arena_basic_easy_shaped_train,
-)
+import experiments.recipes.arena
+import experiments.recipes.arena_basic_easy_shaped
 
 
 def train(
     enable_detailed_slice_logging: bool = False,
-) -> TrainTool:
+) -> metta.tools.train.TrainTool:
     """Train with GRPO loss (critic-free, group-based advantages).
 
     GRPO eliminates the value network and computes advantages by comparing
@@ -28,12 +22,12 @@ def train(
     trajectories. This can be more sample efficient and stable than PPO
     in certain environments.
     """
-    curriculum = make_curriculum(
+    curriculum = experiments.recipes.arena.make_curriculum(
         enable_detailed_slice_logging=enable_detailed_slice_logging
     )
 
     # Configure GRPO loss
-    grpo_config = GRPOConfig(
+    grpo_config = metta.rl.loss.grpo.GRPOConfig(
         clip_coef=0.2,
         ent_coef=0.01,
         gamma=0.99,
@@ -42,12 +36,12 @@ def train(
         target_kl=None,
     )
 
-    loss_config = LossConfig(
+    loss_config = metta.rl.loss.LossConfig(
         loss_configs={"grpo": grpo_config},
     )
 
     # Configure optimizer
-    optimizer_config = OptimizerConfig(
+    optimizer_config = metta.rl.trainer_config.OptimizerConfig(
         type="adamw_schedulefree",
         learning_rate=0.01,
         beta1=0.9,
@@ -57,21 +51,25 @@ def train(
         warmup_steps=2000,
     )
 
-    trainer_config = TrainerConfig(
+    trainer_config = metta.rl.trainer_config.TrainerConfig(
         losses=loss_config,
         optimizer=optimizer_config,
         total_timesteps=50_000_000_000,
     )
 
-    return TrainTool(
-        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
+    return metta.tools.train.TrainTool(
+        training_env=metta.rl.training.TrainingEnvironmentConfig(curriculum=curriculum),
         trainer=trainer_config,
-        evaluator=EvaluatorConfig(simulations=simulations()),
-        policy_architecture=ViTGRPOConfig(),
+        evaluator=metta.rl.training.EvaluatorConfig(
+            simulations=experiments.recipes.arena.simulations()
+        ),
+        policy_architecture=metta.agent.policies.vit_grpo.ViTGRPOConfig(),
     )
 
 
-def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
+def train_shaped(
+    rewards: bool = True, converters: bool = True
+) -> metta.tools.train.TrainTool:
     """Train with GRPO loss on shaped rewards task.
 
     This provides easier training with reward shaping and converters enabled,
@@ -79,10 +77,10 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
     """
 
     # Get the base shaped training tool
-    base_tool = base_train_shaped(rewards=rewards)
+    base_tool = experiments.recipes.arena.train_shaped(rewards=rewards)
 
     # Configure GRPO loss
-    grpo_config = GRPOConfig(
+    grpo_config = metta.rl.loss.grpo.GRPOConfig(
         clip_coef=0.2,
         ent_coef=0.01,
         gamma=0.99,
@@ -91,12 +89,12 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
         target_kl=None,
     )
 
-    loss_config = LossConfig(
+    loss_config = metta.rl.loss.LossConfig(
         loss_configs={"grpo": grpo_config},
     )
 
     # Configure optimizer
-    optimizer_config = OptimizerConfig(
+    optimizer_config = metta.rl.trainer_config.OptimizerConfig(
         type="adamw_schedulefree",
         learning_rate=0.01,
         beta1=0.9,
@@ -106,21 +104,21 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
         warmup_steps=2000,
     )
 
-    trainer_config = TrainerConfig(
+    trainer_config = metta.rl.trainer_config.TrainerConfig(
         losses=loss_config,
         optimizer=optimizer_config,
         total_timesteps=50_000_000_000,
     )
 
-    return TrainTool(
+    return metta.tools.train.TrainTool(
         training_env=base_tool.training_env,
         trainer=trainer_config,
         evaluator=base_tool.evaluator,
-        policy_architecture=ViTGRPOConfig(),
+        policy_architecture=metta.agent.policies.vit_grpo.ViTGRPOConfig(),
     )
 
 
-def basic_easy_shaped() -> TrainTool:
+def basic_easy_shaped() -> metta.tools.train.TrainTool:
     """Train with GRPO loss on basic easy shaped rewards task.
 
     This provides easier training with reward shaping and converters enabled,
@@ -128,10 +126,10 @@ def basic_easy_shaped() -> TrainTool:
     """
 
     # Get the base shaped training tool
-    base_tool = arena_basic_easy_shaped_train()
+    base_tool = experiments.recipes.arena_basic_easy_shaped.train()
 
     # Configure GRPO loss
-    grpo_config = GRPOConfig(
+    grpo_config = metta.rl.loss.grpo.GRPOConfig(
         clip_coef=0.2,
         ent_coef=0.01,
         gamma=0.99,
@@ -140,12 +138,12 @@ def basic_easy_shaped() -> TrainTool:
         target_kl=None,
     )
 
-    loss_config = LossConfig(
+    loss_config = metta.rl.loss.LossConfig(
         loss_configs={"grpo": grpo_config},
     )
 
     # Configure optimizer
-    optimizer_config = OptimizerConfig(
+    optimizer_config = metta.rl.trainer_config.OptimizerConfig(
         type="adamw_schedulefree",
         learning_rate=0.01,
         beta1=0.9,
@@ -155,15 +153,15 @@ def basic_easy_shaped() -> TrainTool:
         warmup_steps=2000,
     )
 
-    trainer_config = TrainerConfig(
+    trainer_config = metta.rl.trainer_config.TrainerConfig(
         losses=loss_config,
         optimizer=optimizer_config,
         total_timesteps=50_000_000_000,
     )
 
-    return TrainTool(
+    return metta.tools.train.TrainTool(
         training_env=base_tool.training_env,
         trainer=trainer_config,
         evaluator=base_tool.evaluator,
-        policy_architecture=ViTGRPOConfig(),
+        policy_architecture=metta.agent.policies.vit_grpo.ViTGRPOConfig(),
     )

@@ -13,7 +13,7 @@ import tempfile
 import numpy as np
 import pixie
 
-from mettagrid.map_builder.ascii import AsciiMapBuilder
+import mettagrid.map_builder.ascii
 
 # Faithful extraction from gen_thumb.py
 obs_radius = 5
@@ -145,7 +145,7 @@ def read_ascii_map(input):
     """Parse YAML/legacy ASCII maps for thumbnail generation."""
 
     text = input.decode("utf-8") if isinstance(input, (bytes, bytearray)) else str(input)
-    config = AsciiMapBuilder.Config.from_str(text)
+    config = mettagrid.map_builder.ascii.AsciiMapBuilder.Config.from_str(text)
 
     height = len(config.map_data)
     width = len(config.map_data[0]) if height else 0

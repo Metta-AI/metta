@@ -1,6 +1,6 @@
 import numpy as np
 
-from mettagrid.mettagrid_c import PackedCoordinate
+import mettagrid.mettagrid_c
 
 
 class ObservationHelper:
@@ -16,7 +16,7 @@ class ObservationHelper:
         """Filter tokens by location, feature id, and value."""
         tokens = obs
         if location is not None:
-            tokens = tokens[tokens[:, 0] == PackedCoordinate.pack(location[1], location[0])]
+            tokens = tokens[tokens[:, 0] == mettagrid.mettagrid_c.PackedCoordinate.pack(location[1], location[0])]
         if feature_id is not None:
             tokens = tokens[tokens[:, 1] == feature_id]
         if value is not None:
@@ -43,7 +43,7 @@ class ObservationHelper:
         """Extract (x, y) positions from tokens."""
         positions = []
         for token in tokens:
-            coords = PackedCoordinate.unpack(token[0])
+            coords = mettagrid.mettagrid_c.PackedCoordinate.unpack(token[0])
             if coords:
                 row, col = coords
                 positions.append((col, row))  # Return as (x, y)

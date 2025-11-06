@@ -14,21 +14,21 @@ This ensures reproducible builds, prevents build failures from spec violations,
 and maintains consistent project metadata across the monorepo.
 """
 
+import dataclasses
+import pathlib
 import re
 import sys
 import tomllib
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Callable
+import typing
 
 
-@dataclass
+@dataclasses.dataclass
 class ValidationRule:
     """Represents a validation rule for pyproject.toml files."""
 
     name: str
     category: str
-    check: Callable[[dict, Path], list[str]]
+    check: typing.Callable[[dict, pathlib.Path], list[str]]
     help_text: str
 
 
@@ -72,7 +72,7 @@ def parse_requirement(req_string: str) -> tuple[str, str | None, str | None]:
     return req_string, None, None
 
 
-def check_exact_versions(data: dict, file_path: Path) -> list[str]:
+def check_exact_versions(data: dict, file_path: pathlib.Path) -> list[str]:
     """Check that all build-system dependencies use exact version specifiers.
 
     Ensures reproducible builds by requiring exact versions (==) rather than
@@ -103,7 +103,7 @@ def check_exact_versions(data: dict, file_path: Path) -> list[str]:
 # ============================================================================
 
 
-def check_license_format(data: dict, file_path: Path) -> list[str]:
+def check_license_format(data: dict, file_path: pathlib.Path) -> list[str]:
     """Check that license field uses PEP 621 table format.
 
     PEP 621 requires:
@@ -150,7 +150,7 @@ def check_license_format(data: dict, file_path: Path) -> list[str]:
     return errors
 
 
-def check_no_dual_specification(data: dict, file_path: Path) -> list[str]:
+def check_no_dual_specification(data: dict, file_path: pathlib.Path) -> list[str]:
     """Check that fields are not specified both statically and in dynamic list.
 
     PEP 621: "A build back-end MUST raise an error if the metadata specifies
@@ -178,7 +178,7 @@ def check_no_dual_specification(data: dict, file_path: Path) -> list[str]:
     return errors
 
 
-def check_name_not_dynamic(data: dict, file_path: Path) -> list[str]:
+def check_name_not_dynamic(data: dict, file_path: pathlib.Path) -> list[str]:
     """Check that 'name' field is not listed in dynamic.
 
     PEP 621: "A build back-end MUST raise an error if the metadata specifies
@@ -199,7 +199,7 @@ def check_name_not_dynamic(data: dict, file_path: Path) -> list[str]:
     return errors
 
 
-def check_no_entry_point_conflicts(data: dict, file_path: Path) -> list[str]:
+def check_no_entry_point_conflicts(data: dict, file_path: pathlib.Path) -> list[str]:
     """Check for deprecated entry-points.console_scripts usage.
 
     PEP 621: Tools "MUST raise an error if the metadata defines a
@@ -275,7 +275,7 @@ VALIDATION_RULES = [
 # ============================================================================
 
 
-def validate_file(file_path: Path) -> dict[str, list[str]]:
+def validate_file(file_path: pathlib.Path) -> dict[str, list[str]]:
     """Validate a single pyproject.toml file.
 
     Returns dict mapping category names to lists of error messages.
@@ -298,7 +298,7 @@ def validate_file(file_path: Path) -> dict[str, list[str]]:
     return errors_by_category
 
 
-def find_pyproject_files(repo_root: Path) -> list[Path]:
+def find_pyproject_files(repo_root: pathlib.Path) -> list[pathlib.Path]:
     """Find all pyproject.toml files, excluding virtual environments and worktrees."""
     skip_dirs = {
         ".venv",
@@ -336,7 +336,7 @@ def format_category_name(category: str) -> str:
 
 def main() -> int:
     """Main entry point."""
-    repo_root = Path(__file__).parent.parent.parent
+    repo_root = pathlib.Path(__file__).parent.parent.parent
     pyproject_files = find_pyproject_files(repo_root)
 
     if not pyproject_files:

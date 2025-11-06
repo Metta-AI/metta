@@ -2,14 +2,14 @@ import logging
 import os
 import subprocess
 
-from metta.app_backend.container_managers.base import AbstractContainerManager
-from metta.app_backend.worker_managers.worker import Worker
-from metta.common.datadog.config import datadog_config
+import metta.app_backend.container_managers.base
+import metta.app_backend.worker_managers.worker
+import metta.common.datadog.config
 
 logger = logging.getLogger(__name__)
 
 
-class DockerContainerManager(AbstractContainerManager):
+class DockerContainerManager(metta.app_backend.container_managers.base.AbstractContainerManager):
     def start_worker_container(
         self,
         backend_url: str,
@@ -23,7 +23,7 @@ class DockerContainerManager(AbstractContainerManager):
             "WORKER_ASSIGNEE": container_name,
             "MACHINE_TOKEN": machine_token,
             "WANDB_API_KEY": os.environ["WANDB_API_KEY"],
-            **datadog_config.to_env_dict(),
+            **metta.common.datadog.config.datadog_config.to_env_dict(),
             "DD_SERVICE": "eval-worker",
         }
 
@@ -62,7 +62,7 @@ class DockerContainerManager(AbstractContainerManager):
         else:
             logger.info(f"Cleaned up container {name}")
 
-    async def discover_alive_workers(self) -> list[Worker]:
+    async def discover_alive_workers(self) -> list[metta.app_backend.worker_managers.worker.Worker]:
         result = subprocess.run(
             [
                 "docker",
@@ -95,7 +95,9 @@ class DockerContainerManager(AbstractContainerManager):
                             else:
                                 status = "Unknown"
 
-                            workers.append(Worker(name=container_name, status=status))
+                            workers.append(
+                                metta.app_backend.worker_managers.worker.Worker(name=container_name, status=status)
+                            )
                         except ValueError:
                             logger.warning(f"Skipping container with invalid name: {container_name}")
         return workers

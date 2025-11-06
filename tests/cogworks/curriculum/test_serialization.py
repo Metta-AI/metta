@@ -8,9 +8,8 @@ back to identical configs.
 import unittest
 
 import metta.cogworks.curriculum as cc
+import metta.cogworks.curriculum.task_generator
 import mettagrid.builder.envs as eb
-from metta.cogworks.curriculum import BucketedTaskGenerator, CurriculumConfig, SingleTaskGenerator, TaskGeneratorSet
-from metta.cogworks.curriculum.task_generator import Span
 
 
 class TestCurriculumConfigSerialization(unittest.TestCase):
@@ -19,12 +18,12 @@ class TestCurriculumConfigSerialization(unittest.TestCase):
     def test_single_task_generator(self):
         """Test `SingleTaskGenerator.Config` round-trip."""
         arena = eb.make_arena(num_agents=2)
-        single_config = SingleTaskGenerator.Config(env=arena)
-        original = CurriculumConfig(task_generator=single_config, num_active_tasks=10)
+        single_config = metta.cogworks.curriculum.SingleTaskGenerator.Config(env=arena)
+        original = metta.cogworks.curriculum.CurriculumConfig(task_generator=single_config, num_active_tasks=10)
 
         # Serialize and deserialize
         json_str = original.model_dump_json()
-        restored = CurriculumConfig.model_validate_json(json_str)
+        restored = metta.cogworks.curriculum.CurriculumConfig.model_validate_json(json_str)
 
         # Check they serialize to the same JSON
         self.assertEqual(original.model_dump_json(), restored.model_dump_json())
@@ -37,12 +36,14 @@ class TestCurriculumConfigSerialization(unittest.TestCase):
         # Add various bucket types
         arena_tasks.add_bucket("game.level_map.width", [10, 20, 30])
         arena_tasks.add_bucket("game.level_map.height", [10, 20, 30])
-        arena_tasks.add_bucket("game.agent.rewards.inventory.ore_red", [0, Span(0, 1.0)])
+        arena_tasks.add_bucket(
+            "game.agent.rewards.inventory.ore_red", [0, metta.cogworks.curriculum.task_generator.Span(0, 1.0)]
+        )
 
-        original = CurriculumConfig(task_generator=arena_tasks)
+        original = metta.cogworks.curriculum.CurriculumConfig(task_generator=arena_tasks)
         # Serialize and deserialize
         json_str = original.model_dump_json()
-        restored = CurriculumConfig.model_validate_json(json_str)
+        restored = metta.cogworks.curriculum.CurriculumConfig.model_validate_json(json_str)
 
         # Check they serialize to the same JSON
         self.assertEqual(original.model_dump_json(), restored.model_dump_json())
@@ -52,15 +53,17 @@ class TestCurriculumConfigSerialization(unittest.TestCase):
         arena1 = eb.make_arena(num_agents=2)
         arena2 = eb.make_arena(num_agents=4)
 
-        single1 = SingleTaskGenerator.Config(env=arena1)
-        single2 = SingleTaskGenerator.Config(env=arena2)
+        single1 = metta.cogworks.curriculum.SingleTaskGenerator.Config(env=arena1)
+        single2 = metta.cogworks.curriculum.SingleTaskGenerator.Config(env=arena2)
 
-        set_config = TaskGeneratorSet.Config(task_generators=[single1, single2], weights=[0.5, 0.5])
-        original = CurriculumConfig(task_generator=set_config, num_active_tasks=20)
+        set_config = metta.cogworks.curriculum.TaskGeneratorSet.Config(
+            task_generators=[single1, single2], weights=[0.5, 0.5]
+        )
+        original = metta.cogworks.curriculum.CurriculumConfig(task_generator=set_config, num_active_tasks=20)
 
         # Serialize and deserialize
         json_str = original.model_dump_json()
-        restored = CurriculumConfig.model_validate_json(json_str)
+        restored = metta.cogworks.curriculum.CurriculumConfig.model_validate_json(json_str)
 
         # Check they serialize to the same JSON
         self.assertEqual(original.model_dump_json(), restored.model_dump_json())
@@ -74,15 +77,15 @@ class TestCurriculumConfigSerialization(unittest.TestCase):
         inner_tasks.add_bucket("game.level_map.width", [5, 10])
 
         # Create outer bucketed config with inner as child
-        outer_config = BucketedTaskGenerator.Config(
+        outer_config = metta.cogworks.curriculum.BucketedTaskGenerator.Config(
             child_generator_config=inner_tasks, buckets={"game.level_map.height": [15, 20]}
         )
 
-        original = CurriculumConfig(task_generator=outer_config)
+        original = metta.cogworks.curriculum.CurriculumConfig(task_generator=outer_config)
 
         # Serialize and deserialize
         json_str = original.model_dump_json()
-        restored = CurriculumConfig.model_validate_json(json_str)
+        restored = metta.cogworks.curriculum.CurriculumConfig.model_validate_json(json_str)
 
         # Check they serialize to the same JSON
         self.assertEqual(original.model_dump_json(), restored.model_dump_json())
@@ -93,13 +96,13 @@ class TestCurriculumConfigSerialization(unittest.TestCase):
         arena_tasks = cc.bucketed(arena)
 
         # Add bucket with ValueRange
-        arena_tasks.add_bucket("test.param", [0, Span(0.5, 1.5), 2])
+        arena_tasks.add_bucket("test.param", [0, metta.cogworks.curriculum.task_generator.Span(0.5, 1.5), 2])
 
-        original = CurriculumConfig(task_generator=arena_tasks)
+        original = metta.cogworks.curriculum.CurriculumConfig(task_generator=arena_tasks)
 
         # Serialize and deserialize
         json_str = original.model_dump_json()
-        restored = CurriculumConfig.model_validate_json(json_str)
+        restored = metta.cogworks.curriculum.CurriculumConfig.model_validate_json(json_str)
 
         # Check they serialize to the same JSON
         self.assertEqual(original.model_dump_json(), restored.model_dump_json())

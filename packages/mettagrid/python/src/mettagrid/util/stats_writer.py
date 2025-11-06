@@ -3,26 +3,26 @@ StatsWriter is an abstract interface for writing statistics in MettaGrid.
 It is used to record the outcomes of episodes.
 """
 
+import abc
 import datetime
-from abc import ABC, abstractmethod
-from pathlib import Path
-from typing import Dict
+import pathlib
+import typing
 
 
-class StatsWriter(ABC):
+class StatsWriter(abc.ABC):
     """
     Abstract interface for tracking statistics in MettaGrid; can be used by multiple environments simultaneously.
     """
 
-    def __init__(self, dir: Path) -> None:
+    def __init__(self, dir: pathlib.Path) -> None:
         self.dir = dir
 
-    @abstractmethod
+    @abc.abstractmethod
     def record_episode(
         self,
-        attributes: Dict[str, str],
-        agent_metrics: Dict[int, Dict[str, float]],
-        agent_groups: Dict[int, int],
+        attributes: typing.Dict[str, str],
+        agent_metrics: typing.Dict[int, typing.Dict[str, float]],
+        agent_groups: typing.Dict[int, int],
         step_count: int,
         replay_url: str | None,
         created_at: datetime.datetime,
@@ -42,7 +42,7 @@ class StatsWriter(ABC):
         """
         raise NotImplementedError
 
-    @abstractmethod
+    @abc.abstractmethod
     def close(self) -> None:
         """Close any open connections or resources."""
         raise NotImplementedError
@@ -51,14 +51,14 @@ class StatsWriter(ABC):
 class NoopStatsWriter(StatsWriter):
     """No-op StatsWriter implementation for testing."""
 
-    def __init__(self, dir: Path | None = None):
-        super().__init__(dir or Path("/tmp"))
+    def __init__(self, dir: pathlib.Path | None = None):
+        super().__init__(dir or pathlib.Path("/tmp"))
 
     def record_episode(
         self,
-        attributes: Dict[str, str],
-        agent_metrics: Dict[int, Dict[str, float]],
-        agent_groups: Dict[int, int],
+        attributes: typing.Dict[str, str],
+        agent_metrics: typing.Dict[int, typing.Dict[str, float]],
+        agent_groups: typing.Dict[int, int],
         step_count: int,
         replay_url: str | None,
         created_at: datetime.datetime,

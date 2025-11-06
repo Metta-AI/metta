@@ -1,33 +1,26 @@
 #!/usr/bin/env -S uv run python
 """Example showing how to create custom cell types for the cortex architecture."""
 
+import cortex
+import cortex.types
+import pydantic
+import tensordict
 import torch
 import torch.nn as nn
-from cortex import (
-    CellConfig,
-    CortexStack,
-    CortexStackConfig,
-    MemoryCell,
-    PassThroughBlockConfig,
-    register_cell,
-)
-from cortex.types import MaybeState, ResetMask, Tensor
-from pydantic import Field
-from tensordict import TensorDict
 
 
 # Step 1: Define custom cell configuration
-class GRUCellConfig(CellConfig):
+class GRUCellConfig(cortex.CellConfig):
     """Configuration for a GRU cell."""
 
-    num_layers: int = Field(default=1, ge=1)
-    bias: bool = Field(default=True)
-    dropout: float = Field(default=0.0, ge=0.0)
+    num_layers: int = pydantic.Field(default=1, ge=1)
+    bias: bool = pydantic.Field(default=True)
+    dropout: float = pydantic.Field(default=0.0, ge=0.0)
 
 
 # Step 2: Implement and register the custom cell
-@register_cell(GRUCellConfig)
-class GRUCell(MemoryCell):
+@cortex.register_cell(GRUCellConfig)
+class GRUCell(cortex.MemoryCell):
     """GRU cell implementation with TensorDict state management."""
 
     def __init__(self, cfg: GRUCellConfig) -> None:
@@ -43,18 +36,18 @@ class GRUCell(MemoryCell):
         )
         self.num_layers = cfg.num_layers
 
-    def init_state(self, batch: int, *, device: torch.device, dtype: torch.dtype) -> TensorDict:
+    def init_state(self, batch: int, *, device: torch.device, dtype: torch.dtype) -> tensordict.TensorDict:
         # Batch-first state: [B, L, H]
         h = torch.zeros(batch, self.num_layers, self.hidden_size, device=device, dtype=dtype)
-        return TensorDict({"h": h}, batch_size=[batch])
+        return tensordict.TensorDict({"h": h}, batch_size=[batch])
 
     def forward(
         self,
-        x: Tensor,
-        state: MaybeState,
+        x: cortex.types.Tensor,
+        state: cortex.types.MaybeState,
         *,
-        resets: ResetMask | None = None,
-    ) -> tuple[Tensor, MaybeState]:
+        resets: cortex.types.ResetMask | None = None,
+    ) -> tuple[cortex.types.Tensor, cortex.types.MaybeState]:
         # Handle state
         if state is None:
             batch_size = x.shape[0]  # Always batch-first
@@ -84,9 +77,9 @@ class GRUCell(MemoryCell):
         # Transpose state back to batch-first: [L, B, H] -> [B, L, H]
         batch_size = x.shape[0]
         h_new_bf = h_new.transpose(0, 1)
-        return y, TensorDict({"h": h_new_bf}, batch_size=[batch_size])
+        return y, tensordict.TensorDict({"h": h_new_bf}, batch_size=[batch_size])
 
-    def reset_state(self, state: MaybeState, mask: ResetMask) -> MaybeState:
+    def reset_state(self, state: cortex.types.MaybeState, mask: cortex.types.ResetMask) -> cortex.types.MaybeState:
         if state is None:
             return state
 
@@ -94,7 +87,7 @@ class GRUCell(MemoryCell):
         batch_size = state.batch_size[0] if state.batch_size else h.shape[0]
         reset_mask = mask.view(-1, 1, 1)  # [B] -> [B, 1, 1]
         h_new = torch.where(reset_mask, torch.zeros_like(h), h)
-        return TensorDict({"h": h_new}, batch_size=[batch_size])
+        return tensordict.TensorDict({"h": h_new}, batch_size=[batch_size])
 
 
 def test_custom_cell():
@@ -107,23 +100,20 @@ def test_custom_cell():
     seq_len = 5
     d_hidden = 64
 
-    # Create a recipe mixing LSTM and GRU cells
-    from cortex import LSTMCellConfig
-
-    recipe = CortexStackConfig(
+    recipe = cortex.CortexStackConfig(
         d_hidden=d_hidden,
         blocks=[
             # LSTM block
-            PassThroughBlockConfig(
-                cell=LSTMCellConfig(hidden_size=64, num_layers=1),
+            cortex.PassThroughBlockConfig(
+                cell=cortex.LSTMCellConfig(hidden_size=64, num_layers=1),
             ),
             # GRU block (our custom cell)
-            PassThroughBlockConfig(
+            cortex.PassThroughBlockConfig(
                 cell=GRUCellConfig(hidden_size=64, num_layers=2),
             ),
             # Another LSTM block
-            PassThroughBlockConfig(
-                cell=LSTMCellConfig(hidden_size=64, num_layers=1),
+            cortex.PassThroughBlockConfig(
+                cell=cortex.LSTMCellConfig(hidden_size=64, num_layers=1),
             ),
         ],
         post_norm=True,
@@ -138,7 +128,7 @@ def test_custom_cell():
     print()
 
     # Build the stack - it automatically handles both LSTM and GRU cells!
-    stack = CortexStack(recipe)
+    stack = cortex.CortexStack(recipe)
     print(f"Built stack with {len(stack.blocks)} blocks (mixed cell types)")
 
     # Test forward pass

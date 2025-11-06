@@ -11,83 +11,86 @@ Add new templates by:
    the `--stack` CLI flag in `run.py`.
 """
 
-from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Callable, Dict
+import dataclasses
+import typing
 
-from cortex.config import (
-    AxonConfig,
-    CortexStackConfig,
-    PassThroughBlockConfig,
-    PostUpBlockConfig,
-    PreUpBlockConfig,
-    mLSTMCellConfig,
-    sLSTMCellConfig,
-)
-from cortex.factory import build_cortex
-from cortex.stacks import CortexStack, build_cortex_auto_stack
-from cortex.stacks.xlstm import build_xlstm_stack
+import cortex.config
+import cortex.factory
+import cortex.stacks
+import cortex.stacks.xlstm
 
 # cortex_auto_stack is implemented in core (cortex.stacks.auto);
 # this module simply imports and registers it below.
 
 
-@dataclass
+@dataclasses.dataclass
 class StackSpec:
     name: str
-    builder: Callable[[], CortexStack]
+    builder: typing.Callable[[], cortex.stacks.CortexStack]
     d_hidden: int
 
 
-def build_slstm_postup(*, d_hidden: int = 128, proj_factor: float = 1.5, num_heads: int = 4) -> CortexStack:
+def build_slstm_postup(
+    *, d_hidden: int = 128, proj_factor: float = 1.5, num_heads: int = 4
+) -> cortex.stacks.CortexStack:
     """sLSTM cell in a PostUp block; cell size equals external hidden size."""
-    cfg = CortexStackConfig(
+    cfg = cortex.config.CortexStackConfig(
         d_hidden=d_hidden,
         post_norm=True,
         blocks=[
-            PostUpBlockConfig(
+            cortex.config.PostUpBlockConfig(
                 proj_factor=proj_factor,
                 # hidden_size may be None here; the stack builder sets it to d_hidden for PostUp
-                cell=sLSTMCellConfig(hidden_size=None, num_heads=num_heads, conv1d_kernel_size=4, dropout=0.0),
+                cell=cortex.config.sLSTMCellConfig(
+                    hidden_size=None, num_heads=num_heads, conv1d_kernel_size=4, dropout=0.0
+                ),
             )
         ],
     )
-    return build_cortex(cfg)
+    return cortex.factory.build_cortex(cfg)
 
 
-def build_mlstm_preup(*, d_hidden: int = 128, proj_factor: float = 2.0, num_heads: int = 4) -> CortexStack:
+def build_mlstm_preup(
+    *, d_hidden: int = 128, proj_factor: float = 2.0, num_heads: int = 4
+) -> cortex.stacks.CortexStack:
     """mLSTM cell in a PreUp block; cell runs at inner dim = proj_factor*d_hidden."""
-    cfg = CortexStackConfig(
+    cfg = cortex.config.CortexStackConfig(
         d_hidden=d_hidden,
         post_norm=True,
         blocks=[
-            PreUpBlockConfig(
+            cortex.config.PreUpBlockConfig(
                 proj_factor=proj_factor,
                 # hidden_size may be None here; the stack builder sets it to int(proj_factor * d_hidden) for PreUp
-                cell=mLSTMCellConfig(hidden_size=None, num_heads=num_heads, chunk_size=256, conv1d_kernel_size=4),
+                cell=cortex.config.mLSTMCellConfig(
+                    hidden_size=None, num_heads=num_heads, chunk_size=256, conv1d_kernel_size=4
+                ),
             )
         ],
     )
-    return build_cortex(cfg)
+    return cortex.factory.build_cortex(cfg)
 
 
-def build_slstm_postup_axon(*, d_hidden: int = 128, proj_factor: float = 1.5, num_heads: int = 4) -> CortexStack:
+def build_slstm_postup_axon(
+    *, d_hidden: int = 128, proj_factor: float = 1.5, num_heads: int = 4
+) -> cortex.stacks.CortexStack:
     """sLSTM PostUp variant with AxonLayer headwise gates enabled via flag.
 
     Only the per-head gate projections use Axon; the core sLSTM kernel remains unchanged.
     """
-    cfg = CortexStackConfig(
+    cfg = cortex.config.CortexStackConfig(
         d_hidden=d_hidden,
         post_norm=True,
         blocks=[
-            PreUpBlockConfig(
+            cortex.config.PreUpBlockConfig(
                 # hidden_size is inferred from PreUp: int(proj_factor * d_hidden)
-                cell=AxonConfig(hidden_size=None, activation="silu", use_fullrank_rtu=False, use_untraced_linear=True)
+                cell=cortex.config.AxonConfig(
+                    hidden_size=None, activation="silu", use_fullrank_rtu=False, use_untraced_linear=True
+                )
             ),
-            PostUpBlockConfig(
+            cortex.config.PostUpBlockConfig(
                 proj_factor=proj_factor,
-                cell=sLSTMCellConfig(
+                cell=cortex.config.sLSTMCellConfig(
                     hidden_size=None,
                     num_heads=num_heads,
                     conv1d_kernel_size=4,
@@ -97,22 +100,26 @@ def build_slstm_postup_axon(*, d_hidden: int = 128, proj_factor: float = 1.5, nu
             ),
         ],
     )
-    return build_cortex(cfg)
+    return cortex.factory.build_cortex(cfg)
 
 
-def build_mlstm_preup_axon(*, d_hidden: int = 128, proj_factor: float = 2.0, num_heads: int = 4) -> CortexStack:
+def build_mlstm_preup_axon(
+    *, d_hidden: int = 128, proj_factor: float = 2.0, num_heads: int = 4
+) -> cortex.stacks.CortexStack:
     """mLSTM PreUp variant with AxonLayer gates (3H→NH) enabled via flag."""
-    cfg = CortexStackConfig(
+    cfg = cortex.config.CortexStackConfig(
         d_hidden=d_hidden,
         post_norm=True,
         blocks=[
-            PassThroughBlockConfig(
+            cortex.config.PassThroughBlockConfig(
                 # hidden_size is inferred from PreUp: int(proj_factor * d_hidden)
-                cell=AxonConfig(hidden_size=None, activation="silu", use_fullrank_rtu=False, use_untraced_linear=True)
+                cell=cortex.config.AxonConfig(
+                    hidden_size=None, activation="silu", use_fullrank_rtu=False, use_untraced_linear=True
+                )
             ),
-            PreUpBlockConfig(
+            cortex.config.PreUpBlockConfig(
                 proj_factor=proj_factor,
-                cell=mLSTMCellConfig(
+                cell=cortex.config.mLSTMCellConfig(
                     hidden_size=None,
                     num_heads=num_heads,
                     chunk_size=256,
@@ -123,10 +130,10 @@ def build_mlstm_preup_axon(*, d_hidden: int = 128, proj_factor: float = 2.0, num
             ),
         ],
     )
-    return build_cortex(cfg)
+    return cortex.factory.build_cortex(cfg)
 
 
-def build_axons_preup(*, d_hidden: int = 128, proj_factor: float = 2.0) -> CortexStack:
+def build_axons_preup(*, d_hidden: int = 128, proj_factor: float = 2.0) -> cortex.stacks.CortexStack:
     """Axons (streaming RTU, diagonal) wrapped in a PreUp block.
 
     - The PreUp block projects inputs to an inner dim of ``proj_factor*d_hidden``
@@ -134,26 +141,30 @@ def build_axons_preup(*, d_hidden: int = 128, proj_factor: float = 2.0) -> Corte
     - Axons assumes D == H internally and projects its 2H activation
       back to H, keeping the external hidden size consistent.
     """
-    cfg = CortexStackConfig(
+    cfg = cortex.config.CortexStackConfig(
         d_hidden=d_hidden,
         post_norm=True,
         blocks=[
-            PassThroughBlockConfig(
+            cortex.config.PassThroughBlockConfig(
                 # hidden_size is inferred from PreUp: int(proj_factor * d_hidden)
-                cell=AxonConfig(hidden_size=None, activation="silu", use_fullrank_rtu=False, use_untraced_linear=True)
+                cell=cortex.config.AxonConfig(
+                    hidden_size=None, activation="silu", use_fullrank_rtu=False, use_untraced_linear=True
+                )
             ),
-            PreUpBlockConfig(
+            cortex.config.PreUpBlockConfig(
                 proj_factor=proj_factor,
                 # hidden_size is inferred from PreUp: int(proj_factor * d_hidden)
-                cell=AxonConfig(hidden_size=None, activation="silu", use_fullrank_rtu=False, use_untraced_linear=True),
+                cell=cortex.config.AxonConfig(
+                    hidden_size=None, activation="silu", use_fullrank_rtu=False, use_untraced_linear=True
+                ),
             ),
         ],
     )
-    return build_cortex(cfg)
+    return cortex.factory.build_cortex(cfg)
 
 
 # Registry of available stacks for the evaluation harness
-STACKS: Dict[str, StackSpec] = {
+STACKS: typing.Dict[str, StackSpec] = {
     # Single‑block templates
     "slstm": StackSpec(name="slstm_postup", builder=lambda: build_slstm_postup(), d_hidden=128),
     "mlstm": StackSpec(name="mlstm_preup", builder=lambda: build_mlstm_preup(), d_hidden=128),
@@ -162,29 +173,39 @@ STACKS: Dict[str, StackSpec] = {
     "axons": StackSpec(name="axons_preup", builder=lambda: build_axons_preup(), d_hidden=128),
     # Composite templates
     # xLSTM: alternates mLSTM (PreUp) and sLSTM (PostUp)
-    "xlstm": StackSpec(name="xlstm", builder=lambda: build_xlstm_stack(d_hidden=128, num_blocks=3), d_hidden=128),
+    "xlstm": StackSpec(
+        name="xlstm", builder=lambda: cortex.stacks.xlstm.build_xlstm_stack(d_hidden=128, num_blocks=3), d_hidden=128
+    ),
     # Small and deeper variants for quick sweeps
     "xlstm_tiny": StackSpec(
-        name="xlstm_tiny", builder=lambda: build_xlstm_stack(d_hidden=128, num_blocks=2), d_hidden=128
+        name="xlstm_tiny",
+        builder=lambda: cortex.stacks.xlstm.build_xlstm_stack(d_hidden=128, num_blocks=2),
+        d_hidden=128,
     ),
     "xlstm_deep": StackSpec(
-        name="xlstm_deep", builder=lambda: build_xlstm_stack(d_hidden=128, num_blocks=6), d_hidden=128
+        name="xlstm_deep",
+        builder=lambda: cortex.stacks.xlstm.build_xlstm_stack(d_hidden=128, num_blocks=6),
+        d_hidden=128,
     ),
     # Mixed auto stack cycling Axon/mLSTM/sLSTM with PreUp/PreUp/PostUp
     "cortex_auto": StackSpec(
         name="cortex_auto_stack",
-        builder=lambda: build_cortex_auto_stack(d_hidden=128, num_layers=2, compile_blocks=False, pattern="AMS"),
+        builder=lambda: cortex.stacks.build_cortex_auto_stack(
+            d_hidden=128, num_layers=2, compile_blocks=False, pattern="AMS"
+        ),
         d_hidden=128,
     ),
     # Variant with per-block torch.compile enabled for A/B comparisons
     "cortex_auto_compiled": StackSpec(
         name="cortex_auto_stack",
-        builder=lambda: build_cortex_auto_stack(d_hidden=128, num_layers=2, compile_blocks=True, pattern="AXMS"),
+        builder=lambda: cortex.stacks.build_cortex_auto_stack(
+            d_hidden=128, num_layers=2, compile_blocks=True, pattern="AXMS"
+        ),
         d_hidden=128,
     ),
     "cortex_auto_axon": StackSpec(
         name="cortex_auto_stack",
-        builder=lambda: build_cortex_auto_stack(d_hidden=128, num_layers=2, pattern="M^X^S^"),
+        builder=lambda: cortex.stacks.build_cortex_auto_stack(d_hidden=128, num_layers=2, pattern="M^X^S^"),
         d_hidden=128,
     ),
 }

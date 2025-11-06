@@ -3,22 +3,22 @@ Updated for Pydantic-based configuration system.
 """
 
 import os
+import pathlib
 import subprocess
 import tempfile
-from pathlib import Path
 
 import pytest
 
+import metta.cogworks.curriculum.curriculum
+import metta.cogworks.curriculum.task_generator
+import metta.sim.simulation
+import metta.sim.simulation_config
+import metta.tools.eval
+import metta.tools.play
+import metta.tools.replay
+import mettagrid
 import mettagrid.builder.envs as eb
-from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.cogworks.curriculum.task_generator import SingleTaskGenerator
-from metta.sim.simulation import Simulation
-from metta.sim.simulation_config import SimulationConfig
-from metta.tools.eval import EvaluateTool
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
-from mettagrid import PufferMettaGridEnv, dtype_observations
-from mettagrid.simulator import Simulator
+import mettagrid.simulator
 
 
 class TestBasicPolicyEnvironment:
@@ -32,8 +32,8 @@ class TestBasicPolicyEnvironment:
     @pytest.fixture
     def env_with_config(self, simple_env_config):
         """Create PufferMettaGridEnv from config."""
-        simulator = Simulator()
-        env = PufferMettaGridEnv(simulator, simple_env_config)
+        simulator = mettagrid.simulator.Simulator()
+        env = mettagrid.PufferMettaGridEnv(simulator, simple_env_config)
         try:
             yield env
         finally:
@@ -52,7 +52,7 @@ class TestBasicPolicyEnvironment:
         # Test reset
         obs, info = env.reset()
         assert obs is not None
-        assert obs.dtype == dtype_observations
+        assert obs.dtype == mettagrid.dtype_observations
         assert obs.shape[0] == env.num_agents
 
         # Test step
@@ -60,7 +60,7 @@ class TestBasicPolicyEnvironment:
         obs, reward, done, truncated, info = env.step(action)
 
         assert obs is not None
-        assert obs.dtype == dtype_observations
+        assert obs.dtype == mettagrid.dtype_observations
         assert reward is not None
         assert done is not None
         assert truncated is not None
@@ -111,33 +111,35 @@ class TestBasicPolicyEnvironment:
                 capture_output=True,
                 text=True,
                 timeout=120,  # 2 minute timeout
-                cwd=Path.cwd(),
+                cwd=pathlib.Path.cwd(),
             )
 
         assert captured_runs, "Training command was not invoked"
         train_cmd, kwargs = captured_runs[0]
         assert train_cmd[:4] == ["uv", "run", "./tools/run.py", "experiments.recipes.arena.train"]
-        assert kwargs["cwd"] == Path.cwd()
+        assert kwargs["cwd"] == pathlib.Path.cwd()
         assert kwargs["env"]["AWS_ACCESS_KEY_ID"] == "dummy_for_test"
 
     def test_simulation_creation(self, monkeypatch):
         """Test simulation configuration creation and instantiation."""
 
         env_config = eb.make_navigation(num_agents=2)
-        sim_config = SimulationConfig(suite="test", name="test_nav", env=env_config)
+        sim_config = metta.sim.simulation_config.SimulationConfig(suite="test", name="test_nav", env=env_config)
 
         assert sim_config.name == "test_nav"
         assert sim_config.env.game.num_agents == 2
 
         def _small_curriculum(cls, mg_config):
-            return CurriculumConfig(
-                task_generator=SingleTaskGenerator.Config(env=mg_config),
+            return metta.cogworks.curriculum.curriculum.CurriculumConfig(
+                task_generator=metta.cogworks.curriculum.task_generator.SingleTaskGenerator.Config(env=mg_config),
                 num_active_tasks=1,
                 max_task_id=1,
             )
 
-        monkeypatch.setattr(CurriculumConfig, "from_mg", classmethod(_small_curriculum))
-        simulation = Simulation.create(
+        monkeypatch.setattr(
+            metta.cogworks.curriculum.curriculum.CurriculumConfig, "from_mg", classmethod(_small_curriculum)
+        )
+        simulation = metta.sim.simulation.Simulation.create(
             sim_config=sim_config,
             policy_uri=None,
         )
@@ -147,9 +149,11 @@ class TestBasicPolicyEnvironment:
         """Test that EvaluateTool accepts policy URIs."""
 
         env_config = eb.make_arena(num_agents=4)
-        sim_config = SimulationConfig(suite="test", name="test_arena", env=env_config)
+        sim_config = metta.sim.simulation_config.SimulationConfig(suite="test", name="test_arena", env=env_config)
 
-        eval_tool = EvaluateTool(simulations=[sim_config], policy_uris=["mock://test_policy"], stats_db_uri=None)
+        eval_tool = metta.tools.eval.EvaluateTool(
+            simulations=[sim_config], policy_uris=["mock://test_policy"], stats_db_uri=None
+        )
 
         assert eval_tool.simulations[0].name == "test_arena"
         assert eval_tool.policy_uris == ["mock://test_policy"]
@@ -158,10 +162,10 @@ class TestBasicPolicyEnvironment:
         """Ensure basic tool wiring stays aligned with SimulationConfig usage."""
 
         env_config = eb.make_navigation(num_agents=2)
-        sim_config = SimulationConfig(suite="test", name="tool_config", env=env_config)
+        sim_config = metta.sim.simulation_config.SimulationConfig(suite="test", name="tool_config", env=env_config)
 
-        play_tool = PlayTool(sim=sim_config, policy_uri=None)
-        replay_tool = ReplayTool(sim=sim_config, policy_uri=None, open_browser_on_start=False)
+        play_tool = metta.tools.play.PlayTool(sim=sim_config, policy_uri=None)
+        replay_tool = metta.tools.replay.ReplayTool(sim=sim_config, policy_uri=None, open_browser_on_start=False)
 
         assert play_tool.sim.name == "tool_config"
         assert replay_tool.sim.name == "tool_config"

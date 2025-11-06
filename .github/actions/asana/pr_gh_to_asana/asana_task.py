@@ -427,7 +427,7 @@ class AsanaTask:
             List[Dict]: List of comment dictionaries
         """
         print(f"[get_comments] get_comments() called with task_id='{task_id}'")
-        from datetime import datetime
+        import datetime
 
         import requests
 
@@ -461,7 +461,9 @@ class AsanaTask:
                             "name": author_name,
                             "email": comment.get("created_by", {}).get("email"),
                         },
-                        "created_at": datetime.fromisoformat(comment.get("created_at", "").replace("Z", "+00:00")),
+                        "created_at": datetime.datetime.fromisoformat(
+                            comment.get("created_at", "").replace("Z", "+00:00")
+                        ),
                         "is_pinned": comment.get("is_pinned", False),
                         "github_url": github_url,
                     }
@@ -503,9 +505,11 @@ class AsanaTask:
             print(f"[s] Processing review from {github_user} ({review_state}) at {github_url}")
 
             # Format the review for Asana
-            from pr_gh_to_asana import format_github_review_body_for_asana
+            import pr_gh_to_asana
 
-            formatted_comment = format_github_review_body_for_asana(review_body, github_user, review_state, github_url)
+            formatted_comment = pr_gh_to_asana.format_github_review_body_for_asana(
+                review_body, github_user, review_state, github_url
+            )
 
             if github_url in existing_comments_by_github_url:
                 print(f"[synchronize_comments_in_asana] Review at {github_url} has existing Asana comment")

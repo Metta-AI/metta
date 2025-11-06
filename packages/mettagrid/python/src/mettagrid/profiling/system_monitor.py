@@ -1,15 +1,15 @@
+import collections
 import logging
 import os
+import threading
 import time
-from collections import deque
-from threading import Lock, Thread
-from typing import Any, Callable
+import typing
 
 import psutil
 import torch
-from typing_extensions import TypeVar
+import typing_extensions
 
-T = TypeVar("T")
+T = typing_extensions.TypeVar("T")
 
 
 class SystemMonitor:
@@ -19,7 +19,7 @@ class SystemMonitor:
         history_size: int = 100,
         log_level: int | None = None,
         auto_start: bool = True,
-        external_timer: Any | None = None,
+        external_timer: typing.Any | None = None,
     ):
         self.logger = logging.getLogger(f"SystemMonitor.{id(self)}")
         if log_level is None:
@@ -34,15 +34,15 @@ class SystemMonitor:
         # Call cpu_percent once to initialize the baseline
         self._process.cpu_percent()
         # Thread control
-        self._thread: Thread | None = None
+        self._thread: threading.Thread | None = None
         self._stop_flag = False
-        self._lock = Lock()
+        self._lock = threading.Lock()
         self._start_time: float | None = None  # Track when monitoring started
         self._external_timer = external_timer  # External timer for elapsed time
         # Metric storage
-        self._metrics: dict[str, deque] = {}
-        self._latest: dict[str, Any] = {}
-        self._metric_collectors: dict[str, Callable[[], Any]] = {}
+        self._metrics: dict[str, collections.deque] = {}
+        self._latest: dict[str, typing.Any] = {}
+        self._metric_collectors: dict[str, typing.Callable[[], typing.Any]] = {}
         # Initialize default metrics
         self._initialize_default_metrics()
         if auto_start:
@@ -56,7 +56,7 @@ class SystemMonitor:
                 stats[f"monitor/{metric_name}"] = metric_data["latest"]
         return stats
 
-    def get_summary(self) -> dict[str, Any]:
+    def get_summary(self) -> dict[str, typing.Any]:
         summary = {"timestamp": time.time(), "metrics": {}}
 
         for metric in self._metric_collectors:
@@ -86,13 +86,13 @@ class SystemMonitor:
 
         return summary
 
-    def get_history(self, metric: str) -> list[tuple[float, Any]]:
+    def get_history(self, metric: str) -> list[tuple[float, typing.Any]]:
         with self._lock:
             if metric not in self._metrics:
                 return []
             return list(self._metrics[metric])
 
-    def get_latest(self, metric: str | None = None) -> Any:
+    def get_latest(self, metric: str | None = None) -> typing.Any:
         with self._lock:
             if metric:
                 return self._latest.get(metric)
@@ -175,7 +175,7 @@ class SystemMonitor:
 
         # Initialize history storage for all metrics
         for name in self._metric_collectors:
-            self._metrics[name] = deque(maxlen=self.history_size)
+            self._metrics[name] = collections.deque(maxlen=self.history_size)
 
     def _get_cpu_temperature(self) -> float | None:
         try:
@@ -323,7 +323,7 @@ class SystemMonitor:
             self._stop_flag = False
             if self._start_time is None:  # Only set on first start
                 self._start_time = time.time()
-            self._thread = Thread(target=self._monitor_loop, daemon=True)
+            self._thread = threading.Thread(target=self._monitor_loop, daemon=True)
             self._thread.start()
             self.logger.info("System monitoring started")
 

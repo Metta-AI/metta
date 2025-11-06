@@ -1,17 +1,17 @@
-from dataclasses import dataclass
-from typing import Literal, TypeAlias, Union
+import dataclasses
+import typing
 
 import numpy as np
 
-from mettagrid.map_builder import MapGrid
-from mettagrid.mapgen.random.int import IntConstantDistribution, IntDistribution
-from mettagrid.mapgen.scene import Scene, SceneConfig
+import mettagrid.map_builder
+import mettagrid.mapgen.random.int
+import mettagrid.mapgen.scene
 
-Anchor = Union[
-    Literal["top-left"],
-    Literal["top-right"],
-    Literal["bottom-left"],
-    Literal["bottom-right"],
+Anchor = typing.Union[
+    typing.Literal["top-left"],
+    typing.Literal["top-right"],
+    typing.Literal["bottom-left"],
+    typing.Literal["bottom-right"],
 ]
 
 ALL_ANCHORS: list[Anchor] = ["top-left", "top-right", "bottom-left", "bottom-right"]
@@ -28,12 +28,12 @@ def anchor_to_position(anchor: Anchor, width: int, height: int) -> tuple[int, in
         return (width - 1, height - 1)
 
 
-Direction: TypeAlias = tuple[int, int]
+Direction: typing.TypeAlias = tuple[int, int]
 
 ALL_DIRECTIONS: list[Direction] = [(0, -1), (0, 1), (1, 0), (-1, 0)]
 
 
-@dataclass
+@dataclasses.dataclass
 class MazeGrid:
     """
     A grid of maze cells of NxN size, separated by walls.
@@ -43,7 +43,7 @@ class MazeGrid:
     - `x` and `y` are the coordinates in the underlying MapGrid.
     """
 
-    grid: MapGrid
+    grid: mettagrid.map_builder.MapGrid
     room_size: int
     wall_size: int
 
@@ -99,13 +99,17 @@ class MazeGrid:
             self.grid[y : y + self.wall_size, :] = "wall"
 
 
-class MazeConfig(SceneConfig):
-    algorithm: Literal["kruskal", "dfs"] = "kruskal"
-    room_size: IntDistribution = IntConstantDistribution(value=1)
-    wall_size: IntDistribution = IntConstantDistribution(value=1)
+class MazeConfig(mettagrid.mapgen.scene.SceneConfig):
+    algorithm: typing.Literal["kruskal", "dfs"] = "kruskal"
+    room_size: mettagrid.mapgen.random.int.IntDistribution = mettagrid.mapgen.random.int.IntConstantDistribution(
+        value=1
+    )
+    wall_size: mettagrid.mapgen.random.int.IntDistribution = mettagrid.mapgen.random.int.IntConstantDistribution(
+        value=1
+    )
 
 
-class Maze(Scene[MazeConfig]):
+class Maze(mettagrid.mapgen.scene.Scene[MazeConfig]):
     """
     Maze generation scene.
 

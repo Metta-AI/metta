@@ -1,16 +1,15 @@
 """Progress logging utilities and component."""
 
-from __future__ import annotations
 
 import logging
 import os
 import sys
-from typing import Dict, Optional
+import typing
 
-from rich.console import Console
-from rich.table import Table
+import rich.console
+import rich.table
 
-from metta.rl.training import TrainerComponent
+import metta.rl.training
 
 logger = logging.getLogger(__name__)
 
@@ -34,13 +33,13 @@ def _format_total_steps(total_timesteps: int) -> str:
     return f"{total_timesteps:,}"
 
 
-def _create_progress_table(epoch: int, run_name: str | None) -> Table:
+def _create_progress_table(epoch: int, run_name: str | None) -> rich.table.Table:
     if run_name:
         title = f"[bold cyan]{run_name} · Training Progress - Epoch {epoch}[/bold cyan]"
     else:
         title = f"[bold cyan]Training Progress - Epoch {epoch}[/bold cyan]"
 
-    table = Table(title=title, show_header=True, header_style="bold magenta")
+    table = rich.table.Table(title=title, show_header=True, header_style="bold magenta")
     table.add_column("Metrics", style="cyan", justify="left")
     table.add_column("Progress", style="green", justify="right")
     table.add_column("Values", style="yellow", justify="left")
@@ -61,7 +60,7 @@ def log_rich_progress(
 ) -> None:
     """Render training progress in a rich table."""
 
-    console = Console()
+    console = rich.console.Console()
     table = _create_progress_table(epoch, run_name)
 
     total_steps_str = _format_total_steps(total_timesteps)
@@ -98,7 +97,7 @@ def log_training_progress(
     rollout_time: float,
     stats_time: float,
     run_name: str | None,
-    metrics: Dict[str, float] | None,
+    metrics: typing.Dict[str, float] | None,
 ) -> None:
     """Log training progress with timing breakdown and optional metrics."""
 
@@ -160,7 +159,7 @@ def _human_readable_si(value: float, unit: str = "") -> str:
     return f"{value:.0f} {unit}" if unit else f"{value:.0f}"
 
 
-class ProgressLogger(TrainerComponent):
+class ProgressLogger(metta.rl.training.TrainerComponent):
     """Master-only component that logs epoch progress."""
 
     _master_only = True
@@ -189,7 +188,7 @@ class ProgressLogger(TrainerComponent):
         )
         self._previous_agent_step = ctx.agent_step
 
-    def _latest_metrics(self) -> Optional[Dict[str, float]]:
+    def _latest_metrics(self) -> typing.Optional[typing.Dict[str, float]]:
         stats_reporter = getattr(self.context, "stats_reporter", None)
         if stats_reporter is None:
             return None

@@ -1,45 +1,44 @@
-from __future__ import annotations
 
+import dataclasses
+import datetime
 import logging
 import time
-from dataclasses import dataclass, field
-from datetime import datetime
 
 import numpy as np
-from typing_extensions import TypedDict
+import typing_extensions
 
-from mettagrid.map_builder import MapBuilder, MapBuilderConfig
-from mettagrid.map_builder.ascii import AsciiMapBuilder
-from mettagrid.mapgen.mapgen import MapGen
-from mettagrid.mapgen.types import MapGrid
-from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME, grid_to_lines
+import mettagrid.map_builder
+import mettagrid.map_builder.ascii
+import mettagrid.mapgen.mapgen
+import mettagrid.mapgen.types
+import mettagrid.mapgen.utils.ascii_grid
 
 logger = logging.getLogger(__name__)
 
 
-class FrontmatterDict(TypedDict):
+class FrontmatterDict(typing_extensions.TypedDict):
     metadata: dict
     config: dict
     scene_tree: dict | None
     char_to_name: dict[str, str]
 
 
-class StorableMapDict(TypedDict):
+class StorableMapDict(typing_extensions.TypedDict):
     frontmatter: FrontmatterDict
     data: str
 
 
-@dataclass
+@dataclasses.dataclass
 class StorableMap:
     """
     Wrapper around a MapGrid that includes information about the config that produced the map.
     """
 
-    grid: MapGrid
+    grid: mettagrid.mapgen.types.MapGrid
     metadata: dict
-    config: MapBuilderConfig  # config that was used to generate the map
+    config: mettagrid.map_builder.MapBuilderConfig  # config that was used to generate the map
     scene_tree: dict | None = None  # defined for mapgen maps
-    char_to_name: dict[str, str] = field(default_factory=dict)
+    char_to_name: dict[str, str] = dataclasses.field(default_factory=dict)
 
     def width(self) -> int:
         return self.grid.shape[1]
@@ -52,7 +51,7 @@ class StorableMap:
         return {name: char for char, name in self.char_to_name.items()}
 
     @staticmethod
-    def from_cfg(cfg: MapBuilderConfig[MapBuilder]) -> StorableMap:
+    def from_cfg(cfg: mettagrid.map_builder.MapBuilderConfig[mettagrid.map_builder.MapBuilder]) -> StorableMap:
         # Generate and measure time taken
         start = time.time()
         map_builder = cfg.create()
@@ -61,13 +60,13 @@ class StorableMap:
         logger.info(f"Time taken to build map: {gen_time}s")
 
         scene_tree = None
-        if isinstance(map_builder, MapGen):
+        if isinstance(map_builder, mettagrid.mapgen.mapgen.MapGen):
             scene_tree = map_builder.get_scene_tree()
 
         # Extract char_to_name_map from config if available
         # Note that this is the only production code still using DEFAULT_CHAR_TO_NAME - should we remove this?
-        char_to_name: dict[str, str] = DEFAULT_CHAR_TO_NAME
-        if isinstance(cfg, AsciiMapBuilder.Config):
+        char_to_name: dict[str, str] = mettagrid.mapgen.utils.ascii_grid.DEFAULT_CHAR_TO_NAME
+        if isinstance(cfg, mettagrid.map_builder.ascii.AsciiMapBuilder.Config):
             char_to_name = cfg.char_to_name_map
 
         char_to_name = char_to_name.copy()
@@ -86,7 +85,7 @@ class StorableMap:
             grid=level.grid,
             metadata={
                 "gen_time": gen_time,
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.datetime.now().isoformat(),
             },
             config=cfg,
             scene_tree=scene_tree,
@@ -105,5 +104,5 @@ class StorableMap:
                 "scene_tree": self.scene_tree,
                 "char_to_name": self.char_to_name,
             },
-            "data": "\n".join(grid_to_lines(self.grid, self.name_to_char)),
+            "data": "\n".join(mettagrid.mapgen.utils.ascii_grid.grid_to_lines(self.grid, self.name_to_char)),
         }

@@ -1,32 +1,31 @@
 """Agent control component for miniscope renderer."""
 
-from typing import Dict
+import typing
 
-from rich.table import Table
-from rich.text import Text
+import rich.table
+import rich.text
 
-from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
-from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
-from mettagrid.simulator import Action, Simulation
+import mettagrid.renderer.miniscope.components.base
+import mettagrid.renderer.miniscope.miniscope_panel
+import mettagrid.renderer.miniscope.miniscope_state
+import mettagrid.simulator
 
-from .base import MiniscopeComponent
 
-
-class AgentControlComponent(MiniscopeComponent):
+class AgentControlComponent(mettagrid.renderer.miniscope.components.base.MiniscopeComponent):
     """Component for displaying keyboard controls and handling agent actions."""
 
     def __init__(
         self,
-        sim: Simulation,
-        state: MiniscopeState,
-        panels: PanelLayout,
+        sim: mettagrid.simulator.Simulation,
+        state: mettagrid.renderer.miniscope.miniscope_state.MiniscopeState,
+        panels: mettagrid.renderer.miniscope.miniscope_panel.PanelLayout,
     ):
         """Initialize the agent control component."""
         super().__init__(sim=sim, state=state, panels=panels)
         self._set_panel(panels.footer)
 
         # Setup movement action mapping (maps keys to action names)
-        self._move_action_lookup: Dict[str, str] = {}
+        self._move_action_lookup: typing.Dict[str, str] = {}
         if hasattr(sim, "action_ids"):
             action_ids = sim.action_ids
             # Map WASD keys to directional movement actions
@@ -64,7 +63,7 @@ class AgentControlComponent(MiniscopeComponent):
         elif self._state.selected_agent is not None:
             # Handle movement actions
             if (action_name := self._move_action_lookup.get(ch)) is not None:
-                self._state.user_action = Action(name=action_name)
+                self._state.user_action = mettagrid.simulator.Action(name=action_name)
                 self._state.should_step = True
                 return True
             elif ch == "E":
@@ -88,10 +87,10 @@ class AgentControlComponent(MiniscopeComponent):
 
         # Use compact format if height is limited (< 3 lines)
         if self._height and self._height < 3:
-            content = Text(f"{agent_text}{manual_text} | []=Agent | M=Manual | WASD=Move | E=Emote | R=Rest")
+            content = rich.text.Text(f"{agent_text}{manual_text} | []=Agent | M=Manual | WASD=Move | E=Emote | R=Rest")
         else:
             # Create table with controls
-            table = Table(show_header=False, show_edge=True, box=None, padding=(0, 1))
+            table = rich.table.Table(show_header=False, show_edge=True, box=None, padding=(0, 1))
             table.add_column("Controls", justify="left", no_wrap=True)
 
             # Agent controls only

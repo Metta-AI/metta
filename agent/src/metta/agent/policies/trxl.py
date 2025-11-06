@@ -1,22 +1,15 @@
-from __future__ import annotations
 
+import dataclasses
 import math
+import typing
 import warnings
-from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.checkpoint import checkpoint
+import torch.utils.checkpoint
 
-from metta.agent.components.transformer_utils import (
-    _make_layer_norm,
-    _record_function,
-    empty_memory,
-    normalize_memory,
-    update_memory_window,
-)
+import metta.agent.components.transformer_utils
 
 
 class XLPositionalEmbedding(nn.Module):
@@ -27,7 +20,7 @@ class XLPositionalEmbedding(nn.Module):
         inv_freq = 1.0 / (10000 ** (torch.arange(0.0, d_model, 2.0) / d_model))
         self.register_buffer("inv_freq", inv_freq)
 
-    def forward(self, positions: torch.Tensor, batch_size: Optional[int] = None) -> torch.Tensor:
+    def forward(self, positions: torch.Tensor, batch_size: typing.Optional[int] = None) -> torch.Tensor:
         sinusoid_inp = torch.outer(positions, self.inv_freq)
         pos_emb = torch.cat([sinusoid_inp.sin(), sinusoid_inp.cos()], dim=-1)
         if batch_size is not None:
@@ -47,7 +40,7 @@ class XLPositionwiseFF(nn.Module):
     ) -> None:
         super().__init__()
         self.pre_lnorm = pre_lnorm
-        self.layer_norm = _make_layer_norm(d_model, False)
+        self.layer_norm = metta.agent.components.transformer_utils._make_layer_norm(d_model, False)
         self.core = nn.Sequential(
             nn.Linear(d_model, d_inner),
             nn.ReLU(inplace=True),
@@ -87,7 +80,7 @@ class XLRelMultiHeadAttn(nn.Module):
         self.o_net = nn.Linear(n_head * d_head, d_model, bias=False)
         self.drop = nn.Dropout(dropout)
         self.dropatt = nn.Dropout(dropatt)
-        self.layer_norm = _make_layer_norm(d_model, False)
+        self.layer_norm = metta.agent.components.transformer_utils._make_layer_norm(d_model, False)
 
     @staticmethod
     def _rel_shift(x: torch.Tensor) -> torch.Tensor:
@@ -102,8 +95,8 @@ class XLRelMultiHeadAttn(nn.Module):
         rel_pos: torch.Tensor,
         r_w_bias: torch.Tensor,
         r_r_bias: torch.Tensor,
-        attn_mask: Optional[torch.Tensor] = None,
-        mems: Optional[torch.Tensor] = None,
+        attn_mask: typing.Optional[torch.Tensor] = None,
+        mems: typing.Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         raise NotImplementedError
 
@@ -129,8 +122,8 @@ class XLRelPartialLearnableMultiHeadAttn(XLRelMultiHeadAttn):
         rel_pos: torch.Tensor,
         r_w_bias: torch.Tensor,
         r_r_bias: torch.Tensor,
-        attn_mask: Optional[torch.Tensor] = None,
-        mems: Optional[torch.Tensor] = None,
+        attn_mask: typing.Optional[torch.Tensor] = None,
+        mems: typing.Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         qlen, rlen, batch_size = content.size(0), rel_pos.size(0), content.size(1)
 
@@ -212,8 +205,8 @@ class XLRelPartialLearnableDecoderLayer(nn.Module):
         rel_pos: torch.Tensor,
         r_w_bias: torch.Tensor,
         r_r_bias: torch.Tensor,
-        attn_mask: Optional[torch.Tensor],
-        mems: Optional[torch.Tensor],
+        attn_mask: typing.Optional[torch.Tensor],
+        mems: typing.Optional[torch.Tensor],
     ) -> torch.Tensor:
         output = self.attn(inputs, rel_pos, r_w_bias, r_r_bias, attn_mask, mems)
         return self.ff(output)
@@ -300,9 +293,9 @@ class TransformerXLModule(nn.Module):
         self._pos_seq_cache: dict[tuple[int, torch.device, torch.dtype], torch.Tensor] = {}
 
     def forward(
-        self, inputs: torch.Tensor, memory: Optional[Dict[str, List[torch.Tensor]]] = None
-    ) -> Tuple[torch.Tensor, Dict[str, Optional[List[torch.Tensor]]]]:
-        with _record_function("TransformerXLModule/forward"):
+        self, inputs: torch.Tensor, memory: typing.Optional[typing.Dict[str, typing.List[torch.Tensor]]] = None
+    ) -> typing.Tuple[torch.Tensor, typing.Dict[str, typing.Optional[typing.List[torch.Tensor]]]]:
+        with metta.agent.components.transformer_utils._record_function("TransformerXLModule/forward"):
             if inputs.dim() == 2:
                 inputs = inputs.unsqueeze(0)
             if inputs.dim() != 3:
@@ -312,9 +305,9 @@ class TransformerXLModule(nn.Module):
             device = inputs.device
             dtype = inputs.dtype
 
-            with _record_function("TransformerXLModule/normalize_memory"):
+            with metta.agent.components.transformer_utils._record_function("TransformerXLModule/normalize_memory"):
                 stored_memory = memory.get("hidden_states") if isinstance(memory, dict) else None
-                mems = normalize_memory(
+                mems = metta.agent.components.transformer_utils.normalize_memory(
                     self.memory_len,
                     self.n_layers,
                     stored_memory,
@@ -325,15 +318,17 @@ class TransformerXLModule(nn.Module):
                 )
             mem_enabled = mems is not None
             if mems is None:
-                mems = empty_memory(self.n_layers, batch_size, self.d_model, device, dtype)
+                mems = metta.agent.components.transformer_utils.empty_memory(
+                    self.n_layers, batch_size, self.d_model, device, dtype
+                )
             mlen = mems[0].size(0) if mems else 0
             klen = mlen + seq_len
 
-            with _record_function("TransformerXLModule/attn_mask"):
+            with metta.agent.components.transformer_utils._record_function("TransformerXLModule/attn_mask"):
                 attn_mask = self._get_attn_mask(seq_len, mlen, klen, device)
                 attn_mask = attn_mask.unsqueeze(0)
 
-            with _record_function("TransformerXLModule/positional"):
+            with metta.agent.components.transformer_utils._record_function("TransformerXLModule/positional"):
                 pos_seq = self._get_pos_seq(klen, device, dtype)
                 if self.clamp_len > 0:
                     pos_seq = pos_seq.clamp(max=float(self.clamp_len))
@@ -341,10 +336,10 @@ class TransformerXLModule(nn.Module):
                 pos_emb = self.drop(pos_emb)
 
             core_out = self.drop(inputs)
-            hiddens: List[torch.Tensor] = [core_out]
+            hiddens: typing.List[torch.Tensor] = [core_out]
 
             for layer_id, layer in enumerate(self.layers):
-                with _record_function(f"TransformerXLModule/layer_{layer_id}"):
+                with metta.agent.components.transformer_utils._record_function(f"TransformerXLModule/layer_{layer_id}"):
                     mem_layer = mems[layer_id] if mem_enabled else None
 
                     if self.use_activation_checkpoint and core_out.requires_grad:
@@ -364,14 +359,16 @@ class TransformerXLModule(nn.Module):
                             mem_in = None if mem.size(0) == 0 else mem
                             return _layer(inp, _pos, _rw, _rr, _mask, mem_in)
 
-                        core_out = checkpoint(_layer_run, core_out, placeholder, use_reentrant=False)
+                        core_out = torch.utils.checkpoint.checkpoint(
+                            _layer_run, core_out, placeholder, use_reentrant=False
+                        )
                     else:
                         core_out = layer(core_out, pos_emb, self.r_w_bias, self.r_r_bias, attn_mask, mem_layer)
                     hiddens.append(core_out)
 
-            with _record_function("TransformerXLModule/post"):
+            with metta.agent.components.transformer_utils._record_function("TransformerXLModule/post"):
                 core_out = self.drop(core_out)
-                new_memory = update_memory_window(
+                new_memory = metta.agent.components.transformer_utils.update_memory_window(
                     hiddens[1:],
                     mems if mem_enabled else None,
                     self.memory_len,
@@ -379,12 +376,16 @@ class TransformerXLModule(nn.Module):
                 )
             return core_out, {"hidden_states": new_memory if mem_enabled else None}
 
-    def initialize_memory(self, batch_size: int) -> Dict[str, Optional[List[torch.Tensor]]]:
+    def initialize_memory(self, batch_size: int) -> typing.Dict[str, typing.Optional[typing.List[torch.Tensor]]]:
         if self.memory_len <= 0:
             return {"hidden_states": None}
         device = next(self.parameters()).device
         dtype = next(self.parameters()).dtype
-        return {"hidden_states": empty_memory(self.n_layers, batch_size, self.d_model, device, dtype)}
+        return {
+            "hidden_states": metta.agent.components.transformer_utils.empty_memory(
+                self.n_layers, batch_size, self.d_model, device, dtype
+            )
+        }
 
     def _get_attn_mask(self, seq_len: int, mem_len: int, klen: int, device: torch.device) -> torch.Tensor:
         key = (seq_len, mem_len, self.same_length, device)
@@ -409,7 +410,7 @@ class TransformerXLModule(nn.Module):
         return pos_seq
 
 
-@dataclass
+@dataclasses.dataclass
 class TRXLConfig:
     """Backbone parameters for the Transformer-XL variant."""
 
@@ -473,6 +474,6 @@ __all__ = ["TransformerXLModule", "TRXLConfig", "trxl_policy_config"]
 def trxl_policy_config():
     """Create a `TransformerPolicyConfig` preloaded with the Transformer-XL backbone."""
 
-    from metta.agent.policies.transformer import TransformerPolicyConfig
+    import metta.agent.policies.transformer
 
-    return TransformerPolicyConfig(transformer=TRXLConfig())
+    return metta.agent.policies.transformer.TransformerPolicyConfig(transformer=TRXLConfig())

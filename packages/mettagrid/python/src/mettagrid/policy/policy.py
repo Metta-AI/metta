@@ -1,17 +1,17 @@
 """Base policy classes and interfaces."""
 
-from abc import abstractmethod
-from pathlib import Path
-from typing import Generic, Optional, Tuple, TypeVar
+import abc
+import pathlib
+import typing
 
+import pydantic
 import torch.nn as nn
-from pydantic import BaseModel
 
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator import Action, AgentObservation, Simulation
+import mettagrid.policy.policy_env_interface
+import mettagrid.simulator
 
 # Type variable for agent state - can be any type
-StateType = TypeVar("StateType")
+StateType = typing.TypeVar("StateType")
 
 
 class AgentPolicy:
@@ -22,14 +22,14 @@ class AgentPolicy:
     This is what play.py and evaluation code use directly.
     """
 
-    def __init__(self, policy_env_info: PolicyEnvInterface):
+    def __init__(self, policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface):
         self._policy_env_info = policy_env_info
 
     @property
-    def policy_env_info(self) -> PolicyEnvInterface:
+    def policy_env_info(self) -> mettagrid.policy.policy_env_interface.PolicyEnvInterface:
         return self._policy_env_info
 
-    def step(self, obs: AgentObservation) -> Action:
+    def step(self, obs: mettagrid.simulator.AgentObservation) -> mettagrid.simulator.Action:
         """Get action given an observation.
 
         Args:
@@ -40,7 +40,7 @@ class AgentPolicy:
         """
         raise NotImplementedError("Subclasses must implement step()")
 
-    def reset(self, simulation: Optional[Simulation] = None) -> None:
+    def reset(self, simulation: typing.Optional[mettagrid.simulator.Simulation] = None) -> None:
         """Reset the policy state. Default implementation does nothing."""
         pass
 
@@ -54,11 +54,11 @@ class MultiAgentPolicy:
     get per-agent instances.
     """
 
-    def __init__(self, policy_env_info: PolicyEnvInterface):
+    def __init__(self, policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface):
         self._policy_env_info = policy_env_info
         self._actions = policy_env_info.actions
 
-    @abstractmethod
+    @abc.abstractmethod
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Get an AgentPolicy instance for a specific agent.
 
@@ -91,7 +91,7 @@ class MultiAgentPolicy:
         pass  # Default: no-op for policies without learnable parameters
 
 
-class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
+class StatefulAgentPolicy(AgentPolicy, typing.Generic[StateType]):
     """AgentPolicy wrapper that manages internal state (e.g., for RNNs).
 
     This wraps a stateful policy implementation and maintains the state
@@ -101,7 +101,11 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
     For example, Tuple[torch.Tensor, torch.Tensor] for LSTM hidden states.
     """
 
-    def __init__(self, base_policy: "StatefulPolicyImpl[StateType]", policy_env_info: PolicyEnvInterface):
+    def __init__(
+        self,
+        base_policy: "StatefulPolicyImpl[StateType]",
+        policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface,
+    ):
         """Initialize stateful wrapper.
 
         Args:
@@ -110,21 +114,21 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
         """
         super().__init__(policy_env_info)
         self._base_policy = base_policy
-        self._state: Optional[StateType] = None
+        self._state: typing.Optional[StateType] = None
 
-    def step(self, obs: AgentObservation) -> Action:
+    def step(self, obs: mettagrid.simulator.AgentObservation) -> mettagrid.simulator.Action:
         """Get action and update hidden state."""
         assert self._state is not None, "reset() must be called before step()"
         action, self._state = self._base_policy.step_with_state(obs, self._state)
         return action
 
-    def reset(self, simulation: Optional[Simulation] = None) -> None:
+    def reset(self, simulation: typing.Optional[mettagrid.simulator.Simulation] = None) -> None:
         """Reset the hidden state to initial state."""
         self._base_policy.reset(simulation)
         self._state = self._base_policy.initial_agent_state(simulation)
 
 
-class StatefulPolicyImpl(Generic[StateType]):
+class StatefulPolicyImpl(typing.Generic[StateType]):
     """Base class for stateful policy implementations.
 
     This is used internally by policies that need to manage state.
@@ -132,12 +136,12 @@ class StatefulPolicyImpl(Generic[StateType]):
     and initial_agent_state() which returns the initial state for a new agent.
     """
 
-    def reset(self, simulation: Optional[Simulation]) -> None:
+    def reset(self, simulation: typing.Optional[mettagrid.simulator.Simulation]) -> None:
         """Reset the policy."""
         pass
 
-    @abstractmethod
-    def initial_agent_state(self, simulation: Optional[Simulation]) -> StateType:
+    @abc.abstractmethod
+    def initial_agent_state(self, simulation: typing.Optional[mettagrid.simulator.Simulation]) -> StateType:
         """Get the initial state for a new agent in a simulation.
 
         Args:
@@ -148,7 +152,9 @@ class StatefulPolicyImpl(Generic[StateType]):
         """
         ...
 
-    def step_with_state(self, obs: AgentObservation, state: StateType) -> Tuple[Action, StateType]:
+    def step_with_state(
+        self, obs: mettagrid.simulator.AgentObservation, state: StateType
+    ) -> typing.Tuple[mettagrid.simulator.Action, StateType]:
         """Get action and potentially update state.
 
         Args:
@@ -168,15 +174,15 @@ class TrainablePolicy(MultiAgentPolicy):
     It creates per-agent AgentPolicy instances that share the same network.
     """
 
-    def __init__(self, policy_env_info: PolicyEnvInterface):
+    def __init__(self, policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface):
         super().__init__(policy_env_info)
 
-    @abstractmethod
+    @abc.abstractmethod
     def network(self) -> nn.Module:
         """Get the underlying neural network for training."""
         ...
 
-    @abstractmethod
+    @abc.abstractmethod
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Get an AgentPolicy instance for a specific agent.
 
@@ -210,14 +216,14 @@ class TrainablePolicy(MultiAgentPolicy):
         torch.save(self.network().state_dict(), policy_data_path)
 
 
-class PolicySpec(BaseModel):
+class PolicySpec(pydantic.BaseModel):
     """Specification for a policy used during evaluation."""
 
     # Path to policy class, or shorthand
     policy_class_path: str
 
     # Path to policy weights, if applicable
-    policy_data_path: Optional[str]
+    policy_data_path: typing.Optional[str]
 
     # Proportion of total agents to assign to this policy
     proportion: float = 1.0
@@ -229,5 +235,5 @@ class PolicySpec(BaseModel):
             self.policy_class_path.split(".")[-1],
         ]
         if self.policy_data_path:
-            parts.append(Path(self.policy_data_path).name)
+            parts.append(pathlib.Path(self.policy_data_path).name)
         return "-".join(parts)

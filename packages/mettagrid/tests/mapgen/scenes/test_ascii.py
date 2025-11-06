@@ -1,9 +1,8 @@
 import os
 
-from mettagrid.mapgen.scenes.ascii import Ascii
-from mettagrid.test_support.mapgen import render_scene
-
-from .test_utils import assert_grid
+import mettagrid.mapgen.scenes.ascii
+import mettagrid.test_support.mapgen
+import packages.mettagrid.tests.mapgen.scenes.test_utils
 
 
 def make_yaml_map(map_lines: list[str], legend: dict[str, str]) -> str:
@@ -17,9 +16,9 @@ def make_yaml_map(map_lines: list[str], legend: dict[str, str]) -> str:
 
 def test_basic():
     uri = f"{os.path.dirname(__file__)}/fixtures/test.map"
-    scene = render_scene(Ascii.Config(uri=uri), (4, 4))
+    scene = mettagrid.test_support.mapgen.render_scene(mettagrid.mapgen.scenes.ascii.Ascii.Config(uri=uri), (4, 4))
 
-    assert_grid(
+    packages.mettagrid.tests.mapgen.scenes.test_utils.assert_grid(
         scene,
         """
 ####

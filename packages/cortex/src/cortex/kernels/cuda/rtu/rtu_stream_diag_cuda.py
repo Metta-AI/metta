@@ -1,11 +1,9 @@
-from __future__ import annotations
 
-from typing import Optional
+import typing
 
+import cortex.kernels.cuda.rtu.rtu_seq_allin
 import torch
-from torch.autograd import Function
-
-from .rtu_seq_allin import backward_allin, forward_allin
+import torch.autograd
 
 
 def _act_to_id(name: str) -> int:
@@ -21,7 +19,7 @@ def _act_to_id(name: str) -> int:
     raise ValueError(f"Unsupported activation: {name}")
 
 
-class _RTUStreamDiagCUDASeqAllIn(Function):
+class _RTUStreamDiagCUDASeqAllIn(torch.autograd.Function):
     @staticmethod
     def forward(  # type: ignore[override]
         ctx,
@@ -33,8 +31,8 @@ class _RTUStreamDiagCUDASeqAllIn(Function):
         activation_name: str,
         hc1_init_bh: torch.Tensor,
         hc2_init_bh: torch.Tensor,
-        trace_in: Optional[tuple[torch.Tensor, ...]] = None,
-        resets_bt: Optional[torch.Tensor] = None,
+        trace_in: typing.Optional[tuple[torch.Tensor, ...]] = None,
+        resets_bt: typing.Optional[torch.Tensor] = None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, tuple[torch.Tensor, ...]]:
         B, T, H = x_btd.shape
         assert H == nu_log.numel(), "D must equal H for diagonal map"
@@ -76,7 +74,7 @@ class _RTUStreamDiagCUDASeqAllIn(Function):
             E_w1_c2_out,
             E_w2_c1_out,
             E_w2_c2_out,
-        ) = forward_allin(
+        ) = cortex.kernels.cuda.rtu.rtu_seq_allin.forward_allin(
             x_btd.contiguous(),
             nu_log.contiguous(),
             theta_log.contiguous(),
@@ -168,7 +166,7 @@ class _RTUStreamDiagCUDASeqAllIn(Function):
             grad_w2_h,
             grad_hc1_init,
             grad_hc2_init,
-        ) = backward_allin(
+        ) = cortex.kernels.cuda.rtu.rtu_seq_allin.backward_allin(
             grad_y_btd_2h.contiguous(),
             x_btd.contiguous(),
             nu_log.contiguous(),
@@ -215,8 +213,8 @@ def rtu_stream_diag_cuda(
     activation_name: str,
     hc1_init_bh: torch.Tensor,
     hc2_init_bh: torch.Tensor,
-    trace_in: Optional[tuple[torch.Tensor, ...]] = None,
-    resets_bt: Optional[torch.Tensor] = None,
+    trace_in: typing.Optional[tuple[torch.Tensor, ...]] = None,
+    resets_bt: typing.Optional[torch.Tensor] = None,
 ):
     """CUDA diagonal RTU streaming kernel.
 

@@ -8,7 +8,7 @@ We use the stable formulations, i.e. we avoid subtraction of forget gates.
 """
 
 import torch
-from torch.nn.functional import logsigmoid
+import torch.nn.functional
 
 
 @torch.compile
@@ -24,7 +24,7 @@ def compute_chunkwise_log_gates_vecB_vecA(
     L = chunk_size
 
     # compute vecB
-    vecF_logsig = logsigmoid(vecF.to(dtype=torch.float32))
+    vecF_logsig = torch.nn.functional.logsigmoid(vecF.to(dtype=torch.float32))
     vecF_logsig_chunked = vecF_logsig.reshape(B, NH, NC, L)
     vecB = vecF_logsig_chunked.cumsum(dim=-1)
 
@@ -57,7 +57,7 @@ def compute_chunkwise_log_gates_vecB(
     L = chunk_size
 
     # compute vecB
-    vecF_logsig = logsigmoid(vecF.to(dtype=torch.float32))
+    vecF_logsig = torch.nn.functional.logsigmoid(vecF.to(dtype=torch.float32))
     vecF_logsig_chunked = vecF_logsig.reshape(B, NH, NC, L)
     vecB = vecF_logsig_chunked.cumsum(dim=-1)
 

@@ -1,9 +1,9 @@
 """Vibe definitions for Cogs vs Clips game."""
 
-from dataclasses import dataclass
+import dataclasses
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class Vibe:
     """A vibe with its symbol and searchable name."""
 

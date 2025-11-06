@@ -4,7 +4,7 @@ import argparse
 import os
 import subprocess
 
-from metta.common.auth.auth_config_reader_writer import observatory_auth_config
+import metta.common.auth.auth_config_reader_writer
 
 
 def main():
@@ -36,7 +36,9 @@ def main():
         else:
             os.makedirs(os.path.expanduser("~/.metta"), exist_ok=True)
 
-        observatory_auth_config.save_token(args.observatory_token, "https://api.observatory.softmax-research.net")
+        metta.common.auth.auth_config_reader_writer.observatory_auth_config.save_token(
+            args.observatory_token, "https://api.observatory.softmax-research.net"
+        )
 
 
 if __name__ == "__main__":

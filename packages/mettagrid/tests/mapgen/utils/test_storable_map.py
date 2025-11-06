@@ -1,8 +1,8 @@
 import textwrap
 
-from mettagrid.map_builder import MapBuilderConfig
-from mettagrid.map_builder.ascii import AsciiMapBuilder
-from mettagrid.mapgen.utils.storable_map import StorableMap
+import mettagrid.map_builder
+import mettagrid.map_builder.ascii
+import mettagrid.mapgen.utils.storable_map
 
 MAP_LINE_STRINGS = [
     "####",
@@ -42,13 +42,13 @@ def test_serializes_map_from_yaml_string():
         """
     )
 
-    config = AsciiMapBuilder.Config.from_str(ascii_yaml)
+    config = mettagrid.map_builder.ascii.AsciiMapBuilder.Config.from_str(ascii_yaml)
     assert ["".join(row) for row in config.map_data] == MAP_LINE_STRINGS
     for token, name in LEGEND.items():
         assert config.char_to_name_map[token] == name
 
-    storable_map = StorableMap.from_cfg(
-        MapBuilderConfig.model_validate(
+    storable_map = mettagrid.mapgen.utils.storable_map.StorableMap.from_cfg(
+        mettagrid.map_builder.MapBuilderConfig.model_validate(
             {
                 "type": "mettagrid.map_builder.ascii.AsciiMapBuilder.Config",
                 "map_data": config.map_data,

@@ -1,18 +1,18 @@
-from typing import Optional
+import typing
 
 import einops
+import tensordict
 import torch
 import torch.nn as nn
-from tensordict import TensorDict
-from torchrl.data import Composite, UnboundedDiscrete
+import torchrl.data
 
+import metta.agent.components.actor
+import metta.agent.policy
+import mettagrid.policy.policy_env_interface
 import pufferlib.pytorch
-from metta.agent.components.actor import ActionProbs, ActionProbsConfig
-from metta.agent.policy import Policy, PolicyArchitecture
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 
-class PufferPolicyConfig(PolicyArchitecture):
+class PufferPolicyConfig(metta.agent.policy.PolicyArchitecture):
     """
     Policy configuration that exactly matches PufferLib architecture.
 
@@ -24,13 +24,19 @@ class PufferPolicyConfig(PolicyArchitecture):
     """
 
     class_path: str = "metta.agent.policies.puffer.PufferPolicy"
-    action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
+    action_probs_config: metta.agent.components.actor.ActionProbsConfig = (
+        metta.agent.components.actor.ActionProbsConfig(in_key="logits")
+    )
 
 
-class PufferPolicy(Policy):
+class PufferPolicy(metta.agent.policy.Policy):
     """Policy that exactly matches PufferLib architecture"""
 
-    def __init__(self, policy_env_info: PolicyEnvInterface, config: Optional[PufferPolicyConfig] = None):
+    def __init__(
+        self,
+        policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface,
+        config: typing.Optional[PufferPolicyConfig] = None,
+    ):
         super().__init__(policy_env_info)
 
         self.policy = torch.nn.Module()
@@ -95,7 +101,7 @@ class PufferPolicy(Policy):
         self._cell_state = None
 
         # Action probabilities component
-        self.action_probs = ActionProbs(config=self.config.action_probs_config)
+        self.action_probs = metta.agent.components.actor.ActionProbs(config=self.config.action_probs_config)
 
     def encode_observations(self, observations: torch.Tensor) -> torch.Tensor:
         B = observations.shape[0]
@@ -155,7 +161,7 @@ class PufferPolicy(Policy):
         return logits, value
 
     @torch._dynamo.disable  # Avoid graph breaks from TensorDict operations
-    def forward(self, td: TensorDict, state=None, action: torch.Tensor = None):
+    def forward(self, td: tensordict.TensorDict, state=None, action: torch.Tensor = None):
         observations = td["env_obs"]
 
         # [B, obs] -> [B, 512]
@@ -186,7 +192,9 @@ class PufferPolicy(Policy):
 
         return td
 
-    def initialize_to_environment(self, policy_env_info: PolicyEnvInterface, device: torch.device):
+    def initialize_to_environment(
+        self, policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface, device: torch.device
+    ):
         self.to(device)
         self.action_probs.initialize_to_environment(policy_env_info, device)
 
@@ -194,11 +202,11 @@ class PufferPolicy(Policy):
         self._hidden_state = None
         self._cell_state = None
 
-    def get_agent_experience_spec(self) -> Composite:
-        return Composite(
-            env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
-            dones=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
-            truncateds=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
+    def get_agent_experience_spec(self) -> torchrl.data.Composite:
+        return torchrl.data.Composite(
+            env_obs=torchrl.data.UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
+            dones=torchrl.data.UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
+            truncateds=torchrl.data.UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
         )
 
     @property

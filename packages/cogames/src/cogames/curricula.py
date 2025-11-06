@@ -1,17 +1,19 @@
 """Curriculum helpers for cycling through CoGames maps."""
 
-from collections import deque
-from typing import Callable
+import collections
+import typing
 
-from mettagrid.config.mettagrid_config import MettaGridConfig
+import mettagrid.config.mettagrid_config
 
 
-def make_rotation(missions: list[tuple[str, MettaGridConfig]]) -> Callable[[], MettaGridConfig]:
+def make_rotation(
+    missions: list[tuple[str, mettagrid.config.mettagrid_config.MettaGridConfig]],
+) -> typing.Callable[[], mettagrid.config.mettagrid_config.MettaGridConfig]:
     if not missions:
         raise ValueError("Must have at least one mission in rotation")
-    rotation = deque(missions)
+    rotation = collections.deque(missions)
 
-    def supplier() -> MettaGridConfig:
+    def supplier() -> mettagrid.config.mettagrid_config.MettaGridConfig:
         _, cfg = rotation[0]
         rotation.rotate(-1)
         return cfg

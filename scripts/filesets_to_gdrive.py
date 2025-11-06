@@ -2,20 +2,20 @@
 """Upload filesets to Google Drive using codeclip."""
 
 import argparse
+import pathlib
 import sys
-from pathlib import Path
 
 # Add paths for imports
 sys.path.extend(
     [
-        str(Path(__file__).parent.parent / "manybot" / "codebot" / "codeclip"),
-        str(Path(__file__).parent.parent / "mettagrid" / "src"),
+        str(pathlib.Path(__file__).parent.parent / "manybot" / "codebot" / "codeclip"),
+        str(pathlib.Path(__file__).parent.parent / "mettagrid" / "src"),
     ]
 )
 
-from codeclip.file import get_context
+import codeclip.file
 
-from metta.utils.file import write_data
+import metta.utils.file
 
 # Simple fileset definitions
 FILESETS = {
@@ -47,14 +47,14 @@ def main():
         # Expand patterns to files
         files = []
         for pattern in FILESETS[name]:
-            files.extend(str(p) for p in Path.cwd().glob(pattern) if p.is_file())
+            files.extend(str(p) for p in pathlib.Path.cwd().glob(pattern) if p.is_file())
 
         if not files:
             print(f"No files found for {name}")
             continue
 
         # Generate context and upload
-        context, token_info = get_context(paths=files, raw=False)
+        context, token_info = codeclip.file.get_context(paths=files, raw=False)
 
         # Print token information to stderr
         total_tokens = token_info.get("total_tokens", 0)
@@ -62,7 +62,7 @@ def main():
         print(f"Processing {name}: {total_files} files, {total_tokens:,} tokens", file=sys.stderr)
 
         gdrive_path = f"gdrive://folder/{args.folder}/{name}.txt"
-        write_data(gdrive_path, context, content_type="text/plain")
+        metta.utils.file.write_data(gdrive_path, context, content_type="text/plain")
         print(f"Uploaded {name}: {len(files)} files")
 
 

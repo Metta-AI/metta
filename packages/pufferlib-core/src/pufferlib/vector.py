@@ -7,8 +7,8 @@ import numpy as np
 import psutil
 
 import pufferlib.spaces
-from pufferlib import PufferEnv, set_buffers
-from pufferlib.emulation import GymnasiumPufferEnv, PettingZooPufferEnv
+import pufferlib
+import pufferlib.emulation
 
 RESET = 0
 STEP = 1
@@ -71,7 +71,7 @@ class Serial:
         self.action_space = pufferlib.spaces.joint_space(self.single_action_space, self.agents_per_batch)
         self.observation_space = pufferlib.spaces.joint_space(self.single_observation_space, self.agents_per_batch)
 
-        set_buffers(self, buf)
+        pufferlib.set_buffers(self, buf)
 
         self.envs = []
         ptr = 0
@@ -315,7 +315,7 @@ class Multiprocessing:
         # forked processes. So for now, RawArray is much more reliable.
         # You can't send a RawArray through a pipe.
         self.driver_env = driver_env = env_creators[0](*env_args[0], **env_kwargs[0])
-        is_native = isinstance(driver_env, PufferEnv)
+        is_native = isinstance(driver_env, pufferlib.PufferEnv)
         self.emulated = False if is_native else driver_env.emulated
         self.num_agents = num_agents = driver_env.num_agents * num_envs
         self.agents_per_batch = driver_env.num_agents * batch_size
@@ -338,20 +338,20 @@ class Multiprocessing:
         self.observation_space = pufferlib.spaces.joint_space(self.single_observation_space, self.agents_per_batch)
         self.agent_ids = np.arange(num_agents).reshape(num_workers, agents_per_worker)
 
-        from multiprocessing import RawArray
+        import multiprocessing
 
         # Mac breaks without setting fork... but setting it breaks sweeps on 2nd run
         # set_start_method('fork')
         self.shm = dict(
-            observations=RawArray(obs_ctype, num_agents * int(np.prod(obs_shape))),
-            actions=RawArray(atn_ctype, num_agents * int(np.prod(atn_shape))),
-            rewards=RawArray("f", num_agents),
-            terminals=RawArray("b", num_agents),
-            truncateds=RawArray("b", num_agents),
-            teacher_actions=RawArray(atn_ctype, num_agents * int(np.prod(atn_shape))),
-            masks=RawArray("b", num_agents),
-            semaphores=RawArray("c", num_workers),
-            notify=RawArray("b", num_workers),
+            observations=multiprocessing.RawArray(obs_ctype, num_agents * int(np.prod(obs_shape))),
+            actions=multiprocessing.RawArray(atn_ctype, num_agents * int(np.prod(atn_shape))),
+            rewards=multiprocessing.RawArray("f", num_agents),
+            terminals=multiprocessing.RawArray("b", num_agents),
+            truncateds=multiprocessing.RawArray("b", num_agents),
+            teacher_actions=multiprocessing.RawArray(atn_ctype, num_agents * int(np.prod(atn_shape))),
+            masks=multiprocessing.RawArray("b", num_agents),
+            semaphores=multiprocessing.RawArray("c", num_workers),
+            notify=multiprocessing.RawArray("b", num_workers),
         )
         shape = (num_workers, agents_per_worker)
         self.obs_batch_shape = (self.agents_per_batch, *obs_shape)
@@ -369,10 +369,8 @@ class Multiprocessing:
         )
         self.buf["semaphores"][:] = MAIN
 
-        from multiprocessing import Pipe, Process
-
-        self.send_pipes, w_recv_pipes = zip(*[Pipe() for _ in range(num_workers)], strict=False)
-        w_send_pipes, self.recv_pipes = zip(*[Pipe() for _ in range(num_workers)], strict=False)
+        self.send_pipes, w_recv_pipes = zip(*[multiprocessing.Pipe() for _ in range(num_workers)], strict=False)
+        w_send_pipes, self.recv_pipes = zip(*[multiprocessing.Pipe() for _ in range(num_workers)], strict=False)
         self.recv_pipe_dict = {p: i for i, p in enumerate(self.recv_pipes)}
 
         self.processes = []
@@ -380,7 +378,7 @@ class Multiprocessing:
             start = i * envs_per_worker
             end = start + envs_per_worker
             seed_i = seed + i if seed is not None else None
-            p = Process(
+            p = multiprocessing.Process(
                 target=_worker_process,
                 args=(
                     env_creators[start:end],
@@ -672,7 +670,7 @@ class Ray:
         self.ray.shutdown()
 
 
-def make(env_creator_or_creators, env_args=None, env_kwargs=None, backend=PufferEnv, num_envs=1, seed=0, **kwargs):
+def make(env_creator_or_creators, env_args=None, env_kwargs=None, backend=pufferlib.PufferEnv, num_envs=1, seed=0, **kwargs):
     if num_envs < 1:
         raise pufferlib.APIUsageError("num_envs must be at least 1")
     if num_envs != int(num_envs):
@@ -684,11 +682,11 @@ def make(env_creator_or_creators, env_args=None, env_kwargs=None, backend=Puffer
         except:
             raise pufferlib.APIUsageError(f"Invalid backend: {backend}")
 
-    if backend == PufferEnv:
+    if backend == pufferlib.PufferEnv:
         env_args = env_args or []
         env_kwargs = env_kwargs or {}
         vecenv = env_creator_or_creators(*env_args, **env_kwargs)
-        if not isinstance(vecenv, PufferEnv):
+        if not isinstance(vecenv, pufferlib.PufferEnv):
             raise pufferlib.APIUsageError(
                 "Native vectorization requires a native PufferEnv. Use Serial or Multiprocessing instead."
             )
@@ -782,7 +780,7 @@ def make_seeds(seed, num_envs):
 
 
 def check_envs(envs, driver):
-    valid = (PufferEnv, GymnasiumPufferEnv, PettingZooPufferEnv)
+    valid = (pufferlib.PufferEnv, pufferlib.emulation.GymnasiumPufferEnv, pufferlib.emulation.PettingZooPufferEnv)
     if not isinstance(driver, valid):
         raise pufferlib.APIUsageError(f"env_creator must be {valid}")
 

@@ -1,14 +1,16 @@
+import collections
 import random
-from collections import deque
-from typing import Optional
+import typing
 
 import numpy as np
 
-from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
-from mettagrid.map_builder.utils import draw_border
+import mettagrid.map_builder.map_builder
+import mettagrid.map_builder.utils
 
 
-class PerimeterInContextMapBuilderConfig(MapBuilderConfig["PerimeterInContextMapBuilder"]):
+class PerimeterInContextMapBuilderConfig(
+    mettagrid.map_builder.map_builder.MapBuilderConfig["PerimeterInContextMapBuilder"]
+):
     """
     Configuration for building a mini in-context learning map.
 
@@ -22,7 +24,7 @@ class PerimeterInContextMapBuilderConfig(MapBuilderConfig["PerimeterInContextMap
     Given the width and height, the number of obstacles and obstacle size is determined by the density.
     """
 
-    seed: Optional[int] = None
+    seed: typing.Optional[int] = None
 
     width: int = 7
     height: int = 7
@@ -34,10 +36,10 @@ class PerimeterInContextMapBuilderConfig(MapBuilderConfig["PerimeterInContextMap
 
     chain_length: int = 2
     num_sinks: int = 0
-    dir: Optional[str] = None
+    dir: typing.Optional[str] = None
 
 
-class PerimeterInContextMapBuilder(MapBuilder[PerimeterInContextMapBuilderConfig]):
+class PerimeterInContextMapBuilder(mettagrid.map_builder.map_builder.MapBuilder[PerimeterInContextMapBuilderConfig]):
     def __init__(self, config: PerimeterInContextMapBuilderConfig):
         super().__init__(config)
         self._rng = np.random.default_rng(self.config.seed)
@@ -119,7 +121,7 @@ class PerimeterInContextMapBuilder(MapBuilder[PerimeterInContextMapBuilderConfig
 
         # Use a single array for visited tracking
         visited = np.zeros(height * width, dtype=bool)
-        queue = deque([(start_i, start_j)])
+        queue = collections.deque([(start_i, start_j)])
         visited[start_i * width + start_j] = True
 
         # Pre-compute perimeter check
@@ -204,7 +206,7 @@ class PerimeterInContextMapBuilder(MapBuilder[PerimeterInContextMapBuilderConfig
 
         # Draw border first if needed
         if self.config.border_width > 0:
-            draw_border(grid, self.config.border_width, self.config.border_object)
+            mettagrid.map_builder.utils.draw_border(grid, self.config.border_width, self.config.border_object)
 
         # Calculate inner area where objects can be placed
         if self.config.border_width > 0:
@@ -217,7 +219,7 @@ class PerimeterInContextMapBuilder(MapBuilder[PerimeterInContextMapBuilderConfig
             inner_area = self.config.width * self.config.height
 
         if inner_area <= 0:
-            return GameMap(grid)  # No room for objects, return border-only grid
+            return mettagrid.map_builder.map_builder.GameMap(grid)  # No room for objects, return border-only grid
 
         # always a single agent
         agents = ["agent.agent"]
@@ -310,4 +312,4 @@ class PerimeterInContextMapBuilder(MapBuilder[PerimeterInContextMapBuilderConfig
         center_i, center_j = height // 2, width // 2
         grid[center_i, center_j] = agents[0]
 
-        return GameMap(grid)
+        return mettagrid.map_builder.map_builder.GameMap(grid)

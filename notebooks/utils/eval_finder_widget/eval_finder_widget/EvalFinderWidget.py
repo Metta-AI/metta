@@ -6,7 +6,7 @@ Provides filtering by agent type, difficulty, category, and shows prerequisite r
 """
 
 import pathlib
-from typing import Any, Callable, Dict, List
+import typing
 
 import anywidget
 import traitlets
@@ -81,7 +81,7 @@ class EvalFinderWidget(anywidget.AnyWidget):
             for callback in self._callbacks["filter_changed"]:
                 callback(change["new"])
 
-    def on_selection_changed(self, callback: Callable[[Dict[str, Any]], None]):
+    def on_selection_changed(self, callback: typing.Callable[[typing.Dict[str, typing.Any]], None]):
         """Register a callback for when eval selection changes.
 
         Args:
@@ -89,7 +89,7 @@ class EvalFinderWidget(anywidget.AnyWidget):
         """
         self._callbacks["selection_changed"].append(callback)
 
-    def on_filter_changed(self, callback: Callable[[Dict[str, Any]], None]):
+    def on_filter_changed(self, callback: typing.Callable[[typing.Dict[str, typing.Any]], None]):
         """Register a callback for when filters change.
 
         Args:
@@ -99,8 +99,8 @@ class EvalFinderWidget(anywidget.AnyWidget):
 
     def set_eval_data(
         self,
-        evaluations: List[Dict[str, Any]],
-        categories: List[Dict[str, Any]] | None = None,
+        evaluations: typing.List[typing.Dict[str, typing.Any]],
+        categories: typing.List[typing.Dict[str, typing.Any]] | None = None,
     ):
         """Set the eval finder data.
 
@@ -126,7 +126,9 @@ class EvalFinderWidget(anywidget.AnyWidget):
         #             f"📂   - {category.get('name', 'unknown')}: {children_count} evaluations"
         #         )
 
-    def _build_categories_from_evaluations(self, evaluations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _build_categories_from_evaluations(
+        self, evaluations: typing.List[typing.Dict[str, typing.Any]]
+    ) -> typing.List[typing.Dict[str, typing.Any]]:
         """Build category structure from evaluations automatically."""
         # Group evaluations by category
         categories_dict = {}
@@ -155,7 +157,7 @@ class EvalFinderWidget(anywidget.AnyWidget):
         categories.sort(key=lambda x: x["name"])
         return categories
 
-    def set_category_filter(self, categories: List[str]):
+    def set_category_filter(self, categories: typing.List[str]):
         """Set the category filter.
 
         Args:
@@ -175,7 +177,7 @@ class EvalFinderWidget(anywidget.AnyWidget):
             self.view_mode = mode
             # print(f"👁️ View mode set to: {mode}")
 
-    def get_selected_evals(self) -> List[str]:
+    def get_selected_evals(self) -> typing.List[str]:
         """Get the currently selected evaluation names.
 
         Returns:
@@ -183,7 +185,7 @@ class EvalFinderWidget(anywidget.AnyWidget):
         """
         return self.selected_evals
 
-    def select_evals(self, eval_names: List[str]):
+    def select_evals(self, eval_names: typing.List[str]):
         """Programmatically select evaluations.
 
         Args:

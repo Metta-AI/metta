@@ -1,18 +1,20 @@
-from typing import Annotated, Callable
+import typing
 
+import fastapi
 import httpx
-from fastapi import Depends, HTTPException, Request, status
 
-from metta.app_backend import config
-from metta.app_backend.metta_repo import MettaRepo
+import metta.app_backend
+import metta.app_backend.metta_repo
 
 
-def user_from_header(request: Request) -> str | None:
+def user_from_header(request: fastapi.Request) -> str | None:
     """Extract user email from request headers."""
-    return config.debug_user_email or request.headers.get("X-Auth-Request-Email")
+    return metta.app_backend.config.debug_user_email or request.headers.get("X-Auth-Request-Email")
 
 
-async def user_from_header_or_token(request: Request, metta_repo: MettaRepo) -> str | None:
+async def user_from_header_or_token(
+    request: fastapi.Request, metta_repo: metta.app_backend.metta_repo.MettaRepo
+) -> str | None:
     user_email = user_from_header(request)
     if user_email:
         return user_email
@@ -28,34 +30,40 @@ async def user_from_header_or_token(request: Request, metta_repo: MettaRepo) -> 
     return user_id
 
 
-async def user_from_header_or_token_or_raise(request: Request, metta_repo: MettaRepo) -> str:
+async def user_from_header_or_token_or_raise(
+    request: fastapi.Request, metta_repo: metta.app_backend.metta_repo.MettaRepo
+) -> str:
     user_id = await user_from_header_or_token(request, metta_repo)
     if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+        raise fastapi.HTTPException(
+            status_code=fastapi.status.HTTP_401_UNAUTHORIZED,
             detail="Either X-Auth-Request-Email or X-Auth-Token header required",
         )
     return user_id
 
 
-def user_from_email_or_raise(request: Request) -> str:
+def user_from_email_or_raise(request: fastapi.Request) -> str:
     user_email = user_from_header(request)
     if not user_email:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="X-Auth-Request-Email header required")
+        raise fastapi.HTTPException(
+            status_code=fastapi.status.HTTP_401_UNAUTHORIZED, detail="X-Auth-Request-Email header required"
+        )
     return user_email
 
 
-def create_user_or_token_dependency(metta_repo: MettaRepo) -> Callable[[Request], str]:
+def create_user_or_token_dependency(
+    metta_repo: metta.app_backend.metta_repo.MettaRepo,
+) -> typing.Callable[[fastapi.Request], str]:
     """Create a dependency function that validates either user email or machine token."""
 
-    async def get_user_or_token_user(request: Request) -> str:
+    async def get_user_or_token_user(request: fastapi.Request) -> str:
         return await user_from_header_or_token_or_raise(request, metta_repo)
 
     return get_user_or_token_user
 
 
 # Dependency types for use in route decorators
-UserEmail = Annotated[str, Depends(user_from_email_or_raise)]
+UserEmail = typing.Annotated[str, fastapi.Depends(user_from_email_or_raise)]
 
 
 async def validate_token_via_login_service(token: str) -> str | None:
@@ -63,7 +71,7 @@ async def validate_token_via_login_service(token: str) -> str | None:
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                f"{config.login_service_url}/api/validate",
+                f"{metta.app_backend.config.login_service_url}/api/validate",
                 headers={"X-Auth-Token": token},
                 timeout=5.0,
             )

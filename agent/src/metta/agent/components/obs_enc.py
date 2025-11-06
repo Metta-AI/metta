@@ -1,15 +1,15 @@
-from typing import Literal, Optional
+import typing
 
 import einops
+import tensordict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from tensordict import TensorDict
 
-from metta.agent.components.component_config import ComponentConfig
+import metta.agent.components.component_config
 
 
-class ObsLatentAttnConfig(ComponentConfig):
+class ObsLatentAttnConfig(metta.agent.components.component_config.ComponentConfig):
     in_key: str
     out_key: str
     feat_dim: int
@@ -19,9 +19,9 @@ class ObsLatentAttnConfig(ComponentConfig):
     num_query_tokens: int = 10
     num_heads: int = 4
     num_layers: int = 2
-    query_token_dim: Optional[int] = 48
-    qk_dim: Optional[int] = None
-    v_dim: Optional[int] = None
+    query_token_dim: typing.Optional[int] = 48
+    qk_dim: typing.Optional[int] = None
+    v_dim: typing.Optional[int] = None
     mlp_ratio: float = 4.0
     use_cls_token: bool = False
 
@@ -153,7 +153,7 @@ class ObsLatentAttn(nn.Module):
 
         return None
 
-    def forward(self, td: TensorDict) -> TensorDict:
+    def forward(self, td: tensordict.TensorDict) -> tensordict.TensorDict:
         x_features = td[self.config.in_key]
         key_mask = None
         if self._use_mask:
@@ -206,7 +206,7 @@ class ObsLatentAttn(nn.Module):
         return td
 
 
-class ObsPerceiverLatentConfig(ComponentConfig):
+class ObsPerceiverLatentConfig(metta.agent.components.component_config.ComponentConfig):
     in_key: str
     out_key: str
     feat_dim: int
@@ -216,7 +216,7 @@ class ObsPerceiverLatentConfig(ComponentConfig):
     num_layers: int = 2
     mlp_ratio: float = 4.0
     use_mask: bool = True
-    pool: Literal["mean", "first", "none"] = "mean"
+    pool: typing.Literal["mean", "first", "none"] = "mean"
     name: str = "obs_perceiver_latent"
 
     def make_component(self, env=None):
@@ -270,7 +270,7 @@ class ObsPerceiverLatent(nn.Module):
 
         self.final_norm = nn.LayerNorm(self._latent_dim)
 
-    def forward(self, td: TensorDict) -> TensorDict:
+    def forward(self, td: tensordict.TensorDict) -> tensordict.TensorDict:
         x_features = td[self.config.in_key]
         key_mask = td.get("obs_mask") if self._use_mask else None
         tokens_norm = self.token_norm(x_features)
@@ -313,7 +313,7 @@ class ObsPerceiverLatent(nn.Module):
         return td
 
 
-class ObsSelfAttnConfig(ComponentConfig):
+class ObsSelfAttnConfig(metta.agent.components.component_config.ComponentConfig):
     feat_dim: int
     in_key: str
     out_key: str
@@ -372,7 +372,7 @@ class ObsSelfAttn(nn.Module):
 
         return None
 
-    def forward(self, td: TensorDict) -> TensorDict:
+    def forward(self, td: tensordict.TensorDict) -> tensordict.TensorDict:
         x_features = td[self.config.in_key]
         if self._use_cls_token:
             x_features = torch.cat([self._cls_token.expand(x_features.shape[0], -1, -1), x_features], dim=1)

@@ -4,13 +4,13 @@ Unit tests for WandbContext - simplified version with good coverage.
 
 import pytest
 import wandb
-from wandb.errors import CommError
+import wandb.errors
 
-from metta.common.wandb.context import WandbConfig, WandbContext
-from mettagrid.base_config import Config
+import metta.common.wandb.context
+import mettagrid.base_config
 
 
-class SampleConfig(Config):
+class SampleConfig(mettagrid.base_config.Config):
     """Simple configuration for testing."""
 
     test_value: str = "test"
@@ -28,13 +28,13 @@ class FakeRun:
 def test_wandb_config_factories():
     """Test WandbConfig factory methods."""
     # Test Off()
-    cfg_off = WandbConfig.Off()
+    cfg_off = metta.common.wandb.context.WandbConfig.Off()
     assert cfg_off.enabled is False
     assert cfg_off.project == "na"
     assert cfg_off.entity == "na"
 
     # Test Unconfigured()
-    cfg_unconf = WandbConfig.Unconfigured()
+    cfg_unconf = metta.common.wandb.context.WandbConfig.Unconfigured()
     assert cfg_unconf.enabled is False
     assert cfg_unconf.project == "unconfigured"
     assert cfg_unconf.entity == "unconfigured"
@@ -42,22 +42,22 @@ def test_wandb_config_factories():
 
 def test_wandb_config_uri_raises_error():
     """Test that accessing URI raises RuntimeError."""
-    cfg = WandbConfig(enabled=True, project="p", entity="e")
+    cfg = metta.common.wandb.context.WandbConfig(enabled=True, project="p", entity="e")
     with pytest.raises(RuntimeError, match="Policy artifacts are no longer stored on WandB"):
         _ = cfg.uri
 
 
 def test_disabled_context_returns_none():
     """Test that disabled config skips initialization and returns None."""
-    cfg = WandbConfig.Off()
-    with WandbContext(cfg, SampleConfig()) as run:
+    cfg = metta.common.wandb.context.WandbConfig.Off()
+    with metta.common.wandb.context.WandbContext(cfg, SampleConfig()) as run:
         assert run is None
 
 
 def test_network_check_failure_returns_none():
     """Test behavior when network check fails - should return None."""
-    cfg = WandbConfig(enabled=True, project="test", entity="test")
-    ctx = WandbContext(cfg, SampleConfig())
+    cfg = metta.common.wandb.context.WandbConfig(enabled=True, project="test", entity="test")
+    ctx = metta.common.wandb.context.WandbContext(cfg, SampleConfig())
     ctx.wandb_host = "invalid.host.example.com"
 
     with ctx as run:
@@ -86,7 +86,7 @@ def test_successful_initialization_and_parameters(monkeypatch):
     monkeypatch.setenv("METTA_USER", "alice")
 
     # Test with full configuration
-    cfg = WandbConfig(
+    cfg = metta.common.wandb.context.WandbConfig(
         enabled=True,
         project="test-proj",
         entity="test-ent",
@@ -98,7 +98,7 @@ def test_successful_initialization_and_parameters(monkeypatch):
         data_dir="/tmp/test",
     )
 
-    with WandbContext(cfg, SampleConfig(), timeout=15, run_config_name="my_config") as run:
+    with metta.common.wandb.context.WandbContext(cfg, SampleConfig(), timeout=15, run_config_name="my_config") as run:
         assert isinstance(run, FakeRun)
 
     # Verify init parameters
@@ -130,8 +130,8 @@ def test_successful_initialization_and_parameters(monkeypatch):
     monkeypatch.setenv("USER", "unknown")
     init_calls.clear()
 
-    cfg2 = WandbConfig(enabled=True, project="test", entity="test")
-    with WandbContext(cfg2, None) as run:
+    cfg2 = metta.common.wandb.context.WandbConfig(enabled=True, project="test", entity="test")
+    with metta.common.wandb.context.WandbContext(cfg2, None) as run:
         assert run is not None
 
     assert "user:unknown" in init_calls[0]["tags"]
@@ -148,34 +148,34 @@ def test_run_config_types(monkeypatch, caplog):
     monkeypatch.setattr(wandb, "init", fake_init)
     monkeypatch.setattr(wandb, "save", lambda *args, **kwargs: None)
 
-    cfg = WandbConfig(enabled=True, project="test", entity="test")
+    cfg = metta.common.wandb.context.WandbConfig(enabled=True, project="test", entity="test")
 
     # Test 1: Dict config
     config_dict = {"learning_rate": 0.01, "batch_size": 32}
-    with WandbContext(cfg, config_dict) as run:
+    with metta.common.wandb.context.WandbContext(cfg, config_dict) as run:
         assert run is not None
     assert init_calls[-1]["config"] == {"extra_config_dict": config_dict}
 
     # Test 2: Dict config with custom name
-    with WandbContext(cfg, config_dict, run_config_name="params") as run:
+    with metta.common.wandb.context.WandbContext(cfg, config_dict, run_config_name="params") as run:
         assert run is not None
     assert init_calls[-1]["config"] == {"params": config_dict}
 
     # Test 3: String config
     config_str = "simple string config"
-    with WandbContext(cfg, config_str) as run:
+    with metta.common.wandb.context.WandbContext(cfg, config_str) as run:
         assert run is not None
     assert init_calls[-1]["config"] == config_str
 
     # Test 4: Config object
     sample_config = SampleConfig()
-    with WandbContext(cfg, sample_config) as run:
+    with metta.common.wandb.context.WandbContext(cfg, sample_config) as run:
         assert run is not None
     assert init_calls[-1]["config"]["SampleConfig"] == sample_config.model_dump()
 
     # Test 5: Invalid type
     invalid_config = 12345
-    with WandbContext(cfg, invalid_config) as run:
+    with metta.common.wandb.context.WandbContext(cfg, invalid_config) as run:
         assert run is not None
     assert init_calls[-1]["config"] is None
     assert "Invalid extra_cfg: 12345" in caplog.text
@@ -196,8 +196,8 @@ def test_file_saving_behavior(monkeypatch):
     monkeypatch.setattr(wandb, "finish", lambda: None)
 
     # Test with data_dir
-    cfg_with_dir = WandbConfig(enabled=True, project="test", entity="test", data_dir="/data")
-    with WandbContext(cfg_with_dir, None):
+    cfg_with_dir = metta.common.wandb.context.WandbConfig(enabled=True, project="test", entity="test", data_dir="/data")
+    with metta.common.wandb.context.WandbContext(cfg_with_dir, None):
         pass
 
     assert len(save_calls) == 3
@@ -210,8 +210,8 @@ def test_file_saving_behavior(monkeypatch):
 
     # Test without data_dir
     save_calls.clear()
-    cfg_no_dir = WandbConfig(enabled=True, project="test", entity="test", data_dir=None)
-    with WandbContext(cfg_no_dir, None):
+    cfg_no_dir = metta.common.wandb.context.WandbConfig(enabled=True, project="test", entity="test", data_dir=None)
+    with metta.common.wandb.context.WandbContext(cfg_no_dir, None):
         pass
 
     assert len(save_calls) == 0
@@ -219,22 +219,22 @@ def test_file_saving_behavior(monkeypatch):
 
 def test_exception_handling(monkeypatch):
     """Test all exception handling paths."""
-    cfg = WandbConfig(enabled=True, project="test", entity="test")
+    cfg = metta.common.wandb.context.WandbConfig(enabled=True, project="test", entity="test")
 
     # Test TimeoutError
     def raise_timeout(**kwargs):
         raise TimeoutError("timeout")
 
     monkeypatch.setattr(wandb, "init", raise_timeout)
-    with WandbContext(cfg, None) as run:
+    with metta.common.wandb.context.WandbContext(cfg, None) as run:
         assert run is None
 
     # Test CommError
     def raise_comm_error(**kwargs):
-        raise CommError("comm error")
+        raise wandb.errors.CommError("comm error")
 
     monkeypatch.setattr(wandb, "init", raise_comm_error)
-    with WandbContext(cfg, None) as run:
+    with metta.common.wandb.context.WandbContext(cfg, None) as run:
         assert run is None
 
     # Test generic Exception
@@ -242,7 +242,7 @@ def test_exception_handling(monkeypatch):
         raise RuntimeError("unexpected")
 
     monkeypatch.setattr(wandb, "init", raise_runtime)
-    with WandbContext(cfg, None) as run:
+    with metta.common.wandb.context.WandbContext(cfg, None) as run:
         assert run is None
 
     # Test cleanup error handling
@@ -251,4 +251,4 @@ def test_exception_handling(monkeypatch):
 
     monkeypatch.setattr(wandb, "finish", fake_finish_error)
     # Should not raise
-    WandbContext.cleanup_run(FakeRun())  # type: ignore
+    metta.common.wandb.context.WandbContext.cleanup_run(FakeRun())  # type: ignore

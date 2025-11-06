@@ -1,19 +1,21 @@
 import datetime
 import uuid
 
+import fastapi.testclient
 import pytest
-from fastapi.testclient import TestClient
 
-from metta.app_backend.clients.stats_client import StatsClient
-from metta.app_backend.leaderboard_updater import LeaderboardUpdater
-from metta.app_backend.metta_repo import MettaRepo
+import metta.app_backend.clients.stats_client
+import metta.app_backend.leaderboard_updater
+import metta.app_backend.metta_repo
 
 
 @pytest.mark.slow
 class TestPolicyScorecardRoutes:
     """Integration tests for policy-based scorecard routes."""
 
-    def test_get_policies_basic(self, test_client: TestClient, create_test_data, record_episodes) -> None:
+    def test_get_policies_basic(
+        self, test_client: fastapi.testclient.TestClient, create_test_data, record_episodes
+    ) -> None:
         """Test basic functionality of getting policies and training runs."""
         # Create test data with both training run and run-free policies
         test_data = create_test_data("get_policies_basic", num_policies=2, create_run_free_policies=1)
@@ -65,7 +67,7 @@ class TestPolicyScorecardRoutes:
 
     def test_get_eval_categories(
         self,
-        test_client: TestClient,
+        test_client: fastapi.testclient.TestClient,
         create_test_data,
         record_episodes,
     ) -> None:
@@ -95,7 +97,7 @@ class TestPolicyScorecardRoutes:
         expected_eval_names = {"navigation/maze1", "navigation/maze2", "combat/arena1"}
         assert set(eval_names) == expected_eval_names
 
-    def test_get_eval_categories_empty_policies(self, test_client: TestClient) -> None:
+    def test_get_eval_categories_empty_policies(self, test_client: fastapi.testclient.TestClient) -> None:
         """Test getting eval names with empty policy and training run lists."""
         response = test_client.post("/heatmap/evals", json={"training_run_ids": [], "run_free_policy_ids": []})
         assert response.status_code == 200
@@ -103,8 +105,8 @@ class TestPolicyScorecardRoutes:
 
     def test_get_available_metrics(
         self,
-        test_client: TestClient,
-        stats_client: StatsClient,
+        test_client: fastapi.testclient.TestClient,
+        stats_client: metta.app_backend.clients.stats_client.StatsClient,
         create_test_data,
     ) -> None:
         """Test getting available metrics for selected policies and evaluations."""
@@ -143,7 +145,7 @@ class TestPolicyScorecardRoutes:
         assert "survival_time" in metrics
         assert "score" in metrics
 
-    def test_get_available_metrics_empty_inputs(self, test_client: TestClient) -> None:
+    def test_get_available_metrics_empty_inputs(self, test_client: fastapi.testclient.TestClient) -> None:
         """Test getting available metrics with empty inputs."""
         # Empty training run IDs and policy IDs
         response = test_client.post(
@@ -166,7 +168,7 @@ class TestPolicyScorecardRoutes:
         assert response.json() == []
 
     def test_generate_policy_scorecard_latest_selector(
-        self, test_client: TestClient, create_test_data, record_episodes
+        self, test_client: fastapi.testclient.TestClient, create_test_data, record_episodes
     ) -> None:
         """Test generating scorecard with latest policy selector."""
         # Create two training runs with multiple policies each
@@ -218,7 +220,7 @@ class TestPolicyScorecardRoutes:
                 assert "replayUrl" in heatmap["cells"][policy_name][eval_name]
 
     def test_generate_policy_scorecard_best_selector(
-        self, test_client: TestClient, create_test_data, record_episodes
+        self, test_client: fastapi.testclient.TestClient, create_test_data, record_episodes
     ) -> None:
         """Test generating scorecard with best policy selector."""
         test_data = create_test_data("heatmap_best", num_policies=3)
@@ -265,7 +267,7 @@ class TestPolicyScorecardRoutes:
         assert abs(heatmap["policyAverageScores"][best_policy_name] - 85.0) < 0.01
 
     def test_generate_policy_scorecard_with_run_free_policies(
-        self, test_client: TestClient, create_test_data, record_episodes
+        self, test_client: fastapi.testclient.TestClient, create_test_data, record_episodes
     ) -> None:
         """Test scorecard generation includes run-free policies correctly."""
         # Create mix of training run and run-free policies
@@ -301,7 +303,7 @@ class TestPolicyScorecardRoutes:
         expected_names = set(test_data["policy_names"])
         assert set(heatmap["policyNames"]) == expected_names
 
-    def test_generate_policy_heatmap_missing_parameters(self, test_client: TestClient) -> None:
+    def test_generate_policy_heatmap_missing_parameters(self, test_client: fastapi.testclient.TestClient) -> None:
         """Test heatmap generation with missing required parameters."""
         # Missing training run IDs and policy IDs
         response = test_client.post(
@@ -344,7 +346,7 @@ class TestPolicyScorecardRoutes:
 
     def test_generate_policy_heatmap_empty_result(
         self,
-        test_client: TestClient,
+        test_client: fastapi.testclient.TestClient,
         create_test_data,
     ) -> None:
         """Test heatmap generation when no matching data exists."""
@@ -374,7 +376,7 @@ class TestPolicyScorecardRoutes:
         assert heatmap["evalMaxScores"] == {}
 
     def test_generate_policy_heatmap_multiple_categories(
-        self, test_client: TestClient, create_test_data, record_episodes
+        self, test_client: fastapi.testclient.TestClient, create_test_data, record_episodes
     ) -> None:
         """Test heatmap generation with multiple evaluation categories."""
         test_data = create_test_data("multi_category", num_policies=1)
@@ -419,8 +421,8 @@ class TestPolicyScorecardRoutes:
 
     def test_generate_policy_heatmap_aggregation(
         self,
-        test_client: TestClient,
-        stats_client: StatsClient,
+        test_client: fastapi.testclient.TestClient,
+        stats_client: metta.app_backend.clients.stats_client.StatsClient,
         create_test_data,
     ) -> None:
         """Test that multiple episodes are properly aggregated."""
@@ -457,7 +459,7 @@ class TestPolicyScorecardRoutes:
         policy_name = test_data["policy_names"][0]
         assert heatmap["cells"][policy_name]["agg_suite/test_env"]["value"] == 90.0
 
-    def test_invalid_policy_selector_value(self, test_client: TestClient) -> None:
+    def test_invalid_policy_selector_value(self, test_client: fastapi.testclient.TestClient) -> None:
         """Test that invalid training_run_policy_selector values are rejected."""
         response = test_client.post(
             "/scorecard/scorecard",
@@ -471,7 +473,9 @@ class TestPolicyScorecardRoutes:
         )
         assert response.status_code == 422  # Validation error
 
-    def test_policy_search_ordering(self, test_client: TestClient, create_test_data, record_episodes) -> None:
+    def test_policy_search_ordering(
+        self, test_client: fastapi.testclient.TestClient, create_test_data, record_episodes
+    ) -> None:
         """Test that policies are returned in descending date order."""
         # Create policies with different timestamps by creating them sequentially
         base_name = "ordering_test"
@@ -506,7 +510,11 @@ class TestPolicyScorecardRoutes:
         assert timestamps == sorted_timestamps
 
     def test_complex_heatmap_aggregation_scenarios(
-        self, test_client: TestClient, stats_client: StatsClient, create_test_data, record_episodes
+        self,
+        test_client: fastapi.testclient.TestClient,
+        stats_client: metta.app_backend.clients.stats_client.StatsClient,
+        create_test_data,
+        record_episodes,
     ) -> None:
         """Test complex heatmap generation with multiple policies, runs, and aggregations."""
         # Create three separate training runs with different characteristics
@@ -831,7 +839,9 @@ class TestPolicyScorecardRoutes:
         assert multi_agent_value <= 100.0  # Not better than the best episode
         assert multi_agent_value > 75.0  # Should be influenced by the higher values
 
-    def test_policy_heatmap_edge_cases(self, test_client: TestClient, create_test_data, record_episodes) -> None:
+    def test_policy_heatmap_edge_cases(
+        self, test_client: fastapi.testclient.TestClient, create_test_data, record_episodes
+    ) -> None:
         """Test edge cases in policy heatmap generation."""
 
         # Test 1: Single policy, single evaluation
@@ -954,7 +964,7 @@ class TestPolicyScorecardRoutes:
         assert set(heatmap_large["evalNames"]) == expected_large_evals
 
     def test_policy_heatmap_performance_ordering(
-        self, test_client: TestClient, create_test_data, record_episodes
+        self, test_client: fastapi.testclient.TestClient, create_test_data, record_episodes
     ) -> None:
         """Test that policies are correctly ordered by performance in best selector."""
 
@@ -1027,8 +1037,8 @@ class TestPolicyScorecardRoutes:
 
     def test_policy_deduplication_with_multiple_episodes(
         self,
-        test_client: TestClient,
-        stats_client: StatsClient,
+        test_client: fastapi.testclient.TestClient,
+        stats_client: metta.app_backend.clients.stats_client.StatsClient,
         create_test_data,
     ) -> None:
         """Test that policies are properly deduplicated and aggregated across multiple episodes."""
@@ -1134,7 +1144,7 @@ class TestPolicyScorecardRoutes:
         assert abs(heatmap_best["policyAverageScores"][best_policy_name] - 87.5) < 0.01
 
     def test_mixed_training_run_and_run_free_policies_complex(
-        self, test_client: TestClient, create_test_data, record_episodes
+        self, test_client: fastapi.testclient.TestClient, create_test_data, record_episodes
     ) -> None:
         """Test complex scenarios mixing training run policies and run-free policies."""
         # Create multiple training runs with different characteristics
@@ -1267,7 +1277,11 @@ class TestPolicyScorecardRoutes:
         assert abs(heatmap_subset["policyAverageScores"][run1_best_policy] - 77.5) < 0.01
 
     def test_policy_selector_tie_breaking(
-        self, test_client: TestClient, stats_client: StatsClient, create_test_data, record_episodes
+        self,
+        test_client: fastapi.testclient.TestClient,
+        stats_client: metta.app_backend.clients.stats_client.StatsClient,
+        create_test_data,
+        record_episodes,
     ) -> None:
         """Test tie-breaking logic for policy selectors."""
         # Create training run with policies that have identical performance but different epochs
@@ -1360,7 +1374,7 @@ class TestPolicyScorecardRoutes:
         assert abs(heatmap_best_after_boost["policyAverageScores"][boosted_best_policy] - 76.25) < 0.01
 
     def test_policy_heatmap_edge_cases_and_error_handling(
-        self, test_client: TestClient, create_test_data, record_episodes
+        self, test_client: fastapi.testclient.TestClient, create_test_data, record_episodes
     ) -> None:
         """Test edge cases and error handling in policy heatmap generation."""
 
@@ -1415,8 +1429,8 @@ class TestPolicyScorecardRoutes:
 
     def test_policy_heatmap_best_vs_latest_selection_logic(
         self,
-        test_client: TestClient,
-        stats_client: StatsClient,
+        test_client: fastapi.testclient.TestClient,
+        stats_client: metta.app_backend.clients.stats_client.StatsClient,
         create_test_data,
     ) -> None:
         """Test detailed best vs latest policy selection logic with complex scenarios."""
@@ -1595,7 +1609,7 @@ class TestPolicyScorecardRoutes:
         assert heatmap_latest2["policyNames"][0] == latest_policy_name
 
     def test_policy_heatmap_data_structure_completeness(
-        self, test_client: TestClient, create_test_data, record_episodes
+        self, test_client: fastapi.testclient.TestClient, create_test_data, record_episodes
     ) -> None:
         """Test that policy heatmap data structure is complete and correctly formatted."""
 
@@ -1729,7 +1743,7 @@ class TestPolicyScorecardRoutes:
             assert abs(max_score - expected_max) < 0.01
 
     def test_large_dataset_performance_and_deduplication(
-        self, test_client: TestClient, create_test_data, record_episodes
+        self, test_client: fastapi.testclient.TestClient, create_test_data, record_episodes
     ) -> None:
         """Test performance and correctness with large datasets."""
         # Create multiple training runs with many policies
@@ -1850,7 +1864,7 @@ class TestPolicyScorecardRoutes:
         assert avg_best_performance >= avg_latest_performance - 1.0  # Allow small tolerance
 
     def test_policy_heatmap_with_missing_evaluations(
-        self, test_client: TestClient, create_test_data, record_episodes
+        self, test_client: fastapi.testclient.TestClient, create_test_data, record_episodes
     ) -> None:
         """Test behavior when policies have missing evaluations for some environments."""
         # Create test data with policies that have different evaluation coverage
@@ -1920,8 +1934,8 @@ class TestPolicyScorecardRoutes:
 
     def test_multi_agent_episode_aggregation_edge_cases(
         self,
-        test_client: TestClient,
-        stats_client: StatsClient,
+        test_client: fastapi.testclient.TestClient,
+        stats_client: metta.app_backend.clients.stats_client.StatsClient,
         create_test_data,
     ) -> None:
         """Test edge cases in multi-agent episode aggregation."""
@@ -2001,8 +2015,8 @@ class TestPolicyScorecardRoutes:
 
     def test_policy_heatmap_extreme_values_and_precision(
         self,
-        test_client: TestClient,
-        stats_client: StatsClient,
+        test_client: fastapi.testclient.TestClient,
+        stats_client: metta.app_backend.clients.stats_client.StatsClient,
         create_test_data,
     ) -> None:
         """Test handling of extreme values and numerical precision."""
@@ -2092,9 +2106,9 @@ class TestPolicyScorecardRoutes:
     @pytest.mark.asyncio
     async def test_leaderboard_scorecard_integration(
         self,
-        isolated_test_client: TestClient,
-        isolated_stats_repo: MettaRepo,
-        isolated_stats_client: StatsClient,
+        isolated_test_client: fastapi.testclient.TestClient,
+        isolated_stats_repo: metta.app_backend.metta_repo.MettaRepo,
+        isolated_stats_client: metta.app_backend.clients.stats_client.StatsClient,
         create_test_data,
         record_episodes,
     ) -> None:
@@ -2237,7 +2251,7 @@ class TestPolicyScorecardRoutes:
         # manually running the update logic using the stats_repo fixture.
 
         # Create a leaderboard updater instance
-        updater = LeaderboardUpdater(stats_repo)
+        updater = metta.app_backend.leaderboard_updater.LeaderboardUpdater(stats_repo)
 
         # Get the leaderboard from the database
         leaderboard_uuid = uuid.UUID(leaderboard_id)
@@ -2342,7 +2356,9 @@ class TestPolicyScorecardRoutes:
         assert leaderboard_scorecard["evalAverageScores"] == individual_scorecard["evalAverageScores"]
         assert leaderboard_scorecard["evalMaxScores"] == individual_scorecard["evalMaxScores"]
 
-    def test_search_policies_by_name(self, test_client: TestClient, create_test_data, record_episodes) -> None:
+    def test_search_policies_by_name(
+        self, test_client: fastapi.testclient.TestClient, create_test_data, record_episodes
+    ) -> None:
         """Test searching policies by name."""
         # Create test data with distinctive names
         test_data = create_test_data("navigation_search_test", num_policies=2, create_run_free_policies=1)
@@ -2376,7 +2392,7 @@ class TestPolicyScorecardRoutes:
         found_policies = [p for p in result["policies"] if "navigation" in p["name"].lower()]
         assert len(found_policies) >= 1
 
-    def test_search_policies_by_type(self, test_client: TestClient, create_test_data) -> None:
+    def test_search_policies_by_type(self, test_client: fastapi.testclient.TestClient, create_test_data) -> None:
         """Test filtering policies by type."""
         # Create test data with both types
         create_test_data("search_policies_type", num_policies=1, create_run_free_policies=2)
@@ -2403,7 +2419,9 @@ class TestPolicyScorecardRoutes:
         for policy in result["policies"]:
             assert policy["type"] == "policy"
 
-    def test_search_policies_by_tags(self, test_client: TestClient, create_test_data, record_episodes) -> None:
+    def test_search_policies_by_tags(
+        self, test_client: fastapi.testclient.TestClient, create_test_data, record_episodes
+    ) -> None:
         """Test filtering policies by tags."""
         # Create test data that will have the scorecard_test tag
         test_data = create_test_data("search_tags_test", num_policies=2, create_run_free_policies=1)
@@ -2438,7 +2456,9 @@ class TestPolicyScorecardRoutes:
         tagged_policies = [p for p in result["policies"] if "test_tag" in p.get("tags", [])]
         assert len(tagged_policies) >= 1
 
-    def test_search_policies_combined_filters(self, test_client: TestClient, create_test_data, record_episodes) -> None:
+    def test_search_policies_combined_filters(
+        self, test_client: fastapi.testclient.TestClient, create_test_data, record_episodes
+    ) -> None:
         """Test combining multiple search filters."""
         # Create test data
         test_data = create_test_data("combined_filter_test", num_policies=2, create_run_free_policies=1)
@@ -2474,7 +2494,7 @@ class TestPolicyScorecardRoutes:
 
         assert len(matching_policies) >= 1
 
-    def test_search_policies_pagination(self, test_client: TestClient, create_test_data) -> None:
+    def test_search_policies_pagination(self, test_client: fastapi.testclient.TestClient, create_test_data) -> None:
         """Test pagination in search results."""
         # Create test data
         create_test_data("search_pagination", num_policies=5, create_run_free_policies=3)
@@ -2497,7 +2517,7 @@ class TestPolicyScorecardRoutes:
         assert "policies" in result
         assert len(result["policies"]) <= 3
 
-    def test_search_policies_empty_results(self, test_client: TestClient) -> None:
+    def test_search_policies_empty_results(self, test_client: fastapi.testclient.TestClient) -> None:
         """Test search with no matching results."""
         search_request = {"search": "nonexistent_policy_name_12345"}
         response = test_client.post("/scorecard/policies/search", json=search_request)
@@ -2507,7 +2527,7 @@ class TestPolicyScorecardRoutes:
         assert "policies" in result
         assert len(result["policies"]) == 0
 
-    def test_search_policies_invalid_parameters(self, test_client: TestClient) -> None:
+    def test_search_policies_invalid_parameters(self, test_client: fastapi.testclient.TestClient) -> None:
         """Test search with invalid parameters."""
         # Test invalid policy type
         search_request = {"policy_type": "invalid_type"}

@@ -1,25 +1,25 @@
+import io
 import netrc
 import os
+import pathlib
 import re
 import time
-from io import StringIO, TextIOBase
-from pathlib import Path
-from typing import cast
+import typing
 
 import sky
 import sky.exceptions
 import sky.jobs
+import sky.server.common
 import wandb
-from sky.server.common import RequestId, get_server_url
 
 import gitta as git
-from metta.app_backend.clients.base_client import get_machine_token
-from metta.common.util.git_repo import REPO_SLUG
-from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
+import metta.app_backend.clients.base_client
+import metta.common.util.git_repo
+import metta.common.util.text_styles
 
 
-def get_devops_skypilot_dir() -> Path:
-    return Path(__file__).parent.parent
+def get_devops_skypilot_dir() -> pathlib.Path:
+    return pathlib.Path(__file__).parent.parent
 
 
 def get_jobs_controller_name() -> str:
@@ -32,13 +32,13 @@ def get_jobs_controller_name() -> str:
 def launch_task(task: sky.Task) -> str:
     request_id = sky.jobs.launch(task)
 
-    print(green(f"Submitted sky.jobs.launch request: {request_id}"))
+    print(metta.common.util.text_styles.green(f"Submitted sky.jobs.launch request: {request_id}"))
 
     short_request_id = request_id.split("-")[0]
 
-    print(f"- Check logs with: {yellow(f'sky api logs {short_request_id}')}")
-    dashboard_url = get_server_url() + "/dashboard/jobs"
-    print(f"- Or, visit: {yellow(dashboard_url)}")
+    print(f"- Check logs with: {metta.common.util.text_styles.yellow(f'sky api logs {short_request_id}')}")
+    dashboard_url = sky.server.common.get_server_url() + "/dashboard/jobs"
+    print(f"- Or, visit: {metta.common.util.text_styles.yellow(dashboard_url)}")
 
     return request_id
 
@@ -48,7 +48,11 @@ def check_git_state(commit_hash: str) -> str | None:
 
     has_changes, status_output = git.has_unstaged_changes()
     if has_changes:
-        error_lines.append(red("❌ You have uncommitted changes that won't be reflected in the cloud job."))
+        error_lines.append(
+            metta.common.util.text_styles.red(
+                "❌ You have uncommitted changes that won't be reflected in the cloud job."
+            )
+        )
         error_lines.append("Options:")
         error_lines.append("  - Commit: git add . && git commit -m 'your message'")
         error_lines.append("  - Stash: git stash")
@@ -58,7 +62,9 @@ def check_git_state(commit_hash: str) -> str | None:
     if not git.is_commit_pushed(commit_hash):
         commit_display = commit_hash[:8]
         error_lines.append(
-            red(f"❌ Commit {commit_display} hasn't been pushed and won't be reflected in the cloud job.")
+            metta.common.util.text_styles.red(
+                f"❌ Commit {commit_display} hasn't been pushed and won't be reflected in the cloud job."
+            )
         )
         error_lines.append("Options:")
         error_lines.append("  - Push: git push")
@@ -79,13 +85,13 @@ def display_job_summary(
 ) -> None:
     """Display a summary of the job that will be launched."""
     divider_length = 60
-    divider = blue("=" * divider_length)
+    divider = metta.common.util.text_styles.blue("=" * divider_length)
 
     print(f"\n{divider}")
-    print(bold(blue("Job details:")))
+    print(metta.common.util.text_styles.bold(metta.common.util.text_styles.blue("Job details:")))
     print(f"{divider}")
 
-    print(f"{bold('Name:')} {yellow(job_name)}")
+    print(f"{metta.common.util.text_styles.bold('Name:')} {metta.common.util.text_styles.yellow(job_name)}")
 
     # Extract resource info from task if provided
     if task:
@@ -97,27 +103,37 @@ def display_job_summary(
                 gpu_info = []
                 for gpu_type, count in resource.accelerators.items():
                     gpu_info.append(f"{count}x {gpu_type}")
-                print(f"{bold('GPUs:')} {yellow(', '.join(gpu_info))}")
+                print(
+                    f"{metta.common.util.text_styles.bold('GPUs:')} {metta.common.util.text_styles.yellow(', '.join(gpu_info))}"
+                )
 
             # CPU info
             if hasattr(resource, "cpus") and resource.cpus:
-                print(f"{bold('CPUs:')} {yellow(str(resource.cpus))}")
+                print(
+                    f"{metta.common.util.text_styles.bold('CPUs:')} {metta.common.util.text_styles.yellow(str(resource.cpus))}"
+                )
 
             # Spot instance info
             if hasattr(resource, "use_spot"):
                 spot_status = "Yes" if resource.use_spot else "No"
-                print(f"{bold('Spot Instances:')} {yellow(spot_status)}")
+                print(
+                    f"{metta.common.util.text_styles.bold('Spot Instances:')} {metta.common.util.text_styles.yellow(spot_status)}"
+                )
 
         # Node count
         if task.num_nodes and task.num_nodes > 1:
-            print(f"{bold('Nodes:')} {yellow(str(task.num_nodes))}")
+            print(
+                f"{metta.common.util.text_styles.bold('Nodes:')} {metta.common.util.text_styles.yellow(str(task.num_nodes))}"
+            )
 
     # Display any additional job details from kwargs (excluding 'task')
     for key, value in kwargs.items():
         if value is not None and key != "task":
             # Convert snake_case to Title Case for display
             display_key = key.replace("_", " ").title()
-            print(f"{bold(display_key + ':')} {yellow(str(value))}")
+            print(
+                f"{metta.common.util.text_styles.bold(display_key + ':')} {metta.common.util.text_styles.yellow(str(value))}"
+            )
 
     # Display timeout information with prominence
     if timeout_hours:
@@ -133,39 +149,49 @@ def display_job_summary(
         else:
             timeout_str = f"{mins}m"
 
-        print(f"{bold('Auto-termination:')} {yellow(timeout_str)}")
+        print(
+            f"{metta.common.util.text_styles.bold('Auto-termination:')} {metta.common.util.text_styles.yellow(timeout_str)}"
+        )
     else:
-        print(f"{bold('Auto-termination:')} {yellow('None')}")
+        print(
+            f"{metta.common.util.text_styles.bold('Auto-termination:')} {metta.common.util.text_styles.yellow('None')}"
+        )
 
     if git_ref:
-        print(f"{bold('Git Reference:')} {yellow(git_ref)}")
+        print(f"{metta.common.util.text_styles.bold('Git Reference:')} {metta.common.util.text_styles.yellow(git_ref)}")
 
-    print(f"{bold('Commit Hash:')} {yellow(commit_hash)}")
+    print(f"{metta.common.util.text_styles.bold('Commit Hash:')} {metta.common.util.text_styles.yellow(commit_hash)}")
 
     commit_message = git.get_commit_message(commit_hash)
     if commit_message:
         first_line = commit_message.split("\n")[0]
-        print(f"{bold('Commit Message:')} {yellow(first_line)}")
+        print(
+            f"{metta.common.util.text_styles.bold('Commit Message:')} {metta.common.util.text_styles.yellow(first_line)}"
+        )
 
-    pr_info = git.get_matched_pr(commit_hash, REPO_SLUG)
+    pr_info = git.get_matched_pr(commit_hash, metta.common.util.git_repo.REPO_SLUG)
     if pr_info:
         pr_number, pr_title = pr_info
         first_line = pr_title.split("\n")[0]
-        print(f"{bold('PR:')} {yellow(f'#{pr_number} - {first_line}')}")
+        print(
+            f"{metta.common.util.text_styles.bold('PR:')} {metta.common.util.text_styles.yellow(f'#{pr_number} - {first_line}')}"
+        )
     else:
-        print(f"{bold('PR:')} {red('Not an open PR HEAD')}")
+        print(f"{metta.common.util.text_styles.bold('PR:')} {metta.common.util.text_styles.red('Not an open PR HEAD')}")
 
-    print(blue("-" * divider_length))
-    print(f"\n{bold('Command:')} {yellow(cmd)}")
+    print(metta.common.util.text_styles.blue("-" * divider_length))
+    print(f"\n{metta.common.util.text_styles.bold('Command:')} {metta.common.util.text_styles.yellow(cmd)}")
 
     if task_args:
-        print(bold("Task Arguments:"))
+        print(metta.common.util.text_styles.bold("Task Arguments:"))
         for i, arg in enumerate(task_args):
             if "=" in arg:
                 key, value = arg.split("=", 1)
-                print(f"  {i + 1}. {yellow(key)}={cyan(value)}")
+                print(
+                    f"  {i + 1}. {metta.common.util.text_styles.yellow(key)}={metta.common.util.text_styles.cyan(value)}"
+                )
             else:
-                print(f"  {i + 1}. {yellow(arg)}")
+                print(f"  {i + 1}. {metta.common.util.text_styles.yellow(arg)}")
 
     print(f"\n{divider}")
 
@@ -179,7 +205,9 @@ def set_task_secrets(task: sky.Task) -> None:
     if not wandb_password:
         raise ValueError("Failed to get wandb password, run 'metta install' to fix")
 
-    observatory_token = get_machine_token("https://api.observatory.softmax-research.net")
+    observatory_token = metta.app_backend.clients.base_client.get_machine_token(
+        "https://api.observatory.softmax-research.net"
+    )
     if not observatory_token:
         observatory_token = ""  # we don't have a token in CI
 
@@ -215,7 +243,7 @@ def get_job_id_from_request_id(request_id: str, wait_seconds: float = 1.0) -> st
     time.sleep(wait_seconds)  # Wait for job to be registered
 
     try:
-        job_id, _ = sky.get(RequestId(request_id))
+        job_id, _ = sky.get(sky.server.common.RequestId(request_id))
         return str(job_id) if job_id is not None else None
     except Exception:
         return None
@@ -288,11 +316,13 @@ def tail_job_log(job_id: str, lines: int = 100) -> str | None:
             return f"Error: Job {job_id} not found"
 
         # Use a StringIO to capture output
-        output = StringIO()
+        output = io.StringIO()
 
         try:
             # Try to get logs without following
-            sky.jobs.tail_logs(job_id=int(job_id), follow=False, tail=lines, output_stream=cast(TextIOBase, output))
+            sky.jobs.tail_logs(
+                job_id=int(job_id), follow=False, tail=lines, output_stream=typing.cast(io.TextIOBase, output)
+            )
 
             result = output.getvalue()
             if result:

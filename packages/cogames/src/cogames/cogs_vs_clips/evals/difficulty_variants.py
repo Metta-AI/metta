@@ -13,15 +13,14 @@ The goal is to force agents to:
 3. Adapt strategies based on resource availability
 """
 
-from __future__ import annotations
 
 import logging
-from typing import override
+import typing
 
-from pydantic import Field
+import pydantic
 
-from cogames.cogs_vs_clips.mission import Mission, MissionVariant
-from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig, ProtocolConfig
+import cogames.cogs_vs_clips.mission
+import mettagrid.config.mettagrid_config
 
 logger = logging.getLogger(__name__)
 
@@ -44,57 +43,61 @@ ENERGY_REGEN_FLOOR = 0
 # =============================================================================
 
 
-class DifficultyLevel(MissionVariant):
+class DifficultyLevel(cogames.cogs_vs_clips.mission.MissionVariant):
     """Configuration for a difficulty level."""
 
-    name: str = Field(description="Difficulty name (easy, medium, hard, brutal, etc.)")
-    description: str = Field(description="What makes this difficulty challenging", default="")
+    name: str = pydantic.Field(description="Difficulty name (easy, medium, hard, brutal, etc.)")
+    description: str = pydantic.Field(description="What makes this difficulty challenging", default="")
 
-    allow_agent_scaling: bool = Field(default=True, description="Whether agent-count scaling helpers should run")
+    allow_agent_scaling: bool = pydantic.Field(
+        default=True, description="Whether agent-count scaling helpers should run"
+    )
 
     # Extractor max_uses multipliers (relative to mission baseline)
-    carbon_max_uses_mult: float = Field(default=1.0)
-    oxygen_max_uses_mult: float = Field(default=1.0)
-    germanium_max_uses_mult: float = Field(default=1.0)
-    silicon_max_uses_mult: float = Field(default=1.0)
+    carbon_max_uses_mult: float = pydantic.Field(default=1.0)
+    oxygen_max_uses_mult: float = pydantic.Field(default=1.0)
+    germanium_max_uses_mult: float = pydantic.Field(default=1.0)
+    silicon_max_uses_mult: float = pydantic.Field(default=1.0)
 
     # Extractor efficiency multipliers (relative to mission baseline)
-    carbon_eff_mult: float = Field(default=1.0)
-    oxygen_eff_mult: float = Field(default=1.0)
-    germanium_eff_mult: float = Field(default=1.0)
-    silicon_eff_mult: float = Field(default=1.0)
-    charger_eff_mult: float = Field(default=1.0)
+    carbon_eff_mult: float = pydantic.Field(default=1.0)
+    oxygen_eff_mult: float = pydantic.Field(default=1.0)
+    germanium_eff_mult: float = pydantic.Field(default=1.0)
+    silicon_eff_mult: float = pydantic.Field(default=1.0)
+    charger_eff_mult: float = pydantic.Field(default=1.0)
 
     # Energy regen multiplier (relative to mission baseline)
-    energy_regen_mult: float = Field(default=1.0)
+    energy_regen_mult: float = pydantic.Field(default=1.0)
 
     # Absolute overrides (if set, ignore multipliers)
-    carbon_max_uses_override: int | None = Field(default=None)
-    oxygen_max_uses_override: int | None = Field(default=None)
-    germanium_max_uses_override: int | None = Field(default=None)
-    silicon_max_uses_override: int | None = Field(default=None)
+    carbon_max_uses_override: int | None = pydantic.Field(default=None)
+    oxygen_max_uses_override: int | None = pydantic.Field(default=None)
+    germanium_max_uses_override: int | None = pydantic.Field(default=None)
+    silicon_max_uses_override: int | None = pydantic.Field(default=None)
 
-    carbon_eff_override: int | None = Field(default=None)
-    oxygen_eff_override: int | None = Field(default=None)
-    germanium_eff_override: int | None = Field(default=None)
-    silicon_eff_override: int | None = Field(default=None)
-    charger_eff_override: int | None = Field(default=None)
+    carbon_eff_override: int | None = pydantic.Field(default=None)
+    oxygen_eff_override: int | None = pydantic.Field(default=None)
+    germanium_eff_override: int | None = pydantic.Field(default=None)
+    silicon_eff_override: int | None = pydantic.Field(default=None)
+    charger_eff_override: int | None = pydantic.Field(default=None)
 
-    energy_regen_override: int | None = Field(default=None)
-    move_energy_cost_override: int | None = Field(default=None)
-    energy_capacity_override: int | None = Field(default=None)
-    cargo_capacity_override: int | None = Field(default=None)
-    max_steps_override: int | None = Field(default=None)
+    energy_regen_override: int | None = pydantic.Field(default=None)
+    move_energy_cost_override: int | None = pydantic.Field(default=None)
+    energy_capacity_override: int | None = pydantic.Field(default=None)
+    cargo_capacity_override: int | None = pydantic.Field(default=None)
+    max_steps_override: int | None = pydantic.Field(default=None)
 
     # Clipping configuration
-    clip_rate: float = Field(default=0.0, description="Probability per step that extractors get clipped")
-    clip_target: str | None = Field(
+    clip_rate: float = pydantic.Field(default=0.0, description="Probability per step that extractors get clipped")
+    clip_target: str | None = pydantic.Field(
         default=None, description="Specific extractor to clip (carbon/oxygen/germanium/silicon/charger)"
     )
-    clip_immune_extractor: str | None = Field(default=None, description="Extractor that stays immune to clipping")
+    clip_immune_extractor: str | None = pydantic.Field(
+        default=None, description="Extractor that stays immune to clipping"
+    )
 
-    @override
-    def modify_mission(self, mission: Mission):
+    @typing.override
+    def modify_mission(self, mission: cogames.cogs_vs_clips.mission.Mission):
         """Apply a difficulty level to a mission instance.
 
         Modifies the mission's extractor configs and energy_regen in place.
@@ -179,8 +182,10 @@ class DifficultyLevel(MissionVariant):
             mission.charger.start_clipped = True
             logger.info("Set charger.start_clipped = True")
 
-    @override
-    def modify_env(self, mission: Mission, env: MettaGridConfig):
+    @typing.override
+    def modify_env(
+        self, mission: cogames.cogs_vs_clips.mission.Mission, env: mettagrid.config.mettagrid_config.MettaGridConfig
+    ):
         if self.max_steps_override is not None:
             env.game.max_steps = self.max_steps_override
 
@@ -237,7 +242,7 @@ class DifficultyLevel(MissionVariant):
         # Clipping
         self._apply_clipping(env)
 
-    def _apply_clipping(self, cfg: MettaGridConfig) -> None:
+    def _apply_clipping(self, cfg: mettagrid.config.mettagrid_config.MettaGridConfig) -> None:
         target = self.clip_target
 
         # Determine gear and resource mapping for unclipping
@@ -282,7 +287,7 @@ class DifficultyLevel(MissionVariant):
                 f"[_tweak_assembler] Called with resource_for_gear={resource_for_gear}, required_gear={required_gear}"
             )
             asm = cfg.game.objects.get("assembler")
-            if not isinstance(asm, AssemblerConfig):
+            if not isinstance(asm, mettagrid.config.mettagrid_config.AssemblerConfig):
                 raise TypeError("Expected 'assembler' to be AssemblerConfig")
             if asm is None:
                 print("[_tweak_assembler] assembler not found")
@@ -293,7 +298,7 @@ class DifficultyLevel(MissionVariant):
                 for i, p in enumerate(asm.protocols):
                     print(f"  [{i}] vibes={p.vibes}, in={p.input_resources}, out={p.output_resources}")
 
-                protocol = ProtocolConfig(
+                protocol = mettagrid.config.mettagrid_config.ProtocolConfig(
                     vibes=["gear"], input_resources={resource_for_gear: 1}, output_resources={required_gear: 1}
                 )
                 print(

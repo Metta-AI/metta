@@ -1,28 +1,23 @@
 """Programmatic helpers and Skypilot launch utilities for CVC recipes."""
 
-from __future__ import annotations
 
 import subprocess
 import time
-from dataclasses import dataclass
-from typing import Sequence
+import dataclasses
+import typing
 
-from experiments.recipes.cvc.coordination import train as train_coordination
-from experiments.recipes.cvc.curriculum import (
-    make_curriculum,
-    make_training_env,
-    train as train_curriculum,
-)
-from experiments.recipes.cvc.evaluation import evaluate, make_eval_suite
-from experiments.recipes.cvc.medium_maps import train as train_medium_maps
-from experiments.recipes.cvc.core import play
-from experiments.recipes.cvc.single_mission import train as train_single_mission
-from experiments.recipes.cvc.small_maps import train as train_small_maps
-from metta.sim.simulation_config import SimulationConfig
-from metta.tools.eval import EvaluateTool
-from metta.tools.play import PlayTool
-from metta.tools.train import TrainTool
-from mettagrid.config.mettagrid_config import MettaGridConfig
+import experiments.recipes.cvc.coordination
+import experiments.recipes.cvc.curriculum
+import experiments.recipes.cvc.evaluation
+import experiments.recipes.cvc.medium_maps
+import experiments.recipes.cvc.core
+import experiments.recipes.cvc.single_mission
+import experiments.recipes.cvc.small_maps
+import metta.sim.simulation_config
+import metta.tools.eval
+import metta.tools.play
+import metta.tools.train
+import mettagrid.config.mettagrid_config
 
 RECIPE_MODULE = "experiments.recipes.cvc"
 
@@ -43,7 +38,7 @@ __all__ = [
 ]
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class SkypilotExperiment:
     """Configuration for launching a Skypilot job."""
 
@@ -144,48 +139,52 @@ DEFAULT_EXPERIMENTS: tuple[str, ...] = tuple(
 )
 
 
-def basic_training(*, num_cogs: int = 4) -> TrainTool:
+def basic_training(*, num_cogs: int = 4) -> metta.tools.train.TrainTool:
     """Train on small maps with a configurable number of agents."""
-    return train_small_maps(num_cogs=num_cogs)
+    return experiments.recipes.cvc.small_maps.train(num_cogs=num_cogs)
 
 
-def medium_training(*, num_cogs: int = 4) -> TrainTool:
+def medium_training(*, num_cogs: int = 4) -> metta.tools.train.TrainTool:
     """Train on medium maps with a configurable number of agents."""
-    return train_medium_maps(num_cogs=num_cogs)
+    return experiments.recipes.cvc.medium_maps.train(num_cogs=num_cogs)
 
 
-def custom_curriculum() -> TrainTool:
+def custom_curriculum() -> metta.tools.train.TrainTool:
     """Create a custom curriculum tool with additional logging."""
-    curriculum = make_curriculum(
+    curriculum = experiments.recipes.cvc.curriculum.make_curriculum(
         num_cogs=4,
         base_missions=["extractor_hub_30", "oxygen_bottleneck", "energy_starved"],
         enable_detailed_slice_logging=True,
     )
-    return train_curriculum(num_cogs=4, curriculum=curriculum)
+    return experiments.recipes.cvc.curriculum.train(num_cogs=4, curriculum=curriculum)
 
 
-def single_mission_debug() -> TrainTool:
+def single_mission_debug() -> metta.tools.train.TrainTool:
     """Create a debugging tool for a single mission."""
-    return train_single_mission(mission_name="extractor_hub_30", num_cogs=2)
+    return experiments.recipes.cvc.single_mission.train(
+        mission_name="extractor_hub_30", num_cogs=2
+    )
 
 
-def evaluation() -> EvaluateTool:
+def evaluation() -> metta.tools.eval.EvaluateTool:
     """Create an evaluation tool for the default checkpoints."""
-    return evaluate(
+    return experiments.recipes.cvc.evaluation.evaluate(
         policy_uris=["file://./checkpoints/cvc_default/latest"],
         num_cogs=4,
         difficulty="standard",
     )
 
 
-def multi_agent_coordination(*, num_cogs: int = 4) -> TrainTool:
+def multi_agent_coordination(*, num_cogs: int = 4) -> metta.tools.train.TrainTool:
     """Train specifically on multi-agent coordination."""
-    return train_coordination(num_cogs=num_cogs)
+    return experiments.recipes.cvc.coordination.train(num_cogs=num_cogs)
 
 
-def custom_eval_suite() -> Sequence[SimulationConfig]:
+def custom_eval_suite() -> typing.Sequence[
+    metta.sim.simulation_config.SimulationConfig
+]:
     """Create a custom evaluation suite."""
-    suite = make_eval_suite(
+    suite = experiments.recipes.cvc.evaluation.make_eval_suite(
         num_cogs=8,
         difficulty="standard",
         subset=["extractor_hub_30", "extractor_hub_50", "extractor_hub_70"],
@@ -196,18 +195,20 @@ def custom_eval_suite() -> Sequence[SimulationConfig]:
     return suite
 
 
-def play_trained_policy() -> PlayTool:
+def play_trained_policy() -> metta.tools.play.PlayTool:
     """Play a trained policy interactively."""
-    return play(
+    return experiments.recipes.cvc.core.play(
         policy_uri="file://./checkpoints/cvc_default/latest",
         mission_name="extractor_hub_30",
         num_cogs=4,
     )
 
 
-def inspect_training_env() -> MettaGridConfig:
+def inspect_training_env() -> mettagrid.config.mettagrid_config.MettaGridConfig:
     """Inspect the configuration of a training environment."""
-    env = make_training_env(num_cogs=4, mission_name="extractor_hub_30")
+    env = experiments.recipes.cvc.curriculum.make_training_env(
+        num_cogs=4, mission_name="extractor_hub_30"
+    )
 
     print("Environment Configuration:")
     print(f"  Num agents: {env.game.num_agents}")
@@ -231,7 +232,7 @@ def inspect_training_env() -> MettaGridConfig:
 
 
 def experiment(
-    configs: Sequence[str] | None = None,
+    configs: typing.Sequence[str] | None = None,
     heartbeat_timeout: int = 3600,
     skip_git_check: bool = True,
 ) -> None:

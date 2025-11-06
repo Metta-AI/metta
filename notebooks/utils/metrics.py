@@ -1,11 +1,15 @@
 import pandas as pd
 import wandb
-from wandb.apis.public.runs import Run
+import wandb.apis.public.runs
 
-from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
+import metta.common.util.constants
 
 
-def get_run(run_name: str, entity: str = METTA_WANDB_ENTITY, project: str = METTA_WANDB_PROJECT) -> Run | None:
+def get_run(
+    run_name: str,
+    entity: str = metta.common.util.constants.METTA_WANDB_ENTITY,
+    project: str = metta.common.util.constants.METTA_WANDB_PROJECT,
+) -> wandb.apis.public.runs.Run | None:
     try:
         api = wandb.Api()
     except Exception as e:

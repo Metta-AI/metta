@@ -9,10 +9,10 @@
 """Discord webhook posting action script using metta-common utility."""
 
 import os
+import pathlib
 import sys
-from pathlib import Path
 
-from metta.common.util.discord import send_to_discord
+import metta.common.util.discord
 
 
 def get_content() -> str:
@@ -25,7 +25,7 @@ def get_content() -> str:
     # Try content file
     content_file = os.getenv("DISCORD_CONTENT_FILE")
     if content_file:
-        content_path = Path(content_file)
+        content_path = pathlib.Path(content_file)
         if content_path.exists():
             try:
                 return content_path.read_text(encoding="utf-8")
@@ -60,7 +60,7 @@ def main() -> None:
     if not webhook_url.startswith("https://discord.com/api/webhooks/"):
         print("Warning: Webhook URL doesn't match expected Discord format", file=sys.stderr)
 
-    success = send_to_discord(webhook_url, content, suppress_embeds)
+    success = metta.common.util.discord.send_to_discord(webhook_url, content, suppress_embeds)
     sys.exit(0 if success else 1)
 
 

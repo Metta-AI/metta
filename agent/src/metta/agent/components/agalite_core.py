@@ -1,15 +1,14 @@
 """Core AGaLiTe transformer built from reusable blocks."""
 
-from __future__ import annotations
 
 import logging
-from typing import Dict, Optional, Tuple
+import typing
 
 import torch
 import torch.nn as nn
 
-from metta.agent.components.agalite_enhanced import AGaLiTeTransformerLayer
-from metta.agent.components.agalite_kernel import AGaLiTeKernelConfig
+import metta.agent.components.agalite_enhanced
+import metta.agent.components.agalite_kernel
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +30,7 @@ class AGaLiTeCore(nn.Module):
         dropout: float = 0.0,
         layer_norm_eps: float = 1e-5,
         gru_bias: float = 2.0,
-        kernel: Optional[AGaLiTeKernelConfig] = None,
+        kernel: typing.Optional[metta.agent.components.agalite_kernel.AGaLiTeKernelConfig] = None,
     ) -> None:
         super().__init__()
         self.n_layers = n_layers
@@ -43,12 +42,12 @@ class AGaLiTeCore(nn.Module):
         self.eta = eta
         self.r = r
 
-        self.kernel = kernel or AGaLiTeKernelConfig()
+        self.kernel = kernel or metta.agent.components.agalite_kernel.AGaLiTeKernelConfig()
         logger.debug("initialising AGaLiTe core (layers=%s, heads=%s, eta=%s, r=%s)", n_layers, n_heads, eta, r)
 
         self.encoders = nn.ModuleList()
         for layer_idx in range(n_layers):
-            layer = AGaLiTeTransformerLayer(
+            layer = metta.agent.components.agalite_enhanced.AGaLiTeTransformerLayer(
                 d_model=d_model,
                 d_head=d_head,
                 d_ffc=d_ffc,
@@ -65,10 +64,10 @@ class AGaLiTeCore(nn.Module):
             self.encoders.append(layer)
 
     def forward(
-        self, inputs: torch.Tensor, terminations: torch.Tensor, memory: Dict[str, Tuple]
-    ) -> Tuple[torch.Tensor, Dict[str, Tuple]]:
+        self, inputs: torch.Tensor, terminations: torch.Tensor, memory: typing.Dict[str, typing.Tuple]
+    ) -> typing.Tuple[torch.Tensor, typing.Dict[str, typing.Tuple]]:
         output = inputs
-        updated_memory: Dict[str, Tuple] = {}
+        updated_memory: typing.Dict[str, typing.Tuple] = {}
 
         for idx, encoder in enumerate(self.encoders):
             key = f"layer_{idx + 1}"
@@ -77,11 +76,13 @@ class AGaLiTeCore(nn.Module):
 
         return output, updated_memory
 
-    def initialize_memory(self, batch_size: int, device: Optional[torch.device] = None) -> Dict[str, Tuple]:
+    def initialize_memory(
+        self, batch_size: int, device: typing.Optional[torch.device] = None
+    ) -> typing.Dict[str, typing.Tuple]:
         if device is None:
             device = torch.device("cpu")
 
-        memory: Dict[str, Tuple] = {}
+        memory: typing.Dict[str, typing.Tuple] = {}
         for idx, encoder in enumerate(self.encoders):
             key = f"layer_{idx + 1}"
             memory[key] = encoder.initialize_memory(batch_size, device)

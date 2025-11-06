@@ -4,13 +4,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+import mettagrid.config.mettagrid_config
+import mettagrid.mettagrid_c
+import mettagrid.policy.policy
+import mettagrid.policy.policy_env_interface
+import mettagrid.simulator
 import pufferlib.pytorch
-from mettagrid.config.mettagrid_config import ActionsConfig
-from mettagrid.mettagrid_c import dtype_actions
-from mettagrid.policy.policy import AgentPolicy, TrainablePolicy
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator import Action as MettaGridAction
-from mettagrid.simulator import AgentObservation as MettaGridObservation
 
 logger = logging.getLogger("mettagrid.policy.stateless_policy")
 
@@ -18,7 +17,7 @@ logger = logging.getLogger("mettagrid.policy.stateless_policy")
 class StatelessPolicyNet(torch.nn.Module):
     """Stateless feedforward policy network."""
 
-    def __init__(self, actions_cfg: ActionsConfig, obs_shape: tuple):
+    def __init__(self, actions_cfg: mettagrid.config.mettagrid_config.ActionsConfig, obs_shape: tuple):
         super().__init__()
         self.hidden_size = 128
         self.net = torch.nn.Sequential(
@@ -48,7 +47,7 @@ class StatelessPolicyNet(torch.nn.Module):
         return self.forward_eval(observations, state)
 
 
-class StatelessAgentPolicyImpl(AgentPolicy):
+class StatelessAgentPolicyImpl(mettagrid.policy.policy.AgentPolicy):
     """Per-agent policy that uses the shared feedforward network."""
 
     def __init__(self, net: StatelessPolicyNet, device: torch.device, num_actions: int):
@@ -56,7 +55,7 @@ class StatelessAgentPolicyImpl(AgentPolicy):
         self._device = device
         self._num_actions = num_actions
 
-    def step(self, obs: MettaGridObservation) -> MettaGridAction:
+    def step(self, obs: mettagrid.simulator.AgentObservation) -> mettagrid.simulator.Action:
         """Get action for this agent."""
         # Convert single observation to batch of 1 for network forward pass
         obs_tensor = torch.tensor(obs, device=self._device).unsqueeze(0).float()
@@ -66,14 +65,18 @@ class StatelessAgentPolicyImpl(AgentPolicy):
             logits, _ = self._net.forward_eval(obs_tensor)
             dist = torch.distributions.Categorical(logits=logits)
             sampled_action = dist.sample().cpu().item()
-            return dtype_actions.type(sampled_action)
+            return mettagrid.mettagrid_c.dtype_actions.type(sampled_action)
 
 
-class StatelessPolicy(TrainablePolicy):
+class StatelessPolicy(mettagrid.policy.policy.TrainablePolicy):
     """Stateless feedforward policy."""
 
     def __init__(
-        self, actions_cfg: ActionsConfig, obs_shape: tuple, device: torch.device, policy_env_info: PolicyEnvInterface
+        self,
+        actions_cfg: mettagrid.config.mettagrid_config.ActionsConfig,
+        obs_shape: tuple,
+        device: torch.device,
+        policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface,
     ):
         super().__init__(policy_env_info)
         self._net = StatelessPolicyNet(actions_cfg, obs_shape).to(device)
@@ -83,7 +86,7 @@ class StatelessPolicy(TrainablePolicy):
     def network(self) -> nn.Module:
         return self._net
 
-    def agent_policy(self, agent_id: int) -> AgentPolicy:
+    def agent_policy(self, agent_id: int) -> mettagrid.policy.policy.AgentPolicy:
         """Create a Policy instance for a specific agent."""
         return StatelessAgentPolicyImpl(self._net, self._device, self.num_actions)
 

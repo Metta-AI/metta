@@ -1,9 +1,9 @@
 import numpy as np
 
-from mettagrid.simulator import SimulatorEventHandler
+import mettagrid.simulator
 
 
-class EarlyResetHandler(SimulatorEventHandler):
+class EarlyResetHandler(mettagrid.simulator.SimulatorEventHandler):
     def __init__(self):
         super().__init__()
         self._should_early_reset: bool = True

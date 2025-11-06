@@ -1,29 +1,25 @@
 import pytest
 
-from mettagrid.config.mettagrid_config import (
-    ActionsConfig,
-    GameConfig,
-    MettaGridConfig,
-    MoveActionConfig,
-    NoopActionConfig,
-    ObsConfig,
-)
-from mettagrid.map_builder.random import RandomMapBuilder
-from mettagrid.simulator import Action, Simulation
+import mettagrid.config.mettagrid_config
+import mettagrid.map_builder.random
+import mettagrid.simulator
 
 
 @pytest.fixture
-def sim_with_resources() -> Simulation:
-    cfg = MettaGridConfig(
-        game=GameConfig(
+def sim_with_resources() -> mettagrid.simulator.Simulation:
+    cfg = mettagrid.config.mettagrid_config.MettaGridConfig(
+        game=mettagrid.config.mettagrid_config.GameConfig(
             num_agents=1,
-            obs=ObsConfig(width=3, height=3, num_tokens=32),
-            actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
+            obs=mettagrid.config.mettagrid_config.ObsConfig(width=3, height=3, num_tokens=32),
+            actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
+                move=mettagrid.config.mettagrid_config.MoveActionConfig(),
+            ),
             resource_names=["red", "blue", "green"],
-            map_builder=RandomMapBuilder.Config(width=5, height=3, agents=1, seed=7),
+            map_builder=mettagrid.map_builder.random.RandomMapBuilder.Config(width=5, height=3, agents=1, seed=7),
         )
     )
-    return Simulation(cfg)
+    return mettagrid.simulator.Simulation(cfg)
 
 
 def _find_agent_id(grid_objects: dict[int, dict]) -> int:
@@ -33,7 +29,7 @@ def _find_agent_id(grid_objects: dict[int, dict]) -> int:
     raise AssertionError("No agent found in grid_objects")
 
 
-def test_set_inventory_sets_and_clears(sim_with_resources: Simulation):
+def test_set_inventory_sets_and_clears(sim_with_resources: mettagrid.simulator.Simulation):
     sim = sim_with_resources
 
     agent_id = _find_agent_id(sim.grid_objects())
@@ -44,7 +40,7 @@ def test_set_inventory_sets_and_clears(sim_with_resources: Simulation):
     agent.set_inventory(inv1)
 
     # Step to update observations
-    agent.set_action(Action(name="noop"))
+    agent.set_action(mettagrid.simulator.Action(name="noop"))
     sim.step()
 
     # Verify using the inventory property
@@ -75,7 +71,7 @@ def test_set_inventory_sets_and_clears(sim_with_resources: Simulation):
     agent.set_inventory(inv2)
 
     # Step to update observations
-    agent.set_action(Action(name="noop"))
+    agent.set_action(mettagrid.simulator.Action(name="noop"))
     sim.step()
 
     # Verify using the inventory property

@@ -1,22 +1,20 @@
 """Components for policies backed by a pretrained SmolLLM model."""
 
-from __future__ import annotations
 
 import logging
-from typing import List, Literal, Optional
+import typing
 
+import tensordict
 import torch
-from tensordict import TensorDict
-from torch import nn
 
+import metta.agent.components.component_config
+import mettagrid.policy.policy_env_interface
 import pufferlib.pytorch
-from metta.agent.components.component_config import ComponentConfig
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger(__name__)
 
 try:
-    from transformers import AutoModelForCausalLM
+    import transformers
 except Exception as exc:  # pragma: no cover - optional dependency may raise non-ImportError during import
     AutoModelForCausalLM = None
     _IMPORT_ERROR = exc
@@ -24,60 +22,64 @@ else:  # pragma: no cover - exercised when dependency is installed
     _IMPORT_ERROR = None
 
 try:
-    from peft import LoraConfig, TaskType, get_peft_model
+    import peft
 except Exception:  # pragma: no cover - optional dependency may not be available
     LoraConfig = None
     TaskType = None
     get_peft_model = None
 
 
-class SmolLLMBackboneConfig(ComponentConfig):
+class SmolLLMBackboneConfig(metta.agent.components.component_config.ComponentConfig):
     """Configuration for the SmolLLM backbone component."""
 
     in_key: str
     name: str = "smollm_backbone"
     logits_key: str = "smollm_logits"
     values_key: str = "values"
-    hidden_key: Optional[str] = None
+    hidden_key: typing.Optional[str] = None
 
     model_name: str = "HuggingFaceTB/SmolLM2-135M"
     max_sequence_length: int = 32
     freeze_llm: bool = True
-    torch_dtype: Literal["auto", "float32", "float16", "bfloat16"] = "auto"
-    attn_implementation: Optional[str] = "flash_attention_2"
+    torch_dtype: typing.Literal["auto", "float32", "float16", "bfloat16"] = "auto"
+    attn_implementation: typing.Optional[str] = "flash_attention_2"
     pad_value: int = 255
     token_stride: int = 1
-    actor_head_rank: Optional[int] = None
-    value_head_rank: Optional[int] = None
+    actor_head_rank: typing.Optional[int] = None
+    value_head_rank: typing.Optional[int] = None
     use_lora: bool = False
     lora_rank: int = 8
     lora_alpha: int = 16
     lora_dropout: float = 0.05
-    lora_target_modules: Optional[List[str]] = None
+    lora_target_modules: typing.Optional[typing.List[str]] = None
 
-    def make_component(self, policy_env_info: PolicyEnvInterface) -> "SmolLLMBackbone":
+    def make_component(
+        self, policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface
+    ) -> "SmolLLMBackbone":
         return SmolLLMBackbone(policy_env_info, self)
 
 
-class LowRankLinear(nn.Module):
+class LowRankLinear(torch.nn.Module):
     """Factorised linear layer to reduce parameters and activation memory."""
 
     def __init__(self, in_features: int, out_features: int, rank: int, bias: bool = True) -> None:
         super().__init__()
-        self.left = nn.Linear(in_features, rank, bias=bias)
-        self.right = nn.Linear(rank, out_features, bias=bias)
+        self.left = torch.nn.Linear(in_features, rank, bias=bias)
+        self.right = torch.nn.Linear(rank, out_features, bias=bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.right(self.left(x))
 
 
-class SmolLLMBackbone(nn.Module):
+class SmolLLMBackbone(torch.nn.Module):
     """Backbone that projects Metta observation tokens into a pretrained SmolLLM."""
 
-    def __init__(self, policy_env_info: PolicyEnvInterface, config: SmolLLMBackboneConfig):
+    def __init__(
+        self, policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface, config: SmolLLMBackboneConfig
+    ):
         super().__init__()
 
-        if AutoModelForCausalLM is None:  # pragma: no cover - dependency missing in runtime
+        if transformers.AutoModelForCausalLM is None:  # pragma: no cover - dependency missing in runtime
             raise ImportError("transformers is required to use SmolLLMBackbone") from _IMPORT_ERROR
 
         self.config = config
@@ -93,9 +95,9 @@ class SmolLLMBackbone(nn.Module):
 
         self.hidden_size = self.llm.config.hidden_size
 
-        self.projector = nn.Linear(3, self.hidden_size)
-        self.activation = nn.GELU()
-        self.embed_norm = nn.LayerNorm(self.hidden_size)
+        self.projector = torch.nn.Linear(3, self.hidden_size)
+        self.activation = torch.nn.GELU()
+        self.embed_norm = torch.nn.LayerNorm(self.hidden_size)
 
         action_space = policy_env_info.action_space
         self.total_actions = action_space.n
@@ -103,7 +105,7 @@ class SmolLLMBackbone(nn.Module):
         self.actor_head = self._make_actor_head()
         self.value_head = self._make_value_head()
 
-    def forward(self, td: TensorDict) -> TensorDict:
+    def forward(self, td: tensordict.TensorDict) -> tensordict.TensorDict:
         flat_td = td.reshape(td.batch_size.numel()) if td.batch_dims > 1 else td
         tokens = flat_td[self.tokens_key]
 
@@ -144,7 +146,9 @@ class SmolLLMBackbone(nn.Module):
 
         return td
 
-    def initialize_to_environment(self, policy_env_info: PolicyEnvInterface, device: torch.device):
+    def initialize_to_environment(
+        self, policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface, device: torch.device
+    ):
         self.to(device)
 
         llm_dtype = next(self.llm.parameters()).dtype
@@ -178,7 +182,7 @@ class SmolLLMBackbone(nn.Module):
             self.config.torch_dtype = "bfloat16" if dtype == torch.bfloat16 else "float16"
 
         logger.info("Loading SmolLLM model '%s'", self.config.model_name)
-        self.llm = AutoModelForCausalLM.from_pretrained(self.config.model_name, **kwargs)
+        self.llm = transformers.AutoModelForCausalLM.from_pretrained(self.config.model_name, **kwargs)
 
         if self.config.use_lora:
             self._apply_lora()
@@ -190,7 +194,7 @@ class SmolLLMBackbone(nn.Module):
                     continue
                 param.requires_grad = False
 
-    def _resolve_dtype(self) -> Optional[torch.dtype]:
+    def _resolve_dtype(self) -> typing.Optional[torch.dtype]:
         mapping = {
             "float32": torch.float32,
             "float16": torch.float16,
@@ -201,13 +205,13 @@ class SmolLLMBackbone(nn.Module):
             return self._resolve_auto_dtype()
         return mapping[torch_dtype]
 
-    def _resolve_auto_dtype(self) -> Optional[torch.dtype]:
+    def _resolve_auto_dtype(self) -> typing.Optional[torch.dtype]:
         attn_impl = self.config.attn_implementation or ""
         if "flash_attention" in attn_impl:
             return self._preferred_flash_attention_dtype()
         return None
 
-    def _preferred_flash_attention_dtype(self) -> Optional[torch.dtype]:
+    def _preferred_flash_attention_dtype(self) -> typing.Optional[torch.dtype]:
         if torch.cuda.is_available():
             is_bf16_supported = getattr(torch.cuda, "is_bf16_supported", lambda: False)
             if is_bf16_supported():
@@ -220,8 +224,8 @@ class SmolLLMBackbone(nn.Module):
         return None
 
     def _harmonize_flash_attention(
-        self, dtype: Optional[torch.dtype], attn_impl: Optional[str]
-    ) -> tuple[Optional[torch.dtype], Optional[str]]:
+        self, dtype: typing.Optional[torch.dtype], attn_impl: typing.Optional[str]
+    ) -> tuple[typing.Optional[torch.dtype], typing.Optional[str]]:
         if attn_impl is None or "flash_attention" not in attn_impl:
             return dtype, attn_impl
         if dtype in (torch.float16, torch.bfloat16):
@@ -239,7 +243,7 @@ class SmolLLMBackbone(nn.Module):
         return dtype, None
 
     def _apply_lora(self) -> None:
-        if LoraConfig is None or get_peft_model is None or TaskType is None:
+        if peft.LoraConfig is None or peft.get_peft_model is None or peft.TaskType is None:
             raise ImportError("peft is required for LoRA support. Please install peft>=0.12.0")
 
         target_modules = self.config.lora_target_modules or [
@@ -249,13 +253,13 @@ class SmolLLMBackbone(nn.Module):
             "o_proj",
         ]
 
-        lora_config = LoraConfig(
+        lora_config = peft.LoraConfig(
             r=self.config.lora_rank,
             lora_alpha=self.config.lora_alpha,
             lora_dropout=self.config.lora_dropout,
             bias="none",
             target_modules=target_modules,
-            task_type=TaskType.CAUSAL_LM,
+            task_type=peft.TaskType.CAUSAL_LM,
         )
 
         logger.info(
@@ -266,7 +270,7 @@ class SmolLLMBackbone(nn.Module):
             ", ".join(target_modules),
         )
 
-        self.llm = get_peft_model(self.llm, lora_config)
+        self.llm = peft.get_peft_model(self.llm, lora_config)
 
     def _project_tokens(self, tokens: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         if tokens.shape[-1] != 3:
@@ -305,18 +309,18 @@ class SmolLLMBackbone(nn.Module):
 
         return embeds, attention_mask
 
-    def _make_actor_head(self) -> nn.Module:
+    def _make_actor_head(self) -> torch.nn.Module:
         rank = self.config.actor_head_rank
         if rank is None or rank >= min(self.hidden_size, int(self.total_actions)):
-            return pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, self.total_actions), std=0.01)
+            return pufferlib.pytorch.layer_init(torch.nn.Linear(self.hidden_size, self.total_actions), std=0.01)
         layer = LowRankLinear(self.hidden_size, self.total_actions, rank)
         self._init_low_rank(layer, std=0.01)
         return layer
 
-    def _make_value_head(self) -> nn.Module:
+    def _make_value_head(self) -> torch.nn.Module:
         rank = self.config.value_head_rank
         if rank is None or rank >= min(self.hidden_size, 1):
-            return pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 1), std=1.0)
+            return pufferlib.pytorch.layer_init(torch.nn.Linear(self.hidden_size, 1), std=1.0)
         layer = LowRankLinear(self.hidden_size, 1, rank)
         self._init_low_rank(layer, std=1.0)
         return layer

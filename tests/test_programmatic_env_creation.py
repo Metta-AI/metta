@@ -5,19 +5,10 @@ Demonstrates the new pattern for creating environments as shown in experiments/a
 
 import pytest
 
+import mettagrid.builder
 import mettagrid.builder.envs as eb
-from mettagrid.builder import building
-from mettagrid.config.mettagrid_config import (
-    ActionsConfig,
-    AgentConfig,
-    AgentRewards,
-    GameConfig,
-    MettaGridConfig,
-    MoveActionConfig,
-    NoopActionConfig,
-    WallConfig,
-)
-from mettagrid.map_builder.random import RandomMapBuilder
+import mettagrid.config.mettagrid_config
+import mettagrid.map_builder.random
 
 
 class TestProgrammaticEnvironments:
@@ -25,26 +16,26 @@ class TestProgrammaticEnvironments:
 
     def test_create_simple_config(self):
         """Test creating a simple environment with basic components."""
-        config = MettaGridConfig(
+        config = mettagrid.config.mettagrid_config.MettaGridConfig(
             label="test_simple",
-            game=GameConfig(
+            game=mettagrid.config.mettagrid_config.GameConfig(
                 num_agents=4,
                 max_steps=100,
                 objects={
-                    "wall": building.wall,
+                    "wall": mettagrid.builder.building.wall,
                 },
-                actions=ActionsConfig(
-                    move=MoveActionConfig(),
-                    noop=NoopActionConfig(),
+                actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                    move=mettagrid.config.mettagrid_config.MoveActionConfig(),
+                    noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
                 ),
-                agent=AgentConfig(
-                    rewards=AgentRewards(
+                agent=mettagrid.config.mettagrid_config.AgentConfig(
+                    rewards=mettagrid.config.mettagrid_config.AgentRewards(
                         inventory={
                             "heart": 1,
                         }
                     ),
                 ),
-                map_builder=RandomMapBuilder.Config(
+                map_builder=mettagrid.map_builder.random.RandomMapBuilder.Config(
                     agents=4,
                     width=15,
                     height=15,
@@ -88,20 +79,20 @@ class TestProgrammaticEnvironments:
 
     def test_config_with_custom_rewards(self):
         """Test creating an environment with custom reward configuration."""
-        config = MettaGridConfig(
+        config = mettagrid.config.mettagrid_config.MettaGridConfig(
             label="custom_rewards",
-            game=GameConfig(
+            game=mettagrid.config.mettagrid_config.GameConfig(
                 num_agents=2,
                 objects={
-                    "wall": building.wall,
-                    "altar": building.assembler_altar,
+                    "wall": mettagrid.builder.building.wall,
+                    "altar": mettagrid.builder.building.assembler_altar,
                 },
-                actions=ActionsConfig(
-                    move=MoveActionConfig(),
-                    noop=NoopActionConfig(),
+                actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                    move=mettagrid.config.mettagrid_config.MoveActionConfig(),
+                    noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
                 ),
-                agent=AgentConfig(
-                    rewards=AgentRewards(
+                agent=mettagrid.config.mettagrid_config.AgentConfig(
+                    rewards=mettagrid.config.mettagrid_config.AgentRewards(
                         inventory={
                             "heart": 1.0,
                             "ore_red": 0.5,
@@ -114,7 +105,7 @@ class TestProgrammaticEnvironments:
                         "battery_red": 5,
                     },
                 ),
-                map_builder=RandomMapBuilder.Config(
+                map_builder=mettagrid.map_builder.random.RandomMapBuilder.Config(
                     agents=2,
                     width=10,
                     height=10,
@@ -143,9 +134,9 @@ class TestProgrammaticEnvironments:
         # Team 0: 3 agents with higher heart reward
         for _ in range(3):
             agents.append(
-                AgentConfig(
+                mettagrid.config.mettagrid_config.AgentConfig(
                     team_id=0,
-                    rewards=AgentRewards(
+                    rewards=mettagrid.config.mettagrid_config.AgentRewards(
                         inventory={
                             "heart": 2,
                         },
@@ -155,9 +146,9 @@ class TestProgrammaticEnvironments:
         # Team 1: 3 agents with lower heart reward
         for _ in range(3):
             agents.append(
-                AgentConfig(
+                mettagrid.config.mettagrid_config.AgentConfig(
                     team_id=1,
-                    rewards=AgentRewards(
+                    rewards=mettagrid.config.mettagrid_config.AgentRewards(
                         inventory={
                             "heart": 1,
                         },
@@ -165,20 +156,20 @@ class TestProgrammaticEnvironments:
                 )
             )
 
-        config = MettaGridConfig(
+        config = mettagrid.config.mettagrid_config.MettaGridConfig(
             label="teams_test",
-            game=GameConfig(
+            game=mettagrid.config.mettagrid_config.GameConfig(
                 num_agents=6,
                 objects={
-                    "wall": building.wall,
+                    "wall": mettagrid.builder.building.wall,
                 },
-                actions=ActionsConfig(
-                    move=MoveActionConfig(),
-                    noop=NoopActionConfig(),
+                actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                    move=mettagrid.config.mettagrid_config.MoveActionConfig(),
+                    noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
                 ),
-                agent=AgentConfig(),
+                agent=mettagrid.config.mettagrid_config.AgentConfig(),
                 agents=agents,
-                map_builder=RandomMapBuilder.Config(
+                map_builder=mettagrid.map_builder.random.RandomMapBuilder.Config(
                     agents=6,
                     width=20,
                     height=20,
@@ -212,14 +203,14 @@ class TestTypeIdAllocation:
 
     def test_auto_assign_type_ids_with_mixed_explicit_and_implicit_values(self):
         objects = {
-            "apple": WallConfig(type_id=2),
-            "banana": WallConfig(),
-            "carrot": WallConfig(type_id=4),
-            "date": WallConfig(),
-            "elderberry": WallConfig(),
+            "apple": mettagrid.config.mettagrid_config.WallConfig(type_id=2),
+            "banana": mettagrid.config.mettagrid_config.WallConfig(),
+            "carrot": mettagrid.config.mettagrid_config.WallConfig(type_id=4),
+            "date": mettagrid.config.mettagrid_config.WallConfig(),
+            "elderberry": mettagrid.config.mettagrid_config.WallConfig(),
         }
 
-        config = GameConfig(objects=objects)
+        config = mettagrid.config.mettagrid_config.GameConfig(objects=objects)
 
         assert config.objects["apple"].type_id == 2
         assert config.objects["banana"].type_id == 1
@@ -228,9 +219,9 @@ class TestTypeIdAllocation:
         assert config.objects["elderberry"].type_id == 5
 
     def test_auto_assign_type_ids_raises_when_pool_exhausted(self):
-        objects = {f"object_{index:03d}": WallConfig() for index in range(256)}
+        objects = {f"object_{index:03d}": mettagrid.config.mettagrid_config.WallConfig() for index in range(256)}
 
-        config = GameConfig(objects=objects)
+        config = mettagrid.config.mettagrid_config.GameConfig(objects=objects)
         with pytest.raises(ValueError) as err:
             # Trigger lazy assignment by accessing objects
             _ = config.objects

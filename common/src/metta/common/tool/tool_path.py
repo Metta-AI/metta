@@ -1,12 +1,11 @@
 """Path utilities and tool loading for the tool system."""
 
-from __future__ import annotations
 
 import importlib
-from typing import Callable, Optional
+import typing
 
-from metta.common.tool import Tool
-from metta.common.tool.recipe_registry import recipe_registry
+import metta.common.tool
+import metta.common.tool.recipe_registry
 
 
 def validate_module_path(module_path: str) -> bool:
@@ -21,7 +20,7 @@ def validate_module_path(module_path: str) -> bool:
     return resolve_and_load_tool_maker(module_path) is not None
 
 
-def _load_tool_maker(path: str) -> Optional[Callable[[], Tool]]:
+def _load_tool_maker(path: str) -> typing.Optional[typing.Callable[[], metta.common.tool.Tool]]:
     """Load a tool maker from an import path.
 
     Args:
@@ -87,7 +86,7 @@ def parse_two_token_syntax(first_token: str, second_token: str | None) -> tuple[
     return (first_token, 0)
 
 
-def resolve_and_load_tool_maker(tool_path: str) -> Callable[[], Tool] | None:
+def resolve_and_load_tool_maker(tool_path: str) -> typing.Callable[[], metta.common.tool.Tool] | None:
     """Resolve tool path and load the tool maker.
 
     Args:
@@ -111,7 +110,7 @@ def resolve_and_load_tool_maker(tool_path: str) -> Callable[[], Tool] | None:
     # Phase 2: Try recipe lookup
     if "." in tool_path:
         module_path, tool_name = tool_path.rsplit(".", 1)
-        recipe = recipe_registry.get(module_path)
+        recipe = metta.common.tool.recipe_registry.recipe_registry.get(module_path)
         if recipe:
             return recipe.get_tool_maker(tool_name)
 

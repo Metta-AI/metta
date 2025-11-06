@@ -1,42 +1,46 @@
-from typing import TYPE_CHECKING, Any, Dict
+import typing
 
+import pydantic
 import torch
-from pydantic import Field
 
-from metta.agent.policy import Policy
-from metta.rl.loss import ContrastiveConfig, PPOConfig
-from mettagrid.base_config import Config
+import metta.agent.policy
+import metta.rl.loss
+import mettagrid.base_config
 
-if TYPE_CHECKING:
-    from metta.rl.training import TrainingEnvironment
-
-
-class LossSchedule(Config):
-    start_epoch: int | None = Field(default=None)
-    end_epoch: int | None = Field(default=None)
+if typing.TYPE_CHECKING:
+    import metta.rl.training
 
 
-class LossConfig(Config):
-    loss_configs: Dict[str, Any] = Field(default_factory=dict)
-    enable_contrastive: bool = Field(default=False, description="Whether to enable contrastive loss")
+class LossSchedule(mettagrid.base_config.Config):
+    start_epoch: int | None = pydantic.Field(default=None)
+    end_epoch: int | None = pydantic.Field(default=None)
+
+
+class LossConfig(mettagrid.base_config.Config):
+    loss_configs: typing.Dict[str, typing.Any] = pydantic.Field(default_factory=dict)
+    enable_contrastive: bool = pydantic.Field(default=False, description="Whether to enable contrastive loss")
 
     # Contrastive loss hyperparameters (only used when enable_contrastive=True)
-    contrastive_temperature: float = Field(default=0.07, gt=0, description="Temperature for contrastive learning")
-    contrastive_coef: float = Field(default=0.1, ge=0, description="Coefficient for contrastive loss")
-    contrastive_embedding_dim: int = Field(default=128, gt=0, description="Dimension of contrastive embeddings")
-    contrastive_use_projection_head: bool = Field(default=True, description="Whether to use projection head")
+    contrastive_temperature: float = pydantic.Field(
+        default=0.07, gt=0, description="Temperature for contrastive learning"
+    )
+    contrastive_coef: float = pydantic.Field(default=0.1, ge=0, description="Coefficient for contrastive loss")
+    contrastive_embedding_dim: int = pydantic.Field(
+        default=128, gt=0, description="Dimension of contrastive embeddings"
+    )
+    contrastive_use_projection_head: bool = pydantic.Field(default=True, description="Whether to use projection head")
 
-    def model_post_init(self, __context: Any) -> None:
+    def model_post_init(self, __context: typing.Any) -> None:
         """Called after the model is initialized."""
         super().model_post_init(__context)
 
         # If loss_configs is empty, add default PPO config
         if not self.loss_configs:
-            self.loss_configs = {"ppo": PPOConfig()}
+            self.loss_configs = {"ppo": metta.rl.loss.PPOConfig()}
 
         # Add contrastive config only if enabled to avoid inconsistent behavior
         if self.enable_contrastive and "contrastive" not in self.loss_configs:
-            self.loss_configs["contrastive"] = ContrastiveConfig(
+            self.loss_configs["contrastive"] = metta.rl.loss.ContrastiveConfig(
                 temperature=self.contrastive_temperature,
                 contrastive_coef=self.contrastive_coef,
                 embedding_dim=self.contrastive_embedding_dim,
@@ -45,8 +49,8 @@ class LossConfig(Config):
 
     def init_losses(
         self,
-        policy: Policy,
-        trainer_cfg: Any,
+        policy: metta.agent.policy.Policy,
+        trainer_cfg: typing.Any,
         env: "TrainingEnvironment",
         device: torch.device,
     ):

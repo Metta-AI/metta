@@ -1,12 +1,12 @@
-from typing import Optional
+import typing
 
-from mettagrid.mapgen.scene import Scene, SceneConfig
+import mettagrid.mapgen.scene
 
 
-class RoomGridConfig(SceneConfig):
-    rows: Optional[int] = None
-    columns: Optional[int] = None
-    layout: Optional[list[list[str]]] = None
+class RoomGridConfig(mettagrid.mapgen.scene.SceneConfig):
+    rows: typing.Optional[int] = None
+    columns: typing.Optional[int] = None
+    layout: typing.Optional[list[list[str]]] = None
 
     # Default value guarantees that agents don't see beyond the walls.
     # Usually shouldn't be changed.
@@ -15,7 +15,7 @@ class RoomGridConfig(SceneConfig):
     border_object: str = "wall"
 
 
-class RoomGrid(Scene[RoomGridConfig]):
+class RoomGrid(mettagrid.mapgen.scene.Scene[RoomGridConfig]):
     """
     Tile the scene with a grid of equally sized isolated rooms.
 

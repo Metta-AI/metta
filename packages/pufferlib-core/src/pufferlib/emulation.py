@@ -6,7 +6,6 @@ import numpy as np
 
 import pufferlib
 import pufferlib.spaces
-from pufferlib.spaces import Dict, Discrete, Tuple
 
 
 def emulate(struct, sample):
@@ -40,11 +39,11 @@ def make_buffer(arr_dtype, struct_dtype, struct, n=None):
 
 
 def _nativize(struct, space):
-    if isinstance(space, Discrete):
+    if isinstance(space, pufferlib.spaces.Discrete):
         return struct.item()
-    elif isinstance(space, Tuple):
+    elif isinstance(space, pufferlib.spaces.Tuple):
         return tuple(_nativize(struct[f"f{i}"], elem) for i, elem in enumerate(space))
-    elif isinstance(space, Dict):
+    elif isinstance(space, pufferlib.spaces.Dict):
         return {k: _nativize(struct[k], value) for k, value in space.items()}
     else:
         return struct
@@ -475,13 +474,13 @@ def _seed_and_reset(env, seed):
 
 class GymnaxPufferEnv(pufferlib.PufferEnv):
     def __init__(self, env, env_params, num_envs=1, buf=None):
-        from gymnax.spaces import gymnax_space_to_gym_space
+        import gymnax.spaces
 
         gymnax_obs_space = env.observation_space(env_params)
-        self.single_observation_space = gymnax_space_to_gym_space(gymnax_obs_space)
+        self.single_observation_space = gymnax.spaces.gymnax_space_to_gym_space(gymnax_obs_space)
 
         gymnax_act_space = env.action_space(env_params)
-        self.single_action_space = gymnax_space_to_gym_space(gymnax_act_space)
+        self.single_action_space = gymnax.spaces.gymnax_space_to_gym_space(gymnax_act_space)
 
         self.num_agents = num_envs
 
@@ -501,9 +500,9 @@ class GymnaxPufferEnv(pufferlib.PufferEnv):
         self.rng, _rng = jax.random.split(self.rng)
         self.rngs = jax.random.split(_rng, self.num_agents)
         obs, self.state = self.reset_fn(self.rngs, params)
-        from torch.utils import dlpack as torch_dlpack
+        import torch.utils
 
-        self.observations = torch_dlpack.from_dlpack(jax.dlpack.to_dlpack(obs))
+        self.observations = torch.utils.dlpack.from_dlpack(jax.dlpack.to_dlpack(obs))
         return self.observations, []
 
     def step(self, action):
@@ -513,10 +512,7 @@ class GymnaxPufferEnv(pufferlib.PufferEnv):
         # rngs = jax.random.split(_rng, self.num_agents)
         obs, self.state, reward, done, info = self.step_fn(self.rngs, self.state, action, self.env_params)
 
-        # Convert JAX array to DLPack, then to PyTorch tensor
-        from torch.utils import dlpack as torch_dlpack
-
-        self.observations = torch_dlpack.from_dlpack(jax.dlpack.to_dlpack(obs))
+        self.observations = torch.utils.dlpack.from_dlpack(jax.dlpack.to_dlpack(obs))
         self.rewards = np.asarray(reward)
         self.terminals = np.asarray(done)
         infos = [{k: v.mean().item() for k, v in info.items()}]

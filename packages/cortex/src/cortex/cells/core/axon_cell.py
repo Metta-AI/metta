@@ -4,24 +4,22 @@ Moved from ``cortex.cells.axons`` to ``cortex.cells.core.axon_cell``.
 This version optionally allows ``out_dim != hidden_size`` to support AxonLayer.
 """
 
-from __future__ import annotations
 
 import math
-from typing import Optional, Tuple
+import typing
 
+import cortex.cells.base
+import cortex.cells.registry
+import cortex.config
+import cortex.kernels.cuda
+import cortex.kernels.pytorch.rtu.rtu_stream_diag
+import cortex.kernels.pytorch.rtu.rtu_stream_fullrank
+import cortex.kernels.pytorch.srht
+import cortex.types
+import cortex.utils
+import tensordict
 import torch
 import torch.nn as nn
-from tensordict import TensorDict
-
-from cortex.cells.base import MemoryCell
-from cortex.cells.registry import register_cell
-from cortex.config import AxonConfig
-from cortex.kernels.cuda import srht_cuda
-from cortex.kernels.pytorch.rtu.rtu_stream_diag import rtu_stream_diag_pytorch
-from cortex.kernels.pytorch.rtu.rtu_stream_fullrank import rtu_stream_full_pytorch
-from cortex.kernels.pytorch.srht import srht_pytorch
-from cortex.types import MaybeState, ResetMask, Tensor
-from cortex.utils import select_backend
 
 
 def _resolve_activation(name: str) -> nn.Module:
@@ -37,8 +35,8 @@ def _resolve_activation(name: str) -> nn.Module:
     raise ValueError(f"Unsupported RTU activation: {name}")
 
 
-@register_cell(AxonConfig)
-class AxonCell(MemoryCell):
+@cortex.cells.registry.register_cell(cortex.config.AxonConfig)
+class AxonCell(cortex.cells.base.MemoryCell):
     """Cortex memory cell for streaming RTU with diagonal input weights.
 
     Notes
@@ -51,7 +49,7 @@ class AxonCell(MemoryCell):
       where ``out_dim`` differs.
     """
 
-    def __init__(self, cfg: AxonConfig, enforce_out_dim_eq_hidden: bool = True) -> None:
+    def __init__(self, cfg: cortex.config.AxonConfig, enforce_out_dim_eq_hidden: bool = True) -> None:
         if cfg.hidden_size is None:
             raise ValueError("AxonConfig.hidden_size must be set")
         super().__init__(hidden_size=cfg.hidden_size)
@@ -119,12 +117,12 @@ class AxonCell(MemoryCell):
             self.register_buffer("srht_signs", torch.empty(0))
             self.register_buffer("srht_perm", torch.empty(0, dtype=torch.int64))
 
-    def _zero_traces(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> TensorDict:
+    def _zero_traces(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> tensordict.TensorDict:
         H = self.hidden_size
         zero_bh = torch.zeros(batch, H, device=device, dtype=dtype)
         if self._use_fullrank:
             zero_bdh = torch.zeros(batch, H, H, device=device, dtype=dtype)
-            return TensorDict(
+            return tensordict.TensorDict(
                 {
                     "E_nu_c1": zero_bh.clone(),
                     "E_nu_c2": zero_bh.clone(),
@@ -138,7 +136,7 @@ class AxonCell(MemoryCell):
                 batch_size=[batch],
             )
         else:
-            return TensorDict(
+            return tensordict.TensorDict(
                 {
                     "E_nu_c1": zero_bh.clone(),
                     "E_nu_c2": zero_bh.clone(),
@@ -152,15 +150,15 @@ class AxonCell(MemoryCell):
                 batch_size=[batch],
             )
 
-    def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> TensorDict:
+    def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> tensordict.TensorDict:
         H = self.hidden_size
         zero = torch.zeros(batch, H, device=device, dtype=dtype)
         traces = self._zero_traces(batch, device=device, dtype=dtype)
-        state = TensorDict({"hc1": zero.clone(), "hc2": zero.clone()}, batch_size=[batch])
+        state = tensordict.TensorDict({"hc1": zero.clone(), "hc2": zero.clone()}, batch_size=[batch])
         state.update(traces)
         return state
 
-    def _pack_trace_in(self, state: TensorDict) -> tuple[torch.Tensor, ...] | None:
+    def _pack_trace_in(self, state: tensordict.TensorDict) -> tuple[torch.Tensor, ...] | None:
         keys = [
             "E_nu_c1",
             "E_nu_c2",
@@ -175,7 +173,7 @@ class AxonCell(MemoryCell):
             return None
         return tuple(state[k] for k in keys)  # type: ignore[return-value]
 
-    def _unpack_trace_out(self, state: TensorDict, trace_out: tuple[torch.Tensor, ...]) -> None:
+    def _unpack_trace_out(self, state: tensordict.TensorDict, trace_out: tuple[torch.Tensor, ...]) -> None:
         (
             E_nu_c1,
             E_nu_c2,
@@ -197,11 +195,11 @@ class AxonCell(MemoryCell):
 
     def forward(
         self,
-        x: Tensor,
-        state: MaybeState,
+        x: cortex.types.Tensor,
+        state: cortex.types.MaybeState,
         *,
-        resets: Optional[ResetMask] = None,
-    ) -> Tuple[Tensor, MaybeState]:
+        resets: typing.Optional[cortex.types.ResetMask] = None,
+    ) -> typing.Tuple[cortex.types.Tensor, cortex.types.MaybeState]:
         # Determine step vs sequence and normalize inputs
         is_step = x.dim() == 2  # [B,H] vs [B,T,H]
         if is_step:
@@ -221,7 +219,7 @@ class AxonCell(MemoryCell):
         assert hc1 is not None and hc2 is not None
 
         # Normalize resets mask
-        resets_bt: Optional[torch.Tensor]
+        resets_bt: typing.Optional[torch.Tensor]
         if resets is None:
             resets_bt = None
         else:
@@ -241,9 +239,9 @@ class AxonCell(MemoryCell):
             perm = None if self.srht_perm.numel() == 0 else self.srht_perm.to(device=x_btd.device)
             signs = self.srht_signs.to(device=x_btd.device, dtype=x_btd.dtype)
             if x_btd.is_cuda and (Hh & (Hh - 1)) == 0:
-                x_btd = srht_cuda(x_btd, signs, perm, normalize=True)
+                x_btd = cortex.kernels.cuda.srht_cuda(x_btd, signs, perm, normalize=True)
             else:
-                x_btd = srht_pytorch(x_btd, signs, perm, normalize=True)
+                x_btd = cortex.kernels.pytorch.srht.srht_pytorch(x_btd, signs, perm, normalize=True)
 
         # Select kernel functions and build kwargs based on mode
         act_name = self.activation.__class__.__name__
@@ -251,7 +249,7 @@ class AxonCell(MemoryCell):
         if self._use_fullrank:
             # Full-rank: only PyTorch and CUDA available (no Triton)
             triton_fn = None
-            pytorch_fn = rtu_stream_full_pytorch
+            pytorch_fn = cortex.kernels.pytorch.rtu.rtu_stream_fullrank.rtu_stream_full_pytorch
             cuda_fn = "cortex.kernels.cuda.rtu:rtu_stream_full_cuda"
             kernel_kwargs = {
                 "x_btd": x_btd,
@@ -268,7 +266,7 @@ class AxonCell(MemoryCell):
         else:
             # Diagonal: all three backends available
             triton_fn = "cortex.kernels.triton.rtu:rtu_stream_diag_triton"
-            pytorch_fn = rtu_stream_diag_pytorch
+            pytorch_fn = cortex.kernels.pytorch.rtu.rtu_stream_diag.rtu_stream_diag_pytorch
             cuda_fn = "cortex.kernels.cuda.rtu:rtu_stream_diag_cuda"
             kernel_kwargs = {
                 "x_btd": x_btd,
@@ -285,7 +283,7 @@ class AxonCell(MemoryCell):
 
         # Backend selection (select_backend handles None automatically)
         prefer_cuda = x_btd.is_cuda and (T <= int(self.cfg.cuda_seq_threshold))
-        kernel_fn = select_backend(
+        kernel_fn = cortex.utils.select_backend(
             triton_fn=triton_fn,
             pytorch_fn=pytorch_fn,
             tensor=x_btd,
@@ -318,7 +316,7 @@ class AxonCell(MemoryCell):
 
         return y, st
 
-    def reset_state(self, state: MaybeState, mask: ResetMask) -> MaybeState:
+    def reset_state(self, state: cortex.types.MaybeState, mask: cortex.types.ResetMask) -> cortex.types.MaybeState:
         if state is None:
             return None
         # Broadcast to [B, 1] and apply across trailing dims (handles [B,H] and [B,D,H])

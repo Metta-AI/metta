@@ -1,17 +1,18 @@
-from types import SimpleNamespace
+import types
 
+import tensordict
 import torch
-from tensordict import TensorDict
 
-from metta.agent.components.obs_shim import ObsShimTokens, ObsShimTokensConfig, ObsTokenPadStrip
-from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourier, ObsAttrEmbedFourierConfig
+import metta.agent.components.obs_shim
+import metta.agent.components.obs_tokenizers
 
 
 def _make_policy_env_info(feature_map):
     obs_features = [
-        SimpleNamespace(name=name, id=feat_id, normalization=norm) for name, (feat_id, norm) in feature_map.items()
+        types.SimpleNamespace(name=name, id=feat_id, normalization=norm)
+        for name, (feat_id, norm) in feature_map.items()
     ]
-    return SimpleNamespace(
+    return types.SimpleNamespace(
         obs_features=obs_features, feature_normalizations={feat_id: norm for feat_id, norm in (feature_map.values())}
     )
 
@@ -19,7 +20,7 @@ def _make_policy_env_info(feature_map):
 def test_obs_token_pad_strip_stores_original_mapping():
     feature_map = {"hp": (2, 30.0), "mana": (4, 10.0)}
     env = _make_policy_env_info(feature_map)
-    pad_strip = ObsTokenPadStrip(env)
+    pad_strip = metta.agent.components.obs_shim.ObsTokenPadStrip(env)
     pad_strip.train()
 
     log = pad_strip.initialize_to_environment(env, torch.device("cpu"))
@@ -32,7 +33,7 @@ def test_obs_token_pad_strip_stores_original_mapping():
 def test_obs_token_pad_strip_eval_maps_unknown_features_to_255():
     base_features = {"hp": (2, 30.0)}
     env = _make_policy_env_info(base_features)
-    pad_strip = ObsTokenPadStrip(env)
+    pad_strip = metta.agent.components.obs_shim.ObsTokenPadStrip(env)
     pad_strip.initialize_to_environment(env, torch.device("cpu"))
 
     pad_strip.eval()
@@ -45,7 +46,7 @@ def test_obs_token_pad_strip_eval_maps_unknown_features_to_255():
 
     # Forward pass remaps incoming tokens
     tokens = torch.tensor([[[0x00, 5, 10], [0xFF, 0xFF, 0xFF]]], dtype=torch.uint8)
-    td = TensorDict({"env_obs": tokens}, batch_size=[1])
+    td = tensordict.TensorDict({"env_obs": tokens}, batch_size=[1])
     output = pad_strip(td)
     remapped = output[pad_strip.out_key][0, 0, 1]
     assert remapped == 2
@@ -54,7 +55,7 @@ def test_obs_token_pad_strip_eval_maps_unknown_features_to_255():
 def test_obs_token_pad_strip_training_learns_new_features():
     base_features = {"hp": (2, 30.0)}
     env = _make_policy_env_info(base_features)
-    pad_strip = ObsTokenPadStrip(env)
+    pad_strip = metta.agent.components.obs_shim.ObsTokenPadStrip(env)
     pad_strip.initialize_to_environment(env, torch.device("cpu"))
 
     pad_strip.train()
@@ -69,7 +70,7 @@ def test_obs_token_pad_strip_training_learns_new_features():
 def test_obs_token_pad_strip_keeps_dense_sequences():
     feature_map = {"hp": (2, 30.0)}
     env = _make_policy_env_info(feature_map)
-    pad_strip = ObsTokenPadStrip(env)
+    pad_strip = metta.agent.components.obs_shim.ObsTokenPadStrip(env)
 
     tokens = torch.tensor(
         [
@@ -78,7 +79,7 @@ def test_obs_token_pad_strip_keeps_dense_sequences():
         ],
         dtype=torch.uint8,
     )
-    td = TensorDict({"env_obs": tokens}, batch_size=[2])
+    td = tensordict.TensorDict({"env_obs": tokens}, batch_size=[2])
 
     output = pad_strip(td)
     dense_row = output[pad_strip.out_key][0]
@@ -89,7 +90,7 @@ def test_obs_token_pad_strip_keeps_dense_sequences():
 def test_obs_token_pad_strip_preserves_padding_bytes():
     feature_map = {"hp": (2, 30.0)}
     env = _make_policy_env_info(feature_map)
-    pad_strip = ObsTokenPadStrip(env)
+    pad_strip = metta.agent.components.obs_shim.ObsTokenPadStrip(env)
 
     tokens = torch.tensor(
         [
@@ -98,7 +99,7 @@ def test_obs_token_pad_strip_preserves_padding_bytes():
         ],
         dtype=torch.uint8,
     )
-    td = TensorDict({"env_obs": tokens}, batch_size=[2])
+    td = tensordict.TensorDict({"env_obs": tokens}, batch_size=[2])
 
     output = pad_strip(td)
 
@@ -112,7 +113,7 @@ def test_obs_token_pad_strip_preserves_padding_bytes():
 def test_obs_token_pad_strip_enforces_max_tokens():
     feature_map = {"hp": (2, 30.0)}
     env = _make_policy_env_info(feature_map)
-    pad_strip = ObsTokenPadStrip(env, max_tokens=2)
+    pad_strip = metta.agent.components.obs_shim.ObsTokenPadStrip(env, max_tokens=2)
 
     tokens = torch.tensor(
         [
@@ -120,7 +121,7 @@ def test_obs_token_pad_strip_enforces_max_tokens():
         ],
         dtype=torch.uint8,
     )
-    td = TensorDict({"env_obs": tokens}, batch_size=[1])
+    td = tensordict.TensorDict({"env_obs": tokens}, batch_size=[1])
 
     output = pad_strip(td)
 
@@ -141,14 +142,14 @@ def test_obs_attr_embed_fourier_zeroes_masked_tokens():
         ],
         dtype=torch.uint8,
     )
-    td = TensorDict({"env_obs": tokens}, batch_size=[1])
+    td = tensordict.TensorDict({"env_obs": tokens}, batch_size=[1])
 
-    shim_config = ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens")
-    shim = ObsShimTokens(env, config=shim_config)
-    embed_config = ObsAttrEmbedFourierConfig(
+    shim_config = metta.agent.components.obs_shim.ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens")
+    shim = metta.agent.components.obs_shim.ObsShimTokens(env, config=shim_config)
+    embed_config = metta.agent.components.obs_tokenizers.ObsAttrEmbedFourierConfig(
         in_key="obs_shim_tokens", out_key="obs_attr_embed", attr_embed_dim=4, num_freqs=1
     )
-    embed = ObsAttrEmbedFourier(embed_config)
+    embed = metta.agent.components.obs_tokenizers.ObsAttrEmbedFourier(embed_config)
 
     td = shim(td)
     td = embed(td)

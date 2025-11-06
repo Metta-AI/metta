@@ -1,22 +1,22 @@
-from typing import Literal
+import typing
 
-from mettagrid.mapgen.scene import Scene, SceneConfig
+import mettagrid.mapgen.scene
 
 
-class LayoutArea(SceneConfig):
+class LayoutArea(mettagrid.mapgen.scene.SceneConfig):
     width: int
     height: int
-    placement: Literal["center"] = "center"  # TODO - in the future, we will support more placements
+    placement: typing.Literal["center"] = "center"  # TODO - in the future, we will support more placements
     tag: str
     # TODO - should we support `scene: SceneConfig` here directly?
     # It would be more readable than defining tags and targeting them with `children_actions`.
 
 
-class LayoutConfig(SceneConfig):
+class LayoutConfig(mettagrid.mapgen.scene.SceneConfig):
     areas: list[LayoutArea]
 
 
-class Layout(Scene[LayoutConfig]):
+class Layout(mettagrid.mapgen.scene.Scene[LayoutConfig]):
     def render(self):
         for area in self.config.areas:
             if area.width > self.width or area.height > self.height:

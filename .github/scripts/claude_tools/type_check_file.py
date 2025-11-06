@@ -13,10 +13,10 @@ Provides structured analysis of Python files for missing type annotations.
 
 import ast
 import json
+import pathlib
 import subprocess
 import sys
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+import typing
 
 
 class TypeAnalyzer(ast.NodeVisitor):
@@ -24,8 +24,8 @@ class TypeAnalyzer(ast.NodeVisitor):
 
     def __init__(self, filename: str):
         self.filename = filename
-        self.missing_annotations: List[Dict[str, Any]] = []
-        self.current_class: Optional[str] = None
+        self.missing_annotations: typing.List[typing.Dict[str, typing.Any]] = []
+        self.current_class: typing.Optional[str] = None
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         """Check function definitions for missing type annotations."""
@@ -112,7 +112,7 @@ class TypeAnalyzer(ast.NodeVisitor):
         return False
 
 
-def analyze_file(filepath: Path) -> Dict[str, Any]:
+def analyze_file(filepath: pathlib.Path) -> typing.Dict[str, typing.Any]:
     """Analyze a Python file for missing type annotations."""
     try:
         with open(filepath, "r") as f:
@@ -127,7 +127,7 @@ def analyze_file(filepath: Path) -> Dict[str, Any]:
         return {"file": str(filepath), "missing_annotations": [], "error": str(e)}
 
 
-def run_mypy(files: List[str]) -> Dict[str, Any]:
+def run_mypy(files: typing.List[str]) -> typing.Dict[str, typing.Any]:
     """Run mypy on the specified files."""
     try:
         result = subprocess.run(
@@ -141,7 +141,7 @@ def run_mypy(files: List[str]) -> Dict[str, Any]:
         return {"tool": "mypy", "output": "", "errors": str(e), "return_code": -1}
 
 
-def run_pyright(files: List[str]) -> Dict[str, Any]:
+def run_pyright(files: typing.List[str]) -> typing.Dict[str, typing.Any]:
     """Run pyright on the specified files."""
     try:
         result = subprocess.run(["pyright", "--outputjson"] + files, capture_output=True, text=True)
@@ -151,7 +151,9 @@ def run_pyright(files: List[str]) -> Dict[str, Any]:
         return {"tool": "pyright", "output": "", "errors": str(e), "return_code": -1}
 
 
-def filter_high_value_annotations(annotations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def filter_high_value_annotations(
+    annotations: typing.List[typing.Dict[str, typing.Any]],
+) -> typing.List[typing.Dict[str, typing.Any]]:
     """Filter to only include high-value missing annotations."""
     filtered = []
 
@@ -189,7 +191,7 @@ def main():
         # Analyze Python files for missing annotations
         results = []
         for filepath in sys.argv[2:]:
-            result = analyze_file(Path(filepath))
+            result = analyze_file(pathlib.Path(filepath))
             # Filter to high-value annotations only
             result["missing_annotations"] = filter_high_value_annotations(result["missing_annotations"])
             results.append(result)
@@ -213,7 +215,7 @@ def main():
         # Analyze with AST
         analysis_results = []
         for filepath in files:
-            result = analyze_file(Path(filepath))
+            result = analyze_file(pathlib.Path(filepath))
             result["missing_annotations"] = filter_high_value_annotations(result["missing_annotations"])
             analysis_results.append(result)
 

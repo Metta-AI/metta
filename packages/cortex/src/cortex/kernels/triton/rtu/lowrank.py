@@ -3,15 +3,12 @@
 Public API (functional): ``rtu_sequence_triton``
 """
 
-from __future__ import annotations
 
-from typing import Optional
+import typing
 
+import cortex.kernels.triton.rtu.utils
 import torch
-from torch.autograd import Function
-
-from .utils import hillis_steele_segmented_inplace as _hillis_steele_segmented_inplace
-from .utils import scan_step_block_segmented as _scan_step_block_segmented
+import torch.autograd
 
 _TRITON_AVAILABLE = True
 
@@ -40,7 +37,7 @@ def _act_and_deriv(z: torch.Tensor, activation: str) -> tuple[torch.Tensor, torc
 # (imports grouped at top to satisfy ruff)
 
 
-class _LinearRTUFunctionLR_Triton(Function):
+class _LinearRTUFunctionLR_Triton(torch.autograd.Function):
     @staticmethod
     def forward(
         ctx,
@@ -54,7 +51,7 @@ class _LinearRTUFunctionLR_Triton(Function):
         activation_name: str,
         hc1_init_bh: torch.Tensor,
         hc2_init_bh: torch.Tensor,
-        resets_bt: Optional[torch.Tensor] = None,
+        resets_bt: typing.Optional[torch.Tensor] = None,
         param_parallel: int = 1,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         if not _TRITON_AVAILABLE:
@@ -104,7 +101,7 @@ class _LinearRTUFunctionLR_Triton(Function):
         if resets_bt.any():
             flags_bht |= resets_bt.view(B, 1, T).expand(B, H, T).to(torch.int32)
 
-        _hillis_steele_segmented_inplace(g_bht, p_bht, Bx_bht, By_bht, flags_bht)
+        cortex.kernels.triton.rtu.utils.hillis_steele_segmented_inplace(g_bht, p_bht, Bx_bht, By_bht, flags_bht)
 
         c1_bth = Bx_bht.permute(0, 2, 1).contiguous()
         c2_bth = By_bht.permute(0, 2, 1).contiguous()
@@ -147,7 +144,7 @@ class _LinearRTUFunctionLR_Triton(Function):
         grad_y_btd_2h: torch.Tensor,
         grad_final_hc1: torch.Tensor,
         grad_final_hc2: torch.Tensor,
-    ) -> tuple[Optional[torch.Tensor], ...]:
+    ) -> tuple[typing.Optional[torch.Tensor], ...]:
         (
             x_btd,
             nu_log,
@@ -195,7 +192,7 @@ class _LinearRTUFunctionLR_Triton(Function):
             resets_rev = torch.flip(resets_bt, dims=[1])
             flags_rev |= resets_rev.view(B, 1, -1).expand_as(flags_rev).to(torch.int32)
 
-        _hillis_steele_segmented_inplace(g_bar, p_bar, vBx, vBy, flags_rev)
+        cortex.kernels.triton.rtu.utils.hillis_steele_segmented_inplace(g_bar, p_bar, vBx, vBy, flags_rev)
 
         lam1_bth = torch.flip(vBx.permute(0, 2, 1), dims=[1])
         lam2_bth = torch.flip(vBy.permute(0, 2, 1), dims=[1])
@@ -284,7 +281,7 @@ class _LinearRTUFunctionLR_Triton(Function):
             if resets_bt.any():
                 flags |= resets_bt.view(B_local, 1, T_local).expand(B_local, H_local, T_local).to(torch.int32)
 
-            _scan_step_block_segmented(
+            cortex.kernels.triton.rtu.utils.scan_step_block_segmented(
                 g_bht,
                 p_bht,
                 jg_bht,
@@ -470,7 +467,7 @@ def rtu_sequence_triton(
     activation_name: str,
     hc1_init_bh: torch.Tensor,
     hc2_init_bh: torch.Tensor,
-    resets_bt: Optional[torch.Tensor] = None,
+    resets_bt: typing.Optional[torch.Tensor] = None,
     param_grads_parallel: bool = True,
 ) -> tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
     """Functional RTU interface (Triton autograd).

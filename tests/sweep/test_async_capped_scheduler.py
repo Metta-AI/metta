@@ -1,21 +1,18 @@
 """Tests for AsyncCappedOptimizingScheduler behavior."""
 
-from datetime import datetime, timezone
+import datetime
 
-from metta.adaptive.models import JobTypes, RunInfo
-from metta.sweep.protein_config import ParameterConfig, ProteinConfig
-from metta.sweep.schedulers.async_capped import (
-    AsyncCappedOptimizingScheduler,
-    AsyncCappedSchedulerConfig,
-)
+import metta.adaptive.models
+import metta.sweep.protein_config
+import metta.sweep.schedulers.async_capped
 
 
-def _basic_protein_config() -> ProteinConfig:
-    return ProteinConfig(
+def _basic_protein_config() -> metta.sweep.protein_config.ProteinConfig:
+    return metta.sweep.protein_config.ProteinConfig(
         metric="test_metric",
         goal="maximize",
         parameters={
-            "lr": ParameterConfig(
+            "lr": metta.sweep.protein_config.ParameterConfig(
                 min=0.001,
                 max=0.01,
                 distribution="log_normal",
@@ -28,7 +25,7 @@ def _basic_protein_config() -> ProteinConfig:
 
 class TestAsyncCappedOptimizingScheduler:
     def test_training_fills_slots(self):
-        config = AsyncCappedSchedulerConfig(
+        config = metta.sweep.schedulers.async_capped.AsyncCappedSchedulerConfig(
             max_trials=5,
             recipe_module="test.module",
             train_entrypoint="train",
@@ -37,7 +34,7 @@ class TestAsyncCappedOptimizingScheduler:
             protein_config=_basic_protein_config(),
             max_concurrent_evals=1,
         )
-        scheduler = AsyncCappedOptimizingScheduler(config)
+        scheduler = metta.sweep.schedulers.async_capped.AsyncCappedOptimizingScheduler(config)
 
         # Stub optimizer to avoid importing heavy dependencies
         scheduler.optimizer.suggest = lambda observations, n_suggestions=1: [
@@ -47,10 +44,10 @@ class TestAsyncCappedOptimizingScheduler:
         jobs = scheduler.schedule([], available_training_slots=3)
 
         assert len(jobs) == 3
-        assert all(job.type == JobTypes.LAUNCH_TRAINING for job in jobs)
+        assert all(job.type == metta.adaptive.models.JobTypes.LAUNCH_TRAINING for job in jobs)
 
     def test_eval_capped_one_at_a_time(self):
-        config = AsyncCappedSchedulerConfig(
+        config = metta.sweep.schedulers.async_capped.AsyncCappedSchedulerConfig(
             max_trials=10,
             recipe_module="test.module",
             train_entrypoint="train",
@@ -59,15 +56,15 @@ class TestAsyncCappedOptimizingScheduler:
             protein_config=_basic_protein_config(),
             max_concurrent_evals=1,
         )
-        scheduler = AsyncCappedOptimizingScheduler(config)
+        scheduler = metta.sweep.schedulers.async_capped.AsyncCappedOptimizingScheduler(config)
         # Stub optimizer
         scheduler.optimizer.suggest = lambda observations, n_suggestions=1: [
             {"lr": 0.003} for _ in range(n_suggestions)
         ]  # type: ignore
 
-        now = datetime.now(timezone.utc)
+        now = datetime.datetime.now(datetime.timezone.utc)
         runs = [
-            RunInfo(
+            metta.adaptive.models.RunInfo(
                 run_id="r1",
                 has_started_training=True,
                 has_completed_training=True,
@@ -77,7 +74,7 @@ class TestAsyncCappedOptimizingScheduler:
                 created_at=now,
                 last_updated_at=now,
             ),
-            RunInfo(
+            metta.adaptive.models.RunInfo(
                 run_id="r2",
                 has_started_training=True,
                 has_completed_training=True,
@@ -92,14 +89,14 @@ class TestAsyncCappedOptimizingScheduler:
         # First schedule should produce exactly one eval
         jobs_1 = scheduler.schedule(runs, available_training_slots=0)
         assert len(jobs_1) == 1
-        assert jobs_1[0].type == JobTypes.LAUNCH_EVAL
+        assert jobs_1[0].type == metta.adaptive.models.JobTypes.LAUNCH_EVAL
 
         # Subsequent schedule with same inputs should produce no further evals
         jobs_2 = scheduler.schedule(runs, available_training_slots=0)
         assert len(jobs_2) == 0
 
     def test_fantasies_include_pending(self):
-        config = AsyncCappedSchedulerConfig(
+        config = metta.sweep.schedulers.async_capped.AsyncCappedSchedulerConfig(
             max_trials=10,
             recipe_module="test.module",
             train_entrypoint="train",
@@ -109,11 +106,11 @@ class TestAsyncCappedOptimizingScheduler:
             max_concurrent_evals=1,
             liar_strategy="mean",
         )
-        scheduler = AsyncCappedOptimizingScheduler(config)
+        scheduler = metta.sweep.schedulers.async_capped.AsyncCappedOptimizingScheduler(config)
 
-        now = datetime.now(timezone.utc)
+        now = datetime.datetime.now(datetime.timezone.utc)
         # One completed run with observation
-        completed = RunInfo(
+        completed = metta.adaptive.models.RunInfo(
             run_id="done",
             has_started_training=True,
             has_completed_training=True,
@@ -130,7 +127,7 @@ class TestAsyncCappedOptimizingScheduler:
         )
 
         # Two pending runs with suggestions in summary
-        pending1 = RunInfo(
+        pending1 = metta.adaptive.models.RunInfo(
             run_id="p1",
             has_started_training=True,
             has_completed_training=False,
@@ -141,7 +138,7 @@ class TestAsyncCappedOptimizingScheduler:
             last_updated_at=now,
             summary={"sweep/suggestion": {"lr": 0.002}},
         )
-        pending2 = RunInfo(
+        pending2 = metta.adaptive.models.RunInfo(
             run_id="p2",
             has_started_training=True,
             has_completed_training=False,
@@ -169,4 +166,4 @@ class TestAsyncCappedOptimizingScheduler:
         # One completed obs + 2 fantasies expected
         assert captured.get("num_obs") == 3
         assert len(jobs) == 1
-        assert jobs[0].type == JobTypes.LAUNCH_TRAINING
+        assert jobs[0].type == metta.adaptive.models.JobTypes.LAUNCH_TRAINING

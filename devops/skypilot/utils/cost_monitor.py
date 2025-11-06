@@ -12,7 +12,7 @@ import json
 import logging
 import os
 import sys
-from typing import Any
+import typing
 
 # Remove current directory from sys.path to avoid circular imports
 sys.path = [p for p in sys.path if p not in ("", ".", os.path.dirname(__file__))]
@@ -95,7 +95,7 @@ def get_running_instance_info() -> tuple[str, str, str, bool]:
         raise RuntimeError(f"Error querying AWS metadata service. Not running on AWS EC2? Error: {e}") from e
 
 
-def get_cost_info() -> dict[str, Any]:
+def get_cost_info() -> dict[str, typing.Any]:
     """Get cost information for the running cluster."""
     instance_type, region, zone, use_spot = get_running_instance_info()
 

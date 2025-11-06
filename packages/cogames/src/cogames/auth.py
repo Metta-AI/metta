@@ -1,25 +1,25 @@
 """Shared authentication functionality for CLI login scripts."""
 
 import asyncio
+import datetime
 import html
 import os
+import pathlib
 import socket
 import threading
+import typing
+import urllib.parse
 import webbrowser
-from datetime import datetime
-from pathlib import Path
-from typing import Literal, Sequence
-from urllib.parse import urlencode
 
+import fastapi
+import fastapi.responses
 import uvicorn
 import yaml
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
 
 
 class AuthConfigReaderWriter:
     def __init__(self, token_file_name: str, token_storage_key: str | None = None):
-        home = Path.home()
+        home = pathlib.Path.home()
         self.config_dir = home / ".metta"
         self.config_dir.mkdir(parents=True, exist_ok=True)
         self.yaml_file = self.config_dir / token_file_name
@@ -122,12 +122,12 @@ class BaseCLIAuthenticator:
         self.auth_completed = threading.Event()
         self.config_reader_writer = AuthConfigReaderWriter(token_file_name, token_storage_key)
 
-    def create_app(self) -> FastAPI:
+    def create_app(self) -> fastapi.FastAPI:
         """Create the FastAPI application for handling OAuth2 callbacks."""
-        app = FastAPI(title="CLI OAuth2 Callback Server")
+        app = fastapi.FastAPI(title="CLI OAuth2 Callback Server")
 
         @app.get("/callback")
-        async def callback(request: Request):
+        async def callback(request: fastapi.Request):
             """Handle the OAuth2 callback"""
             try:
                 # Get token from query parameters
@@ -136,18 +136,20 @@ class BaseCLIAuthenticator:
                 if not token:
                     self.error = "No token received in callback"
                     self.auth_completed.set()
-                    return HTMLResponse(content=self._error_html("No token received"), status_code=400)
+                    return fastapi.responses.HTMLResponse(
+                        content=self._error_html("No token received"), status_code=400
+                    )
 
                 # Store the token
                 self.token = token
                 self.auth_completed.set()
 
-                return HTMLResponse(content=self._success_html())
+                return fastapi.responses.HTMLResponse(content=self._success_html())
 
             except Exception as e:
                 self.error = f"Callback error: {str(e)}"
                 self.auth_completed.set()
-                return HTMLResponse(content=self._error_html(f"Error: {str(e)}"), status_code=500)
+                return fastapi.responses.HTMLResponse(content=self._error_html(f"Error: {str(e)}"), status_code=500)
 
         return app
 
@@ -156,8 +158,8 @@ class BaseCLIAuthenticator:
         *,
         title: str,
         headline: str,
-        message_lines: Sequence[str],
-        status: Literal["success", "error"],
+        message_lines: typing.Sequence[str],
+        status: typing.Literal["success", "error"],
         auto_close_seconds: int | None = None,
         extra_html: str = "",
     ) -> str:
@@ -166,7 +168,7 @@ class BaseCLIAuthenticator:
         escaped_title = html.escape(title)
         escaped_headline = html.escape(headline)
         messages = "".join(f"<p class='smx-auth__message'>{html.escape(line)}</p>" for line in message_lines)
-        current_year = datetime.now().year
+        current_year = datetime.datetime.now().year
         auto_close_script = ""
         if auto_close_seconds is not None:
             auto_close_script = f"""
@@ -348,7 +350,7 @@ class BaseCLIAuthenticator:
             "callback": callback_url,
         }
 
-        return f"{auth_server_url}/tokens/cli?{urlencode(params)}"
+        return f"{auth_server_url}/tokens/cli?{urllib.parse.urlencode(params)}"
 
     def _open_browser(self, url: str) -> None:
         """Open the default browser to the authentication URL"""

@@ -1,14 +1,14 @@
-from mettagrid.base_config import Config
-from mettagrid.mapgen.mapgen import MapGen
-from mettagrid.mapgen.scenes.ascii import Ascii
+import mettagrid.base_config
+import mettagrid.mapgen.mapgen
+import mettagrid.mapgen.scenes.ascii
 
 
-class MapGenAsciiParams(Config):
+class MapGenAsciiParams(mettagrid.base_config.Config):
     uri: str
     border_width: int = 0
 
 
-class MapGenAscii(MapGen):
+class MapGenAscii(mettagrid.mapgen.mapgen.MapGen):
     """
     Shortcut for MapGen with ASCII scene.
 
@@ -42,9 +42,9 @@ class MapGenAscii(MapGen):
     def __init__(self, **kwargs):
         ascii_params = MapGenAsciiParams(**kwargs)
         super().__init__(
-            config=MapGen.Config(
+            config=mettagrid.mapgen.mapgen.MapGen.Config(
                 border_width=ascii_params.border_width,
-                instance=Ascii.Config(
+                instance=mettagrid.mapgen.scenes.ascii.Ascii.Config(
                     uri=ascii_params.uri,
                 ),
             ),

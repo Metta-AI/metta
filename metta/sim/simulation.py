@@ -1,29 +1,28 @@
-from __future__ import annotations
 
+import dataclasses
 import logging
+import pathlib
 import time
+import typing
 import uuid
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Dict
 
 import torch
 
-from metta.agent.mocks import MockAgent
-from metta.agent.policy import Policy
-from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.policy_artifact import PolicyArtifact
-from metta.sim.replay_log_writer import ReplayLogWriter
-from metta.sim.simulation_config import SimulationConfig
-from metta.sim.simulation_stats_db import SimulationStatsDB
-from metta.sim.stats import DuckDBStatsWriter
-from metta.sim.thumbnail_automation import maybe_generate_and_upload_thumbnail
-from metta.sim.utils import get_or_create_policy_ids
-from mettagrid.config.mettagrid_config import MettaGridConfig
-from mettagrid.policy.policy import AgentPolicy
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator.rollout import Rollout
+import metta.agent.mocks
+import metta.agent.policy
+import metta.app_backend.clients.stats_client
+import metta.rl.checkpoint_manager
+import metta.rl.policy_artifact
+import metta.sim.replay_log_writer
+import metta.sim.simulation_config
+import metta.sim.simulation_stats_db
+import metta.sim.stats
+import metta.sim.thumbnail_automation
+import metta.sim.utils
+import mettagrid.config.mettagrid_config
+import mettagrid.policy.policy
+import mettagrid.policy.policy_env_interface
+import mettagrid.simulator.rollout
 
 SYNTHETIC_EVAL_SUITE = "training"
 
@@ -41,11 +40,11 @@ class Simulation:
 
     def __init__(
         self,
-        cfg: SimulationConfig,
+        cfg: metta.sim.simulation_config.SimulationConfig,
         policy_uri: str | None,
         replay_dir: str | None,
         stats_dir: str = "/tmp/stats",
-        stats_client: StatsClient | None = None,
+        stats_client: metta.app_backend.clients.stats_client.StatsClient | None = None,
         stats_epoch_id: uuid.UUID | None = None,
         eval_task_id: uuid.UUID | None = None,
     ):
@@ -53,22 +52,22 @@ class Simulation:
         self._id = uuid.uuid4().hex[:12]
         self._eval_task_id = eval_task_id
 
-        sim_stats_dir = (Path(stats_dir) / self._id).resolve()
+        sim_stats_dir = (pathlib.Path(stats_dir) / self._id).resolve()
         sim_stats_dir.mkdir(parents=True, exist_ok=True)
         self._stats_dir = sim_stats_dir
-        self._stats_writer = DuckDBStatsWriter(sim_stats_dir)
-        self._replay_writer: ReplayLogWriter | None = None
+        self._stats_writer = metta.sim.stats.DuckDBStatsWriter(sim_stats_dir)
+        self._replay_writer: metta.sim.replay_log_writer.ReplayLogWriter | None = None
         if replay_dir is not None:
-            self._replay_writer = ReplayLogWriter(f"{replay_dir}/{self._id}")
+            self._replay_writer = metta.sim.replay_log_writer.ReplayLogWriter(f"{replay_dir}/{self._id}")
         self._device = torch.device("cpu")
 
         self._full_name = f"{cfg.suite}/{cfg.name}"
 
         if policy_uri:
-            policy_artifact = CheckpointManager.load_artifact_from_uri(policy_uri)
-            resolved_policy_uri = CheckpointManager.normalize_uri(policy_uri)
+            policy_artifact = metta.rl.checkpoint_manager.CheckpointManager.load_artifact_from_uri(policy_uri)
+            resolved_policy_uri = metta.rl.checkpoint_manager.CheckpointManager.normalize_uri(policy_uri)
         else:
-            policy_artifact = PolicyArtifact(policy=MockAgent())
+            policy_artifact = metta.rl.policy_artifact.PolicyArtifact(policy=metta.agent.mocks.MockAgent())
             resolved_policy_uri = "mock://"
 
         self._num_episodes = cfg.num_episodes
@@ -76,25 +75,27 @@ class Simulation:
         self._agents_per_env = cfg.env.game.num_agents
 
         self._policy_artifact = policy_artifact
-        self._policy: Policy | None = None
+        self._policy: metta.agent.policy.Policy | None = None
         self._policy_uri = resolved_policy_uri
 
         # Load NPC policy if specified
         if cfg.npc_policy_uri:
-            self._npc_artifact = CheckpointManager.load_artifact_from_uri(cfg.npc_policy_uri)
-            self._npc_policy: Policy | None = None
+            self._npc_artifact = metta.rl.checkpoint_manager.CheckpointManager.load_artifact_from_uri(
+                cfg.npc_policy_uri
+            )
+            self._npc_policy: metta.agent.policy.Policy | None = None
         else:
             self._npc_artifact = None
             self._npc_policy = None
         self._npc_policy_uri = cfg.npc_policy_uri
         self._policy_agents_pct = cfg.policy_agents_pct if cfg.npc_policy_uri else 1.0
 
-        self._stats_client: StatsClient | None = stats_client
+        self._stats_client: metta.app_backend.clients.stats_client.StatsClient | None = stats_client
         self._stats_epoch_id: uuid.UUID | None = stats_epoch_id
 
         # We need to create a temporary environment to get PolicyEnvInterface
         # This is needed to instantiate the policies
-        self._env_cfg: MettaGridConfig = cfg.env
+        self._env_cfg: mettagrid.config.mettagrid_config.MettaGridConfig = cfg.env
 
         # Calculate agent assignments
         self._policy_agents_per_env = max(1, int(self._agents_per_env * self._policy_agents_pct))
@@ -105,10 +106,10 @@ class Simulation:
 
     def _materialize_policy(
         self,
-        artifact: PolicyArtifact,
-        existing_policy: Policy | None,
-        policy_env_info: PolicyEnvInterface,
-    ) -> Policy:
+        artifact: metta.rl.policy_artifact.PolicyArtifact,
+        existing_policy: metta.agent.policy.Policy | None,
+        policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface,
+    ) -> metta.agent.policy.Policy:
         using_existing = existing_policy is not None
         if using_existing:
             policy = existing_policy
@@ -125,7 +126,7 @@ class Simulation:
     @classmethod
     def create(
         cls,
-        sim_config: SimulationConfig,
+        sim_config: metta.sim.simulation_config.SimulationConfig,
         stats_dir: str = "./train_dir/stats",
         replay_dir: str | None = "./train_dir/replays",
         policy_uri: str | None = None,
@@ -154,7 +155,7 @@ class Simulation:
         logger.info("Stats dir: %s", self._stats_dir)
 
         # Create policy environment interface and instantiate policies
-        policy_env_info = PolicyEnvInterface.from_mg_cfg(self._env_cfg)
+        policy_env_info = mettagrid.policy.policy_env_interface.PolicyEnvInterface.from_mg_cfg(self._env_cfg)
         self._policy = self._materialize_policy(self._policy_artifact, self._policy, policy_env_info)
 
         if self._npc_artifact is not None:
@@ -162,7 +163,7 @@ class Simulation:
 
         self._t0 = time.time()
 
-    def _create_agent_policies(self, seed: int) -> list[AgentPolicy]:
+    def _create_agent_policies(self, seed: int) -> list[mettagrid.policy.policy.AgentPolicy]:
         """Create agent policies for a single episode."""
         agent_policies = []
 
@@ -200,7 +201,7 @@ class Simulation:
             agent_policies = self._create_agent_policies(seed=episode_idx)
 
             # Create and run rollout
-            rollout = Rollout(
+            rollout = mettagrid.simulator.rollout.Rollout(
                 self._env_cfg,
                 agent_policies,
                 max_action_time_ms=10000,
@@ -263,7 +264,9 @@ class Simulation:
             replay_data = episode_replay.get_replay_data()
 
             # Attempt to generate and upload thumbnail using episode ID (like replay files)
-            success, thumbnail_url = maybe_generate_and_upload_thumbnail(replay_data, episode_id)
+            success, thumbnail_url = metta.sim.thumbnail_automation.maybe_generate_and_upload_thumbnail(
+                replay_data, episode_id
+            )
             if success:
                 logger.info(f"Generated thumbnail for episode_id: {episode_id}")
                 return thumbnail_url
@@ -275,10 +278,10 @@ class Simulation:
             logger.error(f"Thumbnail generation failed for {self._full_name}: {e}", exc_info=True)
             return None
 
-    def _from_shards_and_context(self) -> SimulationStatsDB:
+    def _from_shards_and_context(self) -> metta.sim.simulation_stats_db.SimulationStatsDB:
         """Merge all *.duckdb* shards for this simulation → one `StatsDB`."""
         # Create agent map using URIs for database integration
-        agent_map: Dict[int, str] = {}
+        agent_map: typing.Dict[int, str] = {}
 
         # Add policy agents to the map if they have a URI
         if self._policy_uri:
@@ -291,7 +294,7 @@ class Simulation:
                 agent_map[agent_id] = self._npc_policy_uri
 
         # Pass the policy URI directly
-        db = SimulationStatsDB.from_shards_and_context(
+        db = metta.sim.simulation_stats_db.SimulationStatsDB.from_shards_and_context(
             sim_id=self._id,
             dir_with_shards=self._stats_dir,
             agent_map=agent_map,
@@ -301,9 +304,13 @@ class Simulation:
         )
         return db
 
-    def _write_remote_stats(self, stats_db: SimulationStatsDB, thumbnail_url: str | None = None) -> None:
+    def _write_remote_stats(
+        self, stats_db: metta.sim.simulation_stats_db.SimulationStatsDB, thumbnail_url: str | None = None
+    ) -> None:
         """Write stats to the remote stats database."""
-        if self._stats_client is not None and isinstance(self._stats_client, HttpStatsClient):
+        if self._stats_client is not None and isinstance(
+            self._stats_client, metta.app_backend.clients.stats_client.HttpStatsClient
+        ):
             # Use policy_uri directly
             policy_details: list[tuple[str, str | None]] = []
 
@@ -314,9 +321,11 @@ class Simulation:
             if self._npc_policy_uri:
                 policy_details.append((self._npc_policy_uri, "NPC policy"))
 
-            policy_ids = get_or_create_policy_ids(self._stats_client, policy_details, self._stats_epoch_id)
+            policy_ids = metta.sim.utils.get_or_create_policy_ids(
+                self._stats_client, policy_details, self._stats_epoch_id
+            )
 
-            agent_map: Dict[int, uuid.UUID] = {}
+            agent_map: typing.Dict[int, uuid.UUID] = {}
 
             if self._policy_uri:
                 for agent_id in range(self._policy_agents_per_env):
@@ -335,7 +344,7 @@ class Simulation:
                 # Get agent metrics for this episode
                 agent_metrics_df = stats_db.query(f"SELECT * FROM agent_metrics WHERE episode_id = '{episode_id}'")
                 # agent_id -> metric_name -> metric_value
-                agent_metrics: Dict[int, Dict[str, float]] = {}
+                agent_metrics: typing.Dict[int, typing.Dict[str, float]] = {}
 
                 for _, metric_row in agent_metrics_df.iterrows():
                     agent_id = int(metric_row["agent_id"])
@@ -348,7 +357,7 @@ class Simulation:
 
                 # Get episode attributes
                 attributes_df = stats_db.query(f"SELECT * FROM episode_attributes WHERE episode_id = '{episode_id}'")
-                attributes: Dict[str, Any] = {}
+                attributes: typing.Dict[str, typing.Any] = {}
 
                 for _, attr_row in attributes_df.iterrows():
                     attr_name = attr_row["attribute"]
@@ -421,10 +430,10 @@ class Simulation:
         return self._replay_writer.episodes[episode_id].get_replay_data()
 
 
-@dataclass
+@dataclasses.dataclass
 class SimulationResults:
     """Results of a simulation.
     For now just a stats db. Replay plays can be retrieved from the stats db."""
 
-    stats_db: SimulationStatsDB
+    stats_db: metta.sim.simulation_stats_db.SimulationStatsDB
     replay_urls: dict[str, list[str]] | None = None  # Maps simulation names to lists of replay URLs

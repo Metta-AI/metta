@@ -2,18 +2,11 @@
 
 import numpy as np
 
-from mettagrid.config.mettagrid_config import (
-    ActionsConfig,
-    GameConfig,
-    MettaGridConfig,
-    MoveActionConfig,
-    NoopActionConfig,
-    ObsConfig,
-)
-from mettagrid.envs.mettagrid_puffer_env import MettaGridPufferEnv
-from mettagrid.map_builder.random import RandomMapBuilder
-from mettagrid.mettagrid_c import dtype_actions
-from mettagrid.simulator import Simulator
+import mettagrid.config.mettagrid_config
+import mettagrid.envs.mettagrid_puffer_env
+import mettagrid.map_builder.random
+import mettagrid.mettagrid_c
+import mettagrid.simulator
 
 
 def test_buffer_reuse_across_resets():
@@ -25,18 +18,21 @@ def test_buffer_reuse_across_resets():
     3. Verifies it creates new Simulation instances but reuses the same buffer objects
     """
     # Create config
-    config = MettaGridConfig(
-        game=GameConfig(
+    config = mettagrid.config.mettagrid_config.MettaGridConfig(
+        game=mettagrid.config.mettagrid_config.GameConfig(
             num_agents=24,
-            obs=ObsConfig(width=5, height=5, num_tokens=100),
-            actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
-            map_builder=RandomMapBuilder.Config(width=20, height=20, agents=24, seed=42),
+            obs=mettagrid.config.mettagrid_config.ObsConfig(width=5, height=5, num_tokens=100),
+            actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
+                move=mettagrid.config.mettagrid_config.MoveActionConfig(),
+            ),
+            map_builder=mettagrid.map_builder.random.RandomMapBuilder.Config(width=20, height=20, agents=24, seed=42),
         )
     )
 
     # Create simulator and environment
-    simulator = Simulator()
-    env = MettaGridPufferEnv(simulator, config, seed=42)
+    simulator = mettagrid.simulator.Simulator()
+    env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(simulator, config, seed=42)
 
     # Get initial simulation reference
     initial_sim = env.current_simulation
@@ -122,18 +118,21 @@ def test_buffer_reuse_across_resets():
 def test_buffer_consistency_during_episode():
     """Test that buffers remain consistent during an episode."""
     # Create config
-    config = MettaGridConfig(
-        game=GameConfig(
+    config = mettagrid.config.mettagrid_config.MettaGridConfig(
+        game=mettagrid.config.mettagrid_config.GameConfig(
             num_agents=24,
-            obs=ObsConfig(width=5, height=5, num_tokens=100),
-            actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
-            map_builder=RandomMapBuilder.Config(width=20, height=20, agents=24, seed=42),
+            obs=mettagrid.config.mettagrid_config.ObsConfig(width=5, height=5, num_tokens=100),
+            actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
+                move=mettagrid.config.mettagrid_config.MoveActionConfig(),
+            ),
+            map_builder=mettagrid.map_builder.random.RandomMapBuilder.Config(width=20, height=20, agents=24, seed=42),
         )
     )
 
     # Create simulator and environment
-    simulator = Simulator()
-    env = MettaGridPufferEnv(simulator, config, seed=42)
+    simulator = mettagrid.simulator.Simulator()
+    env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(simulator, config, seed=42)
 
     # Reset environment
     obs, info = env.reset(seed=42)
@@ -149,7 +148,7 @@ def test_buffer_consistency_during_episode():
     # Take a few steps
     for step in range(5):
         # Create noop actions
-        actions = np.zeros(env.num_agents, dtype=dtype_actions)
+        actions = np.zeros(env.num_agents, dtype=mettagrid.mettagrid_c.dtype_actions)
 
         # Step environment
         obs, rewards, terminals, truncations, info = env.step(actions)

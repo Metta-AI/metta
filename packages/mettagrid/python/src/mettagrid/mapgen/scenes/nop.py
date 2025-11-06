@@ -1,11 +1,11 @@
-from mettagrid.mapgen.scene import Scene, SceneConfig
+import mettagrid.mapgen.scene
 
 
-class NopConfig(SceneConfig):
+class NopConfig(mettagrid.mapgen.scene.SceneConfig):
     pass
 
 
-class Nop(Scene[NopConfig]):
+class Nop(mettagrid.mapgen.scene.Scene[NopConfig]):
     """
     This scene doesn't do anything.
     """

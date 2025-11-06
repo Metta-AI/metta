@@ -3,36 +3,36 @@ Unit tests for the DuckDBStatsWriter functionality.
 """
 
 import datetime
+import pathlib
 import tempfile
 import uuid
-from pathlib import Path
 
 import pytest
 
-from metta.sim.stats import DuckDBStatsWriter
-from metta.sim.stats.episode_stats_db import EpisodeStatsDB
+import metta.sim.stats
+import metta.sim.stats.episode_stats_db
 
 
 @pytest.fixture
 def temp_dir():
     """Create a temporary directory for test files."""
     with tempfile.TemporaryDirectory() as tmpdirname:
-        yield Path(tmpdirname)
+        yield pathlib.Path(tmpdirname)
 
 
 def test_stats_writer_initialization(temp_dir):
     """Test that DuckDBStatsWriter initializes correctly."""
-    writer = DuckDBStatsWriter(temp_dir)
+    writer = metta.sim.stats.DuckDBStatsWriter(temp_dir)
     assert writer.dir == temp_dir
     assert writer.db is None  # Database should be created on demand
 
 
 def test_ensure_db(temp_dir):
     """Test that _ensure_db creates a database when needed."""
-    writer = DuckDBStatsWriter(temp_dir)
+    writer = metta.sim.stats.DuckDBStatsWriter(temp_dir)
     writer._ensure_db()
     assert writer.db is not None
-    assert isinstance(writer.db, EpisodeStatsDB)
+    assert isinstance(writer.db, metta.sim.stats.episode_stats_db.EpisodeStatsDB)
 
     # Check that the database file exists
     db_files = list(temp_dir.glob("*.duckdb"))
@@ -43,7 +43,7 @@ def test_ensure_db(temp_dir):
 
 def test_episode_lifecycle(temp_dir):
     """Test the full lifecycle of an episode."""
-    writer = DuckDBStatsWriter(temp_dir)
+    writer = metta.sim.stats.DuckDBStatsWriter(temp_dir)
 
     # Create episode ID
     episode_id = str(uuid.uuid4())
@@ -105,7 +105,7 @@ def test_episode_lifecycle(temp_dir):
 
 def test_close_without_db(temp_dir):
     """Test calling close() on a DuckDBStatsWriter that hasn't created a DB yet."""
-    writer = DuckDBStatsWriter(temp_dir)
+    writer = metta.sim.stats.DuckDBStatsWriter(temp_dir)
     assert writer.db is None
 
     # This should not raise an error

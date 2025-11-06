@@ -3,18 +3,18 @@ PufferLib checkpoint loading utilities.
 """
 
 import logging
-from typing import Dict, TypeGuard
+import typing
 
 import torch
 
-from metta.agent.policies.puffer import PufferPolicy, PufferPolicyConfig
-from mettagrid.builder.envs import make_arena
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+import metta.agent.policies.puffer
+import mettagrid.builder.envs
+import mettagrid.policy.policy_env_interface
 
 logger = logging.getLogger("puffer_policy")
 
 
-def _is_puffer_state_dict(loaded_obj) -> TypeGuard[Dict[str, torch.Tensor]]:
+def _is_puffer_state_dict(loaded_obj) -> typing.TypeGuard[typing.Dict[str, torch.Tensor]]:
     if not isinstance(loaded_obj, dict) or not loaded_obj:
         return False
 
@@ -24,10 +24,12 @@ def _is_puffer_state_dict(loaded_obj) -> TypeGuard[Dict[str, torch.Tensor]]:
 
 
 def _create_metta_agent(device: str | torch.device = "cpu"):
-    env_cfg = make_arena(num_agents=60)
+    env_cfg = mettagrid.builder.envs.make_arena(num_agents=60)
 
-    policy_cfg = PufferPolicyConfig()
-    policy = PufferPolicy(PolicyEnvInterface.from_mg_cfg(env_cfg), policy_cfg).to(device)
+    policy_cfg = metta.agent.policies.puffer.PufferPolicyConfig()
+    policy = metta.agent.policies.puffer.PufferPolicy(
+        mettagrid.policy.policy_env_interface.PolicyEnvInterface.from_mg_cfg(env_cfg), policy_cfg
+    ).to(device)
     return policy
 
 

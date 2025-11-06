@@ -1,18 +1,17 @@
 """Trainer component responsible for setting up system and memory monitoring."""
 
-from __future__ import annotations
 
 import logging
-from typing import Optional
+import typing
 
-from metta.rl.training import TrainerComponent
-from mettagrid.profiling.memory_monitor import MemoryMonitor
-from mettagrid.profiling.system_monitor import SystemMonitor
+import metta.rl.training
+import mettagrid.profiling.memory_monitor
+import mettagrid.profiling.system_monitor
 
 logger = logging.getLogger(__name__)
 
 
-class Monitor(TrainerComponent):
+class Monitor(metta.rl.training.TrainerComponent):
     """Manage memory and system monitors independently of stats reporting."""
 
     _master_only = True
@@ -20,8 +19,8 @@ class Monitor(TrainerComponent):
     def __init__(self, *, enabled: bool = True) -> None:
         super().__init__()
         self._enabled = enabled
-        self._memory_monitor: Optional[MemoryMonitor] = None
-        self._system_monitor: Optional[SystemMonitor] = None
+        self._memory_monitor: typing.Optional[mettagrid.profiling.memory_monitor.MemoryMonitor] = None
+        self._system_monitor: typing.Optional[mettagrid.profiling.system_monitor.SystemMonitor] = None
 
     def register(self, context) -> None:  # type: ignore[override]
         super().register(context)
@@ -54,12 +53,14 @@ class Monitor(TrainerComponent):
         self._system_monitor = None
 
     @staticmethod
-    def _setup(*, policy, experience, timer) -> tuple[MemoryMonitor, SystemMonitor]:
-        memory_monitor = MemoryMonitor()
+    def _setup(
+        *, policy, experience, timer
+    ) -> tuple[mettagrid.profiling.memory_monitor.MemoryMonitor, mettagrid.profiling.system_monitor.SystemMonitor]:
+        memory_monitor = mettagrid.profiling.memory_monitor.MemoryMonitor()
         memory_monitor.add(experience, name="Experience", track_attributes=True)
         memory_monitor.add(policy, name="Policy", track_attributes=False)
 
-        system_monitor = SystemMonitor(
+        system_monitor = mettagrid.profiling.system_monitor.SystemMonitor(
             sampling_interval_sec=1.0,
             history_size=100,
             log_level=logger.getEffectiveLevel(),
@@ -71,7 +72,10 @@ class Monitor(TrainerComponent):
         return memory_monitor, system_monitor
 
     @staticmethod
-    def _cleanup(memory_monitor: MemoryMonitor | None, system_monitor: SystemMonitor | None) -> None:
+    def _cleanup(
+        memory_monitor: mettagrid.profiling.memory_monitor.MemoryMonitor | None,
+        system_monitor: mettagrid.profiling.system_monitor.SystemMonitor | None,
+    ) -> None:
         if memory_monitor:
             memory_monitor.clear()
             logger.debug("Cleared memory monitor")

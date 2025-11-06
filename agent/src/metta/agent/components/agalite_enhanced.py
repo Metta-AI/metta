@@ -1,17 +1,16 @@
 """AGaLiTe attention blocks reusing standard transformer utilities."""
 
-from __future__ import annotations
 
 import math
-from typing import Dict, Optional, Tuple
+import typing
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from metta.agent.components.agalite_kernel import AGaLiTeKernelConfig
-from metta.agent.components.agalite_optimized import discounted_sum
-from metta.agent.policies.gtrxl import FusedGRUGating
+import metta.agent.components.agalite_kernel
+import metta.agent.components.agalite_optimized
+import metta.agent.policies.gtrxl
 
 
 class AGaLiTeAttentionLayer(nn.Module):
@@ -24,7 +23,7 @@ class AGaLiTeAttentionLayer(nn.Module):
         head_num: int,
         eta: int,
         r: int,
-        kernel: AGaLiTeKernelConfig,
+        kernel: metta.agent.components.agalite_kernel.AGaLiTeKernelConfig,
         dropout: float = 0.0,
         eps: float = 1e-5,
         reset_hidden_on_terminate: bool = True,
@@ -55,8 +54,8 @@ class AGaLiTeAttentionLayer(nn.Module):
 
         omegas = torch.linspace(-math.pi, math.pi, r)
         self.register_buffer("omegas", omegas)
-        self._cos_cache: Dict[Tuple[int, torch.device, torch.dtype], torch.Tensor] = {}
-        self._sin_cache: Dict[Tuple[int, torch.device, torch.dtype], torch.Tensor] = {}
+        self._cos_cache: typing.Dict[typing.Tuple[int, torch.device, torch.dtype], torch.Tensor] = {}
+        self._sin_cache: typing.Dict[typing.Tuple[int, torch.device, torch.dtype], torch.Tensor] = {}
 
         self._init_weights()
 
@@ -81,8 +80,8 @@ class AGaLiTeAttentionLayer(nn.Module):
         self,
         inputs: torch.Tensor,
         terminations: torch.Tensor,
-        memory: Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
-    ) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]]:
+        memory: typing.Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
+    ) -> typing.Tuple[torch.Tensor, typing.Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]]:
         T, B, _ = inputs.shape
         device = inputs.device
 
@@ -130,9 +129,11 @@ class AGaLiTeAttentionLayer(nn.Module):
         discount_gamma_r = discount_gamma.unsqueeze(2).expand(-1, -1, self.r, -1, -1)
         discount_beta_r = discount_beta.unsqueeze(2).expand(-1, -1, self.r, -1, -1)
 
-        final_keys = discounted_sum(tilde_k_prev, keys_osc, discount_gamma_r)
-        final_values = discounted_sum(tilde_v_prev, values_osc, discount_beta_r)
-        final_s = discounted_sum(s_prev, gated_keys, discount_gamma)
+        final_keys = metta.agent.components.agalite_optimized.discounted_sum(tilde_k_prev, keys_osc, discount_gamma_r)
+        final_values = metta.agent.components.agalite_optimized.discounted_sum(
+            tilde_v_prev, values_osc, discount_beta_r
+        )
+        final_s = metta.agent.components.agalite_optimized.discounted_sum(s_prev, gated_keys, discount_gamma)
 
         keys_dot_queries = torch.einsum("tbrhD,tbhD->tbrh", final_keys, phi_q)
         kv = torch.einsum("tbrhd,tbrh->tbhd", final_values, keys_dot_queries)
@@ -152,7 +153,7 @@ class AGaLiTeAttentionLayer(nn.Module):
 
     def _cached_trig(
         self, timesteps: int, device: torch.device, dtype: torch.dtype
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> typing.Tuple[torch.Tensor, torch.Tensor]:
         key = (timesteps, device, dtype)
         if key not in self._cos_cache:
             steps = torch.arange(1, timesteps + 1, device=device, dtype=dtype)
@@ -174,13 +175,13 @@ class AGaLiTeAttentionLayer(nn.Module):
         head_dim: int,
         eta: int,
         r: int,
-        device: Optional[torch.device] = None,
-        kernel: Optional[AGaLiTeKernelConfig] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        device: typing.Optional[torch.device] = None,
+        kernel: typing.Optional[metta.agent.components.agalite_kernel.AGaLiTeKernelConfig] = None,
+    ) -> typing.Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         if device is None:
             device = torch.device("cpu")
 
-        kernel_conf = kernel or AGaLiTeKernelConfig()
+        kernel_conf = kernel or metta.agent.components.agalite_kernel.AGaLiTeKernelConfig()
         feature_dim = kernel_conf.feature_dim(head_dim, eta)
 
         tilde_k = torch.zeros(batch_size, r, head_num, feature_dim, device=device)
@@ -201,7 +202,7 @@ class AGaLiTeTransformerLayer(nn.Module):
         n_heads: int,
         eta: int,
         r: int,
-        kernel: AGaLiTeKernelConfig,
+        kernel: metta.agent.components.agalite_kernel.AGaLiTeKernelConfig,
         *,
         use_input_proj: bool = False,
         gru_bias: float = 2.0,
@@ -236,8 +237,8 @@ class AGaLiTeTransformerLayer(nn.Module):
         self._r = r
         self._kernel = kernel
 
-        self.gate1 = FusedGRUGating(d_model, bias=gru_bias)
-        self.gate2 = FusedGRUGating(d_model, bias=gru_bias)
+        self.gate1 = metta.agent.policies.gtrxl.FusedGRUGating(d_model, bias=gru_bias)
+        self.gate2 = metta.agent.policies.gtrxl.FusedGRUGating(d_model, bias=gru_bias)
 
         self.attn_dropout = nn.Dropout(dropout)
         self.ffc = nn.Sequential(
@@ -253,7 +254,9 @@ class AGaLiTeTransformerLayer(nn.Module):
                 nn.init.orthogonal_(module.weight, gain=math.sqrt(2))
                 nn.init.constant_(module.bias, 0)
 
-    def forward(self, inputs: torch.Tensor, terminations: torch.Tensor, memory: Tuple) -> Tuple[torch.Tensor, Tuple]:
+    def forward(
+        self, inputs: torch.Tensor, terminations: torch.Tensor, memory: typing.Tuple
+    ) -> typing.Tuple[torch.Tensor, typing.Tuple]:
         x = F.gelu(self.input_proj(inputs)) if self.use_input_proj else inputs
 
         ln1 = self.ln1(x)
@@ -267,7 +270,7 @@ class AGaLiTeTransformerLayer(nn.Module):
 
         return out, new_memory
 
-    def initialize_memory(self, batch_size: int, device: Optional[torch.device] = None) -> Tuple:
+    def initialize_memory(self, batch_size: int, device: typing.Optional[torch.device] = None) -> typing.Tuple:
         return self.attention.initialize_memory(
             batch_size=batch_size,
             head_num=self._head_num,

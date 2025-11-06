@@ -11,19 +11,19 @@ Only supports macOS and Linux.
 """
 
 import os
+import pathlib
 import platform
 import subprocess
 import sys
-from pathlib import Path
-from urllib.request import urlretrieve
+import urllib.request
 
 # Configuration
-CODECOV_BIN = Path(".github/scripts/codecov")
+CODECOV_BIN = pathlib.Path(".github/scripts/codecov")
 CODECOV_URL_BASE = "https://uploader.codecov.io/latest"
 DEFAULT_SUBPACKAGES = ["app_backend", "agent", "mettagrid", "common"]
 
 
-def get_platform_binary_path() -> tuple[Path, str]:
+def get_platform_binary_path() -> tuple[pathlib.Path, str]:
     """Get the appropriate Codecov binary path and download URL (macOS and Linux only)."""
     system = platform.system().lower()
 
@@ -41,7 +41,7 @@ def get_platform_binary_path() -> tuple[Path, str]:
     return binary_path, download_url
 
 
-def ensure_codecov_binary() -> Path:
+def ensure_codecov_binary() -> pathlib.Path:
     """Download the Codecov uploader binary if not already present."""
     CODECOV_BIN.mkdir(parents=True, exist_ok=True)
 
@@ -49,7 +49,7 @@ def ensure_codecov_binary() -> Path:
 
     if not binary_path.exists():
         print(f"⬇️  Downloading Codecov uploader from {download_url}")
-        urlretrieve(download_url, binary_path)
+        urllib.request.urlretrieve(download_url, binary_path)
         binary_path.chmod(0o755)
     else:
         print(f"✅ Codecov uploader already exists at {binary_path}")
@@ -57,7 +57,7 @@ def ensure_codecov_binary() -> Path:
     return binary_path
 
 
-def find_coverage_files(base_path: Path) -> list[Path]:
+def find_coverage_files(base_path: pathlib.Path) -> list[pathlib.Path]:
     """Find all coverage XML files in the given directory."""
     coverage_files = []
 
@@ -68,7 +68,7 @@ def find_coverage_files(base_path: Path) -> list[Path]:
     return sorted(coverage_files)  # Sort for consistent ordering
 
 
-def run_codecov(binary: Path, token: str, coverage_files: list[tuple[Path, str]]):
+def run_codecov(binary: pathlib.Path, token: str, coverage_files: list[tuple[pathlib.Path, str]]):
     """Upload each coverage file with the correct flag."""
     for path, flag in coverage_files:
         if not path.exists():
@@ -107,7 +107,7 @@ def main():
 
     # Check for coverage directory override
     coverage_dir = os.environ.get("COVERAGE_DIR", "coverage-reports")
-    coverage_path = Path(coverage_dir)
+    coverage_path = pathlib.Path(coverage_dir)
 
     # Build list of coverage files to upload
     coverage_files = []
@@ -122,9 +122,9 @@ def main():
             # Fallback: check if there's a generic coverage.xml for this package
             # (for backward compatibility)
             if pkg == "core":
-                alt_file = Path("coverage.xml")
+                alt_file = pathlib.Path("coverage.xml")
             else:
-                alt_file = Path(pkg) / "coverage.xml"
+                alt_file = pathlib.Path(pkg) / "coverage.xml"
 
             if alt_file.exists():
                 coverage_files.append((alt_file, pkg))

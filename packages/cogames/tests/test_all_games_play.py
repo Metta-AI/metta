@@ -4,10 +4,10 @@ import subprocess
 
 import pytest
 
-from cogames.cli.mission import get_all_missions
+import cogames.cli.mission
 
 
-@pytest.mark.parametrize("mission_name", get_all_missions())
+@pytest.mark.parametrize("mission_name", cogames.cli.mission.get_all_missions())
 @pytest.mark.timeout(60)
 def test_mission_play_non_interactive(mission_name):
     result = subprocess.run(

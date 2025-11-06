@@ -1,39 +1,39 @@
 import asyncio
+import datetime
+import unittest.mock
 import uuid
-from datetime import datetime
-from unittest.mock import AsyncMock, Mock
 
+import fastapi
+import fastapi.testclient
+import httpx
 import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-from httpx import ASGITransport, AsyncClient
 
-from metta.app_backend.clients.eval_task_client import EvalTaskClient
-from metta.app_backend.clients.stats_client import StatsClient
-from metta.app_backend.eval_task_orchestrator import EvalTaskOrchestrator, FixedScaler
-from metta.app_backend.eval_task_worker import AbstractTaskExecutor, EvalTaskWorker, TaskResult
-from metta.app_backend.routes.eval_task_routes import (
-    TaskCreateRequest,
-    TaskFilterParams,
-    TaskResponse,
-)
-from metta.app_backend.worker_managers.base import AbstractWorkerManager
-from metta.app_backend.worker_managers.thread_manager import ThreadWorkerManager
+import metta.app_backend.clients.eval_task_client
+import metta.app_backend.clients.stats_client
+import metta.app_backend.eval_task_orchestrator
+import metta.app_backend.eval_task_worker
+import metta.app_backend.routes.eval_task_routes
+import metta.app_backend.worker_managers.base
+import metta.app_backend.worker_managers.thread_manager
 
 
-class SuccessTaskExecutor(AbstractTaskExecutor):
+class SuccessTaskExecutor(metta.app_backend.eval_task_worker.AbstractTaskExecutor):
     def __init__(self):
         pass
 
-    async def execute_task(self, task: TaskResponse) -> TaskResult:
-        return TaskResult(success=True)
+    async def execute_task(
+        self, task: metta.app_backend.routes.eval_task_routes.TaskResponse
+    ) -> metta.app_backend.eval_task_worker.TaskResult:
+        return metta.app_backend.eval_task_worker.TaskResult(success=True)
 
 
-class FailureTaskExecutor(AbstractTaskExecutor):
+class FailureTaskExecutor(metta.app_backend.eval_task_worker.AbstractTaskExecutor):
     def __init__(self):
         pass
 
-    async def execute_task(self, task: TaskResponse) -> TaskResult:
+    async def execute_task(
+        self, task: metta.app_backend.routes.eval_task_routes.TaskResponse
+    ) -> metta.app_backend.eval_task_worker.TaskResult:
         raise Exception("Failed task")
 
 
@@ -41,7 +41,9 @@ class TestEvalTaskOrchestratorIntegration:
     """Integration tests for EvalTaskOrchestrator with real database and FastAPI client."""
 
     @pytest.fixture
-    def eval_task_client(self, test_client: TestClient, test_app: FastAPI) -> EvalTaskClient:
+    def eval_task_client(
+        self, test_client: fastapi.testclient.TestClient, test_app: fastapi.FastAPI
+    ) -> metta.app_backend.clients.eval_task_client.EvalTaskClient:
         """Create an eval task client for testing."""
         token_response = test_client.post(
             "/tokens",
@@ -51,14 +53,18 @@ class TestEvalTaskOrchestratorIntegration:
         assert token_response.status_code == 200
         token = token_response.json()["token"]
 
-        client = EvalTaskClient.__new__(EvalTaskClient)
-        client._http_client = AsyncClient(transport=ASGITransport(app=test_app), base_url=test_client.base_url)
+        client = metta.app_backend.clients.eval_task_client.EvalTaskClient.__new__(
+            metta.app_backend.clients.eval_task_client.EvalTaskClient
+        )
+        client._http_client = httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=test_app), base_url=test_client.base_url
+        )
         client._machine_token = token
 
         return client
 
     @pytest.fixture
-    def test_policy_id(self, stats_client: StatsClient) -> uuid.UUID:
+    def test_policy_id(self, stats_client: metta.app_backend.clients.stats_client.StatsClient) -> uuid.UUID:
         """Create a test policy and return its ID."""
         training_run = stats_client.create_training_run(
             name=f"test_integration_run_{uuid.uuid4().hex[:8]}",
@@ -80,8 +86,10 @@ class TestEvalTaskOrchestratorIntegration:
 
         return policy.id
 
-    def create_success_worker(self, worker_name: str, eval_task_client: EvalTaskClient) -> EvalTaskWorker:
-        return EvalTaskWorker(
+    def create_success_worker(
+        self, worker_name: str, eval_task_client: metta.app_backend.clients.eval_task_client.EvalTaskClient
+    ) -> metta.app_backend.eval_task_worker.EvalTaskWorker:
+        return metta.app_backend.eval_task_worker.EvalTaskWorker(
             client=eval_task_client,
             assignee=worker_name,
             task_executor=SuccessTaskExecutor(),
@@ -89,36 +97,45 @@ class TestEvalTaskOrchestratorIntegration:
         )
 
     @pytest.fixture
-    def mock_thread_manager(self, eval_task_client: EvalTaskClient, test_client: TestClient) -> ThreadWorkerManager:
+    def mock_thread_manager(
+        self,
+        eval_task_client: metta.app_backend.clients.eval_task_client.EvalTaskClient,
+        test_client: fastapi.testclient.TestClient,
+    ) -> metta.app_backend.worker_managers.thread_manager.ThreadWorkerManager:
         """Create a ThreadWorkerManager with mock workers."""
 
-        def create_worker(worker_name: str) -> EvalTaskWorker:
+        def create_worker(worker_name: str) -> metta.app_backend.eval_task_worker.EvalTaskWorker:
             return self.create_success_worker(worker_name, eval_task_client)
 
-        return ThreadWorkerManager(create_worker=create_worker)
+        return metta.app_backend.worker_managers.thread_manager.ThreadWorkerManager(create_worker=create_worker)
 
     @pytest.fixture
     def orchestrator(
-        self, eval_task_client: EvalTaskClient, mock_thread_manager: ThreadWorkerManager
-    ) -> EvalTaskOrchestrator:
+        self,
+        eval_task_client: metta.app_backend.clients.eval_task_client.EvalTaskClient,
+        mock_thread_manager: metta.app_backend.worker_managers.thread_manager.ThreadWorkerManager,
+    ) -> metta.app_backend.eval_task_orchestrator.EvalTaskOrchestrator:
         """Create orchestrator with mocked worker manager."""
-        orch = EvalTaskOrchestrator(
+        orch = metta.app_backend.eval_task_orchestrator.EvalTaskOrchestrator(
             task_client=eval_task_client,
             worker_manager=mock_thread_manager,
             poll_interval=0.5,  # Fast polling for tests
-            worker_scaler=FixedScaler(2),
+            worker_scaler=metta.app_backend.eval_task_orchestrator.FixedScaler(2),
             worker_idle_timeout_minutes=5.0,  # Short timeout for tests
         )
         return orch
 
     @pytest.mark.asyncio
     async def test_successful_task_processing(
-        self, orchestrator: EvalTaskOrchestrator, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID
+        self,
+        orchestrator: metta.app_backend.eval_task_orchestrator.EvalTaskOrchestrator,
+        eval_task_client: metta.app_backend.clients.eval_task_client.EvalTaskClient,
+        test_policy_id: uuid.UUID,
     ):
         """Test that tasks are successfully processed by workers."""
         # Create a test task
         task_response = await eval_task_client.create_task(
-            TaskCreateRequest(
+            metta.app_backend.routes.eval_task_routes.TaskCreateRequest(
                 policy_id=test_policy_id,
                 git_hash="integration_test_hash",
                 sim_suite="navigation",
@@ -143,7 +160,9 @@ class TestEvalTaskOrchestratorIntegration:
                 await asyncio.sleep(1)
 
                 # Check if task is completed
-                filters = TaskFilterParams(policy_ids=[test_policy_id], limit=10)
+                filters = metta.app_backend.routes.eval_task_routes.TaskFilterParams(
+                    policy_ids=[test_policy_id], limit=10
+                )
                 all_tasks = await eval_task_client.get_all_tasks(filters=filters)
                 processed_task = next((task for task in all_tasks.tasks if task.id == task_id), None)
 
@@ -156,35 +175,41 @@ class TestEvalTaskOrchestratorIntegration:
 
         finally:
             # Clean up workers
-            if isinstance(orchestrator._worker_manager, ThreadWorkerManager):
+            if isinstance(
+                orchestrator._worker_manager, metta.app_backend.worker_managers.thread_manager.ThreadWorkerManager
+            ):
                 orchestrator._worker_manager.shutdown_all()
 
     @pytest.mark.asyncio
-    async def test_failed_task_processing(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
+    async def test_failed_task_processing(
+        self, eval_task_client: metta.app_backend.clients.eval_task_client.EvalTaskClient, test_policy_id: uuid.UUID
+    ):
         """Test that failed tasks are marked as error."""
 
         # Create orchestrator with failure workers
-        def create_worker(worker_name: str) -> EvalTaskWorker:
-            return EvalTaskWorker(
+        def create_worker(worker_name: str) -> metta.app_backend.eval_task_worker.EvalTaskWorker:
+            return metta.app_backend.eval_task_worker.EvalTaskWorker(
                 client=eval_task_client,
                 assignee=worker_name,
                 task_executor=FailureTaskExecutor(),
                 poll_interval=0.5,
             )
 
-        failure_manager = ThreadWorkerManager(create_worker=create_worker)
+        failure_manager = metta.app_backend.worker_managers.thread_manager.ThreadWorkerManager(
+            create_worker=create_worker
+        )
 
-        orchestrator = EvalTaskOrchestrator(
+        orchestrator = metta.app_backend.eval_task_orchestrator.EvalTaskOrchestrator(
             task_client=eval_task_client,
             worker_manager=failure_manager,
             poll_interval=0.5,
             worker_idle_timeout_minutes=5.0,
-            worker_scaler=FixedScaler(1),
+            worker_scaler=metta.app_backend.eval_task_orchestrator.FixedScaler(1),
         )
 
         # Create a test task
         task_response = await eval_task_client.create_task(
-            TaskCreateRequest(
+            metta.app_backend.routes.eval_task_routes.TaskCreateRequest(
                 policy_id=test_policy_id,
                 git_hash="failure_test_hash",
                 sim_suite="navigation",
@@ -206,7 +231,9 @@ class TestEvalTaskOrchestratorIntegration:
                 await asyncio.sleep(1)
 
                 # Check if task failed
-                filters = TaskFilterParams(policy_ids=[test_policy_id], limit=10)
+                filters = metta.app_backend.routes.eval_task_routes.TaskFilterParams(
+                    policy_ids=[test_policy_id], limit=10
+                )
                 all_tasks = await eval_task_client.get_all_tasks(filters=filters)
                 failed_task = next((task for task in all_tasks.tasks if task.id == task_id), None)
 
@@ -228,29 +255,31 @@ class TestEvalTaskOrchestratorIntegration:
     @pytest.mark.skip(reason="flaky: worker 'gw3' crashed while running ...")
     @pytest.mark.asyncio
     async def test_multiple_workers_concurrent_processing(
-        self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID
+        self, eval_task_client: metta.app_backend.clients.eval_task_client.EvalTaskClient, test_policy_id: uuid.UUID
     ):
         """Test multiple workers processing different tasks concurrently."""
 
         # Create orchestrator with multiple workers
-        def create_worker(worker_name: str) -> EvalTaskWorker:
+        def create_worker(worker_name: str) -> metta.app_backend.eval_task_worker.EvalTaskWorker:
             return self.create_success_worker(worker_name, eval_task_client)
 
-        success_manager = ThreadWorkerManager(create_worker=create_worker)
+        success_manager = metta.app_backend.worker_managers.thread_manager.ThreadWorkerManager(
+            create_worker=create_worker
+        )
 
-        orchestrator = EvalTaskOrchestrator(
+        orchestrator = metta.app_backend.eval_task_orchestrator.EvalTaskOrchestrator(
             task_client=eval_task_client,
             worker_manager=success_manager,
             poll_interval=0.5,
             worker_idle_timeout_minutes=10.0,
-            worker_scaler=FixedScaler(3),
+            worker_scaler=metta.app_backend.eval_task_orchestrator.FixedScaler(3),
         )
 
         # Create multiple test tasks
         task_ids = []
         for i in range(5):
             task_response = await eval_task_client.create_task(
-                TaskCreateRequest(
+                metta.app_backend.routes.eval_task_routes.TaskCreateRequest(
                     policy_id=test_policy_id,
                     git_hash=f"concurrent_test_hash_{i}",
                     sim_suite="navigation",
@@ -260,13 +289,15 @@ class TestEvalTaskOrchestratorIntegration:
 
         try:
             # Run multiple orchestrator cycles
-            start_time = datetime.now()
+            start_time = datetime.datetime.now()
             for _ in range(10):  # Run for a while to process all tasks
                 await orchestrator.run_cycle()
                 await asyncio.sleep(0.5)
 
                 # Check if all tasks are done
-                filters = TaskFilterParams(policy_ids=[test_policy_id], limit=20)
+                filters = metta.app_backend.routes.eval_task_routes.TaskFilterParams(
+                    policy_ids=[test_policy_id], limit=20
+                )
                 all_tasks = await eval_task_client.get_all_tasks(filters=filters)
 
                 done_tasks = [task for task in all_tasks.tasks if task.id in task_ids and task.status == "done"]
@@ -274,11 +305,11 @@ class TestEvalTaskOrchestratorIntegration:
                     break
 
                 # Safety timeout
-                if (datetime.now() - start_time).total_seconds() > 30:
+                if (datetime.datetime.now() - start_time).total_seconds() > 30:
                     break
 
             # Verify all tasks were completed
-            filters = TaskFilterParams(policy_ids=[test_policy_id], limit=20)
+            filters = metta.app_backend.routes.eval_task_routes.TaskFilterParams(policy_ids=[test_policy_id], limit=20)
             all_tasks = await eval_task_client.get_all_tasks(filters=filters)
 
             completed_count = sum(1 for task in all_tasks.tasks if task.id in task_ids and task.status == "done")
@@ -290,13 +321,17 @@ class TestEvalTaskOrchestratorIntegration:
             success_manager.shutdown_all()
 
     @pytest.mark.asyncio
-    async def test_worker_discovery_and_lifecycle(self, eval_task_client: EvalTaskClient):
+    async def test_worker_discovery_and_lifecycle(
+        self, eval_task_client: metta.app_backend.clients.eval_task_client.EvalTaskClient
+    ):
         """Test worker discovery and lifecycle management."""
 
-        def create_worker(worker_name: str) -> EvalTaskWorker:
+        def create_worker(worker_name: str) -> metta.app_backend.eval_task_worker.EvalTaskWorker:
             return self.create_success_worker(worker_name, eval_task_client)
 
-        success_manager = ThreadWorkerManager(create_worker=create_worker)
+        success_manager = metta.app_backend.worker_managers.thread_manager.ThreadWorkerManager(
+            create_worker=create_worker
+        )
 
         try:
             # Initially no workers
@@ -326,22 +361,22 @@ class TestEvalTaskOrchestratorIntegration:
 
     @pytest.mark.asyncio
     async def test_orchestrator_with_custom_worker_manager(
-        self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID
+        self, eval_task_client: metta.app_backend.clients.eval_task_client.EvalTaskClient, test_policy_id: uuid.UUID
     ):
         """Test that orchestrator works with custom worker managers."""
 
         # Create mock worker manager
-        mock_worker_manager = Mock(spec=AbstractWorkerManager)
-        mock_worker_manager.discover_alive_workers = AsyncMock(return_value=[])
-        mock_worker_manager.start_worker = Mock()
-        mock_worker_manager.cleanup_worker = Mock()
+        mock_worker_manager = unittest.mock.Mock(spec=metta.app_backend.worker_managers.base.AbstractWorkerManager)
+        mock_worker_manager.discover_alive_workers = unittest.mock.AsyncMock(return_value=[])
+        mock_worker_manager.start_worker = unittest.mock.Mock()
+        mock_worker_manager.cleanup_worker = unittest.mock.Mock()
 
         # Create orchestrator with custom worker manager
-        orchestrator = EvalTaskOrchestrator(
+        orchestrator = metta.app_backend.eval_task_orchestrator.EvalTaskOrchestrator(
             task_client=eval_task_client,
             worker_manager=mock_worker_manager,
             poll_interval=0.5,
-            worker_scaler=FixedScaler(1),
+            worker_scaler=metta.app_backend.eval_task_orchestrator.FixedScaler(1),
         )
 
         # Should use worker manager

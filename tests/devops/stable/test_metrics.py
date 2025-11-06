@@ -2,7 +2,7 @@
 
 import pytest
 
-from metta.jobs.job_metrics import extract_skypilot_job_id, fetch_wandb_metrics
+import metta.jobs.job_metrics
 
 
 def test_extract_skypilot_job_id_pattern1():
@@ -12,21 +12,21 @@ def test_extract_skypilot_job_id_pattern1():
     Job submitted with ID: 12345
     Job is running
     """
-    job_id = extract_skypilot_job_id(log_text)
+    job_id = metta.jobs.job_metrics.extract_skypilot_job_id(log_text)
     assert job_id == "12345"
 
 
 def test_extract_skypilot_job_id_pattern2():
     """Test extraction using alternative pattern."""
     log_text = "Submitted job 67890"
-    job_id = extract_skypilot_job_id(log_text)
+    job_id = metta.jobs.job_metrics.extract_skypilot_job_id(log_text)
     assert job_id == "67890"
 
 
 def test_extract_skypilot_job_id_no_match():
     """Test that missing job ID returns None."""
     log_text = "Training logs without job ID"
-    job_id = extract_skypilot_job_id(log_text)
+    job_id = metta.jobs.job_metrics.extract_skypilot_job_id(log_text)
     assert job_id is None
 
 
@@ -61,7 +61,7 @@ def test_fetch_metrics_with_mocked_wandb(monkeypatch):
 
     monkeypatch.setattr(metrics_module.wandb, "Api", FakeApi)
 
-    metrics, current_step = fetch_wandb_metrics(
+    metrics, current_step = metta.jobs.job_metrics.fetch_wandb_metrics(
         entity="team",
         project="proj",
         run_name="test_run",

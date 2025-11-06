@@ -6,19 +6,19 @@
 # ]
 # ///
 
+import concurrent.futures
+import dataclasses
+import datetime
 import json
 import logging
+import pathlib
 import re
 import time
+import typing
 import zipfile
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import asdict
-from datetime import datetime
-from pathlib import Path
-from typing import Optional
 
-from gemini_analyze_pr import PRAnalyzer, PRSummary, load_pr_summary, save_pr_summary
-from gemini_client import GeminiAIClient
+import gemini_analyze_pr
+import gemini_client
 
 
 class PreviousReportExtractor:
@@ -26,9 +26,9 @@ class PreviousReportExtractor:
 
     def __init__(self, report_type: str = "newsletter", report_dir: str | None = None):
         self.report_type = report_type
-        self.report_dir = Path(report_dir or f"previous-{report_type}s")
+        self.report_dir = pathlib.Path(report_dir or f"previous-{report_type}s")
 
-    def _extract_date_from_content(self, content: str) -> Optional[datetime]:
+    def _extract_date_from_content(self, content: str) -> typing.Optional[datetime.datetime]:
         """Extract end date from newsletter content as fallback."""
 
         # Look for date patterns in the newsletter header
@@ -39,7 +39,7 @@ class PreviousReportExtractor:
         if match:
             try:
                 end_date_str = match.group(2)
-                end_date = datetime.strptime(end_date_str, "%B %d, %Y")
+                end_date = datetime.datetime.strptime(end_date_str, "%B %d, %Y")
                 return end_date
             except ValueError:
                 logging.debug(f"Failed to parse date from content pattern: {match.group(2)}")
@@ -52,7 +52,7 @@ class PreviousReportExtractor:
         if match:
             try:
                 end_date_str = match.group(2)
-                end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
+                end_date = datetime.datetime.strptime(end_date_str, "%Y-%m-%d")
                 return end_date
             except ValueError:
                 logging.debug(f"Failed to parse ISO date from content: {match.group(2)}")
@@ -87,7 +87,7 @@ class PreviousReportExtractor:
                         date_parts = artifact_name.split("-to-")
                         if len(date_parts) == 2:
                             end_date_str = date_parts[1]
-                            artifact_date = datetime.strptime(end_date_str, "%Y-%m-%d")
+                            artifact_date = datetime.datetime.strptime(end_date_str, "%Y-%m-%d")
                     except ValueError:
                         logging.debug(f"Could not parse date from artifact name: {artifact_name}")
 
@@ -107,7 +107,7 @@ class PreviousReportExtractor:
                         content = zf.read(summary_file).decode("utf-8")
                         file_info = zf.getinfo(summary_file)
                         file_date = file_info.date_time
-                        timestamp = datetime(*file_date[:6])
+                        timestamp = datetime.datetime(*file_date[:6])
 
                         # If we couldn't get date from filename, try to extract from content
                         if not artifact_date:
@@ -146,7 +146,7 @@ class PreviousReportExtractor:
         return None
 
     def get_recent_summaries(
-        self, max_summaries: int = 3, author: str | None = None, end_date: Optional[datetime] = None
+        self, max_summaries: int = 3, author: str | None = None, end_date: typing.Optional[datetime.datetime] = None
     ) -> list[dict[str, str]]:
         """Get formatted context from previous summaries for AI prompt.
 
@@ -170,7 +170,7 @@ class PreviousReportExtractor:
             for summary in summaries:
                 # Use artifact_date if available, otherwise fall back to file date
                 date_str = summary.get("artifact_date") or summary["date"]
-                summary_date = datetime.fromisoformat(date_str)
+                summary_date = datetime.datetime.fromisoformat(date_str)
 
                 # Only include summaries from before the end date
                 if summary_date < end_date:
@@ -187,16 +187,16 @@ class PreviousReportExtractor:
 class PRDigestAnalyzer:
     """Main orchestrator for analyzing PR digests."""
 
-    def __init__(self, api_key: str, summaries_dir: Path = Path("pr-summaries")):
-        self.ai_client = GeminiAIClient(api_key)
-        self.pr_analyzer = PRAnalyzer(self.ai_client)
+    def __init__(self, api_key: str, summaries_dir: pathlib.Path = pathlib.Path("pr-summaries")):
+        self.ai_client = gemini_client.GeminiAIClient(api_key)
+        self.pr_analyzer = gemini_analyze_pr.PRAnalyzer(self.ai_client)
         self.summaries_dir = summaries_dir
 
-    def load_summaries(self, pr_numbers: list[int]) -> list[PRSummary]:
+    def load_summaries(self, pr_numbers: list[int]) -> list[gemini_analyze_pr.PRSummary]:
         """Load multiple PR summaries from cache."""
         summaries = []
         for pr_num in pr_numbers:
-            summary = load_pr_summary(pr_num, self.summaries_dir)
+            summary = gemini_analyze_pr.load_pr_summary(pr_num, self.summaries_dir)
             if summary:
                 summaries.append(summary)
                 logging.info(f"Loaded cached summary for PR #{pr_num}")
@@ -206,7 +206,7 @@ class PRDigestAnalyzer:
 
     def analyze_digest(
         self, new_prs: list[dict], cached_pr_numbers: list[int], use_parallel: bool = True, max_workers: int = 5
-    ) -> list[PRSummary]:
+    ) -> list[gemini_analyze_pr.PRSummary]:
         """Analyze new PRs and combine with cached summaries."""
         all_summaries = []
 
@@ -231,7 +231,7 @@ class PRDigestAnalyzer:
             # Convert to PRSummary and add to results
             for summary_dict in new_summaries:
                 if summary_dict:
-                    summary_data = PRSummary(
+                    summary_data = gemini_analyze_pr.PRSummary(
                         pr_number=summary_dict["pr_number"],
                         title=summary_dict["title"],
                         summary=summary_dict["summary"],
@@ -280,10 +280,10 @@ class PRDigestAnalyzer:
         """Process PRs in parallel."""
         results = []
 
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_pr = {executor.submit(self.pr_analyzer.analyze, pr): pr for pr in prs}
 
-            for future in as_completed(future_to_pr):
+            for future in concurrent.futures.as_completed(future_to_pr):
                 pr = future_to_pr[future]
                 try:
                     result = future.result()
@@ -317,10 +317,10 @@ class PRDigestAnalyzer:
 
 def load_digest_data(pr_digest_file: str, stats_file: str) -> tuple[list[dict], dict]:
     """Load PR digest and statistics files."""
-    if not Path(pr_digest_file).exists():
+    if not pathlib.Path(pr_digest_file).exists():
         raise FileNotFoundError(f"PR digest file {pr_digest_file} not found")
 
-    if not Path(stats_file).exists():
+    if not pathlib.Path(stats_file).exists():
         raise FileNotFoundError(f"Stats file {stats_file} not found")
 
     with open(pr_digest_file, "r") as f:
@@ -332,7 +332,9 @@ def load_digest_data(pr_digest_file: str, stats_file: str) -> tuple[list[dict], 
     return new_prs, stats
 
 
-def save_new_summaries(summaries: list[PRSummary], summaries_dir: Path = Path("pr-summaries")) -> int:
+def save_new_summaries(
+    summaries: list[gemini_analyze_pr.PRSummary], summaries_dir: pathlib.Path = pathlib.Path("pr-summaries")
+) -> int:
     """Save newly processed PR summaries to individual files."""
     summaries_dir.mkdir(exist_ok=True)
     new_summaries = [s for s in summaries if s.source == "new"]
@@ -340,21 +342,21 @@ def save_new_summaries(summaries: list[PRSummary], summaries_dir: Path = Path("p
     if new_summaries:
         logging.info(f"Saving {len(new_summaries)} new PR summaries to {summaries_dir}/...")
         for pr_summary in new_summaries:
-            filepath = save_pr_summary(pr_summary, summaries_dir)
+            filepath = gemini_analyze_pr.save_pr_summary(pr_summary, summaries_dir)
             logging.debug(f"Saved {filepath}")
 
     return len(new_summaries)
 
 
-def save_structured_data(summaries: list[PRSummary], output_file: str = "pr_summary_data.json"):
+def save_structured_data(summaries: list[gemini_analyze_pr.PRSummary], output_file: str = "pr_summary_data.json"):
     """Save all summaries as structured JSON data."""
     with open(output_file, "w") as f:
-        json.dump([asdict(pr) for pr in summaries], f, indent=2)
+        json.dump([dataclasses.asdict(pr) for pr in summaries], f, indent=2)
     logging.info(f"Saved {output_file}")
 
 
 def create_discord_summary(
-    pr_summaries: list[PRSummary],
+    pr_summaries: list[gemini_analyze_pr.PRSummary],
     newsletter_content: str,
     date_range: str,
     github_run_url: str,

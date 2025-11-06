@@ -1,10 +1,9 @@
-from __future__ import annotations
 
 import pytest
 import torch
 import torch.nn as nn
 
-from metta.rl.model_analysis import compute_dormant_neuron_stats
+import metta.rl.model_analysis
 
 
 class _TinyPolicy(nn.Module):
@@ -19,7 +18,7 @@ class _TinyPolicy(nn.Module):
 
 def test_compute_dormant_neuron_stats_counts_layers() -> None:
     policy = _TinyPolicy()
-    stats = compute_dormant_neuron_stats(policy, threshold=1e-8)
+    stats = metta.rl.model_analysis.compute_dormant_neuron_stats(policy, threshold=1e-8)
 
     assert stats["weights/dormant_neurons/total_neurons"] == 5.0
     assert stats["weights/dormant_neurons/dormant_neurons"] == 4.0

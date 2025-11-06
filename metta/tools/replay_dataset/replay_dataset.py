@@ -4,18 +4,17 @@ Usage:
     from metta.tools.replay_dataset import ReplayDataset, merge_datasets
 """
 
-from __future__ import annotations
 
-from datetime import datetime, timedelta
-from typing import Any
+import datetime
+import typing
 
 import duckdb
-from torch.utils.data import Dataset
+import torch.utils.data
 
-from metta.common.util.constants import SOFTMAX_S3_REPLAYS_PREFIX
+import metta.common.util.constants
 
 
-class ReplayDataset(Dataset):
+class ReplayDataset(torch.utils.data.Dataset):
     """PyTorch Dataset that loads replay data from Parquet files using DuckDB.
 
     Supports:
@@ -30,7 +29,7 @@ class ReplayDataset(Dataset):
         start_date: str | None = None,
         end_date: str | None = None,
         dates: list[str] | None = None,
-        base_path: str = SOFTMAX_S3_REPLAYS_PREFIX,
+        base_path: str = metta.common.util.constants.SOFTMAX_S3_REPLAYS_PREFIX,
         filters: dict[str, str] | None = None,
     ):
         """Load replay datasets from Parquet files.
@@ -101,21 +100,21 @@ class ReplayDataset(Dataset):
 
     def _generate_date_range(self, start: str, end: str) -> list[str]:
         """Generate list of dates between start and end (inclusive)."""
-        start_dt = datetime.strptime(start, "%Y-%m-%d")
-        end_dt = datetime.strptime(end, "%Y-%m-%d")
+        start_dt = datetime.datetime.strptime(start, "%Y-%m-%d")
+        end_dt = datetime.datetime.strptime(end, "%Y-%m-%d")
 
         dates = []
         current = start_dt
         while current <= end_dt:
             dates.append(current.strftime("%Y-%m-%d"))
-            current += timedelta(days=1)
+            current += datetime.timedelta(days=1)
 
         return dates
 
     def __len__(self) -> int:
         return len(self.df)
 
-    def __getitem__(self, idx: int) -> dict[str, Any]:
+    def __getitem__(self, idx: int) -> dict[str, typing.Any]:
         """Get a single sample."""
         import json
 
@@ -129,7 +128,7 @@ class ReplayDataset(Dataset):
         }
 
     @property
-    def metadata(self) -> dict[str, Any]:
+    def metadata(self) -> dict[str, typing.Any]:
         """Get dataset metadata from the data itself."""
         if len(self.df) == 0:
             return {}
@@ -146,7 +145,7 @@ def merge_datasets(
     start_date: str,
     end_date: str,
     output_path: str,
-    base_path: str = SOFTMAX_S3_REPLAYS_PREFIX,
+    base_path: str = metta.common.util.constants.SOFTMAX_S3_REPLAYS_PREFIX,
 ) -> None:
     """Merge multiple daily datasets into a single Parquet file.
 
@@ -182,7 +181,12 @@ if __name__ == "__main__":
     parser.add_argument("--end-date", type=str, help="End date (YYYY-MM-DD)")
     parser.add_argument("--merge", action="store_true", help="Merge datasets into single file")
     parser.add_argument("--output", type=str, help="Output path for merged dataset")
-    parser.add_argument("--base-path", type=str, default=SOFTMAX_S3_REPLAYS_PREFIX, help="Base path for datasets")
+    parser.add_argument(
+        "--base-path",
+        type=str,
+        default=metta.common.util.constants.SOFTMAX_S3_REPLAYS_PREFIX,
+        help="Base path for datasets",
+    )
 
     args = parser.parse_args()
 

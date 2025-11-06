@@ -1,14 +1,14 @@
 """Tests for recipe discovery without __init__.py files."""
 
-from metta.common.tool.recipe_registry import recipe_registry
+import metta.common.tool.recipe_registry
 
 
 def test_recipe_discovery_without_init():
     """Test that recipes are discovered even in subdirectories without __init__.py."""
-    recipe_registry.clear()  # Start fresh
-    recipe_registry.discover_all()
+    metta.common.tool.recipe_registry.recipe_registry.clear()  # Start fresh
+    metta.common.tool.recipe_registry.recipe_registry.discover_all()
 
-    recipes = {r.module_name for r in recipe_registry.get_all()}
+    recipes = {r.module_name for r in metta.common.tool.recipe_registry.recipe_registry.get_all()}
 
     # Should find recipes in subdirectories without __init__.py
     # Should find top-level recipes
@@ -26,15 +26,15 @@ def test_recipe_discovery_without_init():
 def test_recipe_registry_get_normalizes_paths():
     """Test that RecipeRegistry.get() handles both short and full paths."""
 
-    recipe_registry.clear()
-    recipe_registry.discover_all()
+    metta.common.tool.recipe_registry.recipe_registry.clear()
+    metta.common.tool.recipe_registry.recipe_registry.discover_all()
 
     # Should work with full path
-    recipe_full = recipe_registry.get("experiments.recipes.arena")
+    recipe_full = metta.common.tool.recipe_registry.recipe_registry.get("experiments.recipes.arena")
     assert recipe_full is not None, "Should find recipe with full path"
 
     # Should work with short path
-    recipe_short = recipe_registry.get("arena")
+    recipe_short = metta.common.tool.recipe_registry.recipe_registry.get("arena")
     assert recipe_short is not None, "Should find recipe with short path"
 
     # Should be the same recipe
@@ -44,10 +44,10 @@ def test_recipe_registry_get_normalizes_paths():
 def test_recipe_short_name():
     """Test Recipe.short_name property."""
 
-    recipe_registry.clear()
-    recipe_registry.discover_all()
+    metta.common.tool.recipe_registry.recipe_registry.clear()
+    metta.common.tool.recipe_registry.recipe_registry.discover_all()
 
-    recipe = recipe_registry.get("arena")
+    recipe = metta.common.tool.recipe_registry.recipe_registry.get("arena")
     assert recipe is not None
 
     assert recipe.module_name == "experiments.recipes.arena"

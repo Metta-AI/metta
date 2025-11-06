@@ -1,14 +1,14 @@
-from typing import Dict
+import typing
 
+import einops
+import tensordict
 import torch
 import torch.nn as nn
-from einops import rearrange
-from tensordict import TensorDict
 
-from metta.agent.components.component_config import ComponentConfig
+import metta.agent.components.component_config
 
 
-class LSTMConfig(ComponentConfig):
+class LSTMConfig(metta.agent.components.component_config.ComponentConfig):
     in_key: str
     out_key: str
     name: str = "lstm"
@@ -57,8 +57,8 @@ class LSTM(nn.Module):
             elif "weight" in name:
                 nn.init.orthogonal_(param, 1)  # torch's default is uniform
 
-        self.lstm_h: Dict[int, torch.Tensor] = {}
-        self.lstm_c: Dict[int, torch.Tensor] = {}
+        self.lstm_h: typing.Dict[int, torch.Tensor] = {}
+        self.lstm_c: typing.Dict[int, torch.Tensor] = {}
 
     def __setstate__(self, state):
         """Ensure LSTM hidden states are properly initialized after loading from checkpoint."""
@@ -73,7 +73,7 @@ class LSTM(nn.Module):
         self.lstm_c.clear()
 
     @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
-    def forward(self, td: TensorDict):
+    def forward(self, td: tensordict.TensorDict):
         latent = td[self.in_key]
 
         if "bptt" not in td.keys():
@@ -91,7 +91,7 @@ class LSTM(nn.Module):
         if "batch" in td.keys():
             B = int(td["batch"][0].item())
 
-        latent = rearrange(latent, "(b t) h -> b t h", b=B, t=TT)
+        latent = einops.rearrange(latent, "(b t) h -> b t h", b=B, t=TT)
 
         # Ensure cuDNN keeps weights in a fused fast-path layout after transfers/checkpoints.
         self.net.flatten_parameters()
@@ -123,7 +123,7 @@ class LSTM(nn.Module):
         self.lstm_h[training_env_id_start] = h_n.detach()
         self.lstm_c[training_env_id_start] = c_n.detach()
 
-        hidden = rearrange(hidden, "b t h -> (b t) h")
+        hidden = einops.rearrange(hidden, "b t h -> (b t) h")
 
         td[self.out_key] = hidden
 

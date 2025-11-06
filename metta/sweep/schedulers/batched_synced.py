@@ -5,40 +5,39 @@ generating a new batch of suggestions. This ensures perfect synchronization
 between batches and is ideal for comparing hyperparameters fairly.
 """
 
-from __future__ import annotations
 
+import dataclasses
 import logging
-from dataclasses import dataclass, field
-from typing import Any
+import typing
 
-from pydantic import Field
+import pydantic
 
-from metta.adaptive.models import JobDefinition, JobStatus, RunInfo
-from metta.adaptive.utils import create_eval_job, create_training_job, generate_run_id
-from mettagrid.base_config import Config
+import metta.adaptive.models
+import metta.adaptive.utils
+import mettagrid.base_config
 
 logger = logging.getLogger(__name__)
 
 
-class BatchedSyncedSchedulerConfig(Config):
+class BatchedSyncedSchedulerConfig(mettagrid.base_config.Config):
     """Configuration for batched synchronized scheduler."""
 
     max_trials: int = 10
     recipe_module: str = "experiments.recipes.arena"
     train_entrypoint: str = "train"
     eval_entrypoint: str = "evaluate"
-    train_overrides: dict[str, Any] = Field(default_factory=dict)
-    eval_overrides: dict[str, Any] = Field(default_factory=dict)
+    train_overrides: dict[str, typing.Any] = pydantic.Field(default_factory=dict)
+    eval_overrides: dict[str, typing.Any] = pydantic.Field(default_factory=dict)
     stats_server_uri: str | None = None
     gpus: int = 1
     nodes: int = 1
     batch_size: int = 4
     experiment_id: str = "batched_synced"
-    protein_config: Any = Field(description="ProteinConfig for optimization")
+    protein_config: typing.Any = pydantic.Field(description="ProteinConfig for optimization")
     force_eval: bool = False  # Force re-dispatch of IN_EVAL jobs on relaunch
 
 
-@dataclass
+@dataclasses.dataclass
 class SchedulerState:
     """State tracking for the batched synchronized scheduler.
 
@@ -46,13 +45,13 @@ class SchedulerState:
     to ensure proper synchronization and prevent duplicate job dispatches.
     """
 
-    runs_in_training: set[str] = field(default_factory=set)
-    runs_in_eval: set[str] = field(default_factory=set)
-    runs_completed: set[str] = field(default_factory=set)
+    runs_in_training: set[str] = dataclasses.field(default_factory=set)
+    runs_in_eval: set[str] = dataclasses.field(default_factory=set)
+    runs_completed: set[str] = dataclasses.field(default_factory=set)
     # Runs detected in IN_EVAL at startup that should be re-evaluated
-    runs_pending_force_eval: set[str] = field(default_factory=set)
+    runs_pending_force_eval: set[str] = dataclasses.field(default_factory=set)
 
-    def model_dump(self) -> dict[str, Any]:
+    def model_dump(self) -> dict[str, typing.Any]:
         """Serialize state to dictionary."""
         return {
             "runs_in_training": list(self.runs_in_training),
@@ -62,7 +61,7 @@ class SchedulerState:
         }
 
     @classmethod
-    def model_validate(cls, data: dict[str, Any]) -> "SchedulerState":
+    def model_validate(cls, data: dict[str, typing.Any]) -> "SchedulerState":
         """Deserialize state from dictionary."""
         return cls(
             runs_in_training=set(data.get("runs_in_training", [])),
@@ -88,10 +87,10 @@ class BatchedSyncedOptimizingScheduler:
         config: BatchedSyncedSchedulerConfig,
         state: SchedulerState | None = None,
     ):
-        from metta.sweep.optimizer.protein import ProteinOptimizer
+        import metta.sweep.optimizer.protein
 
         self.config = config
-        self.optimizer = ProteinOptimizer(config.protein_config)
+        self.optimizer = metta.sweep.optimizer.protein.ProteinOptimizer(config.protein_config)
         self.state = state or SchedulerState()
         self._state_initialized = False  # Track if we've initialized state from runs
         logger.info(
@@ -100,7 +99,7 @@ class BatchedSyncedOptimizingScheduler:
             config.batch_size,
         )
 
-    def _update_state_from_runs(self, runs: list[RunInfo]) -> None:
+    def _update_state_from_runs(self, runs: list[metta.adaptive.models.RunInfo]) -> None:
         """Update internal state from observed run statuses.
 
         Only updates state based on explicitly observed changes.
@@ -130,10 +129,10 @@ class BatchedSyncedOptimizingScheduler:
                 logger.info("[BatchedSyncedOptimizingScheduler] Empty state detected, initializing from observed runs")
                 force_eval_count = 0
                 for run_id, status in run_status_map.items():
-                    if status == JobStatus.IN_TRAINING:
+                    if status == metta.adaptive.models.JobStatus.IN_TRAINING:
                         self.state.runs_in_training.add(run_id)
                         logger.info(f"[BatchedSyncedOptimizingScheduler] Found run {run_id} in training")
-                    elif status == JobStatus.IN_EVAL:
+                    elif status == metta.adaptive.models.JobStatus.IN_EVAL:
                         if self.config.force_eval:
                             # Do not mark as in_eval so we can re-dispatch an eval job
                             logger.info(
@@ -145,7 +144,7 @@ class BatchedSyncedOptimizingScheduler:
                         else:
                             self.state.runs_in_eval.add(run_id)
                             logger.info(f"[BatchedSyncedOptimizingScheduler] Found run {run_id} in evaluation")
-                    elif status == JobStatus.COMPLETED:
+                    elif status == metta.adaptive.models.JobStatus.COMPLETED:
                         self.state.runs_completed.add(run_id)
                         logger.info(f"[BatchedSyncedOptimizingScheduler] Found run {run_id} completed")
                 if self.config.force_eval and force_eval_count > 0:
@@ -167,10 +166,10 @@ class BatchedSyncedOptimizingScheduler:
         for run_id in list(self.state.runs_in_training):
             if run_id in run_status_map:
                 status = run_status_map[run_id]
-                if status == JobStatus.TRAINING_DONE_NO_EVAL:
+                if status == metta.adaptive.models.JobStatus.TRAINING_DONE_NO_EVAL:
                     # Training is done, ready for eval (keep in runs_in_training until eval is dispatched)
                     pass
-                elif status in (JobStatus.FAILED, JobStatus.STALE):
+                elif status in (metta.adaptive.models.JobStatus.FAILED, metta.adaptive.models.JobStatus.STALE):
                     # Remove from training due to failure
                     self.state.runs_in_training.discard(run_id)
                     logger.info(
@@ -181,19 +180,21 @@ class BatchedSyncedOptimizingScheduler:
         for run_id in list(self.state.runs_in_eval):
             if run_id in run_status_map:
                 status = run_status_map[run_id]
-                if status == JobStatus.COMPLETED:
+                if status == metta.adaptive.models.JobStatus.COMPLETED:
                     self.state.runs_in_eval.discard(run_id)
                     self.state.runs_completed.add(run_id)
                     logger.info(f"[BatchedSyncedOptimizingScheduler] Run {run_id} completed evaluation")
-                elif status == JobStatus.FAILED:
+                elif status == metta.adaptive.models.JobStatus.FAILED:
                     # Eval failed, move to completed anyway (won't retry)
                     self.state.runs_in_eval.discard(run_id)
                     self.state.runs_completed.add(run_id)
                     logger.info(f"[BatchedSyncedOptimizingScheduler] Run {run_id} eval failed, marking as completed")
 
-    def schedule(self, runs: list[RunInfo], available_training_slots: int) -> list[JobDefinition]:
+    def schedule(
+        self, runs: list[metta.adaptive.models.RunInfo], available_training_slots: int
+    ) -> list[metta.adaptive.models.JobDefinition]:
         """Schedule next jobs based on current state and available resources."""
-        jobs: list[JobDefinition] = []
+        jobs: list[metta.adaptive.models.JobDefinition] = []
 
         # Update internal state from observed runs
         self._update_state_from_runs(runs)
@@ -208,7 +209,7 @@ class BatchedSyncedOptimizingScheduler:
                     self.state.runs_pending_force_eval.discard(run_id)
                     continue
 
-                job = create_eval_job(
+                job = metta.adaptive.utils.create_eval_job(
                     run_id=run_id,
                     experiment_id=self.config.experiment_id,
                     recipe_module=self.config.recipe_module,
@@ -226,14 +227,14 @@ class BatchedSyncedOptimizingScheduler:
                 return jobs
 
         # 1) Schedule evals for any runs with training done but no eval yet
-        eval_candidates = [r for r in runs if r.status == JobStatus.TRAINING_DONE_NO_EVAL]
+        eval_candidates = [r for r in runs if r.status == metta.adaptive.models.JobStatus.TRAINING_DONE_NO_EVAL]
         for run in eval_candidates:
             # Check if we've already dispatched eval for this run
             if run.run_id in self.state.runs_in_eval:
                 logger.debug(f"[BatchedSyncedOptimizingScheduler] Eval already dispatched for {run.run_id}, skipping")
                 continue
 
-            job = create_eval_job(
+            job = metta.adaptive.utils.create_eval_job(
                 run_id=run.run_id,
                 experiment_id=self.config.experiment_id,
                 recipe_module=self.config.recipe_module,
@@ -303,11 +304,11 @@ class BatchedSyncedOptimizingScheduler:
         base_trial_num = total_created
         for i, suggestion in enumerate(suggestions):
             trial_num = base_trial_num + i + 1
-            run_id = generate_run_id(self.config.experiment_id, trial_num)
+            run_id = metta.adaptive.utils.generate_run_id(self.config.experiment_id, trial_num)
 
             merged_overrides = dict(self.config.train_overrides)
             merged_overrides.update(suggestion)
-            job = create_training_job(
+            job = metta.adaptive.utils.create_training_job(
                 run_id=run_id,
                 experiment_id=self.config.experiment_id,
                 recipe_module=self.config.recipe_module,
@@ -328,12 +329,21 @@ class BatchedSyncedOptimizingScheduler:
 
         return jobs
 
-    def is_experiment_complete(self, runs: list[RunInfo]) -> bool:
+    def is_experiment_complete(self, runs: list[metta.adaptive.models.RunInfo]) -> bool:
         # Count all finished runs (COMPLETED, FAILED, STALE) toward the trial limit
-        finished = [r for r in runs if r.status in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.STALE)]
+        finished = [
+            r
+            for r in runs
+            if r.status
+            in (
+                metta.adaptive.models.JobStatus.COMPLETED,
+                metta.adaptive.models.JobStatus.FAILED,
+                metta.adaptive.models.JobStatus.STALE,
+            )
+        ]
         is_done = len(finished) >= self.config.max_trials
         if is_done:
-            completed = [r for r in runs if r.status == JobStatus.COMPLETED]
+            completed = [r for r in runs if r.status == metta.adaptive.models.JobStatus.COMPLETED]
             logger.info(
                 "[BatchedSyncedOptimizingScheduler] Experiment complete! %s/%s trials finished (%s successful)",
                 len(finished),
@@ -342,16 +352,16 @@ class BatchedSyncedOptimizingScheduler:
             )
         return is_done
 
-    def _collect_observations(self, runs: list[RunInfo]) -> list[dict[str, Any]]:
+    def _collect_observations(self, runs: list[metta.adaptive.models.RunInfo]) -> list[dict[str, typing.Any]]:
         """Extract observations from run summaries written by sweep hooks.
 
         Only collects observations from COMPLETED runs to ensure we're learning
         from reliable, complete training results.
         """
-        obs_list: list[dict[str, Any]] = []
+        obs_list: list[dict[str, typing.Any]] = []
         for run in runs:
             # Only collect observations from completed runs
-            if run.status != JobStatus.COMPLETED:
+            if run.status != metta.adaptive.models.JobStatus.COMPLETED:
                 continue
 
             summary = run.summary if isinstance(run.summary, dict) else {}

@@ -1,10 +1,10 @@
 """Tests for automatic alignment of vectorized environment configuration."""
 
-from cogames.train import _resolve_vector_counts
+import cogames.train
 
 
 def test_align_defaults_prefers_divisor_reduction() -> None:
-    aligned_envs, aligned_workers = _resolve_vector_counts(
+    aligned_envs, aligned_workers = cogames.train._resolve_vector_counts(
         256,
         10,
         envs_user_supplied=False,
@@ -16,7 +16,7 @@ def test_align_defaults_prefers_divisor_reduction() -> None:
 
 
 def test_align_respects_user_envs_by_shrinking_workers() -> None:
-    aligned_envs, aligned_workers = _resolve_vector_counts(
+    aligned_envs, aligned_workers = cogames.train._resolve_vector_counts(
         150,
         16,
         envs_user_supplied=True,
@@ -28,7 +28,7 @@ def test_align_respects_user_envs_by_shrinking_workers() -> None:
 
 
 def test_align_respects_user_workers_by_growing_envs() -> None:
-    aligned_envs, aligned_workers = _resolve_vector_counts(
+    aligned_envs, aligned_workers = cogames.train._resolve_vector_counts(
         256,
         12,
         envs_user_supplied=False,
@@ -40,7 +40,7 @@ def test_align_respects_user_workers_by_growing_envs() -> None:
 
 
 def test_align_leaves_user_pair_unchanged() -> None:
-    aligned_envs, aligned_workers = _resolve_vector_counts(
+    aligned_envs, aligned_workers = cogames.train._resolve_vector_counts(
         50,
         12,
         envs_user_supplied=True,
@@ -52,7 +52,7 @@ def test_align_leaves_user_pair_unchanged() -> None:
 
 
 def test_align_leaves_underfilled_worker_pair() -> None:
-    aligned_envs, aligned_workers = _resolve_vector_counts(
+    aligned_envs, aligned_workers = cogames.train._resolve_vector_counts(
         4,
         8,
         envs_user_supplied=True,

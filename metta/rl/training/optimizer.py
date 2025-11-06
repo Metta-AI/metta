@@ -1,16 +1,18 @@
 import logging
 
+import heavyball
 import schedulefree
 import torch
-from heavyball import ForeachMuon
 
-from metta.agent.policy import Policy
-from metta.rl.trainer_config import OptimizerConfig
+import metta.agent.policy
+import metta.rl.trainer_config
 
 logger = logging.getLogger(__name__)
 
 
-def create_optimizer(cfg: OptimizerConfig, policy: Policy) -> torch.optim.Optimizer:
+def create_optimizer(
+    cfg: metta.rl.trainer_config.OptimizerConfig, policy: metta.agent.policy.Policy
+) -> torch.optim.Optimizer:
     """Create optimizer and load state if available."""
     optimizer_type = cfg.type
 
@@ -23,7 +25,7 @@ def create_optimizer(cfg: OptimizerConfig, policy: Policy) -> torch.optim.Optimi
             weight_decay=cfg.weight_decay,
         )
     elif optimizer_type == "muon":
-        optimizer = ForeachMuon(
+        optimizer = heavyball.ForeachMuon(
             policy.parameters(),
             lr=cfg.learning_rate,
             betas=(cfg.beta1, cfg.beta2),

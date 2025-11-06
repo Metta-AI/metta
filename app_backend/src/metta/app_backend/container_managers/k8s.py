@@ -3,14 +3,14 @@ import logging
 import os
 import subprocess
 
-from metta.app_backend.container_managers.base import AbstractContainerManager
-from metta.app_backend.worker_managers.worker import Worker
-from metta.common.datadog.config import datadog_config
+import metta.app_backend.container_managers.base
+import metta.app_backend.worker_managers.worker
+import metta.common.datadog.config
 
 logger = logging.getLogger(__name__)
 
 
-class K8sPodManager(AbstractContainerManager):
+class K8sPodManager(metta.app_backend.container_managers.base.AbstractContainerManager):
     def __init__(self, namespace: str | None = None, kubeconfig: str | None = None, wandb_api_key: str | None = None):
         self._namespace = namespace or os.environ.get("KUBERNETES_NAMESPACE", "orchestrator")
         self._kubeconfig = kubeconfig or os.environ.get("KUBERNETES_KUBECONFIG", None)
@@ -54,7 +54,10 @@ class K8sPodManager(AbstractContainerManager):
                             {"name": "WORKER_ASSIGNEE", "value": pod_name},
                             {"name": "WANDB_API_KEY", "value": self._wandb_api_key},
                             {"name": "MACHINE_TOKEN", "value": machine_token},
-                            *[{"name": k, "value": str(v)} for k, v in datadog_config.to_env_dict().items()],
+                            *[
+                                {"name": k, "value": str(v)}
+                                for k, v in metta.common.datadog.config.datadog_config.to_env_dict().items()
+                            ],
                             {"name": "DD_SERVICE", "value": "eval-worker"},
                         ],
                         "resources": {
@@ -116,14 +119,14 @@ class K8sPodManager(AbstractContainerManager):
         except Exception as e:
             logger.warning(f"Unexpected error cleaning up pod {pod_name}: {e}", exc_info=True)
 
-    async def discover_alive_workers(self) -> list[Worker]:
+    async def discover_alive_workers(self) -> list[metta.app_backend.worker_managers.worker.Worker]:
         # Get pods with eval-worker label
         cmd = self._get_kubectl_cmd() + ["get", "pods", "-l", "app=eval-worker", "-o", "json"]
 
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
 
         pods_data = json.loads(result.stdout)
-        workers: list[Worker] = []
+        workers: list[metta.app_backend.worker_managers.worker.Worker] = []
 
         for pod in pods_data.get("items", []):
             metadata = pod.get("metadata", {})
@@ -136,7 +139,7 @@ class K8sPodManager(AbstractContainerManager):
             if not deletion_timestamp:
                 pod_name = metadata.get("name", "")
                 if pod_name.startswith("eval-worker-"):
-                    workers.append(Worker(name=pod_name, status=phase))
+                    workers.append(metta.app_backend.worker_managers.worker.Worker(name=pod_name, status=phase))
 
         if workers:
             logger.info(f"Discovered {len(workers)} alive workers in Kubernetes")

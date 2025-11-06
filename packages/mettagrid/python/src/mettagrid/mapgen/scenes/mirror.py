@@ -1,37 +1,37 @@
-from typing import Literal
+import typing
 
-from pydantic import ConfigDict, Field
+import pydantic
 
-from mettagrid.mapgen.area import Area, AreaWhere
-from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig
+import mettagrid.mapgen.area
+import mettagrid.mapgen.scene
 
-Symmetry = Literal["horizontal", "vertical", "x4"]
+Symmetry = typing.Literal["horizontal", "vertical", "x4"]
 
 
 def _make_area_if_positive(
-    scene: Scene,
+    scene: mettagrid.mapgen.scene.Scene,
     x: int,
     y: int,
     width: int,
     height: int,
     tags: list[str],
-) -> Area | None:
+) -> mettagrid.mapgen.area.Area | None:
     if width <= 0 or height <= 0:
         return None
     return scene.make_area(x, y, width, height, tags=tags)
 
 
-class MirrorConfig(SceneConfig):
-    scene: SceneConfig
+class MirrorConfig(mettagrid.mapgen.scene.SceneConfig):
+    scene: mettagrid.mapgen.scene.SceneConfig
     symmetry: Symmetry = "horizontal"
 
 
-class InnerMirrorConfig(SceneConfig):
-    scene: SceneConfig
+class InnerMirrorConfig(mettagrid.mapgen.scene.SceneConfig):
+    scene: mettagrid.mapgen.scene.SceneConfig
 
 
-class Mirror(Scene[MirrorConfig]):
-    def get_children(self) -> list[ChildrenAction]:
+class Mirror(mettagrid.mapgen.scene.Scene[MirrorConfig]):
+    def get_children(self) -> list[mettagrid.mapgen.scene.ChildrenAction]:
         symmetry_to_child_class = {
             "horizontal": HorizontalMirror,
             "vertical": VerticalMirror,
@@ -39,7 +39,7 @@ class Mirror(Scene[MirrorConfig]):
         }
 
         return [
-            ChildrenAction(
+            mettagrid.mapgen.scene.ChildrenAction(
                 scene=symmetry_to_child_class[self.config.symmetry].Config(scene=self.config.scene),
                 where="full",
             ),
@@ -53,16 +53,16 @@ class HorizontalMirrorConfig(InnerMirrorConfig):
     pass
 
 
-class HorizontalMirror(Scene[HorizontalMirrorConfig]):
-    def get_children(self) -> list[ChildrenAction]:
+class HorizontalMirror(mettagrid.mapgen.scene.Scene[HorizontalMirrorConfig]):
+    def get_children(self) -> list[mettagrid.mapgen.scene.ChildrenAction]:
         return [
-            ChildrenAction(
+            mettagrid.mapgen.scene.ChildrenAction(
                 scene=self.config.scene,
-                where=AreaWhere(tags=["original"]),
+                where=mettagrid.mapgen.area.AreaWhere(tags=["original"]),
             ),
-            ChildrenAction(
+            mettagrid.mapgen.scene.ChildrenAction(
                 scene=Mirrored.Config(parent=self, flip_x=True),
-                where=AreaWhere(tags=["mirrored"]),
+                where=mettagrid.mapgen.area.AreaWhere(tags=["mirrored"]),
             ),
         ]
 
@@ -79,16 +79,16 @@ class VerticalMirrorConfig(InnerMirrorConfig):
     pass
 
 
-class VerticalMirror(Scene[VerticalMirrorConfig]):
-    def get_children(self) -> list[ChildrenAction]:
+class VerticalMirror(mettagrid.mapgen.scene.Scene[VerticalMirrorConfig]):
+    def get_children(self) -> list[mettagrid.mapgen.scene.ChildrenAction]:
         return [
-            ChildrenAction(
+            mettagrid.mapgen.scene.ChildrenAction(
                 scene=self.config.scene,
-                where=AreaWhere(tags=["original"]),
+                where=mettagrid.mapgen.area.AreaWhere(tags=["original"]),
             ),
-            ChildrenAction(
+            mettagrid.mapgen.scene.ChildrenAction(
                 scene=Mirrored.Config(parent=self, flip_y=True),
-                where=AreaWhere(tags=["mirrored"]),
+                where=mettagrid.mapgen.area.AreaWhere(tags=["mirrored"]),
             ),
         ]
 
@@ -105,21 +105,23 @@ class X4MirrorConfig(InnerMirrorConfig):
     pass
 
 
-class X4Mirror(Scene[X4MirrorConfig]):
-    def get_children(self) -> list[ChildrenAction]:
+class X4Mirror(mettagrid.mapgen.scene.Scene[X4MirrorConfig]):
+    def get_children(self) -> list[mettagrid.mapgen.scene.ChildrenAction]:
         return [
-            ChildrenAction(scene=self.config.scene, where=AreaWhere(tags=["original"])),
-            ChildrenAction(
+            mettagrid.mapgen.scene.ChildrenAction(
+                scene=self.config.scene, where=mettagrid.mapgen.area.AreaWhere(tags=["original"])
+            ),
+            mettagrid.mapgen.scene.ChildrenAction(
                 scene=Mirrored.Config(parent=self, flip_x=True),
-                where=AreaWhere(tags=["mirrored_x"]),
+                where=mettagrid.mapgen.area.AreaWhere(tags=["mirrored_x"]),
             ),
-            ChildrenAction(
+            mettagrid.mapgen.scene.ChildrenAction(
                 scene=Mirrored.Config(parent=self, flip_y=True),
-                where=AreaWhere(tags=["mirrored_y"]),
+                where=mettagrid.mapgen.area.AreaWhere(tags=["mirrored_y"]),
             ),
-            ChildrenAction(
+            mettagrid.mapgen.scene.ChildrenAction(
                 scene=Mirrored.Config(parent=self, flip_x=True, flip_y=True),
-                where=AreaWhere(tags=["mirrored_xy"]),
+                where=mettagrid.mapgen.area.AreaWhere(tags=["mirrored_xy"]),
             ),
         ]
 
@@ -137,15 +139,15 @@ class X4Mirror(Scene[X4MirrorConfig]):
         _make_area_if_positive(self, sub_width, sub_height, mirrored_width, mirrored_height, ["mirrored_xy"])
 
 
-class MirroredConfig(SceneConfig):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-    parent: VerticalMirror | HorizontalMirror | X4Mirror = Field(exclude=True)
+class MirroredConfig(mettagrid.mapgen.scene.SceneConfig):
+    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True)
+    parent: VerticalMirror | HorizontalMirror | X4Mirror = pydantic.Field(exclude=True)
     flip_x: bool = False
     flip_y: bool = False
 
 
 # Helper scene, shouldn't be used directly. (Its params are not serializable.)
-class Mirrored(Scene[MirroredConfig]):
+class Mirrored(mettagrid.mapgen.scene.Scene[MirroredConfig]):
     def render(self):
         original_grid = self.config.parent._original_mirror_area.grid
         slice_x = slice(self.width - 1, None, -1) if self.config.flip_x else slice(self.width)

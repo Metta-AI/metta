@@ -4,23 +4,22 @@ DuckDB-based implementation of StatsWriter for recording episode statistics.
 
 import datetime
 import os
+import pathlib
+import typing
 import uuid
-from pathlib import Path
-from typing import Dict
 
-from mettagrid.util.stats_writer import StatsWriter
-
-from .episode_stats_db import EpisodeStatsDB
+import metta.sim.stats.episode_stats_db
+import mettagrid.util.stats_writer
 
 
-class DuckDBStatsWriter(StatsWriter):
+class DuckDBStatsWriter(mettagrid.util.stats_writer.StatsWriter):
     """
     DuckDB implementation of StatsWriter for tracking statistics in MettaGrid.
     Can be used by multiple environments simultaneously.
     Safe to serialize/deserialize with multiprocessing as long as we have not yet created a connection to a duckdb file.
     """
 
-    def __init__(self, dir: Path) -> None:
+    def __init__(self, dir: pathlib.Path) -> None:
         super().__init__(dir)
         # We do not pick a specific path or open a connection here,
         # because for simplicity we pass a single StatsWriter as an
@@ -35,14 +34,14 @@ class DuckDBStatsWriter(StatsWriter):
             # Create a random filename for the duckdb file within the specified directory.
             # This ensures that each process has a unique file, and that
             # the file is not locked by another process.
-            path = Path(self.dir) / f"{os.getpid()}_{uuid.uuid4().hex[:6]}.duckdb"
-            self.db = EpisodeStatsDB(path)
+            path = pathlib.Path(self.dir) / f"{os.getpid()}_{uuid.uuid4().hex[:6]}.duckdb"
+            self.db = metta.sim.stats.episode_stats_db.EpisodeStatsDB(path)
 
     def record_episode(
         self,
-        attributes: Dict[str, str],
-        agent_metrics: Dict[int, Dict[str, float]],
-        agent_groups: Dict[int, int],
+        attributes: typing.Dict[str, str],
+        agent_metrics: typing.Dict[int, typing.Dict[str, float]],
+        agent_groups: typing.Dict[int, int],
         step_count: int,
         replay_url: str | None,
         created_at: datetime.datetime,

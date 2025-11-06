@@ -1,22 +1,22 @@
-from abc import abstractmethod
-from typing import Literal
+import abc
+import typing
 
-from pydantic import BaseModel
+import pydantic
 
-from metta.common.tool.tool import Tool
+import metta.common.tool.tool
 
 
-class JobResult(BaseModel):
-    result: Literal["success", "failure"]
+class JobResult(pydantic.BaseModel):
+    result: typing.Literal["success", "failure"]
     warnings: list[str] = []
     error: str | None = None
     output_uri: str | None = None
 
 
-class RemoteJobTool(Tool):
+class RemoteJobTool(metta.common.tool.tool.Tool):
     job_result_file_path: str
 
-    @abstractmethod
+    @abc.abstractmethod
     def run_job(self) -> JobResult: ...
 
     def invoke(self, args: dict[str, str]) -> int | None:

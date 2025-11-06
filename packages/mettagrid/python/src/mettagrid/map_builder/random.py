@@ -1,17 +1,17 @@
-from typing import Optional
+import typing
 
 import numpy as np
 
-from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
-from mettagrid.map_builder.utils import draw_border
+import mettagrid.map_builder.map_builder
+import mettagrid.map_builder.utils
 
 
-class RandomMapBuilderConfig(MapBuilderConfig["RandomMapBuilder"]):
+class RandomMapBuilderConfig(mettagrid.map_builder.map_builder.MapBuilderConfig["RandomMapBuilder"]):
     """
     Configuration for building a random map.
     """
 
-    seed: Optional[int] = None
+    seed: typing.Optional[int] = None
 
     width: int = 10
     height: int = 10
@@ -21,7 +21,7 @@ class RandomMapBuilderConfig(MapBuilderConfig["RandomMapBuilder"]):
     border_object: str = "wall"
 
 
-class RandomMapBuilder(MapBuilder[RandomMapBuilderConfig]):
+class RandomMapBuilder(mettagrid.map_builder.map_builder.MapBuilder[RandomMapBuilderConfig]):
     def __init__(self, config: RandomMapBuilderConfig):
         super().__init__(config)
         self._rng = np.random.default_rng(self.config.seed)
@@ -36,7 +36,7 @@ class RandomMapBuilder(MapBuilder[RandomMapBuilderConfig]):
 
         # Draw border first if needed
         if self.config.border_width > 0:
-            draw_border(grid, self.config.border_width, self.config.border_object)
+            mettagrid.map_builder.utils.draw_border(grid, self.config.border_width, self.config.border_object)
 
         # Calculate inner area where objects can be placed
         if self.config.border_width > 0:
@@ -49,7 +49,7 @@ class RandomMapBuilder(MapBuilder[RandomMapBuilderConfig]):
             inner_area = self.config.width * self.config.height
 
         if inner_area <= 0:
-            return GameMap(grid)  # No room for objects, return border-only grid
+            return mettagrid.map_builder.map_builder.GameMap(grid)  # No room for objects, return border-only grid
 
         # Prepare agent symbols
         if isinstance(self.config.agents, int):
@@ -93,4 +93,4 @@ class RandomMapBuilder(MapBuilder[RandomMapBuilderConfig]):
         else:
             grid = inner_grid
 
-        return GameMap(grid)
+        return mettagrid.map_builder.map_builder.GameMap(grid)

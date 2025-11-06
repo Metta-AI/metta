@@ -1,24 +1,25 @@
 """Registry system for block types."""
 
-from __future__ import annotations
 
-from typing import Callable, Dict, Type
+import typing
 
-from cortex.blocks.base import BaseBlock
-from cortex.cells.base import MemoryCell
-from cortex.config import BlockConfig
+import cortex.blocks.base
+import cortex.cells.base
+import cortex.config
 
 # Type for block builder functions
-BlockBuilder = Callable[[BlockConfig, int, MemoryCell], BaseBlock]
+BlockBuilder = typing.Callable[
+    [cortex.config.BlockConfig, int, cortex.cells.base.MemoryCell], cortex.blocks.base.BaseBlock
+]
 
 # Global registry of block types
-_BLOCK_REGISTRY: Dict[Type[BlockConfig], Type[BaseBlock]] = {}
+_BLOCK_REGISTRY: typing.Dict[typing.Type[cortex.config.BlockConfig], typing.Type[cortex.blocks.base.BaseBlock]] = {}
 
 # Tag -> config class mapping for robust JSON round‑trip
-_BLOCK_CONFIG_BY_TAG: Dict[str, type[BlockConfig]] = {}
+_BLOCK_CONFIG_BY_TAG: typing.Dict[str, type[cortex.config.BlockConfig]] = {}
 
 
-def _get_block_tag(config_class: type[BlockConfig]) -> str:
+def _get_block_tag(config_class: type[cortex.config.BlockConfig]) -> str:
     field = config_class.model_fields["block_type"]  # type: ignore[attr-defined]
     tag = field.default  # type: ignore[assignment]
     if isinstance(tag, str) and tag:
@@ -26,10 +27,10 @@ def _get_block_tag(config_class: type[BlockConfig]) -> str:
     raise ValueError(f"Block config {config_class.__name__} must define a default 'block_type' field")
 
 
-def register_block(config_class: Type[BlockConfig]) -> Callable:
+def register_block(config_class: typing.Type[cortex.config.BlockConfig]) -> typing.Callable:
     """Register decorator linking block class to its configuration type."""
 
-    def decorator(block_class: Type[BaseBlock]) -> Type[BaseBlock]:
+    def decorator(block_class: typing.Type[cortex.blocks.base.BaseBlock]) -> typing.Type[cortex.blocks.base.BaseBlock]:
         _BLOCK_REGISTRY[config_class] = block_class
         # Also store a reference in the config class for convenience
         config_class._block_class = block_class  # type: ignore[attr-defined]
@@ -47,7 +48,7 @@ def register_block(config_class: Type[BlockConfig]) -> Callable:
     return decorator
 
 
-def get_block_class(config: BlockConfig) -> Type[BaseBlock]:
+def get_block_class(config: cortex.config.BlockConfig) -> typing.Type[cortex.blocks.base.BaseBlock]:
     """Lookup block class from configuration instance."""
     config_type = type(config)
 
@@ -62,13 +63,15 @@ def get_block_class(config: BlockConfig) -> Type[BaseBlock]:
     raise ValueError(f"No block class registered for config type {config_type.__name__}")
 
 
-def get_block_config_class(tag: str) -> type[BlockConfig]:
+def get_block_config_class(tag: str) -> type[cortex.config.BlockConfig]:
     if tag not in _BLOCK_CONFIG_BY_TAG:
         raise KeyError(f"Unknown block_type tag '{tag}' — is the block registered?")
     return _BLOCK_CONFIG_BY_TAG[tag]
 
 
-def build_block(config: BlockConfig, d_hidden: int, cell: MemoryCell) -> BaseBlock:
+def build_block(
+    config: cortex.config.BlockConfig, d_hidden: int, cell: cortex.cells.base.MemoryCell
+) -> cortex.blocks.base.BaseBlock:
     """Instantiate block from configuration using registry lookup."""
     block_class = get_block_class(config)
     return block_class(config=config, d_hidden=d_hidden, cell=cell)

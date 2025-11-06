@@ -1,14 +1,13 @@
 """Utilities for backend selection and Triton availability checks."""
 
-from __future__ import annotations
 
 import importlib
 import logging
 import os
-from typing import Callable
+import typing
 
 import torch
-from torch._dynamo import disable
+import torch._dynamo
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +28,7 @@ else:
         TRITON_AVAILABLE = False
 
 
-def _lazy_import(fn_or_path: Callable | str | None) -> Callable | None:
+def _lazy_import(fn_or_path: typing.Callable | str | None) -> typing.Callable | None:
     """Import function from string path or return callable as-is.
 
     Args:
@@ -51,16 +50,16 @@ def _lazy_import(fn_or_path: Callable | str | None) -> Callable | None:
         return None
 
 
-@disable
+@torch._dynamo.disable
 def select_backend(
-    triton_fn: Callable | str | None,
-    pytorch_fn: Callable | str,
+    triton_fn: typing.Callable | str | None,
+    pytorch_fn: typing.Callable | str,
     tensor: torch.Tensor,
     *,
     allow_triton: bool = True,
-    cuda_fn: Callable | str | None = None,
+    cuda_fn: typing.Callable | str | None = None,
     allow_cuda: bool = False,
-) -> Callable:
+) -> typing.Callable:
     """Select CUDA, Triton, or PyTorch backend with lazy loading support.
 
     Args:

@@ -1,31 +1,17 @@
+import cortex
 import torch
-from cortex import (
-    AxonLayer,
-    ColumnBlockConfig,
-    CortexStackConfig,
-    LSTMCellConfig,
-    PostUpBlockConfig,
-    PreUpBlockConfig,
-    RouterConfig,
-    XLCellConfig,
-    build_column_auto_block,
-    build_column_auto_config,
-    build_cortex,
-    mLSTMCellConfig,
-    sLSTMCellConfig,
-)
 
 
 def _stack_with_column(d_hidden: int = 64, k: int = 3):
     experts = [
-        PreUpBlockConfig(cell=LSTMCellConfig(hidden_size=None), proj_factor=2.0),
-        PostUpBlockConfig(cell=LSTMCellConfig(hidden_size=None), proj_factor=1.5),
+        cortex.PreUpBlockConfig(cell=cortex.LSTMCellConfig(hidden_size=None), proj_factor=2.0),
+        cortex.PostUpBlockConfig(cell=cortex.LSTMCellConfig(hidden_size=None), proj_factor=1.5),
     ]
     experts = (experts * ((k + len(experts) - 1) // len(experts)))[:k]
 
-    col = ColumnBlockConfig(experts=experts, router=RouterConfig(d_key=None, temperature=1.0, top_k=None))
-    cfg = CortexStackConfig(d_hidden=d_hidden, blocks=[col], post_norm=False, compile_blocks=True)
-    return build_cortex(cfg)
+    col = cortex.ColumnBlockConfig(experts=experts, router=cortex.RouterConfig(d_key=None, temperature=1.0, top_k=None))
+    cfg = cortex.CortexStackConfig(d_hidden=d_hidden, blocks=[col], post_norm=False, compile_blocks=True)
+    return cortex.build_cortex(cfg)
 
 
 def test_column_shapes_and_state():
@@ -69,9 +55,8 @@ def test_router_uniform_init():
     d_hidden = 16
     k = 4
     stack = _stack_with_column(d_hidden=d_hidden, k=k)
-    from cortex import ColumnBlock as _ColumnBlock
 
-    col = next(b for b in stack.blocks if isinstance(b, _ColumnBlock))
+    col = next(b for b in stack.blocks if isinstance(b, cortex.ColumnBlock))
     B2, T2 = 2, 3
     x = torch.randn(B2, T2, d_hidden)
     expert_outs = []
@@ -85,53 +70,53 @@ def test_router_uniform_init():
 
 
 def test_auto_config_builtin_patterns():
-    cfg = build_column_auto_config(d_hidden=64, pattern="AXMS")
-    assert isinstance(cfg, ColumnBlockConfig)
+    cfg = cortex.build_column_auto_config(d_hidden=64, pattern="AXMS")
+    assert isinstance(cfg, cortex.ColumnBlockConfig)
     assert len(cfg.experts) == 4
 
-    cfg2 = build_column_auto_config(d_hidden=64, pattern="A X M S")
+    cfg2 = cortex.build_column_auto_config(d_hidden=64, pattern="A X M S")
     assert len(cfg2.experts) == 4
 
-    cfg3 = build_column_auto_config(d_hidden=64, pattern="M^X^S^")
+    cfg3 = cortex.build_column_auto_config(d_hidden=64, pattern="M^X^S^")
     assert len(cfg3.experts) == 3
-    assert isinstance(cfg3.experts[0], PreUpBlockConfig)
-    assert isinstance(cfg3.experts[1], PostUpBlockConfig)
-    assert isinstance(cfg3.experts[2], PostUpBlockConfig)
+    assert isinstance(cfg3.experts[0], cortex.PreUpBlockConfig)
+    assert isinstance(cfg3.experts[1], cortex.PostUpBlockConfig)
+    assert isinstance(cfg3.experts[2], cortex.PostUpBlockConfig)
 
 
 def test_auto_config_custom_overrides_and_tokens():
     custom = {
-        "M": PreUpBlockConfig(cell=mLSTMCellConfig(num_heads=8, chunk_size=32)),
-        "M^": PreUpBlockConfig(cell=mLSTMCellConfig(use_axon_layer=True, use_axon_qkv=False)),
-        "P": PostUpBlockConfig(cell=sLSTMCellConfig(num_heads=2)),
+        "M": cortex.PreUpBlockConfig(cell=cortex.mLSTMCellConfig(num_heads=8, chunk_size=32)),
+        "M^": cortex.PreUpBlockConfig(cell=cortex.mLSTMCellConfig(use_axon_layer=True, use_axon_qkv=False)),
+        "P": cortex.PostUpBlockConfig(cell=cortex.sLSTMCellConfig(num_heads=2)),
     }
-    cfg = build_column_auto_config(d_hidden=64, pattern="A P M M^", custom_map=custom)
+    cfg = cortex.build_column_auto_config(d_hidden=64, pattern="A P M M^", custom_map=custom)
     assert len(cfg.experts) == 4
-    assert isinstance(cfg.experts[2], PreUpBlockConfig)
-    assert isinstance(cfg.experts[2].cell, mLSTMCellConfig)
+    assert isinstance(cfg.experts[2], cortex.PreUpBlockConfig)
+    assert isinstance(cfg.experts[2].cell, cortex.mLSTMCellConfig)
     assert cfg.experts[2].cell.num_heads == 8
     assert cfg.experts[2].cell.chunk_size == 32
-    assert isinstance(cfg.experts[3].cell, mLSTMCellConfig)
+    assert isinstance(cfg.experts[3].cell, cortex.mLSTMCellConfig)
     assert cfg.experts[3].cell.use_axon_layer is True
     assert cfg.experts[3].cell.use_axon_qkv is False
 
 
 def test_auto_config_axonify_flags():
-    cfg = build_column_auto_config(d_hidden=64, pattern="M^X^S^")
+    cfg = cortex.build_column_auto_config(d_hidden=64, pattern="M^X^S^")
     m_cfg = cfg.experts[0]
     x_cfg = cfg.experts[1]
     s_cfg = cfg.experts[2]
-    assert isinstance(m_cfg, PreUpBlockConfig)
-    assert isinstance(x_cfg, PostUpBlockConfig)
-    assert isinstance(s_cfg, PostUpBlockConfig)
-    assert isinstance(m_cfg.cell, mLSTMCellConfig) and m_cfg.cell.use_axon_layer and m_cfg.cell.use_axon_qkv
-    assert isinstance(x_cfg.cell, XLCellConfig) and x_cfg.cell.use_axon_qkv
-    assert isinstance(s_cfg.cell, sLSTMCellConfig) and s_cfg.cell.use_axon_layer
+    assert isinstance(m_cfg, cortex.PreUpBlockConfig)
+    assert isinstance(x_cfg, cortex.PostUpBlockConfig)
+    assert isinstance(s_cfg, cortex.PostUpBlockConfig)
+    assert isinstance(m_cfg.cell, cortex.mLSTMCellConfig) and m_cfg.cell.use_axon_layer and m_cfg.cell.use_axon_qkv
+    assert isinstance(x_cfg.cell, cortex.XLCellConfig) and x_cfg.cell.use_axon_qkv
+    assert isinstance(s_cfg.cell, cortex.sLSTMCellConfig) and s_cfg.cell.use_axon_layer
 
 
 def test_auto_block_forward_and_state():
     d_hidden = 32
-    block = build_column_auto_block(d_hidden=d_hidden, pattern="AXMSM^X^S^")
+    block = cortex.build_column_auto_block(d_hidden=d_hidden, pattern="AXMSM^X^S^")
     B, T = 2, 5
     x = torch.randn(B, T, d_hidden)
     state = block.init_state(batch=B, device=x.device, dtype=x.dtype)
@@ -139,30 +124,30 @@ def test_auto_block_forward_and_state():
     assert y.shape == x.shape
     assert new_state.batch_size[0] == B
 
-    col_cfg = build_column_auto_config(d_hidden=d_hidden, pattern="AXMS")
-    stack_cfg = CortexStackConfig(d_hidden=d_hidden, blocks=[col_cfg], post_norm=False)
-    stack = build_cortex(stack_cfg)
+    col_cfg = cortex.build_column_auto_config(d_hidden=d_hidden, pattern="AXMS")
+    stack_cfg = cortex.CortexStackConfig(d_hidden=d_hidden, blocks=[col_cfg], post_norm=False)
+    stack = cortex.build_cortex(stack_cfg)
     x_step = torch.randn(B, d_hidden)
     y_step, _ = stack.step(x_step, stack.init_state(batch=B, device=x_step.device, dtype=x_step.dtype))
     assert y_step.shape == x_step.shape
 
 
 def test_auto_router_override():
-    router = RouterConfig(d_key=128, top_k=2, temperature=0.7)
-    cfg = build_column_auto_config(d_hidden=64, pattern="AXMS", router=router)
+    router = cortex.RouterConfig(d_key=128, top_k=2, temperature=0.7)
+    cfg = cortex.build_column_auto_config(d_hidden=64, pattern="AXMS", router=router)
     assert cfg.router.d_key == 128
     assert cfg.router.top_k == 2
     assert cfg.router.temperature == 0.7
 
 
 def test_auto_block_axonified_modules():
-    block = build_column_auto_block(d_hidden=32, pattern="M^X^S^")
+    block = cortex.build_column_auto_block(d_hidden=32, pattern="M^X^S^")
     m_cell = block.experts[0].cell  # type: ignore[attr-defined]
     assert m_cell.use_axon_qkv is True
-    assert isinstance(m_cell.igate, AxonLayer) and isinstance(m_cell.fgate, AxonLayer)
+    assert isinstance(m_cell.igate, cortex.AxonLayer) and isinstance(m_cell.fgate, cortex.AxonLayer)
     x_cell = block.experts[1].cell  # type: ignore[attr-defined]
-    assert isinstance(x_cell.q_proj, AxonLayer)
-    assert isinstance(x_cell.k_proj, AxonLayer)
-    assert isinstance(x_cell.v_proj, AxonLayer)
+    assert isinstance(x_cell.q_proj, cortex.AxonLayer)
+    assert isinstance(x_cell.k_proj, cortex.AxonLayer)
+    assert isinstance(x_cell.v_proj, cortex.AxonLayer)
     s_cell = block.experts[2].cell  # type: ignore[attr-defined]
     assert hasattr(s_cell, "if_fused") and hasattr(s_cell, "zo_fused")

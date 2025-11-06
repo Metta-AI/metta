@@ -1,34 +1,34 @@
 import pytest
 
-from mettagrid.map_builder.utils import create_grid
-from mettagrid.mapgen.area import Area
-from mettagrid.mapgen.scene import Scene, SceneConfig
-from mettagrid.mapgen.types import MapGrid
-from mettagrid.mapgen.utils.ascii_grid import add_pretty_border, char_grid_to_lines, default_char_to_name, grid_to_lines
+import mettagrid.map_builder.utils
+import mettagrid.mapgen.area
+import mettagrid.mapgen.scene
+import mettagrid.mapgen.types
+import mettagrid.mapgen.utils.ascii_grid
 
 
 def render_scene(
-    scene_cfg: SceneConfig,
+    scene_cfg: mettagrid.mapgen.scene.SceneConfig,
     shape: tuple[int, int],
 ):
-    grid = create_grid(shape[0], shape[1])
-    area = Area.root_area_from_grid(grid)
+    grid = mettagrid.map_builder.utils.create_grid(shape[0], shape[1])
+    area = mettagrid.mapgen.area.Area.root_area_from_grid(grid)
     scene = scene_cfg.create_root(area)
     scene.render_with_children()
     return scene
 
 
-def assert_raw_grid(grid: MapGrid, ascii_grid: str, name_to_char: dict[str, str] | None = None):
-    grid_lines = grid_to_lines(grid, name_to_char)
-    expected_lines, _, _ = char_grid_to_lines(ascii_grid)
+def assert_raw_grid(grid: mettagrid.mapgen.types.MapGrid, ascii_grid: str, name_to_char: dict[str, str] | None = None):
+    grid_lines = mettagrid.mapgen.utils.ascii_grid.grid_to_lines(grid, name_to_char)
+    expected_lines, _, _ = mettagrid.mapgen.utils.ascii_grid.char_grid_to_lines(ascii_grid)
 
     if grid_lines != expected_lines:
-        expected_grid = "\n".join(add_pretty_border(expected_lines))
-        actual_grid = "\n".join(add_pretty_border(grid_lines))
+        expected_grid = "\n".join(mettagrid.mapgen.utils.ascii_grid.add_pretty_border(expected_lines))
+        actual_grid = "\n".join(mettagrid.mapgen.utils.ascii_grid.add_pretty_border(grid_lines))
         pytest.fail(f"Grid does not match expected:\nEXPECTED:\n{expected_grid}\n\nACTUAL:\n{actual_grid}")
 
 
-def assert_grid_map(scene: Scene, ascii_grid: str, char_to_name: dict[str, str] | None = None):
+def assert_grid_map(scene: mettagrid.mapgen.scene.Scene, ascii_grid: str, char_to_name: dict[str, str] | None = None):
     if char_to_name:
         name_to_char: dict[str, str] = {}
         # First pass: add all mappings
@@ -46,7 +46,7 @@ def assert_grid_map(scene: Scene, ascii_grid: str, char_to_name: dict[str, str] 
     assert_raw_grid(scene.grid, ascii_grid, name_to_char)
 
 
-def is_connected(grid: MapGrid):
+def is_connected(grid: mettagrid.mapgen.types.MapGrid):
     """Check if all empty cells in the grid are connected."""
     height, width = grid.shape
 
@@ -85,10 +85,13 @@ def is_connected(grid: MapGrid):
     return len(visited) == len(empty_cells)
 
 
-def assert_connected(grid: MapGrid, name_to_char: dict[str, str] | None = None):
+def assert_connected(grid: mettagrid.mapgen.types.MapGrid, name_to_char: dict[str, str] | None = None):
     if name_to_char is None:
         # Get default and reverse it
-        name_to_char = {v: k for k, v in default_char_to_name().items()}
+        name_to_char = {v: k for k, v in mettagrid.mapgen.utils.ascii_grid.default_char_to_name().items()}
 
     if not is_connected(grid):
-        pytest.fail("Grid is not connected:\n" + "\n".join(grid_to_lines(grid, name_to_char, border=True)))
+        pytest.fail(
+            "Grid is not connected:\n"
+            + "\n".join(mettagrid.mapgen.utils.ascii_grid.grid_to_lines(grid, name_to_char, border=True))
+        )

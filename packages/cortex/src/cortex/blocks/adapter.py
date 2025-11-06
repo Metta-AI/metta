@@ -1,40 +1,42 @@
 """Adapter block for adding trainable residual paths to pretrained models."""
 
-from __future__ import annotations
 
 import math
-from typing import Optional, Tuple
+import typing
 
+import cortex.blocks.base
+import cortex.blocks.registry
+import cortex.cells
+import cortex.cells.base
+import cortex.config
+import cortex.types
+import tensordict
 import torch
 import torch.nn as nn
-from tensordict import TensorDict
-
-from cortex.blocks.base import BaseBlock
-from cortex.blocks.registry import build_block, register_block
-from cortex.cells import build_cell
-from cortex.cells.base import MemoryCell
-from cortex.config import AdapterBlockConfig
-from cortex.types import MaybeState, ResetMask, Tensor
 
 
-@register_block(AdapterBlockConfig)
-class AdapterBlock(BaseBlock):
+@cortex.blocks.registry.register_block(cortex.config.AdapterBlockConfig)
+class AdapterBlock(cortex.blocks.base.BaseBlock):
     """Wraps a block with identity-initialized gated bottleneck adapter for finetuning."""
 
-    def __init__(self, config: AdapterBlockConfig, d_hidden: int, cell: MemoryCell | None = None) -> None:
+    def __init__(
+        self, config: cortex.config.AdapterBlockConfig, d_hidden: int, cell: cortex.cells.base.MemoryCell | None = None
+    ) -> None:
         # Build the cell for the base block
         base_cell_hidden_size = config.base_block.get_cell_hidden_size(d_hidden)
         base_cell_config = type(config.base_block.cell)(
             **{**config.base_block.cell.model_dump(), "hidden_size": base_cell_hidden_size}
         )
-        base_cell = build_cell(base_cell_config)
+        base_cell = cortex.cells.build_cell(base_cell_config)
 
         # Initialize with the base cell
         super().__init__(d_hidden=d_hidden, cell=base_cell)
         self.config = config
 
         # Build the wrapped block with its cell
-        self.wrapped_block = build_block(config=config.base_block, d_hidden=d_hidden, cell=base_cell)
+        self.wrapped_block = cortex.blocks.registry.build_block(
+            config=config.base_block, d_hidden=d_hidden, cell=base_cell
+        )
 
         # Adapter components
         self.ln = nn.LayerNorm(d_hidden)
@@ -62,12 +64,12 @@ class AdapterBlock(BaseBlock):
         nn.init.kaiming_uniform_(self.down.weight, a=math.sqrt(5))
         nn.init.zeros_(self.down.bias)
 
-    def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> TensorDict:
+    def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> tensordict.TensorDict:
         """Initialize state by delegating to wrapped block."""
         wrapped_state = self.wrapped_block.init_state(batch=batch, device=device, dtype=dtype)
-        return TensorDict({"wrapped": wrapped_state}, batch_size=[batch])
+        return tensordict.TensorDict({"wrapped": wrapped_state}, batch_size=[batch])
 
-    def reset_state(self, state: MaybeState, mask: ResetMask) -> MaybeState:
+    def reset_state(self, state: cortex.types.MaybeState, mask: cortex.types.ResetMask) -> cortex.types.MaybeState:
         """Reset state by delegating to wrapped block."""
         if state is None:
             return None
@@ -76,15 +78,15 @@ class AdapterBlock(BaseBlock):
         if new_wrapped_state is None:
             return None
         batch_size = state.batch_size[0] if state.batch_size else (mask.shape[0] if mask is not None else 1)
-        return TensorDict({"wrapped": new_wrapped_state}, batch_size=[batch_size])
+        return tensordict.TensorDict({"wrapped": new_wrapped_state}, batch_size=[batch_size])
 
     def forward(
         self,
-        x: Tensor,
-        state: MaybeState,
+        x: cortex.types.Tensor,
+        state: cortex.types.MaybeState,
         *,
-        resets: Optional[ResetMask] = None,
-    ) -> Tuple[Tensor, MaybeState]:
+        resets: typing.Optional[cortex.types.ResetMask] = None,
+    ) -> typing.Tuple[cortex.types.Tensor, cortex.types.MaybeState]:
         # Extract wrapped block state
         wrapped_state = state.get("wrapped") if state is not None else None
 
@@ -100,7 +102,7 @@ class AdapterBlock(BaseBlock):
 
         # Get batch size for state
         batch_size = x.shape[0]
-        return y_adapted, TensorDict({"wrapped": new_wrapped_state}, batch_size=[batch_size])
+        return y_adapted, tensordict.TensorDict({"wrapped": new_wrapped_state}, batch_size=[batch_size])
 
 
 __all__ = ["AdapterBlock"]

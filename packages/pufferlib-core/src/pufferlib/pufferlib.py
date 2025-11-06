@@ -1,8 +1,8 @@
 import os
 import warnings
-from contextlib import redirect_stderr, redirect_stdout
-from functools import wraps
-from io import StringIO
+import contextlib
+import functools
+import io
 
 import gymnasium
 import numpy as np
@@ -438,7 +438,7 @@ def unroll_nested_dict(d):
 
 
 def silence_warnings(original_func, category=DeprecationWarning):
-    @wraps(original_func)
+    @functools.wraps(original_func)
     def wrapper(*args, **kwargs):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=category)
@@ -449,7 +449,7 @@ def silence_warnings(original_func, category=DeprecationWarning):
 
 class Suppress:
     def __init__(self):
-        self.f = StringIO()
+        self.f = io.StringIO()
         self.null_1 = os.open(os.devnull, os.O_WRONLY | os.O_TRUNC | os.O_CREAT)
         self.null_2 = os.open(os.devnull, os.O_WRONLY | os.O_TRUNC | os.O_CREAT)
 
@@ -461,8 +461,8 @@ class Suppress:
         os.dup2(self.null_2, 2)
 
         # Suppress Python outputs
-        self._stdout_redirector = redirect_stdout(self.f)
-        self._stderr_redirector = redirect_stderr(self.f)
+        self._stdout_redirector = contextlib.redirect_stdout(self.f)
+        self._stderr_redirector = contextlib.redirect_stderr(self.f)
         self._stdout_redirector.__enter__()
         self._stderr_redirector.__enter__()
 

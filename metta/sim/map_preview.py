@@ -2,22 +2,22 @@ import json
 import logging
 import os
 import tempfile
+import typing
 import zlib
-from typing import Optional
 
 import wandb
-from wandb.sdk import wandb_run
+import wandb.sdk
 
-from metta.common.util.constants import METTASCOPE_REPLAY_URL_PREFIX
-from metta.common.util.fs import get_repo_root
-from metta.utils.file import write_file
-from mettagrid.config.mettagrid_config import MettaGridConfig
-from mettagrid.simulator import Simulation, Simulator
+import metta.common.util.constants
+import metta.common.util.fs
+import metta.utils.file
+import mettagrid.config.mettagrid_config
+import mettagrid.simulator
 
 logger = logging.getLogger(__name__)
 
 
-def write_map_preview_file(preview_path: str, sim: Simulation, gzipped: bool):
+def write_map_preview_file(preview_path: str, sim: mettagrid.simulator.Simulation, gzipped: bool):
     logger.info("Building map preview...")
 
     preview = {
@@ -40,8 +40,8 @@ def write_map_preview_file(preview_path: str, sim: Simulation, gzipped: bool):
         f.write(preview_data)
 
 
-def write_local_map_preview(sim: Simulation):
-    repo_root = get_repo_root()
+def write_local_map_preview(sim: mettagrid.simulator.Simulation):
+    repo_root = metta.common.util.fs.get_repo_root()
     maps_dir = repo_root / "outputs" / "maps"
     os.makedirs(maps_dir, exist_ok=True)
 
@@ -56,8 +56,8 @@ def write_local_map_preview(sim: Simulation):
 
 def upload_map_preview(
     s3_path: str,
-    env_cfg: MettaGridConfig,
-    wandb_run: Optional[wandb_run.Run] = None,
+    env_cfg: mettagrid.config.mettagrid_config.MettaGridConfig,
+    wandb_run: typing.Optional[wandb.sdk.wandb_run.Run] = None,
 ):
     """
     Builds a map preview of the simulation environment and uploads it to S3.
@@ -68,7 +68,7 @@ def upload_map_preview(
         wandb_run: Weights & Biases run object for logging
     """
 
-    simulator = Simulator()
+    simulator = mettagrid.simulator.Simulator()
     sim = simulator.new_simulation(env_cfg)
 
     with tempfile.NamedTemporaryFile(delete=False) as temp_file:
@@ -79,16 +79,16 @@ def upload_map_preview(
 
     # Upload to S3 using our new utility function
     try:
-        write_file(path=s3_path, local_file=preview_path, content_type="application/x-compress")
+        metta.utils.file.write_file(path=s3_path, local_file=preview_path, content_type="application/x-compress")
     except Exception as e:
         logger.error(f"Failed to upload preview map to S3: {str(e)}", exc_info=True)
 
     try:
         # If upload was successful, log the link to WandB
-        if wandb_run:
-            player_url = f"{METTASCOPE_REPLAY_URL_PREFIX}{s3_path}"
+        if wandb.sdk.wandb_run:
+            player_url = f"{metta.common.util.constants.METTASCOPE_REPLAY_URL_PREFIX}{s3_path}"
             link_summary = {"replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Map Preview</a>')}
-            wandb_run.log(link_summary)
+            wandb.sdk.wandb_run.log(link_summary)
             logger.info(f"Preview map available at: {player_url}")
     except Exception as e:
         logger.error(f"Failed to log preview map to WandB: {str(e)}", exc_info=True)

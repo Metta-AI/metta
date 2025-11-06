@@ -1,6 +1,6 @@
 """Shared test utilities for mettagrid mapgen scenes tests."""
 
-from mettagrid.test_support.mapgen import assert_grid_map
+import mettagrid.test_support.mapgen
 
 
 def assert_grid(scene, ascii_grid: str, char_to_name: dict[str, str] | None = None):
@@ -23,4 +23,4 @@ def assert_grid(scene, ascii_grid: str, char_to_name: dict[str, str] | None = No
         final_char_to_name = default_char_to_name
 
     # Call the original assert_grid_map function
-    assert_grid_map(scene, ascii_grid, final_char_to_name)
+    mettagrid.test_support.mapgen.assert_grid_map(scene, ascii_grid, final_char_to_name)

@@ -1,23 +1,22 @@
 """Tests for polymorphic serialization of MapBuilderConfig using Pydantic V2 discriminated unions."""
 
 import json
+import pathlib
 import tempfile
 import textwrap
-from pathlib import Path
 
 import pytest
-from pytest import fixture
 
-from mettagrid.base_config import Config
-from mettagrid.map_builder.ascii import AsciiMapBuilder
-from mettagrid.map_builder.map_builder import AnyMapBuilderConfig, MapBuilderConfig
-from mettagrid.map_builder.maze import MazePrimMapBuilder
-from mettagrid.map_builder.random import RandomMapBuilder
+import mettagrid.base_config
+import mettagrid.map_builder.ascii
+import mettagrid.map_builder.map_builder
+import mettagrid.map_builder.maze
+import mettagrid.map_builder.random
 
 
 def test_random_config_serialization():
     """Test serialization and deserialization of RandomMapBuilderConfig."""
-    config = RandomMapBuilder.Config(
+    config = mettagrid.map_builder.random.RandomMapBuilder.Config(
         width=20,
         height=30,
         seed=42,
@@ -40,8 +39,8 @@ def test_random_config_serialization():
     assert "20" in json_str
 
     # Test deserialization
-    deserialized = RandomMapBuilder.Config.model_validate(serialized)
-    assert isinstance(deserialized, RandomMapBuilder.Config)
+    deserialized = mettagrid.map_builder.random.RandomMapBuilder.Config.model_validate(serialized)
+    assert isinstance(deserialized, mettagrid.map_builder.random.RandomMapBuilder.Config)
     assert deserialized.width == 20
     assert deserialized.height == 30
     assert deserialized.seed == 42
@@ -51,7 +50,7 @@ def test_random_config_serialization():
 def test_default_values_serialization():
     """Test that default values are properly handled in serialization."""
     # Create config with minimal required fields
-    config = RandomMapBuilder.Config()
+    config = mettagrid.map_builder.random.RandomMapBuilder.Config()
 
     serialized = config.model_dump()
 
@@ -62,19 +61,19 @@ def test_default_values_serialization():
     assert serialized["border_width"] == 0  # default value
 
     # Deserialization should work
-    deserialized = RandomMapBuilder.Config.model_validate(serialized)
+    deserialized = mettagrid.map_builder.random.RandomMapBuilder.Config.model_validate(serialized)
     assert deserialized.width == 10
     assert deserialized.height == 10
 
 
-class OuterConfig(Config):
-    map_builder: AnyMapBuilderConfig
+class OuterConfig(mettagrid.base_config.Config):
+    map_builder: mettagrid.map_builder.map_builder.AnyMapBuilderConfig
 
 
-@fixture
+@pytest.fixture
 def wrapped_any_config():
     return OuterConfig(
-        map_builder=RandomMapBuilder.Config(
+        map_builder=mettagrid.map_builder.random.RandomMapBuilder.Config(
             agents=2,
         )
     )
@@ -89,7 +88,7 @@ def test_any_config_serialization(wrapped_any_config: OuterConfig):
 def test_any_config_deserialization(wrapped_any_config: OuterConfig):
     restored_config = OuterConfig.model_validate(wrapped_any_config.model_dump())
 
-    assert isinstance(restored_config.map_builder, RandomMapBuilder.Config)
+    assert isinstance(restored_config.map_builder, mettagrid.map_builder.random.RandomMapBuilder.Config)
     assert restored_config.map_builder.agents == 2
 
 
@@ -111,7 +110,7 @@ char_to_name_map:
         temp_path = f.name
 
     try:
-        config = AsciiMapBuilder.Config.from_uri(temp_path)
+        config = mettagrid.map_builder.ascii.AsciiMapBuilder.Config.from_uri(temp_path)
 
         # Test serialization
         serialized = config.model_dump()
@@ -119,15 +118,15 @@ char_to_name_map:
         assert serialized["map_data"] == [["#", "#", "#"], ["#", ".", "#"], ["#", "#", "#"]]
 
         # Test deserialization
-        deserialized = AsciiMapBuilder.Config.model_validate(serialized)
-        assert isinstance(deserialized, AsciiMapBuilder.Config)
+        deserialized = mettagrid.map_builder.ascii.AsciiMapBuilder.Config.model_validate(serialized)
+        assert isinstance(deserialized, mettagrid.map_builder.ascii.AsciiMapBuilder.Config)
         assert deserialized.map_data == [["#", "#", "#"], ["#", ".", "#"], ["#", "#", "#"]]
 
     finally:
-        Path(temp_path).unlink()
+        pathlib.Path(temp_path).unlink()
 
 
-@fixture
+@pytest.fixture
 def random_config_yaml():
     return textwrap.dedent(
         """
@@ -144,8 +143,8 @@ def random_config_yaml():
     )
 
 
-@fixture
-def random_config_yaml_path(random_config_yaml: str, tmp_path: Path):
+@pytest.fixture
+def random_config_yaml_path(random_config_yaml: str, tmp_path: pathlib.Path):
     path = tmp_path / "random_config.yaml"
     with open(path, "w", encoding="utf-8") as tmp:
         tmp.write(random_config_yaml)
@@ -153,17 +152,17 @@ def random_config_yaml_path(random_config_yaml: str, tmp_path: Path):
     return path
 
 
-def test_random_config_from_uri(random_config_yaml_path: Path):
+def test_random_config_from_uri(random_config_yaml_path: pathlib.Path):
     """Random builder config loads via MapBuilderConfig.from_uri."""
 
-    config = MapBuilderConfig.from_uri(random_config_yaml_path)
-    assert isinstance(config, RandomMapBuilder.Config)
+    config = mettagrid.map_builder.map_builder.MapBuilderConfig.from_uri(random_config_yaml_path)
+    assert isinstance(config, mettagrid.map_builder.random.RandomMapBuilder.Config)
     assert config.width == 4
     assert config.height == 3
     assert config.seed == 99
 
     builder = config.create()
-    assert isinstance(builder, RandomMapBuilder)
+    assert isinstance(builder, mettagrid.map_builder.random.RandomMapBuilder)
 
     game_map = builder.build()
     assert game_map.grid.shape == (3, 4)
@@ -172,8 +171,8 @@ def test_random_config_from_uri(random_config_yaml_path: Path):
 def test_random_config_from_str(random_config_yaml: str):
     """Random builder config loads via MapBuilderConfig.from_str."""
 
-    config = MapBuilderConfig.from_str(random_config_yaml)
-    assert isinstance(config, RandomMapBuilder.Config)
+    config = mettagrid.map_builder.map_builder.MapBuilderConfig.from_str(random_config_yaml)
+    assert isinstance(config, mettagrid.map_builder.random.RandomMapBuilder.Config)
     assert config.width == 4
     assert config.height == 3
     assert config.objects == {"wall": 2}
@@ -189,14 +188,16 @@ def test_config_from_str_wrong_class(random_config_yaml: str):
         TypeError,
         match="RandomMapBuilder.Config is not a subclass of mettagrid.map_builder.ascii.AsciiMapBuilder.Config",
     ):
-        AsciiMapBuilder.Config.from_str(random_config_yaml)
+        mettagrid.map_builder.ascii.AsciiMapBuilder.Config.from_str(random_config_yaml)
 
 
 def test_json_round_trip():
     """Test that configs can be serialized to JSON and back."""
     configs = [
-        RandomMapBuilder.Config(width=10, height=10, seed=42, objects={"wall": 3}),
-        MazePrimMapBuilder.Config(width=15, height=15, start_pos=(1, 1), end_pos=(13, 13), seed=123),
+        mettagrid.map_builder.random.RandomMapBuilder.Config(width=10, height=10, seed=42, objects={"wall": 3}),
+        mettagrid.map_builder.maze.MazePrimMapBuilder.Config(
+            width=15, height=15, start_pos=(1, 1), end_pos=(13, 13), seed=123
+        ),
     ]
 
     for original_config in configs:
@@ -209,9 +210,9 @@ def test_json_round_trip():
         # Reconstruct the config
         config_type = data["type"]
         if config_type == "mettagrid.map_builder.random.RandomMapBuilder.Config":
-            reconstructed = RandomMapBuilder.Config.model_validate(data)
+            reconstructed = mettagrid.map_builder.random.RandomMapBuilder.Config.model_validate(data)
         elif config_type == "mettagrid.map_builder.maze.MazePrimMapBuilder.Config":
-            reconstructed = MazePrimMapBuilder.Config.model_validate(data)
+            reconstructed = mettagrid.map_builder.maze.MazePrimMapBuilder.Config.model_validate(data)
         else:
             pytest.fail(f"Unexpected config type: {config_type}")
 
@@ -223,16 +224,16 @@ def test_json_round_trip():
 
 def test_config_creation_methods():
     """Test that the create() methods work correctly after serialization."""
-    config = RandomMapBuilder.Config(width=5, height=5, seed=999)
+    config = mettagrid.map_builder.random.RandomMapBuilder.Config(width=5, height=5, seed=999)
 
     # Serialize and deserialize
     serialized = config.model_dump()
-    deserialized = RandomMapBuilder.Config.model_validate(serialized)
+    deserialized = mettagrid.map_builder.random.RandomMapBuilder.Config.model_validate(serialized)
 
     # Test that create() method still works
     map_builder = deserialized.create()
     assert map_builder is not None
-    assert isinstance(map_builder, RandomMapBuilder)
+    assert isinstance(map_builder, mettagrid.map_builder.random.RandomMapBuilder)
 
     # Test that the builder can create a map
     game_map = map_builder.build()

@@ -1,11 +1,11 @@
 """Tests for LSTM cell implementation."""
 
+import cortex.cells.lstm
+import cortex.config
+import cortex.kernels.pytorch.lstm
+import cortex.utils
 import pytest
 import torch
-from cortex.cells.lstm import LSTMCell
-from cortex.config import LSTMCellConfig
-from cortex.kernels.pytorch.lstm import lstm_sequence_pytorch
-from cortex.utils import TRITON_AVAILABLE
 
 
 def get_test_device():
@@ -26,8 +26,8 @@ def test_lstm_sequence_forward():
     T = 10  # sequence length
     H = 32  # hidden size
 
-    cfg = LSTMCellConfig(hidden_size=H, num_layers=1, dropout=0.0)
-    cell = LSTMCell(cfg).to(device=device, dtype=dtype)
+    cfg = cortex.config.LSTMCellConfig(hidden_size=H, num_layers=1, dropout=0.0)
+    cell = cortex.cells.lstm.LSTMCell(cfg).to(device=device, dtype=dtype)
     cell.eval()
 
     # Test sequence processing
@@ -53,8 +53,8 @@ def test_lstm_single_step():
     B = 2  # batch size
     H = 32  # hidden size
 
-    cfg = LSTMCellConfig(hidden_size=H, num_layers=1, dropout=0.0)
-    cell = LSTMCell(cfg).to(device=device, dtype=dtype)
+    cfg = cortex.config.LSTMCellConfig(hidden_size=H, num_layers=1, dropout=0.0)
+    cell = cortex.cells.lstm.LSTMCell(cfg).to(device=device, dtype=dtype)
     cell.eval()
 
     # Test single-step processing
@@ -79,8 +79,8 @@ def test_lstm_sequential_vs_parallel():
     T = 16  # sequence length
     H = 32  # hidden size
 
-    cfg = LSTMCellConfig(hidden_size=H, num_layers=1, dropout=0.0)
-    cell = LSTMCell(cfg).to(device=device, dtype=dtype)
+    cfg = cortex.config.LSTMCellConfig(hidden_size=H, num_layers=1, dropout=0.0)
+    cell = cortex.cells.lstm.LSTMCell(cfg).to(device=device, dtype=dtype)
     cell.eval()
 
     x = torch.randn(B, T, H, device=device, dtype=dtype)
@@ -108,17 +108,17 @@ def test_lstm_sequential_vs_parallel():
 def test_lstm_multi_layer_unsupported():
     """Multi-layer configuration should raise now that kernels are single-layer only."""
 
-    cfg = LSTMCellConfig(hidden_size=64, num_layers=2, dropout=0.0)
+    cfg = cortex.config.LSTMCellConfig(hidden_size=64, num_layers=2, dropout=0.0)
     with pytest.raises(ValueError):
-        LSTMCell(cfg)
+        cortex.cells.lstm.LSTMCell(cfg)
 
 
 def test_lstm_projection_unsupported():
     """Projection size >0 is not supported by the fused implementation."""
 
-    cfg = LSTMCellConfig(hidden_size=64, num_layers=1, proj_size=16, dropout=0.0)
+    cfg = cortex.config.LSTMCellConfig(hidden_size=64, num_layers=1, proj_size=16, dropout=0.0)
     with pytest.raises(ValueError):
-        LSTMCell(cfg)
+        cortex.cells.lstm.LSTMCell(cfg)
 
 
 def test_lstm_state_reset():
@@ -131,8 +131,8 @@ def test_lstm_state_reset():
     B = 4  # batch size
     H = 32  # hidden size
 
-    cfg = LSTMCellConfig(hidden_size=H, num_layers=1, dropout=0.0)
-    cell = LSTMCell(cfg).to(device=device, dtype=dtype)
+    cfg = cortex.config.LSTMCellConfig(hidden_size=H, num_layers=1, dropout=0.0)
+    cell = cortex.cells.lstm.LSTMCell(cfg).to(device=device, dtype=dtype)
 
     # Create initial state
     state = cell.init_state(batch=B, device=device, dtype=dtype)
@@ -165,10 +165,12 @@ def test_lstm_state_reset():
     assert torch.allclose(new_c[2:], state["c"][2:])
 
 
-@pytest.mark.skipif(not torch.cuda.is_available() or not TRITON_AVAILABLE, reason="Triton backend unavailable")
+@pytest.mark.skipif(
+    not torch.cuda.is_available() or not cortex.utils.TRITON_AVAILABLE, reason="Triton backend unavailable"
+)
 def test_lstm_reset_forward_backward_match_backends():
     """Ensure Triton reset behaviour matches PyTorch forward/backward on CUDA."""
-    from cortex.kernels.triton.lstm import lstm_sequence_triton
+    import cortex.kernels.triton.lstm
 
     torch.manual_seed(1234)
 
@@ -176,8 +178,8 @@ def test_lstm_reset_forward_backward_match_backends():
     dtype = torch.float32
     B, T, H = 3, 5, 32
 
-    cfg = LSTMCellConfig(hidden_size=H, num_layers=1, dropout=0.0)
-    cell = LSTMCell(cfg).to(device=device, dtype=dtype)
+    cfg = cortex.config.LSTMCellConfig(hidden_size=H, num_layers=1, dropout=0.0)
+    cell = cortex.cells.lstm.LSTMCell(cfg).to(device=device, dtype=dtype)
     cell.net.reset_parameters()
     net = cell.net
 
@@ -195,7 +197,9 @@ def test_lstm_reset_forward_backward_match_backends():
     # PyTorch reference
     net.zero_grad(set_to_none=True)
     x_pt = x_base.clone().detach().requires_grad_(True)
-    y_pt, hn_pt, cn_pt = lstm_sequence_pytorch(lstm=net, x_seq=x_pt, h0_bf=h0.clone(), c0_bf=c0.clone(), resets=resets)
+    y_pt, hn_pt, cn_pt = cortex.kernels.pytorch.lstm.lstm_sequence_pytorch(
+        lstm=net, x_seq=x_pt, h0_bf=h0.clone(), c0_bf=c0.clone(), resets=resets
+    )
     loss_pt = y_pt.square().sum() + hn_pt.square().sum() + cn_pt.square().sum()
     loss_pt.backward()
     grad_x_pt = x_pt.grad.detach().clone()
@@ -210,7 +214,9 @@ def test_lstm_reset_forward_backward_match_backends():
 
     # Triton implementation
     x_tr = x_base.clone().detach().requires_grad_(True)
-    y_tr, hn_tr, cn_tr = lstm_sequence_triton(lstm=net, x_seq=x_tr, h0_bf=h0.clone(), c0_bf=c0.clone(), resets=resets)
+    y_tr, hn_tr, cn_tr = cortex.kernels.triton.lstm.lstm_sequence_triton(
+        lstm=net, x_seq=x_tr, h0_bf=h0.clone(), c0_bf=c0.clone(), resets=resets
+    )
     loss_tr = y_tr.square().sum() + hn_tr.square().sum() + cn_tr.square().sum()
     loss_tr.backward()
     grad_x_tr = x_tr.grad.detach().clone()
@@ -246,8 +252,8 @@ def test_lstm_with_resets():
     T = 10  # sequence length
     H = 32  # hidden size
 
-    cfg = LSTMCellConfig(hidden_size=H, num_layers=1, dropout=0.0)
-    cell = LSTMCell(cfg).to(device=device, dtype=dtype)
+    cfg = cortex.config.LSTMCellConfig(hidden_size=H, num_layers=1, dropout=0.0)
+    cell = cortex.cells.lstm.LSTMCell(cfg).to(device=device, dtype=dtype)
     cell.eval()
 
     x = torch.randn(B, T, H, device=device, dtype=dtype)
@@ -275,8 +281,8 @@ def test_lstm_gradient_flow():
     T = 10  # sequence length
     H = 64  # hidden size
 
-    cfg = LSTMCellConfig(hidden_size=H, num_layers=1, dropout=0.0)
-    cell = LSTMCell(cfg).to(device=device, dtype=dtype)
+    cfg = cortex.config.LSTMCellConfig(hidden_size=H, num_layers=1, dropout=0.0)
+    cell = cortex.cells.lstm.LSTMCell(cfg).to(device=device, dtype=dtype)
     cell.train()
 
     x = torch.randn(B, T, H, device=device, dtype=dtype, requires_grad=True)
@@ -299,7 +305,7 @@ if __name__ == "__main__":
     test_lstm_multi_layer_unsupported()
     test_lstm_projection_unsupported()
     test_lstm_state_reset()
-    if torch.cuda.is_available() and TRITON_AVAILABLE:
+    if torch.cuda.is_available() and cortex.utils.TRITON_AVAILABLE:
         test_lstm_reset_forward_backward_match_backends()
     test_lstm_with_resets()
     test_lstm_gradient_flow()

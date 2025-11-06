@@ -1,8 +1,8 @@
 """Buffer building utilities for miniscope rendering."""
 
-from typing import Dict, Optional
+import typing
 
-from .symbol import get_symbol_for_object
+import mettagrid.renderer.miniscope.symbol
 
 
 class MapBuffer:
@@ -34,27 +34,27 @@ class MapBuffer:
         self._bounds_set = initial_height > 0 and initial_width > 0
 
         # Viewport state
-        self._viewport_center_row: Optional[int] = None
-        self._viewport_center_col: Optional[int] = None
-        self._viewport_height: Optional[int] = None
-        self._viewport_width: Optional[int] = None
+        self._viewport_center_row: typing.Optional[int] = None
+        self._viewport_center_col: typing.Optional[int] = None
+        self._viewport_height: typing.Optional[int] = None
+        self._viewport_width: typing.Optional[int] = None
 
         # Cursor state
-        self._cursor_row: Optional[int] = None
-        self._cursor_col: Optional[int] = None
+        self._cursor_row: typing.Optional[int] = None
+        self._cursor_col: typing.Optional[int] = None
 
         # Highlighted agent state (for vibe picker)
-        self._highlighted_agent_id: Optional[int] = None
+        self._highlighted_agent_id: typing.Optional[int] = None
 
         # Cached grid objects
-        self._last_grid_objects: Optional[Dict[int, dict]] = None
+        self._last_grid_objects: typing.Optional[typing.Dict[int, dict]] = None
 
     def set_viewport(
         self,
-        center_row: Optional[int] = None,
-        center_col: Optional[int] = None,
-        height: Optional[int] = None,
-        width: Optional[int] = None,
+        center_row: typing.Optional[int] = None,
+        center_col: typing.Optional[int] = None,
+        height: typing.Optional[int] = None,
+        width: typing.Optional[int] = None,
     ) -> None:
         """Set viewport parameters for map rendering."""
         self._viewport_center_row = center_row
@@ -62,12 +62,12 @@ class MapBuffer:
         self._viewport_height = height
         self._viewport_width = width
 
-    def set_cursor(self, row: Optional[int], col: Optional[int]) -> None:
+    def set_cursor(self, row: typing.Optional[int], col: typing.Optional[int]) -> None:
         """Set the cursor position used in select mode."""
         self._cursor_row = row
         self._cursor_col = col
 
-    def set_highlighted_agent(self, agent_id: Optional[int]) -> None:
+    def set_highlighted_agent(self, agent_id: typing.Optional[int]) -> None:
         """Track which agent should be highlighted in the viewport."""
         self._highlighted_agent_id = agent_id
 
@@ -107,14 +107,14 @@ class MapBuffer:
 
         return (view_min_row, view_min_col, view_height, view_width)
 
-    def _ensure_bounds(self, grid_objects: Dict[int, dict]) -> None:
+    def _ensure_bounds(self, grid_objects: typing.Dict[int, dict]) -> None:
         """Compute bounds if needed and cache the grid snapshot."""
         if not self._bounds_set or grid_objects != self._last_grid_objects:
             self._min_row, self._min_col, self._height, self._width = self._compute_bounds(grid_objects)
             self._bounds_set = True
             self._last_grid_objects = grid_objects
 
-    def _compute_bounds(self, grid_objects: Dict[int, dict]) -> tuple[int, int, int, int]:
+    def _compute_bounds(self, grid_objects: typing.Dict[int, dict]) -> tuple[int, int, int, int]:
         """Compute a bounding box for the provided grid objects."""
         rows = []
         cols = []
@@ -138,7 +138,7 @@ class MapBuffer:
         width = max(cols) - min_col + 1
         return (min_row, min_col, height, width)
 
-    def _build_grid_buffer(self, grid_objects: Dict[int, dict], use_viewport: bool = True) -> str:
+    def _build_grid_buffer(self, grid_objects: typing.Dict[int, dict], use_viewport: bool = True) -> str:
         """Build the emoji grid buffer using instance attributes.
 
         Args:
@@ -198,7 +198,9 @@ class MapBuffer:
                     # Use a distinctive symbol for highlighted agent
                     grid[r][c] = "⭐"
                 else:
-                    grid[r][c] = get_symbol_for_object(obj, self._object_type_names, self._symbol_map)
+                    grid[r][c] = mettagrid.renderer.miniscope.symbol.get_symbol_for_object(
+                        obj, self._object_type_names, self._symbol_map
+                    )
 
         # Add selection cursor if in select mode
         if self._cursor_row is not None and self._cursor_col is not None:
@@ -243,14 +245,14 @@ class MapBuffer:
 
     def render(
         self,
-        grid_objects: Dict[int, dict],
+        grid_objects: typing.Dict[int, dict],
         use_viewport: bool = True,
     ) -> str:
         """Render the grid buffer as a newline-delimited string."""
         self._ensure_bounds(grid_objects)
         return self._build_grid_buffer(grid_objects, use_viewport)
 
-    def render_full_map(self, grid_objects: Dict[int, dict]) -> str:
+    def render_full_map(self, grid_objects: typing.Dict[int, dict]) -> str:
         """Render the full map without viewport restrictions.
 
         Args:

@@ -1,13 +1,12 @@
-from __future__ import annotations
 
-from types import SimpleNamespace
+import types
 
+import gymnasium
 import pytest
+import tensordict
 import torch
-from gymnasium import spaces
-from tensordict import TensorDict
 
-from metta.agent.components.smollm import LowRankLinear, SmolLLMBackbone, SmolLLMBackboneConfig
+import metta.agent.components.smollm
 
 
 class DummyOutput:
@@ -18,7 +17,7 @@ class DummyOutput:
 class RecordingModel(torch.nn.Module):
     def __init__(self, hidden_size: int, dtype: torch.dtype) -> None:
         super().__init__()
-        self.config = SimpleNamespace(hidden_size=hidden_size)
+        self.config = types.SimpleNamespace(hidden_size=hidden_size)
         self.last_inputs_embeds: torch.Tensor | None = None
         self.last_attention_mask: torch.Tensor | None = None
         self.scale = torch.nn.Parameter(torch.tensor(2.0, dtype=dtype))
@@ -57,7 +56,7 @@ class RecordingModelNoHidden(RecordingModel):
             use_cache=use_cache,
         )
         hidden = base.hidden_states[-1]
-        return SimpleNamespace(hidden_states=None, last_hidden_state=hidden)
+        return types.SimpleNamespace(hidden_states=None, last_hidden_state=hidden)
 
 
 def _fake_from_pretrained(hidden_size: int = 64):
@@ -91,22 +90,22 @@ def _capturing_from_pretrained(store: dict[str, object], hidden_size: int = 64):
     return _factory
 
 
-def _make_env(num_actions: int) -> SimpleNamespace:
-    return SimpleNamespace(action_space=spaces.Discrete(num_actions))
+def _make_env(num_actions: int) -> types.SimpleNamespace:
+    return types.SimpleNamespace(action_space=gymnasium.spaces.Discrete(num_actions))
 
 
-def _make_tensordict(tokens: torch.Tensor) -> TensorDict:
-    return TensorDict({"tokens": tokens}, batch_size=[tokens.shape[0]])
+def _make_tensordict(tokens: torch.Tensor) -> tensordict.TensorDict:
+    return tensordict.TensorDict({"tokens": tokens}, batch_size=[tokens.shape[0]])
 
 
 def test_forward_projects_tokens_and_calls_llm(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "metta.agent.components.smollm.AutoModelForCausalLM",
-        SimpleNamespace(from_pretrained=_fake_from_pretrained()),
+        types.SimpleNamespace(from_pretrained=_fake_from_pretrained()),
     )
 
     env = _make_env(num_actions=4)
-    config = SmolLLMBackboneConfig(
+    config = metta.agent.components.smollm.SmolLLMBackboneConfig(
         in_key="tokens",
         logits_key="logits",
         values_key="values",
@@ -114,7 +113,7 @@ def test_forward_projects_tokens_and_calls_llm(monkeypatch: pytest.MonkeyPatch) 
         freeze_llm=False,
         torch_dtype="float16",
     )
-    backbone = SmolLLMBackbone(env, config)
+    backbone = metta.agent.components.smollm.SmolLLMBackbone(env, config)
     init_log = backbone.initialize_to_environment(env, torch.device("cpu"))
     assert "SmolLLM actions" in init_log
 
@@ -148,11 +147,14 @@ def test_forward_projects_tokens_and_calls_llm(monkeypatch: pytest.MonkeyPatch) 
 def test_forward_adds_token_for_all_padding(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "metta.agent.components.smollm.AutoModelForCausalLM",
-        SimpleNamespace(from_pretrained=_fake_from_pretrained(hidden_size=32)),
+        types.SimpleNamespace(from_pretrained=_fake_from_pretrained(hidden_size=32)),
     )
 
     env = _make_env(num_actions=3)
-    backbone = SmolLLMBackbone(env, SmolLLMBackboneConfig(in_key="tokens", max_sequence_length=3, freeze_llm=False))
+    backbone = metta.agent.components.smollm.SmolLLMBackbone(
+        env,
+        metta.agent.components.smollm.SmolLLMBackboneConfig(in_key="tokens", max_sequence_length=3, freeze_llm=False),
+    )
     backbone.initialize_to_environment(env, torch.device("cpu"))
 
     tokens = torch.full((1, 3, 3), fill_value=255, dtype=torch.uint8)
@@ -172,18 +174,18 @@ def test_token_stride_downsamples_tokens(monkeypatch: pytest.MonkeyPatch) -> Non
     captured: dict[str, object] = {}
     monkeypatch.setattr(
         "metta.agent.components.smollm.AutoModelForCausalLM",
-        SimpleNamespace(from_pretrained=_capturing_from_pretrained(captured, hidden_size=32)),
+        types.SimpleNamespace(from_pretrained=_capturing_from_pretrained(captured, hidden_size=32)),
     )
 
     env = _make_env(num_actions=3)
-    config = SmolLLMBackboneConfig(
+    config = metta.agent.components.smollm.SmolLLMBackboneConfig(
         in_key="tokens",
         max_sequence_length=6,
         freeze_llm=False,
         torch_dtype="float16",
         token_stride=2,
     )
-    backbone = SmolLLMBackbone(env, config)
+    backbone = metta.agent.components.smollm.SmolLLMBackbone(env, config)
 
     tokens = torch.tensor(
         [
@@ -213,17 +215,17 @@ def test_lora_applies_and_keeps_adapter_grad(monkeypatch: pytest.MonkeyPatch) ->
 
     monkeypatch.setattr(
         "metta.agent.components.smollm.AutoModelForCausalLM",
-        SimpleNamespace(from_pretrained=_fake_from_pretrained(hidden_size=32)),
+        types.SimpleNamespace(from_pretrained=_fake_from_pretrained(hidden_size=32)),
     )
     monkeypatch.setattr("metta.agent.components.smollm.LoraConfig", DummyLoraConfig)
     monkeypatch.setattr("metta.agent.components.smollm.get_peft_model", _dummy_get_peft_model)
     monkeypatch.setattr(
         "metta.agent.components.smollm.TaskType",
-        SimpleNamespace(CAUSAL_LM="causal_lm"),
+        types.SimpleNamespace(CAUSAL_LM="causal_lm"),
     )
 
     env = _make_env(num_actions=3)
-    config = SmolLLMBackboneConfig(
+    config = metta.agent.components.smollm.SmolLLMBackboneConfig(
         in_key="tokens",
         freeze_llm=True,
         torch_dtype="float16",
@@ -234,7 +236,7 @@ def test_lora_applies_and_keeps_adapter_grad(monkeypatch: pytest.MonkeyPatch) ->
         lora_target_modules=["foo", "bar"],
     )
 
-    backbone = SmolLLMBackbone(env, config)
+    backbone = metta.agent.components.smollm.SmolLLMBackbone(env, config)
 
     assert isinstance(backbone.llm, RecordingModel)
     assert hasattr(backbone.llm, "lora_weight")
@@ -247,13 +249,13 @@ def test_lora_applies_and_keeps_adapter_grad(monkeypatch: pytest.MonkeyPatch) ->
 def test_initialize_to_environment_aligns_module_dtypes(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "metta.agent.components.smollm.AutoModelForCausalLM",
-        SimpleNamespace(from_pretrained=_fake_from_pretrained(hidden_size=16)),
+        types.SimpleNamespace(from_pretrained=_fake_from_pretrained(hidden_size=16)),
     )
 
     env = _make_env(num_actions=2)
-    backbone = SmolLLMBackbone(
+    backbone = metta.agent.components.smollm.SmolLLMBackbone(
         env,
-        SmolLLMBackboneConfig(in_key="tokens", freeze_llm=False, torch_dtype="float16"),
+        metta.agent.components.smollm.SmolLLMBackboneConfig(in_key="tokens", freeze_llm=False, torch_dtype="float16"),
     )
 
     backbone.initialize_to_environment(env, torch.device("cpu"))
@@ -267,12 +269,14 @@ def test_initialize_to_environment_aligns_module_dtypes(monkeypatch: pytest.Monk
 def test_forward_uses_last_hidden_state_when_hidden_states_missing(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "metta.agent.components.smollm.AutoModelForCausalLM",
-        SimpleNamespace(from_pretrained=_fake_no_hidden_from_pretrained(hidden_size=32)),
+        types.SimpleNamespace(from_pretrained=_fake_no_hidden_from_pretrained(hidden_size=32)),
     )
 
     env = _make_env(num_actions=3)
-    config = SmolLLMBackboneConfig(in_key="tokens", freeze_llm=False, torch_dtype="float16")
-    backbone = SmolLLMBackbone(env, config)
+    config = metta.agent.components.smollm.SmolLLMBackboneConfig(
+        in_key="tokens", freeze_llm=False, torch_dtype="float16"
+    )
+    backbone = metta.agent.components.smollm.SmolLLMBackbone(env, config)
 
     tokens = torch.tensor(
         [
@@ -292,7 +296,7 @@ def test_flash_attn_auto_dtype_promotes_float16(monkeypatch: pytest.MonkeyPatch)
     captured: dict[str, object] = {}
     monkeypatch.setattr(
         "metta.agent.components.smollm.AutoModelForCausalLM",
-        SimpleNamespace(from_pretrained=_capturing_from_pretrained(captured, hidden_size=32)),
+        types.SimpleNamespace(from_pretrained=_capturing_from_pretrained(captured, hidden_size=32)),
     )
     monkeypatch.setattr("metta.agent.components.smollm.torch.cuda.is_available", lambda: True)
     monkeypatch.setattr("metta.agent.components.smollm.torch.cuda.is_bf16_supported", lambda: False)
@@ -300,8 +304,10 @@ def test_flash_attn_auto_dtype_promotes_float16(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setattr("metta.agent.components.smollm.torch.backends.mkldnn.is_available", lambda: False)
 
     env = _make_env(num_actions=2)
-    config = SmolLLMBackboneConfig(in_key="tokens", attn_implementation="flash_attention_2", freeze_llm=False)
-    backbone = SmolLLMBackbone(env, config)
+    config = metta.agent.components.smollm.SmolLLMBackboneConfig(
+        in_key="tokens", attn_implementation="flash_attention_2", freeze_llm=False
+    )
+    backbone = metta.agent.components.smollm.SmolLLMBackbone(env, config)
     assert isinstance(backbone.llm, RecordingModel)
     assert captured["torch_dtype"] == torch.float16
     assert captured["attn_implementation"] == "flash_attention_2"
@@ -313,15 +319,17 @@ def test_flash_attn_disabled_when_no_supported_dtype(monkeypatch: pytest.MonkeyP
     captured: dict[str, object] = {}
     monkeypatch.setattr(
         "metta.agent.components.smollm.AutoModelForCausalLM",
-        SimpleNamespace(from_pretrained=_capturing_from_pretrained(captured, hidden_size=32)),
+        types.SimpleNamespace(from_pretrained=_capturing_from_pretrained(captured, hidden_size=32)),
     )
     monkeypatch.setattr("metta.agent.components.smollm.torch.cuda.is_available", lambda: False)
     monkeypatch.setattr("metta.agent.components.smollm.torch.backends.mps.is_available", lambda: False)
     monkeypatch.setattr("metta.agent.components.smollm.torch.backends.mkldnn.is_available", lambda: False)
 
     env = _make_env(num_actions=2)
-    config = SmolLLMBackboneConfig(in_key="tokens", attn_implementation="flash_attention_2", freeze_llm=False)
-    backbone = SmolLLMBackbone(env, config)
+    config = metta.agent.components.smollm.SmolLLMBackboneConfig(
+        in_key="tokens", attn_implementation="flash_attention_2", freeze_llm=False
+    )
+    backbone = metta.agent.components.smollm.SmolLLMBackbone(env, config)
     assert isinstance(backbone.llm, RecordingModel)
     assert "attn_implementation" not in captured
     assert config.attn_implementation is None
@@ -330,17 +338,17 @@ def test_flash_attn_disabled_when_no_supported_dtype(monkeypatch: pytest.MonkeyP
 def test_low_rank_actor_head(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "metta.agent.components.smollm.AutoModelForCausalLM",
-        SimpleNamespace(from_pretrained=_fake_from_pretrained(hidden_size=64)),
+        types.SimpleNamespace(from_pretrained=_fake_from_pretrained(hidden_size=64)),
     )
 
     env = _make_env(num_actions=20)
-    config = SmolLLMBackboneConfig(
+    config = metta.agent.components.smollm.SmolLLMBackboneConfig(
         in_key="tokens",
         freeze_llm=False,
         torch_dtype="float16",
         actor_head_rank=4,
         value_head_rank=1,
     )
-    backbone = SmolLLMBackbone(env, config)
+    backbone = metta.agent.components.smollm.SmolLLMBackbone(env, config)
 
-    assert isinstance(backbone.actor_head, LowRankLinear)
+    assert isinstance(backbone.actor_head, metta.agent.components.smollm.LowRankLinear)

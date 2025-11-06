@@ -1,11 +1,11 @@
 """Tests for mLSTM cell implementation."""
 
+import cortex.blocks
+import cortex.cells.mlstm
+import cortex.config
+import cortex.utils
 import pytest
 import torch
-from cortex.blocks import PreUpBlock
-from cortex.cells.mlstm import mLSTMCell
-from cortex.config import PreUpBlockConfig, mLSTMCellConfig
-from cortex.utils import TRITON_AVAILABLE
 
 
 def get_test_device():
@@ -28,14 +28,14 @@ def test_mlstm_parallel_vs_sequential_close() -> None:
     num_heads = 4
 
     # Ensure the parallel path is used in sequence mode (S <= chunk_size)
-    cfg = mLSTMCellConfig(
+    cfg = cortex.config.mLSTMCellConfig(
         hidden_size=H,
         num_heads=num_heads,
         chunk_size=256,
         conv1d_kernel_size=4,
     )
 
-    cell = mLSTMCell(cfg).to(device=device, dtype=dtype)
+    cell = cortex.cells.mlstm.mLSTMCell(cfg).to(device=device, dtype=dtype)
     cell.eval()
 
     x = torch.randn(B, T, H, device=device, dtype=dtype)
@@ -70,21 +70,21 @@ def test_mlstm_with_preup_block() -> None:
     # Create PreUp block config with mLSTM cell
     # The cell will operate on dimension D * proj_factor = 128
     inner_dim = int(D * proj_factor)
-    mlstm_config = mLSTMCellConfig(
+    mlstm_config = cortex.config.mLSTMCellConfig(
         hidden_size=inner_dim,
         num_heads=4,
         chunk_size=32,
         conv1d_kernel_size=4,
     )
 
-    preup_config = PreUpBlockConfig(
+    preup_config = cortex.config.PreUpBlockConfig(
         cell=mlstm_config,
         proj_factor=proj_factor,
     )
 
     # Create the cell and PreUp block
-    cell = mLSTMCell(mlstm_config).to(device=device, dtype=dtype)
-    block = PreUpBlock(preup_config, d_hidden=D, cell=cell).to(device=device, dtype=dtype)
+    cell = cortex.cells.mlstm.mLSTMCell(mlstm_config).to(device=device, dtype=dtype)
+    block = cortex.blocks.PreUpBlock(preup_config, d_hidden=D, cell=cell).to(device=device, dtype=dtype)
     block.eval()
 
     # Create input
@@ -133,14 +133,14 @@ def test_mlstm_sequential_vs_parallel_with_chunking() -> None:
     num_heads = 4
     chunk_size = 64  # Set chunk_size > T to force parallel_stabilized_simple path
 
-    cfg = mLSTMCellConfig(
+    cfg = cortex.config.mLSTMCellConfig(
         hidden_size=H,
         num_heads=num_heads,
         chunk_size=chunk_size,  # This will make it use parallel path instead of chunking
         conv1d_kernel_size=4,
     )
 
-    cell = mLSTMCell(cfg).to(device=device, dtype=dtype)
+    cell = cortex.cells.mlstm.mLSTMCell(cfg).to(device=device, dtype=dtype)
     cell.eval()
 
     x = torch.randn(B, T, H, device=device, dtype=dtype)
@@ -212,14 +212,14 @@ def test_mlstm_gradient_flow() -> None:
     H = 64  # head_dim must be >= 16 for triton
     num_heads = 4
 
-    cfg = mLSTMCellConfig(
+    cfg = cortex.config.mLSTMCellConfig(
         hidden_size=H,
         num_heads=num_heads,
         chunk_size=32,
         conv1d_kernel_size=4,
     )
 
-    cell = mLSTMCell(cfg).to(device=device, dtype=dtype)
+    cell = cortex.cells.mlstm.mLSTMCell(cfg).to(device=device, dtype=dtype)
     cell.train()  # Ensure we're in training mode
 
     x = torch.randn(B, T, H, device=device, dtype=dtype, requires_grad=True)
@@ -255,14 +255,14 @@ def test_mlstm_state_reset() -> None:
     H = 64  # head_dim must be >= 16 for triton
     num_heads = 4
 
-    cfg = mLSTMCellConfig(
+    cfg = cortex.config.mLSTMCellConfig(
         hidden_size=H,
         num_heads=num_heads,
         chunk_size=16,
         conv1d_kernel_size=4,
     )
 
-    cell = mLSTMCell(cfg).to(device=device, dtype=dtype)
+    cell = cortex.cells.mlstm.mLSTMCell(cfg).to(device=device, dtype=dtype)
 
     # Initialize state
     state = cell.init_state(B, device=device, dtype=dtype)
@@ -305,7 +305,7 @@ def test_mlstm_backward_sequential_vs_parallel() -> None:
     num_heads = 4
     chunk_size = 64  # Set chunk_size > T to use parallel_stabilized_simple path
 
-    cfg = mLSTMCellConfig(
+    cfg = cortex.config.mLSTMCellConfig(
         hidden_size=H,
         num_heads=num_heads,
         chunk_size=chunk_size,
@@ -313,8 +313,8 @@ def test_mlstm_backward_sequential_vs_parallel() -> None:
     )
 
     # Create two identical cells for parallel and sequential paths
-    cell_parallel = mLSTMCell(cfg).to(device=device, dtype=dtype)
-    cell_sequential = mLSTMCell(cfg).to(device=device, dtype=dtype)
+    cell_parallel = cortex.cells.mlstm.mLSTMCell(cfg).to(device=device, dtype=dtype)
+    cell_sequential = cortex.cells.mlstm.mLSTMCell(cfg).to(device=device, dtype=dtype)
 
     # Ensure both cells have identical parameters
     cell_sequential.load_state_dict(cell_parallel.state_dict())
@@ -385,14 +385,11 @@ def test_mlstm_reset_mask_functionality() -> None:
     device = get_test_device()
     dtype = torch.float32
 
-    if not (TRITON_AVAILABLE and device.type == "cuda"):
+    if not (cortex.utils.TRITON_AVAILABLE and device.type == "cuda"):
         pytest.skip("Triton reset-mask checks require CUDA with Triton kernels")
 
-    from cortex.kernels.pytorch.mlstm import (
-        mlstm_chunkwise_simple,
-        mlstm_recurrent_step_stabilized_simple,
-    )
-    from cortex.kernels.triton.mlstm import mlstm_chunkwise_triton
+    import cortex.kernels.pytorch.mlstm
+    import cortex.kernels.triton.mlstm
 
     B = 4  # batch size
     T = 98  # sequence length (spans multiple chunks)
@@ -418,7 +415,7 @@ def test_mlstm_reset_mask_functionality() -> None:
     reset_mask[1, 15] = True  # Reset within first chunk
 
     # Test 1: Simple backend with reset mask
-    output_simple_reset, (c_simple, n_simple, m_simple) = mlstm_chunkwise_simple(
+    output_simple_reset, (c_simple, n_simple, m_simple) = cortex.kernels.pytorch.mlstm.mlstm_chunkwise_simple(
         queries=queries,
         keys=keys,
         values=values,
@@ -430,7 +427,7 @@ def test_mlstm_reset_mask_functionality() -> None:
     )
 
     # Test 2: Simple backend without reset mask
-    output_simple_no_reset, (c_no_reset, n_no_reset, m_no_reset) = mlstm_chunkwise_simple(
+    output_simple_no_reset, (c_no_reset, n_no_reset, m_no_reset) = cortex.kernels.pytorch.mlstm.mlstm_chunkwise_simple(
         queries=queries,
         keys=keys,
         values=values,
@@ -447,7 +444,7 @@ def test_mlstm_reset_mask_functionality() -> None:
     )
 
     # Test 3: Triton backend with reset mask (native reset handling)
-    output_triton_reset, (c_triton, n_triton, m_triton) = mlstm_chunkwise_triton(
+    output_triton_reset, (c_triton, n_triton, m_triton) = cortex.kernels.triton.mlstm.mlstm_chunkwise_triton(
         queries=queries,
         keys=keys,
         values=values,
@@ -477,7 +474,7 @@ def test_mlstm_reset_mask_functionality() -> None:
         # Apply reset if needed
         if t > 0:  # Don't check at t=0 since states are already zero
             reset_t = reset_mask[:, t]
-            h_step, (c_state, n_state, m_state) = mlstm_recurrent_step_stabilized_simple(
+            h_step, (c_state, n_state, m_state) = cortex.kernels.pytorch.mlstm.mlstm_recurrent_step_stabilized_simple(
                 c_state=c_state,
                 n_state=n_state,
                 m_state=m_state,
@@ -489,7 +486,7 @@ def test_mlstm_reset_mask_functionality() -> None:
                 reset_mask=reset_t,
             )
         else:
-            h_step, (c_state, n_state, m_state) = mlstm_recurrent_step_stabilized_simple(
+            h_step, (c_state, n_state, m_state) = cortex.kernels.pytorch.mlstm.mlstm_recurrent_step_stabilized_simple(
                 c_state=c_state,
                 n_state=n_state,
                 m_state=m_state,
@@ -552,7 +549,7 @@ def test_mlstm_reset_mask_functionality() -> None:
     keys_grad_simple = keys.clone().requires_grad_(True)
     values_grad_simple = values.clone().requires_grad_(True)
 
-    output_grad_simple = mlstm_chunkwise_simple(
+    output_grad_simple = cortex.kernels.pytorch.mlstm.mlstm_chunkwise_simple(
         queries=queries_grad_simple,
         keys=keys_grad_simple,
         values=values_grad_simple,
@@ -571,7 +568,7 @@ def test_mlstm_reset_mask_functionality() -> None:
     keys_grad_triton = keys.clone().requires_grad_(True)
     values_grad_triton = values.clone().requires_grad_(True)
 
-    output_grad_triton = mlstm_chunkwise_triton(
+    output_grad_triton = cortex.kernels.triton.mlstm.mlstm_chunkwise_triton(
         queries=queries_grad_triton,
         keys=keys_grad_triton,
         values=values_grad_triton,
@@ -599,28 +596,32 @@ def test_mlstm_reset_mask_functionality() -> None:
     for t in range(T):
         if t > 0:
             reset_t = reset_mask[:, t]
-            h_step_grad, (c_state_grad, n_state_grad, m_state_grad) = mlstm_recurrent_step_stabilized_simple(
-                c_state=c_state_grad,
-                n_state=n_state_grad,
-                m_state=m_state_grad,
-                q=queries_grad_seq[:, :, t : t + 1, :],
-                k=keys_grad_seq[:, :, t : t + 1, :],
-                v=values_grad_seq[:, :, t : t + 1, :],
-                igate_preact=igate_preact[:, :, t : t + 1].unsqueeze(-1),
-                fgate_preact=fgate_preact[:, :, t : t + 1].unsqueeze(-1),
-                reset_mask=reset_t,
+            h_step_grad, (c_state_grad, n_state_grad, m_state_grad) = (
+                cortex.kernels.pytorch.mlstm.mlstm_recurrent_step_stabilized_simple(
+                    c_state=c_state_grad,
+                    n_state=n_state_grad,
+                    m_state=m_state_grad,
+                    q=queries_grad_seq[:, :, t : t + 1, :],
+                    k=keys_grad_seq[:, :, t : t + 1, :],
+                    v=values_grad_seq[:, :, t : t + 1, :],
+                    igate_preact=igate_preact[:, :, t : t + 1].unsqueeze(-1),
+                    fgate_preact=fgate_preact[:, :, t : t + 1].unsqueeze(-1),
+                    reset_mask=reset_t,
+                )
             )
         else:
-            h_step_grad, (c_state_grad, n_state_grad, m_state_grad) = mlstm_recurrent_step_stabilized_simple(
-                c_state=c_state_grad,
-                n_state=n_state_grad,
-                m_state=m_state_grad,
-                q=queries_grad_seq[:, :, t : t + 1, :],
-                k=keys_grad_seq[:, :, t : t + 1, :],
-                v=values_grad_seq[:, :, t : t + 1, :],
-                igate_preact=igate_preact[:, :, t : t + 1].unsqueeze(-1),
-                fgate_preact=fgate_preact[:, :, t : t + 1].unsqueeze(-1),
-                reset_mask=None,
+            h_step_grad, (c_state_grad, n_state_grad, m_state_grad) = (
+                cortex.kernels.pytorch.mlstm.mlstm_recurrent_step_stabilized_simple(
+                    c_state=c_state_grad,
+                    n_state=n_state_grad,
+                    m_state=m_state_grad,
+                    q=queries_grad_seq[:, :, t : t + 1, :],
+                    k=keys_grad_seq[:, :, t : t + 1, :],
+                    v=values_grad_seq[:, :, t : t + 1, :],
+                    igate_preact=igate_preact[:, :, t : t + 1].unsqueeze(-1),
+                    fgate_preact=fgate_preact[:, :, t : t + 1].unsqueeze(-1),
+                    reset_mask=None,
+                )
             )
         outputs_grad_seq.append(h_step_grad)
 
@@ -741,7 +742,7 @@ def test_mlstm_reset_mask_functionality() -> None:
     reset_mask_within[0, 30] = True  # Within first chunk
     reset_mask_within[0, 62] = True  # Within second chunk
 
-    output_boundary = mlstm_chunkwise_simple(
+    output_boundary = cortex.kernels.pytorch.mlstm.mlstm_chunkwise_simple(
         queries=queries,
         keys=keys,
         values=values,
@@ -752,7 +753,7 @@ def test_mlstm_reset_mask_functionality() -> None:
         return_last_state=False,
     )
 
-    output_within = mlstm_chunkwise_simple(
+    output_within = cortex.kernels.pytorch.mlstm.mlstm_chunkwise_simple(
         queries=queries,
         keys=keys,
         values=values,
@@ -768,20 +769,16 @@ def test_mlstm_reset_mask_functionality() -> None:
         "Outputs should differ when resets are at boundaries vs within chunks"
     )
 
-    # Test 8: mLSTMCell end-to-end with reset mask (sequence vs. step)
-    from cortex.cells.mlstm import mLSTMCell  # local import to avoid circularities
-    from cortex.config import mLSTMCellConfig
-
     # Use kernel_size=1 to avoid conv-state dependence across timesteps,
     # ensuring step/sequence parity under resets.
-    mlstm_cfg = mLSTMCellConfig(
+    mlstm_cfg = cortex.config.mLSTMCellConfig(
         hidden_size=H,
         num_heads=num_heads,
         chunk_size=chunk_size,
         conv1d_kernel_size=1,
     )
 
-    cell = mLSTMCell(mlstm_cfg).to(device=device, dtype=dtype)
+    cell = cortex.cells.mlstm.mLSTMCell(mlstm_cfg).to(device=device, dtype=dtype)
     cell.eval()
 
     x = torch.randn(B, T, H, device=device, dtype=dtype)

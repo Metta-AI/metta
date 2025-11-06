@@ -1,15 +1,14 @@
 """Simplified tests for CurriculumEnv using parameterization and helpers."""
 
-from unittest.mock import Mock
+import unittest.mock
 
 import numpy as np
 import pytest
 
-from metta.cogworks.curriculum import Curriculum, CurriculumConfig, CurriculumTask, SingleTaskGenerator
-from metta.cogworks.curriculum.curriculum_env import CurriculumEnv
-from mettagrid.config.mettagrid_config import MettaGridConfig
-
-from .test_helpers import CurriculumTestHelper
+import metta.cogworks.curriculum
+import metta.cogworks.curriculum.curriculum_env
+import mettagrid.config.mettagrid_config
+import tests.cogworks.curriculum.test_helpers
 
 
 class TestCurriculumEnv:
@@ -17,13 +16,15 @@ class TestCurriculumEnv:
 
     def create_test_curriculum(self):
         """Helper to create a test curriculum."""
-        task_gen_config = SingleTaskGenerator.Config(env=MettaGridConfig())
-        config = CurriculumConfig(task_generator=task_gen_config, num_active_tasks=5)
-        return Curriculum(config, seed=0)
+        task_gen_config = metta.cogworks.curriculum.SingleTaskGenerator.Config(
+            env=mettagrid.config.mettagrid_config.MettaGridConfig()
+        )
+        config = metta.cogworks.curriculum.CurriculumConfig(task_generator=task_gen_config, num_active_tasks=5)
+        return metta.cogworks.curriculum.Curriculum(config, seed=0)
 
     def create_mock_env(self):
         """Helper to create a mock environment."""
-        mock_env = Mock()
+        mock_env = unittest.mock.Mock()
         mock_env.step.return_value = (
             np.array([1, 2, 3]),  # obs
             np.array([0.5, 0.7]),  # rewards
@@ -32,8 +33,10 @@ class TestCurriculumEnv:
             {},  # infos
         )
 
-        mock_env.get_episode_rewards = Mock(return_value=np.array([1.0, 2.0]))  # Add get_episode_rewards method
-        mock_env.set_mg_config = Mock()  # Add set_mg_config method
+        mock_env.get_episode_rewards = unittest.mock.Mock(
+            return_value=np.array([1.0, 2.0])
+        )  # Add get_episode_rewards method
+        mock_env.set_mg_config = unittest.mock.Mock()  # Add set_mg_config method
         return mock_env
 
     def test_curriculum_env_creation(self):
@@ -41,11 +44,11 @@ class TestCurriculumEnv:
         mock_env = self.create_mock_env()
         curriculum = self.create_test_curriculum()
 
-        wrapper = CurriculumEnv(mock_env, curriculum)
+        wrapper = metta.cogworks.curriculum.curriculum_env.CurriculumEnv(mock_env, curriculum)
 
         assert wrapper._env is mock_env
         assert wrapper._curriculum is curriculum
-        assert isinstance(wrapper._current_task, CurriculumTask)
+        assert isinstance(wrapper._current_task, metta.cogworks.curriculum.CurriculumTask)
 
     @pytest.mark.parametrize(
         "termination_type,expected_behavior",
@@ -60,7 +63,7 @@ class TestCurriculumEnv:
         """Test all termination scenarios in one parameterized test."""
         mock_env = self.create_mock_env()
         curriculum = self.create_test_curriculum()
-        wrapper = CurriculumEnv(mock_env, curriculum)
+        wrapper = metta.cogworks.curriculum.curriculum_env.CurriculumEnv(mock_env, curriculum)
 
         initial_task = wrapper._current_task
 
@@ -107,7 +110,7 @@ class TestCurriculumEnv:
 
         # Verify step result
         expected = mock_env.step.return_value
-        CurriculumTestHelper.assert_step_result(result, expected)
+        tests.cogworks.curriculum.test_helpers.CurriculumTestHelper.assert_step_result(result, expected)
 
         # Verify task completion behavior
         if expected_behavior == "same_task":
@@ -138,7 +141,7 @@ class TestCurriculumEnv:
         mock_env.get_episode_rewards.return_value = np.array([0.6, 0.4])
 
         curriculum = self.create_test_curriculum()
-        wrapper = CurriculumEnv(mock_env, curriculum)
+        wrapper = metta.cogworks.curriculum.curriculum_env.CurriculumEnv(mock_env, curriculum)
         initial_task = wrapper._current_task
 
         # Step with appropriate number of agent actions
@@ -157,10 +160,10 @@ class TestCurriculumEnv:
         """Test that attribute access is delegated to the wrapped environment."""
         mock_env = self.create_mock_env()
         mock_env.some_attribute = "test_value"
-        mock_env.some_method = Mock(return_value="method_result")
+        mock_env.some_method = unittest.mock.Mock(return_value="method_result")
 
         curriculum = self.create_test_curriculum()
-        wrapper = CurriculumEnv(mock_env, curriculum)
+        wrapper = metta.cogworks.curriculum.curriculum_env.CurriculumEnv(mock_env, curriculum)
 
         # Should delegate attribute access
         assert wrapper.some_attribute == "test_value"
@@ -174,7 +177,7 @@ class TestCurriculumEnv:
         """Test step method with keyword arguments."""
         mock_env = self.create_mock_env()
         curriculum = self.create_test_curriculum()
-        wrapper = CurriculumEnv(mock_env, curriculum)
+        wrapper = metta.cogworks.curriculum.curriculum_env.CurriculumEnv(mock_env, curriculum)
 
         # Step with kwargs
         wrapper.step([1, 0], render=True, mode="human")
@@ -186,7 +189,7 @@ class TestCurriculumEnv:
         """Test wrapper behavior across multiple episodes."""
         mock_env = self.create_mock_env()
         curriculum = self.create_test_curriculum()
-        wrapper = CurriculumEnv(mock_env, curriculum)
+        wrapper = metta.cogworks.curriculum.curriculum_env.CurriculumEnv(mock_env, curriculum)
 
         tasks_seen = []
 
@@ -215,7 +218,7 @@ class TestCurriculumEnv:
 
     def test_curriculum_env_wrapper_zero_rewards(self):
         """Test wrapper behavior with zero rewards."""
-        mock_env = Mock()
+        mock_env = unittest.mock.Mock()
         # Simulate a 2-agent environment with zero rewards and no termination
         mock_env.step.return_value = (
             np.array([[1, 2, 3], [4, 5, 6]]),  # obs for 2 agents
@@ -225,14 +228,16 @@ class TestCurriculumEnv:
             {},
         )
 
-        mock_env.get_episode_rewards = Mock(return_value=np.array([0.0, 0.0]))
-        mock_env.set_mg_config = Mock()
+        mock_env.get_episode_rewards = unittest.mock.Mock(return_value=np.array([0.0, 0.0]))
+        mock_env.set_mg_config = unittest.mock.Mock()
 
-        task_gen_config = SingleTaskGenerator.Config(env=MettaGridConfig())
-        config = CurriculumConfig(task_generator=task_gen_config)
-        curriculum = Curriculum(config, seed=0)
+        task_gen_config = metta.cogworks.curriculum.SingleTaskGenerator.Config(
+            env=mettagrid.config.mettagrid_config.MettaGridConfig()
+        )
+        config = metta.cogworks.curriculum.CurriculumConfig(task_generator=task_gen_config)
+        curriculum = metta.cogworks.curriculum.Curriculum(config, seed=0)
 
-        wrapper = CurriculumEnv(mock_env, curriculum)
+        wrapper = metta.cogworks.curriculum.curriculum_env.CurriculumEnv(mock_env, curriculum)
         initial_task = wrapper._current_task
 
         # Step with 2 agent actions
@@ -244,7 +249,7 @@ class TestCurriculumEnv:
 
     def test_curriculum_env_wrapper_single_agent(self):
         """Test wrapper with single-agent environment."""
-        mock_env = Mock()
+        mock_env = unittest.mock.Mock()
         mock_env.step.return_value = (
             np.array([1, 2, 3]),
             np.array([0.8]),  # Single reward
@@ -253,14 +258,16 @@ class TestCurriculumEnv:
             {},
         )
 
-        mock_env.get_episode_rewards = Mock(return_value=np.array([0.8]))
-        mock_env.set_mg_config = Mock()
+        mock_env.get_episode_rewards = unittest.mock.Mock(return_value=np.array([0.8]))
+        mock_env.set_mg_config = unittest.mock.Mock()
 
-        task_gen_config = SingleTaskGenerator.Config(env=MettaGridConfig())
-        config = CurriculumConfig(task_generator=task_gen_config)
-        curriculum = Curriculum(config, seed=0)
+        task_gen_config = metta.cogworks.curriculum.SingleTaskGenerator.Config(
+            env=mettagrid.config.mettagrid_config.MettaGridConfig()
+        )
+        config = metta.cogworks.curriculum.CurriculumConfig(task_generator=task_gen_config)
+        curriculum = metta.cogworks.curriculum.Curriculum(config, seed=0)
 
-        wrapper = CurriculumEnv(mock_env, curriculum)
+        wrapper = metta.cogworks.curriculum.curriculum_env.CurriculumEnv(mock_env, curriculum)
 
         initial_task = wrapper._current_task
         wrapper.step([1])
@@ -271,7 +278,7 @@ class TestCurriculumEnv:
 
     def test_curriculum_env_wrapper_curriculum_stats_integration(self):
         """Test that wrapper integrates properly with curriculum statistics."""
-        mock_env = Mock()
+        mock_env = unittest.mock.Mock()
         mock_env.step.return_value = (
             np.array([1, 2, 3]),
             np.array([0.7, 0.3]),
@@ -280,13 +287,15 @@ class TestCurriculumEnv:
             {},
         )
 
-        mock_env.get_episode_rewards = Mock(return_value=np.array([0.7, 0.3]))
-        mock_env.set_mg_config = Mock()
+        mock_env.get_episode_rewards = unittest.mock.Mock(return_value=np.array([0.7, 0.3]))
+        mock_env.set_mg_config = unittest.mock.Mock()
 
-        task_gen_config = SingleTaskGenerator.Config(env=MettaGridConfig())
-        config = CurriculumConfig(task_generator=task_gen_config, num_active_tasks=2)
-        curriculum = Curriculum(config, seed=0)
-        wrapper = CurriculumEnv(mock_env, curriculum)
+        task_gen_config = metta.cogworks.curriculum.SingleTaskGenerator.Config(
+            env=mettagrid.config.mettagrid_config.MettaGridConfig()
+        )
+        config = metta.cogworks.curriculum.CurriculumConfig(task_generator=task_gen_config, num_active_tasks=2)
+        curriculum = metta.cogworks.curriculum.Curriculum(config, seed=0)
+        wrapper = metta.cogworks.curriculum.curriculum_env.CurriculumEnv(mock_env, curriculum)
 
         # Initial curriculum stats
         initial_stats = curriculum.stats()

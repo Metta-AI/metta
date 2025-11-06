@@ -1,19 +1,19 @@
 import functools
-from pathlib import Path
-from typing import TypeVar, cast
+import pathlib
+import typing
 
 import yaml
 
-from metta.setup.profiles import PROFILE_DEFINITIONS, ComponentConfig, UserType
+import metta.setup.profiles
 
-T = TypeVar("T")
+T = typing.TypeVar("T")
 
 CURRENT_SAVED_SETTINGS_VERSION = 1
 
 
 class SavedSettings:
-    def __init__(self, config_path: Path) -> None:
-        self.config_path: Path = config_path
+    def __init__(self, config_path: pathlib.Path) -> None:
+        self.config_path: pathlib.Path = config_path
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
         self._config: dict = self._load_config()
 
@@ -39,7 +39,7 @@ class SavedSettings:
                 value = value[k]
             else:
                 return default
-        return cast(T, value)
+        return typing.cast(T, value)
 
     def set(self, key: str, value: T) -> None:
         keys = key.split(".")
@@ -54,11 +54,11 @@ class SavedSettings:
         self.save()
 
     @property
-    def user_type(self) -> UserType:
-        return UserType(self.get("user_type", UserType.EXTERNAL.value))
+    def user_type(self) -> metta.setup.profiles.UserType:
+        return metta.setup.profiles.UserType(self.get("user_type", metta.setup.profiles.UserType.EXTERNAL.value))
 
     @user_type.setter
-    def user_type(self, value: UserType) -> None:
+    def user_type(self, value: metta.setup.profiles.UserType) -> None:
         self.set("user_type", value.value)
 
     @property
@@ -69,11 +69,11 @@ class SavedSettings:
     def is_custom_config(self) -> bool:
         return self.get("custom_config", False)
 
-    def get_components(self) -> dict[str, ComponentConfig]:
+    def get_components(self) -> dict[str, metta.setup.profiles.ComponentConfig]:
         """Get the components configuration based on mode."""
         if not self.is_custom_config:
             # Use dynamic profile resolution
-            profile_config = PROFILE_DEFINITIONS.get(self.user_type, {})
+            profile_config = metta.setup.profiles.PROFILE_DEFINITIONS.get(self.user_type, {})
             return profile_config.get("components", {})
         else:
             # Use saved configuration
@@ -89,7 +89,7 @@ class SavedSettings:
         comp_settings = components.get(component, {})
         return comp_settings.get("expected_connection")
 
-    def apply_profile(self, profile: UserType) -> None:
+    def apply_profile(self, profile: metta.setup.profiles.UserType) -> None:
         """Apply a profile configuration (uses dynamic resolution)."""
         self.user_type = profile
         self.set("custom_config", False)
@@ -99,19 +99,19 @@ class SavedSettings:
             del self._config["components"]
             self.save()
 
-    def setup_custom_profile(self, base_profile: UserType) -> None:
+    def setup_custom_profile(self, base_profile: metta.setup.profiles.UserType) -> None:
         """Set up a custom configuration based on a profile."""
         self.user_type = base_profile
         self.set("custom_config", True)
         self.set("config_version", CURRENT_SAVED_SETTINGS_VERSION)
 
         # Copy all component settings from the base profile
-        profile_config = PROFILE_DEFINITIONS.get(base_profile, {})
+        profile_config = metta.setup.profiles.PROFILE_DEFINITIONS.get(base_profile, {})
         for component, settings in profile_config.get("components", {}).items():
             for key, value in settings.items():
                 self.set(f"components.{component}.{key}", value)
 
 
 @functools.cache
-def get_saved_settings(config_path: Path | None = None) -> SavedSettings:
-    return SavedSettings(config_path or Path.home() / ".metta" / "config.yaml")
+def get_saved_settings(config_path: pathlib.Path | None = None) -> SavedSettings:
+    return SavedSettings(config_path or pathlib.Path.home() / ".metta" / "config.yaml")

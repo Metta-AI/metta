@@ -1,50 +1,28 @@
-from __future__ import annotations
 
-from abc import ABC
-from typing import override
+import abc
+import typing
 
-from pydantic import Field
+import pydantic
 
-from cogames.cogs_vs_clips import vibes
-from cogames.cogs_vs_clips.stations import (
-    CarbonExtractorConfig,
-    ChargerConfig,
-    CvCAssemblerConfig,
-    CvCChestConfig,
-    CvCWallConfig,
-    GermaniumExtractorConfig,
-    OxygenExtractorConfig,
-    SiliconExtractorConfig,
-    resources,
-)
-from mettagrid.base_config import Config
-from mettagrid.config.mettagrid_config import (
-    ActionsConfig,
-    AgentConfig,
-    AgentRewards,
-    ChangeVibeActionConfig,
-    ClipperConfig,
-    GameConfig,
-    MettaGridConfig,
-    MoveActionConfig,
-    NoopActionConfig,
-    ProtocolConfig,
-)
-from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
+import cogames.cogs_vs_clips
+import cogames.cogs_vs_clips.stations
+import mettagrid.base_config
+import mettagrid.config.mettagrid_config
+import mettagrid.map_builder.map_builder
 
 
-class MissionVariant(Config, ABC):
+class MissionVariant(mettagrid.base_config.Config, abc.ABC):
     # Note: we could derive the name from the class name automatically, but it would make it
     # harder to find the variant source code based on CLI interactions.
     name: str
-    description: str = Field(default="")
+    description: str = pydantic.Field(default="")
 
     def modify_mission(self, mission: Mission) -> None:
         # Override this method to modify the mission.
         # Variants are allowed to modify the mission in-place - it's guaranteed to be a one-time only instance.
         pass
 
-    def modify_env(self, mission: Mission, env: MettaGridConfig) -> None:
+    def modify_env(self, mission: Mission, env: mettagrid.config.mettagrid_config.MettaGridConfig) -> None:
         # Override this method to modify the produced environment.
         # Variants are allowed to modify the environment in-place.
         pass
@@ -70,7 +48,7 @@ class NumCogsVariant(MissionVariant):
     description: str = "Set the number of cogs for the mission."
     num_cogs: int
 
-    @override
+    @typing.override
     def modify_mission(self, mission: Mission) -> None:
         if self.num_cogs < mission.site.min_cogs or self.num_cogs > mission.site.max_cogs:
             raise ValueError(
@@ -81,19 +59,19 @@ class NumCogsVariant(MissionVariant):
         mission.num_cogs = self.num_cogs
 
 
-class Site(Config):
+class Site(mettagrid.base_config.Config):
     name: str
     description: str
-    map_builder: AnyMapBuilderConfig
+    map_builder: mettagrid.map_builder.map_builder.AnyMapBuilderConfig
 
-    min_cogs: int = Field(default=1, ge=1)
-    max_cogs: int = Field(default=1000, ge=1)
+    min_cogs: int = pydantic.Field(default=1, ge=1)
+    max_cogs: int = pydantic.Field(default=1000, ge=1)
 
 
 MAP_MISSION_DELIMITER = "."
 
 
-class Mission(Config):
+class Mission(mettagrid.base_config.Config):
     """Mission configuration for Cogs vs Clips."""
 
     name: str
@@ -101,29 +79,45 @@ class Mission(Config):
     site: Site
     num_cogs: int | None = None
 
-    carbon_extractor: CarbonExtractorConfig = Field(default_factory=CarbonExtractorConfig)
-    oxygen_extractor: OxygenExtractorConfig = Field(default_factory=OxygenExtractorConfig)
-    germanium_extractor: GermaniumExtractorConfig = Field(default_factory=GermaniumExtractorConfig)
-    silicon_extractor: SiliconExtractorConfig = Field(default_factory=SiliconExtractorConfig)
-    charger: ChargerConfig = Field(default_factory=ChargerConfig)
-    chest: CvCChestConfig = Field(default_factory=CvCChestConfig)
-    wall: CvCWallConfig = Field(default_factory=CvCWallConfig)
-    assembler: CvCAssemblerConfig = Field(default_factory=CvCAssemblerConfig)
+    carbon_extractor: cogames.cogs_vs_clips.stations.CarbonExtractorConfig = pydantic.Field(
+        default_factory=cogames.cogs_vs_clips.stations.CarbonExtractorConfig
+    )
+    oxygen_extractor: cogames.cogs_vs_clips.stations.OxygenExtractorConfig = pydantic.Field(
+        default_factory=cogames.cogs_vs_clips.stations.OxygenExtractorConfig
+    )
+    germanium_extractor: cogames.cogs_vs_clips.stations.GermaniumExtractorConfig = pydantic.Field(
+        default_factory=cogames.cogs_vs_clips.stations.GermaniumExtractorConfig
+    )
+    silicon_extractor: cogames.cogs_vs_clips.stations.SiliconExtractorConfig = pydantic.Field(
+        default_factory=cogames.cogs_vs_clips.stations.SiliconExtractorConfig
+    )
+    charger: cogames.cogs_vs_clips.stations.ChargerConfig = pydantic.Field(
+        default_factory=cogames.cogs_vs_clips.stations.ChargerConfig
+    )
+    chest: cogames.cogs_vs_clips.stations.CvCChestConfig = pydantic.Field(
+        default_factory=cogames.cogs_vs_clips.stations.CvCChestConfig
+    )
+    wall: cogames.cogs_vs_clips.stations.CvCWallConfig = pydantic.Field(
+        default_factory=cogames.cogs_vs_clips.stations.CvCWallConfig
+    )
+    assembler: cogames.cogs_vs_clips.stations.CvCAssemblerConfig = pydantic.Field(
+        default_factory=cogames.cogs_vs_clips.stations.CvCAssemblerConfig
+    )
 
-    clip_rate: float = Field(default=0.0)
-    cargo_capacity: int = Field(default=255)
-    energy_capacity: int = Field(default=100)
-    energy_regen_amount: int = Field(default=1)
-    inventory_regen_interval: int = Field(default=1)
-    gear_capacity: int = Field(default=5)
-    move_energy_cost: int = Field(default=2)
-    heart_capacity: int = Field(default=1)
+    clip_rate: float = pydantic.Field(default=0.0)
+    cargo_capacity: int = pydantic.Field(default=255)
+    energy_capacity: int = pydantic.Field(default=100)
+    energy_regen_amount: int = pydantic.Field(default=1)
+    inventory_regen_interval: int = pydantic.Field(default=1)
+    gear_capacity: int = pydantic.Field(default=5)
+    move_energy_cost: int = pydantic.Field(default=2)
+    heart_capacity: int = pydantic.Field(default=1)
     # Control vibe swapping in variants
-    enable_vibe_change: bool = Field(default=True)
-    vibe_count: int | None = Field(default=None)
+    enable_vibe_change: bool = pydantic.Field(default=True)
+    vibe_count: int | None = pydantic.Field(default=None)
 
     # Variants are applied to the mission immediately, and to its env when make_env is called
-    variants: list[MissionVariant] = Field(default_factory=list)
+    variants: list[MissionVariant] = pydantic.Field(default_factory=list)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -140,7 +134,7 @@ class Mission(Config):
     def full_name(self) -> str:
         return f"{self.site.name}{MAP_MISSION_DELIMITER}{self.name}"
 
-    def make_env(self) -> MettaGridConfig:
+    def make_env(self) -> mettagrid.config.mettagrid_config.MettaGridConfig:
         """Create a MettaGridConfig from this mission.
 
         Applies all variants to the produced configuration.
@@ -151,30 +145,34 @@ class Mission(Config):
         map_builder = self.site.map_builder
         num_cogs = self.num_cogs if self.num_cogs is not None else self.site.min_cogs
 
-        game = GameConfig(
+        game = mettagrid.config.mettagrid_config.GameConfig(
             map_builder=map_builder,
             num_agents=num_cogs,
-            resource_names=resources,
-            vibe_names=[vibe.name for vibe in vibes.VIBES],
-            actions=ActionsConfig(
-                move=MoveActionConfig(consumed_resources={"energy": self.move_energy_cost}),
-                noop=NoopActionConfig(),
-                change_vibe=ChangeVibeActionConfig(
+            resource_names=cogames.cogs_vs_clips.stations.resources,
+            vibe_names=[vibe.name for vibe in cogames.cogs_vs_clips.vibes.VIBES],
+            actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                move=mettagrid.config.mettagrid_config.MoveActionConfig(
+                    consumed_resources={"energy": self.move_energy_cost}
+                ),
+                noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
+                change_vibe=mettagrid.config.mettagrid_config.ChangeVibeActionConfig(
                     number_of_vibes=(
                         0
                         if not self.enable_vibe_change
-                        else (self.vibe_count if self.vibe_count is not None else len(vibes.VIBES))
+                        else (
+                            self.vibe_count if self.vibe_count is not None else len(cogames.cogs_vs_clips.vibes.VIBES)
+                        )
                     )
                 ),
             ),
-            agent=AgentConfig(
+            agent=mettagrid.config.mettagrid_config.AgentConfig(
                 resource_limits={
                     "heart": self.heart_capacity,
                     "energy": self.energy_capacity,
                     ("carbon", "oxygen", "germanium", "silicon"): self.cargo_capacity,
                     ("scrambler", "modulator", "decoder", "resonator"): self.gear_capacity,
                 },
-                rewards=AgentRewards(
+                rewards=mettagrid.config.mettagrid_config.AgentRewards(
                     stats={"chest.heart.amount": 1 / num_cogs},
                 ),
                 initial_inventory={
@@ -185,21 +183,21 @@ class Mission(Config):
                 diversity_tracked_resources=["energy", "carbon", "oxygen", "germanium", "silicon", "heart"],
             ),
             inventory_regen_interval=self.inventory_regen_interval,
-            clipper=ClipperConfig(
+            clipper=mettagrid.config.mettagrid_config.ClipperConfig(
                 unclipping_protocols=[
-                    ProtocolConfig(
+                    mettagrid.config.mettagrid_config.ProtocolConfig(
                         input_resources={"decoder": 1},
                         cooldown=1,
                     ),
-                    ProtocolConfig(
+                    mettagrid.config.mettagrid_config.ProtocolConfig(
                         input_resources={"modulator": 1},
                         cooldown=1,
                     ),
-                    ProtocolConfig(
+                    mettagrid.config.mettagrid_config.ProtocolConfig(
                         input_resources={"scrambler": 1},
                         cooldown=1,
                     ),
-                    ProtocolConfig(
+                    mettagrid.config.mettagrid_config.ProtocolConfig(
                         input_resources={"resonator": 1},
                         cooldown=1,
                     ),
@@ -231,7 +229,7 @@ class Mission(Config):
             },
         )
 
-        env = MettaGridConfig(game=game)
+        env = mettagrid.config.mettagrid_config.MettaGridConfig(game=game)
         # Precaution - copy the env, in case the code above uses some global variable that we don't want to modify.
         # This allows variants to modify the env without copying it again.
         env = env.model_copy(deep=True)

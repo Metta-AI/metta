@@ -1,19 +1,19 @@
 """Job manager with worker pool, queue, and persistence."""
 
+import collections
+import datetime
 import logging
+import pathlib
 import threading
 import time
-from collections import deque
-from datetime import datetime
-from pathlib import Path
 
-from sqlmodel import Session, SQLModel, create_engine, select
+import sqlmodel
 
-from devops.skypilot.utils.job_helpers import check_job_statuses
-from metta.common.util.constants import SOFTMAX_S3_POLICY_PREFIX
-from metta.jobs.job_config import JobConfig
-from metta.jobs.job_runner import LocalJob, RemoteJob
-from metta.jobs.job_state import JobState, JobStatus
+import devops.skypilot.utils.job_helpers
+import metta.common.util.constants
+import metta.jobs.job_config
+import metta.jobs.job_runner
+import metta.jobs.job_state
 
 logger = logging.getLogger(__name__)
 
@@ -52,13 +52,13 @@ class JobManager:
 
     def __init__(
         self,
-        base_dir: Path,
+        base_dir: pathlib.Path,
         max_local_jobs: int = 1,
         max_remote_jobs: int = 10,
         remote_poll_interval_s: float = 5.0,
         metrics_fetch_interval_s: float = 300.0,  # Fetch metrics every 5 minutes
     ):
-        self.base_dir = Path(base_dir)
+        self.base_dir = pathlib.Path(base_dir)
         self.db_path = self.base_dir / "jobs.sqlite"
         self.log_dir = self.base_dir / "logs"
         self.max_local_jobs = max_local_jobs
@@ -67,12 +67,12 @@ class JobManager:
         self.metrics_fetch_interval_s = metrics_fetch_interval_s  # How often to fetch WandB metrics
 
         # Local job execution (subprocess-based)
-        self._active_local_jobs: dict[str, LocalJob] = {}
+        self._active_local_jobs: dict[str, metta.jobs.job_runner.LocalJob] = {}
         self._local_monitor_threads: dict[str, threading.Thread] = {}
         self._local_jobs_lock = threading.Lock()
 
         # Remote job execution (SkyPilot-based)
-        self._active_remote_jobs: dict[str, RemoteJob] = {}
+        self._active_remote_jobs: dict[str, metta.jobs.job_runner.RemoteJob] = {}
         self._remote_monitor_threads: dict[str, threading.Thread] = {}
         self._remote_jobs_lock = threading.Lock()
         self._remote_batch_monitor: threading.Thread | None = None  # Batch status checks for all remote jobs
@@ -82,10 +82,10 @@ class JobManager:
 
     def _init_db(self) -> None:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._engine = create_engine(f"sqlite:///{self.db_path}")
-        SQLModel.metadata.create_all(self._engine)
+        self._engine = sqlmodel.create_engine(f"sqlite:///{self.db_path}")
+        sqlmodel.SQLModel.metadata.create_all(self._engine)
 
-    def _refresh_job_metrics(self, job_state: JobState) -> None:
+    def _refresh_job_metrics(self, job_state: metta.jobs.job_state.JobState) -> None:
         """Fetch latest metrics and re-evaluate acceptance for a completed job.
 
         Args:
@@ -121,11 +121,15 @@ class JobManager:
         After marking jobs as completed, refreshes metrics for ALL completed jobs to ensure
         acceptance criteria are evaluated with the latest data.
         """
-        with Session(self._engine) as session:
-            running_jobs = session.exec(select(JobState).where(JobState.status == JobStatus.RUNNING)).all()
+        with sqlmodel.Session(self._engine) as session:
+            running_jobs = session.exec(
+                sqlmodel.select(metta.jobs.job_state.JobState).where(
+                    metta.jobs.job_state.JobState.status == metta.jobs.job_state.JobStatus.RUNNING
+                )
+            ).all()
 
             local_stale = []
-            remote_job_map: dict[int, tuple[str, JobState]] = {}  # job_id -> (job_name, job_state)
+            remote_job_map: dict[int, tuple[str, metta.jobs.job_state.JobState]] = {}  # job_id -> (job_name, job_state)
 
             # First pass: categorize jobs
             for job_state in running_jobs:
@@ -145,7 +149,7 @@ class JobManager:
                 job_ids = list(remote_job_map.keys())
                 logger.info(f"Batch checking status for {len(job_ids)} remote job(s)")
                 try:
-                    statuses = check_job_statuses(job_ids)
+                    statuses = devops.skypilot.utils.job_helpers.check_job_statuses(job_ids)
                 except Exception as e:
                     logger.error(f"Failed to batch check job statuses: {e}")
                     statuses = {}
@@ -159,17 +163,17 @@ class JobManager:
 
                     if status and status not in SKYPILOT_RUNNING_STATUSES:
                         # Job finished while we were down - mark complete
-                        job_state.status = JobStatus.COMPLETED
+                        job_state.status = metta.jobs.job_state.JobStatus.COMPLETED
                         job_state.skypilot_status = status
                         job_state.exit_code = self._map_skypilot_status_to_exit_code(status)
-                        job_state.completed_at = datetime.now().isoformat(timespec="seconds")
+                        job_state.completed_at = datetime.datetime.now().isoformat(timespec="seconds")
                         session.add(job_state)
                         completed_count += 1
                         logger.info(f"Job {job_name} finished while down: {status}")
                     else:
                         # Still running or status unknown - reattach and monitor
                         try:
-                            job = RemoteJob(job_state.config, str(self.log_dir), job_id=job_id)
+                            job = metta.jobs.job_runner.RemoteJob(job_state.config, str(self.log_dir), job_id=job_id)
                             with self._remote_jobs_lock:
                                 self._active_remote_jobs[job_name] = job
                             # Fetch metrics immediately for reattached jobs
@@ -186,9 +190,9 @@ class JobManager:
 
             # Mark local jobs as stale (can't reattach to subprocesses)
             for job_state in local_stale:
-                job_state.status = JobStatus.COMPLETED
+                job_state.status = metta.jobs.job_state.JobStatus.COMPLETED
                 job_state.exit_code = -1  # Abnormal termination
-                job_state.completed_at = datetime.now().isoformat(timespec="seconds")
+                job_state.completed_at = datetime.datetime.now().isoformat(timespec="seconds")
                 session.add(job_state)
 
             session.commit()
@@ -198,7 +202,11 @@ class JobManager:
 
             # After marking jobs as completed, refresh metrics for ALL completed jobs
             # This ensures acceptance criteria are evaluated with latest data from WandB
-            completed_jobs = session.exec(select(JobState).where(JobState.status == JobStatus.COMPLETED)).all()
+            completed_jobs = session.exec(
+                sqlmodel.select(metta.jobs.job_state.JobState).where(
+                    metta.jobs.job_state.JobState.status == metta.jobs.job_state.JobStatus.COMPLETED
+                )
+            ).all()
             refreshed_count = 0
             for job_state in completed_jobs:
                 self._refresh_job_metrics(job_state)
@@ -219,7 +227,7 @@ class JobManager:
         else:
             return 1  # Generic failure
 
-    def _get_all_active_jobs(self) -> dict[str, LocalJob | RemoteJob]:
+    def _get_all_active_jobs(self) -> dict[str, metta.jobs.job_runner.LocalJob | metta.jobs.job_runner.RemoteJob]:
         """Get all active jobs (both local and remote) as a merged dictionary.
 
         Returns:
@@ -231,7 +239,7 @@ class JobManager:
             remote = dict(self._active_remote_jobs)
         return {**local, **remote}
 
-    def _get_active_job(self, job_name: str) -> LocalJob | RemoteJob | None:
+    def _get_active_job(self, job_name: str) -> metta.jobs.job_runner.LocalJob | metta.jobs.job_runner.RemoteJob | None:
         """Get an active job by name (checks both local and remote).
 
         Args:
@@ -248,7 +256,7 @@ class JobManager:
                 return self._active_remote_jobs[job_name]
         return None
 
-    def _dependencies_satisfied(self, job_state: JobState, session: Session) -> bool:
+    def _dependencies_satisfied(self, job_state: metta.jobs.job_state.JobState, session: sqlmodel.Session) -> bool:
         """Check if all dependencies are completed successfully.
 
         A job can start if all its dependencies have:
@@ -267,7 +275,7 @@ class JobManager:
             return True
 
         for dep_name in job_state.config.dependency_names:
-            dep_state = session.get(JobState, dep_name)
+            dep_state = session.get(metta.jobs.job_state.JobState, dep_name)
             if not dep_state:
                 logger.debug(f"Job {job_state.name}: dependency {dep_name} not found in database yet")
                 return False
@@ -289,7 +297,7 @@ class JobManager:
 
         return True
 
-    def _handle_local_job_completion(self, job_name: str, job: LocalJob) -> bool:
+    def _handle_local_job_completion(self, job_name: str, job: metta.jobs.job_runner.LocalJob) -> bool:
         """Handle completion of a local job.
 
         Returns True if job was marked complete, False otherwise.
@@ -304,13 +312,13 @@ class JobManager:
         if not job_result:
             return False
 
-        with Session(self._engine) as session:
-            job_state = session.get(JobState, job_name)
+        with sqlmodel.Session(self._engine) as session:
+            job_state = session.get(metta.jobs.job_state.JobState, job_name)
             if not job_state:
                 return False
 
-            job_state.status = JobStatus.COMPLETED
-            job_state.completed_at = datetime.now().isoformat(timespec="seconds")
+            job_state.status = metta.jobs.job_state.JobStatus.COMPLETED
+            job_state.completed_at = datetime.datetime.now().isoformat(timespec="seconds")
             job_state.exit_code = job_result.exit_code
             job_state.logs_path = job_result.logs_path
 
@@ -351,16 +359,16 @@ class JobManager:
             except Exception:
                 pass
 
-        with Session(self._engine) as session:
-            job_state = session.get(JobState, job_name)
-            if not job_state or job_state.status == JobStatus.COMPLETED:
+        with sqlmodel.Session(self._engine) as session:
+            job_state = session.get(metta.jobs.job_state.JobState, job_name)
+            if not job_state or job_state.status == metta.jobs.job_state.JobStatus.COMPLETED:
                 return False
 
             # Determine exit code from SkyPilot status
             exit_code = self._map_skypilot_status_to_exit_code(status)
 
-            job_state.status = JobStatus.COMPLETED
-            job_state.completed_at = datetime.now().isoformat(timespec="seconds")
+            job_state.status = metta.jobs.job_state.JobStatus.COMPLETED
+            job_state.completed_at = datetime.datetime.now().isoformat(timespec="seconds")
             job_state.exit_code = exit_code
             if not job_state.job_id:
                 job_state.job_id = str(job_id)
@@ -423,9 +431,9 @@ class JobManager:
                     # Fetch metrics periodically while running
                     now = time.time()
                     if now - last_metrics_fetch >= self.metrics_fetch_interval_s:
-                        with Session(self._engine) as session:
-                            job_state = session.get(JobState, job_name)
-                            if job_state and job_state.status == JobStatus.RUNNING:
+                        with sqlmodel.Session(self._engine) as session:
+                            job_state = session.get(metta.jobs.job_state.JobState, job_name)
+                            if job_state and job_state.status == metta.jobs.job_state.JobStatus.RUNNING:
                                 job_state.fetch_and_update_metrics()
                                 if job_state.metrics:
                                     session.add(job_state)
@@ -484,12 +492,12 @@ class JobManager:
                         logger.debug(f"Batch checking {len(job_ids)} remote job(s)")
 
                         try:
-                            statuses = check_job_statuses(job_ids)
+                            statuses = devops.skypilot.utils.job_helpers.check_job_statuses(job_ids)
                             # Reset retry delay on success
                             retry_delay = 5.0
 
                             # Update database with statuses
-                            with Session(self._engine) as session:
+                            with sqlmodel.Session(self._engine) as session:
                                 for job_id, status_info in statuses.items():
                                     job_name = remote_jobs.get(job_id)
                                     if not job_name:
@@ -497,7 +505,7 @@ class JobManager:
 
                                     status = status_info.get("status")
                                     if status:
-                                        job_state = session.get(JobState, job_name)
+                                        job_state = session.get(metta.jobs.job_state.JobState, job_name)
                                         if job_state:
                                             job_state.skypilot_status = status
                                             session.add(job_state)
@@ -547,8 +555,8 @@ class JobManager:
             try:
                 while True:
                     # Read status from database (written by shared status monitor)
-                    with Session(self._engine) as session:
-                        job_state = session.get(JobState, job_name)
+                    with sqlmodel.Session(self._engine) as session:
+                        job_state = session.get(metta.jobs.job_state.JobState, job_name)
                         if not job_state:
                             logger.warning(f"Job {job_name} not found in database")
                             break
@@ -578,8 +586,8 @@ class JobManager:
                         # Fetch metrics periodically
                         now = time.time()
                         if now - last_metrics_fetch >= self.metrics_fetch_interval_s:
-                            with Session(self._engine) as session:
-                                job_state = session.get(JobState, job_name)
+                            with sqlmodel.Session(self._engine) as session:
+                                job_state = session.get(metta.jobs.job_state.JobState, job_name)
                                 if job_state:
                                     job_state.fetch_and_update_metrics()
                                     if job_state.metrics:
@@ -605,7 +613,7 @@ class JobManager:
             self._remote_monitor_threads[job_name] = thread
         logger.info(f"Started monitoring thread for remote job: {job_name} (job_id={job_id})")
 
-    def submit(self, config: JobConfig) -> None:
+    def submit(self, config: metta.jobs.job_config.JobConfig) -> None:
         """Submit job to queue, starting immediately if worker slot available.
 
         Note: Job is identified by config.name. Callers are responsible for ensuring
@@ -613,19 +621,19 @@ class JobManager:
         with version like "v0.1.0_train_arena" to avoid collisions across releases).
         """
 
-        with Session(self._engine) as session:
-            existing = session.get(JobState, config.name)
+        with sqlmodel.Session(self._engine) as session:
+            existing = session.get(metta.jobs.job_state.JobState, config.name)
             if existing:
                 raise ValueError(
                     f"Job '{config.name}' already exists with status '{existing.status}'. "
                     f"Use get_job_state() to check status before submitting."
                 )
-            job_state = JobState(name=config.name, config=config, status="pending")
+            job_state = metta.jobs.job_state.JobState(name=config.name, config=config, status="pending")
 
             # Set checkpoint URI (known at submission time)
             # WandB URL will be extracted from logs once job starts running
             # Uses the same S3 prefix that CheckpointManager uses for policy storage
-            job_state.checkpoint_uri = f"{SOFTMAX_S3_POLICY_PREFIX}/{config.name}"
+            job_state.checkpoint_uri = f"{metta.common.util.constants.SOFTMAX_S3_POLICY_PREFIX}/{config.name}"
 
             session.add(job_state)
             session.commit()
@@ -639,8 +647,8 @@ class JobManager:
         self._try_start_job(config.name)
 
     def _try_start_job(self, name: str) -> bool:
-        with Session(self._engine) as session:
-            job_state = session.get(JobState, name)
+        with sqlmodel.Session(self._engine) as session:
+            job_state = session.get(metta.jobs.job_state.JobState, name)
             if not job_state or job_state.status != "pending":
                 return False
 
@@ -659,9 +667,9 @@ class JobManager:
             # Check if remote job failed to launch (job_id will be None)
             if is_remote and not job_state.job_id:
                 # Launch failed - mark as completed with exit code from job
-                job_state.status = JobStatus.COMPLETED
-                job_state.started_at = datetime.now().isoformat(timespec="seconds")
-                job_state.completed_at = datetime.now().isoformat(timespec="seconds")
+                job_state.status = metta.jobs.job_state.JobStatus.COMPLETED
+                job_state.started_at = datetime.datetime.now().isoformat(timespec="seconds")
+                job_state.completed_at = datetime.datetime.now().isoformat(timespec="seconds")
                 job_state.exit_code = job.exit_code if job.exit_code is not None else 1
                 session.add(job_state)
                 session.commit()
@@ -677,8 +685,8 @@ class JobManager:
                 with self._local_jobs_lock:
                     self._active_local_jobs[name] = job
 
-            job_state.status = JobStatus.RUNNING
-            job_state.started_at = datetime.now().isoformat(timespec="seconds")
+            job_state.status = metta.jobs.job_state.JobStatus.RUNNING
+            job_state.started_at = datetime.datetime.now().isoformat(timespec="seconds")
             session.add(job_state)
 
             # Get job_id before session closes (to avoid DetachedInstanceError)
@@ -717,7 +725,9 @@ class JobManager:
         max_jobs = self.max_remote_jobs if is_remote else self.max_local_jobs
         return active_count < max_jobs
 
-    def _spawn_job(self, config: JobConfig, existing_job_id: str | None = None) -> LocalJob | RemoteJob:
+    def _spawn_job(
+        self, config: metta.jobs.job_config.JobConfig, existing_job_id: str | None = None
+    ) -> metta.jobs.job_runner.LocalJob | metta.jobs.job_runner.RemoteJob:
         """Create and submit a job (local or remote).
 
         Args:
@@ -731,13 +741,13 @@ class JobManager:
 
         if config.remote is None:
             # Local job
-            job = LocalJob(config, log_dir)
+            job = metta.jobs.job_runner.LocalJob(config, log_dir)
             job.submit()
             return job
         else:
             # Remote job
             job_id = int(existing_job_id) if existing_job_id else None
-            job = RemoteJob(config, log_dir, job_id=job_id)
+            job = metta.jobs.job_runner.RemoteJob(config, log_dir, job_id=job_id)
             job.submit()
             return job
 
@@ -750,14 +760,14 @@ class JobManager:
         completed = []
 
         # Update job_id for remote jobs once available, and start their monitoring threads
-        with Session(self._engine) as session:
+        with sqlmodel.Session(self._engine) as session:
             # Get snapshot of active remote jobs (protected by lock)
             with self._remote_jobs_lock:
                 active_remote_jobs_snapshot = list(self._active_remote_jobs.items())
 
             for name, job in active_remote_jobs_snapshot:
                 # For remote jobs, update job_id in DB once available (job_id comes asynchronously)
-                job_state = session.get(JobState, name)
+                job_state = session.get(metta.jobs.job_state.JobState, name)
                 if job_state and job.job_id and not job_state.job_id:
                     job_state.job_id = job.job_id
                     session.add(job_state)
@@ -777,34 +787,38 @@ class JobManager:
 
         # Check for jobs that monitoring threads marked as completed
         all_active_jobs = self._get_all_active_jobs()
-        with Session(self._engine) as session:
+        with sqlmodel.Session(self._engine) as session:
             for name in list(all_active_jobs.keys()):
-                job_state = session.get(JobState, name)
-                if job_state and job_state.status == JobStatus.COMPLETED:
+                job_state = session.get(metta.jobs.job_state.JobState, name)
+                if job_state and job_state.status == metta.jobs.job_state.JobStatus.COMPLETED:
                     # Monitoring thread finished this job
                     completed.append(name)
                     # Note: _active_local_jobs/_active_remote_jobs cleanup happens in monitoring thread
 
         # Try to start pending jobs, or skip if dependencies failed
-        with Session(self._engine) as session:
-            pending_jobs = session.exec(select(JobState).where(JobState.status == JobStatus.PENDING)).all()
+        with sqlmodel.Session(self._engine) as session:
+            pending_jobs = session.exec(
+                sqlmodel.select(metta.jobs.job_state.JobState).where(
+                    metta.jobs.job_state.JobState.status == metta.jobs.job_state.JobStatus.PENDING
+                )
+            ).all()
             for job_state in pending_jobs:
                 # Check if any dependency failed
                 if job_state.config.dependency_names and not self._dependencies_satisfied(job_state, session):
                     # Check if dependency failed (vs just not complete yet)
                     has_failed_dep = False
                     for dep_name in job_state.config.dependency_names:
-                        dep_state = session.get(JobState, dep_name)
-                        if dep_state and dep_state.status == JobStatus.COMPLETED:
+                        dep_state = session.get(metta.jobs.job_state.JobState, dep_name)
+                        if dep_state and dep_state.status == metta.jobs.job_state.JobStatus.COMPLETED:
                             if dep_state.exit_code != 0 or dep_state.acceptance_passed is False:
                                 has_failed_dep = True
                                 break
 
                     if has_failed_dep:
                         # Mark as completed with special exit code for skipped
-                        job_state.status = JobStatus.COMPLETED
+                        job_state.status = metta.jobs.job_state.JobStatus.COMPLETED
                         job_state.exit_code = ExitCode.SKIPPED
-                        job_state.completed_at = datetime.now().isoformat(timespec="seconds")
+                        job_state.completed_at = datetime.datetime.now().isoformat(timespec="seconds")
                         session.add(job_state)
                         session.commit()
                         logger.info(f"Job {job_state.name} skipped due to failed dependency")
@@ -816,7 +830,7 @@ class JobManager:
 
         return completed
 
-    def wait_for_job(self, name: str, poll_interval_s: float = 1.0) -> JobState:
+    def wait_for_job(self, name: str, poll_interval_s: float = 1.0) -> metta.jobs.job_state.JobState:
         while True:
             completed = self.poll()
             if name in completed:
@@ -830,28 +844,28 @@ class JobManager:
 
     def get_status(self, name: str) -> str | None:
         """Get job status. Returns one of: 'pending', 'running', 'completed', or None if not found."""
-        with Session(self._engine) as session:
-            job_state = session.get(JobState, name)
+        with sqlmodel.Session(self._engine) as session:
+            job_state = session.get(metta.jobs.job_state.JobState, name)
             return job_state.status if job_state else None
 
-    def get_job_state(self, name: str) -> JobState | None:
-        with Session(self._engine) as session:
-            job_state = session.get(JobState, name)
+    def get_job_state(self, name: str) -> metta.jobs.job_state.JobState | None:
+        with sqlmodel.Session(self._engine) as session:
+            job_state = session.get(metta.jobs.job_state.JobState, name)
             if job_state:
                 session.expunge(job_state)
             return job_state
 
-    def get_group_jobs(self, group: str) -> dict[str, JobState]:
-        with Session(self._engine) as session:
-            all_jobs = session.exec(select(JobState)).all()
+    def get_group_jobs(self, group: str) -> dict[str, metta.jobs.job_state.JobState]:
+        with sqlmodel.Session(self._engine) as session:
+            all_jobs = session.exec(sqlmodel.select(metta.jobs.job_state.JobState)).all()
             group_jobs = [job for job in all_jobs if job.config.group == group]
             for job in group_jobs:
                 session.expunge(job)
             return {job.name: job for job in group_jobs}
 
-    def get_all_jobs(self) -> dict[str, JobState]:
-        with Session(self._engine) as session:
-            all_jobs = session.exec(select(JobState)).all()
+    def get_all_jobs(self) -> dict[str, metta.jobs.job_state.JobState]:
+        with sqlmodel.Session(self._engine) as session:
+            all_jobs = session.exec(sqlmodel.select(metta.jobs.job_state.JobState)).all()
             for job in all_jobs:
                 session.expunge(job)
             return {job.name: job for job in all_jobs}
@@ -873,12 +887,12 @@ class JobManager:
             Number of jobs cancelled
         """
         count = 0
-        with Session(self._engine) as session:
-            all_jobs = session.exec(select(JobState)).all()
+        with sqlmodel.Session(self._engine) as session:
+            all_jobs = session.exec(sqlmodel.select(metta.jobs.job_state.JobState)).all()
             group_jobs = [job for job in all_jobs if job.config.group == group]
 
             for job_state in group_jobs:
-                if job_state.status in {JobStatus.PENDING, JobStatus.RUNNING}:
+                if job_state.status in {metta.jobs.job_state.JobStatus.PENDING, metta.jobs.job_state.JobStatus.RUNNING}:
                     is_remote = job_state.config.remote is not None
 
                     # Skip remote jobs if local_only
@@ -902,9 +916,9 @@ class JobManager:
                         job_to_cancel.cancel()
 
                     # Mark as completed with SIGINT exit code
-                    job_state.status = JobStatus.COMPLETED
+                    job_state.status = metta.jobs.job_state.JobStatus.COMPLETED
                     job_state.exit_code = 130  # Standard exit code for SIGINT/user cancel
-                    job_state.completed_at = datetime.now().isoformat(timespec="seconds")
+                    job_state.completed_at = datetime.datetime.now().isoformat(timespec="seconds")
 
                     session.add(job_state)
                     count += 1
@@ -912,7 +926,7 @@ class JobManager:
             session.commit()
         return count
 
-    def _reset_dependent_jobs(self, job_name: str, session: Session) -> None:
+    def _reset_dependent_jobs(self, job_name: str, session: sqlmodel.Session) -> None:
         """Reset all jobs that depend on this job (transitively) from skipped back to pending.
 
         This allows retrying a failed job to also retry all jobs that were skipped due to
@@ -924,11 +938,11 @@ class JobManager:
             session: Active database session
         """
         # Find all jobs that directly or transitively depend on this one
-        all_jobs = session.exec(select(JobState)).all()
+        all_jobs = session.exec(sqlmodel.select(metta.jobs.job_state.JobState)).all()
 
         # BFS to find transitive dependents
         dependent_names = set()
-        to_check = deque([job_name])
+        to_check = collections.deque([job_name])
 
         while to_check:
             current = to_check.popleft()
@@ -939,9 +953,13 @@ class JobManager:
 
         # Reset skipped jobs back to pending
         for dep_name in dependent_names:
-            dep_state = session.get(JobState, dep_name)
-            if dep_state and dep_state.status == JobStatus.COMPLETED and dep_state.exit_code == ExitCode.SKIPPED:
-                dep_state.status = JobStatus.PENDING
+            dep_state = session.get(metta.jobs.job_state.JobState, dep_name)
+            if (
+                dep_state
+                and dep_state.status == metta.jobs.job_state.JobStatus.COMPLETED
+                and dep_state.exit_code == ExitCode.SKIPPED
+            ):
+                dep_state.status = metta.jobs.job_state.JobStatus.PENDING
                 dep_state.exit_code = None
                 dep_state.completed_at = None
                 session.add(dep_state)
@@ -960,13 +978,13 @@ class JobManager:
         Returns:
             True if job was deleted, False if job didn't exist
         """
-        with Session(self._engine) as session:
-            job_state = session.get(JobState, name)
+        with sqlmodel.Session(self._engine) as session:
+            job_state = session.get(metta.jobs.job_state.JobState, name)
             if not job_state:
                 return False
 
             # Don't allow deleting running jobs - they need to be cancelled first
-            if job_state.status == JobStatus.RUNNING:
+            if job_state.status == metta.jobs.job_state.JobStatus.RUNNING:
                 raise ValueError(f"Cannot delete job '{name}' with status 'running'. Cancel it first.")
 
             # Reset dependent jobs that were skipped before deleting
@@ -975,7 +993,7 @@ class JobManager:
             # Clean up log file if it exists
             if job_state.logs_path:
                 try:
-                    log_path = Path(job_state.logs_path)
+                    log_path = pathlib.Path(job_state.logs_path)
                     if log_path.exists():
                         log_path.unlink()
                         logger.debug(f"Deleted log file: {job_state.logs_path}")

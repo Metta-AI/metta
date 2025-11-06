@@ -4,12 +4,12 @@ import subprocess
 
 import yaml
 
-from metta.common.util.collections import remove_none_values
-from metta.common.util.fs import get_repo_root
+import metta.common.util.collections
+import metta.common.util.fs
 
 
 def load_available_environments() -> list[str]:
-    config_path = os.path.join(get_repo_root(), "configs", "sim", "all.yaml")
+    config_path = os.path.join(metta.common.util.fs.get_repo_root(), "configs", "sim", "all.yaml")
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
     environments = []
@@ -37,7 +37,7 @@ def launch_training(
     if curriculum and curriculum not in load_available_environments():
         raise ValueError(f"Curriculum {curriculum} not found. Available environments: {load_available_environments()}")
 
-    cmd_args = remove_none_values(
+    cmd_args = metta.common.util.collections.remove_none_values(
         {
             "nodes": num_nodes,
             "gpu": num_gpus,
@@ -82,7 +82,7 @@ def launch_training(
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            cwd=get_repo_root(),
+            cwd=metta.common.util.fs.get_repo_root(),
         )
 
         for line in process.stdout or []:

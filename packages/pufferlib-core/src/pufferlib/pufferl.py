@@ -15,9 +15,9 @@ def record(fn):
     which causes a warning about unsupported redirects.
     """
     try:
-        from torch.distributed.elastic.multiprocessing.errors import record as _record
+        import torch.distributed.elastic.multiprocessing.errors
 
-        return _record(fn)
+        return torch.distributed.elastic.multiprocessing.errors.record(fn)
     except ImportError:
         return fn
 
@@ -34,8 +34,8 @@ import random
 import shutil
 import sys
 import time
-from collections import defaultdict, deque
-from threading import Thread
+import collections
+import threading
 
 import numpy as np
 import psutil
@@ -49,7 +49,7 @@ import pufferlib.sweep
 import pufferlib.vector
 
 try:
-    from pufferlib import _C
+    pass
 except ImportError:
     raise ImportError(
         "Failed to import C/CUDA advantage kernel. If you have non-default PyTorch, try installing with --no-build-isolation"
@@ -57,9 +57,9 @@ except ImportError:
 
 import rich
 import rich.traceback
-from rich.console import Console
-from rich.table import Table
-from rich_argparse import RichHelpFormatter
+import rich.console
+import rich.table
+import rich_argparse
 
 rich.traceback.install(show_locals=False)
 
@@ -177,13 +177,13 @@ class PuffeRL:
                 eps=config["adam_eps"],
             )
         elif config["optimizer"] == "muon":
-            from heavyball import ForeachMuon
+            import heavyball
 
             warnings.filterwarnings(action="ignore", category=UserWarning, module=r"heavyball.*")
             import heavyball.utils
 
             heavyball.utils.compile_mode = config["compile_mode"] if config["compile"] else None
-            optimizer = ForeachMuon(
+            optimizer = heavyball.ForeachMuon(
                 self.policy.parameters(),
                 lr=config["learning_rate"],
                 betas=(config["adam_beta1"], config["adam_beta2"]),
@@ -222,8 +222,8 @@ class PuffeRL:
         self.start_time = time.time()
         self.utilization = Utilization()
         self.profile = Profile()
-        self.stats = defaultdict(list)
-        self.last_stats = defaultdict(list)
+        self.stats = collections.defaultdict(list)
+        self.last_stats = collections.defaultdict(list)
         self.losses = {}
 
         # Dashboard
@@ -352,7 +352,7 @@ class PuffeRL:
         profile = self.profile
         epoch = self.epoch
         profile("train", epoch)
-        losses = defaultdict(float)
+        losses = collections.defaultdict(float)
         config = self.config
         device = config["device"]
 
@@ -501,7 +501,7 @@ class PuffeRL:
             logs = self.mean_and_log()
             self.losses = losses
             self.print_dashboard()
-            self.stats = defaultdict(list)
+            self.stats = collections.defaultdict(list)
             self.last_log_time = time.time()
             self.last_log_step = self.global_step
             profile.clear()
@@ -597,9 +597,9 @@ class PuffeRL:
                 return
 
         profile = self.profile
-        console = Console()
-        dashboard = Table(box=rich.box.ROUNDED, expand=True, show_header=False, border_style="bright_cyan")
-        table = Table(box=None, expand=True, show_header=False)
+        console = rich.console.Console()
+        dashboard = rich.table.Table(box=rich.box.ROUNDED, expand=True, show_header=False, border_style="bright_cyan")
+        table = rich.table.Table(box=None, expand=True, show_header=False)
         dashboard.add_row(table)
 
         table.add_column(justify="left", width=30)
@@ -617,7 +617,7 @@ class PuffeRL:
         )
         idx[0] = (idx[0] - 1) % 10
 
-        s = Table(box=None, expand=True)
+        s = rich.table.Table(box=None, expand=True)
         remaining = "A hair past a freckle"
         if sps != 0:
             remaining = duration((config["total_timesteps"] - agent_steps) / sps, b2, c2)
@@ -633,7 +633,7 @@ class PuffeRL:
         s.add_row(f"{c2}Remaining", remaining)
 
         delta = profile.eval["buffer"] + profile.train["buffer"]
-        p = Table(box=None, expand=True, show_header=False)
+        p = rich.table.Table(box=None, expand=True, show_header=False)
         p.add_column(f"{c1}Performance", justify="left", width=10)
         p.add_column(f"{c1}Time", justify="right", width=8)
         p.add_column(f"{c1}%", justify="right", width=4)
@@ -648,7 +648,7 @@ class PuffeRL:
         p.add_row(*fmt_perf("  Copy", c2, delta, profile.train_copy, b2, c2))
         p.add_row(*fmt_perf("  Misc", c2, delta, profile.train_misc, b2, c2))
 
-        l = Table(
+        l = rich.table.Table(
             box=None,
             expand=True,
         )
@@ -657,14 +657,14 @@ class PuffeRL:
         for metric, value in self.losses.items():
             l.add_row(f"{c2}{metric}", f"{b2}{value:.3f}")
 
-        monitor = Table(box=None, expand=True, pad_edge=False)
+        monitor = rich.table.Table(box=None, expand=True, pad_edge=False)
         monitor.add_row(s, p, l)
         dashboard.add_row(monitor)
 
-        table = Table(box=None, expand=True, pad_edge=False)
+        table = rich.table.Table(box=None, expand=True, pad_edge=False)
         dashboard.add_row(table)
-        left = Table(box=None, expand=True)
-        right = Table(box=None, expand=True)
+        left = rich.table.Table(box=None, expand=True)
+        right = rich.table.Table(box=None, expand=True)
         table.add_row(left, right)
         left.add_column(f"{c1}User Stats", justify="left", width=20)
         left.add_column(f"{c1}Value", justify="right", width=10)
@@ -791,7 +791,7 @@ def dist_mean(value, device):
 
 class Profile:
     def __init__(self, frequency=5):
-        self.profiles = defaultdict(lambda: defaultdict(float))
+        self.profiles = collections.defaultdict(lambda: collections.defaultdict(float))
         self.frequency = frequency
         self.stack = []
 
@@ -836,13 +836,13 @@ class Profile:
                 prof["delta"] = 0
 
 
-class Utilization(Thread):
+class Utilization(threading.Thread):
     def __init__(self, delay=1, maxlen=20):
         super().__init__()
-        self.cpu_mem = deque([0], maxlen=maxlen)
-        self.cpu_util = deque([0], maxlen=maxlen)
-        self.gpu_util = deque([0], maxlen=maxlen)
-        self.gpu_mem = deque([0], maxlen=maxlen)
+        self.cpu_mem = collections.deque([0], maxlen=maxlen)
+        self.cpu_util = collections.deque([0], maxlen=maxlen)
+        self.gpu_util = collections.deque([0], maxlen=maxlen)
+        self.gpu_mem = collections.deque([0], maxlen=maxlen)
         self.stopped = False
         self.delay = delay
         self.start()
@@ -1126,10 +1126,10 @@ def profile(args=None, env_name=None, vecenv=None, policy=None):
     train_config = dict(**args["train"], env=args["env_name"], tag=args["tag"])
     pufferl = PuffeRL(train_config, vecenv, policy, neptune=args["neptune"], wandb=args["wandb"])
 
-    from torch.profiler import ProfilerActivity, profile, record_function
+    import torch.profiler
 
-    with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], record_shapes=True) as prof:
-        with record_function("model_inference"):
+    with torch.profiler.profile(activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA], record_shapes=True) as prof:
+        with torch.profiler.record_function("model_inference"):
             for _ in range(10):
                 stats = pufferl.evaluate()
                 pufferl.train()
@@ -1222,7 +1222,7 @@ def load_config(env_name):
     parser = argparse.ArgumentParser(
         description=f":blowfish: PufferLib [bright_cyan]{pufferlib.__version__}[/]"
         " demo options. Shows valid args for your env and policy",
-        formatter_class=RichHelpFormatter,
+        formatter_class=rich_argparse.RichHelpFormatter,
         add_help=False,
     )
     parser.add_argument("--load-model-path", type=str, default=None, help="Path to a pretrained checkpoint")
@@ -1289,7 +1289,7 @@ def load_config(env_name):
 
     # Unpack to nested dict
     parsed = vars(parser.parse_args())
-    args = defaultdict(dict)
+    args = collections.defaultdict(dict)
     for key, value in parsed.items():
         next = args
         for subkey in key.split("."):

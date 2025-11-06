@@ -12,12 +12,12 @@ Check if files matching patterns have been changed in a pull request or push.
 import os
 import re
 import sys
-from typing import List
+import typing
 
-from github import Github
+import github
 
 
-def parse_comma_separated(value: str) -> List[str]:
+def parse_comma_separated(value: str) -> typing.List[str]:
     """Parse comma-separated string into list of non-empty strings."""
     return [item.strip() for item in value.split(",") if item.strip()]
 
@@ -51,7 +51,7 @@ def main():
     print(f"Parsed {len(directory_paths)} directory paths to check")
 
     # Initialize GitHub client
-    g = Github(github_token)
+    g = github.Github(github_token)
     repo = g.get_repo(github_repository)
 
     changed_files = []

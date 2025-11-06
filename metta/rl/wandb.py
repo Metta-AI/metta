@@ -3,9 +3,9 @@
 import logging
 
 import torch.nn as nn
-from torch.nn.parameter import UninitializedParameter
+import torch.nn.parameter
 
-from metta.common.wandb.context import WandbRun
+import metta.common.wandb.context
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +15,7 @@ POLICY_EVALUATOR_STEP_METRIC = "metric/evaluator_agent_step"
 POLICY_EVALUATOR_EPOCH_METRIC = "metric/evaluator_epoch"
 
 
-def setup_wandb_metrics(wandb_run: WandbRun) -> None:
+def setup_wandb_metrics(wandb_run: metta.common.wandb.context.WandbRun) -> None:
     """Set up wandb metric definitions for consistent tracking across runs."""
     metrics = ["agent_step", "epoch", "total_time", "train_time"]
     for metric in metrics:
@@ -26,7 +26,7 @@ def setup_wandb_metrics(wandb_run: WandbRun) -> None:
     setup_policy_evaluator_metrics(wandb_run)
 
 
-def setup_policy_evaluator_metrics(wandb_run: WandbRun) -> None:
+def setup_policy_evaluator_metrics(wandb_run: metta.common.wandb.context.WandbRun) -> None:
     # Separate step metric for remote evaluation allows evaluation results to be logged without conflicts
     """Set up metrics specific to policy evaluation."""
     wandb_run.define_metric(POLICY_EVALUATOR_STEP_METRIC)
@@ -34,11 +34,13 @@ def setup_policy_evaluator_metrics(wandb_run: WandbRun) -> None:
         wandb_run.define_metric(metric, step_metric=POLICY_EVALUATOR_STEP_METRIC)
 
 
-def log_model_parameters(policy: nn.Module, wandb_run: WandbRun) -> None:
+def log_model_parameters(policy: nn.Module, wandb_run: metta.common.wandb.context.WandbRun) -> None:
     """Log model parameter count to wandb summary."""
     params = list(policy.parameters())
-    skipped_lazy_params = sum(isinstance(param, UninitializedParameter) for param in params)
-    num_params = sum(param.numel() for param in params if not isinstance(param, UninitializedParameter))
+    skipped_lazy_params = sum(isinstance(param, torch.nn.parameter.UninitializedParameter) for param in params)
+    num_params = sum(
+        param.numel() for param in params if not isinstance(param, torch.nn.parameter.UninitializedParameter)
+    )
 
     if skipped_lazy_params:
         logger.debug(

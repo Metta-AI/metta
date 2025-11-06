@@ -1,41 +1,37 @@
 # Copyright (c) 2023, Albert Gu, Tri Dao.
 
 import copy
+import dataclasses
+import functools
 import math
-from dataclasses import dataclass, field
-from functools import partial
 
+import einops
+import mamba_ssm.modules.block
+import mamba_ssm.modules.mamba2
+import mamba_ssm.modules.mha
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from einops import repeat
-from mamba_ssm.modules.block import Block
-from mamba_ssm.modules.mamba2 import Mamba2
-from mamba_ssm.modules.mha import MHA
 
 try:
-    from mamba_ssm.modules.mlp import MLP  # type: ignore[attr-defined]
+    import mamba_ssm.modules.mlp  # type: ignore[attr-defined]
 except ImportError:  # pragma: no cover - compatibility with newer mamba-ssm releases
-    from mamba_ssm.modules.mlp import GatedMLP as MLP  # type: ignore[attr-defined]
-from mamba_ssm.ops.triton.layer_norm import (
-    RMSNorm,
-    layer_norm_fn,
-    rms_norm_fn,
-)
-from mamba_ssm.utils.generation import GenerationMixin
+    pass
+import mamba_ssm.ops.triton.layer_norm
+import mamba_ssm.utils.generation
 
 
-@dataclass
+@dataclasses.dataclass
 class MambaConfig:
     d_model: int
     n_layer: int
     d_intermediate: int
     stoch_dim: int
     action_dim: int
-    ssm_cfg: dict = field(default_factory=dict)
-    attn_layer_idx: list[int] = field(default_factory=list)
-    attn_cfg: dict = field(default_factory=dict)
-    pff_cfg: dict = field(default_factory=dict)
+    ssm_cfg: dict = dataclasses.field(default_factory=dict)
+    attn_layer_idx: list[int] = dataclasses.field(default_factory=list)
+    attn_cfg: dict = dataclasses.field(default_factory=dict)
+    pff_cfg: dict = dataclasses.field(default_factory=dict)
     dropout_p: float = 0.0
     rms_norm: bool = True
     residual_in_fp32: bool = True
@@ -76,19 +72,23 @@ def create_block(
         ssm_layer = ssm_cfg.pop("layer", "Mamba2")
         if ssm_layer != "Mamba2":
             raise ValueError(f"Invalid ssm_layer: {ssm_layer}, only support Mamba2")
-        mixer_cls = partial(Mamba2, layer_idx=layer_idx, **ssm_cfg, **factory_kwargs)
+        mixer_cls = functools.partial(mamba_ssm.modules.mamba2.Mamba2, layer_idx=layer_idx, **ssm_cfg, **factory_kwargs)
     else:
-        mixer_cls = partial(MHA, layer_idx=layer_idx, **attn_cfg, **factory_kwargs)
-    if guard_triton and rms_norm and RMSNorm is None:
+        mixer_cls = functools.partial(mamba_ssm.modules.mha.MHA, layer_idx=layer_idx, **attn_cfg, **factory_kwargs)
+    if guard_triton and rms_norm and mamba_ssm.ops.triton.layer_norm.RMSNorm is None:
         raise RuntimeError(
             "MambaWrapperModel requires Triton RMSNorm kernels; install torchao/triton or disable rms_norm"
         )
-    norm_cls = partial(nn.LayerNorm if not rms_norm else RMSNorm, eps=norm_epsilon, **factory_kwargs)
+    norm_cls = functools.partial(
+        nn.LayerNorm if not rms_norm else mamba_ssm.ops.triton.layer_norm.RMSNorm, eps=norm_epsilon, **factory_kwargs
+    )
     if d_intermediate == 0:
         mlp_cls = nn.Identity
     else:
-        mlp_cls = partial(MLP, hidden_features=d_intermediate, out_features=d_model, **pff_cfg, **factory_kwargs)
-    block = Block(
+        mlp_cls = functools.partial(
+            mamba_ssm.modules.mlp.MLP, hidden_features=d_intermediate, out_features=d_model, **pff_cfg, **factory_kwargs
+        )
+    block = mamba_ssm.modules.block.Block(
         d_model,
         mixer_cls,
         mlp_cls,
@@ -144,7 +144,7 @@ class PositionalEncoding1D(nn.Module):
 
     def forward(self, feat):
         pos_emb = self.pos_emb(torch.arange(self.max_length, device=feat.device))
-        pos_emb = repeat(pos_emb, "L D -> B L D", B=feat.shape[0])
+        pos_emb = einops.repeat(pos_emb, "L D -> B L D", B=feat.shape[0])
 
         feat = feat + pos_emb[:, : feat.shape[1], :]
         return feat
@@ -152,7 +152,7 @@ class PositionalEncoding1D(nn.Module):
     def forward_with_position(self, feat, position):
         assert feat.shape[1] == 1
         pos_emb = self.pos_emb(torch.arange(self.max_length, device=feat.device))
-        pos_emb = repeat(pos_emb, "L D -> B L D", B=feat.shape[0])
+        pos_emb = einops.repeat(pos_emb, "L D -> B L D", B=feat.shape[0])
 
         feat = feat + pos_emb[:, position : position + 1, :]
         return feat
@@ -188,7 +188,11 @@ class MixerModel(nn.Module):
 
         # self.embedding = nn.Embedding(vocab_size, d_model, **factory_kwargs)
 
-        norm_cls = RMSNorm if rms_norm and RMSNorm is not None else nn.LayerNorm
+        norm_cls = (
+            mamba_ssm.ops.triton.layer_norm.RMSNorm
+            if rms_norm and mamba_ssm.ops.triton.layer_norm.RMSNorm is not None
+            else nn.LayerNorm
+        )
         self.stem = nn.Sequential(
             nn.Linear(stoch_dim + action_dim, d_model, bias=True, **factory_kwargs),
             norm_cls(d_model, eps=norm_epsilon, **factory_kwargs),
@@ -202,7 +206,10 @@ class MixerModel(nn.Module):
         # This is for performance reason: we can fuse add + layer_norm.
         self.fused_add_norm = fused_add_norm
         if self.fused_add_norm:
-            if layer_norm_fn is None or rms_norm_fn is None:
+            if (
+                mamba_ssm.ops.triton.layer_norm.layer_norm_fn is None
+                or mamba_ssm.ops.triton.layer_norm.rms_norm_fn is None
+            ):
                 raise ImportError("Failed to import Triton LayerNorm / RMSNorm kernels")
         else:
             self.dropout = nn.Dropout(dropout_p)  # "Attention is all you need sec 5.4 dropout"
@@ -229,11 +236,15 @@ class MixerModel(nn.Module):
             ]
         )
 
-        norm_final = nn.LayerNorm if not rms_norm or RMSNorm is None else RMSNorm
+        norm_final = (
+            nn.LayerNorm
+            if not rms_norm or mamba_ssm.ops.triton.layer_norm.RMSNorm is None
+            else mamba_ssm.ops.triton.layer_norm.RMSNorm
+        )
         self.norm_f = norm_final(d_model, eps=norm_epsilon, **factory_kwargs)
 
         self.apply(
-            partial(
+            functools.partial(
                 _init_weights,
                 n_layer=n_layer,
                 **(initializer_cfg if initializer_cfg is not None else {}),
@@ -261,7 +272,7 @@ class MixerModel(nn.Module):
         else:
             # Set prenorm=False here since we don't need the residual
             norm_f_bias = getattr(self.norm_f, "bias", None)
-            layer_norm_out = layer_norm_fn(
+            layer_norm_out = mamba_ssm.ops.triton.layer_norm.layer_norm_fn(
                 hidden_states,
                 self.norm_f.weight,
                 norm_f_bias,
@@ -269,7 +280,7 @@ class MixerModel(nn.Module):
                 residual=residual,
                 prenorm=False,
                 residual_in_fp32=self.residual_in_fp32,
-                is_rms_norm=isinstance(self.norm_f, RMSNorm),
+                is_rms_norm=isinstance(self.norm_f, mamba_ssm.ops.triton.layer_norm.RMSNorm),
                 dropout_p=self.dropout_p if self.training else 0.0,
             )
             if isinstance(layer_norm_out, tuple):
@@ -279,7 +290,7 @@ class MixerModel(nn.Module):
         return hidden_states
 
 
-class MambaWrapperModel(nn.Module, GenerationMixin):
+class MambaWrapperModel(nn.Module, mamba_ssm.utils.generation.GenerationMixin):
     def __init__(
         self,
         config: MambaConfig,
@@ -325,7 +336,7 @@ class MambaWrapperModel(nn.Module, GenerationMixin):
 
         # Initialize weights and apply final processing
         self.apply(
-            partial(
+            functools.partial(
                 _init_weights,
                 n_layer=n_layer,
                 **(initializer_cfg if initializer_cfg is not None else {}),

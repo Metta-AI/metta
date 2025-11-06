@@ -1,14 +1,14 @@
+import base64
+import datetime
 import logging
-from base64 import b64encode
-from datetime import datetime, timedelta, timezone
-from typing import Any
+import typing
 
-from pydantic import BaseModel
+import pydantic
 
-from gitta import get_commits, get_workflow_run_jobs, get_workflow_runs
-from metta.common.util.constants import METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO
-from softmax.aws.secrets_manager import get_secretsmanager_secret
-from softmax.dashboard.registry import system_health_metric
+import gitta
+import metta.common.util.constants
+import softmax.aws.secrets_manager
+import softmax.dashboard.registry
 
 logger = logging.getLogger(__name__)
 
@@ -20,23 +20,23 @@ def _get_github_auth_header() -> str:
     Returns base64-encoded Basic auth credentials for GitHub API.
     We should replace this PAT before January 15, 2026.
     """
-    token = get_secretsmanager_secret("github/dashboard-token").strip()
+    token = softmax.aws.secrets_manager.get_secretsmanager_secret("github/dashboard-token").strip()
     if not token:
         logger.warning("GitHub dashboard token is empty; API calls may be rate limited.")
         return ""
 
     # Use HTTP Basic auth (token as username, empty password) to match the CLI usage
-    basic_credentials = b64encode(f"{token}:".encode("utf-8")).decode("utf-8")
+    basic_credentials = base64.b64encode(f"{token}:".encode("utf-8")).decode("utf-8")
     return f"Basic {basic_credentials}"
 
 
-class GitHubJobStatus(BaseModel):
+class GitHubJobStatus(pydantic.BaseModel):
     status: str
     conclusion: str
 
 
-def _get_job_statuses_by_name(response: dict[str, Any]) -> dict[str, GitHubJobStatus]:
-    jobs: list[dict[str, Any]] = (response or {}).get("jobs", []) if response else []
+def _get_job_statuses_by_name(response: dict[str, typing.Any]) -> dict[str, GitHubJobStatus]:
+    jobs: list[dict[str, typing.Any]] = (response or {}).get("jobs", []) if response else []
     statuses: dict[str, GitHubJobStatus] = {}
     for job in jobs:
         name = str(job.get("name") or "").strip()
@@ -50,11 +50,11 @@ def _get_job_statuses_by_name(response: dict[str, Any]) -> dict[str, GitHubJobSt
 
 
 def _get_num_commits_with_phrase(phrase: str, lookback_days: int = 7, branch: str = "main") -> int:
-    since = (datetime.now(timezone.utc) - timedelta(days=lookback_days)).isoformat()
-    repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+    since = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=lookback_days)).isoformat()
+    repo = f"{metta.common.util.constants.METTA_GITHUB_ORGANIZATION}/{metta.common.util.constants.METTA_GITHUB_REPO}"
 
     try:
-        commits = get_commits(
+        commits = gitta.get_commits(
             repo=repo,
             branch=branch,
             since=since,
@@ -74,21 +74,21 @@ def _get_num_commits_with_phrase(phrase: str, lookback_days: int = 7, branch: st
     return count
 
 
-@system_health_metric(metric_key="commits.hotfix")
+@softmax.dashboard.registry.system_health_metric(metric_key="commits.hotfix")
 def get_num_hotfix_commits() -> int:
     return _get_num_commits_with_phrase("hotfix", lookback_days=7, branch="main")
 
 
-@system_health_metric(metric_key="commits.reverts")
+@softmax.dashboard.registry.system_health_metric(metric_key="commits.reverts")
 def get_num_revert_commits() -> int:
     return _get_num_commits_with_phrase("revert", lookback_days=7, branch="main")
 
 
-def get_latest_workflow_run(branch: str, workflow_filename: str) -> dict[str, Any] | None:
-    repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+def get_latest_workflow_run(branch: str, workflow_filename: str) -> dict[str, typing.Any] | None:
+    repo = f"{metta.common.util.constants.METTA_GITHUB_ORGANIZATION}/{metta.common.util.constants.METTA_GITHUB_REPO}"
 
     try:
-        runs = get_workflow_runs(
+        runs = gitta.get_workflow_runs(
             repo=repo,
             workflow_filename=workflow_filename,
             branch=branch,
@@ -102,7 +102,7 @@ def get_latest_workflow_run(branch: str, workflow_filename: str) -> dict[str, An
         return None
 
 
-@system_health_metric(metric_key="ci.tests_passing_on_main")
+@softmax.dashboard.registry.system_health_metric(metric_key="ci.tests_passing_on_main")
 def get_latest_unit_tests_failed() -> int | None:
     run = get_latest_workflow_run(branch="main", workflow_filename="checks.yml")
     if not run:
@@ -113,10 +113,10 @@ def get_latest_unit_tests_failed() -> int | None:
         logger.error(f"Failed to get run ID: {run}", exc_info=True)
         return None
 
-    repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+    repo = f"{metta.common.util.constants.METTA_GITHUB_ORGANIZATION}/{metta.common.util.constants.METTA_GITHUB_REPO}"
 
     try:
-        jobs = get_workflow_run_jobs(
+        jobs = gitta.get_workflow_run_jobs(
             repo=repo,
             run_id=run_id,
             per_page=100,

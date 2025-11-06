@@ -1,26 +1,24 @@
 """LSTM cell with TensorDict state and dual PyTorch/Triton backends."""
 
-from __future__ import annotations
 
-from typing import Optional, Tuple
+import typing
 
+import cortex.cells.base
+import cortex.cells.registry
+import cortex.config
+import cortex.kernels.pytorch.lstm
+import cortex.types
+import cortex.utils
+import tensordict
 import torch
 import torch.nn as nn
-from tensordict import TensorDict
-
-from cortex.cells.base import MemoryCell
-from cortex.cells.registry import register_cell
-from cortex.config import LSTMCellConfig
-from cortex.kernels.pytorch.lstm import lstm_sequence_pytorch
-from cortex.types import MaybeState, ResetMask, Tensor
-from cortex.utils import select_backend
 
 
-@register_cell(LSTMCellConfig)
-class LSTMCell(MemoryCell):
+@cortex.cells.registry.register_cell(cortex.config.LSTMCellConfig)
+class LSTMCell(cortex.cells.base.MemoryCell):
     """Standard LSTM cell with TensorDict state and dual backends."""
 
-    def __init__(self, cfg: LSTMCellConfig) -> None:
+    def __init__(self, cfg: cortex.config.LSTMCellConfig) -> None:
         super().__init__(hidden_size=cfg.hidden_size)
         if cfg.num_layers != 1:
             raise ValueError("LSTMCell currently supports num_layers == 1 for both backends")
@@ -41,7 +39,7 @@ class LSTMCell(MemoryCell):
     def out_hidden_size(self) -> int:
         return self.cfg.proj_size if self.cfg.proj_size > 0 else self.cfg.hidden_size
 
-    def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> TensorDict:
+    def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> tensordict.TensorDict:
         B = batch
         L = self.cfg.num_layers
         H = self.cfg.hidden_size
@@ -49,15 +47,15 @@ class LSTMCell(MemoryCell):
         # Batch-first state tensors
         h = torch.zeros(B, L, Hp, device=device, dtype=dtype)
         c = torch.zeros(B, L, H, device=device, dtype=dtype)
-        return TensorDict({"h": h, "c": c}, batch_size=[B])
+        return tensordict.TensorDict({"h": h, "c": c}, batch_size=[B])
 
     def forward(
         self,
-        x: Tensor,
-        state: MaybeState,
+        x: cortex.types.Tensor,
+        state: cortex.types.MaybeState,
         *,
-        resets: Optional[ResetMask] = None,
-    ) -> Tuple[Tensor, MaybeState]:
+        resets: typing.Optional[cortex.types.ResetMask] = None,
+    ) -> typing.Tuple[cortex.types.Tensor, cortex.types.MaybeState]:
         # Always expect batch-first input: [B, T, H] or [B, H]
         is_step = x.dim() == 2
         if is_step:
@@ -79,7 +77,7 @@ class LSTMCell(MemoryCell):
         c0 = st.get("c")
         assert h0 is not None and c0 is not None, "LSTM state must contain 'h' and 'c' tensors"
 
-        resets_bt: ResetMask | None
+        resets_bt: cortex.types.ResetMask | None
         if resets is None:
             resets_bt = None
         elif is_step:
@@ -104,9 +102,9 @@ class LSTMCell(MemoryCell):
         # Currently the triton route is disabled until we have faster implementation available.
         allow_triton = False
 
-        backend_fn = select_backend(
+        backend_fn = cortex.utils.select_backend(
             triton_fn="cortex.kernels.triton.lstm:lstm_sequence_triton" if allow_triton else None,
-            pytorch_fn=lstm_sequence_pytorch,
+            pytorch_fn=cortex.kernels.pytorch.lstm.lstm_sequence_pytorch,
             tensor=x_seq,
             allow_triton=allow_triton,
         )
@@ -114,7 +112,7 @@ class LSTMCell(MemoryCell):
         y_seq, hn_bf, cn_bf = backend_fn(**backend_kwargs)
 
         y = y_seq.squeeze(1) if is_step else y_seq
-        new_state = TensorDict({"h": hn_bf, "c": cn_bf}, batch_size=[batch_size])
+        new_state = tensordict.TensorDict({"h": hn_bf, "c": cn_bf}, batch_size=[batch_size])
         return y, new_state
 
     @property
@@ -122,7 +120,7 @@ class LSTMCell(MemoryCell):
         H = self.cfg.hidden_size
         return H > 0 and (H & (H - 1)) == 0
 
-    def reset_state(self, state: MaybeState, mask: ResetMask) -> MaybeState:
+    def reset_state(self, state: cortex.types.MaybeState, mask: cortex.types.ResetMask) -> cortex.types.MaybeState:
         if state is None:
             return None
         h = state.get("h")
@@ -134,7 +132,7 @@ class LSTMCell(MemoryCell):
         mask_b = mask.to(dtype=h.dtype).view(-1, 1, 1)
         h = h * (1.0 - mask_b)
         c = c * (1.0 - mask_b)
-        return TensorDict({"h": h, "c": c}, batch_size=[batch_size])
+        return tensordict.TensorDict({"h": h, "c": c}, batch_size=[batch_size])
 
 
 __all__ = ["LSTMCell"]

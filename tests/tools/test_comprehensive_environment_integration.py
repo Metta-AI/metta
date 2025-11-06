@@ -1,55 +1,47 @@
 import pytest
 
+import metta.common.util.fs
+import metta.sim.simulation_config
+import metta.tests_support
+import metta.tools.play
+import metta.tools.replay
+import mettagrid.builder
 import mettagrid.builder.envs as eb
-from metta.common.util.fs import get_repo_root
-from metta.sim.simulation_config import SimulationConfig
-from metta.tests_support import run_tool_in_process
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
-from mettagrid.builder import building
-from mettagrid.config.mettagrid_config import (
-    ActionsConfig,
-    AgentConfig,
-    AgentRewards,
-    GameConfig,
-    MettaGridConfig,
-    MoveActionConfig,
-    NoopActionConfig,
-)
-from mettagrid.map_builder.random import RandomMapBuilder
-from mettagrid.simulator import Simulation
+import mettagrid.config.mettagrid_config
+import mettagrid.map_builder.random
+import mettagrid.simulator
 
 
 class TestComprehensiveEnvironmentIntegration:
     """Comprehensive test suite for environment creation and tool integration."""
 
-    REPO_ROOT = get_repo_root()
+    REPO_ROOT = metta.common.util.fs.get_repo_root()
 
     @staticmethod
-    def make_debug_env(name: str) -> MettaGridConfig:
+    def make_debug_env(name: str) -> mettagrid.config.mettagrid_config.MettaGridConfig:
         """Create debug environments programmatically using the new system."""
         if name == "tiny_two_altars":
-            return MettaGridConfig(
+            return mettagrid.config.mettagrid_config.MettaGridConfig(
                 label=name,
-                game=GameConfig(
+                game=mettagrid.config.mettagrid_config.GameConfig(
                     num_agents=2,
                     max_steps=100,
                     objects={
-                        "wall": building.wall,
-                        "altar": building.assembler_altar,
+                        "wall": mettagrid.builder.building.wall,
+                        "altar": mettagrid.builder.building.assembler_altar,
                     },
-                    actions=ActionsConfig(
-                        move=MoveActionConfig(),
-                        noop=NoopActionConfig(),
+                    actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                        move=mettagrid.config.mettagrid_config.MoveActionConfig(),
+                        noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
                     ),
-                    agent=AgentConfig(
-                        rewards=AgentRewards(
+                    agent=mettagrid.config.mettagrid_config.AgentConfig(
+                        rewards=mettagrid.config.mettagrid_config.AgentRewards(
                             inventory={
                                 "heart": 1,
                             },
                         ),
                     ),
-                    map_builder=RandomMapBuilder.Config(
+                    map_builder=mettagrid.map_builder.random.RandomMapBuilder.Config(
                         agents=2,
                         width=10,
                         height=10,
@@ -59,26 +51,26 @@ class TestComprehensiveEnvironmentIntegration:
                 ),
             )
         elif name == "simple_obstacles":
-            return MettaGridConfig(
+            return mettagrid.config.mettagrid_config.MettaGridConfig(
                 label=name,
-                game=GameConfig(
+                game=mettagrid.config.mettagrid_config.GameConfig(
                     num_agents=2,
                     max_steps=100,
                     objects={
-                        "wall": building.wall,
+                        "wall": mettagrid.builder.building.wall,
                     },
-                    actions=ActionsConfig(
-                        move=MoveActionConfig(),
-                        noop=NoopActionConfig(),
+                    actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                        move=mettagrid.config.mettagrid_config.MoveActionConfig(),
+                        noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
                     ),
-                    agent=AgentConfig(
-                        rewards=AgentRewards(
+                    agent=mettagrid.config.mettagrid_config.AgentConfig(
+                        rewards=mettagrid.config.mettagrid_config.AgentRewards(
                             inventory={
                                 "heart": 1,
                             },
                         ),
                     ),
-                    map_builder=RandomMapBuilder.Config(
+                    map_builder=mettagrid.map_builder.random.RandomMapBuilder.Config(
                         agents=2,
                         width=15,
                         height=15,
@@ -88,22 +80,22 @@ class TestComprehensiveEnvironmentIntegration:
                 ),
             )
         elif name == "resource_collection":
-            return MettaGridConfig(
+            return mettagrid.config.mettagrid_config.MettaGridConfig(
                 label=name,
-                game=GameConfig(
+                game=mettagrid.config.mettagrid_config.GameConfig(
                     num_agents=2,
                     max_steps=100,
                     objects={
-                        "wall": building.wall,
-                        "mine_red": building.assembler_mine_red,
-                        "generator_red": building.assembler_generator_red,
+                        "wall": mettagrid.builder.building.wall,
+                        "mine_red": mettagrid.builder.building.assembler_mine_red,
+                        "generator_red": mettagrid.builder.building.assembler_generator_red,
                     },
-                    actions=ActionsConfig(
-                        move=MoveActionConfig(),
-                        noop=NoopActionConfig(),
+                    actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                        move=mettagrid.config.mettagrid_config.MoveActionConfig(),
+                        noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
                     ),
-                    agent=AgentConfig(
-                        rewards=AgentRewards(
+                    agent=mettagrid.config.mettagrid_config.AgentConfig(
+                        rewards=mettagrid.config.mettagrid_config.AgentRewards(
                             inventory={
                                 "heart": 1,
                                 "ore_red": 0.5,
@@ -111,7 +103,7 @@ class TestComprehensiveEnvironmentIntegration:
                             },
                         ),
                     ),
-                    map_builder=RandomMapBuilder.Config(
+                    map_builder=mettagrid.map_builder.random.RandomMapBuilder.Config(
                         agents=2,
                         width=20,
                         height=20,
@@ -121,23 +113,23 @@ class TestComprehensiveEnvironmentIntegration:
                 ),
             )
         else:  # mixed_objects and default
-            return MettaGridConfig(
+            return mettagrid.config.mettagrid_config.MettaGridConfig(
                 label=name,
-                game=GameConfig(
+                game=mettagrid.config.mettagrid_config.GameConfig(
                     num_agents=2,
                     max_steps=100,
                     objects={
-                        "wall": building.wall,
-                        "altar": building.assembler_altar,
-                        "mine_red": building.assembler_mine_red,
-                        "generator_red": building.assembler_generator_red,
+                        "wall": mettagrid.builder.building.wall,
+                        "altar": mettagrid.builder.building.assembler_altar,
+                        "mine_red": mettagrid.builder.building.assembler_mine_red,
+                        "generator_red": mettagrid.builder.building.assembler_generator_red,
                     },
-                    actions=ActionsConfig(
-                        move=MoveActionConfig(),
-                        noop=NoopActionConfig(),
+                    actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                        move=mettagrid.config.mettagrid_config.MoveActionConfig(),
+                        noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
                     ),
-                    agent=AgentConfig(
-                        rewards=AgentRewards(
+                    agent=mettagrid.config.mettagrid_config.AgentConfig(
+                        rewards=mettagrid.config.mettagrid_config.AgentRewards(
                             inventory={
                                 "heart": 1,
                                 "ore_red": 0.5,
@@ -145,7 +137,7 @@ class TestComprehensiveEnvironmentIntegration:
                             },
                         ),
                     ),
-                    map_builder=RandomMapBuilder.Config(
+                    map_builder=mettagrid.map_builder.random.RandomMapBuilder.Config(
                         agents=2,
                         width=20,
                         height=20,
@@ -197,7 +189,7 @@ class TestComprehensiveEnvironmentIntegration:
         """Test that programmatically created environments work with MettaGridEnv."""
 
         cfg = self.make_debug_env("tiny_two_altars")
-        sim = Simulation(cfg)
+        sim = mettagrid.simulator.Simulation(cfg)
 
         assert len(sim.observations()) == 2, "Observation should be for 2 agents"
 
@@ -206,7 +198,9 @@ class TestComprehensiveEnvironmentIntegration:
 
         for env_name in ["tiny_two_altars", "simple_obstacles"]:
             env_config = self.make_debug_env(env_name)
-            sim_config = SimulationConfig(suite="test", name=f"sim_{env_name}", env=env_config)
+            sim_config = metta.sim.simulation_config.SimulationConfig(
+                suite="test", name=f"sim_{env_name}", env=env_config
+            )
 
             assert sim_config.name == f"sim_{env_name}"
             assert sim_config.env.game.num_agents == 2
@@ -215,14 +209,14 @@ class TestComprehensiveEnvironmentIntegration:
         """Test that tools can be configured with programmatic environments."""
 
         env_config = self.make_debug_env("resource_collection")
-        sim_config = SimulationConfig(suite="test", name="test_resource", env=env_config)
+        sim_config = metta.sim.simulation_config.SimulationConfig(suite="test", name="test_resource", env=env_config)
 
         # Test ReplayTool configuration
-        replay_tool = ReplayTool(sim=sim_config, policy_uri=None, open_browser_on_start=False)
+        replay_tool = metta.tools.replay.ReplayTool(sim=sim_config, policy_uri=None, open_browser_on_start=False)
         assert replay_tool.sim.name == "test_resource"
 
         # Test PlayTool configuration
-        play_tool = PlayTool(sim=sim_config, policy_uri=None)
+        play_tool = metta.tools.play.PlayTool(sim=sim_config, policy_uri=None)
         assert play_tool.sim.name == "test_resource"
 
     def test_agents_count_in_environments(self):
@@ -259,7 +253,7 @@ class TestComprehensiveEnvironmentIntegration:
             "--dry-run",
         ]
 
-        result = run_tool_in_process(
+        result = metta.tests_support.run_tool_in_process(
             *args,
             env_overrides=env_overrides,
             monkeypatch=monkeypatch,
@@ -308,7 +302,7 @@ class TestComprehensiveEnvironmentIntegration:
         ]
 
         # Run training briefly (allow failures but ensure invocation returns)
-        run_tool_in_process(
+        metta.tests_support.run_tool_in_process(
             *train_args,
             env_overrides=env_overrides,
             monkeypatch=monkeypatch,
@@ -322,7 +316,7 @@ class TestComprehensiveEnvironmentIntegration:
             "--dry-run",
         ]
 
-        sim_result = run_tool_in_process(
+        sim_result = metta.tests_support.run_tool_in_process(
             *sim_args,
             env_overrides=env_overrides,
             monkeypatch=monkeypatch,

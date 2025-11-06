@@ -1,7 +1,7 @@
-from enum import Enum
+import enum
 
 
-class Orientation(Enum):
+class Orientation(enum.Enum):
     NORTH = 0
     SOUTH = 1
     WEST = 2

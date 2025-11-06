@@ -1,12 +1,14 @@
-from fastapi.testclient import TestClient
+import fastapi.testclient
 
-from metta.app_backend.test_support.base_async_test import BaseAsyncTest
+import metta.app_backend.test_support.base_async_test
 
 
-class TestTokenSystem(BaseAsyncTest):
+class TestTokenSystem(metta.app_backend.test_support.base_async_test.BaseAsyncTest):
     """Tests for the machine token system."""
 
-    def test_create_token(self, isolated_test_client: TestClient, test_user_headers: dict[str, str]) -> None:
+    def test_create_token(
+        self, isolated_test_client: fastapi.testclient.TestClient, test_user_headers: dict[str, str]
+    ) -> None:
         """Test creating a machine token."""
         response = isolated_test_client.post(
             "/tokens",
@@ -20,7 +22,7 @@ class TestTokenSystem(BaseAsyncTest):
 
     def test_list_tokens(
         self,
-        isolated_test_client: TestClient,
+        isolated_test_client: fastapi.testclient.TestClient,
         test_user_headers: dict[str, str],
     ) -> None:
         """Test listing machine tokens."""
@@ -52,7 +54,7 @@ class TestTokenSystem(BaseAsyncTest):
 
     def test_delete_token(
         self,
-        isolated_test_client: TestClient,
+        isolated_test_client: fastapi.testclient.TestClient,
         test_user_headers: dict[str, str],
     ) -> None:
         """Test deleting a machine token."""
@@ -99,7 +101,7 @@ class TestTokenSystem(BaseAsyncTest):
 
     def test_token_authentication(
         self,
-        isolated_test_client: TestClient,
+        isolated_test_client: fastapi.testclient.TestClient,
         test_user_headers: dict[str, str],
     ) -> None:
         """Test using a machine token for authentication."""
@@ -120,7 +122,7 @@ class TestTokenSystem(BaseAsyncTest):
         assert response.status_code == 200
 
     def test_user_email_authentication(
-        self, isolated_test_client: TestClient, test_user_headers: dict[str, str]
+        self, isolated_test_client: fastapi.testclient.TestClient, test_user_headers: dict[str, str]
     ) -> None:
         """Test using user email for authentication."""
         response = isolated_test_client.get(
@@ -129,7 +131,7 @@ class TestTokenSystem(BaseAsyncTest):
         )
         assert response.status_code == 200
 
-    def test_no_authentication_fails(self, isolated_test_client: TestClient) -> None:
+    def test_no_authentication_fails(self, isolated_test_client: fastapi.testclient.TestClient) -> None:
         """Test that write requests without authentication fail."""
         # Test a write operation (POST) without authentication
         response = isolated_test_client.post(
@@ -138,7 +140,7 @@ class TestTokenSystem(BaseAsyncTest):
         )
         assert response.status_code == 401
 
-    def test_invalid_token_fails(self, isolated_test_client: TestClient) -> None:
+    def test_invalid_token_fails(self, isolated_test_client: fastapi.testclient.TestClient) -> None:
         """Test that invalid tokens fail authentication for write operations."""
         # Test a write operation (POST) with invalid token
         response = isolated_test_client.post(
@@ -148,7 +150,9 @@ class TestTokenSystem(BaseAsyncTest):
         )
         assert response.status_code == 401
 
-    def test_whoami_with_email(self, isolated_test_client: TestClient, test_user_headers: dict[str, str]) -> None:
+    def test_whoami_with_email(
+        self, isolated_test_client: fastapi.testclient.TestClient, test_user_headers: dict[str, str]
+    ) -> None:
         """Test whoami endpoint with email authentication."""
         response = isolated_test_client.get(
             "/whoami",
@@ -160,7 +164,7 @@ class TestTokenSystem(BaseAsyncTest):
 
     def test_whoami_with_token(
         self,
-        isolated_test_client: TestClient,
+        isolated_test_client: fastapi.testclient.TestClient,
         test_user_headers: dict[str, str],
     ) -> None:
         """Test whoami endpoint with token authentication."""
@@ -182,7 +186,7 @@ class TestTokenSystem(BaseAsyncTest):
         data = response.json()
         assert data["user_email"] == test_user_headers["X-Auth-Request-Email"]
 
-    def test_whoami_no_auth(self, isolated_test_client: TestClient) -> None:
+    def test_whoami_no_auth(self, isolated_test_client: fastapi.testclient.TestClient) -> None:
         """Test whoami endpoint without authentication."""
         response = isolated_test_client.get("/whoami")
         assert response.status_code == 200

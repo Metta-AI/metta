@@ -1,10 +1,9 @@
-from __future__ import annotations
 
 import os
 
 import torch
-from torch.autograd import Function
-from torch.utils.cpp_extension import load
+import torch.autograd
+import torch.utils.cpp_extension
 
 _mod_path = os.path.dirname(__file__)
 _ext = None
@@ -15,7 +14,7 @@ def _load_ext():
     if _ext is not None:
         return _ext
 
-    _ext = load(
+    _ext = torch.utils.cpp_extension.load(
         name="srht_cuda",
         sources=[
             os.path.join(_mod_path, "srht_binding.cpp"),
@@ -29,7 +28,7 @@ def _load_ext():
     return _ext
 
 
-class _SRHTCudaFunc(Function):
+class _SRHTCudaFunc(torch.autograd.Function):
     @staticmethod
     def forward(
         ctx,

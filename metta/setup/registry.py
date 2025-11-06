@@ -1,12 +1,14 @@
-from typing import TYPE_CHECKING, Type
+import typing
 
-if TYPE_CHECKING:
-    from metta.setup.components.base import SetupModule
+if typing.TYPE_CHECKING:
+    import metta.setup.components.base
 
-_REGISTRY: list[Type["SetupModule"]] = []
+    SetupModule = metta.setup.components.base.SetupModule
+
+_REGISTRY: list[typing.Type["SetupModule"]] = []
 
 
-def register_module(cls: Type["SetupModule"]) -> Type["SetupModule"]:
+def register_module(cls: typing.Type["SetupModule"]) -> typing.Type["SetupModule"]:
     _REGISTRY.append(cls)
     return cls
 

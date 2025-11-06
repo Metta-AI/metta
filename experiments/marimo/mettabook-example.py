@@ -40,12 +40,18 @@ def _():
 def _():
     import altair as alt
     import pandas as pd
-    from experiments.notebooks.utils.metrics import fetch_metrics
-    from experiments.notebooks.utils.monitoring_marimo import monitor_training_statuses
-    from experiments.notebooks.utils.replays import show_replay
+    import experiments.notebooks.utils.metrics
+    import experiments.notebooks.utils.monitoring_marimo
+    import experiments.notebooks.utils.replays
 
     print("Setup complete!")
-    return alt, fetch_metrics, monitor_training_statuses, pd, show_replay
+    return (
+        alt,
+        experiments.notebooks.utils.metrics.fetch_metrics,
+        experiments.notebooks.utils.monitoring_marimo.monitor_training_statuses,
+        pd,
+        experiments.notebooks.utils.replays.show_replay,
+    )
 
 
 @app.cell

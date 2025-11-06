@@ -1,12 +1,12 @@
 import subprocess
 
-from metta.common.util.fs import get_repo_root
+import metta.common.util.fs
 
 
 def test_only_root_uv_lock_exists() -> None:
     """Ensure only a single uv.lock exists at the repository root."""
 
-    repo_root = get_repo_root()
+    repo_root = metta.common.util.fs.get_repo_root()
 
     cmd = ["git", "ls-files", "*/uv.lock"]
 

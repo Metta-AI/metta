@@ -1,21 +1,20 @@
-from __future__ import annotations
 
 import datetime
+import pathlib
 import tempfile
+import typing
 import uuid
-from pathlib import Path
-from typing import Dict, Generator, List
 
 import pytest
 
-from metta.eval.dashboard_data import PolicyEvalMetric, get_policy_eval_metrics
-from metta.sim.simulation_stats_db import SimulationStatsDB
+import metta.eval.dashboard_data
+import metta.sim.simulation_stats_db
 
-TestSimStatsDb = tuple[SimulationStatsDB, list[str], str]
+TestSimStatsDb = tuple[metta.sim.simulation_stats_db.SimulationStatsDB, list[str], str]
 
 
-def _create_test_db_with_metrics(db_path: Path) -> TestSimStatsDb:
-    db = SimulationStatsDB(db_path)
+def _create_test_db_with_metrics(db_path: pathlib.Path) -> TestSimStatsDb:
+    db = metta.sim.simulation_stats_db.SimulationStatsDB(db_path)
 
     sim_id = str(uuid.uuid4())
     policy_key = "test_policy"
@@ -30,7 +29,7 @@ def _create_test_db_with_metrics(db_path: Path) -> TestSimStatsDb:
         (sim_id, "test_sim", "test_env", policy_key, policy_version),
     )
 
-    episodes: List[str] = []
+    episodes: typing.List[str] = []
     for i in range(3):  # Create 3 episodes
         ep_id = str(uuid.uuid4())
         episodes.append(ep_id)
@@ -73,9 +72,9 @@ def _create_test_db_with_metrics(db_path: Path) -> TestSimStatsDb:
 
 
 @pytest.fixture
-def test_db() -> Generator[TestSimStatsDb, None, None]:
+def test_db() -> typing.Generator[TestSimStatsDb, None, None]:
     with tempfile.TemporaryDirectory() as tmp:
-        p = Path(tmp) / f"{uuid.uuid4().hex}.duckdb"
+        p = pathlib.Path(tmp) / f"{uuid.uuid4().hex}.duckdb"
         db, eps, sid = _create_test_db_with_metrics(p)
         yield db, eps, sid
         db.close()
@@ -83,7 +82,7 @@ def test_db() -> Generator[TestSimStatsDb, None, None]:
 
 def test_get_policy_eval_metrics(test_db: TestSimStatsDb) -> None:
     db, _, _ = test_db
-    policy_evals = get_policy_eval_metrics(db)
+    policy_evals = metta.eval.dashboard_data.get_policy_eval_metrics(db)
 
     # Should have one policy eval since we only created one simulation
     assert len(policy_evals) == 1
@@ -100,7 +99,7 @@ def test_get_policy_eval_metrics(test_db: TestSimStatsDb) -> None:
     assert policy_eval.group_num_agents["2"] == 3
 
     # Check metrics
-    metrics_by_group: Dict[str, Dict[str, PolicyEvalMetric]] = {}
+    metrics_by_group: typing.Dict[str, typing.Dict[str, metta.eval.dashboard_data.PolicyEvalMetric]] = {}
     for m in policy_eval.policy_eval_metrics:
         metrics_by_group[m.group_id] = metrics_by_group.get(m.group_id, {})
         metrics_by_group[m.group_id][m.metric] = m

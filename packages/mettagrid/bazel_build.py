@@ -2,30 +2,15 @@
 # This backend compiles the C++ extension using Bazel during package installation
 
 import os
+import pathlib
 import shutil
 import subprocess
 import sys
-from pathlib import Path
 
-from setuptools.build_meta import (
-    build_editable as _build_editable,
-)
-from setuptools.build_meta import (
-    build_sdist as _build_sdist,
-)
-from setuptools.build_meta import (
-    build_wheel as _build_wheel,
-)
-from setuptools.build_meta import (
-    get_requires_for_build_editable,
-    get_requires_for_build_sdist,
-    get_requires_for_build_wheel,
-    prepare_metadata_for_build_editable,
-    prepare_metadata_for_build_wheel,
-)
-from setuptools.dist import Distribution
+import setuptools.build_meta
+import setuptools.dist
 
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = pathlib.Path(__file__).resolve().parent
 METTASCOPE_DIR = PROJECT_ROOT / "nim" / "mettascope"
 PYTHON_PACKAGE_DIR = PROJECT_ROOT / "python" / "src" / "mettagrid"
 METTASCOPE_PACKAGE_DIR = PYTHON_PACKAGE_DIR / "nim" / "mettascope"
@@ -72,7 +57,7 @@ def _run_bazel_build() -> None:
     )
 
     # Ensure the output root exists before invoking Bazel.
-    Path(output_user_root).mkdir(parents=True, exist_ok=True)
+    pathlib.Path(output_user_root).mkdir(parents=True, exist_ok=True)
 
     # Build the Python extension with auto-detected parallelism
     cmd = [
@@ -215,24 +200,24 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
     _run_mettascope_build()
     # Ensure wheel is tagged as non-pure (platform-specific) since we bundle a native extension
     # Setuptools/wheel derive purity from Distribution.has_ext_modules(). Monkeypatch to force True.
-    original_has_ext_modules = Distribution.has_ext_modules
+    original_has_ext_modules = setuptools.dist.Distribution.has_ext_modules
     try:
-        Distribution.has_ext_modules = lambda self: True  # type: ignore[assignment]
-        return _build_wheel(wheel_directory, config_settings, metadata_directory)
+        setuptools.dist.Distribution.has_ext_modules = lambda self: True  # type: ignore[assignment]
+        return setuptools.build_meta.build_wheel(wheel_directory, config_settings, metadata_directory)
     finally:
-        Distribution.has_ext_modules = original_has_ext_modules
+        setuptools.dist.Distribution.has_ext_modules = original_has_ext_modules
 
 
 def build_editable(wheel_directory, config_settings=None, metadata_directory=None):
     """Build an editable install, compiling the C++ extension with Bazel first, then mettascope."""
     _run_bazel_build()
     _run_mettascope_build()
-    return _build_editable(wheel_directory, config_settings, metadata_directory)
+    return setuptools.build_meta.build_editable(wheel_directory, config_settings, metadata_directory)
 
 
 def build_sdist(sdist_directory, config_settings=None):
     """Build a source distribution without compiling the extension."""
-    return _build_sdist(sdist_directory, config_settings)
+    return setuptools.build_meta.build_sdist(sdist_directory, config_settings)
 
 
 __all__ = [

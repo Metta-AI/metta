@@ -3,14 +3,13 @@
 
 import os
 
+import cortex.kernels.triton.mlstm.torch.chunkwise_gates
+import cortex.kernels.triton.mlstm.triton
+import cortex.kernels.triton.mlstm.triton.kernel_param_heuristics
+import cortex.kernels.triton.mlstm.utils
+import cortex.kernels.triton.mlstm.utils.kernels
 import torch
 import triton
-
-from cortex.kernels.triton.mlstm.torch.chunkwise_gates import compute_chunkwise_log_gates_vecB
-from cortex.kernels.triton.mlstm.triton import mlstm_chunkwise__parallel_fw_Hintra_kernel
-from cortex.kernels.triton.mlstm.triton.kernel_param_heuristics import get_head_dim_block_size
-from cortex.kernels.triton.mlstm.utils import torch2triton_dtype
-from cortex.kernels.triton.mlstm.utils.kernels import is_power_of_2
 
 
 def mlstm_chunkwise__parallel_fw_Hintra(
@@ -50,14 +49,26 @@ def mlstm_chunkwise__parallel_fw_Hintra(
     NC = S // chunk_size
     L = chunk_size
 
-    assert is_power_of_2(L), "Chunk size must be a power of 2."
+    assert cortex.kernels.triton.mlstm.utils.kernels.is_power_of_2(L), "Chunk size must be a power of 2."
 
     if qk_scale is None:
         qk_scale = DHQK**-0.5
 
     # Head-dim tiling (loop for Q/K, parallel for V)
-    siz_b_DHQK = get_head_dim_block_size(head_dim=DHQK, min_block_size=64) if siz_b_DHQK is None else siz_b_DHQK
-    siz_b_DHHV = get_head_dim_block_size(head_dim=DHHV, min_block_size=128) if siz_b_DHHV is None else siz_b_DHHV
+    siz_b_DHQK = (
+        cortex.kernels.triton.mlstm.triton.kernel_param_heuristics.get_head_dim_block_size(
+            head_dim=DHQK, min_block_size=64
+        )
+        if siz_b_DHQK is None
+        else siz_b_DHQK
+    )
+    siz_b_DHHV = (
+        cortex.kernels.triton.mlstm.triton.kernel_param_heuristics.get_head_dim_block_size(
+            head_dim=DHHV, min_block_size=128
+        )
+        if siz_b_DHHV is None
+        else siz_b_DHHV
+    )
 
     # Soft shared-memory cap to avoid Triton OutOfResources on GPUs with ~100KB SMEM (e.g., T4/A10).
     # The dominant SMEM consumer is the float32 accumulator `matH_intra_acc` of shape (siz_b_LQ, siz_b_DHHV).
@@ -102,13 +113,15 @@ def mlstm_chunkwise__parallel_fw_Hintra(
     vecN_out = torch.empty(B, NH, S, device=matQ.device, dtype=output_dtype)
     vecM_out = torch.empty(B, NH, S, device=matQ.device, dtype=output_dtype)
 
-    vecB = compute_chunkwise_log_gates_vecB(vecF=vecF, chunk_size=chunk_size)
+    vecB = cortex.kernels.triton.mlstm.torch.chunkwise_gates.compute_chunkwise_log_gates_vecB(
+        vecF=vecF, chunk_size=chunk_size
+    )
     if vecSegId is None:
         vecSegId = torch.zeros((B, NH, NC, L), device=matQ.device, dtype=torch.int32)
 
     grid = (num_b_DHHV, num_b_LQ, NC * B * NH)
     # print("grid(num_b_DHHV, num_b_LQ, NC*B*NH)", grid)
-    mlstm_chunkwise__parallel_fw_Hintra_kernel[grid](
+    cortex.kernels.triton.mlstm.triton.mlstm_chunkwise__parallel_fw_Hintra_kernel[grid](
         matQ=matQ,
         matK=matK,
         matV=matV,
@@ -153,8 +166,8 @@ def mlstm_chunkwise__parallel_fw_Hintra(
         siz_b_LKV=siz_b_LKV,
         siz_b_DHQK=siz_b_DHQK,
         siz_b_DHHV=siz_b_DHHV,
-        DTYPE=torch2triton_dtype(matQ.dtype),
-        OUTPUT_DTYPE=torch2triton_dtype(output_dtype),
+        DTYPE=cortex.kernels.triton.mlstm.utils.torch2triton_dtype(matQ.dtype),
+        OUTPUT_DTYPE=cortex.kernels.triton.mlstm.utils.torch2triton_dtype(output_dtype),
         MINIMUM_MAX_VAL=-10.0,
         EPS=eps,
         num_stages=num_stages,

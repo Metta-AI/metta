@@ -1,26 +1,23 @@
 import random
 import subprocess
 import time
-from dataclasses import dataclass, field
-from typing import Any, Optional
+import dataclasses
+import typing
 
-from metta.agent.policies.vit_reset import ViTResetConfig
-from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
-from metta.rl.loss import LossConfig
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.sim.simulation_config import SimulationConfig
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
-from metta.tools.train import TrainTool
-from mettagrid.builder import empty_assemblers
-from mettagrid.builder.envs import make_assembly_lines
-from mettagrid.config.mettagrid_config import (
-    MettaGridConfig,
-    ProtocolConfig,
-)
+import metta.agent.policies.vit_reset
+import metta.cogworks.curriculum.curriculum
+import metta.cogworks.curriculum.learning_progress_algorithm
+import metta.cogworks.curriculum.task_generator
+import metta.rl.loss
+import metta.rl.trainer_config
+import metta.rl.training
+import metta.sim.simulation_config
+import metta.tools.play
+import metta.tools.replay
+import metta.tools.train
+import mettagrid.builder
+import mettagrid.builder.envs
+import mettagrid.config.mettagrid_config
 
 curriculum_args = {
     "level_0": {
@@ -98,18 +95,18 @@ curriculum_args = {
 }
 
 ASSEMBLER_TYPES = {
-    "generator_red": empty_assemblers.generator_red,
-    "generator_blue": empty_assemblers.generator_blue,
-    "generator_green": empty_assemblers.generator_green,
-    "mine_red": empty_assemblers.mine_red,
-    "mine_blue": empty_assemblers.mine_blue,
-    "mine_green": empty_assemblers.mine_green,
-    "altar": empty_assemblers.altar,
-    "factory": empty_assemblers.factory,
-    "temple": empty_assemblers.temple,
-    "armory": empty_assemblers.armory,
-    "lab": empty_assemblers.lab,
-    "lasery": empty_assemblers.lasery,
+    "generator_red": mettagrid.builder.empty_assemblers.generator_red,
+    "generator_blue": mettagrid.builder.empty_assemblers.generator_blue,
+    "generator_green": mettagrid.builder.empty_assemblers.generator_green,
+    "mine_red": mettagrid.builder.empty_assemblers.mine_red,
+    "mine_blue": mettagrid.builder.empty_assemblers.mine_blue,
+    "mine_green": mettagrid.builder.empty_assemblers.mine_green,
+    "altar": mettagrid.builder.empty_assemblers.altar,
+    "factory": mettagrid.builder.empty_assemblers.factory,
+    "temple": mettagrid.builder.empty_assemblers.temple,
+    "armory": mettagrid.builder.empty_assemblers.armory,
+    "lab": mettagrid.builder.empty_assemblers.lab,
+    "lasery": mettagrid.builder.empty_assemblers.lasery,
 }
 
 size_ranges = {
@@ -133,29 +130,35 @@ RESOURCE_TYPES = [
 ]
 
 
-@dataclass
+@dataclasses.dataclass
 class _BuildCfg:
-    used_objects: list[str] = field(default_factory=list)
-    game_objects: dict[str, Any] = field(default_factory=dict)
-    map_builder_objects: dict[str, int] = field(default_factory=dict)
-    input_resources: set[str] = field(default_factory=set)
+    used_objects: list[str] = dataclasses.field(default_factory=list)
+    game_objects: dict[str, typing.Any] = dataclasses.field(default_factory=dict)
+    map_builder_objects: dict[str, int] = dataclasses.field(default_factory=dict)
+    input_resources: set[str] = dataclasses.field(default_factory=set)
 
 
-class AssemblyLinesTaskGenerator(TaskGenerator):
+class AssemblyLinesTaskGenerator(
+    metta.cogworks.curriculum.task_generator.TaskGenerator
+):
     def __init__(self, config: "AssemblyLinesTaskGenerator.Config"):
         super().__init__(config)
         self.assembler_types = ASSEMBLER_TYPES.copy()
         self.resource_types = RESOURCE_TYPES.copy()
         self.config = config
 
-    class Config(TaskGeneratorConfig["AssemblyLinesTaskGenerator"]):
+    class Config(
+        metta.cogworks.curriculum.task_generator.TaskGeneratorConfig[
+            "AssemblyLinesTaskGenerator"
+        ]
+    ):
         chain_lengths: list[int]
         num_sinks: list[int]
         room_sizes: list[str]
         terrains: list[str]
 
     def _choose_assembler_name(
-        self, pool: dict[str, Any], used: set[str], rng: random.Random
+        self, pool: dict[str, typing.Any], used: set[str], rng: random.Random
     ) -> str:
         """Pick an unused assembler prefab name from the pool."""
         choices = [name for name in pool.keys() if name not in used]
@@ -177,7 +180,7 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
         assembler = self.assembler_types[assembler_name].copy()
         cfg.used_objects.append(assembler_name)
 
-        protocol = ProtocolConfig(
+        protocol = mettagrid.config.mettagrid_config.ProtocolConfig(
             input_resources=input_resources,
             output_resources=output_resources,
             cooldown=cooldown,
@@ -232,13 +235,13 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
         max_steps,
         terrain,
         rng,
-    ) -> MettaGridConfig:
+    ) -> mettagrid.config.mettagrid_config.MettaGridConfig:
         cfg = _BuildCfg()
 
         self._make_resource_chain(chain_length, width + height / 2, cfg, rng)
         self._make_sinks(num_sinks, cfg, rng)
 
-        return make_assembly_lines(
+        return mettagrid.builder.envs.make_assembly_lines(
             num_agents=1,
             max_steps=max_steps,
             game_objects=cfg.game_objects,
@@ -295,8 +298,8 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
         task_id: int,
         rng: random.Random,
         estimate_max_rewards: bool = False,
-        num_instances: Optional[int] = None,
-    ) -> MettaGridConfig:
+        num_instances: typing.Optional[int] = None,
+    ) -> mettagrid.config.mettagrid_config.MettaGridConfig:
         chain_length, num_sinks, room_size, width, height, max_steps, terrain = (
             self._setup_task(rng)
         )
@@ -331,39 +334,44 @@ def make_task_generator_cfg(
 
 def train(
     curriculum_style: str = "level_0",
-) -> TrainTool:
-    from experiments.evals.assembly_lines import (
-        make_assembly_line_eval_suite,
-    )
+) -> metta.tools.train.TrainTool:
+    import experiments.evals.assembly_lines
 
     task_generator_cfg = make_task_generator_cfg(**curriculum_args[curriculum_style])
-    curriculum = CurriculumConfig(
-        task_generator=task_generator_cfg, algorithm_config=LearningProgressConfig()
+    curriculum = metta.cogworks.curriculum.curriculum.CurriculumConfig(
+        task_generator=task_generator_cfg,
+        algorithm_config=metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig(),
     )
 
-    policy_config = ViTResetConfig()
+    policy_config = metta.agent.policies.vit_reset.ViTResetConfig()
 
-    trainer_cfg = TrainerConfig(losses=LossConfig())
+    trainer_cfg = metta.rl.trainer_config.TrainerConfig(
+        losses=metta.rl.loss.LossConfig()
+    )
 
-    return TrainTool(
+    return metta.tools.train.TrainTool(
         trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
+        training_env=metta.rl.training.TrainingEnvironmentConfig(curriculum=curriculum),
         policy_architecture=policy_config,
-        evaluator=EvaluatorConfig(simulations=make_assembly_line_eval_suite()),
+        evaluator=metta.rl.training.EvaluatorConfig(
+            simulations=experiments.evals.assembly_lines.make_assembly_line_eval_suite()
+        ),
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
 
 
-def make_mettagrid(task_generator: AssemblyLinesTaskGenerator) -> MettaGridConfig:
+def make_mettagrid(
+    task_generator: AssemblyLinesTaskGenerator,
+) -> mettagrid.config.mettagrid_config.MettaGridConfig:
     return task_generator.get_task(random.randint(0, 1000000))
 
 
-def play(curriculum_style: str = "level_0") -> PlayTool:
+def play(curriculum_style: str = "level_0") -> metta.tools.play.PlayTool:
     task_generator = AssemblyLinesTaskGenerator(
         make_task_generator_cfg(**curriculum_args[curriculum_style])
     )
-    return PlayTool(
-        sim=SimulationConfig(
+    return metta.tools.play.PlayTool(
+        sim=metta.sim.simulation_config.SimulationConfig(
             env=make_mettagrid(task_generator), suite="assembly_lines", name="play"
         )
     )
@@ -371,14 +379,14 @@ def play(curriculum_style: str = "level_0") -> PlayTool:
 
 def replay(
     curriculum_style: str = "level_0",
-) -> ReplayTool:
+) -> metta.tools.replay.ReplayTool:
     task_generator = AssemblyLinesTaskGenerator(
         make_task_generator_cfg(**curriculum_args[curriculum_style])
     )
     # Default to the research policy if none specified
     default_policy_uri = "s3://softmax-public/policies/icl_resource_chain_terrain_1.2.2025-09-24/icl_resource_chain_terrain_1.2.2025-09-24:v2070.pt"
-    return ReplayTool(
-        sim=SimulationConfig(
+    return metta.tools.replay.ReplayTool(
+        sim=metta.sim.simulation_config.SimulationConfig(
             env=make_mettagrid(task_generator), suite="assembly_lines", name="replay"
         ),
         policy_uri=default_policy_uri,

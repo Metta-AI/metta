@@ -21,11 +21,11 @@ def _(mo):
 def _():
     import altair as alt
     import pandas as pd
-    from metta.app_backend.clients.scorecard_client import ScorecardClient
-    from metta.common.util.collections import group_by
+    import metta.app_backend.clients.scorecard_client
+    import metta.common.util.collections
 
-    client = ScorecardClient()
-    return alt, client, group_by, pd
+    client = metta.app_backend.clients.scorecard_client.ScorecardClient()
+    return alt, client, metta.common.util.collections.group_by, pd
 
 
 @app.cell

@@ -2,14 +2,14 @@ import asyncio
 
 import pytest
 
-from metta.common.util.memoization import memoize
+import metta.common.util.memoization
 
 
 @pytest.mark.asyncio
 async def test_memoize_caches_result():
     call_count = 0
 
-    @memoize(max_age=1)
+    @metta.common.util.memoization.memoize(max_age=1)
     async def expensive_function(x: int) -> int:
         nonlocal call_count
         call_count += 1
@@ -28,7 +28,7 @@ async def test_memoize_caches_result():
 async def test_memoize_expires_after_max_age():
     call_count = 0
 
-    @memoize(max_age=0.01)
+    @metta.common.util.memoization.memoize(max_age=0.01)
     async def timed_function(x: int) -> int:
         nonlocal call_count
         call_count += 1

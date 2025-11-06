@@ -1,22 +1,15 @@
-from __future__ import annotations
 
+import dataclasses
 import math
+import typing
 import warnings
-from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.checkpoint import checkpoint
+import torch.utils.checkpoint
 
-from metta.agent.components.transformer_utils import (
-    _make_layer_norm,
-    _record_function,
-    empty_memory,
-    normalize_memory,
-    update_memory_window,
-)
+import metta.agent.components.transformer_utils
 
 
 class FCPositionalEncoding(nn.Module):
@@ -94,7 +87,7 @@ class GTrXLMultiHeadSelfAttention(nn.Module):
         nn.init.xavier_uniform_(self.out_proj.weight, gain=1.0)
         nn.init.constant_(self.out_proj.bias, 0.0)
 
-    def forward(self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, attn_mask: typing.Optional[torch.Tensor] = None) -> torch.Tensor:
         seq_len, batch_size, _ = x.shape
         qkv = self.qkv_proj(x)
         qkv = qkv.view(seq_len, batch_size, 3, self.n_heads, self.d_k)
@@ -127,11 +120,11 @@ class GTrXLMultiHeadSelfAttention(nn.Module):
 
     @staticmethod
     def _prepare_attn_mask(
-        attn_mask: Optional[torch.Tensor],
+        attn_mask: typing.Optional[torch.Tensor],
         batch_size: int,
         seq_len: int,
         device: torch.device,
-    ) -> Optional[torch.Tensor]:
+    ) -> typing.Optional[torch.Tensor]:
         if attn_mask is None:
             return None
 
@@ -171,8 +164,8 @@ class GTrXLTransformerBlock(nn.Module):
             use_causal_mask,
             attn_dropout=attn_dropout,
         )
-        self.norm1 = _make_layer_norm(d_model, False)
-        self.norm2 = _make_layer_norm(d_model, False)
+        self.norm1 = metta.agent.components.transformer_utils._make_layer_norm(d_model, False)
+        self.norm2 = metta.agent.components.transformer_utils._make_layer_norm(d_model, False)
 
         self.feed_forward = nn.Sequential(
             nn.Linear(d_model, d_ff),
@@ -190,7 +183,7 @@ class GTrXLTransformerBlock(nn.Module):
             self.gate1 = FusedGRUGating(d_model, bias=2.0)
             self.gate2 = FusedGRUGating(d_model, bias=2.0)
 
-    def forward(self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, attn_mask: typing.Optional[torch.Tensor] = None) -> torch.Tensor:
         attn_out = self.attention(self.norm1(x), attn_mask)
         if self.use_gating:
             residual = self.gate1(x, attn_out)
@@ -280,16 +273,16 @@ class GTrXLModule(nn.Module):
                 for _ in range(n_layers)
             ]
         )
-        self.output_norm = _make_layer_norm(d_model, False)
+        self.output_norm = metta.agent.components.transformer_utils._make_layer_norm(d_model, False)
         self.dropout = nn.Dropout(dropout)
         self._mask_cache: dict[tuple[int, torch.device], torch.Tensor] = {}
 
     def forward(
         self,
         inputs: torch.Tensor,
-        memory: Optional[Dict[str, Optional[List[torch.Tensor]]]] = None,
-    ) -> Tuple[torch.Tensor, Dict[str, Optional[List[torch.Tensor]]]]:
-        with _record_function("GTrXLModule/forward"):
+        memory: typing.Optional[typing.Dict[str, typing.Optional[typing.List[torch.Tensor]]]] = None,
+    ) -> typing.Tuple[torch.Tensor, typing.Dict[str, typing.Optional[typing.List[torch.Tensor]]]]:
+        with metta.agent.components.transformer_utils._record_function("GTrXLModule/forward"):
             squeeze = False
             if inputs.dim() == 2:
                 inputs = inputs.unsqueeze(0)
@@ -301,9 +294,9 @@ class GTrXLModule(nn.Module):
             device = inputs.device
             dtype = inputs.dtype
 
-            with _record_function("GTrXLModule/normalize_memory"):
+            with metta.agent.components.transformer_utils._record_function("GTrXLModule/normalize_memory"):
                 stored_memory = memory.get("hidden_states") if isinstance(memory, dict) else None
-                layer_mems = normalize_memory(
+                layer_mems = metta.agent.components.transformer_utils.normalize_memory(
                     self.memory_len,
                     self.n_layers,
                     stored_memory,
@@ -313,21 +306,23 @@ class GTrXLModule(nn.Module):
                     dtype,
                 )
                 if layer_mems is None:
-                    layer_mems = empty_memory(self.n_layers, batch_size, self.d_model, device, dtype)
+                    layer_mems = metta.agent.components.transformer_utils.empty_memory(
+                        self.n_layers, batch_size, self.d_model, device, dtype
+                    )
             memory_enabled = self.memory_len > 0
 
             core = inputs
-            with _record_function("GTrXLModule/input_proj"):
+            with metta.agent.components.transformer_utils._record_function("GTrXLModule/input_proj"):
                 if self.use_input_proj:
                     core = F.relu(self.input_proj(core))
 
-            with _record_function("GTrXLModule/positional_encoding"):
+            with metta.agent.components.transformer_utils._record_function("GTrXLModule/positional_encoding"):
                 core = self.positional_encoding(core)
                 core = self.dropout(core)
 
-            layer_outputs: List[torch.Tensor] = []
+            layer_outputs: typing.List[torch.Tensor] = []
             for layer_idx, layer in enumerate(self.layers):
-                with _record_function(f"GTrXLModule/layer_{layer_idx}"):
+                with metta.agent.components.transformer_utils._record_function(f"GTrXLModule/layer_{layer_idx}"):
                     mem = layer_mems[layer_idx]
                     mem_len = mem.size(0)
                     if mem_len > 0:
@@ -347,7 +342,7 @@ class GTrXLModule(nn.Module):
                         def _layer_run(inp, *, _layer=layer, _mask=attn_mask):
                             return _layer(inp, _mask)
 
-                        layer_out = checkpoint(_layer_run, combined, use_reentrant=False)
+                        layer_out = torch.utils.checkpoint.checkpoint(_layer_run, combined, use_reentrant=False)
                     else:
                         layer_out = layer(combined, attn_mask)
                     layer_outputs.append(layer_out)
@@ -357,27 +352,31 @@ class GTrXLModule(nn.Module):
                     else:
                         core = layer_out
 
-            with _record_function("GTrXLModule/output_norm"):
+            with metta.agent.components.transformer_utils._record_function("GTrXLModule/output_norm"):
                 core = self.output_norm(core)
                 core = self.dropout(core)
 
             if squeeze:
                 core = core.squeeze(0)
 
-            with _record_function("GTrXLModule/update_memory"):
-                new_memory = update_memory_window(
+            with metta.agent.components.transformer_utils._record_function("GTrXLModule/update_memory"):
+                new_memory = metta.agent.components.transformer_utils.update_memory_window(
                     layer_outputs,
                     layer_mems if memory_enabled else None,
                     self.memory_len,
                 )
             return core, {"hidden_states": new_memory if memory_enabled else None}
 
-    def initialize_memory(self, batch_size: int) -> Dict[str, Optional[List[torch.Tensor]]]:
+    def initialize_memory(self, batch_size: int) -> typing.Dict[str, typing.Optional[typing.List[torch.Tensor]]]:
         if self.memory_len <= 0:
             return {"hidden_states": None}
         device = next(self.parameters()).device
         dtype = next(self.parameters()).dtype
-        return {"hidden_states": empty_memory(self.n_layers, batch_size, self.d_model, device, dtype)}
+        return {
+            "hidden_states": metta.agent.components.transformer_utils.empty_memory(
+                self.n_layers, batch_size, self.d_model, device, dtype
+            )
+        }
 
     def _get_causal_mask(self, size: int, device: torch.device) -> torch.Tensor:
         key = (size, device)
@@ -388,7 +387,7 @@ class GTrXLModule(nn.Module):
         return mask
 
 
-@dataclass
+@dataclasses.dataclass
 class GTrXLConfig:
     """Backbone parameters for the GTrXL transformer."""
 
@@ -448,6 +447,6 @@ __all__ = ["GTrXLModule", "GTrXLConfig", "gtrxl_policy_config"]
 def gtrxl_policy_config():
     """Create a `TransformerPolicyConfig` preloaded with this backbone."""
 
-    from metta.agent.policies.transformer import TransformerPolicyConfig
+    import metta.agent.policies.transformer
 
-    return TransformerPolicyConfig(transformer=GTrXLConfig())
+    return metta.agent.policies.transformer.TransformerPolicyConfig(transformer=GTrXLConfig())

@@ -1,19 +1,19 @@
 import math
-from typing import Optional
+import typing
 
+import gymnasium.spaces
+import tensordict
+import tensordict.nn
 import torch
 import torch.nn as nn
-from gymnasium.spaces import Discrete
-from tensordict import TensorDict
-from tensordict.nn import TensorDictModule as TDM
 
+import metta.agent.components.component_config
+import metta.agent.util.distribution_utils
+import mettagrid.policy.policy_env_interface
 import pufferlib.pytorch
-from metta.agent.components.component_config import ComponentConfig
-from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 
-class ActorQueryConfig(ComponentConfig):
+class ActorQueryConfig(metta.agent.components.component_config.ComponentConfig):
     in_key: str
     out_key: str
     name: str = "actor_query"
@@ -42,7 +42,7 @@ class ActorQuery(nn.Module):
         bound = 1 / math.sqrt(self.hidden_size)
         nn.init.uniform_(self.W, -bound, bound)
 
-    def forward(self, td: TensorDict):
+    def forward(self, td: tensordict.TensorDict):
         hidden = td[self.in_key]  # Shape: [B*TT, hidden]
 
         query = torch.einsum("b h, h e -> b e", hidden, self.W)  # Shape: [B*TT, embed_dim]
@@ -52,7 +52,7 @@ class ActorQuery(nn.Module):
         return td
 
 
-class ActorKeyConfig(ComponentConfig):
+class ActorKeyConfig(metta.agent.components.component_config.ComponentConfig):
     query_key: str
     embedding_key: str
     out_key: str
@@ -88,7 +88,7 @@ class ActorKey(nn.Module):
             bound = 1 / math.sqrt(self.embed_dim)
             nn.init.uniform_(self.bias, -bound, bound)
 
-    def forward(self, td: TensorDict):
+    def forward(self, td: tensordict.TensorDict):
         query = td[self.query_key]  # Shape: [B*TT, embed_dim]
         action_embeds = td[self.embedding_key]  # Shape: [B*TT, num_actions, embed_dim]
 
@@ -102,7 +102,7 @@ class ActorKey(nn.Module):
         return td
 
 
-class ActionProbsConfig(ComponentConfig):
+class ActionProbsConfig(metta.agent.components.component_config.ComponentConfig):
     in_key: str
     name: str = "action_probs"
 
@@ -122,26 +122,28 @@ class ActionProbs(nn.Module):
 
     def initialize_to_environment(
         self,
-        env: PolicyEnvInterface,
+        env: mettagrid.policy.policy_env_interface.PolicyEnvInterface,
         device: torch.device,
     ) -> None:
         action_space = env.action_space
-        if not isinstance(action_space, Discrete):
+        if not isinstance(action_space, gymnasium.spaces.Discrete):
             msg = f"ActionProbs expects a Discrete action space, got {type(action_space).__name__}"
             raise TypeError(msg)
 
         self.num_actions = int(action_space.n)
 
-    def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
+    def forward(self, td: tensordict.TensorDict, action: typing.Optional[torch.Tensor] = None) -> tensordict.TensorDict:
         if action is None:
             return self.forward_inference(td)
         else:
             return self.forward_training(td, action)
 
-    def forward_inference(self, td: TensorDict) -> TensorDict:
+    def forward_inference(self, td: tensordict.TensorDict) -> tensordict.TensorDict:
         """Forward pass for inference mode with action sampling."""
         logits = td[self.config.in_key]
-        action_logit_index, selected_log_probs, _, full_log_probs = sample_actions(logits)
+        action_logit_index, selected_log_probs, _, full_log_probs = metta.agent.util.distribution_utils.sample_actions(
+            logits
+        )
 
         td["actions"] = action_logit_index.to(dtype=torch.int32)
         td["act_log_prob"] = selected_log_probs
@@ -149,7 +151,7 @@ class ActionProbs(nn.Module):
 
         return td
 
-    def forward_training(self, td: TensorDict, action: torch.Tensor) -> TensorDict:
+    def forward_training(self, td: tensordict.TensorDict, action: torch.Tensor) -> tensordict.TensorDict:
         """Forward pass for training mode with proper TD reshaping."""
         # CRITICAL: ComponentPolicy expects the action to be flattened already during training
         # The TD should be reshaped to match the flattened batch dimension
@@ -168,7 +170,9 @@ class ActionProbs(nn.Module):
             raise ValueError(f"Expected flattened action indices, got shape {tuple(action.shape)}")
 
         action_logit_index = action.to(dtype=torch.long)
-        selected_log_probs, entropy, action_log_probs = evaluate_actions(logits, action_logit_index)
+        selected_log_probs, entropy, action_log_probs = metta.agent.util.distribution_utils.evaluate_actions(
+            logits, action_logit_index
+        )
 
         # Store in flattened TD (will be reshaped by caller if needed)
         td["act_log_prob"] = selected_log_probs
@@ -185,14 +189,14 @@ class ActionProbs(nn.Module):
         return td
 
 
-class ActorHeadConfig(ComponentConfig):
+class ActorHeadConfig(metta.agent.components.component_config.ComponentConfig):
     in_key: str
     out_key: str
     input_dim: int
     layer_init_std: float = 1.0
     name: str = "actor_head"
 
-    def make_component(self, env: PolicyEnvInterface | None = None):
+    def make_component(self, env: mettagrid.policy.policy_env_interface.PolicyEnvInterface | None = None):
         if env is None:
             raise ValueError("ActorHeadConfig requires PolicyEnvInterface to determine action dimensions")
         return ActorHead(config=self, env=env)
@@ -201,7 +205,7 @@ class ActorHeadConfig(ComponentConfig):
 class ActorHead(nn.Module):
     """Simple linear head that maps hidden features to environment logits."""
 
-    def __init__(self, config: ActorHeadConfig, env: PolicyEnvInterface):
+    def __init__(self, config: ActorHeadConfig, env: mettagrid.policy.policy_env_interface.PolicyEnvInterface):
         super().__init__()
         self.config = config
         self.in_key = self.config.in_key
@@ -212,7 +216,7 @@ class ActorHead(nn.Module):
             nn.Linear(self.config.input_dim, num_actions),
             std=self.config.layer_init_std,
         )
-        self._module = TDM(linear, in_keys=[self.in_key], out_keys=[self.out_key])
+        self._module = tensordict.nn.TensorDictModule(linear, in_keys=[self.in_key], out_keys=[self.out_key])
 
-    def forward(self, td: TensorDict) -> TensorDict:
+    def forward(self, td: tensordict.TensorDict) -> tensordict.TensorDict:
         return self._module(td)

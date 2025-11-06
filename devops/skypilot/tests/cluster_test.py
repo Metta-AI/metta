@@ -10,36 +10,32 @@ Usage:
 
 import sys
 
-from devops.skypilot.utils.testing_helpers import (
-    BaseTestRunner,
-    SkyPilotTestLauncher,
-    TestCondition,
-)
-from metta.common.util.text_styles import bold, cyan, yellow
+import devops.skypilot.utils.testing_helpers
+import metta.common.util.text_styles
 
 # Test matrix configuration
 NODE_CONFIGS = [1, 2, 4]
 
 TEST_CONDITIONS = {
-    "normal_completion": TestCondition(
+    "normal_completion": devops.skypilot.utils.testing_helpers.TestCondition(
         name="Normal Completion",
         extra_args=["trainer.total_timesteps=50000"],
         description="Exit normally after training completes",
         ci=False,
     ),
-    "heartbeat_timeout": TestCondition(
+    "heartbeat_timeout": devops.skypilot.utils.testing_helpers.TestCondition(
         name="Heartbeat Timeout",
         extra_args=["-hb", "1"],
         description="Exit based on missing heartbeats (1 second timeout)",
         ci=False,
     ),
-    "runtime_timeout": TestCondition(
+    "runtime_timeout": devops.skypilot.utils.testing_helpers.TestCondition(
         name="Runtime Timeout",
         extra_args=["-t", "0.03"],
         description="Exit based on timeout (0.03 hours = 1.8 minutes)",
         ci=True,
     ),
-    "cmd_fails": TestCondition(
+    "cmd_fails": devops.skypilot.utils.testing_helpers.TestCondition(
         name="Invalid Tool Parameters",  # deliberately invalid: evaluate interval must be >= checkpoint interval
         extra_args=["evaluator.epoch_interval=1", "trainer.checkpoint.checkpoint_interval=10"],
         description="Exit when command fails due to invalid parameters",
@@ -52,7 +48,7 @@ BASE_MODULE = "experiments.recipes.arena_basic_easy_shaped.train"
 BASE_ARGS = ["--no-spot", "--gpus=4"]
 
 
-class ClusterTestRunner(BaseTestRunner):
+class ClusterTestRunner(devops.skypilot.utils.testing_helpers.BaseTestRunner):
     """Test runner for cluster configuration tests."""
 
     def __init__(self):
@@ -85,20 +81,24 @@ Examples:
     def launch_tests(self, args):
         """Launch cluster test jobs."""
         # Create launcher
-        launcher = SkyPilotTestLauncher(base_name=args.base_name, skip_git_check=args.skip_git_check)
+        launcher = devops.skypilot.utils.testing_helpers.SkyPilotTestLauncher(
+            base_name=args.base_name, skip_git_check=args.skip_git_check
+        )
 
         # Check git state
         if not launcher.check_git_state():
             sys.exit(1)
 
         # Show test matrix
-        print(f"\n{bold('=== Skypilot Cluster Test Matrix ===')}")
-        print(f"{cyan('Node configurations:')} {NODE_CONFIGS}")
-        print(f"{cyan('Test conditions:')}")
+        print(f"\n{metta.common.util.text_styles.bold('=== Skypilot Cluster Test Matrix ===')}")
+        print(f"{metta.common.util.text_styles.cyan('Node configurations:')} {NODE_CONFIGS}")
+        print(f"{metta.common.util.text_styles.cyan('Test conditions:')}")
         for _key, condition in TEST_CONDITIONS.items():
-            print(f"  • {yellow(condition.name)}: {condition.description}")
-        print(f"\n{cyan('Total jobs to launch:')} {len(NODE_CONFIGS) * len(TEST_CONDITIONS)}")
-        print(f"{cyan('Output file:')} {args.output_file}")
+            print(f"  • {metta.common.util.text_styles.yellow(condition.name)}: {condition.description}")
+        print(
+            f"\n{metta.common.util.text_styles.cyan('Total jobs to launch:')} {len(NODE_CONFIGS) * len(TEST_CONDITIONS)}"
+        )
+        print(f"{metta.common.util.text_styles.cyan('Output file:')} {args.output_file}")
 
         # Launch jobs
         for nodes in NODE_CONFIGS:
@@ -132,7 +132,7 @@ Examples:
 
         # Save results
         output_path = launcher.save_results(args.output_file)
-        print(f"{cyan('Results saved to:')} {output_path.absolute()}")
+        print(f"{metta.common.util.text_styles.cyan('Results saved to:')} {output_path.absolute()}")
 
         # Print summary
         launcher.print_summary()

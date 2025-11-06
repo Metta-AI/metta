@@ -1,14 +1,13 @@
 """High-level git helpers that build on the command runners in ``gitta.core``."""
 
-from __future__ import annotations
 
+import functools
 import logging
+import pathlib
 import re
-from functools import lru_cache
-from pathlib import Path
-from typing import Dict, Optional
+import typing
 
-from .core import GitError, NotAGitRepoError, run_git, run_git_in_dir
+import gitta.core
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +15,8 @@ logger = logging.getLogger(__name__)
 def get_current_branch() -> str:
     """Get the current git branch name."""
     try:
-        return run_git("symbolic-ref", "--short", "HEAD")
-    except GitError as e:
+        return gitta.core.run_git("symbolic-ref", "--short", "HEAD")
+    except gitta.core.GitError as e:
         if "HEAD is not a symbolic ref" in str(e):
             return get_current_commit()
         raise
@@ -25,7 +24,7 @@ def get_current_branch() -> str:
 
 def get_current_commit() -> str:
     """Get the current git commit hash."""
-    return run_git("rev-parse", "HEAD")
+    return gitta.core.run_git("rev-parse", "HEAD")
 
 
 def get_branch_commit(branch: str) -> str:
@@ -33,18 +32,18 @@ def get_branch_commit(branch: str) -> str:
     # only fetch when branch looks like a remote-tracking ref:
     if branch.startswith("origin/"):
         try:
-            run_git("fetch", "--quiet")
-        except GitError:
+            gitta.core.run_git("fetch", "--quiet")
+        except gitta.core.GitError:
             # network issues are non-fatal
             pass
 
-    return run_git("rev-parse", "--verify", branch).strip()
+    return gitta.core.run_git("rev-parse", "--verify", branch).strip()
 
 
-@lru_cache(maxsize=256)
+@functools.lru_cache(maxsize=256)
 def _get_commit_message_cached(commit_hash: str) -> str:
     """Internal cached helper - only call with resolved commit hashes."""
-    return run_git("log", "-1", "--pretty=%B", commit_hash)
+    return gitta.core.run_git("log", "-1", "--pretty=%B", commit_hash)
 
 
 def get_commit_message(commit_hash: str) -> str:
@@ -52,7 +51,7 @@ def get_commit_message(commit_hash: str) -> str:
     if len(commit_hash) == 40 and all(c in "0123456789abcdef" for c in commit_hash.lower()):
         return _get_commit_message_cached(commit_hash)
 
-    resolved_hash = run_git("rev-parse", commit_hash)
+    resolved_hash = gitta.core.run_git("rev-parse", commit_hash)
     return _get_commit_message_cached(resolved_hash)
 
 
@@ -65,7 +64,7 @@ def has_unstaged_changes(allow_untracked: bool = False) -> tuple[bool, str]:
     - Lines starting with '??' indicate untracked files
     - Any other status lines indicate changes to tracked files
     """
-    status_output = run_git("status", "--porcelain")
+    status_output = gitta.core.run_git("status", "--porcelain")
     if not allow_untracked:
         return bool(status_output), status_output
 
@@ -100,33 +99,33 @@ def is_commit_pushed(commit_hash: str) -> bool:
     """
     # First validate the commit exists
     try:
-        run_git("rev-parse", "--verify", commit_hash)
-    except GitError as e:
-        raise GitError(f"Invalid commit hash: {commit_hash}") from e
+        gitta.core.run_git("rev-parse", "--verify", commit_hash)
+    except gitta.core.GitError as e:
+        raise gitta.core.GitError(f"Invalid commit hash: {commit_hash}") from e
 
     try:
         # Figure out the upstream ref for the current branch (e.g. "origin/main")
         branch = get_current_branch()
-        upstream = run_git("rev-parse", "--abbrev-ref", f"{branch}@{{u}}")
-    except GitError:
+        upstream = gitta.core.run_git("rev-parse", "--abbrev-ref", f"{branch}@{{u}}")
+    except gitta.core.GitError:
         # No upstream configured - fallback to scanning all remotes
-        remote_branches = run_git("branch", "-r", "--contains", commit_hash)
+        remote_branches = gitta.core.run_git("branch", "-r", "--contains", commit_hash)
         return bool(remote_branches.strip())
 
     # Fast constant-time check: is commit_hash an ancestor of upstream?
     try:
         # merge-base --is-ancestor returns exit code 0 if true
-        run_git("merge-base", "--is-ancestor", commit_hash, upstream)
+        gitta.core.run_git("merge-base", "--is-ancestor", commit_hash, upstream)
         return True
-    except GitError:
+    except gitta.core.GitError:
         return False
 
 
 def resolve_git_ref(ref: str) -> str | None:
     """Resolve a git reference to its commit hash, or None if invalid."""
     try:
-        return run_git("rev-parse", "--verify", ref)
-    except GitError:
+        return gitta.core.run_git("rev-parse", "--verify", ref)
+    except gitta.core.GitError:
         return None
 
 
@@ -172,15 +171,15 @@ canonical_remote_url = https_remote_url
 def get_remote_url(remote: str = "origin") -> str | None:
     """Get the URL of a remote repository."""
     try:
-        return run_git("remote", "get-url", remote)
-    except GitError:
+        return gitta.core.run_git("remote", "get-url", remote)
+    except gitta.core.GitError:
         return None
 
 
-def get_all_remotes() -> Dict[str, str]:
+def get_all_remotes() -> typing.Dict[str, str]:
     """Get all configured remotes and their fetch URLs."""
     try:
-        output = run_git("remote", "-v")
+        output = gitta.core.run_git("remote", "-v")
         remotes = {}
         for line in output.splitlines():
             if line:
@@ -188,7 +187,7 @@ def get_all_remotes() -> Dict[str, str]:
                 if len(parts) >= 2 and "(fetch)" in line:
                     remotes[parts[0]] = parts[1]
         return remotes
-    except GitError:
+    except gitta.core.GitError:
         return {}
 
 
@@ -204,66 +203,66 @@ def is_repo_match(target_repo: str) -> bool:
     return False
 
 
-def get_file_list(repo_path: Path | None = None, ref: str = "HEAD") -> list[str]:
+def get_file_list(repo_path: pathlib.Path | None = None, ref: str = "HEAD") -> list[str]:
     """Get list of all files in repository."""
     try:
         if repo_path:
             # First check if ref exists
-            run_git_in_dir(repo_path, "rev-parse", "--verify", ref)
+            gitta.core.run_git_in_dir(repo_path, "rev-parse", "--verify", ref)
             # If ref exists, list files
-            output = run_git_in_dir(repo_path, "ls-tree", "-r", "--name-only", ref)
+            output = gitta.core.run_git_in_dir(repo_path, "ls-tree", "-r", "--name-only", ref)
         else:
             # First check if ref exists
-            run_git("rev-parse", "--verify", ref)
+            gitta.core.run_git("rev-parse", "--verify", ref)
             # If ref exists, list files
-            output = run_git("ls-tree", "-r", "--name-only", ref)
+            output = gitta.core.run_git("ls-tree", "-r", "--name-only", ref)
         return output.split("\n") if output else []
-    except GitError as e:
+    except gitta.core.GitError as e:
         # If ref doesn't exist (empty repo), return empty list
         if "Not a valid object name" in str(e) or "bad revision" in str(e) or "Needed a single revision" in str(e):
             return []
         raise
 
 
-def get_commit_count(repo_path: Path | None = None) -> int:
+def get_commit_count(repo_path: pathlib.Path | None = None) -> int:
     """Get total number of commits."""
     try:
         if repo_path:
             # First check if HEAD exists
-            run_git_in_dir(repo_path, "rev-parse", "--verify", "HEAD")
+            gitta.core.run_git_in_dir(repo_path, "rev-parse", "--verify", "HEAD")
             # If HEAD exists, count commits
-            result = run_git_in_dir(repo_path, "rev-list", "--count", "HEAD")
+            result = gitta.core.run_git_in_dir(repo_path, "rev-list", "--count", "HEAD")
         else:
             # First check if HEAD exists
-            run_git("rev-parse", "--verify", "HEAD")
+            gitta.core.run_git("rev-parse", "--verify", "HEAD")
             # If HEAD exists, count commits
-            result = run_git("rev-list", "--count", "HEAD")
+            result = gitta.core.run_git("rev-list", "--count", "HEAD")
         return int(result)
-    except GitError as e:
+    except gitta.core.GitError as e:
         # If HEAD doesn't exist (empty repo), return 0
         if "Not a valid object name" in str(e) or "bad revision" in str(e) or "Needed a single revision" in str(e):
             return 0
         raise
 
 
-def add_remote(name: str, url: str, repo_path: Path | None = None):
+def add_remote(name: str, url: str, repo_path: pathlib.Path | None = None):
     """Add a remote repository."""
     # Try to remove first in case it exists
     try:
         if repo_path:
-            run_git_in_dir(repo_path, "remote", "remove", name)
+            gitta.core.run_git_in_dir(repo_path, "remote", "remove", name)
         else:
-            run_git("remote", "remove", name)
-    except GitError:
+            gitta.core.run_git("remote", "remove", name)
+    except gitta.core.GitError:
         pass  # Ignore if it doesn't exist
 
     if repo_path:
-        run_git_in_dir(repo_path, "remote", "add", name, url)
+        gitta.core.run_git_in_dir(repo_path, "remote", "add", name, url)
     else:
-        run_git("remote", "add", name, url)
+        gitta.core.run_git("remote", "add", name, url)
 
 
-def find_root(start: Path) -> Optional[Path]:
+def find_root(start: pathlib.Path) -> typing.Optional[pathlib.Path]:
     """Return the repository root that contains start, or None if not in a repo."""
     try:
         # Ensure we have a directory for cwd
@@ -273,44 +272,44 @@ def find_root(start: Path) -> Optional[Path]:
             cwd = start
 
         # Use git's own logic to find the repository root
-        root = run_git_in_dir(cwd, "rev-parse", "--show-toplevel")
-        return Path(root)
-    except (GitError, NotAGitRepoError):
+        root = gitta.core.run_git_in_dir(cwd, "rev-parse", "--show-toplevel")
+        return pathlib.Path(root)
+    except (gitta.core.GitError, gitta.core.NotAGitRepoError):
         return None
 
 
-def fetch(repo_root: Path) -> None:
+def fetch(repo_root: pathlib.Path) -> None:
     """Best effort git fetch. No exception if it fails."""
     try:
-        run_git_in_dir(repo_root, "fetch")
-    except GitError:
+        gitta.core.run_git_in_dir(repo_root, "fetch")
+    except gitta.core.GitError:
         # Network issues are non-fatal for fetch
         pass
 
 
 # Manual cache for ref_exists - only store successful lookups
-_ref_exists_cache: Dict[tuple[Path, str], bool] = {}
+_ref_exists_cache: typing.Dict[tuple[pathlib.Path, str], bool] = {}
 
 
-def ref_exists(repo_root: Path, ref: str) -> bool:
+def ref_exists(repo_root: pathlib.Path, ref: str) -> bool:
     """True if ref resolves in this repo. Only caches positive results."""
     cache_key = (repo_root, ref)
     if cache_key in _ref_exists_cache:
         return True
 
     try:
-        run_git_in_dir(repo_root, "rev-parse", "--verify", "--quiet", ref)
+        gitta.core.run_git_in_dir(repo_root, "rev-parse", "--verify", "--quiet", ref)
         _ref_exists_cache[cache_key] = True
         return True
-    except GitError:
+    except gitta.core.GitError:
         return False
 
 
-def diff(repo_root: Path, base_ref: str) -> str:
+def diff(repo_root: pathlib.Path, base_ref: str) -> str:
     """Unified diff of working tree vs base_ref. Empty string if no changes or failure."""
     try:
-        return run_git_in_dir(repo_root, "diff", base_ref)
-    except GitError:
+        return gitta.core.run_git_in_dir(repo_root, "diff", base_ref)
+    except gitta.core.GitError:
         return ""
 
 
@@ -324,22 +323,22 @@ def git_log_since(ref: str, max_count: int = 20, oneline: bool = True) -> str:
         args = ["log", f"{ref}..HEAD"]
         if oneline:
             args.append("--oneline")
-        return run_git(*args)
-    except GitError:
+        return gitta.core.run_git(*args)
+    except gitta.core.GitError:
         try:
             fallback_args = ["log"]
             if oneline:
                 fallback_args.append("--oneline")
             fallback_args.append(f"-{max_count}")
-            return run_git(*fallback_args)
-        except GitError:
+            return gitta.core.run_git(*fallback_args)
+        except gitta.core.GitError:
             return "Unable to retrieve git log"
 
 
 def validate_commit_state(
     require_clean: bool = True,
     require_pushed: bool = True,
-    target_repo: Optional[str] = None,
+    target_repo: typing.Optional[str] = None,
     allow_untracked: bool = False,
 ) -> str:
     """Validate working tree state before remote execution and return current commit hash.
@@ -350,13 +349,13 @@ def validate_commit_state(
 
     # Validate we're in the right repository
     if target_repo and not is_repo_match(target_repo):
-        raise GitError(f"Not in repository {target_repo}")
+        raise gitta.core.GitError(f"Not in repository {target_repo}")
 
     # Check for uncommitted changes
     if require_clean:
         has_changes, status_output = has_unstaged_changes(allow_untracked=allow_untracked)
         if has_changes:
-            raise GitError(
+            raise gitta.core.GitError(
                 f"Working tree has uncommitted changes to tracked files:\n{status_output}\n"
                 "Commit or stash your changes before proceeding."
             )
@@ -364,6 +363,8 @@ def validate_commit_state(
     # Check if commit is pushed
     if require_pushed and not is_commit_pushed(current_commit):
         short_commit = current_commit[:8]
-        raise GitError(f"Commit {short_commit} hasn't been pushed to remote.\nPush your changes before proceeding.")
+        raise gitta.core.GitError(
+            f"Commit {short_commit} hasn't been pushed to remote.\nPush your changes before proceeding."
+        )
 
     return current_commit

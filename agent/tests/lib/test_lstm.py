@@ -1,8 +1,8 @@
 import pytest
+import tensordict
 import torch
-from tensordict import TensorDict
 
-from metta.agent.components.lstm import LSTM, LSTMConfig
+import metta.agent.components.lstm
 
 
 @pytest.fixture
@@ -13,18 +13,18 @@ def lstm_environment():
     hidden_size = 16
     num_layers = 2
 
-    config = LSTMConfig(
+    config = metta.agent.components.lstm.LSTMConfig(
         in_key="latent",
         out_key="core",
         latent_size=latent_size,
         hidden_size=hidden_size,
         num_layers=num_layers,
     )
-    lstm = LSTM(config)
+    lstm = metta.agent.components.lstm.LSTM(config)
 
     def build_td():
         latent = torch.randn(batch_size * time_steps, latent_size)
-        td = TensorDict(
+        td = tensordict.TensorDict(
             {
                 "latent": latent,
                 "bptt": torch.full((batch_size * time_steps,), time_steps, dtype=torch.long),

@@ -1,11 +1,10 @@
 # Maximilian Beck
-from typing import Optional
+import typing
 
+import cortex.kernels.triton.slstm.triton_fused.triton_utils
 import torch
 import triton
 import triton.language as tl
-
-from .triton_utils import is_power_of_2, next_multiple_of, torch2triton_dtype
 
 # Dimensions:
 # B: batch size
@@ -532,7 +531,7 @@ def backward_sequence(
     R: torch.Tensor,  # (NGR, NH, Dout, Din) recurrent weights
     states_all: torch.Tensor,  # (T+1, NS, B, NH, D) all states
     gates_all: torch.Tensor,  # (T, NGI, B, NH, D) all gates
-    resets: Optional[torch.Tensor] = None,  # (B, T) reset mask
+    resets: typing.Optional[torch.Tensor] = None,  # (B, T) reset mask
     backward_recurrent_clip_val: float | None = None,
     siz_B: int = 16,
     true_B: int | None = None,
@@ -572,7 +571,7 @@ def backward_sequence(
     )
 
     has_resets = resets is not None
-    resets_prepared: Optional[torch.Tensor]
+    resets_prepared: typing.Optional[torch.Tensor]
     if has_resets:
         if resets.dim() == 1:
             resets = resets.unsqueeze(1).expand(true_B, T)
@@ -581,11 +580,13 @@ def backward_sequence(
     else:
         resets_prepared = None
 
-    assert is_power_of_2(DH), f"head dimension must be a power of 2, got {DH}."
+    assert cortex.kernels.triton.slstm.triton_fused.triton_utils.is_power_of_2(DH), (
+        f"head dimension must be a power of 2, got {DH}."
+    )
 
     MIN_BATCH_SIZE = 16  # we need at least 16 batches for tl.dot() (16x16 tensor cores)
     ## batch size padding to be a multiple of MIN_BATCH_SIZE
-    effective_B = next_multiple_of(true_B, MIN_BATCH_SIZE)
+    effective_B = cortex.kernels.triton.slstm.triton_fused.triton_utils.next_multiple_of(true_B, MIN_BATCH_SIZE)
     if effective_B != true_B:
         delta_states_all_outside = torch.cat(
             [
@@ -658,7 +659,7 @@ def backward_sequence(
         NGI=NGI,
         NGR=NGR,
         siz_B=siz_B,
-        DTYPE=torch2triton_dtype(dtype),
+        DTYPE=cortex.kernels.triton.slstm.triton_fused.triton_utils.torch2triton_dtype(dtype),
         HAS_RESETS=has_resets,
         backward_recurrent_clip_val=backward_recurrent_clip_val,
         num_warps=4,

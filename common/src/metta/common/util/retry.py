@@ -1,9 +1,9 @@
+import functools
 import random
 import time
-from functools import wraps
-from typing import Any, Callable, TypeVar
+import typing
 
-T = TypeVar("T")
+T = typing.TypeVar("T")
 
 
 def calculate_backoff_delay(
@@ -19,7 +19,7 @@ def calculate_backoff_delay(
 
 
 def retry_function(
-    func: Callable[[], T],
+    func: typing.Callable[[], T],
     max_retries: int = 3,
     initial_delay: float = 1.0,
     max_delay: float = 60.0,
@@ -56,12 +56,12 @@ def retry_on_exception(
     max_delay: float = 60.0,
     backoff_factor: float = 2.0,
     exceptions: tuple[type[Exception], ...] = (Exception,),
-) -> Callable[[Callable[..., T]], Callable[..., T]]:
+) -> typing.Callable[[typing.Callable[..., T]], typing.Callable[..., T]]:
     """Decorator to retry a function on exception with exponential backoff."""
 
-    def decorator(func: Callable[..., T]) -> Callable[..., T]:
-        @wraps(func)
-        def wrapper(*args: Any, **kwargs: Any) -> T:
+    def decorator(func: typing.Callable[..., T]) -> typing.Callable[..., T]:
+        @functools.wraps(func)
+        def wrapper(*args: typing.Any, **kwargs: typing.Any) -> T:
             return retry_function(
                 lambda: func(*args, **kwargs),
                 max_retries=max_retries,

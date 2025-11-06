@@ -3,21 +3,20 @@
 A Recipe represents a module that defines tool makers - functions that return tool instances.
 """
 
-from __future__ import annotations
 
 import importlib
 import importlib.util
-from types import ModuleType
-from typing import Any, Callable, Optional
+import types
+import typing
 
-from typing_extensions import TypeIs, get_type_hints
+import typing_extensions
 
-from metta.common.tool import Tool
+import metta.common.tool
 
-ToolMaker = Callable[..., Tool]
+ToolMaker = typing.Callable[..., metta.common.tool.Tool]
 
 
-def is_tool_maker(obj: Any) -> TypeIs[ToolMaker]:
+def is_tool_maker(obj: typing.Any) -> typing_extensions.TypeIs[ToolMaker]:
     """Type guard to check if an object is a tool maker function.
 
     A tool maker is a callable that returns a Tool instance.
@@ -26,9 +25,13 @@ def is_tool_maker(obj: Any) -> TypeIs[ToolMaker]:
         return False
 
     try:
-        hints = get_type_hints(obj)
+        hints = typing_extensions.get_type_hints(obj)
         return_type = hints.get("return")
-        return return_type is not None and isinstance(return_type, type) and issubclass(return_type, Tool)
+        return (
+            return_type is not None
+            and isinstance(return_type, type)
+            and issubclass(return_type, metta.common.tool.Tool)
+        )
     except Exception:
         return False
 
@@ -36,7 +39,7 @@ def is_tool_maker(obj: Any) -> TypeIs[ToolMaker]:
 class Recipe:
     """Represents a recipe module that can provide tool makers."""
 
-    def __init__(self, module: ModuleType):
+    def __init__(self, module: types.ModuleType):
         self.module = module
         self.module_name = module.__name__
         # Build tool maker map on initialization: maker_name -> tool_maker
@@ -61,9 +64,9 @@ class Recipe:
 
             # Determine which tool type this maker returns
             try:
-                hints = get_type_hints(maker_func)
+                hints = typing_extensions.get_type_hints(maker_func)
                 return_type = hints.get("return")
-                if return_type and isinstance(return_type, type) and issubclass(return_type, Tool):
+                if return_type and isinstance(return_type, type) and issubclass(return_type, metta.common.tool.Tool):
                     tool_type = return_type.tool_type_name()
                     if tool_type not in self._tool_type_to_makers:
                         self._tool_type_to_makers[tool_type] = []
@@ -72,7 +75,7 @@ class Recipe:
                 pass
 
     @classmethod
-    def load(cls, module_path: str) -> Optional["Recipe"]:
+    def load(cls, module_path: str) -> typing.Optional["Recipe"]:
         """Try to load a recipe from a module path. e.g. 'experiments.recipes.arena'"""
         if importlib.util.find_spec(module_path) is not None:
             module = importlib.import_module(module_path)

@@ -1,27 +1,26 @@
-from __future__ import annotations
 
+import enum
 import inspect
-from enum import StrEnum, auto
-from typing import Any, ClassVar, Final, Generic, Self, TypeVar, get_args, get_origin
+import typing
 
 import numpy as np
-from pydantic import ModelWrapValidatorHandler, SerializeAsAny, model_serializer, model_validator
+import pydantic
 
-from mettagrid.base_config import Config
-from mettagrid.map_builder import MapGrid
-from mettagrid.mapgen.area import Area, AreaQuery
-from mettagrid.util.module import load_symbol
+import mettagrid.base_config
+import mettagrid.map_builder
+import mettagrid.mapgen.area
+import mettagrid.util.module
 
 
-class GridTransform(StrEnum):
-    IDENTITY = auto()
-    ROT_90 = auto()
-    ROT_180 = auto()
-    ROT_270 = auto()
-    FLIP_H = auto()
-    FLIP_V = auto()
-    TRANSPOSE = auto()
-    TRANSPOSE_ALT = auto()
+class GridTransform(enum.StrEnum):
+    IDENTITY = enum.auto()
+    ROT_90 = enum.auto()
+    ROT_180 = enum.auto()
+    ROT_270 = enum.auto()
+    FLIP_H = enum.auto()
+    FLIP_V = enum.auto()
+    TRANSPOSE = enum.auto()
+    TRANSPOSE_ALT = enum.auto()
 
     @property
     def transpose(self) -> bool:
@@ -43,7 +42,7 @@ class GridTransform(StrEnum):
         else:
             return self
 
-    def apply(self, grid: MapGrid) -> MapGrid:
+    def apply(self, grid: mettagrid.map_builder.MapGrid) -> mettagrid.map_builder.MapGrid:
         """
         Apply this transformation to a numpy array.
 
@@ -58,7 +57,7 @@ class GridTransform(StrEnum):
             result = np.flip(result, axis=1)
         return result
 
-    def apply_to_coords(self, grid: MapGrid, x: int, y: int) -> tuple[int, int]:
+    def apply_to_coords(self, grid: mettagrid.map_builder.MapGrid, x: int, y: int) -> tuple[int, int]:
         """
         Apply this transformation to a coordinate.
         """
@@ -89,7 +88,7 @@ class GridTransform(StrEnum):
         raise RuntimeError("Composition not found")  # Should never happen
 
 
-TRANSFORM_FLAGS: Final[dict[GridTransform, tuple[bool, bool, bool]]] = {
+TRANSFORM_FLAGS: typing.Final[dict[GridTransform, tuple[bool, bool, bool]]] = {
     GridTransform.IDENTITY: (False, False, False),
     GridTransform.ROT_90: (True, False, True),
     GridTransform.ROT_180: (False, True, True),
@@ -101,16 +100,16 @@ TRANSFORM_FLAGS: Final[dict[GridTransform, tuple[bool, bool, bool]]] = {
 }
 
 
-class SceneConfig(Config):
+class SceneConfig(mettagrid.base_config.Config):
     # will be defined by Scene.__init_subclass__ when the config is bound to a scene class
-    _scene_cls: ClassVar[type[Scene]] | None = None
+    _scene_cls: typing.ClassVar[type[Scene]] | None = None
     children: list[ChildrenAction] = []
     seed: int | None = None
 
     # Transform relative to the area that this scene config receives in `create`.
     transform: GridTransform = GridTransform.IDENTITY
 
-    def model_dump(self, **kwargs) -> dict[str, Any]:
+    def model_dump(self, **kwargs) -> dict[str, typing.Any]:
         return super().model_dump(serialize_as_any=True, **kwargs)
 
     def model_dump_json(self, **kwargs) -> str:
@@ -128,14 +127,16 @@ class SceneConfig(Config):
             raise ValueError(f"{cls.__class__.__name__} is not bound to a scene class")
         return f"{cls._scene_cls.__module__}.{cls._scene_cls.__name__}.Config"
 
-    @model_serializer(mode="wrap")
+    @pydantic.model_serializer(mode="wrap")
     def _serialize_with_type(self, handler):
         data = handler(self)
         return {"type": self._type_str(), **data}
 
-    @model_validator(mode="wrap")
+    @pydantic.model_validator(mode="wrap")
     @classmethod
-    def _validate_with_type(cls, v: Any, handler: ModelWrapValidatorHandler[Self]) -> Self:
+    def _validate_with_type(
+        cls, v: typing.Any, handler: pydantic.ModelWrapValidatorHandler[typing.Self]
+    ) -> typing.Self:
         # This code is copy-pasted from MapBuilderConfig. Refer to that file for a better commented version.
         # (Soon it will be refactored to use PolymorphicConfig.)
         if isinstance(v, SceneConfig):
@@ -150,7 +151,7 @@ class SceneConfig(Config):
         if t is None:
             return handler(v)
 
-        type_cls = load_symbol(t) if isinstance(t, str) else t
+        type_cls = mettagrid.util.module.load_symbol(t) if isinstance(t, str) else t
 
         if not inspect.isclass(type_cls):
             raise TypeError("'type' must point to a class")
@@ -167,7 +168,7 @@ class SceneConfig(Config):
 
     def create_root(
         self,
-        area: Area,
+        area: mettagrid.mapgen.area.Area,
         rng: np.random.Generator | None = None,
         instance_id: int | None = None,
         use_instance_id_for_team_assignment: bool = False,
@@ -184,7 +185,7 @@ class SceneConfig(Config):
     def create_as_child(
         self,
         parent_scene: Scene,
-        area: Area,
+        area: mettagrid.mapgen.area.Area,
         instance_id: int | None = None,
         use_instance_id_for_team_assignment: bool = False,
     ) -> Scene:
@@ -202,21 +203,21 @@ class SceneConfig(Config):
         )
 
 
-AnySceneConfig = SerializeAsAny[SceneConfig]
+AnySceneConfig = pydantic.SerializeAsAny[SceneConfig]
 
 
-class ChildrenAction(AreaQuery):
+class ChildrenAction(mettagrid.mapgen.area.AreaQuery):
     scene: AnySceneConfig
     instance_id: int | None = None
     use_instance_id_for_team_assignment: bool | None = None
 
 
-ConfigT = TypeVar("ConfigT", bound=SceneConfig)
+ConfigT = typing.TypeVar("ConfigT", bound=SceneConfig)
 
-SceneT = TypeVar("SceneT", bound="Scene")
+SceneT = typing.TypeVar("SceneT", bound="Scene")
 
 
-class Scene(Generic[ConfigT]):
+class Scene(typing.Generic[ConfigT]):
     """
     Base class for all map scenes.
 
@@ -229,7 +230,7 @@ class Scene(Generic[ConfigT]):
 
     Config: type[ConfigT]
 
-    _areas: list[Area]
+    _areas: list[mettagrid.mapgen.area.Area]
     children: list[Scene]
 
     # Full transform relative to the root grid.
@@ -243,21 +244,23 @@ class Scene(Generic[ConfigT]):
         super().__init_subclass__(**kwargs)
 
         # Look for Scene base class
-        scene_bases = [base for base in getattr(cls, "__orig_bases__", ()) if get_origin(base) is Scene]
+        scene_bases = [base for base in getattr(cls, "__orig_bases__", ()) if typing.get_origin(base) is Scene]
         if len(scene_bases) != 1:
             raise TypeError(f"{cls.__name__} must inherit from Scene[…], with a concrete Config class parameter")
 
         # Set the Config class - this allows to use Scene.Config shorthand
-        Config = get_args(scene_bases[0])[0]
-        if Config._scene_cls:
-            raise ValueError(f"{Config.__name__} is already bound to another scene class: {Config._scene_cls.__name__}")
-        Config._scene_cls = cls
-        cls.Config = Config
+        Config = typing.get_args(scene_bases[0])[0]
+        if mettagrid.base_config.Config._scene_cls:
+            raise ValueError(
+                f"{mettagrid.base_config.Config.__name__} is already bound to another scene class: {mettagrid.base_config.Config._scene_cls.__name__}"
+            )
+        mettagrid.base_config.Config._scene_cls = cls
+        cls.Config = mettagrid.base_config.Config
         return
 
     def __init__(
         self,
-        area: Area,
+        area: mettagrid.mapgen.area.Area,
         rng: np.random.Generator,
         config: ConfigT,
         parent_scene: Scene | None = None,
@@ -374,7 +377,9 @@ class Scene(Generic[ConfigT]):
                 self.children.append(child_scene)
                 child_scene.render_with_children()
 
-    def make_area(self, x: int, y: int, width: int, height: int, tags: list[str] | None = None) -> Area:
+    def make_area(
+        self, x: int, y: int, width: int, height: int, tags: list[str] | None = None
+    ) -> mettagrid.mapgen.area.Area:
         inverse_transform = self.transform.inverse()
         # Transform both corners, then find the bounds of the area in untransformed coordinates.
         (orig_x1, orig_y1) = inverse_transform.apply_to_coords(self.grid, x, y)
@@ -396,10 +401,10 @@ class Scene(Generic[ConfigT]):
         self._areas.append(area)
         return area
 
-    def select_areas(self, query: AreaQuery) -> list[Area]:
+    def select_areas(self, query: mettagrid.mapgen.area.AreaQuery) -> list[mettagrid.mapgen.area.Area]:
         areas = self._areas
 
-        selected_areas: list[Area] = []
+        selected_areas: list[mettagrid.mapgen.area.Area] = []
 
         where = query.where
         if where:
@@ -474,7 +479,7 @@ class Scene(Generic[ConfigT]):
 
         return None
 
-    def transplant_to_grid(self, grid: MapGrid, shift_x: int, shift_y: int, is_root: bool = True):
+    def transplant_to_grid(self, grid: mettagrid.map_builder.MapGrid, shift_x: int, shift_y: int, is_root: bool = True):
         """
         Transplants the scene to a new grid.
 

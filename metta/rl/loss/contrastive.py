@@ -1,17 +1,16 @@
 # metta/rl/loss/contrastive.py
-from typing import Any
+import typing
 
+import tensordict
 import torch
-from tensordict import TensorDict
-from torch import Tensor
-from torchrl.data import Composite
+import torchrl.data
 
-from metta.agent.policy import Policy
-from metta.rl.loss import Loss
-from metta.rl.training import ComponentContext, TrainingEnvironment
+import metta.agent.policy
+import metta.rl.loss
+import metta.rl.training
 
 
-class ContrastiveLoss(Loss):
+class ContrastiveLoss(metta.rl.loss.Loss):
     """Contrastive loss for representation learning."""
 
     __slots__ = (
@@ -27,12 +26,12 @@ class ContrastiveLoss(Loss):
 
     def __init__(
         self,
-        policy: Policy,
-        trainer_cfg: Any,
-        env: TrainingEnvironment,
+        policy: metta.agent.policy.Policy,
+        trainer_cfg: typing.Any,
+        env: metta.rl.training.TrainingEnvironment,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
+        loss_config: typing.Any,
     ):
         super().__init__(policy, trainer_cfg, env, device, instance_name, loss_config)
 
@@ -51,16 +50,16 @@ class ContrastiveLoss(Loss):
         else:
             self.projection_head = None
 
-    def get_experience_spec(self) -> Composite:
+    def get_experience_spec(self) -> torchrl.data.Composite:
         """Define additional data needed for contrastive learning."""
-        return Composite(
+        return torchrl.data.Composite(
             # Add any additional data needed for contrastive learning
             # e.g., positive/negative pairs, augmentations, etc.
         )
 
     def run_train(
-        self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int
-    ) -> tuple[Tensor, TensorDict, bool]:
+        self, shared_loss_data: tensordict.TensorDict, context: metta.rl.training.ComponentContext, mb_idx: int
+    ) -> tuple[torch.Tensor, tensordict.TensorDict, bool]:
         """Compute contrastive loss."""
         policy_td = shared_loss_data["policy_td"]
         minibatch = shared_loss_data["sampled_mb"]
@@ -112,7 +111,7 @@ class ContrastiveLoss(Loss):
 
         return contrastive_loss, shared_loss_data, False
 
-    def _get_embeddings(self, policy_td: TensorDict) -> Tensor:
+    def _get_embeddings(self, policy_td: tensordict.TensorDict) -> torch.Tensor:
         """Extract embeddings from policy output."""
         if self.embedding_key is not None:
             if self.embedding_key not in policy_td.keys(True):
@@ -142,7 +141,9 @@ class ContrastiveLoss(Loss):
 
         return value
 
-    def _compute_contrastive_loss(self, embeddings: Tensor, minibatch: TensorDict) -> tuple[Tensor, dict]:
+    def _compute_contrastive_loss(
+        self, embeddings: torch.Tensor, minibatch: tensordict.TensorDict
+    ) -> tuple[torch.Tensor, dict]:
         """Compute InfoNCE contrastive loss with geometric future positives and shuffled negatives."""
 
         batch_shape = minibatch.batch_size

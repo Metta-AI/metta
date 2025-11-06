@@ -1,26 +1,26 @@
 import time
-from typing import Any, Dict
-from unittest import mock
+import typing
+import unittest
 
+import fastapi
+import fastapi.testclient
 import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-from testcontainers.postgres import PostgresContainer
+import testcontainers.postgres
 
-from metta.app_backend.clients.stats_client import StatsClient
-from metta.app_backend.metta_repo import MettaRepo
-from metta.app_backend.server import create_app
-from metta.app_backend.test_support import create_test_stats_client
-from metta.common.test_support import docker_client_fixture, isolated_test_schema_uri
+import metta.app_backend.clients.stats_client
+import metta.app_backend.metta_repo
+import metta.app_backend.server
+import metta.app_backend.test_support
+import metta.common.test_support
 
 # Register the docker_client fixture
-docker_client = docker_client_fixture()
+docker_client = metta.common.test_support.docker_client_fixture()
 
 
 @pytest.fixture(scope="session", autouse=True)
 def mock_debug_user_email():
     """Mock debug_user_email for all tests to prevent local env interference."""
-    with mock.patch("metta.app_backend.config.debug_user_email", None):
+    with unittest.mock.patch("metta.app_backend.config.debug_user_email", None):
         yield
 
 
@@ -36,7 +36,7 @@ def pytest_collection_modifyitems(config, items):
 def postgres_container():
     """Create a PostgreSQL container for testing."""
     try:
-        container = PostgresContainer(
+        container = testcontainers.postgres.PostgresContainer(
             image="postgres:17",
             username="test_user",
             password="test_password",
@@ -51,43 +51,43 @@ def postgres_container():
 
 
 @pytest.fixture(scope="class")
-def db_uri(postgres_container: PostgresContainer) -> str:
+def db_uri(postgres_container: testcontainers.postgres.PostgresContainer) -> str:
     """Get the database URI for the test container."""
     return postgres_container.get_connection_url()
 
 
 @pytest.fixture(scope="class")
-def stats_repo(db_uri: str) -> MettaRepo:
+def stats_repo(db_uri: str) -> metta.app_backend.metta_repo.MettaRepo:
     """Create a MettaRepo instance with the test database."""
-    return MettaRepo(db_uri)
+    return metta.app_backend.metta_repo.MettaRepo(db_uri)
 
 
 @pytest.fixture(scope="class")
-def test_app(stats_repo: MettaRepo) -> FastAPI:
+def test_app(stats_repo: metta.app_backend.metta_repo.MettaRepo) -> fastapi.FastAPI:
     """Create a test FastAPI app with dependency injection."""
-    return create_app(stats_repo)
+    return metta.app_backend.server.create_app(stats_repo)
 
 
 @pytest.fixture(scope="class")
-def test_client(test_app: FastAPI) -> TestClient:
+def test_client(test_app: fastapi.FastAPI) -> fastapi.testclient.TestClient:
     """Create a test client."""
-    return TestClient(test_app)
+    return fastapi.testclient.TestClient(test_app)
 
 
 @pytest.fixture(scope="class")
-def test_user_headers() -> Dict[str, str]:
+def test_user_headers() -> typing.Dict[str, str]:
     """Headers for authenticated requests."""
     return {"X-Auth-Request-Email": "test_user@example.com"}
 
 
 @pytest.fixture(scope="class")
-def auth_headers() -> Dict[str, str]:
+def auth_headers() -> typing.Dict[str, str]:
     """Authentication headers for requests (alias for test_user_headers)."""
     return {"X-Auth-Request-Email": "test@example.com"}
 
 
 @pytest.fixture(scope="class")
-def stats_client(test_client: TestClient) -> StatsClient:
+def stats_client(test_client: fastapi.testclient.TestClient) -> metta.app_backend.clients.stats_client.StatsClient:
     """Create a stats client for testing."""
     # First create a machine token
     token_response = test_client.post(
@@ -99,37 +99,39 @@ def stats_client(test_client: TestClient) -> StatsClient:
     token = token_response.json()["token"]
 
     # Create stats client that works with TestClient
-    return create_test_stats_client(test_client, machine_token=token)
+    return metta.app_backend.test_support.create_test_stats_client(test_client, machine_token=token)
 
 
 # Isolated fixtures for function-scoped testing
 @pytest.fixture(scope="function")
 def isolated_db_context(db_uri: str) -> str:
     """Create an isolated schema context for a single test."""
-    schema_uri = isolated_test_schema_uri(db_uri)
+    schema_uri = metta.common.test_support.isolated_test_schema_uri(db_uri)
     return schema_uri
 
 
 @pytest.fixture(scope="function")
-def isolated_stats_repo(isolated_db_context: str) -> MettaRepo:
+def isolated_stats_repo(isolated_db_context: str) -> metta.app_backend.metta_repo.MettaRepo:
     """Create a MettaRepo instance with an isolated schema."""
-    return MettaRepo(isolated_db_context)
+    return metta.app_backend.metta_repo.MettaRepo(isolated_db_context)
 
 
 @pytest.fixture(scope="function")
-def isolated_test_app(isolated_stats_repo: MettaRepo) -> FastAPI:
+def isolated_test_app(isolated_stats_repo: metta.app_backend.metta_repo.MettaRepo) -> fastapi.FastAPI:
     """Create a test FastAPI app with isolated database."""
-    return create_app(isolated_stats_repo)
+    return metta.app_backend.server.create_app(isolated_stats_repo)
 
 
 @pytest.fixture(scope="function")
-def isolated_test_client(isolated_test_app: FastAPI) -> TestClient:
+def isolated_test_client(isolated_test_app: fastapi.FastAPI) -> fastapi.testclient.TestClient:
     """Create a test client with isolated database."""
-    return TestClient(isolated_test_app)
+    return fastapi.testclient.TestClient(isolated_test_app)
 
 
 @pytest.fixture(scope="function")
-def isolated_stats_client(isolated_test_client: TestClient) -> StatsClient:
+def isolated_stats_client(
+    isolated_test_client: fastapi.testclient.TestClient,
+) -> metta.app_backend.clients.stats_client.StatsClient:
     """Create a stats client with isolated database for testing."""
     # First create a machine token
     token_response = isolated_test_client.post(
@@ -141,19 +143,19 @@ def isolated_stats_client(isolated_test_client: TestClient) -> StatsClient:
     token = token_response.json()["token"]
 
     # Create stats client that works with TestClient
-    return create_test_stats_client(isolated_test_client, machine_token=token)
+    return metta.app_backend.test_support.create_test_stats_client(isolated_test_client, machine_token=token)
 
 
 @pytest.fixture
-def create_test_data(stats_client: StatsClient):
+def create_test_data(stats_client: metta.app_backend.clients.stats_client.StatsClient):
     def _create(
         run_name: str,
         num_policies: int = 2,
         create_run_free_policies: int = 0,
-        overriding_stats_client: StatsClient | None = None,
-    ) -> dict[str, Any]:
+        overriding_stats_client: metta.app_backend.clients.stats_client.StatsClient | None = None,
+    ) -> dict[str, typing.Any]:
         use_stats_client = overriding_stats_client or stats_client
-        data: dict[str, Any] = {"policies": [], "policy_names": [], "policy_epoch_ids": []}
+        data: dict[str, typing.Any] = {"policies": [], "policy_names": [], "policy_epoch_ids": []}
 
         if num_policies > 0:
             timestamp = int(time.time() * 1_000_000)
@@ -211,16 +213,16 @@ def create_test_data(stats_client: StatsClient):
 
 
 @pytest.fixture
-def record_episodes(stats_client: StatsClient):
+def record_episodes(stats_client: metta.app_backend.clients.stats_client.StatsClient):
     def _record(
         test_data: dict,
         eval_category: str,
         env_names: list[str],
         metric_values: dict[str, float],
-        overriding_stats_client: StatsClient | None = None,
+        overriding_stats_client: metta.app_backend.clients.stats_client.StatsClient | None = None,
     ) -> None:
         use_stats_client = overriding_stats_client or stats_client
-        policy_epoch_ids: list[Any] = test_data.get("policy_epoch_ids", [])
+        policy_epoch_ids: list[typing.Any] = test_data.get("policy_epoch_ids", [])
         epochs = test_data.get("epochs", [])
         for i, policy in enumerate(test_data["policies"]):
             epoch_id = None

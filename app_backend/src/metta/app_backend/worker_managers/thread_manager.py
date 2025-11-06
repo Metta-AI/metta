@@ -1,19 +1,19 @@
 import asyncio
+import datetime
 import logging
 import random
 import string
 import threading
-from datetime import datetime, timezone
-from typing import Callable
+import typing
 
-from metta.app_backend.eval_task_worker import EvalTaskWorker
-from metta.app_backend.worker_managers.base import AbstractWorkerManager
-from metta.app_backend.worker_managers.worker import Worker
+import metta.app_backend.eval_task_worker
+import metta.app_backend.worker_managers.base
+import metta.app_backend.worker_managers.worker
 
 logger = logging.getLogger(__name__)
 
 
-class ThreadWorkerManager(AbstractWorkerManager):
+class ThreadWorkerManager(metta.app_backend.worker_managers.base.AbstractWorkerManager):
     """Manages EvalTaskWorker instances running on separate threads."""
 
     _worker_prefix = "eval-worker-"
@@ -22,13 +22,13 @@ class ThreadWorkerManager(AbstractWorkerManager):
         return f"{self._worker_prefix}-{self._generate_worker_suffix()}"
 
     def _generate_worker_suffix(self) -> str:
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+        timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d%H%M%S")
         random_suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
         return f"{timestamp}-{random_suffix}"
 
     def __init__(
         self,
-        create_worker: Callable[[str], EvalTaskWorker],
+        create_worker: typing.Callable[[str], metta.app_backend.eval_task_worker.EvalTaskWorker],
     ):
         self._create_worker = create_worker
         self._workers: dict[str, dict] = {}  # worker_name -> {thread, worker, stop_event}
@@ -64,7 +64,9 @@ class ThreadWorkerManager(AbstractWorkerManager):
 
             return worker_name
 
-    def _run_worker(self, worker: EvalTaskWorker, stop_event: threading.Event) -> None:
+    def _run_worker(
+        self, worker: metta.app_backend.eval_task_worker.EvalTaskWorker, stop_event: threading.Event
+    ) -> None:
         """Run worker in a thread with event loop."""
         try:
             # Create new event loop for this thread
@@ -130,7 +132,7 @@ class ThreadWorkerManager(AbstractWorkerManager):
             # Remove from tracking
             del self._workers[worker_name]
 
-    async def discover_alive_workers(self) -> list[Worker]:
+    async def discover_alive_workers(self) -> list[metta.app_backend.worker_managers.worker.Worker]:
         """Discover all alive workers."""
         alive_workers = []
 
@@ -143,7 +145,9 @@ class ThreadWorkerManager(AbstractWorkerManager):
 
             if thread.is_alive():
                 # For thread workers, we consider them "Running" if thread is alive
-                alive_workers.append(Worker(name=worker_name, status="Running"))
+                alive_workers.append(
+                    metta.app_backend.worker_managers.worker.Worker(name=worker_name, status="Running")
+                )
             else:
                 # Clean up dead workers
                 logger.info(f"Removing dead worker {worker_name}")

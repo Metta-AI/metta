@@ -4,21 +4,20 @@ MettaGridPettingZooEnv - PettingZoo adapter for MettaGrid.
 This class implements the PettingZoo ParallelEnv interface using the Simulator/Simulation API.
 """
 
-from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+import typing
 
+import gymnasium
 import numpy as np
-from gymnasium import spaces
-from pettingzoo import ParallelEnv
-from typing_extensions import override
+import pettingzoo
+import typing_extensions
 
-from mettagrid.config.mettagrid_config import MettaGridConfig
-from mettagrid.mettagrid_c import dtype_actions
-from mettagrid.simulator import Simulator
+import mettagrid.config.mettagrid_config
+import mettagrid.mettagrid_c
+import mettagrid.simulator
 
 
-class MettaGridPettingZooEnv(ParallelEnv):
+class MettaGridPettingZooEnv(pettingzoo.ParallelEnv):
     """
     PettingZoo ParallelEnv adapter for MettaGrid environments.
 
@@ -31,7 +30,12 @@ class MettaGridPettingZooEnv(ParallelEnv):
       https://github.com/Farama-Foundation/PettingZoo/blob/405e71c912dc3f787bb12c7f8463f18fcce31bb1/pettingzoo/utils/env.py#L281
     """
 
-    def __init__(self, simulator: Simulator, cfg: MettaGridConfig, **kwargs: Any):
+    def __init__(
+        self,
+        simulator: mettagrid.simulator.Simulator,
+        cfg: mettagrid.config.mettagrid_config.MettaGridConfig,
+        **kwargs: typing.Any,
+    ):
         """
         Initialize PettingZoo environment.
 
@@ -50,19 +54,19 @@ class MettaGridPettingZooEnv(ParallelEnv):
         self._sim = self._simulator.new_simulation(cfg, seed=self._seed)
 
         # PettingZoo attributes - agent IDs are integers
-        self.possible_agents: List[int] = list(range(self._sim.num_agents))
-        self.agents: List[int] = self.possible_agents.copy()
+        self.possible_agents: typing.List[int] = list(range(self._sim.num_agents))
+        self.agents: typing.List[int] = self.possible_agents.copy()
 
         # Create space objects once to avoid memory leaks
         # PettingZoo requires same space object instances to be returned
         obs_shape = self._sim.observation_shape
-        self._observation_space_obj = spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8)
-        self._action_space_obj = spaces.Discrete(len(self._sim.action_names))
+        self._observation_space_obj = gymnasium.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8)
+        self._action_space_obj = gymnasium.spaces.Discrete(len(self._sim.action_names))
 
-    @override
+    @typing_extensions.override
     def reset(
-        self, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None
-    ) -> Tuple[Dict[int, np.ndarray], Dict[int, Dict[str, Any]]]:
+        self, seed: typing.Optional[int] = None, options: typing.Optional[typing.Dict[str, typing.Any]] = None
+    ) -> typing.Tuple[typing.Dict[int, np.ndarray], typing.Dict[int, typing.Dict[str, typing.Any]]]:
         """
         Reset the environment.
 
@@ -96,15 +100,15 @@ class MettaGridPettingZooEnv(ParallelEnv):
 
         return observations, infos
 
-    @override  # pettingzoo.ParallelEnv.step
+    @typing_extensions.override  # pettingzoo.ParallelEnv.step
     def step(
-        self, actions: Dict[int, np.ndarray | int]
-    ) -> Tuple[
-        Dict[int, np.ndarray],
-        Dict[int, float],
-        Dict[int, bool],
-        Dict[int, bool],
-        Dict[int, Dict[str, Any]],
+        self, actions: typing.Dict[int, np.ndarray | int]
+    ) -> typing.Tuple[
+        typing.Dict[int, np.ndarray],
+        typing.Dict[int, float],
+        typing.Dict[int, bool],
+        typing.Dict[int, bool],
+        typing.Dict[int, typing.Dict[str, typing.Any]],
     ]:
         """
         Execute one timestep of the environment dynamics.
@@ -119,7 +123,9 @@ class MettaGridPettingZooEnv(ParallelEnv):
         action_array = self._sim._c_sim.actions()
         for agent_id in self.agents:
             if agent_id in actions:
-                action_idx = int(np.asarray(actions[agent_id], dtype=dtype_actions).reshape(()).item())
+                action_idx = int(
+                    np.asarray(actions[agent_id], dtype=mettagrid.mettagrid_c.dtype_actions).reshape(()).item()
+                )
                 action_array[agent_id] = action_idx
 
         # Execute simulation step
@@ -150,21 +156,21 @@ class MettaGridPettingZooEnv(ParallelEnv):
         return obs_dict, reward_dict, terminal_dict, truncation_dict, info_dict
 
     # PettingZoo required methods
-    @override  # pettingzoo.ParallelEnv.observation_space
-    def observation_space(self, agent: int) -> spaces.Box:
+    @typing_extensions.override  # pettingzoo.ParallelEnv.observation_space
+    def observation_space(self, agent: int) -> gymnasium.spaces.Box:
         """Get observation space for a specific agent."""
         del agent  # Unused parameter - all agents have same space
         # Return the same space object instance (PettingZoo requirement)
         return self._observation_space_obj
 
-    @override  # pettingzoo.ParallelEnv.action_space
-    def action_space(self, agent: int) -> spaces.Discrete:
+    @typing_extensions.override  # pettingzoo.ParallelEnv.action_space
+    def action_space(self, agent: int) -> gymnasium.spaces.Discrete:
         """Get action space for a specific agent."""
         del agent  # Unused parameter - all agents have same space
         # Return the same space object instance (PettingZoo requirement)
         return self._action_space_obj
 
-    @override  # pettingzoo.ParallelEnv.state
+    @typing_extensions.override  # pettingzoo.ParallelEnv.state
     def state(self) -> np.ndarray:
         """
         Get global state (optional for PettingZoo).
@@ -179,25 +185,25 @@ class MettaGridPettingZooEnv(ParallelEnv):
         return np.zeros(total_size, dtype=obs_space.dtype)
 
     @property
-    def state_space(self) -> spaces.Box:
+    def state_space(self) -> gymnasium.spaces.Box:
         """Get state space (optional for PettingZoo)."""
         # State space is flattened observation space
         obs_space = self._observation_space_obj
         total_size = len(self.possible_agents) * int(np.prod(obs_space.shape))
 
-        return spaces.Box(
+        return gymnasium.spaces.Box(
             low=obs_space.low.flatten()[0],
             high=obs_space.high.flatten()[0],
             shape=(total_size,),
             dtype=obs_space.dtype.type,
         )
 
-    @override  # pettingzoo.ParallelEnv.render
+    @typing_extensions.override  # pettingzoo.ParallelEnv.render
     def render(self) -> None:
         """Render the environment (not implemented)."""
         pass
 
-    @override  # pettingzoo.ParallelEnv.close
+    @typing_extensions.override  # pettingzoo.ParallelEnv.close
     def close(self) -> None:
         """Close the environment."""
         if hasattr(self, "_sim") and self._sim is not None:

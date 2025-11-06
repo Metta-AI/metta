@@ -1,33 +1,33 @@
 """Statistics reporting and aggregation."""
 
+import collections
+import contextlib
 import logging
-from collections import defaultdict
-from contextlib import nullcontext
-from typing import Any, ContextManager, Optional, Protocol
-from uuid import UUID
+import typing
+import uuid
 
 import numpy as np
+import pydantic
 import torch
 import torch.nn as nn
-from pydantic import Field
 
-from metta.app_backend.clients.stats_client import StatsClient
-from metta.common.wandb.context import WandbRun
-from metta.eval.eval_request_config import EvalRewardSummary
-from metta.rl.model_analysis import compute_dormant_neuron_stats
-from metta.rl.stats import accumulate_rollout_stats, compute_timing_stats, process_training_stats
-from metta.rl.training.component import TrainerComponent
-from metta.rl.utils import should_run
-from mettagrid.base_config import Config
+import metta.app_backend.clients.stats_client
+import metta.common.wandb.context
+import metta.eval.eval_request_config
+import metta.rl.model_analysis
+import metta.rl.stats
+import metta.rl.training.component
+import metta.rl.utils
+import mettagrid.base_config
 
 logger = logging.getLogger(__name__)
 
 
-class Timer(Protocol):
-    def __call__(self, name: str) -> ContextManager[Any]: ...
+class Timer(typing.Protocol):
+    def __call__(self, name: str) -> typing.ContextManager[typing.Any]: ...
 
 
-def _to_scalar(value: Any) -> Optional[float]:
+def _to_scalar(value: typing.Any) -> typing.Optional[float]:
     """Convert supported numeric types to float, skipping non-scalars."""
 
     if isinstance(value, (int, float, bool, np.number)):
@@ -44,22 +44,22 @@ def _to_scalar(value: Any) -> Optional[float]:
 
 
 def build_wandb_payload(
-    processed_stats: dict[str, Any],
-    timing_info: dict[str, Any],
-    weight_stats: dict[str, Any],
+    processed_stats: dict[str, typing.Any],
+    timing_info: dict[str, typing.Any],
+    weight_stats: dict[str, typing.Any],
     grad_stats: dict[str, float],
-    system_stats: dict[str, Any],
-    memory_stats: dict[str, Any],
-    parameters: dict[str, Any],
-    hyperparameters: dict[str, Any],
-    evals: EvalRewardSummary,
+    system_stats: dict[str, typing.Any],
+    memory_stats: dict[str, typing.Any],
+    parameters: dict[str, typing.Any],
+    hyperparameters: dict[str, typing.Any],
+    evals: metta.eval.eval_request_config.EvalRewardSummary,
     *,
     agent_step: int,
     epoch: int,
 ) -> dict[str, float]:
     """Create a flattened stats dictionary ready for wandb logging."""
 
-    overview: dict[str, Any] = {
+    overview: dict[str, typing.Any] = {
         "sps": timing_info.get("epoch_steps_per_second", 0.0),
         "steps_per_second": timing_info.get("steps_per_second", 0.0),
         "epoch_steps_per_second": timing_info.get("epoch_steps_per_second", 0.0),
@@ -77,7 +77,7 @@ def build_wandb_payload(
         "metric/train_time": float(timing_info.get("train_time", 0.0)),
     }
 
-    def _update(items: dict[str, Any], *, prefix: str = "") -> None:
+    def _update(items: dict[str, typing.Any], *, prefix: str = "") -> None:
         for key, value in items.items():
             scalar = _to_scalar(value)
             if scalar is None:
@@ -112,7 +112,7 @@ def build_wandb_payload(
     return payload
 
 
-class StatsReporterConfig(Config):
+class StatsReporterConfig(mettagrid.base_config.Config):
     """Configuration for stats reporting."""
 
     report_to_wandb: bool = True
@@ -127,18 +127,20 @@ class StatsReporterConfig(Config):
     """Threshold for considering a neuron dormant based on mean absolute weight magnitude."""
 
 
-class StatsReporterState(Config):
+class StatsReporterState(mettagrid.base_config.Config):
     """State for statistics tracking."""
 
-    rollout_stats: dict = Field(default_factory=lambda: defaultdict(list))
-    grad_stats: dict = Field(default_factory=dict)
-    eval_scores: EvalRewardSummary = Field(default_factory=EvalRewardSummary)
-    stats_run_id: Optional[UUID] = None
+    rollout_stats: dict = pydantic.Field(default_factory=lambda: collections.defaultdict(list))
+    grad_stats: dict = pydantic.Field(default_factory=dict)
+    eval_scores: metta.eval.eval_request_config.EvalRewardSummary = pydantic.Field(
+        default_factory=metta.eval.eval_request_config.EvalRewardSummary
+    )
+    stats_run_id: typing.Optional[uuid.UUID] = None
     area_under_reward: float = 0.0
     """Cumulative area under the reward curve"""
 
 
-class NoOpStatsReporter(TrainerComponent):
+class NoOpStatsReporter(metta.rl.training.component.TrainerComponent):
     """No-op stats reporter for when stats are disabled."""
 
     def __init__(self):
@@ -149,7 +151,7 @@ class NoOpStatsReporter(TrainerComponent):
         self.wandb_run = None
         self.stats_run_id = None
 
-    def on_step(self, infos: list[dict[str, Any]]) -> None:
+    def on_step(self, infos: list[dict[str, typing.Any]]) -> None:
         pass
 
     def on_epoch_end(self, epoch: int) -> None:
@@ -162,16 +164,16 @@ class NoOpStatsReporter(TrainerComponent):
         pass
 
 
-class StatsReporter(TrainerComponent):
+class StatsReporter(metta.rl.training.component.TrainerComponent):
     """Aggregates and reports statistics to multiple backends."""
 
     @classmethod
     def from_config(
         cls,
-        config: Optional[StatsReporterConfig],
-        stats_client: Optional[StatsClient] = None,
-        wandb_run: Optional[WandbRun] = None,
-    ) -> TrainerComponent:
+        config: typing.Optional[StatsReporterConfig],
+        stats_client: typing.Optional[metta.app_backend.clients.stats_client.StatsClient] = None,
+        wandb_run: typing.Optional[metta.common.wandb.context.WandbRun] = None,
+    ) -> metta.rl.training.component.TrainerComponent:
         """Create a StatsReporter from optional config, returning no-op if None."""
         if config is None:
             return NoOpStatsReporter()
@@ -180,8 +182,8 @@ class StatsReporter(TrainerComponent):
     def __init__(
         self,
         config: StatsReporterConfig,
-        stats_client: Optional[StatsClient] = None,
-        wandb_run: Optional[WandbRun] = None,
+        stats_client: typing.Optional[metta.app_backend.clients.stats_client.StatsClient] = None,
+        wandb_run: typing.Optional[metta.common.wandb.context.WandbRun] = None,
     ):
         super().__init__(epoch_interval=config.interval)
         self._config = config
@@ -195,11 +197,11 @@ class StatsReporter(TrainerComponent):
             self._initialize_stats_run()
 
     @property
-    def wandb_run(self) -> WandbRun | None:
+    def wandb_run(self) -> metta.common.wandb.context.WandbRun | None:
         return self._wandb_run
 
     @wandb_run.setter
-    def wandb_run(self, run: WandbRun | None) -> None:
+    def wandb_run(self, run: metta.common.wandb.context.WandbRun | None) -> None:
         self._wandb_run = run
 
     def register(self, context) -> None:  # type: ignore[override]
@@ -213,8 +215,8 @@ class StatsReporter(TrainerComponent):
 
         # Extract wandb attributes with defaults
         name = url = "unknown"
-        description: Optional[str] = None
-        tags: Optional[list[str]] = None
+        description: typing.Optional[str] = None
+        tags: typing.Optional[list[str]] = None
 
         if self._wandb_run:
             name = self._wandb_run.name or name
@@ -235,23 +237,23 @@ class StatsReporter(TrainerComponent):
         """Get the state for external access."""
         return self._state
 
-    def process_rollout(self, raw_infos: list[dict[str, Any]]) -> None:
+    def process_rollout(self, raw_infos: list[dict[str, typing.Any]]) -> None:
         if not raw_infos:
             return
-        accumulate_rollout_stats(raw_infos, self._state.rollout_stats)
+        metta.rl.stats.accumulate_rollout_stats(raw_infos, self._state.rollout_stats)
 
     def report_epoch(
         self,
         epoch: int,
         agent_step: int,
         losses_stats: dict[str, float],
-        experience: Any,
-        policy: Any,
+        experience: typing.Any,
+        policy: typing.Any,
         timer: Timer | None,
-        trainer_cfg: Any,
+        trainer_cfg: typing.Any,
         optimizer: torch.optim.Optimizer,
     ) -> None:
-        timing_context = timer("_process_stats") if callable(timer) else nullcontext()
+        timing_context = timer("_process_stats") if callable(timer) else contextlib.nullcontext()
 
         with timing_context:
             payload = self._build_wandb_payload(
@@ -281,7 +283,7 @@ class StatsReporter(TrainerComponent):
             self.clear_rollout_stats()
             self.clear_grad_stats()
 
-    def update_eval_scores(self, scores: EvalRewardSummary) -> None:
+    def update_eval_scores(self, scores: metta.eval.eval_request_config.EvalRewardSummary) -> None:
         self._state.eval_scores = scores
         if self._context is not None:
             self.context.latest_eval_scores = scores
@@ -289,7 +291,7 @@ class StatsReporter(TrainerComponent):
     def clear_rollout_stats(self) -> None:
         """Clear rollout statistics."""
         self._state.rollout_stats.clear()
-        self._state.rollout_stats = defaultdict(list)
+        self._state.rollout_stats = collections.defaultdict(list)
 
     def clear_grad_stats(self) -> None:
         """Clear gradient statistics."""
@@ -300,11 +302,11 @@ class StatsReporter(TrainerComponent):
 
     def create_epoch(
         self,
-        run_id: UUID,
+        run_id: uuid.UUID,
         start_epoch: int,
         end_epoch: int,
-        attributes: dict[str, Any] | None = None,
-    ) -> Optional[UUID]:
+        attributes: dict[str, typing.Any] | None = None,
+    ) -> typing.Optional[uuid.UUID]:
         if not self._stats_client or not self._config.report_to_stats_client:
             return None
 
@@ -334,7 +336,7 @@ class StatsReporter(TrainerComponent):
                 logger.warning(f"Failed to update training run status: {e}", exc_info=True)
         self._latest_payload = None
 
-    def on_step(self, infos: dict[str, Any] | list[dict[str, Any]]) -> None:
+    def on_step(self, infos: dict[str, typing.Any] | list[dict[str, typing.Any]]) -> None:
         """Accumulate step infos.
 
         Args:
@@ -342,7 +344,7 @@ class StatsReporter(TrainerComponent):
         """
         self.accumulate_infos(infos)
 
-    def get_latest_payload(self) -> Optional[dict[str, float]]:
+    def get_latest_payload(self) -> typing.Optional[dict[str, float]]:
         if self._latest_payload is None:
             return None
         return self._latest_payload.copy()
@@ -384,7 +386,7 @@ class StatsReporter(TrainerComponent):
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def accumulate_infos(self, info: dict[str, Any] | list[dict[str, Any]] | None) -> None:
+    def accumulate_infos(self, info: dict[str, typing.Any] | list[dict[str, typing.Any]] | None) -> None:
         """Accumulate rollout info dictionaries for later aggregation."""
         if not info:
             return
@@ -401,12 +403,12 @@ class StatsReporter(TrainerComponent):
         self,
         *,
         losses_stats: dict[str, float],
-        experience: Any,
-        trainer_cfg: Any,
-        policy: Any,
+        experience: typing.Any,
+        trainer_cfg: typing.Any,
+        policy: typing.Any,
         agent_step: int,
         epoch: int,
-        timer: Any,
+        timer: typing.Any,
         optimizer: torch.optim.Optimizer,
     ) -> dict[str, float]:
         """Convert collected stats into a flat wandb payload."""
@@ -414,14 +416,14 @@ class StatsReporter(TrainerComponent):
         if experience is None:
             return {}
 
-        processed = process_training_stats(
+        processed = metta.rl.stats.process_training_stats(
             raw_stats=self._state.rollout_stats,
             losses_stats=losses_stats,
             experience=experience,
             trainer_config=trainer_cfg,
         )
 
-        timing_info = compute_timing_stats(timer=timer, agent_step=agent_step)
+        timing_info = metta.rl.stats.compute_timing_stats(timer=timer, agent_step=agent_step)
         self._normalize_steps_per_second(timing_info, agent_step)
 
         weight_stats = self._collect_weight_stats(policy=policy, epoch=epoch)
@@ -451,7 +453,7 @@ class StatsReporter(TrainerComponent):
             epoch=epoch,
         )
 
-    def _normalize_steps_per_second(self, timing_info: dict[str, Any], agent_step: int) -> None:
+    def _normalize_steps_per_second(self, timing_info: dict[str, typing.Any], agent_step: int) -> None:
         """Adjust SPS to account for agent steps accumulated before a resume."""
 
         context = self._context
@@ -478,13 +480,13 @@ class StatsReporter(TrainerComponent):
         if isinstance(timing_stats, dict):
             timing_stats["timing_cumulative/sps"] = sps
 
-    def _collect_weight_stats(self, *, policy: Any, epoch: int) -> dict[str, float]:
+    def _collect_weight_stats(self, *, policy: typing.Any, epoch: int) -> dict[str, float]:
         interval = self._config.analyze_weights_interval
         if not interval:
             policy_config = getattr(policy, "config", None)
             interval = getattr(policy_config, "analyze_weights_interval", 0) if policy_config else 0
 
-        if not interval or not should_run(epoch, interval):
+        if not interval or not metta.rl.utils.should_run(epoch, interval):
             return {}
 
         if not hasattr(policy, "compute_weight_metrics"):
@@ -505,17 +507,17 @@ class StatsReporter(TrainerComponent):
             logger.warning("Failed to compute weight metrics: %s", exc, exc_info=True)
         return weight_stats
 
-    def _compute_dormant_neuron_stats(self, *, policy: Any) -> dict[str, float]:
+    def _compute_dormant_neuron_stats(self, *, policy: typing.Any) -> dict[str, float]:
         if not isinstance(policy, nn.Module):
             return {}
         threshold = getattr(self._config, "dormant_neuron_threshold", 1e-6)
         try:
-            return compute_dormant_neuron_stats(policy, threshold=threshold)
+            return metta.rl.model_analysis.compute_dormant_neuron_stats(policy, threshold=threshold)
         except Exception as exc:  # pragma: no cover - safeguard against model-specific failures
             logger.debug("Failed to compute dormant neuron stats: %s", exc, exc_info=True)
             return {}
 
-    def _collect_system_stats(self) -> dict[str, Any]:
+    def _collect_system_stats(self) -> dict[str, typing.Any]:
         system_monitor = getattr(self.context, "system_monitor", None)
         if system_monitor is None:
             return {}
@@ -525,7 +527,7 @@ class StatsReporter(TrainerComponent):
             logger.debug("System monitor stats failed: %s", exc, exc_info=True)
             return {}
 
-    def _collect_memory_stats(self) -> dict[str, Any]:
+    def _collect_memory_stats(self) -> dict[str, typing.Any]:
         memory_monitor = getattr(self.context, "memory_monitor", None)
         if memory_monitor is None:
             return {}
@@ -538,15 +540,15 @@ class StatsReporter(TrainerComponent):
     def _collect_parameters(
         self,
         *,
-        experience: Any,
+        experience: typing.Any,
         optimizer: torch.optim.Optimizer,
-        timing_info: dict[str, Any],
-    ) -> dict[str, Any]:
+        timing_info: dict[str, typing.Any],
+    ) -> dict[str, typing.Any]:
         learning_rate = getattr(self.context.config.optimizer, "learning_rate", 0)
         if optimizer and optimizer.param_groups:
             learning_rate = optimizer.param_groups[0].get("lr", learning_rate)
 
-        parameters: dict[str, Any] = {
+        parameters: dict[str, typing.Any] = {
             "learning_rate": learning_rate,
             "epoch_steps": timing_info.get("epoch_steps", 0),
             "num_minibatches": getattr(experience, "num_minibatches", 0),
@@ -570,10 +572,10 @@ class StatsReporter(TrainerComponent):
     def _collect_hyperparameters(
         self,
         *,
-        trainer_cfg: Any,
-        parameters: dict[str, Any],
-    ) -> dict[str, Any]:
-        hyperparameters: dict[str, Any] = {}
+        trainer_cfg: typing.Any,
+        parameters: dict[str, typing.Any],
+    ) -> dict[str, typing.Any]:
+        hyperparameters: dict[str, typing.Any] = {}
         if "learning_rate" in parameters:
             hyperparameters["learning_rate"] = parameters["learning_rate"]
 

@@ -1,6 +1,6 @@
 import logging
 import os
-from pathlib import Path
+import pathlib
 
 logger = logging.getLogger(__name__)
 
@@ -12,8 +12,8 @@ def record_heartbeat() -> None:
         return  # No heartbeat file configured
 
     try:
-        Path(heartbeat_file_path).parent.mkdir(parents=True, exist_ok=True)
-        Path(heartbeat_file_path).touch()
+        pathlib.Path(heartbeat_file_path).parent.mkdir(parents=True, exist_ok=True)
+        pathlib.Path(heartbeat_file_path).touch()
     except Exception as e:
         logger.error(f"Failed to record heartbeat at {heartbeat_file_path}: {e}", exc_info=True)
         raise

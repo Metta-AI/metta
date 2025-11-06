@@ -3,7 +3,7 @@ import platform
 import shutil
 import sys
 
-from setuptools import setup
+import setuptools
 
 # Always build extensions
 BUILD_EXTENSIONS = True
@@ -11,7 +11,7 @@ BUILD_EXTENSIONS = True
 # Import torch for extensions
 try:
     import torch
-    from torch.utils.cpp_extension import BuildExtension, CppExtension, CUDAExtension
+    import torch.utils.cpp_extension
 
     print("Building pufferlib-core with C++/CUDA extensions")
 except ImportError:
@@ -40,11 +40,11 @@ torch_lib_path = os.path.join(os.path.dirname(torch.__file__), "lib")
 
 # Check if CUDA compiler is available
 if shutil.which("nvcc"):
-    extension_class = CUDAExtension
+    extension_class = torch.utils.cpp_extension.CUDAExtension
     torch_sources.append("src/pufferlib/extensions/cuda/pufferlib.cu")
     print("Building with CUDA support")
 else:
-    extension_class = CppExtension
+    extension_class = torch.utils.cpp_extension.CppExtension
     print("Building with CPU-only support")
 
 # Add rpath for torch libraries
@@ -65,9 +65,9 @@ ext_modules = [
         extra_link_args=extra_link_args,
     ),
 ]
-cmdclass = {"build_ext": BuildExtension}
+cmdclass = {"build_ext": torch.utils.cpp_extension.BuildExtension}
 
-setup(
+setuptools.setup(
     ext_modules=ext_modules,
     cmdclass=cmdclass,
 )

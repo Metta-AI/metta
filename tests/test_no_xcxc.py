@@ -1,7 +1,7 @@
+import pathlib
 import subprocess
-from pathlib import Path
 
-from metta.common.util.fs import get_repo_root
+import metta.common.util.fs
 
 
 def test_no_xcxc_debug():
@@ -9,7 +9,7 @@ def test_no_xcxc_debug():
     Some of our developers use 'xcxc' as a special marker (similar to TODO or FIXME)
     to mark code sections that should never make it to production.
     """
-    project_root = get_repo_root()
+    project_root = metta.common.util.fs.get_repo_root()
 
     # Use git to get all files (tracked + untracked), respecting .gitignore
     cmd = ["git", "ls-files", "--cached", "--others", "--exclude-standard", "*.py"]
@@ -28,7 +28,7 @@ def test_no_xcxc_debug():
 
         py_files = [f for f in result.stdout.strip().split("\n") if f]
 
-        relative_this_file = str(Path(__file__).relative_to(project_root))
+        relative_this_file = str(pathlib.Path(__file__).relative_to(project_root))
 
         offenders = []
         for py_file in py_files:

@@ -1,29 +1,29 @@
 """Column: global prior gating with optional per-token refinement, E-axis mixer, and outer ReZero."""
 
-from __future__ import annotations
 
 import math
-from typing import Optional, Tuple
+import typing
 
+import cortex.blocks.base
+import cortex.blocks.column.routers
+import cortex.blocks.registry
+import cortex.cells
+import cortex.cells.base
+import cortex.config
+import cortex.types
+import tensordict
 import torch
+import torch._dynamo
 import torch.nn as nn
-from tensordict import TensorDict
-from torch._dynamo import disable
-
-from cortex.blocks.base import BaseBlock
-from cortex.blocks.column.routers import GlobalContextRouter, TokenRefiner
-from cortex.blocks.registry import build_block, register_block
-from cortex.cells import build_cell
-from cortex.cells.base import MemoryCell
-from cortex.config import BlockConfig, ColumnBlockConfig
-from cortex.types import MaybeState, ResetMask, Tensor
 
 
-@register_block(ColumnBlockConfig)
-class ColumnBlock(BaseBlock):
+@cortex.blocks.registry.register_block(cortex.config.ColumnBlockConfig)
+class ColumnBlock(cortex.blocks.base.BaseBlock):
     """Mix multiple experts using a router that outputs a global gate."""
 
-    def __init__(self, config: ColumnBlockConfig, d_hidden: int, cell: MemoryCell | None = None) -> None:
+    def __init__(
+        self, config: cortex.config.ColumnBlockConfig, d_hidden: int, cell: cortex.cells.base.MemoryCell | None = None
+    ) -> None:
         super().__init__(d_hidden=d_hidden, cell=self._make_placeholder_cell(d_hidden))
         self.config = config
         self.d_hidden = d_hidden
@@ -34,10 +34,12 @@ class ColumnBlock(BaseBlock):
 
         # Initialize router/refiner/mixer only when there is actual expert mixing.
         if num_experts > 1:
-            self.router: GlobalContextRouter | None = GlobalContextRouter(d_hidden, num_experts, config.router)
+            self.router: cortex.blocks.column.routers.GlobalContextRouter | None = (
+                cortex.blocks.column.routers.GlobalContextRouter(d_hidden, num_experts, config.router)
+            )
             lam0 = float(getattr(config.router, "whisper_lambda", 0.0))
-            self.refiner: TokenRefiner | None = (
-                TokenRefiner(d_hidden, num_experts, config.router) if lam0 > 0.0 else None
+            self.refiner: cortex.blocks.column.routers.TokenRefiner | None = (
+                cortex.blocks.column.routers.TokenRefiner(d_hidden, num_experts, config.router) if lam0 > 0.0 else None
             )
             d_k_mix = int(config.router.d_key or d_hidden)
             self.e_mixer: _EAxisCrossAttention | None = _EAxisCrossAttention(
@@ -60,46 +62,58 @@ class ColumnBlock(BaseBlock):
         self._cuda_streams: list[torch.cuda.Stream] | None = None
 
     @staticmethod
-    def _make_placeholder_cell(hidden_size: int) -> MemoryCell:
+    def _make_placeholder_cell(hidden_size: int) -> cortex.cells.base.MemoryCell:
         """Minimal placeholder MemoryCell for BaseBlock."""
 
-        class _NoOpCell(MemoryCell):
-            def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> TensorDict:
-                return TensorDict({}, batch_size=[batch], device=torch.device(device))
+        class _NoOpCell(cortex.cells.base.MemoryCell):
+            def init_state(
+                self, batch: int, *, device: torch.device | str, dtype: torch.dtype
+            ) -> tensordict.TensorDict:
+                return tensordict.TensorDict({}, batch_size=[batch], device=torch.device(device))
 
-            def forward(self, x: Tensor, state: MaybeState, *, resets: Optional[ResetMask] = None):
+            def forward(
+                self,
+                x: cortex.types.Tensor,
+                state: cortex.types.MaybeState,
+                *,
+                resets: typing.Optional[cortex.types.ResetMask] = None,
+            ):
                 return x, state
 
-            def reset_state(self, state: MaybeState, mask: ResetMask) -> MaybeState:
+            def reset_state(
+                self, state: cortex.types.MaybeState, mask: cortex.types.ResetMask
+            ) -> cortex.types.MaybeState:
                 return state
 
         return _NoOpCell(hidden_size)
 
-    def _build_experts(self, expert_cfgs: list[BlockConfig], d_hidden: int) -> list[BaseBlock]:
-        experts: list[BaseBlock] = []
+    def _build_experts(
+        self, expert_cfgs: list[cortex.config.BlockConfig], d_hidden: int
+    ) -> list[cortex.blocks.base.BaseBlock]:
+        experts: list[cortex.blocks.base.BaseBlock] = []
         for cfg in expert_cfgs:
             if cfg.cell is None:
-                block = build_block(config=cfg, d_hidden=d_hidden, cell=None)  # type: ignore[arg-type]
+                block = cortex.blocks.registry.build_block(config=cfg, d_hidden=d_hidden, cell=None)  # type: ignore[arg-type]
             else:
                 hs = cfg.get_cell_hidden_size(d_hidden)
                 dumped = cfg.cell.model_dump()
                 dumped["hidden_size"] = hs
                 cell_config = type(cfg.cell)(**dumped)
-                cell = build_cell(cell_config)
-                block = build_block(config=cfg, d_hidden=d_hidden, cell=cell)
+                cell = cortex.cells.build_cell(cell_config)
+                block = cortex.blocks.registry.build_block(config=cfg, d_hidden=d_hidden, cell=cell)
             experts.append(block)
         return experts
 
-    def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> TensorDict:
+    def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> tensordict.TensorDict:
         # Build in one shot to avoid per‑item __setitem__ during graph capture.
         state_map = {
             key: expert.init_state(batch=batch, device=device, dtype=dtype)
             for key, expert in zip(self._expert_keys, self.experts, strict=False)
         }
-        return TensorDict(state_map, batch_size=[batch], device=torch.device(device))
+        return tensordict.TensorDict(state_map, batch_size=[batch], device=torch.device(device))
 
-    def reset_state(self, state: MaybeState, mask: ResetMask) -> MaybeState:
-        if state is None or not isinstance(state, TensorDict):
+    def reset_state(self, state: cortex.types.MaybeState, mask: cortex.types.ResetMask) -> cortex.types.MaybeState:
+        if state is None or not isinstance(state, tensordict.TensorDict):
             return state
         batch_size = state.batch_size[0] if state.batch_size else mask.shape[0]
         # Build mapping in Python first, then wrap.
@@ -107,22 +121,22 @@ class ColumnBlock(BaseBlock):
         for key, expert in zip(self._expert_keys, self.experts, strict=False):
             cur = state.get(key)
             state_map[key] = expert.reset_state(cur, mask)
-        return TensorDict(state_map, batch_size=[batch_size], device=state.device)
+        return tensordict.TensorDict(state_map, batch_size=[batch_size], device=state.device)
 
     def forward(
         self,
-        x: Tensor,
-        state: MaybeState,
+        x: cortex.types.Tensor,
+        state: cortex.types.MaybeState,
         *,
-        resets: Optional[ResetMask] = None,
-    ) -> Tuple[Tensor, MaybeState]:
-        make_td = disable(
-            lambda state_map, batch_size, device: TensorDict(
+        resets: typing.Optional[cortex.types.ResetMask] = None,
+    ) -> typing.Tuple[cortex.types.Tensor, cortex.types.MaybeState]:
+        make_td = torch._dynamo.disable(
+            lambda state_map, batch_size, device: tensordict.TensorDict(
                 state_map, batch_size=[batch_size], device=torch.device(device)
             )
         )
-        make_empty_td = disable(
-            lambda batch_size, device: TensorDict({}, batch_size=[batch_size], device=torch.device(device))
+        make_empty_td = torch._dynamo.disable(
+            lambda batch_size, device: tensordict.TensorDict({}, batch_size=[batch_size], device=torch.device(device))
         )
         is_step = x.dim() == 2
         B = x.shape[0]
@@ -134,8 +148,8 @@ class ColumnBlock(BaseBlock):
 
         num_experts = len(expert_call_list)
         # Preallocate lists for deterministic ordering (avoid shared refs)
-        expert_outs: list[Tensor | None] = [None] * num_experts
-        expert_states: list[TensorDict | None] = [None] * num_experts
+        expert_outs: list[cortex.types.Tensor | None] = [None] * num_experts
+        expert_states: list[tensordict.TensorDict | None] = [None] * num_experts
 
         # Parallelize with CUDA streams unless disabled or under graph capture
         can_parallel = num_experts > 1 and x.is_cuda and torch.cuda.is_available()
@@ -157,12 +171,12 @@ class ColumnBlock(BaseBlock):
                 # Ensure expert stream sees work done on current stream for inputs.
                 s.wait_stream(current)
                 with torch.cuda.stream(s):
-                    expert_state = state.get(key) if isinstance(state, TensorDict) else td_empty
+                    expert_state = state.get(key) if isinstance(state, tensordict.TensorDict) else td_empty
                     if expert_state is None:
                         expert_state = td_empty
                     y_i, s_i = expert(u, expert_state, resets=resets)
                     expert_outs[i] = y_i
-                    expert_states[i] = s_i if isinstance(s_i, TensorDict) else make_empty_td(B, x.device)
+                    expert_states[i] = s_i if isinstance(s_i, tensordict.TensorDict) else make_empty_td(B, x.device)
 
             # Back on current stream, wait for all expert streams before consuming outputs.
             for s in self._cuda_streams:
@@ -170,21 +184,23 @@ class ColumnBlock(BaseBlock):
         else:
             # Fallback sequential execution (CPU or single expert)
             for i, (key, expert) in enumerate(zip(self._expert_keys, expert_call_list, strict=False)):
-                expert_state = state.get(key) if isinstance(state, TensorDict) else td_empty
+                expert_state = state.get(key) if isinstance(state, tensordict.TensorDict) else td_empty
                 if expert_state is None:
                     expert_state = td_empty
                 y_i, s_i = expert(u, expert_state, resets=resets)
                 expert_outs[i] = y_i
-                expert_states[i] = s_i if isinstance(s_i, TensorDict) else make_empty_td(B, x.device)
+                expert_states[i] = s_i if isinstance(s_i, tensordict.TensorDict) else make_empty_td(B, x.device)
 
         # Build the next state TensorDict on the current stream after synchronization.
         # Replace None placeholders and build state map
-        fixed_states = [v if isinstance(v, TensorDict) else make_empty_td(B, x.device) for v in expert_states]
+        fixed_states = [
+            v if isinstance(v, tensordict.TensorDict) else make_empty_td(B, x.device) for v in expert_states
+        ]
         state_map = {k: v for k, v in zip(self._expert_keys, fixed_states, strict=False)}
         next_state = make_td(state_map, B, x.device)
 
         # Ensure expert_outs are all set
-        expert_outs_tensors: list[Tensor] = [
+        expert_outs_tensors: list[cortex.types.Tensor] = [
             (y if isinstance(y, torch.Tensor) else torch.empty(0, device=x.device)) for y in expert_outs
         ]
 
@@ -261,7 +277,7 @@ class _EAxisCrossAttention(nn.Module):
         nn.init.zeros_(self.out.weight)
         nn.init.uniform_(self.q_bias, a=-1e-3, b=1e-3)
 
-    def forward(self, u_tokens: Tensor, deltas: Tensor) -> Tensor:
+    def forward(self, u_tokens: cortex.types.Tensor, deltas: cortex.types.Tensor) -> cortex.types.Tensor:
         """u_tokens: [B,T,H]; deltas: [B,T,E,H] -> [B,T,E,H]."""
         assert u_tokens.dim() == 3 and deltas.dim() == 4
         B, T, E, H = deltas.shape
@@ -293,5 +309,5 @@ class _ColumnReZeroHead(nn.Module):
         self.act = nn.GELU()
         self.fc2 = nn.Linear(d_mid, d_hidden)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: cortex.types.Tensor) -> cortex.types.Tensor:
         return self.fc2(self.act(self.fc1(x)))

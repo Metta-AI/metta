@@ -1,18 +1,18 @@
 import json
+import pathlib
 import pickle
-from pathlib import Path
-from typing import Any, Dict, Optional, Set
+import typing
 
 import numpy as np
-from omegaconf import DictConfig, OmegaConf
+import omegaconf
 
 # Track objects we've already seen to prevent infinite recursion
-_seen_objects: Set[int] = set()
+_seen_objects: typing.Set[int] = set()
 _max_recursion_depth = 10  # Limit recursion depth
 
 
 def save_array_slice(
-    array: np.ndarray, indices: tuple, file_path: Path, max_preview_elements: int = 60, append: bool = False
+    array: np.ndarray, indices: tuple, file_path: pathlib.Path, max_preview_elements: int = 60, append: bool = False
 ) -> None:
     """
     Save a slice of an array to a file, with a preview of values.
@@ -95,8 +95,8 @@ def save_array_slice(
 
 
 def save_args_for_c(
-    args: Dict[str, Any], base_filename: str = "c_test_args", output_dir: Optional[str] = None
-) -> Dict[str, str]:
+    args: typing.Dict[str, typing.Any], base_filename: str = "c_test_args", output_dir: typing.Optional[str] = None
+) -> typing.Dict[str, str]:
     """
     Save Python arguments in formats suitable for C testing.
     Args:
@@ -111,7 +111,7 @@ def save_args_for_c(
     if output_dir is None:
         output_dir = "."
 
-    output_path = Path(output_dir)
+    output_path = pathlib.Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
     saved_files = {}
@@ -128,8 +128,8 @@ def save_args_for_c(
     # 2. Save individual arguments in C-friendly formats
     for arg_name, arg_value in args.items():
         # Convert DictConfig to dict if needed
-        if isinstance(arg_value, DictConfig):
-            arg_value = OmegaConf.to_container(arg_value, resolve=True)
+        if isinstance(arg_value, omegaconf.DictConfig):
+            arg_value = omegaconf.OmegaConf.to_container(arg_value, resolve=True)
             arg_value = filter_test_data(arg_value)  # Filter unnecessary fields
 
         # Handle different types of arguments
@@ -242,11 +242,11 @@ def save_args_for_c(
 
 
 def save_mettagrid_args(
-    env_cfg: DictConfig,
+    env_cfg: omegaconf.DictConfig,
     env_map: np.ndarray,
     base_filename: str = "mettagrid_test_args",
-    output_dir: Optional[str] = "./test_data",
-) -> Dict[str, str]:
+    output_dir: typing.Optional[str] = "./test_data",
+) -> typing.Dict[str, str]:
     """
     Specialized function to save MettaGrid constructor arguments for C testing.
 
@@ -260,7 +260,7 @@ def save_mettagrid_args(
         dict: Paths to the saved files
     """
     # Convert DictConfig to plain Python dict
-    env_cfg_dict = OmegaConf.to_container(env_cfg, resolve=True)
+    env_cfg_dict = omegaconf.OmegaConf.to_container(env_cfg, resolve=True)
 
     # Filter out unnecessary metadata
     env_cfg_dict = filter_test_data(env_cfg_dict)
@@ -271,7 +271,7 @@ def save_mettagrid_args(
     return save_args_for_c(args, base_filename, output_dir)
 
 
-def filter_test_data(data: Any) -> Any:
+def filter_test_data(data: typing.Any) -> typing.Any:
     """
     Filter out unnecessary fields from test data to make it more compact.
 
@@ -309,8 +309,8 @@ class CustomEncoder(json.JSONEncoder):
     def default(self, obj):
         try:
             # Handle OmegaConf objects explicitly
-            if isinstance(obj, DictConfig):
-                return filter_test_data(OmegaConf.to_container(obj, resolve=True))
+            if isinstance(obj, omegaconf.DictConfig):
+                return filter_test_data(omegaconf.OmegaConf.to_container(obj, resolve=True))
 
             # Try to convert to a dictionary
             elif hasattr(obj, "to_dict") and callable(obj.to_dict):
@@ -344,8 +344,8 @@ class CustomEncoder(json.JSONEncoder):
 
 
 def _simplify_for_c(
-    obj: Any, prefix: str = "", result: Optional[Dict[str, Any]] = None, depth: int = 0
-) -> Dict[str, Any]:
+    obj: typing.Any, prefix: str = "", result: typing.Optional[typing.Dict[str, typing.Any]] = None, depth: int = 0
+) -> typing.Dict[str, typing.Any]:
     """
     Recursively flatten and simplify a complex object for C usage.
     Returns a dictionary with string keys and simple value types.
@@ -378,9 +378,9 @@ def _simplify_for_c(
         _seen_objects.add(obj_id)
 
     # Handle different types
-    if isinstance(obj, DictConfig):
+    if isinstance(obj, omegaconf.DictConfig):
         # Convert DictConfig to dict first
-        dict_obj = OmegaConf.to_container(obj, resolve=True)
+        dict_obj = omegaconf.OmegaConf.to_container(obj, resolve=True)
         dict_obj = filter_test_data(dict_obj)
         for key, value in dict_obj.items():
             new_key = f"{prefix}.{key}" if prefix else key
@@ -407,7 +407,7 @@ def _simplify_for_c(
     return result
 
 
-def _simplify_value(value: Any, key: str, result: Dict[str, Any], depth: int) -> None:
+def _simplify_value(value: typing.Any, key: str, result: typing.Dict[str, typing.Any], depth: int) -> None:
     """
     Safely process a value for simplification, handling potential recursion.
 
@@ -417,7 +417,7 @@ def _simplify_value(value: Any, key: str, result: Dict[str, Any], depth: int) ->
         result: Dictionary to store the processed value
         depth: Current recursion depth
     """
-    if isinstance(value, DictConfig):
+    if isinstance(value, omegaconf.DictConfig):
         _simplify_for_c(value, key, result, depth)
     elif isinstance(value, dict) or hasattr(value, "__dict__"):
         _simplify_for_c(value, key, result, depth)
@@ -425,7 +425,7 @@ def _simplify_value(value: Any, key: str, result: Dict[str, Any], depth: int) ->
         result[key] = _format_value(value)
 
 
-def _format_value(value: Any) -> Any:
+def _format_value(value: typing.Any) -> typing.Any:
     """
     Format a value for C-friendly output.
 
@@ -462,11 +462,11 @@ def save_step_results(
     rewards: np.ndarray,
     terminals: np.ndarray,
     truncations: np.ndarray,
-    infos: Dict[str, Any],
+    infos: typing.Dict[str, typing.Any],
     base_filename: str = "step_results",
-    output_dir: Optional[str] = "./test_data",
-    step_count: Optional[int] = None,
-) -> Dict[str, str]:
+    output_dir: typing.Optional[str] = "./test_data",
+    step_count: typing.Optional[int] = None,
+) -> typing.Dict[str, str]:
     """
     Save the results from the step function for testing.
 

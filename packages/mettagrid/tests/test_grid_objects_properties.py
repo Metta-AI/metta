@@ -3,50 +3,40 @@
 import numpy as np
 import pytest
 
-from mettagrid.config.mettagrid_config import (
-    ActionsConfig,
-    AssemblerConfig,
-    ChangeVibeActionConfig,
-    ChestConfig,
-    GameConfig,
-    MettaGridConfig,
-    MoveActionConfig,
-    NoopActionConfig,
-    ObsConfig,
-    ProtocolConfig,
-    WallConfig,
-)
-from mettagrid.map_builder.random import RandomMapBuilder
-from mettagrid.simulator import BoundingBox, Simulation
+import mettagrid.config.mettagrid_config
+import mettagrid.map_builder.random
+import mettagrid.simulator
 
 
 @pytest.fixture
 def sim_with_assembler():
     """Create simulation with an assembler to test assembler properties."""
-    config = MettaGridConfig(
-        game=GameConfig(
+    config = mettagrid.config.mettagrid_config.MettaGridConfig(
+        game=mettagrid.config.mettagrid_config.GameConfig(
             num_agents=2,
-            obs=ObsConfig(width=5, height=5, num_tokens=100),
+            obs=mettagrid.config.mettagrid_config.ObsConfig(width=5, height=5, num_tokens=100),
             max_steps=100,
             vibe_names=["neutral", "deposit", "withdraw"],
             resource_names=["iron", "steel"],
-            actions=ActionsConfig(
-                noop=NoopActionConfig(),
-                move=MoveActionConfig(),
-                change_vibe=ChangeVibeActionConfig(number_of_vibes=3),
+            actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
+                move=mettagrid.config.mettagrid_config.MoveActionConfig(),
+                change_vibe=mettagrid.config.mettagrid_config.ChangeVibeActionConfig(number_of_vibes=3),
             ),
             objects={
-                "wall": WallConfig(),
-                "assembler": AssemblerConfig(
+                "wall": mettagrid.config.mettagrid_config.WallConfig(),
+                "assembler": mettagrid.config.mettagrid_config.AssemblerConfig(
                     protocols=[
-                        ProtocolConfig(input_resources={"iron": 10}, output_resources={"steel": 5}, cooldown=20)
+                        mettagrid.config.mettagrid_config.ProtocolConfig(
+                            input_resources={"iron": 10}, output_resources={"steel": 5}, cooldown=20
+                        )
                     ],
                     max_uses=10,
                     allow_partial_usage=True,
                     exhaustion=0.1,
                 ),
             },
-            map_builder=RandomMapBuilder.Config(
+            map_builder=mettagrid.map_builder.random.RandomMapBuilder.Config(
                 width=10,
                 height=10,
                 agents=2,
@@ -55,24 +45,27 @@ def sim_with_assembler():
             ),
         )
     )
-    return Simulation(config)
+    return mettagrid.simulator.Simulation(config)
 
 
 @pytest.fixture
 def sim_with_chest():
     """Create simulation with a chest to test chest properties."""
-    config = MettaGridConfig(
-        game=GameConfig(
+    config = mettagrid.config.mettagrid_config.MettaGridConfig(
+        game=mettagrid.config.mettagrid_config.GameConfig(
             num_agents=1,
-            obs=ObsConfig(width=5, height=5, num_tokens=100),
+            obs=mettagrid.config.mettagrid_config.ObsConfig(width=5, height=5, num_tokens=100),
             max_steps=100,
             resource_names=["gold", "silver"],
-            actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
+            actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
+                move=mettagrid.config.mettagrid_config.MoveActionConfig(),
+            ),
             objects={
-                "wall": WallConfig(),
-                "chest": ChestConfig(vibe_transfers={}),
+                "wall": mettagrid.config.mettagrid_config.WallConfig(),
+                "chest": mettagrid.config.mettagrid_config.ChestConfig(vibe_transfers={}),
             },
-            map_builder=RandomMapBuilder.Config(
+            map_builder=mettagrid.map_builder.random.RandomMapBuilder.Config(
                 width=10,
                 height=10,
                 agents=1,
@@ -81,22 +74,25 @@ def sim_with_chest():
             ),
         )
     )
-    return Simulation(config)
+    return mettagrid.simulator.Simulation(config)
 
 
 @pytest.fixture
 def sim_with_walls():
     """Create simulation with walls to test ignore_types."""
-    config = MettaGridConfig(
-        game=GameConfig(
+    config = mettagrid.config.mettagrid_config.MettaGridConfig(
+        game=mettagrid.config.mettagrid_config.GameConfig(
             num_agents=2,
-            obs=ObsConfig(width=5, height=5, num_tokens=50),
+            obs=mettagrid.config.mettagrid_config.ObsConfig(width=5, height=5, num_tokens=50),
             max_steps=10,
-            actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
+            actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
+                move=mettagrid.config.mettagrid_config.MoveActionConfig(),
+            ),
             objects={
-                "wall": WallConfig(),
+                "wall": mettagrid.config.mettagrid_config.WallConfig(),
             },
-            map_builder=RandomMapBuilder.Config(
+            map_builder=mettagrid.map_builder.random.RandomMapBuilder.Config(
                 width=15,
                 height=15,
                 agents=2,
@@ -106,7 +102,7 @@ def sim_with_walls():
             ),
         )
     )
-    return Simulation(config)
+    return mettagrid.simulator.Simulation(config)
 
 
 class TestIgnoreTypes:
@@ -160,7 +156,7 @@ class TestIgnoreTypes:
     def test_ignore_with_bounding_box(self, sim_with_walls):
         """Test that ignore_types works with bounding box filtering."""
 
-        bbox = BoundingBox(min_row=0, max_row=5, min_col=0, max_col=5)
+        bbox = mettagrid.simulator.BoundingBox(min_row=0, max_row=5, min_col=0, max_col=5)
 
         # Get objects in bbox
         bbox_objects = sim_with_walls.grid_objects(bbox=bbox)

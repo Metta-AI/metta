@@ -1,25 +1,25 @@
 """SweepTool for Bayesian hyperparameter optimization using adaptive experiments."""
 
+import enum
 import logging
 import os
+import pathlib
+import typing
 import uuid
-from enum import StrEnum
-from pathlib import Path
-from typing import Any, Optional
 
-from cogweb.cogweb_client import CogwebClient
-from metta.adaptive import AdaptiveConfig, AdaptiveController
-from metta.adaptive.dispatcher import LocalDispatcher, SkypilotDispatcher
-from metta.adaptive.stores import WandbStore
-from metta.common.tool import Tool
-from metta.common.util.constants import PROD_STATS_SERVER_URI
-from metta.common.util.log_config import init_logging
-from metta.common.wandb.context import WandbConfig
-from metta.sweep.core import ParameterConfig
-from metta.sweep.protein_config import ProteinConfig
-from metta.sweep.schedulers.async_capped import AsyncCappedOptimizingScheduler, AsyncCappedSchedulerConfig
-from metta.sweep.schedulers.batched_synced import BatchedSyncedOptimizingScheduler, BatchedSyncedSchedulerConfig
-from metta.tools.utils.auto_config import auto_wandb_config
+import cogweb.cogweb_client
+import metta.adaptive
+import metta.adaptive.dispatcher
+import metta.adaptive.stores
+import metta.common.tool
+import metta.common.util.constants
+import metta.common.util.log_config
+import metta.common.wandb.context
+import metta.sweep.core
+import metta.sweep.protein_config
+import metta.sweep.schedulers.async_capped
+import metta.sweep.schedulers.batched_synced
+import metta.tools.utils.auto_config
 
 logger = logging.getLogger(__name__)
 
@@ -74,14 +74,14 @@ def create_on_eval_completed_hook(metric_path: str):
     return on_eval_completed
 
 
-class DispatcherType(StrEnum):
+class DispatcherType(enum.StrEnum):
     """Available dispatcher types for job execution."""
 
     LOCAL = "local"  # All jobs run locally
     SKYPILOT = "skypilot"  # All jobs run on Skypilot
 
 
-class SweepSchedulerType(StrEnum):
+class SweepSchedulerType(enum.StrEnum):
     """Available scheduler types for sweep orchestration."""
 
     BATCHED_SYNCED = "batched_synced"
@@ -89,7 +89,7 @@ class SweepSchedulerType(StrEnum):
     GRID_SEARCH = "grid_search"
 
 
-class SweepTool(Tool):
+class SweepTool(metta.common.tool.Tool):
     """Tool for Bayesian hyperparameter optimization using adaptive experiments.
 
     This tool is specialized for hyperparameter tuning using Bayesian optimization.
@@ -98,15 +98,15 @@ class SweepTool(Tool):
     """
 
     # Sweep identity - optional, will be generated if not provided
-    sweep_name: Optional[str] = None
-    sweep_dir: Optional[str] = None
+    sweep_name: typing.Optional[str] = None
+    sweep_dir: typing.Optional[str] = None
 
     # Core sweep configuration - Bayesian optimization config
-    protein_config: ProteinConfig = ProteinConfig(
+    protein_config: metta.sweep.protein_config.ProteinConfig = metta.sweep.protein_config.ProteinConfig(
         metric="evaluator/eval_arena/score",
         goal="maximize",
         parameters={
-            "trainer.optimizer.learning_rate": ParameterConfig(
+            "trainer.optimizer.learning_rate": metta.sweep.core.ParameterConfig(
                 min=1e-5,
                 max=1e-3,
                 distribution="log_normal",
@@ -132,7 +132,7 @@ class SweepTool(Tool):
     # Controller settings
     max_parallel_jobs: int = 6
     monitoring_interval: int = 60
-    sweep_server_uri: str = PROD_STATS_SERVER_URI
+    sweep_server_uri: str = metta.common.util.constants.PROD_STATS_SERVER_URI
     gpus: int = 1  # Number of GPUs per training job
     nodes: int = 1  # Number of nodes per training job
 
@@ -143,20 +143,20 @@ class SweepTool(Tool):
     force_eval: bool = False
 
     # Override configurations
-    train_overrides: dict[str, Any] = {}  # Overrides to apply to all training jobs
-    eval_overrides: dict[str, Any] = {}  # Overrides to apply to all evaluation jobs
+    train_overrides: dict[str, typing.Any] = {}  # Overrides to apply to all training jobs
+    eval_overrides: dict[str, typing.Any] = {}  # Overrides to apply to all evaluation jobs
 
     # Infrastructure configuration
-    wandb: WandbConfig = WandbConfig.Unconfigured()
-    stats_server_uri: str = PROD_STATS_SERVER_URI  # Stats server for remote evaluations
+    wandb: metta.common.wandb.context.WandbConfig = metta.common.wandb.context.WandbConfig.Unconfigured()
+    stats_server_uri: str = metta.common.util.constants.PROD_STATS_SERVER_URI  # Stats server for remote evaluations
 
     # Dispatcher configuration
     dispatcher_type: DispatcherType = DispatcherType.SKYPILOT  # SKYPILOT or LOCAL
     capture_output: bool = True  # Capture and stream subprocess output (local only)
 
     # Grid-search specific configuration (used when scheduler_type == GRID_SEARCH)
-    grid_parameters: dict[str, Any] = {}
-    grid_metric: Optional[str] = None
+    grid_parameters: dict[str, typing.Any] = {}
+    grid_metric: typing.Optional[str] = None
 
     def invoke(self, args: dict[str, str]) -> int | None:
         """Execute the sweep."""
@@ -204,14 +204,14 @@ class SweepTool(Tool):
             self.sweep_dir = f"{self.system.data_dir}/sweeps/{self.sweep_name}"
 
         # Auto-configure wandb if not set (similar to TrainTool)
-        if self.wandb == WandbConfig.Unconfigured():
-            self.wandb = auto_wandb_config(self.sweep_name)
+        if self.wandb == metta.common.wandb.context.WandbConfig.Unconfigured():
+            self.wandb = metta.tools.utils.auto_config.auto_wandb_config(self.sweep_name)
 
         # Create sweep directory
         os.makedirs(self.sweep_dir, exist_ok=True)
 
         # Initialize logging
-        init_logging(run_dir=Path(self.sweep_dir))
+        metta.common.util.log_config.init_logging(run_dir=pathlib.Path(self.sweep_dir))
 
         logger.info("[SweepTool] " + "=" * 60)
         logger.info(f"[SweepTool] Starting Bayesian optimization sweep: {self.sweep_name}")
@@ -228,7 +228,7 @@ class SweepTool(Tool):
         resume = False
         if self.sweep_server_uri:
             try:
-                cogweb_client = CogwebClient.get_client(base_url=self.sweep_server_uri)
+                cogweb_client = cogweb.cogweb_client.CogwebClient.get_client(base_url=self.sweep_server_uri)
                 sweep_client = cogweb_client.sweep_client()
                 sweep_info = sweep_client.get_sweep(self.sweep_name)
 
@@ -256,21 +256,23 @@ class SweepTool(Tool):
         except Exception:
             evaluator_prefix = None
 
-        store = WandbStore(entity=self.wandb.entity, project=self.wandb.project, evaluator_prefix=evaluator_prefix)
+        store = metta.adaptive.stores.WandbStore(
+            entity=self.wandb.entity, project=self.wandb.project, evaluator_prefix=evaluator_prefix
+        )
 
         # Create dispatcher based on type
         if self.dispatcher_type == DispatcherType.LOCAL:
-            dispatcher = LocalDispatcher(capture_output=self.capture_output)
+            dispatcher = metta.adaptive.dispatcher.LocalDispatcher(capture_output=self.capture_output)
 
         elif self.dispatcher_type == DispatcherType.SKYPILOT:
-            dispatcher = SkypilotDispatcher()
+            dispatcher = metta.adaptive.dispatcher.SkypilotDispatcher()
 
         else:
             raise ValueError(f"Unsupported dispatcher type: {self.dispatcher_type}")
 
         # Create scheduler (batched synced or async capped)
         if self.scheduler_type == SweepSchedulerType.BATCHED_SYNCED:
-            scheduler_config = BatchedSyncedSchedulerConfig(
+            scheduler_config = metta.sweep.schedulers.batched_synced.BatchedSyncedSchedulerConfig(
                 max_trials=self.max_trials,
                 batch_size=self.batch_size,
                 recipe_module=self.recipe_module,
@@ -285,9 +287,9 @@ class SweepTool(Tool):
                 protein_config=self.protein_config,
                 force_eval=self.force_eval,
             )
-            scheduler = BatchedSyncedOptimizingScheduler(scheduler_config)
+            scheduler = metta.sweep.schedulers.batched_synced.BatchedSyncedOptimizingScheduler(scheduler_config)
         elif self.scheduler_type == SweepSchedulerType.ASYNC_CAPPED:
-            scheduler_config = AsyncCappedSchedulerConfig(
+            scheduler_config = metta.sweep.schedulers.async_capped.AsyncCappedSchedulerConfig(
                 max_trials=self.max_trials,
                 recipe_module=self.recipe_module,
                 train_entrypoint=self.train_entrypoint,
@@ -303,20 +305,18 @@ class SweepTool(Tool):
                 max_concurrent_evals=self.max_concurrent_evals,
                 liar_strategy=self.liar_strategy,
             )
-            scheduler = AsyncCappedOptimizingScheduler(scheduler_config)
+            scheduler = metta.sweep.schedulers.async_capped.AsyncCappedOptimizingScheduler(scheduler_config)
         else:
             # GRID_SEARCH scheduler: derive categorical parameters and enumerate
-            from metta.sweep.schedulers.grid_search import GridSearchScheduler, GridSearchSchedulerConfig
+            import metta.sweep.schedulers.grid_search
 
             # Helper to extract categoricals from protein_config if present
             def _extract_categorical_params(params: dict) -> dict:
-                from metta.sweep.core import CategoricalParameterConfig
-
                 def recurse(obj: dict, prefix: str = "") -> dict:
                     out: dict = {}
                     for k, v in obj.items():
                         full = f"{prefix}.{k}" if prefix else k
-                        if isinstance(v, CategoricalParameterConfig):
+                        if isinstance(v, metta.sweep.core.CategoricalParameterConfig):
                             out[k] = v
                         elif isinstance(v, dict):
                             nested = recurse(v, full)
@@ -339,7 +339,7 @@ class SweepTool(Tool):
                     "(provide tool.grid_parameters or set them in protein_config.parameters)"
                 )
 
-            scheduler_config = GridSearchSchedulerConfig(
+            scheduler_config = metta.sweep.schedulers.grid_search.GridSearchSchedulerConfig(
                 max_trials=self.max_trials,
                 recipe_module=self.recipe_module,
                 train_entrypoint=self.train_entrypoint,
@@ -353,10 +353,10 @@ class SweepTool(Tool):
                 max_concurrent_evals=self.max_concurrent_evals,
                 parameters=grid_params,
             )
-            scheduler = GridSearchScheduler(scheduler_config)
+            scheduler = metta.sweep.schedulers.grid_search.GridSearchScheduler(scheduler_config)
 
         # Create adaptive config
-        adaptive_config = AdaptiveConfig(
+        adaptive_config = metta.adaptive.AdaptiveConfig(
             max_parallel=self.max_parallel_jobs, monitoring_interval=self.monitoring_interval, resume=resume
         )
 
@@ -367,7 +367,7 @@ class SweepTool(Tool):
             logger.info(f"[SweepTool] Config saved to {config_path}")
 
         # Create the adaptive controller
-        controller = AdaptiveController(
+        controller = metta.adaptive.AdaptiveController(
             experiment_id=self.sweep_name,
             scheduler=scheduler,
             dispatcher=dispatcher,
@@ -407,9 +407,9 @@ class SweepTool(Tool):
 
             # Show detailed status table
             if final_runs:
-                from metta.adaptive.utils import make_monitor_table
+                import metta.adaptive.utils
 
-                table_lines = make_monitor_table(
+                table_lines = metta.adaptive.utils.make_monitor_table(
                     runs=final_runs,
                     title="Final Run Status",
                     logger_prefix="[SweepTool]",

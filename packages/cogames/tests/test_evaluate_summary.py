@@ -1,21 +1,24 @@
-from __future__ import annotations
 
-from datetime import datetime
+import datetime
 
 import numpy as np
 import pytest
 
-from cogames.evaluate import MissionEvaluationResult, _build_results_summary
-from mettagrid.policy.policy import PolicySpec
+import cogames.evaluate
+import mettagrid.policy.policy
 
 
 def test_build_results_summary_multi_mission_policy_episode() -> None:
     policy_specs = [
-        PolicySpec(policy_class_path="cogames.policy.MockPolicy", policy_data_path=None, proportion=1.0),
-        PolicySpec(policy_class_path="cogames.policy.MockPolicy", policy_data_path=None, proportion=1.0),
+        mettagrid.policy.policy.PolicySpec(
+            policy_class_path="cogames.policy.MockPolicy", policy_data_path=None, proportion=1.0
+        ),
+        mettagrid.policy.policy.PolicySpec(
+            policy_class_path="cogames.policy.MockPolicy", policy_data_path=None, proportion=1.0
+        ),
     ]
 
-    mission_one = MissionEvaluationResult(
+    mission_one = cogames.evaluate.MissionEvaluationResult(
         mission_name="mission_one",
         policy_counts=[2, 1],
         policy_names=["MockPolicy", "MockPolicy"],
@@ -36,7 +39,7 @@ def test_build_results_summary_multi_mission_policy_episode() -> None:
         episodes=2,
     )
 
-    mission_two = MissionEvaluationResult(
+    mission_two = cogames.evaluate.MissionEvaluationResult(
         mission_name="mission_two",
         policy_counts=[1, 2],
         policy_names=["MockPolicy", "MockPolicy"],
@@ -59,12 +62,12 @@ def test_build_results_summary_multi_mission_policy_episode() -> None:
         episodes=3,
     )
 
-    summary = _build_results_summary(
+    summary = cogames.evaluate._build_results_summary(
         mission_results=[mission_one, mission_two],
         policy_specs=policy_specs,
     )
 
-    assert isinstance(summary.generated_at, datetime)
+    assert isinstance(summary.generated_at, datetime.datetime)
     assert len(summary.missions) == 2
 
     mission_one_summary = summary.missions[0]

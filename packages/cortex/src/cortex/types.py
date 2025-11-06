@@ -1,13 +1,12 @@
 """Type aliases for tensors and stateful computation."""
 
-from __future__ import annotations
 
+import tensordict
 import torch
-from tensordict import TensorDict
 
 Tensor = torch.Tensor
-State = TensorDict
-MaybeState = TensorDict | None
+State = tensordict.TensorDict
+MaybeState = tensordict.TensorDict | None
 ResetMask = torch.Tensor
 
 

@@ -1,29 +1,29 @@
 import logging
+import typing
 import uuid
-from typing import Any
 
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+import fastapi
+import pydantic
 
-from metta.app_backend.metta_repo import MettaRepo
-from metta.app_backend.query_logger import execute_query_and_log
+import metta.app_backend.metta_repo
+import metta.app_backend.query_logger
 
 logger = logging.getLogger("score_routes")
 
 
-class MetricStats(BaseModel):
+class MetricStats(pydantic.BaseModel):
     min: float
     max: float
     avg: float
 
 
-class PolicyScoresRequest(BaseModel):
+class PolicyScoresRequest(pydantic.BaseModel):
     policy_ids: list[uuid.UUID]
     eval_names: list[str]
     metrics: list[str]
 
 
-class PolicyScoresData(BaseModel):
+class PolicyScoresData(pydantic.BaseModel):
     scores: dict[uuid.UUID, dict[str, dict[str, MetricStats]]]
 
 
@@ -46,12 +46,12 @@ POLICY_METRIC_STATS_QUERY = """
 
 
 async def fetch_policy_scores(
-    con: Any,
+    con: typing.Any,
     policy_ids: list[uuid.UUID],
     eval_names: list[str],
     metrics: list[str],
 ) -> dict[uuid.UUID, dict[str, dict[str, MetricStats]]]:
-    rows = await execute_query_and_log(
+    rows = await metta.app_backend.query_logger.execute_query_and_log(
         con,
         POLICY_METRIC_STATS_QUERY,
         (policy_ids, eval_names, metrics),
@@ -73,13 +73,13 @@ async def fetch_policy_scores(
     return result
 
 
-def create_score_router(metta_repo: MettaRepo) -> APIRouter:
-    router = APIRouter(tags=["score"], prefix="/scorecard")
+def create_score_router(metta_repo: metta.app_backend.metta_repo.MettaRepo) -> fastapi.APIRouter:
+    router = fastapi.APIRouter(tags=["score"], prefix="/scorecard")
 
     @router.post("/score")
     async def get_policy_scores(request: PolicyScoresRequest) -> PolicyScoresData:
         if not request.policy_ids or not request.eval_names or not request.metrics:
-            raise HTTPException(status_code=400, detail="Missing required parameters")
+            raise fastapi.HTTPException(status_code=400, detail="Missing required parameters")
 
         async with metta_repo.connect() as con:
             scores = await fetch_policy_scores(con, request.policy_ids, request.eval_names, request.metrics)

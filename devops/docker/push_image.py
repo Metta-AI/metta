@@ -7,13 +7,13 @@ import argparse
 import subprocess
 import sys
 
-from metta.common.util.cli import get_user_confirmation, sh
-from metta.common.util.fs import cd_repo_root
-from metta.common.util.text_styles import bold
+import metta.common.util.cli
+import metta.common.util.fs
+import metta.common.util.text_styles
 
 
 def main():
-    cd_repo_root()
+    metta.common.util.fs.cd_repo_root()
 
     parser = argparse.ArgumentParser(description="Upload metta image to ECR")
     parser.add_argument("--local-image-name", default="mettaai/metta:latest")
@@ -22,22 +22,28 @@ def main():
     parser.add_argument("--account-id", type=int, help="AWS account ID. If omitted, current account is used.")
     args = parser.parse_args()
 
-    account_id = args.account_id or sh(["aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text"])
+    account_id = args.account_id or metta.common.util.cli.sh(
+        ["aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text"]
+    )
     if not account_id:
         sys.exit("ERROR: Failed to determine ACCOUNT_ID")
 
-    print(f"Uploading {bold(args.local_image_name)} to {bold(args.remote_image_name)}")
-    print(f"Region: {bold(args.region)}")
-    print(f"Account ID: {bold(account_id)}")
+    print(
+        f"Uploading {metta.common.util.text_styles.bold(args.local_image_name)} to {metta.common.util.text_styles.bold(args.remote_image_name)}"
+    )
+    print(f"Region: {metta.common.util.text_styles.bold(args.region)}")
+    print(f"Account ID: {metta.common.util.text_styles.bold(account_id)}")
     print("")
-    if not get_user_confirmation("Images should normally be uploaded by CI. Do you want to proceed?"):
+    if not metta.common.util.cli.get_user_confirmation(
+        "Images should normally be uploaded by CI. Do you want to proceed?"
+    ):
         sys.exit(0)
 
     push_image(args.local_image_name, args.remote_image_name, args.region, account_id)
 
 
 def push_image(local_image_name: str, remote_image_name: str, region: str, account_id: str) -> None:
-    docker_pwd = sh(["aws", "ecr", "get-login-password", "--region", region])
+    docker_pwd = metta.common.util.cli.sh(["aws", "ecr", "get-login-password", "--region", region])
     host = f"{account_id}.dkr.ecr.{region}.amazonaws.com"
 
     subprocess.run(

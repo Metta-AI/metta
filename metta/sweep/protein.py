@@ -1,15 +1,15 @@
+import copy
 import logging
 import math
 import random
 import time
-from copy import deepcopy
 
 import numpy as np
+import pyro.contrib
 import torch
-from pyro.contrib import gp as gp
-from torch.distributions import Normal
+import torch.distributions
 
-from mettagrid.util.dict_utils import unroll_nested_dict
+import mettagrid.util.dict_utils
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +153,7 @@ def _params_from_puffer_sweep(sweep_config):
 class Hyperparameters:
     def __init__(self, config, verbose=True):
         self.spaces = _params_from_puffer_sweep(config)
-        self.flat_spaces = dict(unroll_nested_dict(self.spaces))
+        self.flat_spaces = dict(mettagrid.util.dict_utils.unroll_nested_dict(self.spaces))
         self.num = len(self.flat_spaces)
         self.metric = config["metric"]
         goal = config["goal"]
@@ -176,7 +176,7 @@ class Hyperparameters:
         return np.clip(samples, self.min_bounds, self.max_bounds)
 
     def from_dict(self, params):
-        flat_params = dict(unroll_nested_dict(params))
+        flat_params = dict(mettagrid.util.dict_utils.unroll_nested_dict(params))
         values = []
         for key, space in self.flat_spaces.items():
             assert key in flat_params, f"Missing hyperparameter {key}"
@@ -186,7 +186,7 @@ class Hyperparameters:
         return np.array(values)
 
     def to_dict(self, sample, fill=None):
-        params = deepcopy(self.spaces) if fill is None else fill
+        params = copy.deepcopy(self.spaces) if fill is None else fill
         self._fill(params, self.spaces, sample)
         return params
 
@@ -228,10 +228,10 @@ def pareto_points_oriented(observations, direction=1, eps=1e-6):
 def create_gp(x_dim, scale_length=1.0):
     X = torch.zeros((1, x_dim))
     y = torch.zeros((1,))
-    matern_kernel = gp.kernels.Matern32(input_dim=x_dim, lengthscale=scale_length * torch.ones(x_dim))
-    linear_kernel = gp.kernels.Polynomial(input_dim=x_dim, degree=1)
-    kernel = gp.kernels.Sum(linear_kernel, matern_kernel)
-    model = gp.models.GPRegression(X, y, kernel=kernel, jitter=1.0e-3)  # Increased jitter for stability
+    matern_kernel = pyro.contrib.gp.kernels.Matern32(input_dim=x_dim, lengthscale=scale_length * torch.ones(x_dim))
+    linear_kernel = pyro.contrib.gp.kernels.Polynomial(input_dim=x_dim, degree=1)
+    kernel = pyro.contrib.gp.kernels.Sum(linear_kernel, matern_kernel)
+    model = pyro.contrib.gp.models.GPRegression(X, y, kernel=kernel, jitter=1.0e-3)  # Increased jitter for stability
     # Keep noise as a positive tensor (simpler & numerically stable)
     model.noise = torch.tensor(1e-2)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)
@@ -410,7 +410,7 @@ class Protein:
                 # Try to train GP
                 self.gp_score.set_data(params_t, torch.from_numpy(y_z).float())
                 self.gp_score.train()
-                gp.util.train(self.gp_score, self.score_opt)
+                pyro.contrib.gp.util.train(self.gp_score, self.score_opt)
                 self.gp_score.eval()
 
                 gp_trained = True
@@ -485,7 +485,7 @@ class Protein:
             # params_t already points to the subset from score GP training
             self.gp_cost.set_data(params_t, torch.from_numpy(lc_norm).float())
             self.gp_cost.train()
-            gp.util.train(self.gp_cost, self.cost_opt)
+            pyro.contrib.gp.util.train(self.gp_cost, self.cost_opt)
             self.gp_cost.eval()
             with torch.no_grad():
                 gp_log_c_norm_t, _ = self.gp_cost(suggestions_t, full_cov=False)
@@ -512,7 +512,7 @@ class Protein:
             best_std = (best_obs - y_mean) / y_std
             impr = (mu - best_std) if direction == 1 else (best_std - mu)
             z = impr / sd
-            N01 = Normal(0.0, 1.0)
+            N01 = torch.distributions.Normal(0.0, 1.0)
             z_t = torch.from_numpy(z)
             cdf = N01.cdf(z_t).numpy()
             pdf = torch.exp(N01.log_prob(z_t)).numpy()

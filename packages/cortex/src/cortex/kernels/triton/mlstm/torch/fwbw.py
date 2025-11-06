@@ -2,22 +2,21 @@
 #  This software may be used and distributed according to the terms of the NXAI Community License Agreement.
 
 # Maximilian Beck
-from collections.abc import Callable
+import collections.abc
 
+import cortex.kernels.triton.mlstm.torch.bw
+import cortex.kernels.triton.mlstm.torch.fw
+import cortex.kernels.triton.mlstm.utils
 import torch
-from torch.amp import custom_bwd, custom_fwd
-
-from cortex.kernels.triton.mlstm.torch.bw import mlstm_chunkwise_bw
-from cortex.kernels.triton.mlstm.torch.fw import mlstm_chunkwise_fw
-from cortex.kernels.triton.mlstm.utils import contiguous
+import torch.amp
 
 
 ## PyTorch Autograd Function - Boilerplate
-def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16) -> Callable:
+def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16) -> collections.abc.Callable:
     class _mlstm_chunkwise_fwbw(torch.autograd.Function):
         @staticmethod
-        @custom_fwd(device_type="cuda", cast_inputs=autocast_kernel_dtype)
-        @contiguous
+        @torch.amp.custom_fwd(device_type="cuda", cast_inputs=autocast_kernel_dtype)
+        @cortex.kernels.triton.mlstm.utils.contiguous
         def forward(
             ctx,
             matQ: torch.Tensor,  # (B, NH, S, DHQK)
@@ -49,32 +48,34 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16) -> Cal
             if qk_scale is None:
                 qk_scale = DHQK**-0.5
 
-            matH_out, vecN_out, vecM_out, last_states, all_states = mlstm_chunkwise_fw(
-                matQ=matQ,
-                matK=matK,
-                matV=matV,
-                vecI=vecI,
-                vecF=vecF,
-                reset_mask=reset_mask,
-                matC_initial=matC_initial,
-                vecN_initial=vecN_initial,
-                scaM_initial=scaM_initial,
-                qk_scale=qk_scale,
-                return_last_states=return_last_states,
-                return_all_states=(not recompute_states_in_bw),
-                chunk_size=chunk_size,
-                chunk_size_inter=chunk_size_inter,
-                chunk_size_intra=chunk_size_intra,
-                siz_b_L_parallel=siz_b_L_parallel,
-                siz_b_L_loop=siz_b_L_loop,
-                siz_b_DH_parallel=siz_b_DH_parallel,
-                siz_b_DH_loop=siz_b_DH_loop,
-                num_warps_intra=num_warps_intra,
-                num_warps_inter=num_warps_inter,
-                num_stages_intra=num_stages_intra,
-                num_stages_inter=num_stages_inter,
-                output_dtype=matQ.dtype,
-                eps=eps,
+            matH_out, vecN_out, vecM_out, last_states, all_states = (
+                cortex.kernels.triton.mlstm.torch.fw.mlstm_chunkwise_fw(
+                    matQ=matQ,
+                    matK=matK,
+                    matV=matV,
+                    vecI=vecI,
+                    vecF=vecF,
+                    reset_mask=reset_mask,
+                    matC_initial=matC_initial,
+                    vecN_initial=vecN_initial,
+                    scaM_initial=scaM_initial,
+                    qk_scale=qk_scale,
+                    return_last_states=return_last_states,
+                    return_all_states=(not recompute_states_in_bw),
+                    chunk_size=chunk_size,
+                    chunk_size_inter=chunk_size_inter,
+                    chunk_size_intra=chunk_size_intra,
+                    siz_b_L_parallel=siz_b_L_parallel,
+                    siz_b_L_loop=siz_b_L_loop,
+                    siz_b_DH_parallel=siz_b_DH_parallel,
+                    siz_b_DH_loop=siz_b_DH_loop,
+                    num_warps_intra=num_warps_intra,
+                    num_warps_inter=num_warps_inter,
+                    num_stages_intra=num_stages_intra,
+                    num_stages_inter=num_stages_inter,
+                    output_dtype=matQ.dtype,
+                    eps=eps,
+                )
             )
 
             if return_last_states:
@@ -122,8 +123,8 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16) -> Cal
             return matH_out, matC_last, vecN_last, scaM_last
 
         @staticmethod
-        @custom_bwd(device_type="cuda")
-        @contiguous
+        @torch.amp.custom_bwd(device_type="cuda")
+        @cortex.kernels.triton.mlstm.utils.contiguous
         def backward(ctx, matDeltaH_out, matDeltaC_last, vecDeltaN_last, scaDeltaM_last):
             (
                 matQ,
@@ -150,7 +151,7 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16) -> Cal
                 matDeltaC_initial,
                 vecDeltaN_initial,
                 scaDeltaM_initial,
-            ) = mlstm_chunkwise_bw(
+            ) = cortex.kernels.triton.mlstm.torch.bw.mlstm_chunkwise_bw(
                 matQ=matQ,
                 matK=matK,
                 matV=matV,
@@ -217,7 +218,7 @@ _mlstm_chunkwise_fwbw_float16 = _mlstm_chunkwise_fwbw_generator(autocast_kernel_
 _mlstm_chunkwise_fwbw_bfloat16 = _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16)
 
 
-def _get_chunkwise_fwbw_kernel(autocast_kernel_dtype: torch.dtype) -> Callable:
+def _get_chunkwise_fwbw_kernel(autocast_kernel_dtype: torch.dtype) -> collections.abc.Callable:
     if autocast_kernel_dtype == torch.float32:
         return _mlstm_chunkwise_fwbw_float32
     elif autocast_kernel_dtype == torch.float16:

@@ -1,16 +1,15 @@
-from typing import List, Optional
+import typing
 
+import tensordict
+import tensordict.nn
 import torch
 import torch.nn as nn
-from tensordict import TensorDict
-from tensordict.nn import TensorDictModule as TDM
-from tensordict.nn import TensorDictSequential
 
+import metta.agent.components.component_config
 import pufferlib.pytorch
-from metta.agent.components.component_config import ComponentConfig
 
 
-class MLPConfig(ComponentConfig):
+class MLPConfig(metta.agent.components.component_config.ComponentConfig):
     """Variable depth MLP. You don't have to set input feats since it uses lazy linear.
     Don't set an output nonlinearity if it's used as an output head!"""
 
@@ -18,10 +17,10 @@ class MLPConfig(ComponentConfig):
     out_key: str
     out_features: int
     name: str = "mlp"
-    hidden_features: List[int]
-    in_features: Optional[int] = None
-    nonlinearity: Optional[str] = "ReLU"  # e.g., "ReLU", "Tanh"; Name of a torch.nn module
-    output_nonlinearity: Optional[str] = None  # e.g., "ReLU", "Tanh"; Name of a torch.nn module
+    hidden_features: typing.List[int]
+    in_features: typing.Optional[int] = None
+    nonlinearity: typing.Optional[str] = "ReLU"  # e.g., "ReLU", "Tanh"; Name of a torch.nn module
+    output_nonlinearity: typing.Optional[str] = None  # e.g., "ReLU", "Tanh"; Name of a torch.nn module
     layer_init_std: float = 1.0
 
     def make_component(self, env=None):
@@ -59,22 +58,30 @@ class MLP(nn.Module):
                 # Nested key under the MLP's name
                 layer_out_key = (self.config.name, f"layer_{i}_out")
 
-            tdm = TDM(linear_layer, in_keys=[current_in_key], out_keys=[layer_out_key])
+            tdm = tensordict.nn.TensorDictModule(linear_layer, in_keys=[current_in_key], out_keys=[layer_out_key])
             layers.append(tdm)
 
             if is_last_layer:
                 if self.config.output_nonlinearity:
                     nonlinearity_module = self._get_nonlinearity(self.config.output_nonlinearity)
-                    layers.append(TDM(nonlinearity_module, in_keys=[layer_out_key], out_keys=[layer_out_key]))
+                    layers.append(
+                        tensordict.nn.TensorDictModule(
+                            nonlinearity_module, in_keys=[layer_out_key], out_keys=[layer_out_key]
+                        )
+                    )
             elif self.config.nonlinearity:
                 nonlinearity_module = self._get_nonlinearity(self.config.nonlinearity)
                 # Apply nonlinearity in-place on the output key of the linear layer
-                layers.append(TDM(nonlinearity_module, in_keys=[layer_out_key], out_keys=[layer_out_key]))
+                layers.append(
+                    tensordict.nn.TensorDictModule(
+                        nonlinearity_module, in_keys=[layer_out_key], out_keys=[layer_out_key]
+                    )
+                )
 
             current_in_features = out_features
             current_in_key = layer_out_key
 
-        self.network = TensorDictSequential(*layers)
+        self.network = tensordict.nn.TensorDictSequential(*layers)
 
     def _get_nonlinearity(self, name: str) -> nn.Module:
         if hasattr(nn, name):
@@ -83,12 +90,12 @@ class MLP(nn.Module):
                 return cls()
         raise ValueError(f"Unsupported or unknown nonlinearity in torch.nn: {name}")
 
-    def forward(self, td: TensorDict) -> TensorDict:
+    def forward(self, td: tensordict.TensorDict) -> tensordict.TensorDict:
         return self.network(td)
 
 
 ###------------- Deep Residual MLP -------------------------
-class DeepResMLPConfig(ComponentConfig):
+class DeepResMLPConfig(metta.agent.components.component_config.ComponentConfig):
     in_key: str
     out_key: str
     depth: int
@@ -157,7 +164,7 @@ class ResNetMLP(nn.Module):
 
         self.residual_layers = nn.Sequential(*[ResidualBlock(hidden_size) for _ in range(self._num_blocks)])
 
-    def forward(self, td: TensorDict):
+    def forward(self, td: tensordict.TensorDict):
         x = td[self.config.in_key]
         x = self.residual_layers(x)
         td[self.config.out_key] = x

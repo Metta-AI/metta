@@ -6,25 +6,18 @@
 of the mLSTM chunkwise formulation. It should allow arbitrary large chunk sizes and head dimensions.
 """
 
+import cortex.kernels.triton.mlstm.torch.bw_parallel_dK
+import cortex.kernels.triton.mlstm.torch.bw_parallel_dQ
+import cortex.kernels.triton.mlstm.torch.bw_parallel_dV
+import cortex.kernels.triton.mlstm.torch.bw_recurrent
+import cortex.kernels.triton.mlstm.torch.chunkwise_gates
+import cortex.kernels.triton.mlstm.torch.fw_recurrent
+import cortex.kernels.triton.mlstm.triton.chunkwise_kernel_param_heuristics
+import cortex.kernels.triton.mlstm.utils
 import torch
 
-from cortex.kernels.triton.mlstm.triton.chunkwise_kernel_param_heuristics import (
-    get_xl_chunk_kernel_params,
-)
-from cortex.kernels.triton.mlstm.utils import contiguous_noctx
 
-from .bw_parallel_dK import mlstm_chunkwise__parallel_bw_dK
-from .bw_parallel_dQ import mlstm_chunkwise__parallel_bw_dQ
-from .bw_parallel_dV import mlstm_chunkwise__parallel_bw_dV
-from .bw_recurrent import mlstm_chunkwise__recurrent_bw_dC
-from .chunkwise_gates import (
-    compute_chunkwise_log_gates_vecB_vecA,
-    compute_gate_grads_vecDeltaI_vecDeltaF,
-)
-from .fw_recurrent import mlstm_chunkwise__recurrent_fw_C
-
-
-@contiguous_noctx
+@cortex.kernels.triton.mlstm.utils.contiguous_noctx
 def mlstm_chunkwise_bw(
     ## Forward arguments
     matQ: torch.Tensor,  # (B, NH, S, DHQK)
@@ -77,13 +70,15 @@ def mlstm_chunkwise_bw(
     while S % L != 0 and L > 16:
         L //= 2
 
-    kernel_chunk_params = get_xl_chunk_kernel_params(
-        sequence_length=S,
-        target_chunk_size=None,
-        chunk_size_intra=L,
-        siz_b_L_loop=L,
-        siz_b_L_parallel=L,
-        chunk_size_inter=L,
+    kernel_chunk_params = (
+        cortex.kernels.triton.mlstm.triton.chunkwise_kernel_param_heuristics.get_xl_chunk_kernel_params(
+            sequence_length=S,
+            target_chunk_size=None,
+            chunk_size_intra=L,
+            siz_b_L_loop=L,
+            siz_b_L_parallel=L,
+            chunk_size_inter=L,
+        )
     )
 
     #! recompute the "all" states if needed
@@ -92,19 +87,21 @@ def mlstm_chunkwise_bw(
             "Either all or none of the states must be provided."
         )
 
-        matCstate_all, vecNstate_all, scaMstate_all = mlstm_chunkwise__recurrent_fw_C(
-            matK=matK,
-            matV=matV,
-            vecF=vecF,
-            vecI=vecI,
-            vecLastSegMask=None,
-            matC_initial=matC_initial,
-            vecN_initial=vecN_initial,
-            scaMinter_initial=scaM_initial,
-            chunk_size=kernel_chunk_params.chunk_size_inter,
-            save_states_every_nth_chunk=kernel_chunk_params.save_states_every_nth_chunk,
-            num_stages=num_stages_inter,
-            num_warps=num_warps_inter,
+        matCstate_all, vecNstate_all, scaMstate_all = (
+            cortex.kernels.triton.mlstm.torch.fw_recurrent.mlstm_chunkwise__recurrent_fw_C(
+                matK=matK,
+                matV=matV,
+                vecF=vecF,
+                vecI=vecI,
+                vecLastSegMask=None,
+                matC_initial=matC_initial,
+                vecN_initial=vecN_initial,
+                scaMinter_initial=scaM_initial,
+                chunk_size=kernel_chunk_params.chunk_size_inter,
+                save_states_every_nth_chunk=kernel_chunk_params.save_states_every_nth_chunk,
+                num_stages=num_stages_inter,
+                num_warps=num_warps_inter,
+            )
         )
 
     #! recurrent backward: compute the deltaC (& deltaN) gradients
@@ -120,7 +117,7 @@ def mlstm_chunkwise_bw(
         last_prefix = prefix_inclusive[..., -1:].expand_as(prefix_inclusive)
         prefix_inclusive.eq(last_prefix).to(matQ.dtype)
 
-    matDeltaC_states = mlstm_chunkwise__recurrent_bw_dC(
+    matDeltaC_states = cortex.kernels.triton.mlstm.torch.bw_recurrent.mlstm_chunkwise__recurrent_bw_dC(
         matQ=matQ,  # (B, NH, S, DHQK)
         vecF=vecF,  # (B, NH, S)
         scaM_inter=scaMstate_all,  # (B, NH, NCintra+1)
@@ -138,7 +135,7 @@ def mlstm_chunkwise_bw(
 
     #! parallel backward: compute the deltaQ, deltaK, deltaV gradients
     # Compute reset-aware gates for backward parallel (mask vecA for last-segment positions per intra-chunk)
-    vecB, vecA = compute_chunkwise_log_gates_vecB_vecA(
+    vecB, vecA = cortex.kernels.triton.mlstm.torch.chunkwise_gates.compute_chunkwise_log_gates_vecB_vecA(
         chunk_size=kernel_chunk_params.chunk_size_intra, vecI=vecI, vecF=vecF
     )
     vecSegId_intra = None
@@ -161,7 +158,7 @@ def mlstm_chunkwise_bw(
         )
     grad_output_dtype = matQ.dtype
     #! compute deltaV
-    matDeltaV = mlstm_chunkwise__parallel_bw_dV(
+    matDeltaV = cortex.kernels.triton.mlstm.torch.bw_parallel_dV.mlstm_chunkwise__parallel_bw_dV(
         matQ=matQ,
         matK=matK,
         matV=matV,
@@ -189,7 +186,7 @@ def mlstm_chunkwise_bw(
     )
 
     #! compute deltaK
-    matDeltaK = mlstm_chunkwise__parallel_bw_dK(
+    matDeltaK = cortex.kernels.triton.mlstm.torch.bw_parallel_dK.mlstm_chunkwise__parallel_bw_dK(
         matQ=matQ,
         matK=matK,
         matV=matV,
@@ -217,7 +214,7 @@ def mlstm_chunkwise_bw(
     )
 
     #! compute deltaQ
-    matDeltaQ = mlstm_chunkwise__parallel_bw_dQ(
+    matDeltaQ = cortex.kernels.triton.mlstm.torch.bw_parallel_dQ.mlstm_chunkwise__parallel_bw_dQ(
         matQ=matQ,
         matK=matK,
         matV=matV,
@@ -244,7 +241,7 @@ def mlstm_chunkwise_bw(
         output_dtype=grad_output_dtype,
     )
 
-    vecDeltaI, vecDeltaF = compute_gate_grads_vecDeltaI_vecDeltaF(
+    vecDeltaI, vecDeltaF = cortex.kernels.triton.mlstm.torch.chunkwise_gates.compute_gate_grads_vecDeltaI_vecDeltaF(
         matQ=matQ, matK=matK, matDeltaQ=matDeltaQ, matDeltaK=matDeltaK, vecF=vecF
     )
 

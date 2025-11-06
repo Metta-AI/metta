@@ -1,23 +1,23 @@
 """Base component class for miniscope renderer."""
 
-from abc import ABC, abstractmethod
-from typing import List, Optional
+import abc
+import typing
 
-from rich.console import Console
+import rich.console
 
-from mettagrid.renderer.miniscope.miniscope_panel import MiniscopePanel, PanelLayout
-from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
-from mettagrid.simulator import Simulation
+import mettagrid.renderer.miniscope.miniscope_panel
+import mettagrid.renderer.miniscope.miniscope_state
+import mettagrid.simulator
 
 
-class MiniscopeComponent(ABC):
+class MiniscopeComponent(abc.ABC):
     """Base class for miniscope renderer components."""
 
     def __init__(
         self,
-        sim: Simulation,
-        state: MiniscopeState,
-        panels: PanelLayout,
+        sim: mettagrid.simulator.Simulation,
+        state: mettagrid.renderer.miniscope.miniscope_state.MiniscopeState,
+        panels: mettagrid.renderer.miniscope.miniscope_panel.PanelLayout,
     ):
         """Initialize the component.
 
@@ -29,27 +29,27 @@ class MiniscopeComponent(ABC):
         self._sim = sim
         self._state = state
         self._panels = panels
-        self._panel: Optional[MiniscopePanel] = None
-        self._width: Optional[int] = None
-        self._height: Optional[int] = None
-        self._console = Console()
+        self._panel: typing.Optional[mettagrid.renderer.miniscope.miniscope_panel.MiniscopePanel] = None
+        self._width: typing.Optional[int] = None
+        self._height: typing.Optional[int] = None
+        self._console = rich.console.Console()
 
     @property
-    def env(self) -> Simulation:
+    def env(self) -> mettagrid.simulator.Simulation:
         """Get the environment."""
         return self._sim
 
     @property
-    def state(self) -> MiniscopeState:
+    def state(self) -> mettagrid.renderer.miniscope.miniscope_state.MiniscopeState:
         """Return the shared renderer state."""
         return self._state
 
     @property
-    def panels(self) -> PanelLayout:
+    def panels(self) -> mettagrid.renderer.miniscope.miniscope_panel.PanelLayout:
         """Return the panel layout registry."""
         return self._panels
 
-    def _set_panel(self, panel: Optional[MiniscopePanel]) -> None:
+    def _set_panel(self, panel: typing.Optional[mettagrid.renderer.miniscope.miniscope_panel.MiniscopePanel]) -> None:
         """Set the panel for this component and update dimensions.
 
         Args:
@@ -62,7 +62,7 @@ class MiniscopeComponent(ABC):
         self._width = panel.width
         self._height = panel.height
 
-    def _pad_lines(self, lines: List[str], width: int) -> List[str]:
+    def _pad_lines(self, lines: typing.List[str], width: int) -> typing.List[str]:
         """Pad lines to a specific width.
 
         Args:
@@ -80,7 +80,7 @@ class MiniscopeComponent(ABC):
         """Handle user input for this component."""
         return False
 
-    @abstractmethod
+    @abc.abstractmethod
     def update(self) -> None:
         """Update the component and set its panel content.
 

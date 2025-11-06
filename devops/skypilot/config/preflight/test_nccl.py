@@ -8,7 +8,7 @@ import socket
 import subprocess
 import sys
 import time
-from typing import Any, Optional
+import typing
 
 import torch
 import torch.distributed as dist
@@ -21,7 +21,7 @@ def measure_p2p_bandwidth(
     message_size_mb: int = 64,
     num_iterations: int = 10,
     num_warmup: int = 5,
-) -> Optional[dict[str, float]]:
+) -> typing.Optional[dict[str, float]]:
     """Measure point-to-point bandwidth between two specific ranks."""
     rank = dist.get_rank()
     world_size = dist.get_world_size()
@@ -160,7 +160,7 @@ def measure_allreduce_bandwidth(
     return results if rank == 0 else []
 
 
-def collect_nccl_benchmarks() -> dict[str, Any] | None:
+def collect_nccl_benchmarks() -> dict[str, typing.Any] | None:
     """Run NCCL bandwidth benchmarks with minimal synchronization."""
     try:
         local_rank = int(os.environ.get("LOCAL_RANK", 0))
@@ -205,7 +205,7 @@ def collect_nccl_benchmarks() -> dict[str, Any] | None:
         return None
 
 
-def format_benchmark_results(results: dict[str, Any]) -> str:
+def format_benchmark_results(results: dict[str, typing.Any]) -> str:
     """Format benchmark results as a string instead of printing directly."""
     output = io.StringIO()
 
@@ -236,7 +236,7 @@ def format_benchmark_results(results: dict[str, Any]) -> str:
     return output.getvalue()
 
 
-def print_benchmark_results(results: dict[str, Any], topology: dict[str, Any] | None = None) -> None:
+def print_benchmark_results(results: dict[str, typing.Any], topology: dict[str, typing.Any] | None = None) -> None:
     """Pretty print benchmark results with topology-aware interpretation."""
     output = format_benchmark_results(results)
 
@@ -315,7 +315,7 @@ def run_command(cmd: list[str], check: bool = False) -> tuple[int, str, str]:
         return -1, "", str(e)
 
 
-def parse_gpu_topology(topo_output: str) -> dict[str, Any]:
+def parse_gpu_topology(topo_output: str) -> dict[str, typing.Any]:
     """Parse nvidia-smi topology matrix output."""
     lines = topo_output.strip().split("\n")
     topology = {
@@ -378,7 +378,7 @@ def parse_gpu_topology(topo_output: str) -> dict[str, Any]:
     return topology
 
 
-def analyze_topology_performance(topology: dict[str, Any]) -> dict[str, Any]:
+def analyze_topology_performance(topology: dict[str, typing.Any]) -> dict[str, typing.Any]:
     """Analyze topology for performance implications."""
     analysis = {"nvlink_pairs": [], "isolated_gpus": [], "topology_type": "unknown", "recommendations": []}
 
@@ -432,7 +432,7 @@ def analyze_topology_performance(topology: dict[str, Any]) -> dict[str, Any]:
     return analysis
 
 
-def get_gpu_diagnostics(node_index: int) -> dict[str, Any]:
+def get_gpu_diagnostics(node_index: int) -> dict[str, typing.Any]:
     """Collect comprehensive GPU diagnostics."""
     diagnostics = {
         "nvidia_smi": None,
@@ -501,7 +501,7 @@ def get_gpu_diagnostics(node_index: int) -> dict[str, Any]:
     return diagnostics
 
 
-def get_system_diagnostics() -> dict[str, Any]:
+def get_system_diagnostics() -> dict[str, typing.Any]:
     """Collect comprehensive system diagnostics."""
     diagnostics = {}
 
@@ -593,7 +593,7 @@ def get_system_diagnostics() -> dict[str, Any]:
     return diagnostics
 
 
-def format_system_diagnostics(diagnostics: dict[str, Any]) -> str:
+def format_system_diagnostics(diagnostics: dict[str, typing.Any]) -> str:
     """Format system diagnostics as a string instead of printing directly."""
     output = io.StringIO()
 
@@ -675,12 +675,12 @@ def format_system_diagnostics(diagnostics: dict[str, Any]) -> str:
     return output.getvalue()
 
 
-def print_system_diagnostics(diagnostics: dict[str, Any]) -> None:
+def print_system_diagnostics(diagnostics: dict[str, typing.Any]) -> None:
     """Print system diagnostics in a clean format - kept for backward compatibility."""
     print(format_system_diagnostics(diagnostics))
 
 
-def format_gpu_diagnostics(diagnostics: dict[str, Any]) -> str:
+def format_gpu_diagnostics(diagnostics: dict[str, typing.Any]) -> str:
     """Format GPU diagnostics as a string instead of printing directly."""
     output = io.StringIO()
 
@@ -754,7 +754,7 @@ def format_gpu_diagnostics(diagnostics: dict[str, Any]) -> str:
     return output.getvalue()
 
 
-def print_diagnostics(diagnostics: dict[str, Any]) -> None:
+def print_diagnostics(diagnostics: dict[str, typing.Any]) -> None:
     """Pretty print GPU diagnostics information - kept for backward compatibility."""
     print(format_gpu_diagnostics(diagnostics))
 

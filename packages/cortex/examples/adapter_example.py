@@ -5,15 +5,8 @@ AdapterBlocks allow you to add trainable residual paths that start as identity,
 making them perfect for fine-tuning pretrained models without disrupting learned behavior.
 """
 
+import cortex
 import torch
-from cortex import (
-    AdapterBlockConfig,
-    CortexStack,
-    CortexStackConfig,
-    LSTMCellConfig,
-    PassThroughBlockConfig,
-    PreUpBlockConfig,
-)
 
 
 def test_basic_adapter():
@@ -27,11 +20,11 @@ def test_basic_adapter():
     d_hidden = 128
 
     # Create a stack with an adapter wrapping a simple LSTM block
-    config = CortexStackConfig(
+    config = cortex.CortexStackConfig(
         d_hidden=d_hidden,
         blocks=[
-            AdapterBlockConfig(
-                base_block=PassThroughBlockConfig(cell=LSTMCellConfig(hidden_size=128, num_layers=1)),
+            cortex.AdapterBlockConfig(
+                base_block=cortex.PassThroughBlockConfig(cell=cortex.LSTMCellConfig(hidden_size=128, num_layers=1)),
                 bottleneck=32,  # Small bottleneck for efficiency
                 per_channel_gate=False,  # Scalar gate
             )
@@ -39,7 +32,7 @@ def test_basic_adapter():
         post_norm=False,  # No post norm for identity check
     )
 
-    stack = CortexStack(config)
+    stack = cortex.CortexStack(config)
     stack.to(device=device, dtype=dtype)
 
     print("Stack configuration:")
@@ -79,20 +72,20 @@ def test_freezing_and_training():
     d_hidden = 128
 
     # Create stack with multiple blocks, some wrapped with adapters
-    config = CortexStackConfig(
+    config = cortex.CortexStackConfig(
         d_hidden=d_hidden,
         blocks=[
-            PassThroughBlockConfig(cell=LSTMCellConfig(hidden_size=128, num_layers=1)),  # Regular block
-            AdapterBlockConfig(
-                base_block=PassThroughBlockConfig(cell=LSTMCellConfig(hidden_size=128, num_layers=1)),
+            cortex.PassThroughBlockConfig(cell=cortex.LSTMCellConfig(hidden_size=128, num_layers=1)),  # Regular block
+            cortex.AdapterBlockConfig(
+                base_block=cortex.PassThroughBlockConfig(cell=cortex.LSTMCellConfig(hidden_size=128, num_layers=1)),
                 bottleneck=32,
             ),  # Adapter
-            PassThroughBlockConfig(cell=LSTMCellConfig(hidden_size=128, num_layers=1)),  # Regular block
+            cortex.PassThroughBlockConfig(cell=cortex.LSTMCellConfig(hidden_size=128, num_layers=1)),  # Regular block
         ],
         post_norm=True,
     )
 
-    stack = CortexStack(config)
+    stack = cortex.CortexStack(config)
     stack.to(device=device, dtype=dtype)
     stack.train()
 
@@ -108,9 +101,9 @@ def test_freezing_and_training():
     # Freeze all non-adapter blocks
     frozen_count = 0
     for i, block in enumerate(stack.blocks):
-        from cortex.blocks.adapter import AdapterBlock
+        import cortex.blocks.adapter
 
-        if not isinstance(block, AdapterBlock):
+        if not isinstance(block, cortex.blocks.adapter.AdapterBlock):
             for param in block.parameters():
                 param.requires_grad = False
                 frozen_count += param.numel()
@@ -148,12 +141,12 @@ def test_adapter_wrapping_preup():
     seq_len = 5
     d_hidden = 128
 
-    config = CortexStackConfig(
+    config = cortex.CortexStackConfig(
         d_hidden=d_hidden,
         blocks=[
-            AdapterBlockConfig(
-                base_block=PreUpBlockConfig(
-                    cell=LSTMCellConfig(hidden_size=None, num_layers=2),  # Inferred: 2x upsampling
+            cortex.AdapterBlockConfig(
+                base_block=cortex.PreUpBlockConfig(
+                    cell=cortex.LSTMCellConfig(hidden_size=None, num_layers=2),  # Inferred: 2x upsampling
                     proj_factor=2.0,
                 ),
                 bottleneck=64,
@@ -164,7 +157,7 @@ def test_adapter_wrapping_preup():
         post_norm=True,
     )
 
-    stack = CortexStack(config)
+    stack = cortex.CortexStack(config)
     stack.to(device=device, dtype=dtype)
 
     print("Adapter wrapping PreUp block:")

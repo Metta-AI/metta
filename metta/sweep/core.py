@@ -5,19 +5,19 @@ hyperparameter search spaces, along with convenience builders and a thin
 factory (`make_sweep`) for constructing sweep tools.
 """
 
-from enum import StrEnum
-from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Union
+import enum
+import typing
 
-from pydantic import Field, model_validator
+import pydantic
 
-from mettagrid.base_config import Config
+import mettagrid.base_config
 
-if TYPE_CHECKING:
+if typing.TYPE_CHECKING:
     # For type checking only; avoid runtime import cycles
-    from metta.tools.sweep import SweepTool
+    import metta.tools.sweep
 
 
-class Distribution(StrEnum):
+class Distribution(enum.StrEnum):
     """Supported parameter distributions."""
 
     UNIFORM = "uniform"
@@ -27,7 +27,7 @@ class Distribution(StrEnum):
     LOGIT_NORMAL = "logit_normal"
 
 
-class ParameterConfig(Config):
+class ParameterConfig(mettagrid.base_config.Config):
     """Configuration for a single hyperparameter to optimize.
 
     Performs internal validation/sanitization:
@@ -36,17 +36,17 @@ class ParameterConfig(Config):
     - Ensures min < max
     """
 
-    min: float = Field(description="Minimum value for the parameter")
-    max: float = Field(description="Maximum value for the parameter")
-    distribution: Literal["uniform", "int_uniform", "uniform_pow2", "log_normal", "logit_normal"] = Field(
-        description="Distribution type for sampling"
+    min: float = pydantic.Field(description="Minimum value for the parameter")
+    max: float = pydantic.Field(description="Maximum value for the parameter")
+    distribution: typing.Literal["uniform", "int_uniform", "uniform_pow2", "log_normal", "logit_normal"] = (
+        pydantic.Field(description="Distribution type for sampling")
     )
-    mean: float = Field(description="Mean/center value for search")
-    scale: float | str = Field(description="Scale for the parameter search")
+    mean: float = pydantic.Field(description="Mean/center value for search")
+    scale: float | str = pydantic.Field(description="Scale for the parameter search")
 
-    @model_validator(mode="before")
+    @pydantic.model_validator(mode="before")
     @classmethod
-    def _sanitize_and_default(cls, values: Any) -> Any:
+    def _sanitize_and_default(cls, values: typing.Any) -> typing.Any:
         if not isinstance(values, dict):
             return values
 
@@ -88,7 +88,7 @@ class ParameterConfig(Config):
         return v
 
 
-class CategoricalParameterConfig(Config):
+class CategoricalParameterConfig(mettagrid.base_config.Config):
     """Configuration for a categorical hyperparameter.
 
     Optimizer adapters may map this to their native categorical representation.
@@ -96,7 +96,7 @@ class CategoricalParameterConfig(Config):
     categories via indices or one-hot schemes as appropriate.
     """
 
-    choices: List[Any] = Field(description="List of allowed categorical values")
+    choices: typing.List[typing.Any] = pydantic.Field(description="List of allowed categorical values")
 
 
 class SweepParameters:
@@ -110,7 +110,7 @@ class SweepParameters:
         max: float,
         search_center: float | None = None,
         scale: str = "auto",
-    ) -> Dict[str, ParameterConfig]:
+    ) -> typing.Dict[str, ParameterConfig]:
         """Create a custom parameter; ParameterConfig handles validation/defaults."""
         kwargs: dict[str, object] = {
             "min": min,
@@ -125,8 +125,8 @@ class SweepParameters:
     @staticmethod
     def categorical(
         name: str,
-        choices: List[Any],
-    ) -> Dict[str, CategoricalParameterConfig]:
+        choices: typing.List[typing.Any],
+    ) -> typing.Dict[str, CategoricalParameterConfig]:
         """Create a categorical parameter.
 
         Args:
@@ -218,11 +218,11 @@ def make_sweep(
     train_entrypoint: str,
     eval_entrypoint: str,
     objective: str,
-    parameters: Union[Dict[str, ParameterSpec], List[Dict[str, ParameterSpec]]],
+    parameters: typing.Union[typing.Dict[str, ParameterSpec], typing.List[typing.Dict[str, ParameterSpec]]],
     max_trials: int = 10,
     num_parallel_trials: int = 1,
-    train_overrides: Optional[Dict] = None,
-    eval_overrides: Optional[Dict] = None,
+    train_overrides: typing.Optional[typing.Dict] = None,
+    eval_overrides: typing.Optional[typing.Dict] = None,
     # Catch all for un-exposed tool overrides.
     # See SweepTool definition for details.
     **advanced,
@@ -260,23 +260,22 @@ def make_sweep(
         parameters = flat_params
 
     # Local imports to avoid circular dependencies
-    from metta.sweep.protein_config import ProteinConfig, ProteinSettings
-    from metta.tools.sweep import SweepSchedulerType, SweepTool
+    import metta.sweep.protein_config
 
-    protein_config = ProteinConfig(
+    protein_config = metta.sweep.protein_config.ProteinConfig(
         metric=objective,
         goal=advanced.pop("goal", "maximize"),
         parameters=parameters,
-        settings=ProteinSettings(),
+        settings=metta.sweep.protein_config.ProteinSettings(),
     )
 
-    scheduler_type = SweepSchedulerType.ASYNC_CAPPED
+    scheduler_type = metta.tools.sweep.SweepSchedulerType.ASYNC_CAPPED
     scheduler_config = {
         "max_concurrent_evals": advanced.pop("max_concurrent_evals", min(2, num_parallel_trials)),
         "liar_strategy": advanced.pop("liar_strategy", "best"),
     }
 
-    return SweepTool(
+    return metta.tools.sweep.SweepTool(
         sweep_name=name,
         protein_config=protein_config,
         recipe_module=recipe,
@@ -298,11 +297,11 @@ def grid_search(
     train_entrypoint: str,
     eval_entrypoint: str,
     objective: str,
-    parameters: Union[Dict[str, Any], List[Dict[str, Any]]],
+    parameters: typing.Union[typing.Dict[str, typing.Any], typing.List[typing.Dict[str, typing.Any]]],
     max_trials: int = 10,
     num_parallel_trials: int = 1,
-    train_overrides: Optional[Dict] = None,
-    eval_overrides: Optional[Dict] = None,
+    train_overrides: typing.Optional[typing.Dict] = None,
+    eval_overrides: typing.Optional[typing.Dict] = None,
     # Catch all for un-exposed tool overrides.
     # See SweepTool definition for details.
     **advanced,
@@ -334,7 +333,7 @@ def grid_search(
     """
     # Convert list of single-item dicts to flat dict
     if isinstance(parameters, list):
-        flat_params: Dict[str, Any] = {}
+        flat_params: typing.Dict[str, typing.Any] = {}
         for item in parameters:
             if not isinstance(item, dict):
                 raise ValueError(f"List items must be dicts, got {type(item)}")
@@ -343,15 +342,12 @@ def grid_search(
             flat_params.update(item)
         parameters = flat_params
 
-    # Local imports to avoid circular dependencies
-    from metta.tools.sweep import SweepSchedulerType, SweepTool
-
-    scheduler_type = SweepSchedulerType.GRID_SEARCH
+    scheduler_type = metta.tools.sweep.SweepSchedulerType.GRID_SEARCH
 
     # No additional scheduler-config knobs for grid search beyond tool kwargs
-    scheduler_config: Dict[str, Any] = {}
+    scheduler_config: typing.Dict[str, typing.Any] = {}
 
-    return SweepTool(
+    return metta.tools.sweep.SweepTool(
         sweep_name=name,
         # Do not construct a ProteinConfig; grid path uses grid_parameters + grid_metric
         recipe_module=recipe,

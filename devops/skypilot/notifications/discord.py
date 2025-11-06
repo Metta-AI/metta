@@ -1,22 +1,26 @@
+import datetime
 import time
-from datetime import datetime, timezone
-from typing import Any
+import typing
 
-from devops.skypilot.notifications.notifier import NotificationBase, NotificationConfig
-from devops.skypilot.utils.job_config import JobConfig
-from metta.common.util.discord import send_to_discord
+import devops.skypilot.notifications.notifier
+import devops.skypilot.utils.job_config
+import metta.common.util.discord
 
 
-class DiscordNotifier(NotificationBase):
+class DiscordNotifier(devops.skypilot.notifications.notifier.NotificationBase):
     def __init__(self):
         super().__init__("Discord")
 
-    def _validate_config(self, job_config: JobConfig) -> str | None:
+    def _validate_config(self, job_config: devops.skypilot.utils.job_config.JobConfig) -> str | None:
         if not job_config.discord_webhook_url:
             return "Missing required field: webhook_url"
         return None
 
-    def _make_payload(self, notification: NotificationConfig, job_config: JobConfig) -> dict[str, Any]:
+    def _make_payload(
+        self,
+        notification: devops.skypilot.notifications.notifier.NotificationConfig,
+        job_config: devops.skypilot.utils.job_config.JobConfig,
+    ) -> dict[str, typing.Any]:
         content_parts = [
             f"**{notification.title}**",
             "",
@@ -33,7 +37,7 @@ class DiscordNotifier(NotificationBase):
 
         content_parts.extend(
             [
-                f"**Time**: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S %Z')}",
+                f"**Time**: {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S %Z')}",
                 f"**Nodes**: {job_config.total_nodes}",
             ]
         )
@@ -45,5 +49,5 @@ class DiscordNotifier(NotificationBase):
         }
         return payload
 
-    def _send(self, payload: dict[str, Any]) -> None:
-        send_to_discord(**payload)
+    def _send(self, payload: dict[str, typing.Any]) -> None:
+        metta.common.util.discord.send_to_discord(**payload)

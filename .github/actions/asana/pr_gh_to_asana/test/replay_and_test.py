@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 import argparse
 import os
+import pathlib
 import re
 import shutil
 import subprocess
 import sys
-from pathlib import Path
 
 import yaml
 
@@ -48,7 +48,7 @@ def main():
     parser.add_argument("run_directory", help="Directory containing logs and artifacts from a workflow run.")
     args = parser.parse_args()
 
-    run_dir = Path(args.run_directory)
+    run_dir = pathlib.Path(args.run_directory)
     if not run_dir.is_dir():
         print(f"Error: Directory not found: {run_dir}", file=sys.stderr)
         sys.exit(1)
@@ -85,7 +85,7 @@ def main():
     print(f"Copied cassette to ./{expected_cassette_name} for replay.")
 
     # 3. Prepare to run the script under test
-    script_dir = Path(__file__).parent.resolve()
+    script_dir = pathlib.Path(__file__).parent.resolve()
     script_to_test = script_dir.parent / "pr_gh_to_asana.py"
 
     if not script_to_test.exists():
@@ -97,7 +97,7 @@ def main():
     test_env.update(env_vars)
     test_env["VCR_RECORD_MODE"] = "none"  # Fail on new HTTP requests
     test_env["PYTHONPATH"] = str(script_to_test.parent)  # Add script dir to path to find modules
-    test_env["VCR_CASSETTE_PATH"] = str(Path(expected_cassette_name).resolve())
+    test_env["VCR_CASSETTE_PATH"] = str(pathlib.Path(expected_cassette_name).resolve())
 
     print("\n" + "=" * 80)
     print(f"Running {script_to_test.name} in replay mode...")

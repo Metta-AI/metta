@@ -1,15 +1,14 @@
-from __future__ import annotations
 
+import contextlib
 import logging
-from contextlib import contextmanager
-from pathlib import Path
-from typing import Dict, List, Tuple, Union
+import pathlib
+import typing
 
 import duckdb
 
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.sim.stats.episode_stats_db import EpisodeStatsDB
-from metta.utils.file import exists, local_copy, write_file
+import metta.rl.checkpoint_manager
+import metta.sim.stats.episode_stats_db
+import metta.utils.file
 
 # Tables & indexes
 
@@ -38,11 +37,11 @@ SIMULATION_DB_TABLES = {
 }
 
 
-class SimulationStatsDB(EpisodeStatsDB):
-    def __init__(self, path: Path) -> None:
+class SimulationStatsDB(metta.sim.stats.episode_stats_db.EpisodeStatsDB):
+    def __init__(self, path: pathlib.Path) -> None:
         super().__init__(path)
 
-    def tables(self) -> Dict[str, str]:
+    def tables(self) -> typing.Dict[str, str]:
         """Add simulation tables to the parent tables.
         super().initialize_schema() will read this to initialize the schema.
         """
@@ -50,7 +49,7 @@ class SimulationStatsDB(EpisodeStatsDB):
         return {**parent_tables, **SIMULATION_DB_TABLES}
 
     @classmethod
-    @contextmanager
+    @contextlib.contextmanager
     def from_uri(cls, path: str):
         """
         Creates a StatsDB instance from a URI and yields it as a context manager.
@@ -61,7 +60,7 @@ class SimulationStatsDB(EpisodeStatsDB):
             with StatsDB.from_uri(uri) as db:
                 # do something with the StatsDB instance
         """
-        with local_copy(path) as local_path:
+        with metta.utils.file.local_copy(path) as local_path:
             db = cls(local_path)
             yield db
 
@@ -69,13 +68,13 @@ class SimulationStatsDB(EpisodeStatsDB):
     def from_shards_and_context(
         *,
         sim_id: str,
-        dir_with_shards: Union[str, Path],
-        agent_map: Dict[int, str],  # Now URIs instead of PolicyRecord
+        dir_with_shards: typing.Union[str, pathlib.Path],
+        agent_map: typing.Dict[int, str],  # Now URIs instead of PolicyRecord
         sim_name: str,
         sim_env: str,
         policy_uri: str,
     ) -> "SimulationStatsDB":
-        dir_with_shards = Path(dir_with_shards).expanduser().resolve()
+        dir_with_shards = pathlib.Path(dir_with_shards).expanduser().resolve()
         merged_path = dir_with_shards / "merged.duckdb"
 
         # Find shards
@@ -93,7 +92,7 @@ class SimulationStatsDB(EpisodeStatsDB):
         merged = SimulationStatsDB(merged_path)
 
         if policy_uri:
-            metadata = CheckpointManager.get_policy_metadata(policy_uri)
+            metadata = metta.rl.checkpoint_manager.CheckpointManager.get_policy_metadata(policy_uri)
             policy_key, policy_version = metadata["run_name"], metadata["epoch"]
         else:
             policy_key, policy_version = ("unknown", 0)
@@ -119,7 +118,7 @@ class SimulationStatsDB(EpisodeStatsDB):
             agent_tuple_map = {}
             for agent_id, uri in agent_map.items():
                 if uri:
-                    metadata = CheckpointManager.get_policy_metadata(uri)
+                    metadata = metta.rl.checkpoint_manager.CheckpointManager.get_policy_metadata(uri)
                     agent_tuple_map[agent_id] = (metadata["run_name"], metadata["epoch"])
                 else:
                     agent_tuple_map[agent_id] = ("unknown", 0)
@@ -147,18 +146,18 @@ class SimulationStatsDB(EpisodeStatsDB):
         Supported URI schemes: local paths and `s3://`.
         """
 
-        if exists(dest):
+        if metta.utils.file.exists(dest):
             logger = logging.getLogger(__name__)
             logger.info(f"Merging  {dest} into {self.path}")
             with SimulationStatsDB.from_uri(dest) as pre_existing:
                 self.merge_in(pre_existing)
         # Flush tables & data pages to disk
         self.con.execute("CHECKPOINT")
-        write_file(dest, str(self.path))
+        metta.utils.file.write_file(dest, str(self.path))
 
     def get_replay_urls(
         self, policy_uri: str | None = None, sim_suite: str | None = None, env: str | None = None
-    ) -> List[str]:
+    ) -> typing.List[str]:
         """Get replay URLs, optionally filtered by policy URI and/or environment."""
         query = """
         SELECT e.replay_url
@@ -169,7 +168,7 @@ class SimulationStatsDB(EpisodeStatsDB):
         params = []
 
         if policy_uri is not None:
-            metadata = CheckpointManager.get_policy_metadata(policy_uri)
+            metadata = metta.rl.checkpoint_manager.CheckpointManager.get_policy_metadata(policy_uri)
             policy_key, policy_version = metadata["run_name"], metadata["epoch"]
             query += " AND s.policy_key = ? AND s.policy_version = ?"
             params.extend([policy_key, policy_version])
@@ -198,8 +197,8 @@ class SimulationStatsDB(EpisodeStatsDB):
 
     def _insert_agent_policies(
         self,
-        episode_ids: List[str],
-        agent_map: Dict[int, Tuple[str, int]],
+        episode_ids: typing.List[str],
+        agent_map: typing.Dict[int, typing.Tuple[str, int]],
     ) -> None:
         if not agent_map or not episode_ids:
             return
@@ -238,11 +237,11 @@ class SimulationStatsDB(EpisodeStatsDB):
     def merge_in(self, other: "SimulationStatsDB") -> None:
         logger = logging.getLogger(__name__)
         if isinstance(other.path, str):
-            other_path = Path(other.path)
+            other_path = pathlib.Path(other.path)
         else:
             other_path = other.path
 
-        if Path(self.path).samefile(other_path):
+        if pathlib.Path(self.path).samefile(other_path):
             return
 
         def select_count() -> int:
@@ -256,7 +255,7 @@ class SimulationStatsDB(EpisodeStatsDB):
         logger.debug(f"After merge: {select_count()} episodes")
         logger.debug(f"Merged {other_path} into {self.path}")
 
-    def _merge_db(self, other_path: Path) -> None:
+    def _merge_db(self, other_path: pathlib.Path) -> None:
         """
         Merge the database at `other_path` into **self**.
         Used both by `from_shards_and_context` (i.e. Simulation merging envs) and `export` (i.e. export merging

@@ -1,23 +1,15 @@
-from __future__ import annotations
 
-from typing import Dict, Optional, Tuple
+import typing
 
+import cortex.kernels.cuda.rtu.rtu_stream_diag_cuda
+import cortex.kernels.pytorch.rtu.rtu_stream_diag
+import cortex.kernels.triton.rtu  # type: ignore
 import torch
-from cortex.kernels.cuda.rtu.rtu_stream_diag_cuda import rtu_stream_diag_cuda
-from cortex.kernels.pytorch.rtu.rtu_stream_diag import rtu_stream_diag_pytorch
-from cortex.kernels.triton.rtu import rtu_stream_diag_triton  # type: ignore
 
-from .common import (
-    BenchmarkCase,
-    BenchmarkDefinition,
-    BenchmarkSettings,
-    ColumnSpec,
-    measure_callable,
-    register,
-)
+import packages.cortex.benchmarks.common
 
 # Kernel-level streaming diagonal RTU benchmark (D == H), comparing PyTorch vs Triton
-CONFIGS: Tuple[Tuple[int, int, int, bool, float], ...] = (
+CONFIGS: typing.Tuple[typing.Tuple[int, int, int, bool, float], ...] = (
     (4, 128, 64, False, 0.0),
     (4, 256, 64, False, 0.0),
     (8, 256, 64, False, 0.0),
@@ -28,12 +20,14 @@ CONFIGS: Tuple[Tuple[int, int, int, bool, float], ...] = (
 )
 
 
-def _format_config(config: Tuple[int, int, int, bool, float]) -> str:
+def _format_config(config: typing.Tuple[int, int, int, bool, float]) -> str:
     b, t, h, use_resets, prob = config
     return f"({b}, {t}, {h}, {use_resets}, {prob})"
 
 
-def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, object]:
+def _run_case(
+    case: packages.cortex.benchmarks.common.BenchmarkCase, settings: packages.cortex.benchmarks.common.BenchmarkSettings
+) -> typing.Dict[str, object]:
     B, T, H, use_resets, p = case.values
     device = torch.device(settings.device)
     dtype = settings.dtype
@@ -47,14 +41,14 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
     hc1 = torch.zeros(B, H, device=device, dtype=dtype)
     hc2 = torch.zeros(B, H, device=device, dtype=dtype)
     trace_in = None
-    resets: Optional[torch.Tensor] = None
+    resets: typing.Optional[torch.Tensor] = None
     if use_resets:
         resets = (torch.rand(B, T, device=device) < float(p)).to(device=device)
 
     synchronize = device.type == "cuda"
 
     def run_pytorch():
-        y, _, _ = rtu_stream_diag_pytorch(
+        y, _, _ = cortex.kernels.pytorch.rtu.rtu_stream_diag.rtu_stream_diag_pytorch(
             x_btd=x,
             nu_log=nu_log,
             theta_log=theta_log,
@@ -68,14 +62,14 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
         )
         return y
 
-    y_pt, pt_time = measure_callable(
+    y_pt, pt_time = packages.cortex.benchmarks.common.measure_callable(
         run_pytorch,
         warmup=settings.warmup,
         iterations=settings.iterations,
         synchronize=synchronize,
     )
 
-    results: Dict[str, object] = {
+    results: typing.Dict[str, object] = {
         "pytorch_ms": pt_time * 1000.0,
         "triton_ms": None,
         "cuda_ms": None,
@@ -90,7 +84,7 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
 
     # Triton path if available
     def run_triton():
-        y, _, _ = rtu_stream_diag_triton(
+        y, _, _ = cortex.kernels.triton.rtu.rtu_stream_diag_triton(
             x_btd=x,
             nu_log=nu_log,
             theta_log=theta_log,
@@ -104,7 +98,7 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
         )
         return y
 
-    y_tr, tr_time = measure_callable(
+    y_tr, tr_time = packages.cortex.benchmarks.common.measure_callable(
         run_triton,
         warmup=settings.warmup,
         iterations=settings.iterations,
@@ -117,7 +111,7 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
 
     # CUDA path if available
     def run_cuda():
-        y, _, _ = rtu_stream_diag_cuda(
+        y, _, _ = cortex.kernels.cuda.rtu.rtu_stream_diag_cuda.rtu_stream_diag_cuda(
             x_btd=x,
             nu_log=nu_log,
             theta_log=theta_log,
@@ -131,7 +125,7 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
         )
         return y
 
-    y_cu, cu_time = measure_callable(
+    y_cu, cu_time = packages.cortex.benchmarks.common.measure_callable(
         run_cuda,
         warmup=settings.warmup,
         iterations=settings.iterations,
@@ -145,8 +139,8 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
     return results
 
 
-register(
-    BenchmarkDefinition(
+packages.cortex.benchmarks.common.register(
+    packages.cortex.benchmarks.common.BenchmarkDefinition(
         key="rtu",
         title="RTU Streaming Diagonal (D==H) PT vs Triton vs CUDA",
         description=(
@@ -161,13 +155,13 @@ register(
             "missing kernels are skipped."
         ),
         columns=(
-            ColumnSpec("pytorch_ms", "PyTorch (ms)", lambda v: f"{float(v):.3f}"),
-            ColumnSpec("triton_ms", "Triton (ms)", lambda v: f"{float(v):.3f}"),
-            ColumnSpec("cuda_ms", "CUDA (ms)", lambda v: f"{float(v):.3f}"),
-            ColumnSpec("speedup", "TRT/PT", lambda v: f"{float(v):.2f}x"),
-            ColumnSpec("speedup_cuda", "CUDA/PT", lambda v: f"{float(v):.2f}x"),
-            ColumnSpec("max_diff", "Max Diff TRT", lambda v: f"{float(v):.2e}"),
-            ColumnSpec("max_diff_cuda", "Max Diff CUDA", lambda v: f"{float(v):.2e}"),
+            packages.cortex.benchmarks.common.ColumnSpec("pytorch_ms", "PyTorch (ms)", lambda v: f"{float(v):.3f}"),
+            packages.cortex.benchmarks.common.ColumnSpec("triton_ms", "Triton (ms)", lambda v: f"{float(v):.3f}"),
+            packages.cortex.benchmarks.common.ColumnSpec("cuda_ms", "CUDA (ms)", lambda v: f"{float(v):.3f}"),
+            packages.cortex.benchmarks.common.ColumnSpec("speedup", "TRT/PT", lambda v: f"{float(v):.2f}x"),
+            packages.cortex.benchmarks.common.ColumnSpec("speedup_cuda", "CUDA/PT", lambda v: f"{float(v):.2f}x"),
+            packages.cortex.benchmarks.common.ColumnSpec("max_diff", "Max Diff TRT", lambda v: f"{float(v):.2e}"),
+            packages.cortex.benchmarks.common.ColumnSpec("max_diff_cuda", "Max Diff CUDA", lambda v: f"{float(v):.2e}"),
         ),
     )
 )

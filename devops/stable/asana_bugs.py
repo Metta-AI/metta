@@ -4,15 +4,14 @@ This module provides optional Asana integration to automatically check
 for blocking bugs before creating a stable release.
 """
 
-from __future__ import annotations
 
 import os
-from typing import Optional
+import typing
 
 import asana as asana_sdk
 
 
-def check_blockers() -> Optional[bool]:
+def check_blockers() -> typing.Optional[bool]:
     """Check for blocking bugs in Asana Active section.
 
     Returns:

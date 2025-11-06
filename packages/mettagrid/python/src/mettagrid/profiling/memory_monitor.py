@@ -1,10 +1,10 @@
 import inspect
 import sys
+import typing
 import weakref
-from typing import Any, Set
 
 
-def get_object_size(obj: Any, visited: Set[int] | None = None) -> int:
+def get_object_size(obj: typing.Any, visited: typing.Set[int] | None = None) -> int:
     """Get the deep memory usage of an object in bytes, handling circular references."""
     if visited is None:
         visited = set()
@@ -54,9 +54,9 @@ class MemoryMonitor:
     """Monitor memory usage of tracked objects using weak references."""
 
     def __init__(self):
-        self._tracked_objects: dict[str, dict[str, Any]] = {}
+        self._tracked_objects: dict[str, dict[str, typing.Any]] = {}
 
-    def add(self, obj: Any, name: str | None = None, track_attributes: bool = False) -> None:
+    def add(self, obj: typing.Any, name: str | None = None, track_attributes: bool = False) -> None:
         """Add object to monitor using weak references.
 
         Args:
@@ -93,7 +93,7 @@ class MemoryMonitor:
         except Exception as e:
             print(f"Warning: Could not track object {name}: {e}")
 
-    def _track_object_fields(self, obj: Any, name: str) -> None:
+    def _track_object_fields(self, obj: typing.Any, name: str) -> None:
         """Track each attribute/field of an object separately."""
         # Track each __dict__ attribute separately
         if hasattr(obj, "__dict__") and obj.__dict__:
@@ -151,7 +151,7 @@ class MemoryMonitor:
                         # Skip slots that can't be accessed or measured
                         pass
 
-    def _generate_name(self, obj: Any) -> str:
+    def _generate_name(self, obj: typing.Any) -> str:
         """Generate a name for an object based on its type and caller location."""
         obj_type = type(obj).__name__
 
@@ -197,7 +197,7 @@ class MemoryMonitor:
         """Remove all tracked objects."""
         self._tracked_objects.clear()
 
-    def get(self, name: str) -> dict[str, Any]:
+    def get(self, name: str) -> dict[str, typing.Any]:
         """Get stats for a specific tracked object."""
         if name not in self._tracked_objects:
             return {}

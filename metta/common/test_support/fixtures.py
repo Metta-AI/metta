@@ -10,7 +10,7 @@ def docker_client_fixture():
     def docker_client():
         try:
             import docker
-            from docker.errors import DockerException
+            import docker.errors
         except ImportError:
             pytest.skip("Docker is not installed")
 
@@ -18,7 +18,7 @@ def docker_client_fixture():
             client = docker.from_env(timeout=5)
             client.ping()
             return client
-        except (DockerException, ConnectionError, TimeoutError) as e:
+        except (docker.errors.DockerException, ConnectionError, TimeoutError) as e:
             pytest.skip(f"Docker daemon not available: {e}")
 
     return docker_client

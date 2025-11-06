@@ -1,7 +1,7 @@
-from pydantic import BaseModel
+import pydantic
 
 
-class BrewPackageConfig(BaseModel):
+class BrewPackageConfig(pydantic.BaseModel):
     """Configuration for a single package."""
 
     name: str
@@ -23,19 +23,19 @@ class BrewPackageConfig(BaseModel):
         return f"{self.fully_specified_name}"
 
 
-class AptPackageConfig(BaseModel):
+class AptPackageConfig(pydantic.BaseModel):
     """Configuration for a single package."""
 
     name: str
     version: str | None = None
 
 
-class PackageSpec(BaseModel):
+class PackageSpec(pydantic.BaseModel):
     """Package specification across different package managers."""
 
     brew: BrewPackageConfig | None = None
     apt: AptPackageConfig | None = None
 
 
-class SystemDepsConfig(BaseModel):
+class SystemDepsConfig(pydantic.BaseModel):
     packages: dict[str, PackageSpec]

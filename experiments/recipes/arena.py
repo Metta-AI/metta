@@ -1,34 +1,33 @@
-from typing import Optional, Sequence
+import typing
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from metta.cogworks.curriculum.curriculum import (
-    CurriculumAlgorithmConfig,
-    CurriculumConfig,
-)
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.sim.simulation_config import SimulationConfig
-from metta.tools.eval import EvaluateTool
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
-from metta.tools.train import TrainTool
-from mettagrid import MettaGridConfig
+import metta.cogworks.curriculum.curriculum
+import metta.cogworks.curriculum.learning_progress_algorithm
+import metta.rl.training
+import metta.sim.simulation_config
+import metta.tools.eval
+import metta.tools.play
+import metta.tools.replay
+import metta.tools.train
+import mettagrid
 
 # TODO(dehydration): make sure this trains as well as main on arena
 # it's possible the maps are now different
 
 
-def mettagrid(num_agents: int = 24) -> MettaGridConfig:
+def mettagrid(num_agents: int = 24) -> mettagrid.MettaGridConfig:
     arena_env = eb.make_arena(num_agents=num_agents)
     return arena_env
 
 
 def make_curriculum(
-    arena_env: Optional[MettaGridConfig] = None,
+    arena_env: typing.Optional[mettagrid.MettaGridConfig] = None,
     enable_detailed_slice_logging: bool = False,
-    algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
-) -> CurriculumConfig:
+    algorithm_config: typing.Optional[
+        metta.cogworks.curriculum.curriculum.CurriculumAlgorithmConfig
+    ] = None,
+) -> metta.cogworks.curriculum.curriculum.CurriculumConfig:
     arena_env = arena_env or mettagrid()
 
     arena_tasks = cc.bucketed(arena_env)
@@ -51,7 +50,7 @@ def make_curriculum(
     arena_tasks.add_bucket("game.agent.initial_inventory.battery_red", [0, 3])
 
     if algorithm_config is None:
-        algorithm_config = LearningProgressConfig(
+        algorithm_config = metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig(
             use_bidirectional=True,  # Default: bidirectional learning progress
             ema_timescale=0.001,
             exploration_bonus=0.1,
@@ -63,7 +62,9 @@ def make_curriculum(
     return arena_tasks.to_curriculum(algorithm_config=algorithm_config)
 
 
-def simulations(env: Optional[MettaGridConfig] = None) -> list[SimulationConfig]:
+def simulations(
+    env: typing.Optional[mettagrid.MettaGridConfig] = None,
+) -> list[metta.sim.simulation_config.SimulationConfig]:
     basic_env = env or mettagrid()
     basic_env.game.actions.attack.consumed_resources["laser"] = 100
 
@@ -71,26 +72,32 @@ def simulations(env: Optional[MettaGridConfig] = None) -> list[SimulationConfig]
     combat_env.game.actions.attack.consumed_resources["laser"] = 1
 
     return [
-        SimulationConfig(suite="arena", name="basic", env=basic_env),
-        SimulationConfig(suite="arena", name="combat", env=combat_env),
+        metta.sim.simulation_config.SimulationConfig(
+            suite="arena", name="basic", env=basic_env
+        ),
+        metta.sim.simulation_config.SimulationConfig(
+            suite="arena", name="combat", env=combat_env
+        ),
     ]
 
 
 def train(
-    curriculum: Optional[CurriculumConfig] = None,
+    curriculum: typing.Optional[
+        metta.cogworks.curriculum.curriculum.CurriculumConfig
+    ] = None,
     enable_detailed_slice_logging: bool = False,
-) -> TrainTool:
+) -> metta.tools.train.TrainTool:
     curriculum = curriculum or make_curriculum(
         enable_detailed_slice_logging=enable_detailed_slice_logging
     )
 
-    return TrainTool(
-        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        evaluator=EvaluatorConfig(simulations=simulations()),
+    return metta.tools.train.TrainTool(
+        training_env=metta.rl.training.TrainingEnvironmentConfig(curriculum=curriculum),
+        evaluator=metta.rl.training.EvaluatorConfig(simulations=simulations()),
     )
 
 
-def train_shaped(rewards: bool = True) -> TrainTool:
+def train_shaped(rewards: bool = True) -> metta.tools.train.TrainTool:
     env_cfg = mettagrid()
     env_cfg.game.agent.rewards.inventory["heart"] = 1
     env_cfg.game.agent.rewards.inventory_max["heart"] = 100
@@ -115,24 +122,26 @@ def train_shaped(rewards: bool = True) -> TrainTool:
             }
         )
 
-    return TrainTool(
-        training_env=TrainingEnvironmentConfig(curriculum=cc.env_curriculum(env_cfg)),
-        evaluator=EvaluatorConfig(simulations=simulations()),
+    return metta.tools.train.TrainTool(
+        training_env=metta.rl.training.TrainingEnvironmentConfig(
+            curriculum=cc.env_curriculum(env_cfg)
+        ),
+        evaluator=metta.rl.training.EvaluatorConfig(simulations=simulations()),
     )
 
 
 def evaluate(
-    policy_uris: str | Sequence[str] | None = None,
-) -> EvaluateTool:
-    return EvaluateTool(
+    policy_uris: str | typing.Sequence[str] | None = None,
+) -> metta.tools.eval.EvaluateTool:
+    return metta.tools.eval.EvaluateTool(
         simulations=simulations(),
         policy_uris=policy_uris,
     )
 
 
-def replay(policy_uri: Optional[str] = None) -> ReplayTool:
-    return ReplayTool(sim=simulations()[0], policy_uri=policy_uri)
+def replay(policy_uri: typing.Optional[str] = None) -> metta.tools.replay.ReplayTool:
+    return metta.tools.replay.ReplayTool(sim=simulations()[0], policy_uri=policy_uri)
 
 
-def play(policy_uri: Optional[str] = None) -> PlayTool:
-    return PlayTool(sim=simulations()[0], policy_uri=policy_uri)
+def play(policy_uri: typing.Optional[str] = None) -> metta.tools.play.PlayTool:
+    return metta.tools.play.PlayTool(sim=simulations()[0], policy_uri=policy_uri)

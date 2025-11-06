@@ -1,64 +1,68 @@
 import pytest
 
-from mettagrid.config.mettagrid_config import (
-    ActionsConfig,
-    ChangeVibeActionConfig,
-    GameConfig,
-    GlobalObsConfig,
-    MettaGridConfig,
-    MoveActionConfig,
-    NoopActionConfig,
-    ObsConfig,
-    WallConfig,
-)
-from mettagrid.map_builder.ascii import AsciiMapBuilder
-from mettagrid.map_builder.utils import create_grid
-from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
-from mettagrid.mettagrid_c import PackedCoordinate
-from mettagrid.simulator import Simulation
-from mettagrid.test_support import ObservationHelper, TokenTypes
+import mettagrid.config.mettagrid_config
+import mettagrid.map_builder.ascii
+import mettagrid.map_builder.utils
+import mettagrid.mapgen.utils.ascii_grid
+import mettagrid.mettagrid_c
+import mettagrid.simulator
+import mettagrid.test_support
 
 NUM_OBS_TOKENS = 50
 
 
 @pytest.fixture
-def basic_sim() -> Simulation:
+def basic_sim() -> mettagrid.simulator.Simulation:
     """Create a basic test environment."""
-    cfg = MettaGridConfig(
-        game=GameConfig(
+    cfg = mettagrid.config.mettagrid_config.MettaGridConfig(
+        game=mettagrid.config.mettagrid_config.GameConfig(
             num_agents=2,
-            obs=ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
+            obs=mettagrid.config.mettagrid_config.ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
             max_steps=1000,
-            actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
-            objects={"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)},
+            actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
+                move=mettagrid.config.mettagrid_config.MoveActionConfig(),
+            ),
+            objects={
+                "wall": mettagrid.config.mettagrid_config.WallConfig(
+                    type_id=mettagrid.test_support.TokenTypes.WALL_TYPE_ID
+                )
+            },
             resource_names=["laser", "armor", "heart"],
-            map_builder=AsciiMapBuilder.Config(
+            map_builder=mettagrid.map_builder.ascii.AsciiMapBuilder.Config(
                 map_data=[
                     ["#", "#", "#", "#", "#", "#", "#", "#"],
                     ["#", "@", ".", ".", ".", ".", ".", "#"],
                     ["#", ".", ".", ".", "@", ".", ".", "#"],
                     ["#", "#", "#", "#", "#", "#", "#", "#"],
                 ],
-                char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                char_to_name_map=mettagrid.mapgen.utils.ascii_grid.DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
 
-    return Simulation(cfg)
+    return mettagrid.simulator.Simulation(cfg)
 
 
 @pytest.fixture
-def adjacent_agents_sim() -> Simulation:
+def adjacent_agents_sim() -> mettagrid.simulator.Simulation:
     """Create an environment with adjacent agents."""
-    cfg = MettaGridConfig(
-        game=GameConfig(
+    cfg = mettagrid.config.mettagrid_config.MettaGridConfig(
+        game=mettagrid.config.mettagrid_config.GameConfig(
             num_agents=2,
-            obs=ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
+            obs=mettagrid.config.mettagrid_config.ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
             max_steps=1000,
-            actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
-            objects={"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)},
+            actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
+                move=mettagrid.config.mettagrid_config.MoveActionConfig(),
+            ),
+            objects={
+                "wall": mettagrid.config.mettagrid_config.WallConfig(
+                    type_id=mettagrid.test_support.TokenTypes.WALL_TYPE_ID
+                )
+            },
             resource_names=["laser", "armor", "heart"],
-            map_builder=AsciiMapBuilder.Config(
+            map_builder=mettagrid.map_builder.ascii.AsciiMapBuilder.Config(
                 map_data=[
                     ["#", "#", "#", "#", "#"],
                     ["#", ".", ".", ".", "#"],
@@ -66,12 +70,12 @@ def adjacent_agents_sim() -> Simulation:
                     ["#", ".", ".", ".", "#"],
                     ["#", "#", "#", "#", "#"],
                 ],
-                char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                char_to_name_map=mettagrid.mapgen.utils.ascii_grid.DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
 
-    return Simulation(cfg)
+    return mettagrid.simulator.Simulation(cfg)
 
 
 class TestObservations:
@@ -82,7 +86,7 @@ class TestObservations:
         obs = basic_sim._c_sim.observations()
 
         # global token is always at the center of the observation window
-        global_token_location = PackedCoordinate.pack(
+        global_token_location = mettagrid.mettagrid_c.PackedCoordinate.pack(
             basic_sim.config.game.obs.height // 2, basic_sim.config.game.obs.width // 2
         )
 
@@ -92,14 +96,14 @@ class TestObservations:
                 assert obs[agent_idx, token_idx, 0] == global_token_location
 
         # Test empty terminator
-        assert (obs[0, -1, :] == TokenTypes.EMPTY_TOKEN).all()
-        assert (obs[1, -1, :] == TokenTypes.EMPTY_TOKEN).all()
+        assert (obs[0, -1, :] == mettagrid.test_support.TokenTypes.EMPTY_TOKEN).all()
+        assert (obs[1, -1, :] == mettagrid.test_support.TokenTypes.EMPTY_TOKEN).all()
 
     def test_detailed_wall_observations(self, basic_sim):
         """Test detailed wall observations for both agents."""
         obs = basic_sim._c_sim.observations()
         type_id_feature_id = basic_sim.config.id_map().feature_id("type_id")
-        helper = ObservationHelper()
+        helper = mettagrid.test_support.ObservationHelper()
 
         # The environment creates a 4x8 grid (height=4, width=8):
         #   0 1 2 3 4 5 6 7  (x/width)
@@ -131,7 +135,7 @@ class TestObservations:
         ]
 
         agent0_wall_tokens = helper.find_tokens(
-            agent0_obs, feature_id=type_id_feature_id, value=TokenTypes.WALL_TYPE_ID
+            agent0_obs, feature_id=type_id_feature_id, value=mettagrid.test_support.TokenTypes.WALL_TYPE_ID
         )
         agent0_wall_positions = helper.get_positions_from_tokens(agent0_wall_tokens)
         assert set(agent0_wall_positions) == set(wall_positions_agent0), (
@@ -158,7 +162,7 @@ class TestObservations:
         ]
 
         agent1_wall_tokens = helper.find_tokens(
-            agent1_obs, feature_id=type_id_feature_id, value=TokenTypes.WALL_TYPE_ID
+            agent1_obs, feature_id=type_id_feature_id, value=mettagrid.test_support.TokenTypes.WALL_TYPE_ID
         )
         agent1_wall_positions = helper.get_positions_from_tokens(agent1_wall_tokens)
         assert set(agent1_wall_positions) == set(wall_positions_agent1), (
@@ -171,7 +175,7 @@ class TestObservations:
     def test_agents_see_each_other(self, adjacent_agents_sim):
         """Test that adjacent agents can see each other."""
         obs = adjacent_agents_sim._c_sim.observations()
-        helper = ObservationHelper()
+        helper = mettagrid.test_support.ObservationHelper()
 
         # Debug: Let's check where agents actually are
         # Grid layout for adjacent_agents_env:
@@ -213,7 +217,7 @@ class TestObservations:
         distances = []
         # Skip global tokens (first 4)
         for location in obs[0, 4:, 0]:
-            coords = PackedCoordinate.unpack(location)
+            coords = mettagrid.mettagrid_c.PackedCoordinate.unpack(location)
             if coords:
                 row, col = coords
                 # Manhattan distance from agent position (1,1)
@@ -231,7 +235,7 @@ class TestGlobalTokens:
         episode_completion_pct_feature_id = basic_sim.config.id_map().feature_id("episode_completion_pct")
         last_action_feature_id = basic_sim.config.id_map().feature_id("last_action")
         last_reward_feature_id = basic_sim.config.id_map().feature_id("last_reward")
-        helper = ObservationHelper()
+        helper = mettagrid.test_support.ObservationHelper()
 
         # Global tokens are at the center of the observation window
         global_x = basic_sim.config.game.obs.width // 2
@@ -247,7 +251,7 @@ class TestGlobalTokens:
     def test_global_tokens_update(self):
         """Test that global tokens update correctly."""
         # Create basic 4x8 grid with walls around perimeter
-        game_map = create_grid(4, 8, fill_value=".")
+        game_map = mettagrid.map_builder.utils.create_grid(4, 8, fill_value=".")
         game_map[0, :] = "#"
         game_map[-1, :] = "#"
         game_map[:, 0] = "#"
@@ -258,23 +262,34 @@ class TestGlobalTokens:
         game_map[2, 4] = "@"
 
         # Create environment with max_steps=10 so that 1 step = 10% completion
-        cfg = MettaGridConfig(
-            game=GameConfig(
+        cfg = mettagrid.config.mettagrid_config.MettaGridConfig(
+            game=mettagrid.config.mettagrid_config.GameConfig(
                 num_agents=2,
-                obs=ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
+                obs=mettagrid.config.mettagrid_config.ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
                 max_steps=10,  # Important: 10 steps total so 1 step = 10%
-                actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
-                objects={"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)},
-                global_obs=GlobalObsConfig(episode_completion_pct=True, last_action=True, last_reward=True),
+                actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                    noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
+                    move=mettagrid.config.mettagrid_config.MoveActionConfig(),
+                ),
+                objects={
+                    "wall": mettagrid.config.mettagrid_config.WallConfig(
+                        type_id=mettagrid.test_support.TokenTypes.WALL_TYPE_ID
+                    )
+                },
+                global_obs=mettagrid.config.mettagrid_config.GlobalObsConfig(
+                    episode_completion_pct=True, last_action=True, last_reward=True
+                ),
                 resource_names=["laser", "armor", "heart"],
-                map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist(), char_to_name_map=DEFAULT_CHAR_TO_NAME),
+                map_builder=mettagrid.map_builder.ascii.AsciiMapBuilder.Config(
+                    map_data=game_map.tolist(), char_to_name_map=mettagrid.mapgen.utils.ascii_grid.DEFAULT_CHAR_TO_NAME
+                ),
             )
         )
-        env = Simulation(cfg)
+        env = mettagrid.simulator.Simulation(cfg)
         episode_completion_pct_feature_id = env.config.id_map().feature_id("episode_completion_pct")
         last_action_feature_id = env.config.id_map().feature_id("last_action")
         obs = env._c_sim.observations()
-        helper = ObservationHelper()
+        helper = mettagrid.test_support.ObservationHelper()
 
         # Global tokens are at the center of the observation window
         global_x = env.config.game.obs.width // 2
@@ -318,8 +333,8 @@ class TestGlobalTokens:
     def test_vibe_signaling(self):
         """Test that agents can signal using vibes and observe each other's vibes."""
         # Create a 5x5 environment with two adjacent agents
-        game_map = create_grid(5, 5, fill_value=".")
-        helper = ObservationHelper()
+        game_map = mettagrid.map_builder.utils.create_grid(5, 5, fill_value=".")
+        helper = mettagrid.test_support.ObservationHelper()
 
         # Add walls around perimeter
         game_map[0, :] = "#"
@@ -333,23 +348,31 @@ class TestGlobalTokens:
         game_map[2, 2] = "@"
 
         # Create environment with change_vibe enabled and 8 vibes
-        cfg = MettaGridConfig(
-            game=GameConfig(
+        cfg = mettagrid.config.mettagrid_config.MettaGridConfig(
+            game=mettagrid.config.mettagrid_config.GameConfig(
                 num_agents=2,
-                obs=ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
+                obs=mettagrid.config.mettagrid_config.ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
                 max_steps=10,
                 # Use 3x3 observation window
-                actions=ActionsConfig(
-                    noop=NoopActionConfig(),
-                    move=MoveActionConfig(),
-                    change_vibe=ChangeVibeActionConfig(enabled=True, number_of_vibes=8),
+                actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                    noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
+                    move=mettagrid.config.mettagrid_config.MoveActionConfig(),
+                    change_vibe=mettagrid.config.mettagrid_config.ChangeVibeActionConfig(
+                        enabled=True, number_of_vibes=8
+                    ),
                 ),
-                objects={"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)},
+                objects={
+                    "wall": mettagrid.config.mettagrid_config.WallConfig(
+                        type_id=mettagrid.test_support.TokenTypes.WALL_TYPE_ID
+                    )
+                },
                 resource_names=["laser", "armor"],
-                map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist(), char_to_name_map=DEFAULT_CHAR_TO_NAME),
+                map_builder=mettagrid.map_builder.ascii.AsciiMapBuilder.Config(
+                    map_data=game_map.tolist(), char_to_name_map=mettagrid.mapgen.utils.ascii_grid.DEFAULT_CHAR_TO_NAME
+                ),
             )
         )
-        sim = Simulation(cfg)
+        sim = mettagrid.simulator.Simulation(cfg)
         vibe_feature_id = sim.id_map.feature_id("vibe")
 
         obs = sim._c_sim.observations()
@@ -426,8 +449,8 @@ class TestEdgeObservations:
         """Test observation window behavior when agent walks to corner of large map."""
 
         # Create a 15x10 grid (width=15, height=10) with 7x7 observation window
-        game_map = create_grid(10, 15, fill_value=".")
-        helper = ObservationHelper()
+        game_map = mettagrid.map_builder.utils.create_grid(10, 15, fill_value=".")
+        helper = mettagrid.test_support.ObservationHelper()
 
         # Add walls around perimeter
         game_map[0, :] = "#"
@@ -442,20 +465,27 @@ class TestEdgeObservations:
         # No need to place any other objects
 
         # Create environment with 7x7 observation window
-        cfg = MettaGridConfig(
-            game=GameConfig(
+        cfg = mettagrid.config.mettagrid_config.MettaGridConfig(
+            game=mettagrid.config.mettagrid_config.GameConfig(
                 num_agents=1,
-                obs=ObsConfig(width=7, height=7, num_tokens=NUM_OBS_TOKENS),
+                obs=mettagrid.config.mettagrid_config.ObsConfig(width=7, height=7, num_tokens=NUM_OBS_TOKENS),
                 max_steps=50,  # Enough steps to walk around
-                actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
+                actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                    noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
+                    move=mettagrid.config.mettagrid_config.MoveActionConfig(),
+                ),
                 objects={
-                    "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID),
+                    "wall": mettagrid.config.mettagrid_config.WallConfig(
+                        type_id=mettagrid.test_support.TokenTypes.WALL_TYPE_ID
+                    ),
                 },
                 resource_names=["laser", "resource1", "resource2"],  # laser required for attack action
-                map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist(), char_to_name_map=DEFAULT_CHAR_TO_NAME),
+                map_builder=mettagrid.map_builder.ascii.AsciiMapBuilder.Config(
+                    map_data=game_map.tolist(), char_to_name_map=mettagrid.mapgen.utils.ascii_grid.DEFAULT_CHAR_TO_NAME
+                ),
             )
         )
-        sim = Simulation(cfg)
+        sim = mettagrid.simulator.Simulation(cfg)
         type_id_feature_id = sim.config.id_map().feature_id("type_id")
 
         obs = sim._c_sim.observations()
@@ -466,7 +496,9 @@ class TestEdgeObservations:
 
         # Check walls are visible around the edges
         # Agent at (row=2, col=2) with 7x7 window should see walls at top and left
-        wall_tokens = helper.find_tokens(obs[0], feature_id=type_id_feature_id, value=TokenTypes.WALL_TYPE_ID)
+        wall_tokens = helper.find_tokens(
+            obs[0], feature_id=type_id_feature_id, value=mettagrid.test_support.TokenTypes.WALL_TYPE_ID
+        )
         assert len(wall_tokens) > 0, "Should see walls around edges"
 
         print("\nInitial state: Agent at (2,2), walls visible")
@@ -482,7 +514,9 @@ class TestEdgeObservations:
             assert len(agent_tokens) > 0, f"Agent should still see itself at center (3,3) after step {step + 1}"
 
             # Verify walls are still visible at edges
-            wall_tokens = helper.find_tokens(obs[0], feature_id=type_id_feature_id, value=TokenTypes.WALL_TYPE_ID)
+            wall_tokens = helper.find_tokens(
+                obs[0], feature_id=type_id_feature_id, value=mettagrid.test_support.TokenTypes.WALL_TYPE_ID
+            )
             assert len(wall_tokens) > 0, f"Should still see walls after step {step + 1}"
 
         print("\nAfter moving east 5 steps: Agent observation window correctly tracks position")
@@ -505,7 +539,9 @@ class TestEdgeObservations:
         assert len(agent_tokens) > 0, "Agent should still see itself at center (3,3)"
 
         # Verify walls are still visible at the edges
-        wall_tokens = helper.find_tokens(obs[0], feature_id=type_id_feature_id, value=TokenTypes.WALL_TYPE_ID)
+        wall_tokens = helper.find_tokens(
+            obs[0], feature_id=type_id_feature_id, value=mettagrid.test_support.TokenTypes.WALL_TYPE_ID
+        )
         assert len(wall_tokens) > 0, "Should still see walls at edges even at bottom-right corner"
 
         print("\nSUCCESS: Observation window correctly tracks agent movement to corner")

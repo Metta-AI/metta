@@ -1,31 +1,26 @@
-from typing import Optional
+import typing
 
+import cortex.kernels.triton.slstm.triton_fused.slstm_bw
+import cortex.kernels.triton.slstm.triton_fused.slstm_fw
 import torch
-from torch.amp import custom_bwd, custom_fwd
-
-from cortex.kernels.triton.slstm.triton_fused.slstm_bw import (
-    backward_sequence as slstm_backward_sequence,
-)
-from cortex.kernels.triton.slstm.triton_fused.slstm_fw import (
-    forward_sequence as slstm_forward_sequence,
-)
+import torch.amp
 
 
 def _rnn_fwbw_generator(autocast_kernel_dtype: torch.dtype) -> torch.autograd.Function:
     class _rnn_fwbw(torch.autograd.Function):
         @staticmethod
-        @custom_fwd(device_type="cuda", cast_inputs=autocast_kernel_dtype)
+        @torch.amp.custom_fwd(device_type="cuda", cast_inputs=autocast_kernel_dtype)
         def forward(
             ctx,
             states_initial: torch.Tensor,  # (NS, B, NH, D)
             Wx: torch.Tensor,  # (B, T, NGI, NH, D)
             R: torch.Tensor,  # (NGR, NH, Dout, Din)
             b: torch.Tensor,  # (NGI, NH, D)
-            resets: Optional[torch.Tensor] = None,  # (B, T) reset mask
+            resets: typing.Optional[torch.Tensor] = None,  # (B, T) reset mask
             backward_recurrent_clip_val: float | None = None,
         ) -> tuple[torch.Tensor, torch.Tensor]:
             true_batch_size = Wx.size(0)
-            (all_states, last_state), all_gates = slstm_forward_sequence(
+            (all_states, last_state), all_gates = cortex.kernels.triton.slstm.triton_fused.slstm_fw.forward_sequence(
                 states_initial=states_initial,
                 Wx=Wx,
                 R=R,
@@ -45,7 +40,7 @@ def _rnn_fwbw_generator(autocast_kernel_dtype: torch.dtype) -> torch.autograd.Fu
             return all_states[1:, :, :true_batch_size, ...], last_state_out
 
         @staticmethod
-        @custom_bwd(device_type="cuda")
+        @torch.amp.custom_bwd(device_type="cuda")
         def backward(
             ctx,
             delta_states_all_outside: torch.Tensor,  # (T, NS, B, NH, D)
@@ -53,18 +48,20 @@ def _rnn_fwbw_generator(autocast_kernel_dtype: torch.dtype) -> torch.autograd.Fu
         ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, None, None]:
             true_batch_size = delta_states_all_outside.size(2)
             all_states, all_gates, R = ctx.saved_tensors
-            resets: Optional[torch.Tensor] = ctx.resets
+            resets: typing.Optional[torch.Tensor] = ctx.resets
             backward_recurrent_clip_val = ctx.backward_recurrent_clip_val
 
-            delta_states_initial, delta_Wx, delta_R, delta_b = slstm_backward_sequence(
-                delta_states_all_outside=delta_states_all_outside,
-                delta_states_last_outside=delta_states_last_outside,
-                R=R,
-                states_all=all_states,
-                gates_all=all_gates,
-                backward_recurrent_clip_val=backward_recurrent_clip_val,
-                true_B=true_batch_size,
-                resets=resets,
+            delta_states_initial, delta_Wx, delta_R, delta_b = (
+                cortex.kernels.triton.slstm.triton_fused.slstm_bw.backward_sequence(
+                    delta_states_all_outside=delta_states_all_outside,
+                    delta_states_last_outside=delta_states_last_outside,
+                    R=R,
+                    states_all=all_states,
+                    gates_all=all_gates,
+                    backward_recurrent_clip_val=backward_recurrent_clip_val,
+                    true_B=true_batch_size,
+                    resets=resets,
+                )
             )
             return delta_states_initial, delta_Wx, delta_R, delta_b, None, None
 
@@ -87,7 +84,7 @@ def slstm_tr_fwbw(
     Wx: torch.Tensor,  # (B, T, NGI, NH, D)
     R: torch.Tensor,  # (NGR, NH, Dout, Din)
     b: torch.Tensor,  # (NGI, NH, D)
-    resets: Optional[torch.Tensor] = None,  # (B, T) reset mask
+    resets: typing.Optional[torch.Tensor] = None,  # (B, T) reset mask
     backward_recurrent_clip_val: float | None = None,
     autocast_kernel_dtype: str = "float32",
 ) -> tuple[torch.Tensor, torch.Tensor]:

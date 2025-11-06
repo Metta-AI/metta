@@ -1,14 +1,13 @@
-from __future__ import annotations
 
+import tensordict
 import torch
-from tensordict import TensorDict
 
-from metta.agent.components.lstm_reset import LSTMReset, LSTMResetConfig
+import metta.agent.components.lstm_reset
 
 
-def _build_td(batch_size: int, latent_size: int) -> TensorDict:
+def _build_td(batch_size: int, latent_size: int) -> tensordict.TensorDict:
     latent = torch.ones(batch_size, latent_size)
-    td = TensorDict(
+    td = tensordict.TensorDict(
         {
             "latent": latent,
             "bptt": torch.ones(batch_size, dtype=torch.long),
@@ -20,8 +19,10 @@ def _build_td(batch_size: int, latent_size: int) -> TensorDict:
 
 
 def test_lstm_reset_preserves_state_without_dones() -> None:
-    config = LSTMResetConfig(in_key="latent", out_key="core", latent_size=8, hidden_size=4, num_layers=1)
-    lstm_reset = LSTMReset(config)
+    config = metta.agent.components.lstm_reset.LSTMResetConfig(
+        in_key="latent", out_key="core", latent_size=8, hidden_size=4, num_layers=1
+    )
+    lstm_reset = metta.agent.components.lstm_reset.LSTMReset(config)
 
     td = _build_td(batch_size=3, latent_size=8)
     lstm_reset(td.clone())
@@ -36,8 +37,10 @@ def test_lstm_reset_preserves_state_without_dones() -> None:
 
 
 def test_lstm_reset_does_not_serialize_hidden_state() -> None:
-    config = LSTMResetConfig(in_key="latent", out_key="core", latent_size=8, hidden_size=4, num_layers=1)
-    lstm_reset = LSTMReset(config)
+    config = metta.agent.components.lstm_reset.LSTMResetConfig(
+        in_key="latent", out_key="core", latent_size=8, hidden_size=4, num_layers=1
+    )
+    lstm_reset = metta.agent.components.lstm_reset.LSTMReset(config)
 
     td = _build_td(batch_size=3, latent_size=8)
     lstm_reset(td.clone())
@@ -46,7 +49,7 @@ def test_lstm_reset_does_not_serialize_hidden_state() -> None:
     assert "lstm_h" not in state_dict
     assert "lstm_c" not in state_dict
 
-    reloaded = LSTMReset(config)
+    reloaded = metta.agent.components.lstm_reset.LSTMReset(config)
     load_result = reloaded.load_state_dict(state_dict)
     assert not load_result.missing_keys
     assert not load_result.unexpected_keys

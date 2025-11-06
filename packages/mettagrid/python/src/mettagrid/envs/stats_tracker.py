@@ -1,16 +1,16 @@
 import datetime
 import time
-from typing import Any, Dict, cast
+import typing
 
-from mettagrid.simulator import SimulatorEventHandler
-from mettagrid.util.dict_utils import unroll_nested_dict
-from mettagrid.util.stats_writer import StatsWriter
+import mettagrid.simulator
+import mettagrid.util.dict_utils
+import mettagrid.util.stats_writer
 
 
-class StatsTracker(SimulatorEventHandler):
+class StatsTracker(mettagrid.simulator.SimulatorEventHandler):
     """Tracker for recording statistics."""
 
-    def __init__(self, stats_writer: StatsWriter):
+    def __init__(self, stats_writer: mettagrid.util.stats_writer.StatsWriter):
         super().__init__()
         self._stats_writer = stats_writer
         self._episode_start_ts = datetime.datetime.now()
@@ -65,7 +65,7 @@ class StatsTracker(SimulatorEventHandler):
         infos["per_label_rewards"] = self._per_label_rewards
 
         # Add attributes
-        attributes: Dict[str, Any] = {
+        attributes: typing.Dict[str, typing.Any] = {
             "seed": self._sim.seed,
             "map_w": self._sim.map_width,
             "map_h": self._sim.map_height,
@@ -80,9 +80,9 @@ class StatsTracker(SimulatorEventHandler):
         self._add_timing_info()
 
         # Flatten environment config
-        env_cfg_flattened: Dict[str, str] = {}
+        env_cfg_flattened: typing.Dict[str, str] = {}
         env_cfg = self._sim.config.model_dump()
-        for k, v in unroll_nested_dict(cast(Dict[str, Any], env_cfg)):
+        for k, v in mettagrid.util.dict_utils.unroll_nested_dict(typing.cast(typing.Dict[str, typing.Any], env_cfg)):
             env_cfg_flattened[f"config.{str(k).replace('/', '.')}"] = str(v)
 
         # Prepare agent metrics
@@ -95,7 +95,7 @@ class StatsTracker(SimulatorEventHandler):
 
         # Get agent groups
         grid_objects = self._sim.grid_objects(ignore_types=["wall"])
-        agent_groups: Dict[int, int] = {
+        agent_groups: typing.Dict[int, int] = {
             v["agent_id"]: v["agent:group"] for v in grid_objects.values() if "agent_id" in v
         }
 

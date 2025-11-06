@@ -1,57 +1,57 @@
 """SQL query routes for self-service database access."""
 
 import asyncio
-from typing import Any, Dict, List
+import typing
 
+import fastapi
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
-from psycopg import errors as pg_errors
-from pydantic import BaseModel
+import psycopg
+import pydantic
 
-from metta.app_backend.auth import create_user_or_token_dependency
-from metta.app_backend.config import anthropic_api_key
-from metta.app_backend.metta_repo import MettaRepo
-from metta.app_backend.query_logger import execute_query_and_log
-from metta.app_backend.route_logger import timed_route
+import metta.app_backend.auth
+import metta.app_backend.config
+import metta.app_backend.metta_repo
+import metta.app_backend.query_logger
+import metta.app_backend.route_logger
 
 
-class SQLQueryRequest(BaseModel):
+class SQLQueryRequest(pydantic.BaseModel):
     query: str
 
 
-class SQLQueryResponse(BaseModel):
-    columns: List[str]
-    rows: List[List[Any]]
+class SQLQueryResponse(pydantic.BaseModel):
+    columns: typing.List[str]
+    rows: typing.List[typing.List[typing.Any]]
     row_count: int
 
 
-class TableInfo(BaseModel):
+class TableInfo(pydantic.BaseModel):
     table_name: str
     column_count: int
     row_count: int
 
 
-class TableSchema(BaseModel):
+class TableSchema(pydantic.BaseModel):
     table_name: str
-    columns: List[Dict[str, Any]]
+    columns: typing.List[typing.Dict[str, typing.Any]]
 
 
-class AIQueryRequest(BaseModel):
+class AIQueryRequest(pydantic.BaseModel):
     description: str
 
 
-class AIQueryResponse(BaseModel):
+class AIQueryResponse(pydantic.BaseModel):
     query: str
 
 
-def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
+def create_sql_router(metta_repo: metta.app_backend.metta_repo.MettaRepo) -> fastapi.APIRouter:
     """Create SQL query router with the provided MettaRepo instance."""
-    router = APIRouter(prefix="/sql", tags=["sql"])
-    user_or_token = Depends(create_user_or_token_dependency(metta_repo))
+    router = fastapi.APIRouter(prefix="/sql", tags=["sql"])
+    user_or_token = fastapi.Depends(metta.app_backend.auth.create_user_or_token_dependency(metta_repo))
 
-    @router.get("/tables", response_model=List[TableInfo])
-    @timed_route("list_tables")
-    async def list_tables(user: str = user_or_token) -> List[TableInfo]:
+    @router.get("/tables", response_model=typing.List[TableInfo])
+    @metta.app_backend.route_logger.timed_route("list_tables")
+    async def list_tables(user: str = user_or_token) -> typing.List[TableInfo]:
         """List all available tables in the database (excluding migrations)."""
         try:
             async with metta_repo.connect() as con:
@@ -71,13 +71,15 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
                     ORDER BY t.table_name
                 """
 
-                tables = await execute_query_and_log(con, tables_query, (), "list_tables_metadata")
+                tables = await metta.app_backend.query_logger.execute_query_and_log(
+                    con, tables_query, (), "list_tables_metadata"
+                )
 
                 # Get row counts for each table
                 table_info = []
                 for table_name, column_count in tables:
                     row_count_query = "SELECT reltuples::bigint AS estimate FROM pg_class where relname = %s"
-                    row_count_result = await execute_query_and_log(
+                    row_count_result = await metta.app_backend.query_logger.execute_query_and_log(
                         con, row_count_query, (table_name,), f"count_rows_{table_name}"
                     )
                     row_count = row_count_result[0][0]
@@ -87,17 +89,19 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
                 return table_info
 
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error listing tables: {str(e)}") from e
+            raise fastapi.HTTPException(status_code=500, detail=f"Error listing tables: {str(e)}") from e
 
     @router.get("/tables/{table_name}/schema", response_model=TableSchema)
-    @timed_route("get_table_schema")
+    @metta.app_backend.route_logger.timed_route("get_table_schema")
     async def get_table_schema(table_name: str, user: str = user_or_token) -> TableSchema:
         """Get the schema for a specific table."""
         try:
             async with metta_repo.connect() as con:
                 # Verify table exists and is not schema_migrations
                 if table_name == "schema_migrations":
-                    raise HTTPException(status_code=403, detail="Access to schema_migrations table is not allowed")
+                    raise fastapi.HTTPException(
+                        status_code=403, detail="Access to schema_migrations table is not allowed"
+                    )
 
                 # Get column information
                 schema_query = """
@@ -113,10 +117,12 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
                     ORDER BY ordinal_position
                 """
 
-                columns = await execute_query_and_log(con, schema_query, (table_name,), f"get_schema_{table_name}")
+                columns = await metta.app_backend.query_logger.execute_query_and_log(
+                    con, schema_query, (table_name,), f"get_schema_{table_name}"
+                )
 
                 if not columns:
-                    raise HTTPException(status_code=404, detail=f"Table '{table_name}' not found")
+                    raise fastapi.HTTPException(status_code=404, detail=f"Table '{table_name}' not found")
 
                 column_info = []
                 for col in columns:
@@ -132,27 +138,27 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
 
                 return TableSchema(table_name=table_name, columns=column_info)
 
-        except HTTPException:
+        except fastapi.HTTPException:
             raise
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error getting table schema: {str(e)}") from e
+            raise fastapi.HTTPException(status_code=500, detail=f"Error getting table schema: {str(e)}") from e
 
     @router.post("/query", response_model=SQLQueryResponse)
-    @timed_route("execute_sql_query")
+    @metta.app_backend.route_logger.timed_route("execute_sql_query")
     async def execute_query(request: SQLQueryRequest, user: str = user_or_token) -> SQLQueryResponse:
         """Execute a SQL query with a 20-second timeout."""
         try:
             # Basic validation to prevent access to schema_migrations
             query_lower = request.query.lower()
             if "schema_migrations" in query_lower:
-                raise HTTPException(status_code=403, detail="Access to schema_migrations table is not allowed")
+                raise fastapi.HTTPException(status_code=403, detail="Access to schema_migrations table is not allowed")
 
             # Ensure query is read-only (no writes allowed)
             # Check for common write operations
             write_keywords = ["insert", "update", "delete", "drop", "create", "alter", "truncate", "grant", "revoke"]
             first_word = query_lower.strip().split()[0] if query_lower.strip() else ""
             if first_word in write_keywords:
-                raise HTTPException(
+                raise fastapi.HTTPException(
                     status_code=403, detail="Only read-only queries are allowed. Write operations are not permitted."
                 )
 
@@ -183,32 +189,34 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
             return await asyncio.wait_for(run_query(), timeout=21.0)
 
         except asyncio.TimeoutError as e:
-            raise HTTPException(status_code=408, detail="Query execution timed out after 20 seconds") from e
-        except pg_errors.QueryCanceled as e:
-            raise HTTPException(status_code=408, detail="Query execution timed out after 20 seconds") from e
-        except pg_errors.SyntaxError as e:
-            raise HTTPException(status_code=400, detail=f"SQL syntax error: {str(e)}") from e
-        except pg_errors.UndefinedTable as e:
-            raise HTTPException(status_code=400, detail=f"Table not found: {str(e)}") from e
-        except pg_errors.UndefinedColumn as e:
-            raise HTTPException(status_code=400, detail=f"Column not found: {str(e)}") from e
-        except pg_errors.InsufficientPrivilege as e:
-            raise HTTPException(status_code=403, detail=f"Insufficient privileges: {str(e)}") from e
+            raise fastapi.HTTPException(status_code=408, detail="Query execution timed out after 20 seconds") from e
+        except psycopg.errors.QueryCanceled as e:
+            raise fastapi.HTTPException(status_code=408, detail="Query execution timed out after 20 seconds") from e
+        except psycopg.errors.SyntaxError as e:
+            raise fastapi.HTTPException(status_code=400, detail=f"SQL syntax error: {str(e)}") from e
+        except psycopg.errors.UndefinedTable as e:
+            raise fastapi.HTTPException(status_code=400, detail=f"Table not found: {str(e)}") from e
+        except psycopg.errors.UndefinedColumn as e:
+            raise fastapi.HTTPException(status_code=400, detail=f"Column not found: {str(e)}") from e
+        except psycopg.errors.InsufficientPrivilege as e:
+            raise fastapi.HTTPException(status_code=403, detail=f"Insufficient privileges: {str(e)}") from e
 
-        except HTTPException:
+        except fastapi.HTTPException:
             raise
         except Exception as e:
             # Log the full error for debugging but return a generic message
             error_type = type(e).__name__
-            raise HTTPException(status_code=500, detail=f"Query execution failed ({error_type}): {str(e)}") from e
+            raise fastapi.HTTPException(
+                status_code=500, detail=f"Query execution failed ({error_type}): {str(e)}"
+            ) from e
 
     @router.post("/generate-query", response_model=AIQueryResponse)
-    @timed_route("generate_ai_query")
+    @metta.app_backend.route_logger.timed_route("generate_ai_query")
     async def generate_ai_query(request: AIQueryRequest, user: str = user_or_token) -> AIQueryResponse:
         """Generate a SQL query from natural language description using Claude."""
         # Get API key from environment variable
-        if not anthropic_api_key:
-            raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY environment variable not set")
+        if not metta.app_backend.config.anthropic_api_key:
+            raise fastapi.HTTPException(status_code=500, detail="ANTHROPIC_API_KEY environment variable not set")
 
         # Fetch all table schemas in parallel
         tables = await list_tables(user)
@@ -244,7 +252,7 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
                     "https://api.anthropic.com/v1/messages",
                     headers={
                         "Content-Type": "application/json",
-                        "x-api-key": anthropic_api_key,
+                        "x-api-key": metta.app_backend.config.anthropic_api_key,
                         "anthropic-version": "2023-06-01",
                     },
                     json={
@@ -260,14 +268,14 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
             return AIQueryResponse(query=generated_query)
 
         except httpx.TimeoutException as e:
-            raise HTTPException(status_code=408, detail="Request to Claude API timed out") from e
+            raise fastapi.HTTPException(status_code=408, detail="Request to Claude API timed out") from e
         except httpx.HTTPStatusError as e:
             error_data = e.response.json() if e.response.content else {}
             error_msg = error_data.get("error", {}).get("message", f"API request failed: {e.response.status_code}")
-            raise HTTPException(status_code=e.response.status_code, detail=error_msg) from e
+            raise fastapi.HTTPException(status_code=e.response.status_code, detail=error_msg) from e
         except httpx.RequestError as e:
-            raise HTTPException(status_code=503, detail=f"Failed to connect to Claude API: {str(e)}") from e
+            raise fastapi.HTTPException(status_code=503, detail=f"Failed to connect to Claude API: {str(e)}") from e
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to generate query: {str(e)}") from e
+            raise fastapi.HTTPException(status_code=500, detail=f"Failed to generate query: {str(e)}") from e
 
     return router

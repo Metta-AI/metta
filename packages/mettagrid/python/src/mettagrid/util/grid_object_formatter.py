@@ -1,6 +1,6 @@
 """Shared utilities for formatting grid object data in replays and play streams."""
 
-from typing import Callable, Optional, Tuple, Union
+import typing
 
 import numpy as np
 
@@ -23,10 +23,10 @@ def format_agent_properties(
     grid_object: dict,
     update_object: dict,
     actions: np.ndarray,
-    env_action_success: Union[np.ndarray, list],
+    env_action_success: typing.Union[np.ndarray, list],
     rewards: np.ndarray,
     total_rewards: np.ndarray,
-    decode_flat_action: Optional[Callable[[int], Tuple[int, int]]] = None,
+    decode_flat_action: typing.Optional[typing.Callable[[int], typing.Tuple[int, int]]] = None,
 ) -> None:
     """Add agent-specific properties to the update object."""
     agent_id = grid_object["agent_id"]
@@ -95,10 +95,10 @@ def format_assembler_properties(grid_object: dict, update_object: dict) -> None:
 def format_grid_object(
     grid_object: dict,
     actions: np.ndarray,
-    env_action_success: Union[np.ndarray, list],
+    env_action_success: typing.Union[np.ndarray, list],
     rewards: np.ndarray,
     total_rewards: np.ndarray,
-    decode_flat_action: Optional[Callable[[int], Tuple[int, int]]] = None,
+    decode_flat_action: typing.Optional[typing.Callable[[int], typing.Tuple[int, int]]] = None,
 ) -> dict:
     """Format a grid object with validation for both replay recording and play streaming."""
     # Validate basic object properties

@@ -1,20 +1,7 @@
-from mettagrid.config.mettagrid_config import (
-    ActionsConfig,
-    AgentConfig,
-    AgentRewards,
-    AssemblerConfig,
-    AttackActionConfig,
-    ChangeVibeActionConfig,
-    GameConfig,
-    MettaGridConfig,
-    MoveActionConfig,
-    NoopActionConfig,
-    ProtocolConfig,
-    WallConfig,
-)
-from mettagrid.simulator import Action, Simulation
-from mettagrid.test_support.map_builders import ObjectNameMapBuilder
-from mettagrid.test_support.orientation import Orientation
+import mettagrid.config.mettagrid_config
+import mettagrid.simulator
+import mettagrid.test_support.map_builders
+import mettagrid.test_support.orientation
 
 NUM_AGENTS = 1
 OBS_HEIGHT = 3
@@ -35,36 +22,42 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         ["wall", "wall", "wall", "wall", "wall", "wall"],
     ]
 
-    game_config = GameConfig(
+    game_config = mettagrid.config.mettagrid_config.GameConfig(
         max_steps=max_steps,
         num_agents=num_agents,
         resource_names=["laser", "armor", "heart"],
-        actions=ActionsConfig(
-            noop=NoopActionConfig(enabled=True),
-            move=MoveActionConfig(enabled=True),
-            attack=AttackActionConfig(enabled=True, consumed_resources={"laser": 1}, defense_resources={"armor": 1}),
-            change_vibe=ChangeVibeActionConfig(enabled=False, number_of_vibes=4),
+        actions=mettagrid.config.mettagrid_config.ActionsConfig(
+            noop=mettagrid.config.mettagrid_config.NoopActionConfig(enabled=True),
+            move=mettagrid.config.mettagrid_config.MoveActionConfig(enabled=True),
+            attack=mettagrid.config.mettagrid_config.AttackActionConfig(
+                enabled=True, consumed_resources={"laser": 1}, defense_resources={"armor": 1}
+            ),
+            change_vibe=mettagrid.config.mettagrid_config.ChangeVibeActionConfig(enabled=False, number_of_vibes=4),
         ),
         objects={
-            "wall": WallConfig(),
-            "assembler": AssemblerConfig(
+            "wall": mettagrid.config.mettagrid_config.WallConfig(),
+            "assembler": mettagrid.config.mettagrid_config.AssemblerConfig(
                 protocols=[
                     # Protocol that produces 1 heart with cooldown of 5 steps
-                    ProtocolConfig(input_resources={}, output_resources={"heart": 1}, cooldown=5)
+                    mettagrid.config.mettagrid_config.ProtocolConfig(
+                        input_resources={}, output_resources={"heart": 1}, cooldown=5
+                    )
                 ]
             ),
         },
-        agent=AgentConfig(default_resource_limit=10, rewards=AgentRewards(inventory={"heart": 1.0})),
+        agent=mettagrid.config.mettagrid_config.AgentConfig(
+            default_resource_limit=10, rewards=mettagrid.config.mettagrid_config.AgentRewards(inventory={"heart": 1.0})
+        ),
     )
 
     # Create MettaGridConfig wrapper
-    cfg = MettaGridConfig(game=game_config)
-    cfg.game.map_builder = ObjectNameMapBuilder.Config(map_data=game_map)
+    cfg = mettagrid.config.mettagrid_config.MettaGridConfig(game=game_config)
+    cfg.game.map_builder = mettagrid.test_support.map_builders.ObjectNameMapBuilder.Config(map_data=game_map)
 
-    return Simulation(cfg, seed=42)
+    return mettagrid.simulator.Simulation(cfg, seed=42)
 
 
-def get_action_name(base_name: str, orientation: Orientation | None = None) -> str:
+def get_action_name(base_name: str, orientation: mettagrid.test_support.orientation.Orientation | None = None) -> str:
     """Get the action name for a given base name and orientation."""
     if orientation is None:
         return base_name
@@ -84,7 +77,7 @@ class TestRewards:
         assert initial_reward == 0.0, f"Initial reward should be zero, got {initial_reward}"
 
         # Take a step with noop action
-        agent.set_action(Action(name="noop"))
+        agent.set_action(mettagrid.simulator.Action(name="noop"))
         sim.step()
 
         # Get the step reward (should still be zero for noop with no reward triggers)
@@ -101,7 +94,11 @@ class TestRewards:
 
         # Agent starts at (1, 1), assembler is at (1, 3)
         # Move east to (1, 2) which is adjacent to the assembler
-        agent.set_action(Action(name=get_action_name("move", Orientation.EAST)))
+        agent.set_action(
+            mettagrid.simulator.Action(
+                name=get_action_name("move", mettagrid.test_support.orientation.Orientation.EAST)
+            )
+        )
         sim.step()
 
         # Verify move succeeded
@@ -109,11 +106,15 @@ class TestRewards:
 
         # Wait for assembler cooldown (5 steps) to produce hearts
         for _ in range(6):
-            agent.set_action(Action(name="noop"))
+            agent.set_action(mettagrid.simulator.Action(name="noop"))
             sim.step()
 
         # Now move east again to interact with the assembler and collect heart
-        agent.set_action(Action(name=get_action_name("move", Orientation.EAST)))
+        agent.set_action(
+            mettagrid.simulator.Action(
+                name=get_action_name("move", mettagrid.test_support.orientation.Orientation.EAST)
+            )
+        )
         sim.step()
 
         # Check if we got a heart in inventory (which should give a reward)
@@ -129,24 +130,24 @@ class TestRewards:
         sim = create_heart_reward_test_env()
         agent = sim.agent(0)
 
-        move_east_action = get_action_name("move", Orientation.EAST)
+        move_east_action = get_action_name("move", mettagrid.test_support.orientation.Orientation.EAST)
 
         # Track cumulative reward
         cumulative_reward = 0.0
 
         # Move to assembler
-        agent.set_action(Action(name=move_east_action))
+        agent.set_action(mettagrid.simulator.Action(name=move_east_action))
         sim.step()
         cumulative_reward += agent.step_reward
 
         # Wait for first heart production (6 steps)
         for _ in range(6):
-            agent.set_action(Action(name="noop"))
+            agent.set_action(mettagrid.simulator.Action(name="noop"))
             sim.step()
             cumulative_reward += agent.step_reward
 
         # First collection - interact with assembler
-        agent.set_action(Action(name=move_east_action))
+        agent.set_action(mettagrid.simulator.Action(name=move_east_action))
         sim.step()
         cumulative_reward += agent.step_reward
         hearts_1 = agent.inventory.get("heart", 0)
@@ -157,12 +158,12 @@ class TestRewards:
 
         # Wait for second heart production (6 more steps)
         for _ in range(6):
-            agent.set_action(Action(name="noop"))
+            agent.set_action(mettagrid.simulator.Action(name="noop"))
             sim.step()
             cumulative_reward += agent.step_reward
 
         # Second collection - interact with assembler again
-        agent.set_action(Action(name=move_east_action))
+        agent.set_action(mettagrid.simulator.Action(name=move_east_action))
         sim.step()
         cumulative_reward += agent.step_reward
         hearts_2 = agent.inventory.get("heart", 0)

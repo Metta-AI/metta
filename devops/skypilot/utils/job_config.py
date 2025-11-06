@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-from dataclasses import asdict, dataclass
-from typing import Any, Optional
+import dataclasses
+import typing
 
-from metta.common.util.log_config import getRankAwareLogger
+import metta.common.util.log_config
 
-logger = getRankAwareLogger(__name__)
+logger = metta.common.util.log_config.getRankAwareLogger(__name__)
 
 
-@dataclass
+@dataclasses.dataclass
 class JobConfig:
     """Configuration for a SkyPilot job."""
 
@@ -17,46 +17,46 @@ class JobConfig:
     is_master: bool = True
 
     # Job identifiers
-    metta_run_id: Optional[str] = None
-    skypilot_task_id: Optional[str] = None
-    skypilot_job_id: Optional[str] = None
+    metta_run_id: typing.Optional[str] = None
+    skypilot_task_id: typing.Optional[str] = None
+    skypilot_job_id: typing.Optional[str] = None
 
     # Runtime configuration
-    max_runtime_hours: Optional[float] = None
-    heartbeat_timeout: Optional[int] = None
+    max_runtime_hours: typing.Optional[float] = None
+    heartbeat_timeout: typing.Optional[int] = None
     restart_count: int = 0
     test_nccl: bool = False
     test_job_restart: bool = False
-    start_time: Optional[int] = None
+    start_time: typing.Optional[int] = None
 
     # File paths
-    heartbeat_file: Optional[str] = None
-    accumulated_runtime_file: Optional[str] = None
-    accumulated_runtime_sec: Optional[int] = None
-    job_metadata_dir: Optional[str] = None
+    heartbeat_file: typing.Optional[str] = None
+    accumulated_runtime_file: typing.Optional[str] = None
+    accumulated_runtime_sec: typing.Optional[int] = None
+    job_metadata_dir: typing.Optional[str] = None
 
     # Discord
-    discord_webhook_url: Optional[str] = None
+    discord_webhook_url: typing.Optional[str] = None
     enable_discord_notification: bool = False
 
     # GitHub
-    github_repository: Optional[str] = None
-    metta_git_ref: Optional[str] = None
-    github_pat: Optional[str] = None
+    github_repository: typing.Optional[str] = None
+    metta_git_ref: typing.Optional[str] = None
+    github_pat: typing.Optional[str] = None
     github_status_context: str = "Skypilot/E2E"
     enable_github_status: bool = False
 
     # W&B
-    wandb_project: Optional[str] = None
-    wandb_entity: Optional[str] = None
+    wandb_project: typing.Optional[str] = None
+    wandb_entity: typing.Optional[str] = None
     enable_wandb_notification: bool = True
 
-    def to_filtered_dict(self, filtered_field_names: list[str] | None = None) -> dict[str, Any]:
+    def to_filtered_dict(self, filtered_field_names: list[str] | None = None) -> dict[str, typing.Any]:
         """Convert to dictionary with sensitive fields redacted."""
         if filtered_field_names is None:
             filtered_field_names = ["discord_webhook_url", "github_pat"]
 
-        result = asdict(self)
+        result = dataclasses.asdict(self)
         for field_name in result:
             if field_name in filtered_field_names and result[field_name] is not None:
                 result[field_name] = "REDACTED"

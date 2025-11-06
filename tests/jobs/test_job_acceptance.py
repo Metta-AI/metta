@@ -4,33 +4,33 @@ Tests that acceptance criteria are correctly evaluated against metrics.
 """
 
 import time
-from unittest.mock import patch
+import unittest.mock
 
-from metta.jobs.job_config import AcceptanceCriterion
-from tests.jobs.conftest import MockProcess, simple_job_config
+import metta.jobs.job_config
+import tests.jobs.conftest
 
 
 def test_acceptance_criterion_operators():
     """AcceptanceCriterion.evaluate() correctly evaluates all operators."""
-    criterion = AcceptanceCriterion(metric="test", operator=">=", threshold=10.0)
+    criterion = metta.jobs.job_config.AcceptanceCriterion(metric="test", operator=">=", threshold=10.0)
     assert criterion.evaluate(10.0) is True
     assert criterion.evaluate(11.0) is True
     assert criterion.evaluate(9.0) is False
 
-    criterion = AcceptanceCriterion(metric="test", operator=">", threshold=10.0)
+    criterion = metta.jobs.job_config.AcceptanceCriterion(metric="test", operator=">", threshold=10.0)
     assert criterion.evaluate(11.0) is True
     assert criterion.evaluate(10.0) is False
 
-    criterion = AcceptanceCriterion(metric="test", operator="<=", threshold=10.0)
+    criterion = metta.jobs.job_config.AcceptanceCriterion(metric="test", operator="<=", threshold=10.0)
     assert criterion.evaluate(9.0) is True
     assert criterion.evaluate(10.0) is True
     assert criterion.evaluate(11.0) is False
 
-    criterion = AcceptanceCriterion(metric="test", operator="<", threshold=10.0)
+    criterion = metta.jobs.job_config.AcceptanceCriterion(metric="test", operator="<", threshold=10.0)
     assert criterion.evaluate(9.0) is True
     assert criterion.evaluate(10.0) is False
 
-    criterion = AcceptanceCriterion(metric="test", operator="==", threshold=10.0)
+    criterion = metta.jobs.job_config.AcceptanceCriterion(metric="test", operator="==", threshold=10.0)
     assert criterion.evaluate(10.0) is True
     assert criterion.evaluate(10.1) is False
 
@@ -38,14 +38,14 @@ def test_acceptance_criterion_operators():
 def test_acceptance_evaluation_with_metrics(temp_job_manager):
     """Acceptance criteria are evaluated correctly when metrics present."""
     manager = temp_job_manager()
-    mock_process = MockProcess(exit_code=0, complete_after_polls=1)
+    mock_process = tests.jobs.conftest.MockProcess(exit_code=0, complete_after_polls=1)
 
-    with patch("subprocess.Popen", return_value=mock_process):
-        config = simple_job_config(
+    with unittest.mock.patch("subprocess.Popen", return_value=mock_process):
+        config = tests.jobs.conftest.simple_job_config(
             "test_job",
             acceptance_criteria=[
-                AcceptanceCriterion(metric="overview/sps", operator=">=", threshold=10000),
-                AcceptanceCriterion(metric="reward", operator=">", threshold=0.5),
+                metta.jobs.job_config.AcceptanceCriterion(metric="overview/sps", operator=">=", threshold=10000),
+                metta.jobs.job_config.AcceptanceCriterion(metric="reward", operator=">", threshold=0.5),
             ],
         )
         manager.submit(config)
@@ -66,10 +66,10 @@ def test_acceptance_evaluation_with_metrics(temp_job_manager):
 def test_acceptance_with_no_criteria(temp_job_manager):
     """Jobs without acceptance criteria evaluate to True (vacuous truth)."""
     manager = temp_job_manager()
-    mock_process = MockProcess(exit_code=0, complete_after_polls=1)
+    mock_process = tests.jobs.conftest.MockProcess(exit_code=0, complete_after_polls=1)
 
-    with patch("subprocess.Popen", return_value=mock_process):
-        config = simple_job_config("test_job", acceptance_criteria=[])
+    with unittest.mock.patch("subprocess.Popen", return_value=mock_process):
+        config = tests.jobs.conftest.simple_job_config("test_job", acceptance_criteria=[])
         manager.submit(config)
 
         time.sleep(0.2)
@@ -82,13 +82,13 @@ def test_acceptance_with_no_criteria(temp_job_manager):
 def test_acceptance_with_missing_metrics(temp_job_manager):
     """Acceptance fails when required metrics are missing."""
     manager = temp_job_manager()
-    mock_process = MockProcess(exit_code=0, complete_after_polls=1)
+    mock_process = tests.jobs.conftest.MockProcess(exit_code=0, complete_after_polls=1)
 
-    with patch("subprocess.Popen", return_value=mock_process):
-        config = simple_job_config(
+    with unittest.mock.patch("subprocess.Popen", return_value=mock_process):
+        config = tests.jobs.conftest.simple_job_config(
             "test_job",
             acceptance_criteria=[
-                AcceptanceCriterion(metric="overview/sps", operator=">=", threshold=10000),
+                metta.jobs.job_config.AcceptanceCriterion(metric="overview/sps", operator=">=", threshold=10000),
             ],
         )
         manager.submit(config)
@@ -105,15 +105,15 @@ def test_acceptance_with_missing_metrics(temp_job_manager):
 def test_multiple_criteria_all_must_pass(temp_job_manager):
     """When job has multiple criteria, all must pass."""
     manager = temp_job_manager()
-    mock_process = MockProcess(exit_code=0, complete_after_polls=1)
+    mock_process = tests.jobs.conftest.MockProcess(exit_code=0, complete_after_polls=1)
 
-    with patch("subprocess.Popen", return_value=mock_process):
-        config = simple_job_config(
+    with unittest.mock.patch("subprocess.Popen", return_value=mock_process):
+        config = tests.jobs.conftest.simple_job_config(
             "test_job",
             acceptance_criteria=[
-                AcceptanceCriterion(metric="metric1", operator=">=", threshold=10),
-                AcceptanceCriterion(metric="metric2", operator=">=", threshold=20),
-                AcceptanceCriterion(metric="metric3", operator=">=", threshold=30),
+                metta.jobs.job_config.AcceptanceCriterion(metric="metric1", operator=">=", threshold=10),
+                metta.jobs.job_config.AcceptanceCriterion(metric="metric2", operator=">=", threshold=20),
+                metta.jobs.job_config.AcceptanceCriterion(metric="metric3", operator=">=", threshold=30),
             ],
         )
         manager.submit(config)

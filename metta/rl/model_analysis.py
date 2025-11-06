@@ -1,14 +1,13 @@
 """Utilities for analyzing policy network structure."""
 
-from __future__ import annotations
 
-from typing import Dict
+import typing
 
 import torch
 import torch.nn as nn
 
 
-def compute_dormant_neuron_stats(policy: nn.Module, *, threshold: float = 1e-6) -> Dict[str, float]:
+def compute_dormant_neuron_stats(policy: nn.Module, *, threshold: float = 1e-6) -> typing.Dict[str, float]:
     """
     Compute dormant neuron statistics for a policy.
 
@@ -22,7 +21,7 @@ def compute_dormant_neuron_stats(policy: nn.Module, *, threshold: float = 1e-6) 
 
     total_neurons = 0
     dormant_neurons = 0
-    stats: Dict[str, float] = {}
+    stats: typing.Dict[str, float] = {}
 
     for name, module in policy.named_modules():
         if not isinstance(module, nn.Linear):

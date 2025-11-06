@@ -1,27 +1,23 @@
 import uuid
 
+import fastapi
+import fastapi.testclient
+import httpx
 import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-from httpx import ASGITransport, AsyncClient
 
-from metta.app_backend.clients.eval_task_client import EvalTaskClient
-from metta.app_backend.clients.stats_client import StatsClient
-from metta.app_backend.metta_repo import MettaRepo
-from metta.app_backend.routes.eval_task_routes import (
-    TaskClaimRequest,
-    TaskCreateRequest,
-    TaskFilterParams,
-    TaskStatusUpdate,
-    TaskUpdateRequest,
-)
+import metta.app_backend.clients.eval_task_client
+import metta.app_backend.clients.stats_client
+import metta.app_backend.metta_repo
+import metta.app_backend.routes.eval_task_routes
 
 
 class TestEvalTaskRoutes:
     """End-to-end tests for eval task routes."""
 
     @pytest.fixture
-    def eval_task_client(self, test_client: TestClient, test_app: FastAPI) -> EvalTaskClient:
+    def eval_task_client(
+        self, test_client: fastapi.testclient.TestClient, test_app: fastapi.FastAPI
+    ) -> metta.app_backend.clients.eval_task_client.EvalTaskClient:
         """Create an eval task client for testing."""
         token_response = test_client.post(
             "/tokens",
@@ -30,14 +26,18 @@ class TestEvalTaskRoutes:
         )
         assert token_response.status_code == 200
         token = token_response.json()["token"]
-        client = EvalTaskClient.__new__(EvalTaskClient)
-        client._http_client = AsyncClient(transport=ASGITransport(app=test_app), base_url=test_client.base_url)
+        client = metta.app_backend.clients.eval_task_client.EvalTaskClient.__new__(
+            metta.app_backend.clients.eval_task_client.EvalTaskClient
+        )
+        client._http_client = httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=test_app), base_url=test_client.base_url
+        )
         client._machine_token = token
 
         return client
 
     @pytest.fixture
-    def test_policy_id(self, stats_client: StatsClient) -> uuid.UUID:
+    def test_policy_id(self, stats_client: metta.app_backend.clients.stats_client.StatsClient) -> uuid.UUID:
         """Create a test policy and return its ID."""
         # Create training run, epoch, and policy
         training_run = stats_client.create_training_run(
@@ -61,9 +61,11 @@ class TestEvalTaskRoutes:
         return policy.id
 
     @pytest.mark.asyncio
-    async def test_create_eval_task(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
+    async def test_create_eval_task(
+        self, eval_task_client: metta.app_backend.clients.eval_task_client.EvalTaskClient, test_policy_id: uuid.UUID
+    ):
         """Test creating an eval task."""
-        request = TaskCreateRequest(
+        request = metta.app_backend.routes.eval_task_routes.TaskCreateRequest(
             policy_id=test_policy_id,
             git_hash="abc123def456",
             env_overrides={"key": "value"},
@@ -91,11 +93,13 @@ class TestEvalTaskRoutes:
         # assert response.attributes["env_overrides"] == {"key": "value"}
 
     @pytest.mark.asyncio
-    async def test_get_available_tasks(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
+    async def test_get_available_tasks(
+        self, eval_task_client: metta.app_backend.clients.eval_task_client.EvalTaskClient, test_policy_id: uuid.UUID
+    ):
         """Test getting available tasks."""
         task_ids = []
         for i in range(3):
-            request = TaskCreateRequest(
+            request = metta.app_backend.routes.eval_task_routes.TaskCreateRequest(
                 policy_id=test_policy_id,
                 git_hash=f"hash_{i}",
                 sim_suite=f"suite_{i}",
@@ -111,10 +115,12 @@ class TestEvalTaskRoutes:
             assert task_id in returned_ids
 
     @pytest.mark.asyncio
-    async def test_claim_and_update_tasks(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
+    async def test_claim_and_update_tasks(
+        self, eval_task_client: metta.app_backend.clients.eval_task_client.EvalTaskClient, test_policy_id: uuid.UUID
+    ):
         """Test the complete workflow of claiming and updating tasks."""
         # Create task
-        create_request = TaskCreateRequest(
+        create_request = metta.app_backend.routes.eval_task_routes.TaskCreateRequest(
             policy_id=test_policy_id,
             git_hash="workflow_test_hash",
             sim_suite="all",
@@ -123,7 +129,9 @@ class TestEvalTaskRoutes:
         task_id = task_response.id
 
         # Claim task
-        claim_response = await eval_task_client.claim_tasks(TaskClaimRequest(tasks=[task_id], assignee="worker_1"))
+        claim_response = await eval_task_client.claim_tasks(
+            metta.app_backend.routes.eval_task_routes.TaskClaimRequest(tasks=[task_id], assignee="worker_1")
+        )
         assert task_id in claim_response.claimed
 
         # Verify claimed
@@ -132,9 +140,9 @@ class TestEvalTaskRoutes:
 
         # Update to done
         update_response = await eval_task_client.update_task_status(
-            TaskUpdateRequest(
+            metta.app_backend.routes.eval_task_routes.TaskUpdateRequest(
                 require_assignee="worker_1",
-                updates={task_id: TaskStatusUpdate(status="done")},
+                updates={task_id: metta.app_backend.routes.eval_task_routes.TaskStatusUpdate(status="done")},
             )
         )
         assert update_response.statuses[task_id] == "done"
@@ -145,7 +153,7 @@ class TestEvalTaskRoutes:
 
     @pytest.mark.asyncio
     async def test_get_claimed_tasks_without_assignee(
-        self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID
+        self, eval_task_client: metta.app_backend.clients.eval_task_client.EvalTaskClient, test_policy_id: uuid.UUID
     ):
         """Test getting all claimed tasks without specifying an assignee."""
         task_ids_by_worker = {}
@@ -156,7 +164,7 @@ class TestEvalTaskRoutes:
             task_ids = []
             for i in range(2):
                 task_response = await eval_task_client.create_task(
-                    TaskCreateRequest(
+                    metta.app_backend.routes.eval_task_routes.TaskCreateRequest(
                         policy_id=test_policy_id,
                         git_hash=f"test_all_claimed_{worker}_{i}",
                         sim_suite="navigation",
@@ -164,7 +172,9 @@ class TestEvalTaskRoutes:
                 )
                 task_ids.append(task_response.id)
 
-            claim_response = await eval_task_client.claim_tasks(TaskClaimRequest(tasks=task_ids, assignee=worker))
+            claim_response = await eval_task_client.claim_tasks(
+                metta.app_backend.routes.eval_task_routes.TaskClaimRequest(tasks=task_ids, assignee=worker)
+            )
             assert len(claim_response.claimed) == 2
             task_ids_by_worker[worker] = task_ids
 
@@ -186,10 +196,12 @@ class TestEvalTaskRoutes:
         assert all(tid not in specific_ids for tid in task_ids_by_worker["worker_gamma"])
 
     @pytest.mark.asyncio
-    async def test_task_assignment_expiry(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
+    async def test_task_assignment_expiry(
+        self, eval_task_client: metta.app_backend.clients.eval_task_client.EvalTaskClient, test_policy_id: uuid.UUID
+    ):
         """Test that assigned tasks become available again after expiry."""
         task_response = await eval_task_client.create_task(
-            TaskCreateRequest(
+            metta.app_backend.routes.eval_task_routes.TaskCreateRequest(
                 policy_id=test_policy_id,
                 git_hash="expiry_test",
                 sim_suite="navigation",
@@ -199,7 +211,7 @@ class TestEvalTaskRoutes:
 
         # Claim task
         claim_response = await eval_task_client.claim_tasks(
-            TaskClaimRequest(tasks=[task_id], assignee="worker_timeout")
+            metta.app_backend.routes.eval_task_routes.TaskClaimRequest(tasks=[task_id], assignee="worker_timeout")
         )
         assert task_id in claim_response.claimed
 
@@ -214,11 +226,11 @@ class TestEvalTaskRoutes:
     @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_multiple_workers_claiming_same_task(
-        self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID
+        self, eval_task_client: metta.app_backend.clients.eval_task_client.EvalTaskClient, test_policy_id: uuid.UUID
     ):
         """Test that only one worker can claim a task."""
         task_response = await eval_task_client.create_task(
-            TaskCreateRequest(
+            metta.app_backend.routes.eval_task_routes.TaskCreateRequest(
                 policy_id=test_policy_id,
                 git_hash="concurrent_test",
                 sim_suite="memory",
@@ -227,24 +239,28 @@ class TestEvalTaskRoutes:
         task_id = task_response.id
 
         # First worker claims
-        claim1_response = await eval_task_client.claim_tasks(TaskClaimRequest(tasks=[task_id], assignee="worker_a"))
+        claim1_response = await eval_task_client.claim_tasks(
+            metta.app_backend.routes.eval_task_routes.TaskClaimRequest(tasks=[task_id], assignee="worker_a")
+        )
         assert task_id in claim1_response.claimed
 
         # Second worker fails
-        claim2_response = await eval_task_client.claim_tasks(TaskClaimRequest(tasks=[task_id], assignee="worker_b"))
+        claim2_response = await eval_task_client.claim_tasks(
+            metta.app_backend.routes.eval_task_routes.TaskClaimRequest(tasks=[task_id], assignee="worker_b")
+        )
         assert task_id not in claim2_response.claimed
 
     @pytest.mark.asyncio
     async def test_record_episode_with_eval_task(
         self,
-        stats_client: StatsClient,
+        stats_client: metta.app_backend.clients.stats_client.StatsClient,
         test_policy_id: uuid.UUID,
-        eval_task_client: EvalTaskClient,
-        stats_repo: MettaRepo,
+        eval_task_client: metta.app_backend.clients.eval_task_client.EvalTaskClient,
+        stats_repo: metta.app_backend.metta_repo.MettaRepo,
     ):
         """Test recording an episode linked to an eval task."""
         task_response = await eval_task_client.create_task(
-            TaskCreateRequest(
+            metta.app_backend.routes.eval_task_routes.TaskCreateRequest(
                 policy_id=test_policy_id,
                 git_hash="episode_test",
                 sim_suite="all",
@@ -276,14 +292,14 @@ class TestEvalTaskRoutes:
     @pytest.mark.asyncio
     async def test_invalid_status_update(
         self,
-        eval_task_client: EvalTaskClient,
+        eval_task_client: metta.app_backend.clients.eval_task_client.EvalTaskClient,
         test_policy_id: uuid.UUID,
         test_client,
         test_user_headers: dict[str, str],
     ):
         """Test that invalid status updates are rejected."""
         task_response = await eval_task_client.create_task(
-            TaskCreateRequest(
+            metta.app_backend.routes.eval_task_routes.TaskCreateRequest(
                 policy_id=test_policy_id,
                 git_hash="invalid_status_test",
                 sim_suite="arena",
@@ -292,7 +308,7 @@ class TestEvalTaskRoutes:
         task_id = task_response.id
 
         claim_response = await eval_task_client.claim_tasks(
-            TaskClaimRequest(tasks=[task_id], assignee="worker_invalid")
+            metta.app_backend.routes.eval_task_routes.TaskClaimRequest(tasks=[task_id], assignee="worker_invalid")
         )
         assert task_id in claim_response.claimed
 
@@ -308,10 +324,12 @@ class TestEvalTaskRoutes:
         assert update_response.status_code == 422
 
     @pytest.mark.asyncio
-    async def test_update_task_with_error_reason(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
+    async def test_update_task_with_error_reason(
+        self, eval_task_client: metta.app_backend.clients.eval_task_client.EvalTaskClient, test_policy_id: uuid.UUID
+    ):
         """Test updating task status to error with an error reason."""
         task_response = await eval_task_client.create_task(
-            TaskCreateRequest(
+            metta.app_backend.routes.eval_task_routes.TaskCreateRequest(
                 policy_id=test_policy_id,
                 git_hash="error_reason_test",
                 sim_suite="navigation",
@@ -319,15 +337,21 @@ class TestEvalTaskRoutes:
         )
         task_id = task_response.id
 
-        claim_response = await eval_task_client.claim_tasks(TaskClaimRequest(tasks=[task_id], assignee="worker_error"))
+        claim_response = await eval_task_client.claim_tasks(
+            metta.app_backend.routes.eval_task_routes.TaskClaimRequest(tasks=[task_id], assignee="worker_error")
+        )
         assert task_id in claim_response.claimed
 
         # Update with error reason
         error_reason = "Failed to checkout git hash: fatal: reference is not a tree"
         update_response = await eval_task_client.update_task_status(
-            TaskUpdateRequest(
+            metta.app_backend.routes.eval_task_routes.TaskUpdateRequest(
                 require_assignee="worker_error",
-                updates={task_id: TaskStatusUpdate(status="error", attributes={"error_reason": error_reason})},
+                updates={
+                    task_id: metta.app_backend.routes.eval_task_routes.TaskStatusUpdate(
+                        status="error", attributes={"error_reason": error_reason}
+                    )
+                },
             )
         )
         assert update_response.statuses[task_id] == "error"
@@ -337,13 +361,15 @@ class TestEvalTaskRoutes:
         assert task_id not in [task.id for task in available_response.tasks]
 
     @pytest.mark.asyncio
-    async def test_update_task_mixed_formats(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
+    async def test_update_task_mixed_formats(
+        self, eval_task_client: metta.app_backend.clients.eval_task_client.EvalTaskClient, test_policy_id: uuid.UUID
+    ):
         """Test updating multiple tasks with mixed string and object formats."""
         # Create and claim tasks
         task_ids = []
         for i in range(3):
             task_response = await eval_task_client.create_task(
-                TaskCreateRequest(
+                metta.app_backend.routes.eval_task_routes.TaskCreateRequest(
                     policy_id=test_policy_id,
                     git_hash=f"mixed_test_{i}",
                     sim_suite="all",
@@ -351,20 +377,22 @@ class TestEvalTaskRoutes:
             )
             task_ids.append(task_response.id)
 
-        claim_response = await eval_task_client.claim_tasks(TaskClaimRequest(tasks=task_ids, assignee="worker_mixed"))
+        claim_response = await eval_task_client.claim_tasks(
+            metta.app_backend.routes.eval_task_routes.TaskClaimRequest(tasks=task_ids, assignee="worker_mixed")
+        )
         assert len(claim_response.claimed) == 3
 
         # Update with different formats
         update_response = await eval_task_client.update_task_status(
-            TaskUpdateRequest(
+            metta.app_backend.routes.eval_task_routes.TaskUpdateRequest(
                 require_assignee="worker_mixed",
                 updates={
-                    task_ids[0]: TaskStatusUpdate(status="done"),
-                    task_ids[1]: TaskStatusUpdate(
+                    task_ids[0]: metta.app_backend.routes.eval_task_routes.TaskStatusUpdate(status="done"),
+                    task_ids[1]: metta.app_backend.routes.eval_task_routes.TaskStatusUpdate(
                         status="error",
                         attributes={"error_reason": "Simulation failed: OOM"},
                     ),
-                    task_ids[2]: TaskStatusUpdate(status="canceled"),
+                    task_ids[2]: metta.app_backend.routes.eval_task_routes.TaskStatusUpdate(status="canceled"),
                 },
             )
         )
@@ -375,11 +403,14 @@ class TestEvalTaskRoutes:
     @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_error_reason_stored_in_db(
-        self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID, stats_repo: MettaRepo
+        self,
+        eval_task_client: metta.app_backend.clients.eval_task_client.EvalTaskClient,
+        test_policy_id: uuid.UUID,
+        stats_repo: metta.app_backend.metta_repo.MettaRepo,
     ):
         """Test that error_reason is properly stored in the database attributes."""
         task_response = await eval_task_client.create_task(
-            TaskCreateRequest(
+            metta.app_backend.routes.eval_task_routes.TaskCreateRequest(
                 policy_id=test_policy_id,
                 git_hash="db_error_test",
                 sim_suite="navigation",
@@ -387,14 +418,20 @@ class TestEvalTaskRoutes:
         )
         task_id = task_response.id
 
-        await eval_task_client.claim_tasks(TaskClaimRequest(tasks=[task_id], assignee="worker_db_test"))
+        await eval_task_client.claim_tasks(
+            metta.app_backend.routes.eval_task_routes.TaskClaimRequest(tasks=[task_id], assignee="worker_db_test")
+        )
 
         # Update with error
         error_reason = "Database connection timeout after 30 seconds"
         await eval_task_client.update_task_status(
-            TaskUpdateRequest(
+            metta.app_backend.routes.eval_task_routes.TaskUpdateRequest(
                 require_assignee="worker_db_test",
-                updates={task_id: TaskStatusUpdate(status="error", attributes={"error_reason": error_reason})},
+                updates={
+                    task_id: metta.app_backend.routes.eval_task_routes.TaskStatusUpdate(
+                        status="error", attributes={"error_reason": error_reason}
+                    )
+                },
             )
         )
 
@@ -408,7 +445,9 @@ class TestEvalTaskRoutes:
 
     @pytest.mark.slow
     @pytest.mark.asyncio
-    async def test_get_all_tasks_with_filters(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
+    async def test_get_all_tasks_with_filters(
+        self, eval_task_client: metta.app_backend.clients.eval_task_client.EvalTaskClient, test_policy_id: uuid.UUID
+    ):
         """Test get_all_tasks with all filter criteria."""
         # Create tasks with different attributes
         created_tasks = []
@@ -418,7 +457,7 @@ class TestEvalTaskRoutes:
 
         # Task 1: unprocessed, git_hash_1, policy_1, suite_navigation
         task1 = await eval_task_client.create_task(
-            TaskCreateRequest(
+            metta.app_backend.routes.eval_task_routes.TaskCreateRequest(
                 policy_id=test_policy_id,
                 git_hash=f"{test_prefix}_git_hash_1",
                 sim_suite="navigation",
@@ -428,7 +467,7 @@ class TestEvalTaskRoutes:
 
         # Task 2: unprocessed, git_hash_2, policy_1, suite_memory
         task2 = await eval_task_client.create_task(
-            TaskCreateRequest(
+            metta.app_backend.routes.eval_task_routes.TaskCreateRequest(
                 policy_id=test_policy_id,
                 git_hash=f"{test_prefix}_git_hash_2",
                 sim_suite="memory",
@@ -438,34 +477,38 @@ class TestEvalTaskRoutes:
 
         # Task 3: claimed (still unprocessed), git_hash_1, policy_1, suite_navigation
         task3 = await eval_task_client.create_task(
-            TaskCreateRequest(
+            metta.app_backend.routes.eval_task_routes.TaskCreateRequest(
                 policy_id=test_policy_id,
                 git_hash=f"{test_prefix}_git_hash_1",
                 sim_suite="navigation",
             )
         )
-        await eval_task_client.claim_tasks(TaskClaimRequest(tasks=[task3.id], assignee="worker_filter_test"))
+        await eval_task_client.claim_tasks(
+            metta.app_backend.routes.eval_task_routes.TaskClaimRequest(tasks=[task3.id], assignee="worker_filter_test")
+        )
         created_tasks.append(("task3", task3))
 
         # Task 4: done status, git_hash_1, policy_1, suite_navigation
         task4 = await eval_task_client.create_task(
-            TaskCreateRequest(
+            metta.app_backend.routes.eval_task_routes.TaskCreateRequest(
                 policy_id=test_policy_id,
                 git_hash=f"{test_prefix}_git_hash_1",
                 sim_suite="navigation",
             )
         )
-        await eval_task_client.claim_tasks(TaskClaimRequest(tasks=[task4.id], assignee="worker_filter_test"))
+        await eval_task_client.claim_tasks(
+            metta.app_backend.routes.eval_task_routes.TaskClaimRequest(tasks=[task4.id], assignee="worker_filter_test")
+        )
         await eval_task_client.update_task_status(
-            TaskUpdateRequest(
+            metta.app_backend.routes.eval_task_routes.TaskUpdateRequest(
                 require_assignee="worker_filter_test",
-                updates={task4.id: TaskStatusUpdate(status="done")},
+                updates={task4.id: metta.app_backend.routes.eval_task_routes.TaskStatusUpdate(status="done")},
             )
         )
         created_tasks.append(("task4", task4))
 
         # Test 1: Filter by status (only unprocessed)
-        filters = TaskFilterParams(statuses=["unprocessed"], limit=100)
+        filters = metta.app_backend.routes.eval_task_routes.TaskFilterParams(statuses=["unprocessed"], limit=100)
         response = await eval_task_client.get_all_tasks(filters=filters)
         task_ids = [t.id for t in response.tasks]
 
@@ -475,7 +518,9 @@ class TestEvalTaskRoutes:
         assert task4.id not in task_ids  # done status
 
         # Test 2: Filter by git_hash
-        filters = TaskFilterParams(git_hash=f"{test_prefix}_git_hash_1", limit=100)
+        filters = metta.app_backend.routes.eval_task_routes.TaskFilterParams(
+            git_hash=f"{test_prefix}_git_hash_1", limit=100
+        )
         response = await eval_task_client.get_all_tasks(filters=filters)
         task_ids = [t.id for t in response.tasks]
         assert task1.id in task_ids
@@ -484,13 +529,13 @@ class TestEvalTaskRoutes:
         assert task4.id in task_ids
 
         # Test 3: Filter by policy_ids (single)
-        filters = TaskFilterParams(policy_ids=[test_policy_id], limit=100)
+        filters = metta.app_backend.routes.eval_task_routes.TaskFilterParams(policy_ids=[test_policy_id], limit=100)
         response = await eval_task_client.get_all_tasks(filters=filters)
         task_ids = [t.id for t in response.tasks]
         assert all(task.id in task_ids for _, task in created_tasks)
 
         # Test 4: Filter by sim_suites (single)
-        filters = TaskFilterParams(sim_suites=["navigation"], limit=100)
+        filters = metta.app_backend.routes.eval_task_routes.TaskFilterParams(sim_suites=["navigation"], limit=100)
         response = await eval_task_client.get_all_tasks(filters=filters)
         task_ids = [t.id for t in response.tasks]
         assert task1.id in task_ids
@@ -499,7 +544,7 @@ class TestEvalTaskRoutes:
         assert task4.id in task_ids
 
         # Test 5: Combined filters
-        filters = TaskFilterParams(
+        filters = metta.app_backend.routes.eval_task_routes.TaskFilterParams(
             statuses=["unprocessed"], git_hash=f"{test_prefix}_git_hash_1", sim_suites=["navigation"], limit=100
         )
         response = await eval_task_client.get_all_tasks(filters=filters)
@@ -512,7 +557,7 @@ class TestEvalTaskRoutes:
     @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_get_all_tasks_with_multiple_statuses(
-        self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID
+        self, eval_task_client: metta.app_backend.clients.eval_task_client.EvalTaskClient, test_policy_id: uuid.UUID
     ):
         """Test filtering by multiple statuses."""
         # Create tasks with different statuses
@@ -520,7 +565,7 @@ class TestEvalTaskRoutes:
 
         # Create unprocessed task
         unprocessed = await eval_task_client.create_task(
-            TaskCreateRequest(
+            metta.app_backend.routes.eval_task_routes.TaskCreateRequest(
                 policy_id=test_policy_id,
                 git_hash="status_test",
                 sim_suite="all",
@@ -530,40 +575,50 @@ class TestEvalTaskRoutes:
 
         # Create done task
         done_task = await eval_task_client.create_task(
-            TaskCreateRequest(
+            metta.app_backend.routes.eval_task_routes.TaskCreateRequest(
                 policy_id=test_policy_id,
                 git_hash="status_test",
                 sim_suite="all",
             )
         )
-        await eval_task_client.claim_tasks(TaskClaimRequest(tasks=[done_task.id], assignee="worker_status"))
+        await eval_task_client.claim_tasks(
+            metta.app_backend.routes.eval_task_routes.TaskClaimRequest(tasks=[done_task.id], assignee="worker_status")
+        )
         await eval_task_client.update_task_status(
-            TaskUpdateRequest(
+            metta.app_backend.routes.eval_task_routes.TaskUpdateRequest(
                 require_assignee="worker_status",
-                updates={done_task.id: TaskStatusUpdate(status="done")},
+                updates={done_task.id: metta.app_backend.routes.eval_task_routes.TaskStatusUpdate(status="done")},
             )
         )
         tasks_by_status["done"] = done_task
 
         # Create error task
         error_task = await eval_task_client.create_task(
-            TaskCreateRequest(
+            metta.app_backend.routes.eval_task_routes.TaskCreateRequest(
                 policy_id=test_policy_id,
                 git_hash="status_test",
                 sim_suite="all",
             )
         )
-        await eval_task_client.claim_tasks(TaskClaimRequest(tasks=[error_task.id], assignee="worker_status"))
+        await eval_task_client.claim_tasks(
+            metta.app_backend.routes.eval_task_routes.TaskClaimRequest(tasks=[error_task.id], assignee="worker_status")
+        )
         await eval_task_client.update_task_status(
-            TaskUpdateRequest(
+            metta.app_backend.routes.eval_task_routes.TaskUpdateRequest(
                 require_assignee="worker_status",
-                updates={error_task.id: TaskStatusUpdate(status="error", attributes={"error_reason": "Test error"})},
+                updates={
+                    error_task.id: metta.app_backend.routes.eval_task_routes.TaskStatusUpdate(
+                        status="error", attributes={"error_reason": "Test error"}
+                    )
+                },
             )
         )
         tasks_by_status["error"] = error_task
 
         # Test filtering by multiple statuses
-        filters = TaskFilterParams(statuses=["done", "error"], git_hash="status_test", limit=100)
+        filters = metta.app_backend.routes.eval_task_routes.TaskFilterParams(
+            statuses=["done", "error"], git_hash="status_test", limit=100
+        )
         response = await eval_task_client.get_all_tasks(filters=filters)
         task_ids = [t.id for t in response.tasks]
 
@@ -574,7 +629,10 @@ class TestEvalTaskRoutes:
     @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_get_all_tasks_with_multiple_sim_suites_and_policies(
-        self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID, stats_client: StatsClient
+        self,
+        eval_task_client: metta.app_backend.clients.eval_task_client.EvalTaskClient,
+        test_policy_id: uuid.UUID,
+        stats_client: metta.app_backend.clients.stats_client.StatsClient,
     ):
         """Test filtering by multiple sim_suites and policy_ids."""
         # Create a second policy
@@ -599,7 +657,7 @@ class TestEvalTaskRoutes:
 
         # Policy 1, navigation
         task1 = await eval_task_client.create_task(
-            TaskCreateRequest(
+            metta.app_backend.routes.eval_task_routes.TaskCreateRequest(
                 policy_id=test_policy_id,
                 git_hash="multi_test",
                 sim_suite="navigation",
@@ -609,7 +667,7 @@ class TestEvalTaskRoutes:
 
         # Policy 1, memory
         task2 = await eval_task_client.create_task(
-            TaskCreateRequest(
+            metta.app_backend.routes.eval_task_routes.TaskCreateRequest(
                 policy_id=test_policy_id,
                 git_hash="multi_test",
                 sim_suite="memory",
@@ -619,7 +677,7 @@ class TestEvalTaskRoutes:
 
         # Policy 2, navigation
         task3 = await eval_task_client.create_task(
-            TaskCreateRequest(
+            metta.app_backend.routes.eval_task_routes.TaskCreateRequest(
                 policy_id=second_policy.id,
                 git_hash="multi_test",
                 sim_suite="navigation",
@@ -629,7 +687,7 @@ class TestEvalTaskRoutes:
 
         # Policy 2, arena
         task4 = await eval_task_client.create_task(
-            TaskCreateRequest(
+            metta.app_backend.routes.eval_task_routes.TaskCreateRequest(
                 policy_id=second_policy.id,
                 git_hash="multi_test",
                 sim_suite="arena",
@@ -638,7 +696,9 @@ class TestEvalTaskRoutes:
         tasks["policy2_arena"] = task4
 
         # Test 1: Multiple sim_suites
-        filters = TaskFilterParams(sim_suites=["navigation", "memory"], git_hash="multi_test", limit=100)
+        filters = metta.app_backend.routes.eval_task_routes.TaskFilterParams(
+            sim_suites=["navigation", "memory"], git_hash="multi_test", limit=100
+        )
         response = await eval_task_client.get_all_tasks(filters=filters)
         task_ids = [t.id for t in response.tasks]
 
@@ -648,14 +708,16 @@ class TestEvalTaskRoutes:
         assert tasks["policy2_arena"].id not in task_ids  # arena not in filter
 
         # Test 2: Multiple policy_ids
-        filters = TaskFilterParams(policy_ids=[test_policy_id, second_policy.id], git_hash="multi_test", limit=100)
+        filters = metta.app_backend.routes.eval_task_routes.TaskFilterParams(
+            policy_ids=[test_policy_id, second_policy.id], git_hash="multi_test", limit=100
+        )
         response = await eval_task_client.get_all_tasks(filters=filters)
         task_ids = [t.id for t in response.tasks]
 
         assert all(task.id in task_ids for task in tasks.values())  # All tasks should be included
 
         # Test 3: Combined multiple filters
-        filters = TaskFilterParams(
+        filters = metta.app_backend.routes.eval_task_routes.TaskFilterParams(
             policy_ids=[second_policy.id], sim_suites=["navigation", "arena"], git_hash="multi_test", limit=100
         )
         response = await eval_task_client.get_all_tasks(filters=filters)
@@ -669,7 +731,10 @@ class TestEvalTaskRoutes:
     @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_get_all_tasks_sql_query_with_arrays(
-        self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID, stats_client: StatsClient
+        self,
+        eval_task_client: metta.app_backend.clients.eval_task_client.EvalTaskClient,
+        test_policy_id: uuid.UUID,
+        stats_client: metta.app_backend.clients.stats_client.StatsClient,
     ):
         """Test that SQL queries with array parameters work correctly."""
         # Create multiple policies
@@ -700,7 +765,7 @@ class TestEvalTaskRoutes:
         for i, (status, sim_suite) in enumerate(zip(statuses_to_create * 3, sim_suites_to_create * 3, strict=False)):
             policy_id = policies[i % len(policies)]
             task = await eval_task_client.create_task(
-                TaskCreateRequest(
+                metta.app_backend.routes.eval_task_routes.TaskCreateRequest(
                     policy_id=policy_id,
                     git_hash="sql_test",
                     sim_suite=sim_suite,
@@ -710,16 +775,22 @@ class TestEvalTaskRoutes:
 
             # Update status if needed
             if status != "unprocessed":
-                await eval_task_client.claim_tasks(TaskClaimRequest(tasks=[task.id], assignee="sql_test_worker"))
+                await eval_task_client.claim_tasks(
+                    metta.app_backend.routes.eval_task_routes.TaskClaimRequest(
+                        tasks=[task.id], assignee="sql_test_worker"
+                    )
+                )
                 await eval_task_client.update_task_status(
-                    TaskUpdateRequest(
+                    metta.app_backend.routes.eval_task_routes.TaskUpdateRequest(
                         require_assignee="sql_test_worker",
-                        updates={task.id: TaskStatusUpdate(status=status)},  # type: ignore
+                        updates={task.id: metta.app_backend.routes.eval_task_routes.TaskStatusUpdate(status=status)},  # type: ignore
                     )
                 )
 
         # Test 1: Multiple statuses with IN clause
-        filters = TaskFilterParams(statuses=["unprocessed", "done"], git_hash="sql_test", limit=100)
+        filters = metta.app_backend.routes.eval_task_routes.TaskFilterParams(
+            statuses=["unprocessed", "done"], git_hash="sql_test", limit=100
+        )
         response = await eval_task_client.get_all_tasks(filters=filters)
         returned_statuses = {t.status for t in response.tasks}
         assert "unprocessed" in returned_statuses or "done" in returned_statuses
@@ -727,7 +798,7 @@ class TestEvalTaskRoutes:
         assert "canceled" not in returned_statuses
 
         # Test 2: Multiple policy_ids
-        filters = TaskFilterParams(
+        filters = metta.app_backend.routes.eval_task_routes.TaskFilterParams(
             policy_ids=policies[:2],  # First two policies
             git_hash="sql_test",
             limit=100,
@@ -741,14 +812,16 @@ class TestEvalTaskRoutes:
         )
 
         # Test 3: Multiple sim_suites
-        filters = TaskFilterParams(sim_suites=["navigation", "memory"], git_hash="sql_test", limit=100)
+        filters = metta.app_backend.routes.eval_task_routes.TaskFilterParams(
+            sim_suites=["navigation", "memory"], git_hash="sql_test", limit=100
+        )
         response = await eval_task_client.get_all_tasks(filters=filters)
         returned_sim_suites = {t.sim_suite for t in response.tasks}
         assert all(suite in ["navigation", "memory"] for suite in returned_sim_suites)
         assert "arena" not in returned_sim_suites
 
         # Test 4: Empty arrays should return no results for those filters
-        filters = TaskFilterParams(
+        filters = metta.app_backend.routes.eval_task_routes.TaskFilterParams(
             statuses=[],  # Empty list
             git_hash="sql_test",
             limit=100,

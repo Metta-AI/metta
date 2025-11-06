@@ -1,12 +1,11 @@
 """Tests for Transformer-XL style attention cell (XLCell)."""
 
-from __future__ import annotations
 
+import cortex.cells.xl
+import cortex.config
 import pytest
+import tensordict
 import torch
-from cortex.cells.xl import XLCell
-from cortex.config import AxonConfig, XLCellConfig
-from tensordict import TensorDict
 
 # Skip this module entirely (slow)
 pytestmark = pytest.mark.skip(reason="slow test skipped in prod")
@@ -25,7 +24,7 @@ def test_xl_sequence_shapes_and_state() -> None:
     dtype = torch.float32
 
     B, T, H, NH = 2, 8, 64, 8
-    cfg = XLCellConfig(
+    cfg = cortex.config.XLCellConfig(
         hidden_size=H,
         n_heads=NH,
         head_dim=None,
@@ -34,14 +33,14 @@ def test_xl_sequence_shapes_and_state() -> None:
         out_dropout=0.0,
         use_bias=True,
     )
-    cell = XLCell(cfg).to(device=device, dtype=dtype)
+    cell = cortex.cells.xl.XLCell(cfg).to(device=device, dtype=dtype)
     cell.eval()
 
     x = torch.randn(B, T, H, device=device, dtype=dtype)
     y, state = cell(x, state=None)
 
     assert y.shape == (B, T, H)
-    assert state is not None and isinstance(state, TensorDict)
+    assert state is not None and isinstance(state, tensordict.TensorDict)
     assert "mem" in state and "mem_seg" in state
     assert state["mem"].shape == (B, min(T, cfg.mem_len), H)
     assert state["mem_seg"].shape == (B, min(T, cfg.mem_len))
@@ -54,7 +53,7 @@ def test_xl_step_vs_sequence_equivalence() -> None:
     dtype = torch.float32
 
     B, T, H, NH = 2, 10, 64, 8
-    cfg = XLCellConfig(
+    cfg = cortex.config.XLCellConfig(
         hidden_size=H,
         n_heads=NH,
         head_dim=None,
@@ -63,7 +62,7 @@ def test_xl_step_vs_sequence_equivalence() -> None:
         out_dropout=0.0,
         use_bias=True,
     )
-    cell = XLCell(cfg).to(device=device, dtype=dtype)
+    cell = cortex.cells.xl.XLCell(cfg).to(device=device, dtype=dtype)
     cell.eval()
 
     x = torch.randn(B, T, H, device=device, dtype=dtype)
@@ -102,7 +101,7 @@ def test_xl_memory_trim_across_calls() -> None:
 
     B, T, H, NH = 2, 6, 32, 4
     mem_len = 10
-    cfg = XLCellConfig(
+    cfg = cortex.config.XLCellConfig(
         hidden_size=H,
         n_heads=NH,
         head_dim=None,
@@ -111,7 +110,7 @@ def test_xl_memory_trim_across_calls() -> None:
         out_dropout=0.0,
         use_bias=True,
     )
-    cell = XLCell(cfg).to(device=device, dtype=dtype)
+    cell = cortex.cells.xl.XLCell(cfg).to(device=device, dtype=dtype)
     cell.eval()
 
     x1 = torch.randn(B, T, H, device=device, dtype=dtype)
@@ -131,7 +130,7 @@ def test_xl_with_axon_qkv_state_and_reset() -> None:
     dtype = torch.float32
 
     B, T, H, NH = 2, 5, 64, 8
-    cfg = XLCellConfig(
+    cfg = cortex.config.XLCellConfig(
         hidden_size=H,
         n_heads=NH,
         head_dim=None,
@@ -140,15 +139,15 @@ def test_xl_with_axon_qkv_state_and_reset() -> None:
         out_dropout=0.0,
         use_bias=True,
         use_axon_qkv=True,
-        axon_qkv_config=AxonConfig(hidden_size=H, out_dim=NH * (H // NH), activation="identity"),
+        axon_qkv_config=cortex.config.AxonConfig(hidden_size=H, out_dim=NH * (H // NH), activation="identity"),
     )
-    cell = XLCell(cfg).to(device=device, dtype=dtype)
+    cell = cortex.cells.xl.XLCell(cfg).to(device=device, dtype=dtype)
     cell.train(False)
 
     x = torch.randn(B, T, H, device=device, dtype=dtype)
     y, st = cell(x, state=None)
     assert y.shape == (B, T, H)
-    assert st is not None and isinstance(st, TensorDict)
+    assert st is not None and isinstance(st, tensordict.TensorDict)
     # AxonLayer substates should be present under 'xl_qkv'
     assert "xl_qkv" in st
     group = st.get("xl_qkv")

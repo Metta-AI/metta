@@ -1,18 +1,18 @@
-from typing import Dict, List, Optional, Set, Tuple
+import typing
 
 import numpy as np
 
-from mettagrid.mapgen.types import MapGrid, map_grid_dtype
+import mettagrid.mapgen.types
 
 
-def create_grid(height: int, width: int, fill_value: str = "empty") -> MapGrid:
+def create_grid(height: int, width: int, fill_value: str = "empty") -> mettagrid.mapgen.types.MapGrid:
     """
     Creates a NumPy grid with the given height and width, pre-filled with the specified fill_value.
     """
-    return np.full((height, width), fill_value, dtype=map_grid_dtype)
+    return np.full((height, width), fill_value, dtype=mettagrid.mapgen.types.map_grid_dtype)
 
 
-def draw_border(grid: MapGrid, border_width: int, border_object: str) -> None:
+def draw_border(grid: mettagrid.mapgen.types.MapGrid, border_width: int, border_object: str) -> None:
     """
     Draws a border on the given grid in-place. The border (of thickness border_width) is set to border_object.
     """
@@ -24,7 +24,7 @@ def draw_border(grid: MapGrid, border_width: int, border_object: str) -> None:
     grid[:, -border_width:] = border_object
 
 
-def compute_positions(start: int, end: int, blocks: List[Tuple[str, int]]) -> Dict[str, int]:
+def compute_positions(start: int, end: int, blocks: typing.List[typing.Tuple[str, int]]) -> typing.Dict[str, int]:
     """
     Given a starting and ending coordinate along an axis and a list of blocks (name, width),
     compute and return a dictionary mapping each block name to its starting coordinate.
@@ -53,11 +53,11 @@ def sample_position(
     y_min: int,
     y_max: int,
     min_distance: int,
-    existing: List[Tuple[int, int]],
-    forbidden: Optional[Set[Tuple[int, int]]] = None,
-    rng: Optional[np.random.Generator] = None,
+    existing: typing.List[typing.Tuple[int, int]],
+    forbidden: typing.Optional[typing.Set[typing.Tuple[int, int]]] = None,
+    rng: typing.Optional[np.random.Generator] = None,
     attempts: int = 100,
-) -> Tuple[int, int]:
+) -> typing.Tuple[int, int]:
     """
     Samples and returns a position (x, y) within the rectangular region defined by
     [x_min, x_max] and [y_min, y_max]. The position will be at least min_distance (Manhattan)

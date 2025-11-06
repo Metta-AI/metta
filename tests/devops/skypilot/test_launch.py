@@ -4,17 +4,17 @@ These tests verify that launch.py can parse arguments and validate configuration
 without actually launching jobs.
 """
 
+import pathlib
 import subprocess
 import sys
-from pathlib import Path
 
 import pytest
 
 
-def get_launch_script_path() -> Path:
+def get_launch_script_path() -> pathlib.Path:
     """Get path to launch.py script."""
     # Assumes we're in repo root when running tests
-    return Path("devops/skypilot/launch.py")
+    return pathlib.Path("devops/skypilot/launch.py")
 
 
 def test_launch_dry_run_success():

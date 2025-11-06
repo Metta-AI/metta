@@ -1,36 +1,35 @@
-from typing import Any
+import typing
 
 import numpy as np
+import pydantic
+import tensordict
 import torch
-from pydantic import Field
-from tensordict import NonTensorData, TensorDict
-from torch import Tensor
-from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
+import torchrl.data
 
-from metta.agent.policy import Policy
-from metta.rl.loss import Loss
-from metta.rl.training import ComponentContext, TrainingEnvironment
-from mettagrid.base_config import Config
+import metta.agent.policy
+import metta.rl.loss
+import metta.rl.training
+import mettagrid.base_config
 
 
-class GRPOConfig(Config):
+class GRPOConfig(mettagrid.base_config.Config):
     """Configuration for Group Relative Policy Optimization."""
 
     # Clip coefficient for policy gradient
-    clip_coef: float = Field(default=0.2, gt=0, le=1.0)
+    clip_coef: float = pydantic.Field(default=0.2, gt=0, le=1.0)
     # Entropy regularization weight
-    ent_coef: float = Field(default=0.01, ge=0)
+    ent_coef: float = pydantic.Field(default=0.01, ge=0)
     # Discount factor for returns
-    gamma: float = Field(default=0.99, ge=0, le=1.0)
+    gamma: float = pydantic.Field(default=0.99, ge=0, le=1.0)
     # Number of responses to sample per prompt for group comparison
-    group_size: int = Field(default=4, gt=1)
+    group_size: int = pydantic.Field(default=4, gt=1)
 
     # Training parameters
     # Gradient clipping
-    max_grad_norm: float = Field(default=0.5, gt=0)
+    max_grad_norm: float = pydantic.Field(default=0.5, gt=0)
     # L2 regularization
-    l2_reg_loss_coef: float = Field(default=0, ge=0)
-    l2_init_loss_coef: float = Field(default=0, ge=0)
+    l2_reg_loss_coef: float = pydantic.Field(default=0, ge=0)
+    l2_init_loss_coef: float = pydantic.Field(default=0, ge=0)
 
     # Advantage normalization
     norm_adv: bool = True
@@ -39,12 +38,12 @@ class GRPOConfig(Config):
 
     def create(
         self,
-        policy: Policy,
-        trainer_cfg: Any,
-        env: TrainingEnvironment,
+        policy: metta.agent.policy.Policy,
+        trainer_cfg: typing.Any,
+        env: metta.rl.training.TrainingEnvironment,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
+        loss_config: typing.Any,
     ):
         """Points to the GRPO class for initialization."""
         return GRPO(
@@ -57,7 +56,7 @@ class GRPOConfig(Config):
         )
 
 
-class GRPO(Loss):
+class GRPO(metta.rl.loss.Loss):
     """Group Relative Policy Optimization loss.
 
     GRPO eliminates the value network and uses group-based advantage estimation,
@@ -74,12 +73,12 @@ class GRPO(Loss):
 
     def __init__(
         self,
-        policy: Policy,
-        trainer_cfg: Any,
-        env: TrainingEnvironment,
+        policy: metta.agent.policy.Policy,
+        trainer_cfg: typing.Any,
+        env: metta.rl.training.TrainingEnvironment,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
+        loss_config: typing.Any,
     ):
         super().__init__(policy, trainer_cfg, env, device, instance_name, loss_config)
         self.advantages = torch.tensor(0.0, dtype=torch.float32, device=self.device)
@@ -90,21 +89,21 @@ class GRPO(Loss):
         self.last_action = None
         self.register_state_attr("burn_in_steps_iter")
 
-    def get_experience_spec(self) -> Composite:
+    def get_experience_spec(self) -> torchrl.data.Composite:
         """Get experience specification without value predictions."""
         act_space = self.env.single_action_space
         act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
-        scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
+        scalar_f32 = torchrl.data.UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
 
-        return Composite(
+        return torchrl.data.Composite(
             rewards=scalar_f32,
             dones=scalar_f32,
             truncateds=scalar_f32,
-            actions=UnboundedDiscrete(shape=torch.Size([]), dtype=act_dtype),
+            actions=torchrl.data.UnboundedDiscrete(shape=torch.Size([]), dtype=act_dtype),
             act_log_prob=scalar_f32,
         )
 
-    def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
+    def run_rollout(self, td: tensordict.TensorDict, context: metta.rl.training.ComponentContext) -> None:
         """Run policy rollout without value prediction."""
         with torch.no_grad():
             self.policy.forward(td)
@@ -122,8 +121,8 @@ class GRPO(Loss):
         return
 
     def run_train(
-        self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int
-    ) -> tuple[Tensor, TensorDict, bool]:
+        self, shared_loss_data: tensordict.TensorDict, context: metta.rl.training.ComponentContext, mb_idx: int
+    ) -> tuple[torch.Tensor, tensordict.TensorDict, bool]:
         """GRPO training loop with group-based advantage estimation."""
         config = self.loss_cfg
         stop_update_epoch = False
@@ -141,7 +140,7 @@ class GRPO(Loss):
         minibatch, indices = self._sample_minibatch()
 
         shared_loss_data["sampled_mb"] = minibatch
-        shared_loss_data["indices"] = NonTensorData(indices)
+        shared_loss_data["indices"] = tensordict.NonTensorData(indices)
 
         policy_td = minibatch.select(*self.policy_experience_spec.keys(include_nested=True))
         B, TT = policy_td.batch_size
@@ -162,11 +161,11 @@ class GRPO(Loss):
 
         return loss, shared_loss_data, stop_update_epoch
 
-    def on_train_phase_end(self, context: ComponentContext) -> None:
+    def on_train_phase_end(self, context: metta.rl.training.ComponentContext) -> None:
         """Track metrics at the end of training phase."""
         pass
 
-    def _compute_group_advantages(self, context: ComponentContext) -> Tensor:
+    def _compute_group_advantages(self, context: metta.rl.training.ComponentContext) -> torch.Tensor:
         """Compute group-based advantages relative to mean reward.
 
         In GRPO, we compute advantages by comparing each trajectory's
@@ -214,7 +213,7 @@ class GRPO(Loss):
 
         return advantages
 
-    def _compute_returns(self, rewards: Tensor, dones: Tensor, gamma: float) -> Tensor:
+    def _compute_returns(self, rewards: torch.Tensor, dones: torch.Tensor, gamma: float) -> torch.Tensor:
         """Compute discounted returns for each trajectory."""
         B, T = rewards.shape
         returns = torch.zeros_like(rewards)
@@ -229,10 +228,10 @@ class GRPO(Loss):
 
     def _process_minibatch_update(
         self,
-        minibatch: TensorDict,
-        policy_td: TensorDict,
-        indices: Tensor,
-    ) -> Tensor:
+        minibatch: tensordict.TensorDict,
+        policy_td: tensordict.TensorDict,
+        indices: torch.Tensor,
+    ) -> torch.Tensor:
         """Process minibatch update using GRPO loss."""
         cfg = self.loss_cfg
         old_logprob = minibatch["act_log_prob"]
@@ -262,7 +261,7 @@ class GRPO(Loss):
         # participate in backward pass for DDP. This prevents "unused parameter" errors.
         # TODO: Find a better way to do this.
         for key in policy_td.keys():
-            if key not in ["act_log_prob", "entropy"] and isinstance(policy_td[key], Tensor):
+            if key not in ["act_log_prob", "entropy"] and isinstance(policy_td[key], torch.Tensor):
                 value = policy_td[key]
                 if value.requires_grad:
                     # Add zero-weighted term to ensure gradient flow
@@ -279,12 +278,12 @@ class GRPO(Loss):
 
     def compute_grpo_loss(
         self,
-        new_logprob: Tensor,
-        old_logprob: Tensor,
-        entropy: Tensor,
-        importance_sampling_ratio: Tensor,
-        adv: Tensor,
-    ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
+        new_logprob: torch.Tensor,
+        old_logprob: torch.Tensor,
+        entropy: torch.Tensor,
+        importance_sampling_ratio: torch.Tensor,
+        adv: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Compute GRPO loss (policy gradient only, no value loss)."""
         # Clipped policy gradient loss
         pg_loss1 = -adv * importance_sampling_ratio
@@ -305,7 +304,7 @@ class GRPO(Loss):
 
         return pg_loss, entropy_loss, approx_kl, clipfrac
 
-    def _sample_minibatch(self) -> tuple[TensorDict, Tensor]:
+    def _sample_minibatch(self) -> tuple[tensordict.TensorDict, torch.Tensor]:
         """Sample a minibatch uniformly from the replay buffer."""
         # For GRPO, we use uniform sampling
         num_segments = self.replay.buffer.shape[0]
@@ -318,9 +317,9 @@ class GRPO(Loss):
 
         return minibatch.clone(), idx
 
-    def _importance_ratio(self, new_logprob: Tensor, old_logprob: Tensor) -> Tensor:
+    def _importance_ratio(self, new_logprob: torch.Tensor, old_logprob: torch.Tensor) -> torch.Tensor:
         logratio = torch.clamp(new_logprob - old_logprob, -10, 10)
         return logratio.exp()
 
-    def _track(self, key: str, value: Tensor) -> None:
+    def _track(self, key: str, value: torch.Tensor) -> None:
         self.loss_tracker[key].append(float(value.item()))

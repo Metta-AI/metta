@@ -8,14 +8,14 @@
 # ]
 # ///
 
+import datetime
 import os
 import re
-from datetime import datetime
 
+import asana_task
+import github_asana_mapping
+import pull_request
 import vcr
-from asana_task import AsanaTask
-from github_asana_mapping import GithubAsanaMapping
-from pull_request import PullRequest
 
 # VCR configuration for tracking REST traffic
 # logging.basicConfig(level=logging.INFO)
@@ -160,7 +160,7 @@ asana task assignment (asana owner) should be the PR author or PR assignee dep w
 if __name__ == "__main__":
     import traceback
 
-    run_id = os.getenv("GITHUB_RUN_ID", datetime.now().strftime("%Y%m%d_%H%M%S"))
+    run_id = os.getenv("GITHUB_RUN_ID", datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
     cassette_override = os.getenv("VCR_CASSETTE_PATH")
     if cassette_override:
         cassette_name = cassette_override
@@ -188,9 +188,9 @@ if __name__ == "__main__":
             github_repo = getenv_or_bust("INPUT_GITHUB_REPO")
             github_token = getenv_or_bust("INPUT_GITHUB_TOKEN")
 
-            pr = PullRequest(github_repo, pr_number, github_token)
+            pr = pull_request.PullRequest(github_repo, pr_number, github_token)
 
-            mapping = GithubAsanaMapping(
+            mapping = github_asana_mapping.GithubAsanaMapping(
                 pr.github_logins,
                 roster_project_id,
                 gh_login_field_id,
@@ -219,7 +219,7 @@ if __name__ == "__main__":
 
             # todo print out variables above
 
-            asana_task = AsanaTask(
+            asana_task = asana_task.AsanaTask(
                 asana_token=asana_token,
                 github_url_field_id=github_url_field_id,
                 pr_author_field_id=pr_author_field_id,

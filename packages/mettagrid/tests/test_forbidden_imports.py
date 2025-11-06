@@ -1,15 +1,14 @@
-from __future__ import annotations
 
 import ast
-from pathlib import Path
-from typing import Iterable
+import pathlib
+import typing
 
 ALLOWED_METTA_PACKAGES = ["mettagrid"]
 
 EXCLUDE_FILES = set()
 
 
-def find_forbidden_imports(file_path: Path) -> list[ast.stmt]:
+def find_forbidden_imports(file_path: pathlib.Path) -> list[ast.stmt]:
     """Return list of AST nodes with forbidden imports in a file.
 
     Flags both:
@@ -46,12 +45,12 @@ def find_forbidden_imports(file_path: Path) -> list[ast.stmt]:
     return bad_nodes
 
 
-def iter_python_files(root: Path) -> Iterable[Path]:
+def iter_python_files(root: pathlib.Path) -> typing.Iterable[pathlib.Path]:
     yield from root.rglob("*.py")
 
 
 def test_no_forbidden_imports() -> None:
-    repo_root = Path(__file__).resolve().parents[1]
+    repo_root = pathlib.Path(__file__).resolve().parents[1]
     src_dir = repo_root / "python" / "src"
     assert src_dir.is_dir(), f"Expected source directory not found: {src_dir}"
 

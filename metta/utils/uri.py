@@ -3,25 +3,24 @@
 Provides canonical parsing for supported schemes (local files, file://, mock://, HTTP URLs).
 """
 
-from __future__ import annotations
 
+import dataclasses
+import pathlib
 import re
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Optional
-from urllib.parse import unquote, urlparse
+import typing
+import urllib.parse
 
 
-@dataclass(frozen=True, slots=True)
+@dataclasses.dataclass(frozen=True, slots=True)
 class ParsedURI:
     """Canonical representation for supported URI schemes."""
 
     raw: str
     scheme: str
-    local_path: Optional[Path] = None
-    bucket: Optional[str] = None
-    key: Optional[str] = None
-    path: Optional[str] = None
+    local_path: typing.Optional[pathlib.Path] = None
+    bucket: typing.Optional[str] = None
+    key: typing.Optional[str] = None
+    path: typing.Optional[str] = None
 
     @property
     def canonical(self) -> str:
@@ -34,7 +33,7 @@ class ParsedURI:
             return f"mock://{self.path or ''}"
         return self.raw
 
-    def require_local_path(self) -> Path:
+    def require_local_path(self) -> pathlib.Path:
         if self.scheme != "file" or self.local_path is None:
             raise ValueError(f"URI '{self.raw}' does not refer to a local file path")
         return self.local_path
@@ -85,21 +84,21 @@ class ParsedURI:
             return cls(raw=value, scheme="gdrive", path=value)
 
         if value.startswith("file://"):
-            parsed = urlparse(value)
+            parsed = urllib.parse.urlparse(value)
             # Combine netloc + path to support file://localhost/tmp
-            combined_path = unquote(parsed.path)
+            combined_path = urllib.parse.unquote(parsed.path)
             if parsed.netloc:
                 combined_path = f"{parsed.netloc}{combined_path}"
             if not combined_path:
                 raise ValueError(f"Malformed file URI: {value}")
-            local_path = Path(combined_path).expanduser().resolve()
+            local_path = pathlib.Path(combined_path).expanduser().resolve()
             return cls(raw=value, scheme="file", local_path=local_path, path=str(local_path))
 
         if value.startswith("http://") or value.startswith("https://"):
             return cls(raw=value, scheme="http", path=value)
 
         # Treat everything else as a local filesystem path
-        local_path = Path(value).expanduser().resolve()
+        local_path = pathlib.Path(value).expanduser().resolve()
         return cls(raw=value, scheme="file", local_path=local_path, path=str(local_path))
 
 

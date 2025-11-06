@@ -1,14 +1,14 @@
+import datetime
 import uuid
-from datetime import datetime
 
+import fastapi.testclient
 import pytest
-from fastapi.testclient import TestClient
 
-from metta.app_backend.metta_repo import MettaRepo
-from metta.app_backend.test_support import BaseAsyncTest
+import metta.app_backend.metta_repo
+import metta.app_backend.test_support
 
 
-class TestSavedDashboards(BaseAsyncTest):
+class TestSavedDashboards(metta.app_backend.test_support.BaseAsyncTest):
     """Tests for the saved dashboard functionality."""
 
     @pytest.fixture(scope="class")
@@ -17,7 +17,9 @@ class TestSavedDashboards(BaseAsyncTest):
         return "test_user@example.com"
 
     @pytest.mark.asyncio
-    async def test_create_saved_dashboard(self, stats_repo: MettaRepo, user_id: str) -> None:
+    async def test_create_saved_dashboard(
+        self, stats_repo: metta.app_backend.metta_repo.MettaRepo, user_id: str
+    ) -> None:
         """Test creating a saved dashboard."""
         dashboard_state = {
             "suite": "navigation",
@@ -44,11 +46,13 @@ class TestSavedDashboards(BaseAsyncTest):
         assert dashboard.type == "heatmap"
         assert dashboard.dashboard_state == dashboard_state
         assert isinstance(dashboard.id, uuid.UUID)
-        assert isinstance(dashboard.created_at, datetime)
-        assert isinstance(dashboard.updated_at, datetime)
+        assert isinstance(dashboard.created_at, datetime.datetime)
+        assert isinstance(dashboard.updated_at, datetime.datetime)
 
     @pytest.mark.asyncio
-    async def test_list_saved_dashboards(self, stats_repo: MettaRepo, user_id: str) -> None:
+    async def test_list_saved_dashboards(
+        self, stats_repo: metta.app_backend.metta_repo.MettaRepo, user_id: str
+    ) -> None:
         """Test listing saved dashboards."""
         # Create multiple dashboards to ensure we have at least 2
         dashboard_state_1 = {
@@ -102,7 +106,9 @@ class TestSavedDashboards(BaseAsyncTest):
         assert test_dashboard_2.dashboard_state == dashboard_state_2
 
     @pytest.mark.asyncio
-    async def test_delete_saved_dashboard(self, stats_repo: MettaRepo, user_id: str) -> None:
+    async def test_delete_saved_dashboard(
+        self, stats_repo: metta.app_backend.metta_repo.MettaRepo, user_id: str
+    ) -> None:
         """Test deleting a saved dashboard."""
         dashboard_state = {
             "suite": "navigation",
@@ -133,7 +139,9 @@ class TestSavedDashboards(BaseAsyncTest):
         assert dashboard is None
 
     @pytest.mark.asyncio
-    async def test_update_saved_dashboard(self, stats_repo: MettaRepo, user_id: str) -> None:
+    async def test_update_saved_dashboard(
+        self, stats_repo: metta.app_backend.metta_repo.MettaRepo, user_id: str
+    ) -> None:
         """Test updating a saved dashboard by creating with the same name."""
         initial_state = {
             "suite": "navigation",
@@ -177,7 +185,7 @@ class TestSavedDashboards(BaseAsyncTest):
         assert dashboard.dashboard_state == updated_state
 
     @pytest.mark.slow
-    def test_update_saved_dashboard_route(self, test_client: TestClient, user_id: str) -> None:
+    def test_update_saved_dashboard_route(self, test_client: fastapi.testclient.TestClient, user_id: str) -> None:
         """Test the update saved dashboard API route."""
         initial_state = {
             "suite": "navigation",

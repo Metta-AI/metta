@@ -1,35 +1,34 @@
 import numpy as np
-from pytest import fixture
+import pytest
 
-from mettagrid.mapgen.random.float import FloatConstantDistribution, FloatUniformDistribution
-from mettagrid.mapgen.random.int import IntConstantDistribution, IntUniformDistribution
-from mettagrid.mapgen.scenes.auto import (
-    AutoConfig,
-    AutoConfigBSP,
-    AutoConfigGrid,
-    AutoConfigLayout,
-    AutoConfigRoomSymmetry,
-)
-from mettagrid.mapgen.scenes.maze import Maze
-from mettagrid.mapgen.scenes.random_scene import RandomSceneCandidate
-from mettagrid.test_support.mapgen import assert_connected, render_scene
+import mettagrid.mapgen.random.float
+import mettagrid.mapgen.random.int
+import mettagrid.mapgen.scenes.auto
+import mettagrid.mapgen.scenes.maze
+import mettagrid.mapgen.scenes.random_scene
+import mettagrid.test_support.mapgen
 
 
-@fixture
-def common_params() -> AutoConfig:
-    return AutoConfig(
+@pytest.fixture
+def common_params() -> mettagrid.mapgen.scenes.auto.AutoConfig:
+    return mettagrid.mapgen.scenes.auto.AutoConfig(
         num_agents=4,
-        objects={"altar": FloatConstantDistribution(value=0.02)},
-        room_objects={"altar": FloatUniformDistribution(low=0.0005, high=0.01)},
-        room_symmetry=AutoConfigRoomSymmetry(horizontal=1, vertical=1, x4=1, none=1),
-        layout=AutoConfigLayout(grid=1, bsp=1),
-        grid=AutoConfigGrid(rows=IntConstantDistribution(value=3), columns=IntConstantDistribution(value=3)),
-        bsp=AutoConfigBSP(area_count=IntConstantDistribution(value=3)),
+        objects={"altar": mettagrid.mapgen.random.float.FloatConstantDistribution(value=0.02)},
+        room_objects={"altar": mettagrid.mapgen.random.float.FloatUniformDistribution(low=0.0005, high=0.01)},
+        room_symmetry=mettagrid.mapgen.scenes.auto.AutoConfigRoomSymmetry(horizontal=1, vertical=1, x4=1, none=1),
+        layout=mettagrid.mapgen.scenes.auto.AutoConfigLayout(grid=1, bsp=1),
+        grid=mettagrid.mapgen.scenes.auto.AutoConfigGrid(
+            rows=mettagrid.mapgen.random.int.IntConstantDistribution(value=3),
+            columns=mettagrid.mapgen.random.int.IntConstantDistribution(value=3),
+        ),
+        bsp=mettagrid.mapgen.scenes.auto.AutoConfigBSP(
+            area_count=mettagrid.mapgen.random.int.IntConstantDistribution(value=3)
+        ),
         content=[
-            RandomSceneCandidate(
-                scene=Maze.Config(
-                    room_size=IntUniformDistribution(low=1, high=2),
-                    wall_size=IntUniformDistribution(low=1, high=2),
+            mettagrid.mapgen.scenes.random_scene.RandomSceneCandidate(
+                scene=mettagrid.mapgen.scenes.maze.Maze.Config(
+                    room_size=mettagrid.mapgen.random.int.IntUniformDistribution(low=1, high=2),
+                    wall_size=mettagrid.mapgen.random.int.IntUniformDistribution(low=1, high=2),
                 ),
                 weight=3,
             ),
@@ -38,15 +37,15 @@ def common_params() -> AutoConfig:
 
 
 def test_basic(common_params):
-    scene = render_scene(common_params, (10, 10))
+    scene = mettagrid.test_support.mapgen.render_scene(common_params, (10, 10))
 
-    assert_connected(scene.grid)
+    mettagrid.test_support.mapgen.assert_connected(scene.grid)
 
 
 def test_seed(common_params):
-    scene1v1 = render_scene(common_params.model_copy(update={"seed": 42}), (16, 16))
-    scene1v2 = render_scene(common_params.model_copy(update={"seed": 42}), (16, 16))
-    scene2 = render_scene(common_params.model_copy(update={"seed": 77}), (16, 16))
+    scene1v1 = mettagrid.test_support.mapgen.render_scene(common_params.model_copy(update={"seed": 42}), (16, 16))
+    scene1v2 = mettagrid.test_support.mapgen.render_scene(common_params.model_copy(update={"seed": 42}), (16, 16))
+    scene2 = mettagrid.test_support.mapgen.render_scene(common_params.model_copy(update={"seed": 77}), (16, 16))
 
     assert np.array_equal(scene1v1.grid, scene1v2.grid)
     assert not np.array_equal(scene1v1.grid, scene2.grid)

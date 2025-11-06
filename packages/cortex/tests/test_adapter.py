@@ -1,14 +1,7 @@
 """Tests for the AdapterBlock wrapper."""
 
+import cortex
 import torch
-from cortex import (
-    AdapterBlockConfig,
-    CortexStack,
-    CortexStackConfig,
-    LSTMCellConfig,
-    PassThroughBlockConfig,
-    PreUpBlockConfig,
-)
 
 
 def test_adapter_identity_at_init():
@@ -20,11 +13,11 @@ def test_adapter_identity_at_init():
     d_hidden = 64
 
     # Create a stack with an adapter wrapping a PassThrough block
-    config = CortexStackConfig(
+    config = cortex.CortexStackConfig(
         d_hidden=d_hidden,
         blocks=[
-            AdapterBlockConfig(
-                base_block=PassThroughBlockConfig(cell=LSTMCellConfig(hidden_size=64, num_layers=1)),
+            cortex.AdapterBlockConfig(
+                base_block=cortex.PassThroughBlockConfig(cell=cortex.LSTMCellConfig(hidden_size=64, num_layers=1)),
                 bottleneck=16,
                 per_channel_gate=False,
             )
@@ -32,7 +25,7 @@ def test_adapter_identity_at_init():
         post_norm=False,  # No post norm to test pure adapter behavior
     )
 
-    stack = CortexStack(config)
+    stack = cortex.CortexStack(config)
     stack.to(device=device, dtype=dtype)
     stack.eval()
 
@@ -62,12 +55,12 @@ def test_adapter_wraps_preup():
     seq_len = 5
     d_hidden = 64
 
-    config = CortexStackConfig(
+    config = cortex.CortexStackConfig(
         d_hidden=d_hidden,
         blocks=[
-            AdapterBlockConfig(
-                base_block=PreUpBlockConfig(
-                    cell=LSTMCellConfig(hidden_size=None, num_layers=1),
+            cortex.AdapterBlockConfig(
+                base_block=cortex.PreUpBlockConfig(
+                    cell=cortex.LSTMCellConfig(hidden_size=None, num_layers=1),
                     proj_factor=2.0,
                 ),
                 bottleneck=16,
@@ -77,7 +70,7 @@ def test_adapter_wraps_preup():
         post_norm=True,
     )
 
-    stack = CortexStack(config)
+    stack = cortex.CortexStack(config)
     stack.to(device=device, dtype=dtype)
 
     x = torch.randn(batch_size, seq_len, d_hidden, device=device, dtype=dtype)
@@ -98,18 +91,18 @@ def test_adapter_state_management():
     batch_size = 2
     d_hidden = 64
 
-    config = CortexStackConfig(
+    config = cortex.CortexStackConfig(
         d_hidden=d_hidden,
         blocks=[
-            AdapterBlockConfig(
-                base_block=PassThroughBlockConfig(cell=LSTMCellConfig(hidden_size=64, num_layers=1)),
+            cortex.AdapterBlockConfig(
+                base_block=cortex.PassThroughBlockConfig(cell=cortex.LSTMCellConfig(hidden_size=64, num_layers=1)),
                 bottleneck=16,
             )
         ],
         post_norm=False,
     )
 
-    stack = CortexStack(config)
+    stack = cortex.CortexStack(config)
     stack.to(device=device, dtype=dtype)
 
     # Single-step mode
@@ -139,18 +132,18 @@ def test_adapter_reset_handling():
     seq_len = 10
     d_hidden = 64
 
-    config = CortexStackConfig(
+    config = cortex.CortexStackConfig(
         d_hidden=d_hidden,
         blocks=[
-            AdapterBlockConfig(
-                base_block=PassThroughBlockConfig(cell=LSTMCellConfig(hidden_size=64, num_layers=1)),
+            cortex.AdapterBlockConfig(
+                base_block=cortex.PassThroughBlockConfig(cell=cortex.LSTMCellConfig(hidden_size=64, num_layers=1)),
                 bottleneck=16,
             )
         ],
         post_norm=False,
     )
 
-    stack = CortexStack(config)
+    stack = cortex.CortexStack(config)
     stack.to(device=device, dtype=dtype)
 
     x = torch.randn(batch_size, seq_len, d_hidden, device=device, dtype=dtype)
@@ -174,18 +167,18 @@ def test_adapter_gradient_flow():
     seq_len = 5
     d_hidden = 64
 
-    config = CortexStackConfig(
+    config = cortex.CortexStackConfig(
         d_hidden=d_hidden,
         blocks=[
-            AdapterBlockConfig(
-                base_block=PassThroughBlockConfig(cell=LSTMCellConfig(hidden_size=64, num_layers=1)),
+            cortex.AdapterBlockConfig(
+                base_block=cortex.PassThroughBlockConfig(cell=cortex.LSTMCellConfig(hidden_size=64, num_layers=1)),
                 bottleneck=16,
             )
         ],
         post_norm=False,
     )
 
-    stack = CortexStack(config)
+    stack = cortex.CortexStack(config)
     stack.to(device=device, dtype=dtype)
     stack.train()
 
@@ -217,18 +210,18 @@ def test_adapter_multiple_in_stack():
     seq_len = 5
     d_hidden = 64
 
-    config = CortexStackConfig(
+    config = cortex.CortexStackConfig(
         d_hidden=d_hidden,
         blocks=[
-            PassThroughBlockConfig(cell=LSTMCellConfig(hidden_size=64, num_layers=1)),
-            AdapterBlockConfig(
-                base_block=PassThroughBlockConfig(cell=LSTMCellConfig(hidden_size=64, num_layers=1)),
+            cortex.PassThroughBlockConfig(cell=cortex.LSTMCellConfig(hidden_size=64, num_layers=1)),
+            cortex.AdapterBlockConfig(
+                base_block=cortex.PassThroughBlockConfig(cell=cortex.LSTMCellConfig(hidden_size=64, num_layers=1)),
                 bottleneck=16,
             ),
-            PassThroughBlockConfig(cell=LSTMCellConfig(hidden_size=64, num_layers=1)),
-            AdapterBlockConfig(
-                base_block=PreUpBlockConfig(
-                    cell=LSTMCellConfig(hidden_size=None, num_layers=1),
+            cortex.PassThroughBlockConfig(cell=cortex.LSTMCellConfig(hidden_size=64, num_layers=1)),
+            cortex.AdapterBlockConfig(
+                base_block=cortex.PreUpBlockConfig(
+                    cell=cortex.LSTMCellConfig(hidden_size=None, num_layers=1),
                     proj_factor=2.0,
                 ),
                 bottleneck=32,
@@ -238,7 +231,7 @@ def test_adapter_multiple_in_stack():
         post_norm=True,
     )
 
-    stack = CortexStack(config)
+    stack = cortex.CortexStack(config)
     stack.to(device=device, dtype=dtype)
 
     x = torch.randn(batch_size, seq_len, d_hidden, device=device, dtype=dtype)

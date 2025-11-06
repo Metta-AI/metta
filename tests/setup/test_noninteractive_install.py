@@ -18,13 +18,13 @@ import unittest
 
 import pytest
 
-from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
-from tests.setup.test_base import BaseMettaSetupTest
+import metta.setup.profiles
+import tests.setup.test_base
 
 
 @pytest.mark.setup
 @pytest.mark.profile("external")
-class TestNonInteractiveOutputVerification(BaseMettaSetupTest):
+class TestNonInteractiveOutputVerification(tests.setup.test_base.BaseMettaSetupTest):
     """Test that non-interactive mode produces expected output without interactive prompts."""
 
     def test_install_non_interactive_no_config_fails(self):
@@ -40,7 +40,7 @@ class TestNonInteractiveOutputVerification(BaseMettaSetupTest):
 
     def test_output_contains_no_interactive_prompts(self):
         """Test that installation output contains no interactive prompts."""
-        self._create_test_config(UserType.EXTERNAL)
+        self._create_test_config(metta.setup.profiles.UserType.EXTERNAL)
 
         result = self._run_metta_command(["install", "core"])
         self.assertEqual(result.returncode, 0, f"Install failed: {result.stderr}")
@@ -53,7 +53,7 @@ class TestNonInteractiveOutputVerification(BaseMettaSetupTest):
 
 @pytest.mark.setup
 @pytest.mark.profile("external")
-class TestNonInteractiveEnvironmentHandling(BaseMettaSetupTest):
+class TestNonInteractiveEnvironmentHandling(tests.setup.test_base.BaseMettaSetupTest):
     """Test non-interactive mode handles different environment conditions."""
 
     def test_no_tty_environment(self):
@@ -62,7 +62,7 @@ class TestNonInteractiveEnvironmentHandling(BaseMettaSetupTest):
         env["CI"] = "1"  # Simulate CI environment
         env.pop("TERM", None)  # Remove terminal info
 
-        self._create_test_config(UserType.EXTERNAL)
+        self._create_test_config(metta.setup.profiles.UserType.EXTERNAL)
 
         cmd = [sys.executable, "-m", "metta.setup.metta_cli", "install", "--non-interactive", "core"]
         result = subprocess.run(
@@ -80,12 +80,12 @@ class TestNonInteractiveEnvironmentHandling(BaseMettaSetupTest):
 
 @pytest.mark.setup
 @pytest.mark.profile("external")
-class TestNonInteractiveComponentExclusions(BaseMettaSetupTest):
+class TestNonInteractiveComponentExclusions(tests.setup.test_base.BaseMettaSetupTest):
     """Test component exclusion behaviors in test environments."""
 
     def test_authentication_components_skip_auth_in_test_env(self):
         """Test that authentication components handle test environment correctly."""
-        self._create_test_config(UserType.EXTERNAL)
+        self._create_test_config(metta.setup.profiles.UserType.EXTERNAL)
 
         result = self._run_metta_command(["install", "wandb"])
         self.assertEqual(result.returncode, 0, f"Install failed: {result.stderr}")
@@ -94,15 +94,15 @@ class TestNonInteractiveComponentExclusions(BaseMettaSetupTest):
 
 @pytest.mark.setup
 @pytest.mark.profile("external")
-class TestNonInteractiveIndividualComponents(BaseMettaSetupTest):
+class TestNonInteractiveIndividualComponents(tests.setup.test_base.BaseMettaSetupTest):
     """Test that each component from profile configurations can be installed individually."""
 
     def test_external_profile_individual_components(self):
         """Test that each component in external profile can be installed individually."""
-        self._create_test_config(UserType.EXTERNAL)
+        self._create_test_config(metta.setup.profiles.UserType.EXTERNAL)
 
         # Get all enabled components for external profile
-        profile_config = PROFILE_DEFINITIONS[UserType.EXTERNAL]
+        profile_config = metta.setup.profiles.PROFILE_DEFINITIONS[metta.setup.profiles.UserType.EXTERNAL]
         enabled_components = [name for name, config in profile_config["components"].items() if config["enabled"]]
 
         self.assertGreater(len(enabled_components), 0, "External profile should have enabled components")
@@ -118,15 +118,15 @@ class TestNonInteractiveIndividualComponents(BaseMettaSetupTest):
 
 @pytest.mark.setup
 @pytest.mark.profile("cloud")
-class TestNonInteractiveIndividualComponentsCloud(BaseMettaSetupTest):
+class TestNonInteractiveIndividualComponentsCloud(tests.setup.test_base.BaseMettaSetupTest):
     """Test that each component from cloud profile can be installed individually."""
 
     def test_cloud_profile_individual_components(self):
         """Test that each component in cloud profile can be installed individually."""
-        self._create_test_config(UserType.CLOUD)
+        self._create_test_config(metta.setup.profiles.UserType.CLOUD)
 
         # Get all enabled components for cloud profile
-        profile_config = PROFILE_DEFINITIONS[UserType.CLOUD]
+        profile_config = metta.setup.profiles.PROFILE_DEFINITIONS[metta.setup.profiles.UserType.CLOUD]
         enabled_components = [name for name, config in profile_config["components"].items() if config["enabled"]]
 
         self.assertGreater(len(enabled_components), 0, "Cloud profile should have enabled components")
@@ -142,15 +142,15 @@ class TestNonInteractiveIndividualComponentsCloud(BaseMettaSetupTest):
 
 @pytest.mark.setup
 @pytest.mark.profile("softmax")
-class TestNonInteractiveIndividualComponentsSoftmax(BaseMettaSetupTest):
+class TestNonInteractiveIndividualComponentsSoftmax(tests.setup.test_base.BaseMettaSetupTest):
     """Test that each component from softmax profile can be installed individually."""
 
     def test_softmax_profile_individual_components(self):
         """Test that each component in softmax profile can be installed individually."""
-        self._create_test_config(UserType.SOFTMAX)
+        self._create_test_config(metta.setup.profiles.UserType.SOFTMAX)
 
         # Get all enabled components for softmax profile
-        profile_config = PROFILE_DEFINITIONS[UserType.SOFTMAX]
+        profile_config = metta.setup.profiles.PROFILE_DEFINITIONS[metta.setup.profiles.UserType.SOFTMAX]
         enabled_components = [name for name, config in profile_config["components"].items() if config["enabled"]]
 
         self.assertGreater(len(enabled_components), 0, "Softmax profile should have enabled components")
@@ -166,15 +166,15 @@ class TestNonInteractiveIndividualComponentsSoftmax(BaseMettaSetupTest):
 
 @pytest.mark.setup
 @pytest.mark.profile("softmax-docker")
-class TestNonInteractiveIndividualComponentsSoftmaxDocker(BaseMettaSetupTest):
+class TestNonInteractiveIndividualComponentsSoftmaxDocker(tests.setup.test_base.BaseMettaSetupTest):
     """Test that each component from softmax-docker profile can be installed individually."""
 
     def test_softmax_docker_profile_individual_components(self):
         """Test that each component in softmax-docker profile can be installed individually."""
-        self._create_test_config(UserType.SOFTMAX_DOCKER)
+        self._create_test_config(metta.setup.profiles.UserType.SOFTMAX_DOCKER)
 
         # Get all enabled components for softmax-docker profile
-        profile_config = PROFILE_DEFINITIONS[UserType.SOFTMAX_DOCKER]
+        profile_config = metta.setup.profiles.PROFILE_DEFINITIONS[metta.setup.profiles.UserType.SOFTMAX_DOCKER]
         enabled_components = [name for name, config in profile_config["components"].items() if config["enabled"]]
 
         self.assertGreater(len(enabled_components), 0, "Softmax-docker profile should have enabled components")
@@ -190,7 +190,7 @@ class TestNonInteractiveIndividualComponentsSoftmaxDocker(BaseMettaSetupTest):
 
 @pytest.mark.setup
 @pytest.mark.profile("external")
-class TestNonInteractiveErrorHandling(BaseMettaSetupTest):
+class TestNonInteractiveErrorHandling(tests.setup.test_base.BaseMettaSetupTest):
     """Test non-interactive mode error handling and edge cases."""
 
     def test_configure_invalid_profile_non_interactive(self):
@@ -202,7 +202,7 @@ class TestNonInteractiveErrorHandling(BaseMettaSetupTest):
 
     def test_configure_component_non_interactive(self):
         """Test configuring individual components in non-interactive mode."""
-        self._create_test_config(UserType.EXTERNAL)
+        self._create_test_config(metta.setup.profiles.UserType.EXTERNAL)
 
         # Components that support configuration should handle non-interactive mode
         result = self._run_metta_command(["configure", "githooks"])

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-from pathlib import Path
+import pathlib
 
 import requests
 import vcr
 
 # Directory containing the run files
-run_dir = Path("run_16393962816/http-interactions-16393962816")
+run_dir = pathlib.Path("run_16393962816/http-interactions-16393962816")
 
 # Find the cassette file
 cassette_file = None

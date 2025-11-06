@@ -1,12 +1,10 @@
-from __future__ import annotations
 
-from typing import Optional, Tuple
+import typing
 
+import cortex.kernels.triton.rtu.utils
 import torch
+import torch.autograd
 import triton as _triton  # type: ignore  # noqa: F401
-from torch.autograd import Function
-
-from .utils import hillis_steele_segmented_inplace, scan_step_block_segmented
 
 _TRITON_AVAILABLE = True
 
@@ -53,7 +51,7 @@ def _zeros_like_traces_diag(B: int, H: int, *, device, dtype) -> tuple[torch.Ten
     )
 
 
-class _RTUStreamDiagFunction(Function):
+class _RTUStreamDiagFunction(torch.autograd.Function):
     @staticmethod
     def forward(
         ctx,
@@ -65,8 +63,8 @@ class _RTUStreamDiagFunction(Function):
         activation_name: str,
         hc1_init_bh: torch.Tensor,  # (B,H)
         hc2_init_bh: torch.Tensor,  # (B,H)
-        trace_in: Optional[tuple[torch.Tensor, ...]] = None,
-        resets_bt: Optional[torch.Tensor] = None,  # (B,T) bool or None
+        trace_in: typing.Optional[tuple[torch.Tensor, ...]] = None,
+        resets_bt: typing.Optional[torch.Tensor] = None,  # (B,T) bool or None
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, tuple[torch.Tensor, ...]]:
         if not _TRITON_AVAILABLE:
             raise RuntimeError("Triton not available. Please install `triton` and ensure CUDA is available.")
@@ -121,7 +119,7 @@ class _RTUStreamDiagFunction(Function):
             flags_bht |= resets_bt.view(B, 1, T).expand(B, H, T).to(torch.int32)
 
         # Parallel segmented scan for c_t
-        hillis_steele_segmented_inplace(g_bht, p_bht, Bx_bht, By_bht, flags_bht)
+        cortex.kernels.triton.rtu.utils.hillis_steele_segmented_inplace(g_bht, p_bht, Bx_bht, By_bht, flags_bht)
         c1_bth = Bx_bht.permute(0, 2, 1).contiguous()
         c2_bth = By_bht.permute(0, 2, 1).contiguous()
 
@@ -166,7 +164,7 @@ class _RTUStreamDiagFunction(Function):
             if resets_bt.any():
                 flags |= resets_bt.view(B, 1, T).expand(B, H, T).to(torch.int32)
 
-            scan_step_block_segmented(
+            cortex.kernels.triton.rtu.utils.scan_step_block_segmented(
                 g_bht_local,
                 p_bht_local,
                 jg_bht,
@@ -251,8 +249,8 @@ class _RTUStreamDiagFunction(Function):
         grad_y_btd_2h: torch.Tensor,
         grad_final_hc1: torch.Tensor,
         grad_final_hc2: torch.Tensor,
-        grad_trace_out: Optional[tuple[torch.Tensor, ...]],
-    ) -> tuple[Optional[torch.Tensor], ...]:
+        grad_trace_out: typing.Optional[tuple[torch.Tensor, ...]],
+    ) -> tuple[typing.Optional[torch.Tensor], ...]:
         (
             x_btd,
             nu_log,
@@ -302,7 +300,7 @@ class _RTUStreamDiagFunction(Function):
             resets_rev = torch.flip(resets_bt, dims=[1])
             flags_rev |= resets_rev.view(B, 1, -1).expand_as(flags_rev).to(torch.int32)
 
-        hillis_steele_segmented_inplace(g_bar, p_bar, vBx, vBy, flags_rev)
+        cortex.kernels.triton.rtu.utils.hillis_steele_segmented_inplace(g_bar, p_bar, vBx, vBy, flags_rev)
         lam1_bth = torch.flip(vBx.permute(0, 2, 1), dims=[1])
         lam2_bth = torch.flip(vBy.permute(0, 2, 1), dims=[1])
 
@@ -381,9 +379,9 @@ def rtu_stream_diag_triton(
     activation_name: str,
     hc1_init_bh: torch.Tensor,
     hc2_init_bh: torch.Tensor,
-    trace_in: Optional[tuple[torch.Tensor, ...]] = None,
-    resets_bt: Optional[torch.Tensor] = None,
-) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor], tuple[torch.Tensor, ...]]:
+    trace_in: typing.Optional[tuple[torch.Tensor, ...]] = None,
+    resets_bt: typing.Optional[torch.Tensor] = None,
+) -> typing.Tuple[torch.Tensor, typing.Tuple[torch.Tensor, torch.Tensor], tuple[torch.Tensor, ...]]:
     if not _TRITON_AVAILABLE:
         raise RuntimeError("Triton not available. Please install `triton` and ensure CUDA is available.")
     y, h1, h2, trace_out = _RTUStreamDiagFunction.apply(

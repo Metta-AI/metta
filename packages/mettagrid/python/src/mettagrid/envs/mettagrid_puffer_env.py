@@ -21,39 +21,31 @@ For users:
 This avoids double-wrapping while maintaining full PufferLib compatibility.
 """
 
-from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple
+import dataclasses
+import typing
 
+import gymnasium.spaces
 import numpy as np
-from gymnasium.spaces import Box, Discrete
-from typing_extensions import override
+import typing_extensions
 
-from cogames.policy.scripted_agent.baseline_agent import BaselinePolicy
-from mettagrid.config.mettagrid_config import MettaGridConfig
-from mettagrid.mettagrid_c import (
-    dtype_actions,
-    dtype_masks,
-    dtype_observations,
-    dtype_rewards,
-    dtype_terminals,
-    dtype_truncations,
-)
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator import Simulation, Simulator
-from pufferlib.pufferlib import PufferEnv
+import cogames.policy.scripted_agent.baseline_agent
+import mettagrid.config.mettagrid_config
+import mettagrid.mettagrid_c
+import mettagrid.policy.policy_env_interface
+import mettagrid.simulator
+import pufferlib.pufferlib
 
 # Type compatibility assertions - ensure C++ types match PufferLib expectations
 # PufferLib expects particular datatypes - see pufferlib/vector.py
-assert dtype_observations == np.dtype(np.uint8)
-assert dtype_terminals == np.dtype(np.bool_)
-assert dtype_truncations == np.dtype(np.bool_)
-assert dtype_rewards == np.dtype(np.float32)
-assert dtype_actions == np.dtype(np.int32)
+assert mettagrid.mettagrid_c.dtype_observations == np.dtype(np.uint8)
+assert mettagrid.mettagrid_c.dtype_terminals == np.dtype(np.bool_)
+assert mettagrid.mettagrid_c.dtype_truncations == np.dtype(np.bool_)
+assert mettagrid.mettagrid_c.dtype_rewards == np.dtype(np.float32)
+assert mettagrid.mettagrid_c.dtype_actions == np.dtype(np.int32)
 
 
-@dataclass
+@dataclasses.dataclass
 class Buffers:
     observations: np.ndarray
     terminals: np.ndarray
@@ -64,7 +56,7 @@ class Buffers:
     teacher_actions: np.ndarray
 
 
-class MettaGridPufferEnv(PufferEnv):
+class MettaGridPufferEnv(pufferlib.pufferlib.PufferEnv):
     """
     Wraps the Simulator class to provide PufferLib compatibility.
 
@@ -72,7 +64,13 @@ class MettaGridPufferEnv(PufferEnv):
       https://github.com/PufferAI/PufferLib/blob/main/pufferlib/environments.py
     """
 
-    def __init__(self, simulator: Simulator, cfg: MettaGridConfig, buf: Any = None, seed: int = 0):
+    def __init__(
+        self,
+        simulator: mettagrid.simulator.Simulator,
+        cfg: mettagrid.config.mettagrid_config.MettaGridConfig,
+        buf: typing.Any = None,
+        seed: int = 0,
+    ):
         # Support both Simulation and MettaGridConfig for backwards compatibility
         self._simulator = simulator
         self._current_cfg = cfg
@@ -81,24 +79,25 @@ class MettaGridPufferEnv(PufferEnv):
         # Initialize shared buffers FIRST (before super().__init__)
         # because PufferLib may access them during initialization
 
-        policy_env_info = PolicyEnvInterface.from_mg_cfg(cfg)
+        policy_env_info = mettagrid.policy.policy_env_interface.PolicyEnvInterface.from_mg_cfg(cfg)
 
         self._buffers: Buffers = Buffers(
             observations=np.zeros(
-                (policy_env_info.num_agents, *policy_env_info.observation_space.shape), dtype=dtype_observations
+                (policy_env_info.num_agents, *policy_env_info.observation_space.shape),
+                dtype=mettagrid.mettagrid_c.dtype_observations,
             ),
-            terminals=np.zeros(policy_env_info.num_agents, dtype=dtype_terminals),
-            truncations=np.zeros(policy_env_info.num_agents, dtype=dtype_truncations),
-            rewards=np.zeros(policy_env_info.num_agents, dtype=dtype_rewards),
-            masks=np.ones(policy_env_info.num_agents, dtype=dtype_masks),
-            actions=np.zeros(policy_env_info.num_agents, dtype=dtype_actions),
-            teacher_actions=np.zeros(policy_env_info.num_agents, dtype=dtype_actions),
+            terminals=np.zeros(policy_env_info.num_agents, dtype=mettagrid.mettagrid_c.dtype_terminals),
+            truncations=np.zeros(policy_env_info.num_agents, dtype=mettagrid.mettagrid_c.dtype_truncations),
+            rewards=np.zeros(policy_env_info.num_agents, dtype=mettagrid.mettagrid_c.dtype_rewards),
+            masks=np.ones(policy_env_info.num_agents, dtype=mettagrid.mettagrid_c.dtype_masks),
+            actions=np.zeros(policy_env_info.num_agents, dtype=mettagrid.mettagrid_c.dtype_actions),
+            teacher_actions=np.zeros(policy_env_info.num_agents, dtype=mettagrid.mettagrid_c.dtype_actions),
         )
 
         # Set observation and action spaces BEFORE calling super().__init__()
         # PufferLib requires these to be set first
-        self.single_observation_space: Box = policy_env_info.observation_space
-        self.single_action_space: Discrete = policy_env_info.action_space
+        self.single_observation_space: gymnasium.spaces.Box = policy_env_info.observation_space
+        self.single_action_space: gymnasium.spaces.Discrete = policy_env_info.action_space
 
         self._teacher_policy = None
         self._teacher_agent_policies = []
@@ -108,18 +107,18 @@ class MettaGridPufferEnv(PufferEnv):
         super().__init__(buf=buf)
 
     @property
-    def env_cfg(self) -> MettaGridConfig:
+    def env_cfg(self) -> mettagrid.config.mettagrid_config.MettaGridConfig:
         """Get the environment configuration."""
         return self._current_cfg
 
-    def set_mg_config(self, config: MettaGridConfig) -> None:
+    def set_mg_config(self, config: mettagrid.config.mettagrid_config.MettaGridConfig) -> None:
         self._current_cfg = config
 
     def get_episode_rewards(self) -> np.ndarray:
         return self._sim.episode_rewards
 
     @property
-    def current_simulation(self) -> Simulation:
+    def current_simulation(self) -> mettagrid.simulator.Simulation:
         return self._sim
 
     def _update_buffers(self) -> None:
@@ -141,7 +140,9 @@ class MettaGridPufferEnv(PufferEnv):
             self._sim.close()
         self._sim = self._simulator.new_simulation(self._current_cfg, self._current_seed)
         if self._current_cfg.teacher.enabled:
-            self._teacher_policy = BaselinePolicy(PolicyEnvInterface.from_mg_cfg(self._current_cfg))
+            self._teacher_policy = cogames.policy.scripted_agent.baseline_agent.BaselinePolicy(
+                mettagrid.policy.policy_env_interface.PolicyEnvInterface.from_mg_cfg(self._current_cfg)
+            )
             self._teacher_agent_policies = [
                 self._teacher_policy.agent_policy(agent_id) for agent_id in range(self._current_cfg.game.num_agents)
             ]
@@ -154,16 +155,18 @@ class MettaGridPufferEnv(PufferEnv):
         self._buffers.truncations[:] = False
         self._buffers.teacher_actions[:] = 0
 
-    @override
-    def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
+    @typing_extensions.override
+    def reset(self, seed: typing.Optional[int] = None) -> typing.Tuple[np.ndarray, typing.Dict[str, typing.Any]]:
         if seed is not None:
             self._current_seed = seed
 
         self._new_sim()
         return self._buffers.observations, {}
 
-    @override
-    def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
+    @typing_extensions.override
+    def step(
+        self, actions: np.ndarray
+    ) -> typing.Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, typing.Dict[str, typing.Any]]:
         if self._sim._c_sim.terminals().all() or self._sim._c_sim.truncations().all():
             self._new_sim()
 
@@ -177,7 +180,7 @@ class MettaGridPufferEnv(PufferEnv):
                 )
                 for agent_id in range(self._current_cfg.game.num_agents)
             ]
-            self._buffers.teacher_actions[:] = np.array(teacher_actions, dtype=dtype_actions)
+            self._buffers.teacher_actions[:] = np.array(teacher_actions, dtype=mettagrid.mettagrid_c.dtype_actions)
             if self._current_cfg.teacher.use_actions:
                 self._buffers.actions[:] = self._buffers.teacher_actions[:]
 

@@ -6,14 +6,13 @@ currently detected CUDA toolkit. It is idempotent and exits with status 0 even
 if the installation fails, printing actionable guidance instead.
 """
 
-from __future__ import annotations
 
 import argparse
 import os
 import shutil
 import subprocess
 import sys
-from typing import Iterable
+import typing
 
 # Mapping from CUDA version reported by PyTorch to preferred wheel tags in the
 # PyTorch extra index. We include a couple of fallbacks for neighbouring
@@ -36,7 +35,7 @@ BUILD_ENV.setdefault("UV_PIP_NO_BUILD_ISOLATION", "1")
 BUILD_ENV.setdefault("PIP_NO_BUILD_ISOLATION", "1")
 
 
-def run(cmd: Iterable[str]) -> bool:
+def run(cmd: typing.Iterable[str]) -> bool:
     """Run a command returning True on success."""
 
     try:
@@ -53,12 +52,12 @@ def ensure_cuda_home() -> None:
         return
 
     try:
-        from torch.utils.cpp_extension import CUDA_HOME as torch_cuda_home
+        import torch.utils.cpp_extension
     except Exception:  # pragma: no cover - torch missing or stale
         return
 
-    if torch_cuda_home:
-        os.environ["CUDA_HOME"] = torch_cuda_home
+    if torch.utils.cpp_extension.CUDA_HOME:
+        os.environ["CUDA_HOME"] = torch.utils.cpp_extension.CUDA_HOME
 
 
 def install_with_index(packages: list[str], tag: str, *, no_isolation: bool = False) -> bool:

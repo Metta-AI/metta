@@ -13,10 +13,10 @@ into a full matrix configuration for parallel test execution.
 
 import json
 import sys
-from typing import Any
+import typing
 
 
-def expand_test_matrix(config: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+def expand_test_matrix(config: list[dict[str, typing.Any]]) -> dict[str, list[dict[str, typing.Any]]]:
     """
     Expand a test configuration into a full matrix.
 

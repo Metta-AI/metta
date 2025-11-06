@@ -1,41 +1,35 @@
 # Test tag system functionality for mettagrid
 import pytest
 
-from mettagrid.config.mettagrid_c_config import convert_to_cpp_game_config
-from mettagrid.config.mettagrid_config import (
-    ActionsConfig,
-    AgentConfig,
-    AssemblerConfig,
-    GameConfig,
-    MettaGridConfig,
-    MoveActionConfig,
-    NoopActionConfig,
-    ObsConfig,
-    ProtocolConfig,
-    WallConfig,
-)
-from mettagrid.map_builder.ascii import AsciiMapBuilder
-from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
-from mettagrid.simulator import Simulation
-from mettagrid.test_support import TokenTypes
+import mettagrid.config.mettagrid_c_config
+import mettagrid.config.mettagrid_config
+import mettagrid.map_builder.ascii
+import mettagrid.mapgen.utils.ascii_grid
+import mettagrid.simulator
+import mettagrid.test_support
 
 NUM_OBS_TOKENS = 200
 
 
 @pytest.fixture
-def sim_with_tags() -> Simulation:
+def sim_with_tags() -> mettagrid.simulator.Simulation:
     """Create an environment with objects that have tags."""
-    cfg = MettaGridConfig(
-        game=GameConfig(
+    cfg = mettagrid.config.mettagrid_config.MettaGridConfig(
+        game=mettagrid.config.mettagrid_config.GameConfig(
             num_agents=2,
-            obs=ObsConfig(width=5, height=5, num_tokens=NUM_OBS_TOKENS),
+            obs=mettagrid.config.mettagrid_config.ObsConfig(width=5, height=5, num_tokens=NUM_OBS_TOKENS),
             max_steps=1000,
-            actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
+            actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
+                move=mettagrid.config.mettagrid_config.MoveActionConfig(),
+            ),
             objects={
-                "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID, tags=["solid", "blocking"]),
+                "wall": mettagrid.config.mettagrid_config.WallConfig(
+                    type_id=mettagrid.test_support.TokenTypes.WALL_TYPE_ID, tags=["solid", "blocking"]
+                ),
             },
             resource_names=[],
-            map_builder=AsciiMapBuilder.Config(
+            map_builder=mettagrid.map_builder.ascii.AsciiMapBuilder.Config(
                 map_data=[
                     ["#", "#", "#", "#", "#", "#", "#"],
                     ["#", "@", ".", ".", ".", ".", "#"],
@@ -44,31 +38,36 @@ def sim_with_tags() -> Simulation:
                     ["#", "@", ".", ".", ".", ".", "#"],
                     ["#", "#", "#", "#", "#", "#", "#"],
                 ],
-                char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                char_to_name_map=mettagrid.mapgen.utils.ascii_grid.DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
 
-    return Simulation(cfg)
+    return mettagrid.simulator.Simulation(cfg)
 
 
 @pytest.fixture
-def sim_with_duplicate_tags() -> Simulation:
+def sim_with_duplicate_tags() -> mettagrid.simulator.Simulation:
     """Create an environment where multiple objects share tags."""
-    cfg = MettaGridConfig(
-        game=GameConfig(
+    cfg = mettagrid.config.mettagrid_config.MettaGridConfig(
+        game=mettagrid.config.mettagrid_config.GameConfig(
             num_agents=1,
-            obs=ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
+            obs=mettagrid.config.mettagrid_config.ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
             max_steps=1000,
-            actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
+            actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
+                move=mettagrid.config.mettagrid_config.MoveActionConfig(),
+            ),
             agents=[
-                AgentConfig(tags=["mobile", "shared_tag"]),
+                mettagrid.config.mettagrid_config.AgentConfig(tags=["mobile", "shared_tag"]),
             ],
             objects={
-                "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID, tags=["solid", "shared_tag"]),
+                "wall": mettagrid.config.mettagrid_config.WallConfig(
+                    type_id=mettagrid.test_support.TokenTypes.WALL_TYPE_ID, tags=["solid", "shared_tag"]
+                ),
             },
             resource_names=[],
-            map_builder=AsciiMapBuilder.Config(
+            map_builder=mettagrid.map_builder.ascii.AsciiMapBuilder.Config(
                 map_data=[
                     ["#", "#", "#", "#", "#"],
                     ["#", "@", ".", ".", "#"],
@@ -76,12 +75,12 @@ def sim_with_duplicate_tags() -> Simulation:
                     ["#", ".", ".", ".", "#"],
                     ["#", "#", "#", "#", "#"],
                 ],
-                char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                char_to_name_map=mettagrid.mapgen.utils.ascii_grid.DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
 
-    return Simulation(cfg)
+    return mettagrid.simulator.Simulation(cfg)
 
 
 class TestTags:
@@ -106,7 +105,9 @@ class TestTags:
         # Find walls (type_id = 1) in observation
         wall_locations = set()
         for token in agent0_obs:
-            if token[1] == 0 and token[2] == TokenTypes.WALL_TYPE_ID:  # TypeId feature with wall value
+            if (
+                token[1] == 0 and token[2] == mettagrid.test_support.TokenTypes.WALL_TYPE_ID
+            ):  # TypeId feature with wall value
                 wall_locations.add(token[0])
 
         # Should find walls in the observation
@@ -138,7 +139,9 @@ class TestTags:
         # Find wall locations first
         wall_locations = set()
         for token in agent0_obs:
-            if token[1] == 0 and token[2] == TokenTypes.WALL_TYPE_ID:  # TypeId feature with wall value
+            if (
+                token[1] == 0 and token[2] == mettagrid.test_support.TokenTypes.WALL_TYPE_ID
+            ):  # TypeId feature with wall value
                 wall_locations.add(token[0])
 
         # Get tag feature ID from environment
@@ -159,31 +162,33 @@ class TestTags:
     def test_empty_tags(self):
         """Test that objects with no tags work correctly."""
         # Create environment with objects that have no tags
-        cfg = MettaGridConfig(
-            game=GameConfig(
+        cfg = mettagrid.config.mettagrid_config.MettaGridConfig(
+            game=mettagrid.config.mettagrid_config.GameConfig(
                 num_agents=1,
-                obs=ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
+                obs=mettagrid.config.mettagrid_config.ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
                 max_steps=100,
-                actions=ActionsConfig(noop=NoopActionConfig()),
+                actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                    noop=mettagrid.config.mettagrid_config.NoopActionConfig()
+                ),
                 objects={
-                    "wall": WallConfig(
-                        type_id=TokenTypes.WALL_TYPE_ID,
+                    "wall": mettagrid.config.mettagrid_config.WallConfig(
+                        type_id=mettagrid.test_support.TokenTypes.WALL_TYPE_ID,
                         tags=[],  # No tags
                     ),
                 },
                 resource_names=[],
-                map_builder=AsciiMapBuilder.Config(
+                map_builder=mettagrid.map_builder.ascii.AsciiMapBuilder.Config(
                     map_data=[
                         ["#", "#", "#"],
                         ["#", "@", "#"],
                         ["#", "#", "#"],
                     ],
-                    char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                    char_to_name_map=mettagrid.mapgen.utils.ascii_grid.DEFAULT_CHAR_TO_NAME,
                 ),
             )
         )
 
-        env = Simulation(cfg)
+        env = mettagrid.simulator.Simulation(cfg)
         obs = env._c_sim.observations()
 
         # Environment should work fine with objects that have no tags
@@ -197,7 +202,9 @@ class TestTags:
         # Find wall locations
         wall_locations = set()
         for token in agent_obs:
-            if token[1] == 0 and token[2] == TokenTypes.WALL_TYPE_ID:  # TypeId feature with wall value
+            if (
+                token[1] == 0 and token[2] == mettagrid.test_support.TokenTypes.WALL_TYPE_ID
+            ):  # TypeId feature with wall value
                 wall_locations.add(token[0])
 
         # Check that walls don't have tag tokens
@@ -229,7 +236,7 @@ class TestTags:
 
         for token in agent_obs:
             if token[1] == 0:  # TypeId feature
-                if token[2] == TokenTypes.WALL_TYPE_ID:
+                if token[2] == mettagrid.test_support.TokenTypes.WALL_TYPE_ID:
                     wall_locations.add(token[0])
                 elif token[2] == 0:  # Agent type ID
                     agent_locations.add(token[0])
@@ -252,28 +259,32 @@ class TestTags:
         """Test that an object can have many tags."""
         tags = [f"tag{i:02d}" for i in range(1, 11)]  # tag01 through tag10
 
-        cfg = MettaGridConfig(
-            game=GameConfig(
+        cfg = mettagrid.config.mettagrid_config.MettaGridConfig(
+            game=mettagrid.config.mettagrid_config.GameConfig(
                 num_agents=1,
-                obs=ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
+                obs=mettagrid.config.mettagrid_config.ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
                 max_steps=100,
-                actions=ActionsConfig(noop=NoopActionConfig()),
+                actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                    noop=mettagrid.config.mettagrid_config.NoopActionConfig()
+                ),
                 objects={
-                    "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID, tags=tags),
+                    "wall": mettagrid.config.mettagrid_config.WallConfig(
+                        type_id=mettagrid.test_support.TokenTypes.WALL_TYPE_ID, tags=tags
+                    ),
                 },
                 resource_names=[],
-                map_builder=AsciiMapBuilder.Config(
+                map_builder=mettagrid.map_builder.ascii.AsciiMapBuilder.Config(
                     map_data=[
                         ["#", "#", "#"],
                         ["#", "@", "#"],
                         ["#", "#", "#"],
                     ],
-                    char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                    char_to_name_map=mettagrid.mapgen.utils.ascii_grid.DEFAULT_CHAR_TO_NAME,
                 ),
             )
         )
 
-        env = Simulation(cfg)
+        env = mettagrid.simulator.Simulation(cfg)
         obs = env._c_sim.observations()
 
         # Should handle many tags without issues
@@ -287,7 +298,9 @@ class TestTags:
         # Find wall locations
         wall_locations = set()
         for token in agent_obs:
-            if token[1] == 0 and token[2] == TokenTypes.WALL_TYPE_ID:  # TypeId feature with wall value
+            if (
+                token[1] == 0 and token[2] == mettagrid.test_support.TokenTypes.WALL_TYPE_ID
+            ):  # TypeId feature with wall value
                 wall_locations.add(token[0])
 
         # Count unique tag IDs found on walls
@@ -305,54 +318,60 @@ class TestTags:
     def test_tag_id_mapping(self):
         """Test that tag names are consistently mapped to IDs."""
         # Create two environments with same tags in different order
-        cfg1 = MettaGridConfig(
-            game=GameConfig(
+        cfg1 = mettagrid.config.mettagrid_config.MettaGridConfig(
+            game=mettagrid.config.mettagrid_config.GameConfig(
                 num_agents=1,
-                obs=ObsConfig(width=3, height=3, num_tokens=200),
+                obs=mettagrid.config.mettagrid_config.ObsConfig(width=3, height=3, num_tokens=200),
                 max_steps=100,
-                actions=ActionsConfig(noop=NoopActionConfig()),
+                actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                    noop=mettagrid.config.mettagrid_config.NoopActionConfig()
+                ),
                 objects={
-                    "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID, tags=["alpha", "beta"]),
+                    "wall": mettagrid.config.mettagrid_config.WallConfig(
+                        type_id=mettagrid.test_support.TokenTypes.WALL_TYPE_ID, tags=["alpha", "beta"]
+                    ),
                 },
                 resource_names=[],
-                map_builder=AsciiMapBuilder.Config(
+                map_builder=mettagrid.map_builder.ascii.AsciiMapBuilder.Config(
                     map_data=[
                         [".", ".", "."],
                         [".", "@", "."],
                         [".", ".", "#"],  # Wall in bottom-right
                     ],
-                    char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                    char_to_name_map=mettagrid.mapgen.utils.ascii_grid.DEFAULT_CHAR_TO_NAME,
                 ),
             )
         )
 
-        cfg2 = MettaGridConfig(
-            game=GameConfig(
+        cfg2 = mettagrid.config.mettagrid_config.MettaGridConfig(
+            game=mettagrid.config.mettagrid_config.GameConfig(
                 num_agents=1,
-                obs=ObsConfig(width=3, height=3, num_tokens=200),
+                obs=mettagrid.config.mettagrid_config.ObsConfig(width=3, height=3, num_tokens=200),
                 max_steps=100,
-                actions=ActionsConfig(noop=NoopActionConfig()),
+                actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                    noop=mettagrid.config.mettagrid_config.NoopActionConfig()
+                ),
                 objects={
-                    "wall": WallConfig(
-                        type_id=TokenTypes.WALL_TYPE_ID,
+                    "wall": mettagrid.config.mettagrid_config.WallConfig(
+                        type_id=mettagrid.test_support.TokenTypes.WALL_TYPE_ID,
                         tags=["beta", "alpha"],  # Same tags, different order
                     ),
                 },
                 resource_names=[],
-                map_builder=AsciiMapBuilder.Config(
+                map_builder=mettagrid.map_builder.ascii.AsciiMapBuilder.Config(
                     map_data=[
                         [".", ".", "."],
                         [".", "@", "."],
                         [".", ".", "#"],  # Wall in bottom-right
                     ],
-                    char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                    char_to_name_map=mettagrid.mapgen.utils.ascii_grid.DEFAULT_CHAR_TO_NAME,
                 ),
             )
         )
 
         # Both configs should work and map tags consistently
-        env1 = Simulation(cfg1)
-        env2 = Simulation(cfg2)
+        env1 = mettagrid.simulator.Simulation(cfg1)
+        env2 = mettagrid.simulator.Simulation(cfg2)
 
         obs1 = env1._c_sim.observations()
         obs2 = env2._c_sim.observations()
@@ -368,7 +387,7 @@ class TestTags:
             # Find wall locations
             wall_locations = set()
             for token in obs:
-                if token[1] == 0 and token[2] == TokenTypes.WALL_TYPE_ID:
+                if token[1] == 0 and token[2] == mettagrid.test_support.TokenTypes.WALL_TYPE_ID:
                     wall_locations.add(token[0])
 
             # Find tag IDs at wall locations
@@ -391,37 +410,43 @@ class TestTags:
 
     def test_assembler_with_tags(self):
         """Test that assembler objects can have tags."""
-        cfg = MettaGridConfig(
-            game=GameConfig(
+        cfg = mettagrid.config.mettagrid_config.MettaGridConfig(
+            game=mettagrid.config.mettagrid_config.GameConfig(
                 num_agents=1,
-                obs=ObsConfig(width=3, height=3, num_tokens=200),
+                obs=mettagrid.config.mettagrid_config.ObsConfig(width=3, height=3, num_tokens=200),
                 max_steps=100,
-                actions=ActionsConfig(noop=NoopActionConfig()),
+                actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                    noop=mettagrid.config.mettagrid_config.NoopActionConfig()
+                ),
                 objects={
-                    "assembler": AssemblerConfig(
+                    "assembler": mettagrid.config.mettagrid_config.AssemblerConfig(
                         type_id=2,
                         protocols=[
-                            ProtocolConfig(input_resources={"wood": 1}, output_resources={"coal": 1}, cooldown=5)
+                            mettagrid.config.mettagrid_config.ProtocolConfig(
+                                input_resources={"wood": 1}, output_resources={"coal": 1}, cooldown=5
+                            )
                         ],
                         max_uses=10,
                         tags=["machine", "industrial"],
                     ),
-                    "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID, tags=["solid"]),
+                    "wall": mettagrid.config.mettagrid_config.WallConfig(
+                        type_id=mettagrid.test_support.TokenTypes.WALL_TYPE_ID, tags=["solid"]
+                    ),
                 },
                 resource_names=["wood", "coal"],
-                map_builder=AsciiMapBuilder.Config(
+                map_builder=mettagrid.map_builder.ascii.AsciiMapBuilder.Config(
                     map_data=[
                         ["#", "#", "#"],
                         ["#", "@", "#"],
                         ["#", "#", "#"],
                     ],
-                    char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                    char_to_name_map=mettagrid.mapgen.utils.ascii_grid.DEFAULT_CHAR_TO_NAME,
                 ),
             )
         )
 
         # The test verifies that assembler config accepts tags without errors
-        sim = Simulation(cfg)
+        sim = mettagrid.simulator.Simulation(cfg)
         obs = sim._c_sim.observations()
 
         # Get tag feature ID from environment
@@ -435,7 +460,7 @@ class TestTags:
         # Find wall locations
         wall_locations = set()
         for token in agent_obs:
-            if token[1] == 0 and token[2] == TokenTypes.WALL_TYPE_ID:
+            if token[1] == 0 and token[2] == mettagrid.test_support.TokenTypes.WALL_TYPE_ID:
                 wall_locations.add(token[0])
 
         # Find tag IDs at wall locations
@@ -451,29 +476,31 @@ class TestTags:
 
     def test_agent_with_tags(self):
         """Test that agents can have tags."""
-        cfg = MettaGridConfig(
-            game=GameConfig(
+        cfg = mettagrid.config.mettagrid_config.MettaGridConfig(
+            game=mettagrid.config.mettagrid_config.GameConfig(
                 num_agents=2,
-                obs=ObsConfig(width=3, height=3, num_tokens=200),
+                obs=mettagrid.config.mettagrid_config.ObsConfig(width=3, height=3, num_tokens=200),
                 max_steps=100,
-                actions=ActionsConfig(noop=NoopActionConfig()),
+                actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                    noop=mettagrid.config.mettagrid_config.NoopActionConfig()
+                ),
                 agents=[
-                    AgentConfig(team_id=0, tags=["player", "team_red"]),
-                    AgentConfig(team_id=1, tags=["player", "team_blue"]),
+                    mettagrid.config.mettagrid_config.AgentConfig(team_id=0, tags=["player", "team_red"]),
+                    mettagrid.config.mettagrid_config.AgentConfig(team_id=1, tags=["player", "team_blue"]),
                 ],
                 resource_names=[],
-                map_builder=AsciiMapBuilder.Config(
+                map_builder=mettagrid.map_builder.ascii.AsciiMapBuilder.Config(
                     map_data=[
                         [".", "@", "."],
                         [".", ".", "."],
                         [".", "@", "."],
                     ],
-                    char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                    char_to_name_map=mettagrid.mapgen.utils.ascii_grid.DEFAULT_CHAR_TO_NAME,
                 ),
             )
         )
 
-        env = Simulation(cfg)
+        env = mettagrid.simulator.Simulation(cfg)
         obs = env._c_sim.observations()
 
         # Get tag feature ID from environment
@@ -505,14 +532,14 @@ class TestTags:
 def test_tag_id_bounds():
     """Test that tag IDs start at 0 and validate bounds."""
     # Create a config with a few tags
-    game_config = GameConfig()
+    game_config = mettagrid.config.mettagrid_config.GameConfig()
     game_config.agents = [
-        AgentConfig(team_id=0, tags=["alpha", "beta", "gamma"]),
-        AgentConfig(team_id=1, tags=["delta", "epsilon"]),
+        mettagrid.config.mettagrid_config.AgentConfig(team_id=0, tags=["alpha", "beta", "gamma"]),
+        mettagrid.config.mettagrid_config.AgentConfig(team_id=1, tags=["delta", "epsilon"]),
     ]
 
     # Convert and verify tag IDs start at 0
-    cpp_config = convert_to_cpp_game_config(game_config)
+    cpp_config = mettagrid.config.mettagrid_c_config.convert_to_cpp_game_config(game_config)
 
     # Tag IDs should be: alpha=0, beta=1, delta=2, epsilon=3, gamma=4
     tag_id_map = cpp_config.tag_id_map
@@ -531,7 +558,7 @@ def test_tag_id_bounds():
 def test_too_many_tags_error():
     """Test that having more than 256 tags raises an error."""
     # Create config with 257 unique tags (exceeds uint8 max)
-    game_config = GameConfig()
+    game_config = mettagrid.config.mettagrid_config.GameConfig()
 
     # Create agents with many unique tags
     tags_per_agent = 50
@@ -540,11 +567,11 @@ def test_too_many_tags_error():
     game_config.agents = []
     for i in range(num_agents):
         tags = [f"tag_{i}_{j}" for j in range(tags_per_agent)]
-        game_config.agents.append(AgentConfig(team_id=i, tags=tags))
+        game_config.agents.append(mettagrid.config.mettagrid_config.AgentConfig(team_id=i, tags=tags))
 
     # Should raise ValueError about too many tags
     with pytest.raises(ValueError) as excinfo:
-        convert_to_cpp_game_config(game_config)
+        mettagrid.config.mettagrid_c_config.convert_to_cpp_game_config(game_config)
 
     assert "Too many unique tags" in str(excinfo.value)
     assert "256" in str(excinfo.value)
@@ -552,18 +579,18 @@ def test_too_many_tags_error():
 
 def test_team_tag_consistency_enforced():
     """Test that all agents in a team must have identical tags."""
-    game_config = GameConfig()
+    game_config = mettagrid.config.mettagrid_config.GameConfig()
 
     # Create agents in same team with different tags
     game_config.agents = [
-        AgentConfig(team_id=0, tags=["alpha", "beta"]),
-        AgentConfig(team_id=0, tags=["alpha", "gamma"]),  # Different tags, same team
-        AgentConfig(team_id=1, tags=["delta"]),
+        mettagrid.config.mettagrid_config.AgentConfig(team_id=0, tags=["alpha", "beta"]),
+        mettagrid.config.mettagrid_config.AgentConfig(team_id=0, tags=["alpha", "gamma"]),  # Different tags, same team
+        mettagrid.config.mettagrid_config.AgentConfig(team_id=1, tags=["delta"]),
     ]
 
     # Should raise ValueError about inconsistent tags in team
     with pytest.raises(ValueError) as excinfo:
-        convert_to_cpp_game_config(game_config)
+        mettagrid.config.mettagrid_c_config.convert_to_cpp_game_config(game_config)
 
     assert "All agents in team" in str(excinfo.value)
     assert "must have identical tags" in str(excinfo.value)
@@ -571,18 +598,18 @@ def test_team_tag_consistency_enforced():
 
 def test_team_tag_consistency_success():
     """Test that agents in same team with identical tags work correctly."""
-    game_config = GameConfig()
+    game_config = mettagrid.config.mettagrid_config.GameConfig()
 
     # Create agents in same team with identical tags
     game_config.agents = [
-        AgentConfig(team_id=0, tags=["alpha", "beta"]),
-        AgentConfig(team_id=0, tags=["alpha", "beta"]),  # Same tags, same team - OK
-        AgentConfig(team_id=1, tags=["gamma", "delta"]),
-        AgentConfig(team_id=1, tags=["gamma", "delta"]),  # Same tags, same team - OK
+        mettagrid.config.mettagrid_config.AgentConfig(team_id=0, tags=["alpha", "beta"]),
+        mettagrid.config.mettagrid_config.AgentConfig(team_id=0, tags=["alpha", "beta"]),  # Same tags, same team - OK
+        mettagrid.config.mettagrid_config.AgentConfig(team_id=1, tags=["gamma", "delta"]),
+        mettagrid.config.mettagrid_config.AgentConfig(team_id=1, tags=["gamma", "delta"]),  # Same tags, same team - OK
     ]
 
     # Should succeed
-    cpp_config = convert_to_cpp_game_config(game_config)
+    cpp_config = mettagrid.config.mettagrid_c_config.convert_to_cpp_game_config(game_config)
 
     # Verify tag mapping is correct
     tag_id_map = cpp_config.tag_id_map
@@ -597,16 +624,16 @@ def test_team_tag_consistency_success():
 
 def test_empty_tags_allowed():
     """Test that agents with no tags work correctly."""
-    game_config = GameConfig()
+    game_config = mettagrid.config.mettagrid_config.GameConfig()
 
     # Create agents with no tags
     game_config.agents = [
-        AgentConfig(team_id=0, tags=[]),
-        AgentConfig(team_id=1, tags=[]),
+        mettagrid.config.mettagrid_config.AgentConfig(team_id=0, tags=[]),
+        mettagrid.config.mettagrid_config.AgentConfig(team_id=1, tags=[]),
     ]
 
     # Should succeed
-    cpp_config = convert_to_cpp_game_config(game_config)
+    cpp_config = mettagrid.config.mettagrid_c_config.convert_to_cpp_game_config(game_config)
 
     # Verify no tags in mapping
     tag_id_map = cpp_config.tag_id_map
@@ -618,29 +645,31 @@ def test_default_agent_tags_preserved():
     # This test verifies the fix for the issue where default-agent tags were dropped
     # when agents list was empty but game_config.agent.tags was set
 
-    cfg = MettaGridConfig(
-        game=GameConfig(
+    cfg = mettagrid.config.mettagrid_config.MettaGridConfig(
+        game=mettagrid.config.mettagrid_config.GameConfig(
             num_agents=2,  # Will create 2 default agents
             max_steps=100,
-            actions=ActionsConfig(noop=NoopActionConfig()),
-            agent=AgentConfig(
+            actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                noop=mettagrid.config.mettagrid_config.NoopActionConfig()
+            ),
+            agent=mettagrid.config.mettagrid_config.AgentConfig(
                 tags=["default_tag1", "default_tag2"]  # Tags for default agents
             ),
             agents=[],  # Empty agents list - will use defaults from agent field
             resource_names=[],
-            map_builder=AsciiMapBuilder.Config(
+            map_builder=mettagrid.map_builder.ascii.AsciiMapBuilder.Config(
                 map_data=[
                     [".", "@", "."],
                     [".", ".", "."],
                     [".", "@", "."],
                 ],
-                char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                char_to_name_map=mettagrid.mapgen.utils.ascii_grid.DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
 
     # Create environment - this will trigger convert_to_cpp_game_config
-    env = Simulation(cfg)
+    env = mettagrid.simulator.Simulation(cfg)
     obs = env._c_sim.observations()
 
     assert obs is not None
@@ -673,15 +702,15 @@ def test_default_agent_tags_preserved():
 
 def test_default_agent_tags_in_cpp_config():
     """Test that default agent tags are included in the cpp config tag mapping."""
-    game_config = GameConfig()
+    game_config = mettagrid.config.mettagrid_config.GameConfig()
 
     # Set default agent tags but leave agents list empty
-    game_config.agent = AgentConfig(tags=["hero", "player"])
+    game_config.agent = mettagrid.config.mettagrid_config.AgentConfig(tags=["hero", "player"])
     game_config.agents = []  # Empty - will create default agents
     game_config.num_agents = 3  # Will create 3 default agents
 
     # Convert to cpp config
-    cpp_config = convert_to_cpp_game_config(game_config)
+    cpp_config = mettagrid.config.mettagrid_c_config.convert_to_cpp_game_config(game_config)
 
     # Verify tag mapping includes the default agent tags
     tag_id_map = cpp_config.tag_id_map
@@ -694,37 +723,45 @@ def test_default_agent_tags_in_cpp_config():
 
 def test_tag_mapping_in_id_map():
     """Test that tag mapping is exposed through id_map"""
-    cfg = MettaGridConfig(
-        game=GameConfig(
+    cfg = mettagrid.config.mettagrid_config.MettaGridConfig(
+        game=mettagrid.config.mettagrid_config.GameConfig(
             num_agents=1,
-            obs=ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
+            obs=mettagrid.config.mettagrid_config.ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
             max_steps=100,
-            actions=ActionsConfig(noop=NoopActionConfig()),
+            actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                noop=mettagrid.config.mettagrid_config.NoopActionConfig()
+            ),
             objects={
-                "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID, tags=["solid", "blocking"]),
-                "assembler": AssemblerConfig(
+                "wall": mettagrid.config.mettagrid_config.WallConfig(
+                    type_id=mettagrid.test_support.TokenTypes.WALL_TYPE_ID, tags=["solid", "blocking"]
+                ),
+                "assembler": mettagrid.config.mettagrid_config.AssemblerConfig(
                     type_id=2,
-                    protocols=[ProtocolConfig(input_resources={"wood": 1}, output_resources={"coal": 1}, cooldown=5)],
+                    protocols=[
+                        mettagrid.config.mettagrid_config.ProtocolConfig(
+                            input_resources={"wood": 1}, output_resources={"coal": 1}, cooldown=5
+                        )
+                    ],
                     max_uses=10,
                     tags=["machine", "industrial"],
                 ),
             },
             agents=[
-                AgentConfig(tags=["player", "mobile"]),
+                mettagrid.config.mettagrid_config.AgentConfig(tags=["player", "mobile"]),
             ],
             resource_names=["wood", "coal"],
-            map_builder=AsciiMapBuilder.Config(
+            map_builder=mettagrid.map_builder.ascii.AsciiMapBuilder.Config(
                 map_data=[
                     ["#", "#", "#"],
                     ["#", "@", "#"],
                     ["#", "#", "#"],
                 ],
-                char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                char_to_name_map=mettagrid.mapgen.utils.ascii_grid.DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
 
-    sim = Simulation(cfg)
+    sim = mettagrid.simulator.Simulation(cfg)
     id_map = sim.id_map
 
     # Check that tag feature exists
@@ -748,31 +785,35 @@ def test_tag_mapping_in_id_map():
 
 def test_tag_mapping_empty_tags():
     """Test that tag mapping works correctly when there are no tags."""
-    cfg = MettaGridConfig(
-        game=GameConfig(
+    cfg = mettagrid.config.mettagrid_config.MettaGridConfig(
+        game=mettagrid.config.mettagrid_config.GameConfig(
             num_agents=1,
-            obs=ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
+            obs=mettagrid.config.mettagrid_config.ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
             max_steps=100,
-            actions=ActionsConfig(noop=NoopActionConfig()),
+            actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                noop=mettagrid.config.mettagrid_config.NoopActionConfig()
+            ),
             objects={
-                "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID, tags=[]),
+                "wall": mettagrid.config.mettagrid_config.WallConfig(
+                    type_id=mettagrid.test_support.TokenTypes.WALL_TYPE_ID, tags=[]
+                ),
             },
             agents=[
-                AgentConfig(tags=[]),  # No tags
+                mettagrid.config.mettagrid_config.AgentConfig(tags=[]),  # No tags
             ],
             resource_names=[],
-            map_builder=AsciiMapBuilder.Config(
+            map_builder=mettagrid.map_builder.ascii.AsciiMapBuilder.Config(
                 map_data=[
                     ["#", "#", "#"],
                     ["#", "@", "#"],
                     ["#", "#", "#"],
                 ],
-                char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                char_to_name_map=mettagrid.mapgen.utils.ascii_grid.DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
 
-    env = Simulation(cfg)
+    env = mettagrid.simulator.Simulation(cfg)
     id_map = env.id_map
 
     # Check that tag feature exists

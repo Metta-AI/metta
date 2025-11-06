@@ -1,31 +1,30 @@
-from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+import dataclasses
+import typing
 
-from pydantic import model_validator
+import pydantic
 
-from metta.agent.components.component_config import ComponentConfig
+import metta.agent.components.component_config
 
 
-@dataclass
+@dataclasses.dataclass
 class DramaMambaConfig:
     d_model: int = 96
     d_intermediate: int = 192
     n_layer: int = 1
     stoch_dim: int = 48
     action_dim: int = 1
-    ssm_cfg: Dict[str, Any] = field(default_factory=dict)
-    attn_layer_idx: list[int] = field(default_factory=list)
-    attn_cfg: Dict[str, Any] = field(default_factory=dict)
-    pff_cfg: Dict[str, Any] = field(default_factory=dict)
+    ssm_cfg: typing.Dict[str, typing.Any] = dataclasses.field(default_factory=dict)
+    attn_layer_idx: list[int] = dataclasses.field(default_factory=list)
+    attn_cfg: typing.Dict[str, typing.Any] = dataclasses.field(default_factory=dict)
+    pff_cfg: typing.Dict[str, typing.Any] = dataclasses.field(default_factory=dict)
     dropout_p: float = 0.0
     rms_norm: bool = True
     residual_in_fp32: bool = True
     fused_add_norm: bool = True
 
 
-class DramaWorldModelConfig(ComponentConfig):
+class DramaWorldModelConfig(metta.agent.components.component_config.ComponentConfig):
     """Config for Drama-inspired world model component."""
 
     name: str = "drama_world_model"
@@ -44,13 +43,13 @@ class DramaWorldModelConfig(ComponentConfig):
     use_reset_token: bool = True
     pool: str = "mean"
 
-    ssm_cfg: Dict[str, Any] = None
+    ssm_cfg: typing.Dict[str, typing.Any] = None
     attn_layer_idx: list[int] = None
-    attn_cfg: Dict[str, Any] = None
-    pff_cfg: Dict[str, Any] = None
+    attn_cfg: typing.Dict[str, typing.Any] = None
+    pff_cfg: typing.Dict[str, typing.Any] = None
 
-    def make_component(self, env: Optional[Any] = None):  # type: ignore[override]
-        from .world_model_component import DramaWorldModelComponent
+    def make_component(self, env: typing.Optional[typing.Any] = None):  # type: ignore[override]
+        import metta.agent.components.drama.world_model_component
 
         resolved = self
         if env is not None:
@@ -59,9 +58,9 @@ class DramaWorldModelConfig(ComponentConfig):
             if action_dim is not None:
                 resolved = self.model_copy(update={"action_dim": max(1, int(action_dim))})
 
-        return DramaWorldModelComponent(config=resolved, env=env)
+        return metta.agent.components.drama.world_model_component.DramaWorldModelComponent(config=resolved, env=env)
 
-    @model_validator(mode="after")
+    @pydantic.model_validator(mode="after")
     def _fill_defaults(self) -> "DramaWorldModelConfig":
         if self.ssm_cfg is None:
             self.ssm_cfg = {}

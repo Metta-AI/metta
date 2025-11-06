@@ -1,18 +1,18 @@
 import copy
 
-from pydantic import ConfigDict, Field
+import pydantic
 
-from mettagrid.mapgen.scene import Scene, SceneConfig
+import mettagrid.mapgen.scene
 
 
-class TransplantSceneConfig(SceneConfig):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+class TransplantSceneConfig(mettagrid.mapgen.scene.SceneConfig):
+    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True)
 
     # Scene that will be transplanted.
-    scene: Scene = Field(exclude=True)
+    scene: mettagrid.mapgen.scene.Scene = pydantic.Field(exclude=True)
 
 
-class TransplantScene(Scene[TransplantSceneConfig]):
+class TransplantScene(mettagrid.mapgen.scene.Scene[TransplantSceneConfig]):
     """
     This is a helper scene that allows us to salvage the scene tree from a scene that was rendered on an external grid.
 

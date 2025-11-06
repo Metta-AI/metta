@@ -1,29 +1,26 @@
 import logging
 import types
-from typing import List
+import typing
 
+import tensordict
+import tensordict.nn
 import torch
-from tensordict import TensorDict
-from tensordict.nn import TensorDictModule as TDM
-from torch import nn
 
-from metta.agent.components.actor import ActionProbsConfig, ActorHeadConfig
-from metta.agent.components.component_config import ComponentConfig
-from metta.agent.components.misc import MLPConfig
-from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
-from metta.agent.components.obs_shim import ObsShimTokensConfig
-from metta.agent.components.obs_tokenizers import (
-    ObsAttrEmbedFourierConfig,
-)
-from metta.agent.policies.sliding_transformer import SlidingTransformerConfig
-from metta.agent.policy import Policy, PolicyArchitecture
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.util.module import load_symbol
+import metta.agent.components.actor
+import metta.agent.components.component_config
+import metta.agent.components.misc
+import metta.agent.components.obs_enc
+import metta.agent.components.obs_shim
+import metta.agent.components.obs_tokenizers
+import metta.agent.policies.sliding_transformer
+import metta.agent.policy
+import mettagrid.policy.policy_env_interface
+import mettagrid.util.module
 
 logger = logging.getLogger(__name__)
 
 
-def forward(self, td: TensorDict, action: torch.Tensor = None) -> TensorDict:
+def forward(self, td: tensordict.TensorDict, action: torch.Tensor = None) -> tensordict.TensorDict:
     """Forward pass for the FastDynamics policy."""
     self.network(td)
     self.action_probs(td, action)
@@ -35,7 +32,7 @@ def forward(self, td: TensorDict, action: torch.Tensor = None) -> TensorDict:
     return td
 
 
-class FastDynamicsConfig(PolicyArchitecture):
+class FastDynamicsConfig(metta.agent.policy.PolicyArchitecture):
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
@@ -46,15 +43,15 @@ class FastDynamicsConfig(PolicyArchitecture):
     _core_out_dim = 32
     _memory_num_layers = 2
 
-    components: List[ComponentConfig] = [
-        ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=48),
-        ObsAttrEmbedFourierConfig(
+    components: typing.List[metta.agent.components.component_config.ComponentConfig] = [
+        metta.agent.components.obs_shim.ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=48),
+        metta.agent.components.obs_tokenizers.ObsAttrEmbedFourierConfig(
             in_key="obs_shim_tokens",
             out_key="obs_attr_embed",
             attr_embed_dim=_token_embed_dim,
             num_freqs=_fourier_freqs,
         ),
-        ObsPerceiverLatentConfig(
+        metta.agent.components.obs_enc.ObsPerceiverLatentConfig(
             in_key="obs_attr_embed",
             out_key="encoded_obs",
             feat_dim=_token_embed_dim + (4 * _fourier_freqs) + 1,
@@ -63,14 +60,14 @@ class FastDynamicsConfig(PolicyArchitecture):
             num_heads=4,
             num_layers=2,
         ),
-        SlidingTransformerConfig(
+        metta.agent.policies.sliding_transformer.SlidingTransformerConfig(
             in_key="encoded_obs",
             out_key="core",
             hidden_size=_core_out_dim,
             latent_size=_latent_dim,
             num_layers=_memory_num_layers,
         ),
-        MLPConfig(
+        metta.agent.components.misc.MLPConfig(
             in_key="core",
             out_key="values",
             name="critic",
@@ -78,21 +75,29 @@ class FastDynamicsConfig(PolicyArchitecture):
             out_features=1,
             hidden_features=[1024],
         ),
-        ActorHeadConfig(in_key="core", out_key="logits", input_dim=_core_out_dim),
+        metta.agent.components.actor.ActorHeadConfig(in_key="core", out_key="logits", input_dim=_core_out_dim),
     ]
 
-    action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
+    action_probs_config: metta.agent.components.actor.ActionProbsConfig = (
+        metta.agent.components.actor.ActionProbsConfig(in_key="logits")
+    )
 
-    def make_policy(self, policy_env_info: PolicyEnvInterface) -> Policy:
-        AgentClass = load_symbol(self.class_path)
+    def make_policy(
+        self, policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface
+    ) -> metta.agent.policy.Policy:
+        AgentClass = mettagrid.util.module.load_symbol(self.class_path)
         policy = AgentClass(policy_env_info, self)
 
         num_actions = policy_env_info.action_space.n
         pred_input_dim = self._core_out_dim + num_actions
-        returns_module = nn.Linear(pred_input_dim, 1)
-        reward_module = nn.Linear(pred_input_dim, 1)
-        policy.returns_pred = TDM(returns_module, in_keys=["pred_input"], out_keys=["returns_pred"])
-        policy.reward_pred = TDM(reward_module, in_keys=["pred_input"], out_keys=["reward_pred"])
+        returns_module = torch.nn.Linear(pred_input_dim, 1)
+        reward_module = torch.nn.Linear(pred_input_dim, 1)
+        policy.returns_pred = tensordict.nn.TensorDictModule(
+            returns_module, in_keys=["pred_input"], out_keys=["returns_pred"]
+        )
+        policy.reward_pred = tensordict.nn.TensorDictModule(
+            reward_module, in_keys=["pred_input"], out_keys=["reward_pred"]
+        )
 
         policy.forward = types.MethodType(forward, policy)
 

@@ -1,40 +1,39 @@
-from typing import Any
+import typing
 
 import einops
+import pydantic
+import tensordict
 import torch
 import torch.nn.functional as F
-from pydantic import Field
-from tensordict import TensorDict
-from torch import Tensor
 
-from metta.agent.policy import Policy
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.loss import Loss
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import ComponentContext
-from mettagrid.base_config import Config
+import metta.agent.policy
+import metta.rl.checkpoint_manager
+import metta.rl.loss
+import metta.rl.trainer_config
+import metta.rl.training
+import mettagrid.base_config
 
 
-class TLKickstarterConfig(Config):
-    teacher_uri: str = Field(default="")
-    action_loss_coef: float = Field(default=0.995, ge=0, le=1.0)
-    value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
-    temperature: float = Field(default=2.0, gt=0)
+class TLKickstarterConfig(mettagrid.base_config.Config):
+    teacher_uri: str = pydantic.Field(default="")
+    action_loss_coef: float = pydantic.Field(default=0.995, ge=0, le=1.0)
+    value_loss_coef: float = pydantic.Field(default=1.0, ge=0, le=1.0)
+    temperature: float = pydantic.Field(default=2.0, gt=0)
 
     def create(
         self,
-        policy: Policy,
-        trainer_cfg: TrainerConfig,
-        vec_env: Any,
+        policy: metta.agent.policy.Policy,
+        trainer_cfg: metta.rl.trainer_config.TrainerConfig,
+        vec_env: typing.Any,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
+        loss_config: typing.Any,
     ):
         """Create TLKickstarter loss instance."""
         return TLKickstarter(policy, trainer_cfg, vec_env, device, instance_name=instance_name, loss_config=loss_config)
 
 
-class TLKickstarter(Loss):
+class TLKickstarter(metta.rl.loss.Loss):
     __slots__ = (
         "teacher_policy",
         "teacher_policy_spec",
@@ -46,12 +45,12 @@ class TLKickstarter(Loss):
 
     def __init__(
         self,
-        policy: Policy,
-        trainer_cfg: TrainerConfig,
-        vec_env: Any,
+        policy: metta.agent.policy.Policy,
+        trainer_cfg: metta.rl.trainer_config.TrainerConfig,
+        vec_env: typing.Any,
         device: torch.device,
         instance_name: str,
-        loss_config: Any = None,
+        loss_config: typing.Any = None,
     ):
         # Get loss config from trainer_cfg if not provided
         if loss_config is None:
@@ -64,7 +63,9 @@ class TLKickstarter(Loss):
         if game_rules is None:
             raise RuntimeError("Environment metadata is required to instantiate teacher policy")
 
-        self.teacher_policy = CheckpointManager.load_from_uri(self.loss_cfg.teacher_uri, game_rules, self.device)
+        self.teacher_policy = metta.rl.checkpoint_manager.CheckpointManager.load_from_uri(
+            self.loss_cfg.teacher_uri, game_rules, self.device
+        )
 
         # Detach gradient
         for param in self.teacher_policy.parameters():
@@ -75,10 +76,10 @@ class TLKickstarter(Loss):
 
     def run_train(
         self,
-        shared_loss_data: TensorDict,
-        context: ComponentContext,
+        shared_loss_data: tensordict.TensorDict,
+        context: metta.rl.training.ComponentContext,
         mb_idx: int,
-    ) -> tuple[Tensor, TensorDict, bool]:
+    ) -> tuple[torch.Tensor, tensordict.TensorDict, bool]:
         policy_td = shared_loss_data["policy_td"]
 
         # Teacher forward pass

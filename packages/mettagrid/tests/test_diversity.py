@@ -1,6 +1,6 @@
 import numpy as np
 
-from mettagrid.util.diversity import calculate_diversity_bonus
+import mettagrid.util.diversity
 
 
 def test_calculate_diversity_bonus_simple_case():
@@ -9,7 +9,9 @@ def test_calculate_diversity_bonus_simple_case():
     similarity_coef = 0.1
     diversity_coef = 0.2
 
-    actual_factors = calculate_diversity_bonus(episode_rewards, agent_groups, similarity_coef, diversity_coef)
+    actual_factors = mettagrid.util.diversity.calculate_diversity_bonus(
+        episode_rewards, agent_groups, similarity_coef, diversity_coef
+    )
 
     # Group 0: rewards [10, 12], mean = 11, std = 1
     # Group 1: rewards [20, 22], mean = 21, std = 1
@@ -47,7 +49,9 @@ def test_calculate_diversity_bonus_single_group():
         ]
     )
 
-    actual_factors = calculate_diversity_bonus(episode_rewards, agent_groups, similarity_coef, diversity_coef)
+    actual_factors = mettagrid.util.diversity.calculate_diversity_bonus(
+        episode_rewards, agent_groups, similarity_coef, diversity_coef
+    )
     np.testing.assert_allclose(actual_factors, expected_factors, rtol=1e-6)
 
 
@@ -60,7 +64,9 @@ def test_calculate_diversity_bonus_zero_coefficients():
     # If both coeffs are 0, the factor should be 1 for all agents
     expected_factors = np.array([1.0, 1.0, 1.0, 1.0])
 
-    actual_factors = calculate_diversity_bonus(episode_rewards, agent_groups, similarity_coef, diversity_coef)
+    actual_factors = mettagrid.util.diversity.calculate_diversity_bonus(
+        episode_rewards, agent_groups, similarity_coef, diversity_coef
+    )
     np.testing.assert_allclose(actual_factors, expected_factors, rtol=1e-6)
 
 
@@ -81,7 +87,9 @@ def test_calculate_diversity_bonus_identical_rewards_in_group():
     expected_factor_val = 1 + similarity_coef * sim_score + diversity_coef * div_val
     expected_factors = np.full_like(episode_rewards, expected_factor_val)
 
-    actual_factors = calculate_diversity_bonus(episode_rewards, agent_groups, similarity_coef, diversity_coef)
+    actual_factors = mettagrid.util.diversity.calculate_diversity_bonus(
+        episode_rewards, agent_groups, similarity_coef, diversity_coef
+    )
     np.testing.assert_allclose(actual_factors, expected_factors, rtol=1e-6)
 
 
@@ -150,7 +158,9 @@ def test_calculate_diversity_bonus_three_groups():
     factors.append(1 + similarity_coef * sim_5 + diversity_coef * np.mean([div_5_g0, div_5_g1]))
 
     expected_factors = np.array(factors)
-    actual_factors = calculate_diversity_bonus(episode_rewards, agent_groups, similarity_coef, diversity_coef)
+    actual_factors = mettagrid.util.diversity.calculate_diversity_bonus(
+        episode_rewards, agent_groups, similarity_coef, diversity_coef
+    )
     np.testing.assert_allclose(actual_factors, expected_factors, rtol=1e-6)
 
 
@@ -170,7 +180,9 @@ def test_zero_total_diversity_score_when_agent_reward_equals_all_other_group_mea
     similarity_coef = 0.1
     diversity_coef = 0.2
 
-    actual_factors = calculate_diversity_bonus(episode_rewards, agent_groups, similarity_coef, diversity_coef)
+    actual_factors = mettagrid.util.diversity.calculate_diversity_bonus(
+        episode_rewards, agent_groups, similarity_coef, diversity_coef
+    )
 
     agent0_reward = episode_rewards[0]
     group0_rewards = episode_rewards[agent_groups == 0]

@@ -1,20 +1,20 @@
 import numpy as np
 import pytest
 
-from mettagrid.mapgen.mapgen import MapGen
-from mettagrid.mapgen.scenes.inline_ascii import InlineAscii
-from mettagrid.mapgen.scenes.nop import Nop
-from mettagrid.mapgen.scenes.room_grid import RoomGrid
-from mettagrid.mapgen.scenes.transplant_scene import TransplantScene
-from mettagrid.test_support.mapgen import assert_raw_grid
+import mettagrid.mapgen.mapgen
+import mettagrid.mapgen.scenes.inline_ascii
+import mettagrid.mapgen.scenes.nop
+import mettagrid.mapgen.scenes.room_grid
+import mettagrid.mapgen.scenes.transplant_scene
+import mettagrid.test_support.mapgen
 
 
 class TestMapGenSize:
     def test_basic_dimensions(self):
         (width, height, border_width) = (10, 10, 2)
 
-        mg = MapGen.Config(
-            instance=Nop.Config(),
+        mg = mettagrid.mapgen.mapgen.MapGen.Config(
+            instance=mettagrid.mapgen.scenes.nop.Nop.Config(),
             width=width,
             height=height,
             border_width=border_width,
@@ -33,15 +33,15 @@ class TestMapGenSize:
         assert np.all(grid[bw:-bw, bw:-bw] == "empty")
 
     def test_dimensions_required(self):
-        mg = MapGen.Config(
-            instance=Nop.Config(),
+        mg = mettagrid.mapgen.mapgen.MapGen.Config(
+            instance=mettagrid.mapgen.scenes.nop.Nop.Config(),
         ).create()
         with pytest.raises(ValueError, match="width and height must be provided"):
             mg.build()
 
     def test_intrinsic_size(self):
-        mg = MapGen.Config(
-            instance=InlineAscii.Config(data="@"),
+        mg = mettagrid.mapgen.mapgen.MapGen.Config(
+            instance=mettagrid.mapgen.scenes.inline_ascii.InlineAscii.Config(data="@"),
             border_width=2,
         ).create()
         level = mg.build()
@@ -49,8 +49,8 @@ class TestMapGenSize:
         assert level.grid[2, 2] == "agent.agent"
 
     def test_intrinsic_size_with_explicit_dimensions(self):
-        mg = MapGen.Config(
-            instance=InlineAscii.Config(data="@"),
+        mg = mettagrid.mapgen.mapgen.MapGen.Config(
+            instance=mettagrid.mapgen.scenes.inline_ascii.InlineAscii.Config(data="@"),
             width=10,
             height=10,
             border_width=2,
@@ -70,8 +70,8 @@ class TestMapGenInstances:
     )
     def test_instances(self, instances, instance_bw):
         width, height, border_width = 5, 3, 2
-        mg = MapGen.Config(
-            instance=InlineAscii.Config(data="@"),
+        mg = mettagrid.mapgen.mapgen.MapGen.Config(
+            instance=mettagrid.mapgen.scenes.inline_ascii.InlineAscii.Config(data="@"),
             width=width,
             height=height,
             border_width=border_width,
@@ -86,12 +86,12 @@ class TestMapGenInstances:
         inner_h = height * rows + (rows - 1) * instance_bw
         expected_shape = (inner_h + 2 * border_width, inner_w + 2 * border_width)
         assert level.grid.shape == expected_shape
-        assert isinstance(mg.root_scene, RoomGrid)
+        assert isinstance(mg.root_scene, mettagrid.mapgen.scenes.room_grid.RoomGrid)
         assert np.count_nonzero(np.char.startswith(level.grid, "agent")) == instances
 
     def test_num_agents(self):
-        mg = MapGen.Config(
-            instance=InlineAscii.Config(
+        mg = mettagrid.mapgen.mapgen.MapGen.Config(
+            instance=mettagrid.mapgen.scenes.inline_ascii.InlineAscii.Config(
                 data="""
                         .@.
                         .@.""",
@@ -102,7 +102,7 @@ class TestMapGenInstances:
             border_width=2,
         ).create()
         level = mg.build()
-        assert_raw_grid(
+        mettagrid.test_support.mapgen.assert_raw_grid(
             level.grid,
             """
 ###########
@@ -121,12 +121,12 @@ class TestMapGenInstances:
         )
         assert np.count_nonzero(np.char.startswith(level.grid, "agent")) == 10
 
-        assert isinstance(mg.root_scene, RoomGrid)
-        assert isinstance(mg.root_scene.children[0], TransplantScene)
+        assert isinstance(mg.root_scene, mettagrid.mapgen.scenes.room_grid.RoomGrid)
+        assert isinstance(mg.root_scene.children[0], mettagrid.mapgen.scenes.transplant_scene.TransplantScene)
 
         # first instance is transplanted
-        assert isinstance(mg.root_scene.children[0].children[0], InlineAscii)
-        assert isinstance(mg.root_scene.children[1], InlineAscii)
+        assert isinstance(mg.root_scene.children[0].children[0], mettagrid.mapgen.scenes.inline_ascii.InlineAscii)
+        assert isinstance(mg.root_scene.children[1], mettagrid.mapgen.scenes.inline_ascii.InlineAscii)
 
         # sanity checks for transplant
         first_child = mg.root_scene.children[0]
@@ -139,10 +139,10 @@ class TestMapGenInstances:
 class TestMapGenTeamByInstance:
     def test_set_team_by_instance_multiple_instances(self):
         """Test that agents are assigned to teams based on instance number."""
-        from mettagrid.mapgen.scenes.random import Random
+        import mettagrid.mapgen.scenes.random
 
-        mg = MapGen.Config(
-            instance=Random.Config(agents=3),
+        mg = mettagrid.mapgen.mapgen.MapGen.Config(
+            instance=mettagrid.mapgen.scenes.random.Random.Config(agents=3),
             width=5,
             height=5,
             instances=4,
@@ -167,10 +167,9 @@ class TestMapGenTeamByInstance:
 
     def test_set_team_by_instance_false(self):
         """Test that default behavior is preserved when flag is False."""
-        from mettagrid.mapgen.scenes.random import Random
 
-        mg = MapGen.Config(
-            instance=Random.Config(agents=2),
+        mg = mettagrid.mapgen.mapgen.MapGen.Config(
+            instance=mettagrid.mapgen.scenes.random.Random.Config(agents=2),
             width=5,
             height=5,
             instances=3,
@@ -186,10 +185,9 @@ class TestMapGenTeamByInstance:
 
     def test_set_team_by_instance_single_instance(self):
         """Test that single instance gets team_0 when flag is True."""
-        from mettagrid.mapgen.scenes.random import Random
 
-        mg = MapGen.Config(
-            instance=Random.Config(agents=5),
+        mg = mettagrid.mapgen.mapgen.MapGen.Config(
+            instance=mettagrid.mapgen.scenes.random.Random.Config(agents=5),
             width=10,
             height=10,
             instances=1,
@@ -204,10 +202,9 @@ class TestMapGenTeamByInstance:
 
     def test_set_team_by_instance_with_dict_agents(self):
         """Test that explicit team names in dict aren't overridden."""
-        from mettagrid.mapgen.scenes.random import Random
 
-        mg = MapGen.Config(
-            instance=Random.Config(agents={"red": 2, "blue": 2, "green": 1}),
+        mg = mettagrid.mapgen.mapgen.MapGen.Config(
+            instance=mettagrid.mapgen.scenes.random.Random.Config(agents={"red": 2, "blue": 2, "green": 1}),
             width=5,
             height=5,
             instances=3,

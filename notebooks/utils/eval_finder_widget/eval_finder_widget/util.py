@@ -3,17 +3,17 @@ Utility functions for the Eval Finder Widget.
 """
 
 import asyncio
-from typing import Any, Dict, List
+import typing
 
-from metta.app_backend.clients.scorecard_client import ScorecardClient
+import metta.app_backend.clients.scorecard_client
 
 
 def fetch_eval_data_for_policies(
-    training_run_ids: List[str] | None = None,
-    run_free_policy_ids: List[str] | None = None,
-    category_filter: List[str] | None = None,
-    client: ScorecardClient | None = None,
-) -> Dict[str, Any]:
+    training_run_ids: typing.List[str] | None = None,
+    run_free_policy_ids: typing.List[str] | None = None,
+    category_filter: typing.List[str] | None = None,
+    client: metta.app_backend.clients.scorecard_client.ScorecardClient | None = None,
+) -> typing.Dict[str, typing.Any]:
     """
     Fetch policy-aware evaluation data for the widget.
 
@@ -28,7 +28,7 @@ def fetch_eval_data_for_policies(
 
     async def _fetch_data():
         # Use provided client or create default one
-        scorecard_client = client or ScorecardClient()
+        scorecard_client = client or metta.app_backend.clients.scorecard_client.ScorecardClient()
 
         # Use empty lists as defaults
         tr_ids = training_run_ids or []
@@ -129,11 +129,11 @@ def fetch_eval_data_for_policies(
 
 
 def _create_policy_aware_eval_metadata(
-    eval_names: List[str],
-    completed_evals: List[str],
-    performance_data: Dict[str, Any],
-    category_filter: List[str] | None = None,
-) -> List[Dict[str, Any]]:
+    eval_names: typing.List[str],
+    completed_evals: typing.List[str],
+    performance_data: typing.Dict[str, typing.Any],
+    category_filter: typing.List[str] | None = None,
+) -> typing.List[typing.Dict[str, typing.Any]]:
     """
     Create policy-aware eval metadata from eval names and performance data.
     Uses both heuristics and actual policy performance to enrich metadata.
@@ -186,7 +186,9 @@ def _create_policy_aware_eval_metadata(
     return evaluations
 
 
-def _build_eval_categories_from_names(eval_names: List[str], evaluations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _build_eval_categories_from_names(
+    eval_names: typing.List[str], evaluations: typing.List[typing.Dict[str, typing.Any]]
+) -> typing.List[typing.Dict[str, typing.Any]]:
     """Build category structure from eval names and metadata."""
     # print(
     #     f"📂 Building categories from {len(eval_names)} eval names and {len(evaluations)} evaluations"
@@ -246,10 +248,10 @@ def create_demo_eval_finder_widget():
     Returns:
         EvalFinderWidget instance with demo data loaded
     """
-    from .EvalFinderWidget import EvalFinderWidget
+    import notebooks.utils.eval_finder_widget.eval_finder_widget.EvalFinderWidget
 
     # Create widget
-    widget = EvalFinderWidget()
+    widget = notebooks.utils.eval_finder_widget.eval_finder_widget.EvalFinderWidget.EvalFinderWidget()
 
     # Realistic demo data matching what the API actually provides
     demo_evaluations = [

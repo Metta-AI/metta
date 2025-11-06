@@ -3,14 +3,14 @@ import os
 import platform
 import subprocess
 
-from metta.setup.components.base import SetupModule
-from metta.setup.registry import register_module
-from metta.setup.saved_settings import UserType, get_saved_settings
-from metta.setup.utils import info, success, warning
+import metta.setup.components.base
+import metta.setup.registry
+import metta.setup.saved_settings
+import metta.setup.utils
 
 
-@register_module
-class TailscaleSetup(SetupModule):
+@metta.setup.registry.register_module
+class TailscaleSetup(metta.setup.components.base.SetupModule):
     install_once = True
 
     @property
@@ -18,8 +18,8 @@ class TailscaleSetup(SetupModule):
         return "Tailscale VPN for internal network access"
 
     def _is_applicable(self) -> bool:
-        saved_settings = get_saved_settings()
-        return platform.system() == "Darwin" and saved_settings.user_type == UserType.SOFTMAX
+        saved_settings = metta.setup.saved_settings.get_saved_settings()
+        return platform.system() == "Darwin" and saved_settings.user_type == metta.setup.saved_settings.UserType.SOFTMAX
 
     def check_installed(self) -> bool:
         try:
@@ -59,21 +59,21 @@ class TailscaleSetup(SetupModule):
             return None
 
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
-        info("Setting up Tailscale...")
+        metta.setup.utils.info("Setting up Tailscale...")
 
         # In test/CI environments or non-interactive mode, skip interactive setup
         if os.environ.get("METTA_TEST_ENV") or os.environ.get("CI") or non_interactive:
-            info("Skipping Tailscale installation in non-interactive/test/CI environment.")
+            metta.setup.utils.info("Skipping Tailscale installation in non-interactive/test/CI environment.")
             return
 
         if self.check_installed():
-            success("Tailscale already installed")
+            metta.setup.utils.success("Tailscale already installed")
 
             # Check if running
             current = self.check_connected_as()
             if not current:
-                warning("Tailscale is installed but not running")
-                info("""
+                metta.setup.utils.warning("Tailscale is installed but not running")
+                metta.setup.utils.info("""
                     Your Tailscale access should have been provisioned.
                     If you don't have access, contact your team lead.
 
@@ -85,21 +85,21 @@ class TailscaleSetup(SetupModule):
                     See: https://tailscale.com/kb/1340/macos-sysext
                 """)
             else:
-                success(f"Tailscale connected as {current}")
+                metta.setup.utils.success(f"Tailscale connected as {current}")
             return
 
-        info("""
+        metta.setup.utils.info("""
             Your Tailscale access should have been provisioned.
             If you don't have access, contact your team lead.
         """)
 
         try:
-            info("Installing Tailscale via Homebrew...")
+            metta.setup.utils.info("Installing Tailscale via Homebrew...")
             # Use subprocess directly to preserve TTY for sudo prompts
             subprocess.run(["brew", "install", "--cask", "tailscale"], check=True)
-            success("Tailscale installed via Homebrew!")
+            metta.setup.utils.success("Tailscale installed via Homebrew!")
 
-            warning("""
+            metta.setup.utils.warning("""
                 IMPORTANT: Now you need to launch Tailscale manually
 
                 Please do the following:
@@ -111,7 +111,7 @@ class TailscaleSetup(SetupModule):
             """)
 
         except subprocess.CalledProcessError:
-            warning("""
+            metta.setup.utils.warning("""
                 Tailscale installation failed. You can install manually:
                 1. Run: brew install --cask tailscale
                 2. Open Tailscale from Applications folder

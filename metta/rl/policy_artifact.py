@@ -1,43 +1,42 @@
-from __future__ import annotations
 
 import ast
+import collections
+import dataclasses
 import io
+import pathlib
 import pickle
 import tempfile
+import typing
 import zipfile
-from collections import OrderedDict
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Mapping, MutableMapping
-from zipfile import BadZipFile
 
+import safetensors.torch
 import torch
-from safetensors.torch import load as load_safetensors
-from safetensors.torch import save as save_safetensors
 
-from metta.agent.components.component_config import ComponentConfig
-from metta.agent.policy import Policy, PolicyArchitecture
-from metta.rl.puffer_policy import _is_puffer_state_dict, load_pufferlib_checkpoint
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.util.module import load_symbol
+import metta.agent.components.component_config
+import metta.agent.policy
+import metta.rl.puffer_policy
+import mettagrid.policy.policy_env_interface
+import mettagrid.util.module
 
 
-def _component_config_to_manifest(component: ComponentConfig) -> dict[str, Any]:
+def _component_config_to_manifest(
+    component: metta.agent.components.component_config.ComponentConfig,
+) -> dict[str, typing.Any]:
     data = component.model_dump(mode="json")
     data["class_path"] = f"{component.__class__.__module__}.{component.__class__.__qualname__}"
     return data
 
 
 def _load_component_config(
-    data: Any,
+    data: typing.Any,
     *,
     context: str,
-    default_class: type[ComponentConfig] | None = None,
-) -> ComponentConfig:
-    if isinstance(data, ComponentConfig):
+    default_class: type[metta.agent.components.component_config.ComponentConfig] | None = None,
+) -> metta.agent.components.component_config.ComponentConfig:
+    if isinstance(data, metta.agent.components.component_config.ComponentConfig):
         return data
 
-    if not isinstance(data, Mapping):
+    if not isinstance(data, typing.Mapping):
         raise TypeError(f"Component config for {context} must be a mapping, got {type(data)!r}")
 
     class_path = data.get("class_path")
@@ -48,7 +47,7 @@ def _load_component_config(
             raise ValueError(f"Component config for {context} is missing a class_path attribute")
         return default_class.model_validate(payload)
 
-    component_class = load_symbol(class_path)
+    component_class = mettagrid.util.module.load_symbol(class_path)
     if not isinstance(component_class, type):
         raise TypeError(f"Loaded symbol {class_path} for {context} is not a class")
 
@@ -67,15 +66,15 @@ def _expr_to_dotted(expr: ast.expr) -> str:
     raise ValueError("Expected a dotted name for policy architecture class path")
 
 
-def _sorted_structure(value: Any) -> Any:
-    if isinstance(value, Mapping):
+def _sorted_structure(value: typing.Any) -> typing.Any:
+    if isinstance(value, typing.Mapping):
         return {key: _sorted_structure(value[key]) for key in sorted(value)}
     if isinstance(value, list):
         return [_sorted_structure(item) for item in value]
     return value
 
 
-def policy_architecture_to_string(architecture: PolicyArchitecture) -> str:
+def policy_architecture_to_string(architecture: metta.agent.policy.PolicyArchitecture) -> str:
     class_path = f"{architecture.__class__.__module__}.{architecture.__class__.__qualname__}"
     config_data = architecture.model_dump(mode="json")
     config_data.pop("class_path", None)
@@ -96,7 +95,7 @@ def policy_architecture_to_string(architecture: PolicyArchitecture) -> str:
     return f"{class_path}({args_repr})"
 
 
-def policy_architecture_from_string(spec: str) -> PolicyArchitecture:
+def policy_architecture_from_string(spec: str) -> metta.agent.policy.PolicyArchitecture:
     spec = spec.strip()
     if not spec:
         raise ValueError("Policy architecture specification cannot be empty")
@@ -116,14 +115,14 @@ def policy_architecture_from_string(spec: str) -> PolicyArchitecture:
     else:
         raise ValueError("Unsupported policy architecture specification format")
 
-    config_class = load_symbol(class_path)
-    if not isinstance(config_class, type) or not issubclass(config_class, PolicyArchitecture):
+    config_class = mettagrid.util.module.load_symbol(class_path)
+    if not isinstance(config_class, type) or not issubclass(config_class, metta.agent.policy.PolicyArchitecture):
         raise TypeError(f"Loaded symbol {class_path} is not a PolicyArchitecture subclass")
 
-    payload: dict[str, Any] = dict(kwargs)
+    payload: dict[str, typing.Any] = dict(kwargs)
 
-    default_components: list[ComponentConfig] = []
-    default_action_probs: ComponentConfig | None = None
+    default_components: list[metta.agent.components.component_config.ComponentConfig] = []
+    default_action_probs: metta.agent.components.component_config.ComponentConfig | None = None
     try:
         default_instance = config_class()
         default_components = list(getattr(default_instance, "components", []) or [])
@@ -154,14 +153,14 @@ def policy_architecture_from_string(spec: str) -> PolicyArchitecture:
         )
 
     architecture = config_class.model_validate(payload)
-    if not isinstance(architecture, PolicyArchitecture):
+    if not isinstance(architecture, metta.agent.policy.PolicyArchitecture):
         raise TypeError("Deserialized object is not a PolicyArchitecture")
     return architecture
 
 
 def _to_safetensors_state_dict(
-    state_dict: Mapping[str, torch.Tensor], detach_buffers: bool
-) -> MutableMapping[str, torch.Tensor]:
+    state_dict: typing.Mapping[str, torch.Tensor], detach_buffers: bool
+) -> typing.MutableMapping[str, torch.Tensor]:
     """
     according to codex:
     state_dict() technically gives you an OrderedDict[str, Tensor], but it often contains parameter Tensors that may
@@ -173,7 +172,7 @@ def _to_safetensors_state_dict(
     Without that preprocessing a GPU-only or gradient‑tracking tensor would make save_file barf.
     """
 
-    ordered: MutableMapping[str, torch.Tensor] = OrderedDict()
+    ordered: typing.MutableMapping[str, torch.Tensor] = collections.OrderedDict()
     seen_storage: dict[int, str] = {}
     for key, tensor in state_dict.items():
         if not isinstance(tensor, torch.Tensor):
@@ -193,11 +192,11 @@ def _to_safetensors_state_dict(
     return ordered
 
 
-@dataclass
+@dataclasses.dataclass
 class PolicyArtifact:
-    policy_architecture: PolicyArchitecture | None = None
-    state_dict: MutableMapping[str, torch.Tensor] | None = None
-    policy: Policy | None = None
+    policy_architecture: metta.agent.policy.PolicyArchitecture | None = None
+    state_dict: typing.MutableMapping[str, torch.Tensor] | None = None
+    policy: metta.agent.policy.Policy | None = None
 
     def __post_init__(self) -> None:
         has_arch = self.policy_architecture is not None
@@ -210,17 +209,17 @@ class PolicyArtifact:
             msg = "PolicyArtifact must contain either (policy) or (state_dict + policy_architecture)."
             raise ValueError(msg)
 
-        if has_state and not isinstance(self.state_dict, MutableMapping):
+        if has_state and not isinstance(self.state_dict, typing.MutableMapping):
             msg = "state_dict must be a mutable mapping of parameter tensors"
             raise TypeError(msg)
 
     def instantiate(
         self,
-        policy_env_info: PolicyEnvInterface,
+        policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface,
         device: torch.device,
         *,
         strict: bool = True,
-    ) -> Policy:
+    ) -> metta.agent.policy.Policy:
         if self.state_dict is not None and self.policy_architecture is not None:
             policy = self.policy_architecture.make_policy(policy_env_info)
             policy = policy.to(device)
@@ -228,7 +227,7 @@ class PolicyArtifact:
             if hasattr(policy, "initialize_to_environment"):
                 policy.initialize_to_environment(policy_env_info, device)
 
-            ordered_state = OrderedDict(self.state_dict.items())
+            ordered_state = collections.OrderedDict(self.state_dict.items())
             missing, unexpected = policy.load_state_dict(ordered_state, strict=strict)
             if strict and (missing or unexpected):
                 msg = f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}"
@@ -246,10 +245,10 @@ class PolicyArtifact:
 
 
 def save_policy_artifact_safetensors(
-    path: str | Path,
+    path: str | pathlib.Path,
     *,
-    policy_architecture: PolicyArchitecture,
-    state_dict: Mapping[str, torch.Tensor],
+    policy_architecture: metta.agent.policy.PolicyArchitecture,
+    state_dict: typing.Mapping[str, torch.Tensor],
     detach_buffers: bool = True,
 ) -> PolicyArtifact:
     """Persist weights + architecture using the safetensors format."""
@@ -262,24 +261,24 @@ def save_policy_artifact_safetensors(
 
 
 def save_policy_artifact_pt(
-    path: str | Path,
+    path: str | pathlib.Path,
     *,
-    policy: Policy,
+    policy: metta.agent.policy.Policy,
 ) -> PolicyArtifact:
     """Persist a policy object with torch.save (.pt)."""
     return _save_policy_artifact(path, policy=policy, include_policy=True)
 
 
 def _save_policy_artifact(
-    path: str | Path,
+    path: str | pathlib.Path,
     *,
-    policy: Policy | None = None,
-    policy_architecture: PolicyArchitecture | None = None,
-    state_dict: Mapping[str, torch.Tensor] | None = None,
+    policy: metta.agent.policy.Policy | None = None,
+    policy_architecture: metta.agent.policy.PolicyArchitecture | None = None,
+    state_dict: typing.Mapping[str, torch.Tensor] | None = None,
     include_policy: bool = False,
     detach_buffers: bool = True,
 ) -> PolicyArtifact:
-    output_path = Path(path)
+    output_path = pathlib.Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     has_state_input = state_dict is not None
@@ -296,7 +295,7 @@ def _save_policy_artifact(
         msg = "Saving requires weights/architecture or include_policy=True with a policy"
         raise ValueError(msg)
 
-    artifact_state: MutableMapping[str, torch.Tensor] | None = None
+    artifact_state: typing.MutableMapping[str, torch.Tensor] | None = None
     if has_state_input:
         artifact_state = _to_safetensors_state_dict(state_dict or {}, detach_buffers)
 
@@ -319,12 +318,12 @@ def _save_policy_artifact(
         suffix=".tmp",
         delete=False,
     ) as temp_file:
-        temp_path = Path(temp_file.name)
+        temp_path = pathlib.Path(temp_file.name)
 
         try:
             with zipfile.ZipFile(temp_path, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
                 if artifact_state is not None and policy_architecture is not None:
-                    weights_blob = save_safetensors(artifact_state)
+                    weights_blob = safetensors.torch.save(artifact_state)
                     archive.writestr("weights.safetensors", weights_blob)
                     archive.writestr(
                         "modelarchitecture.txt",
@@ -349,8 +348,8 @@ def _save_policy_artifact(
     )
 
 
-def load_policy_artifact(path: str | Path, is_pt_file: bool = False) -> PolicyArtifact:
-    input_path = Path(path)
+def load_policy_artifact(path: str | pathlib.Path, is_pt_file: bool = False) -> PolicyArtifact:
+    input_path = pathlib.Path(path)
     if not input_path.exists():
         msg = f"Policy artifact not found: {input_path}"
         raise FileNotFoundError(msg)
@@ -360,18 +359,18 @@ def load_policy_artifact(path: str | Path, is_pt_file: bool = False) -> PolicyAr
             legacy_payload = torch.load(input_path, map_location="cpu", weights_only=False)
         except FileNotFoundError:
             raise
-        except (pickle.UnpicklingError, RuntimeError, OSError, TypeError, BadZipFile) as err:
+        except (pickle.UnpicklingError, RuntimeError, OSError, TypeError, zipfile.BadZipFile) as err:
             raise FileNotFoundError(f"Invalid or corrupted checkpoint file: {input_path}") from err
 
-        if _is_puffer_state_dict(legacy_payload):
-            policy = load_pufferlib_checkpoint(legacy_payload, device="cpu")
+        if metta.rl.puffer_policy._is_puffer_state_dict(legacy_payload):
+            policy = metta.rl.puffer_policy.load_pufferlib_checkpoint(legacy_payload, device="cpu")
             return PolicyArtifact(policy=policy)
 
         return PolicyArtifact(policy=legacy_payload)
 
-    architecture: PolicyArchitecture | None = None
-    state_dict: MutableMapping[str, torch.Tensor] | None = None
-    policy: Policy | None = None
+    architecture: metta.agent.policy.PolicyArchitecture | None = None
+    state_dict: typing.MutableMapping[str, torch.Tensor] | None = None
+    policy: metta.agent.policy.Policy | None = None
 
     with zipfile.ZipFile(input_path, mode="r") as archive:
         names = set(archive.namelist())
@@ -381,8 +380,8 @@ def load_policy_artifact(path: str | Path, is_pt_file: bool = False) -> PolicyAr
             architecture = policy_architecture_from_string(architecture_blob)
 
             weights_blob = archive.read("weights.safetensors")
-            loaded_state = load_safetensors(weights_blob)
-            if not isinstance(loaded_state, MutableMapping):
+            loaded_state = safetensors.torch.load(weights_blob)
+            if not isinstance(loaded_state, typing.MutableMapping):
                 msg = "Loaded safetensors state_dict is not a mutable mapping"
                 raise TypeError(msg)
             state_dict = loaded_state
@@ -391,10 +390,10 @@ def load_policy_artifact(path: str | Path, is_pt_file: bool = False) -> PolicyAr
             buffer = io.BytesIO(archive.read("policy.pt"))
             loaded_policy = torch.load(buffer, map_location="cpu", weights_only=False)
 
-            if _is_puffer_state_dict(loaded_policy):
-                policy = load_pufferlib_checkpoint(loaded_policy, device="cpu")
+            if metta.rl.puffer_policy._is_puffer_state_dict(loaded_policy):
+                policy = metta.rl.puffer_policy.load_pufferlib_checkpoint(loaded_policy, device="cpu")
             else:
-                if not isinstance(loaded_policy, Policy):
+                if not isinstance(loaded_policy, metta.agent.policy.Policy):
                     msg = "Loaded policy payload is not a Policy instance"
                     raise TypeError(msg)
                 policy = loaded_policy

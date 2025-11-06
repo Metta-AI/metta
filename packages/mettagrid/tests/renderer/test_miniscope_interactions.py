@@ -1,25 +1,22 @@
 """Interaction tests for miniscope renderer components."""
 
-from __future__ import annotations
 
-from dataclasses import dataclass
+import dataclasses
 
 import pytest
 
-from mettagrid.renderer.miniscope.buffer import MapBuffer
-from mettagrid.renderer.miniscope.components.vibe_picker import VibePickerComponent
-from mettagrid.renderer.miniscope.miniscope import MiniscopeRenderer
-from mettagrid.renderer.miniscope.miniscope_state import (
-    RenderMode,
-)
+import mettagrid.renderer.miniscope.buffer
+import mettagrid.renderer.miniscope.components.vibe_picker
+import mettagrid.renderer.miniscope.miniscope
+import mettagrid.renderer.miniscope.miniscope_state
 
 pytestmark = pytest.mark.skip(reason="Miniscope renderer uses obsolete game_state module - needs rewrite")
 
 
-def _minimal_renderer() -> MiniscopeRenderer:
+def _minimal_renderer() -> mettagrid.renderer.miniscope.miniscope.MiniscopeRenderer:
     """Create a renderer with the minimal wiring for input handling tests."""
 
-    renderer = MiniscopeRenderer()
+    renderer = mettagrid.renderer.miniscope.miniscope.MiniscopeRenderer()
     renderer._env = object()  # Input handling checks only require a non-None sentinel
     renderer._components = []
     return renderer
@@ -31,7 +28,7 @@ def test_sidebar_toggle_via_numeric_keys() -> None:
     renderer = _minimal_renderer()
     renderer._sidebar_hotkeys = {"1": "agent_info"}
     renderer._state.sidebar_visibility = {"agent_info": True}
-    renderer._state.mode = RenderMode.FOLLOW
+    renderer._state.mode = mettagrid.renderer.miniscope.miniscope_state.RenderMode.FOLLOW
 
     renderer._state.user_input = "1"
     renderer._handle_user_input()
@@ -49,23 +46,23 @@ def test_help_modal_entry_and_exit() -> None:
     renderer._state.initialize_sidebar_visibility(["agent_info", "object_info", "symbols", "vibe_picker", "help"])
     renderer._sidebar_hotkeys = {}
 
-    renderer._state.mode = RenderMode.FOLLOW
+    renderer._state.mode = mettagrid.renderer.miniscope.miniscope_state.RenderMode.FOLLOW
     renderer._state.user_input = "?"
     renderer._handle_user_input()
 
-    assert renderer._state.mode == RenderMode.HELP
+    assert renderer._state.mode == mettagrid.renderer.miniscope.miniscope_state.RenderMode.HELP
     assert renderer._state.is_sidebar_visible("help") is True
     assert renderer._state.is_sidebar_visible("agent_info") is False
 
     renderer._state.user_input = "x"
     renderer._handle_user_input()
 
-    assert renderer._state.mode == RenderMode.FOLLOW
+    assert renderer._state.mode == mettagrid.renderer.miniscope.miniscope_state.RenderMode.FOLLOW
     assert renderer._state.is_sidebar_visible("agent_info") is True
     assert renderer._state.is_sidebar_visible("help") is False
 
 
-@dataclass
+@dataclasses.dataclass
 class _DummyEnv:
     action_names: list[str]
     num_agents: int
@@ -90,11 +87,13 @@ def test_vibe_picker_captures_input_exclusively() -> None:
     env = _DummyEnv(action_names=["noop", "change_vibe_0"], num_agents=1)
     renderer._env = env
 
-    vibe_picker = VibePickerComponent(env=env, state=renderer._state, panels=renderer._panels)
+    vibe_picker = mettagrid.renderer.miniscope.components.vibe_picker.VibePickerComponent(
+        env=env, state=renderer._state, panels=renderer._panels
+    )
     other_component = _DummyComponent()
     renderer._components = [vibe_picker, other_component]
 
-    renderer._state.mode = RenderMode.VIBE_PICKER
+    renderer._state.mode = mettagrid.renderer.miniscope.miniscope_state.RenderMode.VIBE_PICKER
     renderer._state.user_input = "a"
     renderer._handle_user_input()
 
@@ -107,7 +106,7 @@ def test_highlighted_agent_renders_star() -> None:
 
     object_type_names = ["agent"]
     symbol_map = {"agent": "A", "empty": "."}
-    buffer = MapBuffer(object_type_names, symbol_map)
+    buffer = mettagrid.renderer.miniscope.buffer.MapBuffer(object_type_names, symbol_map)
 
     grid_objects = {1: {"r": 0, "c": 0, "type_name": "agent", "agent_id": 7}}
     buffer.set_highlighted_agent(7)
@@ -127,11 +126,11 @@ def test_select_mode_shows_object_info() -> None:
     assert renderer._state.is_sidebar_visible("object_info") is False
 
     # Enter SELECT mode
-    renderer._state.set_mode(RenderMode.SELECT)
+    renderer._state.set_mode(mettagrid.renderer.miniscope.miniscope_state.RenderMode.SELECT)
 
     # object_info should now be visible
     assert renderer._state.is_sidebar_visible("object_info") is True
-    assert renderer._state.mode == RenderMode.SELECT
+    assert renderer._state.mode == mettagrid.renderer.miniscope.miniscope_state.RenderMode.SELECT
 
 
 def test_map_expands_when_sidebar_hidden() -> None:
@@ -144,11 +143,11 @@ def test_map_expands_when_sidebar_hidden() -> None:
     renderer._state.map_height = 30
     renderer._state.map_width = 50
 
-    from rich.console import Console
+    import rich.console
 
-    from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
+    import mettagrid.renderer.miniscope.miniscope_panel
 
-    renderer._panels = PanelLayout(Console())
+    renderer._panels = mettagrid.renderer.miniscope.miniscope_panel.PanelLayout(rich.console.Console())
 
     # Initially some panels are visible
     renderer._state.sidebar_visibility["agent_info"] = True
@@ -183,7 +182,7 @@ def test_help_modal_restores_sidebar_state() -> None:
 
     # Enter help mode
     renderer._state.enter_help()
-    assert renderer._state.mode == RenderMode.HELP
+    assert renderer._state.mode == mettagrid.renderer.miniscope.miniscope_state.RenderMode.HELP
     assert renderer._state.is_sidebar_visible("help") is True
     assert renderer._state.is_sidebar_visible("agent_info") is False
 
@@ -214,7 +213,7 @@ def test_vibe_picker_restores_sidebar_state() -> None:
 
     # Enter vibe picker mode
     renderer._state.enter_vibe_picker()
-    assert renderer._state.mode == RenderMode.VIBE_PICKER
+    assert renderer._state.mode == mettagrid.renderer.miniscope.miniscope_state.RenderMode.VIBE_PICKER
     assert renderer._state.is_sidebar_visible("vibe_picker") is True
     assert renderer._state.is_sidebar_visible("agent_info") is True
     assert renderer._state.is_sidebar_visible("object_info") is False

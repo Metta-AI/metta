@@ -4,20 +4,19 @@ This module provides the IdMap class which manages observation feature IDs
 and their mappings, along with the ObservationFeatureSpec class.
 """
 
-from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import typing
 
-from pydantic import BaseModel, ConfigDict
+import pydantic
 
-if TYPE_CHECKING:
-    from mettagrid.config.mettagrid_config import GameConfig, MettaGridConfig
+if typing.TYPE_CHECKING:
+    import mettagrid.config.mettagrid_config
 
 
-class ObservationFeatureSpec(BaseModel):
+class ObservationFeatureSpec(pydantic.BaseModel):
     """Specification for an observation feature."""
 
-    model_config = ConfigDict(protected_namespaces=())
+    model_config = pydantic.ConfigDict(protected_namespaces=())
 
     id: int
     name: str
@@ -27,7 +26,7 @@ class ObservationFeatureSpec(BaseModel):
 class IdMap:
     """Manages observation feature IDs and mappings for a MettaGrid configuration."""
 
-    def __init__(self, config: MettaGridConfig):
+    def __init__(self, config: mettagrid.config.mettagrid_config.MettaGridConfig):
         self._config = config
         self._features_list: list[ObservationFeatureSpec] | None = None
 
@@ -80,7 +79,7 @@ class IdMap:
         return tag_id_to_name
 
     @staticmethod
-    def assign_type_ids(game_config: GameConfig) -> None:
+    def assign_type_ids(game_config: mettagrid.config.mettagrid_config.GameConfig) -> None:
         """Auto-assign type_ids for objects that don't have one, filling gaps deterministically."""
         # Access objects directly via __dict__ to avoid recursion
         objects = object.__getattribute__(game_config, "objects")

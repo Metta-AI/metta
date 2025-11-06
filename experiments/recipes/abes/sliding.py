@@ -1,26 +1,19 @@
-from experiments.recipes.arena_basic_easy_shaped import (
-    evaluate,
-    evaluate_in_sweep,
-    make_curriculum,
-    mettagrid,
-    play,
-    replay,
-    simulations,
-    sweep,
-    train as base_train,
-)
-from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
-from metta.agent.policy import PolicyArchitecture
+import experiments.recipes.arena_basic_easy_shaped
+import metta.agent.policies.vit_sliding_trans
+import metta.agent.policy
 
 
 def train(
     *,
     curriculum=None,
     enable_detailed_slice_logging: bool = False,
-    policy_architecture: PolicyArchitecture | None = None,
+    policy_architecture: metta.agent.policy.PolicyArchitecture | None = None,
 ):
-    policy = policy_architecture or ViTSlidingTransConfig()
-    tool = base_train(
+    policy = (
+        policy_architecture
+        or metta.agent.policies.vit_sliding_trans.ViTSlidingTransConfig()
+    )
+    tool = experiments.recipes.arena_basic_easy_shaped.train(
         curriculum=curriculum,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         policy_architecture=policy,

@@ -1,27 +1,27 @@
 """Interactive play tool for Metta simulations."""
 
 import logging
-from typing import Optional
+import typing
 
+import rich.console
 import torch
-from rich.console import Console
 
-from metta.agent.policy import Policy as MettaPolicy
-from metta.common.tool import Tool
-from metta.common.wandb.context import WandbConfig
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.sim.simulation_config import SimulationConfig
-from metta.tools.utils.auto_config import auto_wandb_config
-from mettagrid.policy.policy import AgentPolicy
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.policy.random import RandomAgentPolicy
-from mettagrid.renderer.renderer import RenderMode
-from mettagrid.simulator.rollout import Rollout
+import metta.agent.policy
+import metta.common.tool
+import metta.common.wandb.context
+import metta.rl.checkpoint_manager
+import metta.sim.simulation_config
+import metta.tools.utils.auto_config
+import mettagrid.policy.policy
+import mettagrid.policy.policy_env_interface
+import mettagrid.policy.random
+import mettagrid.renderer.renderer
+import mettagrid.simulator.rollout
 
 logger = logging.getLogger(__name__)
 
 
-class PlayTool(Tool):
+class PlayTool(metta.common.tool.Tool):
     """Interactive play tool for Metta simulations using Rollout.
 
     This tool creates an interactive play session where agents act using either
@@ -29,15 +29,15 @@ class PlayTool(Tool):
     to the specified render mode (gui, unicode, log, or none).
     """
 
-    wandb: WandbConfig = auto_wandb_config()
-    sim: SimulationConfig
+    wandb: metta.common.wandb.context.WandbConfig = metta.tools.utils.auto_config.auto_wandb_config()
+    sim: metta.sim.simulation_config.SimulationConfig
     policy_uri: str | None = None
     replay_dir: str | None = None
     stats_dir: str | None = None
     open_browser_on_start: bool = True
-    max_steps: Optional[int] = None
+    max_steps: typing.Optional[int] = None
     seed: int = 42
-    render: RenderMode = "gui"
+    render: mettagrid.renderer.renderer.RenderMode = "gui"
 
     @property
     def effective_replay_dir(self) -> str:
@@ -54,13 +54,18 @@ class PlayTool(Tool):
         return str(self.system.data_dir / "stats")
 
     def _load_policy_from_uri(
-        self, policy_uri: str, policy_env_info: PolicyEnvInterface, device: torch.device
-    ) -> list[AgentPolicy]:
+        self,
+        policy_uri: str,
+        policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface,
+        device: torch.device,
+    ) -> list[mettagrid.policy.policy.AgentPolicy]:
         """Load a policy from a URI using CheckpointManager and return AgentPolicy instances."""
         logger.info(f"Loading policy from URI: {policy_uri}")
 
         # Load policy from URI
-        policy: MettaPolicy = CheckpointManager.load_from_uri(policy_uri, policy_env_info, device)
+        policy: metta.agent.policy.Policy = metta.rl.checkpoint_manager.CheckpointManager.load_from_uri(
+            policy_uri, policy_env_info, device
+        )
         policy.eval()
         policy.initialize_to_environment(policy_env_info, device)
 
@@ -70,7 +75,7 @@ class PlayTool(Tool):
     def invoke(self, args: dict[str, str]) -> int | None:
         """Run an interactive play session with the configured simulation."""
 
-        console = Console()
+        console = rich.console.Console()
         device = torch.device("cpu")
 
         # Get environment config
@@ -83,16 +88,18 @@ class PlayTool(Tool):
         # Load or create policies
         if self.policy_uri:
             # Create policy environment interface from config
-            policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
+            policy_env_info = mettagrid.policy.policy_env_interface.PolicyEnvInterface.from_mg_cfg(env_cfg)
 
             agent_policies = self._load_policy_from_uri(self.policy_uri, policy_env_info, device)
         else:
             # Use random policies if no policy specified
             logger.info("No policy specified, using random actions")
-            agent_policies = [RandomAgentPolicy(env_cfg.game.actions) for _ in range(env_cfg.game.num_agents)]
+            agent_policies = [
+                mettagrid.policy.random.RandomAgentPolicy(env_cfg.game.actions) for _ in range(env_cfg.game.num_agents)
+            ]
 
         # Create rollout with renderer
-        rollout = Rollout(
+        rollout = mettagrid.simulator.rollout.Rollout(
             env_cfg,
             agent_policies,
             max_action_time_ms=10000,

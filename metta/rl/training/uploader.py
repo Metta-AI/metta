@@ -1,39 +1,39 @@
 """Policy upload management component for wandb and other destinations."""
 
+import contextlib
 import logging
-from contextlib import contextmanager
-from pathlib import Path
-from typing import Any, Iterator, Optional
-from urllib.parse import urlparse
+import pathlib
+import typing
+import urllib.parse
 
 import wandb
 
-from metta.common.wandb.context import WandbRun
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.training import DistributedHelper, TrainerComponent
-from metta.utils.file import local_copy
-from mettagrid.base_config import Config
+import metta.common.wandb.context
+import metta.rl.checkpoint_manager
+import metta.rl.training
+import metta.utils.file
+import mettagrid.base_config
 
 logger = logging.getLogger(__name__)
 
 
-class UploaderConfig(Config):
+class UploaderConfig(mettagrid.base_config.Config):
     """Configuration for policy uploading."""
 
     epoch_interval: int = 1000
     """How often to upload policy to wandb (in epochs)."""
 
 
-class Uploader(TrainerComponent):
+class Uploader(metta.rl.training.TrainerComponent):
     """Manages uploading policies to wandb and other destinations."""
 
     def __init__(
         self,
         *,
         config: UploaderConfig,
-        checkpoint_manager: CheckpointManager,
-        distributed_helper: DistributedHelper,
-        wandb_run: Optional[WandbRun] = None,
+        checkpoint_manager: metta.rl.checkpoint_manager.CheckpointManager,
+        distributed_helper: metta.rl.training.DistributedHelper,
+        wandb_run: typing.Optional[metta.common.wandb.context.WandbRun] = None,
     ) -> None:
         super().__init__(epoch_interval=max(1, config.epoch_interval))
         self._master_only = True
@@ -42,7 +42,7 @@ class Uploader(TrainerComponent):
         self._distributed = distributed_helper
         self._wandb_run = wandb_run
 
-    def update_wandb_run(self, wandb_run: Optional[WandbRun]) -> None:
+    def update_wandb_run(self, wandb_run: typing.Optional[metta.common.wandb.context.WandbRun]) -> None:
         self._wandb_run = wandb_run
 
     # ------------------------------------------------------------------
@@ -98,8 +98,8 @@ class Uploader(TrainerComponent):
         self,
         checkpoint_uri: str,
         epoch: int,
-        metadata: Optional[dict[str, Any]] = None,
-    ) -> Optional[str]:
+        metadata: typing.Optional[dict[str, typing.Any]] = None,
+    ) -> typing.Optional[str]:
         artifact_name = f"policy-{epoch}"
 
         with self._materialize_checkpoint(checkpoint_uri) as local_path:
@@ -115,14 +115,14 @@ class Uploader(TrainerComponent):
             logged_artifact = self._wandb_run.log_artifact(artifact)
             return getattr(logged_artifact, "id", None)
 
-    @contextmanager
-    def _materialize_checkpoint(self, checkpoint_uri: str) -> Iterator[Optional[Path]]:
+    @contextlib.contextmanager
+    def _materialize_checkpoint(self, checkpoint_uri: str) -> typing.Iterator[typing.Optional[pathlib.Path]]:
         """Yield a local file path for the given checkpoint URI."""
-        normalized_uri = CheckpointManager.normalize_uri(checkpoint_uri)
-        parsed = urlparse(normalized_uri)
+        normalized_uri = metta.rl.checkpoint_manager.CheckpointManager.normalize_uri(checkpoint_uri)
+        parsed = urllib.parse.urlparse(normalized_uri)
 
         if parsed.scheme in ("", "file"):
-            local_path = Path(parsed.path)
+            local_path = pathlib.Path(parsed.path)
             if not local_path.exists():
                 logger.warning("Uploader: checkpoint path %s does not exist", local_path)
                 yield None
@@ -131,8 +131,8 @@ class Uploader(TrainerComponent):
             return
 
         try:
-            with local_copy(normalized_uri) as tmp_path:
-                yield Path(tmp_path)
+            with metta.utils.file.local_copy(normalized_uri) as tmp_path:
+                yield pathlib.Path(tmp_path)
         except Exception as exc:  # pragma: no cover - best effort for remote policies
             logger.error("Uploader: failed to materialize %s: %s", normalized_uri, exc, exc_info=True)
             yield None

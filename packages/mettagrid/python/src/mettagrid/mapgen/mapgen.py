@@ -1,31 +1,30 @@
-from __future__ import annotations
 
-from typing import Any
+import typing
 
 import numpy as np
-from pydantic import Field, ValidatorFunctionWrapHandler, field_validator, model_validator
+import pydantic
 
-from mettagrid.map_builder import GameMap, MapBuilder, MapBuilderConfig, MapGrid
-from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
-from mettagrid.map_builder.utils import create_grid
-from mettagrid.mapgen.area import Area, AreaWhere
-from mettagrid.mapgen.scene import ChildrenAction, SceneConfig, load_symbol
-from mettagrid.mapgen.scenes.copy_grid import CopyGrid
-from mettagrid.mapgen.scenes.room_grid import RoomGrid
-from mettagrid.mapgen.scenes.transplant_scene import TransplantScene
+import mettagrid.map_builder
+import mettagrid.map_builder.map_builder
+import mettagrid.map_builder.utils
+import mettagrid.mapgen.area
+import mettagrid.mapgen.scene
+import mettagrid.mapgen.scenes.copy_grid
+import mettagrid.mapgen.scenes.room_grid
+import mettagrid.mapgen.scenes.transplant_scene
 
 
-class MapGenConfig(MapBuilderConfig["MapGen"]):
+class MapGenConfig(mettagrid.map_builder.MapBuilderConfig["MapGen"]):
     ########## Global parameters ##########
 
-    border_width: int = Field(
+    border_width: int = pydantic.Field(
         default=5,
         ge=0,
         description="Default value guarantees that agents don't see beyond the outer walls. This value usually "
         "shouldn't be changed.",
     )
 
-    seed: int | None = Field(
+    seed: int | None = pydantic.Field(
         default=None,
         ge=0,
         description="Random seed. If not set, a random seed will be generated. Seeds for root"
@@ -38,13 +37,17 @@ class MapGenConfig(MapBuilderConfig["MapGen"]):
     # Can be either a scene config or another MapBuilder config.
     # If it's a scene config, you need to set `width` and `height` explicitly.
     # If `instances` or `num_agents` are set, this configuration will be used multiple times.
-    instance: SceneConfig | AnyMapBuilderConfig | None = Field(default=None)
+    instance: mettagrid.mapgen.scene.SceneConfig | mettagrid.map_builder.map_builder.AnyMapBuilderConfig | None = (
+        pydantic.Field(default=None)
+    )
 
     # Legacy fields, to be removed soon.
-    instance_map: AnyMapBuilderConfig | None = Field(default=None, deprecated="Use `instance` instead")
-    root: SceneConfig | None = Field(default=None, deprecated="Use `instance` instead")
+    instance_map: mettagrid.map_builder.map_builder.AnyMapBuilderConfig | None = pydantic.Field(
+        default=None, deprecated="Use `instance` instead"
+    )
+    root: mettagrid.mapgen.scene.SceneConfig | None = pydantic.Field(default=None, deprecated="Use `instance` instead")
 
-    @model_validator(mode="before")
+    @pydantic.model_validator(mode="before")
     @classmethod
     def validate_legacy_instance_fields(cls, data):
         # Temporary validation for legacy fields, to avoid merge collisions with other PRs.
@@ -68,12 +71,14 @@ class MapGenConfig(MapBuilderConfig["MapGen"]):
 
         return data
 
-    @field_validator("instance", mode="wrap")
+    @pydantic.field_validator("instance", mode="wrap")
     @classmethod
-    def _validate_instance(cls, v: Any, handler: ValidatorFunctionWrapHandler) -> SceneConfig | MapBuilderConfig:
-        if isinstance(v, SceneConfig):
+    def _validate_instance(
+        cls, v: typing.Any, handler: pydantic.ValidatorFunctionWrapHandler
+    ) -> mettagrid.mapgen.scene.SceneConfig | mettagrid.map_builder.MapBuilderConfig:
+        if isinstance(v, mettagrid.mapgen.scene.SceneConfig):
             return v
-        elif isinstance(v, MapBuilderConfig):
+        elif isinstance(v, mettagrid.map_builder.MapBuilderConfig):
             return v
         elif isinstance(v, dict):
             # We need to decide whether it's a scene config or a MapBuilder config.
@@ -81,24 +86,24 @@ class MapGenConfig(MapBuilderConfig["MapGen"]):
             t = v.get("type")
             if t is None:
                 raise ValueError("'type' is required")
-            target = load_symbol(t) if isinstance(t, str) else t
-            if isinstance(target, type) and issubclass(target, SceneConfig):
-                return SceneConfig.model_validate(v)
-            elif isinstance(target, type) and issubclass(target, MapBuilderConfig):
-                return MapBuilderConfig.model_validate(v)
+            target = mettagrid.mapgen.scene.load_symbol(t) if isinstance(t, str) else t
+            if isinstance(target, type) and issubclass(target, mettagrid.mapgen.scene.SceneConfig):
+                return mettagrid.mapgen.scene.SceneConfig.model_validate(v)
+            elif isinstance(target, type) and issubclass(target, mettagrid.map_builder.MapBuilderConfig):
+                return mettagrid.map_builder.MapBuilderConfig.model_validate(v)
             else:
                 raise ValueError(f"Invalid instance type: {target!r}")
         else:
             raise ValueError(f"Invalid instance configuration: {v!r}")
 
-    width: int | None = Field(
+    width: int | None = pydantic.Field(
         default=None,
         ge=0,
         description="""Inner grid width. Doesn't take outer border into account. If `instance` is a MapBuilder
         config, this field must be None; otherwise, it must be set. If `instances` is set, this is the size used for
         each instance.""",
     )
-    height: int | None = Field(
+    height: int | None = pydantic.Field(
         default=None,
         ge=0,
         description="""Inner grid width. Doesn't take outer border into account. If `instance` is a MapBuilder
@@ -122,31 +127,31 @@ class MapGenConfig(MapBuilderConfig["MapGen"]):
 
     # Number of instances to generate. If set, the map will be generated as a grid of instances, separated by the
     # given `instance_border_width`.
-    instances: int | None = Field(default=None, ge=1)
+    instances: int | None = pydantic.Field(default=None, ge=1)
 
     # Number of agents to generate. If set, MapGen will automatically compute the number of instances based on how
     # many agents there are in the instance scene. (It will assume that the instance always places the same number
     # of agents.)
-    num_agents: int | None = Field(default=None, ge=0)
+    num_agents: int | None = pydantic.Field(default=None, ge=0)
 
-    fixed_spawn_order: bool = Field(default=False, description="If True, the spawn order will be fixed")
+    fixed_spawn_order: bool = pydantic.Field(default=False, description="If True, the spawn order will be fixed")
 
     # Inner border width between instances. This value usually shouldn't be changed.
-    instance_border_width: int = Field(default=5, ge=0)
+    instance_border_width: int = pydantic.Field(default=5, ge=0)
 
     # Create a unique team comprising all agents in each instance
-    set_team_by_instance: bool = Field(
+    set_team_by_instance: bool = pydantic.Field(
         default=False,
         description="If True, automatically assign agents to teams based on instance number"
         " (agent.team_0, agent.team_1, etc.)",
     )
 
-    @model_validator(mode="after")
+    @pydantic.model_validator(mode="after")
     def validate_required_fields(self) -> MapGenConfig:
         if not self.instance:
             raise ValueError("instance is required")
 
-        if isinstance(self.instance, MapBuilderConfig):
+        if isinstance(self.instance, mettagrid.map_builder.MapBuilderConfig):
             if self.width is not None or self.height is not None:
                 raise ValueError("width and height must be None if instance is a MapBuilder config")
 
@@ -156,14 +161,14 @@ class MapGenConfig(MapBuilderConfig["MapGen"]):
         return self
 
 
-class MapGen(MapBuilder[MapGenConfig]):
+class MapGen(mettagrid.map_builder.MapBuilder[MapGenConfig]):
     def __init__(self, config: MapGenConfig):
         super().__init__(config)
 
         self.rng = np.random.default_rng(self.config.seed)
         self.grid = None
 
-    def guarded_grid(self) -> MapGrid:
+    def guarded_grid(self) -> mettagrid.map_builder.MapGrid:
         assert self.grid is not None
         return self.grid
 
@@ -188,7 +193,7 @@ class MapGen(MapBuilder[MapGenConfig]):
         - `self.height` (either copied from the config, or derived from the instance map)
         - `self.instance_scene_factories` (a list of scene factories, one for each instance)
         """
-        self.instance_scene_factories: list[SceneConfig] = []
+        self.instance_scene_factories: list[mettagrid.mapgen.scene.SceneConfig] = []
 
         # Can be None, but we'll set these fields to their actual values after the loop.
         self.width = self.config.width
@@ -204,7 +209,7 @@ class MapGen(MapBuilder[MapGenConfig]):
                 # instance.
                 return True
             if (
-                isinstance(self.config.instance, MapBuilderConfig)
+                isinstance(self.config.instance, mettagrid.map_builder.MapBuilderConfig)
                 and self.instances
                 and self.instances > len(self.instance_scene_factories)
             ):
@@ -217,7 +222,7 @@ class MapGen(MapBuilder[MapGenConfig]):
             # We'll render the first instance in a separate grid to count the number of agents.
             # Then we'll transplant it into the final multi-instance grid.
 
-            if isinstance(self.config.instance, SceneConfig):
+            if isinstance(self.config.instance, mettagrid.mapgen.scene.SceneConfig):
                 instance_scene_config = self.config.instance
                 if not self.width or not self.height:
                     intrinsic_size = instance_scene_config.scene_cls.intrinsic_size(self.config.instance)
@@ -232,8 +237,8 @@ class MapGen(MapBuilder[MapGenConfig]):
                 current_instance_id = len(self.instance_scene_factories)
                 use_instance_id_for_team_assignment = self.config.set_team_by_instance
 
-                instance_grid = create_grid(self.height, self.width)
-                instance_area = Area.root_area_from_grid(instance_grid)
+                instance_grid = mettagrid.map_builder.utils.create_grid(self.height, self.width)
+                instance_area = mettagrid.mapgen.area.Area.root_area_from_grid(instance_grid)
                 instance_scene = instance_scene_config.create_root(
                     instance_area,
                     self.rng,
@@ -241,13 +246,15 @@ class MapGen(MapBuilder[MapGenConfig]):
                     use_instance_id_for_team_assignment=use_instance_id_for_team_assignment,
                 )
                 instance_scene.render_with_children()
-                self.instance_scene_factories.append(TransplantScene.Config(scene=instance_scene))
+                self.instance_scene_factories.append(
+                    mettagrid.mapgen.scenes.transplant_scene.TransplantScene.Config(scene=instance_scene)
+                )
             else:
-                assert isinstance(self.config.instance, MapBuilderConfig)
+                assert isinstance(self.config.instance, mettagrid.map_builder.MapBuilderConfig)
                 # Instance is a map, not a scene, so it defines its own size.
                 # We need to prerender it to find the full size of our grid.
                 instance_map_builder = self.config.instance.create()
-                if not isinstance(instance_map_builder, MapBuilder):
+                if not isinstance(instance_map_builder, mettagrid.map_builder.MapBuilder):
                     raise ValueError("instance must be a MapBuilder")
 
                 instance_map = instance_map_builder.build()
@@ -255,7 +262,7 @@ class MapGen(MapBuilder[MapGenConfig]):
 
                 self.instance_scene_factories.append(
                     # TODO - if the instance class is MapGen, we want to transplant its scene tree too.
-                    CopyGrid.Config(
+                    mettagrid.mapgen.scenes.copy_grid.CopyGrid.Config(
                         grid=instance_grid,
                     )
                 )
@@ -301,7 +308,7 @@ class MapGen(MapBuilder[MapGenConfig]):
 
         bw = self.config.border_width
 
-        self.grid = create_grid(self.inner_height + 2 * bw, self.inner_width + 2 * bw)
+        self.grid = mettagrid.map_builder.utils.create_grid(self.inner_height + 2 * bw, self.inner_width + 2 * bw)
 
         # draw outer walls
         # note that the inner walls when instances > 1 will be drawn by the RoomGrid scene
@@ -310,7 +317,7 @@ class MapGen(MapBuilder[MapGenConfig]):
         self.grid[:, :bw] = "wall"
         self.grid[:, -bw:] = "wall"
 
-        self.inner_area = Area(
+        self.inner_area = mettagrid.mapgen.area.Area(
             outer_grid=self.grid,
             x=bw,
             y=bw,
@@ -318,7 +325,7 @@ class MapGen(MapBuilder[MapGenConfig]):
             height=self.inner_height,
         )
 
-    def get_root_scene_cfg(self) -> SceneConfig:
+    def get_root_scene_cfg(self) -> mettagrid.mapgen.scene.SceneConfig:
         """Create the full root scene configuration, handling single or multiple instances."""
         assert self.instances is not None
 
@@ -335,7 +342,7 @@ class MapGen(MapBuilder[MapGenConfig]):
                     return self._wrap_with_instance_id(scene_config, 0)
                 return scene_config
             else:
-                assert isinstance(self.config.instance, SceneConfig), (
+                assert isinstance(self.config.instance, mettagrid.mapgen.scene.SceneConfig), (
                     "Internal logic error: instance is not a scene but we don't have prebuilt instances either"
                 )
                 if self.config.set_team_by_instance:
@@ -344,14 +351,14 @@ class MapGen(MapBuilder[MapGenConfig]):
 
         # We've got more than one instance, so we'll need a RoomGrid.
 
-        children_actions: list[ChildrenAction] = []
+        children_actions: list[mettagrid.mapgen.scene.ChildrenAction] = []
 
         # Add prebuilt instances with their instance_ids
         for idx, instance_scene_factory in enumerate(self.instance_scene_factories):
             children_actions.append(
-                ChildrenAction(
+                mettagrid.mapgen.scene.ChildrenAction(
                     scene=instance_scene_factory,
-                    where=AreaWhere(tags=["room"]),
+                    where=mettagrid.mapgen.area.AreaWhere(tags=["room"]),
                     limit=1,
                     order_by="first",
                     lock="lock",
@@ -363,7 +370,7 @@ class MapGen(MapBuilder[MapGenConfig]):
         remaining_instances = self.instances - len(self.instance_scene_factories)
 
         if remaining_instances > 0:
-            assert isinstance(self.config.instance, SceneConfig), (
+            assert isinstance(self.config.instance, mettagrid.mapgen.scene.SceneConfig), (
                 "Internal logic error: MapGen failed to prebuild enough instances"
             )
 
@@ -375,9 +382,9 @@ class MapGen(MapBuilder[MapGenConfig]):
                 # Create one ChildrenAction per remaining instance, each with unique instance_id
                 for i in range(remaining_instances):
                     children_actions.append(
-                        ChildrenAction(
+                        mettagrid.mapgen.scene.ChildrenAction(
                             scene=self.config.instance,
-                            where=AreaWhere(tags=["room"]),
+                            where=mettagrid.mapgen.area.AreaWhere(tags=["room"]),
                             limit=1,
                             order_by="first",
                             lock="lock",
@@ -388,9 +395,9 @@ class MapGen(MapBuilder[MapGenConfig]):
             else:
                 # Original behavior: one ChildrenAction for all remaining instances
                 children_actions.append(
-                    ChildrenAction(
+                    mettagrid.mapgen.scene.ChildrenAction(
                         scene=self.config.instance,
-                        where=AreaWhere(tags=["room"]),
+                        where=mettagrid.mapgen.area.AreaWhere(tags=["room"]),
                         limit=remaining_instances,
                         order_by="first",
                         lock="lock",
@@ -398,22 +405,24 @@ class MapGen(MapBuilder[MapGenConfig]):
                     )
                 )
 
-        return RoomGrid.Config(
+        return mettagrid.mapgen.scenes.room_grid.RoomGrid.Config(
             rows=self.instance_rows,
             columns=self.instance_cols,
             border_width=self.config.instance_border_width,
             children=children_actions,
         )
 
-    def _wrap_with_instance_id(self, scene_config: SceneConfig, instance_id: int) -> SceneConfig:
+    def _wrap_with_instance_id(
+        self, scene_config: mettagrid.mapgen.scene.SceneConfig, instance_id: int
+    ) -> mettagrid.mapgen.scene.SceneConfig:
         """Helper to wrap a scene config with instance_id for single-instance case."""
         # For single instance, we create a wrapper that sets instance_id
         # The simplest is to use a ChildrenAction approach via a passthrough scene
-        from mettagrid.mapgen.scenes.nop import Nop
+        import mettagrid.mapgen.scenes.nop
 
-        return Nop.Config(
+        return mettagrid.mapgen.scenes.nop.Nop.Config(
             children=[
-                ChildrenAction(
+                mettagrid.mapgen.scene.ChildrenAction(
                     scene=scene_config,
                     where="full",
                     instance_id=instance_id,
@@ -424,7 +433,7 @@ class MapGen(MapBuilder[MapGenConfig]):
 
     def build(self):
         if self.grid is not None:
-            return GameMap(self.grid)
+            return mettagrid.map_builder.GameMap(self.grid)
 
         self.prebuild_instances()
         self.prepare_grid()
@@ -441,7 +450,7 @@ class MapGen(MapBuilder[MapGenConfig]):
         )
         self.root_scene.render_with_children()
 
-        return GameMap(self.guarded_grid())
+        return mettagrid.map_builder.GameMap(self.guarded_grid())
 
     def get_scene_tree(self) -> dict:
         return self.root_scene.get_scene_tree()

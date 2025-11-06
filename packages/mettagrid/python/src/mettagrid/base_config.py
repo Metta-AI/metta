@@ -1,19 +1,18 @@
-from __future__ import annotations
 
-from typing import Any, NoReturn, Self, Union, get_args, get_origin
+import typing
 
-from pydantic import BaseModel, ConfigDict, TypeAdapter
+import pydantic
 
 
 # Please don't move this class to mettagrid.config, it would cause circular import issues that are difficult to avoid.
-class Config(BaseModel):
+class Config(pydantic.BaseModel):
     """
     Common extension of Pydantic's BaseModel that:
     - sets `extra="forbid"` by default
     - adds `override` and `update` methods for overriding values based on `path.to.value` keys
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = pydantic.ConfigDict(extra="forbid")
 
     def _auto_initialize_field(self, parent_obj: Config, field_name: str) -> Config | None:
         """Auto-initialize a None Config field if possible."""
@@ -34,21 +33,21 @@ class Config(BaseModel):
 
     def _unwrap_optional(self, field_type):
         """Unwrap Optional[T] → T if applicable, else return original type."""
-        if get_origin(field_type) is Union:
-            non_none_types = [arg for arg in get_args(field_type) if arg is not type(None)]
+        if typing.get_origin(field_type) is typing.Union:
+            non_none_types = [arg for arg in typing.get_args(field_type) if arg is not type(None)]
             return non_none_types[0] if len(non_none_types) == 1 else field_type
         return field_type
 
-    def override(self, key: str, value: Any) -> Self:
+    def override(self, key: str, value: typing.Any) -> typing.Self:
         """Override a value in the config."""
         key_path = key.split(".")
 
-        def fail(error: str) -> NoReturn:
+        def fail(error: str) -> typing.NoReturn:
             raise ValueError(
                 f"Override failed. Full config:\n {self.model_dump_json(indent=2)}\nOverride {key} failed: {error}"
             )
 
-        inner_cfg: Config | dict[str, Any] = self
+        inner_cfg: Config | dict[str, typing.Any] = self
         traversed_path: list[str] = []
         for key_part in key_path[:-1]:
             if isinstance(inner_cfg, dict):
@@ -95,12 +94,12 @@ class Config(BaseModel):
         if field is None:
             fail(f"key {key} is not a valid field")
 
-        value = TypeAdapter(field.annotation).validate_python(value)
+        value = pydantic.TypeAdapter(field.annotation).validate_python(value)
         setattr(inner_cfg, key_path[-1], value)
 
         return self
 
-    def update(self, updates: dict[str, Any]) -> Self:
+    def update(self, updates: dict[str, typing.Any]) -> typing.Self:
         """Applies multiple overrides to the config."""
         for key, value in updates.items():
             self.override(key, value)

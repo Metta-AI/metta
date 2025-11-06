@@ -1,18 +1,13 @@
 import numpy as np
+import pydantic
 import pytest
-from pydantic import BaseModel
 
-from mettagrid.mapgen.random.float import (
-    FloatConstantDistribution,
-    FloatDistribution,
-    FloatLognormalDistribution,
-    FloatUniformDistribution,
-)
+import mettagrid.mapgen.random.float
 
 
 class TestFloatConstantDistribution:
     def test_sample_returns_constant_value(self):
-        dist = FloatConstantDistribution(value=3.14)
+        dist = mettagrid.mapgen.random.float.FloatConstantDistribution(value=3.14)
         rng = np.random.default_rng(seed=123)
 
         # Should always return the same value regardless of rng
@@ -21,19 +16,19 @@ class TestFloatConstantDistribution:
         assert dist.sample(rng) == 3.14
 
     def test_sample_with_negative_value(self):
-        dist = FloatConstantDistribution(value=-2.5)
+        dist = mettagrid.mapgen.random.float.FloatConstantDistribution(value=-2.5)
         rng = np.random.default_rng(seed=123)
 
         assert dist.sample(rng) == -2.5
 
     def test_sample_with_zero(self):
-        dist = FloatConstantDistribution(value=0.0)
+        dist = mettagrid.mapgen.random.float.FloatConstantDistribution(value=0.0)
         rng = np.random.default_rng(seed=123)
 
         assert dist.sample(rng) == 0.0
 
     def test_sample_with_integer_value(self):
-        dist = FloatConstantDistribution(value=42.0)
+        dist = mettagrid.mapgen.random.float.FloatConstantDistribution(value=42.0)
         rng = np.random.default_rng(seed=123)
 
         assert dist.sample(rng) == 42.0
@@ -41,7 +36,7 @@ class TestFloatConstantDistribution:
 
 class TestFloatUniformDistribution:
     def test_sample_within_range(self):
-        dist = FloatUniformDistribution(low=1.0, high=10.0)
+        dist = mettagrid.mapgen.random.float.FloatUniformDistribution(low=1.0, high=10.0)
         rng = np.random.default_rng(seed=123)
 
         # Sample many times and check all are within range
@@ -51,28 +46,28 @@ class TestFloatUniformDistribution:
         assert len(set(samples)) > 50  # Should get many different values
 
     def test_sample_small_range(self):
-        dist = FloatUniformDistribution(low=5.0, high=5.1)
+        dist = mettagrid.mapgen.random.float.FloatUniformDistribution(low=5.0, high=5.1)
         rng = np.random.default_rng(seed=123)
 
         samples = [dist.sample(rng) for _ in range(100)]
         assert all(5.0 <= sample <= 5.1 for sample in samples)
 
     def test_sample_negative_range(self):
-        dist = FloatUniformDistribution(low=-10.5, high=-1.2)
+        dist = mettagrid.mapgen.random.float.FloatUniformDistribution(low=-10.5, high=-1.2)
         rng = np.random.default_rng(seed=123)
 
         samples = [dist.sample(rng) for _ in range(100)]
         assert all(-10.5 <= sample <= -1.2 for sample in samples)
 
     def test_sample_zero_crossing_range(self):
-        dist = FloatUniformDistribution(low=-2.5, high=2.5)
+        dist = mettagrid.mapgen.random.float.FloatUniformDistribution(low=-2.5, high=2.5)
         rng = np.random.default_rng(seed=123)
 
         samples = [dist.sample(rng) for _ in range(100)]
         assert all(-2.5 <= sample <= 2.5 for sample in samples)
 
     def test_sample_deterministic_with_seed(self):
-        dist = FloatUniformDistribution(low=0.0, high=1.0)
+        dist = mettagrid.mapgen.random.float.FloatUniformDistribution(low=0.0, high=1.0)
 
         # Same seed should produce same sequence
         rng1 = np.random.default_rng(seed=42)
@@ -86,7 +81,7 @@ class TestFloatUniformDistribution:
 
 class TestFloatLognormalDistribution:
     def test_sample_basic_range(self):
-        dist = FloatLognormalDistribution(low=1.0, high=10.0)
+        dist = mettagrid.mapgen.random.float.FloatLognormalDistribution(low=1.0, high=10.0)
         rng = np.random.default_rng(seed=123)
 
         # Sample many times - should be generally within reasonable bounds
@@ -99,7 +94,7 @@ class TestFloatLognormalDistribution:
         assert len(set(samples)) > 100
 
     def test_sample_with_max_constraint(self):
-        dist = FloatLognormalDistribution(low=1.0, high=10.0, max=15.0)
+        dist = mettagrid.mapgen.random.float.FloatLognormalDistribution(low=1.0, high=10.0, max=15.0)
         rng = np.random.default_rng(seed=123)
 
         samples = [dist.sample(rng) for _ in range(1000)]
@@ -109,7 +104,7 @@ class TestFloatLognormalDistribution:
         assert all(sample > 0 for sample in samples)
 
     def test_sample_deterministic_with_seed(self):
-        dist = FloatLognormalDistribution(low=1.0, high=5.0)
+        dist = mettagrid.mapgen.random.float.FloatLognormalDistribution(low=1.0, high=5.0)
 
         # Same seed should produce same sequence
         rng1 = np.random.default_rng(seed=42)
@@ -121,27 +116,27 @@ class TestFloatLognormalDistribution:
         assert samples1 == samples2
 
     def test_invalid_parameters_low_greater_than_high(self):
-        dist = FloatLognormalDistribution(low=10.0, high=1.0)
+        dist = mettagrid.mapgen.random.float.FloatLognormalDistribution(low=10.0, high=1.0)
         rng = np.random.default_rng(seed=123)
 
         with pytest.raises(ValueError, match="Low value must be less than high value"):
             dist.sample(rng)
 
     def test_invalid_parameters_low_zero_or_negative(self):
-        dist = FloatLognormalDistribution(low=0.0, high=10.0)
+        dist = mettagrid.mapgen.random.float.FloatLognormalDistribution(low=0.0, high=10.0)
         rng = np.random.default_rng(seed=123)
 
         with pytest.raises(ValueError, match="Low value must be above 0"):
             dist.sample(rng)
 
-        dist = FloatLognormalDistribution(low=-1.0, high=10.0)
+        dist = mettagrid.mapgen.random.float.FloatLognormalDistribution(low=-1.0, high=10.0)
 
         with pytest.raises(ValueError, match="Low value must be above 0"):
             dist.sample(rng)
 
     def test_lognormal_from_90_percentile_edge_case(self):
         # Test with very small range
-        dist = FloatLognormalDistribution(low=0.1, high=0.2)
+        dist = mettagrid.mapgen.random.float.FloatLognormalDistribution(low=0.1, high=0.2)
         rng = np.random.default_rng(seed=123)
 
         samples = [dist.sample(rng) for _ in range(100)]
@@ -150,45 +145,45 @@ class TestFloatLognormalDistribution:
 
 class TestFloatDistributionTypes:
     def test_constant_distribution_from_float(self):
-        class TestModel(BaseModel):
-            dist: FloatDistribution
+        class TestModel(pydantic.BaseModel):
+            dist: mettagrid.mapgen.random.float.FloatDistribution
 
         model = TestModel.model_validate({"dist": 3.14})
-        assert isinstance(model.dist, FloatConstantDistribution)
+        assert isinstance(model.dist, mettagrid.mapgen.random.float.FloatConstantDistribution)
         assert model.dist.value == 3.14
 
     def test_uniform_distribution_from_tuple(self):
-        class TestModel(BaseModel):
-            dist: FloatDistribution
+        class TestModel(pydantic.BaseModel):
+            dist: mettagrid.mapgen.random.float.FloatDistribution
 
         model = TestModel.model_validate({"dist": ("uniform", 1.0, 10.0)})
-        assert isinstance(model.dist, FloatUniformDistribution)
+        assert isinstance(model.dist, mettagrid.mapgen.random.float.FloatUniformDistribution)
         assert model.dist.low == 1.0
         assert model.dist.high == 10.0
 
     def test_lognormal_distribution_two_args(self):
-        class TestModel(BaseModel):
-            dist: FloatDistribution
+        class TestModel(pydantic.BaseModel):
+            dist: mettagrid.mapgen.random.float.FloatDistribution
 
         model = TestModel.model_validate({"dist": ("lognormal", 1.0, 10.0)})
-        assert isinstance(model.dist, FloatLognormalDistribution)
+        assert isinstance(model.dist, mettagrid.mapgen.random.float.FloatLognormalDistribution)
         assert model.dist.low == 1.0
         assert model.dist.high == 10.0
         assert model.dist.max is None
 
     def test_lognormal_distribution_three_args(self):
-        class TestModel(BaseModel):
-            dist: FloatDistribution
+        class TestModel(pydantic.BaseModel):
+            dist: mettagrid.mapgen.random.float.FloatDistribution
 
         model = TestModel.model_validate({"dist": ("lognormal", 1.0, 10.0, 15.0)})
-        assert isinstance(model.dist, FloatLognormalDistribution)
+        assert isinstance(model.dist, mettagrid.mapgen.random.float.FloatLognormalDistribution)
         assert model.dist.low == 1.0
         assert model.dist.high == 10.0
         assert model.dist.max == 15.0
 
     def test_invalid_distribution_format(self):
-        class TestModel(BaseModel):
-            dist: FloatDistribution
+        class TestModel(pydantic.BaseModel):
+            dist: mettagrid.mapgen.random.float.FloatDistribution
 
         # Wrong distribution type
         with pytest.raises(TypeError):
@@ -199,8 +194,8 @@ class TestFloatDistributionTypes:
             TestModel.model_validate({"dist": ("uniform", 1.0)})
 
     def test_integration_constant_distribution(self):
-        class TestModel(BaseModel):
-            dist: FloatDistribution
+        class TestModel(pydantic.BaseModel):
+            dist: mettagrid.mapgen.random.float.FloatDistribution
 
         model = TestModel.model_validate({"dist": 2.718})
         rng = np.random.default_rng(seed=123)
@@ -208,8 +203,8 @@ class TestFloatDistributionTypes:
         assert model.dist.sample(rng) == 2.718
 
     def test_integration_uniform_distribution(self):
-        class TestModel(BaseModel):
-            dist: FloatDistribution
+        class TestModel(pydantic.BaseModel):
+            dist: mettagrid.mapgen.random.float.FloatDistribution
 
         model = TestModel.model_validate({"dist": ("uniform", 0.5, 1.5)})
         rng = np.random.default_rng(seed=123)
@@ -218,8 +213,8 @@ class TestFloatDistributionTypes:
         assert all(0.5 <= sample <= 1.5 for sample in samples)
 
     def test_integration_lognormal_distribution(self):
-        class TestModel(BaseModel):
-            dist: FloatDistribution
+        class TestModel(pydantic.BaseModel):
+            dist: mettagrid.mapgen.random.float.FloatDistribution
 
         model = TestModel.model_validate({"dist": ("lognormal", 1.0, 5.0)})
         rng = np.random.default_rng(seed=123)
@@ -228,8 +223,8 @@ class TestFloatDistributionTypes:
         assert all(sample > 0 for sample in samples)
 
     def test_integration_lognormal_with_max(self):
-        class TestModel(BaseModel):
-            dist: FloatDistribution
+        class TestModel(pydantic.BaseModel):
+            dist: mettagrid.mapgen.random.float.FloatDistribution
 
         model = TestModel.model_validate({"dist": ("lognormal", 1.0, 5.0, 10.0)})
         rng = np.random.default_rng(seed=123)

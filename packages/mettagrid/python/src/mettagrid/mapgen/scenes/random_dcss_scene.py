@@ -1,45 +1,48 @@
-from __future__ import annotations
 
+import glob
 import os
-from glob import glob
 
-from pydantic import model_validator
+import pydantic
 
-from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig
-from mettagrid.mapgen.scenes.random_yaml_scene import RandomYamlScene, RandomYamlSceneCandidate
+import mettagrid.mapgen.scene
+import mettagrid.mapgen.scenes.random_yaml_scene
 
 
-class RandomDcssSceneConfig(SceneConfig):
+class RandomDcssSceneConfig(mettagrid.mapgen.scene.SceneConfig):
     wfc: bool
     dcss: bool
 
-    @model_validator(mode="after")
+    @pydantic.model_validator(mode="after")
     def validate_required_fields(self) -> RandomDcssSceneConfig:
         if not self.wfc and not self.dcss:
             raise ValueError("Either wfc or dcss must be true")
         return self
 
 
-class RandomDcssScene(Scene[RandomDcssSceneConfig]):
-    def get_children(self) -> list[ChildrenAction]:
-        candidates: list[RandomYamlSceneCandidate] = []
+class RandomDcssScene(mettagrid.mapgen.scene.Scene[RandomDcssSceneConfig]):
+    def get_children(self) -> list[mettagrid.mapgen.scene.ChildrenAction]:
+        candidates: list[mettagrid.mapgen.scenes.random_yaml_scene.RandomYamlSceneCandidate] = []
 
         root_dir = os.path.dirname(__file__) + "/dcss"
         if self.config.wfc:
-            for yaml_file in glob(f"{root_dir}/wfc/*.yaml"):
-                candidates.append(RandomYamlSceneCandidate(scene_file=yaml_file))
+            for yaml_file in glob.glob(f"{root_dir}/wfc/*.yaml"):
+                candidates.append(
+                    mettagrid.mapgen.scenes.random_yaml_scene.RandomYamlSceneCandidate(scene_file=yaml_file)
+                )
 
         if self.config.dcss:
-            for yaml_file in glob(f"{root_dir}/dcss/*.yaml"):
-                candidates.append(RandomYamlSceneCandidate(scene_file=yaml_file))
+            for yaml_file in glob.glob(f"{root_dir}/dcss/*.yaml"):
+                candidates.append(
+                    mettagrid.mapgen.scenes.random_yaml_scene.RandomYamlSceneCandidate(scene_file=yaml_file)
+                )
 
         if not candidates:
             raise ValueError(f"No candidates found in dcss directory {root_dir}")
 
-        scene = RandomYamlScene.Config(candidates=candidates)
+        scene = mettagrid.mapgen.scenes.random_yaml_scene.RandomYamlScene.Config(candidates=candidates)
 
         return [
-            ChildrenAction(scene=scene, where="full"),
+            mettagrid.mapgen.scene.ChildrenAction(scene=scene, where="full"),
         ]
 
     def render(self):

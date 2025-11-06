@@ -1,21 +1,23 @@
 import math
 
 import numpy as np
-from pydantic import Field
+import pydantic
 
-from mettagrid.mapgen.scene import Scene, SceneConfig
-from mettagrid.mapgen.utils.draw import bresenham_line
+import mettagrid.mapgen.scene
+import mettagrid.mapgen.utils.draw
 
 
-class RadialMazeConfig(SceneConfig):
-    arms: int = Field(default=4, ge=4, le=12)
-    arm_width: int = Field(default=4, ge=1)
+class RadialMazeConfig(mettagrid.mapgen.scene.SceneConfig):
+    arms: int = pydantic.Field(default=4, ge=4, le=12)
+    arm_width: int = pydantic.Field(default=4, ge=1)
     arm_length: int | None = None
-    clear_background: bool = Field(default=True, description="If True, fill area with walls before carving arms")
-    outline_walls: bool = Field(default=True, description="Outline arms with walls for visual clarity")
+    clear_background: bool = pydantic.Field(
+        default=True, description="If True, fill area with walls before carving arms"
+    )
+    outline_walls: bool = pydantic.Field(default=True, description="Outline arms with walls for visual clarity")
 
 
-class RadialMaze(Scene[RadialMazeConfig]):
+class RadialMaze(mettagrid.mapgen.scene.Scene[RadialMazeConfig]):
     """A radial maze with a central starting position."""
 
     def render(self):
@@ -32,7 +34,7 @@ class RadialMaze(Scene[RadialMazeConfig]):
             angle = 2 * math.pi * arm / self.config.arms
             ex = cx + int(round(arm_length * math.cos(angle)))
             ey = cy + int(round(arm_length * math.sin(angle)))
-            points = bresenham_line(cx, cy, ex, ey)
+            points = mettagrid.mapgen.utils.draw.bresenham_line(cx, cy, ex, ey)
             offsets = range(-arm_width // 2, arm_width // 2 + (arm_width % 2))
             for x, y in points:
                 for dx in offsets:

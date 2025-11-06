@@ -4,11 +4,10 @@ Wraps gitta.validate_commit_state with SkyPilot-specific logic to ensure
 remote tasks can reproduce local code state.
 """
 
-from __future__ import annotations
 
 import logging
 import os
-from typing import Optional
+import typing
 
 import gitta
 
@@ -19,9 +18,9 @@ GitError = gitta.GitError
 
 
 def get_task_commit_hash(
-    target_repo: Optional[str] = None,
+    target_repo: typing.Optional[str] = None,
     skip_git_check: bool = False,
-) -> Optional[str]:
+) -> typing.Optional[str]:
     """Get current commit hash for task execution with SkyPilot-aware validation.
 
     Returns a commit hash suitable for remote task execution. Validation is

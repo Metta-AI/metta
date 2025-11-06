@@ -20,23 +20,23 @@ Usage:
 """
 
 import argparse
+import dataclasses
 import json
 import logging
-from dataclasses import asdict, dataclass
-from typing import Dict, List
+import typing
 
-from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_VARIANTS, get_difficulty
-from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
-from cogames.cogs_vs_clips.mission import NumCogsVariant
-from cogames.policy.scripted_agent import BaselinePolicy, UnclippingPolicy
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator.rollout import Rollout
+import cogames.cogs_vs_clips.evals.difficulty_variants
+import cogames.cogs_vs_clips.evals.eval_missions
+import cogames.cogs_vs_clips.mission
+import cogames.policy.scripted_agent
+import mettagrid.policy.policy_env_interface
+import mettagrid.simulator.rollout
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclasses.dataclass
 class EvalResult:
     """Results from a single evaluation run."""
 
@@ -52,15 +52,15 @@ class EvalResult:
     success: bool
 
 
-@dataclass
+@dataclasses.dataclass
 class AgentConfig:
     """Configuration for a baseline agent."""
 
     key: str
     label: str
     policy_class: type
-    cogs_list: List[int]
-    difficulties: List[str]
+    cogs_list: typing.List[int]
+    difficulties: typing.List[str]
 
 
 def is_clipping_difficulty(name: str) -> bool:
@@ -69,35 +69,41 @@ def is_clipping_difficulty(name: str) -> bool:
 
 
 # Available agents
-AGENT_CONFIGS: Dict[str, AgentConfig] = {
+AGENT_CONFIGS: typing.Dict[str, AgentConfig] = {
     "baseline": AgentConfig(
         key="baseline",
         label="Baseline",
-        policy_class=BaselinePolicy,
+        policy_class=cogames.policy.scripted_agent.BaselinePolicy,
         cogs_list=[1, 2, 4, 8],
-        difficulties=[d.name for d in DIFFICULTY_VARIANTS if not is_clipping_difficulty(d.name)],
+        difficulties=[
+            d.name
+            for d in cogames.cogs_vs_clips.evals.difficulty_variants.DIFFICULTY_VARIANTS
+            if not is_clipping_difficulty(d.name)
+        ],
     ),
     "unclipping": AgentConfig(
         key="unclipping",
         label="UnclippingAgent",
-        policy_class=UnclippingPolicy,
+        policy_class=cogames.policy.scripted_agent.UnclippingPolicy,
         cogs_list=[1, 2, 4, 8],
-        difficulties=[d.name for d in DIFFICULTY_VARIANTS],  # With and without clipping
+        difficulties=[
+            d.name for d in cogames.cogs_vs_clips.evals.difficulty_variants.DIFFICULTY_VARIANTS
+        ],  # With and without clipping
     ),
 }
 
 # All evaluation missions
-EXPERIMENT_MAP = {mission.name: mission for mission in EVAL_MISSIONS}
+EXPERIMENT_MAP = {mission.name: mission for mission in cogames.cogs_vs_clips.evals.eval_missions.EVAL_MISSIONS}
 
 
 def run_evaluation(
     agent_config: AgentConfig,
-    experiments: List[str],
-    difficulties: List[str],
-    cogs_list: List[int],
+    experiments: typing.List[str],
+    difficulties: typing.List[str],
+    cogs_list: typing.List[int],
     max_steps: int = 1000,
     seed: int = 42,
-) -> List[EvalResult]:
+) -> typing.List[EvalResult]:
     """Run evaluation for an agent configuration."""
     results = []
 
@@ -120,7 +126,7 @@ def run_evaluation(
 
         for difficulty_name in difficulties:
             try:
-                difficulty = get_difficulty(difficulty_name)
+                difficulty = cogames.cogs_vs_clips.evals.difficulty_variants.get_difficulty(difficulty_name)
             except Exception:
                 logger.error(f"Unknown difficulty: {difficulty_name}")
                 continue
@@ -130,7 +136,9 @@ def run_evaluation(
                 logger.info(f"[{completed}/{total_tests}] {exp_name} | {difficulty_name} | {num_cogs} agent(s)")
 
                 # Create mission and apply difficulty
-                mission = mission.with_variants([difficulty, NumCogsVariant(num_cogs=num_cogs)])
+                mission = mission.with_variants(
+                    [difficulty, cogames.cogs_vs_clips.mission.NumCogsVariant(num_cogs=num_cogs)]
+                )
 
                 # Get clip rate for metadata
                 clip_rate = getattr(difficulty, "extractor_clip_rate", 0.0)
@@ -140,12 +148,12 @@ def run_evaluation(
                     env_config.game.max_steps = max_steps
 
                     # Create policy with PolicyEnvInterface
-                    policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
+                    policy_env_info = mettagrid.policy.policy_env_interface.PolicyEnvInterface.from_mg_cfg(env_config)
                     policy = agent_config.policy_class(policy_env_info)
                     agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
 
                     # Create rollout and run episode
-                    rollout = Rollout(
+                    rollout = mettagrid.simulator.rollout.Rollout(
                         env_config,
                         agent_policies,
                         render_mode="none",
@@ -196,7 +204,7 @@ def run_evaluation(
     return results
 
 
-def print_summary(results: List[EvalResult]):
+def print_summary(results: typing.List[EvalResult]):
     """Print summary statistics."""
     if not results:
         logger.info("\nNo results to summarize.")
@@ -321,7 +329,7 @@ def main():
     # Save results if requested
     if args.output:
         with open(args.output, "w") as f:
-            json.dump([asdict(r) for r in all_results], f, indent=2)
+            json.dump([dataclasses.asdict(r) for r in all_results], f, indent=2)
         logger.info(f"\nResults saved to: {args.output}")
 
 

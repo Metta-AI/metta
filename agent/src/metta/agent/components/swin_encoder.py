@@ -1,19 +1,18 @@
 """Swin-style observation encoder."""
 
-from __future__ import annotations
 
-from typing import Literal, Optional
+import typing
 
 import einops
+import tensordict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from tensordict import TensorDict
 
-from metta.agent.components.component_config import ComponentConfig
+import metta.agent.components.component_config
 
 
-class ObsSwinEncoderConfig(ComponentConfig):
+class ObsSwinEncoderConfig(metta.agent.components.component_config.ComponentConfig):
     """Configuration for the Swin-like observation encoder."""
 
     in_key: str
@@ -31,9 +30,9 @@ class ObsSwinEncoderConfig(ComponentConfig):
     drop_path: float = 0.0
     dropout: float = 0.0
     attn_dropout: float = 0.0
-    pool: Literal["mean", "first", "flatten"] = "mean"
+    pool: typing.Literal["mean", "first", "flatten"] = "mean"
     out_dim: int = 256
-    mask_key: Optional[str] = "obs_mask"
+    mask_key: typing.Optional[str] = "obs_mask"
 
     def make_component(self, env=None):
         return ObsSwinEncoder(config=self, env=env)
@@ -277,7 +276,7 @@ class ObsSwinEncoder(nn.Module):
             out_in_features = self.config.embed_dim
         self.output_proj = nn.Linear(out_in_features, self.config.out_dim)
 
-    def forward(self, td: TensorDict) -> TensorDict:
+    def forward(self, td: tensordict.TensorDict) -> tensordict.TensorDict:
         token_features = td[self.config.in_key]
         tokens = td[self.tokens_key]
         if token_features.shape[:2] != tokens.shape[:2]:
@@ -315,7 +314,7 @@ class ObsSwinEncoder(nn.Module):
         self,
         token_features: torch.Tensor,
         tokens: torch.Tensor,
-        mask: Optional[torch.Tensor],
+        mask: typing.Optional[torch.Tensor],
     ) -> torch.Tensor:
         B, M, feat_dim = token_features.shape
         if feat_dim != self.config.token_feat_dim:

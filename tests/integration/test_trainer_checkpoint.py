@@ -8,28 +8,27 @@ This verifies that
 """
 
 import os
+import pathlib
 import shutil
 import tempfile
-from pathlib import Path
 
 import torch
-from torch import nn
 
-from metta.agent.policies.fast import FastConfig
-from metta.agent.policy import Policy
-from metta.cogworks.curriculum import env_curriculum
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.policy_artifact import save_policy_artifact_pt
-from metta.rl.system_config import SystemConfig
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
-from metta.tools.train import TrainTool
-from mettagrid.builder.envs import make_arena
+import metta.agent.policies.fast
+import metta.agent.policy
+import metta.cogworks.curriculum
+import metta.rl.checkpoint_manager
+import metta.rl.policy_artifact
+import metta.rl.system_config
+import metta.rl.trainer_config
+import metta.rl.training
+import metta.tools.train
+import mettagrid.builder.envs
 
 
 class TestTrainerCheckpointIntegration:
     def setup_method(self) -> None:
-        self.temp_dir = Path(tempfile.mkdtemp())
+        self.temp_dir = pathlib.Path(tempfile.mkdtemp())
 
     def teardown_method(self) -> None:
         if os.path.exists(self.temp_dir):
@@ -37,10 +36,15 @@ class TestTrainerCheckpointIntegration:
 
     def _create_minimal_config(
         self,
-    ) -> tuple[TrainerConfig, TrainingEnvironmentConfig, FastConfig, SystemConfig]:
-        curriculum = env_curriculum(make_arena(num_agents=1))
+    ) -> tuple[
+        metta.rl.trainer_config.TrainerConfig,
+        metta.rl.training.TrainingEnvironmentConfig,
+        metta.agent.policies.fast.FastConfig,
+        metta.rl.system_config.SystemConfig,
+    ]:
+        curriculum = metta.cogworks.curriculum.env_curriculum(mettagrid.builder.envs.make_arena(num_agents=1))
 
-        trainer_cfg = TrainerConfig(
+        trainer_cfg = metta.rl.trainer_config.TrainerConfig(
             total_timesteps=16,
             batch_size=32,
             minibatch_size=16,
@@ -48,7 +52,7 @@ class TestTrainerCheckpointIntegration:
             update_epochs=1,
         )
 
-        training_env_cfg = TrainingEnvironmentConfig(
+        training_env_cfg = metta.rl.training.TrainingEnvironmentConfig(
             curriculum=curriculum,
             num_workers=1,
             async_factor=1,
@@ -57,8 +61,8 @@ class TestTrainerCheckpointIntegration:
             seed=42,
         )
 
-        policy_cfg = FastConfig()
-        system_cfg = SystemConfig(
+        policy_cfg = metta.agent.policies.fast.FastConfig()
+        system_cfg = metta.rl.system_config.SystemConfig(
             device="cpu",
             vectorization="serial",
             data_dir=self.temp_dir,
@@ -71,10 +75,10 @@ class TestTrainerCheckpointIntegration:
         self,
         *,
         run_name: str,
-        trainer_cfg: TrainerConfig,
-        training_env_cfg: TrainingEnvironmentConfig,
-        policy_cfg: FastConfig,
-        system_cfg: SystemConfig,
+        trainer_cfg: metta.rl.trainer_config.TrainerConfig,
+        training_env_cfg: metta.rl.training.TrainingEnvironmentConfig,
+        policy_cfg: metta.agent.policies.fast.FastConfig,
+        system_cfg: metta.rl.system_config.SystemConfig,
     ) -> None:
         tool = _FastTrainTool(
             run=run_name,
@@ -83,8 +87,8 @@ class TestTrainerCheckpointIntegration:
             training_env=training_env_cfg.model_copy(deep=True),
             policy_architecture=policy_cfg.model_copy(deep=True),
             stats_server_uri=None,
-            checkpointer=CheckpointerConfig(epoch_interval=1),
-            evaluator=EvaluatorConfig(epoch_interval=0, evaluate_local=False, evaluate_remote=False),
+            checkpointer=metta.rl.training.CheckpointerConfig(epoch_interval=1),
+            evaluator=metta.rl.training.EvaluatorConfig(epoch_interval=0, evaluate_local=False, evaluate_remote=False),
         )
         tool.invoke({})
 
@@ -93,7 +97,7 @@ class TestTrainerCheckpointIntegration:
         trainer_cfg, training_env_cfg, policy_cfg, system_cfg = self._create_minimal_config()
 
         expected_run_dir = system_cfg.data_dir / run_name
-        checkpoint_manager = CheckpointManager(run=run_name, system_cfg=system_cfg)
+        checkpoint_manager = metta.rl.checkpoint_manager.CheckpointManager(run=run_name, system_cfg=system_cfg)
 
         assert expected_run_dir.exists(), "expected_run_dir was not created"
         expected_checkpoint_dir = expected_run_dir / "checkpoints"
@@ -118,7 +122,7 @@ class TestTrainerCheckpointIntegration:
 
         latest_policy_uri = checkpoint_manager.get_latest_checkpoint()
         assert latest_policy_uri, "No policy files found in checkpoint directory"
-        latest_policy_meta = CheckpointManager.get_policy_metadata(latest_policy_uri)
+        latest_policy_meta = metta.rl.checkpoint_manager.CheckpointManager.get_policy_metadata(latest_policy_uri)
         assert latest_policy_meta["epoch"] == trainer_state["epoch"], (
             "Trainer state epoch is not aligned with latest policy checkpoint"
         )
@@ -130,7 +134,7 @@ class TestTrainerCheckpointIntegration:
         print("Starting second training run (resume from checkpoint)...")
         trainer_cfg.total_timesteps = first_run_agent_step + 500
 
-        checkpoint_manager_2 = CheckpointManager(run=run_name, system_cfg=system_cfg)
+        checkpoint_manager_2 = metta.rl.checkpoint_manager.CheckpointManager(run=run_name, system_cfg=system_cfg)
 
         self._run_training(
             run_name=run_name,
@@ -147,7 +151,7 @@ class TestTrainerCheckpointIntegration:
 
         latest_policy_uri = checkpoint_manager_2.get_latest_checkpoint()
         assert latest_policy_uri, "No policy checkpoints found after resume"
-        latest_policy_meta = CheckpointManager.get_policy_metadata(latest_policy_uri)
+        latest_policy_meta = metta.rl.checkpoint_manager.CheckpointManager.get_policy_metadata(latest_policy_uri)
         assert latest_policy_meta["epoch"] == trainer_state_2["epoch"], (
             "Trainer state epoch is not aligned with latest policy checkpoint after resume"
         )
@@ -156,7 +160,7 @@ class TestTrainerCheckpointIntegration:
         run_name = "test_checkpoint_fields"
         trainer_cfg, training_env_cfg, policy_cfg, system_cfg = self._create_minimal_config()
 
-        checkpoint_manager = CheckpointManager(run=run_name, system_cfg=system_cfg)
+        checkpoint_manager = metta.rl.checkpoint_manager.CheckpointManager(run=run_name, system_cfg=system_cfg)
 
         self._run_training(
             run_name=run_name,
@@ -179,7 +183,7 @@ class TestTrainerCheckpointIntegration:
         run_name = "test_policy_loading"
         trainer_cfg, training_env_cfg, policy_cfg, system_cfg = self._create_minimal_config()
 
-        checkpoint_manager = CheckpointManager(run=run_name, system_cfg=system_cfg)
+        checkpoint_manager = metta.rl.checkpoint_manager.CheckpointManager(run=run_name, system_cfg=system_cfg)
 
         self._run_training(
             run_name=run_name,
@@ -199,14 +203,16 @@ class TestTrainerCheckpointIntegration:
         assert artifact.policy is not None
 
 
-class DummyPolicy(Policy, nn.Module):
+class DummyPolicy(metta.agent.policy.Policy, torch.nn.Module):
     """Lightweight torch module used to populate fake checkpoints quickly."""
 
     def __init__(self, epoch: int) -> None:
-        from mettagrid.config.mettagrid_config import MettaGridConfig
-        from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+        import mettagrid.config.mettagrid_config
+        import mettagrid.policy.policy_env_interface
 
-        policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
+        policy_env_info = mettagrid.policy.policy_env_interface.PolicyEnvInterface.from_mg_cfg(
+            mettagrid.config.mettagrid_config.MettaGridConfig()
+        )
         super().__init__(policy_env_info)
         self.register_buffer("epoch_tensor", torch.tensor(epoch, dtype=torch.float32))
 
@@ -224,7 +230,7 @@ class DummyPolicy(Policy, nn.Module):
         pass
 
 
-class _FastTrainTool(TrainTool):
+class _FastTrainTool(metta.tools.train.TrainTool):
     """Minimal TrainTool variant that writes synthetic checkpoints without training."""
 
     def invoke(self, args: dict[str, str]) -> int | None:
@@ -234,7 +240,7 @@ class _FastTrainTool(TrainTool):
 
         run_name = self.run or "default"
 
-        checkpoint_manager = CheckpointManager(run=run_name, system_cfg=self.system)
+        checkpoint_manager = metta.rl.checkpoint_manager.CheckpointManager(run=run_name, system_cfg=self.system)
 
         trainer_state_path = checkpoint_manager.checkpoint_dir / "trainer_state.pt"
         if trainer_state_path.exists():
@@ -259,6 +265,6 @@ class _FastTrainTool(TrainTool):
 
         policy_path = checkpoint_manager.checkpoint_dir / f"{run_name}:v{epoch}.mpt"
         policy = DummyPolicy(epoch)
-        save_policy_artifact_pt(policy_path, policy=policy)
+        metta.rl.policy_artifact.save_policy_artifact_pt(policy_path, policy=policy)
 
         return 0

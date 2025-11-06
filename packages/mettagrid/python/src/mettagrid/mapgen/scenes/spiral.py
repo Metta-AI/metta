@@ -1,9 +1,9 @@
 import numpy as np
 
-from mettagrid.mapgen.scene import Scene, SceneConfig
+import mettagrid.mapgen.scene
 
 
-class SpiralConfig(SceneConfig):
+class SpiralConfig(mettagrid.mapgen.scene.SceneConfig):
     objects: dict[str, int] = {}
     agents: int | dict[str, int] = 0
     spacing: int = 15  # Minimum spacing between objects along the spiral
@@ -14,7 +14,7 @@ class SpiralConfig(SceneConfig):
     place_at_center: bool = True  # Whether to place first object at exact center
 
 
-class Spiral(Scene[SpiralConfig]):
+class Spiral(mettagrid.mapgen.scene.Scene[SpiralConfig]):
     """
     Place objects along a spiral path emanating from the center of the map.
 

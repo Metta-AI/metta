@@ -1,18 +1,17 @@
 """GitHub helpers built on top of both the REST API and the ``gh`` CLI."""
 
-from __future__ import annotations
 
+import contextlib
+import functools
 import logging
 import subprocess
 import time
-from contextlib import contextmanager
-from functools import wraps
-from typing import Any, Dict, Generator, Optional
+import typing
 
 import httpx
 
-from .core import GitError
-from .secrets import get_github_token
+import gitta.core
+import gitta.secrets
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +23,7 @@ def _memoize(max_age=60):
         cache = {}
         cache_time = {}
 
-        @wraps(func)
+        @functools.wraps(func)
         async def wrapper(*args, **kwargs):
             key = str(args) + str(kwargs)
             current_time = time.time()
@@ -42,14 +41,14 @@ def _memoize(max_age=60):
     return decorator
 
 
-@contextmanager
+@contextlib.contextmanager
 def github_client(
     repo: str,
     token: str | None = None,
     base_url: str | None = None,
     timeout: float = 30.0,
     **headers: str,
-) -> Generator[httpx.Client, None, None]:
+) -> typing.Generator[httpx.Client, None, None]:
     """
     Create an authenticated GitHub API client.
 
@@ -64,7 +63,7 @@ def github_client(
     Yields:
         Configured httpx.Client for GitHub API requests
     """
-    github_token = token or get_github_token(required=False)
+    github_token = token or gitta.secrets.get_github_token(required=False)
 
     # Build base URL
     if base_url is None:
@@ -98,12 +97,12 @@ def run_gh(*args: str) -> str:
         result = subprocess.run(["gh", *args], capture_output=True, text=True, check=True)
         return result.stdout.strip()
     except subprocess.CalledProcessError as e:
-        raise GitError(f"GitHub CLI command failed ({e.returncode}): {e.stderr.strip()}") from e
+        raise gitta.core.GitError(f"GitHub CLI command failed ({e.returncode}): {e.stderr.strip()}") from e
     except FileNotFoundError as e:
-        raise GitError("GitHub CLI (gh) is not installed!") from e
+        raise gitta.core.GitError("GitHub CLI (gh) is not installed!") from e
 
 
-_MATCHED_PR_CACHE: Dict[tuple[str, str], tuple[int, str] | None] = {}
+_MATCHED_PR_CACHE: typing.Dict[tuple[str, str], tuple[int, str] | None] = {}
 
 
 def get_matched_pr(commit_hash: str, repo: str) -> tuple[int, str] | None:
@@ -132,10 +131,10 @@ def get_matched_pr(commit_hash: str, repo: str) -> tuple[int, str] | None:
             # Both cases -> treat as "no match"
             result: tuple[int, str] | None = None
         else:
-            raise GitError(f"GitHub API error ({e.response.status_code}): {e.response.text}") from e
+            raise gitta.core.GitError(f"GitHub API error ({e.response.status_code}): {e.response.text}") from e
     except httpx.RequestError as e:
         # Network / timeout / DNS failure
-        raise GitError(f"Network error while querying GitHub: {e}") from e
+        raise gitta.core.GitError(f"Network error while querying GitHub: {e}") from e
     else:
         pulls = resp.json()
         if not pulls:
@@ -174,10 +173,10 @@ def post_commit_status(
     state: str,
     repo: str,
     context: str = "CI/Skypilot",
-    description: Optional[str] = None,
-    target_url: Optional[str] = None,
-    token: Optional[str] = None,
-) -> Dict[str, Any]:
+    description: typing.Optional[str] = None,
+    target_url: typing.Optional[str] = None,
+    token: typing.Optional[str] = None,
+) -> typing.Dict[str, typing.Any]:
     """
     Post a status update for a commit to GitHub.
 
@@ -202,7 +201,7 @@ def post_commit_status(
         raise ValueError("Repository must be provided in format 'owner/repo'")
 
     # Get token (required)
-    github_token = token or get_github_token(required=True)
+    github_token = token or gitta.secrets.get_github_token(required=True)
 
     # Build request
     url = f"https://api.github.com/repos/{repo}/statuses/{commit_sha}"
@@ -234,9 +233,9 @@ def create_pr(
     body: str,
     head: str,
     base: str,
-    token: Optional[str] = None,
+    token: typing.Optional[str] = None,
     draft: bool = False,
-) -> Dict[str, Any]:
+) -> typing.Dict[str, typing.Any]:
     """
     Create a pull request on GitHub using the REST API.
 
@@ -265,7 +264,7 @@ def create_pr(
         raise ValueError("Repository must be provided in format 'owner/repo'")
 
     # Get token (required)
-    github_token = token or get_github_token(required=True)
+    github_token = token or gitta.secrets.get_github_token(required=True)
 
     # Build request
     url = f"https://api.github.com/repos/{repo}/pulls"
@@ -292,7 +291,7 @@ def create_pr(
         if hasattr(e, "response") and e.response is not None:
             error_msg += f" - {e.response.text}"
         logging.error(error_msg)
-        raise GitError(error_msg) from e
+        raise gitta.core.GitError(error_msg) from e
 
 
 def get_commits(
@@ -302,7 +301,7 @@ def get_commits(
     per_page: int = 100,
     token: str | None = None,
     **headers: str,
-) -> list[dict[str, Any]]:
+) -> list[dict[str, typing.Any]]:
     """
     Get list of commits from a repository.
 
@@ -320,11 +319,11 @@ def get_commits(
     Raises:
         GitError: If the API request fails
     """
-    params: dict[str, Any] = {"sha": branch, "per_page": per_page}
+    params: dict[str, typing.Any] = {"sha": branch, "per_page": per_page}
     if since:
         params["since"] = since
 
-    all_commits: list[dict[str, Any]] = []
+    all_commits: list[dict[str, typing.Any]] = []
     page = 1
 
     with github_client(repo, token=token, **headers) as client:
@@ -337,7 +336,7 @@ def get_commits(
                 if hasattr(e, "response") and e.response is not None:
                     error_msg += f" - Status: {e.response.status_code}"
                 logger.error(error_msg, exc_info=True)
-                raise GitError(error_msg) from e
+                raise gitta.core.GitError(error_msg) from e
 
             commits = resp.json() or []
             if not commits:
@@ -361,7 +360,7 @@ def get_workflow_runs(
     per_page: int = 1,
     token: str | None = None,
     **headers: str,
-) -> list[dict[str, Any]]:
+) -> list[dict[str, typing.Any]]:
     """
     Get workflow runs for a specific workflow.
 
@@ -380,7 +379,7 @@ def get_workflow_runs(
     Raises:
         GitError: If the API request fails
     """
-    params: dict[str, Any] = {"per_page": per_page}
+    params: dict[str, typing.Any] = {"per_page": per_page}
     if branch:
         params["branch"] = branch
     if status:
@@ -395,7 +394,7 @@ def get_workflow_runs(
             if hasattr(e, "response") and e.response is not None:
                 error_msg += f" - Status: {e.response.status_code}"
             logger.error(error_msg, exc_info=True)
-            raise GitError(error_msg) from e
+            raise gitta.core.GitError(error_msg) from e
 
         return (resp.json() or {}).get("workflow_runs", [])
 
@@ -406,7 +405,7 @@ def get_workflow_run_jobs(
     per_page: int = 100,
     token: str | None = None,
     **headers: str,
-) -> list[dict[str, Any]]:
+) -> list[dict[str, typing.Any]]:
     """
     Get jobs for a specific workflow run.
 
@@ -434,7 +433,7 @@ def get_workflow_run_jobs(
             if hasattr(e, "response") and e.response is not None:
                 error_msg += f" - Status: {e.response.status_code}"
             logger.error(error_msg, exc_info=True)
-            raise GitError(error_msg) from e
+            raise gitta.core.GitError(error_msg) from e
 
         return (resp.json() or {}).get("jobs", [])
 

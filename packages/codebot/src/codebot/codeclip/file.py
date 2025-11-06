@@ -5,13 +5,13 @@ Provides methods for collecting and formatting files from different project stru
 with special handling for READMEs and XML output format.
 """
 
+import dataclasses
+import datetime
 import fnmatch
 import logging
 import os
-from dataclasses import dataclass
-from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+import pathlib
+import typing
 
 import tiktoken
 
@@ -21,7 +21,7 @@ import gitta as git
 logger = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclasses.dataclass
 class Document:
     """Represents a file's content and metadata for context output."""
 
@@ -31,7 +31,7 @@ class Document:
     is_readme: bool = False
 
 
-def resolve_codebase_path(path_str: Union[str, Path]) -> Path:
+def resolve_codebase_path(path_str: typing.Union[str, pathlib.Path]) -> pathlib.Path:
     """
     Convert path string to an absolute path relative to current working directory.
 
@@ -41,29 +41,29 @@ def resolve_codebase_path(path_str: Union[str, Path]) -> Path:
     Returns:
         Resolved absolute path
     """
-    path_obj = Path(str(path_str))
+    path_obj = pathlib.Path(str(path_str))
 
     # If path is absolute, just return it
     if path_obj.is_absolute():
         return path_obj.resolve()
 
     # All relative paths are resolved against current working directory
-    return (Path.cwd() / path_obj).resolve()
+    return (pathlib.Path.cwd() / path_obj).resolve()
 
 
-def _build_git_diff_document(base_ref: str, start_path: Path, index: int) -> Optional[Document]:
+def _build_git_diff_document(base_ref: str, start_path: pathlib.Path, index: int) -> typing.Optional[Document]:
     """
     Build a Document that contains a Git diff against base_ref.
     Uses git.py helpers. If the repo or base_ref is missing, return a header-only doc.
     """
-    repo_root = git.find_root(start_path) or git.find_root(Path.cwd())
+    repo_root = git.find_root(start_path) or git.find_root(pathlib.Path.cwd())
     header_title = f"===== Git diff against {base_ref} ====="
 
     if not repo_root:
         header = [
             header_title,
             "repo: (not a git repository)",
-            f"generated: {datetime.now().isoformat(timespec='seconds')}",
+            f"generated: {datetime.datetime.now().isoformat(timespec='seconds')}",
             "",
             "(no diff available)",
         ]
@@ -76,7 +76,7 @@ def _build_git_diff_document(base_ref: str, start_path: Path, index: int) -> Opt
         header = [
             header_title,
             f"repo: {repo_root}",
-            f"generated: {datetime.now().isoformat(timespec='seconds')}",
+            f"generated: {datetime.datetime.now().isoformat(timespec='seconds')}",
             "",
             f"(warning, base ref not found: {base_ref})",
         ]
@@ -87,14 +87,14 @@ def _build_git_diff_document(base_ref: str, start_path: Path, index: int) -> Opt
     lines = [
         header_title,
         f"repo: {repo_root}",
-        f"generated: {datetime.now().isoformat(timespec='seconds')}",
+        f"generated: {datetime.datetime.now().isoformat(timespec='seconds')}",
         "",
         body,
     ]
     return Document(index=index, source=f"GIT_DIFF:{base_ref}@{repo_root}", content="\n".join(lines))
 
 
-def _find_parent_readmes(path: Path) -> List[Path]:
+def _find_parent_readmes(path: pathlib.Path) -> typing.List[pathlib.Path]:
     """
     Find all README.md files from given path up to git root (or filesystem root).
 
@@ -137,11 +137,11 @@ def _find_parent_readmes(path: Path) -> List[Path]:
 
 
 def _should_ignore(
-    path: Path,
-    gitignore_rules: List[str],
-    root_dir: Path,
-    extensions: Optional[Tuple[str, ...]] = None,
-    custom_ignore_dirs: Optional[Tuple[str, ...]] = None,
+    path: pathlib.Path,
+    gitignore_rules: typing.List[str],
+    root_dir: pathlib.Path,
+    extensions: typing.Optional[typing.Tuple[str, ...]] = None,
+    custom_ignore_dirs: typing.Optional[typing.Tuple[str, ...]] = None,
 ) -> bool:
     rel_path = os.path.relpath(str(path), root_dir)
     basename = path.name
@@ -210,7 +210,7 @@ def _should_ignore(
 
     # Check if any part of the path contains ignored directories
     # This applies to both built-in ignored dirs and user-specified directory names
-    path_parts = Path(rel_path).parts
+    path_parts = pathlib.Path(rel_path).parts
     for part in path_parts:
         if part in ignored_dirs:
             return True
@@ -268,7 +268,7 @@ def _should_ignore(
     return False
 
 
-def _should_ignore_file_type(path: Path) -> bool:
+def _should_ignore_file_type(path: pathlib.Path) -> bool:
     """Check if a file should be ignored based on its type (extension, name, or pattern)."""
     # Binary and compiled extensions
     binary_extensions = {
@@ -397,10 +397,10 @@ def _should_ignore_file_type(path: Path) -> bool:
 
 
 def _load_file(
-    path: Path,
+    path: pathlib.Path,
     index: int,
-    processed_files: Set[Path],
-) -> Optional[Document]:
+    processed_files: typing.Set[pathlib.Path],
+) -> typing.Optional[Document]:
     """Load a single file into a Document if it meets criteria."""
     if path in processed_files:
         return None
@@ -416,7 +416,7 @@ def _load_file(
         return None
 
 
-def _matches_extensions(path: Path, extensions: Optional[Tuple[str, ...]] = None) -> bool:
+def _matches_extensions(path: pathlib.Path, extensions: typing.Optional[typing.Tuple[str, ...]] = None) -> bool:
     """Check if a file path matches any of the given extensions."""
     if extensions is None or len(extensions) == 0:
         return True
@@ -426,22 +426,22 @@ def _matches_extensions(path: Path, extensions: Optional[Tuple[str, ...]] = None
 
 
 def _collect_files(
-    path: Path,
-    gitignore_rules: List[str],
-    gitignore_root: Optional[Path],
-    processed_files: Set[Path],
+    path: pathlib.Path,
+    gitignore_rules: typing.List[str],
+    gitignore_root: typing.Optional[pathlib.Path],
+    processed_files: typing.Set[pathlib.Path],
     next_index: int,
-    extensions: Optional[Tuple[str, ...]] = None,
-    custom_ignore_dirs: Optional[Tuple[str, ...]] = None,
-) -> List[Document]:
+    extensions: typing.Optional[typing.Tuple[str, ...]] = None,
+    custom_ignore_dirs: typing.Optional[typing.Tuple[str, ...]] = None,
+) -> typing.List[Document]:
     """Recursively collect files into Document objects."""
     documents = []
     current_index = next_index
-    path_obj = Path(path)
+    path_obj = pathlib.Path(path)
     # Use the gitignore root if provided, otherwise use the path's parent
     root_dir = gitignore_root if gitignore_root else (path_obj if path_obj.is_dir() else path_obj.parent)
 
-    def process_file(file_path: Path) -> None:
+    def process_file(file_path: pathlib.Path) -> None:
         nonlocal current_index
         if doc := _load_file(file_path, current_index, processed_files):
             documents.append(doc)
@@ -460,7 +460,7 @@ def _collect_files(
             # Filter directories based on gitignore BEFORE os.walk descends into them
             filtered_dirs = []
             for d in dirs:
-                dir_path = Path(os.path.join(root, d))
+                dir_path = pathlib.Path(os.path.join(root, d))
                 if not _should_ignore(dir_path, gitignore_rules, root_dir, extensions, custom_ignore_dirs):
                     filtered_dirs.append(d)
             dirs[:] = filtered_dirs
@@ -473,17 +473,17 @@ def _collect_files(
                 f
                 for f in files
                 if not _should_ignore(
-                    Path(os.path.join(root, f)), gitignore_rules, root_dir, extensions, custom_ignore_dirs
+                    pathlib.Path(os.path.join(root, f)), gitignore_rules, root_dir, extensions, custom_ignore_dirs
                 )
             ]
 
             for file_name in sorted(files):
-                process_file(Path(os.path.join(root, file_name)))
+                process_file(pathlib.Path(os.path.join(root, file_name)))
 
     return documents
 
 
-def _read_gitignore(path: str) -> List[str]:
+def _read_gitignore(path: str) -> typing.List[str]:
     """Return lines from .gitignore for ignoring certain files/directories."""
     if os.path.isfile(path):
         try:
@@ -494,7 +494,7 @@ def _read_gitignore(path: str) -> List[str]:
     return []
 
 
-def _find_gitignore(start_path: Path) -> Optional[Path]:
+def _find_gitignore(start_path: pathlib.Path) -> typing.Optional[pathlib.Path]:
     """
     Find the nearest .gitignore file by searching up the directory tree.
 
@@ -543,13 +543,13 @@ def _format_document(doc: Document) -> str:
 
 
 def get_context(
-    paths: Optional[List[Union[str, Path]]],
-    extensions: Optional[Tuple[str, ...]] = None,
+    paths: typing.Optional[typing.List[typing.Union[str, pathlib.Path]]],
+    extensions: typing.Optional[typing.Tuple[str, ...]] = None,
     include_git_diff: bool = False,
     diff_base: str = "origin/main",
     readmes_only: bool = False,
-    ignore_dirs: Optional[Tuple[str, ...]] = None,
-) -> Tuple[str, Dict[str, Any]]:
+    ignore_dirs: typing.Optional[typing.Tuple[str, ...]] = None,
+) -> typing.Tuple[str, typing.Dict[str, typing.Any]]:
     """
     Load and format context from specified paths, with basic token counting.
 
@@ -564,7 +564,7 @@ def get_context(
     Returns:
         Tuple of (formatted context string, token info dict)
     """
-    from collections import defaultdict
+    import collections
 
     # Early out only if truly nothing to do and include_git_diff is False
     if not paths and not include_git_diff:
@@ -574,10 +574,10 @@ def get_context(
     encoding = tiktoken.get_encoding("cl100k_base")
 
     # Staged docs and where they came from
-    documents: List[Document] = []
-    origin_for_source: Dict[str, Optional[Path]] = {}
+    documents: typing.List[Document] = []
+    origin_for_source: typing.Dict[str, typing.Optional[pathlib.Path]] = {}
 
-    def _stage(doc: Document, origin: Optional[Path]) -> None:
+    def _stage(doc: Document, origin: typing.Optional[pathlib.Path]) -> None:
         """
         Add a document and remember which requested path it belongs to.
         origin=None means it is not tied to a requested path
@@ -586,7 +586,7 @@ def get_context(
         documents.append(doc)
         origin_for_source[doc.source] = origin
 
-    processed_files: Set[Path] = set()
+    processed_files: typing.Set[pathlib.Path] = set()
     next_index = 1
 
     # Process requested paths
@@ -627,7 +627,7 @@ def get_context(
 
     # Add git diff document if requested
     if include_git_diff:
-        start_for_git = resolve_codebase_path(paths[0]) if paths else Path.cwd()
+        start_for_git = resolve_codebase_path(paths[0]) if paths else pathlib.Path.cwd()
         diff_doc = _build_git_diff_document(diff_base, start_for_git, next_index)
         if diff_doc:
             _stage(diff_doc, origin=None)
@@ -642,13 +642,15 @@ def get_context(
 
     # One token pass for everything
     total_tokens = 0
-    path_summaries: Dict[str, Dict[str, int]] = defaultdict(lambda: {"tokens": 0, "files": 0})
-    file_token_counts: Dict[str, int] = {}
-    top_level_tokens: Dict[str, int] = {}
+    path_summaries: typing.Dict[str, typing.Dict[str, int]] = collections.defaultdict(lambda: {"tokens": 0, "files": 0})
+    file_token_counts: typing.Dict[str, int] = {}
+    top_level_tokens: typing.Dict[str, int] = {}
 
     # Work out if there was exactly one requested origin path
     requested_origins = {p for p in origin_for_source.values() if p is not None}
-    single_origin: Optional[Path] = next(iter(requested_origins)) if len(requested_origins) == 1 else None
+    single_origin: typing.Optional[pathlib.Path] = (
+        next(iter(requested_origins)) if len(requested_origins) == 1 else None
+    )
 
     for doc in documents:
         tokens = len(encoding.encode(doc.content))
@@ -663,7 +665,7 @@ def get_context(
 
             if single_origin is not None:
                 try:
-                    relative = Path(doc.source).relative_to(single_origin)
+                    relative = pathlib.Path(doc.source).relative_to(single_origin)
                     if len(relative.parts) > 0:
                         name = relative.parts[0]
                         top_level_tokens[name] = top_level_tokens.get(name, 0) + tokens

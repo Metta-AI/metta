@@ -1,26 +1,25 @@
 """Shared context object passed to trainer components."""
 
-from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
+import dataclasses
+import typing
 
-from torch.optim import Optimizer
+import torch.optim
 
-from metta.agent.policy import Policy
-from metta.eval.eval_request_config import EvalRewardSummary
-from metta.rl.training import Experience, TrainingEnvironment
-from mettagrid.profiling.memory_monitor import MemoryMonitor
-from mettagrid.profiling.stopwatch import Stopwatch
-from mettagrid.profiling.system_monitor import SystemMonitor
+import metta.agent.policy
+import metta.eval.eval_request_config
+import metta.rl.training
+import mettagrid.profiling.memory_monitor
+import mettagrid.profiling.stopwatch
+import mettagrid.profiling.system_monitor
 
-if TYPE_CHECKING:
-    from metta.cogworks.curriculum import Curriculum
-    from metta.rl.training.distributed_helper import DistributedHelper
-    from metta.rl.training.stats_reporter import StatsReporter
+if typing.TYPE_CHECKING:
+    import metta.cogworks.curriculum
+    import metta.rl.training.distributed_helper
+    import metta.rl.training.stats_reporter
 
 
-@dataclass(slots=True)
+@dataclasses.dataclass(slots=True)
 class TrainingEnvWindow:
     """Serializable view of the environment slice used for training."""
 
@@ -39,22 +38,22 @@ class TrainingEnvWindow:
         return cls(start=start, stop=stop, step=step)
 
 
-@dataclass(slots=True)
+@dataclasses.dataclass(slots=True)
 class TrainerState:
     """Serializable trainer state that can be checkpointed."""
 
     epoch: int = 0
     agent_step: int = 0
-    latest_policy_uri: Optional[str] = None
-    latest_eval_scores: Optional[EvalRewardSummary] = None
-    latest_losses_stats: Dict[str, float] = field(default_factory=dict)
-    gradient_stats: Dict[str, float] = field(default_factory=dict)
-    training_env_window: Optional[TrainingEnvWindow] = None
-    optimizer_state: Optional[Dict[str, Any]] = None
-    stopwatch_state: Optional[Dict[str, Any]] = None
-    curriculum_state: Optional[Dict[str, Any]] = None
+    latest_policy_uri: typing.Optional[str] = None
+    latest_eval_scores: typing.Optional[metta.eval.eval_request_config.EvalRewardSummary] = None
+    latest_losses_stats: typing.Dict[str, float] = dataclasses.field(default_factory=dict)
+    gradient_stats: typing.Dict[str, float] = dataclasses.field(default_factory=dict)
+    training_env_window: typing.Optional[TrainingEnvWindow] = None
+    optimizer_state: typing.Optional[typing.Dict[str, typing.Any]] = None
+    stopwatch_state: typing.Optional[typing.Dict[str, typing.Any]] = None
+    curriculum_state: typing.Optional[typing.Dict[str, typing.Any]] = None
     latest_saved_policy_epoch: int = 0
-    loss_states: Dict[str, Any] = field(default_factory=dict)
+    loss_states: typing.Dict[str, typing.Any] = dataclasses.field(default_factory=dict)
 
 
 class ComponentContext:
@@ -63,16 +62,16 @@ class ComponentContext:
     def __init__(
         self,
         *,
-        state: Optional[TrainerState],
-        policy: Policy,
-        env: TrainingEnvironment,
-        experience: Experience,
-        optimizer: Optimizer,
-        config: Any,
-        stopwatch: Stopwatch,
-        distributed: DistributedHelper,
-        run_name: Optional[str] = None,
-        curriculum: Optional["Curriculum"] = None,
+        state: typing.Optional[TrainerState],
+        policy: metta.agent.policy.Policy,
+        env: metta.rl.training.TrainingEnvironment,
+        experience: metta.rl.training.Experience,
+        optimizer: torch.optim.Optimizer,
+        config: typing.Any,
+        stopwatch: mettagrid.profiling.stopwatch.Stopwatch,
+        distributed: metta.rl.training.distributed_helper.DistributedHelper,
+        run_name: typing.Optional[str] = None,
+        curriculum: typing.Optional["Curriculum"] = None,
     ) -> None:
         self.state = state or TrainerState()
         self.policy = policy
@@ -87,14 +86,14 @@ class ComponentContext:
 
         self.timing_baseline = {"agent_step": 0, "wall_time": 0.0}
 
-        self.stats_reporter: StatsReporter | None = None
-        self.memory_monitor: MemoryMonitor | None = None
-        self.system_monitor: SystemMonitor | None = None
-        self.latest_policy_uri_fn: Callable[[], Optional[str]] | None = None
-        self.losses: Dict[str, Any] = {}
+        self.stats_reporter: metta.rl.training.stats_reporter.StatsReporter | None = None
+        self.memory_monitor: mettagrid.profiling.memory_monitor.MemoryMonitor | None = None
+        self.system_monitor: mettagrid.profiling.system_monitor.SystemMonitor | None = None
+        self.latest_policy_uri_fn: typing.Callable[[], typing.Optional[str]] | None = None
+        self.losses: typing.Dict[str, typing.Any] = {}
 
-        self.get_train_epoch_fn: Callable[[], Callable[[], None]] | None = None
-        self.set_train_epoch_fn: Callable[[Callable[[], None]], None] | None = None
+        self.get_train_epoch_fn: typing.Callable[[], typing.Callable[[], None]] | None = None
+        self.set_train_epoch_fn: typing.Callable[[typing.Callable[[], None]], None] | None = None
 
         self._training_env_id: slice | None = (
             self.state.training_env_window.to_slice() if self.state.training_env_window else None
@@ -138,14 +137,14 @@ class ComponentContext:
     # Latest policy helpers
     # ------------------------------------------------------------------
     @property
-    def latest_policy_uri_value(self) -> Optional[str]:
+    def latest_policy_uri_value(self) -> typing.Optional[str]:
         return self.state.latest_policy_uri
 
     @latest_policy_uri_value.setter
-    def latest_policy_uri_value(self, value: Optional[str]) -> None:
+    def latest_policy_uri_value(self, value: typing.Optional[str]) -> None:
         self.state.latest_policy_uri = value
 
-    def latest_policy_uri(self) -> Optional[str]:
+    def latest_policy_uri(self) -> typing.Optional[str]:
         if self.state.latest_policy_uri:
             return self.state.latest_policy_uri
         if self.latest_policy_uri_fn is None:
@@ -166,30 +165,30 @@ class ComponentContext:
     # Stats tracking
     # ------------------------------------------------------------------
     @property
-    def latest_eval_scores(self) -> Optional[EvalRewardSummary]:
+    def latest_eval_scores(self) -> typing.Optional[metta.eval.eval_request_config.EvalRewardSummary]:
         return self.state.latest_eval_scores
 
     @latest_eval_scores.setter
-    def latest_eval_scores(self, value: Optional[EvalRewardSummary]) -> None:
+    def latest_eval_scores(self, value: typing.Optional[metta.eval.eval_request_config.EvalRewardSummary]) -> None:
         self.state.latest_eval_scores = value
 
     @property
-    def latest_losses_stats(self) -> Dict[str, float]:
+    def latest_losses_stats(self) -> typing.Dict[str, float]:
         return self.state.latest_losses_stats
 
     @latest_losses_stats.setter
-    def latest_losses_stats(self, value: Dict[str, float]) -> None:
+    def latest_losses_stats(self, value: typing.Dict[str, float]) -> None:
         self.state.latest_losses_stats = dict(value)
 
     @property
-    def gradient_stats(self) -> Dict[str, float]:
+    def gradient_stats(self) -> typing.Dict[str, float]:
         return self.state.gradient_stats
 
     @gradient_stats.setter
-    def gradient_stats(self, value: Dict[str, float]) -> None:
+    def gradient_stats(self, value: typing.Dict[str, float]) -> None:
         self.state.gradient_stats = dict(value)
 
-    def update_gradient_stats(self, stats: Dict[str, float]) -> None:
+    def update_gradient_stats(self, stats: typing.Dict[str, float]) -> None:
         self.gradient_stats = stats
 
     # ------------------------------------------------------------------
@@ -207,12 +206,12 @@ class ComponentContext:
     # ------------------------------------------------------------------
     # Training epoch callable indirection
     # ------------------------------------------------------------------
-    def get_train_epoch_callable(self) -> Callable[[], None]:
+    def get_train_epoch_callable(self) -> typing.Callable[[], None]:
         if self.get_train_epoch_fn is None:
             raise RuntimeError("ComponentContext has no getter for train epoch callable")
         return self.get_train_epoch_fn()
 
-    def set_train_epoch_callable(self, fn: Callable[[], None]) -> None:
+    def set_train_epoch_callable(self, fn: typing.Callable[[], None]) -> None:
         if self.set_train_epoch_fn is None:
             raise RuntimeError("ComponentContext has no setter for train epoch callable")
         self.set_train_epoch_fn(fn)

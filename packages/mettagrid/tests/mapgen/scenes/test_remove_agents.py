@@ -1,18 +1,17 @@
-from mettagrid.mapgen.scene import ChildrenAction
-from mettagrid.mapgen.scenes.inline_ascii import InlineAscii
-from mettagrid.mapgen.scenes.nop import Nop
-from mettagrid.mapgen.scenes.remove_agents import RemoveAgents
-from mettagrid.test_support.mapgen import render_scene
-
-from .test_utils import assert_grid
+import mettagrid.mapgen.scene
+import mettagrid.mapgen.scenes.inline_ascii
+import mettagrid.mapgen.scenes.nop
+import mettagrid.mapgen.scenes.remove_agents
+import mettagrid.test_support.mapgen
+import packages.mettagrid.tests.mapgen.scenes.test_utils
 
 
 def test_basic():
-    scene = render_scene(
-        Nop.Config(
+    scene = mettagrid.test_support.mapgen.render_scene(
+        mettagrid.mapgen.scenes.nop.Nop.Config(
             children=[
-                ChildrenAction(
-                    scene=InlineAscii.Config(
+                mettagrid.mapgen.scene.ChildrenAction(
+                    scene=mettagrid.mapgen.scenes.inline_ascii.InlineAscii.Config(
                         data="""
                             ###
                             @@.
@@ -21,8 +20,8 @@ def test_basic():
                     ),
                     where="full",
                 ),
-                ChildrenAction(
-                    scene=RemoveAgents.Config(),
+                mettagrid.mapgen.scene.ChildrenAction(
+                    scene=mettagrid.mapgen.scenes.remove_agents.RemoveAgents.Config(),
                     where="full",
                 ),
             ],
@@ -30,7 +29,7 @@ def test_basic():
         (3, 3),
     )
 
-    assert_grid(
+    packages.mettagrid.tests.mapgen.scenes.test_utils.assert_grid(
         scene,
         """
             ###

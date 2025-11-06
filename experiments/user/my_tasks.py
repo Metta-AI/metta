@@ -1,17 +1,19 @@
 # experiments/user/my_tasks.py
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.sim.simulation_config import SimulationConfig
-from metta.tools.train import TrainTool
-from mettagrid.builder.envs import make_arena
+import metta.rl.training
+import metta.sim.simulation_config
+import metta.tools.train
+import mettagrid.builder.envs
 
 
-def my_train() -> TrainTool:
-    return TrainTool(
-        training_env=TrainingEnvironmentConfig(),
-        evaluator=EvaluatorConfig(
+def my_train() -> metta.tools.train.TrainTool:
+    return metta.tools.train.TrainTool(
+        training_env=metta.rl.training.TrainingEnvironmentConfig(),
+        evaluator=metta.rl.training.EvaluatorConfig(
             simulations=[
-                SimulationConfig(
-                    suite="arena", name="arena/basic", env=make_arena(num_agents=6)
+                metta.sim.simulation_config.SimulationConfig(
+                    suite="arena",
+                    name="arena/basic",
+                    env=mettagrid.builder.envs.make_arena(num_agents=6),
                 )
             ]
         ),

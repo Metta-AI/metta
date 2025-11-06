@@ -6,17 +6,13 @@ converter interactions, etc.) are covered in test_resource_mod.py using the
 low-level C++ API to avoid duplication.
 """
 
-from mettagrid.config.mettagrid_c_config import convert_to_cpp_game_config
-from mettagrid.config.mettagrid_config import (
-    ActionsConfig,
-    GameConfig,
-    ResourceModActionConfig,
-)
+import mettagrid.config.mettagrid_c_config
+import mettagrid.config.mettagrid_config
 
 
 def test_resource_mod_config_creation():
     """Test that ResourceModActionConfig can be created properly."""
-    config = ResourceModActionConfig(
+    config = mettagrid.config.mettagrid_config.ResourceModActionConfig(
         enabled=True,
         required_resources={"mana": 5},
         consumed_resources={"mana": 3.0},
@@ -35,7 +31,7 @@ def test_resource_mod_config_creation():
 
 def test_resource_mod_default_values():
     """Test that ResourceModActionConfig has correct default values."""
-    config = ResourceModActionConfig(enabled=True, modifies={"health": 10.0})
+    config = mettagrid.config.mettagrid_config.ResourceModActionConfig(enabled=True, modifies={"health": 10.0})
 
     assert config.agent_radius == 0
     assert config.scales is False
@@ -43,11 +39,12 @@ def test_resource_mod_default_values():
 
 def test_resource_mod_in_actions_config():
     """Test that resource_mod can be added to ActionsConfig."""
-    from mettagrid.config.mettagrid_config import MoveActionConfig
 
-    actions = ActionsConfig(
-        move=MoveActionConfig(enabled=True),
-        resource_mod=ResourceModActionConfig(enabled=True, modifies={"health": 10.0}, agent_radius=1),
+    actions = mettagrid.config.mettagrid_config.ActionsConfig(
+        move=mettagrid.config.mettagrid_config.MoveActionConfig(enabled=True),
+        resource_mod=mettagrid.config.mettagrid_config.ResourceModActionConfig(
+            enabled=True, modifies={"health": 10.0}, agent_radius=1
+        ),
     )
 
     assert actions.resource_mod.enabled is True
@@ -57,15 +54,14 @@ def test_resource_mod_in_actions_config():
 
 def test_resource_mod_conversion_to_cpp():
     """Test that ResourceModActionConfig converts properly to C++ config."""
-    from mettagrid.config.mettagrid_config import MoveActionConfig
 
     # Create a GameConfig with resource_mod action
-    game_config = GameConfig(
+    game_config = mettagrid.config.mettagrid_config.GameConfig(
         resource_names=["health", "mana", "gold"],
         num_agents=2,
-        actions=ActionsConfig(
-            move=MoveActionConfig(enabled=True),
-            resource_mod=ResourceModActionConfig(
+        actions=mettagrid.config.mettagrid_config.ActionsConfig(
+            move=mettagrid.config.mettagrid_config.MoveActionConfig(enabled=True),
+            resource_mod=mettagrid.config.mettagrid_config.ResourceModActionConfig(
                 enabled=True,
                 required_resources={"mana": 5},
                 consumed_resources={"mana": 3.0},
@@ -77,7 +73,7 @@ def test_resource_mod_conversion_to_cpp():
     )
 
     # Convert to C++ config - this should not raise an exception
-    cpp_config = convert_to_cpp_game_config(game_config)
+    cpp_config = mettagrid.config.mettagrid_c_config.convert_to_cpp_game_config(game_config)
 
     # The conversion succeeded if we got here without exception
     assert cpp_config is not None
@@ -85,7 +81,7 @@ def test_resource_mod_conversion_to_cpp():
 
 def test_resource_mod_disabled_by_default():
     """Test that resource_mod is disabled by default in ActionsConfig."""
-    actions = ActionsConfig()
+    actions = mettagrid.config.mettagrid_config.ActionsConfig()
     assert actions.resource_mod.enabled is False
 
 
@@ -97,11 +93,11 @@ def test_resource_mod_passthrough_fields_to_cpp():
     config includes the resource_mod action in the action list. Detailed
     runtime semantics are validated in test_resource_mod.py.
     """
-    game_config = GameConfig(
+    game_config = mettagrid.config.mettagrid_config.GameConfig(
         resource_names=["energy", "health", "gold"],
         num_agents=1,
-        actions=ActionsConfig(
-            resource_mod=ResourceModActionConfig(
+        actions=mettagrid.config.mettagrid_config.ActionsConfig(
+            resource_mod=mettagrid.config.mettagrid_config.ResourceModActionConfig(
                 enabled=True,
                 required_resources={"energy": 2},
                 consumed_resources={"energy": 1.0},
@@ -112,7 +108,7 @@ def test_resource_mod_passthrough_fields_to_cpp():
         ),
     )
 
-    cpp_config = convert_to_cpp_game_config(game_config)
+    cpp_config = mettagrid.config.mettagrid_c_config.convert_to_cpp_game_config(game_config)
 
     # The C++ config should expose an action_names method; ensure resource_mod
     # is registered. If not available, fall back to attribute presence checks.

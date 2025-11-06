@@ -2,19 +2,19 @@
 
 import pytest
 
-from metta.sweep.optimizer.protein import ProteinOptimizer
-from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
+import metta.sweep.optimizer.protein
+import metta.sweep.protein_config
 
 
 @pytest.fixture
 def base_protein_config():
     """Base ProteinConfig for ProteinOptimizer tests."""
-    return ProteinConfig(
+    return metta.sweep.protein_config.ProteinConfig(
         metric="reward",
         goal="maximize",
         method="bayes",
         parameters={},
-        settings=ProteinSettings(
+        settings=metta.sweep.protein_config.ProteinSettings(
             max_suggestion_cost=3600,
             resample_frequency=0,
             num_random_samples=50,
@@ -31,15 +31,15 @@ class TestProteinOptimizer:
     def test_unsupported_method_validation(self):
         """Test that ProteinConfig only accepts 'bayes' as method."""
         # Try to create a config with an unsupported method
-        from pydantic import ValidationError
+        import pydantic
 
-        with pytest.raises(ValidationError):
-            ProteinConfig(
+        with pytest.raises(pydantic.ValidationError):
+            metta.sweep.protein_config.ProteinConfig(
                 metric="loss",
                 goal="minimize",
                 method="grid",  # Grid search is not supported
                 parameters={
-                    "learning_rate": ParameterConfig(
+                    "learning_rate": metta.sweep.protein_config.ParameterConfig(
                         distribution="log_normal",
                         min=1e-4,
                         max=1e-1,
@@ -51,19 +51,19 @@ class TestProteinOptimizer:
 
     def test_optimizer_initialization(self):
         """Test that ProteinOptimizer initializes correctly with bayes method."""
-        config = ProteinConfig(
+        config = metta.sweep.protein_config.ProteinConfig(
             metric="accuracy",
             goal="maximize",
             method="bayes",  # Bayesian optimization is supported
             parameters={
-                "learning_rate": ParameterConfig(
+                "learning_rate": metta.sweep.protein_config.ParameterConfig(
                     distribution="log_normal",
                     min=1e-4,
                     max=1e-1,
                     scale="auto",
                     mean=1e-2,
                 ),
-                "batch_size": ParameterConfig(
+                "batch_size": metta.sweep.protein_config.ParameterConfig(
                     distribution="int_uniform",
                     min=16,
                     max=128,
@@ -74,13 +74,13 @@ class TestProteinOptimizer:
         )
 
         # Should not raise error
-        optimizer = ProteinOptimizer(config)
+        optimizer = metta.sweep.optimizer.protein.ProteinOptimizer(config)
         assert optimizer.config == config
 
     def test_suggest_with_no_observations(self, base_protein_config):
         """Test that suggest method works with no observations."""
         base_protein_config.parameters = {
-            "lr": ParameterConfig(
+            "lr": metta.sweep.protein_config.ParameterConfig(
                 distribution="log_normal",
                 min=1e-4,
                 max=1e-1,
@@ -89,7 +89,7 @@ class TestProteinOptimizer:
             )
         }
 
-        optimizer = ProteinOptimizer(base_protein_config)
+        optimizer = metta.sweep.optimizer.protein.ProteinOptimizer(base_protein_config)
 
         # Request suggestions with no observations
         suggestions = optimizer.suggest([], n_suggestions=3)
@@ -100,12 +100,12 @@ class TestProteinOptimizer:
 
     def test_suggest_with_observations(self):
         """Test that suggest method works with observations."""
-        config = ProteinConfig(
+        config = metta.sweep.protein_config.ProteinConfig(
             metric="score",
             goal="maximize",
             method="bayes",
             parameters={
-                "lr": ParameterConfig(
+                "lr": metta.sweep.protein_config.ParameterConfig(
                     distribution="log_normal",
                     min=1e-4,
                     max=1e-1,
@@ -115,7 +115,7 @@ class TestProteinOptimizer:
             },
         )
 
-        optimizer = ProteinOptimizer(config)
+        optimizer = metta.sweep.optimizer.protein.ProteinOptimizer(config)
 
         # Create observations as dictionaries (not Observation objects)
         observations = [
@@ -133,19 +133,19 @@ class TestProteinOptimizer:
 
     def test_suggest_respects_parameter_bounds(self):
         """Test that suggestions respect parameter bounds."""
-        config = ProteinConfig(
+        config = metta.sweep.protein_config.ProteinConfig(
             metric="score",
             goal="minimize",
             method="bayes",
             parameters={
-                "lr": ParameterConfig(
+                "lr": metta.sweep.protein_config.ParameterConfig(
                     distribution="uniform",
                     min=0.1,
                     max=0.5,
                     mean=0.3,
                     scale="auto",
                 ),
-                "momentum": ParameterConfig(
+                "momentum": metta.sweep.protein_config.ParameterConfig(
                     distribution="uniform",
                     min=0.8,
                     max=0.99,
@@ -155,7 +155,7 @@ class TestProteinOptimizer:
             },
         )
 
-        optimizer = ProteinOptimizer(config)
+        optimizer = metta.sweep.optimizer.protein.ProteinOptimizer(config)
 
         # Request multiple suggestions
         suggestions = optimizer.suggest([], n_suggestions=10)
@@ -167,19 +167,19 @@ class TestProteinOptimizer:
 
     def test_suggest_handles_integer_parameters(self):
         """Test that optimizer handles integer parameters."""
-        config = ProteinConfig(
+        config = metta.sweep.protein_config.ProteinConfig(
             metric="score",
             goal="maximize",
             method="bayes",
             parameters={
-                "num_layers": ParameterConfig(
+                "num_layers": metta.sweep.protein_config.ParameterConfig(
                     distribution="int_uniform",
                     min=1,
                     max=10,
                     mean=5,
                     scale="auto",
                 ),
-                "hidden_size": ParameterConfig(
+                "hidden_size": metta.sweep.protein_config.ParameterConfig(
                     distribution="uniform_pow2",  # Powers of 2
                     min=32,
                     max=512,
@@ -189,7 +189,7 @@ class TestProteinOptimizer:
             },
         )
 
-        optimizer = ProteinOptimizer(config)
+        optimizer = metta.sweep.optimizer.protein.ProteinOptimizer(config)
 
         suggestions = optimizer.suggest([], n_suggestions=5)
 
@@ -200,12 +200,12 @@ class TestProteinOptimizer:
 
     def test_empty_suggestions_request(self):
         """Test requesting zero suggestions."""
-        config = ProteinConfig(
+        config = metta.sweep.protein_config.ProteinConfig(
             metric="score",
             goal="maximize",
             method="bayes",
             parameters={
-                "lr": ParameterConfig(
+                "lr": metta.sweep.protein_config.ParameterConfig(
                     distribution="uniform",
                     min=0.1,
                     max=0.5,
@@ -215,19 +215,19 @@ class TestProteinOptimizer:
             },
         )
 
-        optimizer = ProteinOptimizer(config)
+        optimizer = metta.sweep.optimizer.protein.ProteinOptimizer(config)
         suggestions = optimizer.suggest([], n_suggestions=0)
 
         assert suggestions == []
 
     def test_observations_with_missing_fields(self):
         """Test that optimizer handles observations with missing fields gracefully."""
-        config = ProteinConfig(
+        config = metta.sweep.protein_config.ProteinConfig(
             metric="score",
             goal="maximize",
             method="bayes",
             parameters={
-                "lr": ParameterConfig(
+                "lr": metta.sweep.protein_config.ParameterConfig(
                     distribution="log_normal",
                     min=1e-4,
                     max=1e-1,
@@ -237,7 +237,7 @@ class TestProteinOptimizer:
             },
         )
 
-        optimizer = ProteinOptimizer(config)
+        optimizer = metta.sweep.optimizer.protein.ProteinOptimizer(config)
 
         # Observations with missing cost field (should default to 0)
         observations = [

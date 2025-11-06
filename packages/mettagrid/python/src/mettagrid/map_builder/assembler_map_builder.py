@@ -1,13 +1,13 @@
-from typing import Optional
+import typing
 
 import numpy as np
 
-from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
-from mettagrid.map_builder.utils import draw_border
+import mettagrid.map_builder.map_builder
+import mettagrid.map_builder.utils
 
 
-class AssemblerMapBuilderConfig(MapBuilderConfig["AssemblerMapBuilder"]):
-    seed: Optional[int] = None
+class AssemblerMapBuilderConfig(mettagrid.map_builder.map_builder.MapBuilderConfig["AssemblerMapBuilder"]):
+    seed: typing.Optional[int] = None
 
     width: int = 10
     height: int = 10
@@ -20,7 +20,7 @@ class AssemblerMapBuilderConfig(MapBuilderConfig["AssemblerMapBuilder"]):
     terrain: str = "no-terrain"
 
 
-class AssemblerMapBuilder(MapBuilder[AssemblerMapBuilderConfig]):
+class AssemblerMapBuilder(mettagrid.map_builder.map_builder.MapBuilder[AssemblerMapBuilderConfig]):
     def __init__(self, config):
         super().__init__(config)
         self._rng = np.random.default_rng(self.config.seed)
@@ -122,13 +122,13 @@ class AssemblerMapBuilder(MapBuilder[AssemblerMapBuilderConfig]):
 
         # Border
         if bw > 0:
-            draw_border(grid, bw, self.config.border_object)
+            mettagrid.map_builder.utils.draw_border(grid, bw, self.config.border_object)
 
         # Inner dims
         inner_h = max(0, H - 2 * bw)
         inner_w = max(0, W - 2 * bw)
         if inner_h < 1 or inner_w < 1:
-            return GameMap(grid)
+            return mettagrid.map_builder.map_builder.GameMap(grid)
 
         # ---------- Place terrain obstacles first ----------
         inner_area = inner_h * inner_w
@@ -194,7 +194,7 @@ class AssemblerMapBuilder(MapBuilder[AssemblerMapBuilderConfig]):
         if bottom < top or right < left:
             # No room to place any objects with required halo; just place agents & return
             self._place_agents(grid)
-            return GameMap(grid)
+            return mettagrid.map_builder.map_builder.GameMap(grid)
 
         # Precompute candidate coordinates once, shuffled
         cand_rows = np.arange(top, bottom + 1)
@@ -244,7 +244,7 @@ class AssemblerMapBuilder(MapBuilder[AssemblerMapBuilderConfig]):
         # ---------- Place agents (no special padding) ----------
         self._place_agents(grid)
 
-        return GameMap(grid)
+        return mettagrid.map_builder.map_builder.GameMap(grid)
 
     # ---------- helpers ----------
     def _place_agents(self, grid: np.ndarray) -> None:

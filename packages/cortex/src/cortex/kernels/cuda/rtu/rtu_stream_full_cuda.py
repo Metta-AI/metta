@@ -1,11 +1,9 @@
-from __future__ import annotations
 
-from typing import Optional
+import typing
 
+import cortex.kernels.cuda.rtu.rtu_seq_full
 import torch
-from torch.autograd import Function
-
-from .rtu_seq_full import backward_full, forward_full
+import torch.autograd
 
 
 def _act_to_id(name: str) -> int:
@@ -21,7 +19,7 @@ def _act_to_id(name: str) -> int:
     raise ValueError(f"Unsupported activation: {name}")
 
 
-class _RTUStreamFullCUDASeq(Function):
+class _RTUStreamFullCUDASeq(torch.autograd.Function):
     @staticmethod
     def forward(  # type: ignore[override]
         ctx,
@@ -33,8 +31,8 @@ class _RTUStreamFullCUDASeq(Function):
         activation_name: str,
         hc1_init_bh: torch.Tensor,  # [B,H]
         hc2_init_bh: torch.Tensor,  # [B,H]
-        trace_in: Optional[tuple[torch.Tensor, ...]] = None,
-        resets_bt: Optional[torch.Tensor] = None,
+        trace_in: typing.Optional[tuple[torch.Tensor, ...]] = None,
+        resets_bt: typing.Optional[torch.Tensor] = None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, tuple[torch.Tensor, ...]]:
         B, T, D = x_btd.shape
         H = nu_log.shape[0]
@@ -79,7 +77,7 @@ class _RTUStreamFullCUDASeq(Function):
             E_W1_c2_out,
             E_W2_c1_out,
             E_W2_c2_out,
-        ) = forward_full(
+        ) = cortex.kernels.cuda.rtu.rtu_seq_full.forward_full(
             x_btd.contiguous(),
             nu_log.contiguous(),
             theta_log.contiguous(),
@@ -171,7 +169,7 @@ class _RTUStreamFullCUDASeq(Function):
             grad_Wc2,
             grad_hc1_init,
             grad_hc2_init,
-        ) = backward_full(
+        ) = cortex.kernels.cuda.rtu.rtu_seq_full.backward_full(
             grad_y_btd_2h.contiguous(),
             x_btd.contiguous(),
             nu_log.contiguous(),
@@ -218,8 +216,8 @@ def rtu_stream_full_cuda(
     activation_name: str,
     hc1_init_bh: torch.Tensor,
     hc2_init_bh: torch.Tensor,
-    trace_in: Optional[tuple[torch.Tensor, ...]] = None,
-    resets_bt: Optional[torch.Tensor] = None,
+    trace_in: typing.Optional[tuple[torch.Tensor, ...]] = None,
+    resets_bt: typing.Optional[torch.Tensor] = None,
 ):
     """CUDA full-rank RTU streaming kernel.
 

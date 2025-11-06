@@ -1,17 +1,17 @@
 #!/usr/bin/env -S uv run
+import pathlib
 import subprocess
 import sys
-from pathlib import Path
-from typing import Annotated
+import typing
 
+import rich.console
 import typer
-from rich.console import Console
 
-from metta.common.util.fs import get_repo_root
-from metta.setup.tools.local.kind import kind_app
-from metta.setup.utils import error, info
+import metta.common.util.fs
+import metta.setup.tools.local.kind
+import metta.setup.utils
 
-console = Console()
+console = rich.console.Console()
 
 app = typer.Typer(
     help="Metta Local Development Commands",
@@ -19,10 +19,10 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 
-repo_root = get_repo_root()
+repo_root = metta.common.util.fs.get_repo_root()
 
 
-def _build_img(tag: str, dockerfile_path: Path, build_args: list[str] | None = None):
+def _build_img(tag: str, dockerfile_path: pathlib.Path, build_args: list[str] | None = None):
     cmd = ["docker", "build", "-t", tag, "-f", str(dockerfile_path)]
     if build_args:
         cmd.extend(build_args)
@@ -43,7 +43,7 @@ def build_policy_evaluator_img_internal(
 @app.command(name="build-policy-evaluator-img", context_settings={"allow_extra_args": True})
 def build_policy_evaluator_img(
     ctx: typer.Context,
-    tag: Annotated[str, typer.Option(help="Docker image tag")] = "metta-policy-evaluator-local:latest",
+    tag: typing.Annotated[str, typer.Option(help="Docker image tag")] = "metta-policy-evaluator-local:latest",
 ):
     build_args = ctx.args if ctx.args else []
     _build_img(
@@ -74,10 +74,10 @@ def stats_server(ctx: typer.Context):
     try:
         subprocess.run(cmd, check=True)
     except subprocess.CalledProcessError as e:
-        error(f"Failed to launch Stats Server: {e}")
+        metta.setup.utils.error(f"Failed to launch Stats Server: {e}")
         raise typer.Exit(1) from e
     except KeyboardInterrupt:
-        info("\nStats Server shutdown")
+        metta.setup.utils.info("\nStats Server shutdown")
         raise typer.Exit(0) from None
 
 
@@ -90,14 +90,14 @@ def observatory(ctx: typer.Context):
     try:
         subprocess.run(cmd, check=True)
     except subprocess.CalledProcessError as e:
-        error(f"Failed to launch Observatory: {e}")
+        metta.setup.utils.error(f"Failed to launch Observatory: {e}")
         raise typer.Exit(1) from e
     except KeyboardInterrupt:
-        info("\nObservatory shutdown")
+        metta.setup.utils.info("\nObservatory shutdown")
         raise typer.Exit(0) from None
 
 
-app.add_typer(kind_app, name="kind")
+app.add_typer(metta.setup.tools.local.kind.kind_app, name="kind")
 
 
 def main():

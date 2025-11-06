@@ -1,11 +1,10 @@
-from typing import Any, Dict
+import typing
 
+import tensordict
 import torch
-from tensordict import TensorDict
-from torch import Tensor
-from torchrl.data import Composite
+import torchrl.data
 
-from metta.common.util.collections import duplicates
+import metta.common.util.collections
 
 
 class Experience:
@@ -18,7 +17,7 @@ class Experience:
         bptt_horizon: int,
         minibatch_size: int,
         max_minibatch_size: int,
-        experience_spec: Composite,
+        experience_spec: torchrl.data.Composite,
         device: torch.device | str,
     ):
         """Initialize experience buffer with segmented storage."""
@@ -76,10 +75,10 @@ class Experience:
 
         self._range_tensor = torch.arange(total_agents, device=self.device, dtype=torch.int32)
 
-    def _check_for_duplicate_keys(self, experience_spec: Composite) -> None:
+    def _check_for_duplicate_keys(self, experience_spec: torchrl.data.Composite) -> None:
         """Check for duplicate keys in the experience spec."""
         all_keys = list(experience_spec.keys(include_nested=True, leaves_only=True))
-        if duplicate_keys := duplicates(all_keys):
+        if duplicate_keys := metta.common.util.collections.duplicates(all_keys):
             raise ValueError(f"Duplicate keys found in experience_spec: {[str(d) for d in duplicate_keys]}")
 
     @property
@@ -87,7 +86,7 @@ class Experience:
         """Check if buffer has enough data for training."""
         return self.full_rows >= self.segments
 
-    def store(self, data_td: TensorDict, env_id: slice) -> None:
+    def store(self, data_td: tensordict.TensorDict, env_id: slice) -> None:
         """Store a batch of experience."""
         assert isinstance(env_id, slice), (
             f"TypeError: env_id expected to be a slice for segmented storage. Got {type(env_id).__name__} instead."
@@ -117,7 +116,7 @@ class Experience:
         self.ep_indices = self._range_tensor % self.segments
         self.ep_lengths.zero_()
 
-    def update(self, indices: Tensor, data_td: TensorDict) -> None:
+    def update(self, indices: torch.Tensor, data_td: tensordict.TensorDict) -> None:
         """Update buffer with new data for given indices."""
         self.buffer[indices].update(data_td)
 
@@ -126,7 +125,7 @@ class Experience:
         if "ratio" in self.buffer.keys():
             self.buffer["ratio"].fill_(1.0)
 
-    def stats(self) -> Dict[str, float]:
+    def stats(self) -> typing.Dict[str, float]:
         """Get mean values of all tracked buffers."""
         stats = {
             "rewards": self.buffer["rewards"].mean().item(),
@@ -162,8 +161,8 @@ class Experience:
 
         return stats
 
-    def give_me_empty_md_td(self) -> TensorDict:
-        return TensorDict(
+    def give_me_empty_md_td(self) -> tensordict.TensorDict:
+        return tensordict.TensorDict(
             {},
             batch_size=(self.minibatch_segments, self.bptt_horizon),
             device=self.device,
@@ -176,8 +175,8 @@ class Experience:
         bptt_horizon: int,
         minibatch_size: int,
         max_minibatch_size: int,
-        policy_experience_spec: Composite,
-        losses: Dict[str, Any],  # av fix circular import issue when setting value to Loss
+        policy_experience_spec: torchrl.data.Composite,
+        losses: typing.Dict[str, typing.Any],  # av fix circular import issue when setting value to Loss
         device: torch.device | str,
     ) -> "Experience":
         """Create experience buffer with merged specs from policy and losses."""
@@ -195,7 +194,7 @@ class Experience:
             bptt_horizon=bptt_horizon,
             minibatch_size=minibatch_size,
             max_minibatch_size=max_minibatch_size,
-            experience_spec=Composite(merged_spec_dict),
+            experience_spec=torchrl.data.Composite(merged_spec_dict),
             device=device,
         )
         for loss in losses.values():

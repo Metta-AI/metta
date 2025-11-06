@@ -1,13 +1,16 @@
 """Simplified protocols for adaptive experiments."""
 
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+import typing
 
-if TYPE_CHECKING:
-    from .models import JobDefinition, RunInfo
+if typing.TYPE_CHECKING:
+    import metta.adaptive.models
+
+    JobDefinition = metta.adaptive.models.JobDefinition
+    RunInfo = metta.adaptive.models.RunInfo
 
 
-@runtime_checkable
-class ExperimentScheduler(Protocol):
+@typing.runtime_checkable
+class ExperimentScheduler(typing.Protocol):
     """
     Simple scheduler protocol - gets runs, returns jobs to dispatch.
 
@@ -44,8 +47,8 @@ class ExperimentScheduler(Protocol):
         ...
 
 
-@runtime_checkable
-class Store(Protocol):
+@typing.runtime_checkable
+class Store(typing.Protocol):
     """
     Single source of truth for all run and experiment state.
     All operations are synchronous with retry logic built in.
@@ -57,7 +60,7 @@ class Store(Protocol):
         run_id: str,
         group: str | None = None,
         tags: list[str] | None = None,
-        initial_summary: dict[str, Any] | None = None,
+        initial_summary: dict[str, typing.Any] | None = None,
     ) -> None:
         """Initialize a new run with optional initial summary data"""
         ...
@@ -71,8 +74,8 @@ class Store(Protocol):
     # Optional: stores may expose configuration methods; not required here
 
 
-@runtime_checkable
-class Dispatcher(Protocol):
+@typing.runtime_checkable
+class Dispatcher(typing.Protocol):
     """
     Handles the mechanics of starting and monitoring jobs.
     All operations are synchronous with timeouts.
@@ -84,17 +87,17 @@ class Dispatcher(Protocol):
         ...
 
 
-@runtime_checkable
-class Optimizer(Protocol):
+@typing.runtime_checkable
+class Optimizer(typing.Protocol):
     """Suggests hyperparameters for new jobs."""
 
-    def suggest(self, observations: list[dict[str, Any]], n_suggestions: int = 1) -> list[dict[str, Any]]:
+    def suggest(self, observations: list[dict[str, typing.Any]], n_suggestions: int = 1) -> list[dict[str, typing.Any]]:
         """Suggest configurations for new jobs"""
         ...
 
 
-@runtime_checkable
-class SchedulerConfig(Protocol):
+@typing.runtime_checkable
+class SchedulerConfig(typing.Protocol):
     """Protocol for scheduler configuration objects expected by AdaptiveTool.
 
     Must be serializable; at minimum provide a model_dump() -> dict interface
@@ -102,21 +105,21 @@ class SchedulerConfig(Protocol):
     to passing into the tool.
     """
 
-    def model_dump(self) -> dict[str, Any]:  # pragma: no cover - protocol only
+    def model_dump(self) -> dict[str, typing.Any]:  # pragma: no cover - protocol only
         ...
 
 
-@runtime_checkable
-class ExperimentState(Protocol):
+@typing.runtime_checkable
+class ExperimentState(typing.Protocol):
     """Optional typed state object for experiments (serializable, Pydantic-like).
 
     Experiments that benefit from persistent or shared state (e.g., learning
     progress, advanced optimizers) can define a dedicated state model.
     """
 
-    def model_dump(self) -> dict[str, Any]:  # pragma: no cover - protocol only
+    def model_dump(self) -> dict[str, typing.Any]:  # pragma: no cover - protocol only
         ...
 
     @classmethod
-    def model_validate(cls, data: dict[str, Any]) -> "ExperimentState":  # pragma: no cover - protocol only
+    def model_validate(cls, data: dict[str, typing.Any]) -> "ExperimentState":  # pragma: no cover - protocol only
         ...

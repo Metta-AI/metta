@@ -32,10 +32,10 @@ import numpy as np
 
 # MettaGrid imports
 # Note: MettaGridPufferEnv inherits from PufferEnv, so it's fully PufferLib-compatible
-from mettagrid.builder.envs import make_arena
-from mettagrid.envs.mettagrid_puffer_env import MettaGridPufferEnv
-from mettagrid.mettagrid_c import dtype_actions
-from mettagrid.simulator import Simulator
+import mettagrid.builder.envs
+import mettagrid.envs.mettagrid_puffer_env
+import mettagrid.mettagrid_c
+import mettagrid.simulator
 
 # Training framework imports
 try:
@@ -48,7 +48,7 @@ except ImportError:
 
 def create_simulator():
     """Create simulator instance for Puffer integration."""
-    return Simulator()
+    return mettagrid.simulator.Simulator()
 
 
 def demo_puffer_env():
@@ -57,12 +57,12 @@ def demo_puffer_env():
     print("=" * 60)
 
     # Create simulator and config
-    simulator = Simulator()
-    cfg = make_arena(num_agents=24)
+    simulator = mettagrid.simulator.Simulator()
+    cfg = mettagrid.builder.envs.make_arena(num_agents=24)
 
     # Create MettaGridPufferEnv - which IS a PufferLib environment!
     # MettaGridPufferEnv inherits from PufferEnv, so it has all PufferLib functionality
-    env = MettaGridPufferEnv(
+    env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(
         simulator=simulator,
         cfg=cfg,
     )
@@ -76,10 +76,12 @@ def demo_puffer_env():
     print(f"   - Reset successful: observations shape {observations.shape}")
 
     # Generate random actions compatible with the action space
-    from gymnasium import spaces
+    import gymnasium
 
-    assert isinstance(env.single_action_space, spaces.Discrete)
-    actions = np.random.randint(0, env.single_action_space.n, size=(env.num_agents,)).astype(dtype_actions, copy=False)
+    assert isinstance(env.single_action_space, gymnasium.spaces.Discrete)
+    actions = np.random.randint(0, env.single_action_space.n, size=(env.num_agents,)).astype(
+        mettagrid.mettagrid_c.dtype_actions, copy=False
+    )
 
     _, rewards, terminals, truncations, _ = env.step(actions)
     print(f"   - Step successful: obs {observations.shape}, rewards {rewards.shape}")
@@ -93,11 +95,11 @@ def demo_random_rollout():
     print("=" * 60)
 
     # Create simulator and config
-    simulator = Simulator()
-    config = make_arena(num_agents=24)
+    simulator = mettagrid.simulator.Simulator()
+    config = mettagrid.builder.envs.make_arena(num_agents=24)
 
     # Create MettaGridPufferEnv for rollout
-    env = MettaGridPufferEnv(
+    env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(
         simulator=simulator,
         config=config,
     )
@@ -113,12 +115,9 @@ def demo_random_rollout():
     episodes = 0
 
     for _ in range(max_steps):
-        # Generate random actions for all agents
-        from gymnasium import spaces
-
-        assert isinstance(env.single_action_space, spaces.Discrete)
+        assert isinstance(env.single_action_space, gymnasium.spaces.Discrete)
         actions = np.random.randint(0, env.single_action_space.n, size=(env.num_agents,)).astype(
-            dtype_actions, copy=False
+            mettagrid.mettagrid_c.dtype_actions, copy=False
         )
 
         _, rewards, terminals, truncations, _ = env.step(actions)
@@ -156,11 +155,11 @@ def demo_pufferlib_training():
         return
 
     # Create simulator and config
-    simulator = Simulator()
-    config = make_arena(num_agents=24)
+    simulator = mettagrid.simulator.Simulator()
+    config = mettagrid.builder.envs.make_arena(num_agents=24)
 
     # MettaGridPufferEnv can be used directly with PufferLib training code
-    env = MettaGridPufferEnv(
+    env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(
         simulator=simulator,
         config=config,
     )
@@ -181,17 +180,14 @@ def demo_pufferlib_training():
         steps = 0
         max_steps = 256  # Reduced for faster CI
 
-        # Initialize simple policies based on action space type
-        from gymnasium import spaces
-
-        assert isinstance(env.single_action_space, spaces.Discrete)
+        assert isinstance(env.single_action_space, gymnasium.spaces.Discrete)
         action_preferences = np.ones(env.single_action_space.n)
 
         for _ in range(max_steps):
             # Sample actions based on current preferences
             probs = action_preferences / action_preferences.sum()
             actions = np.random.choice(env.single_action_space.n, size=env.num_agents, p=probs).astype(
-                dtype_actions, copy=False
+                mettagrid.mettagrid_c.dtype_actions, copy=False
             )
 
             _, rewards, terminals, truncations, _ = env.step(actions)

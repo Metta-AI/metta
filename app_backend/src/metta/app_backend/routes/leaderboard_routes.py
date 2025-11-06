@@ -1,31 +1,31 @@
 import logging
+import typing
 import uuid
-from typing import Dict, List
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+import fastapi
+import pydantic
 
-from metta.app_backend.auth import create_user_or_token_dependency
-from metta.app_backend.metta_repo import LeaderboardRow, MettaRepo
-from metta.app_backend.route_logger import timed_route
+import metta.app_backend.auth
+import metta.app_backend.metta_repo
+import metta.app_backend.route_logger
 
 # Set up logging for leaderboard routes
 logger = logging.getLogger("leaderboard_routes")
 logger.setLevel(logging.INFO)
 
 
-class LeaderboardCreateOrUpdate(BaseModel):
+class LeaderboardCreateOrUpdate(pydantic.BaseModel):
     name: str
-    evals: List[str]
+    evals: typing.List[str]
     metric: str
     start_date: str
 
 
-class LeaderboardResponse(BaseModel):
+class LeaderboardResponse(pydantic.BaseModel):
     id: str
     name: str
     user_id: str
-    evals: List[str]
+    evals: typing.List[str]
     metric: str
     start_date: str
     latest_episode: int
@@ -33,7 +33,7 @@ class LeaderboardResponse(BaseModel):
     updated_at: str
 
     @classmethod
-    def from_db(cls, leaderboard: LeaderboardRow) -> "LeaderboardResponse":
+    def from_db(cls, leaderboard: metta.app_backend.metta_repo.LeaderboardRow) -> "LeaderboardResponse":
         return cls(
             id=str(leaderboard.id),
             name=leaderboard.name,
@@ -47,19 +47,19 @@ class LeaderboardResponse(BaseModel):
         )
 
 
-class LeaderboardListResponse(BaseModel):
-    leaderboards: List[LeaderboardResponse]
+class LeaderboardListResponse(pydantic.BaseModel):
+    leaderboards: typing.List[LeaderboardResponse]
 
 
-def create_leaderboard_router(metta_repo: MettaRepo) -> APIRouter:
+def create_leaderboard_router(metta_repo: metta.app_backend.metta_repo.MettaRepo) -> fastapi.APIRouter:
     """Create a leaderboard router with the given MettaRepo instance."""
-    router = APIRouter(prefix="/leaderboards", tags=["leaderboards"])
+    router = fastapi.APIRouter(prefix="/leaderboards", tags=["leaderboards"])
 
     # Create the user-or-token authentication dependency
-    user_or_token = Depends(dependency=create_user_or_token_dependency(metta_repo))
+    user_or_token = fastapi.Depends(dependency=metta.app_backend.auth.create_user_or_token_dependency(metta_repo))
 
     @router.get("")
-    @timed_route("list_leaderboards")
+    @metta.app_backend.route_logger.timed_route("list_leaderboards")
     async def list_leaderboards(user_id: str = user_or_token) -> LeaderboardListResponse:  # type: ignore[reportUnusedFunction]
         """List all leaderboards for the current user."""
         leaderboards = await metta_repo.list_leaderboards()
@@ -68,17 +68,17 @@ def create_leaderboard_router(metta_repo: MettaRepo) -> APIRouter:
         )
 
     @router.get("/{leaderboard_id}")
-    @timed_route("get_leaderboard")
+    @metta.app_backend.route_logger.timed_route("get_leaderboard")
     async def get_leaderboard(leaderboard_id: str, user_id: str = user_or_token) -> LeaderboardResponse:  # type: ignore[reportUnusedFunction]
         """Get a specific leaderboard by ID."""
         leaderboard = await metta_repo.get_leaderboard(uuid.UUID(leaderboard_id))
         if not leaderboard:
-            raise HTTPException(status_code=404, detail="Leaderboard not found")
+            raise fastapi.HTTPException(status_code=404, detail="Leaderboard not found")
 
         return LeaderboardResponse.from_db(leaderboard)
 
     @router.post("")
-    @timed_route("create_leaderboard")
+    @metta.app_backend.route_logger.timed_route("create_leaderboard")
     async def create_leaderboard(  # type: ignore[reportUnusedFunction]
         leaderboard_data: LeaderboardCreateOrUpdate,
         user_id: str = user_or_token,
@@ -95,12 +95,12 @@ def create_leaderboard_router(metta_repo: MettaRepo) -> APIRouter:
         # Fetch the created leaderboard to return
         leaderboard = await metta_repo.get_leaderboard(leaderboard_id)
         if not leaderboard:
-            raise HTTPException(status_code=500, detail="Failed to create leaderboard")
+            raise fastapi.HTTPException(status_code=500, detail="Failed to create leaderboard")
 
         return LeaderboardResponse.from_db(leaderboard)
 
     @router.put("/{leaderboard_id}")
-    @timed_route("update_leaderboard")
+    @metta.app_backend.route_logger.timed_route("update_leaderboard")
     async def update_leaderboard(  # type: ignore[reportUnusedFunction]
         leaderboard_id: str, leaderboard_data: LeaderboardCreateOrUpdate, user_id: str = user_or_token
     ) -> LeaderboardResponse:
@@ -116,14 +116,14 @@ def create_leaderboard_router(metta_repo: MettaRepo) -> APIRouter:
         return LeaderboardResponse.from_db(leaderboard)
 
     @router.delete("/{leaderboard_id}")
-    @timed_route("delete_leaderboard")
+    @metta.app_backend.route_logger.timed_route("delete_leaderboard")
     async def delete_leaderboard(  # type: ignore[reportUnusedFunction]
         leaderboard_id: str, user_id: str = user_or_token
-    ) -> Dict[str, str]:
+    ) -> typing.Dict[str, str]:
         """Delete a leaderboard."""
         success = await metta_repo.delete_leaderboard(leaderboard_id, user_id)
         if not success:
-            raise HTTPException(status_code=404, detail="Leaderboard not found")
+            raise fastapi.HTTPException(status_code=404, detail="Leaderboard not found")
         return {"message": "Leaderboard deleted successfully"}
 
     return router

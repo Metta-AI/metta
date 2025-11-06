@@ -18,16 +18,16 @@ The build order is:
 
 import numpy as np
 
-from mettagrid.mapgen.scene import Scene, SceneConfig
+import mettagrid.mapgen.scene
 
 
-class VariedTerrainConfig(SceneConfig):
+class VariedTerrainConfig(mettagrid.mapgen.scene.SceneConfig):
     objects: dict[str, int]
     agents: int = 1
     style: str = "balanced"
 
 
-class VariedTerrain(Scene[VariedTerrainConfig]):
+class VariedTerrain(mettagrid.mapgen.scene.Scene[VariedTerrainConfig]):
     # Base style parameters for a 60x60 (area=3600) grid.
     # These counts are intentionally moderate.
     STYLE_PARAMETERS = {

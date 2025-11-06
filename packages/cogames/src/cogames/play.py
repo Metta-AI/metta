@@ -1,31 +1,31 @@
 """Game playing functionality for CoGames."""
 
 import logging
-from typing import TYPE_CHECKING
+import typing
 
-from rich.console import Console
+import rich.console
 
-from mettagrid import MettaGridConfig
-from mettagrid.policy.policy import PolicySpec
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.policy.utils import initialize_or_load_policy
-from mettagrid.renderer.renderer import RenderMode
-from mettagrid.simulator.rollout import Rollout
+import mettagrid
+import mettagrid.policy.policy
+import mettagrid.policy.policy_env_interface
+import mettagrid.policy.utils
+import mettagrid.renderer.renderer
+import mettagrid.simulator.rollout
 
-if TYPE_CHECKING:
-    from mettagrid import MettaGridConfig
+if typing.TYPE_CHECKING:
+    MettaGridConfig = mettagrid.MettaGridConfig
 
 
 logger = logging.getLogger("cogames.play")
 
 
 def play(
-    console: Console,
+    console: rich.console.Console,
     env_cfg: "MettaGridConfig",
-    policy_spec: PolicySpec,
+    policy_spec: mettagrid.policy.policy.PolicySpec,
     game_name: str,
     seed: int = 42,
-    render_mode: RenderMode = "gui",
+    render_mode: mettagrid.renderer.renderer.RenderMode = "gui",
 ) -> None:
     """Play a single game episode with a policy.
 
@@ -41,8 +41,8 @@ def play(
 
     logger.debug("Starting play session", extra={"game_name": game_name})
 
-    policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
-    policy = initialize_or_load_policy(
+    policy_env_info = mettagrid.policy.policy_env_interface.PolicyEnvInterface.from_mg_cfg(env_cfg)
+    policy = mettagrid.policy.utils.initialize_or_load_policy(
         policy_env_info,
         policy_spec.policy_class_path,
         policy_spec.policy_data_path,
@@ -50,7 +50,7 @@ def play(
     agent_policies = [policy.agent_policy(agent_id) for agent_id in range(env_cfg.game.num_agents)]
 
     # Create simulator and renderer
-    rollout = Rollout(env_cfg, agent_policies, render_mode=render_mode, seed=seed, pass_sim_to_policies=True)
+    rollout = mettagrid.simulator.rollout.Rollout(env_cfg, agent_policies, render_mode=render_mode, seed=seed, pass_sim_to_policies=True)
     rollout.run_until_done()
 
     # Print summary

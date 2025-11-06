@@ -1,12 +1,11 @@
 """Recipe registry for discovering and caching recipe modules."""
 
-from __future__ import annotations
 
 import importlib
 import importlib.util
 import pkgutil
 
-from metta.common.tool.recipe import Recipe
+import metta.common.tool.recipe
 
 
 class RecipeRegistry:
@@ -16,7 +15,7 @@ class RecipeRegistry:
     """
 
     _instance: RecipeRegistry | None = None
-    path_to_recipe: dict[str, Recipe]  # module_path -> Recipe
+    path_to_recipe: dict[str, metta.common.tool.recipe.Recipe]  # module_path -> Recipe
     _discovered: bool = False
 
     def __new__(cls) -> RecipeRegistry:
@@ -32,7 +31,7 @@ class RecipeRegistry:
             self.discover_all()
             self._discovered = True
 
-    def get(self, module_path: str) -> Recipe | None:
+    def get(self, module_path: str) -> metta.common.tool.recipe.Recipe | None:
         """Get a recipe by module path (tries both short and full paths)."""
         self._ensure_discovered()
 
@@ -48,7 +47,7 @@ class RecipeRegistry:
 
         # Try to load directly as a fallback for recipes outside experiments.recipes
         # This supports test fixtures and external recipe packages
-        recipe = Recipe.load(module_path)
+        recipe = metta.common.tool.recipe.Recipe.load(module_path)
         if recipe:
             # Check if it has tool makers (valid recipe)
             if recipe.get_explicit_tool_makers():
@@ -62,7 +61,7 @@ class RecipeRegistry:
         """Check if a recipe exists at the given module path."""
         return self.get(module_path) is not None
 
-    def get_all(self) -> list[Recipe]:
+    def get_all(self) -> list[metta.common.tool.recipe.Recipe]:
         """Get all discovered recipes."""
         self._ensure_discovered()
         return list(self.path_to_recipe.values())
@@ -92,7 +91,7 @@ class RecipeRegistry:
 
             # Try to load as recipe (skip packages, only load modules)
             if not ispkg:
-                recipe = Recipe.load(modname)
+                recipe = metta.common.tool.recipe.Recipe.load(modname)
                 if recipe:
                     # Only include if it has tool makers
                     if recipe.get_explicit_tool_makers():

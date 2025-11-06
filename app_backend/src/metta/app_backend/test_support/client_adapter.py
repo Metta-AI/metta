@@ -1,13 +1,13 @@
 """Adapter to make StatsClient work with TestClient for tests."""
 
+import fastapi.testclient
 import httpx
-from fastapi.testclient import TestClient
 
 
 class TestClientAdapter:
     """Adapter that makes TestClient work like httpx.AsyncClient for StatsClient."""
 
-    def __init__(self, test_client: TestClient):
+    def __init__(self, test_client: fastapi.testclient.TestClient):
         self.test_client = test_client
         self.base_url = test_client.base_url
 
@@ -23,11 +23,13 @@ class TestClientAdapter:
         return response
 
 
-def create_test_stats_client(test_client: TestClient, machine_token: str):
+def create_test_stats_client(test_client: fastapi.testclient.TestClient, machine_token: str):
     """Create a StatsClient that works with TestClient."""
-    from metta.app_backend.clients.stats_client import HttpStatsClient
+    import metta.app_backend.clients.stats_client
 
-    stats_client = HttpStatsClient(backend_url=str(test_client.base_url), machine_token=machine_token)
+    stats_client = metta.app_backend.clients.stats_client.HttpStatsClient(
+        backend_url=str(test_client.base_url), machine_token=machine_token
+    )
     stats_client._http_client = TestClientAdapter(test_client)  # type: ignore
 
     return stats_client

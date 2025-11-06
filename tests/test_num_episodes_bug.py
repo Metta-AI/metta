@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
 
+import pathlib
 import tempfile
 import uuid
-from pathlib import Path
 
-from metta.eval.eval_stats_db import EvalStatsDB
-from metta.rl.checkpoint_manager import CheckpointManager
+import metta.eval.eval_stats_db
+import metta.rl.checkpoint_manager
 
 
 def create_test_database(
-    db_path: Path,
+    db_path: pathlib.Path,
     num_episodes_requested: int,
     num_episodes_completed: int,
     num_agents: int = 2,
     checkpoint_filename: str = "test_policy/checkpoints/test_policy:v1.mpt",
 ):
     """Create a test database that simulates the bug scenario."""
-    db = EvalStatsDB(db_path)
+    db = metta.eval.eval_stats_db.EvalStatsDB(db_path)
 
     sim_id = uuid.uuid4().hex[:8]
-    metadata = CheckpointManager.get_policy_metadata(f"file:///tmp/{checkpoint_filename}")
+    metadata = metta.rl.checkpoint_manager.CheckpointManager.get_policy_metadata(f"file:///tmp/{checkpoint_filename}")
     policy_key, policy_version = metadata["run_name"], metadata["epoch"]
 
     db.con.execute(
@@ -58,10 +58,14 @@ def test_normalization_bug():
     checkpoint_filename = "test_policy/checkpoints/test_policy:v1.mpt"
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        db1 = create_test_database(Path(tmpdir) / "test1.duckdb", num_episodes_requested=1, num_episodes_completed=1)
-        db2 = create_test_database(Path(tmpdir) / "test2.duckdb", num_episodes_requested=5, num_episodes_completed=2)
+        db1 = create_test_database(
+            pathlib.Path(tmpdir) / "test1.duckdb", num_episodes_requested=1, num_episodes_completed=1
+        )
+        db2 = create_test_database(
+            pathlib.Path(tmpdir) / "test2.duckdb", num_episodes_requested=5, num_episodes_completed=2
+        )
 
-        policy_uri = CheckpointManager.normalize_uri(f"/tmp/{checkpoint_filename}")
+        policy_uri = metta.rl.checkpoint_manager.CheckpointManager.normalize_uri(f"/tmp/{checkpoint_filename}")
         avg_reward_complete = db1.get_average_metric("reward", policy_uri)
         avg_reward_partial = db2.get_average_metric("reward", policy_uri)
 

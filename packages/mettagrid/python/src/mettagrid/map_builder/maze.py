@@ -1,20 +1,20 @@
 import random
-from typing import Optional
+import typing
 
-from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
-from mettagrid.map_builder.utils import create_grid, set_position
+import mettagrid.map_builder.map_builder
+import mettagrid.map_builder.utils
 
 
-class MazeConfigMapBuilderConfig(MapBuilderConfig):
+class MazeConfigMapBuilderConfig(mettagrid.map_builder.map_builder.MapBuilderConfig):
     width: int
     height: int
     start_pos: tuple[int, int]
     end_pos: tuple[int, int]
     branching: float = 0.0
-    seed: Optional[int] = None
+    seed: typing.Optional[int] = None
 
 
-class MazePrimMapBuilder(MapBuilder[MazeConfigMapBuilderConfig]):
+class MazePrimMapBuilder(mettagrid.map_builder.map_builder.MapBuilder[MazeConfigMapBuilderConfig]):
     EMPTY, WALL = "empty", "wall"
     START, END = "agent.agent", "altar"
     DIRECTIONS = [(2, 0), (-2, 0), (0, 2), (0, -2)]
@@ -25,14 +25,17 @@ class MazePrimMapBuilder(MapBuilder[MazeConfigMapBuilderConfig]):
         self._width = config.width if config.width % 2 == 1 else config.width - 1
         self._height = config.height if config.height % 2 == 1 else config.height - 1
         self._start_pos = (
-            set_position(config.start_pos[0], self._width),
-            set_position(config.start_pos[1], self._height),
+            mettagrid.map_builder.utils.set_position(config.start_pos[0], self._width),
+            mettagrid.map_builder.utils.set_position(config.start_pos[1], self._height),
         )
-        self._end_pos = (set_position(config.end_pos[0], self._width), set_position(config.end_pos[1], self._height))
+        self._end_pos = (
+            mettagrid.map_builder.utils.set_position(config.end_pos[0], self._width),
+            mettagrid.map_builder.utils.set_position(config.end_pos[1], self._height),
+        )
 
-    def build(self) -> GameMap:
-        final_maze = create_grid(self._height, self._width, fill_value=self.WALL)
-        maze = create_grid(self._height, self._width, fill_value=self.WALL)
+    def build(self) -> mettagrid.map_builder.map_builder.GameMap:
+        final_maze = mettagrid.map_builder.utils.create_grid(self._height, self._width, fill_value=self.WALL)
+        maze = mettagrid.map_builder.utils.create_grid(self._height, self._width, fill_value=self.WALL)
         sx, sy = self._start_pos
         maze[sy, sx] = self.EMPTY
         walls = []
@@ -55,11 +58,11 @@ class MazePrimMapBuilder(MapBuilder[MazeConfigMapBuilderConfig]):
         maze[self._start_pos[1], self._start_pos[0]] = self.START
         maze[self._end_pos[1], self._end_pos[0]] = self.END
         final_maze[: self._height, : self._width] = maze
-        return GameMap(final_maze)
+        return mettagrid.map_builder.map_builder.GameMap(final_maze)
 
 
 # Maze generation using Randomized Kruskal's algorithm
-class MazeKruskalMapBuilder(MapBuilder[MazeConfigMapBuilderConfig]):
+class MazeKruskalMapBuilder(mettagrid.map_builder.map_builder.MapBuilder[MazeConfigMapBuilderConfig]):
     EMPTY, WALL = "empty", "wall"
     START, END = "agent.agent", "altar"
 
@@ -69,14 +72,17 @@ class MazeKruskalMapBuilder(MapBuilder[MazeConfigMapBuilderConfig]):
         self._width = config.width if config.width % 2 == 1 else config.width - 1
         self._height = config.height if config.height % 2 == 1 else config.height - 1
         self._start_pos = (
-            set_position(config.start_pos[0], self._width),
-            set_position(config.start_pos[1], self._height),
+            mettagrid.map_builder.utils.set_position(config.start_pos[0], self._width),
+            mettagrid.map_builder.utils.set_position(config.start_pos[1], self._height),
         )
-        self._end_pos = (set_position(config.end_pos[0], self._width), set_position(config.end_pos[1], self._height))
+        self._end_pos = (
+            mettagrid.map_builder.utils.set_position(config.end_pos[0], self._width),
+            mettagrid.map_builder.utils.set_position(config.end_pos[1], self._height),
+        )
 
-    def build(self) -> GameMap:
-        final_maze = create_grid(self._height, self._width, fill_value=self.WALL)
-        maze = create_grid(self._height, self._width, fill_value=self.WALL)
+    def build(self) -> mettagrid.map_builder.map_builder.GameMap:
+        final_maze = mettagrid.map_builder.utils.create_grid(self._height, self._width, fill_value=self.WALL)
+        maze = mettagrid.map_builder.utils.create_grid(self._height, self._width, fill_value=self.WALL)
         cells = [(x, y) for y in range(1, self._height, 2) for x in range(1, self._width, 2)]
         for x, y in cells:
             maze[y, x] = self.EMPTY
@@ -109,4 +115,4 @@ class MazeKruskalMapBuilder(MapBuilder[MazeConfigMapBuilderConfig]):
         maze[sy, sx] = self.START
         maze[ey, ex] = self.END
         final_maze[: self._height, : self._width] = maze
-        return GameMap(final_maze)
+        return mettagrid.map_builder.map_builder.GameMap(final_maze)

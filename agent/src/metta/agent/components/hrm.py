@@ -1,8 +1,8 @@
+import tensordict
 import torch
 import torch.nn as nn
-from tensordict import TensorDict
 
-from metta.agent.components.component_config import ComponentConfig
+import metta.agent.components.component_config
 
 
 def rms_norm(x: torch.Tensor, variance_epsilon: float = 1e-5) -> torch.Tensor:
@@ -69,7 +69,7 @@ class HRMReasoningModule(nn.Module):
         return hidden_states
 
 
-class HRMReasoningConfig(ComponentConfig):
+class HRMReasoningConfig(metta.agent.components.component_config.ComponentConfig):
     """HRM reasoning component config."""
 
     class_path: str = "metta.agent.components.hrm.HRMReasoning"
@@ -133,7 +133,7 @@ class HRMReasoning(nn.Module):
         self.carry.clear()
 
     @torch._dynamo.disable
-    def forward(self, td: TensorDict) -> TensorDict:
+    def forward(self, td: tensordict.TensorDict) -> tensordict.TensorDict:
         x = td[self.config.in_key]
 
         # Handle input shapes - flatten to (batch, embed_dim)

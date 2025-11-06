@@ -4,10 +4,10 @@ This avoids external services by monkeypatching store/dispatcher/controller.
 Verifies that the grid-search scheduler is constructed and can emit suggestions.
 """
 
-from typing import Any
+import typing
 
-from metta.sweep.core import CategoricalParameterConfig, grid_search
-from metta.sweep.schedulers.grid_search import GridSearchScheduler
+import metta.sweep.core
+import metta.sweep.schedulers.grid_search
 
 
 def test_sweep_tool_grid_search_builds_scheduler(monkeypatch, tmp_path) -> None:
@@ -15,26 +15,26 @@ def test_sweep_tool_grid_search_builds_scheduler(monkeypatch, tmp_path) -> None:
 
     # Dummy components to avoid external dependencies
     class DummyStore:
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
+        def __init__(self, *args: typing.Any, **kwargs: typing.Any) -> None:
             pass
 
         def fetch_runs(self, filters: dict, limit: int | None = None):
             return []
 
-        def init_run(self, *args: Any, **kwargs: Any):
+        def init_run(self, *args: typing.Any, **kwargs: typing.Any):
             return None
 
-        def update_run_summary(self, *args: Any, **kwargs: Any):
+        def update_run_summary(self, *args: typing.Any, **kwargs: typing.Any):
             return True
 
     class DummyDispatcher:
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
+        def __init__(self, *args: typing.Any, **kwargs: typing.Any) -> None:
             pass
 
         def dispatch(self, job):
             return "ok"
 
-    captured: dict[str, Any] = {}
+    captured: dict[str, typing.Any] = {}
 
     class DummyController:
         def __init__(self, experiment_id, scheduler, dispatcher, store, config):
@@ -54,10 +54,10 @@ def test_sweep_tool_grid_search_builds_scheduler(monkeypatch, tmp_path) -> None:
 
     # Build grid search tool
     params = {
-        "model": {"color": CategoricalParameterConfig(choices=["red", "blue"])},
+        "model": {"color": metta.sweep.core.CategoricalParameterConfig(choices=["red", "blue"])},
         "trainer": {"device": ["cpu", "cuda"]},
     }
-    tool = grid_search(
+    tool = metta.sweep.core.grid_search(
         name="grid.test",
         recipe="test.recipe",
         train_entrypoint="train",
@@ -80,7 +80,7 @@ def test_sweep_tool_grid_search_builds_scheduler(monkeypatch, tmp_path) -> None:
 
     # Validate that a GridSearchScheduler was constructed
     sched = captured.get("scheduler")
-    assert isinstance(sched, GridSearchScheduler)
+    assert isinstance(sched, metta.sweep.schedulers.grid_search.GridSearchScheduler)
 
     # Ask the scheduler for training jobs and validate suggestions
     jobs = sched.schedule([], available_training_slots=2)

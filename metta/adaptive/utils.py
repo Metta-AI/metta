@@ -3,10 +3,10 @@
 import hashlib
 import logging
 import time
-from typing import Any, Dict, Optional
+import typing
 
-from metta.adaptive.models import JobDefinition, JobTypes, RunInfo
-from metta.common.util.constants import PROD_STATS_SERVER_URI, SOFTMAX_S3_POLICY_PREFIX
+import metta.adaptive.models
+import metta.common.util.constants
 
 logger = logging.getLogger(__name__)
 
@@ -105,9 +105,9 @@ def get_display_id(run_id: str) -> str:
 def build_eval_overrides(
     run_id: str,
     experiment_id: str,
-    stats_server_uri: Optional[str] = PROD_STATS_SERVER_URI,
-    additional_overrides: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    stats_server_uri: typing.Optional[str] = metta.common.util.constants.PROD_STATS_SERVER_URI,
+    additional_overrides: typing.Optional[typing.Dict[str, typing.Any]] = None,
+) -> typing.Dict[str, typing.Any]:
     """Build evaluation override parameters.
 
     Args:
@@ -138,9 +138,9 @@ def build_eval_overrides(
 
 
 def build_train_overrides(
-    stats_server_uri: Optional[str] = None,
-    additional_overrides: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    stats_server_uri: typing.Optional[str] = None,
+    additional_overrides: typing.Optional[typing.Dict[str, typing.Any]] = None,
+) -> typing.Dict[str, typing.Any]:
     """Build training override parameters.
 
     Args:
@@ -166,8 +166,8 @@ def create_eval_job(
     experiment_id: str,
     recipe_module: str,
     eval_entrypoint: str,
-    stats_server_uri: Optional[str] = PROD_STATS_SERVER_URI,
-    eval_overrides: Optional[Dict[str, Any]] = None,
+    stats_server_uri: typing.Optional[str] = metta.common.util.constants.PROD_STATS_SERVER_URI,
+    eval_overrides: typing.Optional[typing.Dict[str, typing.Any]] = None,
 ) -> "JobDefinition":
     """Create an evaluation job definition.
 
@@ -191,11 +191,11 @@ def create_eval_job(
         additional_overrides=eval_overrides,
     )
 
-    return JobDefinition(
+    return metta.adaptive.models.JobDefinition(
         run_id=run_id,
         cmd=f"{recipe_module}.{eval_entrypoint}",
-        type=JobTypes.LAUNCH_EVAL,
-        args={"policy_uri": f"{SOFTMAX_S3_POLICY_PREFIX}/{run_id}:latest"},
+        type=metta.adaptive.models.JobTypes.LAUNCH_EVAL,
+        args={"policy_uri": f"{metta.common.util.constants.SOFTMAX_S3_POLICY_PREFIX}/{run_id}:latest"},
         overrides=overrides,
         metadata={},
     )
@@ -208,8 +208,8 @@ def create_training_job(
     train_entrypoint: str,
     gpus: int = 1,
     nodes: int = 1,
-    stats_server_uri: Optional[str] = None,
-    train_overrides: Optional[Dict[str, Any]] = None,
+    stats_server_uri: typing.Optional[str] = None,
+    train_overrides: typing.Optional[typing.Dict[str, typing.Any]] = None,
 ) -> "JobDefinition":
     """Create a training job definition.
 
@@ -232,10 +232,10 @@ def create_training_job(
         additional_overrides=train_overrides,
     )
 
-    return JobDefinition(
+    return metta.adaptive.models.JobDefinition(
         run_id=run_id,
         cmd=f"{recipe_module}.{train_entrypoint}",
-        type=JobTypes.LAUNCH_TRAINING,
+        type=metta.adaptive.models.JobTypes.LAUNCH_TRAINING,
         gpus=gpus,
         nodes=nodes,
         args={"run": run_id, "group": experiment_id},

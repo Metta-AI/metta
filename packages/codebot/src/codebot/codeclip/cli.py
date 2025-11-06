@@ -6,17 +6,17 @@ Provides a flexible way to extract context from codebases for LLM interactions.
 
 import logging
 import os
+import pathlib
 import platform
 import subprocess
 import sys
 import tempfile
-from pathlib import Path
-from typing import Annotated, Optional
+import typing
 
 import typer
 
-from .file import get_context
-from .token_profiler import generate_flamegraph, profile_code_context
+import codebot.codeclip.file
+import codebot.codeclip.token_profiler
 
 # Configure logging
 logging.basicConfig(
@@ -44,32 +44,35 @@ def copy_to_clipboard(content: str) -> None:
 
 @app.command()
 def main(
-    paths: Annotated[
-        Optional[list[str]], typer.Argument(help="Paths to include (space-separated). Example: metta/rl tests/rl")
+    paths: typing.Annotated[
+        typing.Optional[list[str]],
+        typer.Argument(help="Paths to include (space-separated). Example: metta/rl tests/rl"),
     ] = None,
-    stdout: Annotated[bool, typer.Option("-s", "--stdout", help="Output to stdout instead of clipboard")] = False,
-    readmes: Annotated[
+    stdout: typing.Annotated[
+        bool, typer.Option("-s", "--stdout", help="Output to stdout instead of clipboard")
+    ] = False,
+    readmes: typing.Annotated[
         bool, typer.Option("-r", "--readmes", help="Only include README.md files, including ancestor READMEs")
     ] = False,
-    extension: Annotated[
-        Optional[list[str]],
+    extension: typing.Annotated[
+        typing.Optional[list[str]],
         typer.Option("-e", "--extension", help="File extensions to include (e.g. -e py -e js or -e .py -e .js)"),
     ] = None,
-    ignore: Annotated[
-        Optional[list[str]],
+    ignore: typing.Annotated[
+        typing.Optional[list[str]],
         typer.Option(
             "-i",
             "--ignore",
             help="Ignore patterns: directory names (-i cache) or paths (-i build/cache)",
         ),
     ] = None,
-    profile: Annotated[
+    profile: typing.Annotated[
         bool, typer.Option("-p", "--profile", help="Show detailed token distribution analysis to stderr")
     ] = False,
-    flamegraph: Annotated[
+    flamegraph: typing.Annotated[
         bool, typer.Option("-f", "--flamegraph", help="Generate a flame graph HTML visualization of token distribution")
     ] = False,
-    diff: Annotated[
+    diff: typing.Annotated[
         bool, typer.Option("-d", "--diff", help="Append git diff vs origin/main to the output as a single virtual file")
     ] = False,
 ) -> None:
@@ -97,7 +100,7 @@ def main(
         # If we need profile or flamegraph, use profile_code_context which includes get_context
         if profile or flamegraph:
             # This calls get_context internally and builds the full profile
-            profile_report, profile_data = profile_code_context(
+            profile_report, profile_data = codebot.codeclip.token_profiler.profile_code_context(
                 paths=path_list,
                 extensions=normalized_extensions,
                 include_git_diff=diff,
@@ -108,7 +111,7 @@ def main(
             output_content = profile_data.get("context", "")
         else:
             # Just get content and basic token info
-            output_content, token_info = get_context(
+            output_content, token_info = codebot.codeclip.file.get_context(
                 paths=path_list,
                 extensions=normalized_extensions,
                 include_git_diff=diff,
@@ -130,7 +133,7 @@ def main(
 
             # Generate the flame graph
             logger.debug(f"Generating flame graph at: {flamegraph_path}")
-            generate_flamegraph(profile_data, flamegraph_path)
+            codebot.codeclip.token_profiler.generate_flamegraph(profile_data, flamegraph_path)
             logger.debug(f"Flame graph generated at: {flamegraph_path}")
             typer.echo(f"Flame graph generated at: {flamegraph_path}", err=True)
 
@@ -187,13 +190,13 @@ def main(
                     summary_items["<diff>"] = file_token_counts.get(doc.source, 0)
                     continue
 
-                doc_path = Path(doc.source)
+                doc_path = pathlib.Path(doc.source)
                 doc_path_resolved = doc_path.resolve()
 
                 # Check if this file is under any requested path
                 is_under_requested = False
                 for orig_path in path_list:
-                    req_path = Path(orig_path).resolve()
+                    req_path = pathlib.Path(orig_path).resolve()
                     try:
                         doc_path_resolved.relative_to(req_path)
                         is_under_requested = True
@@ -209,7 +212,7 @@ def main(
                     # For other files, group by the requested path
                     matched = False
                     for orig_path in path_list:
-                        req_path = Path(orig_path).resolve()
+                        req_path = pathlib.Path(orig_path).resolve()
                         try:
                             # Check if doc is under this requested path
                             doc_path_resolved.relative_to(req_path)
@@ -235,7 +238,7 @@ def main(
 
             # Auto-zoom: if single path requested and it's a directory, show its contents instead
             if len(path_list) == 1:
-                req_path = Path(path_list[0]).resolve()
+                req_path = pathlib.Path(path_list[0]).resolve()
                 if req_path.is_dir():
                     # Show individual files within the directory instead of the directory itself
                     summary_parts.append("  Top items:")
@@ -248,7 +251,7 @@ def main(
                             aggregated["<diff>"] = file_token_counts.get(doc.source, 0)
                             continue
 
-                        doc_path = Path(doc.source)
+                        doc_path = pathlib.Path(doc.source)
                         tokens = file_token_counts.get(doc.source, 0)
                         if tokens > 0:
                             try:
@@ -257,13 +260,13 @@ def main(
                                 # Get the immediate child name (first part of relative path)
                                 if len(relative.parts) > 0:
                                     immediate_child = relative.parts[0]
-                                    display_path = str(Path(path_list[0]) / immediate_child)
+                                    display_path = str(pathlib.Path(path_list[0]) / immediate_child)
                                     aggregated[display_path] = aggregated.get(display_path, 0) + tokens
                             except ValueError:
                                 # Show READMEs that were auto-included with full path
                                 if doc_path.name == "README.md":
                                     try:
-                                        display_path = str(doc_path.relative_to(Path.cwd()))
+                                        display_path = str(doc_path.relative_to(pathlib.Path.cwd()))
                                     except ValueError:
                                         display_path = str(doc_path)
                                     aggregated[display_path] = aggregated.get(display_path, 0) + tokens
@@ -279,9 +282,9 @@ def main(
                     for item_path, tokens in sorted_items:
                         pct = (tokens / total_tokens * 100) if total_tokens else 0
                         # Use relative path for display
-                        item_path_obj = Path(item_path)
+                        item_path_obj = pathlib.Path(item_path)
                         try:
-                            display_path = item_path_obj.relative_to(Path.cwd())
+                            display_path = item_path_obj.relative_to(pathlib.Path.cwd())
                         except ValueError:
                             display_path = item_path_obj.name
                         summary_parts.append(f"    {display_path}: ~{tokens:,} tokens ({pct:.0f}%)")
@@ -295,10 +298,10 @@ def main(
                         display_path = "<diff>"
                     else:
                         # Use relative path for display
-                        item_path_obj = Path(item_path)
+                        item_path_obj = pathlib.Path(item_path)
                         try:
                             # Try to make it relative to current working directory
-                            display_path = item_path_obj.relative_to(Path.cwd())
+                            display_path = item_path_obj.relative_to(pathlib.Path.cwd())
                         except ValueError:
                             # If that fails, just use the name
                             display_path = item_path_obj.name
@@ -311,12 +314,12 @@ def main(
             # If single path provided, show subdirectories/files
             if len(path_list) == 1:
                 # Find the root node
-                root_path = Path(path_list[0]).resolve()
+                root_path = pathlib.Path(path_list[0]).resolve()
 
                 # Collect immediate children (both files and directories)
                 children = []
                 for path_str, node in node_cache.items():
-                    path = Path(path_str)
+                    path = pathlib.Path(path_str)
                     try:
                         # Check if this is a direct child of root
                         relative = path.relative_to(root_path)
@@ -339,7 +342,7 @@ def main(
             else:
                 summary_parts.append("  By path:")
                 for path_str in path_list:
-                    path = Path(path_str).resolve()
+                    path = pathlib.Path(path_str).resolve()
                     node = node_cache.get(str(path))
                     if node:
                         pct = (node.total_tokens / total_tokens * 100) if total_tokens else 0
@@ -364,7 +367,7 @@ def main(
             if len(path_list) > 1:
                 summary_parts.append("  By path:")
                 for path_str in path_list:
-                    path = Path(path_str).resolve()
+                    path = pathlib.Path(path_str).resolve()
                     summary = path_summaries.get(str(path))
                     if summary:
                         tokens = summary["tokens"]

@@ -1,16 +1,18 @@
 import logging
 import time
-from typing import Generator
+import typing
 
 import pytest
 
-from mettagrid.profiling.system_monitor import SystemMonitor
+import mettagrid.profiling.system_monitor
 
 
 @pytest.fixture
-def monitor() -> Generator[SystemMonitor, None, None]:
+def monitor() -> typing.Generator[mettagrid.profiling.system_monitor.SystemMonitor, None, None]:
     """Create a SystemMonitor instance with auto_start=False"""
-    monitor = SystemMonitor(sampling_interval_sec=0.1, history_size=10, auto_start=False, log_level=logging.INFO)
+    monitor = mettagrid.profiling.system_monitor.SystemMonitor(
+        sampling_interval_sec=0.1, history_size=10, auto_start=False, log_level=logging.INFO
+    )
     yield monitor
     # Cleanup
     monitor.stop()
@@ -19,7 +21,9 @@ def monitor() -> Generator[SystemMonitor, None, None]:
 class TestInitialization:
     def test_init_custom_params(self):
         """Test initialization with custom parameters"""
-        monitor = SystemMonitor(sampling_interval_sec=2.0, history_size=50, log_level=logging.DEBUG, auto_start=False)
+        monitor = mettagrid.profiling.system_monitor.SystemMonitor(
+            sampling_interval_sec=2.0, history_size=50, log_level=logging.DEBUG, auto_start=False
+        )
 
         assert monitor.sampling_interval_sec == 2.0
         assert monitor.history_size == 50
@@ -27,7 +31,7 @@ class TestInitialization:
 
     def test_auto_start(self):
         """Test auto_start functionality"""
-        monitor = SystemMonitor(sampling_interval_sec=0.1, auto_start=True)
+        monitor = mettagrid.profiling.system_monitor.SystemMonitor(sampling_interval_sec=0.1, auto_start=True)
 
         # Should be running
         assert monitor._thread is not None

@@ -1,19 +1,19 @@
-from dataclasses import dataclass
-from functools import partial
-from typing import Callable
+import dataclasses
+import functools
+import typing
 
 import pytest
 
-from metta.tools.utils import auto_config
+import metta.tools.utils
 
 
 def _reset_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("REPLAY_DIR", raising=False)
     monkeypatch.delenv("POLICY_REMOTE_PREFIX", raising=False)
     monkeypatch.setattr(
-        auto_config,
+        metta.tools.utils.auto_config,
         "supported_aws_env_overrides",
-        auto_config.SupportedAwsEnvOverrides(),
+        metta.tools.utils.auto_config.SupportedAwsEnvOverrides(),
         raising=False,
     )
 
@@ -21,9 +21,9 @@ def _reset_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
 def _setup_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("POLICY_REMOTE_PREFIX", "s3://custom-bucket/policies")
     monkeypatch.setattr(
-        auto_config,
+        metta.tools.utils.auto_config,
         "supported_aws_env_overrides",
-        auto_config.SupportedAwsEnvOverrides(),
+        metta.tools.utils.auto_config.SupportedAwsEnvOverrides(),
         raising=False,
     )
 
@@ -49,14 +49,14 @@ def _patch_aws_setup(
         def check_connected_as(self) -> str | None:
             return connected_as
 
-    monkeypatch.setattr(auto_config, "AWSSetup", lambda: DummyAWSSetup(), raising=False)
+    monkeypatch.setattr(metta.tools.utils.auto_config, "AWSSetup", lambda: DummyAWSSetup(), raising=False)
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class Scenario:
     id: str
     run_name: str
-    setup: Callable[[pytest.MonkeyPatch], None]
+    setup: typing.Callable[[pytest.MonkeyPatch], None]
     expected_using_remote: bool
     expected_reason: str
     expected_base_prefix: str | None
@@ -76,11 +76,11 @@ _SCENARIOS: list[Scenario] = [
     Scenario(
         id="softmax_connected",
         run_name="softmax-run",
-        setup=partial(
+        setup=functools.partial(
             _patch_aws_setup,
             enabled=True,
             prefix="s3://softmax-public/policies",
-            connected_as=auto_config.METTA_AWS_ACCOUNT_ID,
+            connected_as=metta.tools.utils.auto_config.METTA_AWS_ACCOUNT_ID,
             extra_settings=None,
         ),
         expected_using_remote=True,
@@ -91,7 +91,7 @@ _SCENARIOS: list[Scenario] = [
     Scenario(
         id="not_connected",
         run_name="offline-run",
-        setup=partial(
+        setup=functools.partial(
             _patch_aws_setup,
             enabled=True,
             prefix="s3://softmax-public/policies",
@@ -106,7 +106,7 @@ _SCENARIOS: list[Scenario] = [
     Scenario(
         id="aws_not_enabled",
         run_name="local-run",
-        setup=partial(
+        setup=functools.partial(
             _patch_aws_setup,
             enabled=False,
             prefix=None,
@@ -121,11 +121,11 @@ _SCENARIOS: list[Scenario] = [
     Scenario(
         id="missing_prefix",
         run_name="mismatch-run",
-        setup=partial(
+        setup=functools.partial(
             _patch_aws_setup,
             enabled=True,
             prefix=None,
-            connected_as=auto_config.METTA_AWS_ACCOUNT_ID,
+            connected_as=metta.tools.utils.auto_config.METTA_AWS_ACCOUNT_ID,
             extra_settings={"replay_dir": "s3://softmax-public/replays/"},
         ),
         expected_using_remote=False,
@@ -142,7 +142,7 @@ def test_auto_policy_storage_decision(monkeypatch: pytest.MonkeyPatch, scenario:
     _reset_overrides(monkeypatch)
     scenario.setup(monkeypatch)
 
-    decision = auto_config.auto_policy_storage_decision(scenario.run_name)
+    decision = metta.tools.utils.auto_config.auto_policy_storage_decision(scenario.run_name)
 
     assert decision.using_remote is scenario.expected_using_remote
     assert decision.reason == scenario.expected_reason

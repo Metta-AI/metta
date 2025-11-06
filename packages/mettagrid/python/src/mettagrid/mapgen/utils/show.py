@@ -1,18 +1,18 @@
-from typing import Literal
+import typing
 
-from mettagrid import GameMap
-from mettagrid.mapgen.utils.ascii_grid import grid_to_lines
+import mettagrid
+import mettagrid.mapgen.utils.ascii_grid
 
-ShowMode = Literal["ascii", "ascii_border"]
+ShowMode = typing.Literal["ascii", "ascii_border"]
 
 
-def show_game_map(game_map: GameMap, mode: ShowMode):
+def show_game_map(game_map: mettagrid.GameMap, mode: ShowMode):
     if mode == "ascii":
-        ascii_lines = grid_to_lines(game_map.grid)
+        ascii_lines = mettagrid.mapgen.utils.ascii_grid.grid_to_lines(game_map.grid)
         print("\n".join(ascii_lines))
 
     elif mode == "ascii_border":
-        ascii_lines = grid_to_lines(game_map.grid, border=True)
+        ascii_lines = mettagrid.mapgen.utils.ascii_grid.grid_to_lines(game_map.grid, border=True)
         print("\n".join(ascii_lines))
 
     else:

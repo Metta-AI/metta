@@ -1,15 +1,14 @@
-from __future__ import annotations
 
+import pathlib
 import subprocess
 import sys
-from pathlib import Path
 
 import pytest
 
 pytestmark = pytest.mark.setup
 
 
-def test_lint_with_unsupported_files_exits_cleanly(tmp_path: Path) -> None:
+def test_lint_with_unsupported_files_exits_cleanly(tmp_path: pathlib.Path) -> None:
     """Test that metta lint with unsupported file extensions exits cleanly without formatting the entire repo."""
     # Create a test file with unsupported extension
     test_file = tmp_path / "test.txt"
@@ -28,7 +27,7 @@ def test_lint_with_unsupported_files_exits_cleanly(tmp_path: Path) -> None:
     assert "No files with supported extensions found" in result.stdout
 
 
-def test_lint_staged_with_only_unsupported_files_exits_cleanly(tmp_path: Path) -> None:
+def test_lint_staged_with_only_unsupported_files_exits_cleanly(tmp_path: pathlib.Path) -> None:
     """Test that metta lint --staged with only unsupported files exits cleanly."""
     # Initialize a git repo
     subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
@@ -66,17 +65,17 @@ def test_lint_staged_with_only_unsupported_files_exits_cleanly(tmp_path: Path) -
 
 def test_lint_check_mode_with_unsupported_formatter() -> None:
     """Test that metta lint --check returns False when formatter doesn't support check mode."""
-    from metta.setup.tools.code_formatters import FormatterConfig, run_formatter
+    import metta.setup.tools.code_formatters
 
     # Create a formatter without check command
-    formatter = FormatterConfig(
+    formatter = metta.setup.tools.code_formatters.FormatterConfig(
         name="test-formatter",
         format_cmd=["echo", "formatting"],
         check_cmd=None,  # No check command
     )
 
     # Run with check_only=True
-    result = run_formatter("test", formatter, Path.cwd(), check_only=True)
+    result = metta.setup.tools.code_formatters.run_formatter("test", formatter, pathlib.Path.cwd(), check_only=True)
 
     # Should return False to indicate check couldn't be performed
     assert result is False
@@ -84,17 +83,16 @@ def test_lint_check_mode_with_unsupported_formatter() -> None:
 
 def test_lint_check_mode_with_supported_formatter() -> None:
     """Test that metta lint --check works correctly with formatters that support it."""
-    from metta.setup.tools.code_formatters import FormatterConfig, run_formatter
 
     # Create a formatter with check command that succeeds
-    formatter = FormatterConfig(
+    formatter = metta.setup.tools.code_formatters.FormatterConfig(
         name="test-formatter",
         format_cmd=["true"],
         check_cmd=["true"],  # Command that always succeeds
     )
 
     # Run with check_only=True
-    result = run_formatter("test", formatter, Path.cwd(), check_only=True)
+    result = metta.setup.tools.code_formatters.run_formatter("test", formatter, pathlib.Path.cwd(), check_only=True)
 
     # Should return True since check command succeeded
     assert result is True

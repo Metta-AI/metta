@@ -13,15 +13,15 @@ import json
 import os
 import sys
 import time
-from typing import Tuple
+import typing
 
 # Add parent directory to path to import utils
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from utils.benchmark import run_with_benchmark
-from utils.smoke_test import SmokeTest
+import utils.benchmark
+import utils.smoke_test
 
 
-class EvaluationSmokeTest(SmokeTest):
+class EvaluationSmokeTest(utils.smoke_test.SmokeTest):
     """Evaluation smoke test with reward checking."""
 
     def __init__(self):
@@ -85,7 +85,7 @@ class EvaluationSmokeTest(SmokeTest):
                 print(f"Metrics structure: {json.dumps(metrics, indent=2)[:500]}...")
             return None
 
-    def run_evaluation_attempt(self, attempt: int) -> Tuple[bool, float | None, float, float]:
+    def run_evaluation_attempt(self, attempt: int) -> typing.Tuple[bool, float | None, float, float]:
         """
         Run a single evaluation attempt.
 
@@ -99,7 +99,7 @@ class EvaluationSmokeTest(SmokeTest):
         cmd = self.get_command_for_attempt(attempt)
         print(f"\nRunning evaluation attempt {attempt}...")
 
-        result = run_with_benchmark(cmd=cmd, name=f"eval_attempt_{attempt}", timeout=self.timeout)
+        result = utils.benchmark.run_with_benchmark(cmd=cmd, name=f"eval_attempt_{attempt}", timeout=self.timeout)
 
         success, output = self.process_result(result)
 

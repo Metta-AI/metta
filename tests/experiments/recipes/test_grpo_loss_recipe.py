@@ -1,8 +1,7 @@
-from __future__ import annotations
 
 import pytest
 
-from metta.tests_support.run_tool import RunToolResult, run_tool_in_process
+import metta.tests_support.run_tool
 
 
 @pytest.mark.parametrize(
@@ -18,7 +17,7 @@ def test_grpo_recipes_support_dry_run(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    result: RunToolResult = run_tool_in_process(
+    result: metta.tests_support.run_tool.RunToolResult = metta.tests_support.run_tool.run_tool_in_process(
         tool_path,
         "--dry-run",
         monkeypatch=monkeypatch,

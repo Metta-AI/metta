@@ -1,15 +1,15 @@
-from cogames.cogs_vs_clips.missions import HarvestMission, make_game
-from cogames.cogs_vs_clips.variants import NeutralFacedVariant
-from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig
+import cogames.cogs_vs_clips.missions
+import cogames.cogs_vs_clips.variants
+import mettagrid.config.mettagrid_config
 
 
 def test_make_cogs_vs_clips_scenario():
     """Test that make_cogs_vs_clips_scenario creates a valid configuration."""
     # Create the scenario
-    config = make_game()
+    config = cogames.cogs_vs_clips.missions.make_game()
 
     # Verify it returns a MettaGridConfig
-    assert isinstance(config, MettaGridConfig)
+    assert isinstance(config, mettagrid.config.mettagrid_config.MettaGridConfig)
 
     # # Check game configuration
     # assert config.game is not None
@@ -43,9 +43,9 @@ def test_make_cogs_vs_clips_scenario():
 
 
 def test_neutral_faced_variant_neutralizes_recipes():
-    mission = HarvestMission
+    mission = cogames.cogs_vs_clips.missions.HarvestMission
     assert mission.site is not None
-    mission = mission.with_variants([NeutralFacedVariant()])
+    mission = mission.with_variants([cogames.cogs_vs_clips.variants.NeutralFacedVariant()])
     env = mission.make_env()
 
     change_vibe = env.game.actions.change_vibe
@@ -53,7 +53,7 @@ def test_neutral_faced_variant_neutralizes_recipes():
     assert change_vibe.number_of_vibes == 1
 
     for obj in env.game.objects.values():
-        if not isinstance(obj, AssemblerConfig):
+        if not isinstance(obj, mettagrid.config.mettagrid_config.AssemblerConfig):
             continue
         assert len(obj.protocols) == 1
         protocol = obj.protocols[0]

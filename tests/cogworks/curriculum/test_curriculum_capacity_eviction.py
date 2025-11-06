@@ -1,7 +1,7 @@
 """Tests for curriculum capacity initialization and algorithm-based eviction."""
 
 import metta.cogworks.curriculum as cc
-from mettagrid.builder.envs import make_arena
+import mettagrid.builder.envs
 
 
 class TestCurriculumCapacityAndEviction:
@@ -10,7 +10,7 @@ class TestCurriculumCapacityAndEviction:
     def test_curriculum_starts_at_capacity(self):
         """Test that curriculum initializes at full capacity when configured."""
         # Create a curriculum with capacity initialization
-        arena = make_arena(num_agents=4)
+        arena = mettagrid.builder.envs.make_arena(num_agents=4)
         bucketed_config = cc.bucketed(arena)
         bucketed_config.add_bucket("game.agent.rewards.inventory.ore_red", [0.0, 1.0])
 
@@ -28,7 +28,7 @@ class TestCurriculumCapacityAndEviction:
     def test_algorithm_based_eviction_with_learning_progress(self):
         """Test that algorithm-based eviction works with learning progress criteria."""
         # Create a curriculum with algorithm-based eviction
-        arena = make_arena(num_agents=4)
+        arena = mettagrid.builder.envs.make_arena(num_agents=4)
         bucketed_config = cc.bucketed(arena)
         bucketed_config.add_bucket("game.agent.rewards.inventory.ore_red", [0.0, 0.5, 1.0])
         bucketed_config.add_bucket("game.agent.rewards.inventory.battery_red", [0.0, 0.5, 1.0])
@@ -104,7 +104,7 @@ class TestCurriculumCapacityAndEviction:
 
     def test_curriculum_without_algorithm(self):
         """Test that curriculum behavior without algorithm doesn't evict tasks."""
-        arena = make_arena(num_agents=4)
+        arena = mettagrid.builder.envs.make_arena(num_agents=4)
         bucketed_config = cc.bucketed(arena)
         bucketed_config.add_bucket("game.agent.rewards.inventory.ore_red", [0.0, 1.0])
 
@@ -130,7 +130,7 @@ class TestCurriculumCapacityAndEviction:
 
     def test_minimum_presentations_requirement(self):
         """Test that tasks are only evicted after minimum presentations."""
-        arena = make_arena(num_agents=4)
+        arena = mettagrid.builder.envs.make_arena(num_agents=4)
         bucketed_config = cc.bucketed(arena)
         bucketed_config.add_bucket("game.agent.rewards.inventory.ore_red", [0.0, 1.0])
 
@@ -211,7 +211,7 @@ class TestCurriculumCapacityAndEviction:
         # Set fixed seed for reproducible test behavior
         random.seed(42)
 
-        arena = make_arena(num_agents=4)
+        arena = mettagrid.builder.envs.make_arena(num_agents=4)
         bucketed_config = cc.bucketed(arena)
         bucketed_config.add_bucket("game.agent.rewards.inventory.ore_red", [0.0, 1.0])
 

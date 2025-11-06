@@ -8,14 +8,13 @@ Large Language Models to interact with and configure Weights & Biases dashboards
 import asyncio
 import logging
 import sys
-from typing import Any, Dict, List
+import typing
 
+import mcp.server
+import mcp.server.stdio
 import mcp.types as types
-from mcp.server import Server
-from mcp.server.stdio import stdio_server
-
-from .config import WandBMCPConfig
-from .tools import WandBDashboardTools, WandBDashboardToolsStub
+import mcp_servers.wandb_dashboard.wandb_dashboard.config
+import mcp_servers.wandb_dashboard.wandb_dashboard.tools
 
 logger = logging.getLogger(__name__)
 
@@ -24,17 +23,19 @@ class WandBDashboardMCPServer:
     """MCP Server that exposes WandB dashboard management functionality."""
 
     def __init__(self, server_name: str = "wandb-mcp", version: str = "0.1.0"):
-        self.app = Server(server_name)
+        self.app = mcp.server.Server(server_name)
         self.version = version
-        self.config = WandBMCPConfig()
+        self.config = mcp_servers.wandb_dashboard.wandb_dashboard.config.WandBMCPConfig()
 
         # Try to initialize tools, but don't fail if wandb auth fails
         try:
-            self.tools = WandBDashboardTools()
+            self.tools = mcp_servers.wandb_dashboard.wandb_dashboard.tools.WandBDashboardTools()
             self.authenticated = True
         except Exception as e:
             logger.warning(f"WandB authentication failed: {e}. Tools will have limited functionality.")
-            self.tools = WandBDashboardToolsStub()  # Use a stub implementation instead of None
+            self.tools = (
+                mcp_servers.wandb_dashboard.wandb_dashboard.tools.WandBDashboardToolsStub()
+            )  # Use a stub implementation instead of None
             self.authenticated = False
 
         self._setup_tools()
@@ -44,7 +45,7 @@ class WandBDashboardMCPServer:
         """Register all WandB dashboard tools with the MCP server."""
 
         @self.app.list_tools()
-        async def list_tools() -> List[types.Tool]:
+        async def list_tools() -> typing.List[types.Tool]:
             """List available WandB dashboard tools."""
             return [
                 types.Tool(
@@ -320,7 +321,7 @@ class WandBDashboardMCPServer:
             ]
 
         @self.app.call_tool()
-        async def call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextContent]:
+        async def call_tool(name: str, arguments: typing.Dict[str, typing.Any]) -> typing.List[types.TextContent]:
             """Handle tool calls by dispatching to appropriate methods."""
             try:
                 if name == "create_dashboard":
@@ -397,7 +398,7 @@ class WandBDashboardMCPServer:
         """Set up MCP resources for the server."""
 
         @self.app.list_resources()
-        async def list_resources() -> List[types.Resource]:
+        async def list_resources() -> typing.List[types.Resource]:
             """List available resources."""
             return [
                 types.Resource(
@@ -438,7 +439,7 @@ async def main():
     try:
         server = WandBDashboardMCPServer()
 
-        async with stdio_server() as (read_stream, write_stream):
+        async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
             await server.app.run(read_stream, write_stream, server.app.create_initialization_options())
     except KeyboardInterrupt:
         logger.info("Server stopped by user")

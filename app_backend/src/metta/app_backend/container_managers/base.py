@@ -1,23 +1,23 @@
+import abc
+import datetime
 import random
 import string
-from abc import ABC, abstractmethod
-from datetime import datetime, timezone
 
-from metta.app_backend.worker_managers.worker import Worker
+import metta.app_backend.worker_managers.worker
 
 
-class AbstractContainerManager(ABC):
+class AbstractContainerManager(abc.ABC):
     _container_prefix = "eval-worker-"
 
     def _format_container_name(self) -> str:
         return f"{self._container_prefix}-{self._generate_container_suffix()}"
 
     def _generate_container_suffix(self) -> str:
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+        timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d%H%M%S")
         random_suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
         return f"{timestamp}-{random_suffix}"
 
-    @abstractmethod
+    @abc.abstractmethod
     def start_worker_container(
         self,
         backend_url: str,
@@ -35,7 +35,7 @@ class AbstractContainerManager(ABC):
         """
         pass
 
-    @abstractmethod
+    @abc.abstractmethod
     def cleanup_container(self, name: str) -> None:
         """Remove/cleanup a container.
 
@@ -44,8 +44,8 @@ class AbstractContainerManager(ABC):
         """
         pass
 
-    @abstractmethod
-    async def discover_alive_workers(self) -> list[Worker]:
+    @abc.abstractmethod
+    async def discover_alive_workers(self) -> list[metta.app_backend.worker_managers.worker.Worker]:
         """Discover all alive workers.
 
         Returns:

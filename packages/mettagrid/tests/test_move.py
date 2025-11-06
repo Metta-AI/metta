@@ -2,35 +2,27 @@
 
 import pytest
 
-from mettagrid.config.mettagrid_config import (
-    ActionsConfig,
-    GameConfig,
-    MettaGridConfig,
-    MoveActionConfig,
-    NoopActionConfig,
-    ObsConfig,
-    WallConfig,
-)
-from mettagrid.map_builder.ascii import AsciiMapBuilder
-from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
-from mettagrid.simulator import Action, Simulation
-from mettagrid.test_support.actions import get_agent_position, move
-from mettagrid.test_support.map_builders import ObjectNameMapBuilder
-from mettagrid.test_support.orientation import Orientation
+import mettagrid.config.mettagrid_config
+import mettagrid.map_builder.ascii
+import mettagrid.mapgen.utils.ascii_grid
+import mettagrid.simulator
+import mettagrid.test_support.actions
+import mettagrid.test_support.map_builders
+import mettagrid.test_support.orientation
 
 
 # Test fixtures for MettaGrid environments
 @pytest.fixture
-def base_config() -> GameConfig:
+def base_config() -> mettagrid.config.mettagrid_config.GameConfig:
     """Base configuration for MettaGrid tests."""
-    return GameConfig(
+    return mettagrid.config.mettagrid_config.GameConfig(
         max_steps=50,
         num_agents=1,
-        obs=ObsConfig(width=3, height=3, num_tokens=100),
+        obs=mettagrid.config.mettagrid_config.ObsConfig(width=3, height=3, num_tokens=100),
         resource_names=["laser", "armor"],
-        actions=ActionsConfig(
-            noop=NoopActionConfig(enabled=True),
-            move=MoveActionConfig(
+        actions=mettagrid.config.mettagrid_config.ActionsConfig(
+            noop=mettagrid.config.mettagrid_config.NoopActionConfig(enabled=True),
+            move=mettagrid.config.mettagrid_config.MoveActionConfig(
                 enabled=True,
                 allowed_directions=[
                     "north",
@@ -45,7 +37,7 @@ def base_config() -> GameConfig:
             ),
         ),
         objects={
-            "wall": WallConfig(),
+            "wall": mettagrid.config.mettagrid_config.WallConfig(),
         },
     )
 
@@ -107,14 +99,14 @@ def make_sim(base_config):
             game_config = base_config
 
         # Create MettaGridConfig wrapper
-        cfg = MettaGridConfig(game=game_config)
+        cfg = mettagrid.config.mettagrid_config.MettaGridConfig(game=game_config)
 
         # Put the map into the config using ObjectNameMapBuilder
         # Convert numpy array to list if needed
         map_list = game_map.tolist() if hasattr(game_map, "tolist") else game_map
-        cfg.game.map_builder = ObjectNameMapBuilder.Config(map_data=map_list)
+        cfg.game.map_builder = mettagrid.test_support.map_builders.ObjectNameMapBuilder.Config(map_data=map_list)
 
-        sim = Simulation(cfg, seed=42)
+        sim = mettagrid.simulator.Simulation(cfg, seed=42)
 
         return sim
 
@@ -126,14 +118,14 @@ def test_8way_movement_all_directions(make_sim, movement_game_map):
     """Test 8-way movement in all eight directions using Simulation."""
     # Test all 8 directions with expected deltas
     all_direction_tests = [
-        (Orientation.NORTH, (-1, 0)),
-        (Orientation.EAST, (0, 1)),
-        (Orientation.SOUTH, (1, 0)),
-        (Orientation.WEST, (0, -1)),
-        (Orientation.NORTHEAST, (-1, 1)),
-        (Orientation.NORTHWEST, (-1, -1)),
-        (Orientation.SOUTHEAST, (1, 1)),
-        (Orientation.SOUTHWEST, (1, -1)),
+        (mettagrid.test_support.orientation.Orientation.NORTH, (-1, 0)),
+        (mettagrid.test_support.orientation.Orientation.EAST, (0, 1)),
+        (mettagrid.test_support.orientation.Orientation.SOUTH, (1, 0)),
+        (mettagrid.test_support.orientation.Orientation.WEST, (0, -1)),
+        (mettagrid.test_support.orientation.Orientation.NORTHEAST, (-1, 1)),
+        (mettagrid.test_support.orientation.Orientation.NORTHWEST, (-1, -1)),
+        (mettagrid.test_support.orientation.Orientation.SOUTHEAST, (1, 1)),
+        (mettagrid.test_support.orientation.Orientation.SOUTHWEST, (1, -1)),
     ]
 
     for orientation, (expected_dr, expected_dc) in all_direction_tests:
@@ -143,9 +135,9 @@ def test_8way_movement_all_directions(make_sim, movement_game_map):
 
         print(f"Testing move {direction_name} (value {orientation.value})")
 
-        position_before = get_agent_position(sim, 0)
-        result = move(sim, orientation)
-        position_after = get_agent_position(sim, 0)
+        position_before = mettagrid.test_support.actions.get_agent_position(sim, 0)
+        result = mettagrid.test_support.actions.move(sim, orientation)
+        position_after = mettagrid.test_support.actions.get_agent_position(sim, 0)
 
         # Assert movement was successful
         assert result["success"], f"Move {direction_name} should succeed. Error: {result.get('error', 'Unknown')}"
@@ -163,11 +155,11 @@ def test_8way_movement_all_directions(make_sim, movement_game_map):
 
 def test_8way_movement_obstacles():
     """Test that 8-way movement respects obstacles."""
-    cfg = MettaGridConfig(
-        game=GameConfig(
+    cfg = mettagrid.config.mettagrid_config.MettaGridConfig(
+        game=mettagrid.config.mettagrid_config.GameConfig(
             num_agents=1,
-            actions=ActionsConfig(
-                move=MoveActionConfig(
+            actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                move=mettagrid.config.mettagrid_config.MoveActionConfig(
                     allowed_directions=[
                         "north",
                         "south",
@@ -179,10 +171,10 @@ def test_8way_movement_obstacles():
                         "southwest",
                     ]
                 ),
-                noop=NoopActionConfig(),
+                noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
             ),
-            objects={"wall": WallConfig()},
-            map_builder=AsciiMapBuilder.Config(
+            objects={"wall": mettagrid.config.mettagrid_config.WallConfig()},
+            map_builder=mettagrid.map_builder.ascii.AsciiMapBuilder.Config(
                 map_data=[
                     ["#", "#", "#", "#", "#"],
                     ["#", ".", ".", ".", "#"],
@@ -190,27 +182,27 @@ def test_8way_movement_obstacles():
                     ["#", ".", ".", ".", "#"],
                     ["#", "#", "#", "#", "#"],
                 ],
-                char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                char_to_name_map=mettagrid.mapgen.utils.ascii_grid.DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
-    sim = Simulation(cfg)
+    sim = mettagrid.simulator.Simulation(cfg)
 
     objects = sim.grid_objects()
     agent_id = next(id for id, obj in objects.items() if obj["type_name"] == "agent")
 
     # Test cardinal movements near corners (skip diagonal movements)
     # Move to top-left corner area
-    sim.agent(0).set_action(Action(name="move_north"))
+    sim.agent(0).set_action(mettagrid.simulator.Action(name="move_north"))
     sim.step()
-    sim.agent(0).set_action(Action(name="move_west"))
+    sim.agent(0).set_action(mettagrid.simulator.Action(name="move_west"))
     sim.step()
 
     objects = sim.grid_objects()
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (1, 1)
 
     # Try to move West into wall - should fail
-    sim.agent(0).set_action(Action(name="move_west"))
+    sim.agent(0).set_action(mettagrid.simulator.Action(name="move_west"))
     sim.step()
     assert not sim.agent(0).last_action_success
 
@@ -221,11 +213,11 @@ def test_8way_movement_obstacles():
 
 def test_8way_movement_with_simple_environment():
     """Test 8-way movement using the simple environment builder."""
-    cfg = MettaGridConfig(
-        game=GameConfig(
+    cfg = mettagrid.config.mettagrid_config.MettaGridConfig(
+        game=mettagrid.config.mettagrid_config.GameConfig(
             num_agents=1,
-            actions=ActionsConfig(
-                move=MoveActionConfig(
+            actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                move=mettagrid.config.mettagrid_config.MoveActionConfig(
                     allowed_directions=[
                         "north",
                         "south",
@@ -237,10 +229,10 @@ def test_8way_movement_with_simple_environment():
                         "southwest",
                     ]
                 ),
-                noop=NoopActionConfig(),
+                noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
             ),
-            objects={"wall": WallConfig()},
-            map_builder=AsciiMapBuilder.Config(
+            objects={"wall": mettagrid.config.mettagrid_config.WallConfig()},
+            map_builder=mettagrid.map_builder.ascii.AsciiMapBuilder.Config(
                 map_data=[
                     ["#", "#", "#", "#", "#", "#", "#"],
                     ["#", ".", ".", ".", ".", ".", "#"],
@@ -248,11 +240,11 @@ def test_8way_movement_with_simple_environment():
                     ["#", ".", ".", ".", ".", ".", "#"],
                     ["#", "#", "#", "#", "#", "#", "#"],
                 ],
-                char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                char_to_name_map=mettagrid.mapgen.utils.ascii_grid.DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
-    sim = Simulation(cfg)
+    sim = mettagrid.simulator.Simulation(cfg)
 
     objects = sim.grid_objects()
     agent_id = next(id for id, obj in objects.items() if obj["type_name"] == "agent")
@@ -262,7 +254,7 @@ def test_8way_movement_with_simple_environment():
 
     # Test a few diagonal movements
     # Move northeast
-    sim.agent(0).set_action(Action(name="move_northeast"))
+    sim.agent(0).set_action(mettagrid.simulator.Action(name="move_northeast"))
     sim.step()
 
     objects = sim.grid_objects()
@@ -273,7 +265,7 @@ def test_8way_movement_with_simple_environment():
     assert pos_after_ne[1] == initial_pos[1] + 1, "Should move right (col+1) for northeast"
 
     # Move southwest (should return close to original position)
-    sim.agent(0).set_action(Action(name="move_southwest"))
+    sim.agent(0).set_action(mettagrid.simulator.Action(name="move_southwest"))
     sim.step()
 
     objects = sim.grid_objects()
@@ -285,11 +277,11 @@ def test_8way_movement_with_simple_environment():
 
 def test_8way_movement_boundary_check():
     """Test 8-way movement respects environment boundaries."""
-    cfg = MettaGridConfig(
-        game=GameConfig(
+    cfg = mettagrid.config.mettagrid_config.MettaGridConfig(
+        game=mettagrid.config.mettagrid_config.GameConfig(
             num_agents=1,
-            actions=ActionsConfig(
-                move=MoveActionConfig(
+            actions=mettagrid.config.mettagrid_config.ActionsConfig(
+                move=mettagrid.config.mettagrid_config.MoveActionConfig(
                     allowed_directions=[
                         "north",
                         "south",
@@ -301,10 +293,10 @@ def test_8way_movement_boundary_check():
                         "southwest",
                     ]
                 ),
-                noop=NoopActionConfig(),
+                noop=mettagrid.config.mettagrid_config.NoopActionConfig(),
             ),
-            objects={"wall": WallConfig()},
-            map_builder=AsciiMapBuilder.Config(
+            objects={"wall": mettagrid.config.mettagrid_config.WallConfig()},
+            map_builder=mettagrid.map_builder.ascii.AsciiMapBuilder.Config(
                 map_data=[
                     ["#", "#", "#", "#", "#"],
                     ["#", ".", ".", ".", "#"],
@@ -312,19 +304,19 @@ def test_8way_movement_boundary_check():
                     ["#", ".", ".", ".", "#"],
                     ["#", "#", "#", "#", "#"],
                 ],
-                char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                char_to_name_map=mettagrid.mapgen.utils.ascii_grid.DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
-    sim = Simulation(cfg)
+    sim = mettagrid.simulator.Simulation(cfg)
 
     objects = sim.grid_objects()
     agent_id = next(id for id, obj in objects.items() if obj["type_name"] == "agent")
 
     # Move agent to top-left corner area (near boundary)
-    sim.agent(0).set_action(Action(name="move_northwest"))
+    sim.agent(0).set_action(mettagrid.simulator.Action(name="move_northwest"))
     sim.step()
-    sim.agent(0).set_action(Action(name="move_northwest"))
+    sim.agent(0).set_action(mettagrid.simulator.Action(name="move_northwest"))
     sim.step()
 
     objects = sim.grid_objects()
@@ -334,7 +326,7 @@ def test_8way_movement_boundary_check():
     assert position == (1, 1), f"Agent should be at top-left corner (1,1), but is at {position}"
 
     # Try to move northwest again - should be blocked by wall
-    sim.agent(0).set_action(Action(name="move_northwest"))
+    sim.agent(0).set_action(mettagrid.simulator.Action(name="move_northwest"))
     sim.step()
 
     # Check that agent didn't move
@@ -346,13 +338,13 @@ def test_8way_movement_boundary_check():
 
     # Try diagonal move toward boundary in different direction
     # Move to bottom-right area
-    sim.agent(0).set_action(Action(name="move_southeast"))
+    sim.agent(0).set_action(mettagrid.simulator.Action(name="move_southeast"))
     sim.step()
-    sim.agent(0).set_action(Action(name="move_southeast"))
+    sim.agent(0).set_action(mettagrid.simulator.Action(name="move_southeast"))
     sim.step()
-    sim.agent(0).set_action(Action(name="move_southeast"))
+    sim.agent(0).set_action(mettagrid.simulator.Action(name="move_southeast"))
     sim.step()
-    sim.agent(0).set_action(Action(name="move_southeast"))
+    sim.agent(0).set_action(mettagrid.simulator.Action(name="move_southeast"))
     sim.step()
 
     objects = sim.grid_objects()
@@ -362,7 +354,7 @@ def test_8way_movement_boundary_check():
     assert position == (3, 3), f"Agent should be at bottom-right corner (3,3), but is at {position}"
 
     # Try to move southeast again - should be blocked
-    sim.agent(0).set_action(Action(name="move_southeast"))
+    sim.agent(0).set_action(mettagrid.simulator.Action(name="move_southeast"))
     sim.step()
 
     assert not sim.agent(0).last_action_success, "Movement should fail at boundary"
@@ -377,15 +369,15 @@ def test_move_all_directions(make_sim, movement_game_map):
     """Test the move function in all eight compass directions."""
     sim = make_sim(movement_game_map)
 
-    initial_pos = get_agent_position(sim)
+    initial_pos = mettagrid.test_support.actions.get_agent_position(sim)
     assert initial_pos is not None, "Agent should have a valid initial position"
 
     # Test cardinal directions first
     cardinal_tests = [
-        (Orientation.NORTH, (-1, 0)),
-        (Orientation.EAST, (0, 1)),
-        (Orientation.SOUTH, (1, 0)),
-        (Orientation.WEST, (0, -1)),
+        (mettagrid.test_support.orientation.Orientation.NORTH, (-1, 0)),
+        (mettagrid.test_support.orientation.Orientation.EAST, (0, 1)),
+        (mettagrid.test_support.orientation.Orientation.SOUTH, (1, 0)),
+        (mettagrid.test_support.orientation.Orientation.WEST, (0, -1)),
     ]
 
     for orientation, (expected_dr, expected_dc) in cardinal_tests:
@@ -393,9 +385,9 @@ def test_move_all_directions(make_sim, movement_game_map):
 
         print(f"Testing move {direction_name} (value {orientation.value})")
 
-        position_before = get_agent_position(sim, 0)
-        result = move(sim, orientation)
-        position_after = get_agent_position(sim, 0)
+        position_before = mettagrid.test_support.actions.get_agent_position(sim, 0)
+        result = mettagrid.test_support.actions.move(sim, orientation)
+        position_after = mettagrid.test_support.actions.get_agent_position(sim, 0)
 
         # Assert movement was successful
         assert result["success"], f"Move {direction_name} should succeed. Error: {result.get('error', 'Unknown')}"
@@ -415,10 +407,10 @@ def test_move_diagonal_directions(make_sim, movement_game_map):
     """Test the move function in all four diagonal directions."""
     # Test diagonal directions
     diagonal_tests = [
-        (Orientation.NORTHEAST, (-1, 1)),
-        (Orientation.NORTHWEST, (-1, -1)),
-        (Orientation.SOUTHEAST, (1, 1)),
-        (Orientation.SOUTHWEST, (1, -1)),
+        (mettagrid.test_support.orientation.Orientation.NORTHEAST, (-1, 1)),
+        (mettagrid.test_support.orientation.Orientation.NORTHWEST, (-1, -1)),
+        (mettagrid.test_support.orientation.Orientation.SOUTHEAST, (1, 1)),
+        (mettagrid.test_support.orientation.Orientation.SOUTHWEST, (1, -1)),
     ]
 
     for orientation, (expected_dr, expected_dc) in diagonal_tests:
@@ -428,9 +420,9 @@ def test_move_diagonal_directions(make_sim, movement_game_map):
 
         print(f"Testing move {direction_name} (value {orientation.value})")
 
-        position_before = get_agent_position(sim, 0)
-        result = move(sim, orientation)
-        position_after = get_agent_position(sim, 0)
+        position_before = mettagrid.test_support.actions.get_agent_position(sim, 0)
+        result = mettagrid.test_support.actions.move(sim, orientation)
+        position_after = mettagrid.test_support.actions.get_agent_position(sim, 0)
 
         # Assert movement was successful
         assert result["success"], f"Move {direction_name} should succeed. Error: {result.get('error', 'Unknown')}"
@@ -451,14 +443,16 @@ def test_move_up(make_sim, small_movement_game_map):
     sim = make_sim(small_movement_game_map, {"max_steps": 10})
 
     # Get position before move
-    position_before = get_agent_position(sim, 0)
+    position_before = mettagrid.test_support.actions.get_agent_position(sim, 0)
 
-    result = move(sim, Orientation.NORTH)  # Use Orientation.NORTH for moving up
+    result = mettagrid.test_support.actions.move(
+        sim, mettagrid.test_support.orientation.Orientation.NORTH
+    )  # Use Orientation.NORTH for moving up
 
     assert result["success"], f"Move north should succeed. Error: {result.get('error')}"
 
     # Get position after move and verify
-    position_after = get_agent_position(sim, 0)
+    position_after = mettagrid.test_support.actions.get_agent_position(sim, 0)
     assert position_before[0] - position_after[0] == 1, "Should move up by 1 row"
 
 
@@ -467,16 +461,16 @@ def test_move_blocked_by_wall(make_sim, blocked_game_map):
     sim = make_sim(blocked_game_map, {"max_steps": 10})
 
     directions = [
-        Orientation.NORTH,
-        Orientation.EAST,
-        Orientation.SOUTH,
-        Orientation.WEST,
+        mettagrid.test_support.orientation.Orientation.NORTH,
+        mettagrid.test_support.orientation.Orientation.EAST,
+        mettagrid.test_support.orientation.Orientation.SOUTH,
+        mettagrid.test_support.orientation.Orientation.WEST,
     ]
 
     for orientation in directions:
-        position_before = get_agent_position(sim, 0)
-        result = move(sim, orientation)
-        position_after = get_agent_position(sim, 0)
+        position_before = mettagrid.test_support.actions.get_agent_position(sim, 0)
+        result = mettagrid.test_support.actions.move(sim, orientation)
+        position_after = mettagrid.test_support.actions.get_agent_position(sim, 0)
         direction_name = str(orientation)
 
         # Movement should fail or position should remain unchanged
@@ -493,24 +487,24 @@ def test_move_returns_to_center(make_sim, movement_game_map):
     """Test that we can move in a square and return to center."""
     sim = make_sim(movement_game_map)
 
-    initial_pos = get_agent_position(sim)
+    initial_pos = mettagrid.test_support.actions.get_agent_position(sim)
 
     # Move in a square: north, east, south, west
     moves = [
-        Orientation.NORTH,
-        Orientation.EAST,
-        Orientation.SOUTH,
-        Orientation.WEST,
+        mettagrid.test_support.orientation.Orientation.NORTH,
+        mettagrid.test_support.orientation.Orientation.EAST,
+        mettagrid.test_support.orientation.Orientation.SOUTH,
+        mettagrid.test_support.orientation.Orientation.WEST,
     ]
 
     for orientation in moves:
-        result = move(sim, orientation)
+        result = mettagrid.test_support.actions.move(sim, orientation)
         direction_name = str(orientation)
 
         assert result["success"], f"Move {direction_name} should succeed"
 
     # Should be back at original position
-    final_pos = get_agent_position(sim)
+    final_pos = mettagrid.test_support.actions.get_agent_position(sim)
     assert final_pos == initial_pos, f"Agent should return to original position {initial_pos}, but is at {final_pos}"
 
 
@@ -543,10 +537,10 @@ def test_agent_walks_across_room(make_sim, corridor_game_map):
 
     # Test all cardinal directions
     directions = [
-        Orientation.NORTH,
-        Orientation.EAST,
-        Orientation.SOUTH,
-        Orientation.WEST,
+        mettagrid.test_support.orientation.Orientation.NORTH,
+        mettagrid.test_support.orientation.Orientation.EAST,
+        mettagrid.test_support.orientation.Orientation.SOUTH,
+        mettagrid.test_support.orientation.Orientation.WEST,
     ]
 
     for orientation in directions:
@@ -554,7 +548,7 @@ def test_agent_walks_across_room(make_sim, corridor_game_map):
 
         print(f"\nTesting movement {direction_name}...")
 
-        result = move(sim, orientation, agent_idx=0)
+        result = mettagrid.test_support.actions.move(sim, orientation, agent_idx=0)
 
         if result["success"]:
             print(f"✓ Found working direction: {direction_name}")
@@ -585,9 +579,9 @@ def test_agent_walks_across_room(make_sim, corridor_game_map):
     for step in range(1, max_steps + 1):
         print(f"\n--- Step {step}: Moving {working_direction_str} ---")
 
-        position_before = get_agent_position(sim, 0)
-        result = move(sim, working_direction, agent_idx=0)
-        position_after = get_agent_position(sim, 0)
+        position_before = mettagrid.test_support.actions.get_agent_position(sim, 0)
+        result = mettagrid.test_support.actions.move(sim, working_direction, agent_idx=0)
+        position_after = mettagrid.test_support.actions.get_agent_position(sim, 0)
         total_moves += 1
 
         if result["success"]:
@@ -630,10 +624,10 @@ def test_agent_walks_in_all_cardinal_directions(make_sim, corridor_game_map):
 
     # Test all cardinal directions using Orientation
     directions = [
-        Orientation.NORTH,
-        Orientation.EAST,
-        Orientation.SOUTH,
-        Orientation.WEST,
+        mettagrid.test_support.orientation.Orientation.NORTH,
+        mettagrid.test_support.orientation.Orientation.EAST,
+        mettagrid.test_support.orientation.Orientation.SOUTH,
+        mettagrid.test_support.orientation.Orientation.WEST,
     ]
 
     for orientation in directions:
@@ -644,9 +638,9 @@ def test_agent_walks_in_all_cardinal_directions(make_sim, corridor_game_map):
         # Reset environment for each direction test
         sim = make_sim(corridor_game_map, {"max_steps": 20})
 
-        position_before = get_agent_position(sim, 0)
-        result = move(sim, orientation, agent_idx=0)
-        position_after = get_agent_position(sim, 0)
+        position_before = mettagrid.test_support.actions.get_agent_position(sim, 0)
+        result = mettagrid.test_support.actions.move(sim, orientation, agent_idx=0)
+        position_after = mettagrid.test_support.actions.get_agent_position(sim, 0)
 
         if result["success"] and position_before != position_after:
             successful_directions.append(direction_name)

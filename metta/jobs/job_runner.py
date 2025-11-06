@@ -4,47 +4,41 @@ Unified interface for running jobs locally via subprocess or remotely via SkyPil
 Supports both sync (wait) and async (submit + poll) execution patterns.
 """
 
-from __future__ import annotations
 
+import abc
+import dataclasses
+import datetime
 import os
+import pathlib
 import shlex
 import signal
 import subprocess
 import time
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from datetime import datetime
-from pathlib import Path
-from typing import Callable, Optional
+import typing
 
 import sky
 import sky.exceptions
 import sky.jobs
 
-from devops.skypilot.utils.job_helpers import (
-    check_job_statuses,
-    get_job_id_from_request_id,
-    get_request_id_from_launch_output,
-    tail_job_log,
-)
-from metta.common.util.fs import get_repo_root
-from metta.common.util.retry import retry_function
-from metta.jobs.job_config import JobConfig
+import devops.skypilot.utils.job_helpers
+import metta.common.util.fs
+import metta.common.util.retry
+import metta.jobs.job_config
 
 
-@dataclass
+@dataclasses.dataclass
 class JobResult:
     """Result of a completed job execution."""
 
     name: str
     exit_code: int
     logs_path: str
-    job_id: Optional[str] = None
-    duration_s: Optional[float] = None
+    job_id: typing.Optional[str] = None
+    duration_s: typing.Optional[float] = None
 
     def get_logs(self) -> str:
-        if self.logs_path and Path(self.logs_path).exists():
-            return Path(self.logs_path).read_text(errors="ignore")
+        if self.logs_path and pathlib.Path(self.logs_path).exists():
+            return pathlib.Path(self.logs_path).read_text(errors="ignore")
         return ""
 
     @property
@@ -52,35 +46,35 @@ class JobResult:
         return self.exit_code == 0
 
 
-class Job(ABC):
+class Job(abc.ABC):
     """Abstract base class for job execution."""
 
     def __init__(self, name: str, log_dir: str, timeout_s: int = 3600):
         self.name = name
-        self.log_dir = Path(log_dir)
+        self.log_dir = pathlib.Path(log_dir)
         self.timeout_s = timeout_s
         self._submitted = False
-        self._result: Optional[JobResult] = None
+        self._result: typing.Optional[JobResult] = None
 
-    @abstractmethod
+    @abc.abstractmethod
     def submit(self) -> None:
         """Submit job for execution (async - returns immediately)."""
         pass
 
-    @abstractmethod
+    @abc.abstractmethod
     def is_complete(self) -> bool:
         pass
 
-    @abstractmethod
+    @abc.abstractmethod
     def get_logs(self) -> str:
         pass
 
-    def get_result(self) -> Optional[JobResult]:
+    def get_result(self) -> typing.Optional[JobResult]:
         if self.is_complete() and not self._result:
             self._result = self._fetch_result()
         return self._result
 
-    @abstractmethod
+    @abc.abstractmethod
     def _fetch_result(self) -> JobResult:
         pass
 
@@ -135,16 +129,16 @@ class Job(ABC):
             self._handle_interrupt()
             raise
 
-    @abstractmethod
+    @abc.abstractmethod
     def _handle_interrupt(self) -> None:
         pass
 
-    @abstractmethod
+    @abc.abstractmethod
     def cancel(self) -> None:
         pass
 
-    @abstractmethod
-    def _get_log_path(self) -> Path:
+    @abc.abstractmethod
+    def _get_log_path(self) -> pathlib.Path:
         pass
 
     @property
@@ -178,12 +172,12 @@ class LocalJob(Job):
 
     def __init__(
         self,
-        config: JobConfig,
+        config: metta.jobs.job_config.JobConfig,
         log_dir: str = "logs/local",
-        cwd: Optional[str] = None,
+        cwd: typing.Optional[str] = None,
     ):
         super().__init__(config.name, log_dir, config.timeout_s)
-        self.cwd = cwd or get_repo_root()
+        self.cwd = cwd or metta.common.util.fs.get_repo_root()
 
         if "cmd" in config.metadata:
             cmd = config.metadata["cmd"]
@@ -194,9 +188,9 @@ class LocalJob(Job):
             self.cmd = ["uv", "run", "./tools/run.py", config.module]
             self.cmd.extend(config.args)
 
-        self._proc: Optional[subprocess.Popen] = None
-        self._exit_code: Optional[int] = None
-        self._start_time: Optional[float] = None
+        self._proc: typing.Optional[subprocess.Popen] = None
+        self._exit_code: typing.Optional[int] = None
+        self._start_time: typing.Optional[float] = None
 
     def submit(self) -> None:
         """Start local subprocess and begin capturing output.
@@ -290,7 +284,7 @@ class LocalJob(Job):
             duration_s=duration,
         )
 
-    def _get_log_path(self) -> Path:
+    def _get_log_path(self) -> pathlib.Path:
         return self.log_dir / f"{self.name}.log"
 
     @property
@@ -335,9 +329,9 @@ class RemoteJob(Job):
 
     def __init__(
         self,
-        config: JobConfig,
+        config: metta.jobs.job_config.JobConfig,
         log_dir: str = "logs/remote",
-        job_id: Optional[int] = None,
+        job_id: typing.Optional[int] = None,
         skip_git_check: bool = False,
     ):
         super().__init__(config.name, log_dir, config.timeout_s)
@@ -359,22 +353,22 @@ class RemoteJob(Job):
         self.args = arg_list
         self.base_args = base_args
         self.skip_git_check = skip_git_check
-        self._job_id: Optional[int] = job_id
-        self._request_id: Optional[str] = None
-        self._start_time: Optional[float] = None
+        self._job_id: typing.Optional[int] = job_id
+        self._request_id: typing.Optional[str] = None
+        self._start_time: typing.Optional[float] = None
         self._is_resumed = bool(job_id)
-        self._job_status: Optional[str] = None
-        self._exit_code: Optional[int] = None
-        self._timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        self._job_status: typing.Optional[str] = None
+        self._exit_code: typing.Optional[int] = None
+        self._timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         self._full_logs_fetched = False
-        self._run_name: Optional[str] = None  # WandB run name (only for training jobs)
+        self._run_name: typing.Optional[str] = None  # WandB run name (only for training jobs)
 
     def _generate_run_name(self) -> str:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_name = self.name.replace("/", "_")
         return f"job_{safe_name}_{timestamp}"
 
-    def _launch_via_script(self, run_name: str | None) -> tuple[Optional[str], Optional[int], str]:
+    def _launch_via_script(self, run_name: str | None) -> tuple[typing.Optional[str], typing.Optional[int], str]:
         """Launch job via launch.py script, returning (request_id, job_id, output).
 
         SkyPilot launch flow:
@@ -401,9 +395,9 @@ class RemoteJob(Job):
         if self.skip_git_check:
             cmd.append("--skip-git-check")
 
-        result = subprocess.run(cmd, capture_output=True, text=True, cwd=get_repo_root())
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=metta.common.util.fs.get_repo_root())
         full_output = result.stdout + "\n" + result.stderr
-        request_id = get_request_id_from_launch_output(full_output)
+        request_id = devops.skypilot.utils.job_helpers.get_request_id_from_launch_output(full_output)
 
         if not request_id:
             if "sky-jobs-controller" in full_output.lower() and "not up" in full_output.lower():
@@ -418,12 +412,12 @@ class RemoteJob(Job):
         try:
 
             def get_job_id_with_wait() -> str:
-                job_id = get_job_id_from_request_id(request_id, wait_seconds=2.0)
+                job_id = devops.skypilot.utils.job_helpers.get_job_id_from_request_id(request_id, wait_seconds=2.0)
                 if not job_id:
                     raise Exception("Job ID not available yet")
                 return job_id
 
-            job_id_str = retry_function(get_job_id_with_wait, max_retries=2, initial_delay=2.0)
+            job_id_str = metta.common.util.retry.retry_function(get_job_id_with_wait, max_retries=2, initial_delay=2.0)
             job_id = int(job_id_str)
         except Exception:
             job_id = None
@@ -457,7 +451,7 @@ class RemoteJob(Job):
             # Only generate run_name for training jobs (they use WandB)
             run_name = self._generate_run_name() if self.config.is_training_job else None
             self._run_name = run_name  # Store for WandB URL construction (None for non-training)
-            request_id, job_id, _ = retry_function(
+            request_id, job_id, _ = metta.common.util.retry.retry_function(
                 lambda: self._launch_via_script(run_name),
                 max_retries=max_attempts - 1,
             )
@@ -478,7 +472,7 @@ class RemoteJob(Job):
         self,
         stream_output: bool = False,
         poll_interval_s: float = 5.0,
-        on_job_id_ready: Optional[Callable] = None,
+        on_job_id_ready: typing.Optional[typing.Callable] = None,
     ) -> JobResult:
         """Override wait() to call callback when job_id becomes available.
 
@@ -562,7 +556,7 @@ class RemoteJob(Job):
             return True
 
         try:
-            job_statuses = check_job_statuses([self._job_id])
+            job_statuses = devops.skypilot.utils.job_helpers.check_job_statuses([self._job_id])
             job_info = job_statuses.get(self._job_id)
 
             if not job_info:
@@ -609,7 +603,7 @@ class RemoteJob(Job):
             existing_len = 0
 
         lines = 1000000 if not self._full_logs_fetched else 500
-        fetched_logs = tail_job_log(str(self._job_id), lines=lines)
+        fetched_logs = devops.skypilot.utils.job_helpers.tail_job_log(str(self._job_id), lines=lines)
 
         if fetched_logs:
             log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -667,7 +661,7 @@ class RemoteJob(Job):
             duration_s=duration,
         )
 
-    def _get_log_path(self) -> Path:
+    def _get_log_path(self) -> pathlib.Path:
         job_id_str = str(self._job_id) if self._job_id else self._timestamp
         return self.log_dir / f"{self.name}.{job_id_str}.log"
 

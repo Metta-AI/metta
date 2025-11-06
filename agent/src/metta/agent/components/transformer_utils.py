@@ -1,10 +1,9 @@
 """Shared utilities for Metta transformer backbones."""
 
-from __future__ import annotations
 
 import contextlib
 import math
-from typing import List, Optional, Sequence
+import typing
 
 import torch
 import torch.nn as nn
@@ -42,7 +41,7 @@ def empty_memory(
     d_model: int,
     device: torch.device,
     dtype: torch.dtype,
-) -> List[torch.Tensor]:
+) -> typing.List[torch.Tensor]:
     """Return a list of empty memory tensors."""
 
     with _record_function("Transformer/empty_memory"):
@@ -52,12 +51,12 @@ def empty_memory(
 def normalize_memory(
     memory_len: int,
     num_layers: int,
-    memory: Optional[Sequence[torch.Tensor]],
+    memory: typing.Optional[typing.Sequence[torch.Tensor]],
     batch_size: int,
     d_model: int,
     device: torch.device,
     dtype: torch.dtype,
-) -> Optional[List[torch.Tensor]]:
+) -> typing.Optional[typing.List[torch.Tensor]]:
     """Normalize previously stored memory tensors to the expected shape."""
 
     with _record_function("Transformer/normalize_memory"):
@@ -67,7 +66,7 @@ def normalize_memory(
         if memory is None or len(memory) != num_layers:
             return empty_memory(num_layers, batch_size, d_model, device, dtype)
 
-        normalized: List[torch.Tensor] = []
+        normalized: typing.List[torch.Tensor] = []
         for tensor in memory:
             if tensor is None or tensor.numel() == 0:
                 normalized.append(torch.zeros(0, batch_size, d_model, device=device, dtype=dtype))
@@ -80,11 +79,11 @@ def normalize_memory(
 
 
 def update_memory_window(
-    layer_outputs: Sequence[torch.Tensor],
-    previous_memory: Optional[Sequence[torch.Tensor]],
+    layer_outputs: typing.Sequence[torch.Tensor],
+    previous_memory: typing.Optional[typing.Sequence[torch.Tensor]],
     memory_len: int,
     ext_len: int = 0,
-) -> Optional[List[torch.Tensor]]:
+) -> typing.Optional[typing.List[torch.Tensor]]:
     """Return the updated memory window for each layer."""
 
     with _record_function("Transformer/update_memory_window"):
@@ -109,7 +108,7 @@ def update_memory_window(
             end_idx = mlen + max(0, qlen - ext_len)
             beg_idx = max(0, end_idx - memory_len)
 
-            updated: List[torch.Tensor] = []
+            updated: typing.List[torch.Tensor] = []
             for prev, output in zip(previous_memory, layer_outputs, strict=False):
                 cat = torch.cat([prev, output], dim=0)
                 updated.append(cat[beg_idx:end_idx].detach())

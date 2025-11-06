@@ -1,25 +1,25 @@
+import urllib.parse
 import uuid
-from urllib.parse import quote, urlparse, urlunparse
 
 import psycopg
 
 
 def create_isolated_schema_uri(base_uri: str, schema_name: str) -> str:
     """Create a database URI with a specific schema in the search path."""
-    parsed = urlparse(base_uri)
+    parsed = urllib.parse.urlparse(base_uri)
 
     # Extract existing query parameters
     query_params = dict(param.split("=", 1) for param in parsed.query.split("&") if param)
 
     # Add or update the search_path option - URL encode the value
     # Include public schema so UUID functions are available
-    query_params["options"] = quote(f"-csearch_path={schema_name},public")
+    query_params["options"] = urllib.parse.quote(f"-csearch_path={schema_name},public")
 
     # Reconstruct the query string
     query = "&".join(f"{k}={v}" for k, v in query_params.items())
 
     # Build the new URI with the schema option
-    return urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, query, parsed.fragment))
+    return urllib.parse.urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, query, parsed.fragment))
 
 
 def isolated_test_schema_uri(base_uri: str) -> str:

@@ -2,18 +2,18 @@ import os
 import signal
 import subprocess
 
-from metta.common.util.constants import METTA_SKYPILOT_URL
-from metta.setup.components.base import SetupModule
-from metta.setup.registry import register_module
-from metta.setup.saved_settings import get_saved_settings
-from metta.setup.utils import info, success
+import metta.common.util.constants
+import metta.setup.components.base
+import metta.setup.registry
+import metta.setup.saved_settings
+import metta.setup.utils
 
 
-@register_module
-class SkypilotSetup(SetupModule):
+@metta.setup.registry.register_module
+class SkypilotSetup(metta.setup.components.base.SetupModule):
     install_once = True
 
-    softmax_url = METTA_SKYPILOT_URL
+    softmax_url = metta.common.util.constants.METTA_SKYPILOT_URL
 
     def dependencies(self) -> list[str]:
         return ["aws"]
@@ -45,33 +45,33 @@ class SkypilotSetup(SetupModule):
         # TODO: check if the sdk version from outside of this uv environment matches the latest version.
         # It's possible that the user's `sky` is not the same as the one installed by the uv environment we are in.
 
-        if not get_saved_settings().user_type.is_softmax:
-            info("SkyPilot is only supported for Softmax users. Skipping...")
+        if not metta.setup.saved_settings.get_saved_settings().user_type.is_softmax:
+            metta.setup.utils.info("SkyPilot is only supported for Softmax users. Skipping...")
             return
 
-        info("Setting up SkyPilot...")
+        metta.setup.utils.info("Setting up SkyPilot...")
 
         # In CI/test environments or non-interactive mode, avoid interactive login flows altogether
         if non_interactive:
-            info("Skypilot installation requires interactive login. Skipping...")
+            metta.setup.utils.info("Skypilot installation requires interactive login. Skipping...")
             return
 
         # Check and setup GitHub authentication first
         # This is required because skypilot's launch.py uses 'gh pr list'
         if not self._check_gh_auth():
-            info("GitHub CLI authentication required for SkyPilot...")
-            info("SkyPilot uses 'gh' to check PR status when launching jobs.")
+            metta.setup.utils.info("GitHub CLI authentication required for SkyPilot...")
+            metta.setup.utils.info("SkyPilot uses 'gh' to check PR status when launching jobs.")
             # In non-interactive/test environments, skip attempting to open a browser
             if not (os.environ.get("METTA_TEST_ENV") or os.environ.get("CI") or non_interactive):
                 try:
                     subprocess.run(["gh", "auth", "login", "--web"], check=False)
                 except subprocess.CalledProcessError:
-                    info("GitHub authentication may have been cancelled or failed.")
-                    info("You can complete it later with: gh auth login")
+                    metta.setup.utils.info("GitHub authentication may have been cancelled or failed.")
+                    metta.setup.utils.info("You can complete it later with: gh auth login")
 
         connected_as = self.check_connected_as()
         if connected_as == self.softmax_url and not force:
-            info("""
+            metta.setup.utils.info("""
             SkyPilot is already configured for a softmax user. Skipping authentication.
             You can force re-authentication with --force.
             """)
@@ -85,7 +85,7 @@ class SkypilotSetup(SetupModule):
             original_sigint_handler = signal.signal(signal.SIGINT, lambda signum, frame: None)
 
             self.run_command(["bash", "./devops/skypilot/install.sh"], capture_output=False)
-            success("SkyPilot installed")
+            metta.setup.utils.success("SkyPilot installed")
         finally:
             signal.signal(signal.SIGINT, original_sigint_handler)
 
@@ -93,13 +93,13 @@ class SkypilotSetup(SetupModule):
     def can_remediate_connected_status_with_install(self) -> bool:
         return (
             # SkypilotSetup.install only implements authenticating with softmax
-            get_saved_settings().user_type.is_softmax
+            metta.setup.saved_settings.get_saved_settings().user_type.is_softmax
             # If the connection is unhealthy, force installing will not help
             and self.check_connected_as() != f"{self.softmax_url} (unhealthy)"
         )
 
     def check_connected_as(self) -> str | None:
-        if get_saved_settings().user_type.is_softmax:
+        if metta.setup.saved_settings.get_saved_settings().user_type.is_softmax:
             if not self._check_gh_auth():
                 return None
 
