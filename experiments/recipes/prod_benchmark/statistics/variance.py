@@ -44,7 +44,7 @@ import numpy as np
 from metta.common.tool import Tool
 from pydantic import Field
 
-from experiments.recipes.prod_benchmark.analysis import (
+from experiments.recipes.prod_benchmark.statistics.analysis import (
     FetchSpec,
     SummarySpec,
     _fetch_series,
@@ -69,9 +69,7 @@ class VarianceAnalysisTool(Tool):
     run_ids: list[str] = Field(
         description="List of run IDs to analyze (should be 15 runs)"
     )
-    metric_key: str = Field(
-        default="overview/reward", description="Metric to analyze"
-    )
+    metric_key: str = Field(default="overview/reward", description="Metric to analyze")
     variance_threshold: float = Field(
         default=0.05, description="Variance threshold as percentage (default 5%)"
     )
@@ -166,7 +164,7 @@ class VarianceAnalysisTool(Tool):
             y=self.variance_threshold * 100,
             color="r",
             linestyle="--",
-            label=f"{self.variance_threshold*100}% threshold",
+            label=f"{self.variance_threshold * 100}% threshold",
         )
         ax1.set_xlabel("Number of Runs", fontsize=12)
         ax1.set_ylabel("Coefficient of Variation (%)", fontsize=12)
@@ -202,7 +200,7 @@ class VarianceAnalysisTool(Tool):
             y=self.variance_threshold * 100,
             color="r",
             linestyle="--",
-            label=f"{self.variance_threshold*100}% threshold",
+            label=f"{self.variance_threshold * 100}% threshold",
         )
         ax2.set_xlabel("Number of Runs", fontsize=12)
         ax2.set_ylabel("Coefficient of Variation (%)", fontsize=12)
@@ -244,7 +242,7 @@ class VarianceAnalysisTool(Tool):
 
         print(f"\nAnalyzing {len(self.run_ids)} runs...")
         print(f"Metric: {self.metric_key}")
-        print(f"Variance threshold: {self.variance_threshold*100}%")
+        print(f"Variance threshold: {self.variance_threshold * 100}%")
 
         # Compute summary statistics
         auc_values, derivative_values = self._compute_summary_statistics(self.run_ids)
@@ -257,9 +255,7 @@ class VarianceAnalysisTool(Tool):
 
         # Compute variance curves
         auc_samples, auc_variances = self._compute_variance_curve(auc_values)
-        deriv_samples, deriv_variances = self._compute_variance_curve(
-            derivative_values
-        )
+        deriv_samples, deriv_variances = self._compute_variance_curve(derivative_values)
 
         # Find threshold crossings
         auc_threshold_n = self._find_threshold_crossing(
@@ -286,28 +282,28 @@ class VarianceAnalysisTool(Tool):
         print(f"Summary type: {self.summary.type}")
         print(f"Total runs analyzed: {len(auc_values)}")
 
-        print(f"\n--- AUC Variance ---")
+        print("\n--- AUC Variance ---")
         if auc_threshold_n:
             print(
-                f" Variance drops below {self.variance_threshold*100}% at N = {auc_threshold_n} runs"
+                f" Variance drops below {self.variance_threshold * 100}% at N = {auc_threshold_n} runs"
             )
         else:
             print(
-                f" Variance never drops below {self.variance_threshold*100}% (need more runs)"
+                f" Variance never drops below {self.variance_threshold * 100}% (need more runs)"
             )
-        print(f"Final variance (N={len(auc_values)}): {auc_variances[-1]*100:.2f}%")
+        print(f"Final variance (N={len(auc_values)}): {auc_variances[-1] * 100:.2f}%")
 
-        print(f"\n--- Derivative Variance ---")
+        print("\n--- Derivative Variance ---")
         if derivative_threshold_n:
             print(
-                f" Variance drops below {self.variance_threshold*100}% at N = {derivative_threshold_n} runs"
+                f" Variance drops below {self.variance_threshold * 100}% at N = {derivative_threshold_n} runs"
             )
         else:
             print(
-                f" Variance never drops below {self.variance_threshold*100}% (need more runs)"
+                f" Variance never drops below {self.variance_threshold * 100}% (need more runs)"
             )
         print(
-            f"Final variance (N={len(derivative_values)}): {deriv_variances[-1]*100:.2f}%"
+            f"Final variance (N={len(derivative_values)}): {deriv_variances[-1] * 100:.2f}%"
         )
 
         print("\n" + "=" * 70)
