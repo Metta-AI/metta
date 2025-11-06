@@ -15,8 +15,6 @@ from metta.rl.training import ComponentContext, TrainingEnvironment
 class GRPOConfig(LossConfig):
     """Configuration for Group Relative Policy Optimization."""
 
-    enabled: bool = Field(default=False)
-
     # Clip coefficient for policy gradient
     clip_coef: float = Field(default=0.2, gt=0, le=1.0)
     # Entropy regularization weight

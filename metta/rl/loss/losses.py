@@ -17,12 +17,12 @@ if TYPE_CHECKING:
 
 
 class LossesConfig(Config):
+    ppo: PPOConfig = Field(default_factory=lambda: PPOConfig(enabled=True))
     contrastive: contrastive_config.ContrastiveConfig = Field(
-        default_factory=lambda: contrastive_config.ContrastiveConfig()
+        default_factory=lambda: contrastive_config.ContrastiveConfig(enabled=False)
     )
-    ppo: PPOConfig = Field(default_factory=lambda: PPOConfig())
-    supervisor: ActionSupervisedConfig = Field(default_factory=lambda: ActionSupervisedConfig(student_led=False))
-    grpo: GRPOConfig = Field(default_factory=lambda: GRPOConfig())
+    supervisor: ActionSupervisedConfig = Field(default_factory=lambda: ActionSupervisedConfig(enabled=False))
+    grpo: GRPOConfig = Field(default_factory=lambda: GRPOConfig(enabled=False))
 
     def _configs(self) -> dict[str, LossConfig]:
         loss_configs: dict[str, LossConfig] = {

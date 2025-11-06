@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 
 class LossConfig(Config):
-    enabled: bool = Field(default=False)
+    enabled: bool = Field(default=True)
 
     def create(
         self,

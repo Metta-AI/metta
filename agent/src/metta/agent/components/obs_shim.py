@@ -112,12 +112,6 @@ class ObsTokenPadStrip(nn.Module):
     def forward(self, td: TensorDict) -> TensorDict:
         # [B, M, 3] the 3 vector is: coord (unit8), attr_idx, attr_val
         observations = td[self.in_key]
-
-        # Ensure observations have batch dimension [B, M, 3]
-        # During evaluation, observations might come as [M, 3] without batch dim
-        if observations.dim() == 2:
-            observations = observations.unsqueeze(0)  # [M, 3] -> [1, M, 3]
-
         M = observations.shape[1]
 
         # Apply feature remapping if active

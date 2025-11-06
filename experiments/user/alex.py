@@ -104,7 +104,7 @@ def train(
 
     eval_simulations = make_evals()
     trainer_cfg = TrainerConfig(
-        losses=LossesConfig(loss_configs={"ppo": PPOConfig()}),
+        losses=LossesConfig(ppo=PPOConfig()),
     )
     # policy_config = FastDynamicsConfig()
     # policy_config = FastLSTMResetConfig()

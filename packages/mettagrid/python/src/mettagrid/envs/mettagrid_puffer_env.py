@@ -68,7 +68,7 @@ class MettaGridPufferEnv(PufferEnv):
         self,
         simulator: Simulator,
         cfg: MettaGridConfig,
-        env_supervisor_cfg: EnvSupervisorConfig,
+        env_supervisor_cfg: Optional[EnvSupervisorConfig] = None,
         buf: Any = None,
         seed: int = 0,
     ):
@@ -76,7 +76,7 @@ class MettaGridPufferEnv(PufferEnv):
         self._simulator = simulator
         self._current_cfg = cfg
         self._current_seed = seed
-        self._env_supervisor_cfg = env_supervisor_cfg
+        self._env_supervisor_cfg = env_supervisor_cfg or EnvSupervisorConfig(enabled=False)
 
         # Initialize shared buffers FIRST (before super().__init__)
         # because PufferLib may access them during initialization

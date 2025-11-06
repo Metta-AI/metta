@@ -68,7 +68,7 @@ class TrainingEnvironmentConfig(Config):
         description="Base directory where training replays will be stored when writing is enabled.",
     )
 
-    env_supervisor: EnvSupervisorConfig = Field(default_factory=EnvSupervisorConfig)
+    supervisor: EnvSupervisorConfig = Field(default_factory=EnvSupervisorConfig)
 
 
 @dataclass
@@ -166,7 +166,7 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         self._vecenv = make_vecenv(
             self._curriculum,
             cfg.vectorization,
-            env_supervisor_cfg=cfg.env_supervisor,
+            env_supervisor_cfg=cfg.supervisor,
             num_envs=self._num_envs,
             batch_size=self._batch_size,
             num_workers=num_workers,

@@ -16,7 +16,6 @@ from metta.rl.training import ComponentContext
 
 
 class ActionSupervisedConfig(LossConfig):
-    enabled: bool = Field(default=False)
     action_loss_coef: float = Field(default=0.75, ge=0)
     value_loss_coef: float = Field(default=1.5, ge=0)
     gae_gamma: float = Field(default=0.977, ge=0, le=1.0)  # pulling from our PPO config
@@ -25,7 +24,7 @@ class ActionSupervisedConfig(LossConfig):
     use_own_sampling: bool = True  # Does not use prioritized sampling
     use_own_rollout: bool = True  # Update when including PPO as concurent loss
     student_led: bool = Field(
-        default=True, description="Whether to use student-led training"
+        default=False, description="Whether to use student-led training"
     )  # sigma as per Matt's document
     action_reward_coef: float = Field(default=0.01, ge=0)  # wild ass guess at this point
 

@@ -13,7 +13,6 @@ from metta.rl.training import TrainingEnvironment
 class ContrastiveConfig(LossConfig):
     """Configuration for contrastive loss."""
 
-    enabled: bool = Field(default=False, description="Whether to enable contrastive loss")
     temperature: float = Field(default=0.1902943104505539, gt=0, description="Temperature for contrastive learning")
     contrastive_coef: float = Field(default=0.0006806607125326991, ge=0, description="Coefficient for contrastive loss")
     discount: float = Field(

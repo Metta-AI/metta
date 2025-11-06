@@ -14,6 +14,7 @@ from rich.console import Console
 from cogames.cli.policy import POLICY_ARG_DELIMITER
 from cogames.policy.signal_handler import DeferSigintContextManager
 from mettagrid import MettaGridConfig, PufferMettaGridEnv
+from mettagrid.config.mettagrid_config import EnvSupervisorConfig
 from mettagrid.envs.early_reset_handler import EarlyResetHandler
 from mettagrid.envs.stats_tracker import StatsTracker
 from mettagrid.policy.policy import TrainablePolicy
@@ -199,7 +200,8 @@ def train(
         simulator = Simulator()
         simulator.add_event_handler(StatsTracker(NoopStatsWriter()))
         simulator.add_event_handler(EarlyResetHandler())
-        env = PufferMettaGridEnv(simulator, target_cfg, buf, seed if seed is not None else 0)
+        env_supervisor_cfg = EnvSupervisorConfig(enabled=False)
+        env = PufferMettaGridEnv(simulator, target_cfg, env_supervisor_cfg, buf, seed if seed is not None else 0)
         set_buffers(env, buf)
         return env
 
