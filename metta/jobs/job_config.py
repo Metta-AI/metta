@@ -60,7 +60,8 @@ class JobConfig(Config):
     remote=None runs locally, remote=RemoteConfig(...) runs remotely.
     metrics_source specifies where/how to collect metrics (wandb, cogames_log, artifacts, or none).
     metrics_to_track lists which metrics to monitor.
-    acceptance_criteria defines validation thresholds using AcceptanceCriterion objects.
+    acceptance_criteria defines validation thresholds using AcceptanceCriterion objects
+        (e.g., [AcceptanceCriterion(metric="overview/sps", operator=">=", threshold=40000)]).
     artifacts declares S3 artifacts that jobs may produce (e.g., eval_results.json).
     """
 
