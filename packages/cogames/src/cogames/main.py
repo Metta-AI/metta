@@ -327,6 +327,11 @@ def evaluate_cmd(
         min=1,
     ),
     steps: Optional[int] = typer.Option(1000, "--steps", "-s", help="Max steps per episode", min=1),
+    format_: Optional[Literal["yaml", "json"]] = typer.Option(
+        None,
+        "--format",
+        help="Output results in YAML or JSON format",
+    ),
 ) -> None:
     selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs, steps=steps)
 
@@ -347,6 +352,7 @@ def evaluate_cmd(
         policy_specs=policy_specs,
         action_timeout_ms=action_timeout_ms,
         episodes=episodes,
+        output_format=format_,
     )
 
 

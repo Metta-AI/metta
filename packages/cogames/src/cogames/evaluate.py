@@ -2,19 +2,22 @@
 
 from __future__ import annotations
 
+import json
 import math
 import re
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, Optional
 
 import numpy as np
 import typer
+import yaml  # type: ignore[import]
+from pydantic import BaseModel, Field
 from rich.console import Console
 from rich.table import Table
 
-from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid import MettaGridConfig
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.utils import initialize_or_load_policy
 from mettagrid.simulator.rollout import Rollout
@@ -27,15 +30,108 @@ _SKIP_STATS = [r"^action\.invalid_arg\..+$"]
 
 @dataclass
 class MissionEvaluationResult:
+    # Name of the mission
     mission_name: str
-    policy_counts: list[int]
+    # Names for each policy, not necessarily unique.
     policy_names: list[str]
-    aggregated_policy_stats: list[dict[str, float]]
-    aggregated_game_stats: dict[str, float]
+    # Number of agents assigned to each policy for this mission (aligned with policy_names order).
+    policy_counts: list[int]
+    # Per-policy metrics summed across all agents/episodes for this mission (aligned with policy_names order).
+    summed_policy_stats: list[dict[str, float]]
+    # Rewards returned by the environment for each episode
+    # per_episode_rewards[episode_idx][agent_id] = reward achieved by agent_id in episode episode_idx.
     per_episode_rewards: list[np.ndarray]
+    # List of agent -> policy assignments for each episode
+    # per_episode_assignments[episode_idx][agent_id] = policy_idx, where policy_idx is aligned with policy_names order.
     per_episode_assignments: list[np.ndarray]
-    per_policy_timeouts: dict[int, int]
+    # Count of action timeouts per policy across all episodes for this mission (aligned with policy_names order).
+    per_policy_timeouts: np.ndarray
+    # Game metrics averaged across episodes for this mission.
+    avg_game_stats: dict[str, float]
+    # Total number of episodes simulated for this mission.
     episodes: int
+
+
+class MissionPolicySummary(BaseModel):
+    # Possibly non-unique
+    policy_name: str
+    # Number of agents assigned to this policy for this mission
+    agent_count: int
+    # Average metrics across agents assigned to this policy for this mission
+    avg_agent_metrics: dict[str, float]
+    # Number of action timeouts experienced for this policy for this mission
+    action_timeouts: int
+
+
+class MissionSummary(BaseModel):
+    # Name of the mission
+    mission_name: str
+    # Total number of episodes simulated for this mission
+    episodes: int
+    # Summaries for each policy for this mission
+    policy_summaries: list[MissionPolicySummary]
+    # Averaged game stats across all episodes for this mission
+    avg_game_stats: dict[str, float]
+    # per_episode_per_policy_avg_rewards[episode_idx][policy_idx] = \
+    #     average reward per policy for this episode (or None if the policy had no agents in this episode)
+    per_episode_per_policy_avg_rewards: dict[int, list[float | None]]
+
+
+class MissionResultsSummary(BaseModel):
+    generated_at: datetime = Field(default_factory=datetime.utcnow)
+    missions: list[MissionSummary]
+
+
+def _build_results_summary(
+    mission_results: list[MissionEvaluationResult],
+    policy_specs: list[PolicySpec],
+) -> MissionResultsSummary:
+    if not mission_results:
+        return MissionResultsSummary(missions=[])
+
+    summaries: list[MissionSummary] = []
+
+    for mr in mission_results:
+        policy_summaries: list[MissionPolicySummary] = []
+
+        per_episode_per_policy_avg_rewards: dict[int, list[float | None]] = defaultdict(list)
+        for episode_idx, rewards in enumerate(mr.per_episode_rewards):
+            episode_assignments = mr.per_episode_assignments[episode_idx]
+            per_policy_totals = np.zeros(len(policy_specs), dtype=float)
+            for agent_id, reward in enumerate(rewards):
+                policy_idx = int(episode_assignments[agent_id])
+                per_policy_totals[policy_idx] += float(reward)
+            per_episode_per_policy_avg_rewards[episode_idx] = [
+                (per_policy_totals[i] / mr.policy_counts[i]) if mr.policy_counts[i] > 0 else None
+                for i in range(len(policy_specs))
+            ]
+
+        for policy_idx, policy_name in enumerate(mr.policy_names):
+            agent_count = mr.policy_counts[policy_idx]
+            average_metrics = {
+                key: value / agent_count for key, value in sorted(mr.summed_policy_stats[policy_idx].items())
+            }
+
+            policy_summaries.append(
+                MissionPolicySummary(
+                    policy_name=policy_name,
+                    agent_count=agent_count,
+                    avg_agent_metrics=average_metrics,
+                    action_timeouts=mr.per_policy_timeouts[policy_idx],
+                )
+            )
+
+        summaries.append(
+            MissionSummary(
+                mission_name=mr.mission_name,
+                episodes=mr.episodes,
+                policy_summaries=policy_summaries,
+                avg_game_stats=mr.avg_game_stats,
+                per_episode_per_policy_avg_rewards=per_episode_per_policy_avg_rewards,
+            )
+        )
+
+    return MissionResultsSummary(missions=summaries)
 
 
 def _compute_policy_agent_counts(num_agents: int, policy_specs: list[PolicySpec]) -> list[int]:
@@ -62,8 +158,10 @@ def evaluate(
     policy_specs: list[PolicySpec],
     episodes: int,
     action_timeout_ms: int,
+    max_steps: Optional[int] = None,
     seed: int = 42,
-) -> None:
+    output_format: Optional[Literal["yaml", "json"]] = None,
+) -> MissionResultsSummary:
     if not missions:
         raise ValueError("At least one mission must be provided for evaluation.")
     if not policy_specs:
@@ -89,45 +187,66 @@ def evaluate(
                 policy_specs=policy_specs,
                 episodes=episodes,
                 action_timeout_ms=action_timeout_ms,
+                max_steps=max_steps,
                 seed=seed,
             )
         )
 
-    name_count: defaultdict[str, int] = defaultdict(int)
-    policy_names: list[str] = []
-    for spec in policy_specs:
-        name_count[spec.name] += 1
-        if name_count[spec.name] > 1:
-            policy_names.append(f"{spec.name} ({name_count[spec.name]})")
-        else:
-            policy_names.append(spec.name)
+    summary = _build_results_summary(mission_results, policy_specs)
+    _output_results(console, policy_specs, summary, output_format)
+    return summary
 
-    if len(policy_specs) > 1:
-        console.print("\n[bold cyan]Policy Assignments[/bold cyan]")
-        assignment_table = Table(show_header=True, header_style="bold magenta")
-        assignment_table.add_column("Mission")
-        assignment_table.add_column("Policy")
-        assignment_table.add_column("Num Agents", justify="right")
-        for result in mission_results:
-            for policy_name, count in zip(result.policy_names, result.policy_counts, strict=True):
-                assignment_table.add_row(result.mission_name, policy_name, str(count))
-        console.print(assignment_table)
+
+def _output_results(
+    console: Console,
+    policy_specs: list[PolicySpec],
+    summary: MissionResultsSummary,
+    output_format: Optional[Literal["yaml", "json"]],
+) -> None:
+    if output_format:
+        if output_format == "json":
+            serialized = json.dumps(summary.model_dump(mode="json"), indent=2)
+        else:
+            serialized = yaml.safe_dump(summary.model_dump(), sort_keys=False)
+        console.print(serialized)
+        return
+
+    name_count: defaultdict[str, int] = defaultdict(int)
+    display_names: list[str] = []
+    for policy_spec in policy_specs:
+        name_count[policy_spec.name] += 1
+        if name_count[policy_spec.name] > 1:
+            display_names.append(f"{policy_spec.name} ({name_count[policy_spec.name]})")
+        else:
+            display_names.append(policy_spec.name)
+
+    console.print("\n[bold cyan]Policy Assignments[/bold cyan]")
+    assignment_table = Table(show_header=True, header_style="bold magenta")
+    assignment_table.add_column("Mission")
+    assignment_table.add_column("Policy")
+    assignment_table.add_column("Num Agents", justify="right")
+    for mission in summary.missions:
+        for policy_summary in mission.policy_summaries:
+            assignment_table.add_row(
+                mission.mission_name,
+                policy_summary.policy_name,
+                str(policy_summary.agent_count),
+            )
+    console.print(assignment_table)
 
     console.print("\n[bold cyan]Average Policy Stats[/bold cyan]")
-    for policy_idx, policy_name in enumerate(policy_names):
+    for i, policy_name in enumerate(display_names):
         policy_table = Table(title=policy_name, show_header=True, header_style="bold magenta")
         policy_table.add_column("Mission")
         policy_table.add_column("Metric")
         policy_table.add_column("Average", justify="right")
-        for result in mission_results:
-            stats = result.aggregated_policy_stats[policy_idx]
-            count = result.policy_counts[policy_idx]
-            if not stats:
-                policy_table.add_row(result.mission_name, "-", "0.00")
+        for mission in summary.missions:
+            metrics = mission.policy_summaries[i].avg_agent_metrics
+            if not metrics:
+                policy_table.add_row(mission.mission_name, "-", "0.00")
                 continue
-            for key, value in sorted(stats.items()):
-                avg_value = value / count if count > 0 else 0.0
-                policy_table.add_row(result.mission_name, key, f"{avg_value:.2f}")
+            for key, value in metrics.items():
+                policy_table.add_row(mission.mission_name, key, f"{value:.2f}")
         console.print(policy_table)
 
     console.print("\n[bold cyan]Average Game Stats[/bold cyan]")
@@ -135,53 +254,40 @@ def evaluate(
     game_stats_table.add_column("Mission")
     game_stats_table.add_column("Metric")
     game_stats_table.add_column("Average", justify="right")
-    for result in mission_results:
-        for key, value in sorted(result.aggregated_game_stats.items()):
-            game_stats_table.add_row(result.mission_name, key, f"{value / result.episodes:.2f}")
+    for mission in summary.missions:
+        for key, value in mission.avg_game_stats.items():
+            game_stats_table.add_row(mission.mission_name, key, f"{value:.2f}")
     console.print(game_stats_table)
 
     console.print("\n[bold cyan]Average Reward per Agent[/bold cyan]")
     summary_table = Table(show_header=True, header_style="bold magenta")
     summary_table.add_column("Mission")
     summary_table.add_column("Episode", justify="right")
-    for name in policy_names:
-        summary_table.add_column(name, justify="right")
+    for display_name in display_names:
+        summary_table.add_column(display_name, justify="right")
 
-    for result in mission_results:
-        total_avg_agent_reward_per_policy = [0.0 for _ in policy_specs]
-        for episode_idx, rewards in enumerate(result.per_episode_rewards):
-            episode_assignments = result.per_episode_assignments[episode_idx]
-            row = [result.mission_name, str(episode_idx)]
-            episode_reward_per_policy = [0.0 for _ in policy_specs]
-            for agent_id, reward in enumerate(rewards):
-                policy_idx = int(episode_assignments[agent_id])
-                episode_reward_per_policy[policy_idx] += float(reward)
-            for policy_idx, count in enumerate(result.policy_counts):
-                avg_reward_per_agent = episode_reward_per_policy[policy_idx] / count if count > 0 else 0.0
-                row.append(f"{avg_reward_per_agent:.2f}")
-                total_avg_agent_reward_per_policy[policy_idx] += avg_reward_per_agent
+    for mission in summary.missions:
+        for episode_idx, avg_rewards in sorted(mission.per_episode_per_policy_avg_rewards.items(), key=lambda x: x[0]):
+            row = [mission.mission_name, str(episode_idx)]
+            row.extend((f"{value:.2f}" if value is not None else "-" for value in avg_rewards))
             summary_table.add_row(*row)
-
-        total_row = [result.mission_name, "Total"]
-        total_row.extend(
-            f"{(value / result.episodes) if result.episodes > 0 else 0.0:.2f}"
-            for value in total_avg_agent_reward_per_policy
-        )
-        summary_table.add_row(*total_row)
 
     console.print(summary_table)
 
-    if any(result.per_policy_timeouts for result in mission_results):
+    if any(policy.action_timeouts for mission in summary.missions for policy in mission.policy_summaries):
         console.print("\n[bold cyan]Action Generation Timeouts per Policy[/bold cyan]")
         timeouts_table = Table(show_header=True, header_style="bold magenta")
         timeouts_table.add_column("Mission")
         timeouts_table.add_column("Policy")
         timeouts_table.add_column("Timeouts", justify="right")
-        for result in mission_results:
-            if not result.per_policy_timeouts:
-                continue
-            for policy_idx, timeouts in sorted(result.per_policy_timeouts.items()):
-                timeouts_table.add_row(result.mission_name, policy_names[policy_idx], str(timeouts))
+        for mission in summary.missions:
+            for i, policy_summary in enumerate(mission.policy_summaries):
+                if policy_summary.action_timeouts > 0:
+                    timeouts_table.add_row(
+                        mission.mission_name,
+                        display_names[i],
+                        str(policy_summary.action_timeouts),
+                    )
         console.print(timeouts_table)
 
 
@@ -191,6 +297,7 @@ def _evaluate_single_mission(
     policy_specs: list[PolicySpec],
     episodes: int,
     action_timeout_ms: int,
+    max_steps: Optional[int],
     seed: int,
 ) -> MissionEvaluationResult:
     # Create PolicyEnvInterface from config to get observation shape for policies that require it (e.g., LSTM)
@@ -216,7 +323,7 @@ def _evaluate_single_mission(
     per_episode_rewards: list[np.ndarray] = []
     per_episode_stats: list["EpisodeStats"] = []
     per_episode_assignments: list[np.ndarray] = []
-    per_policy_timeouts: dict[int, int] = defaultdict(int)
+    per_policy_timeouts: np.ndarray = np.zeros(len(policy_specs), dtype=int)
 
     progress_label = f"Evaluating episodes ({mission_name})"
     rng = np.random.default_rng(seed)
@@ -248,126 +355,32 @@ def _evaluate_single_mission(
                     policy_idx = int(assignments[agent_id])
                     per_policy_timeouts[policy_idx] += timeout_count
 
-    aggregated_game_stats: dict[str, float] = defaultdict(float)
-    aggregated_policy_stats: list[dict[str, float]] = [defaultdict(float) for _ in policy_specs]
+    summed_game_stats: dict[str, float] = defaultdict(float)
+    summed_policy_stats: list[dict[str, float]] = [defaultdict(float) for _ in policy_specs]
 
     for episode_idx, stats in enumerate(per_episode_stats):
         game_stats = stats.get("game", {})
         for key, value in game_stats.items():
-            aggregated_game_stats[key] += float(value)
+            summed_game_stats[key] += float(value)
 
         agent_stats_list = stats.get("agent", [])
         for agent_id, agent_stats in enumerate(agent_stats_list):
-            if agent_id >= env_cfg.game.num_agents:
-                continue
-            episode_assignments = per_episode_assignments[episode_idx]
-            policy_idx = int(episode_assignments[agent_id])
+            policy_idx = int(per_episode_assignments[episode_idx][agent_id])
             for key, value in agent_stats.items():
                 if any(re.match(pattern, key) for pattern in _SKIP_STATS):
                     continue
-                aggregated_policy_stats[policy_idx][key] += float(value)
+                summed_policy_stats[policy_idx][key] += float(value)
+
+    transpired_episodes = len(per_episode_stats)
 
     return MissionEvaluationResult(
         mission_name=mission_name,
         policy_counts=policy_counts,
         policy_names=policy_names,
-        aggregated_policy_stats=[dict(stats) for stats in aggregated_policy_stats],
-        aggregated_game_stats=dict(aggregated_game_stats),
+        summed_policy_stats=[dict(stats) for stats in summed_policy_stats],
+        avg_game_stats=dict({key: value / transpired_episodes for key, value in summed_game_stats.items()}),
         per_episode_rewards=per_episode_rewards,
         per_episode_assignments=per_episode_assignments,
-        per_policy_timeouts=dict(per_policy_timeouts),
-        episodes=episodes,
+        per_policy_timeouts=per_policy_timeouts,
+        episodes=transpired_episodes,
     )
-
-
-@dataclass
-class PolicySummary:
-    """Summary of a policy's performance across episodes."""
-
-    policy_name: str
-    agent_count: int
-    avg_agent_metrics: dict[str, float]
-    action_timeouts: int
-
-
-@dataclass
-class MissionSummary:
-    """Summary of a mission's evaluation results."""
-
-    mission_name: str
-    episodes: int
-    avg_game_stats: dict[str, float]
-    per_episode_per_policy_avg_rewards: list[list[float]]
-    policy_summaries: list[PolicySummary]
-
-
-@dataclass
-class EvaluationSummary:
-    """Summary of evaluation results across multiple missions."""
-
-    generated_at: datetime
-    missions: list[MissionSummary]
-
-
-def _build_results_summary(
-    mission_results: list[MissionEvaluationResult],
-    policy_specs: list[PolicySpec],
-) -> EvaluationSummary:
-    """Build a summary of evaluation results from mission results."""
-    mission_summaries: list[MissionSummary] = []
-
-    for result in mission_results:
-        # Calculate per-episode, per-policy average rewards
-        per_episode_per_policy_avg_rewards: list[list[float]] = []
-        for episode_idx, rewards in enumerate(result.per_episode_rewards):
-            episode_assignments = result.per_episode_assignments[episode_idx]
-            episode_rewards_per_policy: list[float] = []
-            for policy_idx in range(len(policy_specs)):
-                policy_rewards = [
-                    float(rewards[agent_id])
-                    for agent_id in range(len(rewards))
-                    if int(episode_assignments[agent_id]) == policy_idx
-                ]
-                count = result.policy_counts[policy_idx]
-                avg_reward = sum(policy_rewards) / count if count > 0 else 0.0
-                episode_rewards_per_policy.append(avg_reward)
-            per_episode_per_policy_avg_rewards.append(episode_rewards_per_policy)
-
-        # Calculate average game stats (divide aggregated by episodes)
-        avg_game_stats = {
-            key: value / result.episodes if result.episodes > 0 else 0.0
-            for key, value in result.aggregated_game_stats.items()
-        }
-
-        # Build policy summaries
-        policy_summaries: list[PolicySummary] = []
-        for policy_idx in range(len(policy_specs)):
-            policy_name = result.policy_names[policy_idx]
-            agent_count = result.policy_counts[policy_idx]
-            aggregated_stats = result.aggregated_policy_stats[policy_idx]
-            # Calculate average metrics (divide aggregated by agent count)
-            avg_agent_metrics = {
-                key: value / agent_count if agent_count > 0 else 0.0 for key, value in aggregated_stats.items()
-            }
-            action_timeouts = result.per_policy_timeouts.get(policy_idx, 0)
-
-            policy_summaries.append(
-                PolicySummary(
-                    policy_name=policy_name,
-                    agent_count=agent_count,
-                    avg_agent_metrics=avg_agent_metrics,
-                    action_timeouts=action_timeouts,
-                )
-            )
-
-        mission_summaries.append(
-            MissionSummary(
-                mission_name=result.mission_name,
-                episodes=result.episodes,
-                avg_game_stats=avg_game_stats,
-                per_episode_per_policy_avg_rewards=per_episode_per_policy_avg_rewards,
-                policy_summaries=policy_summaries,
-            )
-        )
-
-    return EvaluationSummary(generated_at=datetime.now(), missions=mission_summaries)
