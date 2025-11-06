@@ -116,6 +116,7 @@ class ActionSupervised(Loss):
         env_slice = context.training_env_id
         if env_slice is None:
             raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
+        assert self.replay is not None
         self.replay.store(data_td=td, env_id=env_slice)
 
         if not self.student_led:

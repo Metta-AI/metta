@@ -14,6 +14,9 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
+from metta.rl.loss import LossConfig
+from metta.rl.loss.action_supervised import ActionSupervisedConfig
+from metta.rl.trainer_config import TrainerConfig
 
 # TODO(dehydration): make sure this trains as well as main on arena
 # it's possible the maps are now different
@@ -84,7 +87,12 @@ def train(
         enable_detailed_slice_logging=enable_detailed_slice_logging
     )
 
+    trainer_cfg = TrainerConfig(
+        losses=LossConfig(loss_configs={"action_supervised": ActionSupervisedConfig()}),
+    )
+
     return TrainTool(
+        trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(simulations=simulations()),
     )

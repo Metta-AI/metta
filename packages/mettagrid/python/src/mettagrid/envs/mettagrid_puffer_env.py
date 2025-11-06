@@ -150,6 +150,20 @@ class MettaGridPufferEnv(PufferEnv):
             self._current_seed = seed
 
         self._new_sim()
+
+        # xcxc make a teacher(?)
+        # xcxc consider having the teacher be connected to the policy and set actions that way
+        # xcxc
+        class Teacher:
+            def __init__(self):
+                self.tick = 0
+
+            def get_actions(self, observations: np.ndarray) -> np.ndarray:
+                self.tick += 1
+                ones = np.ones(observations.shape[0], dtype=dtype_actions)
+                return ones * (1 + self.tick % 4)
+
+        self._teacher = Teacher()
         return self._buffers.observations, {}
 
     @override
@@ -157,8 +171,13 @@ class MettaGridPufferEnv(PufferEnv):
         if self._sim._c_sim.terminals().all() or self._sim._c_sim.truncations().all():
             self._new_sim()
 
+        # setting the buffer actions and sim actions may be redundant
+        if self._teacher is not None:
+            actions = self._teacher.get_actions(self._buffers.observations)
         self._buffers.actions[:] = actions
-        self._sim._c_sim.actions()[:] = actions
+        # xcxc
+        assert (self._buffers.actions == self._sim._c_sim.actions()).all()
+
         self._buffers.teacher_actions[:] = actions
         self._sim.step()
 
