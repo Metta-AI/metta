@@ -6,9 +6,7 @@ import platform
 import re
 import shutil
 import subprocess
-import sys
 import tempfile
-import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Optional, Tuple
@@ -20,219 +18,89 @@ from setuptools.command.install import install
 
 REQUIRED_NIM_VERSION = os.environ.get("COGAMES_NIM_VERSION", "2.2.6")
 REQUIRED_NIMBY_VERSION = os.environ.get("COGAMES_NIMBY_VERSION", "0.1.6")
-_NIMBY_CHECKED = False
+NIMBY_HOME = Path.home() / ".nimby" / "nim" / "bin"
+_CHECKED = False
 
 
-def _version_tuple(version: str) -> Tuple[int, ...]:
-    return tuple(int(part) for part in version.split(".") if part.isdigit() or part.isdecimal())
+def _version_tuple(raw: Optional[str]) -> Tuple[int, ...]:
+    match = re.search(r"\d+\.\d+\.\d+", raw or "")
+    return tuple(int(part) for part in match.group(0).split(".")) if match else ()
 
 
-def _extract_version(text: str) -> Optional[str]:
-    match = re.search(r"\d+\.\d+\.\d+", text)
-    return match.group(0) if match else None
-
-
-def _resolve_command(binary: str) -> Optional[Path]:
-    candidate = Path.home() / ".nimby" / "nim" / "bin" / binary
-    if candidate.exists():
-        return candidate
-    resolved = shutil.which(binary)
-    if resolved:
-        return Path(resolved)
+def _resolve(binary: str) -> Optional[Path]:
+    for candidate in (shutil.which(binary), NIMBY_HOME / binary):
+        if candidate and Path(candidate).exists():
+            return Path(candidate)
     return None
 
 
-def _command_version(command: Path) -> Optional[str]:
+def _command_output(binary: Path, *args: str) -> str:
     try:
-        proc = subprocess.run(
-            [str(command), "--version"],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
+        result = subprocess.run([str(binary), *args], capture_output=True, text=True, check=False)
     except OSError:
-        return None
-    output = proc.stdout or proc.stderr or ""
-    return _extract_version(output)
+        return ""
+    return result.stdout or result.stderr or ""
 
 
-def _current_nim_version() -> Optional[str]:
-    candidates = [
-        _resolve_command("nim"),
-        Path.home() / ".nimby" / "nim" / "bin" / "nim",
-    ]
-    for candidate in candidates:
-        if candidate and candidate.exists():
-            version = _command_version(candidate)
-            if version:
-                return version
-    return None
+def _bootstrap_nimby() -> Path:
+    system = {"Linux": "Linux", "Darwin": "macOS"}.get(platform.system())
+    arch = {"x86_64": "X64", "amd64": "X64", "arm64": "ARM64", "aarch64": "ARM64"}.get(platform.machine())
+    if not system or not arch:
+        raise RuntimeError("Unsupported platform for Nimby download")
+
+    url = f"https://github.com/treeform/nimby/releases/download/{REQUIRED_NIMBY_VERSION}/nimby-{system}-{arch}"
+    with tempfile.TemporaryDirectory() as tmp:
+        target = Path(tmp) / "nimby"
+        with urllib.request.urlopen(url) as resp, open(target, "wb") as out:
+            shutil.copyfileobj(resp, out)
+        target.chmod(0o755)
+        NIMBY_HOME.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(target), NIMBY_HOME / "nimby")
+    return NIMBY_HOME / "nimby"
 
 
-def _current_nimby() -> Tuple[Optional[Path], Optional[str]]:
-    candidate = _resolve_command("nimby")
-    if candidate is None:
-        return None, None
-    version = _command_version(candidate)
-    return candidate, version
-
-
-def _detect_target() -> Tuple[str, str]:
-    system = platform.system()
-    arch = platform.machine()
-
-    os_map = {"Linux": "Linux", "Darwin": "macOS"}
-    arch_map = {
-        "x86_64": "X64",
-        "amd64": "X64",
-        "AMD64": "X64",
-        "arm64": "ARM64",
-        "aarch64": "ARM64",
-    }
-
-    os_name = os_map.get(system)
-    arch_name = arch_map.get(arch)
-
-    if not os_name or not arch_name:
-        raise RuntimeError(f"Unsupported platform for Nimby bootstrap: {system} {arch}")
-    return os_name, arch_name
-
-
-def _download_nimby(target_dir: Path) -> Path:
-    os_name, arch_name = _detect_target()
-    url = f"https://github.com/treeform/nimby/releases/download/{REQUIRED_NIMBY_VERSION}/nimby-{os_name}-{arch_name}"
-    destination = target_dir / "nimby"
-
-    try:
-        with urllib.request.urlopen(url) as response, open(destination, "wb") as handle:
-            shutil.copyfileobj(response, handle)
-    except (urllib.error.URLError, OSError) as exc:
-        raise RuntimeError(f"Failed to download Nimby from {url}: {exc}") from exc
-
-    destination.chmod(0o755)
-    return destination
-
-
-def _install_nim(nimby_cmd: Path) -> None:
-    try:
-        subprocess.run(
-            [str(nimby_cmd), "use", REQUIRED_NIM_VERSION],
-            check=True,
-        )
-    except subprocess.CalledProcessError as exc:
-        raise RuntimeError(f"Failed to install Nim {REQUIRED_NIM_VERSION} using {nimby_cmd}: {exc}") from exc
-
-
-def _stage_nimby(nimby_cmd: Path, *, preserve_source: bool = False) -> Path:
-    bin_dir = Path.home() / ".nimby" / "nim" / "bin"
-    bin_dir.mkdir(parents=True, exist_ok=True)
-    destination = bin_dir / "nimby"
-    if destination.exists():
-        destination.unlink()
-    if not nimby_cmd.exists():
-        raise RuntimeError(f"Nimby binary not found at {nimby_cmd}")
-    if preserve_source:
-        shutil.copy2(nimby_cmd, destination)
-    else:
-        shutil.move(str(nimby_cmd), destination)
-    destination.chmod(0o755)
-    return destination
-
-
-def _ensure_path_env() -> None:
-    bin_dir = Path.home() / ".nimby" / "nim" / "bin"
-    current_path = os.environ.get("PATH", "")
-    bin_str = str(bin_dir)
-    paths = current_path.split(os.pathsep) if current_path else []
-    if bin_str not in paths:
-        os.environ["PATH"] = os.pathsep.join([bin_str, current_path]) if current_path else bin_str
+def _ensure_path() -> None:
+    path_parts = os.environ.get("PATH", "").split(os.pathsep)
+    if str(NIMBY_HOME) not in path_parts:
+        path_parts = [str(NIMBY_HOME)] + [p for p in path_parts if p]
+        os.environ["PATH"] = os.pathsep.join(path_parts)
 
 
 def ensure_nim_dependencies() -> None:
-    global _NIMBY_CHECKED
-    if _NIMBY_CHECKED:
+    global _CHECKED
+    if _CHECKED:
         return
 
-    required_nim = _version_tuple(REQUIRED_NIM_VERSION)
-    required_nimby = _version_tuple(REQUIRED_NIMBY_VERSION)
+    nim_cmd = _resolve("nim")
+    nimby_cmd = _resolve("nimby") or _bootstrap_nimby()
 
-    nim_version = _current_nim_version()
-    nimby_cmd, nimby_version = _current_nimby()
+    nim_version = _version_tuple(_command_output(nim_cmd, "--version") if nim_cmd else None)
+    nimby_version = _version_tuple(_command_output(nimby_cmd, "--version"))
 
-    nim_ok = nim_version is not None and _version_tuple(nim_version) >= required_nim
-    nimby_ok = nimby_cmd is not None and nimby_version is not None and _version_tuple(nimby_version) >= required_nimby
+    if nim_version < _version_tuple(REQUIRED_NIM_VERSION):
+        subprocess.run([str(nimby_cmd), "use", REQUIRED_NIM_VERSION], check=True)
+        nim_cmd = _resolve("nim")
 
-    if nim_ok and nimby_ok:
-        _ensure_path_env()
-        print(f"Nim {nim_version} and Nimby {nimby_version} already available.", file=sys.stdout)
-        _NIMBY_CHECKED = True
-        return
+    if nimby_version < _version_tuple(REQUIRED_NIMBY_VERSION):
+        nimby_cmd = _bootstrap_nimby()
 
-    if nimby_ok and nimby_cmd:
-        print(f"Installing Nim {REQUIRED_NIM_VERSION} with existing Nimby at {nimby_cmd}.", file=sys.stdout)
-        _install_nim(nimby_cmd)
-        try:
-            nimby_cmd = _stage_nimby(nimby_cmd, preserve_source=True)
-            nimby_version = _command_version(nimby_cmd)
-        except RuntimeError:
-            print("Existing Nimby could not be staged, re-downloading.", file=sys.stdout)
-            with tempfile.TemporaryDirectory() as tmp_dir:
-                staged = _download_nimby(Path(tmp_dir))
-                _install_nim(staged)
-                nimby_cmd = _stage_nimby(staged)
-                nimby_version = _command_version(nimby_cmd)
-    else:
-        print(f"Bootstrapping Nimby {REQUIRED_NIMBY_VERSION} and Nim {REQUIRED_NIM_VERSION}.", file=sys.stdout)
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            staged = _download_nimby(Path(tmp_dir))
-            _install_nim(staged)
-            nimby_cmd = _stage_nimby(staged)
-            nimby_version = _command_version(nimby_cmd)
-    _ensure_path_env()
-    nim_path = Path.home() / ".nimby" / "nim" / "bin" / "nim"
-    nim_cmd = nim_path if nim_path.exists() else _resolve_command("nim")
-    nim_version = _command_version(nim_cmd) if nim_cmd else None
-
-    nimby_path = Path.home() / ".nimby" / "nim" / "bin" / "nimby"
-    if nimby_path.exists():
-        nimby_cmd = nimby_path
-        nimby_version = _command_version(nimby_cmd)
-    else:
-        nimby_version = nimby_version or (_command_version(nimby_cmd) if nimby_cmd else None)
-
-    nim_ok = nim_version is not None and _version_tuple(nim_version) >= required_nim
-    nimby_ok = nimby_cmd is not None and nimby_version is not None and _version_tuple(nimby_version) >= required_nimby
-
-    if not nim_ok or not nimby_ok:
-        raise RuntimeError(
-            f"Failed to provision Nim/Nimby dependencies. Nim detected: {nim_version!r} at {nim_cmd}, "
-            f"Nimby detected: {nimby_version!r} at {nimby_cmd}"
-        )
-
-    _ensure_path_env()
-    print(
-        f"Nim {nim_version} and Nimby {nimby_version} ready at {Path.home() / '.nimby' / 'nim' / 'bin'}.",
-        file=sys.stdout,
-    )
-    _NIMBY_CHECKED = True
+    _ensure_path()
+    _CHECKED = True
 
 
-class _EnsureNimbyMixin:
-    def run(self) -> None:
+class EnsureNimbyMixin:
+    def run(self) -> None:  # type: ignore[override]
         ensure_nim_dependencies()
         super().run()
 
 
-class BuildPyCommand(_EnsureNimbyMixin, build_py):
-    pass
+class BuildPyCommand(EnsureNimbyMixin, build_py): ...
 
 
-class DevelopCommand(_EnsureNimbyMixin, develop):
-    pass
+class DevelopCommand(EnsureNimbyMixin, develop): ...
 
 
-class InstallCommand(_EnsureNimbyMixin, install):
-    pass
+class InstallCommand(EnsureNimbyMixin, install): ...
 
 
 setup(
