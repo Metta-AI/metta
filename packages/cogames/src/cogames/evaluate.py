@@ -23,6 +23,10 @@ import mettagrid.simulator.rollout
 if typing.TYPE_CHECKING:
     import mettagrid.mettagrid_c
 
+    EpisodeStats = mettagrid.mettagrid_c.EpisodeStats
+else:
+    EpisodeStats = typing.Any
+
 _SKIP_STATS = [r"^action\.invalid_arg\..+$"]
 
 

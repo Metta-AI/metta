@@ -5,8 +5,7 @@ import logging
 import random
 import typing
 
-if typing.TYPE_CHECKING:
-    from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+import metta.cogworks.curriculum.learning_progress_algorithm
 
 import pydantic
 
@@ -228,7 +227,12 @@ class CurriculumConfig(mettagrid.base_config.Config):
         default=5, gt=0, description="Minimum task presentations before eviction"
     )
 
-    algorithm_config: typing.Optional[typing.Union["DiscreteRandomConfig", "LearningProgressConfig"]] = pydantic.Field(
+    algorithm_config: typing.Optional[
+        typing.Union[
+            "DiscreteRandomConfig",
+            metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig,
+        ]
+    ] = pydantic.Field(
         default=None, description="Curriculum algorithm hyperparameters"
     )
 

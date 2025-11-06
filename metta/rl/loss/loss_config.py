@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import typing
 
 import pydantic
@@ -6,6 +8,7 @@ import torch
 import metta.agent.policy
 import metta.rl.loss
 import mettagrid.base_config
+import metta.rl.training.training_environment
 
 if typing.TYPE_CHECKING:
     import metta.rl.training
@@ -51,7 +54,7 @@ class LossConfig(mettagrid.base_config.Config):
         self,
         policy: metta.agent.policy.Policy,
         trainer_cfg: typing.Any,
-        env: "TrainingEnvironment",
+        env: metta.rl.training.training_environment.TrainingEnvironment,
         device: torch.device,
     ):
         losses = {}

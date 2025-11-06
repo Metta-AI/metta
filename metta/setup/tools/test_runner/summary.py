@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import dataclasses
 import hashlib
 import html
@@ -12,6 +14,10 @@ import metta.setup.utils
 
 if typing.TYPE_CHECKING:
     import metta.setup.tools.test_runner.test_python
+
+    PackageResult = metta.setup.tools.test_runner.test_python.PackageResult
+else:
+    PackageResult = typing.Any
 
 
 @dataclasses.dataclass(slots=True)

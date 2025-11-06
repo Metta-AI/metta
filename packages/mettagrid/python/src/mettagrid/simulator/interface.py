@@ -5,6 +5,10 @@ if typing.TYPE_CHECKING:
     import mettagrid.config.id_map
     import mettagrid.simulator.simulator
 
+    Simulation = mettagrid.simulator.simulator.Simulator
+else:
+    Simulation = typing.Any
+
 
 @dataclasses.dataclass
 class ObservationToken:
@@ -34,9 +38,9 @@ class SimulatorEventHandler:
     """Handler for Simulator events."""
 
     def __init__(self):
-        self._sim: typing.Optional["Simulation"] = None
+        self._sim: typing.Optional[Simulation] = None
 
-    def set_simulation(self, simulation: "Simulation") -> None:
+    def set_simulation(self, simulation: Simulation) -> None:
         self._sim = simulation
 
     def on_episode_start(self) -> None:

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import typing
 
 import pydantic
@@ -13,7 +15,7 @@ class Config(pydantic.BaseModel):
 
     model_config = pydantic.ConfigDict(extra="forbid")
 
-    def _auto_initialize_field(self, parent_obj: Config, field_name: str) -> Config | None:
+    def _auto_initialize_field(self, parent_obj: "Config", field_name: str) -> "Config | None":
         """Auto-initialize a None Config field if possible."""
         field = type(parent_obj).model_fields.get(field_name)
         if not field:

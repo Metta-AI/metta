@@ -23,6 +23,8 @@ Usage:
     ./metta/util/live_run_monitor.py  # Monitor last 10 runs (fetch 50, display 10)
 """
 
+from __future__ import annotations
+
 import collections
 import datetime
 import logging
@@ -37,6 +39,9 @@ import rich.live
 import rich.table
 import rich.text
 import typer
+
+import metta.adaptive.models
+import metta.jobs.job_state
 
 import metta.common.util.constants
 
@@ -122,7 +127,7 @@ class RateLimiter:
         return float(len(self._acquired_times))
 
 
-def _get_status_color(status: "JobStatus") -> str:
+def _get_status_color(status: metta.jobs.job_state.JobStatus) -> str:
     """Get color for run status."""
 
     if status == metta.adaptive.models.JobStatus.COMPLETED:
@@ -143,7 +148,9 @@ def _get_status_color(status: "JobStatus") -> str:
         return "white"
 
 
-def make_rich_monitor_table(runs: list["RunInfo"], score_metric: str = "env_agent/heart.gained") -> rich.table.Table:
+def make_rich_monitor_table(
+    runs: list[metta.adaptive.models.RunInfo], score_metric: str = "env_agent/heart.gained"
+) -> rich.table.Table:
     """Create rich table for run monitoring."""
 
     # Create table
@@ -204,7 +211,7 @@ def make_rich_monitor_table(runs: list["RunInfo"], score_metric: str = "env_agen
 def create_run_banner(
     group: typing.Optional[str],
     name_filter: typing.Optional[str],
-    runs: list["RunInfo"],
+    runs: list[metta.adaptive.models.RunInfo],
     display_limit: int = 10,
     score_metric: str = "env_agent/heart.gained",
     api_rpm: typing.Optional[float] = None,
@@ -331,7 +338,7 @@ def live_monitor_runs(
     limiter = RateLimiter(max_rpm=max_rpm, burst_rpm=burst_rpm)
 
     # Simple cache for list_runs results to keep UI non-blocking when rate-limited
-    cached_all_runs: list["RunInfo"] = []
+    cached_all_runs: list[metta.adaptive.models.RunInfo] = []
     cached_at: float = 0.0
 
     def generate_display():

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import pathlib
 import shutil
@@ -14,7 +16,7 @@ import metta.setup.profiles
 class BaseMettaSetupTest(unittest.TestCase):
     # Set by conftest from --metta-profile or METTA_TEST_PROFILE
     active_profile_name: str | None = None
-    active_user_type: "UserType | None" = None
+    active_user_type: metta.setup.profiles.UserType | None = None
     """Base class for metta setup installer component tests.
 
     Provides common setup and teardown logic for testing metta setup components

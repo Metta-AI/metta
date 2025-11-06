@@ -1,5 +1,7 @@
 """Job state models for tracking job execution status."""
 
+from __future__ import annotations
+
 import datetime
 import enum
 import json
@@ -11,9 +13,7 @@ import sqlmodel
 
 import metta.jobs.job_config
 import metta.jobs.job_metrics
-
-if typing.TYPE_CHECKING:
-    import metta.jobs.job_runner
+import metta.jobs.job_runner
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +83,7 @@ class JobState(sqlmodel.SQLModel, table=True):
     def metrics(self, value: dict[str, float]) -> None:
         self.metrics_json = json.dumps(value)
 
-    def update_from_spawned_job(self, job: "Job") -> None:
+    def update_from_spawned_job(self, job: metta.jobs.job_runner.Job) -> None:
         """Update job state with metadata from a newly spawned job.
 
         Extracts job_id, logs_path, and WandB info (for training jobs) from the job.

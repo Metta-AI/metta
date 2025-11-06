@@ -4,6 +4,8 @@ import sys
 
 import pytest
 
+import metta.setup.tools.code_formatters
+
 pytestmark = pytest.mark.setup
 
 

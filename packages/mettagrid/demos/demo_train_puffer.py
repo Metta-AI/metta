@@ -36,6 +36,7 @@ import mettagrid.builder.envs
 import mettagrid.envs.mettagrid_puffer_env
 import mettagrid.mettagrid_c
 import mettagrid.simulator
+import gymnasium
 
 # Training framework imports
 try:

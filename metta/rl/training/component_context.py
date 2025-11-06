@@ -1,11 +1,14 @@
 """Shared context object passed to trainer components."""
 
+from __future__ import annotations
+
 import dataclasses
 import typing
 
 import torch.optim
 
 import metta.agent.policy
+import metta.cogworks.curriculum.curriculum
 import metta.eval.eval_request_config
 import metta.rl.training
 import mettagrid.profiling.memory_monitor
@@ -70,7 +73,7 @@ class ComponentContext:
         stopwatch: mettagrid.profiling.stopwatch.Stopwatch,
         distributed: metta.rl.training.distributed_helper.DistributedHelper,
         run_name: typing.Optional[str] = None,
-        curriculum: typing.Optional["Curriculum"] = None,
+        curriculum: typing.Optional[metta.cogworks.curriculum.curriculum.Curriculum] = None,
     ) -> None:
         self.state = state or TrainerState()
         self.policy = policy

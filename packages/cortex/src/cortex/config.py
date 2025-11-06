@@ -1,8 +1,11 @@
 """Configuration classes for Cortex cells, blocks, and stacks with type tags for JSON serialization."""
 
+from __future__ import annotations
+
 import typing
 
 import pydantic
+import cortex.blocks.registry
 
 
 class CellConfig(pydantic.BaseModel):

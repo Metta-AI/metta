@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import abc
 import typing
 
@@ -424,7 +426,7 @@ class GameConfig(mettagrid.base_config.Config):
             self._ensure_type_ids_assigned()
         return super().__getattribute__(name)
 
-    def id_map(self) -> "IdMap":
+    def id_map(self) -> mettagrid.config.id_map.IdMap:
         """Get the observation feature ID map for this configuration."""
         # Create a minimal MettaGridConfig wrapper
         wrapper = MettaGridConfig(game=self)
@@ -447,7 +449,7 @@ class MettaGridConfig(mettagrid.base_config.Config):
     desync_episodes: bool = pydantic.Field(default=True)
     teacher: TeacherConfig = pydantic.Field(default_factory=TeacherConfig)
 
-    def id_map(self) -> "IdMap":
+    def id_map(self) -> mettagrid.config.id_map.IdMap:
         """Get the observation feature ID map for this configuration."""
         return mettagrid.config.id_map.IdMap(self)
 

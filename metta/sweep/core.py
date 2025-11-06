@@ -5,6 +5,8 @@ hyperparameter search spaces, along with convenience builders and a thin
 factory (`make_sweep`) for constructing sweep tools.
 """
 
+from __future__ import annotations
+
 import enum
 import typing
 
@@ -15,6 +17,10 @@ import mettagrid.base_config
 if typing.TYPE_CHECKING:
     # For type checking only; avoid runtime import cycles
     import metta.tools.sweep
+
+    SweepTool = metta.tools.sweep.SweepTool
+else:
+    SweepTool = typing.Any
 
 
 class Distribution(enum.StrEnum):
@@ -226,7 +232,7 @@ def make_sweep(
     # Catch all for un-exposed tool overrides.
     # See SweepTool definition for details.
     **advanced,
-) -> "SweepTool":
+) -> SweepTool:
     """Create a sweep with minimal configuration.
 
     Args (all passed as tool overrides downstream):
@@ -305,7 +311,7 @@ def grid_search(
     # Catch all for un-exposed tool overrides.
     # See SweepTool definition for details.
     **advanced,
-) -> "SweepTool":
+) -> SweepTool:
     """Create a grid-search sweep with minimal configuration.
 
     Mirrors `make_sweep` but selects the grid-search scheduler and accepts

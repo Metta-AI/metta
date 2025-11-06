@@ -1,4 +1,6 @@
 #!/usr/bin/env -S uv run
+from __future__ import annotations
+
 import concurrent.futures
 import pathlib
 import re
@@ -220,7 +222,9 @@ def configure_component(component_name: str):
     module.configure()
 
 
-def _get_selected_modules(components: list[str] | None = None) -> list["SetupModule"]:
+def _get_selected_modules(
+    components: list[str] | None = None,
+) -> list[metta.setup.components.base.SetupModule]:
     return [
         m
         for m in metta.setup.registry.get_all_modules()

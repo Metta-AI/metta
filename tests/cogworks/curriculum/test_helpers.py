@@ -8,6 +8,7 @@ import pytest
 import metta.cogworks.curriculum as cc
 import metta.cogworks.curriculum.curriculum
 import metta.cogworks.curriculum.learning_progress_algorithm
+import mettagrid.config.mettagrid_config
 
 
 class CurriculumTestHelper:

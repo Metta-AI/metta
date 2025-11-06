@@ -3,6 +3,7 @@
 import os
 import unittest.mock
 
+import botocore.exceptions
 import pytest
 
 import gitta.secrets

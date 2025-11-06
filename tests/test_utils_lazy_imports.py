@@ -12,6 +12,7 @@ def test_lazy_import_file_module() -> None:
 
 def test_lazy_import_uri_module() -> None:
     """Test that uri module can be lazily imported from metta.utils."""
+    import metta.utils
 
     # Verify the module was imported
     assert metta.utils.uri is not None

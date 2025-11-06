@@ -1,5 +1,6 @@
 import glob
 import os
+import typing
 
 import pydantic
 
@@ -12,7 +13,7 @@ class RandomDcssSceneConfig(mettagrid.mapgen.scene.SceneConfig):
     dcss: bool
 
     @pydantic.model_validator(mode="after")
-    def validate_required_fields(self) -> RandomDcssSceneConfig:
+    def validate_required_fields(self) -> typing.Self:
         if not self.wfc and not self.dcss:
             raise ValueError("Either wfc or dcss must be true")
         return self
