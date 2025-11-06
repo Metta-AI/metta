@@ -271,7 +271,7 @@ class ClipRateOnVariant(MissionVariant):
 
     @override
     def modify_mission(self, mission):
-        mission.clip_rate = 0.92
+        mission.clip_rate = 0.02
 
 
 # Biome variants (weather) for procedural maps
@@ -319,13 +319,18 @@ class CavesVariant(MachinaArenaVariant):
         node.base_biome = "caves"
 
 
-class ExtractorBaseVariant(BaseHubVariant):
-    name: str = "extractor_base"
-    description: str = "Sanctum corners host extractors; cross remains clear."
+class EmptyBaseVariant(BaseHubVariant):
+    name: str = "empty_base"
+    description: str = "Empty base with no extractors or chests."
 
     @override
     def modify_node(self, node):
-        node.corner_bundle = "extractors"
+        # Explicit objects/generators take precedence over bundles in BaseHub.
+        # Clear them so the 'none' bundles are respected.
+        node.corner_objects = None
+        node.corner_generator = None
+        node.cross_objects = None
+        node.corner_bundle = "none"
         node.cross_bundle = "none"
 
 
@@ -357,7 +362,7 @@ VARIANTS: list[MissionVariant] = [
     ForestVariant(),
     CityVariant(),
     CavesVariant(),
-    ExtractorBaseVariant(),
+    EmptyBaseVariant(),
     LonelyHeartVariant(),
     PackRatVariant(),
     EnergizedVariant(),

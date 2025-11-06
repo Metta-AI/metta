@@ -5,7 +5,6 @@ from cogames.cogs_vs_clips.sites import HELLO_WORLD, MACHINA_1, TRAINING_FACILIT
 from cogames.cogs_vs_clips.variants import (
     ChestsTwoHeartsVariant,
     ClipRateOnVariant,
-    ExtractorBaseVariant,
     HeartChorusVariant,
     LonelyHeartVariant,
     NeutralFacedVariant,
@@ -22,7 +21,7 @@ HarvestMission = Mission(
     name="harvest",
     description="Collect resources, assemble hearts, and deposit them in the chest. Make sure to stay charged!",
     site=TRAINING_FACILITY,
-).with_variants([ExtractorBaseVariant()])
+)
 
 
 AssembleMission = Mission(
@@ -45,14 +44,14 @@ RepairMission = Mission(
     description="Repair disabled stations to restore their functionality.",
     site=TRAINING_FACILITY,
     num_cogs=2,
-).with_variants([ExtractorBaseVariant(), ChestsTwoHeartsVariant(), ClipRateOnVariant()])
+).with_variants([ChestsTwoHeartsVariant(), ClipRateOnVariant()])
 
 
 UnclipDrillsMission = Mission(
     name="unclip_drills",
     description="Practice unclipping hub facilities after a grid outage.",
     site=TRAINING_FACILITY,
-).with_variants([ExtractorBaseVariant(), ClipRateOnVariant(), SeedOneHeartInputsVariant(), ChestsTwoHeartsVariant()])
+).with_variants([ClipRateOnVariant(), SeedOneHeartInputsVariant(), ChestsTwoHeartsVariant()])
 
 
 SignsAndPortentsMission = Mission(
@@ -71,7 +70,6 @@ EasyHeartsMission = Mission(
         LonelyHeartVariant(),
         HeartChorusVariant(),
         PackRatVariant(),
-        ExtractorBaseVariant(),
         NeutralFacedVariant(),
     ]
 )
@@ -116,7 +114,7 @@ HelloWorldUnclipMission = Mission(
     description="Stabilize clipped extractors scattered across the hello_world sector.",
     site=HELLO_WORLD,
     num_cogs=4,
-).with_variants([ExtractorBaseVariant(), ClipRateOnVariant(), ChestsTwoHeartsVariant()])
+).with_variants([ClipRateOnVariant(), ChestsTwoHeartsVariant()])
 
 MISSIONS: list[Mission] = [
     HarvestMission,
