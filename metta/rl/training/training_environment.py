@@ -242,6 +242,7 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         # Convert to tensors
         o = torch.as_tensor(o)
         if o.ndim == 2:
+            # Some vecenv backends collapse the batch axis when only one env/agent is ready
             o = o.unsqueeze(0)
         r = torch.as_tensor(r)
         d = torch.as_tensor(d)
