@@ -61,7 +61,7 @@ _BASE_SPECS: List[FeatureSpec] = [
     FeatureSpec("height", "discrete", 5, 50),
     FeatureSpec("chain_length", "discrete", 1, 6),
     FeatureSpec("num_sinks", "discrete", 0, 2),
-    # Keep 'xlarge' in the schema (may be used later by curricula)
+    # Keeps 'xlarge' in the schema (may be used later by curricula)
     FeatureSpec("room_size", "categorical", categories=["tiny", "small", "medium", "large", "xlarge"]),
     FeatureSpec("terrain", "categorical", categories=["no-terrain", "sparse", "balanced", "dense"]),
 ]
@@ -72,24 +72,12 @@ def get_feature_spec() -> List[FeatureSpec]:
     return list(_BASE_SPECS)
 
 
-def get_feature_spec_map() -> Mapping[str, FeatureSpec]:
-    """Return a mapping name -> FeatureSpec (ordered like _BASE_SPECS)."""
-    return {s.name: s for s in _BASE_SPECS}
-
-
 def get_feature_dim() -> int:
     """Return total dimensionality of the concatenated base vector (continuous + categorical)."""
     dim = 0
     for s in _BASE_SPECS:
         dim += len(s.categories) if s.categories else 1
     return dim
-
-
-def get_block_dims() -> Tuple[int, int]:
-    """Return (#continuous_scalars, #categorical_onehot_dims)."""
-    cont = sum(1 for s in _BASE_SPECS if s.feature_type != "categorical")
-    cat = sum(len(s.categories or []) for s in _BASE_SPECS if s.feature_type == "categorical")
-    return cont, cat
 
 
 def _map_builder(cfg: MettaGridConfig):
@@ -340,7 +328,7 @@ def _summary_vector(
          Fraction of distinct resources used along the main chain (excluding
          the goal sentinel) relative to len(resource_types), in [0, 1].
 
-    If to be extendend, (e.g. cooldown statistics, branching factors),
+    If to be extended in the future, (e.g. cooldown statistics, branching factors),
     append new scalars at the end and update helpers that depend on the size
     of this block (e.g. `get_total_feature_dim`) accordingly.
     """
@@ -452,12 +440,4 @@ def flatten_payload(payload: dict[str, Any], *, include_summary: bool = True) ->
     base = np.asarray(payload["base"], dtype=np.float32)
     if include_summary and payload.get("summary") is not None:
         return np.concatenate([base, np.asarray(payload["summary"], dtype=np.float32)], axis=0)
-    return base
-
-
-def get_total_feature_dim(resource_types: Sequence[str], *, include_summary: bool = True) -> int:
-    """Compute total feature dim given resource_types and include_summary flag."""
-    base = get_feature_dim()
-    if include_summary and len(resource_types) > 0:
-        return base + len(resource_types) + 2
     return base
