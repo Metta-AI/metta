@@ -156,6 +156,28 @@ class HeartChorusVariant(MissionVariant):
         }
 
 
+class VibeCheckMin2Variant(MissionVariant):
+    name: str = "vibe_check_min_2"
+    description: str = "Require at least 2 heart vibes to craft a heart."
+
+    @override
+    def modify_env(self, mission, env):
+        assembler = env.game.objects["assembler"]
+        if not isinstance(assembler, AssemblerConfig):
+            raise TypeError("Expected 'assembler' to be AssemblerConfig")
+
+        filtered: list[ProtocolConfig] = []
+        for proto in assembler.protocols:
+            # Keep non-heart protocols as-is (e.g., gear recipes)
+            if proto.output_resources.get("heart", 0) == 0:
+                filtered.append(proto)
+                continue
+            # Keep only heart protocols that require >= 2 'heart' vibes
+            if len(proto.vibes) >= 2 and all(v == "heart" for v in proto.vibes):
+                filtered.append(proto)
+        assembler.protocols = filtered
+
+
 class Small50Variant(MissionVariant):
     name: str = "small_50"
     description: str = "Set map size to 50x50 for quick runs."
@@ -179,51 +201,89 @@ class CogToolsOnlyVariant(MissionVariant):
                 protocol.vibes = ["gear"]
 
 
-class SeedOneHeartInputsVariant(MissionVariant):
-    name: str = "seed_one_heart_inputs"
-    description: str = "Agents start with exactly one HEART recipe worth of inputs."
+class InventoryHeartTuneVariant(MissionVariant):
+    name: str = "inventory_heart_tune"
+    description: str = "Tune starting agent inventory to N hearts worth of inputs; optional heart capacity."
+    hearts: int = 1
+    heart_capacity: int | None = None
 
     @override
     def modify_env(self, mission, env) -> None:
+        hearts = max(0, int(self.hearts))
+        if hearts == 0 and self.heart_capacity is None:
+            return
+
         heart_cost = mission.assembler.heart_cost
-        inputs = {
+        per_heart = {
             "carbon": heart_cost * 2,
             "oxygen": heart_cost * 2,
             "germanium": max(heart_cost // 2, 1),
             "silicon": heart_cost * 5,
             "energy": heart_cost * 2,
         }
-        agent_cfg = env.game.agent
-        agent_cfg.initial_inventory = dict(agent_cfg.initial_inventory)
-        for k, v in inputs.items():
-            agent_cfg.initial_inventory[k] = v
+
+        if hearts > 0:
+            agent_cfg = env.game.agent
+            agent_cfg.initial_inventory = dict(agent_cfg.initial_inventory)
+            resource_limits = dict(agent_cfg.resource_limits)
+
+            def _limit_for(resource: str) -> int:
+                if resource in resource_limits:
+                    return int(resource_limits[resource])
+                for key, limit in resource_limits.items():
+                    if isinstance(key, tuple) and resource in key:
+                        return int(limit)
+                return int(agent_cfg.default_resource_limit)
+
+            for resource_name, per_heart_value in per_heart.items():
+                current = int(agent_cfg.initial_inventory.get(resource_name, 0))
+                target = current + per_heart_value * hearts
+                cap = _limit_for(resource_name)
+                agent_cfg.initial_inventory[resource_name] = min(cap, target)
+
+        if self.heart_capacity is not None:
+            agent_cfg = env.game.agent
+            limits = dict(agent_cfg.resource_limits)
+            limits["heart"] = max(int(limits.get("heart", 0)), int(self.heart_capacity))
+            agent_cfg.resource_limits = limits
 
 
-class ChestsTwoHeartsVariant(MissionVariant):
-    name: str = "chests_two_hearts"
-    description: str = "Base resource chests start with two HEARTs worth of resources."
+class ChestHeartTuneVariant(MissionVariant):
+    name: str = "chest_heart_tune"
+    description: str = "Tune chest starting inventory to N hearts worth of inputs."
+    hearts: int = 2
 
     @override
     def modify_env(self, mission, env) -> None:
+        hearts = max(0, int(self.hearts))
+        if hearts == 0:
+            return
         heart_cost = mission.assembler.heart_cost
-        two_hearts = {
-            "carbon": heart_cost * 2 * 2,
-            "oxygen": heart_cost * 2 * 2,
-            "germanium": max(heart_cost // 2, 1) * 2,
-            "silicon": heart_cost * 5 * 2,
+        per_heart = {
+            "carbon": heart_cost * 2,
+            "oxygen": heart_cost * 2,
+            "germanium": max(heart_cost // 2, 1),
+            "silicon": heart_cost * 5,
         }
         chest_cfg = env.game.objects["chest"]
         if not isinstance(chest_cfg, ChestConfig):
             raise TypeError("Expected 'chest' to be ChestConfig")
-        chest_cfg.initial_inventory = two_hearts
+        start = dict(chest_cfg.initial_inventory)
+        for k, v in per_heart.items():
+            start[k] = start.get(k, 0) + v * hearts
+        chest_cfg.initial_inventory = start
 
 
-class FiveHeartsTuningVariant(MissionVariant):
-    name: str = "five_hearts_tuning"
-    description: str = "Tune extractors so the base can produce five HEARTs (germanium fixed)."
+class ExtractorHeartTuneVariant(MissionVariant):
+    name: str = "extractor_heart_tune"
+    description: str = "Tune extractors for N hearts production capability."
+    hearts: int = 5
 
     @override
     def modify_mission(self, mission):
+        hearts = max(0, int(self.hearts))
+        if hearts == 0:
+            return
         heart_cost = mission.assembler.heart_cost
         one_heart = {
             "carbon": heart_cost * 2,
@@ -231,26 +291,25 @@ class FiveHeartsTuningVariant(MissionVariant):
             "germanium": max(heart_cost // 2, 1),
             "silicon": heart_cost * 5,
         }
-        five = 5
 
         # Carbon per-use depends on efficiency
         carbon_per_use = max(1, 4 * mission.carbon_extractor.efficiency // 100)
-        carbon_needed = one_heart["carbon"] * five
+        carbon_needed = one_heart["carbon"] * hearts
         mission.carbon_extractor.max_uses = (carbon_needed + carbon_per_use - 1) // carbon_per_use
 
         # Oxygen is 20 per use
         oxygen_per_use = 20
-        oxygen_needed = one_heart["oxygen"] * five
+        oxygen_needed = one_heart["oxygen"] * hearts
         mission.oxygen_extractor.max_uses = (oxygen_needed + oxygen_per_use - 1) // oxygen_per_use
 
         # Silicon is ~25 per use (scaled by efficiency); silicon extractor divides by 10 internally
         silicon_per_use = max(1, int(25 * mission.silicon_extractor.efficiency // 100))
-        silicon_needed = one_heart["silicon"] * five
+        silicon_needed = one_heart["silicon"] * hearts
         silicon_uses = (silicon_needed + silicon_per_use - 1) // silicon_per_use
         mission.silicon_extractor.max_uses = max(1, silicon_uses * 10)
 
         # Germanium: fixed one use producing all required
-        mission.germanium_extractor.efficiency = int(one_heart["germanium"] * five)
+        mission.germanium_extractor.efficiency = int(one_heart["germanium"] * hearts)
 
 
 class ClipBaseExceptCarbonVariant(MissionVariant):
@@ -319,37 +378,19 @@ class CavesVariant(MachinaArenaVariant):
         node.base_biome = "caves"
 
 
-class StoreBaseVariant(BaseHubVariant):
-    name: str = "store_base"
-    description: str = "Sanctum corners hold storage chests; cross remains clear."
+class EmptyBaseVariant(BaseHubVariant):
+    name: str = "empty_base"
+    description: str = "Empty base with no extractors or chests."
 
     @override
     def modify_node(self, node):
-        node.corner_bundle = "chests"
+        # Explicit objects/generators take precedence over bundles in BaseHub.
+        # Clear them so the 'none' bundles are respected.
+        node.corner_objects = None
+        node.corner_generator = None
+        node.cross_objects = None
+        node.corner_bundle = "none"
         node.cross_bundle = "none"
-        node.cross_distance = 7
-
-
-class ExtractorBaseVariant(BaseHubVariant):
-    name: str = "extractor_base"
-    description: str = "Sanctum corners host extractors; cross remains clear."
-
-    @override
-    def modify_node(self, node):
-        node.corner_bundle = "extractors"
-        node.cross_bundle = "none"
-        node.cross_distance = 7
-
-
-class BothBaseVariant(BaseHubVariant):
-    name: str = "both_base"
-    description: str = "Sanctum corners store chests and cross arms host extractors."
-
-    @override
-    def modify_node(self, node):
-        node.corner_bundle = "chests"
-        node.cross_bundle = "extractors"
-        node.cross_distance = 7
 
 
 class CyclicalUnclipVariant(MissionVariant):
@@ -376,22 +417,21 @@ VARIANTS: list[MissionVariant] = [
     RoughTerrainVariant(),
     SolarFlareVariant(),
     HeartChorusVariant(),
+    VibeCheckMin2Variant(),
     DesertVariant(),
     ForestVariant(),
     CityVariant(),
     CavesVariant(),
-    StoreBaseVariant(),
-    ExtractorBaseVariant(),
-    BothBaseVariant(),
+    EmptyBaseVariant(),
     LonelyHeartVariant(),
     PackRatVariant(),
     EnergizedVariant(),
     NeutralFacedVariant(),
     Small50Variant(),
     CogToolsOnlyVariant(),
-    SeedOneHeartInputsVariant(),
-    ChestsTwoHeartsVariant(),
-    FiveHeartsTuningVariant(),
+    InventoryHeartTuneVariant(),
+    ChestHeartTuneVariant(),
+    ExtractorHeartTuneVariant(),
     ClipBaseExceptCarbonVariant(),
     CyclicalUnclipVariant(),
     ClipRateOnVariant(),
