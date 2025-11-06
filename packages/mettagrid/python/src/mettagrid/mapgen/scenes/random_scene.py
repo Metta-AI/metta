@@ -1,7 +1,7 @@
 import numpy as np
 from pydantic import field_validator
 
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig, validate_any_scene_config
 
 

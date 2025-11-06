@@ -8,7 +8,7 @@ from tensordict import TensorDict
 from metta.agent.policy import Policy
 from metta.rl.loss import Loss
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +113,7 @@ class CoreTrainingLoop:
                     # On CUDA/CPU, combined conversion is safe and faster
                     td["dones"] = d.to(device=target_device, dtype=torch.float32, non_blocking=True)
                     td["truncateds"] = t.to(device=target_device, dtype=torch.float32, non_blocking=True)
+                td["teacher_actions"] = ta.to(device=target_device, dtype=torch.long, non_blocking=True)
                 td["training_env_ids"] = self._gather_env_indices(training_env_id, td.device).unsqueeze(1)
                 self.add_last_action_to_td(td, env)
 

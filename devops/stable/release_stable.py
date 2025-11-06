@@ -1,34 +1,28 @@
 #!/usr/bin/env python3
 """Stable Release System - CLI
 
-Command-line interface for the release validation and deployment pipeline.
+Commands:
+  validate              Run validation (prepare-tag -> validation -> release)
+  hotfix                Hotfix mode (prepare-tag -> release, skip validation)
+  release               Create release (prepare-tag -> validation -> bug check -> release tag)
 
-Usage:
-  ./devops/stable/release_stable.py                        # Run full release pipeline
-  ./devops/stable/release_stable.py all                    # Run full release pipeline (explicit)
-  ./devops/stable/release_stable.py prepare-tag            # Create staging tag
-  ./devops/stable/release_stable.py bugs                   # Check bug status
-  ./devops/stable/release_stable.py task-validation --task ci  # Run CI task
-  ./devops/stable/release_stable.py task-validation        # Run all validation tasks
-  ./devops/stable/release_stable.py summary                # Show validation summary
-  ./devops/stable/release_stable.py release                # Create release tag
-  ./devops/stable/release_stable.py announce               # Show announcement template
-
-Global options:
-  --version X           # Use specific version
-  --new                 # Force start a new release (ignore in-progress state)
-
-Examples:
-  ./devops/stable/release_stable.py --new all              # Start new release and run full pipeline
-  ./devops/stable/release_stable.py --version 2025.10.09-1030 summary  # Show summary for specific version
-  ./devops/stable/release_stable.py task-validation --task ci  # Run only CI tests
+Options:
+  --version X           Use specific version
+  --new                 Force new release (ignore in-progress state)
+  --skip-commit-match   Skip verification that current commit matches RC tag
+  --job PATTERN        Filter validation jobs (validate mode only)
+  --retry-failed        Retry failed jobs (validate mode only)
 """
 
 from __future__ import annotations
 
+import io
+import logging
 import subprocess
 import sys
-from datetime import UTC, datetime
+import time
+from contextlib import redirect_stdout
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -36,16 +30,21 @@ import typer
 
 import gitta as git
 from devops.stable.asana_bugs import check_blockers
-from devops.stable.runner import TaskRunner
+from devops.stable.display import format_job_with_acceptance, format_training_job_section
+from devops.stable.jobs import get_all_jobs
 from devops.stable.state import (
+    Gate,
     ReleaseState,
     get_most_recent_state,
     load_or_create_state,
     load_state,
     save_state,
 )
-from devops.stable.tasks import get_all_tasks
-from metta.common.util.text_styles import bold, cyan, green
+from metta.common.util.fs import get_repo_root
+from metta.common.util.text_styles import bold, cyan, green, red, yellow
+from metta.jobs.job_config import JobConfig
+from metta.jobs.job_display import JobDisplay, format_progress_bar
+from metta.jobs.job_manager import ExitCode, JobManager
 
 # ============================================================================
 # Constants
@@ -60,6 +59,34 @@ CONTACTS = [
 # ============================================================================
 # Helper Functions
 # ============================================================================
+
+
+def print_step_header(title: str, width: int = 60) -> None:
+    """Print formatted step header."""
+    print("\n" + "=" * width)
+    print(bold(title))
+    print("=" * width + "\n")
+
+
+def is_step_complete(state: ReleaseState | None, step_name: str) -> bool:
+    """Check if a pipeline step is already completed in state."""
+    if not state:
+        return False
+    return any(g.step == step_name and g.passed for g in state.gates)
+
+
+def mark_step_complete(state: ReleaseState | None, step_name: str) -> None:
+    """Mark a pipeline step as completed in state."""
+    if not state:
+        return
+    state.gates.append(
+        Gate(
+            step=step_name,
+            passed=True,
+            timestamp=datetime.now().isoformat(timespec="seconds"),
+        )
+    )
+    save_state(state)
 
 
 def get_user_confirmation(prompt: str) -> bool:
@@ -77,12 +104,62 @@ def get_user_confirmation(prompt: str) -> bool:
             return False
 
 
-def verify_on_rc_commit(version: str, step_name: str) -> str:
+def setup_logging(log_file: Path) -> None:
+    """Configure logging to write to file.
+
+    All log messages (including from background threads) will be written to the log file.
+    User can tail the log file in another terminal to see detailed progress.
+    """
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+
+    # Create file handler for all logs
+    file_handler = logging.FileHandler(log_file, mode="a")
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+    )
+
+    # Configure root logger: remove all handlers and add only file handler
+    root_logger = logging.getLogger()
+    root_logger.handlers = [file_handler]  # Replace all handlers (removes console output)
+
+    # Set metta logger to DEBUG (captures all metta.* logs in detail)
+    # Other loggers will use their default levels (typically WARNING)
+    metta_logger = logging.getLogger("metta")
+    metta_logger.setLevel(logging.DEBUG)
+
+
+def state_dir() -> Path:
+    return get_repo_root() / "devops/stable/state"
+
+
+def log_file() -> Path:
+    return state_dir() / "job_manager.log"
+
+
+def get_job_manager() -> JobManager:
+    """Get JobManager instance for release validation (uses JobManager defaults)."""
+    return JobManager(base_dir=state_dir())
+
+
+def load_state_or_exit(version: str, step_name: str) -> ReleaseState:
+    """Load release state or exit with error message."""
+    state_version = f"v{version}"
+    state = load_state(state_version)
+    if not state:
+        print(f"❌ No state found for version {version}")
+        print(f"   Run 'validate' before '{step_name}'")
+        sys.exit(1)
+    return state
+
+
+def verify_on_rc_commit(version: str, step_name: str, skip_check: bool = False) -> str:
     """Verify we're on the commit that the RC tag points to.
 
     Args:
         version: Release version
         step_name: Name of current step (for error messages)
+        skip_check: If True, skip the commit match verification (show warning instead)
 
     Returns:
         RC commit SHA
@@ -103,14 +180,20 @@ def verify_on_rc_commit(version: str, step_name: str) -> str:
         print("   Run 'prepare-tag' step first to create the RC tag")
         sys.exit(1)
 
-    # Verify we're on the RC commit
+    # Verify we're on the RC commit (unless skip_check is set)
     if current_commit != rc_commit:
-        print(f"❌ ERROR: Not on RC commit for {step_name}")
-        print(f"   Current commit:  {current_commit}")
-        print(f"   RC tag commit:   {rc_commit} ({rc_tag_name})")
-        print("\n   To fix, checkout the RC commit:")
-        print(f"   git checkout {rc_tag_name}")
-        sys.exit(1)
+        if skip_check:
+            print(yellow(f"⚠️  WARNING: Not on RC commit for {step_name} (check skipped with --skip-commit-match)"))
+            print(f"   Current commit:  {current_commit}")
+            print(f"   RC tag commit:   {rc_commit} ({rc_tag_name})")
+        else:
+            print(f"❌ ERROR: Not on RC commit for {step_name}")
+            print(f"   Current commit:  {current_commit}")
+            print(f"   RC tag commit:   {rc_commit} ({rc_tag_name})")
+            print("\n   To fix, checkout the RC commit:")
+            print(f"   git checkout {rc_tag_name}")
+            print("   Or use --skip-commit-match to skip this check")
+            sys.exit(1)
 
     return rc_commit
 
@@ -118,86 +201,218 @@ def verify_on_rc_commit(version: str, step_name: str) -> str:
 # ============================================================================
 # Release Pipeline Steps
 # ============================================================================
+# State management architecture:
+#
+# ReleaseState (state/{version}.json):
+#   - Tracks pipeline-level gates: prepare_tag, bug_check
+#   - Allows pipeline-level resume (which high-level steps to skip)
+#   - Lightweight: just step names, timestamps, pass/fail
+#
+# JobManager (jobs.sqlite):
+#   - Tracks individual validation job execution
+#   - Job states: pending, running, completed
+#   - Exit codes: 0=success, >0=error, -1=abnormal, 130=cancelled
+#   - Handles concurrency, logs, metrics extraction
+#   - Restart behavior:
+#     * Local jobs: Stale PIDs detected and auto-retried
+#     * Remote jobs: Reattach to running jobs on cluster
+#
+# RC tag workflow:
+#   - prepare_tag: Creates v{version}-rc tag to mark validation commit
+#   - All validation steps: Verify on RC commit (ensures consistency)
+#   - release: Creates final v{version} tag pointing to same commit
+#
+# UX flow:
+#   - JobDisplay displays live status during job execution
+#   - Monitor updates in-place (preserves step headers)
+#   - Final summary shows all artifacts (WandB, checkpoints)
+#   - Script only prints simple verdict after monitor summary
+# ============================================================================
+
+
+def _submit_jobs_to_manager(
+    job_configs: list[JobConfig],
+    state_version: str,
+    job_manager: JobManager,
+    retry: bool,
+) -> set[str]:
+    """Submit all job configs to JobManager with retry logic.
+
+    Returns set of submitted job names.
+    """
+    submitted_jobs = set()
+    for job_config in job_configs:
+        job_name = f"{state_version}_{job_config.name}"
+
+        # Check if job already exists
+        existing_state = job_manager.get_job_state(job_name)
+
+        if existing_state and existing_state.status == "completed":
+            # Determine if we should retry
+            should_retry = False
+            if existing_state.exit_code in (-1, 130):
+                # Abnormal termination (-1) or interrupted (130/SIGINT) - always retry
+                reason = "abnormal termination" if existing_state.exit_code == -1 else "interrupted (SIGINT)"
+                print(yellow(f"🔄 {job_config.name} - retrying after {reason}"))
+                should_retry = True
+            elif retry and (existing_state.exit_code != 0 or not existing_state.is_successful):
+                # Failed and retry requested
+                print(yellow(f"🔄 {job_config.name} - retrying previous run"))
+                should_retry = True
+            else:
+                # Already completed successfully or retry not requested
+                print(f"⏭️  {job_config.name} - already completed (use --retry to retry)")
+                continue
+
+            if should_retry:
+                job_manager.delete_job(job_name)
+        elif existing_state and existing_state.status in ("pending", "running"):
+            print(f"⏭️  {job_config.name} - already {existing_state.status}, attaching")
+            submitted_jobs.add(job_name)
+            continue
+
+        # Submit job with version prefix and group
+        job_config.name = job_name
+        job_config.group = state_version
+
+        # Also prefix dependency names with version
+        if job_config.dependency_names:
+            job_config.dependency_names = [f"{state_version}_{dep_name}" for dep_name in job_config.dependency_names]
+
+        try:
+            job_manager.submit(job_config)
+            print(f"  • Submitted {job_config.name.removeprefix(f'{state_version}_')}")
+            submitted_jobs.add(job_name)
+        except ValueError as e:
+            print(yellow(f"⚠️  {job_config.name} - failed to submit: {e}"))
+
+    return submitted_jobs
+
+
+def _monitor_jobs_until_complete(
+    submitted_jobs: set[str],
+    state_version: str,
+    job_manager: JobManager,
+) -> None:
+    """Monitor jobs via JobDisplay until all complete."""
+    monitor = JobDisplay(job_manager, group=state_version)
+    monitor_line_count = 0
+    last_display_update = 0.0
+    display_interval = 3.0
+    last_poll_time = 0.0
+    poll_interval = 1.0
+    first_display = True
+
+    try:
+        while True:
+            # Check if all jobs complete
+            all_complete = all(
+                job_state.status == "completed"
+                for job_name in submitted_jobs
+                if (job_state := job_manager.get_job_state(job_name))
+            )
+
+            if all_complete:
+                break
+
+            now = time.time()
+
+            # Poll JobManager to start pending jobs
+            if now - last_poll_time >= poll_interval:
+                job_manager.poll()
+                last_poll_time = now
+
+            # Display status periodically
+            if now - last_display_update >= display_interval or first_display:
+                # Capture monitor output
+                buffer = io.StringIO()
+                with redirect_stdout(buffer):
+                    monitor.display_status(
+                        clear_screen=False,
+                        title=f"Release Validation: {state_version}",
+                        highlight_failures=True,
+                        show_running_logs=True,
+                        log_tail_lines=5,
+                    )
+                output = buffer.getvalue()
+                new_line_count = output.count("\n")
+
+                if not first_display and monitor_line_count > 0:
+                    # Move cursor up and clear
+                    print(f"\033[{monitor_line_count}A\r", end="", flush=True)
+                    print("\033[J", end="", flush=True)
+
+                # Print new output
+                print(output, end="", flush=True)
+                monitor_line_count = new_line_count
+                last_display_update = now
+                first_display = False
+
+            time.sleep(0.1)
+
+    except KeyboardInterrupt:
+        print(yellow("\n\n⚠️  Interrupted by user (Ctrl+C)"))
+        print(yellow("   • Killing local jobs..."))
+        print(yellow("   • Leaving remote jobs running (they will continue on cluster)"))
+        cancelled = job_manager.cancel_group(state_version, local_only=True)
+        print(yellow(f"   • Killed {cancelled} local job(s)"))
+        print(yellow("\n💡 On restart: stale local jobs will be retried, running remote jobs will be reattached"))
+        sys.exit(130)
 
 
 def step_prepare_tag(version: str, state: Optional[ReleaseState] = None, **_kwargs) -> None:
-    """Step 1: Create staging tag to mark commit for validation."""
+    """Create staging tag (v{version}-rc) to mark commit for validation."""
     tag_name = f"v{version}-rc"
+    print_step_header(f"Prepare Staging Tag (v{version})")
 
-    print("\n" + "=" * 60)
-    print(bold(f"STEP 1: Prepare Staging Tag (v{version})"))
-    print("=" * 60 + "\n")
-
-    # Check if already completed
-    if state and any(g.get("step") == "prepare_tag" and g.get("passed") for g in state.gates):
-        print(green("✅ Staging tag step already completed (skipping)"))
-        print(f"   Tag {tag_name} was created in previous run")
+    # Skip if already completed
+    if is_step_complete(state, "prepare_tag"):
+        print(green(f"✅ Step already completed - tag {tag_name} exists"))
         return
 
     commit_sha = git.get_current_commit()
-    print(f"Current commit: {commit_sha}")
+    print(f"Current commit: {commit_sha}\n")
 
-    try:
-        # Check if tag already exists
-        existing = git.run_git("tag", "-l", tag_name)
-        if existing.strip():
-            print(f"⚠️  Tag {tag_name} already exists")
-            # If state exists and this is a continuation, mark as complete and continue
-            if state:
-                print(green("   Tag exists from previous run - marking step as complete"))
-                state.gates.append(
-                    {
-                        "step": "prepare_tag",
-                        "passed": True,
-                        "timestamp": datetime.now(UTC).isoformat(timespec="seconds"),
-                    }
-                )
-                save_state(state)
-                return
-            # Otherwise, ask if we should recreate it
-            if not get_user_confirmation("Delete existing tag and continue?"):
-                sys.exit(1)
-            git.run_git("tag", "-d", tag_name)
-            # Try to delete from remote too (may fail if doesn't exist there)
-            try:
-                git.run_git("push", "origin", f":refs/tags/{tag_name}")
-            except git.GitError:
-                pass
-
-        print(f"Creating staging tag: {tag_name}")
-        # Create lightweight tag
-        git.run_git("tag", tag_name)
-        git.run_git("push", "origin", tag_name)
-        print(green(f"✅ Staging tag {tag_name} created and pushed successfully"))
-
-        # Mark as completed
+    # Check if tag already exists
+    existing = git.run_git("tag", "-l", tag_name).strip()
+    if existing:
+        print(f"⚠️  Tag {tag_name} already exists")
         if state:
-            state.gates.append(
-                {
-                    "step": "prepare_tag",
-                    "passed": True,
-                    "timestamp": datetime.now(UTC).isoformat(timespec="seconds"),
-                }
-            )
-            save_state(state)
-    except git.GitError as e:
-        print(f"Failed to create/push tag: {e}")
-        sys.exit(1)
+            # Continuation from previous run - mark complete
+            print(green("   Marking as complete from previous run"))
+            mark_step_complete(state, "prepare_tag")
+            return
+        # Fresh run - ask user if we should recreate
+        if not get_user_confirmation("Delete existing tag and continue?"):
+            sys.exit(1)
+        git.run_git("tag", "-d", tag_name)
+        try:
+            git.run_git("push", "origin", f":refs/tags/{tag_name}")
+        except git.GitError:
+            pass  # Remote tag didn't exist
+
+    # Create and push tag
+    print(f"Creating staging tag: {tag_name}")
+    git.run_git("tag", tag_name)
+    git.run_git("push", "origin", tag_name)
+    print(green(f"✅ Tag {tag_name} created and pushed\n"))
+
+    mark_step_complete(state, "prepare_tag")
 
 
-def step_bug_check(version: str, state: Optional[ReleaseState] = None, **_kwargs) -> None:
-    """Step 2: Check for blocking bugs."""
-    print("\n" + "=" * 60)
-    print(bold("STEP 2: Bug Status Check"))
-    print("=" * 60 + "\n")
+def step_bug_check(
+    version: str, state: Optional[ReleaseState] = None, skip_commit_match: bool = False, **_kwargs
+) -> None:
+    """Check for blocking bugs via Asana or manual confirmation."""
+    print_step_header("Bug Status Check")
 
-    # Verify we're on the RC commit
-    rc_commit = verify_on_rc_commit(version, "bug check")
+    # Verify on RC commit
+    rc_commit = verify_on_rc_commit(version, "bug check", skip_check=skip_commit_match)
     print(f"✅ Verified on RC commit: {rc_commit}\n")
 
-    # Check if already completed
-    if state and any(g.get("step") == "bug_check" and g.get("passed") for g in state.gates):
-        print(green("✅ Bug check step already completed (skipping)"))
+    # Skip if already completed
+    if is_step_complete(state, "bug_check"):
+        print(green("✅ Step already completed"))
         return
 
     # Try automated Asana check
@@ -205,169 +420,189 @@ def step_bug_check(version: str, state: Optional[ReleaseState] = None, **_kwargs
 
     if result is True:
         print("✅ Bug check PASSED - clear for release")
-        if state:
-            state.gates.append(
-                {
-                    "step": "bug_check",
-                    "passed": True,
-                    "timestamp": datetime.now(UTC).isoformat(timespec="seconds"),
-                }
-            )
-            save_state(state)
+        mark_step_complete(state, "bug_check")
         return
     elif result is False:
         print("❌ Bug check FAILED - resolve blocking issues before release")
         sys.exit(1)
 
     # Asana check inconclusive - fall back to manual
-    print("⚠️  Asana automation unavailable or inconclusive")
-    print("\nTo enable automated checking:")
-    print("  export ASANA_TOKEN='your_personal_access_token'")
-    print("  export ASANA_PROJECT_ID='your_project_id'")
-    print("\nManual steps required:")
-    print("1. Open Asana project for bug tracking")
-    print("2. Verify no active/open bugs marked as blockers")
-    print("3. Update bug statuses as needed in consultation with bug owners")
-    print("")
+    print("⚠️  Asana automation unavailable")
+    print("\nManual verification required:")
+    print("  1. Check Asana for blocking bugs")
+    print("  2. Resolve or triage any blockers\n")
 
-    if not get_user_confirmation("Have you completed the bug status check and is it PASSED?"):
-        print("❌ Bug check FAILED - user indicated issues remain")
+    if not get_user_confirmation("Bug check PASSED?"):
+        print("❌ Bug check FAILED")
         sys.exit(1)
 
-    print("✅ Bug check PASSED - user confirmed")
-    if state:
-        state.gates.append(
-            {
-                "step": "bug_check",
-                "passed": True,
-                "timestamp": datetime.now(UTC).isoformat(timespec="seconds"),
-            }
-        )
-        save_state(state)
+    print("✅ Bug check PASSED")
+    mark_step_complete(state, "bug_check")
 
 
-def step_task_validation(
+def step_job_validation(
     version: str,
-    task_filter: Optional[str] = None,
-    reeval: bool = False,
+    job: Optional[str] = None,
+    retry: bool = False,
+    skip_commit_match: bool = False,
     **_kwargs,
 ) -> None:
-    """Step 3: Run validation tasks.
+    """Run validation jobs via JobManager.
 
-    Args:
-        version: Release version
-        task_filter: Task name to run (metta_ci, arena_local_smoke, arena_single_gpu_100m, etc.)
-                    or None to run all tasks
-        reeval: If True, re-evaluate failed runs from existing logs instead of re-launching
+    JobManager handles execution, state persistence, metrics extraction, and dependency resolution.
+    Monitor displays live status with in-place updates.
     """
-    print("\n" + "=" * 60)
-    print(bold("STEP 3: Task Validation"))
-    print("=" * 60 + "\n")
+    print_step_header("Task Validation")
 
-    # Verify we're on the RC commit
-    rc_commit = verify_on_rc_commit(version, "task validation")
+    # Verify on RC commit
+    rc_commit = verify_on_rc_commit(version, "job validation", skip_check=skip_commit_match)
     print(f"✅ Verified on RC commit: {rc_commit}\n")
 
-    # Load or create state
+    # Load state and filter jobs
     state_version = f"v{version}"
-    state = load_or_create_state(state_version, git.get_current_commit())
+    load_or_create_state(state_version, git.get_current_commit())
+    all_job_configs = get_all_jobs()
 
-    # Get all tasks
-    all_tasks = get_all_tasks()
-
-    # Filter tasks if requested
-    if task_filter:
-        tasks = [t for t in all_tasks if task_filter in t.name]
-        if not tasks:
-            print(f"Error: No tasks found matching '{task_filter}'")
-            print(f"Available tasks: {', '.join(t.name for t in all_tasks)}")
+    if job:
+        job_configs = [t for t in all_job_configs if job in t.name]
+        if not job_configs:
+            print(f"❌ No jobs matching '{job}'")
+            print(f"Available: {', '.join(t.name for t in all_job_configs)}")
             sys.exit(1)
-        print(f"Running tasks matching '{task_filter}'\n")
+        print(f"Running: {len(job_configs)} job(s) matching '{job}'\n")
     else:
-        tasks = all_tasks
-        print("Running all tasks\n")
+        job_configs = all_job_configs
+        print(f"Running: {len(job_configs)} job(s)\n")
 
-    # Create runner and run all tasks
-    runner = TaskRunner(state)
-    runner.run_all(tasks)
+    # Run jobs via JobManager directly
+    job_manager = get_job_manager()
+    log_file = get_repo_root() / "devops/stable/state/job_manager.log"
+    print(f"💡 Detailed logs: tail -f {log_file}\n")
 
-    # Print summary
-    passed = sum(1 for r in state.results.values() if r.outcome == "passed")
-    failed = sum(1 for r in state.results.values() if r.outcome == "failed")
+    # Submit and monitor jobs
+    submitted_jobs = _submit_jobs_to_manager(job_configs, state_version, job_manager, retry)
+    _monitor_jobs_until_complete(submitted_jobs, state_version, job_manager)
 
+    # Display final summary
     print("\n" + "=" * 80)
-    print("Task Summary")
-    print("=" * 80)
-    print("\nResults:")
-    print(f"  ✅ Passed:  {passed}")
-    print(f"  ❌ Failed:  {failed}")
-
-    print("\nDetailed Results:")
-    for result in state.results.values():
-        icon = {"passed": "✅", "failed": "❌", "skipped": "⏸️"}.get(result.outcome or "", "❓")
-        print(f"  {icon} {result.name:24} exit={result.exit_code:>3}")
-        if result.metrics:
-            metrics_str = "  ".join(f"{k}={v:.1f}" for k, v in result.metrics.items())
-            print(f"       Metrics: {metrics_str}")
-        if result.logs_path:
-            print(f"       Logs: {result.logs_path}")
-        if result.job_id:
-            print(f"       Job ID: {result.job_id}")
-
+    print(f"Release Validation Complete: {state_version}")
     print("=" * 80)
 
-    if failed:
-        print(f"\nState saved to: devops/stable/state/{state_version}.json")
-        print("❌ Task validation FAILED")
+    # Get jobs directly
+    jobs_dict = job_manager.get_group_jobs(state_version)
+    jobs = list(jobs_dict.values())
+
+    # Compute counts
+    total = len(jobs)
+    completed = sum(1 for j in jobs if j.status == "completed")
+    succeeded = sum(1 for j in jobs if j.status == "completed" and j.exit_code == 0)
+    failed = sum(1 for j in jobs if j.status == "completed" and j.exit_code != 0)
+
+    # Show progress bar
+    progress = format_progress_bar(completed, total)
+    pct = (completed / total * 100) if total > 0 else 0
+    print(f"\nProgress: {completed}/{total} ({pct:.0f}%)")
+    print(f"{progress}")
+    print(f"Succeeded: {green(str(succeeded))}  Failed: {red(str(failed))}")
+    print()
+
+    # Show each job with integrated status + acceptance
+    job_config_by_name = {config.name: config for config in job_configs}
+
+    for job_state in jobs:
+        # Extract job name from job name (format: {version}_{job_name})
+        job_name = job_state.name
+        job_name = job_name.split("_", 1)[1] if "_" in job_name else job_name
+        job_config = job_config_by_name.get(job_name)
+
+        if not job_config:
+            continue
+
+        # Use composable display
+        display = format_job_with_acceptance(job_state)
+        print(display)
+        print()
+
+    # Count results (distinguish failed vs skipped)
+    passed = 0
+    failed = 0
+    skipped = 0
+
+    for job_config in job_configs:
+        job_state = job_manager.get_job_state(f"{state_version}_{job_config.name}")
+        if not job_state:
+            skipped += 1
+        elif job_state.exit_code == ExitCode.SKIPPED:
+            skipped += 1
+        elif job_state.is_successful:
+            passed += 1
+        else:
+            failed += 1
+
+    # Print verdict
+    print()
+    if failed > 0:
+        msg = f"❌ Task validation FAILED ({passed} passed, {failed} failed"
+        if skipped > 0:
+            msg += f", {skipped} skipped"
+        msg += ")"
+        print(msg)
         sys.exit(1)
 
-    print("\n✅ All task validations PASSED")
-    print(f"State saved to: devops/stable/state/{state_version}.json")
+    if skipped > 0:
+        print(f"⚠️  Task validation incomplete ({passed} passed, {skipped} skipped)")
+        sys.exit(1)
+
+    print(f"✅ All job validations PASSED ({passed}/{len(job_configs)})")
 
 
-def step_summary(version: str, **_kwargs) -> None:
-    """Step 4: Print validation summary and release notes template."""
-    print("\n" + "=" * 60)
-    print(bold("STEP 4: Release Summary"))
-    print("=" * 60 + "\n")
+def step_summary(version: str, skip_commit_match: bool = False, **_kwargs) -> None:
+    """Print validation summary and release notes template.
 
-    # Verify we're on the RC commit
-    rc_commit = verify_on_rc_commit(version, "summary")
+    Queries JobManager for job outcomes and metrics.
+    """
+    print_step_header("Release Summary")
+
+    # Verify on RC commit
+    rc_commit = verify_on_rc_commit(version, "summary", skip_check=skip_commit_match)
     print(f"✅ Verified on RC commit: {rc_commit}\n")
 
-    # Load state to extract metrics
+    # Load state version and JobManager
     state_version = f"v{version}"
-    state = load_state(state_version)
-
-    if not state:
-        print(f"No state found for version {version}")
-        print("Run task-validation first")
-        sys.exit(1)
-
-    # Extract training metrics from TRAIN tasks
-    training_metrics = {}
-    training_job_id = None
-    for name, result in state.results.items():
-        if "train" in name.lower() and result.metrics:
-            training_metrics.update(result.metrics)
-            if result.job_id:
-                training_job_id = result.job_id
-
-    # Format metrics for display
-    sps_max = training_metrics.get("sps_max", "N/A")
-    sps_last = training_metrics.get("sps_last", "N/A")
+    _ = load_state_or_exit(version, "summary")  # Verify state exists
+    job_manager = get_job_manager()
 
     # Get git log since last stable release
     git_log = git.git_log_since("origin/stable")
 
-    # Print task results summary
+    # Get all jobs to display results and collect training job info
+    all_job_configs = get_all_jobs()
+    training_jobs = []  # Track training jobs separately
+
+    # Print job results summary
     print("Task Results:")
-    for name, result in state.results.items():
-        icon = {"passed": "✅", "failed": "❌", "skipped": "⏸️"}.get(result.outcome or "", "❓")
-        print(f"  {icon} {name}")
-        if result.metrics:
-            metrics_str = ", ".join(f"{k}={v:.1f}" for k, v in result.metrics.items())
-            print(f"       Metrics: {metrics_str}")
+    for job_config in all_job_configs:
+        job_name = f"{state_version}_{job_config.name}"
+        job_state = job_manager.get_job_state(job_name)
+        if job_state:
+            if job_state.is_successful:
+                icon = "✅"
+            else:
+                icon = "❌"
+            print(f"  {icon} {job_config.name}")
+            if job_state.metrics:
+                # Filter out internal metrics (starting with _) and format numeric values
+                metrics_str = ", ".join(
+                    f"{k}={v:.1f}"
+                    for k, v in job_state.metrics.items()
+                    if not k.startswith("_") and isinstance(v, (int, float))
+                )
+                if metrics_str:
+                    print(f"       Metrics: {metrics_str}")
+
+            # Collect training job info
+            if job_config.is_training_job:
+                training_jobs.append((job_config.name, job_state))
 
     # Print release notes template
     print("\n" + "=" * 60)
@@ -387,58 +622,55 @@ def step_summary(version: str, **_kwargs) -> None:
     print("")
     print("<Add notes from bug-check step>")
     print("")
-    print("### Training Job Links")
+    print("### Training Jobs")
     print("")
-    if training_job_id:
-        print(f"- SkyPilot Job ID: {training_job_id}")
-        print(f"- View logs: sky logs {training_job_id}")
+    if training_jobs:
+        for job_name, job_state in training_jobs:
+            formatted = format_training_job_section(job_name, job_state)
+            print(formatted)
+            print("")
     else:
-        print("- No remote training jobs")
-    print("")
-    print("### Key Metrics")
-    print("")
-    print(f"- Training throughput (SPS max): {sps_max}")
-    print(f"- Training throughput (SPS last): {sps_last}")
+        print("- No training jobs in this validation run")
     print("")
 
 
-def step_release(version: str, **_kwargs) -> None:
-    """Step 5: Automatically create release tag and release notes."""
-    print("\n" + "=" * 60)
-    print(bold("STEP 5: Create Release"))
-    print("=" * 60 + "\n")
+def step_release(version: str, skip_commit_match: bool = False, **_kwargs) -> None:
+    """Create release tag and release notes.
 
-    # Verify we're on the RC commit
-    rc_commit = verify_on_rc_commit(version, "release")
+    Verifies all validation jobs passed before creating release.
+    """
+    print_step_header("Create Release")
+
+    # Verify on RC commit
+    rc_commit = verify_on_rc_commit(version, "release", skip_check=skip_commit_match)
     print(f"✅ Verified on RC commit: {rc_commit}\n")
 
-    # Load state to get validation results
+    # Load state and JobManager
     state_version = f"v{version}"
-    state = load_state(state_version)
+    state = load_state_or_exit(version, "release")
+    job_manager = get_job_manager()
 
-    if not state:
-        print(f"No state found for version {version}")
-        print("Run task-validation first")
-        sys.exit(1)
+    # Verify all jobs passed
+    all_job_configs = get_all_jobs()
 
-    # Verify all tasks passed
-    failed = [name for name, result in state.results.items() if result.outcome == "failed"]
-    if failed:
-        print("Cannot release with failed tasks:")
-        for name in failed:
+    failed_jobs = []
+    for job_config in all_job_configs:
+        job_name = f"{state_version}_{job_config.name}"
+        job_state = job_manager.get_job_state(job_name)
+        if not job_state:
+            failed_jobs.append(f"{job_config.name} (not run)")
+        elif not job_state.is_successful:
+            failed_jobs.append(job_config.name)
+
+    if failed_jobs:
+        print("❌ Cannot release with failed/incomplete jobs:")
+        for name in failed_jobs:
             print(f"  ❌ {name}")
         sys.exit(1)
 
-    # Extract metrics for release notes
-    training_metrics = {}
-    training_job_id = None
-    for name, result in state.results.items():
-        if "train" in name.lower() and result.metrics:
-            training_metrics.update(result.metrics)
-            if result.job_id:
-                training_job_id = result.job_id
-
+    # Extract git log and training job info for release notes
     git_log = git.git_log_since("origin/stable")
+    training_jobs = []
 
     # Create release notes
     release_notes_dir = Path("devops/stable/release-notes")
@@ -450,26 +682,38 @@ def step_release(version: str, **_kwargs) -> None:
 ## Task Results Summary
 
 """
-    for name, result in state.results.items():
-        icon = {"passed": "✅", "failed": "❌", "skipped": "⏸️"}.get(result.outcome or "", "❓")
-        release_notes_content += f"- {icon} {name}\n"
-        if result.metrics:
-            metrics_str = ", ".join(f"{k}={v:.1f}" for k, v in result.metrics.items())
-            release_notes_content += f"  - Metrics: {metrics_str}\n"
+    # Use job results already validated above
+    for job_config in all_job_configs:
+        job_name = f"{state_version}_{job_config.name}"
+        job_state = job_manager.get_job_state(job_name)
+        if job_state:
+            if job_state.is_successful:
+                icon = "✅"
+            else:
+                icon = "❌"
+            release_notes_content += f"- {icon} {job_config.name}\n"
+            if job_state.metrics:
+                metrics_str = ", ".join(f"{k}={v:.1f}" for k, v in job_state.metrics.items())
+                release_notes_content += f"  - Metrics: {metrics_str}\n"
+
+            # Collect training jobs
+            if job_config.is_training_job:
+                training_jobs.append((job_config.name, job_state))
 
     release_notes_content += f"""
 ## Changes Since Last Stable Release
 
 {git_log if git_log else "No commits found"}
 
-## Training Job Links
+## Training Jobs
 
 """
-    if training_job_id:
-        release_notes_content += f"- SkyPilot Job ID: {training_job_id}\n"
-        release_notes_content += f"- View logs: `sky logs {training_job_id}`\n"
+    if training_jobs:
+        for job_name, job_state in training_jobs:
+            formatted = format_training_job_section(job_name, job_state)
+            release_notes_content += formatted + "\n\n"
     else:
-        release_notes_content += "- No remote training jobs\n"
+        release_notes_content += "- No training jobs in this validation run\n"
 
     # Write release notes
     release_notes_path.write_text(release_notes_content)
@@ -488,6 +732,7 @@ def step_release(version: str, **_kwargs) -> None:
 
     # Create git tag pointing to the same commit as RC tag
     tag_name = f"v{version}"
+
     try:
         # Check if tag already exists
         existing = git.run_git("tag", "-l", tag_name)
@@ -569,24 +814,21 @@ def step_release(version: str, **_kwargs) -> None:
     print(f"\nRelease notes: {release_notes_path}")
     print(f"Git tag: {tag_name}")
     print(f"Stable branch: origin/stable -> {tag_name}")
-    print("\nNext steps:")
-    print("  1. Run announce to notify team")
 
 
 # ============================================================================
 # CLI Setup
 # ============================================================================
 
-app = typer.Typer(add_completion=False)
-_VERSION: str | None = None  # Set by callback
-
 
 def generate_version() -> str:
     """Generate version string from current date/time.
 
-    Format: YYYY.MM.DD-HHMM (e.g., 2025.10.07-1430)
+    Format: YYYY.MM.DD-HHMMSS (e.g., 2025.10.07-143045)
+
+    Includes seconds to prevent version collisions when running multiple times per minute.
     """
-    return datetime.now().strftime("%Y.%m.%d-%H%M")
+    return datetime.now().strftime("%Y.%m.%d-%H%M%S")
 
 
 def resolve_version(explicit: Optional[str], force_new: bool) -> str:
@@ -619,20 +861,28 @@ def resolve_version(explicit: Optional[str], force_new: bool) -> str:
 
 
 app = typer.Typer(add_completion=False)
-_VERSION: str | None = None  # Set by callback
 
 
 @app.callback()
 def common(
+    ctx: typer.Context,
     version: Optional[str] = typer.Option(None, "--version", help="Version number (overrides auto-continue behavior)"),
     new: bool = typer.Option(False, "--new", help="Force start a new release (ignore in-progress state)"),
+    skip_commit_match: bool = typer.Option(
+        False, "--skip-commit-match", help="Skip verification that current commit matches RC tag"
+    ),
 ):
     """Stable Release System - automated release validation and deployment."""
-    global _VERSION
-    _VERSION = resolve_version(version, new)
+    resolved_version = resolve_version(version, new)
+
+    # Store in context for commands to access
+    ctx.obj = {
+        "version": resolved_version,
+        "skip_commit_match": skip_commit_match,
+    }
 
     print("=" * 80)
-    print(bold(cyan(f"Stable Release System - Version {_VERSION}")))
+    print(bold(cyan(f"Stable Release System - Version {resolved_version}")))
     print("=" * 80)
     print("\nContacts:")
     for contact in CONTACTS:
@@ -640,81 +890,75 @@ def common(
     print("")
 
 
-@app.command("prepare-tag")
-def cmd_prepare_tag():
-    """Create and push staging tag."""
-    state_version = f"v{_VERSION}"
-    state = load_or_create_state(state_version, git.get_current_commit())
-    step_prepare_tag(version=_VERSION, state=state)
-
-
-@app.command("bugs")
-def cmd_bugs():
-    """Check bug status in Asana."""
-    state_version = f"v{_VERSION}"
-    state = load_or_create_state(state_version, git.get_current_commit())
-    step_bug_check(version=_VERSION, state=state)
-
-
-@app.command("task-validation")
-def cmd_task_validation(
-    task: Optional[str] = typer.Option(
+@app.command("validate")
+def cmd_validate(
+    ctx: typer.Context,
+    job: Optional[str] = typer.Option(
         None,
-        "--task",
-        help=f"Task name filter (available: {', '.join(t.name for t in get_all_tasks())})",
+        "--job",
+        help="Filter validation jobs by name",
     ),
-    reeval: bool = typer.Option(
+    retry: bool = typer.Option(
         False,
-        "--reeval",
-        help="Re-evaluate failed runs from existing logs instead of re-launching",
+        "--retry",
+        help="Retry previously failed jobs (default: skip failed jobs)",
     ),
 ):
-    """Run validation tasks."""
-    step_task_validation(version=_VERSION, task_filter=task, reeval=reeval)
+    """Run validation pipeline (prepare-tag -> validation -> summary)."""
+    version = ctx.obj["version"]
+    skip_commit_match = ctx.obj["skip_commit_match"]
+
+    state_version = f"v{version}"
+    state = load_or_create_state(state_version, git.get_current_commit())
+
+    # Step 1: Prepare RC tag (automatic - skips if already done)
+    step_prepare_tag(version=version, state=state)
+
+    # Step 2: Run validation
+    step_job_validation(version=version, job=job, retry=retry, skip_commit_match=skip_commit_match)
+
+    # Step 3: Show summary
+    step_summary(version=version, skip_commit_match=skip_commit_match)
 
 
-@app.command("summary")
-def cmd_summary():
-    """Show validation summary and release notes template."""
-    step_summary(version=_VERSION)
+@app.command("hotfix")
+def cmd_hotfix(ctx: typer.Context):
+    """Hotfix mode (prepare-tag -> summary, skip validation)."""
+    version = ctx.obj["version"]
+    skip_commit_match = ctx.obj["skip_commit_match"]
+
+    state_version = f"v{version}"
+    state = load_or_create_state(state_version, git.get_current_commit())
+
+    print(yellow("\n⚡ HOTFIX MODE: Skipping validation\n"))
+
+    # Step 1: Prepare RC tag
+    step_prepare_tag(version=version, state=state)
+
+    # Create release
+    step_release(version=version, skip_commit_match=skip_commit_match)
 
 
 @app.command("release")
-def cmd_release():
-    """Create release tag and notes."""
-    step_release(version=_VERSION)
+def cmd_release(ctx: typer.Context):
+    """Create release (bug check -> release tag)."""
+    version = ctx.obj["version"]
+    skip_commit_match = ctx.obj["skip_commit_match"]
 
-
-@app.command("all")
-def cmd_all(
-    task: Optional[str] = typer.Option(
-        None,
-        "--task",
-        help="Optional validation filter (applies to task-validation step in the full pipeline)",
-    ),
-    reeval: bool = typer.Option(
-        False,
-        "--reeval",
-        help="Re-evaluate failed runs from existing logs instead of re-launching",
-    ),
-):
-    """Run full release pipeline."""
-    state_version = f"v{_VERSION}"
+    state_version = f"v{version}"
     state = load_or_create_state(state_version, git.get_current_commit())
 
-    # Run steps with state tracking
-    step_prepare_tag(version=_VERSION, state=state)
-    step_bug_check(version=_VERSION, state=state)
-    step_task_validation(version=_VERSION, task_filter=task, reeval=reeval)
-    step_summary(version=_VERSION)
+    # Final gate: check for blocking bugs
+    step_bug_check(version=version, state=state, skip_commit_match=skip_commit_match)
+
+    # Create release
+    step_release(version=version, skip_commit_match=skip_commit_match)
 
 
 if __name__ == "__main__":
-    # Default to 'all' if no subcommand was provided
-    # Check if there's a command after options (--version, --new)
-    has_command = any(
-        arg in ["prepare-tag", "bugs", "task-validation", "summary", "release", "all"] for arg in sys.argv[1:]
-    )
+    setup_logging(log_file())
+    # Default to 'validate' if no subcommand was provided
+    has_command = any(arg in ["validate", "hotfix", "release"] for arg in sys.argv[1:])
     if not has_command:
-        sys.argv.append("all")
+        sys.argv.append("validate")
     app()

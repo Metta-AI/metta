@@ -19,7 +19,7 @@ from metta.rl.policy_artifact import (
     policy_architecture_to_string,
     save_policy_artifact_safetensors,
 )
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 

@@ -10,7 +10,7 @@ from torch.nn.parameter import UninitializedParameter
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.policy import Policy
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger("metta_agent")
@@ -161,10 +161,7 @@ class PolicyAutoBuilder(Policy):
         return spec
 
     def network(self) -> torch.nn.Module:
-        """Get the underlying neural network for training.
-
-        Returns the TensorDictSequential network that contains all components.
-        """
+        """Return the sequential component stack used for inference and training."""
         return self._sequential_network
 
     @property

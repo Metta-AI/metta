@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import TYPE_CHECKING, Annotated, Any, Literal, Optional, Union, get_args
+from typing import Annotated, Any, Literal, Optional, Union, get_args
 
 from pydantic import (
     ConfigDict,
@@ -13,28 +13,16 @@ from pydantic import (
     model_validator,
 )
 
-from mettagrid.config import Config
+from mettagrid.base_config import Config
+from mettagrid.config.id_map import IdMap
 from mettagrid.config.obs_config import ObsConfig
 from mettagrid.config.vibes import VIBES, Vibe
-
-if TYPE_CHECKING:
-    from mettagrid.config.id_map import IdMap
-    from mettagrid.simulator import Action
-
-# Forward reference - actual import happens at runtime when needed
-try:
-    from mettagrid.map_builder.map_builder import MapBuilderConfig
-
-    AnyMapBuilderConfig = SerializeAsAny[MapBuilderConfig]
-except ImportError:
-    # During module initialization, MapBuilderConfig might not be available yet
-    # We'll use string annotation and let Pydantic resolve it later
-    AnyMapBuilderConfig = "SerializeAsAny[MapBuilderConfig]"  # type: ignore
+from mettagrid.map_builder.ascii import AsciiMapBuilder
+from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
+from mettagrid.map_builder.random import RandomMapBuilder
+from mettagrid.simulator import Action
 
 # ===== Python Configuration Models =====
-
-# Left to right, top to bottom.
-FixedPosition = Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE"]
 
 Direction = Literal["north", "south", "east", "west", "northeast", "northwest", "southeast", "southwest"]
 Directions = list(get_args(Direction))
@@ -112,8 +100,6 @@ class NoopActionConfig(ActionConfig):
         return [self.Noop()]
 
     def Noop(self) -> Action:
-        from mettagrid.simulator import Action
-
         return Action(name="noop")
 
 
@@ -127,8 +113,6 @@ class MoveActionConfig(ActionConfig):
         return [self.Move(direction) for direction in self.allowed_directions]
 
     def Move(self, direction: Direction) -> Action:
-        from mettagrid.simulator import Action
-
         return Action(name=f"move_{direction}")
 
 
@@ -142,8 +126,6 @@ class ChangeVibeActionConfig(ActionConfig):
         return [self.ChangeVibe(vibe) for vibe in VIBES[: self.number_of_vibes]]
 
     def ChangeVibe(self, vibe: Vibe) -> Action:
-        from mettagrid.simulator import Action
-
         return Action(name=f"change_vibe_{vibe.name}")
 
 
@@ -160,8 +142,6 @@ class AttackActionConfig(ActionConfig):
         return [self.Attack(location) for location in self.target_locations]
 
     def Attack(self, location: Literal["1", "2", "3", "4", "5", "6", "7", "8", "9"]) -> Action:
-        from mettagrid.simulator import Action
-
         return Action(name=f"attack_{location}")
 
 
@@ -177,8 +157,6 @@ class ResourceModActionConfig(ActionConfig):
         return [self.ResourceMod()]
 
     def ResourceMod(self) -> Action:
-        from mettagrid.simulator import Action
-
         return Action(name="resource_mod")
 
 
@@ -287,22 +265,28 @@ class AssemblerConfig(GridObjectConfig):
 
 
 class ChestConfig(GridObjectConfig):
-    """Python chest configuration."""
+    """Python chest configuration for multi-resource chests."""
 
     type: Literal["chest"] = Field(default="chest")
-    resource_type: str = Field(description="Resource type that this chest can store")
-    position_deltas: list[tuple[FixedPosition, int]] = Field(
-        default_factory=list,
+
+    # Vibe-based transfers: vibe -> resource -> delta
+    vibe_transfers: dict[str, dict[str, int]] = Field(
+        default_factory=dict,
         description=(
-            "List of (position, delta) tuples. "
-            "Positive delta = deposit, negative = withdraw (e.g., (E, 1) deposits 1, (N, -5) withdraws 5)"
+            "Map from vibe to resource deltas. "
+            "E.g., {'carbon': {'carbon': 10, 'energy': -5}} deposits 10 carbon and withdraws 5 energy when "
+            "showing carbon vibe"
         ),
     )
-    initial_inventory: int = Field(default=0, ge=0, description="Initial amount of resource_type in the chest")
-    max_inventory: int = Field(
-        default=255,
-        ge=-1,
-        description="Maximum inventory (resources are destroyed when depositing beyond this, -1 = unlimited)",
+
+    # Initial inventory for each resource
+    initial_inventory: dict[str, int] = Field(
+        default_factory=dict, description="Initial inventory for each resource type"
+    )
+
+    # Resource limits for the chest's inventory
+    resource_limits: dict[str, int] = Field(
+        default_factory=dict, description="Maximum amount per resource (uses inventory system's built-in limits)"
     )
 
 
@@ -405,11 +389,7 @@ class GameConfig(Config):
     clipper: Optional[ClipperConfig] = Field(default=None, description="Global clipper configuration")
 
     # Map builder configuration - accepts any MapBuilder config
-    map_builder: "AnyMapBuilderConfig" = Field(
-        default_factory=lambda: __import__(
-            "mettagrid.map_builder.random", fromlist=["RandomMapBuilder"]
-        ).RandomMapBuilder.Config(agents=24)
-    )
+    map_builder: AnyMapBuilderConfig = Field(default_factory=lambda: RandomMapBuilder.Config(agents=24))
 
     # Feature Flags
     track_movement_metrics: bool = Field(
@@ -424,31 +404,21 @@ class GameConfig(Config):
     @model_validator(mode="after")
     def _compute_feature_ids(self) -> "GameConfig":
         self._populate_vibe_names()
+        # Note that this validation only runs once by default, so later changes by the user can cause this to no
+        # longer be true.
+        if not self.actions.change_vibe.number_of_vibes == len(self.vibe_names):
+            raise ValueError("number_of_vibes must match the number of vibe names")
         return self
 
     def _populate_vibe_names(self) -> None:
         """Populate vibe_names from change_vibe action config if not already set."""
         if not self.vibe_names:
-            from mettagrid.config.vibes import VIBES
-
             num_vibes = self.actions.change_vibe.number_of_vibes
             self.vibe_names = [vibe.name for vibe in VIBES[:num_vibes]]
-
-    def model_dump(self, **kwargs):
-        """Override model_dump to ensure vibe_names is synced with change_vibe config."""
-        from mettagrid.config.vibes import VIBES
-
-        # Always update vibe_names to match current number_of_vibes
-        num_vibes = self.actions.change_vibe.number_of_vibes
-        self.vibe_names = [vibe.name for vibe in VIBES[:num_vibes]]
-
-        return super().model_dump(**kwargs)
 
     def _ensure_type_ids_assigned(self) -> None:
         """Ensure type IDs are assigned if they haven't been yet."""
         if not self._resolved_type_ids:
-            from mettagrid.config.id_map import IdMap
-
             IdMap.assign_type_ids(self)
             self._resolved_type_ids = True
 
@@ -460,11 +430,17 @@ class GameConfig(Config):
 
     def id_map(self) -> "IdMap":
         """Get the observation feature ID map for this configuration."""
-        from mettagrid.config.id_map import IdMap
-
         # Create a minimal MettaGridConfig wrapper
         wrapper = MettaGridConfig(game=self)
         return IdMap(wrapper)
+
+
+class TeacherConfig(Config):
+    """Teacher configuration."""
+
+    enabled: bool = Field(default=False)
+    use_actions: bool = Field(default=False)
+    policy: str = Field(default="baseline")
 
 
 class MettaGridConfig(Config):
@@ -473,16 +449,13 @@ class MettaGridConfig(Config):
     label: str = Field(default="mettagrid")
     game: GameConfig = Field(default_factory=GameConfig)
     desync_episodes: bool = Field(default=True)
+    teacher: TeacherConfig = Field(default_factory=TeacherConfig)
 
     def id_map(self) -> "IdMap":
         """Get the observation feature ID map for this configuration."""
-        from mettagrid.config.id_map import IdMap
-
         return IdMap(self)
 
     def with_ascii_map(self, map_data: list[list[str]]) -> "MettaGridConfig":
-        from mettagrid.map_builder.ascii import AsciiMapBuilder
-
         self.game.map_builder = AsciiMapBuilder.Config(
             map_data=map_data,
             char_to_name_map={o.map_char: o.name for o in self.game.objects.values()},
@@ -494,8 +467,6 @@ class MettaGridConfig(Config):
         num_agents: int, width: int = 10, height: int = 10, border_width: int = 1, with_walls: bool = False
     ) -> "MettaGridConfig":
         """Create an empty room environment configuration."""
-        from mettagrid.map_builder.random import RandomMapBuilder
-
         map_builder = RandomMapBuilder.Config(agents=num_agents, width=width, height=height, border_width=border_width)
         actions = ActionsConfig(
             move=MoveActionConfig(),
