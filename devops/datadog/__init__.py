@@ -1,1 +1,0 @@
-"""Datadog metric collectors."""

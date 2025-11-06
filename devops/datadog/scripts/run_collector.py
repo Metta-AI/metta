@@ -17,15 +17,13 @@ import logging
 import os
 import sys
 
-from devops.datadog.collectors import (
-    AsanaCollector,
-    EC2Collector,
-    GitHubCollector,
-    HealthFomCollector,
-    KubernetesCollector,
-    SkypilotCollector,
-    WandBCollector,
-)
+from devops.datadog.collectors.asana.collector import AsanaCollector
+from devops.datadog.collectors.ec2.collector import EC2Collector
+from devops.datadog.collectors.github.collector import GitHubCollector
+from devops.datadog.collectors.health_fom.collector import HealthFomCollector
+from devops.datadog.collectors.kubernetes.collector import KubernetesCollector
+from devops.datadog.collectors.skypilot.collector import SkypilotCollector
+from devops.datadog.collectors.wandb.collector import WandBCollector
 from devops.datadog.utils.datadog_client import DatadogClient
 
 # Collector registry with configuration
