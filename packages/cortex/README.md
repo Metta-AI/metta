@@ -211,6 +211,7 @@ sequences, `[B, H]` for single-step.
 | `CausalConv1d` | Depthwise causal Conv1D cell (ring-buffer state); supports optional channel-mixing mode.                   | Yes (channel-mixing only) | No                       |
 | `AxonCell`     | Streaming RTU with diagonal input weights (per-channel local recurrence, 2H→H→out_dim projection).         | Yes                       | Yes (seq‑allin, short‑T) |
 | `XLCell`       | Transformer‑XL style multi‑head attention with rolling memory; optional AxonLayer‑backed Q/K/V projections. | No                        | No                       |
+| `AGaLiTeCell`  | AGaLiTe attention       | No                        | Yes (fused discount sum) |
 
 **Notes:**
 
@@ -288,6 +289,19 @@ custom = {"X": PostUpGatedBlockConfig(cell=XLCellConfig(mem_len=128))}
 col_cfg2 = build_column_auto_config(d_hidden=256, pattern="X^", custom_map=custom)
 ```
 
+Built‑in expert tokens:
+
+- `A`  = Axon (PostUp)
+- `Ag` = AGaLiTe (PostUpGated)
+- `X`  = Transformer‑XL (PostUpGated), `X^` axonified QKV
+- `M`  = mLSTM (PreUp), `M^` axonified gates+QKV
+- `S`  = sLSTM (PostUp), `S^` axonified gates
+- `L`  = LSTM (PassThrough)
+- `C`  = CausalConv1d (PassThrough)
+
+Note: multi‑character tokens like `Ag` require separators in a single pattern string (e.g., "A Ag X"). Concatenated scans
+only support single‑character built‑ins.
+
 ### Compact Forward Pass (per token t)
 
 $$
@@ -359,7 +373,7 @@ def build_Q():
     return PreUpBlockConfig(cell=mLSTMCellConfig())
 
 # 2) Build Columns from a pattern and compose a stack config
-import cortex.tokens  # ensure built-ins (A,C,L,M,S,X) are registered
+import cortex.tokens  # ensure built-ins are registered
 from cortex.blocks.column.auto import build_column_auto_config
 from cortex import CortexStackConfig, build_cortex
 
