@@ -27,6 +27,7 @@ from typing import Dict, List
 
 from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_VARIANTS, get_difficulty
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
+from cogames.cogs_vs_clips.mission import NumCogsVariant
 from cogames.policy.scripted_agent import (
     BASELINE_HYPERPARAMETER_PRESETS,
     BaselinePolicy,
