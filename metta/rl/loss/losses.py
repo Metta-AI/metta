@@ -1,0 +1,49 @@
+from typing import TYPE_CHECKING
+
+import torch
+from pydantic import Field
+
+from metta.agent.policy import Policy
+from metta.rl.loss import contrastive_config
+from metta.rl.loss.action_supervised import ActionSupervisedConfig
+from metta.rl.loss.grpo import GRPOConfig
+from metta.rl.loss.loss import Loss, LossConfig
+from metta.rl.loss.ppo import PPOConfig
+from metta.rl.training import TrainingEnvironment
+from mettagrid.base_config import Config
+
+if TYPE_CHECKING:
+    from metta.rl.trainer_config import TrainerConfig
+
+
+class LossesConfig(Config):
+    contrastive: contrastive_config.ContrastiveConfig = Field(
+        default_factory=lambda: contrastive_config.ContrastiveConfig()
+    )
+    ppo: PPOConfig = Field(default_factory=lambda: PPOConfig())
+    supervisor: ActionSupervisedConfig = Field(default_factory=lambda: ActionSupervisedConfig(student_led=False))
+    grpo: GRPOConfig = Field(default_factory=lambda: GRPOConfig())
+
+    def _configs(self) -> dict[str, LossConfig]:
+        loss_configs: dict[str, LossConfig] = {
+            "ppo": self.ppo,
+        }
+        if self.contrastive.enabled:
+            loss_configs["contrastive"] = self.contrastive
+        if self.supervisor.enabled:
+            loss_configs["supervisor"] = self.supervisor
+        if self.grpo.enabled:
+            loss_configs["grpo"] = self.grpo
+        return loss_configs
+
+    def init_losses(
+        self,
+        policy: Policy,
+        trainer_cfg: "TrainerConfig",
+        env: TrainingEnvironment,
+        device: torch.device,
+    ) -> dict[str, Loss]:
+        return {
+            loss_name: loss_config.create(policy, trainer_cfg, env, device, loss_name, loss_config)
+            for loss_name, loss_config in self._configs().items()
+        }
