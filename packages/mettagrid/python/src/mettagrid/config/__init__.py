@@ -1,4 +1,3 @@
-from .base_config import Config
 from .mettagrid_c_config import convert_to_cpp_game_config
 from .mettagrid_config import (
     ActionConfig,
@@ -24,7 +23,6 @@ __all__ = [
     "AssemblerConfig",
     "AttackActionConfig",
     "ChangeVibeActionConfig",
-    "Config",
     "convert_to_cpp_game_config",
     "GameConfig",
     "GlobalObsConfig",

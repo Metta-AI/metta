@@ -10,7 +10,7 @@ from torch.nn.parameter import UninitializedParameter
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.policy import Policy
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger("metta_agent")

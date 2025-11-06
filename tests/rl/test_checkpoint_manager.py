@@ -12,7 +12,7 @@ from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.system_config import SystemConfig
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 
 class MockActionComponentConfig(ComponentConfig):

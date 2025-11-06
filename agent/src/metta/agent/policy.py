@@ -21,7 +21,7 @@ from metta.agent.components.obs_shim import (
     ObsShimTokensConfig,
 )
 from metta.rl.utils import ensure_sequence_metadata
-from mettagrid.config.mettagrid_config import Config
+from mettagrid.base_config import Config
 from mettagrid.policy.policy import AgentPolicy, TrainablePolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action, AgentObservation

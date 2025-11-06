@@ -13,7 +13,7 @@ from pydantic import (
     model_validator,
 )
 
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 from mettagrid.config.id_map import IdMap
 from mettagrid.config.obs_config import ObsConfig
 from mettagrid.config.vibes import VIBES, Vibe
@@ -22,7 +22,6 @@ from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.simulator import Action
 
-# Forward reference - actual import happens at runtime when needed
 # ===== Python Configuration Models =====
 
 Direction = Literal["north", "south", "east", "west", "northeast", "northwest", "southeast", "southwest"]
