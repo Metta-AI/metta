@@ -1,16 +1,8 @@
-"""Variant-friendly CoGs vs Clips recipe with easy defaults."""
+"""CoGs vs Clips recipe with easy defaults."""
 
 from __future__ import annotations
 
-from experiments.recipes.cogs_v_clips_presets import build_cvc_preset
-
-DEFAULT_EASY_VARIANTS: tuple[str, ...] = (
-    "lonely_heart",
-    "pack_rat",
-    "neutral_faced",
-)
-
-_PRESET = build_cvc_preset(DEFAULT_EASY_VARIANTS)
+from ._preset import DEFAULT_EASY_VARIANTS, PRESET as _PRESET
 
 make_eval_suite = _PRESET.make_eval_suite
 make_training_env = _PRESET.make_training_env

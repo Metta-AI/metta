@@ -1,18 +1,8 @@
-"""CoGs vs Clips recipe with reward-shaping oriented defaults."""
+"""CoGs vs Clips recipe with reward-shaping defaults."""
 
 from __future__ import annotations
 
-from experiments.recipes.cogs_v_clips_presets import build_cvc_preset
-
-DEFAULT_SHAPED_VARIANTS: tuple[str, ...] = (
-    "lonely_heart",
-    "heart_chorus",
-    "pack_rat",
-    "extractor_base",
-    "neutral_faced",
-)
-
-_PRESET = build_cvc_preset(DEFAULT_SHAPED_VARIANTS)
+from ._preset import DEFAULT_SHAPED_VARIANTS, PRESET as _PRESET
 
 make_eval_suite = _PRESET.make_eval_suite
 make_training_env = _PRESET.make_training_env
