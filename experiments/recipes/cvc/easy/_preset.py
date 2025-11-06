@@ -1,4 +1,4 @@
-"""Preset configuration for cvc_easy recipe variants."""
+"""Preset configuration for easy CoGs vs Clips variants."""
 
 from __future__ import annotations
 

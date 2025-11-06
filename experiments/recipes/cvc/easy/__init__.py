@@ -1,8 +1,8 @@
-"""CoGs vs Clips recipe with reward-shaping defaults."""
+"""Easy preset CoGs vs Clips helpers."""
 
 from __future__ import annotations
 
-from ._preset import DEFAULT_SHAPED_VARIANTS, PRESET as _PRESET
+from ._preset import DEFAULT_EASY_VARIANTS, PRESET as _PRESET
 
 make_eval_suite = _PRESET.make_eval_suite
 make_training_env = _PRESET.make_training_env
@@ -18,7 +18,7 @@ play = _PRESET.play
 play_training_env = _PRESET.play_training_env
 
 __all__ = [
-    "DEFAULT_SHAPED_VARIANTS",
+    "DEFAULT_EASY_VARIANTS",
     "make_eval_suite",
     "make_training_env",
     "make_curriculum",
