@@ -22,10 +22,11 @@ import sys
 import time
 from datetime import datetime
 
-# Import the generic run_collector function
+# Import the generic run_collector function and registry
 from devops.datadog.scripts.run_collector import run_collector
 
-# Define collectors to run (in priority order)
+# Define collector run order (use registry keys)
+# Health FoM runs last since it depends on other collectors' metrics
 COLLECTORS = [
     "github",
     "kubernetes",
@@ -33,7 +34,7 @@ COLLECTORS = [
     "skypilot",
     "wandb",
     "asana",
-    "health_fom",  # Normalized health scores (runs after raw metrics collected)
+    "health_fom",
 ]
 
 # Per-collector timeout in seconds (2 minutes default)
