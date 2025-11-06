@@ -70,13 +70,13 @@ def test_procedural_builder_builds_and_has_expected_layers(
         tree = builder.get_scene_tree()
         types = _collect_types(tree)
         # Expect BSPLayout nodes for biome/dungeon when weights provided
-        assert any(t.endswith("BSPLayout") for t in types)
+        assert any(t.endswith("BSPLayout.Config") for t in types)
         # BoundedLayout must wrap biome/dungeon zones
-        assert any(t.endswith("BoundedLayout") for t in types)
+        assert any(t.endswith("BoundedLayout.Config") for t in types)
         # UniformExtractorScene should be present
-        assert any(t.endswith("UniformExtractorScene") for t in types)
+        assert any(t.endswith("UniformExtractorScene.Config") for t in types)
         # BaseHub should be present
-        assert any(t.endswith("BaseHub") for t in types)
+        assert any(t.endswith("BaseHub.Config") for t in types)
 
 
 @pytest.mark.parametrize(
@@ -104,7 +104,7 @@ def test_zone_counts_respect_max_zone_fraction(width: int, height: int, max_biom
     builder.build()
     tree = builder.get_scene_tree()
 
-    biome_layouts = _find_nodes(tree, "BSPLayout")
+    biome_layouts = _find_nodes(tree, "BSPLayout.Config")
     assert biome_layouts, "Expected BSPLayout for zones"
 
     # find the one that wraps biome or dungeon children via BoundedLayout tag fields
@@ -138,7 +138,7 @@ def test_uniform_extractors_configuration_pass_through():
     builder = cfg.create()
     builder.build()
     tree = builder.get_scene_tree()
-    nodes = _find_nodes(tree, "UniformExtractorScene")
+    nodes = _find_nodes(tree, "UniformExtractorScene.Config")
     assert nodes, "UniformExtractorScene should be present"
     ucfg = nodes[0]["config"]
     assert ucfg.get("building_names") == list(buildings.keys())

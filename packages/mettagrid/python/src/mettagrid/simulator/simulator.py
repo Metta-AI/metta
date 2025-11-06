@@ -240,25 +240,7 @@ class Simulation:
 
     def _make_map(self) -> GameMap:
         map_builder = self._config.game.map_builder.create()
-        game_map = map_builder.build()
-
-        # Handle spawn points: treat them as potential spawn locations
-        # If there are more spawn points than agents, replace the excess with empty spaces
-        spawn_mask = np.char.startswith(game_map.grid, "agent")
-        level_agents = np.count_nonzero(spawn_mask)
-        num_agents = self._config.game.num_agents
-
-        if level_agents < num_agents:
-            raise ValueError(
-                f"Number of agents {num_agents} exceeds available spawn points {level_agents} in map. "
-                f"This may be because your map, after removing border width, is too small to fit the number of agents."
-            )
-        elif level_agents > num_agents:
-            # Replace excess spawn points with empty spaces
-            spawn_indices = np.argwhere(spawn_mask)
-            # Keep first num_agents spawn points, replace the rest with empty
-            for idx in spawn_indices[num_agents:]:
-                game_map.grid[tuple(idx)] = "empty"
+        game_map = map_builder.build_for_num_agents(self._config.game.num_agents)
 
         return game_map
 

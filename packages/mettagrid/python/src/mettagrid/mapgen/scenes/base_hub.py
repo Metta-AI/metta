@@ -28,6 +28,10 @@ class BaseHubConfig(SceneConfig):
     hub_height: int = 21
     include_inner_wall: bool = True
     # Order: top-left, top-right, bottom-left, bottom-right.
+    # Notes:
+    # - If corner_objects is provided (len==4), BaseHub will use that set directly.
+    # - corner_bundle/cross_bundle can be "none" | "chests" | "extractors".
+    # - When both objects and bundle are provided, objects win (per BaseHub logic).
     corner_objects: list[str] | None = None
     corner_bundle: Literal["chests", "extractors", "none", "custom"] = "chests"
     cross_objects: list[str] | None = None
