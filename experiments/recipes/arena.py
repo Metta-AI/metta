@@ -17,6 +17,7 @@ from mettagrid import MettaGridConfig
 from metta.rl.loss import LossConfig
 from metta.rl.loss.action_supervised import ActionSupervisedConfig
 from metta.rl.trainer_config import TrainerConfig
+from metta.rl.training import CheckpointerConfig
 
 # TODO(dehydration): make sure this trains as well as main on arena
 # it's possible the maps are now different
@@ -94,6 +95,7 @@ def train(
     return TrainTool(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
+        checkpointer=CheckpointerConfig(epoch_interval=2),
         # evaluator=EvaluatorConfig(simulations=simulations()),
     )
 
