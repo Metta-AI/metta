@@ -2,19 +2,18 @@ from __future__ import annotations
 
 import json
 import shutil
-import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
 import boto3
-from botocore.exceptions import BotoCoreError, ClientError
 
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
 from metta.setup.saved_settings import get_saved_settings
 from metta.setup.utils import debug, info, warning
 from metta.tools.pr_similarity import DEFAULT_CACHE_PATH, resolve_cache_paths
+from softmax.aws.secrets_manager import get_secretsmanager_secret
 
 
 def _resolve_cache_paths(repo_root: Path) -> tuple[Path, Path]:
@@ -40,32 +39,12 @@ class PrSimilaritySetup(SetupModule):
         return meta_path.exists() and vectors_path.exists() and shutil.which("metta-pr-similarity-mcp") is not None
 
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
-        api_key = self._fetch_gemini_api_key()
+        api_key = get_secretsmanager_secret("GEMINI-API-KEY", require_exists=False)
 
         self._ensure_cache(force)
-        self._install_mcp_package(force)
         self._configure_claude(api_key=api_key, force=force)
         self._configure_codex(api_key=api_key)
         self._configure_cursor(api_key=api_key)
-
-    def _fetch_gemini_api_key(self) -> Optional[str]:
-        secret_name = "GEMINI-API-KEY"
-        region = "us-east-1"
-
-        try:
-            client = boto3.session.Session().client("secretsmanager", region_name=region)
-            raw_secret = client.get_secret_value(SecretId=secret_name)["SecretString"]
-        except (BotoCoreError, ClientError, KeyError) as error:
-            warning(
-                f"Unable to read AWS Secrets Manager secret '{secret_name}' (region {region}): {error}",
-            )
-            return None
-
-        api_key = raw_secret.strip()
-        if not api_key:
-            warning(f"Secret '{secret_name}' did not contain a usable GEMINI API key.")
-            return None
-        return api_key
 
     def _ensure_cache(self, force: bool) -> None:
         meta_path, vectors_path = _resolve_cache_paths(self.repo_root)
@@ -94,27 +73,6 @@ class PrSimilaritySetup(SetupModule):
             info(f"Downloaded PR similarity cache from s3://{bucket}/{prefix}")
         except Exception as error:  # pragma: no cover - external dependency
             warning(f"Unable to download PR similarity cache: {error}")
-
-    def _install_mcp_package(self, force: bool) -> None:
-        if shutil.which("metta-pr-similarity-mcp") and not force:
-            return
-
-        package_path = self.repo_root / "mcp_servers" / "pr_similarity"
-        python_executable = Path(sys.executable)
-        try:
-            command = [
-                "uv",
-                "pip",
-                "install",
-                "--python",
-                str(python_executable),
-                "-e",
-                str(package_path),
-            ]
-            self.run_command(command, capture_output=False)
-            info("Installed metta-pr-similarity MCP package.")
-        except Exception as error:  # pragma: no cover - external dependency
-            warning(f"Failed to install metta-pr-similarity package: {error}")
 
     def _configure_claude(self, *, api_key: Optional[str], force: bool) -> None:
         if shutil.which("claude") is None:
