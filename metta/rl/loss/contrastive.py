@@ -7,7 +7,7 @@ from torch import Tensor
 from torchrl.data import Composite
 
 from metta.agent.policy import Policy
-from metta.rl.loss import Loss
+from metta.rl.loss.loss import Loss
 from metta.rl.training import ComponentContext, TrainingEnvironment
 
 
