@@ -22,7 +22,7 @@ logger = logging.getLogger("vecenv")
 @validate_call(config={"arbitrary_types_allowed": True})
 def make_env_func(
     curriculum: Curriculum,
-    env_supervisor_cfg: EnvSupervisorConfig | None = None,
+    env_supervisor_cfg: Optional[EnvSupervisorConfig] = None,
     stats_writer: Optional[StatsWriter] = None,
     replay_writer: Optional[ReplayLogWriter] = None,
     run_dir: str | None = None,
