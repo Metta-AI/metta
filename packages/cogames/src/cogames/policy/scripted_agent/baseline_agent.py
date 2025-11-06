@@ -18,10 +18,15 @@ import random
 from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Callable, Dict, Optional
+from typing import TYPE_CHECKING, Callable, Optional, Tuple
 
-from cogames.policy import AgentPolicy, StatefulPolicyImpl
-from mettagrid.simulator.interface import Action, AgentObservation
+from cogames.policy import StatefulPolicyImpl
+from mettagrid.config.mettagrid_config import CardinalDirections
+from mettagrid.config.vibes import VIBE_BY_NAME
+from mettagrid.policy.policy import MultiAgentPolicy, StatefulAgentPolicy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.simulator import Action
+from mettagrid.simulator.interface import AgentObservation
 
 if TYPE_CHECKING:
     from mettagrid.simulator import Simulation
@@ -114,10 +119,36 @@ class ParsedObservation:
 
 
 @dataclass
+class SharedAgentState:
+    """Shared state for all agents."""
+
+    # Path caching for efficient navigation
+    cached_path: Optional[list[tuple[int, int]]] = None
+    cached_path_target: Optional[tuple[int, int]] = None
+    cached_path_reach_adjacent: bool = False
+    # Cached grid_objects for position lookups - shared across all agents per step
+    cached_grid_objects: Optional[dict] = None
+    cached_grid_objects_step: int = -1
+
+    # Shared knowledge across all agents
+    extractors: dict[str, list[ExtractorInfo]] = field(
+        default_factory=lambda: {"carbon": [], "oxygen": [], "germanium": [], "silicon": []}
+    )
+
+    # Shared station positions (discovered by any agent)
+    stations: dict[str, tuple[int, int] | None] = field(
+        default_factory=lambda: {"assembler": None, "chest": None, "charger": None}
+    )
+
+
+@dataclass
 class SimpleAgentState:
     """State for a single agent."""
 
     agent_id: int
+    simulation: Simulation
+    shared_state: SharedAgentState
+
     phase: Phase = Phase.GATHER  # Start gathering immediately
     step_count: int = 0
 
@@ -132,6 +163,10 @@ class SimpleAgentState:
     germanium: int = 0
     silicon: int = 0
     hearts: int = 0
+    decoder: int = 0
+    modulator: int = 0
+    resonator: int = 0
+    scrambler: int = 0
 
     # Current target
     target_position: Optional[tuple[int, int]] = None
@@ -140,12 +175,12 @@ class SimpleAgentState:
     # Map knowledge
     map_height: int = 0
     map_width: int = 0
-    occupancy: list[list[int]] = None  # 1=free, 2=obstacle (initialized in reset)
+    occupancy: list[list[int]] = field(default_factory=list)  # 1=free, 2=obstacle (initialized in reset)
 
     # Note: Station positions are now in shared self._stations, not per-agent
 
     # Track last action for position updates
-    last_action: int = -1
+    last_action: Action = field(default_factory=lambda: Action(name="noop"))
 
     # Current glyph (vibe) for interacting with assembler
     current_glyph: str = "default"
@@ -165,7 +200,7 @@ class SimpleAgentState:
     exploration_target_step: int = 0  # When we set the target
 
     # Track unreachable extractors (position -> consecutive failed pathfind attempts)
-    unreachable_extractors: dict[tuple[int, int], int] = None
+    unreachable_extractors: dict[tuple[int, int], int] = field(default_factory=dict)
 
     # Agent positions (cleared and refreshed every step)
     agent_occupancy: set[tuple[int, int]] = field(default_factory=set)
@@ -177,66 +212,27 @@ class SimpleAgentState:
     # Agent position update frequency (to avoid constant re-planning)
     agent_positions_last_updated: int = 0
 
-    # Path caching for efficient navigation
-    cached_path: Optional[list[tuple[int, int]]] = None
-    cached_path_target: Optional[tuple[int, int]] = None
-    cached_path_reach_adjacent: bool = False
 
-
-class BaselineAgent:
-    """
-    Minimal baseline scripted agent with only essential features.
-
-    Design principles:
-    - Nearest extractor selection (distance only)
-    - Simple BFS navigation
-    - Basic phase transitions
-    - No coordination, caching, or advanced features
-    """
-
-    def __init__(self, simulation: "Simulation"):
-        """
-        Args:
-            simulation: The Simulation object
-        """
-        self._sim = simulation
-        self._map_h = simulation.map_height
-        self._map_w = simulation.map_width
+class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
+    def __init__(self, policy_env_info: PolicyEnvInterface, shared_state: SharedAgentState, agent_id: int):
+        self._shared_state = shared_state
+        self._agent_id = agent_id
 
         # Observation grid half-ranges from config
-        obs_config = simulation.config.game.obs
-        self._obs_hr = obs_config.height // 2  # Egocentric observation half-radius (rows)
-        self._obs_wr = obs_config.width // 2  # Egocentric observation half-radius (cols)
+        self._obs_hr = policy_env_info.obs_height // 2  # Egocentric observation half-radius (rows)
+        self._obs_wr = policy_env_info.obs_width // 2  # Egocentric observation half-radius (cols)
 
         # Action lookup
-        self._action_lookup = {name: idx for idx, name in enumerate(simulation.action_names)}
-        self._action_names = simulation.action_names  # For converting indices back to names
-        self._NOOP = self._action_lookup.get("noop", 0)
-        self._MOVE_N = self._action_lookup.get("move_north", -1)
-        self._MOVE_S = self._action_lookup.get("move_south", -1)
-        self._MOVE_E = self._action_lookup.get("move_east", -1)
-        self._MOVE_W = self._action_lookup.get("move_west", -1)
+        self._actions = policy_env_info.actions
         self._move_deltas = {
-            self._MOVE_N: (-1, 0),
-            self._MOVE_S: (1, 0),
-            self._MOVE_E: (0, 1),
-            self._MOVE_W: (0, -1),
-        }
-        self._USE = self._action_lookup.get("use", -1)
-
-        # Glyph (vibe) support for assembler - use actual VIBES order from env
-        from cogames.cogs_vs_clips.vibes import VIBES
-
-        self._glyph_name_to_id = {v.name: i for i, v in enumerate(VIBES)}
-        # Vibe actions are named "change_vibe_{vibe_name}", not "change_vibe_{idx}"
-        self._change_vibe_actions = {
-            name: self._action_lookup.get(f"change_vibe_{name}", -1) for name in self._glyph_name_to_id.keys()
+            "north": (-1, 0),
+            "south": (1, 0),
+            "east": (0, 1),
+            "west": (0, -1),
         }
 
         # Feature ID lookup for parsing observations
-        self._fid: dict[str, int] = {f.name: f.id for f in simulation.features}
-        self._to_int = int  # Helper for token parsing
-        self._object_type_names = simulation.object_type_names
+        self._fid: dict[str, int] = {f.name: f.id for f in policy_env_info.obs_features}
 
         # Fast lookup tables for observation feature decoding
         self._spatial_feature_key_by_id: dict[int, str] = {}
@@ -257,33 +253,23 @@ class BaselineAgent:
             if fid is not None:
                 self._agent_feature_key_by_id[fid] = key
 
-        # Shared knowledge across all agents
-        self._extractors: dict[str, list[ExtractorInfo]] = {
-            "carbon": [],
-            "oxygen": [],
-            "germanium": [],
-            "silicon": [],
-        }
-
-        # Shared station positions (discovered by any agent)
-        self._stations: dict[str, tuple[int, int] | None] = {
-            "assembler": None,
-            "chest": None,
-            "charger": None,
-        }
-
-        # Agent states
-        self._agent_states: dict[int, SimpleAgentState] = {}
-
         # Resource requirements for one heart
         self._heart_recipe = {"carbon": 20, "oxygen": 20, "germanium": 5, "silicon": 50}
 
-        # Cached grid_objects for position lookups - shared across all agents per step
-        self._cached_grid_objects: Optional[dict] = None
-        self._cached_grid_objects_step: int = -1
+    def initial_agent_state(self, simulation: Optional["Simulation"]) -> SimpleAgentState:
+        """Get initial state for an agent."""
+        assert simulation is not None
+        return SimpleAgentState(
+            agent_id=self._agent_id,
+            shared_state=self._shared_state,
+            simulation=simulation,
+            map_height=simulation.map_height,
+            map_width=simulation.map_width,
+            occupancy=[[CellType.FREE.value] * simulation.map_width for _ in range(simulation.map_height)],
+        )
 
     def parse_observation(
-        self, obs: AgentObservation, agent_row: int, agent_col: int, debug: bool = False
+        self, state: SimpleAgentState, obs: AgentObservation, debug: bool = False
     ) -> ParsedObservation:
         """Parse token-based observation into structured format.
 
@@ -302,7 +288,6 @@ class BaselineAgent:
 
         # Parse tokens - only spatial features
         for tok in obs.tokens:
-            # Get location (row, col) - already unpacked
             obs_r, obs_c = tok.location
             feature_id = tok.feature.id
             value = tok.value
@@ -312,10 +297,10 @@ class BaselineAgent:
                 continue
 
             # Spatial features (relative to agent)
-            if agent_row >= 0 and agent_col >= 0:
+            if state.row >= 0 and state.col >= 0:
                 # Convert observation-relative coords to world coords
-                r, c = obs_r - self._obs_hr + agent_row, obs_c - self._obs_wr + agent_col
-                if 0 <= r < self._map_h and 0 <= c < self._map_w:
+                r, c = obs_r - self._obs_hr + state.row, obs_c - self._obs_wr + state.col
+                if 0 <= r < state.map_height and 0 <= c < state.map_width:
                     pos = (r, c)
                     if pos not in position_features:
                         position_features[pos] = {}
@@ -339,30 +324,12 @@ class BaselineAgent:
         for pos, features in position_features.items():
             type_id = features.get("type_id", 0)
 
-            # Get object name
-            obj_name = ""
-            if 0 <= type_id < len(self._object_type_names):
-                obj_name = self._object_type_names[type_id]
-
-            # Add ALL observed cells to nearby_objects
-            # Empty string means floor (passable), other names are actual objects
-            nearby_objects[pos] = ObjectState(
-                name=obj_name if obj_name else "floor",  # Use "floor" for empty strings
-                converting=features.get("converting", 0),
-                cooldown_remaining=features.get("cooldown_remaining", 0),
-                clipped=features.get("clipped", 0),
-                remaining_uses=features.get("remaining_uses", 999),
-                # Agent features
-                agent_id=features.get("agent_id", -1),
-                agent_group=features.get("agent_group", -1),
-                agent_frozen=features.get("agent_frozen", 0),
-                agent_orientation=features.get("agent_orientation", 0),
-                agent_visitation_counts=features.get("agent_visitation_counts", 0),
-            )
+            obj_name = state.simulation.object_type_names[type_id]
+            nearby_objects[pos] = ObjectState(name=obj_name)
 
         return ParsedObservation(
-            row=agent_row,  # Position from tracking
-            col=agent_col,
+            row=state.row,  # Position from tracking
+            col=state.col,
             energy=0,  # Inventory obtained via agent.inventory
             carbon=0,
             oxygen=0,
@@ -378,41 +345,35 @@ class BaselineAgent:
 
     def reset(self, num_agents: int) -> None:
         """Reset all agent states."""
-        self._agent_states.clear()
-        for agent_id in range(num_agents):
-            state = SimpleAgentState(
-                agent_id=agent_id,
-                map_height=self._map_h,
-                map_width=self._map_w,
-                occupancy=[[CellType.FREE.value] * self._map_w for _ in range(self._map_h)],
-            )
-            # Initialize mutable defaults that can't be in dataclass
-            state.unreachable_extractors = {}
-            self._agent_states[agent_id] = state
-        # Clear extractor memory
-        for resource in self._extractors:
-            self._extractors[resource].clear()
+        # We shouldn't have this, but for now, clear it
+        if self._agent_id == 0:
+            self._shared_state.cached_grid_objects = None
+            self._shared_state.cached_grid_objects_step = -1
+            self._shared_state.extractors = {
+                "carbon": [],
+                "oxygen": [],
+                "germanium": [],
+                "silicon": [],
+            }
+            self._shared_state.stations = {
+                "assembler": None,
+                "chest": None,
+                "charger": None,
+            }
 
-    def step(self, agent_id: int, obs: AgentObservation) -> int:
+    def step_with_state(self, obs: AgentObservation, state: SimpleAgentState) -> Tuple[Action, SimpleAgentState]:
         """Compute action for one agent (returns action index)."""
-        s = self._agent_states[agent_id]
-        s.step_count += 1
+        state.step_count += 1
 
-        s.agent_occupancy.clear()
-
-        # Update state from observation
-        self._update_state_from_obs(s, obs)
-
-        # Check phase transitions
-        self._update_phase(s)
-
-        # Execute current phase
-        action = self._execute_phase(s)
+        state.agent_occupancy.clear()
+        self._update_state_from_obs(state, obs)
+        self._update_phase(state)
+        action = self._execute_phase(state)
 
         # Save action for next step's position update
-        s.last_action = action
+        state.last_action = action
 
-        return action
+        return action, state
 
     def _update_agent_position(self, s: SimpleAgentState) -> None:
         """Get agent position from simulation grid_objects().
@@ -423,12 +384,12 @@ class BaselineAgent:
         """
         try:
             # Use cached grid_objects if it's from the current step
-            if self._cached_grid_objects_step != s.step_count:
-                self._cached_grid_objects = self._sim.grid_objects()
-                self._cached_grid_objects_step = s.step_count
+            if s.shared_state.cached_grid_objects_step != s.step_count:
+                s.shared_state.cached_grid_objects = s.simulation.grid_objects()
+                s.shared_state.cached_grid_objects_step = s.step_count
 
             # Find this agent in the cached grid objects
-            for _id, obj in self._cached_grid_objects.items():
+            for _id, obj in s.shared_state.cached_grid_objects.items():
                 if obj.get("agent_id") == s.agent_id:
                     new_row, new_col = obj.get("r", -1), obj.get("c", -1)
                     s.row, s.col = new_row, new_col
@@ -446,13 +407,12 @@ class BaselineAgent:
         # NOTE: Observations contain inventory for ALL visible agents. We must only read
         # from the center of the egocentric view where the observing agent is located.
         inv = {}
-        features_list = self._sim.features
         center_r, center_c = self._obs_hr, self._obs_wr  # Center of egocentric observation
 
         for tok in obs.tokens:
             # Only read inventory from the center cell (where this agent is)
             if tok.location == (center_r, center_c):
-                feature_spec = features_list[tok.feature.id]
+                feature_spec = tok.feature
                 feature_name = feature_spec.name
                 if feature_name.startswith("inv:"):
                     resource_name = feature_name[4:]  # Remove "inv:" prefix
@@ -471,7 +431,7 @@ class BaselineAgent:
 
         # STEP 3: Parse spatial observation with known position
         debug = s.step_count <= 2
-        parsed = self.parse_observation(obs, s.row, s.col, debug=debug)
+        parsed = self.parse_observation(s, obs, debug=debug)
 
         # Check if we received the resource from an extractor activation
         if s.pending_use_resource is not None:
@@ -543,8 +503,8 @@ class BaselineAgent:
         return station in obj_name
 
     def _discover_station(self, s: SimpleAgentState, pos: tuple[int, int], station_key: str) -> None:
-        if self._stations.get(station_key) is None:
-            self._stations[station_key] = pos
+        if s.shared_state.stations.get(station_key) is None:
+            s.shared_state.stations[station_key] = pos
 
     def _discover_extractor(
         self,
@@ -554,7 +514,7 @@ class BaselineAgent:
         obj_state: ObjectState,
     ) -> None:
         extractor = None
-        for existing in self._extractors[resource_type]:
+        for existing in s.shared_state.extractors[resource_type]:
             if existing.position == pos:
                 extractor = existing
                 break
@@ -565,7 +525,7 @@ class BaselineAgent:
                 resource_type=resource_type,
                 last_seen_step=s.step_count,
             )
-            self._extractors[resource_type].append(extractor)
+            s.shared_state.extractors[resource_type].append(extractor)
 
         extractor.last_seen_step = s.step_count
         extractor.converting = obj_state.converting > 0
@@ -642,8 +602,8 @@ class BaselineAgent:
 
         # Invalidate cached path if phase changed (likely targeting something different now)
         if old_phase != s.phase:
-            s.cached_path = None
-            s.cached_path_target = None
+            s.shared_state.cached_path = None
+            s.shared_state.cached_path_target = None
 
     def _calculate_deficits(self, s: SimpleAgentState) -> dict[str, int]:
         """Calculate how many more of each resource we need for a heart."""
@@ -654,7 +614,7 @@ class BaselineAgent:
             "silicon": max(0, self._heart_recipe["silicon"] - s.silicon),
         }
 
-    def _execute_phase(self, s: SimpleAgentState) -> int:
+    def _execute_phase(self, s: SimpleAgentState) -> Action:
         """Execute action for current phase."""
         if s.phase == Phase.GATHER:
             return self._do_gather(s)
@@ -666,9 +626,9 @@ class BaselineAgent:
             return self._do_recharge(s)
         elif s.phase == Phase.UNCLIP:
             return self._do_unclip(s)
-        return self._NOOP
+        return self._actions.noop.Noop()
 
-    def _explore_frontier(self, s: SimpleAgentState) -> int:
+    def _explore_frontier(self, s: SimpleAgentState) -> Action:
         """
         Frontier-based exploration: move toward areas we haven't visited recently.
         Uses a 'visited' tracking system to encourage exploring new areas.
@@ -677,7 +637,7 @@ class BaselineAgent:
         Includes occasional random moves to break out of repetitive patterns.
         """
         if s.row < 0:
-            return self._NOOP
+            return self._actions.noop.Noop()
 
         # Initialize visited map if not exists
         if s.visited_map is None:
@@ -691,10 +651,10 @@ class BaselineAgent:
             # Pick a random valid direction
             valid_moves = []
             for action, (dr, dc) in [
-                (self._MOVE_N, (-1, 0)),
-                (self._MOVE_S, (1, 0)),
-                (self._MOVE_E, (0, 1)),
-                (self._MOVE_W, (0, -1)),
+                (self._actions.move.Move("north"), (-1, 0)),
+                (self._actions.move.Move("south"), (1, 0)),
+                (self._actions.move.Move("east"), (0, 1)),
+                (self._actions.move.Move("west"), (0, -1)),
             ]:
                 nr, nc = s.row + dr, s.col + dc
                 if self._is_within_bounds(s, nr, nc) and s.occupancy[nr][nc] == CellType.FREE.value:
@@ -756,16 +716,16 @@ class BaselineAgent:
             return self._move_towards(s, best_target)
 
         # No good target found, pick a random direction
-        return random.choice([self._MOVE_N, self._MOVE_S, self._MOVE_E, self._MOVE_W])
+        return self._actions.move.Move(random.choice(CardinalDirections))
 
-    def _explore_directed(self, s: SimpleAgentState, target_area: tuple[int, int], radius: int = 5) -> int:
+    def _explore_directed(self, s: SimpleAgentState, target_area: tuple[int, int], radius: int = 5) -> Action:
         """
         Directed exploration: move toward a specific area to explore it.
         Useful for searching specific regions of the map.
         """
         # Move toward target area
         action = self._move_towards(s, target_area)
-        if action != self._NOOP:
+        if action != self._actions.noop.Noop():
             return action
 
         # If we've reached the area, use frontier exploration
@@ -773,7 +733,7 @@ class BaselineAgent:
 
     def _explore_until(
         self, s: SimpleAgentState, condition: Callable[[], bool], reason: str = "Exploring"
-    ) -> int | None:
+    ) -> Action | None:
         """
         Explore until a condition is met.
 
@@ -790,7 +750,7 @@ class BaselineAgent:
 
         return self._explore(s)
 
-    def _explore(self, s: SimpleAgentState) -> int:
+    def _explore(self, s: SimpleAgentState) -> Action:
         """Execute exploration using frontier-based strategy."""
         return self._explore_frontier(s)
 
@@ -813,7 +773,7 @@ class BaselineAgent:
 
         return None
 
-    def _do_gather(self, s: SimpleAgentState) -> int:
+    def _do_gather(self, s: SimpleAgentState) -> Action:
         """
         Gather resources from nearest extractors.
         Opportunistically uses ANY extractor for ANY needed resource.
@@ -827,9 +787,9 @@ class BaselineAgent:
                 s.pending_use_amount = 0
                 s.waiting_at_extractor = None
                 s.wait_steps = 0
-                return self._NOOP
+                return self._actions.noop.Noop()
 
-            return self._NOOP
+            return self._actions.noop.Noop()
 
         deficits = self._calculate_deficits(s)
 
@@ -837,7 +797,7 @@ class BaselineAgent:
         if all(d <= 0 for d in deficits.values()):
             s.waiting_at_extractor = None
             s.wait_steps = 0
-            return self._NOOP
+            return self._actions.noop.Noop()
 
         # Explore until we find ANY extractor for ANY needed resource
         explore_action = self._explore_until(
@@ -871,7 +831,7 @@ class BaselineAgent:
             s.waiting_at_extractor = None
             s.wait_steps = 0
             action = self._move_towards(s, extractor.position, reach_adjacent=True)
-            if action == self._NOOP:
+            if action == self._actions.noop.Noop():
                 return self._explore(s)
             return action
 
@@ -881,14 +841,14 @@ class BaselineAgent:
         if extractor.cooldown_remaining > 0 or extractor.converting:
             s.waiting_at_extractor = extractor.position
             s.wait_steps += 1
-            return self._NOOP
+            return self._actions.noop.Noop()
 
         # If out of uses or clipped, it's not usable - move on to next extractor
         if extractor.remaining_uses == 0 or extractor.clipped:
             s.waiting_at_extractor = None
             s.wait_steps = 0
             # Will find another extractor on next iteration
-            return self._NOOP
+            return self._actions.noop.Noop()
         # Extractor is usable! Track inventory before use, then move into it to activate
         old_amount = getattr(s, resource_type, 0)
 
@@ -906,23 +866,23 @@ class BaselineAgent:
 
         return action
 
-    def _do_assemble(self, s: SimpleAgentState) -> int:
+    def _do_assemble(self, s: SimpleAgentState) -> Action:
         """Assemble hearts at assembler."""
         # Explore until we find assembler
         explore_action = self._explore_until(
-            s, condition=lambda: self._stations["assembler"] is not None, reason="Need assembler"
+            s, condition=lambda: s.shared_state.stations["assembler"] is not None, reason="Need assembler"
         )
         if explore_action is not None:
             return explore_action
 
         # First, ensure we have the correct glyph (heart) for assembling
         if s.current_glyph != "heart":
-            vibe_action = self._change_vibe_actions["heart"]
+            vibe_action = self._actions.change_vibe.ChangeVibe(VIBE_BY_NAME["heart"])
             s.current_glyph = "heart"
             return vibe_action
 
         # Assembler is known, move adjacent to it then use it
-        assembler = self._stations["assembler"]
+        assembler = s.shared_state.stations["assembler"]
         ar, ac = assembler
         dr = abs(s.row - ar)
         dc = abs(s.col - ac)
@@ -935,17 +895,17 @@ class BaselineAgent:
         # Not adjacent yet, move towards it
         return self._move_towards(s, assembler, reach_adjacent=True)
 
-    def _do_deliver(self, s: SimpleAgentState) -> int:
+    def _do_deliver(self, s: SimpleAgentState) -> Action:
         """Deliver hearts to chest."""
         # Explore until we find chest
         explore_action = self._explore_until(
-            s, condition=lambda: self._stations["chest"] is not None, reason="Need chest"
+            s, condition=lambda: s.shared_state.stations["chest"] is not None, reason="Need chest"
         )
         if explore_action is not None:
             return explore_action
 
         # Chest is known, move adjacent to it then use it
-        chest = self._stations["chest"]
+        chest = s.shared_state.stations["chest"]
         cr, cc = chest
         dr = abs(s.row - cr)
         dc = abs(s.col - cc)
@@ -958,17 +918,17 @@ class BaselineAgent:
         # Not adjacent yet, move towards it
         return self._move_towards(s, chest, reach_adjacent=True)
 
-    def _do_recharge(self, s: SimpleAgentState) -> int:
+    def _do_recharge(self, s: SimpleAgentState) -> Action:
         """Recharge at charger."""
         # Explore until we find charger
         explore_action = self._explore_until(
-            s, condition=lambda: self._stations["charger"] is not None, reason="Need charger"
+            s, condition=lambda: s.shared_state.stations["charger"] is not None, reason="Need charger"
         )
         if explore_action is not None:
             return explore_action
 
         # Charger is known, move adjacent to it
-        charger = self._stations["charger"]
+        charger = s.shared_state.stations["charger"]
         chr, chc = charger
         dr = abs(s.row - chr)
         dc = abs(s.col - chc)
@@ -976,21 +936,21 @@ class BaselineAgent:
 
         if is_adjacent:
             # Adjacent to charger - NOOP to recharge
-            return self._NOOP
+            return self._actions.noop.Noop()
 
         # Not adjacent yet, move towards it
         return self._move_towards(s, charger, reach_adjacent=True)
 
-    def _do_unclip(self, s: SimpleAgentState) -> int:
+    def _do_unclip(self, s: SimpleAgentState) -> Action:
         """Unclip extractors (TODO: implement)."""
         # TODO: Find nearest clipped extractor, go to it, activate it to unclip
         # For now, just return to GATHER phase
         s.phase = Phase.GATHER
-        return self._NOOP
+        return self._actions.noop.Noop()
 
     def _find_nearest_extractor(self, s: SimpleAgentState, resource_type: str) -> Optional[ExtractorInfo]:
         """Find the nearest AVAILABLE extractor of the given type."""
-        extractors = self._extractors.get(resource_type, [])
+        extractors = s.shared_state.extractors.get(resource_type, [])
         if not extractors:
             return None
 
@@ -1011,7 +971,7 @@ class BaselineAgent:
         *,
         reach_adjacent: bool = False,
         allow_goal_block: bool = False,
-    ) -> int:
+    ) -> Action:
         """Pathfind toward a target using BFS with obstacle awareness.
 
         Uses path caching to avoid recomputing BFS every step - only recomputes when:
@@ -1023,34 +983,34 @@ class BaselineAgent:
 
         start = (s.row, s.col)
         if start == target and not reach_adjacent:
-            return self._NOOP
+            return self._actions.noop.Noop()
 
         goal_cells = self._compute_goal_cells(s, target, reach_adjacent)
         if not goal_cells:
-            return self._NOOP
+            return self._actions.noop.Noop()
 
         # Check if we can reuse cached path
         path = None
         if (
-            s.cached_path
-            and len(s.cached_path) > 0
-            and s.cached_path_target == target
-            and s.cached_path_reach_adjacent == reach_adjacent
+            s.shared_state.cached_path
+            and len(s.shared_state.cached_path) > 0
+            and s.shared_state.cached_path_target == target
+            and s.shared_state.cached_path_reach_adjacent == reach_adjacent
         ):
             # Validate cached path - check if next step is still walkable
-            next_pos = s.cached_path[0]
+            next_pos = s.shared_state.cached_path[0]
             if self._is_traversable(s, next_pos[0], next_pos[1]) or (allow_goal_block and next_pos in goal_cells):
                 # Cached path is valid! Use it
-                path = s.cached_path
+                path = s.shared_state.cached_path
             # If next step blocked, fall through to recompute
 
         # Need to recompute path
         if path is None:
             path = self._shortest_path(s, start, goal_cells, allow_goal_block)
             # Cache the new path
-            s.cached_path = path.copy() if path else None
-            s.cached_path_target = target
-            s.cached_path_reach_adjacent = reach_adjacent
+            s.shared_state.cached_path = path.copy() if path else None
+            s.shared_state.cached_path_target = target
+            s.shared_state.cached_path_reach_adjacent = reach_adjacent
         if not path:
             for dr in range(-2, 3):
                 row_str = "    "
@@ -1080,33 +1040,33 @@ class BaselineAgent:
                             row_str += "?"
                     else:
                         row_str += "X"
-            return self._NOOP
+            return self._actions.noop.Noop()
 
         # Get next step from path
         next_pos = path[0]
 
         # Advance cached path (remove the step we're about to take)
-        if s.cached_path and len(s.cached_path) > 0:
-            s.cached_path = s.cached_path[1:]  # Remove first element
+        if s.shared_state.cached_path and len(s.shared_state.cached_path) > 0:
+            s.shared_state.cached_path = s.shared_state.cached_path[1:]  # Remove first element
             # Clear cache if we've reached the end
-            if len(s.cached_path) == 0:
-                s.cached_path = None
-                s.cached_path_target = None
+            if len(s.shared_state.cached_path) == 0:
+                s.shared_state.cached_path = None
+                s.shared_state.cached_path_target = None
 
         # Convert next position to action
         dr = next_pos[0] - s.row
         dc = next_pos[1] - s.col
 
         if dr == -1 and dc == 0:
-            return self._MOVE_N
+            return self._actions.move.Move("north")
         if dr == 1 and dc == 0:
-            return self._MOVE_S
+            return self._actions.move.Move("south")
         if dr == 0 and dc == 1:
-            return self._MOVE_E
+            return self._actions.move.Move("east")
         if dr == 0 and dc == -1:
-            return self._MOVE_W
+            return self._actions.move.Move("west")
 
-        return self._NOOP
+        return self._actions.noop.Noop()
 
     def _compute_goal_cells(
         self, s: SimpleAgentState, target: tuple[int, int], reach_adjacent: bool
@@ -1195,7 +1155,7 @@ class BaselineAgent:
 
     def _trace_log(self, s: SimpleAgentState) -> None:
         """Detailed trace logging."""
-        extractors_known = {r: len(self._extractors[r]) for r in self._heart_recipe}
+        extractors_known = {r: len(s.shared_state.extractors[r]) for r in ["carbon", "oxygen", "germanium", "silicon"]}
         print(f"[TRACE Step {s.step_count}] Agent {s.agent_id} @ ({s.row},{s.col})")
         print(f"  Phase: {s.phase.name}, Energy: {s.energy}")
         print(f"  Inventory: C={s.carbon} O={s.oxygen} G={s.germanium} S={s.silicon} Hearts={s.hearts}")
@@ -1203,30 +1163,30 @@ class BaselineAgent:
         # Debug: show first few extractors if any
         if s.step_count == 100:
             for rtype in self._heart_recipe:
-                if len(self._extractors[rtype]) > 0:
-                    first_3 = self._extractors[rtype][:3]
+                if len(s.shared_state.extractors[rtype]) > 0:
+                    first_3 = s.shared_state.extractors[rtype][:3]
                     print(f"    {rtype}: {[(e.position, e.last_seen_step) for e in first_3]}")
-        stations = f"assembler={self._stations['assembler'] is not None}"
-        stations += f" chest={self._stations['chest'] is not None}"
-        stations += f" charger={self._stations['charger'] is not None}"
+        stations = f"assembler={s.shared_state.stations['assembler'] is not None}"
+        stations += f" chest={s.shared_state.stations['chest'] is not None}"
+        stations += f" charger={s.shared_state.stations['charger'] is not None}"
         print(f"  Stations: {stations}")
         print(f"  Target: {s.target_position}, Target resource: {s.target_resource}")
 
-    def _move_into_cell(self, s: SimpleAgentState, target: tuple[int, int]) -> int:
+    def _move_into_cell(self, s: SimpleAgentState, target: tuple[int, int]) -> Action:
         """Return the action that attempts to step into the target cell."""
         tr, tc = target
         if s.row == tr and s.col == tc:
-            return self._NOOP
+            return self._actions.noop.Noop()
         dr = tr - s.row
         dc = tc - s.col
-        if dr == -1 and self._MOVE_N != -1:
-            return self._MOVE_N
-        if dr == 1 and self._MOVE_S != -1:
-            return self._MOVE_S
-        if dc == 1 and self._MOVE_E != -1:
-            return self._MOVE_E
-        if dc == -1 and self._MOVE_W != -1:
-            return self._MOVE_W
+        if dr == -1:
+            return self._actions.move.Move("north")
+        if dr == 1:
+            return self._actions.move.Move("south")
+        if dc == 1:
+            return self._actions.move.Move("east")
+        if dc == -1:
+            return self._actions.move.Move("west")
         # Fallback to pathfinder if offsets unexpected
         return self._move_towards(s, target, allow_goal_block=True)
 
@@ -1236,73 +1196,12 @@ class BaselineAgent:
 # ============================================================================
 
 
-class BaselinePolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
-    """Implementation that wraps BaselineAgent."""
+class BaselinePolicy(MultiAgentPolicy):
+    def __init__(self, policy_env_info: PolicyEnvInterface):
+        super().__init__(policy_env_info)
+        self._shared_state = SharedAgentState()
 
-    def __init__(self, simulation: "Simulation"):
-        self._agent = BaselineAgent(simulation)
-        self._sim = simulation
-
-    def agent_state(self, agent_id: int = 0) -> SimpleAgentState:
-        """Get initial state for an agent."""
-        # Make sure agent states are initialized
-        if agent_id not in self._agent._agent_states:
-            self._agent._agent_states[agent_id] = SimpleAgentState(
-                agent_id=agent_id,
-                map_height=self._agent._map_h,
-                map_width=self._agent._map_w,
-                occupancy=[[CellType.FREE.value] * self._agent._map_w for _ in range(self._agent._map_h)],
-            )
-        return self._agent._agent_states[agent_id]
-
-    def step_with_state(self, obs: AgentObservation, state: SimpleAgentState) -> tuple[Action, SimpleAgentState]:
-        """Compute action and return updated state."""
-        # The state passed in tells us which agent this is
-        agent_id = state.agent_id
-        # Update the shared agent state
-        self._agent._agent_states[agent_id] = state
-        # Compute action (returns integer index)
-        action_idx = self._agent.step(agent_id, obs)
-        # Convert to Action object
-        action = Action(name=self._agent._action_names[action_idx])
-        # Return action and updated state
-        return action, self._agent._agent_states[agent_id]
-
-
-class BaselinePolicy:
-    """Policy class for simple baseline agent.
-
-    This policy requires a Simulation object for accessing grid_objects()
-    to get absolute agent positions. Pass it via reset(simulation=sim).
-    """
-
-    def __init__(self):
-        """Initialize policy (simulation will be provided via reset)."""
-        self._sim = None
-        self._impl = None
-        self._agent_policies: Dict[int, AgentPolicy] = {}
-
-    def reset(self, simulation: "Simulation" = None) -> None:
-        """Reset all agent states.
-
-        Args:
-            simulation: The Simulation object (needed for grid_objects access)
-        """
-        if simulation is None:
-            raise RuntimeError("BaselinePolicy requires simulation parameter in reset()")
-
-        self._sim = simulation
-        self._impl = BaselinePolicyImpl(simulation)
-        self._agent_policies.clear()
-
-    def agent_policy(self, agent_id: int) -> AgentPolicy:
-        """Get an AgentPolicy instance for a specific agent."""
-        if self._impl is None:
-            raise RuntimeError("Policy not initialized - call reset(simulation=sim) first")
-
-        # Create agent policies lazily
-        if agent_id not in self._agent_policies:
-            from cogames.policy import StatefulAgentPolicy
-
-            self._agent_policies[agent_id] = StatefulAgentPolicy(self._impl, agent_id)
-        return self._agent_policies[agent_id]
+    def agent_policy(self, agent_id: int) -> StatefulAgentPolicy[SimpleAgentState]:
+        return StatefulAgentPolicy(
+            BaselineAgentPolicyImpl(self._policy_env_info, self._shared_state, agent_id), self._policy_env_info
+        )
