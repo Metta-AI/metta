@@ -101,12 +101,6 @@ packages:
     apt:
       name: gitleaks
 
-  # Special language support
-  nim:
-    brew:
-      name: nim
-    # Linux installs Nim via choosenim (see metta/setup/components/system.py)
-
   # Homebrew packages with custom taps
   graphite:
     brew:
