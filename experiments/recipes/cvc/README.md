@@ -94,7 +94,8 @@ uv run ./tools/run.py experiments.recipes.cvc.curriculum.play
 
 ### Variant Presets (pass manually)
 
-If you want quick-start bundles, pass the variants explicitly when invoking any recipe. Two common sets we use internally:
+If you want quick-start bundles, pass the variants explicitly when invoking any recipe. Two common sets we use
+internally:
 
 - **Easy starter:** `lonely_heart`, `pack_rat`, `neutral_faced`
 
@@ -112,7 +113,8 @@ If you want quick-start bundles, pass the variants explicitly when invoking any 
       variants='["lonely_heart","heart_chorus","pack_rat","neutral_faced"]'
   ```
 
-Mix and match with difficulty variants (for example, add `difficulty=hard` or append `"clipped_oxygen"` to the list) as needed—the recipes forward everything to the `cogames` variant parser.
+Mix and match with difficulty variants (for example, add `difficulty=hard` or append `"clipped_oxygen"` to the list) as
+needed—the recipes forward everything to the `cogames` variant parser.
 
 ## Recipe Functions
 
