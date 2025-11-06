@@ -1,3 +1,4 @@
+import logging
 from typing import override
 
 from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_VARIANTS
@@ -7,6 +8,8 @@ from cogames.cogs_vs_clips.procedural import (
     MachinaArenaVariant,
 )
 from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, ProtocolConfig
+
+logger = logging.getLogger(__name__)
 
 
 class MinedOutVariant(MissionVariant):
@@ -271,7 +274,7 @@ class ClipRateOnVariant(MissionVariant):
 
     @override
     def modify_mission(self, mission):
-        mission.clip_rate = 0.02
+        mission.clip_rate = 0.92
 
 
 # Biome variants (weather) for procedural maps
@@ -330,6 +333,24 @@ class StoreBaseVariant(BaseHubVariant):
         node.cross_distance = 7
 
 
+class ExtractorBaseVariant(BaseHubVariant):
+    name: str = "extractor_base"
+    description: str = "Sanctum corners host extractors; cross remains clear."
+
+    @override
+    def modify_env(self, mission, env) -> None:
+        try:
+            super().modify_env(mission, env)
+        except TypeError as exc:
+            logger.debug("ExtractorBaseVariant skipped: %s", exc)
+
+    @override
+    def modify_node(self, node):
+        node.corner_bundle = "extractors"
+        node.cross_bundle = "none"
+        node.cross_distance = 7
+
+
 class BothBaseVariant(BaseHubVariant):
     name: str = "both_base"
     description: str = "Sanctum corners store chests and cross arms host extractors."
@@ -370,6 +391,7 @@ VARIANTS: list[MissionVariant] = [
     CityVariant(),
     CavesVariant(),
     StoreBaseVariant(),
+    ExtractorBaseVariant(),
     BothBaseVariant(),
     LonelyHeartVariant(),
     PackRatVariant(),

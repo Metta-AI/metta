@@ -105,12 +105,14 @@ internally:
       variants='["lonely_heart","pack_rat","neutral_faced"]'
   ```
 
-- **Reward-shaped:** `lonely_heart`, `heart_chorus`, `pack_rat`, `neutral_faced`
+- **Reward-shaped:** `lonely_heart`, `heart_chorus`, `pack_rat`, `neutral_faced`, `extractor_base`
 
   ```bash
   uv run ./tools/run.py experiments.recipes.cvc.small_maps.train \\
       run=my_shaped_run \\
-      variants='["lonely_heart","heart_chorus","pack_rat","neutral_faced"]'
+      variants='["lonely_heart","heart_chorus","pack_rat","neutral_faced","extractor_base"]'
+
+  > Note: `extractor_base` only affects BaseHub/Machina maps (e.g., training_facility). It is skipped automatically on fixed eval layouts.
   ```
 
 Mix and match with difficulty variants (for example, add `difficulty=hard` or append `"clipped_oxygen"` to the list) as
