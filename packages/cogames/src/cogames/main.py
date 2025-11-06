@@ -251,7 +251,11 @@ def train_cmd(
         help="Override vectorized environment batch size",
         min=1,
     ),
-    log_outputs: bool = typer.Option(False, "--log-outputs", help="Log training outputs"),
+    log_outputs: bool = typer.Option(
+        False,
+        "--log-outputs",
+        help="Log statistics to stdout, do not use Rich dashboard",
+    ),
 ) -> None:
     selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs)
     if len(selected_missions) == 1:
