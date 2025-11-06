@@ -19,6 +19,7 @@ import sys
 
 from devops.datadog.scripts.collectors import COLLECTOR_REGISTRY
 from devops.datadog.utils.datadog_client import DatadogClient
+from metta.common.util.aws_secrets import get_secretsmanager_secret
 
 
 def setup_logging(verbose: bool) -> None:
@@ -28,29 +29,12 @@ def setup_logging(verbose: bool) -> None:
 
 
 def get_credential(secret_key: str, required: bool = True) -> str | None:
-    """Get credential from AWS Secrets Manager.
-
-    Args:
-        secret_key: AWS Secrets Manager key
-        required: If True, raise error on failure
-
-    Returns:
-        Credential value or None
-    """
-    from metta.common.util.aws_secrets import get_secretsmanager_secret
-
+    """Get credential from AWS Secrets Manager."""
     return get_secretsmanager_secret(secret_key, require_exists=required)
 
 
 def get_collector_instance(collector_name: str):
-    """Create collector instance with appropriate credentials.
-
-    Args:
-        collector_name: Name of collector to instantiate
-
-    Returns:
-        Collector instance
-    """
+    """Create collector instance with appropriate credentials."""
     if collector_name == "github":
         token = get_credential("github/dashboard-token")
         org = os.getenv("GITHUB_ORG", "PufferAI")
@@ -87,14 +71,7 @@ def get_collector_instance(collector_name: str):
 
 
 def get_extra_tags(collector_name: str) -> list[str]:
-    """Get collector-specific tags.
-
-    Args:
-        collector_name: Name of collector
-
-    Returns:
-        List of additional tags
-    """
+    """Get collector-specific tags."""
     tags = []
 
     if collector_name == "ec2":
@@ -134,7 +111,8 @@ def push_metrics_to_datadog(metrics: dict, source_tag: str, extra_tags: list[str
 
     metrics_to_submit = []
     for name, value in metrics.items():
-        if value is None:
+        # Skip None values and empty lists
+        if value is None or (isinstance(value, list) and not value):
             continue
 
         # Handle new per-run metric format: list of (value, tags) tuples
