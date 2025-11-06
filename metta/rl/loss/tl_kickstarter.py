@@ -73,6 +73,19 @@ class TLKickstarter(Loss):
         # get the teacher policy experience spec
         self.teacher_policy_spec = self.teacher_policy.get_agent_experience_spec()
 
+    def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
+        with torch.no_grad():
+            self.teacher_policy.forward(td)
+
+        # Store experience
+        env_slice = context.training_env_id
+        if env_slice is None:
+            raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
+        self.replay.store(data_td=td, env_id=env_slice)
+
+        return
+
+
     def run_train(
         self,
         shared_loss_data: TensorDict,

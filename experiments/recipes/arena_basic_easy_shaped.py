@@ -111,7 +111,9 @@ def train(
 
     # Configure losses with tl_kickstarter
     loss_config = LossConfig()
-    # loss_config.loss_configs["tl_kickstarter"] = TLKickstarterConfig()
+    loss_config.loss_configs["tl_kickstarter"] = TLKickstarterConfig(
+        teacher_uri="s3://softmax-public/policies/av.scheduler.11.4.00/av.scheduler.11.4.00:v240.mpt"
+    )
 
     trainer_cfg = TrainerConfig(
         losses=loss_config,
@@ -121,16 +123,16 @@ def train(
         policy_architecture = ViTDefaultConfig()
 
     # Configure scheduler with run gates
-    # scheduler = SchedulerConfig(
-    #     run_gates=[
-    #         # PPO rollout doesn't run for the first 50 epochs (starts at epoch 50)
-    #         LossRunGate(loss_instance_name="ppo", phase="rollout", begin_at_epoch=50),
-    #         # tl_kickstarter rollout doesn't run after the 50th epoch (ends before epoch 51)
-    #         LossRunGate(
-    #             loss_instance_name="tl_kickstarter", phase="rollout", end_at_epoch=51
-    #         ),
-    #     ],
-    # )
+    scheduler = SchedulerConfig(
+        run_gates=[
+            # PPO rollout doesn't run for the first n epochs
+            LossRunGate(loss_instance_name="ppo", phase="rollout", begin_at_epoch=5),
+            # tl_kickstarter rollout doesn't run after the 50th epoch (ends before epoch 51)
+            LossRunGate(
+                loss_instance_name="tl_kickstarter", phase="rollout", end_at_epoch=4
+            ),
+        ],
+    )
 
     return TrainTool(
         trainer=trainer_cfg,
@@ -138,10 +140,10 @@ def train(
         evaluator=EvaluatorConfig(simulations=eval_simulations),
         policy_architecture=policy_architecture,
         torch_profiler=TorchProfilerConfig(),
-        # scheduler=scheduler,
+        scheduler=scheduler,
         checkpointer=CheckpointerConfig(
-            epoch_interval=10
-        ),  # Checkpoint every 100 epochs
+            epoch_interval=100
+        ),
     )
 
 
