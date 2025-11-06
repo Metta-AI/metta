@@ -12,7 +12,12 @@ from mettagrid.config.mettagrid_config import MettaGridConfig
 
 @dataclass
 class FeatureSpec:
-    """Single feature definition with min-max or categories."""
+    """Specification for a feature dimension.
+
+    For continuous/discrete types, values are normalized to [0, 1] with
+    out-of-range values clipped before conversion.
+    
+    """
 
     name: str
     feature_type: str  # "continuous" | "discrete" | "categorical"
@@ -21,6 +26,7 @@ class FeatureSpec:
     categories: List[str] | None = None
 
     def normalize(self, value: float | int | str) -> float | np.ndarray:
+        """Normalize value to model-friendly representation."""
         if self.feature_type in ("continuous", "discrete"):
             assert self.min_value is not None and self.max_value is not None, f"{self.name}: no min/max"
             rng = float(self.max_value - self.min_value)
@@ -44,6 +50,7 @@ class FeatureSpec:
         raise ValueError(f"Unknown feature type: {self.feature_type}")
 
     def denormalize(self, value: float | np.ndarray) -> float | int | str:
+        """Convert normalized value back to original representation."""
         if self.feature_type in ("continuous", "discrete"):
             assert self.min_value is not None and self.max_value is not None
             raw = float(value) * (self.max_value - self.min_value) + self.min_value
@@ -68,12 +75,12 @@ _BASE_SPECS: List[FeatureSpec] = [
 
 
 def get_feature_spec() -> List[FeatureSpec]:
-    """Return feature specification for the base vector (defensive copy)."""
+    """Return the base feature specification."""
     return list(_BASE_SPECS)
 
 
 def get_feature_dim() -> int:
-    """Return total dimensionality of the concatenated base vector (continuous + categorical)."""
+    """Return total dimensionality of the base feature vector."""
     dim = 0
     for s in _BASE_SPECS:
         dim += len(s.categories) if s.categories else 1
@@ -81,10 +88,14 @@ def get_feature_dim() -> int:
 
 
 def _map_builder(cfg: MettaGridConfig):
-    """Support both older/newer layouts.
+    """Locate the map_builder.
 
-    Prefer `cfg.map_builder` when present, otherwise fall back to `cfg.game.map_builder`.
-    If fields are stored on a wrapped builder instance, return that instance.
+    Supports multiple layout variants:
+      - cfg.map_builder
+      - cfg.game.map_builder
+      - wrapped as `.instance` on either
+
+    Returns the resolved builder or None if not found.
     """
     game = getattr(cfg, "game", None)
     mb = getattr(cfg, "map_builder", None) or (getattr(game, "map_builder", None) if game is not None else None)
@@ -93,18 +104,7 @@ def _map_builder(cfg: MettaGridConfig):
 
 
 def extract_features_from_config(config: MettaGridConfig) -> Dict[str, Any]:
-    """Extract raw (unnormalized) base features from a config.
-
-    Strategy:
-      1) Prefer structured fields on the config / map_builder.
-      2) If a field is truly absent, parse a *strictly validated* label:
-         '{room_size}_{chain}chain_{sinks}sinks_{terrain}'.
-      3) No synthetic width/height fallbacks are used.
-
-    Returns:
-        Dict with raw feature values (width, height, chain_length, num_sinks, room_size, terrain).
-        Also returns a 'num_assemblers' count (not part of the reversible base).
-    """
+    """Extract raw (unnormalized) base features from a config."""
     mb = _map_builder(config)
     if mb is None:
         raise ValueError("map_builder not found on config")
@@ -172,16 +172,21 @@ def serialize_config(
     resource_types: Sequence[str] | None = None,
     sentinels: Tuple[str, str] = ("nothing", "heart"),
 ) -> dict[str, np.ndarray]:
-    """Serialize MettaGridConfig to {"continuous": 1-D, "categorical": 1-D[, "assemblers": 1-D]}.
+    """Serialize MettaGridConfig into:   
+        {
+          "continuous": 1-D float32 array,
+          "categorical": 1-D float32 array,
+          ["assemblers"]: 1-D float32 array (optional)
+        }
+    Base blocks (reversible):
+      - continuous: normalized scalars for non-categorical specs
+      - categorical: concatenated one-hots for categorical specs
 
-    continuous: normalized scalars in base-spec order for non-categorical features
-                [width, height, chain_length, num_sinks]
-    categorical: concatenated one-hots in base-spec order for categorical features
-                 [room_size one-hot, terrain one-hot]
-
-    If `include_assemblers`:
-      - if `resource_types` provided: adds a non-invertible summary vector
-      - else: adds a 1-D vector with normalized assembler count
+    Optional "assemblers" block (non-invertible):
+      - If `resource_types` is provided:
+          summary vector from `_summary_vector(...)`
+      - Otherwise:
+          single scalar = normalized assembler count
     """
     raw = extract_features_from_config(config)
     continuous_vals: List[float] = []
@@ -248,7 +253,15 @@ def _denormalize_from_blocks(continuous: np.ndarray, categorical: np.ndarray) ->
 
 
 def deserialize_config(features: Mapping[str, np.ndarray], *, rng: random.Random | None = None) -> MettaGridConfig:
-    """Deserialize guided dict features back to a MettaGridConfig."""
+    """Deserialize base feature back into a MettaGridConfig.
+    
+    Expects:
+
+      features["continuous"]: 1-D array of normalized scalars
+      features["categorical"]: 1-D array of concatenated one-hots
+      
+    Any auxiliary keys (e.g. "assemblers") are ignored.
+    """
     if "continuous" not in features or "categorical" not in features:
         raise KeyError("features must include 'continuous' and 'categorical'")
     cont = np.asarray(features["continuous"], dtype=np.float32)
@@ -294,6 +307,7 @@ def deserialize_config(features: Mapping[str, np.ndarray], *, rng: random.Random
 
 
 def _objects(cfg: MettaGridConfig) -> dict[str, Any]:
+    """Return game objects mapping, handling both config- and game-scoped layouts."""
     return getattr(cfg, "game_objects", None) or getattr(getattr(cfg, "game", None), "objects", None) or {}
 
 
@@ -330,7 +344,7 @@ def _summary_vector(
 
     If to be extended in the future, (e.g. cooldown statistics, branching factors),
     append new scalars at the end and update helpers that depend on the size
-    of this block (e.g. `get_total_feature_dim`) accordingly.
+    of this block accordingly.
     """
     objs = _objects(cfg)
 
@@ -436,7 +450,16 @@ def serialize_payload(
 
 
 def flatten_payload(payload: dict[str, Any], *, include_summary: bool = True) -> np.ndarray:
-    """Concatenate base + optional summary into one flat vector for models."""
+    """
+    Flatten payload into a single feature vector.
+
+    If include_summary is True and a summary is present:
+        concat(base, summary)
+    Otherwise:
+        return base
+
+    Suitable as direct input to representation models.
+    """
     base = np.asarray(payload["base"], dtype=np.float32)
     if include_summary and payload.get("summary") is not None:
         return np.concatenate([base, np.asarray(payload["summary"], dtype=np.float32)], axis=0)
