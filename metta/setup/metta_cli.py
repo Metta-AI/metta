@@ -250,7 +250,7 @@ def cmd_install(
     check_status: Annotated[bool, typer.Option("--check-status", help="Check status after installation")] = True,
 ):
     if not no_clean:
-        cmd_clean()
+        cmd_clean(force=force)
 
     from metta.setup.saved_settings import get_saved_settings
 
@@ -423,7 +423,10 @@ def cmd_run(
 
 
 @app.command(name="clean", help="Clean build artifacts and temporary files")
-def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False):
+def cmd_clean(
+    verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False,
+    force: Annotated[bool, typer.Option("--force", help="Force clean")] = False,
+):
     def _remove_matching_dirs(base: Path, patterns: list[str], *, include_globs: bool = False) -> None:
         for pattern in patterns:
             candidates = base.glob(pattern) if include_globs else (base / pattern,)
@@ -451,6 +454,10 @@ def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose o
     if mettagrid_dir.exists():
         _remove_matching_dirs(mettagrid_dir, ["bazel-*"], include_globs=True)
         _remove_matching_dirs(mettagrid_dir, [".bazel_output"])
+
+    nim_generated_dir = cli.repo_root / "packages" / "mettagrid" / "nim" / "mettascope" / "bindings" / "generated"
+    if force and nim_generated_dir.exists():
+        shutil.rmtree(nim_generated_dir)
 
     cleanup_script = cli.repo_root / "devops" / "tools" / "cleanup_repo.py"
     if cleanup_script.exists():
