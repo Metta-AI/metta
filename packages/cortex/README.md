@@ -299,8 +299,6 @@ Built‑in expert tokens:
 - `L`  = LSTM (PassThrough)
 - `C`  = CausalConv1d (PassThrough)
 
-Note: multi‑character tokens like `Ag` require separators in a single pattern string (e.g., "A Ag X"). Concatenated scans
-only support single‑character built‑ins.
 
 ### Compact Forward Pass (per token t)
 
