@@ -116,6 +116,7 @@ class ActionSupervised(Loss):
         env_slice = context.training_env_id
         if env_slice is None:
             raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
+        assert self.replay is not None
         self.replay.store(data_td=td, env_id=env_slice)
 
         if not self.student_led:
@@ -159,7 +160,7 @@ class ActionSupervised(Loss):
         # --------------------------Now Value Loss----------------------------------
         if self.add_action_loss_to_rewards:
             minibatch["rewards"] = minibatch["rewards"] + self.action_reward_coef * policy_td["act_log_prob"].detach()
-            # NOTE: we should somehownormalize the policy loss before adding it to rewards, perhaps exponentiate then
+            # NOTE: we should somehow normalize the policy loss before adding it to rewards, perhaps exponentiate then
             # softplus?
 
         if self.student_led:
