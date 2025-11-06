@@ -29,7 +29,7 @@ BOOTSTRAP_DIR = Path(__file__).resolve().parent
 if str(BOOTSTRAP_DIR) not in sys.path:
     sys.path.insert(0, str(BOOTSTRAP_DIR))
 
-from nim_bootstrap import ensure_nim_dependencies
+from nim_bootstrap import NIM_BIN, NIMBY_BIN, ensure_nim_dependencies
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 METTASCOPE_DIR = PROJECT_ROOT / "nim" / "mettascope"
@@ -41,7 +41,12 @@ METTASCOPE_PACKAGE_DIR = PYTHON_PACKAGE_DIR / "nim" / "mettascope"
 def cmd(cmd: str) -> None:
     """Run a command and raise an error if it fails."""
     print(f"Running: {cmd}")
-    result = subprocess.run(cmd.split(), cwd=METTASCOPE_DIR, capture_output=True, text=True)
+    parts = cmd.split()
+    if parts and parts[0] == "nimby":
+        parts[0] = str(NIMBY_BIN)
+    elif parts and parts[0] == "nim":
+        parts[0] = str(NIM_BIN)
+    result = subprocess.run(parts, cwd=METTASCOPE_DIR, capture_output=True, text=True)
     print(result.stderr, file=sys.stderr)
     print(result.stdout, file=sys.stderr)
     if result.returncode != 0:
