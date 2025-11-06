@@ -6,6 +6,7 @@ from cortex.config import (
     AxonConfig,
     BlockConfig,
     CausalConv1dConfig,
+    AGaLiTeCellConfig,
     LSTMCellConfig,
     PassThroughBlockConfig,
     PostUpBlockConfig,
@@ -77,3 +78,9 @@ def _build_C() -> BlockConfig:
 
 
 __all__: list[str] = []
+
+
+@register_token("Ag")
+def _build_Ag() -> BlockConfig:
+    # AGaLiTe attention expert; use gated post block for GTrXL-like gating.
+    return PostUpGatedBlockConfig(cell=AGaLiTeCellConfig())

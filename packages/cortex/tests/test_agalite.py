@@ -108,7 +108,6 @@ def test_agalite_sequence_shapes_and_state() -> None:
         r=2,
         eps=1e-5,
         dropout=0.0,
-        backend="pytorch",
     )
     cell = AGaLiTeCell(cfg).to(device=device, dtype=dtype)
     cell.eval()
@@ -135,7 +134,6 @@ def test_agalite_step_vs_sequence_equivalence() -> None:
         r=2,
         eps=1e-5,
         dropout=0.0,
-        backend="pytorch",
     )
     cell = AGaLiTeCell(cfg).to(device=device, dtype=dtype)
     cell.eval()
@@ -155,38 +153,4 @@ def test_agalite_step_vs_sequence_equivalence() -> None:
     torch.testing.assert_close(y_seq, y_step, rtol=5e-4, atol=5e-4)
 
 
-@pytest.mark.cuda
-def test_agalite_backend_parity_cuda_vs_pytorch() -> None:
-    if not torch.cuda.is_available():
-        pytest.skip("CUDA not available")
-
-    torch.manual_seed(9)
-    device = torch.device("cuda")
-    dtype = torch.float32
-
-    B, T, H, NH, Dh = 2, 4, 32, 4, 8
-    cfg_pt = AGaLiTeCellConfig(
-        hidden_size=H,
-        n_heads=NH,
-        head_dim=Dh,
-        eta=3,
-        r=2,
-        backend="pytorch",
-        dropout=0.0,
-    )
-    cfg_cuda = cfg_pt.model_copy(update={"backend": "cuda"})
-
-    cell_ref = AGaLiTeCell(cfg_pt).to(device=device, dtype=dtype)
-    cell_cuda = AGaLiTeCell(cfg_cuda).to(device=device, dtype=dtype)
-    cell_cuda.load_state_dict(cell_ref.state_dict())
-    cell_ref.eval(); cell_cuda.eval()
-
-    x = torch.randn(B, T, H, device=device, dtype=dtype)
-
-    with torch.no_grad():
-        y_ref, _ = cell_ref(x, state=None)
-
-    with torch.no_grad():
-        y_cuda, _ = cell_cuda(x, state=None)
-
-    torch.testing.assert_close(y_ref, y_cuda, rtol=2e-3, atol=2e-3)
+#! CUDA-only backend parity for discounted sum is covered by kernel test above.

@@ -39,7 +39,6 @@ class AGaLiTeCell(MemoryCell):
         self.r = int(cfg.r)
         self.eps = float(cfg.eps)
         self.drop = nn.Dropout(cfg.dropout)
-        self.backend_pref = cfg.backend
 
         # Projections (match baseline JAX: single dense for K/Q/V/β/γ, single dense for p1/p2/p3)
         self.kqvbg_proj = nn.Linear(H, self.n_heads * self.d_head * 5, bias=False)
@@ -153,7 +152,7 @@ class AGaLiTeCell(MemoryCell):
         discount_beta_r = discount_beta.unsqueeze(2).expand(-1, -1, self.r, -1, -1)
 
         # Select backend for discounted sum
-        allow_cuda = (self.backend_pref in ("auto", "cuda")) and x_seq.is_cuda
+        allow_cuda = x_seq.is_cuda
         pytorch_fn = "cortex.kernels.pytorch.agalite:discounted_sum_pytorch"
         cuda_fn = (
             "cortex.kernels.cuda.agalite.discounted_sum_cuda:discounted_sum_cuda" if allow_cuda else None

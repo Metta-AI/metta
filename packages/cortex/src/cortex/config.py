@@ -110,10 +110,6 @@ class AGaLiTeCellConfig(CellConfig):
     r: int = Field(default=2, ge=1)  # number of oscillatory frequencies
     eps: float = Field(default=1e-5, ge=0.0)
     dropout: float = Field(default=0.0, ge=0.0, le=1.0)
-    # No clamping in baseline; keep behavior faithful to JAX
-
-    # Backend selection (select_backend decides final path)
-    backend: str = Field(default="auto")  # auto|pytorch|cuda
 
 class AxonConfig(CellConfig):
     """Configuration for Axon cell with streaming RTU and diagonal input weights."""
