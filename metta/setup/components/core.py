@@ -17,10 +17,12 @@ class CoreSetup(SetupModule):
             subprocess.run(["uv", "--version"], check=True, capture_output=True)
             return True
         except (subprocess.CalledProcessError, FileNotFoundError):
-            error("uv is not installed. Please install it first:")
+            error("uv is not installed. Please install it using :")
             error("  curl -LsSf https://astral.sh/uv/install.sh | sh")
             sys.exit(1)
 
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
-        self.run_command(["uv", "sync"], non_interactive=non_interactive)
+        cmd = ["uv", "sync"]
+        cmd.extend(["--force-reinstall", "--no-cache"] if force else [])
+        self.run_command(cmd, non_interactive=non_interactive)
         success("Core dependencies installed")
