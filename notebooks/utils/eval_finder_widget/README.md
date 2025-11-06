@@ -183,7 +183,7 @@ scorecard = ScorecardWidget()
 
 ## Marimo Integration
 
-See `experiments/marimo/eval-finder-example.py` for a complete example of using the widget in Marimo notebooks.
+See `notebooks/marimo/eval-finder-example.py` for a complete example of using the widget in Marimo notebooks.
 
 ## Data Sources
 
