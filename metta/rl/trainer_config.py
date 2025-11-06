@@ -1,11 +1,18 @@
+from __future__ import annotations
+
 import typing
 
 import pydantic
 
-import metta.rl.loss.loss_config
 import metta.rl.training.heartbeat as training_heartbeat
 import metta.rl.training.scheduler as training_scheduler
 import mettagrid.base_config
+
+
+def _default_loss_config() -> "metta.rl.loss.loss_config.LossConfig":
+    from metta.rl.loss import loss_config
+
+    return loss_config.LossConfig()
 
 
 class OptimizerConfig(mettagrid.base_config.Config):
@@ -50,7 +57,7 @@ class TorchProfilerConfig(mettagrid.base_config.Config):
 
 class TrainerConfig(mettagrid.base_config.Config):
     total_timesteps: int = pydantic.Field(default=50_000_000_000, gt=0)
-    losses: metta.rl.loss.loss_config.LossConfig = pydantic.Field(default_factory=metta.rl.loss.loss_config.LossConfig)
+    losses: "metta.rl.loss.loss_config.LossConfig" = pydantic.Field(default_factory=_default_loss_config)
     optimizer: OptimizerConfig = pydantic.Field(default_factory=OptimizerConfig)
 
     require_contiguous_env_ids: bool = False

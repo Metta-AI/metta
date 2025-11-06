@@ -6,9 +6,9 @@ import typing
 import pydantic
 
 import mettagrid.base_config
-import mettagrid.config.id_map
-import mettagrid.config.obs_config
-import mettagrid.config.vibes
+from . import id_map as id_map_module
+from . import obs_config as obs_config_module
+from . import vibes as vibes_module
 import mettagrid.map_builder.ascii
 import mettagrid.map_builder.map_builder
 import mettagrid.map_builder.random
@@ -115,9 +115,9 @@ class ChangeVibeActionConfig(ActionConfig):
     number_of_vibes: int = pydantic.Field(default=0, ge=0, le=255)
 
     def _actions(self) -> list[mettagrid.simulator.Action]:
-        return [self.ChangeVibe(vibe) for vibe in mettagrid.config.vibes.VIBES[: self.number_of_vibes]]
+        return [self.ChangeVibe(vibe) for vibe in vibes_module.VIBES[: self.number_of_vibes]]
 
-    def ChangeVibe(self, vibe: mettagrid.config.vibes.Vibe) -> mettagrid.simulator.Action:
+    def ChangeVibe(self, vibe: vibes_module.Vibe) -> mettagrid.simulator.Action:
         return mettagrid.simulator.Action(name=f"change_vibe_{vibe.name}")
 
 
@@ -363,7 +363,7 @@ class GameConfig(mettagrid.base_config.Config):
     max_steps: int = pydantic.Field(ge=0, default=1000)
     # default is that we terminate / use "done" vs truncation
     episode_truncates: bool = pydantic.Field(default=False)
-    obs: mettagrid.config.obs_config.ObsConfig = pydantic.Field(default_factory=mettagrid.config.obs_config.ObsConfig)
+    obs: obs_config_module.ObsConfig = pydantic.Field(default_factory=obs_config_module.ObsConfig)
     agent: AgentConfig = pydantic.Field(default_factory=AgentConfig)
     agents: list[AgentConfig] = pydantic.Field(default_factory=list)
     actions: ActionsConfig = pydantic.Field(default_factory=lambda: ActionsConfig())
@@ -412,12 +412,12 @@ class GameConfig(mettagrid.base_config.Config):
         """Populate vibe_names from change_vibe action config if not already set."""
         if not self.vibe_names:
             num_vibes = self.actions.change_vibe.number_of_vibes
-            self.vibe_names = [vibe.name for vibe in mettagrid.config.vibes.VIBES[:num_vibes]]
+            self.vibe_names = [vibe.name for vibe in vibes_module.VIBES[:num_vibes]]
 
     def _ensure_type_ids_assigned(self) -> None:
         """Ensure type IDs are assigned if they haven't been yet."""
         if not self._resolved_type_ids:
-            mettagrid.config.id_map.IdMap.assign_type_ids(self)
+            id_map_module.IdMap.assign_type_ids(self)
             self._resolved_type_ids = True
 
     def __getattribute__(self, name: str):
@@ -426,11 +426,11 @@ class GameConfig(mettagrid.base_config.Config):
             self._ensure_type_ids_assigned()
         return super().__getattribute__(name)
 
-    def id_map(self) -> mettagrid.config.id_map.IdMap:
+    def id_map(self) -> id_map_module.IdMap:
         """Get the observation feature ID map for this configuration."""
         # Create a minimal MettaGridConfig wrapper
         wrapper = MettaGridConfig(game=self)
-        return mettagrid.config.id_map.IdMap(wrapper)
+        return id_map_module.IdMap(wrapper)
 
 
 class TeacherConfig(mettagrid.base_config.Config):
@@ -449,9 +449,9 @@ class MettaGridConfig(mettagrid.base_config.Config):
     desync_episodes: bool = pydantic.Field(default=True)
     teacher: TeacherConfig = pydantic.Field(default_factory=TeacherConfig)
 
-    def id_map(self) -> mettagrid.config.id_map.IdMap:
+    def id_map(self) -> id_map_module.IdMap:
         """Get the observation feature ID map for this configuration."""
-        return mettagrid.config.id_map.IdMap(self)
+        return id_map_module.IdMap(self)
 
     def with_ascii_map(self, map_data: list[list[str]]) -> "MettaGridConfig":
         self.game.map_builder = mettagrid.map_builder.ascii.AsciiMapBuilder.Config(

@@ -1,5 +1,7 @@
 """Helper for distributed training operations."""
 
+from __future__ import annotations
+
 import os
 import typing
 
@@ -9,9 +11,11 @@ import torch.distributed
 import metta.agent.policy
 import metta.common.util.log_config
 import metta.rl.system_config
-import metta.rl.trainer_config
 import metta.rl.training.training_environment as training_environment
 import mettagrid.base_config
+
+if typing.TYPE_CHECKING:
+    import metta.rl.trainer_config
 
 logger = metta.common.util.log_config.getRankAwareLogger(__name__)
 

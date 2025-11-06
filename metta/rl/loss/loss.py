@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import collections
 import copy
 import dataclasses
@@ -8,9 +10,11 @@ import torch
 import torchrl.data
 
 import metta.agent.policy
-import metta.rl.training.component_context as component_context
 import metta.rl.training.experience as training_experience
 import metta.rl.training.training_environment as training_environment
+
+if typing.TYPE_CHECKING:
+    import metta.rl.training.component_context as component_context
 
 
 @dataclasses.dataclass(slots=True)
