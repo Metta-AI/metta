@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 import urllib.request
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, TypeVar
 
 from setuptools import setup
 from setuptools.command.build_py import build_py
@@ -22,7 +22,7 @@ NIMBY_HOME = Path.home() / ".nimby" / "nim" / "bin"
 _CHECKED = False
 
 
-def _version_tuple(raw: Optional[str]) -> Tuple[int, ...]:
+def _version_parts(raw: Optional[str]) -> Tuple[int, ...]:
     match = re.search(r"\d+\.\d+\.\d+", raw or "")
     return tuple(int(part) for part in match.group(0).split(".")) if match else ()
 
@@ -32,14 +32,6 @@ def _resolve(binary: str) -> Optional[Path]:
         if candidate and Path(candidate).exists():
             return Path(candidate)
     return None
-
-
-def _command_output(binary: Path, *args: str) -> str:
-    try:
-        result = subprocess.run([str(binary), *args], capture_output=True, text=True, check=False)
-    except OSError:
-        return ""
-    return result.stdout or result.stderr or ""
 
 
 def _bootstrap_nimby() -> Path:
@@ -59,13 +51,6 @@ def _bootstrap_nimby() -> Path:
     return NIMBY_HOME / "nimby"
 
 
-def _ensure_path() -> None:
-    path_parts = os.environ.get("PATH", "").split(os.pathsep)
-    if str(NIMBY_HOME) not in path_parts:
-        path_parts = [str(NIMBY_HOME)] + [p for p in path_parts if p]
-        os.environ["PATH"] = os.pathsep.join(path_parts)
-
-
 def ensure_nim_dependencies() -> None:
     global _CHECKED
     if _CHECKED:
@@ -74,39 +59,41 @@ def ensure_nim_dependencies() -> None:
     nim_cmd = _resolve("nim")
     nimby_cmd = _resolve("nimby") or _bootstrap_nimby()
 
-    nim_version = _version_tuple(_command_output(nim_cmd, "--version") if nim_cmd else None)
-    nimby_version = _version_tuple(_command_output(nimby_cmd, "--version"))
+    nim_version = _version_parts(
+        subprocess.run([str(nim_cmd), "--version"], capture_output=True, text=True).stdout if nim_cmd else None
+    )
+    nimby_version = _version_parts(subprocess.run([str(nimby_cmd), "--version"], capture_output=True, text=True).stdout)
 
-    if nim_version < _version_tuple(REQUIRED_NIM_VERSION):
+    if nim_version < _version_parts(REQUIRED_NIM_VERSION):
         subprocess.run([str(nimby_cmd), "use", REQUIRED_NIM_VERSION], check=True)
-        nim_cmd = _resolve("nim")
 
-    if nimby_version < _version_tuple(REQUIRED_NIMBY_VERSION):
+    if nimby_version < _version_parts(REQUIRED_NIMBY_VERSION):
         nimby_cmd = _bootstrap_nimby()
+        subprocess.run([str(nimby_cmd), "use", REQUIRED_NIM_VERSION], check=True)
 
-    _ensure_path()
+    path = os.environ.get("PATH", "")
+    if str(NIMBY_HOME) not in path.split(os.pathsep):
+        os.environ["PATH"] = os.pathsep.join([str(NIMBY_HOME), path]) if path else str(NIMBY_HOME)
+
     _CHECKED = True
 
 
-class EnsureNimbyMixin:
-    def run(self) -> None:  # type: ignore[override]
-        ensure_nim_dependencies()
-        super().run()
+CmdClass = TypeVar("CmdClass", bound=type)
 
 
-class BuildPyCommand(EnsureNimbyMixin, build_py): ...
+def _wrap(cmd_class: CmdClass) -> CmdClass:
+    class Wrapped(cmd_class):  # type: ignore[misc,valid-type]
+        def run(self, *args, **kwargs):  # type: ignore[override]
+            ensure_nim_dependencies()
+            super().run(*args, **kwargs)
 
-
-class DevelopCommand(EnsureNimbyMixin, develop): ...
-
-
-class InstallCommand(EnsureNimbyMixin, install): ...
+    return Wrapped
 
 
 setup(
     cmdclass={
-        "build_py": BuildPyCommand,
-        "develop": DevelopCommand,
-        "install": InstallCommand,
+        "build_py": _wrap(build_py),
+        "develop": _wrap(develop),
+        "install": _wrap(install),
     }
 )
