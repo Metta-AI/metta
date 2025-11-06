@@ -10,13 +10,12 @@ if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
 from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
-from metta.rl.loss.loss import Loss
+from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.loss.replay_samplers import sample_minibatch_sequential
 from metta.rl.training import ComponentContext
-from mettagrid.base_config import Config
 
 
-class ActionSupervisedConfig(Config):
+class ActionSupervisedConfig(LossConfig):
     enabled: bool = Field(default=False)
     action_loss_coef: float = Field(default=0.75, ge=0)
     value_loss_coef: float = Field(default=1.5, ge=0)
@@ -25,7 +24,9 @@ class ActionSupervisedConfig(Config):
     vf_clip_coef: float = Field(default=0.1, ge=0)  # pulling from our PPO config
     use_own_sampling: bool = True  # Does not use prioritized sampling
     use_own_rollout: bool = True  # Update when including PPO as concurent loss
-    student_led: bool = True  # sigma as per Matt's document
+    student_led: bool = Field(
+        default=True, description="Whether to use student-led training"
+    )  # sigma as per Matt's document
     action_reward_coef: float = Field(default=0.01, ge=0)  # wild ass guess at this point
 
     # Controls whether to add the imitation loss to the environment rewards.
@@ -40,7 +41,7 @@ class ActionSupervisedConfig(Config):
         device: torch.device,
         instance_name: str,
         loss_config: Any,
-    ):
+    ) -> "ActionSupervised":
         """Create ActionSupervised loss instance."""
         return ActionSupervised(
             policy, trainer_cfg, vec_env, device, instance_name=instance_name, loss_config=loss_config
@@ -77,17 +78,17 @@ class ActionSupervised(Loss):
             loss_config = getattr(trainer_cfg.losses, instance_name, None)
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
         # unpack config into slots
-        self.action_loss_coef = self.loss_cfg.action_loss_coef
-        self.value_loss_coef = self.loss_cfg.value_loss_coef
-        self.norm_adv = self.loss_cfg.norm_adv
-        self.vf_clip_coef = self.loss_cfg.vf_clip_coef
-        self.gae_gamma = self.loss_cfg.gae_gamma
-        self.gae_lambda = self.loss_cfg.gae_lambda
-        self.add_action_loss_to_rewards = self.loss_cfg.add_action_loss_to_rewards
-        self.use_own_rollout = self.loss_cfg.use_own_rollout
-        self.use_own_sampling = self.loss_cfg.use_own_sampling
-        self.student_led = self.loss_cfg.student_led
-        self.action_reward_coef = self.loss_cfg.action_reward_coef
+        self.action_loss_coef = self.cfg.action_loss_coef
+        self.value_loss_coef = self.cfg.value_loss_coef
+        self.norm_adv = self.cfg.norm_adv
+        self.vf_clip_coef = self.cfg.vf_clip_coef
+        self.gae_gamma = self.cfg.gae_gamma
+        self.gae_lambda = self.cfg.gae_lambda
+        self.add_action_loss_to_rewards = self.cfg.add_action_loss_to_rewards
+        self.use_own_rollout = self.cfg.use_own_rollout
+        self.use_own_sampling = self.cfg.use_own_sampling
+        self.student_led = self.cfg.student_led
+        self.action_reward_coef = self.cfg.action_reward_coef
 
     def get_experience_spec(self) -> Composite:
         scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
