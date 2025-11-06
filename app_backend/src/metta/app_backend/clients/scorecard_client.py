@@ -6,6 +6,7 @@ import requests
 import metta.app_backend.clients.base_client
 import metta.app_backend.routes.scorecard_routes
 import metta.app_backend.routes.sql_routes
+import metta.common.util.collections
 
 T = typing.TypeVar("T")
 
@@ -99,9 +100,6 @@ class ScorecardClient(metta.app_backend.clients.base_client.BaseAppBackendClient
         # Get the base URL from the async client
         base_url = str(self._http_client.base_url)
         url = f"{base_url}/scorecard/policies/search"
-
-        # Build headers
-        import metta.common.util.collections
 
         headers = metta.common.util.collections.remove_none_values(
             {"X-Auth-Token": self._machine_token, "Content-Type": "application/json"}

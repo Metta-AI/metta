@@ -46,7 +46,11 @@ class FastConfig(metta.agent.policy.PolicyArchitecture):
 
 
 class FastPolicy(metta.agent.policy.Policy):
-    def __init__(self, policy_env_info: "PolicyEnvInterface", config: typing.Optional[FastConfig] = None):
+    def __init__(
+        self,
+        policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface,
+        config: typing.Optional[FastConfig] = None,
+    ):
         super().__init__(policy_env_info)
         self.config = config or FastConfig()
         self.policy_env_info = policy_env_info

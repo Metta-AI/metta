@@ -7,6 +7,8 @@ The ToolRegistry class manages tool types (classes).
 Tool loading and path resolution is in tool.py.
 """
 
+from __future__ import annotations
+
 import metta.common.tool
 
 # -----------------------------------------------------------------------------

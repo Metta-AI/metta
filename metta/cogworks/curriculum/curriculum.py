@@ -6,7 +6,7 @@ import random
 import typing
 
 if typing.TYPE_CHECKING:
-    import metta.cogworks.curriculum.learning_progress_algorithm
+    from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 
 import pydantic
 

@@ -6,11 +6,7 @@ import torch
 import torch.nn as nn
 
 import metta.agent.components.component_config
-
-if typing.TYPE_CHECKING:
-    import mettagrid.policy.policy_env_interface
-
-    PolicyEnvInterface = mettagrid.policy.policy_env_interface.PolicyEnvInterface
+import mettagrid.policy.policy_env_interface
 
 # =========================== Token-based observation shaping ===========================
 # The two nn.Module-based classes below are composed into ObsShaperTokens. You can simply call that class in your policy
@@ -47,7 +43,7 @@ class ObsTokenPadStrip(nn.Module):
 
     def initialize_to_environment(
         self,
-        policy_env_info: "PolicyEnvInterface",
+        policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface,
         device: torch.device,
     ) -> str:
         # Build feature mappings from policy_env_info.obs_features list
@@ -168,7 +164,7 @@ class ObsAttrValNorm(nn.Module):
 
     def initialize_to_environment(
         self,
-        policy_env_info: "PolicyEnvInterface",
+        policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface,
         device: torch.device,
     ) -> None:
         self._set_feature_normalizations(policy_env_info, device)
@@ -227,7 +223,7 @@ class ObsShimTokens(nn.Module):
 
     def initialize_to_environment(
         self,
-        policy_env_info: "PolicyEnvInterface",
+        policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface,
         device: torch.device,
     ) -> str:
         log = self.token_pad_striper.initialize_to_environment(policy_env_info, device)
@@ -362,7 +358,7 @@ class ObservationNormalizer(nn.Module):
 
     def initialize_to_environment(
         self,
-        policy_env_info: "PolicyEnvInterface",
+        policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface,
         device: torch.device,
     ) -> None:
         feature_list = list(policy_env_info.obs_features)
@@ -404,7 +400,7 @@ class ObsShimBox(nn.Module):
 
     def initialize_to_environment(
         self,
-        policy_env_info: "PolicyEnvInterface",
+        policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface,
         device: torch.device,
     ) -> None:
         self.observation_normalizer.initialize_to_environment(policy_env_info, device)

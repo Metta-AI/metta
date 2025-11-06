@@ -1,5 +1,7 @@
 """Recipe registry for discovering and caching recipe modules."""
 
+from __future__ import annotations
+
 import importlib
 import importlib.util
 import pkgutil

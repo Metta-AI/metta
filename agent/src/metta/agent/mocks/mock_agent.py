@@ -95,7 +95,7 @@ class MockAgent(metta.agent.policy.Policy):
 
     def initialize_to_environment(
         self,
-        policy_env_info: "PolicyEnvInterface",
+        policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface,
         device: torch.device,
         *,
         is_training: bool | None = None,

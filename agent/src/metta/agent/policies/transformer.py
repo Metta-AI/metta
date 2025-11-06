@@ -119,7 +119,9 @@ class TransformerPolicy(metta.agent.policy.Policy):
     ConfigClass = TransformerPolicyConfig
 
     def __init__(
-        self, policy_env_info: "PolicyEnvInterface", config: typing.Optional[TransformerPolicyConfig] = None
+        self,
+        policy_env_info: mettagrid.policy.policy_env_interface.PolicyEnvInterface,
+        config: typing.Optional[TransformerPolicyConfig] = None,
     ) -> None:
         super().__init__(policy_env_info)
         if config is None:

@@ -1,5 +1,7 @@
 """Utility functions for adaptive experiment orchestration."""
 
+from __future__ import annotations
+
 import hashlib
 import logging
 import time
@@ -12,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def make_monitor_table(
-    runs: list["RunInfo"],
+    runs: list[metta.adaptive.models.RunInfo],
     title: str = "Run Status Table",
     logger_prefix: str = "",
     include_score: bool = True,
@@ -168,7 +170,7 @@ def create_eval_job(
     eval_entrypoint: str,
     stats_server_uri: typing.Optional[str] = metta.common.util.constants.PROD_STATS_SERVER_URI,
     eval_overrides: typing.Optional[typing.Dict[str, typing.Any]] = None,
-) -> "JobDefinition":
+) -> metta.adaptive.models.JobDefinition:
     """Create an evaluation job definition.
 
     Args:
@@ -210,7 +212,7 @@ def create_training_job(
     nodes: int = 1,
     stats_server_uri: typing.Optional[str] = None,
     train_overrides: typing.Optional[typing.Dict[str, typing.Any]] = None,
-) -> "JobDefinition":
+) -> metta.adaptive.models.JobDefinition:
     """Create a training job definition.
 
     Args:
