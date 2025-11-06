@@ -6,11 +6,11 @@ from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
+import metta.rl.trainer_config as trainer_config
 from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.loss import Loss
 from metta.rl.loss.replay_samplers import sample_minibatch_sequential
-from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import ComponentContext
 from mettagrid.base_config import Config
 
@@ -34,7 +34,7 @@ class ActionSupervisedConfig(Config):
     def create(
         self,
         policy: Policy,
-        trainer_cfg: TrainerConfig,
+        trainer_cfg: trainer_config.TrainerConfig,
         vec_env: Any,
         device: torch.device,
         instance_name: str,
@@ -65,7 +65,7 @@ class ActionSupervised(Loss):
     def __init__(
         self,
         policy: Policy,
-        trainer_cfg: TrainerConfig,
+        trainer_cfg: trainer_config.TrainerConfig,
         vec_env: Any,
         device: torch.device,
         instance_name: str,
