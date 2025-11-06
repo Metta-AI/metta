@@ -6,7 +6,7 @@ import tensordict
 import torch
 
 import metta.agent.policy
-import metta.rl.loss
+import metta.rl.loss.loss
 import metta.rl.training
 import mettagrid.base_config
 
@@ -30,7 +30,7 @@ class CoreTrainingLoop:
         self,
         policy: metta.agent.policy.Policy,
         experience: metta.rl.training.Experience,
-        losses: dict[str, metta.rl.loss.Loss],
+        losses: dict[str, metta.rl.loss.loss.Loss],
         optimizer: torch.optim.Optimizer,
         device: torch.device,
         context: metta.rl.training.ComponentContext,

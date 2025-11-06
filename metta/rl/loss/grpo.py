@@ -7,7 +7,7 @@ import torch
 import torchrl.data
 
 import metta.agent.policy
-import metta.rl.loss
+import metta.rl.loss.loss
 import metta.rl.training
 import mettagrid.base_config
 
@@ -56,7 +56,7 @@ class GRPOConfig(mettagrid.base_config.Config):
         )
 
 
-class GRPO(metta.rl.loss.Loss):
+class GRPO(metta.rl.loss.loss.Loss):
     """Group Relative Policy Optimization loss.
 
     GRPO eliminates the value network and uses group-based advantage estimation,

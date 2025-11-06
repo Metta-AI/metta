@@ -2,7 +2,7 @@ import typing
 
 import pydantic
 
-import metta.rl.loss
+import metta.rl.loss.loss_config
 import metta.rl.training
 import mettagrid.base_config
 
@@ -49,7 +49,7 @@ class TorchProfilerConfig(mettagrid.base_config.Config):
 
 class TrainerConfig(mettagrid.base_config.Config):
     total_timesteps: int = pydantic.Field(default=50_000_000_000, gt=0)
-    losses: metta.rl.loss.LossConfig = pydantic.Field(default_factory=metta.rl.loss.LossConfig)
+    losses: metta.rl.loss.loss_config.LossConfig = pydantic.Field(default_factory=metta.rl.loss.loss_config.LossConfig)
     optimizer: OptimizerConfig = pydantic.Field(default_factory=OptimizerConfig)
 
     require_contiguous_env_ids: bool = False

@@ -6,7 +6,7 @@ import metta.agent.policies.vit
 import metta.agent.policy
 import metta.cogworks.curriculum.curriculum
 import metta.cogworks.curriculum.learning_progress_algorithm
-import metta.rl.loss
+import metta.rl.loss.loss_config
 import metta.rl.trainer_config
 import metta.rl.training
 import metta.sim.simulation_config
@@ -108,7 +108,7 @@ def train(
 
     eval_simulations = simulations()
     trainer_cfg = metta.rl.trainer_config.TrainerConfig(
-        losses=metta.rl.loss.LossConfig(),
+        losses=metta.rl.loss.loss_config.LossConfig(),
     )
 
     if policy_architecture is None:

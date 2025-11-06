@@ -9,7 +9,7 @@ import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
 import metta.cogworks.curriculum.curriculum
 import metta.cogworks.curriculum.learning_progress_algorithm
-import metta.rl.loss
+import metta.rl.loss.loss_config
 import metta.rl.trainer_config
 import metta.rl.training
 import metta.sim.simulation_config
@@ -99,7 +99,7 @@ def train(
     )
 
     trainer_cfg = metta.rl.trainer_config.TrainerConfig(
-        losses=metta.rl.loss.LossConfig(),
+        losses=metta.rl.loss.loss_config.LossConfig(),
     )
 
     evaluator_cfg = metta.rl.training.EvaluatorConfig(
@@ -156,7 +156,7 @@ def train_shaped(
         altar_config.protocols[0].input_resources["battery_red"] = 1
 
     trainer_cfg = metta.rl.trainer_config.TrainerConfig(
-        losses=metta.rl.loss.LossConfig(),
+        losses=metta.rl.loss.loss_config.LossConfig(),
     )
 
     curriculum = cc.env_curriculum(env_cfg)

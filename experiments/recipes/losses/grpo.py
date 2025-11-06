@@ -1,7 +1,7 @@
 """Arena recipe with GRPO (Group Relative Policy Optimization) for comparison testing."""
 
 import metta.agent.policies.vit_grpo
-import metta.rl.loss
+import metta.rl.loss.loss_config
 import metta.rl.loss.grpo
 import metta.rl.trainer_config
 import metta.rl.training
@@ -36,7 +36,7 @@ def train(
         target_kl=None,
     )
 
-    loss_config = metta.rl.loss.LossConfig(
+    loss_config = metta.rl.loss.loss_config.LossConfig(
         loss_configs={"grpo": grpo_config},
     )
 
@@ -89,7 +89,7 @@ def train_shaped(
         target_kl=None,
     )
 
-    loss_config = metta.rl.loss.LossConfig(
+    loss_config = metta.rl.loss.loss_config.LossConfig(
         loss_configs={"grpo": grpo_config},
     )
 
@@ -138,7 +138,7 @@ def basic_easy_shaped() -> metta.tools.train.TrainTool:
         target_kl=None,
     )
 
-    loss_config = metta.rl.loss.LossConfig(
+    loss_config = metta.rl.loss.loss_config.LossConfig(
         loss_configs={"grpo": grpo_config},
     )
 

@@ -6,7 +6,7 @@ import metta.cogworks.curriculum.curriculum
 import metta.cogworks.curriculum.learning_progress_algorithm
 import metta.cogworks.curriculum.task_generator
 import metta.map.terrain_from_numpy
-import metta.rl.loss
+import metta.rl.loss.loss_config
 import metta.rl.trainer_config
 import metta.rl.training
 import metta.sim.simulation_config
@@ -117,7 +117,7 @@ def train(
     )
 
     trainer_cfg = metta.rl.trainer_config.TrainerConfig(
-        losses=metta.rl.loss.LossConfig(),
+        losses=metta.rl.loss.loss_config.LossConfig(),
     )
 
     evaluator_cfg = metta.rl.training.EvaluatorConfig(

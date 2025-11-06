@@ -9,7 +9,7 @@ import torchrl.data
 
 import metta.agent.policy
 import metta.rl.checkpoint_manager
-import metta.rl.loss
+import metta.rl.loss.loss
 import metta.rl.trainer_config
 import metta.rl.training
 import mettagrid.base_config
@@ -34,7 +34,7 @@ class SLKickstarterConfig(mettagrid.base_config.Config):
         return SLKickstarter(policy, trainer_cfg, vec_env, device, instance_name=instance_name, loss_config=loss_config)
 
 
-class SLKickstarter(metta.rl.loss.Loss):
+class SLKickstarter(metta.rl.loss.loss.Loss):
     __slots__ = (
         "teacher_policy",
         "teacher_policy_spec",

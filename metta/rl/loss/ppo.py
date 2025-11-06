@@ -8,7 +8,7 @@ import torchrl.data
 
 import metta.agent.policy
 import metta.rl.advantage
-import metta.rl.loss
+import metta.rl.loss.loss
 import metta.rl.training
 import metta.utils.batch
 import mettagrid.base_config
@@ -84,7 +84,7 @@ class PPOConfig(mettagrid.base_config.Config):
         )
 
 
-class PPO(metta.rl.loss.Loss):
+class PPO(metta.rl.loss.loss.Loss):
     """PPO loss with prioritized replay and V-trace tweaks."""
 
     __slots__ = (

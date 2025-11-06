@@ -11,7 +11,7 @@ import cogames.cogs_vs_clips.evals.eval_missions
 import cogames.cogs_vs_clips.mission_utils
 import metta.cogworks.curriculum.curriculum
 import metta.cogworks.curriculum.learning_progress_algorithm
-import metta.rl.loss
+import metta.rl.loss.loss_config
 import metta.rl.trainer_config
 import metta.rl.training
 import metta.sim.simulation_config
@@ -215,7 +215,7 @@ def train(
 
     # Configure trainer
     trainer_cfg = metta.rl.trainer_config.TrainerConfig(
-        losses=metta.rl.loss.LossConfig(),
+        losses=metta.rl.loss.loss_config.LossConfig(),
     )
 
     # Create evaluation suite (test on all missions with standard difficulty)
@@ -255,7 +255,7 @@ def train_single_mission(
     curriculum = cc.env_curriculum(env)
 
     trainer_cfg = metta.rl.trainer_config.TrainerConfig(
-        losses=metta.rl.loss.LossConfig(),
+        losses=metta.rl.loss.loss_config.LossConfig(),
     )
 
     # Still evaluate on multiple missions

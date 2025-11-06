@@ -7,7 +7,7 @@ import torch
 import torchrl.data
 
 import metta.agent.policy
-import metta.rl.loss
+import metta.rl.loss.loss
 import mettagrid.policy.policy_env_interface
 
 
@@ -50,7 +50,7 @@ class DummyPolicy(metta.agent.policy.Policy):
         torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0, error_if_nonfinite=False)
 
 
-class DummyLoss(metta.rl.loss.Loss):
+class DummyLoss(metta.rl.loss.loss.Loss):
     """Loss subclass exposing the base-class helpers for testing."""
 
     def __init__(self) -> None:

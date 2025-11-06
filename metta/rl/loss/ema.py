@@ -7,7 +7,7 @@ import torch
 import torch.nn
 
 import metta.agent.policy
-import metta.rl.loss
+import metta.rl.loss.loss
 import metta.rl.training
 import metta.rl.utils
 import mettagrid.base_config
@@ -37,7 +37,7 @@ class EMAConfig(mettagrid.base_config.Config):
         )
 
 
-class EMA(metta.rl.loss.Loss):
+class EMA(metta.rl.loss.loss.Loss):
     __slots__ = (
         "target_model",
         "ema_decay",

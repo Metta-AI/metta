@@ -13,4 +13,5 @@ def get_map(map_name: str, fixed_spawn_order: bool = False) -> mettagrid.map_bui
     return mettagrid.mapgen.mapgen.MapGen.Config(
         instance=mettagrid.map_builder.map_builder.MapBuilderConfig.from_uri(str(map_path)),
         fixed_spawn_order=fixed_spawn_order,
+        instance_border_width=0,  # Don't add border - maps already have borders built in
     )

@@ -10,34 +10,28 @@ they access the attribute through the module namespace instead.
 from __future__ import annotations
 
 import argparse
+import dataclasses
+import pathlib
 import subprocess
 import sys
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
+import typing
 
 import libcst as cst
-from libcst import metadata
-from libcst.metadata import (
-    ExpressionContextProvider,
-    MetadataWrapper,
-    ParentNodeProvider,
-    ScopeProvider,
-)
-from libcst.metadata.scope_provider import ImportAssignment, Scope
+import libcst.metadata
+import libcst.metadata.scope_provider
 
-SKIP_DIR_NAMES: Set[str] = {"src", "python", "tests"}
+SKIP_DIR_NAMES: typing.Set[str] = {"src", "python", "tests"}
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class AliasInfo:
     import_node: cst.ImportFrom
-    attr_parts: Tuple[str, ...]
-    module_parts: Tuple[str, ...]
+    attr_parts: typing.Tuple[str, ...]
+    module_parts: typing.Tuple[str, ...]
     original_name: str
 
 
-def iter_tracked_python_files(root: Path) -> Iterable[Path]:
+def iter_tracked_python_files(root: pathlib.Path) -> typing.Iterable[pathlib.Path]:
     result = subprocess.run(
         ["git", "ls-files", "--", "*.py"],
         check=True,
@@ -52,11 +46,13 @@ def iter_tracked_python_files(root: Path) -> Iterable[Path]:
         yield root / line
 
 
-def has_init_marker(directory: Path) -> bool:
+def has_init_marker(directory: pathlib.Path) -> bool:
     return (directory / "__init__.py").exists()
 
 
-def compute_module_parts(file_path: Path, root: Path) -> Tuple[Tuple[str, ...], Tuple[str, ...]]:
+def compute_module_parts(
+    file_path: pathlib.Path, root: pathlib.Path
+) -> typing.Tuple[typing.Tuple[str, ...], typing.Tuple[str, ...]]:
     file_path = file_path.resolve()
     root = root.resolve()
     if not file_path.is_file():
@@ -72,7 +68,7 @@ def compute_module_parts(file_path: Path, root: Path) -> Tuple[Tuple[str, ...], 
     if is_init:
         rel_parts = rel_parts[:-1]
     else:
-        rel_parts[-1] = Path(rel_parts[-1]).stem
+        rel_parts[-1] = pathlib.Path(rel_parts[-1]).stem
 
     if "src" in rel_parts:
         last_src_index = len(rel_parts) - 1 - rel_parts[::-1].index("src")
@@ -89,7 +85,7 @@ def compute_module_parts(file_path: Path, root: Path) -> Tuple[Tuple[str, ...], 
     return module_parts, package_parts
 
 
-def attr_node_to_parts(node: Optional[cst.BaseExpression]) -> List[str]:
+def attr_node_to_parts(node: typing.Optional[cst.BaseExpression]) -> typing.List[str]:
     if node is None:
         return []
     if isinstance(node, cst.Name):
@@ -99,7 +95,7 @@ def attr_node_to_parts(node: Optional[cst.BaseExpression]) -> List[str]:
     raise ValueError(f"Unsupported module node type: {type(node)}")
 
 
-def build_attribute(parts: Sequence[str]) -> cst.BaseExpression:
+def build_attribute(parts: typing.Sequence[str]) -> cst.BaseExpression:
     if not parts:
         raise ValueError("Cannot build attribute for empty parts.")
     expr: cst.BaseExpression = cst.Name(parts[0])
@@ -109,17 +105,21 @@ def build_attribute(parts: Sequence[str]) -> cst.BaseExpression:
 
 
 class FromImportTransformer(cst.CSTTransformer):
-    METADATA_DEPENDENCIES = (ScopeProvider, ExpressionContextProvider, ParentNodeProvider)
+    METADATA_DEPENDENCIES = (
+        libcst.metadata.ScopeProvider,
+        libcst.metadata.ExpressionContextProvider,
+        libcst.metadata.ParentNodeProvider,
+    )
 
-    def __init__(self, module_parts: Tuple[str, ...], package_parts: Tuple[str, ...]):
+    def __init__(self, module_parts: typing.Tuple[str, ...], package_parts: typing.Tuple[str, ...]):
         self.module_parts = module_parts
         self.package_parts = package_parts
-        self.alias_map: Dict[str, List[AliasInfo]] = {}
-        self.existing_imports: Set[str] = set()
-        self.added_imports: Set[str] = set()
+        self.alias_map: typing.Dict[str, typing.List[AliasInfo]] = {}
+        self.existing_imports: typing.Set[str] = set()
+        self.added_imports: typing.Set[str] = set()
         self.changed: bool = False
 
-    def visit_Import(self, node: cst.Import) -> Optional[bool]:
+    def visit_Import(self, node: cst.Import) -> typing.Optional[bool]:
         for alias in node.names:
             module_str = ".".join(attr_node_to_parts(alias.name))
             if module_str:
@@ -128,7 +128,7 @@ class FromImportTransformer(cst.CSTTransformer):
 
     def leave_ImportFrom(
         self, original_node: cst.ImportFrom, updated_node: cst.ImportFrom
-    ) -> Optional[cst.BaseStatement]:
+    ) -> typing.Optional[cst.BaseStatement]:
         if isinstance(original_node.names, cst.ImportStar):
             return updated_node
 
@@ -152,7 +152,7 @@ class FromImportTransformer(cst.CSTTransformer):
             self.alias_map.setdefault(alias_name, []).append(info)
 
         self.changed = True
-        replacement_stmts: List[cst.BaseSmallStatement] = []
+        replacement_stmts: typing.List[cst.BaseSmallStatement] = []
         needs_import = module_str not in self.existing_imports and module_str not in self.added_imports
         if needs_import:
             self.added_imports.add(module_str)
@@ -185,12 +185,12 @@ class FromImportTransformer(cst.CSTTransformer):
             return updated_node
 
         try:
-            ctx = self.get_metadata(ExpressionContextProvider, original_node)
-            scope = self.get_metadata(ScopeProvider, original_node)
+            ctx = self.get_metadata(libcst.metadata.ExpressionContextProvider, original_node)
+            scope = self.get_metadata(libcst.metadata.ScopeProvider, original_node)
         except KeyError:
             return updated_node
 
-        if ctx is not metadata.ExpressionContext.LOAD:
+        if ctx is not libcst.metadata.ExpressionContext.LOAD:
             return updated_node
 
         assignments = self._lookup_assignments(scope, original_node.value)
@@ -198,7 +198,10 @@ class FromImportTransformer(cst.CSTTransformer):
             return updated_node
 
         for info in alias_infos:
-            if any(isinstance(assign, ImportAssignment) and assign.node is info.import_node for assign in assignments):
+            if any(
+                isinstance(assign, libcst.metadata.scope_provider.ImportAssignment) and assign.node is info.import_node
+                for assign in assignments
+            ):
                 self.changed = True
                 return build_attribute(info.attr_parts)
         return updated_node
@@ -215,7 +218,7 @@ class FromImportTransformer(cst.CSTTransformer):
             return alias.name.value
         raise ValueError("Expected ImportAlias name to be a simple Name.")
 
-    def _resolve_module_parts(self, node: cst.ImportFrom) -> Tuple[str, ...]:
+    def _resolve_module_parts(self, node: cst.ImportFrom) -> typing.Tuple[str, ...]:
         module_parts = attr_node_to_parts(node.module)
         level = len(node.relative)
         if level == 0:
@@ -231,10 +234,10 @@ class FromImportTransformer(cst.CSTTransformer):
         base = list(self.package_parts[:cutoff])
         return tuple(base + module_parts)
 
-    def _lookup_assignments(self, scope: Scope, name: str) -> List[object]:
-        assignments: List[object] = []
-        current: Optional[Scope] = scope
-        visited: Set[int] = set()
+    def _lookup_assignments(self, scope: libcst.metadata.scope_provider.Scope, name: str) -> typing.List[object]:
+        assignments: typing.List[object] = []
+        current: typing.Optional[libcst.metadata.scope_provider.Scope] = scope
+        visited: typing.Set[int] = set()
         while current is not None and id(current) not in visited:
             visited.add(id(current))
             try:
@@ -247,12 +250,12 @@ class FromImportTransformer(cst.CSTTransformer):
         return assignments
 
     def _inside_type_checking(self, node: cst.CSTNode) -> bool:
-        parent = self.get_metadata(ParentNodeProvider, node, None)
+        parent = self.get_metadata(libcst.metadata.ParentNodeProvider, node, None)
         while parent is not None:
             if isinstance(parent, cst.If):
                 if self._is_type_checking_condition(parent.test):
                     return True
-            parent = self.get_metadata(ParentNodeProvider, parent, None)
+            parent = self.get_metadata(libcst.metadata.ParentNodeProvider, parent, None)
         return False
 
     def _is_type_checking_condition(self, test: cst.BaseExpression) -> bool:
@@ -265,11 +268,11 @@ class FromImportTransformer(cst.CSTTransformer):
         return False
 
 
-def rewrite_file(path: Path, root: Path) -> bool:
+def rewrite_file(path: pathlib.Path, root: pathlib.Path) -> bool:
     module_parts, package_parts = compute_module_parts(path, root)
     source = path.read_text()
     module = cst.parse_module(source)
-    wrapper = MetadataWrapper(module)
+    wrapper = libcst.metadata.MetadataWrapper(module)
     transformer = FromImportTransformer(module_parts, package_parts)
     new_module = wrapper.visit(transformer)
     if transformer.changed:
@@ -278,24 +281,24 @@ def rewrite_file(path: Path, root: Path) -> bool:
     return False
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def main(argv: typing.Optional[typing.Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Rewrite from-imports to module imports.")
     parser.add_argument(
         "--root",
-        type=Path,
-        default=Path("."),
+        type=pathlib.Path,
+        default=pathlib.Path("."),
         help="Repository root. Defaults to current directory.",
     )
     parser.add_argument(
         "paths",
         nargs="*",
-        type=Path,
+        type=pathlib.Path,
         help="Optional specific files or directories to rewrite. Defaults to all tracked Python files.",
     )
     args = parser.parse_args(argv)
     root = args.root.resolve()
     if args.paths:
-        targets: List[Path] = []
+        targets: typing.List[pathlib.Path] = []
         for path in args.paths:
             resolved = (root / path).resolve() if not path.is_absolute() else path.resolve()
             if resolved.is_dir():

@@ -1,10 +1,7 @@
 #!/usr/bin/env -S uv run
-from __future__ import annotations
-
 import concurrent.futures
 import pathlib
 import re
-import shutil
 import subprocess
 import sys
 import typing
@@ -17,24 +14,23 @@ import typer
 
 import gitta as git
 import metta.common.util.fs
-import metta.setup._path_setup  # noqa: F401
 import metta.setup.components.base
 import metta.setup.local_commands
-import metta.setup.profiles
-import metta.setup.saved_settings
 import metta.setup.symlink_setup
 import metta.setup.tools.book
 import metta.setup.tools.ci_runner
+import metta.setup.tools.clean
 import metta.setup.tools.code_formatters
 import metta.setup.tools.test_runner.test_cpp
 import metta.setup.tools.test_runner.test_python
 import metta.setup.utils
-import metta.tools.utils.auto_config
 import metta.utils.live_run_monitor
 import softmax.dashboard.report
 
 if typing.TYPE_CHECKING:
     import metta.setup.registry
+
+    SetupModule = metta.setup.registry.SetupModule
 
 VERSION_PATTERN = re.compile(r"^(\d+\.\d+\.\d+(?:\.\d+)?)$")
 DEFAULT_INITIAL_VERSION = "0.0.0.1"
@@ -54,6 +50,9 @@ class MettaCLI:
         self._components_initialized = True
 
     def setup_wizard(self, non_interactive: bool = False):
+        import metta.setup.profiles
+        import metta.setup.saved_settings
+
         metta.setup.utils.header("Welcome to Metta!\n\n")
         metta.setup.utils.info(
             "Note: You can run 'metta configure <component>' to change component-level settings later.\n"
@@ -219,9 +218,7 @@ def configure_component(component_name: str):
     module.configure()
 
 
-def _get_selected_modules(
-    components: list[str] | None = None,
-) -> list[metta.setup.components.base.SetupModule]:
+def _get_selected_modules(components: list[str] | None = None) -> list["SetupModule"]:
     return [
         m
         for m in metta.setup.registry.get_all_modules()
@@ -250,7 +247,7 @@ def cmd_install(
     check_status: typing.Annotated[bool, typer.Option("--check-status", help="Check status after installation")] = True,
 ):
     if not no_clean:
-        cmd_clean(force=force)
+        metta.setup.tools.clean.cmd_clean(force=force)
 
     # A profile must exist before installing. If installing in non-interactive mode,
     # the target profile must be specified with --profile. If in interactive mode and
@@ -365,6 +362,8 @@ def cmd_status(
     console = rich.console.Console()
     console.print(table)
 
+    import metta.tools.utils.auto_config
+
     policy_decision = metta.tools.utils.auto_config.auto_policy_storage_decision()
     if policy_decision.using_remote and policy_decision.base_prefix:
         if policy_decision.reason == "env_override":
@@ -423,51 +422,10 @@ def cmd_run(
 
 
 @app.command(name="clean", help="Clean build artifacts and temporary files")
-def cmd_clean(
-    verbose: typing.Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False,
+def clean(
     force: typing.Annotated[bool, typer.Option("--force", help="Force clean")] = False,
 ):
-    def _remove_matching_dirs(base: pathlib.Path, patterns: list[str], *, include_globs: bool = False) -> None:
-        for pattern in patterns:
-            candidates = base.glob(pattern) if include_globs else (base / pattern,)
-            for path in candidates:
-                if not path.exists() or not path.is_dir():
-                    continue
-                metta.setup.utils.info(f"  Removing {path.relative_to(cli.repo_root)}...")
-                subprocess.run(["chmod", "-R", "u+w", str(path)], cwd=cli.repo_root, check=False)
-                subprocess.run(["rm", "-rf", str(path)], cwd=cli.repo_root, check=False)
-
-    build_dir = cli.repo_root / "build"
-    if build_dir.exists():
-        metta.setup.utils.info("  Removing root build directory...")
-        shutil.rmtree(build_dir)
-
-    mettagrid_dir = cli.repo_root / "packages" / "mettagrid"
-    for build_name in ["build-debug", "build-release"]:
-        build_path = mettagrid_dir / build_name
-        if build_path.exists():
-            metta.setup.utils.info(f"  Removing packages/mettagrid/{build_name}...")
-            shutil.rmtree(build_path)
-
-    _remove_matching_dirs(cli.repo_root, ["bazel-*"], include_globs=True)
-    _remove_matching_dirs(cli.repo_root, [".bazel_output"])
-    if mettagrid_dir.exists():
-        _remove_matching_dirs(mettagrid_dir, ["bazel-*"], include_globs=True)
-        _remove_matching_dirs(mettagrid_dir, [".bazel_output"])
-
-    nim_generated_dir = cli.repo_root / "packages" / "mettagrid" / "nim" / "mettascope" / "bindings" / "generated"
-    if force and nim_generated_dir.exists():
-        shutil.rmtree(nim_generated_dir)
-
-    cleanup_script = cli.repo_root / "devops" / "tools" / "cleanup_repo.py"
-    if cleanup_script.exists():
-        cmd = [str(cleanup_script)]
-        if verbose:
-            cmd.append("--verbose")
-        try:
-            subprocess.run(cmd, cwd=str(cli.repo_root), check=True)
-        except subprocess.CalledProcessError as e:
-            metta.setup.utils.warning(f"  Cleanup script failed: {e}")
+    metta.setup.tools.clean.cmd_clean(force=force)
 
 
 @app.command(name="publish", help="Create and push a release tag for a package")
