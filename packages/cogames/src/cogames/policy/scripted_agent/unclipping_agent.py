@@ -9,15 +9,19 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 
-from .simple_baseline_agent import (
+from mettagrid.policy.policy import MultiAgentPolicy, StatefulAgentPolicy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+
+from .baseline_agent import (
+    BaselineAgentPolicyImpl,
     ExtractorInfo,
     Phase,
+    SharedAgentState,
     SimpleAgentState,
-    SimpleBaselineAgent,
 )
 
 if TYPE_CHECKING:
-    from cogames.cogs_vs_clips.env import MettaGridEnv
+    pass
 
 
 @dataclass
@@ -35,7 +39,7 @@ class UnclippingAgentState(SimpleAgentState):
     unclip_target_resource: Optional[str] = None  # Which resource is clipped
 
 
-class UnclippingAgent(SimpleBaselineAgent):
+class UnclippingAgentPolicyImpl(BaselineAgentPolicyImpl):
     """
     Agent that can unclip extractors by crafting and using unclip items.
 
@@ -46,9 +50,18 @@ class UnclippingAgent(SimpleBaselineAgent):
     - scrambler (from germanium) unclips silicon extractors
     """
 
-    def __init__(self, env: MettaGridEnv):
-        super().__init__(env)
+    def __init__(self, policy_env_info: PolicyEnvInterface, shared_state: SharedAgentState, agent_id: int):
+        super().__init__(policy_env_info, shared_state, agent_id)
         self._unclip_recipes = self._load_unclip_recipes()
+
+    def agent_state(self) -> UnclippingAgentState:
+        """Create initial state for unclipping agent."""
+        return UnclippingAgentState(
+            agent_id=self._agent_id,
+            map_height=self._policy_env_info.map_height,
+            map_width=self._policy_env_info.map_width,
+            agent_occupancy=set(),
+        )
 
     def _load_unclip_recipes(self) -> dict[str, str]:
         """
@@ -327,3 +340,29 @@ class UnclippingAgent(SimpleBaselineAgent):
 
         # Not adjacent yet, move towards it
         return self._move_towards(s, target, reach_adjacent=True)
+
+
+# ============================================================================
+# Policy Wrapper Class
+# ============================================================================
+
+
+class UnclippingPolicy(MultiAgentPolicy):
+    """Multi-agent policy wrapper for UnclippingAgent.
+
+    This class wraps UnclippingAgent to work with the policy interface.
+    It handles multiple agents, each with their own UnclippingAgent instance.
+    """
+
+    def __init__(self, policy_env_info: PolicyEnvInterface):
+        super().__init__(policy_env_info)
+        self._shared_state = SharedAgentState()
+        self._agent_policies: dict[int, StatefulAgentPolicy[UnclippingAgentState]] = {}
+
+    def agent_policy(self, agent_id: int) -> StatefulAgentPolicy[UnclippingAgentState]:
+        if agent_id not in self._agent_policies:
+            self._agent_policies[agent_id] = StatefulAgentPolicy(
+                UnclippingAgentPolicyImpl(self._policy_env_info, self._shared_state, agent_id),
+                self._policy_env_info,
+            )
+        return self._agent_policies[agent_id]

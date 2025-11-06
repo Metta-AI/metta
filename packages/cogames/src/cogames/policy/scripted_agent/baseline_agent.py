@@ -201,6 +201,10 @@ class SimpleAgentState:
     # Stuck detection
     last_position: Optional[tuple[int, int]] = None
     stuck_counter: int = 0
+    position_history: list[tuple[int, int]] = field(default_factory=list)  # Last 10 positions
+    stuck_loop_detected: bool = False
+    stuck_escape_target: Optional[tuple[int, int]] = None
+    stuck_escape_step: int = 0
 
     # Agent position update frequency (to avoid constant re-planning)
     agent_positions_last_updated: int = 0
@@ -359,6 +363,59 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
                 "charger": None,
             }
 
+    def _check_stuck_and_escape(self, s: SimpleAgentState) -> Optional[Action]:
+        """Check if agent is stuck in a loop and return escape action if needed."""
+        if not s.stuck_loop_detected:
+            return None
+
+        # Clear stuck flag after 20 steps to allow normal behavior to resume
+        if s.step_count - s.stuck_escape_step > 20:
+            s.stuck_loop_detected = False
+            s.stuck_escape_target = None
+            return None
+
+        # If we don't have an escape target, pick a random distant free cell
+        if s.stuck_escape_target is None:
+            # Find a free cell at least 10 cells away
+            for _ in range(50):  # Try 50 random locations
+                rand_r = random.randint(0, s.map_height - 1)
+                rand_c = random.randint(0, s.map_width - 1)
+                dist = abs(rand_r - s.row) + abs(rand_c - s.col)
+                if dist >= 10 and s.occupancy[rand_r][rand_c] == CellType.FREE.value:
+                    s.stuck_escape_target = (rand_r, rand_c)
+                    # Clear cached path to force new pathfinding
+                    s.cached_path = None
+                    s.cached_path_target = None
+                    break
+
+            # If we couldn't find a distant target, just pick a different direction
+            if s.stuck_escape_target is None:
+                directions = ["north", "south", "east", "west"]
+                random.shuffle(directions)
+                for direction in directions:
+                    dr, dc = self._move_deltas[direction]
+                    nr, nc = s.row + dr, s.col + dc
+                    if self._is_within_bounds(s, nr, nc) and s.occupancy[nr][nc] == CellType.FREE.value:
+                        s.stuck_loop_detected = False  # Clear after one random move
+                        return self._actions.move.Move(direction)
+                # If all directions blocked, just noop
+                s.stuck_loop_detected = False
+                return self._actions.noop.Noop()
+
+        # Move towards escape target
+        if s.stuck_escape_target:
+            # Check if we've reached the escape target
+            if (s.row, s.col) == s.stuck_escape_target:
+                s.stuck_loop_detected = False
+                s.stuck_escape_target = None
+                return None  # Resume normal behavior
+
+            # Use pathfinding to reach escape target
+            action = self._move_towards(s, s.stuck_escape_target)
+            return action
+
+        return None
+
     def step_with_state(self, obs: AgentObservation, state: SimpleAgentState) -> Tuple[Action, SimpleAgentState]:
         """Compute action for one agent (returns action index)."""
         state.step_count += 1
@@ -366,6 +423,13 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         state.agent_occupancy.clear()
         self._update_state_from_obs(state, obs)
         self._update_phase(state)
+
+        # Check for stuck loop and attempt escape
+        action = self._check_stuck_and_escape(state)
+        if action is not None:
+            state.last_action = action
+            return action, state
+
         action = self._execute_phase(state)
 
         # Save action for next step's position update
@@ -394,6 +458,33 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
                     break
         except Exception:
             pass  # Silently fail if we can't get position
+
+        # Update position history and detect loops
+        current_pos = (s.row, s.col)
+        s.position_history.append(current_pos)
+        if len(s.position_history) > 10:
+            s.position_history.pop(0)
+
+        # Detect if agent is stuck in a back-and-forth loop
+        # Check if last 4-6 positions show oscillation (e.g., A->B->A->B or A->B->C->A->B->C)
+        if len(s.position_history) >= 6:
+            # Check for 2-position loop (A->B->A->B->A->B)
+            if (
+                s.position_history[-1] == s.position_history[-3] == s.position_history[-5]
+                and s.position_history[-2] == s.position_history[-4] == s.position_history[-6]
+                and s.position_history[-1] != s.position_history[-2]
+            ):
+                s.stuck_loop_detected = True
+                s.stuck_escape_step = s.step_count
+            # Check for 3-position loop (A->B->C->A->B->C)
+            elif len(s.position_history) >= 9:
+                if (
+                    s.position_history[-1] == s.position_history[-4] == s.position_history[-7]
+                    and s.position_history[-2] == s.position_history[-5] == s.position_history[-8]
+                    and s.position_history[-3] == s.position_history[-6] == s.position_history[-9]
+                ):
+                    s.stuck_loop_detected = True
+                    s.stuck_escape_step = s.step_count
 
     def _update_state_from_obs(self, s: SimpleAgentState, obs: AgentObservation) -> None:
         """Update agent state from observation."""

@@ -23,15 +23,13 @@ import argparse
 import json
 import logging
 from dataclasses import asdict, dataclass
-from typing import Any, Callable, Dict, List
+from typing import Dict, List
 
 from cogames.cogs_vs_clips.evals import CANONICAL_DIFFICULTY_ORDER, DIFFICULTY_LEVELS, apply_difficulty
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
-from cogames.policy.scripted_agent import BaselinePolicy
+from cogames.policy.scripted_agent import BaselinePolicy, UnclippingPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
-
-# from cogames.policy.scripted_agent import UnclippingPolicy
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -78,13 +76,13 @@ AGENT_CONFIGS: Dict[str, AgentConfig] = {
         cogs_list=[1, 2, 4, 8],
         difficulties=[d for d in CANONICAL_DIFFICULTY_ORDER if not is_clipping_difficulty(d)],
     ),
-    # "unclipping": AgentConfig(
-    #     key="unclipping",
-    #     label="UnclippingAgent",
-    #     policy_class=UnclippingPolicy,
-    #     cogs_list=[1, 2, 4, 8],
-    #     difficulties=CANONICAL_DIFFICULTY_ORDER,  # With and without clipping
-    # ),
+    "unclipping": AgentConfig(
+        key="unclipping",
+        label="UnclippingAgent",
+        policy_class=UnclippingPolicy,
+        cogs_list=[1, 2, 4, 8],
+        difficulties=CANONICAL_DIFFICULTY_ORDER,  # With and without clipping
+    ),
 }
 
 # All evaluation missions
