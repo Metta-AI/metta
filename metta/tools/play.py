@@ -14,7 +14,7 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config
 from mettagrid.policy.policy import AgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.policy.random import RandomAgentPolicy
+from mettagrid.policy.random import RandomMultiAgentPolicy
 from mettagrid.renderer.renderer import RenderMode
 from mettagrid.simulator.rollout import Rollout
 
@@ -75,6 +75,7 @@ class PlayTool(Tool):
 
         # Get environment config
         env_cfg = self.sim.env
+        policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
 
         # Set max_steps in config if specified
         if self.max_steps is not None:
@@ -82,14 +83,12 @@ class PlayTool(Tool):
 
         # Load or create policies
         if self.policy_uri:
-            # Create policy environment interface from config
-            policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
-
             agent_policies = self._load_policy_from_uri(self.policy_uri, policy_env_info, device)
         else:
             # Use random policies if no policy specified
             logger.info("No policy specified, using random actions")
-            agent_policies = [RandomAgentPolicy(env_cfg.game.actions) for _ in range(env_cfg.game.num_agents)]
+            random_policy = RandomMultiAgentPolicy(policy_env_info)
+            agent_policies = random_policy.agent_policies(env_cfg.game.num_agents)
 
         # Create rollout with renderer
         rollout = Rollout(
