@@ -17,7 +17,8 @@ from cogames.cogs_vs_clips.stations import (
     SiliconExtractorConfig,
     resources,
 )
-from mettagrid.config import Config, vibes
+from mettagrid.base_config import Config
+from mettagrid.config import vibes
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,

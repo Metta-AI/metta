@@ -2,7 +2,7 @@ import importlib
 
 
 def load_symbol(full_name: str):
-    """Load a symbol from a full name, for example: 'mettagrid.config.Config' -> Config.
+    """Load a symbol from a full name, for example: 'mettagrid.base_config.Config' -> Config.
 
     Handles nested attributes like 'mettagrid.map_builder.ascii.AsciiMapBuilder.Config'.
     """
