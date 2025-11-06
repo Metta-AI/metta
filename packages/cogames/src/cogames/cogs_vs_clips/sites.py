@@ -15,8 +15,14 @@ TRAINING_FACILITY = Site(
         instance=RandomTransform.Config(
             scene=BaseHub.Config(
                 spawn_count=4,
-                corner_bundle="chests",
-                cross_bundle="extractors",
+                corner_bundle="extractors",
+                corner_objects=[
+                    "carbon_extractor",
+                    "oxygen_extractor",
+                    "germanium_extractor",
+                    "silicon_extractor",
+                ],
+                cross_bundle="none",
             )
         ),
     ),

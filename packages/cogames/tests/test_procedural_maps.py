@@ -4,7 +4,7 @@ import pytest
 
 from cogames.cogs_vs_clips.procedural import MachinaArenaConfig
 from mettagrid.mapgen.mapgen import MapGen
-from mettagrid.mapgen.scenes.base_hub import DEFAULT_CORNER_CHESTS, DEFAULT_EXTRACTORS, BaseHub
+from mettagrid.mapgen.scenes.base_hub import DEFAULT_EXTRACTORS, BaseHub
 
 
 def _collect_types(tree: dict) -> list[str]:
@@ -158,7 +158,7 @@ def _build_base_hub_only(*, corner_bundle: str | None, cross_bundle: str | None,
         instance=BaseHub.Config(
             spawn_count=0,
             include_inner_wall=False,
-            corner_bundle=corner_bundle or "chests",
+            corner_bundle=corner_bundle or "extractors",
             cross_bundle=cross_bundle or "none",
             cross_distance=cross_distance,
         ),
@@ -171,9 +171,9 @@ def _build_base_hub_only(*, corner_bundle: str | None, cross_bundle: str | None,
 @pytest.mark.parametrize(
     "corner_bundle,cross_bundle,expected_corner,expected_cross",
     [
-        ("chests", "none", DEFAULT_CORNER_CHESTS, ("empty",) * 4),
+        ("none", "none", ("empty",) * 4, ("empty",) * 4),
         ("extractors", "none", DEFAULT_EXTRACTORS, ("empty",) * 4),
-        ("chests", "extractors", DEFAULT_CORNER_CHESTS, DEFAULT_EXTRACTORS),
+        ("extractors", "extractors", DEFAULT_EXTRACTORS, DEFAULT_EXTRACTORS),
     ],
 )
 def test_base_hub_grid_matches_bundles(

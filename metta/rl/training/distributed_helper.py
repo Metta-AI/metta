@@ -174,7 +174,7 @@ class DistributedHelper:
             else getattr(trainer_cfg, "forward_pass_minibatch_target_size", "n/a"),
         )
 
-    def wrap_policy(self, policy: Policy, device: Optional[torch.device] = None) -> Policy | DistributedPolicy:
+    def wrap_policy(self, policy: Policy, device: Optional[torch.device] = None) -> Policy:
         """Wrap policy for distributed training if needed.
 
         Args:
