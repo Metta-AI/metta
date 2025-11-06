@@ -51,7 +51,7 @@ def _bootstrap_nimby() -> Path:
     url = f"https://github.com/treeform/nimby/releases/download/{REQUIRED_NIMBY_VERSION}/nimby-{system}-{arch}"
     with tempfile.TemporaryDirectory() as tmp:
         target = Path(tmp) / "nimby"
-        with urllib.request.urlopen(url) as resp, open(target, "wb") as out:
+        with urllib.request.urlopen(url, timeout=30) as resp, open(target, "wb") as out:
             shutil.copyfileobj(resp, out)
         target.chmod(0o755)
         NIMBY_HOME.mkdir(parents=True, exist_ok=True)
