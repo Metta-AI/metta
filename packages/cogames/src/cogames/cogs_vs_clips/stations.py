@@ -165,36 +165,23 @@ class SiliconExtractorConfig(ExtractorConfig):
 
 class CvCChestConfig(CvCStationConfig):
     type: Literal["communal_chest"] = Field(default="communal_chest")
-    default_resource: str = Field(default="heart")
+    initial_inventory: dict[str, int] = Field(default={}, description="Initial inventory for each resource type")
 
     def station_cfg(self) -> ChestConfig:
         return ChestConfig(
             name=self.type,
             map_char="C",
             render_symbol=vibes.VIBE_BY_NAME["chest"].symbol,
-            resource_type=self.default_resource,
-            position_deltas=[("E", 1), ("W", 1), ("N", 1), ("S", 1)],  # Accept deposits from any direction
+            vibe_transfers={
+                "default": {"heart": 255, "carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255},
+                "heart": {"heart": -1},
+                "carbon": {"carbon": -10},
+                "oxygen": {"oxygen": -10},
+                "germanium": {"germanium": -1},
+                "silicon": {"silicon": -25},
+            },
+            initial_inventory=self.initial_inventory,
         )
-
-
-def _resource_chest(resource: str, type_id: int) -> ChestConfig:
-    return ChestConfig(
-        name=f"chest_{resource}",
-        type_id=type_id,
-        map_char="C",
-        render_symbol=vibes.VIBE_BY_NAME[resource].symbol,
-        resource_type=resource,
-        position_deltas=[("E", 1), ("W", -1)],
-    )
-
-
-RESOURCE_CHESTS: dict[str, ChestConfig] = {
-    "chest_carbon": _resource_chest("carbon", 118),
-    "chest_oxygen": _resource_chest("oxygen", 119),
-    "chest_germanium": _resource_chest("germanium", 120),
-    "chest_silicon": _resource_chest("silicon", 121),
-    "chest_heart": _resource_chest("heart", 122),
-}
 
 
 class CvCAssemblerConfig(CvCStationConfig):

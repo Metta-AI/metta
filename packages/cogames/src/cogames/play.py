@@ -7,6 +7,7 @@ from rich.console import Console
 
 from mettagrid import MettaGridConfig
 from mettagrid.policy.policy import PolicySpec
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.utils import initialize_or_load_policy
 from mettagrid.renderer.renderer import RenderMode
 from mettagrid.simulator.rollout import Rollout
@@ -40,27 +41,16 @@ def play(
 
     logger.debug("Starting play session", extra={"game_name": game_name})
 
-    # Check if this is a scripted agent policy that needs simulation
-    scripted_agents = [
-        "cogames.policy.scripted_agent.baseline_agent.BaselinePolicy",
-        "cogames.policy.scripted_agent.unclipping_agent.UnclippingPolicy",
-    ]
-    pass_sim = policy_spec.policy_class_path in scripted_agents
-
+    policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
     policy = initialize_or_load_policy(
-        policy_spec.policy_class_path, policy_spec.policy_data_path, env_cfg.game.actions
+        policy_env_info,
+        policy_spec.policy_class_path,
+        policy_spec.policy_data_path,
     )
-
-    # Create agent policies (after reset for scripted agents, before for others)
-    if pass_sim:
-        # For scripted agents, we'll create the agent policies in Rollout after reset
-        # Pass the policy object itself, wrapped in a list for each agent
-        agent_policies = [policy] * env_cfg.game.num_agents  # Placeholder, will be reset in Rollout
-    else:
-        agent_policies = [policy.agent_policy(agent_id) for agent_id in range(env_cfg.game.num_agents)]
+    agent_policies = [policy.agent_policy(agent_id) for agent_id in range(env_cfg.game.num_agents)]
 
     # Create simulator and renderer
-    rollout = Rollout(env_cfg, agent_policies, render_mode=render_mode, seed=seed, pass_sim_to_policies=pass_sim)
+    rollout = Rollout(env_cfg, agent_policies, render_mode=render_mode, seed=seed, pass_sim_to_policies=True)
     rollout.run_until_done()
 
     # Print summary

@@ -2,6 +2,7 @@ from datetime import datetime
 
 import pandas as pd
 import wandb
+
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 
 
@@ -36,9 +37,7 @@ def monitor_training_statuses(
                 {
                     "name": run_name,
                     "state": run.state,
-                    "created": datetime.fromisoformat(run.created_at).strftime(
-                        "%Y-%m-%d %H:%M"
-                    ),
+                    "created": datetime.fromisoformat(run.created_at).strftime("%Y-%m-%d %H:%M"),
                 }
             )
             if run.summary:
