@@ -107,8 +107,6 @@ def main() -> int:
         policy_arg,
         "--episodes",
         str(args.eval_episodes),
-        "--format",
-        "json",
     ]
 
     for variant in args.variant:
