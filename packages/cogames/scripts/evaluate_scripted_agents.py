@@ -27,8 +27,11 @@ from typing import Any, Callable, Dict, List
 
 from cogames.cogs_vs_clips.evals import CANONICAL_DIFFICULTY_ORDER, DIFFICULTY_LEVELS, apply_difficulty
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
-from cogames.policy.scripted_agent import BaselinePolicy, UnclippingPolicy
+from cogames.policy.scripted_agent import BaselinePolicy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
+
+# from cogames.policy.scripted_agent import UnclippingPolicy
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -56,7 +59,7 @@ class AgentConfig:
 
     key: str
     label: str
-    policy_factory: Callable[[], Any]
+    policy_class: type
     cogs_list: List[int]
     difficulties: List[str]
 
@@ -71,17 +74,17 @@ AGENT_CONFIGS: Dict[str, AgentConfig] = {
     "baseline": AgentConfig(
         key="baseline",
         label="Baseline",
-        policy_factory=lambda: BaselinePolicy(),
+        policy_class=BaselinePolicy,
         cogs_list=[1, 2, 4, 8],
         difficulties=[d for d in CANONICAL_DIFFICULTY_ORDER if not is_clipping_difficulty(d)],
     ),
-    "unclipping": AgentConfig(
-        key="unclipping",
-        label="UnclippingAgent",
-        policy_factory=lambda: UnclippingPolicy(),
-        cogs_list=[1, 2, 4, 8],
-        difficulties=CANONICAL_DIFFICULTY_ORDER,  # With and without clipping
-    ),
+    # "unclipping": AgentConfig(
+    #     key="unclipping",
+    #     label="UnclippingAgent",
+    #     policy_class=UnclippingPolicy,
+    #     cogs_list=[1, 2, 4, 8],
+    #     difficulties=CANONICAL_DIFFICULTY_ORDER,  # With and without clipping
+    # ),
 }
 
 # All evaluation missions
@@ -141,9 +144,10 @@ def run_evaluation(
                     env_config = mission_inst.make_env()
                     env_config.game.max_steps = max_steps
 
-                    # Create policy (scripted agents will get simulation from Rollout)
-                    policy = agent_config.policy_factory()
-                    agent_policies = [policy] * num_cogs
+                    # Create policy with PolicyEnvInterface
+                    policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
+                    policy = agent_config.policy_class(policy_env_info)
+                    agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
 
                     # Create rollout and run episode
                     rollout = Rollout(

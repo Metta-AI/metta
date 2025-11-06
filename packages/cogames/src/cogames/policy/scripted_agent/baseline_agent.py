@@ -13,7 +13,6 @@ Just simple, clean, correct behavior.
 
 from __future__ import annotations
 
-import logging
 import random
 from collections import deque
 from dataclasses import dataclass, field
@@ -30,8 +29,6 @@ from mettagrid.simulator.interface import AgentObservation
 
 if TYPE_CHECKING:
     from mettagrid.simulator import Simulation
-
-logger = logging.getLogger(__name__)
 
 # Debug flag - set to True to enable detailed logging
 DEBUG = False
@@ -122,10 +119,6 @@ class ParsedObservation:
 class SharedAgentState:
     """Shared state for all agents."""
 
-    # Path caching for efficient navigation
-    cached_path: Optional[list[tuple[int, int]]] = None
-    cached_path_target: Optional[tuple[int, int]] = None
-    cached_path_reach_adjacent: bool = False
     # Cached grid_objects for position lookups - shared across all agents per step
     cached_grid_objects: Optional[dict] = None
     cached_grid_objects_step: int = -1
@@ -211,6 +204,11 @@ class SimpleAgentState:
 
     # Agent position update frequency (to avoid constant re-planning)
     agent_positions_last_updated: int = 0
+
+    # Path caching for efficient navigation (per-agent)
+    cached_path: Optional[list[tuple[int, int]]] = None
+    cached_path_target: Optional[tuple[int, int]] = None
+    cached_path_reach_adjacent: bool = False
 
 
 class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
@@ -343,9 +341,9 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             nearby_objects=nearby_objects,  # Spatial data from observations
         )
 
-    def reset(self, num_agents: int) -> None:
-        """Reset all agent states."""
-        # We shouldn't have this, but for now, clear it
+    def reset(self, simulation: Optional["Simulation"]) -> None:
+        """Reset the policy state."""
+        # Only reset shared state once (when agent 0 is reset)
         if self._agent_id == 0:
             self._shared_state.cached_grid_objects = None
             self._shared_state.cached_grid_objects_step = -1
@@ -602,8 +600,8 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
         # Invalidate cached path if phase changed (likely targeting something different now)
         if old_phase != s.phase:
-            s.shared_state.cached_path = None
-            s.shared_state.cached_path_target = None
+            s.cached_path = None
+            s.cached_path_target = None
 
     def _calculate_deficits(self, s: SimpleAgentState) -> dict[str, int]:
         """Calculate how many more of each resource we need for a heart."""
@@ -676,12 +674,30 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             # Target reached or expired, clear it
             s.exploration_target = None
 
+        # Calculate which quadrants are least explored
+        # This helps bias exploration toward neglected areas of the map
+        map_center_r, map_center_c = s.map_height // 2, s.map_width // 2
+
+        # Determine which quadrant we're in and which is opposite
+        in_top = s.row < map_center_r
+        in_left = s.col < map_center_c
+
+        # Bonus for exploring opposite quadrant (helps break out of local exploration)
+        def get_quadrant_bonus(r, c):
+            target_top = r < map_center_r
+            target_left = c < map_center_c
+            # Give bonus if target is in opposite quadrant
+            if in_top != target_top or in_left != target_left:
+                return 50  # Moderate bonus to encourage crossing to other side
+            return 0
+
         # Find nearest least-recently-visited cell
         best_target = None
         best_score = -float("inf")
 
-        # Sample cells in expanding radius
-        for radius in range(5, min(15, s.map_height // 2, s.map_width // 2)):
+        # Sample cells in expanding radius - search much further to find unexplored regions
+        max_radius = max(s.map_height, s.map_width) // 2 + 5
+        for radius in range(5, max_radius, 2):  # Step by 2 for efficiency
             for dr in range(-radius, radius + 1):
                 for dc in range(-radius, radius + 1):
                     if abs(dr) != radius and abs(dc) != radius:
@@ -699,14 +715,18 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
                     visit_score = s.step_count - last_visited
                     distance = abs(dr) + abs(dc)
 
-                    # Prefer unvisited or long-unvisited cells closer to us
-                    score = visit_score * 10 - distance
+                    # Increased visit weight (20x) and reduced distance penalty (0.5x)
+                    # This helps agents travel to far-away unexplored regions
+                    quadrant_bonus = get_quadrant_bonus(r, c)
+                    score = visit_score * 20 - (distance * 0.5) + quadrant_bonus
 
                     if score > best_score:
                         best_score = score
                         best_target = (r, c)
 
-            if best_target and best_score > 100:  # Found a good target
+            # Only break early if we found an excellent target (very high threshold)
+            # This ensures we search wide enough to find truly unexplored areas
+            if best_target and best_score > 800:
                 break
 
         if best_target:
@@ -904,6 +924,15 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         if explore_action is not None:
             return explore_action
 
+        # First, ensure we have the correct glyph (default/neutral) for chest deposit
+        # The boss's refactoring changed chests to use vibe_transfers:
+        # - "default" vibe: DEPOSIT resources (positive values)
+        # - specific resource vibes (e.g., "heart"): WITHDRAW resources (negative values)
+        if s.current_glyph != "default":
+            vibe_action = self._actions.change_vibe.ChangeVibe(VIBE_BY_NAME["default"])
+            s.current_glyph = "default"
+            return vibe_action
+
         # Chest is known, move adjacent to it then use it
         chest = s.shared_state.stations["chest"]
         cr, cc = chest
@@ -992,25 +1021,25 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         # Check if we can reuse cached path
         path = None
         if (
-            s.shared_state.cached_path
-            and len(s.shared_state.cached_path) > 0
-            and s.shared_state.cached_path_target == target
-            and s.shared_state.cached_path_reach_adjacent == reach_adjacent
+            s.cached_path
+            and len(s.cached_path) > 0
+            and s.cached_path_target == target
+            and s.cached_path_reach_adjacent == reach_adjacent
         ):
             # Validate cached path - check if next step is still walkable
-            next_pos = s.shared_state.cached_path[0]
+            next_pos = s.cached_path[0]
             if self._is_traversable(s, next_pos[0], next_pos[1]) or (allow_goal_block and next_pos in goal_cells):
                 # Cached path is valid! Use it
-                path = s.shared_state.cached_path
+                path = s.cached_path
             # If next step blocked, fall through to recompute
 
         # Need to recompute path
         if path is None:
             path = self._shortest_path(s, start, goal_cells, allow_goal_block)
             # Cache the new path
-            s.shared_state.cached_path = path.copy() if path else None
-            s.shared_state.cached_path_target = target
-            s.shared_state.cached_path_reach_adjacent = reach_adjacent
+            s.cached_path = path.copy() if path else None
+            s.cached_path_target = target
+            s.cached_path_reach_adjacent = reach_adjacent
         if not path:
             for dr in range(-2, 3):
                 row_str = "    "
@@ -1046,12 +1075,12 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         next_pos = path[0]
 
         # Advance cached path (remove the step we're about to take)
-        if s.shared_state.cached_path and len(s.shared_state.cached_path) > 0:
-            s.shared_state.cached_path = s.shared_state.cached_path[1:]  # Remove first element
+        if s.cached_path and len(s.cached_path) > 0:
+            s.cached_path = s.cached_path[1:]  # Remove first element
             # Clear cache if we've reached the end
-            if len(s.shared_state.cached_path) == 0:
-                s.shared_state.cached_path = None
-                s.shared_state.cached_path_target = None
+            if len(s.cached_path) == 0:
+                s.cached_path = None
+                s.cached_path_target = None
 
         # Convert next position to action
         dr = next_pos[0] - s.row
@@ -1153,25 +1182,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         # Only traverse cells we KNOW are free, not unknown cells
         return cell == CellType.FREE.value
 
-    def _trace_log(self, s: SimpleAgentState) -> None:
-        """Detailed trace logging."""
-        extractors_known = {r: len(s.shared_state.extractors[r]) for r in ["carbon", "oxygen", "germanium", "silicon"]}
-        print(f"[TRACE Step {s.step_count}] Agent {s.agent_id} @ ({s.row},{s.col})")
-        print(f"  Phase: {s.phase.name}, Energy: {s.energy}")
-        print(f"  Inventory: C={s.carbon} O={s.oxygen} G={s.germanium} S={s.silicon} Hearts={s.hearts}")
-        print(f"  Extractors known: {extractors_known}")
-        # Debug: show first few extractors if any
-        if s.step_count == 100:
-            for rtype in self._heart_recipe:
-                if len(s.shared_state.extractors[rtype]) > 0:
-                    first_3 = s.shared_state.extractors[rtype][:3]
-                    print(f"    {rtype}: {[(e.position, e.last_seen_step) for e in first_3]}")
-        stations = f"assembler={s.shared_state.stations['assembler'] is not None}"
-        stations += f" chest={s.shared_state.stations['chest'] is not None}"
-        stations += f" charger={s.shared_state.stations['charger'] is not None}"
-        print(f"  Stations: {stations}")
-        print(f"  Target: {s.target_position}, Target resource: {s.target_resource}")
-
     def _move_into_cell(self, s: SimpleAgentState, target: tuple[int, int]) -> Action:
         """Return the action that attempts to step into the target cell."""
         tr, tc = target
@@ -1200,6 +1210,11 @@ class BaselinePolicy(MultiAgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface):
         super().__init__(policy_env_info)
         self._shared_state = SharedAgentState()
+        self._agent_policies: dict[int, StatefulAgentPolicy[SimpleAgentState]] = {}
 
     def agent_policy(self, agent_id: int) -> StatefulAgentPolicy[SimpleAgentState]:
-        return StatefulAgentPolicy(BaselineAgentPolicyImpl(self._policy_env_info, self._shared_state, agent_id))
+        if agent_id not in self._agent_policies:
+            self._agent_policies[agent_id] = StatefulAgentPolicy(
+                BaselineAgentPolicyImpl(self._policy_env_info, self._shared_state, agent_id), self._policy_env_info
+            )
+        return self._agent_policies[agent_id]
