@@ -10,14 +10,11 @@ import metta.cogworks.curriculum as cc
 from cogames.cogs_vs_clips.evals.eval_missions import (
     EVAL_MISSIONS,
 )
-from cogames.cogs_vs_clips.mission_utils import get_map
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss import LossConfig
-from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
@@ -43,14 +40,12 @@ def make_eval_suite(
     """
     # Filter missions if subset specified
     if subset:
-        missions = [m for m in EVAL_MISSIONS if m().name in subset]
+        missions = [m for m in EVAL_MISSIONS if m.name in subset]
     else:
         missions = EVAL_MISSIONS
 
     simulations = []
-    for mission_cls in missions:
-        mission_template = mission_cls()
-
+    for mission_template in missions:
         # Skip missions that don't make sense for single agent
         if num_cogs == 1 and mission_template.name in [
             "go_together",
@@ -58,19 +53,15 @@ def make_eval_suite(
         ]:
             continue
 
-        # Get default map for this mission
-        map_builder = get_map(mission_template.map_name)
+        # Apply number of agents variant
+        from cogames.cogs_vs_clips.mission import NumCogsVariant
 
-        # Instantiate mission with specified agent count
-        # Note: difficulty variants are applied during evaluation, not here
-        instantiated = mission_template.instantiate(
-            map_builder=map_builder,
-            num_cogs=num_cogs,
-            variant=None,  # Apply difficulty later if needed
+        mission_with_cogs = mission_template.with_variants(
+            [NumCogsVariant(num_cogs=num_cogs)]
         )
 
         # Create env config
-        env_cfg = instantiated.make_env()
+        env_cfg = mission_with_cogs.make_env()
 
         # Create simulation
         sim = SimulationConfig(
@@ -96,20 +87,23 @@ def make_training_env(
     Returns:
         MettaGridConfig ready for training
     """
-    # Find the mission class
-    mission_cls = None
-    for m_cls in EVAL_MISSIONS:
-        if m_cls().name == mission_name:
-            mission_cls = m_cls
+    # Find the mission instance
+    mission_template = None
+    for mission in EVAL_MISSIONS:
+        if mission.name == mission_name:
+            mission_template = mission
             break
 
-    if mission_cls is None:
+    if mission_template is None:
         raise ValueError(f"Mission '{mission_name}' not found in EVAL_MISSIONS")
 
-    mission_template = mission_cls()
-    map_builder = get_map(mission_template.map_name)
-    instantiated = mission_template.instantiate(map_builder, num_cogs, variant=None)
-    return instantiated.make_env()
+    # Apply number of agents variant and create environment
+    from cogames.cogs_vs_clips.mission import NumCogsVariant
+
+    mission_with_cogs = mission_template.with_variants(
+        [NumCogsVariant(num_cogs=num_cogs)]
+    )
+    return mission_with_cogs.make_env()
 
 
 def make_curriculum(
@@ -208,11 +202,6 @@ def train(
         enable_detailed_slice_logging=enable_detailed_slice_logging,
     )
 
-    # Configure trainer
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
-    )
-
     # Create evaluation suite (test on all missions with standard difficulty)
     eval_suite = make_eval_suite(num_cogs=num_cogs, difficulty="standard")
 
@@ -221,7 +210,6 @@ def train(
     )
 
     return TrainTool(
-        trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
         evaluator=evaluator_cfg,
     )
@@ -247,15 +235,10 @@ def train_single_mission(
     # Create single-env curriculum
     curriculum = cc.env_curriculum(env)
 
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
-    )
-
     # Still evaluate on multiple missions
     eval_suite = make_eval_suite(num_cogs=num_cogs, difficulty="standard")
 
     return TrainTool(
-        trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(simulations=eval_suite),
     )

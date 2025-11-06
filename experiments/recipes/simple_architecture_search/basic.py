@@ -8,8 +8,7 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss import LossConfig
-from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
+from metta.rl.trainer_config import TorchProfilerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import (
@@ -126,14 +125,9 @@ def train(
     )
 
     eval_simulations = simulations()
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
-    )
-
     policy_architecture = ARCHITECTURES[arch_type]
 
     return TrainTool(
-        trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(simulations=eval_simulations),
         policy_architecture=policy_architecture,

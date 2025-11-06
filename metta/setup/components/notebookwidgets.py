@@ -24,7 +24,7 @@ class NotebookWidgetsSetup(SetupModule):
 
     def __init__(self):
         super().__init__()
-        self.widget_root = self.repo_root / "experiments/notebooks/utils"
+        self.widget_root = self.repo_root / "notebooks/utils"
 
     def should_install_widget(self, widget: str) -> bool:
         widget_path = self.widget_root / widget
@@ -85,22 +85,21 @@ class NotebookWidgetsSetup(SetupModule):
                     )
             info(
                 "The notebook widgets are now compiled. Check out "
-                "./experiments/notebooks/*_example.ipynb "
+                "./notebooks/*_example.ipynb "
                 "to see them in action and learn how to use them. "
                 "\n"
                 "You can also use them in your own notebooks by importing them like "
                 "\n"
-                "`from experiments.notebooks.utils.scorecard_widget.scorecard_widget.ScorecardWidget import "
-                "ScorecardWidget`."
+                "`from notebooks.utils.scorecard_widget.scorecard_widget.ScorecardWidget import ScorecardWidget`."
             )
 
         except subprocess.CalledProcessError:
             warning("""
                 NotebookWidgets compilation failed. You can compile them manually:
-                1. cd ./experiments/notebooks/utils/scorecard_widget
+                1. cd ./notebooks/utils/scorecard_widget
                 2. pnpm install
                 3. pnpm run build
-                4. cd ./experiments/notebooks/utils/eval_finder_widget
+                4. cd ./notebooks/utils/eval_finder_widget
                 5. pnpm install
                 6. pnpm run build
             """)
