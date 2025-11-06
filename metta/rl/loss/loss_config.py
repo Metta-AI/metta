@@ -1,12 +1,14 @@
-from typing import Any, Dict
+from typing import TYPE_CHECKING, Any, Dict
 
 import torch
 from pydantic import Field
 
+if TYPE_CHECKING:
+    from metta.rl.trainer_config import TrainerConfig
+
 import metta.rl.loss.action_supervised as action_supervised
 import metta.rl.loss.contrastive_config as contrastive_config
 import metta.rl.loss.ppo as ppo
-import metta.rl.trainer_config as trainer_config
 from metta.agent.policy import Policy
 from metta.rl.training import TrainingEnvironment
 from mettagrid.base_config import Config
@@ -54,10 +56,9 @@ class LossConfig(Config):
     def init_losses(
         self,
         policy: Policy,
-        trainer_cfg: trainer_config.TrainerConfig,
+        trainer_cfg: "TrainerConfig",
         env: TrainingEnvironment,
         device: torch.device,
-        instance_name: str,
     ):
         losses = {}
         for loss_name, loss_config in self.loss_configs.items():

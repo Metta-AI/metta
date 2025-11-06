@@ -139,7 +139,7 @@ class _SingleAgentAdapter(AgentPolicy):
         return td
 
 
-class DistributedPolicy(DistributedDataParallel):
+class DistributedPolicy(DistributedDataParallel, Policy):
     """Thin wrapper around DistributedDataParallel that preserves Policy interface."""
 
     module: "Policy"

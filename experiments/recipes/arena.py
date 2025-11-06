@@ -7,17 +7,16 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.training import TrainingEnvironmentConfig
+from metta.rl.loss.action_supervised import ActionSupervisedConfig
+from metta.rl.loss.loss_config import LossConfig
+from metta.rl.trainer_config import TrainerConfig
+from metta.rl.training import CheckpointerConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
-from metta.rl.loss import LossConfig
-from metta.rl.loss.action_supervised import ActionSupervisedConfig
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import CheckpointerConfig
 
 # TODO(dehydration): make sure this trains as well as main on arena
 # it's possible the maps are now different
