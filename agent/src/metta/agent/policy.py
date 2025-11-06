@@ -120,34 +120,9 @@ class _SingleAgentAdapter(AgentPolicy):
         self._policy.reset_memory()
 
     def _obs_to_td(self, obs: AgentObservation, device: torch.device) -> TensorDict:
-        """Convert AgentObservation to TensorDict with proper multi-channel format.
-
-        Creates observations with shape [batch, sequence, 3] where channels are:
-        - Channel 0: Packed coordinates (row, col encoded in single byte)
-        - Channel 1: Feature ID
-        - Channel 2: Value
-        """
-        from mettagrid import PackedCoordinate
-
-        # Build observation tensor with 3 channels: [coord, feature_id, value]
-        num_tokens = len(obs.tokens)
-        obs_data = []
-
-        for token in obs.tokens:
-            # Pack coordinates into single byte (row, col -> packed_coord)
-            row, col = token.location
-            packed_coord = PackedCoordinate.pack(row, col)
-
-            obs_data.append(
-                [
-                    packed_coord,  # Channel 0: packed coordinate
-                    token.feature.id,  # Channel 1: feature ID
-                    token.value,  # Channel 2: value
-                ]
-            )
-
-        # Create tensor with shape [1, num_tokens, 3] (batch=1, sequence=num_tokens, channels=3)
-        obs_tensor = torch.tensor(obs_data, dtype=torch.uint8).unsqueeze(0).to(device)
+        """Convert AgentObservation to TensorDict."""
+        tokens = [token.value for token in obs.tokens]
+        obs_tensor = torch.tensor(tokens, dtype=torch.uint8).unsqueeze(0).to(device)
 
         td = TensorDict(
             {
