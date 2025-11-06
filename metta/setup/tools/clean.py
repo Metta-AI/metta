@@ -67,10 +67,7 @@ def cmd_clean(
     info(f"Removed {len(removed_dirs)} directories")
 
 
-def is_dir_empty_or_pycache_only(dir_path):
-    """
-    Check if a directory is empty or contains only __pycache__
-    """
+def is_dir_empty_or_pycache_only(dir_path: Path) -> bool:
     try:
         contents = list(os.listdir(dir_path))
 
