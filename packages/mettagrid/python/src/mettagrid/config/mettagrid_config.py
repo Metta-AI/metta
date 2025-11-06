@@ -13,7 +13,7 @@ from pydantic import (
     model_validator,
 )
 
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 from mettagrid.config.id_map import IdMap
 from mettagrid.config.obs_config import ObsConfig
 from mettagrid.config.vibes import VIBES, Vibe
@@ -22,7 +22,6 @@ from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.simulator import Action
 
-# Forward reference - actual import happens at runtime when needed
 # ===== Python Configuration Models =====
 
 Direction = Literal["north", "south", "east", "west", "northeast", "northwest", "southeast", "southwest"]
@@ -439,12 +438,21 @@ class GameConfig(Config):
         return IdMap(wrapper)
 
 
+class TeacherConfig(Config):
+    """Teacher configuration."""
+
+    enabled: bool = Field(default=False)
+    use_actions: bool = Field(default=False)
+    policy: str = Field(default="baseline")
+
+
 class MettaGridConfig(Config):
     """Environment configuration."""
 
     label: str = Field(default="mettagrid")
     game: GameConfig = Field(default_factory=GameConfig)
     desync_episodes: bool = Field(default=True)
+    teacher: TeacherConfig = Field(default_factory=TeacherConfig)
 
     def id_map(self) -> "IdMap":
         """Get the observation feature ID map for this configuration."""

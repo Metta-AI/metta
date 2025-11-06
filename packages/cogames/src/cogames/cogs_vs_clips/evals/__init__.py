@@ -1,9 +1,7 @@
 """Evaluation missions and utilities for scripted agent testing."""
 
 from cogames.cogs_vs_clips.evals.difficulty_variants import (
-    CANONICAL_DIFFICULTY_ORDER,
-    DIFFICULTY_LEVELS,
-    apply_difficulty,
+    DIFFICULTY_VARIANTS,
 )
 from cogames.cogs_vs_clips.evals.eval_missions import (
     EVAL_MISSIONS,
@@ -11,9 +9,7 @@ from cogames.cogs_vs_clips.evals.eval_missions import (
 
 __all__ = [
     # Difficulty variants
-    "DIFFICULTY_LEVELS",
-    "CANONICAL_DIFFICULTY_ORDER",
-    "apply_difficulty",
+    "DIFFICULTY_VARIANTS",
     # Utilities / registry
     "EVAL_MISSIONS",
 ]
