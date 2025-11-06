@@ -115,7 +115,7 @@ class _SingleAgentAdapter(AgentPolicy):
         self._policy(td)
         return self._actions_by_id[int(td["actions"][0].item())]
 
-    def reset(self) -> None:
+    def reset(self, simulation=None) -> None:
         """Reset policy state if needed."""
         self._policy.reset_memory()
 
