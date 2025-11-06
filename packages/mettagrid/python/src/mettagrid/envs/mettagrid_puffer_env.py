@@ -30,6 +30,7 @@ import numpy as np
 from gymnasium.spaces import Box, Discrete
 from typing_extensions import override
 
+from cogames.policy.scripted_agent.baseline_agent import BaselinePolicy
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.mettagrid_c import (
     dtype_actions,
@@ -99,6 +100,8 @@ class MettaGridPufferEnv(PufferEnv):
         self.single_observation_space: Box = policy_env_info.observation_space
         self.single_action_space: Discrete = policy_env_info.action_space
 
+        self._teacher_policy = None
+        self._teacher_agent_policies = []
         self._new_sim()
         self.num_agents: int = self._sim.num_agents
 
@@ -136,8 +139,15 @@ class MettaGridPufferEnv(PufferEnv):
     def _new_sim(self) -> None:
         if hasattr(self, "_sim") and self._sim is not None:
             self._sim.close()
-        self._sim = None
         self._sim = self._simulator.new_simulation(self._current_cfg, self._current_seed)
+        if self._current_cfg.teacher.enabled:
+            self._teacher_policy = BaselinePolicy(PolicyEnvInterface.from_mg_cfg(self._current_cfg))
+            self._teacher_agent_policies = [
+                self._teacher_policy.agent_policy(agent_id) for agent_id in range(self._current_cfg.game.num_agents)
+            ]
+            for agent_policy in self._teacher_agent_policies:
+                agent_policy.reset(self._sim)
+
         self._update_buffers()
         self._buffers.rewards[:] = 0.0
         self._buffers.terminals[:] = False
@@ -158,8 +168,19 @@ class MettaGridPufferEnv(PufferEnv):
             self._new_sim()
 
         self._buffers.actions[:] = actions
-        self._sim._c_sim.actions()[:] = actions
-        self._buffers.teacher_actions[:] = actions
+
+        if self._current_cfg.teacher.enabled:
+            agents = self._sim.agents()
+            teacher_actions = [
+                self._sim.action_names.index(
+                    self._teacher_agent_policies[agent_id].step(agents[agent_id].observation).name
+                )
+                for agent_id in range(self._current_cfg.game.num_agents)
+            ]
+            self._buffers.teacher_actions[:] = np.array(teacher_actions, dtype=dtype_actions)
+            if self._current_cfg.teacher.use_actions:
+                self._buffers.actions[:] = self._buffers.teacher_actions[:]
+
         self._sim.step()
 
         return (

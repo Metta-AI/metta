@@ -7,9 +7,8 @@ from typing import Generic, Optional, Tuple, TypeVar
 import torch.nn as nn
 from pydantic import BaseModel
 
-from mettagrid.config.mettagrid_config import ActionsConfig
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator import Action, AgentObservation
+from mettagrid.simulator import Action, AgentObservation, Simulation
 
 # Type variable for agent state - can be any type
 StateType = TypeVar("StateType")
@@ -23,8 +22,12 @@ class AgentPolicy:
     This is what play.py and evaluation code use directly.
     """
 
-    def __init__(self, actions: ActionsConfig):
-        self._actions = actions
+    def __init__(self, policy_env_info: PolicyEnvInterface):
+        self._policy_env_info = policy_env_info
+
+    @property
+    def policy_env_info(self) -> PolicyEnvInterface:
+        return self._policy_env_info
 
     def step(self, obs: AgentObservation) -> Action:
         """Get action given an observation.
@@ -37,7 +40,7 @@ class AgentPolicy:
         """
         raise NotImplementedError("Subclasses must implement step()")
 
-    def reset(self) -> None:
+    def reset(self, simulation: Optional[Simulation] = None) -> None:
         """Reset the policy state. Default implementation does nothing."""
         pass
 
@@ -98,26 +101,27 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
     For example, Tuple[torch.Tensor, torch.Tensor] for LSTM hidden states.
     """
 
-    def __init__(self, base_policy: "StatefulPolicyImpl[StateType]", agent_id: int):
+    def __init__(self, base_policy: "StatefulPolicyImpl[StateType]", policy_env_info: PolicyEnvInterface):
         """Initialize stateful wrapper.
 
         Args:
             base_policy: The underlying stateful policy implementation
-            agent_id: The ID of the agent this policy is for
+            policy_env_info: The policy environment information
         """
+        super().__init__(policy_env_info)
         self._base_policy = base_policy
-        self._agent_id = agent_id
-        # Initialize state using the base policy's agent_state() method
-        self._state: Optional[StateType] = self._base_policy.agent_state(agent_id)
+        self._state: Optional[StateType] = None
 
     def step(self, obs: AgentObservation) -> Action:
         """Get action and update hidden state."""
+        assert self._state is not None, "reset() must be called before step()"
         action, self._state = self._base_policy.step_with_state(obs, self._state)
         return action
 
-    def reset(self) -> None:
+    def reset(self, simulation: Optional[Simulation] = None) -> None:
         """Reset the hidden state to initial state."""
-        self._state = self._base_policy.agent_state(self._agent_id)
+        self._base_policy.reset(simulation)
+        self._state = self._base_policy.initial_agent_state(simulation)
 
 
 class StatefulPolicyImpl(Generic[StateType]):
@@ -125,23 +129,26 @@ class StatefulPolicyImpl(Generic[StateType]):
 
     This is used internally by policies that need to manage state.
     It provides step_with_state() which returns both action and new state,
-    and agent_state() which returns the initial state for a new agent.
+    and initial_agent_state() which returns the initial state for a new agent.
     """
 
+    def reset(self, simulation: Optional[Simulation]) -> None:
+        """Reset the policy."""
+        pass
+
     @abstractmethod
-    def agent_state(self, agent_id: int = 0) -> Optional[StateType]:
-        """Get the initial state for a new agent.
+    def initial_agent_state(self, simulation: Optional[Simulation]) -> StateType:
+        """Get the initial state for a new agent in a simulation.
 
         Args:
-            agent_id: The ID of the agent (for multi-agent support)
+            simulation: The simulation to reset the policy state for
 
         Returns:
-            Initial state for the agent, or None if no initial state needed.
-            For LSTMs, this typically returns None (states are initialized by the network).
+            Initial state for the agent. For LSTMs, this returns zero-initialized hidden/cell states.
         """
         ...
 
-    def step_with_state(self, obs: AgentObservation, state: Optional[StateType]) -> Tuple[Action, Optional[StateType]]:
+    def step_with_state(self, obs: AgentObservation, state: StateType) -> Tuple[Action, StateType]:
         """Get action and potentially update state.
 
         Args:
