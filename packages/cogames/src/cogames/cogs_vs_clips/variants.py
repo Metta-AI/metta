@@ -225,8 +225,21 @@ class InventoryHeartTuneVariant(MissionVariant):
         if hearts > 0:
             agent_cfg = env.game.agent
             agent_cfg.initial_inventory = dict(agent_cfg.initial_inventory)
-            for k, v in per_heart.items():
-                agent_cfg.initial_inventory[k] = agent_cfg.initial_inventory.get(k, 0) + v * hearts
+            resource_limits = dict(agent_cfg.resource_limits)
+
+            def _limit_for(resource: str) -> int:
+                if resource in resource_limits:
+                    return int(resource_limits[resource])
+                for key, limit in resource_limits.items():
+                    if isinstance(key, tuple) and resource in key:
+                        return int(limit)
+                return int(agent_cfg.default_resource_limit)
+
+            for resource_name, per_heart_value in per_heart.items():
+                current = int(agent_cfg.initial_inventory.get(resource_name, 0))
+                target = current + per_heart_value * hearts
+                cap = _limit_for(resource_name)
+                agent_cfg.initial_inventory[resource_name] = min(cap, target)
 
         if self.heart_capacity is not None:
             agent_cfg = env.game.agent
