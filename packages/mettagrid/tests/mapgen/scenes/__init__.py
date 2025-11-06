@@ -1,1 +1,0 @@
-# Scenes tests package
