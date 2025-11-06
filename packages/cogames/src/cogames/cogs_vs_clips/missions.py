@@ -142,16 +142,15 @@ class NeutralFacedVariant(MissionVariant):
             change_vibe.enabled = False
             change_vibe.number_of_vibes = 1
 
-            neutral_vibe = ["default"]
-            cfg.game.vibe_names = list(neutral_vibe)
-            for obj in cfg.game.objects.values():
-                if not isinstance(obj, AssemblerConfig):
-                    continue
-                if not obj.protocols:
-                    continue
-                primary_protocol = obj.protocols[0].model_copy(deep=True)
-                primary_protocol.vibes = list(neutral_vibe)
-                obj.protocols = [primary_protocol]
+            neutral_vibe_name = "default"
+            cfg.game.vibe_names = [neutral_vibe_name]
+            for name, obj in cfg.game.objects.items():
+                if isinstance(obj, AssemblerConfig) and obj.protocols:
+                    primary_protocol = obj.protocols[0].model_copy(deep=True)
+                    primary_protocol.vibes = [neutral_vibe_name]
+                    obj.protocols = [primary_protocol]
+                elif isinstance(obj, ChestConfig) and name == "chest":
+                    obj.vibe_transfers = {neutral_vibe_name: {"heart": 255}}
 
         mission.add_env_modifier(modifier)
         return mission
@@ -241,16 +240,10 @@ class ChestsTwoHeartsVariant(MissionVariant):
                 "germanium": max(heart_cost // 2, 1) * 2,
                 "silicon": heart_cost * 5 * 2,
             }
-            for chest_name, resource in (
-                ("chest_carbon", "carbon"),
-                ("chest_oxygen", "oxygen"),
-                ("chest_germanium", "germanium"),
-                ("chest_silicon", "silicon"),
-            ):
-                chest_cfg = env.game.objects[chest_name]
-                if not isinstance(chest_cfg, ChestConfig):
-                    raise TypeError(f"Expected '{chest_name}' to be ChestConfig")
-                chest_cfg.initial_inventory = max(chest_cfg.initial_inventory, two_hearts[resource])
+            chest_cfg = env.game.objects["chest"]
+            if not isinstance(chest_cfg, ChestConfig):
+                raise TypeError("Expected 'chest' to be ChestConfig")
+            chest_cfg.initial_inventory = two_hearts
 
         mission.add_env_modifier(modifier)
         return mission
@@ -510,12 +503,6 @@ class HarvestMission(Mission):
         env.game.agent.rewards.inventory_max = {}
         env.game.agent.rewards.stats_max = {}
 
-        # When running on legacy ASCII maps, remove unused resource chests to mirror the original layout.
-        # Procedural hub builders rely on these object definitions, so only strip them for non-procedural maps.
-        if not isinstance(self.map, MapGen.Config):
-            for chest_name in ("chest_carbon", "chest_oxygen", "chest_germanium", "chest_silicon"):
-                env.game.objects.pop(chest_name, None)
-
         # Ensure that the extractors are configured to have high max uses
         for name in ("germanium_extractor", "carbon_extractor", "oxygen_extractor", "silicon_extractor"):
             cfg = env.game.objects[name]
@@ -603,10 +590,10 @@ class RepairMission(Mission):
     def make_env(self) -> MettaGridConfig:
         env = super().make_env()
         # Seed resource chests with one unit each to craft gear items
-        for chest_name in ("chest_carbon", "chest_oxygen", "chest_germanium", "chest_silicon"):
-            chest_cfg = env.game.objects.get(chest_name)
-            if isinstance(chest_cfg, ChestConfig):
-                chest_cfg.initial_inventory = 1
+        chest_cfg = env.game.objects["chest"]
+        if not isinstance(chest_cfg, ChestConfig):
+            raise TypeError("Expected 'chest' to be ChestConfig")
+        chest_cfg.initial_inventory = {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1}
         return env
 
     def instantiate(
@@ -646,11 +633,11 @@ class UnclipDrillsMission(Mission):
     def make_env(self) -> MettaGridConfig:
         env = super().make_env()
 
-        for chest_name in ("chest_carbon", "chest_oxygen", "chest_germanium", "chest_silicon"):
-            chest_cfg = env.game.objects[chest_name]
-            if not isinstance(chest_cfg, ChestConfig):
-                raise TypeError(f"Expected '{chest_name}' to be ChestConfig")
-            chest_cfg.initial_inventory = max(chest_cfg.initial_inventory, 3)
+        chest_cfg = env.game.objects["chest"]
+        if not isinstance(chest_cfg, ChestConfig):
+            raise TypeError("Expected 'chest' to be ChestConfig")
+        for resource in ("carbon", "oxygen", "germanium", "silicon"):
+            chest_cfg.initial_inventory[resource] = max(chest_cfg.initial_inventory.get(resource, 0), 3)
 
         agent_cfg = env.game.agent
         agent_cfg.initial_inventory = dict(agent_cfg.initial_inventory)
@@ -724,16 +711,11 @@ class HelloWorldUnclipMission(Mission):
     def make_env(self) -> MettaGridConfig:
         env = super().make_env()
 
-        for chest_name in (
-            "chest_carbon",
-            "chest_oxygen",
-            "chest_germanium",
-            "chest_silicon",
-        ):
-            chest_cfg = env.game.objects[chest_name]
-            if not isinstance(chest_cfg, ChestConfig):
-                raise TypeError(f"Expected '{chest_name}' to be ChestConfig")
-            chest_cfg.initial_inventory = max(chest_cfg.initial_inventory, 2)
+        chest_cfg = env.game.objects["chest"]
+        if not isinstance(chest_cfg, ChestConfig):
+            raise TypeError("Expected 'chest' to be ChestConfig")
+        for resource in ("carbon", "oxygen", "germanium", "silicon"):
+            chest_cfg.initial_inventory[resource] = max(chest_cfg.initial_inventory.get(resource, 0), 2)
 
         agent_cfg = env.game.agent
         agent_cfg.initial_inventory = dict(agent_cfg.initial_inventory)
@@ -892,7 +874,7 @@ class MachinaProceduralExploreMission(ProceduralMissionBase):
         chest_cfg = env.game.objects["chest"]
         if not isinstance(chest_cfg, ChestConfig):
             raise TypeError("Expected 'chest' to be ChestConfig")
-        chest_cfg.initial_inventory = 1
+        chest_cfg.initial_inventory = {"heart": 1}
         return env
 
 

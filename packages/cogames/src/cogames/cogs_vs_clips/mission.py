@@ -7,7 +7,6 @@ from pydantic import Field, PrivateAttr
 
 from cogames.cogs_vs_clips.procedural import apply_procedural_overrides_to_builder
 from cogames.cogs_vs_clips.stations import (
-    RESOURCE_CHESTS,
     CarbonExtractorConfig,
     ChargerConfig,
     CvCAssemblerConfig,
@@ -18,7 +17,8 @@ from cogames.cogs_vs_clips.stations import (
     SiliconExtractorConfig,
     resources,
 )
-from mettagrid.config import Config, vibes
+from mettagrid.base_config import Config
+from mettagrid.config import vibes
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
@@ -199,7 +199,7 @@ class Mission(Config):
                 },
                 shareable_resources=["energy"],
                 inventory_regen_amounts={"energy": self.energy_regen_amount},
-                diversity_tracked_resources=["energy", "carbon", "oxygen", "germanium", "silicon"],
+                diversity_tracked_resources=["energy", "carbon", "oxygen", "germanium", "silicon", "heart"],
             ),
             inventory_regen_interval=self.inventory_regen_interval,
             clipper=ClipperConfig(
@@ -245,7 +245,6 @@ class Mission(Config):
                 "clipped_silicon_extractor": self.silicon_extractor.model_copy(
                     update={"start_clipped": True}
                 ).station_cfg(),
-                **RESOURCE_CHESTS,
             },
         )
 
