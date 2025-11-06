@@ -9,9 +9,11 @@
   - Rarity
   - Mining cost
   - Probabilistic mining
+
 - 1.1.2. Metabolism and Energy Costs
   - Converting between resources
   - Converting to energy
+
 - 1.1.3. Object Interactions and Crafting
 - 1.1.4. Open-ended Game Rules
 
@@ -81,9 +83,12 @@ strategies and population dynamics in the presence of these mechanisms.
 ## 2. Agent Architecture Research
 
 Developing a robust, universal gridworld agent architecture capable of adapting to new game rules and environments.
+
 Evaluating the effectiveness of blending reinforcement learning and imitation learning for accelerating agent training
-and performance. Studying the scalability and efficiency of distributed reinforcement learning algorithms for training
-large-scale multi-agent systems.
+and performance.
+
+Studying the scalability and efficiency of distributed reinforcement learning algorithms for training large-scale
+multi-agent systems.
 
 ### 2.1. Robust Universal GridWorld Agent
 

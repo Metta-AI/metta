@@ -38,10 +38,12 @@ The widget is now ready to use in your notebooks.
 ### Manual Installation
 
 1. Install the Python package:
+
    ```bash
    cd experiments/notebooks/utils/eval_finder_widget
    pip install -e .
    ```
+
 2. Build the JavaScript components:
    ```bash
    pnpm install
@@ -55,14 +57,19 @@ The widget is now ready to use in your notebooks.
 For active development, you can use the development mode which provides hot-reloading:
 
 1. **Enable Development Mode**: Edit `eval_finder_widget/EvalFinderWidget.py` and set:
+
    ```python
    _DEV = True
    ```
+
 2. **Start the Development Server**:
+
    ```bash
    pnpm run dev
    ```
+
    This starts the Vite development server on `http://localhost:5175`
+
 3. **Develop with Hot Reload**:
    - The widget will now load JavaScript from the development server
    - Changes to React/TypeScript files will automatically reload
@@ -73,9 +80,11 @@ For active development, you can use the development mode which provides hot-relo
 For production use or when you're done developing:
 
 1. **Build the Production Assets**:
+
    ```bash
    pnpm run build
    ```
+
 2. **Disable Development Mode**: Edit `eval_finder_widget/EvalFinderWidget.py` and set:
    ```python
    _DEV = False
@@ -88,6 +97,7 @@ For production use or when you're done developing:
 ```python
 from experiments.notebooks.utils.eval_finder_widget.eval_finder_widget import EvalFinderWidget
 from experiments.notebooks.utils.eval_finder_widget.eval_finder_widget.util import create_demo_eval_finder_widget
+
 # Create a demo widget with sample data
 widget = create_demo_eval_finder_widget()
 widget
@@ -98,19 +108,23 @@ widget
 ```python
 from experiments.notebooks.utils.eval_finder_widget.eval_finder_widget import EvalFinderWidget
 from experiments.notebooks.utils.eval_finder_widget.eval_finder_widget.util import fetch_eval_data_for_policies
+
 # Create widget and fetch real evaluation data for specific policies
 widget = EvalFinderWidget()
+
 # Fetch evaluations contextually based on policies/runs
 eval_data = fetch_eval_data_for_policies(
     training_run_ids=["user.navigation_run"],  # Training runs
     run_free_policy_ids=["policy-abc-123"],    # Standalone policies
     category_filter=["navigation", "memory"]    # Optional: filter by categories
 )
+
 # Set the data on the widget
 widget.set_eval_data(
     evaluations=eval_data["evaluations"],
     categories=eval_data["categories"],
 )
+
 widget
 ```
 
@@ -121,10 +135,13 @@ widget
 def on_selection_changed(event):
     selected_evals = event.get('selected_evals', [])
     print(f"Selected {len(selected_evals)} evaluations")
+
 widget.on_selection_changed(on_selection_changed)
+
 # Handle filter changes
 def on_filter_changed(event):
     print(f"Filters updated: {event}")
+
 widget.on_filter_changed(on_filter_changed)
 ```
 
@@ -133,11 +150,14 @@ widget.on_filter_changed(on_filter_changed)
 ```python
 # Set filters programmatically
 widget.set_category_filter(["navigation"])
+
 # Control selection
 widget.select_evals(["navigation/labyrinth", "memory/hard"])
 widget.clear_selection()
+
 # Change view mode
 widget.set_view_mode("tree")  # "tree", "list", "category"
+
 # Search
 widget.set_search_term("memory")
 ```
@@ -149,9 +169,11 @@ The eval finder integrates seamlessly with the existing scorecard widget:
 ```python
 from eval_finder_widget import EvalFinderWidget
 from scorecard_widget import ScorecardWidget
+
 # Select evaluations with the finder
 finder = EvalFinderWidget()
 # ... user selects evaluations ...
+
 # Use selected evals in scorecard
 selected_evals = finder.get_selected_evals()
 scorecard = ScorecardWidget()
@@ -210,14 +232,17 @@ eval_finder_widget/
    - Set `_DEV = True` in `EvalFinderWidget.py`
    - Run `pnpm run dev`
    - Start Jupyter and create/modify widgets
+
 2. **Test Changes**:
    - Edit React/TypeScript files in `src/`
    - Changes will hot-reload in Jupyter
    - Check browser console for debugging
+
 3. **Build for Production**:
    - Set `_DEV = False` in `EvalFinderWidget.py`
    - Run `pnpm run build`
    - Test the built version
+
 4. **Deploy**:
    - Commit your changes
    - Users can install with `metta install evalfinderwidget`

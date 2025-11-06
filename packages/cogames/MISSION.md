@@ -2,10 +2,14 @@
 
 ## Holon Enabled Agent Replication Templates (HEART) Infrastructure Team
 
-Welcome, Cognitive! You are part of an elite unit deployed to establish and maintain critical HEARTs infrastructure in
-this sector. Your mission: collect resources, manufacture HEARTs, and defend facilities from Clip infestation. HEARTs
-are, at the exclusion of all else, what Cog society truly lives for. Do not let them down. This report arms you with the
-latest intelligence on what you might face. In different environments, specific **details** may vary.
+Welcome, Cognitive!
+
+You are part of an elite unit deployed to establish and maintain critical HEARTs infrastructure in this sector. Your
+mission: collect resources, manufacture HEARTs, and defend facilities from Clip infestation. HEARTs are, at the
+exclusion of all else, what Cog society truly lives for. Do not let them down.
+
+This report arms you with the latest intelligence on what you might face. In different environments, specific
+**details** may vary.
 
 ---
 
@@ -13,8 +17,10 @@ latest intelligence on what you might face. In different environments, specific 
 
 #### Energy Management
 
-Your onboard battery stores limited energy; manage it wisely. Almost everything you do, from moving to operating
-stations, drains your charge. Fortunately, the team has several ways to share and replenish power.
+Your onboard battery stores limited energy; manage it wisely.
+
+Almost everything you do, from moving to operating stations, drains your charge. Fortunately, the team has several ways
+to share and replenish power.
 
 - Your onboard battery starts at **100** energy and caps at **100**.
 - Passive solar equipment regenerates **+1** energy per turn.
@@ -33,12 +39,25 @@ Your chassis has limited capacity for:
 
 ## YOUR CAPABILITIES
 
-You and your Cog teammates take exactly one action per turn. Actions resolve in an unspecified order. **MOVE [Direction:
-N, S, W, E]** Movement is your primary way to interact with the world. Every step burns **2** energy. Attempting to move
-into occupied space will make you interact with the target (described above for other Cogs, and below for all other
-targets). **EMOTE [Symbol]** You are outfitted with a communication display that can show a symbol visible to all other
-Cogs. Available symbols may vary by scenario. EMOTE updates that display and costs **0** energy. **REST** No action, no
-energy cost.
+You and your Cog teammates take exactly one action per turn. Actions resolve in an unspecified order.
+
+**MOVE [Direction: N, S, W, E]**
+
+Movement is your primary way to interact with the world. Every step burns **2** energy.
+
+Attempting to move into occupied space will make you interact with the target (described above for other Cogs, and below
+for all other targets).
+
+**EMOTE [Symbol]**
+
+You are outfitted with a communication display that can show a symbol visible to all other Cogs. Available symbols may
+vary by scenario.
+
+EMOTE updates that display and costs **0** energy.
+
+**REST**
+
+No action, no energy cost.
 
 ## FIELD OPERATIONS
 
@@ -62,23 +81,34 @@ outputs, but the ways in which you interact with them follows common rules:
 ### Station Type: Extractor
 
 Resources are stockpiled by automated extractor stations. Extractors will automatically harvest and store resources
-until full. Extractor interaction has a few additional properties:
+until full.
+
+Extractor interaction has a few additional properties:
 
 - Extractors may have **cooldown** periods after interaction. Activating one mid-cooldown generally has no effect.
 - Some extractors allow **partial usage** during cooldown. Inputs and outputs are scaled by the fraction of elapsed
   cooldown.
-- Certain stations have a **maximum number of uses**; once exhausted they stop working. The exact behavior of each
-  extractor may vary across missions. Here are some typical parameters we have discovered: | Extractor | Input cost |
-  Output | Cooldown | Max uses | | ------------------- | ---------- | ---------------------------------------- |
-  ------------------------------- | -------- | | Carbon Extractor | | +4 carbon | | | | Oxygen Extractor | | +100 oxygen
-  | 200 turns (partial use allowed) | | | Germanium Extractor | | +2/+3/+4/+5 germanium for 1/2/3/4 agents | | 2 | |
-  Silicon Extractor | −25 energy | +25 silicon | | | | Solar Array | | +50 energy | 10 turns (partial use allowed) | |
-  Some extractors are worse for wear. Years of neglect have reduced their effectiveness. Here, again, are typical
-  parameters we have observed for these depleted extractors: | Extractor | Input cost | Output | Cooldown | Max uses | |
-  ---------------------------- | ---------- | ---------------------------------------- | ------------------------------
-  | -------- | | Depleted Carbon Extractor | | +1 | | 100 | | Depleted Oxygen Extractor | | +10 oxygen | 40 turns
-  (partial use allowed) | 10 | | Depleted Germanium Extractor | | +2/+3/+4/+5 germanium for 1/2/3/4 agents | | 1 | |
-  Depleted Silicon Extractor | -25 energy | +10 silicon | | 10 |
+- Certain stations have a **maximum number of uses**; once exhausted they stop working.
+
+The exact behavior of each extractor may vary across missions. Here are some typical parameters we have discovered:
+
+| Extractor           | Input cost | Output                                   | Cooldown                        | Max uses |
+| ------------------- | ---------- | ---------------------------------------- | ------------------------------- | -------- |
+| Carbon Extractor    |            | +4 carbon                                |                                 |          |
+| Oxygen Extractor    |            | +100 oxygen                              | 200 turns (partial use allowed) |          |
+| Germanium Extractor |            | +2/+3/+4/+5 germanium for 1/2/3/4 agents |                                 | 2        |
+| Silicon Extractor   | −25 energy | +25 silicon                              |                                 |          |
+| Solar Array         |            | +50 energy                               | 10 turns (partial use allowed)  |          |
+
+Some extractors are worse for wear. Years of neglect have reduced their effectiveness. Here, again, are typical
+parameters we have observed for these depleted extractors:
+
+| Extractor                    | Input cost | Output                                   | Cooldown                       | Max uses |
+| ---------------------------- | ---------- | ---------------------------------------- | ------------------------------ | -------- |
+| Depleted Carbon Extractor    |            | +1                                       |                                | 100      |
+| Depleted Oxygen Extractor    |            | +10 oxygen                               | 40 turns (partial use allowed) | 10       |
+| Depleted Germanium Extractor |            | +2/+3/+4/+5 germanium for 1/2/3/4 agents |                                | 1        |
+| Depleted Silicon Extractor   | -25 energy | +10 silicon                              |                                | 10       |
 
 ### Station Type: Assembler
 
@@ -100,14 +130,27 @@ missions, and so you must discover them out in the wild.
 ### Station Type: Communal Chests
 
 Chests can store resources and HEARTs. Crucially, depositing HEARTs into chests are how you will ultimately be judged
-for your service. Each chest has a specific resource type it handles. To deposit from your cargo into a chest, position
-yourself at a terminal and MOVE into it. The same is true for withdrawing. The terminal you are in -- directly north,
-east, west, or south of the chest -- will determine which action you take. Be careful, as chests have max storage, and
-will destroy incoming deposits if full. Withdrawing is always safe: you will withdraw all you can, and any amount you
-cannot fit in your inventory will remain in the chest. Like with extractors, the exact parameters (max storage and
-initial amount) will vary across missions. Here are some typical parameters we have discovered: | Chest | Max storage |
-Initial amount | | --------------- | ----------- | -------------- | | Heart chest | 255 | 0 | | Carbon chest | 255 | 50
-| | Oxygen chest | 255 | 50 | | Germanium chest | 255 | 5 | | Silicon chest | 255 | 100 |
+for your service.
+
+Each chest has a specific resource type it handles.
+
+To deposit from your cargo into a chest, position yourself at a terminal and MOVE into it. The same is true for
+withdrawing. The terminal you are in -- directly north, east, west, or south of the chest -- will determine which action
+you take.
+
+Be careful, as chests have max storage, and will destroy incoming deposits if full. Withdrawing is always safe: you will
+withdraw all you can, and any amount you cannot fit in your inventory will remain in the chest.
+
+Like with extractors, the exact parameters (max storage and initial amount) will vary across missions. Here are some
+typical parameters we have discovered:
+
+| Chest           | Max storage | Initial amount |
+| --------------- | ----------- | -------------- |
+| Heart chest     | 255         | 0              |
+| Carbon chest    | 255         | 50             |
+| Oxygen chest    | 255         | 50             |
+| Germanium chest | 255         | 5              |
+| Silicon chest   | 255         | 100            |
 
 ---
 
@@ -126,22 +169,30 @@ a station suspends normal output until Cogs run the designated repair protocol.
   terminals. The repair recipe will draw inputs from nearby Cogs in clockwise order, exactly like ordinary station
   activation.
 - **Repair**: Move into the station to trigger the repair. A successful repair consumes the required inputs, immediately
-  restores normal protocols, and resets the station’s cooldown without increasing wear. You need to be vigilant: every
-  clipped station increases the odds that nearby stations will get infested too. Respond quickly to prevent a cascade.
-  Thankfully some of our buildings are immune to infestation, but others may already be infested by the time you start.
+  restores normal protocols, and resets the station’s cooldown without increasing wear.
+
+You need to be vigilant: every clipped station increases the odds that nearby stations will get infested too. Respond
+quickly to prevent a cascade.
+
+Thankfully some of our buildings are immune to infestation, but others may already be infested by the time you start.
 
 ---
 
 ## FINAL DIRECTIVE
 
-**Your mission is critical. The HEARTS you create today will ensure the continuation of Cog operations tomorrow.** Your
-success depends on seamless team coordination:
+**Your mission is critical. The HEARTS you create today will ensure the continuation of Cog operations tomorrow.**
+
+Your success depends on seamless team coordination:
 
 - Energy management
 - Strategic extractor operation
 - Continuous assembler protocol discovery
-- Rapid Clip Nanoswarm threat response Your individual achievement is irrelevant. Your team achievement, measured by the
-  number of HEARTs in communal heart chests, is all that matters. _Stay charged. Stay coordinated. Stay vigilant._
+- Rapid Clip Nanoswarm threat response
+
+Your individual achievement is irrelevant. Your team achievement, measured by the number of HEARTs in communal heart
+chests, is all that matters.
+
+_Stay charged. Stay coordinated. Stay vigilant._
 
 ---
 

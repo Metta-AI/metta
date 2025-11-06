@@ -1,9 +1,12 @@
 ## Mettabook - Research Analysis Notebooks
 
 This is experimental. The hopes are that it makes analysis easier - providing a unified interface for launching training
-runs, monitoring them, and analyzing results all in one place. More tools will be added over time, including integration
-with Observatory We expect that this won't be perfect at first but want to gauge its viability. Please post in
-#researcher-tools for anything that is painful or that you need!
+runs, monitoring them, and analyzing results all in one place.
+
+More tools will be added over time, including integration with Observatory
+
+We expect that this won't be perfect at first but want to gauge its viability. Please post in #researcher-tools for
+anything that is painful or that you need!
 
 ### How to Use
 

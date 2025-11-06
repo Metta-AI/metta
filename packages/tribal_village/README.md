@@ -2,6 +2,7 @@
 
 Multi-agent RL environment built in Nim with PufferLib integration. Features 60 agents across 12 teams competing for
 resources while fighting off hostile tumors.
+
 <img width="2742" height="1628" alt="image" src="https://github.com/user-attachments/assets/a5992e9d-abdd-4d8b-ab83-efabd90e2bd5" />
 
 ## Quick Start

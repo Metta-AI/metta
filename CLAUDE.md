@@ -13,9 +13,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 2. **Propose updates** - Suggest adding these preferences to CLAUDE.md with specific text
 3. **Ask for confirmation** - Present the proposed update and ask: "Should I add this preference to CLAUDE.md so I
    remember it for future work?"
-4. **Apply if approved** - Update CLAUDE.md only after receiving explicit approval This allows Claude to learn and
-   remember user preferences over time, building a personalized understanding of how to work with this specific
-   codebase.
+4. **Apply if approved** - Update CLAUDE.md only after receiving explicit approval
+
+This allows Claude to learn and remember user preferences over time, building a personalized understanding of how to
+work with this specific codebase.
 
 ### Plan & Review Process
 
@@ -69,6 +70,7 @@ implementation.
 
 1. **Update as you work** - When you discover new information or need to adjust the approach, update the plan file
 2. **Document completed steps** - After completing each major step, append a brief description:
+
    ```markdown
    ### Step 1 Complete: [Date/Time]
 
@@ -76,6 +78,7 @@ implementation.
    - Files affected: [list files]
    - Key decisions: [any important choices made]
    ```
+
 3. **Track deviations** - If you need to deviate from the plan, document why and update the approach
 4. **Keep it concise** - Focus on what changed and why, not how (the code shows how)
 5. **CRITICAL: Always format Python code** - After editing any Python file (\*.py), immediately run:
@@ -126,7 +129,11 @@ implementation.
 
 ### Guiding Question
 
-## "Would this prompt produce the best result for a non-expert user?" The goal: Design interactions, not just instructions.
+"Would this prompt produce the best result for a non-expert user?"
+
+The goal: Design interactions, not just instructions.
+
+---
 
 ## Project Overview
 
@@ -165,11 +172,14 @@ dynamics (like kinship and mate selection) on learning and cooperative behaviors
 ```bash
 # Initial setup - installs uv, configures metta, and installs components
 ./install.sh
+
 # After installation, you can use metta commands directly:
 metta status                         # Check component status
 metta configure --profile=softmax    # Reconfigure for different profile
 metta install aws wandb              # Install specific components
+
 # Run `metta -h` to see all available commands
+
 # If you encounter missing dependencies or import errors (like pufferlib), run:
 metta install                        # Reinstall all components
 # or
@@ -185,19 +195,25 @@ See `common/src/metta/common/tool/README.md` for the runner and two‑token usag
 ```bash
 # Train
 uv run ./tools/run.py train arena run=my_experiment
+
 # Evaluate locally (single policy)
 uv run ./tools/run.py evaluate arena \
   policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
+
 # Evaluate remotely (dispatch to server)
 uv run ./tools/run.py eval_remote arena \
   policy_uri=s3://my-bucket/checkpoints/run/run:v10.pt
+
 # Analyze evaluation results
 uv run ./tools/run.py analyze arena eval_db_uri=./train_dir/eval/stats.db
+
 # Interactive play / Replay
 uv run ./tools/run.py play arena policy_uri=...
 uv run ./tools/run.py replay arena policy_uri=...
+
 # List explicit tools for a recipe module (recommended)
 uv run ./tools/run.py arena --list
+
 # Dry run (resolve only; does not construct or run the tool)
 uv run ./tools/run.py evaluate arena --dry-run
 ```
@@ -221,41 +237,54 @@ See @.cursor/commands.md for quick test commands and examples.
 ```bash
 # Run full CI (tests + linting) - ALWAYS run this to verify changes
 metta ci
+
 # Run specific CI stages (used by GitHub Actions)
 metta ci --stage lint                            # Linting only
 metta ci --stage python-tests-and-benchmarks     # Python tests and benchmarks together
 metta ci --stage cpp-tests                       # C++ tests only
 metta ci --stage cpp-benchmarks                  # C++ benchmarks only
+
 # Run Python tests (default, fastest for development - skips benchmarks)
 metta pytest
+
 # Run Python benchmarks only
 metta pytest --benchmark
+
 # Run both Python tests and benchmarks together
 metta pytest --test --benchmark
+
 # Run full Python test sweep (CI-style, includes both tests and benchmarks)
 metta pytest --ci --test --benchmark
+
 # Run specific test modules
 metta pytest tests/rl/test_trainer_config.py -v
 metta pytest tests/sim/ -v
+
 # Run linting and formatting (formats all file types by default)
 metta lint
+
 # Format and lint with auto-fix
 metta lint --fix
+
 # Format specific file types only
 metta lint --type json,yaml
 metta lint --type python
+
 # Check formatting without modifying files
 metta lint --check
+
 # Format only staged files
 metta lint --staged --fix
+
 # Auto-fix Ruff errors with Claude (requires ANTHROPIC_API_KEY)
 uv run ./devops/tools/auto_ruff_fix.py path/to/file
 ```
 
 **IMPORTANT**: Always run `metta ci` after making changes to verify that all tests pass. This is the standard way to
-check if your changes are working correctly. **Note**: The `metta ci` command is the single source of truth for CI
-checks. GitHub Actions calls individual stages (`metta ci --stage <name>`), while local development typically runs all
-stages with `metta ci`.
+check if your changes are working correctly.
+
+**Note**: The `metta ci` command is the single source of truth for CI checks. GitHub Actions calls individual stages
+(`metta ci --stage <name>`), while local development typically runs all stages with `metta ci`.
 
 #### Building
 
@@ -343,15 +372,20 @@ Renovate groups related packages together to reduce PR noise:
    - Patch updates for stable packages are auto-merged
    - Minor updates create PRs for review
    - Major updates require approval via dependency dashboard
+
 2. **Manual Updates**
+
    ```bash
    # Update specific packages
    uv add package_name@latest
+
    # Update all dependencies to latest compatible versions
    uv lock --upgrade
+
    # Update only patch/minor versions
    uv lock --upgrade-package package_name
    ```
+
 3. **Workspace Consistency**
    - CI validates that all workspace packages have consistent dependency versions
    - Renovate groups workspace package updates together
@@ -366,23 +400,31 @@ Renovate groups related packages together to reduce PR noise:
 #### Troubleshooting Dependency Issues
 
 1. **Version Conflicts**
+
    ```bash
    # Check for conflicts
    uv sync --frozen --check
+
    # Resolve conflicts by updating lock file
    uv lock --upgrade
    ```
+
 2. **Workspace Inconsistencies**
+
    ```bash
    # Validate all packages can be installed together
    uv sync --all-packages
+
    # Run consistency check script
    python devops/tools/check_dependency_consistency.py
    ```
+
 3. **Lock File Issues**
+
    ```bash
    # Regenerate lock file from scratch
    rm uv.lock && uv lock
+
    # Check if lock file is synchronized
    uv lock --check
    ```
@@ -453,10 +495,12 @@ The `dependency-validation.yml` workflow automatically:
   - Tests can directly access `_private_method()` or `self._private_attribute`
   - Rationale: While private members indicate "internal use", tests need deep access to verify correctness
 - **Properties**: Use `@property` decorator to expose computed values or controlled access to private attributes
+
   ```python
   class Example:
       def __init__(self):
           self._value = 0  # Private attribute
+
       @property
       def value(self):  # Public property
           return self._value
@@ -575,4 +619,5 @@ Before creating a PR, ensure:
 - [ ] Proper error handling is implemented
 - [ ] Tests pass locally
 - [ ] Code is formatted according to project standards
+
 - use uv run <cmd> instead of python
