@@ -31,8 +31,8 @@ echo "  - METTA_RUN_ID: ${METTA_RUN_ID:-}"
 echo "  - SKYPILOT_TASK_ID: ${SKYPILOT_TASK_ID:-}"
 echo "  - HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
 echo "  - MAX_RUNTIME_HOURS: ${MAX_RUNTIME_HOURS:-'NOT SET'}"
-echo "  - METTA_MODULE_PATH: ${METTA_MODULE_PATH:-'NOT SET'}"
-echo "  - METTA_ARGS: ${METTA_ARGS:-'NOT SET'}"
+echo "  - METTA_CMD: ${METTA_CMD:-'NOT SET'}"
+echo "  - METTA_USE_TORCHRUN: ${METTA_USE_TORCHRUN:-'false'}"
 [ "$DEBUG" = "1" ] && echo "  - DEBUG: ENABLED"
 
 # Master-only: Collect SkyPilot latency
@@ -212,15 +212,27 @@ run_cmd() {
 
   export START_TIME=$(date +%s)
 
-  # Build the command as an array
-  local cmd=(./devops/run.sh "${METTA_MODULE_PATH:?missing METTA_MODULE_PATH}")
+  # Extract command from environment
+  local metta_cmd="${METTA_CMD:?missing METTA_CMD}"
+  local use_torchrun="${METTA_USE_TORCHRUN:-false}"
 
-  # Add args if METTA_ARGS is not empty
-  if [ -n "${METTA_ARGS:-}" ]; then
-    cmd+=(${METTA_ARGS}) # split on spaces
+  echo "[INFO] METTA_CMD: $metta_cmd"
+  echo "[INFO] METTA_USE_TORCHRUN: $use_torchrun"
+
+  # Build command based on whether we need torchrun wrapper
+  local cmd=()
+  if [[ "$use_torchrun" == "true" ]]; then
+    # Wrap with devops/run.sh for torchrun setup
+    echo "[INFO] Using devops/run.sh wrapper for torchrun setup"
+    cmd=(./devops/run.sh)
+    eval "cmd+=($metta_cmd)"
+  else
+    # Run command directly without torchrun
+    echo "[INFO] Running command directly (no torchrun wrapper)"
+    eval "cmd=($metta_cmd)"
   fi
 
-  echo "[INFO] Running command: ${cmd[*]}"
+  echo "[INFO] Executing: ${cmd[*]}"
 
   # Use process substitution so $! is the trainer (not tee)
   setsid "${cmd[@]}" &
