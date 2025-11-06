@@ -523,7 +523,7 @@ HARD_CLIPPED_OXYGEN = DifficultyLevel(
 
 # Export variants for use with --variant CLI flag.
 # Ordered in canonical difficulty order.
-DIFFICULTY_VARIANTS = [
+DIFFICULTY_VARIANTS: list[DifficultyLevel] = [
     STORY_MODE,
     STANDARD,
     HARD,

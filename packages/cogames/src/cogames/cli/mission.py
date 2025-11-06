@@ -35,21 +35,19 @@ def parse_variants(variants_arg: Optional[list[str]]) -> list[MissionVariant]:
     variants: list[MissionVariant] = []
     for name in variants_arg:
         # Find matching variant class by instantiating and checking the name
-        variant_class = None
-        for v_class in VARIANTS:
-            # Create temporary instance to check the name
-            temp_instance = v_class()
-            if temp_instance.name == name or v_class.__name__.lower().replace("variant", "") == name:
-                variant_class = v_class
+        variant: MissionVariant | None = None
+        for v in VARIANTS:
+            if v.name == name:
+                variant = v
                 break
 
-        if variant_class is None:
+        if variant is None:
             # Get available variant names
-            available = ", ".join(v_class().name for v_class in VARIANTS)
+            available = ", ".join(v.name for v in VARIANTS)
             raise ValueError(f"Unknown variant '{name}'.\nAvailable variants: {available}")
 
         # Instantiate with default configuration
-        variants.append(variant_class())
+        variants.append(variant)
 
     return variants
 
@@ -243,9 +241,8 @@ def list_variants() -> None:
     variant_table.add_column("Variant", style="yellow", no_wrap=True)
     variant_table.add_column("Description", style="white")
 
-    for variant_class in VARIANTS:
-        variant_instance = variant_class()
-        variant_table.add_row(variant_instance.name, variant_instance.description)
+    for variant in VARIANTS:
+        variant_table.add_row(variant.name, variant.description)
 
     console.print(variant_table)
 

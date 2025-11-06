@@ -54,5 +54,5 @@ SITES = [
     TRAINING_FACILITY,
     HELLO_WORLD,
     MACHINA_1,
-    Site,
+    EVALS,
 ]
