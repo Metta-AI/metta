@@ -31,7 +31,7 @@ from gymnasium.spaces import Box, Discrete
 from typing_extensions import override
 
 from cogames.policy.scripted_agent.baseline_agent import BaselinePolicy
-from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.config.mettagrid_config import EnvSupervisorConfig, MettaGridConfig
 from mettagrid.mettagrid_c import (
     dtype_actions,
     dtype_masks,
@@ -72,11 +72,19 @@ class MettaGridPufferEnv(PufferEnv):
       https://github.com/PufferAI/PufferLib/blob/main/pufferlib/environments.py
     """
 
-    def __init__(self, simulator: Simulator, cfg: MettaGridConfig, buf: Any = None, seed: int = 0):
+    def __init__(
+        self,
+        simulator: Simulator,
+        cfg: MettaGridConfig,
+        env_supervisor_cfg: EnvSupervisorConfig,
+        buf: Any = None,
+        seed: int = 0,
+    ):
         # Support both Simulation and MettaGridConfig for backwards compatibility
         self._simulator = simulator
         self._current_cfg = cfg
         self._current_seed = seed
+        self._env_supervisor_cfg = env_supervisor_cfg
 
         # Initialize shared buffers FIRST (before super().__init__)
         # because PufferLib may access them during initialization
@@ -100,8 +108,8 @@ class MettaGridPufferEnv(PufferEnv):
         self.single_observation_space: Box = policy_env_info.observation_space
         self.single_action_space: Discrete = policy_env_info.action_space
 
-        self._teacher_policy = None
-        self._teacher_agent_policies = []
+        self._env_supervisor_policy = None
+        self._env_supervisor_agent_policies = []
         self._new_sim()
         self.num_agents: int = self._sim.num_agents
 
@@ -140,12 +148,13 @@ class MettaGridPufferEnv(PufferEnv):
         if hasattr(self, "_sim") and self._sim is not None:
             self._sim.close()
         self._sim = self._simulator.new_simulation(self._current_cfg, self._current_seed)
-        if self._current_cfg.teacher.enabled:
-            self._teacher_policy = BaselinePolicy(PolicyEnvInterface.from_mg_cfg(self._current_cfg))
-            self._teacher_agent_policies = [
-                self._teacher_policy.agent_policy(agent_id) for agent_id in range(self._current_cfg.game.num_agents)
+        if self._env_supervisor_cfg.enabled:
+            self._env_supervisor_policy = BaselinePolicy(PolicyEnvInterface.from_mg_cfg(self._current_cfg))
+            self._env_supervisor_agent_policies = [
+                self._env_supervisor_policy.agent_policy(agent_id)
+                for agent_id in range(self._current_cfg.game.num_agents)
             ]
-            for agent_policy in self._teacher_agent_policies:
+            for agent_policy in self._env_supervisor_agent_policies:
                 agent_policy.reset(self._sim)
 
         self._update_buffers()
@@ -169,16 +178,16 @@ class MettaGridPufferEnv(PufferEnv):
         if self._sim._c_sim.terminals().all() or self._sim._c_sim.truncations().all():
             self._new_sim()
 
-        if self._current_cfg.teacher.enabled:
+        if self._env_supervisor_cfg.enabled:
             agents = self._sim.agents()
             teacher_actions = [
                 self._sim.action_names.index(
-                    self._teacher_agent_policies[agent_id].step(agents[agent_id].observation).name
+                    self._env_supervisor_agent_policies[agent_id].step(agents[agent_id].observation).name
                 )
                 for agent_id in range(self._current_cfg.game.num_agents)
             ]
             self._buffers.teacher_actions[:] = np.array(teacher_actions, dtype=dtype_actions)
-            if self._current_cfg.teacher.use_actions:
+            if self._env_supervisor_cfg.use_actions:
                 self._buffers.actions[:] = self._buffers.teacher_actions[:]
 
         self._sim.step()

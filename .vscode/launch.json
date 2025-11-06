@@ -7,7 +7,7 @@
       "type": "debugpy",
       "request": "launch",
       "module": "tools.run",
-      "args": ["experiments.recipes.scratchpad.${env:USER}.train", "run=local.${env:USER}.test"],
+      "args": ["experiments.recipes.scratchpad.${env:USER}.train"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
