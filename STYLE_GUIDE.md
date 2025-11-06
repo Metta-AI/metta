@@ -103,6 +103,12 @@ def some_function():
 - **Comments:** Should add value, not repeat what the code already says
 - **Dependencies:** Make them explicit and visible at the module level
 
+### Module Export Hygiene
+
+- Avoid `__all__` exports; they hide module structure and complicate static analysis
+- Keep `__init__.py` empty unless the package is public-facing and benefits from a single import surface
+- When an aggregation layer is needed, prefer dedicated modules over implicit `__init__` side effects
+
 ## Summary
 
 Our code should be:

@@ -2,11 +2,12 @@ from typing import Literal, Sequence
 
 from mettagrid.mapgen.scene import Scene, SceneConfig
 
+# TODO: This is a hold over from when we had resource chests. It should probably be removed.
 DEFAULT_CORNER_CHESTS: tuple[str, str, str, str] = (
-    "chest_carbon",
-    "chest_oxygen",
-    "chest_germanium",
-    "chest_silicon",
+    "chest",
+    "chest",
+    "chest",
+    "chest",
 )
 
 DEFAULT_EXTRACTORS: tuple[str, str, str, str] = (
