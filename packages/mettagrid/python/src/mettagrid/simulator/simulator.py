@@ -213,10 +213,6 @@ class Simulation:
         return self._features[feature_id]
 
     @property
-    def initial_grid_hash(self) -> int:
-        return self.__c_sim.initial_grid_hash
-
-    @property
     def action_success(self) -> list[bool]:
         return self.__c_sim.action_success()
 
