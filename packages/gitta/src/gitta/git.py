@@ -84,10 +84,11 @@ def has_uncommitted_changes(allow_untracked: bool = False) -> tuple[bool, str]:
     - Lines starting with '??' indicate untracked files
     - Any other status lines indicate changes to tracked files
     """
-    statuses = set(status for status, _ in get_uncommitted_files_by_status())
+    files_by_status = get_uncommitted_files_by_status()
+    statuses = set(status for status, _ in files_by_status)
     if allow_untracked:
-        statuses.discard("??")
-    return bool(statuses), "\n".join(f"{status} {fname}" for status, fname in get_uncommitted_files_by_status())
+        statuses.discard("?")
+    return bool(statuses), "\n".join(f"{status} {fname}" for status, fname in files_by_status)
 
 
 def is_commit_pushed(commit_hash: str) -> bool:
