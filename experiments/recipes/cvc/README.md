@@ -85,7 +85,7 @@ uv run ./tools/run.py experiments.recipes.cvc.evaluation.evaluate \\
 # Play with a trained policy
 uv run ./tools/run.py experiments.recipes.cvc.small_maps.play \\
     policy_uri=file://./checkpoints/cvc_default/latest \\
-    mission_name=extractor_hub_30 \\
+    mission=extractor_hub_30 \\
     num_cogs=4
 
 # Play without a policy (random actions)
@@ -101,7 +101,7 @@ uv run ./tools/run.py experiments.recipes.cvc.curriculum.play
   - Default: 4 agents, 6 diverse missions
   - Evaluates on full eval suite
 
-- **`train_single_mission(mission_name, num_cogs)`** - Train on single mission
+- **`train_single_mission(mission, num_cogs)`** - Train on single mission
   - No curriculum variation
   - Fast for debugging
   - Still evaluates on full suite
@@ -134,17 +134,17 @@ uv run ./tools/run.py experiments.recipes.cvc.curriculum.play
 
 ### Play Functions
 
-- **`play(policy_uri, mission_name, num_cogs)`** - Play a specific mission
+- **`play(policy_uri, mission, num_cogs)`** - Play a specific mission
   - Interactive visualization
   - Useful for debugging trained policies
 
-- **`play(policy_uri, mission_name, num_cogs)`** _(via `experiments.recipes.cvc.curriculum.play`)_ - Play default
+- **`play(policy_uri, mission, num_cogs)`** _(via `experiments.recipes.cvc.curriculum.play`)_ - Play default
   training env
   - Defaults to extractor_hub_30
 
 ### Utility Functions
 
-- **`make_training_env(num_cogs, mission_name)`** - Create single env config
+- **`make_training_env(num_cogs, mission)`** - Create single env config
   - Returns MettaGridConfig
   - Useful for custom training setups
 
@@ -228,7 +228,7 @@ uv run ./tools/run.py experiments.recipes.cvc.evaluation.evaluate \\
 # 4. Play to visualize behavior
 uv run ./tools/run.py experiments.recipes.cvc.small_maps.play \\
     policy_uri=file://./checkpoints/cvc_small/latest \\
-    mission_name=extractor_hub_30 \\
+    mission=extractor_hub_30 \\
     num_cogs=4
 
 # 5. Scale up to full curriculum
