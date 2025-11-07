@@ -95,10 +95,25 @@ uv run ./tools/run.py experiments.recipes.cvc.small_maps.play \\
 uv run ./tools/run.py experiments.recipes.cvc.curriculum.play
 ```
 
-### Variant Presets (pass manually)
+### Built-in Variant Presets
 
-If you want quick-start bundles, pass the variants explicitly when invoking any recipe. Two common sets we use
-internally:
+For every CVC entry point you can call:
+
+- `train_easy` / `train_shaped`
+- `play_easy` / `play_shaped`
+
+Examples:
+
+```bash
+uv run ./tools/run.py experiments.recipes.cvc.small_maps.train_easy run=my_easy_run
+uv run ./tools/run.py experiments.recipes.cvc.medium_maps.play_shaped mission_name=collect_resources_spread
+uv run ./tools/run.py experiments.recipes.cvc.curriculum.train_shaped run=my_curriculum
+uv run ./tools/run.py experiments.recipes.cvc.single_mission.train_easy mission_name=training_facility.harvest
+```
+
+Each helper defaults to the variant bundles below, but you can still override `variants=` or `eval_variants=` if needed.
+
+### Variant Presets (manual override)
 
 - **Easy starter:** `lonely_heart`, `pack_rat`, `neutral_faced`
 
