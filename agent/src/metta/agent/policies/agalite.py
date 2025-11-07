@@ -3,7 +3,6 @@ from typing import List
 from cortex.config import AGaLiTeCellConfig
 from cortex.stacks import build_cortex_auto_config
 
-from metta.agent.components.action import ActionEmbeddingConfig
 from metta.agent.components.actor import ActionProbsConfig, ActorHeadConfig
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.components.cortex import CortexTDConfig

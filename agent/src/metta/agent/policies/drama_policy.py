@@ -1,11 +1,6 @@
 from typing import List
 
-from metta.agent.components.action import ActionEmbeddingConfig
-from metta.agent.components.actor import (
-    ActionProbsConfig,
-    ActorKeyConfig,
-    ActorQueryConfig,
-)
+from metta.agent.components.actor import ActionProbsConfig, ActorHeadConfig
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.components.drama import DramaWorldModelConfig
 from metta.agent.components.misc import MLPConfig
@@ -58,14 +53,7 @@ class DramaPolicyConfig(PolicyArchitecture):
             out_features=1,
             hidden_features=[192],
         ),
-        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embed_dim),
-        ActorQueryConfig(in_key="core", out_key="actor_query", hidden_size=_core_out_dim, embed_dim=_embed_dim),
-        ActorKeyConfig(
-            query_key="actor_query",
-            embedding_key="action_embedding",
-            out_key="logits",
-            embed_dim=_embed_dim,
-        ),
+        ActorHeadConfig(in_key="core", out_key="logits", input_dim=_core_out_dim),
     ]
 
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
