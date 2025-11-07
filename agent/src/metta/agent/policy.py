@@ -24,7 +24,7 @@ from metta.rl.utils import ensure_sequence_metadata
 from mettagrid.base_config import Config
 from mettagrid.policy.policy import AgentPolicy, TrainablePolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator import Action, AgentObservation
+from mettagrid.simulator import Action, AgentObservation, Simulation
 from mettagrid.util.module import load_symbol
 
 
@@ -115,14 +115,26 @@ class _SingleAgentAdapter(AgentPolicy):
         self._policy(td)
         return self._actions_by_id[int(td["actions"][0].item())]
 
-    def reset(self) -> None:
+    def reset(self, simulation: Optional[Simulation] = None) -> None:
         """Reset policy state if needed."""
         self._policy.reset_memory()
 
     def _obs_to_td(self, obs: AgentObservation, device: torch.device) -> TensorDict:
-        """Convert AgentObservation to TensorDict."""
-        tokens = [token.value for token in obs.tokens]
-        obs_tensor = torch.tensor(tokens, dtype=torch.uint8).unsqueeze(0).to(device)
+        """Convert AgentObservation to TensorDict with shape [batch=1, num_tokens, 3]."""
+        tokens = []
+        for token in obs.tokens:
+            col, row = token.location
+            # Pack coordinates into a single byte: first 4 bits are col, last 4 bits are row
+            coords_byte = ((col & 0x0F) << 4) | (row & 0x0F)
+            feature_id = token.feature.id
+            value = token.value
+            tokens.append([coords_byte, feature_id, value])
+
+        if tokens:
+            obs_tensor = torch.tensor(tokens, dtype=torch.uint8).unsqueeze(0).to(device)
+        else:
+            # Empty observation - create tensor with shape [1, 0, 3]
+            obs_tensor = torch.zeros((1, 0, 3), dtype=torch.uint8, device=device)
 
         td = TensorDict(
             {
