@@ -324,6 +324,19 @@ class ClipBaseExceptCarbonVariant(MissionVariant):
         mission.silicon_extractor.start_clipped = True
 
 
+class ClipHubStationsVariant(MissionVariant):
+    name: str = "clip_hub_stations"
+    description: str = "Start base extractors and charger clipped."
+
+    @override
+    def modify_mission(self, mission):
+        mission.carbon_extractor.start_clipped = True
+        mission.oxygen_extractor.start_clipped = True
+        mission.germanium_extractor.start_clipped = True
+        mission.silicon_extractor.start_clipped = True
+        mission.charger.start_clipped = True
+
+
 class ClipRateOnVariant(MissionVariant):
     name: str = "clip_rate_on"
     description: str = "Enable global clipping with a small non-zero clip rate."
@@ -433,6 +446,7 @@ VARIANTS: list[MissionVariant] = [
     ChestHeartTuneVariant(),
     ExtractorHeartTuneVariant(),
     ClipBaseExceptCarbonVariant(),
+    ClipHubStationsVariant(),
     CyclicalUnclipVariant(),
     ClipRateOnVariant(),
     *DIFFICULTY_VARIANTS,
