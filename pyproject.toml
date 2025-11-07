@@ -31,6 +31,7 @@ dependencies = [
   "httpx>=0.28.1",
   "imageio>=2.37.0",
   "jmespath>=1.0.1",
+  "kubernetes>=31.0.0",
   "matplotlib>=3.10.3",
   "metta-agent",
   "metta-app-backend",
