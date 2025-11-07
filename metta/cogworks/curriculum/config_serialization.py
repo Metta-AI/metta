@@ -132,9 +132,10 @@ def extract_features_from_config(config: MettaGridConfig) -> Dict[str, Any]:
 
     if missing_structured:
         label = getattr(config, "label", "") or ""
+        label_core = label.split("|", 1)[0]
         _ROOM = r"(tiny|small|medium|large|xlarge)"
         _TERR = r"(no\-terrain|sparse|balanced|dense)"
-        m = re.fullmatch(rf"{_ROOM}_(\d+)chain_(\d+)sinks_{_TERR}", label)
+        m = re.fullmatch(rf"{_ROOM}_(\d+)chain_(\d+)sinks_{_TERR}", label_core)
         if not m:
             raise ValueError(f"Missing structured fields {missing_structured} and label not parseable: {label!r}")
         room_f, chain_f, sinks_f, terr_f = m.groups()

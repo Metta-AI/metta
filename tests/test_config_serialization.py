@@ -50,6 +50,16 @@ def test_extract_features_structured_first(task_generator):
     assert feats["terrain"] in {"no-terrain", "sparse", "balanced", "dense"}
 
 
+def test_extract_features_label_suffix_ignored(task_generator):
+    """If label has a '|' suffix (e.g. bucket tags), parsing still works."""
+    cfg = task_generator.get_task(42)
+    cfg.label = f"{cfg.label}|bucket_meta"
+    feats = extract_features_from_config(cfg)
+
+    assert feats["room_size"] in {"tiny", "small", "medium", "large", "xlarge"}
+    assert feats["terrain"] in {"no-terrain", "sparse", "balanced", "dense"}
+
+
 def test_serialize_base_and_dict_shapes(task_generator):
     cfg = task_generator.get_task(42)
 
