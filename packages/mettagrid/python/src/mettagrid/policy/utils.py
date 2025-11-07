@@ -55,10 +55,10 @@ def initialize_or_load_policy(
 
     policy_class = load_symbol(policy_class_path)
 
-    try:
-        policy = policy_class(policy_env_info, device=device)  # type: ignore[misc]
-    except TypeError:
+    if device is None:
         policy = policy_class(policy_env_info)  # type: ignore[misc]
+    else:
+        policy = policy_class(policy_env_info, device=device)  # type: ignore[misc]
 
     if policy_data_path:
         if not isinstance(policy, TrainablePolicy):
