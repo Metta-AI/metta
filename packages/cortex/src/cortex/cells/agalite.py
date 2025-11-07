@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import math
 from typing import Optional, Tuple
 
-import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -13,7 +13,6 @@ from tensordict import TensorDict
 from cortex.cells.base import MemoryCell
 from cortex.cells.registry import register_cell
 from cortex.config import AGaLiTeCellConfig
-from cortex.kernels.pytorch import discounted_sum_pytorch
 from cortex.types import MaybeState, ResetMask, Tensor
 from cortex.utils import select_backend
 
@@ -108,9 +107,7 @@ class AGaLiTeCell(MemoryCell):
 
         # Feature expansions using ReLU for keys/queries and sigmoid for gamma path
         # shapes: keys_feat, queries_feat, gammas_feat -> [B, T, Hh, eta*Dh]
-        keys_feat = torch.einsum("bthd,bthe->bthde", F.relu(k), F.relu(p1)).reshape(
-            B, T, self.n_heads, self._feat_dim
-        )
+        keys_feat = torch.einsum("bthd,bthe->bthde", F.relu(k), F.relu(p1)).reshape(B, T, self.n_heads, self._feat_dim)
         queries_feat = torch.einsum("bthd,bthe->bthde", F.relu(q), F.relu(p2)).reshape(
             B, T, self.n_heads, self._feat_dim
         )
@@ -154,9 +151,7 @@ class AGaLiTeCell(MemoryCell):
         # Select backend for discounted sum
         allow_cuda = x_seq.is_cuda
         pytorch_fn = "cortex.kernels.pytorch.agalite:discounted_sum_pytorch"
-        cuda_fn = (
-            "cortex.kernels.cuda.agalite.discounted_sum_cuda:discounted_sum_cuda" if allow_cuda else None
-        )
+        cuda_fn = "cortex.kernels.cuda.agalite.discounted_sum_cuda:discounted_sum_cuda" if allow_cuda else None
         ds_fn = select_backend(
             triton_fn=None,
             pytorch_fn=pytorch_fn,

@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import pytest
 import torch
-from tensordict import TensorDict
-
 from cortex.cells.agalite import AGaLiTeCell
 from cortex.config import AGaLiTeCellConfig
 from cortex.kernels.pytorch.agalite import discounted_sum_pytorch
+from tensordict import TensorDict
 
 
 def _device():
@@ -63,6 +62,7 @@ def test_discounted_sum_cuda_parity(shape_case) -> None:
     out_ref = discounted_sum_pytorch(start, x, discounts)
 
     from cortex.kernels.cuda.agalite.discounted_sum_cuda import discounted_sum_cuda
+
     out_cuda = discounted_sum_cuda(start, x, discounts)
 
     torch.testing.assert_close(out_ref, out_cuda, rtol=1e-4, atol=1e-4)

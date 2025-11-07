@@ -37,8 +37,6 @@ BUILD_ENV.setdefault("PIP_NO_BUILD_ISOLATION", "1")
 BUILD_ENV.setdefault("MAX_JOBS", "8")
 
 
-
-
 def run(cmd: Iterable[str]) -> bool:
     """Run a command returning True on success."""
 
@@ -121,11 +119,7 @@ def main() -> int:
     try:
         assert torch.cuda.is_available()
         caps = sorted(
-            {
-                f"{m}.{n}"
-                for i in range(torch.cuda.device_count())
-                for (m, n) in [torch.cuda.get_device_capability(i)]
-            }
+            {f"{m}.{n}" for i in range(torch.cuda.device_count()) for (m, n) in [torch.cuda.get_device_capability(i)]}
         )
         if caps:
             BUILD_ENV.setdefault("TORCH_CUDA_ARCH_LIST", ";".join(caps))

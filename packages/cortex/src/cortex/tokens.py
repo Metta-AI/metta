@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from cortex.config import (
+    AGaLiTeCellConfig,
     AxonConfig,
     BlockConfig,
     CausalConv1dConfig,
-    AGaLiTeCellConfig,
     LSTMCellConfig,
     PassThroughBlockConfig,
     PostUpBlockConfig,

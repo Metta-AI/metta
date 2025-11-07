@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Dict, List
 import re
+from typing import Dict, List
 
 from pydantic import BaseModel
 

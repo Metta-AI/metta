@@ -111,6 +111,7 @@ class AGaLiTeCellConfig(CellConfig):
     eps: float = Field(default=1e-5, ge=0.0)
     dropout: float = Field(default=0.0, ge=0.0, le=1.0)
 
+
 class AxonConfig(CellConfig):
     """Configuration for Axon cell with streaming RTU and diagonal input weights."""
 
