@@ -21,7 +21,6 @@ class AGaLiTeConfig(PolicyArchitecture):
     _token_embed_dim = 8
     _fourier_freqs = 3
     _latent_dim = 64
-    _core_dim = 32
     _actor_hidden = 256
     _critic_hidden = 512
     _eta = 4
@@ -49,7 +48,7 @@ class AGaLiTeConfig(PolicyArchitecture):
             in_key="obs_latent_attn",
             out_key="core",
             d_hidden=_latent_dim,
-            out_features=_core_dim,
+            out_features=_latent_dim,
             key_prefix="agalite_cortex_state",
             stack_cfg=build_cortex_auto_config(
                 d_hidden=_latent_dim,
@@ -63,7 +62,7 @@ class AGaLiTeConfig(PolicyArchitecture):
             in_key="core",
             out_key="actor_hidden",
             name="actor_mlp",
-            in_features=_core_dim,
+            in_features=_latent_dim,
             hidden_features=[_actor_hidden],
             out_features=_actor_hidden,
         ),
@@ -71,7 +70,7 @@ class AGaLiTeConfig(PolicyArchitecture):
             in_key="core",
             out_key="values",
             name="critic",
-            in_features=_core_dim,
+            in_features=_latent_dim,
             out_features=1,
             hidden_features=[_critic_hidden],
         ),

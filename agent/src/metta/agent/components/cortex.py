@@ -57,7 +57,7 @@ class CortexTDConfig(ComponentConfig):
 
     d_hidden: int = 128
     out_features: Optional[int] = None
-    output_nonlinearity: str = "SiLU"
+    output_nonlinearity: str = "silu"
 
     # JSON‑serializable config for building the Cortex stack.
     stack_cfg: CortexStackConfig
