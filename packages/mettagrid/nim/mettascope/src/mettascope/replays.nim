@@ -49,7 +49,7 @@ type
     typeName*: string
     groupId*: int
     agentId*: int
-    location*: seq[IVec3]
+    location*: seq[IVec2]
     orientation*: seq[int]
     inventory*: seq[seq[ItemAmount]]
     inventoryMax*: int
@@ -135,7 +135,7 @@ type
     typeId*: int
     groupId*: int
     agentId*: int
-    location*: IVec3
+    location*: IVec2
     orientation*: int
     inventory*: seq[ItemAmount]
     inventoryMax*: int
@@ -304,22 +304,17 @@ proc convertReplayV1ToV2(replayData: JsonNode): JsonNode =
       gridObject["c"] = expandSequenceV2(gridObject["c"], maxSteps)
     if "r" in gridObject:
       gridObject["r"] = expandSequenceV2(gridObject["r"], maxSteps)
-    if "layer" in gridObject:
-      gridObject["layer"] = expandSequenceV2(gridObject["layer"], maxSteps)
 
     var location = newJArray()
     for step in 0 ..< maxSteps:
       let xNode = getAttrV1(gridObject, "c", step, newJInt(0))
       let yNode = getAttrV1(gridObject, "r", step, newJInt(0))
-      let zNode = getAttrV1(gridObject, "layer", step, newJInt(0))
       let x = if xNode.kind == JInt: xNode.getInt else: 0
       let y = if yNode.kind == JInt: yNode.getInt else: 0
-      let z = if zNode.kind == JInt: zNode.getInt else: 0
-      var triple = newJArray()
-      triple.add(newJInt(x))
-      triple.add(newJInt(y))
-      triple.add(newJInt(z))
-      location.add(pair(newJInt(step), triple))
+      var double = newJArray()
+      double.add(newJInt(x))
+      double.add(newJInt(y))
+      location.add(pair(newJInt(step), double))
       if x > maxX: maxX = x
       if y > maxY: maxY = y
 
@@ -559,13 +554,12 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
             count: inventoryRaw[i][j][1]))
       inventory.add(itemAmounts)
 
-    let locationRaw = expand[seq[int]](obj["location"], replay.maxSteps, @[0, 0, 0])
-    var location: seq[IVec3]
+    let locationRaw = expand[seq[int]](obj["location"], replay.maxSteps, @[0, 0])
+    var location: seq[IVec2]
     for i in 0 ..< locationRaw.len:
-      location.add(ivec3(
+      location.add(ivec2(
         locationRaw[i][0].int32,
-        locationRaw[i][1].int32,
-        locationRaw[i][2].int32
+        locationRaw[i][1].int32
       ))
 
     var resolvedTypeName = ""
