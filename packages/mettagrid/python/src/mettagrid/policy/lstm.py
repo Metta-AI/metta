@@ -161,7 +161,7 @@ def obs_to_obs_tensor(obs: MettaGridObservation, obs_shape: Tuple[int, ...], dev
 
     # Create observation array matching the training format
     # Training uses a fixed-size buffer of (num_tokens, token_dim) from policy_env_info
-    obs_array = np.full(obs_shape, [0, 0, 255], dtype=np.uint8)
+    obs_array = np.full(obs_shape, [255, 0, 0], dtype=np.uint8)
 
     # Fill with actual token data
     for i, token_data in enumerate(tokens):
