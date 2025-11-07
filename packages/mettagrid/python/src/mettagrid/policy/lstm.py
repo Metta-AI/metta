@@ -148,6 +148,21 @@ class LSTMPolicyNet(torch.nn.Module):
         return self.forward_eval(observations, state)
 
 
+def obs_to_obs_tensor(obs: MettaGridObservation, obs_shape: Tuple[int, ...], device: torch.device) -> torch.Tensor:
+    """Get action and update state for this agent."""
+
+    # Create observation array matching the training format
+    # Training uses a fixed-size buffer of (num_tokens, token_dim) from policy_env_info
+    obs_array = np.full(obs_shape, [255, 0, 0], dtype=np.uint8)
+
+    # Fill with actual token data
+    for i, token in enumerate(obs.tokens):
+        if i < obs_shape[0]:
+            obs_array[i] = token.raw_token
+
+    return torch.from_numpy(obs_array).unsqueeze(0).to(device)
+
+
 class LSTMAgentPolicy(StatefulPolicyImpl[LSTMState]):
     """Per-agent policy implementation that uses the shared LSTM network."""
 
@@ -173,19 +188,7 @@ class LSTMAgentPolicy(StatefulPolicyImpl[LSTMState]):
         obs: MettaGridObservation,
         state: Optional[LSTMState],
     ) -> Tuple[MettaGridAction, Optional[LSTMState]]:
-        """Get action and update state for this agent."""
-        tokens = []
-        for token in obs.tokens:
-            col, row = token.location
-            # Pack coordinates into a single byte: first 4 bits are col, last 4 bits are row
-            coords_byte = ((col & 0x0F) << 4) | (row & 0x0F)
-            feature_id = token.feature.id
-            value = token.value
-            tokens.append([coords_byte, feature_id, value])
-
-        # Convert to numpy array and flatten: [num_tokens, token_dim] -> [num_tokens * token_dim]
-        obs_array = np.array([t.value for t in obs.tokens], dtype=np.uint8)
-        obs_tensor = torch.from_numpy(obs_array).unsqueeze(0).to(self._device).float()
+        obs_tensor = obs_to_obs_tensor(obs, self._policy_env_info.observation_space.shape, self._device)
 
         with torch.no_grad():
             self._net.eval()
