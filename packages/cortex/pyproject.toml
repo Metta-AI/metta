@@ -19,6 +19,9 @@ dependencies = [
   "triton>=2.0.0; platform_system == 'Linux'",
 ]
 
+[project.urls]
+Repository = "https://github.com/Metta-AI/metta/tree/main/packages/cortex"
+
 [dependency-groups]
 dev = ["pytest>=8.3.3", "pytest-cov>=6.1.1", "pytest-xdist>=3.8.0"]
 
