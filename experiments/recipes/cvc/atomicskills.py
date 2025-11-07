@@ -24,7 +24,7 @@ from cogames.cogs_vs_clips.evals import (
     apply_difficulty,
 )
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
-from cogames.cogs_vs_clips.mission import Mission
+from cogames.cogs_vs_clips.mission import Mission, MissionVariant
 from cogames.cogs_vs_clips.mission_utils import get_map
 from cogames.cogs_vs_clips.sites import EVALS, Site
 from cogames.cogs_vs_clips.stations import (
@@ -57,6 +57,55 @@ from mettagrid.config.mettagrid_config import (
     NoopActionConfig,
 )
 from mettagrid.map_builder.random import RandomMapBuilder
+
+
+# ============================================================================
+# Map Size Variants
+# ============================================================================
+
+
+class VerySmallMapVariant(MissionVariant):
+    """Very small map variant (10x10) for tight, focused learning."""
+
+    name: str = "very_small_map"
+    description: str = "Very small map (10x10)"
+
+    def apply(self, mission: Mission) -> Mission:
+        mission.default_map_width = 10
+        mission.default_map_height = 10
+        return mission
+
+
+class SmallMapVariant(MissionVariant):
+    """Small map variant (15x15) - default size for atomic skills."""
+
+    name: str = "small_map"
+    description: str = "Small map (15x15)"
+
+    def apply(self, mission: Mission) -> Mission:
+        mission.default_map_width = 15
+        mission.default_map_height = 15
+        return mission
+
+
+class MediumMapVariant(MissionVariant):
+    """Medium map variant (25x25) for spatial generalization."""
+
+    name: str = "medium_map"
+    description: str = "Medium map (25x25)"
+
+    def apply(self, mission: Mission) -> Mission:
+        mission.default_map_width = 25
+        mission.default_map_height = 25
+        return mission
+
+
+# Map size variants list for curriculum sampling
+MAP_SIZE_VARIANTS = [
+    VerySmallMapVariant(),
+    SmallMapVariant(),
+    MediumMapVariant(),
+]
 
 
 # ============================================================================
@@ -731,20 +780,29 @@ def make_atomic_skill_env(
     num_cogs: int = 1,
     map_width: int = 15,
     map_height: int = 15,
+    variant: Optional[MissionVariant] = None,
 ) -> MettaGridConfig:
     """Create a single atomic skill training environment.
 
     Args:
         mission_cls: Mission class to instantiate
         num_cogs: Number of agents
-        map_width: Width of the map
-        map_height: Height of the map
+        map_width: Width of the map (ignored if variant is provided)
+        map_height: Height of the map (ignored if variant is provided)
+        variant: Optional mission variant to apply (e.g., map size variant)
 
     Returns:
         MettaGridConfig ready for training
     """
     mission = mission_cls()  # type: ignore[call-arg]
     mission.configure()
+
+    # Apply variant if provided (e.g., to change map size)
+    if variant:
+        mission = variant.apply(mission)
+        # Use the variant-modified dimensions
+        map_width = mission.default_map_width
+        map_height = mission.default_map_height
 
     # Create simple empty room map
     map_builder = RandomMapBuilder.Config(
@@ -766,6 +824,8 @@ def make_curriculum(
     skill_missions: Optional[list[type[AtomicSkillMission]]] = None,
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
+    use_map_variants: bool = False,
+    map_variants: Optional[list[MissionVariant]] = None,
 ) -> CurriculumConfig:
     """Create atomic skills curriculum.
 
@@ -778,6 +838,8 @@ def make_curriculum(
         skill_missions: List of mission classes to include (defaults to all)
         enable_detailed_slice_logging: Enable detailed curriculum logging
         algorithm_config: Curriculum algorithm config (defaults to Learning Progress)
+        use_map_variants: If True, use MissionVariant system for map sizes instead of bucketing
+        map_variants: List of map size variants to use (defaults to MAP_SIZE_VARIANTS)
 
     Returns:
         CurriculumConfig for atomic skills training
@@ -785,47 +847,88 @@ def make_curriculum(
     if skill_missions is None:
         skill_missions = ATOMIC_SKILL_MISSIONS
 
+    if map_variants is None:
+        map_variants = MAP_SIZE_VARIANTS
+
     all_skill_tasks = []
 
     for mission_cls in skill_missions:
-        # Create base env for this skill
-        base_env = make_atomic_skill_env(mission_cls=mission_cls, num_cogs=num_cogs)
+        if use_map_variants:
+            # Create separate task for each map size variant
+            for variant in map_variants:
+                variant_env = make_atomic_skill_env(
+                    mission_cls=mission_cls, num_cogs=num_cogs, variant=variant
+                )
+                # Create bucketed tasks for other dimensions
+                skill_tasks = cc.bucketed(variant_env)
 
-        # Create bucketed tasks for this skill
-        skill_tasks = cc.bucketed(base_env)
+                # Episode length variation
+                skill_tasks.add_bucket("game.max_steps", [500, 750, 1000, 1500])
 
-        # Add buckets for progressive difficulty
+                # Agent count variation (for coordination)
+                if num_cogs > 1:
+                    skill_tasks.add_bucket("game.num_agents", [1, 2, num_cogs])
 
-        # Map size variation (spatial complexity)
-        skill_tasks.add_bucket("game.map_builder.width", [10, 15, 20, 30])
-        skill_tasks.add_bucket("game.map_builder.height", [10, 15, 20, 30])
-
-        # Episode length variation
-        skill_tasks.add_bucket("game.max_steps", [500, 750, 1000, 1500])
-
-        # Agent count variation (for coordination)
-        if num_cogs > 1:
-            skill_tasks.add_bucket("game.num_agents", [1, 2, num_cogs])
-
-        # Energy constraints (efficiency pressure)
-        skill_tasks.add_bucket("game.agent.resource_limits.energy", [50, 100, 200])
-        skill_tasks.add_bucket("game.actions.move.consumed_resources.energy", [1, 2, 4])
-
-        # Reward shaping
-        if "heart" in base_env.game.agent.rewards.inventory:
-            skill_tasks.add_bucket(
-                "game.agent.rewards.inventory.heart", [0.5, 1.0, 2.0]
-            )
-
-        # Initial inventory variation (for resource-based skills)
-        resource_names = ["carbon", "oxygen", "germanium", "silicon"]
-        for resource in resource_names:
-            if resource in base_env.game.resource_names:
+                # Energy constraints (efficiency pressure)
                 skill_tasks.add_bucket(
-                    f"game.agent.initial_inventory.{resource}", [0, 5, 10, 20]
+                    "game.agent.resource_limits.energy", [50, 100, 200]
+                )
+                skill_tasks.add_bucket(
+                    "game.actions.move.consumed_resources.energy", [1, 2, 4]
                 )
 
-        all_skill_tasks.append(skill_tasks)
+                # Reward shaping
+                if "heart" in variant_env.game.agent.rewards.inventory:
+                    skill_tasks.add_bucket(
+                        "game.agent.rewards.inventory.heart", [0.5, 1.0, 2.0]
+                    )
+
+                # Initial inventory variation
+                resource_names = ["carbon", "oxygen", "germanium", "silicon"]
+                for resource in resource_names:
+                    if resource in variant_env.game.resource_names:
+                        skill_tasks.add_bucket(
+                            f"game.agent.initial_inventory.{resource}", [0, 5, 10, 20]
+                        )
+
+                all_skill_tasks.append(skill_tasks)
+        else:
+            # Original bucketing approach - vary everything including map size
+            base_env = make_atomic_skill_env(mission_cls=mission_cls, num_cogs=num_cogs)
+            skill_tasks = cc.bucketed(base_env)
+
+            # Map size variation (spatial complexity)
+            skill_tasks.add_bucket("game.map_builder.width", [10, 15, 20, 30])
+            skill_tasks.add_bucket("game.map_builder.height", [10, 15, 20, 30])
+
+            # Episode length variation
+            skill_tasks.add_bucket("game.max_steps", [500, 750, 1000, 1500])
+
+            # Agent count variation (for coordination)
+            if num_cogs > 1:
+                skill_tasks.add_bucket("game.num_agents", [1, 2, num_cogs])
+
+            # Energy constraints (efficiency pressure)
+            skill_tasks.add_bucket("game.agent.resource_limits.energy", [50, 100, 200])
+            skill_tasks.add_bucket(
+                "game.actions.move.consumed_resources.energy", [1, 2, 4]
+            )
+
+            # Reward shaping
+            if "heart" in base_env.game.agent.rewards.inventory:
+                skill_tasks.add_bucket(
+                    "game.agent.rewards.inventory.heart", [0.5, 1.0, 2.0]
+                )
+
+            # Initial inventory variation (for resource-based skills)
+            resource_names = ["carbon", "oxygen", "germanium", "silicon"]
+            for resource in resource_names:
+                if resource in base_env.game.resource_names:
+                    skill_tasks.add_bucket(
+                        f"game.agent.initial_inventory.{resource}", [0, 5, 10, 20]
+                    )
+
+            all_skill_tasks.append(skill_tasks)
 
     # Merge all skill task sets
     merged_tasks = cc.merge(all_skill_tasks)
@@ -854,6 +957,8 @@ def train(
     enable_detailed_slice_logging: bool = False,
     use_standard_cvc_evals: bool = True,
     eval_difficulties: Optional[list[str]] = None,
+    use_map_variants: bool = False,
+    map_variants: Optional[list[MissionVariant]] = None,
 ) -> TrainTool:
     """Create a training tool for atomic skills.
 
@@ -867,16 +972,22 @@ def train(
         eval_difficulties: List of difficulties to evaluate on (e.g., ["standard", "hard"]).
                           For full sweep, pass CANONICAL_DIFFICULTY_ORDER.
                           Defaults to ["standard"] for faster evals.
+        use_map_variants: If True, use MissionVariant system for map sizes (very_small, small, medium).
+                         If False, use bucketed map size variations (10, 15, 20, 30).
+        map_variants: List of map size variants to use (defaults to MAP_SIZE_VARIANTS)
 
     Returns:
         TrainTool configured for atomic skills training
     """
     # Create or use provided curriculum
-    resolved_curriculum = curriculum or make_curriculum(
-        num_cogs=num_cogs,
-        skill_missions=skill_missions,
-        enable_detailed_slice_logging=enable_detailed_slice_logging,
-    )
+    if curriculum is None:
+        curriculum = make_curriculum(
+            num_cogs=num_cogs,
+            skill_missions=skill_missions,
+            enable_detailed_slice_logging=enable_detailed_slice_logging,
+            use_map_variants=use_map_variants,
+            map_variants=map_variants,
+        )
 
     # Configure trainer
     trainer_cfg = TrainerConfig(
@@ -914,7 +1025,7 @@ def train(
 
     return TrainTool(
         trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=evaluator_cfg,
         checkpointer=checkpointer_cfg,
     )
@@ -1000,6 +1111,8 @@ def train_all_atomic_skills(
     num_cogs: int = 1,
     use_standard_cvc_evals: bool = True,
     eval_difficulties: Optional[list[str]] = None,
+    use_map_variants: bool = True,
+    map_variants: Optional[list[MissionVariant]] = None,
 ) -> TrainTool:
     """Train on all atomic skills with standard CVC evaluations.
 
@@ -1008,12 +1121,17 @@ def train_all_atomic_skills(
         use_standard_cvc_evals: Use standard CVC evals (True) or atomic skill evals (False)
         eval_difficulties: Difficulties to evaluate on (defaults to ["standard"]).
                           For full difficulty sweep (like scripted agent), pass CANONICAL_DIFFICULTY_ORDER.
+        use_map_variants: If True (default), use structured map size variants (very_small, small, medium).
+                         If False, use continuous bucketed map sizes (10, 15, 20, 30).
+        map_variants: List of map size variants (defaults to very_small, small, medium)
     """
     return train(
         num_cogs=num_cogs,
         skill_missions=ATOMIC_SKILL_MISSIONS,
         use_standard_cvc_evals=use_standard_cvc_evals,
         eval_difficulties=eval_difficulties,
+        use_map_variants=use_map_variants,
+        map_variants=map_variants,
     )
 
 
