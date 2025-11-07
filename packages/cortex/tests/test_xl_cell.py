@@ -13,7 +13,15 @@ pytestmark = pytest.mark.skip(reason="slow test skipped in prod")
 
 
 def get_test_device():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    """Get the appropriate device for testing (CUDA if available, else CPU).
+
+    On WSL2, prefer CPU to avoid nondeterministic CuBLAS issues in CI/dev.
+    """
+    import platform
+    if torch.cuda.is_available() and "WSL2" in platform.uname().release:
+        device = torch.device("cpu")
+    else:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     return device
 

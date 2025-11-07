@@ -20,6 +20,14 @@ try:  # Triton availability for GPU tests
 except Exception:  # pragma: no cover
     _HAS_TRITON = False
 
+import platform
+
+def _is_wsl() -> bool:
+    try:
+        return "WSL2" in platform.uname().release
+    except Exception:
+        return False
+
 # CUDA fused sequential (all-in) availability
 try:
     from cortex.kernels.cuda import rtu_stream_diag_cuda as _rtu_cuda_seq_stream
@@ -27,6 +35,15 @@ try:
     _HAS_CUDA_SEQ = True
 except Exception:  # pragma: no cover
     _HAS_CUDA_SEQ = False
+
+# Skip CUDA seq tests when on WSL2 (nvcc/driver toolchain often unavailable)
+if _HAS_CUDA_SEQ:
+    try:
+        import platform as _plat
+        if "WSL2" in _plat.uname().release:
+            _HAS_CUDA_SEQ = False
+    except Exception:
+        pass
 
 
 def _build_params(D: int, H: int, *, device, dtype):
