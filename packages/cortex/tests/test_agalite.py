@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 import pytest
 import torch
 from cortex.cells.agalite import AGaLiTeCell
@@ -15,8 +17,14 @@ def _device():
 
 
 # ---------------------------- Kernel-level tests ----------------------------
-# Skip this module entirely (slow)
-pytestmark = pytest.mark.skip(reason="slow full-rank RTU parity suite")
+# Skip this module entirely by default (slow).
+# Set RUN_SLOW_CORTEX_TESTS=1 to enable; otherwise keep skipped.
+_RUN_SLOW = os.getenv("RUN_SLOW_CORTEX_TESTS", "0").lower() in {"1", "true", "yes", "y", "on"}
+pytestmark = (
+    pytest.mark.slow
+    if _RUN_SLOW
+    else pytest.mark.skip(reason="slow full-rank RTU parity suite (set RUN_SLOW_CORTEX_TESTS=1 to run)")
+)
 
 
 def _randn(shape, device, dtype):
