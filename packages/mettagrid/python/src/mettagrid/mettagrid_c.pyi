@@ -166,7 +166,7 @@ class GlobalObsConfig:
         last_action: bool = True,
         last_reward: bool = True,
         visitation_counts: bool = False,
-        compass: bool = True,
+        compass: bool = False,
     ) -> None: ...
     episode_completion_pct: bool
     last_action: bool
