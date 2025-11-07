@@ -341,9 +341,9 @@ get_bazel_version() {
 }
 
 remove_legacy_nim_installations() {
-  if check_cmd brew && brew list --versions nim >/dev/null 2>&1; then
+  if check_cmd brew && brew list --versions nim > /dev/null 2>&1; then
     echo "Removing legacy Homebrew Nim installation..."
-    if ! brew uninstall --force nim >/dev/null 2>&1; then
+    if ! brew uninstall --force nim > /dev/null 2>&1; then
       echo "Warning: Failed to uninstall Homebrew Nim; please remove it manually." >&2
     fi
   fi

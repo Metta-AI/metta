@@ -26,6 +26,11 @@ class PolicyEnvInterface:
     obs_width: int
     obs_height: int
 
+    @property
+    def action_names(self) -> list[str]:
+        """Expose action names for policies that expect a flat list."""
+        return [action.name for action in self.actions.actions()]
+
     @staticmethod
     def from_mg_cfg(mg_cfg: MettaGridConfig) -> "PolicyEnvInterface":
         """Create PolicyEnvInterface from MettaGridConfig.

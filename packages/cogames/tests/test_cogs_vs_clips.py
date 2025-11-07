@@ -1,5 +1,12 @@
-from cogames.cogs_vs_clips.missions import HarvestMission, make_game
-from cogames.cogs_vs_clips.variants import NeutralFacedVariant
+from cogames.cogs_vs_clips.missions import (
+    HarvestMission,
+    Mission,
+    RepairMission,
+    UnclipDrillsMission,
+    make_game,
+)
+from cogames.cogs_vs_clips.stations import CvCStationConfig
+from cogames.cogs_vs_clips.variants import InventoryHeartTuneVariant, NeutralFacedVariant
 from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig
 
 
@@ -58,3 +65,32 @@ def test_neutral_faced_variant_neutralizes_recipes():
         assert len(obj.protocols) == 1
         protocol = obj.protocols[0]
         assert protocol.vibes == ["default"]
+
+
+def test_inventory_heart_tune_caps_initial_inventory_to_limits():
+    mission = HarvestMission.with_variants([InventoryHeartTuneVariant(hearts=20)])
+    env = mission.make_env()
+    agent = env.game.agent
+
+    energy_limit = int(agent.resource_limits["energy"])
+    assert agent.initial_inventory["energy"] == energy_limit
+
+
+def _station_configs(mission: Mission) -> list[CvCStationConfig]:
+    return [
+        mission.carbon_extractor,
+        mission.oxygen_extractor,
+        mission.germanium_extractor,
+        mission.silicon_extractor,
+        mission.charger,
+    ]
+
+
+def test_repair_mission_starts_with_clipped_stations():
+    mission = RepairMission.model_copy(deep=True)
+    assert all(station.start_clipped for station in _station_configs(mission))
+
+
+def test_unclip_drills_mission_starts_with_clipped_stations():
+    mission = UnclipDrillsMission.model_copy(deep=True)
+    assert all(station.start_clipped for station in _station_configs(mission))
