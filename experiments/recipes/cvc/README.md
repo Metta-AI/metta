@@ -138,8 +138,8 @@ uv run ./tools/run.py experiments.recipes.cvc.curriculum.play
   - Interactive visualization
   - Useful for debugging trained policies
 
-- **`play(policy_uri, mission, num_cogs)`** _(via `experiments.recipes.cvc.curriculum.play`)_ - Play default
-  training env
+- **`play(policy_uri, mission, num_cogs)`** _(via `experiments.recipes.cvc.curriculum.play`)_ - Play default training
+  env
   - Defaults to extractor_hub_30
 
 ### Utility Functions
