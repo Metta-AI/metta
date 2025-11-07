@@ -563,7 +563,7 @@ block generated_replay_test:
 
   # Generate a replay using the CI configuration (use reduced steps for faster testing in CI)
   let projectRoot = parentDir(parentDir(parentDir(parentDir(parentDir(parentDir(currentSourcePath()))))))
-  let cmd = &"cd {projectRoot} && uv run --no-sync tools/run.py ci.replay_null replay_dir={tmpDir} stats_dir={tmpDir} sim.env.game.max_steps=5"
+  let cmd = &"cd {projectRoot} && uv run --no-sync tools/run.py ci.replay_null replay_dir={tmpDir} stats_dir={tmpDir}"
   echo &"Running replay generation: {cmd}"
 
   let exitCode = execCmd(cmd)
