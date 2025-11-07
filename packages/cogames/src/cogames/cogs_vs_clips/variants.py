@@ -333,19 +333,6 @@ class ClipRateOnVariant(MissionVariant):
         mission.clip_rate = 0.02
 
 
-class ClipHubStationsVariant(MissionVariant):
-    name: str = "clip_hub_stations"
-    description: str = "Start all hub stations clipped so players must repair them."
-
-    @override
-    def modify_mission(self, mission):
-        mission.carbon_extractor.start_clipped = True
-        mission.oxygen_extractor.start_clipped = True
-        mission.germanium_extractor.start_clipped = True
-        mission.silicon_extractor.start_clipped = True
-        mission.charger.start_clipped = True
-
-
 # Biome variants (weather) for procedural maps
 class DesertVariant(MachinaArenaVariant):
     name: str = "desert"
