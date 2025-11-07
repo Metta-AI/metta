@@ -87,8 +87,7 @@ class PlayTool(Tool):
         else:
             # Use random policies if no policy specified
             logger.info("No policy specified, using random actions")
-            random_policy = RandomMultiAgentPolicy(policy_env_info)
-            agent_policies = random_policy.agent_policies(env_cfg.game.num_agents)
+            agent_policies = [RandomAgentPolicy(policy_env_info) for _ in range(policy_env_info.num_agents)]
 
         # Create rollout with renderer
         rollout = Rollout(
