@@ -21,7 +21,7 @@ _BOOTSTRAPPED = False
 
 
 def ensure_nim_dependencies() -> None:
-    """Best-effort Nimby bootstrap that mirrors treeform's install steps."""
+    """Bootstrap Nim/Nimby following treeform's recommended steps."""
     global _BOOTSTRAPPED
     if _BOOTSTRAPPED:
         return
@@ -33,10 +33,10 @@ def ensure_nim_dependencies() -> None:
 
     url = f"https://github.com/treeform/nimby/releases/download/{REQUIRED_NIMBY_VERSION}/nimby-{os_name}-{arch_name}"
 
-    with tempfile.TemporaryDirectory() as tmp:
-        nimby_path = Path(tmp) / "nimby"
-        with urllib.request.urlopen(url, timeout=30) as resp, open(nimby_path, "wb") as out:
-            shutil.copyfileobj(resp, out)
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        nimby_path = Path(tmp_dir) / "nimby"
+        with urllib.request.urlopen(url, timeout=30) as response, open(nimby_path, "wb") as handle:
+            shutil.copyfileobj(response, handle)
         nimby_path.chmod(0o755)
 
         subprocess.run([str(nimby_path), "use", REQUIRED_NIM_VERSION], check=True)
