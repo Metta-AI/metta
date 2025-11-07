@@ -20,8 +20,8 @@ from metta.setup.symlink_setup import app as symlink_app
 from metta.setup.tools.book import app as book_app
 from metta.setup.tools.ci_runner import cmd_ci
 from metta.setup.tools.clean import cmd_clean
-from metta.setup.tools.test_runner.test_cpp import app as cpp_test_runner_app
 from metta.setup.tools.code_formatters import app as code_formatters_app
+from metta.setup.tools.test_runner.test_cpp import app as cpp_test_runner_app
 from metta.setup.tools.test_runner.test_python import app as python_test_runner_app
 from metta.setup.utils import debug, error, info, success, warning
 from metta.utils.live_run_monitor import app as run_monitor_app
@@ -36,7 +36,6 @@ DEFAULT_INITIAL_VERSION = "0.0.0.1"
 
 class MettaCLI:
     def __init__(self):
-        self.repo_root: Path = get_repo_root()
         self._components_initialized = False
 
     def _init_all(self):
@@ -159,7 +158,7 @@ def _ensure_tag_unique(package: str, version: str) -> None:
     tag_name = f"{package}-v{version}"
     result = subprocess.run(
         ["git", "rev-parse", "-q", "--verify", f"refs/tags/{tag_name}"],
-        cwd=cli.repo_root,
+        cwd=get_repo_root(),
         capture_output=True,
         text=True,
     )
@@ -233,8 +232,7 @@ def _get_selected_modules(components: list[str] | None = None) -> list["SetupMod
 
 def _get_all_package_names() -> list[str]:
     """Return all valid package names in <repo_root>/packages/ (dirs with __init__.py or setup.py)."""
-    repo_root = cli.repo_root
-    packages_dir = repo_root / "packages"
+    packages_dir = get_repo_root() / "packages"
     if not packages_dir.exists():
         return []
     return sorted(p.name for p in packages_dir.iterdir() if p.is_dir() and not p.name.startswith("."))
@@ -542,7 +540,7 @@ def cmd_publish(
     try:
         if not no_repo:
             info(f"Pushing {package} as child repo...")
-            subprocess.run([f"{cli.repo_root}/devops/git/push_child_repo.py", package, "-y"], check=True)
+            subprocess.run([f"{get_repo_root()}/devops/git/push_child_repo.py", package, "-y"], check=True)
     except subprocess.CalledProcessError as exc:
         error(
             f"Failed to publish: {exc}. {tag_name} was still published to {remote}."
@@ -568,14 +566,14 @@ def cmd_tool(
     tool_name: Annotated[str, typer.Argument(help="Name of the tool to run")],
     ctx: typer.Context,
 ):
-    tool_path = cli.repo_root / "tools" / f"{tool_name}.py"
+    tool_path = get_repo_root() / "tools" / f"{tool_name}.py"
     if not tool_path.exists():
         error(f"Error: Tool '{tool_name}' not found at {tool_path}")
         raise typer.Exit(1)
 
     cmd = [str(tool_path)] + (ctx.args or [])
     try:
-        subprocess.run(cmd, cwd=cli.repo_root, check=True)
+        subprocess.run(cmd, cwd=get_repo_root(), check=True)
     except subprocess.CalledProcessError as e:
         raise typer.Exit(e.returncode) from e
 
@@ -584,7 +582,7 @@ def cmd_tool(
 def cmd_shell():
     cmd = ["uv", "run", "--active", "metta/setup/shell.py"]
     try:
-        subprocess.run(cmd, cwd=cli.repo_root, check=True)
+        subprocess.run(cmd, cwd=get_repo_root(), check=True)
     except subprocess.CalledProcessError as e:
         raise typer.Exit(e.returncode) from e
 
@@ -611,7 +609,7 @@ def cmd_go(ctx: typer.Context):
 @app.command(name="report-env-details", help="Report environment details including UV project directory")
 def cmd_report_env_details():
     """Report environment details."""
-    info(f"UV Project Directory: {cli.repo_root}")
+    info(f"UV Project Directory: {get_repo_root()}")
     info(f"Metta CLI Working Directory: {Path.cwd()}")
     if branch := git.get_current_branch():
         info(f"Git Branch: {branch}")
@@ -637,7 +635,7 @@ def cmd_clip(
     cmd = ["codeclip"] + args_after_clip
 
     try:
-        subprocess.run(cmd, cwd=cli.repo_root, check=False)
+        subprocess.run(cmd, cwd=get_repo_root(), check=False)
     except FileNotFoundError:
         error("Error: Command not found: codeclip")
         info("Run: metta install codebot")
@@ -647,7 +645,7 @@ def cmd_clip(
 @app.command(name="gridworks", help="Start the Gridworks web UI", context_settings={"allow_extra_args": True})
 def cmd_gridworks(ctx: typer.Context):
     cmd = ["./gridworks/start.py", *ctx.args]
-    subprocess.run(cmd, cwd=cli.repo_root, check=False)
+    subprocess.run(cmd, cwd=get_repo_root(), check=False)
 
 
 app.add_typer(run_monitor_app, name="run-monitor", help="Monitor training runs.")

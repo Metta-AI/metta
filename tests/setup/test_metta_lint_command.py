@@ -71,8 +71,8 @@ def test_lint_check_mode_with_unsupported_formatter() -> None:
     # Create a formatter without check command
     formatter = FormatterConfig(
         name="test-formatter",
-        format_cmd=["echo", "formatting"],
-        check_cmd=None,  # No check command
+        format_cmds=["echo", "formatting"],
+        check_cmds=None,  # No check command
     )
 
     # Run with check_only=True
@@ -89,8 +89,8 @@ def test_lint_check_mode_with_supported_formatter() -> None:
     # Create a formatter with check command that succeeds
     formatter = FormatterConfig(
         name="test-formatter",
-        format_cmd=["true"],
-        check_cmd=["true"],  # Command that always succeeds
+        format_cmds=["true"],
+        check_cmds=["true"],  # Command that always succeeds
     )
 
     # Run with check_only=True

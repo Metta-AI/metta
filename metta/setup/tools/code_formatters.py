@@ -1,7 +1,7 @@
 import subprocess
 from collections import defaultdict
 from pathlib import Path
-from typing import Annotated, DefaultDict, Optional
+from typing import Annotated, DefaultDict, Optional, Tuple
 
 import typer
 from pydantic import BaseModel
@@ -13,58 +13,79 @@ from metta.setup.utils import error, info, success
 
 class FormatterConfig(BaseModel):
     name: str
-    format_cmd: list[str]
-    check_cmd: list[str]
-    extensions: list[str]
+    format_cmds: Tuple[Tuple[str, ...], ...]
+    check_cmds: Tuple[Tuple[str, ...], ...]
+    extensions: Tuple[str, ...] = ()
+
+    def run(self, fix: bool = False, files: set[str] | None = None) -> bool:
+        commands = self.check_cmds if not fix else self.format_cmds
+        if not commands:
+            return False
+        file_args = sorted(files) if files else []
+        for base_cmd in commands:
+            cmd = list(base_cmd)
+            if file_args:
+                cmd.extend(file_args)
+            result = subprocess.run(cmd, cwd=get_repo_root(), check=False)
+            if result.returncode != 0:
+                return False
+        return True
 
 
 def get_formatters() -> dict[str, FormatterConfig]:
-    formatters = {
-        "python": FormatterConfig(
-            name="Python (ruff)",
-            format_cmd=["uv", "run", "ruff", "format"],
-            check_cmd=["uv", "run", "--active", "ruff", "format", "--check"],
-            extensions=[".py"],
-        ),
-        "json": FormatterConfig(
-            name="JSON",
-            format_cmd=["bash", "devops/tools/format_json.sh"],
-            check_cmd=["bash", "devops/tools/format_json.sh", "--check"],
-            extensions=[".json"],
-        ),
-        "markdown": FormatterConfig(
-            name="Markdown",
-            format_cmd=["bash", "devops/tools/format_md.sh"],
-            check_cmd=["bash", "devops/tools/format_md.sh", "--check"],
-            extensions=[".md"],
-        ),
-        "shell": FormatterConfig(
-            name="Shell",
-            format_cmd=["bash", "devops/tools/format_sh.sh"],
-            check_cmd=["bash", "devops/tools/format_sh.sh", "--check"],
-            extensions=[".sh", ".bash"],
-        ),
-        "toml": FormatterConfig(
-            name="TOML",
-            format_cmd=["bash", "devops/tools/format_toml.sh"],
-            check_cmd=["bash", "devops/tools/format_toml.sh", "--check"],
-            extensions=[".toml"],
-        ),
-        "yaml": FormatterConfig(
-            name="YAML",
-            format_cmd=["bash", "devops/tools/format_yml.sh"],
-            check_cmd=["bash", "devops/tools/format_yml.sh", "--check"],
-            extensions=[".yaml", ".yml"],
-        ),
-        "cpp": FormatterConfig(
-            name="C++",
-            format_cmd=["make", "-C", "packages/mettagrid", "format-fix"],
-            check_cmd=["make", "-C", "packages/mettagrid", "format-check"],
-            extensions=[".cpp", ".hpp", ".h"],
-        ),
+    return {
+        f.name: f
+        for f in [
+            FormatterConfig(
+                name="Python (ruff)",
+                format_cmds=(
+                    ("uv", "run", "ruff", "check", "--select", "I", "--fix"),
+                    ("uv", "run", "ruff", "format"),
+                ),
+                check_cmds=(
+                    ("uv", "run", "--active", "ruff", "check", "--select", "I"),
+                    ("uv", "run", "--active", "ruff", "format", "--check"),
+                ),
+                extensions=(".py",),
+            ),
+            FormatterConfig(
+                name="JSON",
+                format_cmds=(("bash", "devops/tools/format_json.sh"),),
+                check_cmds=(("bash", "devops/tools/format_json.sh", "--check"),),
+                extensions=(".json",),
+            ),
+            FormatterConfig(
+                name="Markdown",
+                format_cmds=(("bash", "devops/tools/format_md.sh"),),
+                check_cmds=(("bash", "devops/tools/format_md.sh", "--check"),),
+                extensions=(".md",),
+            ),
+            FormatterConfig(
+                name="Shell",
+                format_cmds=(("bash", "devops/tools/format_sh.sh"),),
+                check_cmds=(("bash", "devops/tools/format_sh.sh", "--check"),),
+                extensions=(".sh", ".bash"),
+            ),
+            FormatterConfig(
+                name="TOML",
+                format_cmds=(("bash", "devops/tools/format_toml.sh"),),
+                check_cmds=(("bash", "devops/tools/format_toml.sh", "--check"),),
+                extensions=(".toml",),
+            ),
+            FormatterConfig(
+                name="YAML",
+                format_cmds=(("bash", "devops/tools/format_yml.sh"),),
+                check_cmds=(("bash", "devops/tools/format_yml.sh", "--check"),),
+                extensions=(".yaml", ".yml"),
+            ),
+            FormatterConfig(
+                name="C++",
+                format_cmds=(("make", "-C", "packages/mettagrid", "format-fix"),),
+                check_cmds=(("make", "-C", "packages/mettagrid", "format-check"),),
+                extensions=(".cpp", ".hpp", ".h"),
+            ),
+        ]
     }
-
-    return formatters
 
 
 app = typer.Typer(
@@ -92,31 +113,29 @@ def cmd_lint(
 
     # Determine which files to process
     target_files: list[str] | None = None
-    files_by_type: DefaultDict[str, set[str]] | None = None
+    files_by_formatter: DefaultDict[str, set[str]] | None = None
     if files is not None:
         target_files = files
     elif staged:
         target_files = [fname for status, fname in git.get_uncommitted_files_by_status() if status[1] == "M"]
 
     if target_files is not None:
-        files_by_type = defaultdict(set)
+        files_by_formatter = defaultdict(set)
         for f in target_files:
             ext = Path(f).suffix.lower()
-            for formatter in formatters.values():
-                if ext in formatter.extensions:
-                    files_by_type[formatter.name].add(f)
+            for formatter_name in formatters:
+                if ext in formatters[formatter_name].extensions:
+                    files_by_formatter[formatter_name].add(f)
+                    break
 
     failed_formatters = []
 
     # Run formatters for each type
-    for file_type in (files_by_type.keys() if files_by_type else formatters.keys()) & formatters.keys():
-        formatter = formatters[file_type]
-        info(f"{'Formatting' if fix else 'Checking'} {formatter.name}...")
-        cmd = formatter.format_cmd.copy() if not fix else formatter.check_cmd.copy()
-        if files_by_type is not None and (applicable_files := files_by_type.get(file_type)):
-            cmd.extend(applicable_files)
-        result = subprocess.run(cmd, cwd=get_repo_root(), check=False)
-        if result.returncode != 0:
+    for formatter_name in files_by_formatter.keys() if files_by_formatter is not None else formatters.keys():
+        formatter = formatters[formatter_name]
+        fs = files_by_formatter.get(formatter_name) if files_by_formatter is not None else None
+        info(f"{'Formatting' if fix else 'Checking'} {formatter.name} on {len(fs) if fs else 'all'} files...")
+        if not formatter.run(fix=fix, files=fs):
             failed_formatters.append(formatter.name)
 
     # Print summary
