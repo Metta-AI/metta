@@ -1,5 +1,5 @@
 """
-UnclippingAgent - Extends BaselineAgent with unclipping capabilities.
+UnclippingAgent - Extends SimpleBaselineAgent with unclipping capabilities.
 
 This agent can detect clipped extractors and craft unclip items to restore them.
 """
@@ -7,12 +7,16 @@ This agent can detect clipped extractors and craft unclip items to restore them.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Dict, Optional
+from typing import TYPE_CHECKING, Optional
 
-from mettagrid.policy.policy import MultiAgentPolicy, StatefulPolicyImpl
+from mettagrid.config.vibes import VIBE_BY_NAME
+from mettagrid.policy.policy import MultiAgentPolicy, StatefulAgentPolicy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.simulator import Action
 
 from .baseline_agent import (
-    CellType,
+    BaselineAgentPolicyImpl,
+    BaselineHyperparameters,
     ExtractorInfo,
     Phase,
     SharedAgentState,
@@ -20,27 +24,31 @@ from .baseline_agent import (
 )
 
 if TYPE_CHECKING:
-    from cogames.policy import AgentPolicy
-    from mettagrid.policy.policy_env_interface import PolicyEnvInterface
     from mettagrid.simulator import Simulation
 
 
 @dataclass
-class UnclippingAgentState(SimpleAgentState):
-    """Extended state for unclipping agent."""
+class UnclippingHyperparameters(BaselineHyperparameters):
+    """Extends baseline hyperparameters with unclipping-specific parameters."""
 
-    # Unclip items inventory
-    decoder: int = 0
-    modulator: int = 0
-    resonator: int = 0
-    scrambler: int = 0
+    # Unclipping strategy
+    unclip_priority_order: tuple[str, ...] = ("oxygen", "silicon", "carbon", "germanium")  # Order to unclip resources
+    craft_unclip_items_early: bool = True  # Craft unclip items proactively vs on-demand
+
+
+@dataclass
+class UnclippingAgentState(SimpleAgentState):
+    """Extended state for unclipping agent.
+
+    Note: decoder, modulator, resonator, scrambler are already defined in SimpleAgentState.
+    """
 
     # Unclip tracking
     blocked_by_clipped_extractor: Optional[tuple[int, int]] = None
     unclip_target_resource: Optional[str] = None  # Which resource is clipped
 
 
-class UnclippingAgent:
+class UnclippingAgentPolicyImpl(BaselineAgentPolicyImpl):
     """
     Agent that can unclip extractors by crafting and using unclip items.
 
@@ -51,14 +59,28 @@ class UnclippingAgent:
     - scrambler (from germanium) unclips silicon extractors
     """
 
-    def __init__(self, simulation: "Simulation"):
-        # TODO: UnclippingAgent needs to be properly implemented
-        # Currently it references many methods/attributes that don't exist
-        # This is a placeholder until proper refactoring
+    def __init__(
+        self,
+        policy_env_info: PolicyEnvInterface,
+        shared_state: SharedAgentState,
+        agent_id: int,
+        hyperparams: UnclippingHyperparameters,
+    ):
+        super().__init__(policy_env_info, shared_state, agent_id, hyperparams)
         self._unclip_recipes = self._load_unclip_recipes()
-        self._agent_states: Dict[int, UnclippingAgentState] = {}
-        self._map_h = simulation.map_height
-        self._map_w = simulation.map_width
+
+    def initial_agent_state(self, simulation: Optional["Simulation"]) -> UnclippingAgentState:
+        """Create initial state for unclipping agent."""
+        assert simulation is not None
+        return UnclippingAgentState(
+            agent_id=self._agent_id,
+            simulation=simulation,
+            shared_state=self._shared_state,
+            map_height=simulation.map_height,
+            map_width=simulation.map_width,
+            occupancy=[[1] * simulation.map_width for _ in range(simulation.map_height)],
+            agent_occupancy=set(),
+        )
 
     def _load_unclip_recipes(self) -> dict[str, str]:
         """
@@ -209,7 +231,7 @@ class UnclippingAgent:
             if deficit <= 0:
                 continue
 
-            extractors = self._extractors.get(resource_type, [])
+            extractors = s.shared_state.extractors.get(resource_type, [])
             if not extractors:
                 continue
 
@@ -250,7 +272,7 @@ class UnclippingAgent:
 
         return None
 
-    def _execute_phase(self, s: UnclippingAgentState) -> int:
+    def _execute_phase(self, s: UnclippingAgentState) -> Action:
         """Override to handle CRAFT_UNCLIP and UNCLIP phases."""
         if s.phase == Phase.GATHER:
             return self._do_gather(s)
@@ -264,44 +286,44 @@ class UnclippingAgent:
             return self._do_craft_unclip(s)
         elif s.phase == Phase.UNCLIP:
             return self._do_unclip(s)
-        return self._NOOP
+        return self._actions.noop.Noop()
 
-    def _do_craft_unclip(self, s: UnclippingAgentState) -> int:
+    def _do_craft_unclip(self, s: UnclippingAgentState) -> Action:
         """Craft unclip item at assembler."""
         if s.unclip_target_resource is None:
             s.phase = Phase.GATHER
-            return self._NOOP
+            return self._actions.noop.Noop()
 
         # Get craft resource needed
         craft_resource = self._unclip_recipes.get(s.unclip_target_resource)
         if craft_resource is None:
             s.phase = Phase.GATHER
-            return self._NOOP
+            return self._actions.noop.Noop()
 
         # Check if we have enough craft resource (need 1)
         current_amount = getattr(s, craft_resource, 0)
         if current_amount < 1:
             # Need to gather craft resource first
             s.phase = Phase.GATHER
-            return self._NOOP
+            return self._actions.noop.Noop()
 
         # Explore until we find assembler
         explore_action = self._explore_until(
-            s, condition=lambda: self._stations["assembler"] is not None, reason="Need assembler for crafting"
+            s, condition=lambda: s.shared_state.stations["assembler"] is not None, reason="Need assembler for crafting"
         )
         if explore_action is not None:
             return explore_action
 
         # Change glyph to "gear" for crafting unclip items
         if s.current_glyph != "gear":
-            vibe_action = self._change_vibe_actions["gear"]
+            vibe_action = self._actions.change_vibe.ChangeVibe(VIBE_BY_NAME["gear"])
             s.current_glyph = "gear"
             return vibe_action
 
         # Move to assembler and use it
-        assembler = self._stations["assembler"]
+        assembler = s.shared_state.stations["assembler"]
         if assembler is None:
-            return self._NOOP
+            return self._actions.noop.Noop()
 
         ar, ac = assembler
         dr = abs(s.row - ar)
@@ -313,12 +335,12 @@ class UnclippingAgent:
 
         return self._move_towards(s, assembler, reach_adjacent=True)
 
-    def _do_unclip(self, s: UnclippingAgentState) -> int:
+    def _do_unclip(self, s: UnclippingAgentState) -> Action:
         """Use unclip item on clipped extractor."""
         if s.blocked_by_clipped_extractor is None:
             s.phase = Phase.GATHER
             s.unclip_target_resource = None
-            return self._NOOP
+            return self._actions.noop.Noop()
 
         # Navigate to clipped extractor
         target = s.blocked_by_clipped_extractor
@@ -339,97 +361,27 @@ class UnclippingAgent:
 
 
 # ============================================================================
-# Policy Wrapper Classes
+# Policy Wrapper Class
 # ============================================================================
 
 
-class UnclippingPolicyImpl(StatefulPolicyImpl[UnclippingAgentState]):
-    """Implementation that wraps UnclippingAgent."""
-
-    def __init__(self, simulation: "Simulation", agent_id: int):
-        self._shared_state = SharedAgentState()
-        self._agent = UnclippingAgent(simulation)
-        self._sim = simulation
-        self._agent_id = agent_id
-
-    def reset(self, simulation: Optional["Simulation"]) -> None:
-        """Reset the policy."""
-        pass
-
-    def initial_agent_state(self, simulation: Optional["Simulation"]) -> UnclippingAgentState:
-        """Get initial state for an agent."""
-        assert simulation is not None
-        agent_id = self._agent_id
-        # Make sure agent states are initialized
-        if agent_id not in self._agent._agent_states:
-            state = UnclippingAgentState(
-                agent_id=agent_id,
-                simulation=simulation,
-                shared_state=self._shared_state,
-                map_height=self._agent._map_h,
-                map_width=self._agent._map_w,
-                occupancy=[[CellType.FREE.value] * self._agent._map_w for _ in range(self._agent._map_h)],
-            )
-            # Initialize mutable defaults
-            state.unreachable_extractors = {}
-            state.agent_occupancy = set()
-            self._agent._agent_states[agent_id] = state
-        return self._agent._agent_states[agent_id]
-
-    def step_with_state(self, obs, state: UnclippingAgentState):
-        """Compute action and return updated state."""
-        from mettagrid.simulator.interface import Action
-
-        # The state passed in tells us which agent this is
-        agent_id = state.agent_id
-        # Update the shared agent state
-        self._agent._agent_states[agent_id] = state
-        # Compute action (returns integer index)
-        action_idx = self._agent.step(agent_id, obs)
-        # Convert to Action object
-        action = Action(name=self._agent._action_names[action_idx])
-        # Return action and updated state
-        return action, self._agent._agent_states[agent_id]
-
-
 class UnclippingPolicy(MultiAgentPolicy):
-    """Policy class for unclipping agent.
+    """Multi-agent policy wrapper for UnclippingAgent.
 
-    This policy requires a Simulation object for accessing grid_objects()
-    to get absolute agent positions. Pass it via reset(simulation=sim).
+    This class wraps UnclippingAgent to work with the policy interface.
+    It handles multiple agents, each with their own UnclippingAgent instance.
     """
 
-    def __init__(self, policy_env_info: "PolicyEnvInterface"):
-        """Initialize policy."""
+    def __init__(self, policy_env_info: PolicyEnvInterface, hyperparams: Optional[UnclippingHyperparameters] = None):
         super().__init__(policy_env_info)
-        self._sim = None
-        self._impls: Dict[int, UnclippingPolicyImpl] = {}
-        self._agent_policies: Dict[int, "AgentPolicy"] = {}
+        self._shared_state = SharedAgentState()
+        self._agent_policies: dict[int, StatefulAgentPolicy[UnclippingAgentState]] = {}
+        self._hyperparams = hyperparams or UnclippingHyperparameters()
 
-    def reset(self, simulation: Optional["Simulation"] = None) -> None:
-        """Reset all agent states.
-
-        Args:
-            simulation: The Simulation object (needed for grid_objects access)
-        """
-        if simulation is None:
-            raise RuntimeError("UnclippingPolicy requires simulation parameter in reset()")
-
-        self._sim = simulation
-        self._impls.clear()
-        self._agent_policies.clear()
-
-    def agent_policy(self, agent_id: int):
-        """Get an AgentPolicy instance for a specific agent."""
-        if self._sim is None:
-            raise RuntimeError("Policy not initialized - call reset(simulation=sim) first")
-
-        # Create agent policies lazily
+    def agent_policy(self, agent_id: int) -> StatefulAgentPolicy[UnclippingAgentState]:
         if agent_id not in self._agent_policies:
-            from cogames.policy import StatefulAgentPolicy
-
-            # Create per-agent impl instance
-            if agent_id not in self._impls:
-                self._impls[agent_id] = UnclippingPolicyImpl(self._sim, agent_id)
-            self._agent_policies[agent_id] = StatefulAgentPolicy(self._impls[agent_id])
+            self._agent_policies[agent_id] = StatefulAgentPolicy(
+                UnclippingAgentPolicyImpl(self._policy_env_info, self._shared_state, agent_id, self._hyperparams),
+                self._policy_env_info,
+            )
         return self._agent_policies[agent_id]

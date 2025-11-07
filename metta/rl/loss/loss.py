@@ -1,15 +1,34 @@
 import copy
 from collections import OrderedDict, defaultdict
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import TYPE_CHECKING, Any, Mapping
 
 import torch
+from pydantic import Field
 from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite
 
 from metta.agent.policy import Policy
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
+from mettagrid.base_config import Config
+
+if TYPE_CHECKING:
+    from metta.rl.trainer_config import TrainerConfig
+
+
+class LossConfig(Config):
+    enabled: bool = Field(default=True)
+
+    def create(
+        self,
+        policy: Policy,
+        trainer_cfg: "TrainerConfig",
+        env: TrainingEnvironment,
+        device: torch.device,
+        instance_name: str,
+    ) -> "Loss":
+        raise NotImplementedError("Subclasses must implement create method")
 
 
 @dataclass(slots=True)
@@ -17,11 +36,11 @@ class Loss:
     """Base class coordinating rollout and training behaviour for concrete losses."""
 
     policy: Policy
-    trainer_cfg: Any
+    trainer_cfg: "TrainerConfig"
     env: TrainingEnvironment
     device: torch.device
     instance_name: str
-    loss_cfg: Any
+    cfg: LossConfig
 
     policy_experience_spec: Composite | None = None
     replay: Experience | None = None

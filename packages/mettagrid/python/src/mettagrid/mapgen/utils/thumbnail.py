@@ -58,14 +58,14 @@ def get_position_component_v2(object, step, component):
     # Check if it's animated (list of [frame, value] pairs) or simple location array
     if isinstance(location, list) and len(location) > 0 and isinstance(location[0], list):
         # Animated location - find value at step
-        result = [0, 0, 0]  # [c, r, layer]
+        result = [0, 0]  # [c, r]
         for [frame, value] in location:
             if frame > step:
                 break
             result = value
         return result[0] if component == "c" else result[1]
     else:
-        # Simple location array [c, r, layer]
+        # Simple location array [c, r]
         return location[0] if component == "c" else location[1]
 
 
