@@ -20,6 +20,8 @@ import mettagrid.policy.policy_env_interface
 
 logger = logging.getLogger(__name__)
 
+local_copy = metta.utils.file.local_copy
+
 
 class PolicyMetadata(typing.TypedDict):
     """Type definition for policy metadata returned by get_policy_metadata."""
@@ -220,7 +222,7 @@ class CheckpointManager:
             return _load_checkpoint_file(str(path))
 
         if parsed.scheme == "s3":
-            with metta.utils.file.local_copy(parsed.canonical) as local_path:
+            with local_copy(parsed.canonical) as local_path:
                 return _load_checkpoint_file(str(local_path), is_pt_file=pathlib.Path(parsed.canonical).suffix == ".pt")
 
         if parsed.scheme == "mock":

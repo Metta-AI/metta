@@ -1,5 +1,8 @@
 """Registry for memory cells."""
 
+from __future__ import annotations
+
+import importlib
 import typing
 
 import cortex.cells.base
@@ -10,6 +13,24 @@ _CELL_REGISTRY: dict[typing.Type[cortex.config.CellConfig], typing.Type[cortex.c
 
 # Tag -> config class mapping to support easy extensibility and JSON round‑trip
 _CELL_CONFIG_BY_TAG: dict[str, typing.Type[cortex.config.CellConfig]] = {}
+_CELL_REGISTRY_INITIALIZED = False
+_CELL_MODULES = [
+    "cortex.cells.lstm",
+    "cortex.cells.mlstm",
+    "cortex.cells.slstm",
+    "cortex.cells.conv",
+    "cortex.cells.xl",
+    "cortex.cells.core.axon_cell",
+]
+
+
+def _ensure_cell_registry_populated() -> None:
+    global _CELL_REGISTRY_INITIALIZED
+    if _CELL_REGISTRY_INITIALIZED:
+        return
+    for module_name in _CELL_MODULES:
+        importlib.import_module(module_name)
+    _CELL_REGISTRY_INITIALIZED = True
 
 
 def _get_cell_tag(config_class: type[cortex.config.CellConfig]) -> str:
@@ -47,6 +68,7 @@ def register_cell(config_class: typing.Type[cortex.config.CellConfig]) -> typing
 
 def get_cell_class(config: cortex.config.CellConfig) -> typing.Type[cortex.cells.base.MemoryCell]:
     """Lookup cell class from configuration instance."""
+    _ensure_cell_registry_populated()
     config_type = type(config)
     if config_type not in _CELL_REGISTRY:
         raise ValueError(f"No cell registered for config type {config_type.__name__}")
@@ -55,6 +77,7 @@ def get_cell_class(config: cortex.config.CellConfig) -> typing.Type[cortex.cells
 
 def get_cell_config_class(tag: str) -> type[cortex.config.CellConfig]:
     """Return the CellConfig subclass registered for a given tag."""
+    _ensure_cell_registry_populated()
     if tag not in _CELL_CONFIG_BY_TAG:
         raise KeyError(f"Unknown cell_type tag '{tag}' — is the cell registered?")
     return _CELL_CONFIG_BY_TAG[tag]

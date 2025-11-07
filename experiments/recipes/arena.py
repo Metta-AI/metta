@@ -2,6 +2,7 @@
 import typing
 
 import metta.cogworks.curriculum as cc
+import mettagrid as mettagrid_pkg
 import mettagrid.builder.envs as eb
 import metta.cogworks.curriculum.curriculum
 import metta.cogworks.curriculum.learning_progress_algorithm
@@ -11,19 +12,19 @@ import metta.tools.eval
 import metta.tools.play
 import metta.tools.replay
 import metta.tools.train
-import mettagrid
+import mettagrid.builder.envs as eb
 
 # TODO(dehydration): make sure this trains as well as main on arena
 # it's possible the maps are now different
 
 
-def mettagrid(num_agents: int = 24) -> mettagrid.MettaGridConfig:
+def mettagrid(num_agents: int = 24) -> mettagrid_pkg.MettaGridConfig:
     arena_env = eb.make_arena(num_agents=num_agents)
     return arena_env
 
 
 def make_curriculum(
-    arena_env: typing.Optional[mettagrid.MettaGridConfig] = None,
+    arena_env: typing.Optional[mettagrid_pkg.MettaGridConfig] = None,
     enable_detailed_slice_logging: bool = False,
     algorithm_config: typing.Optional[
         metta.cogworks.curriculum.curriculum.CurriculumAlgorithmConfig
@@ -64,7 +65,7 @@ def make_curriculum(
 
 
 def simulations(
-    env: typing.Optional[mettagrid.MettaGridConfig] = None,
+    env: typing.Optional[mettagrid_pkg.MettaGridConfig] = None,
 ) -> list[metta.sim.simulation_config.SimulationConfig]:
     basic_env = env or mettagrid()
     basic_env.game.actions.attack.consumed_resources["laser"] = 100

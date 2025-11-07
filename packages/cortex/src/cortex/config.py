@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import typing
 
-import cortex.blocks.registry
 import pydantic
 
 
@@ -240,6 +239,8 @@ class CortexStackConfig(pydantic.BaseModel):
             if isinstance(item, typing.Mapping):
                 tag = item.get("block_type")
                 if isinstance(tag, str) and tag:
+                    import cortex.blocks.registry
+
                     cfg_cls = cortex.blocks.registry.get_block_config_class(tag)
                     out.append(cfg_cls.model_validate(item))
                     continue
@@ -321,6 +322,8 @@ class ColumnBlockConfig(BlockConfig):
             if isinstance(item, typing.Mapping):
                 tag = item.get("block_type")
                 if isinstance(tag, str) and tag:
+                    import cortex.blocks.registry
+
                     cfg_cls = cortex.blocks.registry.get_block_config_class(tag)
                     out.append(cfg_cls.model_validate(item))
                     continue

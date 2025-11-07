@@ -128,6 +128,7 @@ supported_aws_env_overrides = SupportedAwsEnvOverrides()
 
 # Expose AWS setup factory at module scope so tests and consumers can override it.
 AWSSetup = metta.setup.components.aws.AWSSetup
+METTA_AWS_ACCOUNT_ID = metta.common.util.constants.METTA_AWS_ACCOUNT_ID
 
 
 def auto_replay_dir() -> str:

@@ -1,5 +1,8 @@
 """Registry system for block types."""
 
+from __future__ import annotations
+
+import importlib
 import typing
 
 import cortex.blocks.base
@@ -16,6 +19,24 @@ _BLOCK_REGISTRY: typing.Dict[typing.Type[cortex.config.BlockConfig], typing.Type
 
 # Tag -> config class mapping for robust JSON round‑trip
 _BLOCK_CONFIG_BY_TAG: typing.Dict[str, type[cortex.config.BlockConfig]] = {}
+
+_REGISTRY_INITIALIZED = False
+_BLOCK_MODULES = [
+    "cortex.blocks.adapter",
+    "cortex.blocks.passthrough",
+    "cortex.blocks.preup",
+    "cortex.blocks.postup",
+    "cortex.blocks.column.column",
+]
+
+
+def _ensure_registry_populated() -> None:
+    global _REGISTRY_INITIALIZED
+    if _REGISTRY_INITIALIZED:
+        return
+    for module_name in _BLOCK_MODULES:
+        importlib.import_module(module_name)
+    _REGISTRY_INITIALIZED = True
 
 
 def _get_block_tag(config_class: type[cortex.config.BlockConfig]) -> str:
@@ -49,6 +70,7 @@ def register_block(config_class: typing.Type[cortex.config.BlockConfig]) -> typi
 
 def get_block_class(config: cortex.config.BlockConfig) -> typing.Type[cortex.blocks.base.BaseBlock]:
     """Lookup block class from configuration instance."""
+    _ensure_registry_populated()
     config_type = type(config)
 
     # First check if config has _block_class attribute
@@ -63,6 +85,7 @@ def get_block_class(config: cortex.config.BlockConfig) -> typing.Type[cortex.blo
 
 
 def get_block_config_class(tag: str) -> type[cortex.config.BlockConfig]:
+    _ensure_registry_populated()
     if tag not in _BLOCK_CONFIG_BY_TAG:
         raise KeyError(f"Unknown block_type tag '{tag}' — is the block registered?")
     return _BLOCK_CONFIG_BY_TAG[tag]

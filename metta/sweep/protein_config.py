@@ -12,6 +12,8 @@ import pydantic
 import metta.sweep.core
 import mettagrid.base_config
 
+ParameterConfig = metta.sweep.core.ParameterConfig
+
 
 class ProteinSettings(mettagrid.base_config.Config):
     """Settings for the Protein optimizer algorithm."""
