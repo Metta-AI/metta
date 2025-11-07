@@ -194,7 +194,7 @@ class GlobalObsConfig(Config):
     visitation_counts: bool = Field(default=False)
 
     # Compass token that points toward the assembler/hub center
-    compass: bool = Field(default=True)
+    compass: bool = Field(default=False)
 
 
 class GridObjectConfig(Config):

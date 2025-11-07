@@ -44,6 +44,8 @@ def basic_sim() -> Simulation:
         )
     )
 
+    cfg.game.global_obs.compass = True
+
     return Simulation(cfg)
 
 
