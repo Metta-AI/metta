@@ -9,6 +9,15 @@
     },
   ],
   "settings": {
+    "emeraldwalk.runonsave": {
+      "commands": [
+        {
+          "match": ".*",
+          "isAsync": true,
+          "cmd": "uv run metta lint --fix ${file}",
+        },
+      ],
+    },
     "terminal.integrated.profiles.osx": {
       "metta-0": {
         "path": "bash",

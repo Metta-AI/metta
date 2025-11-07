@@ -1,6 +1,5 @@
 {
   // Global Editor Settings
-  "editor.formatOnSave": true,
   "files.trimTrailingWhitespace": true,
   "files.insertFinalNewline": true,
 
@@ -88,14 +87,5 @@
     "build": true,
     "dist": true,
     "personal": true,
-  },
-  "emeraldwalk.runonsave": {
-    "commands": [
-      {
-        "match": "\\.(py|json|jsonc|md|markdown|sh|bash|toml|ya?ml)$",
-        "isAsync": true,
-        "cmd": "uv run metta lint --files ${file} --fix",
-      },
-    ],
   },
 }
