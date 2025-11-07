@@ -11,6 +11,7 @@ config:
       - --cap-add=IPC_LOCK
       - --ulimit memlock=-1:-1
       - --ipc=host
+      - --network=host
       - --userns=host
 
 file_mounts:

@@ -220,6 +220,25 @@ def _choose_master_port(cluster: str) -> int:
         return 29501
 
 
+def _get_head_ip(cluster: str) -> str:
+    """Return the head node's primary IP address using sky exec head-only."""
+    cmd = [
+        "sky",
+        "exec",
+        cluster,
+        "--num-nodes",
+        "1",
+        "--",
+        "hostname -I | awk '{print $1}'",
+    ]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        line = res.stdout.strip().splitlines()[-1].strip()
+        return line or "127.0.0.1"
+    except Exception:
+        return "127.0.0.1"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
@@ -335,9 +354,10 @@ def main() -> int:
         do_sync=not args.no_sync,
         num_nodes=args.nodes,
     )
-    # Prepend explicit MASTER_PORT export so it overrides defaults inside the script
+    # Prepend explicit MASTER_ADDR/MASTER_PORT so all nodes share the same rendezvous
     chosen_port = args.master_port if args.master_port is not None else _choose_master_port(cluster_name)
-    remote_script = f"MASTER_PORT={chosen_port}\n" + remote_script
+    head_ip = _get_head_ip(cluster_name)
+    remote_script = f"MASTER_ADDR={head_ip}\nMASTER_PORT={chosen_port}\n" + remote_script
 
     # Determine node count: prefer explicit flag; else auto-detect from cluster metadata when in-cluster.
     effective_nodes = args.nodes
