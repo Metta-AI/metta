@@ -8,13 +8,12 @@ from torch import Tensor
 from torch.nn import functional as F
 
 from metta.agent.policy import Policy
-from metta.rl.loss import Loss
+from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext
 from metta.rl.utils import ensure_sequence_metadata
-from mettagrid.config import Config
 
 
-class EMAConfig(Config):
+class EMAConfig(LossConfig):
     decay: float = Field(default=0.995, ge=0, le=1.0)
     loss_coef: float = Field(default=1.0, ge=0, le=1.0)
 
@@ -26,7 +25,7 @@ class EMAConfig(Config):
         device: torch.device,
         instance_name: str,
         loss_config: Any,
-    ):
+    ) -> "EMA":
         """Create EMA loss instance."""
         return EMA(
             policy,
@@ -59,8 +58,8 @@ class EMA(Loss):
         self.target_model = copy.deepcopy(self.policy)
         for param in self.target_model.parameters():
             param.requires_grad = False
-        self.ema_decay = self.loss_cfg.decay
-        self.ema_coef = self.loss_cfg.loss_coef
+        self.ema_decay = self.cfg.decay
+        self.ema_coef = self.cfg.loss_coef
 
     def update_target_model(self):
         """Update target model with exponential moving average"""

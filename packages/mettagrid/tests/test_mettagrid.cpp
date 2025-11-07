@@ -441,7 +441,7 @@ TEST_F(MettaGridCppTest, GridObjectManagement) {
   EXPECT_EQ(retrieved_agent, agent);
 
   // Verify it's at the expected location
-  auto agent_at_location = grid.object_at(GridLocation(2, 3, GridLayer::AgentLayer));
+  auto agent_at_location = grid.object_at(GridLocation(2, 3));
   EXPECT_EQ(agent_at_location, agent);
 }
 

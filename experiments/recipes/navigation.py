@@ -12,8 +12,6 @@ from metta.cogworks.curriculum.task_generator import (
     TaskGeneratorConfig,
 )
 from metta.map.terrain_from_numpy import NavigationFromNumpy
-from metta.rl.loss import LossConfig
-from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
@@ -165,20 +163,12 @@ def train(
         enable_detailed_slice_logging=enable_detailed_slice_logging
     )
 
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
-    )
-
     evaluator_cfg = EvaluatorConfig(
         simulations=make_navigation_eval_suite(),
     )
 
     return TrainTool(
-        trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(
-            curriculum=resolved_curriculum,
-            async_factor=1,
-        ),
+        training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
         evaluator=evaluator_cfg,
     )
 

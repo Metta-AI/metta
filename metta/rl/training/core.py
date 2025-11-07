@@ -6,9 +6,9 @@ from pydantic import ConfigDict
 from tensordict import TensorDict
 
 from metta.agent.policy import Policy
-from metta.rl.loss import Loss
+from metta.rl.loss.loss import Loss
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -268,8 +268,8 @@ class CoreTrainingLoop:
                     # Get max_grad_norm from first loss that has it
                     actual_max_grad_norm = max_grad_norm
                     for loss_obj in self.losses.values():
-                        if hasattr(loss_obj.loss_cfg, "max_grad_norm"):
-                            actual_max_grad_norm = loss_obj.loss_cfg.max_grad_norm
+                        if hasattr(loss_obj.cfg, "max_grad_norm"):
+                            actual_max_grad_norm = loss_obj.cfg.max_grad_norm
                             break
 
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), actual_max_grad_norm)

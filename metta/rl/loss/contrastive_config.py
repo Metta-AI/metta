@@ -6,11 +6,11 @@ from pydantic import Field
 
 from metta.agent.policy import Policy
 from metta.rl.loss.contrastive import ContrastiveLoss
+from metta.rl.loss.loss import LossConfig
 from metta.rl.training import TrainingEnvironment
-from mettagrid.config import Config
 
 
-class ContrastiveConfig(Config):
+class ContrastiveConfig(LossConfig):
     """Configuration for contrastive loss."""
 
     temperature: float = Field(default=0.1902943104505539, gt=0, description="Temperature for contrastive learning")
@@ -33,7 +33,7 @@ class ContrastiveConfig(Config):
         device: torch.device,
         instance_name: str,
         loss_config: Any,
-    ):
+    ) -> "ContrastiveLoss":
         """Create the contrastive loss instance."""
         return ContrastiveLoss(
             policy,
