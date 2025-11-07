@@ -44,7 +44,6 @@ class FastPolicy(Policy):
     def __init__(self, policy_env_info: "PolicyEnvInterface", config: Optional[FastConfig] = None):
         super().__init__(policy_env_info)
         self.config = config or FastConfig()
-        self.policy_env_info = policy_env_info
         self.is_continuous = False
         self.action_space = policy_env_info.action_space
 
