@@ -16,10 +16,25 @@
     ],
     "deny": []
   },
-  "setup_commands": ["export PATH=/opt/homebrew/bin:$PATH", "SHELL=/bin/bash", "source .venv/bin/activate"],
+  "setup_commands": [
+    "export PATH=/opt/homebrew/bin:$PATH",
+    "SHELL=/bin/bash",
+    "source .venv/bin/activate",
+    "export METTA_MCP_BACKEND_URL=${METTA_MCP_BACKEND_URL:-https://api.observatory.softmax-research.net}",
+    "export PYTHONPATH=${PYTHONPATH:+$PYTHONPATH:}$(pwd)/mcp_servers/observatory",
+    "export LOG_LEVEL=${LOG_LEVEL:-INFO}"
+  ],
   "mcpServers": {
     "metta-pr-similarity": {
       "command": "metta-pr-similarity-mcp"
+    },
+    "observatory": {
+      "command": "observatory-mcp",
+      "env": {
+        "METTA_MCP_BACKEND_URL": "https://api.observatory.softmax-research.net",
+        "PYTHONPATH": "$(pwd)/mcp_servers/observatory",
+        "LOG_LEVEL": "INFO"
+      }
     }
   }
 }

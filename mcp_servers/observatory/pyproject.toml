@@ -1,0 +1,18 @@
+[project]
+name = "observatory-mcp"
+version = "0.1.0"
+description = "Model Context Protocol server for accessing Metta Observatory backend functionality."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["mcp>=1.0.0"]
+
+[project.scripts]
+observatory-mcp = "observatory_mcp.server:cli_main"
+
+[tool.setuptools.packages.find]
+include = ["observatory_mcp"]
+
+[build-system]
+requires = ["setuptools==80.9.0", "wheel==0.45.1"]
+build-backend = "setuptools.build_meta"
+
