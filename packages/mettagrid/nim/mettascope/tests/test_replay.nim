@@ -186,12 +186,12 @@ proc validateInventoryFormat(inventory: JsonNode, fieldName: string) =
     validateInventoryList(inventoryList, fieldName)
 
 proc validateLocation(location: JsonNode, objName: string) =
-  ## Validate location field format: single [x, y, z] or time series of [step, [x, y, z]] pairs.
+  ## Validate location field format: single [x, y] or time series of [step, [x, y]] pairs.
   let fieldName = &"{objName}.location"
 
   # Check if it's a single location (never changed during replay)
-  # also make sure it's not a time series array with only 3 elements
-  if location.kind == JArray and location.len == 3:
+  # also make sure it's not a time series array with only 2 elements
+  if location.kind == JArray and location.len == 2:
     var allNumbers = true
     for coord in location.getElems():
       if coord.kind notin {JInt, JFloat}:
@@ -205,10 +205,10 @@ proc validateLocation(location: JsonNode, objName: string) =
   if location.len == 0:
     raise newException(ValueError, &"{fieldName} must have at least one entry")
 
-  # Validate time series of [step, [x, y, z]] pairs
+  # Validate time series of [step, [x, y]] pairs
   for stepData in location.getElems():
     if stepData.kind != JArray or stepData.len != 2:
-      raise newException(AssertionError, &"{fieldName} items must be [step, [x, y, z]] pairs")
+      raise newException(AssertionError, &"{fieldName} items must be [step, [x, y]] pairs")
 
     let step = stepData[0]
     let coords = stepData[1]
@@ -216,8 +216,8 @@ proc validateLocation(location: JsonNode, objName: string) =
     if step.kind != JInt or step.getInt() < 0:
       raise newException(ValueError, &"{fieldName} step must be non-negative")
 
-    if coords.kind != JArray or coords.len != 3:
-      raise newException(ValueError, &"{fieldName} coordinates must be [x, y, z]")
+    if coords.kind != JArray or coords.len != 2:
+      raise newException(ValueError, &"{fieldName} coordinates must be [x, y]")
 
     for i, coord in coords.getElems():
       if coord.kind notin {JInt, JFloat}:
@@ -475,7 +475,7 @@ proc makeValidReplay(fileName: string = "sample.json.z"): JsonNode =
         "group_id": 0,
         "is_swappable": false,
         # Time series fields (some single values, some arrays for testing)
-        "location": [[0, [5, 5, 0]], [1, [6, 5, 0]], [2, [7, 5, 0]]],
+        "location": [[0, [5, 5]], [1, [6, 5]], [2, [7, 5]]],
         "action_id": 0,
         "action_param": 0,
         "action_success": true,
@@ -498,7 +498,7 @@ proc makeValidReplay(fileName: string = "sample.json.z"): JsonNode =
         "group_id": 0,
         "is_swappable": false,
         # Time series fields (mix of single values and arrays for testing)
-        "location": [[0, [3, 3, 0]], [5, [4, 3, 0]]],
+        "location": [[0, [3, 3]], [5, [4, 3]]],
         "action_id": [[0, 1], [10, 0]],
         "action_param": 0,
         "action_success": [[0, false], [10, true]],
@@ -651,26 +651,26 @@ block inventory_validation:
 
 block location_validation:
   block single_location:
-    let location = %*[5.0, 10.0, 0.0]
+    let location = %*[5.0, 10.0]
     validateLocation(location, "test_object")
     echo "✓ Single location accepted"
 
   block time_series_location:
-    let location = %*[[0, [5, 5, 0]], [1, [6, 5, 0]]]
+    let location = %*[[0, [5, 5]], [1, [6, 5]]]
     validateLocation(location, "test_object")
     echo "✓ Time series location accepted"
 
   block invalid_location_format:
-    let location = %*[[0], [1, [6, 5, 0]]]  # Missing coordinates in first entry
+    let location = %*[[0], [1, [6, 5]]]  # Missing coordinates in first entry
     try:
       validateLocation(location, "test_object")
       doAssert false, "Should have failed validation"
     except AssertionError as e:
-      doAssert "must be [step, [x, y, z]] pairs" in e.msg, &"Unexpected error: {e.msg}"
+      doAssert "must be [step, [x, y]] pairs" in e.msg, &"Unexpected error: {e.msg}"
     echo "✓ Invalid location format properly rejected"
 
   block location_not_starting_with_zero:
-    let location = %*[[1, [5, 5, 0]], [2, [6, 5, 0]]]
+    let location = %*[[1, [5, 5]], [2, [6, 5]]]
     try:
       validateLocation(location, "test_object")
       doAssert false, "Should have failed validation"
