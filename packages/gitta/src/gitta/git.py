@@ -86,7 +86,7 @@ def has_uncommitted_changes(allow_untracked: bool = False) -> tuple[bool, str]:
     """
     statuses = set(status for status, _ in get_uncommitted_files_by_status())
     if allow_untracked:
-        statuses.discard("?")
+        statuses.discard("??")
     return bool(statuses), "\n".join(f"{status} {fname}" for status, fname in get_uncommitted_files_by_status())
 
 
