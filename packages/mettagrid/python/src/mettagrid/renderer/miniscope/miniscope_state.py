@@ -36,6 +36,7 @@ class MiniscopeState:
     # Playback state
     playback: PlaybackState = PlaybackState.STOPPED
     fps: float = 4.0
+    true_fps: float = 0.0  # Actual measured FPS
     step_count: int = 0
     max_steps: Optional[int] = None
 
@@ -95,11 +96,11 @@ class MiniscopeState:
 
     def increase_speed(self) -> None:
         """Increase playback speed."""
-        self.fps = min(60.0, self.fps * 1.5)
+        self.fps = min(600.0, self.fps * 1.5)
 
     def decrease_speed(self) -> None:
         """Decrease playback speed."""
-        self.fps = max(0.5, self.fps / 1.5)
+        self.fps = max(0.01, self.fps / 1.5)
 
     def get_frame_delay(self) -> float:
         """Get the delay between frames in seconds."""
