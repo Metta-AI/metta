@@ -3,7 +3,7 @@ from typing import List, Optional
 
 import numpy as np
 import torch
-from cortex.stacks import build_cortex_auto_config
+from cortex.config import CortexStackConfig, LSTMCellConfig, PassThroughBlockConfig
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule as TDM
 from torch import nn
@@ -41,11 +41,11 @@ class FastConfig(PolicyArchitecture):
         d_hidden=_hidden_size,
         out_features=_hidden_size,
         key_prefix="fast_cortex_state",
-        stack_cfg=build_cortex_auto_config(
+        stack_cfg=CortexStackConfig(
+            blocks=[PassThroughBlockConfig(cell=LSTMCellConfig())],
             d_hidden=_hidden_size,
-            num_layers=1,
-            pattern="L",
-            post_norm=True,
+            post_norm=False,
+            compile_blocks=True,
         ),
     )
     critic_hidden_dim: int = 1024

@@ -1,6 +1,6 @@
 from typing import List
 
-from cortex.stacks import build_cortex_auto_config
+from cortex.config import CortexStackConfig, LSTMCellConfig, PassThroughBlockConfig
 
 from metta.agent.components.actor import ActionProbsConfig, ActorHeadConfig
 from metta.agent.components.component_config import ComponentConfig
@@ -51,11 +51,11 @@ class ViTGRPOConfig(PolicyArchitecture):
             d_hidden=_latent_dim,
             out_features=_core_dim,
             key_prefix="vit_grpo_cortex_state",
-            stack_cfg=build_cortex_auto_config(
+            stack_cfg=CortexStackConfig(
+                blocks=[PassThroughBlockConfig(cell=LSTMCellConfig())],
                 d_hidden=_latent_dim,
-                num_layers=1,
-                pattern="L",
-                post_norm=True,
+                post_norm=False,
+                compile_blocks=True,
             ),
         ),
         MLPConfig(
