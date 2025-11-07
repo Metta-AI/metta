@@ -70,7 +70,7 @@ def build_task(
     task.name = run_id
     task.validate_name()
 
-    set_task_secrets(task)
+    # Note: set_task_secrets() is called just before launch, not here
     return task
 
 
@@ -123,6 +123,8 @@ def main() -> None:
         print(red("Dry run: exiting"))
         return
 
+    # Set secrets only when actually launching (not for dry-run)
+    set_task_secrets(task)
     launch_task(task)
 
 
