@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cortexcore"
-version = "0.1.0"
+version = "0.1.5"
 description = "Memory module library for Metta policies"
 readme = "README.md"
 requires-python = ">=3.12"
