@@ -12,7 +12,7 @@ from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import AgentObservation, Action
 
-ha.init()
+# ha.initCHook()
 
 class HeuristicAgentPolicy(AgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
