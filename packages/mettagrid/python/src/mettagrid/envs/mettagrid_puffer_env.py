@@ -141,13 +141,14 @@ class MettaGridPufferEnv(PufferEnv):
             self._compute_supervisor_actions()
 
     @override
-    def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, List[Dict[str, Any]]]:
         if seed is not None:
             self._current_seed = seed
 
         self._new_sim()
 
-        return self._buffers.observations, {}
+        infos = self._format_infos(self._sim._context.get("infos"))
+        return self._buffers.observations, infos
 
     @override
     def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, List[Dict[str, Any]]]:
@@ -161,13 +162,22 @@ class MettaGridPufferEnv(PufferEnv):
         if self._env_supervisor_cfg.enabled:
             self._compute_supervisor_actions()
 
+        infos = self._format_infos(self._sim._context.get("infos"))
         return (
             self._buffers.observations,
             self._buffers.rewards,
             self._buffers.terminals,
             self._buffers.truncations,
-            self._sim._context.get("infos", {}),
+            infos,
         )
+
+    def _format_infos(self, infos: Any | None) -> List[Dict[str, Any]]:
+        """Normalize simulator context infos to the list[dict] shape Puffer expects."""
+
+        if isinstance(infos, list):
+            return infos
+        info_dict: Dict[str, Any] = infos if isinstance(infos, dict) else {}
+        return [info_dict]
 
     def _compute_supervisor_actions(self) -> None:
         assert self._env_supervisor_cfg.enabled
