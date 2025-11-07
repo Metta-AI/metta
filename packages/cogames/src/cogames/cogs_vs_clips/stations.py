@@ -186,30 +186,6 @@ class CvCChestConfig(CvCStationConfig):
         )
 
 
-# Resource-specific chest helpers adapted to new ChestConfig API (vibe-based)
-# Each chest deposits its resource by default and allows withdrawal when a
-# matching vibe is shown.
-
-
-def _resource_chest(resource: str) -> ChestConfig:
-    return ChestConfig(
-        name=f"chest_{resource}",
-        map_char="C",
-        render_symbol=vibes.VIBE_BY_NAME[resource].symbol,
-        vibe_transfers={
-            "default": {resource: 255},  # deposit lots of this resource by default
-            resource: {resource: -10},  # withdraw on explicit vibe
-        },
-    )
-
-
-RESOURCE_CHESTS: dict[str, ChestConfig] = {
-    "chest_carbon": _resource_chest("carbon"),
-    "chest_oxygen": _resource_chest("oxygen"),
-    "chest_germanium": _resource_chest("germanium"),
-    "chest_silicon": _resource_chest("silicon"),
-    "chest_heart": _resource_chest("heart"),
-}
 
 
 class CvCAssemblerConfig(CvCStationConfig):
