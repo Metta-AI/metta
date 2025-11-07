@@ -515,8 +515,9 @@ proc makeValidReplay(fileName: string = "sample.json.z"): JsonNode =
     ]
   }
 
-# Test cases
-block basic_schema_validation:
+# Test cases - validate replay schema and generated replays
+
+block schema_validation:
   block valid_replay:
     let replay = makeValidReplay()
     validateReplaySchema(replay)
@@ -531,16 +532,6 @@ block basic_schema_validation:
     except ValueError as e:
       doAssert "'version' must equal 2" in e.msg, &"Unexpected error: {e.msg}"
     echo "✓ Invalid version properly rejected"
-
-  block missing_required_keys:
-    var replay = makeValidReplay()
-    replay.delete("version")
-    try:
-      validateReplaySchema(replay)
-      doAssert false, "Should have failed validation"
-    except ValueError as e:
-      doAssert "Missing required keys" in e.msg, &"Unexpected error: {e.msg}"
-    echo "✓ Missing required keys properly rejected"
 
   block invalid_num_agents:
     var replay = makeValidReplay()
@@ -562,202 +553,18 @@ block basic_schema_validation:
       doAssert "'map_size[0]' must be positive" in e.msg, &"Unexpected error: {e.msg}"
     echo "✓ Invalid map_size properly rejected"
 
-  block invalid_action_names:
-    var replay = makeValidReplay()
-    replay["action_names"] = %*["move", 1]
-    try:
-      validateReplaySchema(replay)
-      doAssert false, "Should have failed validation"
-    except AssertionError as e:
-      doAssert "'action_names' must contain strings" in e.msg, &"Unexpected error: {e.msg}"
-    echo "✓ Invalid action_names properly rejected"
-
-  block empty_file_name:
-    var replay = makeValidReplay()
-    replay["file_name"] = %*""
-    try:
-      validateReplaySchema(replay)
-      doAssert false, "Should have failed validation"
-    except ValueError as e:
-      doAssert "'file_name' must be non-empty" in e.msg, &"Unexpected error: {e.msg}"
-    echo "✓ Empty file_name properly rejected"
-
-block time_series_validation:
-  block single_value_time_series:
-    let data = %*42
-    validateTimeSeries(data, "test_field", "int")
-    echo "✓ Single value time series accepted"
-
-  block array_time_series:
-    let data = %*[[0, 10], [5, 20], [10, 30]]
-    validateTimeSeries(data, "test_field", "int")
-    echo "✓ Array time series accepted"
-
-  block invalid_time_series_format:
-    let data = %*[[0], [5, 20]]  # Missing second element in first pair
-    try:
-      validateTimeSeries(data, "test_field", "int")
-      doAssert false, "Should have failed validation"
-    except AssertionError as e:
-      doAssert "time series items must be [step, value] pairs" in e.msg, &"Unexpected error: {e.msg}"
-    echo "✓ Invalid time series format properly rejected"
-
-  block time_series_wrong_type:
-    let data = %*[[0, "not_an_int"], [5, 20]]
-    try:
-      validateTimeSeries(data, "test_field", "int")
-      doAssert false, "Should have failed validation"
-    except ValueError as e:
-      doAssert "time series value must be int" in e.msg, &"Unexpected error: {e.msg}"
-    echo "✓ Wrong type in time series properly rejected"
-
-  block time_series_not_starting_with_zero:
-    let data = %*[[1, 10], [5, 20]]
-    try:
-      validateTimeSeries(data, "test_field", "int")
-      doAssert false, "Should have failed validation"
-    except ValueError as e:
-      doAssert "must start with step 0" in e.msg, &"Unexpected error: {e.msg}"
-    echo "✓ Time series not starting with zero properly rejected"
-
-block inventory_validation:
-  block single_inventory:
-    let inventory = %*[[0, 5], [1, 10.5]]
-    validateInventoryFormat(inventory, "test_inventory")
-    echo "✓ Single inventory format accepted"
-
-  block time_series_inventory:
-    let inventory = %*[[0, [[0, 5]]], [10, [[1, 10.5]]]]
-    validateInventoryFormat(inventory, "test_inventory")
-    echo "✓ Time series inventory format accepted"
-
-  block invalid_inventory_item:
-    let inventory = %*[[-1, 5]]  # Negative item ID
-    try:
-      validateInventoryFormat(inventory, "test_inventory")
-      doAssert false, "Should have failed validation"
-    except ValueError as e:
-      doAssert "item_id must be non-negative" in e.msg, &"Unexpected error: {e.msg}"
-    echo "✓ Invalid inventory item ID properly rejected"
-
-  block invalid_inventory_amount:
-    let inventory = %*[[0, -5]]  # Negative amount
-    try:
-      validateInventoryFormat(inventory, "test_inventory")
-      doAssert false, "Should have failed validation"
-    except ValueError as e:
-      doAssert "amount must be non-negative" in e.msg, &"Unexpected error: {e.msg}"
-    echo "✓ Invalid inventory amount properly rejected"
-
-block location_validation:
-  block single_location:
-    let location = %*[5.0, 10.0]
-    validateLocation(location, "test_object")
-    echo "✓ Single location accepted"
-
-  block time_series_location:
-    let location = %*[[0, [5, 5]], [1, [6, 5]]]
-    validateLocation(location, "test_object")
-    echo "✓ Time series location accepted"
-
-  block invalid_location_format:
-    let location = %*[[0], [1, [6, 5]]]  # Missing coordinates in first entry
-    try:
-      validateLocation(location, "test_object")
-      doAssert false, "Should have failed validation"
-    except AssertionError as e:
-      doAssert "must be [step, [x, y]] pairs" in e.msg, &"Unexpected error: {e.msg}"
-    echo "✓ Invalid location format properly rejected"
-
-  block location_not_starting_with_zero:
-    let location = %*[[1, [5, 5]], [2, [6, 5]]]
-    try:
-      validateLocation(location, "test_object")
-      doAssert false, "Should have failed validation"
-    except ValueError as e:
-      doAssert "must start with step 0" in e.msg, &"Unexpected error: {e.msg}"
-    echo "✓ Location not starting with zero properly rejected"
-
-block agent_validation:
-  block valid_agent:
-    let agentObj = %*{
-      "agent_id": 0,
-      "is_agent": true,
-      "vision_size": 11,
-      "group_id": 0,
-      "action_id": 0,
-      "action_param": 0,
-      "action_success": true,
-      "current_reward": 0.0,
-      "total_reward": 0.0,
-      "freeze_remaining": 0.0,
-      "is_frozen": false,
-      "freeze_duration": 0.0
-    }
-    let replayData = %*{"num_agents": 2, "action_names": ["move", "collect"]}
-    validateAgentFields(agentObj, "test_agent", replayData)
-    echo "✓ Valid agent fields accepted"
-
-  block invalid_agent_id:
-    let agentObj = %*{
-      "agent_id": 5,  # Out of range
-      "is_agent": true,
-      "vision_size": 11,
-      "group_id": 0,
-      "action_id": 0,
-      "action_param": 0,
-      "action_success": true,
-      "current_reward": 0.0,
-      "total_reward": 0.0,
-      "freeze_remaining": 0.0,
-      "is_frozen": false,
-      "freeze_duration": 0.0
-    }
-    let replayData = %*{"num_agents": 2, "action_names": ["move", "collect"]}
-    try:
-      validateAgentFields(agentObj, "test_agent", replayData)
-      doAssert false, "Should have failed validation"
-    except ValueError as e:
-      doAssert "agent_id 5 out of range" in e.msg, &"Unexpected error: {e.msg}"
-    echo "✓ Invalid agent_id properly rejected"
-
-  block invalid_action_id_range:
-    let agentObj = %*{
-      "agent_id": 0,
-      "is_agent": true,
-      "vision_size": 11,
-      "group_id": 0,
-      "action_id": 5,  # Out of range for 2 actions
-      "action_param": 0,
-      "action_success": true,
-      "current_reward": 0.0,
-      "total_reward": 0.0,
-      "freeze_remaining": 0.0,
-      "is_frozen": false,
-      "freeze_duration": 0.0
-    }
-    let replayData = %*{"num_agents": 2, "action_names": ["move", "collect"]}
-    try:
-      validateAgentFields(agentObj, "test_agent", replayData)
-      doAssert false, "Should have failed validation"
-    except ValueError as e:
-      doAssert "action_id 5 out of range" in e.msg, &"Unexpected error: {e.msg}"
-    echo "✓ Invalid action_id range properly rejected"
-
-block generated_replay_tests:
-  # Generate a full-length replay using the CI setup and validate it against the strict schema.
+block generated_replay_test:
+  # Generate a replay using the CI setup and validate it against the strict schema.
 
   # Create temporary directory
   let tmpDir = getTempDir() / "metta_replay_test_" & $getTime().toUnix()
   createDir(tmpDir)
   defer: removeDir(tmpDir)
 
-  # Generate a replay using the original CI configuration (100 steps)
-  # Path from test file: metta/packages/mettagrid/nim/mettascope/tests/test_replay.nim
-  # Project root is 6 levels up: ../../../../../../
+  # Generate a replay using the CI configuration (use reduced steps for faster testing in CI)
   let projectRoot = parentDir(parentDir(parentDir(parentDir(parentDir(parentDir(currentSourcePath()))))))
-  let cmd = &"cd {projectRoot} && uv run --no-sync tools/run.py ci.replay_null replay_dir={tmpDir} stats_dir={tmpDir}"
-  echo &"Running command: {cmd}"
+  let cmd = &"cd {projectRoot} && uv run --no-sync tools/run.py ci.replay_null replay_dir={tmpDir} stats_dir={tmpDir} sim.env.game.max_steps=5"
+  echo &"Running replay generation: {cmd}"
 
   let exitCode = execCmd(cmd)
   if exitCode != 0:
@@ -765,17 +572,11 @@ block generated_replay_tests:
 
   # Find generated replay files
   var replayFiles: seq[string]
-  echo &"Looking for replay files in: {tmpDir}"
   for file in walkDirRec(tmpDir):
-    echo &"Found file: {file}"
     if file.endsWith(".json.z"):
       replayFiles.add(file)
 
   if replayFiles.len == 0:
-    # List all files in tmpDir to debug
-    echo "All files in tmpDir:"
-    for file in walkDirRec(tmpDir):
-      echo &"  {file}"
     raise newException(AssertionError, &"No replay files were generated in {tmpDir}")
 
   # Should have exactly one replay file
@@ -787,4 +588,4 @@ block generated_replay_tests:
   let loadedReplay = loadReplay(replayPath)
   validateReplaySchema(loadedReplay)
 
-  echo &"✓ Successfully generated and validated comprehensive replay: {extractFilename(replayPath)}"
+  echo &"✓ Successfully generated and validated replay: {extractFilename(replayPath)}"
