@@ -41,7 +41,7 @@ def train_small_maps(
     eval_difficulty: str | None = "standard",
 ):
     resolved_variants = _resolve(variants)
-    resolved_eval_variants = _resolve(eval_variants)
+    resolved_eval_variants = list(eval_variants) if eval_variants is not None else None
     return base_train_small_maps(
         num_cogs=num_cogs,
         variants=resolved_variants,
