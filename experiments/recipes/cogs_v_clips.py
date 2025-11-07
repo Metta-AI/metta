@@ -64,9 +64,6 @@ _MISSION_BY_NAME: dict[str, Mission] = {
     mission.name: mission for mission in EVAL_MISSIONS
 }
 
-_UINT8_MAX = 255
-
-
 def _normalize_variant_names(
     *,
     initial: Optional[Sequence[str]] = None,
@@ -83,28 +80,17 @@ def _normalize_variant_names(
 
 
 def _clamp_agent_inventory(env: MettaGridConfig) -> None:
-    agent_cfg = env.game.agent
-    limits = dict(agent_cfg.resource_limits)
-    updated_limits = False
-    for key, limit in list(limits.items()):
-        if isinstance(limit, int) and limit > _UINT8_MAX:
-            limits[key] = _UINT8_MAX
-            updated_limits = True
-    if updated_limits:
-        agent_cfg.resource_limits = limits
+    agent = env.game.agent
 
-    if agent_cfg.default_resource_limit > _UINT8_MAX:
-        agent_cfg.default_resource_limit = _UINT8_MAX
+    def clamp(mapping: dict[str | tuple[str, ...], int]) -> None:
+        for key, value in list(mapping.items()):
+            if isinstance(value, int) and value > 255:
+                mapping[key] = 255
 
-    if agent_cfg.initial_inventory:
-        inventory = dict(agent_cfg.initial_inventory)
-        updated_inventory = False
-        for resource, amount in inventory.items():
-            if isinstance(amount, int) and amount > _UINT8_MAX:
-                inventory[resource] = _UINT8_MAX
-                updated_inventory = True
-        if updated_inventory:
-            agent_cfg.initial_inventory = inventory
+    clamp(agent.resource_limits)
+    clamp(agent.initial_inventory)
+    if agent.default_resource_limit > 255:
+        agent.default_resource_limit = 255
 
 
 def _parse_variant_objects(names: Sequence[str] | None) -> list[MissionVariant]:
