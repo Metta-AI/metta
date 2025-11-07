@@ -64,6 +64,8 @@ _MISSION_BY_NAME: dict[str, Mission] = {
     mission.name: mission for mission in EVAL_MISSIONS
 }
 
+_UINT8_MAX = 255
+
 
 def _normalize_variant_names(
     *,
@@ -78,6 +80,31 @@ def _normalize_variant_names(
             if name not in names:
                 names.append(name)
     return names
+
+
+def _clamp_agent_inventory(env: MettaGridConfig) -> None:
+    agent_cfg = env.game.agent
+    limits = dict(agent_cfg.resource_limits)
+    updated_limits = False
+    for key, limit in list(limits.items()):
+        if isinstance(limit, int) and limit > _UINT8_MAX:
+            limits[key] = _UINT8_MAX
+            updated_limits = True
+    if updated_limits:
+        agent_cfg.resource_limits = limits
+
+    if agent_cfg.default_resource_limit > _UINT8_MAX:
+        agent_cfg.default_resource_limit = _UINT8_MAX
+
+    if agent_cfg.initial_inventory:
+        inventory = dict(agent_cfg.initial_inventory)
+        updated_inventory = False
+        for resource, amount in inventory.items():
+            if isinstance(amount, int) and amount > _UINT8_MAX:
+                inventory[resource] = _UINT8_MAX
+                updated_inventory = True
+        if updated_inventory:
+            agent_cfg.initial_inventory = inventory
 
 
 def _parse_variant_objects(names: Sequence[str] | None) -> list[MissionVariant]:
@@ -153,6 +180,7 @@ def make_eval_suite(
         )
 
         env_cfg = mission.make_env()
+        _clamp_agent_inventory(env_cfg)
         sim = SimulationConfig(
             suite="cogs_vs_clips",
             name=f"{mission_template.name}_{num_cogs}cogs",
@@ -182,21 +210,7 @@ def make_training_env(
     env = mission.make_env()
 
     # Guard against upstream modifiers pushing limits beyond supported bounds.
-    agent_cfg = env.game.agent
-    resource_limits = dict(agent_cfg.resource_limits)
-    updated_limits = False
-    for key, limit in list(resource_limits.items()):
-        if isinstance(limit, int) and limit > 255:
-            resource_limits[key] = 255
-            updated_limits = True
-    if updated_limits:
-        agent_cfg.resource_limits = resource_limits
-
-    if agent_cfg.default_resource_limit > 255:
-        agent_cfg.default_resource_limit = 255
-
-    if agent_cfg.initial_inventory.get("energy", 0) > 255:
-        agent_cfg.initial_inventory["energy"] = 255
+    _clamp_agent_inventory(env)
 
     # If vibe swapping is disabled, prune stale vibe transfers to avoid invalid IDs.
     change_vibe_action = getattr(env.game.actions, "change_vibe", None)
