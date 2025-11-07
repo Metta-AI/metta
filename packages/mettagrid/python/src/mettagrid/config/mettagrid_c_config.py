@@ -178,19 +178,19 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         for key, limit_value in agent_props["resource_limits"].items():
             if isinstance(key, str):
                 # Single resource limit
-                limits_list.append([[resource_name_to_id[key]], limit_value])
+                limits_list.append(([resource_name_to_id[key]], limit_value))
                 configured_resources.add(key)
             elif isinstance(key, tuple):
                 # Grouped resources with shared limit
                 resource_ids = [resource_name_to_id[name] for name in key]
                 if resource_ids:
-                    limits_list.append([resource_ids, limit_value])
+                    limits_list.append((resource_ids, limit_value))
                     configured_resources.update(key)
 
         # Add default limits for unconfigured resources
         for resource_name in resource_names:
             if resource_name not in configured_resources:
-                limits_list.append([[resource_name_to_id[resource_name]], default_resource_limit])
+                limits_list.append(([resource_name_to_id[resource_name]], default_resource_limit))
 
         inventory_config = CppInventoryConfig(limits=limits_list)
 
