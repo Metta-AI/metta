@@ -16,7 +16,11 @@ logger = logging.getLogger(__name__)
 def get_current_branch() -> str:
     """Get the current git branch name."""
     try:
-        return run_git("symbolic-ref", "--short", "HEAD")
+        return run_git(
+            "symbolic-ref",
+            "--short",
+            "HEAD",
+        )
     except GitError as e:
         if "HEAD is not a symbolic ref" in str(e):
             return get_current_commit()
