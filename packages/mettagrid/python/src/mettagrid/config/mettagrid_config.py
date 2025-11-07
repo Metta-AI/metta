@@ -220,6 +220,10 @@ class GridObjectConfig(Config):
             self.map_name = self.name
         if not getattr(self, "render_name", None):
             self.render_name = self.name
+        # If no tags, inject a default kind tag for visibility
+        if not self.tags:
+            default_tag = getattr(self, "type", None) or self.map_name or self.name or "object"
+            self.tags = [default_tag]
         return self
 
 

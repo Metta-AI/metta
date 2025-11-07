@@ -160,8 +160,7 @@ class TestTags:
             assert tag_id in found_tags, f"Tag ID {tag_id} should be in observations"
 
     def test_empty_tags(self):
-        """Test that objects with no tags work correctly."""
-        # Create environment with objects that have no tags
+        """Objects with no explicit tags get a default kind tag (e.g., 'wall')."""
         cfg = MettaGridConfig(
             game=GameConfig(
                 num_agents=1,
@@ -169,9 +168,7 @@ class TestTags:
                 max_steps=100,
                 actions=ActionsConfig(noop=NoopActionConfig()),
                 objects={
-                    "wall": WallConfig(
-                        tags=[],  # No tags
-                    ),
+                    "wall": WallConfig(tags=[]),
                 },
                 resource_names=[],
                 map_builder=AsciiMapBuilder.Config(
@@ -199,10 +196,9 @@ class TestTags:
         # Find wall locations from map data
         wall_locations = _positions_with_char(env, "#")
 
-        # Check that walls don't have tag tokens
-        for token in agent_obs:
-            if token[0] in wall_locations and token[1] == tag_feature_id:
-                raise AssertionError(f"Wall without tags should not have tag tokens, found tag ID {token[2]}")
+        # Expect default kind tag present on walls
+        wall_tag_tokens = [t for t in agent_obs if t[0] in wall_locations and t[1] == tag_feature_id]
+        assert len(wall_tag_tokens) > 0, "Walls should have default 'wall' tag tokens"
 
     def test_duplicate_tags_across_objects(self, sim_with_duplicate_tags):
         """Test that multiple objects can share the same tags."""
@@ -700,7 +696,7 @@ def test_tag_mapping_in_id_map():
 
 
 def test_tag_mapping_empty_tags():
-    """Test that tag mapping works correctly when there are no tags."""
+    """Tag mapping includes default kind tags when objects have no explicit tags."""
     cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=1,
@@ -711,7 +707,7 @@ def test_tag_mapping_empty_tags():
                 "wall": WallConfig(tags=[]),
             },
             agents=[
-                AgentConfig(tags=[]),  # No tags
+                AgentConfig(tags=[]),  # No agent tags
             ],
             resource_names=[],
             map_builder=AsciiMapBuilder.Config(
@@ -730,9 +726,9 @@ def test_tag_mapping_empty_tags():
 
     # Check that tag feature exists
     tag_feature_id = id_map.feature_id("tag")
-    assert tag_feature_id is not None, "tag feature should exist in id_map even with no tags"
+    assert tag_feature_id is not None
 
-    # Check tag mapping is empty
+    # Now expect mapping to include the default 'wall' tag
     tag_values = id_map.tag_names()
-    assert isinstance(tag_values, dict), "tag values should be a dict"
-    assert len(tag_values) == 0, f"Should have 0 tags, got {len(tag_values)}"
+    assert isinstance(tag_values, dict)
+    assert any(name == "wall" for name in tag_values.values()), "Expected default 'wall' tag"
