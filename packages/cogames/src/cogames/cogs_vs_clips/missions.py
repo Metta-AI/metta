@@ -4,6 +4,7 @@ from cogames.cogs_vs_clips.mission_utils import get_map
 from cogames.cogs_vs_clips.sites import HELLO_WORLD, MACHINA_1, TRAINING_FACILITY
 from cogames.cogs_vs_clips.variants import (
     ChestHeartTuneVariant,
+    ClipHubStationsVariant,
     ClipRateOnVariant,
     HeartChorusVariant,
     InventoryHeartTuneVariant,
@@ -47,7 +48,7 @@ RepairMission = Mission(
     description="Repair disabled stations to restore their functionality.",
     site=TRAINING_FACILITY,
     num_cogs=2,
-    variants=[InventoryHeartTuneVariant(hearts=1), ClipRateOnVariant()],
+    variants=[InventoryHeartTuneVariant(hearts=1), ClipRateOnVariant(), ClipHubStationsVariant()],
 )
 
 
@@ -55,7 +56,7 @@ UnclipDrillsMission = Mission(
     name="unclip_drills",
     description="Practice unclipping hub facilities after a grid outage.",
     site=TRAINING_FACILITY,
-    variants=[ClipRateOnVariant(), InventoryHeartTuneVariant(hearts=1)],
+    variants=[ClipRateOnVariant(), InventoryHeartTuneVariant(hearts=1), ClipHubStationsVariant()],
 )
 
 
