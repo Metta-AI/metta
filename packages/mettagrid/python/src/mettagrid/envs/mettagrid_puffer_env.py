@@ -26,8 +26,8 @@ from __future__ import annotations
 import logging
 import typing
 
-import numpy as np
 import gymnasium.spaces
+import numpy as np
 import typing_extensions
 
 import cogames.policy.scripted_agent.baseline_agent
@@ -69,7 +69,9 @@ class MettaGridPufferEnv(pufferlib.pufferlib.PufferEnv):
         self._simulator = simulator
         self._current_cfg = cfg
         self._current_seed = seed
-        self._env_supervisor_cfg = env_supervisor_cfg or mettagrid.config.mettagrid_config.EnvSupervisorConfig(enabled=False)
+        self._env_supervisor_cfg = env_supervisor_cfg or mettagrid.config.mettagrid_config.EnvSupervisorConfig(
+            enabled=False
+        )
 
         # Initialize shared buffers FIRST (before super().__init__)
         # because PufferLib may access them during initialization
@@ -78,7 +80,8 @@ class MettaGridPufferEnv(pufferlib.pufferlib.PufferEnv):
 
         self._buffers: mettagrid.simulator.simulator.Buffers = mettagrid.simulator.simulator.Buffers(
             observations=np.zeros(
-                (policy_env_info.num_agents, *policy_env_info.observation_space.shape), dtype=mettagrid.mettagrid_c.dtype_observations
+                (policy_env_info.num_agents, *policy_env_info.observation_space.shape),
+                dtype=mettagrid.mettagrid_c.dtype_observations,
             ),
             terminals=np.zeros(policy_env_info.num_agents, dtype=mettagrid.mettagrid_c.dtype_terminals),
             truncations=np.zeros(policy_env_info.num_agents, dtype=mettagrid.mettagrid_c.dtype_truncations),
@@ -123,7 +126,9 @@ class MettaGridPufferEnv(pufferlib.pufferlib.PufferEnv):
 
         if self._env_supervisor_cfg.enabled:
             if self._env_supervisor_cfg.policy == "baseline":
-                self._env_supervisor_policy = cogames.policy.scripted_agent.baseline_agent.BaselinePolicy(mettagrid.policy.policy_env_interface.PolicyEnvInterface.from_mg_cfg(self._current_cfg))
+                self._env_supervisor_policy = cogames.policy.scripted_agent.baseline_agent.BaselinePolicy(
+                    mettagrid.policy.policy_env_interface.PolicyEnvInterface.from_mg_cfg(self._current_cfg)
+                )
                 self._env_supervisor_agent_policies = [
                     self._env_supervisor_policy.agent_policy(agent_id)
                     for agent_id in range(self._current_cfg.game.num_agents)
@@ -143,7 +148,9 @@ class MettaGridPufferEnv(pufferlib.pufferlib.PufferEnv):
         return self._buffers.observations, {}
 
     @typing_extensions.override
-    def step(self, actions: np.ndarray) -> typing.Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, typing.List[typing.Dict[str, typing.Any]]]:
+    def step(
+        self, actions: np.ndarray
+    ) -> typing.Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, typing.List[typing.Dict[str, typing.Any]]]:
         assert self._sim is not None
         if self._sim._c_sim.terminals().all() or self._sim._c_sim.truncations().all():
             self._new_sim()
@@ -165,7 +172,9 @@ class MettaGridPufferEnv(pufferlib.pufferlib.PufferEnv):
     def _compute_supervisor_actions(self) -> None:
         assert self._env_supervisor_cfg.enabled
         if self._env_supervisor_cfg.policy == "noop":
-            self._buffers.teacher_actions[:] = np.ones(self._current_cfg.game.num_agents, dtype=mettagrid.mettagrid_c.dtype_actions)
+            self._buffers.teacher_actions[:] = np.ones(
+                self._current_cfg.game.num_agents, dtype=mettagrid.mettagrid_c.dtype_actions
+            )
         else:
             teacher_actions = np.array(
                 [

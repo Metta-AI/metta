@@ -1,9 +1,9 @@
 import copy
 import typing
 
-import torch
 import pydantic
 import tensordict
+import torch
 import torch.nn
 
 import metta.agent.policy

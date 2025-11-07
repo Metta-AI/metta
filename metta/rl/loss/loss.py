@@ -1,11 +1,11 @@
-import copy
 import collections
+import copy
 import dataclasses
 import typing
 
-import torch
 import pydantic
 import tensordict
+import torch
 import torchrl.data
 
 import metta.agent.policy
@@ -13,7 +13,9 @@ import metta.rl.training
 import mettagrid.base_config
 
 if typing.TYPE_CHECKING:
-    import metta.rl.trainer_config; TrainerConfig = metta.rl.trainer_config.TrainerConfig
+    import metta.rl.trainer_config
+
+    TrainerConfig = metta.rl.trainer_config.TrainerConfig
 
 
 class LossConfig(mettagrid.base_config.Config):
@@ -68,7 +70,9 @@ class Loss:
         """Register the shared trainer context for this loss instance."""
         self._context = context
 
-    def _require_context(self, context: metta.rl.training.ComponentContext | None = None) -> metta.rl.training.ComponentContext:
+    def _require_context(
+        self, context: metta.rl.training.ComponentContext | None = None
+    ) -> metta.rl.training.ComponentContext:
         if context is not None:
             self._context = context
             return context
@@ -221,7 +225,9 @@ class Loss:
             state[name] = self._clone_state_value(value)
         return state
 
-    def load_state_dict(self, state_dict: typing.Mapping[str, typing.Any], *, strict: bool = True) -> tuple[list[str], list[str]]:
+    def load_state_dict(
+        self, state_dict: typing.Mapping[str, typing.Any], *, strict: bool = True
+    ) -> tuple[list[str], list[str]]:
         """Restore registered attributes from a state dictionary."""
 
         missing_keys: list[str] = [name for name in self._state_attrs if name not in state_dict]

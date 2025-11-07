@@ -19,7 +19,9 @@ import mettagrid.mapgen.mapgen
 import experiments.evals.navigation
 
 
-def mettagrid(num_agents: int = 1, num_instances: int = 4) -> mettagrid.config.mettagrid_config.MettaGridConfig:
+def mettagrid(
+    num_agents: int = 1, num_instances: int = 4
+) -> mettagrid.config.mettagrid_config.MettaGridConfig:
     nav = eb.make_navigation(num_agents=num_agents * num_instances)
 
     nav.game.map_builder = mettagrid.mapgen.mapgen.MapGen.Config(
@@ -42,7 +44,9 @@ def simulations() -> list[metta.sim.simulation_config.SimulationConfig]:
 def make_curriculum(
     nav_env: typing.Optional[mettagrid.config.mettagrid_config.MettaGridConfig] = None,
     enable_detailed_slice_logging: bool = False,
-    algorithm_config: typing.Optional[metta.cogworks.curriculum.curriculum.CurriculumAlgorithmConfig] = None,
+    algorithm_config: typing.Optional[
+        metta.cogworks.curriculum.curriculum.CurriculumAlgorithmConfig
+    ] = None,
 ) -> metta.cogworks.curriculum.curriculum.CurriculumConfig:
     nav_env = nav_env or mettagrid()
 
@@ -55,18 +59,32 @@ def make_curriculum(
             maps.append(f"varied_terrain/{terrain}_{size}")
 
     dense_tasks.add_bucket("game.map_builder.instance.dir", maps)
-    dense_tasks.add_bucket("game.map_builder.instance.objects.altar", [metta.cogworks.curriculum.task_generator.Span(3, 50)])
+    dense_tasks.add_bucket(
+        "game.map_builder.instance.objects.altar",
+        [metta.cogworks.curriculum.task_generator.Span(3, 50)],
+    )
 
     # sparse environments are just random maps
     sparse_nav_env = nav_env.model_copy()
-    sparse_nav_env.game.map_builder = mettagrid.map_builder.random.RandomMapBuilder.Config(
-        agents=4,
-        objects={"altar": 10},
+    sparse_nav_env.game.map_builder = (
+        mettagrid.map_builder.random.RandomMapBuilder.Config(
+            agents=4,
+            objects={"altar": 10},
+        )
     )
     sparse_tasks = cc.bucketed(sparse_nav_env)
-    sparse_tasks.add_bucket("game.map_builder.width", [metta.cogworks.curriculum.task_generator.Span(60, 120)])
-    sparse_tasks.add_bucket("game.map_builder.height", [metta.cogworks.curriculum.task_generator.Span(60, 120)])
-    sparse_tasks.add_bucket("game.map_builder.objects.altar", [metta.cogworks.curriculum.task_generator.Span(1, 10)])
+    sparse_tasks.add_bucket(
+        "game.map_builder.width",
+        [metta.cogworks.curriculum.task_generator.Span(60, 120)],
+    )
+    sparse_tasks.add_bucket(
+        "game.map_builder.height",
+        [metta.cogworks.curriculum.task_generator.Span(60, 120)],
+    )
+    sparse_tasks.add_bucket(
+        "game.map_builder.objects.altar",
+        [metta.cogworks.curriculum.task_generator.Span(1, 10)],
+    )
 
     nav_tasks = cc.merge([dense_tasks, sparse_tasks])
 
@@ -87,7 +105,9 @@ def make_curriculum(
 
 
 def train(
-    curriculum: typing.Optional[metta.cogworks.curriculum.curriculum.CurriculumConfig] = None,
+    curriculum: typing.Optional[
+        metta.cogworks.curriculum.curriculum.CurriculumConfig
+    ] = None,
     enable_detailed_slice_logging: bool = False,
 ) -> metta.tools.train.TrainTool:
     resolved_curriculum = curriculum or make_curriculum(
@@ -99,7 +119,9 @@ def train(
     )
 
     return metta.tools.train.TrainTool(
-        training_env=metta.rl.training.TrainingEnvironmentConfig(curriculum=resolved_curriculum),
+        training_env=metta.rl.training.TrainingEnvironmentConfig(
+            curriculum=resolved_curriculum
+        ),
         evaluator=evaluator_cfg,
     )
 
@@ -113,10 +135,14 @@ def evaluate(
     )
 
 
-def play_training_env(policy_uri: typing.Optional[str] = None) -> metta.tools.play.PlayTool:
+def play_training_env(
+    policy_uri: typing.Optional[str] = None,
+) -> metta.tools.play.PlayTool:
     env = mettagrid()
     return metta.tools.play.PlayTool(
-        sim=metta.sim.simulation_config.SimulationConfig(suite="navigation", name="training_env", env=env),
+        sim=metta.sim.simulation_config.SimulationConfig(
+            suite="navigation", name="training_env", env=env
+        ),
         policy_uri=policy_uri,
     )
 

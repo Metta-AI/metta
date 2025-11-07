@@ -44,7 +44,13 @@ def _():
     import notebooks.utils.replays
 
     print("Setup complete!")
-    return alt, notebooks.utils.metrics.fetch_metrics, notebooks.utils.monitoring_marimo.monitor_training_statuses, pd, notebooks.utils.replays.show_replay
+    return (
+        alt,
+        notebooks.utils.metrics.fetch_metrics,
+        notebooks.utils.monitoring_marimo.monitor_training_statuses,
+        pd,
+        notebooks.utils.replays.show_replay,
+    )
 
 
 @app.cell

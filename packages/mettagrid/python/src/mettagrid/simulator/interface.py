@@ -4,8 +4,12 @@ import dataclasses
 import typing
 
 if typing.TYPE_CHECKING:
-    import mettagrid.config.id_map; ObservationFeatureSpec = mettagrid.config.id_map.ObservationFeatureSpec
-    import mettagrid.simulator.simulator; Simulator = mettagrid.simulator.simulator.Simulator
+    import mettagrid.config.id_map
+
+    ObservationFeatureSpec = mettagrid.config.id_map.ObservationFeatureSpec
+    import mettagrid.simulator.simulator
+
+    Simulator = mettagrid.simulator.simulator.Simulator
 else:
     ObservationFeatureSpec = typing.Any
     Simulator = typing.Any

@@ -133,7 +133,9 @@ class AttackActionConfig(ActionConfig):
     def _actions(self) -> list[mettagrid.simulator.Action]:
         return [self.Attack(location) for location in self.target_locations]
 
-    def Attack(self, location: typing.Literal["1", "2", "3", "4", "5", "6", "7", "8", "9"]) -> mettagrid.simulator.Action:
+    def Attack(
+        self, location: typing.Literal["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+    ) -> mettagrid.simulator.Action:
         return mettagrid.simulator.Action(name=f"attack_{location}")
 
 
@@ -163,7 +165,9 @@ class ActionsConfig(mettagrid.base_config.Config):
     move: MoveActionConfig = pydantic.Field(default_factory=lambda: MoveActionConfig())
     attack: AttackActionConfig = pydantic.Field(default_factory=lambda: AttackActionConfig(enabled=False))
     change_vibe: ChangeVibeActionConfig = pydantic.Field(default_factory=lambda: ChangeVibeActionConfig())
-    resource_mod: ResourceModActionConfig = pydantic.Field(default_factory=lambda: ResourceModActionConfig(enabled=False))
+    resource_mod: ResourceModActionConfig = pydantic.Field(
+        default_factory=lambda: ResourceModActionConfig(enabled=False)
+    )
 
     def actions(self) -> list[mettagrid.simulator.Action]:
         return sum(
@@ -381,7 +385,9 @@ class GameConfig(mettagrid.base_config.Config):
     clipper: typing.Optional[ClipperConfig] = pydantic.Field(default=None, description="Global clipper configuration")
 
     # Map builder configuration - accepts any MapBuilder config
-    map_builder: mettagrid.map_builder.map_builder.AnyMapBuilderConfig = pydantic.Field(default_factory=lambda: mettagrid.map_builder.random.RandomMapBuilder.Config(agents=24))
+    map_builder: mettagrid.map_builder.map_builder.AnyMapBuilderConfig = pydantic.Field(
+        default_factory=lambda: mettagrid.map_builder.random.RandomMapBuilder.Config(agents=24)
+    )
 
     # Feature Flags
     track_movement_metrics: bool = pydantic.Field(
@@ -457,7 +463,9 @@ class MettaGridConfig(mettagrid.base_config.Config):
         num_agents: int, width: int = 10, height: int = 10, border_width: int = 1, with_walls: bool = False
     ) -> "MettaGridConfig":
         """Create an empty room environment configuration."""
-        map_builder = mettagrid.map_builder.random.RandomMapBuilder.Config(agents=num_agents, width=width, height=height, border_width=border_width)
+        map_builder = mettagrid.map_builder.random.RandomMapBuilder.Config(
+            agents=num_agents, width=width, height=height, border_width=border_width
+        )
         actions = ActionsConfig(
             move=MoveActionConfig(),
         )

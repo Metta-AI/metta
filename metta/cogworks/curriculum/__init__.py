@@ -2,14 +2,13 @@
 
 import importlib
 
-import mettagrid.config.mettagrid_config
-
 import metta.cogworks.curriculum.curriculum
 import metta.cogworks.curriculum.curriculum_env
 import metta.cogworks.curriculum.learning_progress_algorithm
 import metta.cogworks.curriculum.stats
 import metta.cogworks.curriculum.task_generator
 import metta.cogworks.curriculum.task_tracker
+import mettagrid.config.mettagrid_config
 
 __all__ = [
     "Curriculum",
@@ -41,20 +40,34 @@ __all__ = [
 ]
 
 
-def single_task(mg_config: mettagrid.config.mettagrid_config.MettaGridConfig) -> metta.cogworks.curriculum.task_generator.SingleTaskGenerator.Config:
+def single_task(
+    mg_config: mettagrid.config.mettagrid_config.MettaGridConfig,
+) -> metta.cogworks.curriculum.task_generator.SingleTaskGenerator.Config:
     return metta.cogworks.curriculum.task_generator.SingleTaskGenerator.Config(env=mg_config.model_copy(deep=True))
 
 
-def bucketed(mg_config: mettagrid.config.mettagrid_config.MettaGridConfig) -> metta.cogworks.curriculum.task_generator.BucketedTaskGenerator.Config:
-    return metta.cogworks.curriculum.task_generator.BucketedTaskGenerator.Config.from_mg(mg_config.model_copy(deep=True))
+def bucketed(
+    mg_config: mettagrid.config.mettagrid_config.MettaGridConfig,
+) -> metta.cogworks.curriculum.task_generator.BucketedTaskGenerator.Config:
+    return metta.cogworks.curriculum.task_generator.BucketedTaskGenerator.Config.from_mg(
+        mg_config.model_copy(deep=True)
+    )
 
 
-def merge(task_generator_configs: list[metta.cogworks.curriculum.task_generator.AnyTaskGeneratorConfig]) -> metta.cogworks.curriculum.task_generator.TaskGeneratorSet.Config:
-    return metta.cogworks.curriculum.task_generator.TaskGeneratorSet.Config(task_generators=task_generator_configs, weights=[1.0] * len(task_generator_configs))
+def merge(
+    task_generator_configs: list[metta.cogworks.curriculum.task_generator.AnyTaskGeneratorConfig],
+) -> metta.cogworks.curriculum.task_generator.TaskGeneratorSet.Config:
+    return metta.cogworks.curriculum.task_generator.TaskGeneratorSet.Config(
+        task_generators=task_generator_configs, weights=[1.0] * len(task_generator_configs)
+    )
 
 
-def env_curriculum(mg_config: mettagrid.config.mettagrid_config.MettaGridConfig) -> metta.cogworks.curriculum.curriculum.CurriculumConfig:
-    return metta.cogworks.curriculum.curriculum.CurriculumConfig(task_generator=metta.cogworks.curriculum.task_generator.SingleTaskGenerator.Config(env=mg_config))
+def env_curriculum(
+    mg_config: mettagrid.config.mettagrid_config.MettaGridConfig,
+) -> metta.cogworks.curriculum.curriculum.CurriculumConfig:
+    return metta.cogworks.curriculum.curriculum.CurriculumConfig(
+        task_generator=metta.cogworks.curriculum.task_generator.SingleTaskGenerator.Config(env=mg_config)
+    )
 
 
 _SUBMODULE_ALIASES = {

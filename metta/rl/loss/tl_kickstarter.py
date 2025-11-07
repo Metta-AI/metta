@@ -1,10 +1,10 @@
 import typing
 
 import einops
-import torch
-import torch.nn.functional as F
 import pydantic
 import tensordict
+import torch
+import torch.nn.functional as F
 
 import metta.agent.policy
 import metta.rl.checkpoint_manager
@@ -62,7 +62,9 @@ class TLKickstarter(metta.rl.loss.loss.Loss):
         if game_rules is None:
             raise RuntimeError("Environment metadata is required to instantiate teacher policy")
 
-        self.teacher_policy = metta.rl.checkpoint_manager.CheckpointManager.load_from_uri(self.cfg.teacher_uri, game_rules, self.device)
+        self.teacher_policy = metta.rl.checkpoint_manager.CheckpointManager.load_from_uri(
+            self.cfg.teacher_uri, game_rules, self.device
+        )
 
         # Detach gradient
         for param in self.teacher_policy.parameters():

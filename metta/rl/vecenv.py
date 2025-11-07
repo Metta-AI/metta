@@ -4,8 +4,6 @@ import typing
 
 import pydantic
 
-import pufferlib
-import pufferlib.vector
 import metta.cogworks.curriculum
 import metta.common.util.log_config
 import metta.sim.replay_log_writer
@@ -15,6 +13,8 @@ import mettagrid.envs.mettagrid_puffer_env
 import mettagrid.envs.stats_tracker
 import mettagrid.simulator
 import mettagrid.util.stats_writer
+import pufferlib
+import pufferlib.vector
 
 logger = logging.getLogger("vecenv")
 
@@ -42,7 +42,9 @@ def make_env_func(
     sim.add_event_handler(mettagrid.envs.stats_tracker.StatsTracker(stats_writer))
     sim.add_event_handler(mettagrid.envs.early_reset_handler.EarlyResetHandler())
 
-    env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(sim, curriculum.get_task().get_env_cfg(), env_supervisor_cfg=env_supervisor_cfg, buf=buf)
+    env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(
+        sim, curriculum.get_task().get_env_cfg(), env_supervisor_cfg=env_supervisor_cfg, buf=buf
+    )
     env = metta.cogworks.curriculum.CurriculumEnv(env, curriculum)
 
     return env

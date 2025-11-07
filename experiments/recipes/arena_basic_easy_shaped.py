@@ -44,7 +44,9 @@ def mettagrid(num_agents: int = 24) -> mettagrid.MettaGridConfig:
 def make_curriculum(
     arena_env: typing.Optional[mettagrid.MettaGridConfig] = None,
     enable_detailed_slice_logging: bool = False,
-    algorithm_config: typing.Optional[metta.cogworks.curriculum.curriculum.CurriculumAlgorithmConfig] = None,
+    algorithm_config: typing.Optional[
+        metta.cogworks.curriculum.curriculum.CurriculumAlgorithmConfig
+    ] = None,
 ) -> metta.cogworks.curriculum.curriculum.CurriculumConfig:
     arena_env = arena_env or mettagrid()
 
@@ -73,7 +75,9 @@ def make_curriculum(
     return arena_tasks.to_curriculum(algorithm_config=algorithm_config)
 
 
-def simulations(env: typing.Optional[mettagrid.MettaGridConfig] = None) -> list[metta.sim.simulation_config.SimulationConfig]:
+def simulations(
+    env: typing.Optional[mettagrid.MettaGridConfig] = None,
+) -> list[metta.sim.simulation_config.SimulationConfig]:
     basic_env = env or mettagrid()
     basic_env.game.actions.attack.consumed_resources["laser"] = 100
 
@@ -81,13 +85,19 @@ def simulations(env: typing.Optional[mettagrid.MettaGridConfig] = None) -> list[
     combat_env.game.actions.attack.consumed_resources["laser"] = 1
 
     return [
-        metta.sim.simulation_config.SimulationConfig(suite="arena", name="basic", env=basic_env),
-        metta.sim.simulation_config.SimulationConfig(suite="arena", name="combat", env=combat_env),
+        metta.sim.simulation_config.SimulationConfig(
+            suite="arena", name="basic", env=basic_env
+        ),
+        metta.sim.simulation_config.SimulationConfig(
+            suite="arena", name="combat", env=combat_env
+        ),
     ]
 
 
 def train(
-    curriculum: typing.Optional[metta.cogworks.curriculum.curriculum.CurriculumConfig] = None,
+    curriculum: typing.Optional[
+        metta.cogworks.curriculum.curriculum.CurriculumConfig
+    ] = None,
     enable_detailed_slice_logging: bool = False,
     policy_architecture: typing.Optional[metta.agent.policy.PolicyArchitecture] = None,
 ) -> metta.tools.train.TrainTool:
@@ -110,9 +120,13 @@ def train(
     )
 
 
-def evaluate(policy_uris: typing.Optional[typing.Sequence[str]] = None) -> metta.tools.eval.EvaluateTool:
+def evaluate(
+    policy_uris: typing.Optional[typing.Sequence[str]] = None,
+) -> metta.tools.eval.EvaluateTool:
     """Evaluate policies on arena simulations."""
-    return metta.tools.eval.EvaluateTool(simulations=simulations(), policy_uris=policy_uris or [])
+    return metta.tools.eval.EvaluateTool(
+        simulations=simulations(), policy_uris=policy_uris or []
+    )
 
 
 def play(policy_uri: typing.Optional[str] = None) -> metta.tools.play.PlayTool:

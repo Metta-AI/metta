@@ -1,32 +1,24 @@
 """PufferLib Core - Minimal vectorized environment functionality."""
 
-import sys
+from . import pufferlib as core_pufferlib
 
+PufferEnv = core_pufferlib.PufferEnv
+set_buffers = core_pufferlib.set_buffers
+unroll_nested_dict = core_pufferlib.unroll_nested_dict
+APIUsageError = core_pufferlib.APIUsageError
+pufferlib = core_pufferlib
 
-def _import_modules():
-    import pufferlib
+from . import spaces
+from . import emulation
+from . import vector
+from . import pytorch
+from . import models
+from . import pufferl
 
-    current_module = sys.modules[__name__]
-    current_module.PufferEnv = pufferlib.pufferlib.PufferEnv
-    current_module.set_buffers = pufferlib.pufferlib.set_buffers
-    current_module.unroll_nested_dict = pufferlib.pufferlib.unroll_nested_dict
-    current_module.APIUsageError = pufferlib.pufferlib.APIUsageError
-
-    try:
-
-        current_module._C = pufferlib._C
-    except ImportError:
-        pass
-
-    current_module.pytorch = pufferlib.pytorch
-    current_module.models = pufferlib.models
-
-    current_module.pufferl = pufferlib.pufferl
-
-    return pufferlib.spaces, pufferlib.pufferlib, pufferlib.emulation, pufferlib.vector, pufferlib.pytorch, pufferlib.models, pufferlib.pufferl
-
-
-spaces, pufferlib, emulation, vector, pytorch, models, pufferl = _import_modules()
+try:  # pragma: no cover - optional C extensions
+    from . import _C  # type: ignore[attr-defined]
+except ImportError:  # pragma: no cover
+    _C = None  # type: ignore[assignment]
 
 __version__ = "3.0.3"
 __all__ = [

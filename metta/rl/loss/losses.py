@@ -1,7 +1,7 @@
 import typing
 
-import torch
 import pydantic
+import torch
 
 import metta.agent.policy
 import metta.rl.loss
@@ -13,7 +13,9 @@ import metta.rl.training
 import mettagrid.base_config
 
 if typing.TYPE_CHECKING:
-    import metta.rl.trainer_config; TrainerConfig = metta.rl.trainer_config.TrainerConfig
+    import metta.rl.trainer_config
+
+    TrainerConfig = metta.rl.trainer_config.TrainerConfig
 
 
 class LossesConfig(mettagrid.base_config.Config):
@@ -23,8 +25,12 @@ class LossesConfig(mettagrid.base_config.Config):
     contrastive: metta.rl.loss.contrastive_config.ContrastiveConfig = pydantic.Field(
         default_factory=lambda: metta.rl.loss.contrastive_config.ContrastiveConfig(enabled=False)
     )
-    supervisor: metta.rl.loss.action_supervised.ActionSupervisedConfig = pydantic.Field(default_factory=lambda: metta.rl.loss.action_supervised.ActionSupervisedConfig(enabled=False))
-    grpo: metta.rl.loss.grpo.GRPOConfig = pydantic.Field(default_factory=lambda: metta.rl.loss.grpo.GRPOConfig(enabled=False))
+    supervisor: metta.rl.loss.action_supervised.ActionSupervisedConfig = pydantic.Field(
+        default_factory=lambda: metta.rl.loss.action_supervised.ActionSupervisedConfig(enabled=False)
+    )
+    grpo: metta.rl.loss.grpo.GRPOConfig = pydantic.Field(
+        default_factory=lambda: metta.rl.loss.grpo.GRPOConfig(enabled=False)
+    )
 
     def _configs(self) -> dict[str, metta.rl.loss.loss.LossConfig]:
         loss_configs: dict[str, metta.rl.loss.loss.LossConfig] = {}

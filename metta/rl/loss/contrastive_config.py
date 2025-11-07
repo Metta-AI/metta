@@ -1,8 +1,8 @@
 # metta/rl/loss/contrastive_config.py
 import typing
 
-import torch
 import pydantic
+import torch
 
 import metta.agent.policy
 import metta.rl.loss.contrastive
@@ -13,8 +13,12 @@ import metta.rl.training
 class ContrastiveConfig(metta.rl.loss.loss.LossConfig):
     """Configuration for contrastive loss."""
 
-    temperature: float = pydantic.Field(default=0.1902943104505539, gt=0, description="Temperature for contrastive learning")
-    contrastive_coef: float = pydantic.Field(default=0.0006806607125326991, ge=0, description="Coefficient for contrastive loss")
+    temperature: float = pydantic.Field(
+        default=0.1902943104505539, gt=0, description="Temperature for contrastive learning"
+    )
+    contrastive_coef: float = pydantic.Field(
+        default=0.0006806607125326991, ge=0, description="Coefficient for contrastive loss"
+    )
     discount: float = pydantic.Field(
         default=0.977, ge=0, lt=1, description="Discount factor (gamma) used for geometric positive sampling"
     )

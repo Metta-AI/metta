@@ -87,7 +87,9 @@ class DistributedHelper:
                 )
                 break
 
-    def _setup_distributed_training(self, system_cfg: metta.rl.system_config.SystemConfig) -> typing.Optional[dict[str, typing.Any]]:
+    def _setup_distributed_training(
+        self, system_cfg: metta.rl.system_config.SystemConfig
+    ) -> typing.Optional[dict[str, typing.Any]]:
         """Return distributed config values or None if world_size = 1"""
         if "LOCAL_RANK" not in os.environ or torch.device(system_cfg.device).type != "cuda":
             return None
@@ -174,7 +176,9 @@ class DistributedHelper:
             else getattr(trainer_cfg, "forward_pass_minibatch_target_size", "n/a"),
         )
 
-    def wrap_policy(self, policy: metta.agent.policy.Policy, device: typing.Optional[torch.device] = None) -> metta.agent.policy.Policy:
+    def wrap_policy(
+        self, policy: metta.agent.policy.Policy, device: typing.Optional[torch.device] = None
+    ) -> metta.agent.policy.Policy:
         """Wrap policy for distributed training if needed.
 
         Args:

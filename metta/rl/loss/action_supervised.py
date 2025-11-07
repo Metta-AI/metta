@@ -1,12 +1,14 @@
 import typing
 
-import torch
 import pydantic
 import tensordict
+import torch
 import torchrl.data
 
 if typing.TYPE_CHECKING:
-    import metta.rl.trainer_config; TrainerConfig = metta.rl.trainer_config.TrainerConfig
+    import metta.rl.trainer_config
+
+    TrainerConfig = metta.rl.trainer_config.TrainerConfig
 import metta.agent.policy
 import metta.rl.advantage
 import metta.rl.loss.loss

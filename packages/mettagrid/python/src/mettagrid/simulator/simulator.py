@@ -1,16 +1,17 @@
 from __future__ import annotations
 
-import logging
 import dataclasses
 import functools
+import logging
 import typing
 
 import numpy as np
 
+import mettagrid.config.id_map
+
 # Don't use `from ... import ...` here because it will cause a circular import.
 import mettagrid.config.mettagrid_c_config as mettagrid_c_config
 import mettagrid.config.mettagrid_config as mettagrid_config
-import mettagrid.config.id_map
 import mettagrid.map_builder.map_builder
 import mettagrid.mettagrid_c
 import mettagrid.profiling.stopwatch
@@ -46,7 +47,8 @@ class Simulation:
         self,
         config: mettagrid_config.MettaGridConfig,
         seed: int = 0,
-        event_handlers: typing.Optional[typing.Sequence[mettagrid.simulator.interface.SimulatorEventHandler]] | None = None,
+        event_handlers: typing.Optional[typing.Sequence[mettagrid.simulator.interface.SimulatorEventHandler]]
+        | None = None,
         simulator: typing.Optional[Simulator] | None = None,
         buffers: typing.Optional[Buffers] = None,
     ):
@@ -92,7 +94,9 @@ class Simulation:
             )
 
         # Build feature dict from id_map
-        self._features: dict[int, mettagrid.config.id_map.ObservationFeatureSpec] = {feature.id: feature for feature in self.id_map.features()}
+        self._features: dict[int, mettagrid.config.id_map.ObservationFeatureSpec] = {
+            feature.id: feature for feature in self.id_map.features()
+        }
 
         self._start_episode()
 

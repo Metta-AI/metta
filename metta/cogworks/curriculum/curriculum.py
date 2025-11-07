@@ -15,7 +15,9 @@ import mettagrid.base_config
 import mettagrid.config.mettagrid_config
 
 if typing.TYPE_CHECKING:
-    import metta.cogworks.curriculum.learning_progress_algorithm; LearningProgressConfig = metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig
+    import metta.cogworks.curriculum.learning_progress_algorithm
+
+    LearningProgressConfig = metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig
 else:
     LearningProgressConfig = typing.Any
 

@@ -29,7 +29,11 @@ def is_tool_maker(obj: typing.Any) -> typing_extensions.TypeIs[ToolMaker]:
     try:
         hints = typing_extensions.get_type_hints(obj)
         return_type = hints.get("return")
-        return return_type is not None and isinstance(return_type, type) and issubclass(return_type, metta.common.tool.Tool)
+        return (
+            return_type is not None
+            and isinstance(return_type, type)
+            and issubclass(return_type, metta.common.tool.Tool)
+        )
     except Exception:
         return False
 

@@ -20,7 +20,10 @@ AssembleMission = cogames.cogs_vs_clips.mission.Mission(
     name="assemble",
     description="Make HEARTs by using the assembler. Coordinate your team to maximize efficiency.",
     site=cogames.cogs_vs_clips.sites.TRAINING_FACILITY,
-    variants=[cogames.cogs_vs_clips.variants.InventoryHeartTuneVariant(hearts=5), cogames.cogs_vs_clips.variants.PackRatVariant()],
+    variants=[
+        cogames.cogs_vs_clips.variants.InventoryHeartTuneVariant(hearts=5),
+        cogames.cogs_vs_clips.variants.PackRatVariant(),
+    ],
 )
 
 
@@ -29,7 +32,10 @@ VibeCheckMission = cogames.cogs_vs_clips.mission.Mission(
     description="Modulate the group vibe to assemble HEARTs.",
     site=cogames.cogs_vs_clips.sites.TRAINING_FACILITY,
     num_cogs=4,
-    variants=[cogames.cogs_vs_clips.variants.VibeCheckMin2Variant(), cogames.cogs_vs_clips.variants.InventoryHeartTuneVariant(hearts=1)],
+    variants=[
+        cogames.cogs_vs_clips.variants.VibeCheckMin2Variant(),
+        cogames.cogs_vs_clips.variants.InventoryHeartTuneVariant(hearts=1),
+    ],
 )
 
 
@@ -38,7 +44,10 @@ RepairMission = cogames.cogs_vs_clips.mission.Mission(
     description="Repair disabled stations to restore their functionality.",
     site=cogames.cogs_vs_clips.sites.TRAINING_FACILITY,
     num_cogs=2,
-    variants=[cogames.cogs_vs_clips.variants.InventoryHeartTuneVariant(hearts=1), cogames.cogs_vs_clips.variants.ClipRateOnVariant()],
+    variants=[
+        cogames.cogs_vs_clips.variants.InventoryHeartTuneVariant(hearts=1),
+        cogames.cogs_vs_clips.variants.ClipRateOnVariant(),
+    ],
 )
 
 
@@ -46,7 +55,10 @@ UnclipDrillsMission = cogames.cogs_vs_clips.mission.Mission(
     name="unclip_drills",
     description="Practice unclipping hub facilities after a grid outage.",
     site=cogames.cogs_vs_clips.sites.TRAINING_FACILITY,
-    variants=[cogames.cogs_vs_clips.variants.ClipRateOnVariant(), cogames.cogs_vs_clips.variants.InventoryHeartTuneVariant(hearts=1)],
+    variants=[
+        cogames.cogs_vs_clips.variants.ClipRateOnVariant(),
+        cogames.cogs_vs_clips.variants.InventoryHeartTuneVariant(hearts=1),
+    ],
 )
 
 
@@ -75,7 +87,10 @@ ExploreMission = cogames.cogs_vs_clips.mission.Mission(
     name="explore",
     description="There are HEART chests scattered around the map. Put your HEARTs in them.",
     site=cogames.cogs_vs_clips.sites.HELLO_WORLD,
-    variants=[cogames.cogs_vs_clips.variants.InventoryHeartTuneVariant(hearts=1, heart_capacity=10), cogames.cogs_vs_clips.variants.PackRatVariant()],
+    variants=[
+        cogames.cogs_vs_clips.variants.InventoryHeartTuneVariant(hearts=1, heart_capacity=10),
+        cogames.cogs_vs_clips.variants.PackRatVariant(),
+    ],
 )
 
 
@@ -111,7 +126,10 @@ HelloWorldUnclipMission = cogames.cogs_vs_clips.mission.Mission(
     description="Stabilize clipped extractors scattered across the hello_world sector.",
     site=cogames.cogs_vs_clips.sites.HELLO_WORLD,
     num_cogs=4,
-    variants=[cogames.cogs_vs_clips.variants.ClipRateOnVariant(), cogames.cogs_vs_clips.variants.ChestHeartTuneVariant(hearts=2)],
+    variants=[
+        cogames.cogs_vs_clips.variants.ClipRateOnVariant(),
+        cogames.cogs_vs_clips.variants.ChestHeartTuneVariant(hearts=2),
+    ],
 )
 
 MISSIONS: list[cogames.cogs_vs_clips.mission.Mission] = [
@@ -131,7 +149,9 @@ MISSIONS: list[cogames.cogs_vs_clips.mission.Mission] = [
 ]
 
 
-def make_game(num_cogs: int = 2, map_name: str = "training_facility_open_1.map") -> mettagrid.config.mettagrid_config.MettaGridConfig:
+def make_game(
+    num_cogs: int = 2, map_name: str = "training_facility_open_1.map"
+) -> mettagrid.config.mettagrid_config.MettaGridConfig:
     """Create a default cogs vs clips game configuration."""
     mission = HarvestMission.model_copy(deep=True)
     mission.num_cogs = num_cogs

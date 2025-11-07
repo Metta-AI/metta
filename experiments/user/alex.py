@@ -48,7 +48,9 @@ def make_mettagrid(num_agents: int = 24) -> mettagrid.MettaGridConfig:
 def make_curriculum(
     arena_env: typing.Optional[mettagrid.MettaGridConfig] = None,
     enable_detailed_slice_logging: bool = False,
-    algorithm_config: typing.Optional[metta.cogworks.curriculum.curriculum.CurriculumAlgorithmConfig] = None,
+    algorithm_config: typing.Optional[
+        metta.cogworks.curriculum.curriculum.CurriculumAlgorithmConfig
+    ] = None,
 ) -> metta.cogworks.curriculum.curriculum.CurriculumConfig:
     arena_env = arena_env or make_mettagrid()
 
@@ -77,7 +79,9 @@ def make_curriculum(
     return arena_tasks.to_curriculum(algorithm_config=algorithm_config)
 
 
-def make_evals(env: typing.Optional[mettagrid.MettaGridConfig] = None) -> typing.List[metta.sim.simulation_config.SimulationConfig]:
+def make_evals(
+    env: typing.Optional[mettagrid.MettaGridConfig] = None,
+) -> typing.List[metta.sim.simulation_config.SimulationConfig]:
     basic_env = env or make_mettagrid()
     basic_env.game.actions.attack.consumed_resources["laser"] = 100
 
@@ -85,13 +89,19 @@ def make_evals(env: typing.Optional[mettagrid.MettaGridConfig] = None) -> typing
     combat_env.game.actions.attack.consumed_resources["laser"] = 1
 
     return [
-        metta.sim.simulation_config.SimulationConfig(suite="arena", name="basic", env=basic_env),
-        metta.sim.simulation_config.SimulationConfig(suite="arena", name="combat", env=combat_env),
+        metta.sim.simulation_config.SimulationConfig(
+            suite="arena", name="basic", env=basic_env
+        ),
+        metta.sim.simulation_config.SimulationConfig(
+            suite="arena", name="combat", env=combat_env
+        ),
     ]
 
 
 def train(
-    curriculum: typing.Optional[metta.cogworks.curriculum.curriculum.CurriculumConfig] = None,
+    curriculum: typing.Optional[
+        metta.cogworks.curriculum.curriculum.CurriculumConfig
+    ] = None,
     enable_detailed_slice_logging: bool = False,
     policy_architecture: typing.Optional[metta.agent.policy.PolicyArchitecture] = None,
 ) -> metta.tools.train.TrainTool:

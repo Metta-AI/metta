@@ -1,10 +1,10 @@
 import typing
 
 import einops
-import torch
-import torch.nn.functional as F
 import pydantic
 import tensordict
+import torch
+import torch.nn.functional as F
 
 import metta.agent.policy
 import metta.rl.loss.loss

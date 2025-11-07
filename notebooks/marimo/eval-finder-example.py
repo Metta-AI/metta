@@ -58,7 +58,9 @@ def _():
     import notebooks.utils.eval_finder_widget.eval_finder_widget.util
 
     # Comment one of these out, uncomment the other.
-    client = metta.app_backend.clients.scorecard_client.ScorecardClient()  # production: https://api.observatory.softmax-research.net
+    client = (
+        metta.app_backend.clients.scorecard_client.ScorecardClient()
+    )  # production: https://api.observatory.softmax-research.net
     # client = ScorecardClient(backend_url="http://localhost:8000")  # development
 
     print("🎯 Eval Finder Widget imported successfully!")
@@ -354,7 +356,9 @@ async def _(
         if selected_evals:  # Check the actual list, not the state object
             try:
                 # Generate scorecard using the selected evaluations and policies
-                scorecard_widget = notebooks.utils.scorecard_widget.scorecard_widget.ScorecardWidget.ScorecardWidget(client=client)
+                scorecard_widget = notebooks.utils.scorecard_widget.scorecard_widget.ScorecardWidget.ScorecardWidget(
+                    client=client
+                )
                 await scorecard_widget.fetch_real_scorecard_data(
                     restrict_to_policy_names=selected_policy_names,  # Only selected policies!
                     restrict_to_metrics=["reward"],  # Focus on reward metric

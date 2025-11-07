@@ -65,8 +65,12 @@ class TrainerConfig(mettagrid.base_config.Config):
     compile_mode: typing.Literal["default", "reduce-overhead", "max-autotune"] = "reduce-overhead"
     detect_anomaly: bool = pydantic.Field(default=False)
 
-    hyperparameter_scheduler: metta.rl.training.HyperparameterSchedulerConfig = pydantic.Field(default_factory=metta.rl.training.HyperparameterSchedulerConfig)
-    heartbeat: typing.Optional[metta.rl.training.HeartbeatConfig] = pydantic.Field(default_factory=metta.rl.training.HeartbeatConfig)
+    hyperparameter_scheduler: metta.rl.training.HyperparameterSchedulerConfig = pydantic.Field(
+        default_factory=metta.rl.training.HyperparameterSchedulerConfig
+    )
+    heartbeat: typing.Optional[metta.rl.training.HeartbeatConfig] = pydantic.Field(
+        default_factory=metta.rl.training.HeartbeatConfig
+    )
 
     initial_policy: InitialPolicyConfig = pydantic.Field(default_factory=InitialPolicyConfig)
     profiler: TorchProfilerConfig = pydantic.Field(default_factory=TorchProfilerConfig)

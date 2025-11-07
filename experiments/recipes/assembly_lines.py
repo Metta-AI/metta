@@ -136,14 +136,20 @@ class _BuildCfg:
     input_resources: set[str] = dataclasses.field(default_factory=set)
 
 
-class AssemblyLinesTaskGenerator(metta.cogworks.curriculum.task_generator.TaskGenerator):
+class AssemblyLinesTaskGenerator(
+    metta.cogworks.curriculum.task_generator.TaskGenerator
+):
     def __init__(self, config: "AssemblyLinesTaskGenerator.Config"):
         super().__init__(config)
         self.assembler_types = ASSEMBLER_TYPES.copy()
         self.resource_types = RESOURCE_TYPES.copy()
         self.config = config
 
-    class Config(metta.cogworks.curriculum.task_generator.TaskGeneratorConfig["AssemblyLinesTaskGenerator"]):
+    class Config(
+        metta.cogworks.curriculum.task_generator.TaskGeneratorConfig[
+            "AssemblyLinesTaskGenerator"
+        ]
+    ):
         chain_lengths: list[int]
         num_sinks: list[int]
         room_sizes: list[str]
@@ -331,7 +337,8 @@ def train(
 
     task_generator_cfg = make_task_generator_cfg(**curriculum_args[curriculum_style])
     curriculum = metta.cogworks.curriculum.curriculum.CurriculumConfig(
-        task_generator=task_generator_cfg, algorithm_config=metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig()
+        task_generator=task_generator_cfg,
+        algorithm_config=metta.cogworks.curriculum.learning_progress_algorithm.LearningProgressConfig(),
     )
 
     policy_config = metta.agent.policies.vit_reset.ViTResetConfig()
@@ -339,12 +346,16 @@ def train(
     return metta.tools.train.TrainTool(
         training_env=metta.rl.training.TrainingEnvironmentConfig(curriculum=curriculum),
         policy_architecture=policy_config,
-        evaluator=metta.rl.training.EvaluatorConfig(simulations=experiments.evals.assembly_lines.make_assembly_line_eval_suite()),
+        evaluator=metta.rl.training.EvaluatorConfig(
+            simulations=experiments.evals.assembly_lines.make_assembly_line_eval_suite()
+        ),
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
 
 
-def make_mettagrid(task_generator: AssemblyLinesTaskGenerator) -> mettagrid.config.mettagrid_config.MettaGridConfig:
+def make_mettagrid(
+    task_generator: AssemblyLinesTaskGenerator,
+) -> mettagrid.config.mettagrid_config.MettaGridConfig:
     return task_generator.get_task(random.randint(0, 1000000))
 
 

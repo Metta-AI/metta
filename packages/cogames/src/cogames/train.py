@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import datetime
 import logging
 import math
 import multiprocessing
-import platform
-import datetime
 import pathlib
+import platform
 import typing
 
 import psutil
@@ -22,8 +22,6 @@ import mettagrid.policy.policy_env_interface
 import mettagrid.policy.utils
 import mettagrid.simulator
 import mettagrid.util.stats_writer
-import pufferlib
-import pufferlib.pufferlib
 
 if typing.TYPE_CHECKING:
     import torch
@@ -192,10 +190,14 @@ def train(
     ):
         target_cfg = cfg.model_copy(deep=True) if cfg is not None else _clone_cfg()
         simulator = mettagrid.simulator.Simulator()
-        simulator.add_event_handler(mettagrid.envs.stats_tracker.StatsTracker(mettagrid.util.stats_writer.NoopStatsWriter()))
+        simulator.add_event_handler(
+            mettagrid.envs.stats_tracker.StatsTracker(mettagrid.util.stats_writer.NoopStatsWriter())
+        )
         simulator.add_event_handler(mettagrid.envs.early_reset_handler.EarlyResetHandler())
         env_supervisor_cfg = mettagrid.config.mettagrid_config.EnvSupervisorConfig(enabled=False)
-        env = mettagrid.PufferMettaGridEnv(simulator, target_cfg, env_supervisor_cfg, buf, seed if seed is not None else 0)
+        env = mettagrid.PufferMettaGridEnv(
+            simulator, target_cfg, env_supervisor_cfg, buf, seed if seed is not None else 0
+        )
         pufferlib.pufferlib.set_buffers(env, buf)
         return env
 

@@ -61,7 +61,9 @@ def test_neutral_faced_variant_neutralizes_recipes():
 
 
 def test_inventory_heart_tune_caps_initial_inventory_to_limits():
-    mission = cogames.cogs_vs_clips.missions.HarvestMission.with_variants([cogames.cogs_vs_clips.variants.InventoryHeartTuneVariant(hearts=20)])
+    mission = cogames.cogs_vs_clips.missions.HarvestMission.with_variants(
+        [cogames.cogs_vs_clips.variants.InventoryHeartTuneVariant(hearts=20)]
+    )
     env = mission.make_env()
     agent = env.game.agent
 

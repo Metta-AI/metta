@@ -35,7 +35,11 @@ def make_eval_suite(
     """
     # Filter missions if subset specified
     if subset:
-        missions = [m for m in cogames.cogs_vs_clips.evals.eval_missions.EVAL_MISSIONS if m.name in subset]
+        missions = [
+            m
+            for m in cogames.cogs_vs_clips.evals.eval_missions.EVAL_MISSIONS
+            if m.name in subset
+        ]
     else:
         missions = cogames.cogs_vs_clips.evals.eval_missions.EVAL_MISSIONS
 
@@ -102,7 +106,9 @@ def make_curriculum(
     num_cogs: int = 4,
     base_missions: typing.Optional[list[str]] = None,
     enable_detailed_slice_logging: bool = False,
-    algorithm_config: typing.Optional[metta.cogworks.curriculum.curriculum.CurriculumAlgorithmConfig] = None,
+    algorithm_config: typing.Optional[
+        metta.cogworks.curriculum.curriculum.CurriculumAlgorithmConfig
+    ] = None,
 ) -> metta.cogworks.curriculum.curriculum.CurriculumConfig:
     """Create a curriculum for CoGs vs Clips training.
 
@@ -172,7 +178,9 @@ def make_curriculum(
 
 def train(
     num_cogs: int = 4,
-    curriculum: typing.Optional[metta.cogworks.curriculum.curriculum.CurriculumConfig] = None,
+    curriculum: typing.Optional[
+        metta.cogworks.curriculum.curriculum.CurriculumConfig
+    ] = None,
     base_missions: typing.Optional[list[str]] = None,
     enable_detailed_slice_logging: bool = False,
 ) -> metta.tools.train.TrainTool:
@@ -202,7 +210,9 @@ def train(
     )
 
     return metta.tools.train.TrainTool(
-        training_env=metta.rl.training.TrainingEnvironmentConfig(curriculum=resolved_curriculum),
+        training_env=metta.rl.training.TrainingEnvironmentConfig(
+            curriculum=resolved_curriculum
+        ),
         evaluator=evaluator_cfg,
     )
 

@@ -1,10 +1,10 @@
 #!/usr/bin/env -S uv run
-import subprocess
 import pathlib
+import subprocess
 import typing
 
-import typer
 import rich.console
+import typer
 
 import metta.common.util.fs
 import metta.setup.utils

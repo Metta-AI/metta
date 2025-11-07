@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import mettagrid.simulator.interface
-import mettagrid.simulator.simulator
+from .interface import Action, AgentObservation, ObservationToken, SimulatorEventHandler
+from .simulator import Simulator
 
-Simulation = mettagrid.simulator.simulator.Simulator
+Simulation = Simulator
 
 __all__ = [
     "Action",

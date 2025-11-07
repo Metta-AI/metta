@@ -1,9 +1,9 @@
 import typing
 
 import numpy as np
-import torch
 import pydantic
 import tensordict
+import torch
 import torchrl.data
 
 import metta.agent.policy

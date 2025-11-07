@@ -56,12 +56,16 @@ def train(
     return metta.tools.train.TrainTool(
         training_env=metta.rl.training.TrainingEnvironmentConfig(curriculum=curriculum),
         trainer=trainer_config,
-        evaluator=metta.rl.training.EvaluatorConfig(simulations=experiments.recipes.arena.simulations()),
+        evaluator=metta.rl.training.EvaluatorConfig(
+            simulations=experiments.recipes.arena.simulations()
+        ),
         policy_architecture=metta.agent.policies.vit_grpo.ViTGRPOConfig(),
     )
 
 
-def train_shaped(rewards: bool = True, converters: bool = True) -> metta.tools.train.TrainTool:
+def train_shaped(
+    rewards: bool = True, converters: bool = True
+) -> metta.tools.train.TrainTool:
     """Train with GRPO loss on shaped rewards task.
 
     This provides easier training with reward shaping and converters enabled,

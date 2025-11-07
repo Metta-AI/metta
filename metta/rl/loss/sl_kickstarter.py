@@ -1,10 +1,10 @@
 import typing
 
 import einops
-import torch
-import torch.nn.functional as F
 import pydantic
 import tensordict
+import torch
+import torch.nn.functional as F
 import torchrl.data
 
 import metta.agent.policy
@@ -65,7 +65,9 @@ class SLKickstarter(metta.rl.loss.loss.Loss):
         if game_rules is None:
             raise RuntimeError("Environment metadata is required to instantiate teacher policy")
 
-        self.teacher_policy = metta.rl.checkpoint_manager.CheckpointManager.load_from_uri(self.cfg.teacher_uri, game_rules, self.device)
+        self.teacher_policy = metta.rl.checkpoint_manager.CheckpointManager.load_from_uri(
+            self.cfg.teacher_uri, game_rules, self.device
+        )
 
         self.teacher_policy_spec = self.teacher_policy.get_agent_experience_spec()
 

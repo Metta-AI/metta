@@ -1,17 +1,17 @@
 """Training environment wrapper for vectorized environments."""
 
-import logging
-import os
-import platform
-import uuid
 import abc
 import dataclasses
+import logging
+import os
 import pathlib
+import platform
 import typing
+import uuid
 
 import numpy as np
-import torch
 import pydantic
+import torch
 
 import metta.cogworks.curriculum
 import metta.rl.vecenv
@@ -34,7 +34,9 @@ def guess_vectorization() -> typing.Literal["serial", "multiprocessing"]:
 class TrainingEnvironmentConfig(mettagrid.base_config.Config):
     """Configuration for training environment."""
 
-    curriculum: metta.cogworks.curriculum.CurriculumConfig = metta.cogworks.curriculum.env_curriculum(mettagrid.builder.envs.make_arena(num_agents=24))
+    curriculum: metta.cogworks.curriculum.CurriculumConfig = metta.cogworks.curriculum.env_curriculum(
+        mettagrid.builder.envs.make_arena(num_agents=24)
+    )
     """Curriculum configuration for task selection"""
 
     num_workers: int = pydantic.Field(default=1, ge=1)
@@ -67,7 +69,9 @@ class TrainingEnvironmentConfig(mettagrid.base_config.Config):
         description="Base directory where training replays will be stored when writing is enabled.",
     )
 
-    supervisor: mettagrid.config.mettagrid_config.EnvSupervisorConfig = pydantic.Field(default_factory=mettagrid.config.mettagrid_config.EnvSupervisorConfig)
+    supervisor: mettagrid.config.mettagrid_config.EnvSupervisorConfig = pydantic.Field(
+        default_factory=mettagrid.config.mettagrid_config.EnvSupervisorConfig
+    )
 
 
 @dataclasses.dataclass
@@ -85,7 +89,19 @@ class TrainingEnvironment(abc.ABC):
         """Close the environment."""
 
     @abc.abstractmethod
-    def get_observations(self) -> typing.Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, typing.List[dict], slice, torch.Tensor, int]:
+    def get_observations(
+        self,
+    ) -> typing.Tuple[
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        typing.List[dict],
+        slice,
+        torch.Tensor,
+        int,
+    ]:
         """Get the observations."""
 
     @abc.abstractmethod
@@ -234,7 +250,19 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         """Expose the driver environment for components that need direct access."""
         return self._vecenv.driver_env
 
-    def get_observations(self) -> typing.Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, typing.List[dict], slice, torch.Tensor, int]:
+    def get_observations(
+        self,
+    ) -> typing.Tuple[
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        typing.List[dict],
+        slice,
+        torch.Tensor,
+        int,
+    ]:
         o, r, d, t, ta, info, env_id, mask = self._vecenv.recv()
 
         training_env_id = slice(env_id[0], env_id[-1] + 1)

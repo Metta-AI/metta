@@ -52,9 +52,7 @@ class Policy(policy_module.TrainablePolicy, nn.Module):
         nn.Module.__init__(self)
 
     @abc.abstractmethod
-    def forward(
-        self, td: tensordict.TensorDict, action: typing.Optional[torch.Tensor] = None
-    ) -> tensordict.TensorDict:
+    def forward(self, td: tensordict.TensorDict, action: typing.Optional[torch.Tensor] = None) -> tensordict.TensorDict:
         raise NotImplementedError
 
     def get_agent_experience_spec(self) -> torchrl.data.Composite:
@@ -113,9 +111,7 @@ class _SingleAgentAdapter(policy_module.AgentPolicy):
         """Reset policy state if needed."""
         self._policy.reset_memory()
 
-    def _obs_to_td(
-        self, obs: mettagrid.simulator.AgentObservation, device: torch.device
-    ) -> tensordict.TensorDict:
+    def _obs_to_td(self, obs: mettagrid.simulator.AgentObservation, device: torch.device) -> tensordict.TensorDict:
         tokens = [token.value for token in obs.tokens]
         obs_tensor = torch.tensor(tokens, dtype=torch.uint8).unsqueeze(0).to(device)
 
