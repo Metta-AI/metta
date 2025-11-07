@@ -7,9 +7,9 @@ import torch
 import torch.nn.functional as F
 
 import metta.agent.policy
-import metta.rl.loss.loss
 import metta.rl.training.component_context as component_context
 import mettagrid.base_config
+from . import loss as loss_module
 
 
 class DynamicsConfig(mettagrid.base_config.Config):
@@ -37,7 +37,7 @@ class DynamicsConfig(mettagrid.base_config.Config):
         )
 
 
-class Dynamics(metta.rl.loss.loss.Loss):
+class Dynamics(loss_module.Loss):
     """The dynamics term in the Muesli loss."""
 
     # Loss calls this method

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from . import loss_config
 from .loss import Loss
+from . import loss_config
 
 __all__ = [
     "loss_config",

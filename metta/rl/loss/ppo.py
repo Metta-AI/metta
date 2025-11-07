@@ -8,11 +8,11 @@ import torchrl.data
 
 import metta.agent.policy
 import metta.rl.advantage
-import metta.rl.loss.loss
 import metta.rl.training.component_context as component_context
 import metta.rl.training.training_environment as training_environment
 import metta.utils.batch
 import mettagrid.base_config
+from . import loss as loss_module
 
 
 class PrioritizedExperienceReplayConfig(mettagrid.base_config.Config):
@@ -85,7 +85,7 @@ class PPOConfig(mettagrid.base_config.Config):
         )
 
 
-class PPO(metta.rl.loss.loss.Loss):
+class PPO(loss_module.Loss):
     """PPO loss with prioritized replay and V-trace tweaks."""
 
     __slots__ = (

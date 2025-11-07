@@ -57,14 +57,20 @@ __all__ = list(_EXPORTS.keys())
 
 
 def __getattr__(name: str) -> Any:
-    if name not in _EXPORTS:
-        raise AttributeError(f"module 'metta.rl.training' has no attribute '{name}'")
+    if name in _EXPORTS:
+        module_path, attr_name = _EXPORTS[name]
+        module = importlib.import_module(module_path)
+        attr = module if attr_name is None else getattr(module, attr_name)
+        globals()[name] = attr
+        return attr
 
-    module_path, attr_name = _EXPORTS[name]
-    module = importlib.import_module(module_path)
-    attr = module if attr_name is None else getattr(module, attr_name)
-    globals()[name] = attr
-    return attr
+    try:
+        module = importlib.import_module(f"{__name__}.{name}")
+    except ModuleNotFoundError as exc:  # pragma: no cover - dynamic loader
+        raise AttributeError(f"module 'metta.rl.training' has no attribute '{name}'") from exc
+
+    globals()[name] = module
+    return module
 
 
 def __dir__() -> list[str]:

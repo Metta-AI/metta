@@ -7,11 +7,11 @@ import torchrl.data
 
 import metta.agent.policy
 import metta.rl.advantage
-import metta.rl.loss.loss
 import metta.rl.loss.replay_samplers
 import metta.rl.trainer_config
 import metta.rl.training.component_context as component_context
 import mettagrid.base_config
+from . import loss as loss_module
 
 
 class ActionSupervisedConfig(mettagrid.base_config.Config):
@@ -45,7 +45,7 @@ class ActionSupervisedConfig(mettagrid.base_config.Config):
 
 
 # --------------------------ActionSupervised Loss----------------------------------
-class ActionSupervised(metta.rl.loss.loss.Loss):
+class ActionSupervised(loss_module.Loss):
     __slots__ = (
         "action_loss_coef",
         "value_loss_coef",

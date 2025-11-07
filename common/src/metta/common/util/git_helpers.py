@@ -12,8 +12,8 @@ import gitta
 
 logger = logging.getLogger(__name__)
 
-# Re-export GitError for convenience
-GitError = gitta.GitError
+# Re-export GitError for convenience (handle gitta versions without GitError)
+GitError = getattr(gitta, "GitError", RuntimeError)
 
 
 def get_task_commit_hash(
@@ -38,7 +38,7 @@ def get_task_commit_hash(
     # Check if we're in a git repo
     try:
         commit_hash = gitta.get_current_commit()
-    except (gitta.GitError, ValueError):
+    except (GitError, ValueError):
         logger.warning("Not in a git repository, using git_hash=None")
         return None
 

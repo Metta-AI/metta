@@ -6,12 +6,12 @@ import torch
 import torchrl.data
 
 import metta.agent.policy
-import metta.rl.loss.loss
 import metta.rl.training.component_context as component_context
 import metta.rl.training.training_environment as training_environment
+from . import loss as loss_module
 
 
-class ContrastiveLoss(metta.rl.loss.loss.Loss):
+class ContrastiveLoss(loss_module.Loss):
     """Contrastive loss for representation learning."""
 
     __slots__ = (

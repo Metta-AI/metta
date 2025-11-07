@@ -13,29 +13,25 @@ import rich.table
 import typer
 
 import gitta as git
-import fs_utils as fs_utils
-import components_base as components_base
-import local_commands as local_commands
-import symlink_setup as symlink_setup
-import setup_profiles as setup_profiles
-import setup_registry as setup_registry
-import book_tools as book_tools
-import ci_runner_tools as ci_runner_tools
-import clean_tools as clean_tools
-import code_formatters_tools as code_formatters_tools
-import test_cpp_tools as test_cpp_tools
-import test_python_tools as test_python_tools
-import setup_utils as setup_utils
-import saved_settings as saved_settings
-import live_run_monitor as live_run_monitor
-import auto_config as auto_config
+import metta.common.util.fs as fs_utils
+import metta.setup.components.base as components_base
+import metta.setup.local_commands as local_commands
+import metta.setup.profiles as setup_profiles
+import metta.setup.registry as setup_registry
+import metta.setup.saved_settings as saved_settings
+import metta.setup.symlink_setup as symlink_setup
+import metta.setup.tools.book as book_tools
+import metta.setup.tools.ci_runner as ci_runner_tools
+import metta.setup.tools.clean as clean_tools
+import metta.setup.tools.code_formatters as code_formatters_tools
+import metta.setup.tools.test_runner.test_cpp as test_cpp_tools
+import metta.setup.tools.test_runner.test_python as test_python_tools
+import metta.setup.utils as setup_utils
+import metta.tools.utils.auto_config as auto_config
+import metta.utils.live_run_monitor as live_run_monitor
 import softmax.dashboard.report
 
-metta = typing.cast(typing.Any, metta)
-
 if typing.TYPE_CHECKING:
-    import setup_registry
-
     SetupModule = setup_registry.SetupModule
 
 VERSION_PATTERN = re.compile(r"^(\d+\.\d+\.\d+(?:\.\d+)?)$")
@@ -56,21 +52,16 @@ class MettaCLI:
         self._components_initialized = True
 
     def setup_wizard(self, non_interactive: bool = False):
-        import setup_profiles
-        import saved_settings
-
         setup_utils.header("Welcome to Metta!\n\n")
-        setup_utils.info(
-            "Note: You can run 'metta configure <component>' to change component-level settings later.\n"
-        )
+        setup_utils.info("Note: You can run 'metta configure <component>' to change component-level settings later.\n")
 
-        saved_settings = saved_settings.get_saved_settings()
-        if saved_settings.exists():
+        settings_store = saved_settings.get_saved_settings()
+        if settings_store.exists():
             setup_utils.info("Current configuration:")
-            setup_utils.info(f"Profile: {saved_settings.user_type.value}")
-            setup_utils.info(f"Mode: {'custom' if saved_settings.is_custom_config else 'profile'}")
+            setup_utils.info(f"Profile: {settings_store.user_type.value}")
+            setup_utils.info(f"Mode: {'custom' if settings_store.is_custom_config else 'profile'}")
             setup_utils.info("\nEnabled components:")
-            components = saved_settings.get_components()
+            components = settings_store.get_components()
             for comp, settings in components.items():
                 if settings.get("enabled"):
                     setup_utils.success(f"  + {comp}")
@@ -78,7 +69,7 @@ class MettaCLI:
 
         choices = [(ut, ut.get_description()) for ut in setup_profiles.UserType]
 
-        current_user_type = saved_settings.user_type if saved_settings.exists() else None
+        current_user_type = settings_store.user_type if settings_store.exists() else None
 
         result = setup_utils.prompt_choice(
             "Select configuration:",
@@ -90,30 +81,26 @@ class MettaCLI:
         if result == setup_profiles.UserType.CUSTOM:
             self._custom_setup(non_interactive=non_interactive)
         else:
-            saved_settings.apply_profile(result)
+            settings_store.apply_profile(result)
             setup_utils.success(f"\nConfigured as {result.value} user.")
         setup_utils.info("\nRun 'metta install' to set up your environment.")
 
     def _custom_setup(self, non_interactive: bool = False):
         user_type = setup_utils.prompt_choice(
             "Select base profile for custom configuration:",
-            [
-                (ut, ut.get_description())
-                for ut in setup_profiles.UserType
-                if ut != setup_profiles.UserType.CUSTOM
-            ],
+            [(ut, ut.get_description()) for ut in setup_profiles.UserType if ut != setup_profiles.UserType.CUSTOM],
             default=setup_profiles.UserType.EXTERNAL,
             non_interactive=non_interactive,
         )
 
-        saved_settings = saved_settings.get_saved_settings()
-        saved_settings.setup_custom_profile(user_type)
+        settings_store = saved_settings.get_saved_settings()
+        settings_store.setup_custom_profile(user_type)
 
         setup_utils.info("\nCustomize components:")
         all_modules = setup_registry.get_all_modules()
 
         for module in all_modules:
-            current_enabled = saved_settings.is_component_enabled(module.name)
+            current_enabled = settings_store.is_component_enabled(module.name)
 
             enabled = setup_utils.prompt_choice(
                 f"Enable {module.name} ({module.description})?",
@@ -130,7 +117,7 @@ class MettaCLI:
                 .get("enabled", False)
             )
             if enabled != profile_default:
-                saved_settings.set(f"components.{module.name}.enabled", enabled)
+                settings_store.set(f"components.{module.name}.enabled", enabled)
 
         setup_utils.success("\nCustom configuration saved.")
         setup_utils.info("\nRun 'metta install' to set up your environment.")
@@ -198,8 +185,8 @@ def cmd_configure(
     elif profile:
         selected_user_type = setup_profiles.UserType(profile)
         if selected_user_type in setup_profiles.PROFILE_DEFINITIONS:
-            saved_settings = saved_settings.get_saved_settings()
-            saved_settings.apply_profile(selected_user_type)
+            settings_store = saved_settings.get_saved_settings()
+            settings_store.apply_profile(selected_user_type)
             setup_utils.success(f"Configured as {selected_user_type.value} user.")
         else:
             setup_utils.error(f"Unknown profile: {profile}")
@@ -368,8 +355,6 @@ def cmd_status(
     console = rich.console.Console()
     console.print(table)
 
-    import auto_config
-
     policy_decision = auto_config.auto_policy_storage_decision()
     if policy_decision.using_remote and policy_decision.base_prefix:
         if policy_decision.reason == "env_override":
@@ -377,9 +362,7 @@ def cmd_status(
                 f"Policy storage: S3 uploads enabled via POLICY_REMOTE_PREFIX → {policy_decision.base_prefix}/<run>."
             )
         else:
-            setup_utils.success(
-                f"Policy storage: Softmax S3 uploads active → {policy_decision.base_prefix}/<run>."
-            )
+            setup_utils.success(f"Policy storage: Softmax S3 uploads active → {policy_decision.base_prefix}/<run>.")
     elif policy_decision.reason == "not_connected" and policy_decision.base_prefix:
         setup_utils.warning(
             "Policy storage: local only. Run 'aws sso login --profile softmax' to enable uploads to "

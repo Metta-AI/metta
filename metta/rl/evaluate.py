@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import typing
 import uuid
@@ -28,7 +30,7 @@ def evaluate_policy_remote_with_checkpoint_manager(
     stats_epoch_id: uuid.UUID | None,
     stats_client: metta.app_backend.clients.stats_client.StatsClient | None,
     wandb_run: metta.common.wandb.context.WandbRun | None,
-    evaluation_cfg: metta.rl.training.evaluator.EvaluatorConfig | None,
+    evaluation_cfg: "metta.rl.training.evaluator.EvaluatorConfig | None",
 ) -> metta.app_backend.routes.eval_task_routes.TaskResponse | None:
     """Create a remote evaluation task using a policy URI."""
     if not (wandb_run and stats_client and policy_uri):
