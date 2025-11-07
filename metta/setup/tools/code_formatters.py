@@ -118,7 +118,7 @@ def cmd_lint(
     if files is not None:
         target_files = files
     elif staged:
-        target_files = [fname for status, fname in git.get_uncommitted_files_by_status() if status[0] == "M"]
+        target_files = [fname for status, fname in git.get_uncommitted_files_by_status() if status[0] in ("M", "A", "R")]
 
     if target_files is not None:
         files_by_formatter = defaultdict(set)
