@@ -104,6 +104,7 @@ def metta_train_fn(config: dict[str, Any]) -> None:
 
     # Use assigned GPUs or fall back to sweep config
     gpus_for_job = assigned_gpus if assigned_gpus > 0 else sweep_config.get("gpus_per_trial", 0)
+    logging.info(f"GPUs for job: {gpus_for_job} (Ray assigned: {assigned_gpus}, config: {sweep_config.get('gpus_per_trial', 0)})")
     training_dispatcher = LocalDispatcher(capture_output=True, use_torchrun=(gpus_for_job > 0))
 
     job = create_training_job(
@@ -113,6 +114,7 @@ def metta_train_fn(config: dict[str, Any]) -> None:
         train_entrypoint=sweep_config.get("train_entrypoint"),
         stats_server_uri=sweep_config.get("stats_server_uri"),
         train_overrides=config["params"],
+        gpus=gpus_for_job,
     )
     job.metadata["sweep/suggestion"] = config["params"]
     job.metadata["sweep/assigned_gpus"] = assigned_gpus

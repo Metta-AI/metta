@@ -71,7 +71,7 @@ export PYTHONOPTIMIZE=1
 export HYDRA_FULL_ERROR=1
 
 export WANDB_DIR="./wandb"
-export WANDB_API_KEY="\${WANDB_PASSWORD}"
+export WANDB_API_KEY="${WANDB_PASSWORD}"
 export DATA_DIR="\${DATA_DIR:-./train_dir}"
 
 # Datadog configuration
