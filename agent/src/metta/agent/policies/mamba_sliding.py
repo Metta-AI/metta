@@ -75,7 +75,7 @@ def _update_ssm_layer(config: MambaSlidingConfig, layer: str) -> MambaSlidingCon
     if layer != "Mamba2":
         raise ValueError(f"Unsupported SSM layer '{layer}'. Only 'Mamba2' is available.")
     for component in config.components:
-        if isinstance(component, MambaBackboneConfig):
+        if isinstance(component, mamba_config.MambaBackboneConfig):
             next_cfg = dict(component.ssm_cfg) if component.ssm_cfg else {}
             next_cfg["layer"] = layer
             component.ssm_cfg = next_cfg
