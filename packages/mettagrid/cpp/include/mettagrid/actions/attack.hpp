@@ -74,9 +74,7 @@ protected:
       for (short offset : COL_OFFSETS) {
         // Attack always northward
         GridLocation target_loc = _grid->relative_location(actor.location, Orientation::North, distance, offset);
-        target_loc.layer = GridLayer::AgentLayer;
-
-        Agent* target_agent = static_cast<Agent*>(_grid->object_at(target_loc));
+        Agent* target_agent = dynamic_cast<Agent*>(_grid->object_at(target_loc));
         if (target_agent) {
           last_agent = target_agent;
           if (num_skipped == arg) {

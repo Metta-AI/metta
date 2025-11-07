@@ -48,24 +48,15 @@ class ObsTokenPadStrip(nn.Module):
         policy_env_info: "PolicyEnvInterface",
         device: torch.device,
     ) -> str:
-        # Build feature mappings
-        # obs_features can be a list[ObservationFeatureSpec] or dict[str, ObservationFeatureSpec]
-        obs_features = policy_env_info.obs_features
-        if isinstance(obs_features, dict):
-            features_list = list(obs_features.values())
-            features = obs_features
-            # For dict format, names come from keys
-            self.feature_id_to_name = {props.id: name for name, props in obs_features.items()}
-        else:
-            features_list = obs_features
-            features = {props.name: props for props in features_list}
-            self.feature_id_to_name = {props.id: props.name for props in features_list}
+        # Build feature mappings from policy_env_info.obs_features list
+        features_list = list(policy_env_info.obs_features)
+        self.feature_id_to_name = {props.id: props.name for props in features_list}
         self.feature_normalizations = {
             props.id: props.normalization for props in features_list if hasattr(props, "normalization")
         }
 
         if not hasattr(self, "original_feature_mapping"):
-            self.original_feature_mapping = {name: props.id for name, props in features.items()}  # {name: id}
+            self.original_feature_mapping = {props.name: props.id for props in features_list}
             return f"Stored original feature mapping with {len(self.original_feature_mapping)} features"
         else:
             # Re-initialization - create remapping for agent portability
@@ -73,7 +64,8 @@ class ObsTokenPadStrip(nn.Module):
             feature_remap: dict[int, int] = {}
             unknown_features = []
 
-            for name, props in features.items():
+            for props in features_list:
+                name = props.name
                 new_id = props.id
                 if name in self.original_feature_mapping:
                     # Remap known features to their original IDs
@@ -90,7 +82,8 @@ class ObsTokenPadStrip(nn.Module):
 
             if feature_remap:
                 # Apply the remapping
-                self._apply_feature_remapping(feature_remap, features, UNKNOWN_FEATURE_ID, device)
+                current_features = {feat.name: feat for feat in features_list}
+                self._apply_feature_remapping(feature_remap, current_features, UNKNOWN_FEATURE_ID, device)
                 return f"Created feature remapping: {len(feature_remap)} remapped, {len(unknown_features)} unknown"
             else:
                 return "No feature remapping created"
@@ -119,6 +112,11 @@ class ObsTokenPadStrip(nn.Module):
     def forward(self, td: TensorDict) -> TensorDict:
         # [B, M, 3] the 3 vector is: coord (unit8), attr_idx, attr_val
         observations = td[self.in_key]
+        if observations.dim() == 2:
+            # Some call sites (single-agent eval/play) feed a single sequence; add batch axis
+            observations = observations.unsqueeze(0)
+            td[self.in_key] = observations
+
         M = observations.shape[1]
 
         # Apply feature remapping if active
@@ -179,15 +177,8 @@ class ObsAttrValNorm(nn.Module):
         self._set_feature_normalizations(policy_env_info, device)
 
     def _set_feature_normalizations(self, policy_env_info, device: Optional[torch.device] = None):
-        # Extract features consistently from obs_features
-        # Handle both list[ObservationFeatureSpec] (real PolicyEnvInterface) and dict (test fixtures)
-        obs_features = policy_env_info.obs_features
-        if isinstance(obs_features, dict):
-            # Test fixture format: dict[name: SimpleNamespace(id=..., normalization=...)]
-            features = {feat.id: feat.normalization for feat in obs_features.values()}
-        else:
-            # Real format: list[ObservationFeatureSpec]
-            features = {feat.id: feat.normalization for feat in obs_features}
+        feature_list = list(policy_env_info.obs_features)
+        features = {feat.id: feat.normalization for feat in feature_list}
         self._feature_normalizations = features
         self._update_norm_factors(device)
         return None
@@ -282,18 +273,11 @@ class ObsTokenToBoxShim(nn.Module):
         self.out_width = policy_env_info.obs_width
         self.out_height = policy_env_info.obs_height
 
-        # Determine num_layers from either obs_features or feature_normalizations
-        if hasattr(policy_env_info, "obs_features"):
-            self.num_layers = (
-                max(feat.id for feat in policy_env_info.obs_features) + 1 if policy_env_info.obs_features else 1
-            )
-        elif hasattr(policy_env_info, "feature_normalizations"):
-            # Legacy format - use feature_normalizations
-            self.num_layers = (
-                max(policy_env_info.feature_normalizations.keys()) + 1 if policy_env_info.feature_normalizations else 1
-            )
-        else:
-            self.num_layers = 1
+        # Determine num_layers directly from obs_features
+        feature_list = list(policy_env_info.obs_features)
+        self.num_layers = max((feat.id for feat in feature_list), default=-1) + 1 if feature_list else 0
+        if self.num_layers == 0:
+            raise ValueError("policy_env_info.obs_features must define at least one feature.")
 
     def forward(self, td: TensorDict):
         token_observations = td[self.in_key]
@@ -371,7 +355,8 @@ class ObservationNormalizer(nn.Module):
         self.in_key = in_key
         self.out_key = out_key
         # Compute feature_normalizations from policy_env_info.obs_features
-        feature_normalizations = {feat.id: feat.normalization for feat in policy_env_info.obs_features}
+        feature_list = list(policy_env_info.obs_features)
+        feature_normalizations = {feat.id: feat.normalization for feat in feature_list}
         self._initialize_to_environment(feature_normalizations)
 
     def forward(self, td: TensorDict):
@@ -383,20 +368,20 @@ class ObservationNormalizer(nn.Module):
         policy_env_info: "PolicyEnvInterface",
         device: torch.device,
     ) -> None:
-        # Extract features consistently from obs_features
-        features = {feat.id: feat.normalization for feat in policy_env_info.obs_features}
+        feature_list = list(policy_env_info.obs_features)
+        features = {feat.id: feat.normalization for feat in feature_list}
         self._initialize_to_environment(features, device)
 
-    def _initialize_to_environment(self, features: dict[str, dict], device: Optional[torch.device] = None):
+    def _initialize_to_environment(self, features: dict[int, float], device: Optional[torch.device] = None):
         self.feature_normalizations = features
         if not features:
-            # No features case - create a minimal tensor
-            obs_norm = torch.ones(1, 1, 1, 1, dtype=torch.float32)
-        else:
-            obs_norm = torch.ones(max(self.feature_normalizations.keys()) + 1, dtype=torch.float32)
-            for i, val in self.feature_normalizations.items():
-                obs_norm[i] = val
-            obs_norm = obs_norm.view(1, len(self.feature_normalizations), 1, 1)
+            raise ValueError("policy_env_info.obs_features must define at least one feature.")
+
+        depth = max(self.feature_normalizations.keys()) + 1
+        obs_norm = torch.ones(depth, dtype=torch.float32)
+        for i, val in self.feature_normalizations.items():
+            obs_norm[i] = val
+        obs_norm = obs_norm.view(1, depth, 1, 1)
 
         self.register_buffer("obs_norm", obs_norm)
         if device:

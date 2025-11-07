@@ -1,4 +1,5 @@
-from cogames.cogs_vs_clips.missions import HarvestMission, NeutralFacedVariant, make_game
+from cogames.cogs_vs_clips.missions import HarvestMission, make_game
+from cogames.cogs_vs_clips.variants import InventoryHeartTuneVariant, NeutralFacedVariant
 from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig
 
 
@@ -42,10 +43,10 @@ def test_make_cogs_vs_clips_scenario():
 
 
 def test_neutral_faced_variant_neutralizes_recipes():
-    mission = HarvestMission()
+    mission = HarvestMission
     assert mission.site is not None
-    instantiated = mission.instantiate(mission.site.map_builder, mission.site.min_cogs, NeutralFacedVariant())
-    env = instantiated.make_env()
+    mission = mission.with_variants([NeutralFacedVariant()])
+    env = mission.make_env()
 
     change_vibe = env.game.actions.change_vibe
     assert change_vibe.enabled is False
@@ -57,3 +58,12 @@ def test_neutral_faced_variant_neutralizes_recipes():
         assert len(obj.protocols) == 1
         protocol = obj.protocols[0]
         assert protocol.vibes == ["default"]
+
+
+def test_inventory_heart_tune_caps_initial_inventory_to_limits():
+    mission = HarvestMission.with_variants([InventoryHeartTuneVariant(hearts=20)])
+    env = mission.make_env()
+    agent = env.game.agent
+
+    energy_limit = int(agent.resource_limits["energy"])
+    assert agent.initial_inventory["energy"] == energy_limit

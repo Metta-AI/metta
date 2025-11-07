@@ -6,7 +6,7 @@ import typer
 import yaml
 
 from mettagrid.mapgen.mapgen import MapGen
-from mettagrid.mapgen.scene import validate_any_scene_config
+from mettagrid.mapgen.scene import SceneConfig
 from mettagrid.mapgen.utils.show import ShowMode, show_game_map
 
 logger = logging.getLogger(__name__)
@@ -27,7 +27,7 @@ def main(
     with open(scene, "r") as fh:
         yaml_cfg = yaml.safe_load(fh)
 
-    scene_cfg = validate_any_scene_config(yaml_cfg)
+    scene_cfg = SceneConfig.model_validate(yaml_cfg)
     for override in scene_override or []:
         key, value = override.split("=", 1)
         scene_cfg.override(key, value)

@@ -134,7 +134,7 @@
     },
     "vim.textwidth": 120,
     "eslint.useFlatConfig": true,
-    "eslint.workingDirectories": ["./mettascope", "./observatory", "./gridworks"],
+    "eslint.workingDirectories": ["./observatory", "./gridworks"],
     "[typescriptreact]": {
       "editor.defaultFormatter": "esbenp.prettier-vscode",
     },
@@ -147,14 +147,7 @@
     "[json]": {
       "editor.defaultFormatter": "esbenp.prettier-vscode",
     },
-    "python.testing.pytestArgs": [
-      "-v",
-      "-s",
-      "./tests",
-      "./packages/mettagrid/tests",
-      "./mettascope/tests",
-      "./agent/tests",
-    ],
+    "python.testing.pytestArgs": ["-v", "-s", "./tests", "./packages/mettagrid/tests", "./agent/tests"],
     "python.testing.pytestEnabled": true,
     "python.testing.unittestEnabled": false,
     "python.testing.autoTestDiscoverOnSaveEnabled": false,

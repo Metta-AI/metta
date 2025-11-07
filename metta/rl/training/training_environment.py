@@ -17,8 +17,9 @@ from torch import Tensor
 from metta.cogworks.curriculum import Curriculum, CurriculumConfig, env_curriculum
 from metta.rl.vecenv import make_vecenv
 from metta.utils.batch import calculate_batch_sizes
+from mettagrid.base_config import Config
 from mettagrid.builder.envs import make_arena
-from mettagrid.config import Config
+from mettagrid.config.mettagrid_config import EnvSupervisorConfig
 from mettagrid.mettagrid_c import dtype_actions
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
@@ -66,6 +67,8 @@ class TrainingEnvironmentConfig(Config):
         default_factory=lambda: Path("./train_dir/replays/training"),
         description="Base directory where training replays will be stored when writing is enabled.",
     )
+
+    supervisor: EnvSupervisorConfig = Field(default_factory=EnvSupervisorConfig)
 
 
 @dataclass
@@ -163,6 +166,7 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         self._vecenv = make_vecenv(
             self._curriculum,
             cfg.vectorization,
+            env_supervisor_cfg=cfg.supervisor,
             num_envs=self._num_envs,
             batch_size=self._batch_size,
             num_workers=num_workers,
@@ -241,6 +245,9 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
 
         # Convert to tensors
         o = torch.as_tensor(o)
+        if o.ndim == 2:
+            # Some vecenv backends collapse the batch axis when only one env/agent is ready
+            o = o.unsqueeze(0)
         r = torch.as_tensor(r)
         d = torch.as_tensor(d)
         t = torch.as_tensor(t)

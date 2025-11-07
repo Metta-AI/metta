@@ -8,7 +8,7 @@ name: "Test and Benchmark"
 
 on:
   pull_request:
-    types: [opened, synchronize, ready_for_review]
+    types: [opened, synchronize, ready_for_review, labeled]
   push:
     branches: [main]
   merge_group:
@@ -62,7 +62,7 @@ jobs:
   graphite-ci-optimizer:
     name: "Graphite CI Optimizer"
     if: |
-      github.event.pull_request.draft == false ||
+      !contains(github.event.pull_request.labels.*.name, 'skip-ci') ||
       github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'merge_group'
@@ -91,7 +91,7 @@ jobs:
     needs: graphite-ci-optimizer
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
-      (github.event.pull_request.draft == false ||
+      (!contains(github.event.pull_request.labels.*.name, 'skip-ci') ||
        github.event_name == 'push' ||
        github.event_name == 'workflow_dispatch' ||
        github.event_name == 'merge_group')
@@ -176,6 +176,18 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install pnpm dependencies
+        run: pnpm install
 
       - name: Setup Environment
         uses: ./.github/actions/setup-environment

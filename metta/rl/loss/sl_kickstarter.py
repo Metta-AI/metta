@@ -10,13 +10,12 @@ from torchrl.data import Composite
 
 from metta.agent.policy import Policy
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.loss import Loss
+from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import ComponentContext
-from mettagrid.config import Config
 
 
-class SLKickstarterConfig(Config):
+class SLKickstarterConfig(LossConfig):
     teacher_uri: str = Field(default="")
     action_loss_coef: float = Field(default=0.995, ge=0, le=1.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
@@ -30,7 +29,7 @@ class SLKickstarterConfig(Config):
         device: torch.device,
         instance_name: str,
         loss_config: Any,
-    ):
+    ) -> "SLKickstarter":
         """Create SLKickstarter loss instance."""
         return SLKickstarter(policy, trainer_cfg, vec_env, device, instance_name=instance_name, loss_config=loss_config)
 
@@ -53,21 +52,21 @@ class SLKickstarter(Loss):
         device: torch.device,
         instance_name: str,
         loss_config: Any = None,
-    ):
+    ) -> None:
         # Get loss config from trainer_cfg if not provided
         if loss_config is None:
             loss_config = getattr(trainer_cfg.losses, instance_name, None)
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
-        self.action_loss_coef = self.loss_cfg.action_loss_coef
-        self.value_loss_coef = self.loss_cfg.value_loss_coef
-        self.temperature = self.loss_cfg.temperature
+        self.action_loss_coef = self.cfg.action_loss_coef
+        self.value_loss_coef = self.cfg.value_loss_coef
+        self.temperature = self.cfg.temperature
         # load teacher policy
 
         game_rules = getattr(self.env, "game_rules", getattr(self.env, "meta_data", None))
         if game_rules is None:
             raise RuntimeError("Environment metadata is required to instantiate teacher policy")
 
-        self.teacher_policy = CheckpointManager.load_from_uri(self.loss_cfg.teacher_uri, game_rules, self.device)
+        self.teacher_policy = CheckpointManager.load_from_uri(self.cfg.teacher_uri, game_rules, self.device)
 
         self.teacher_policy_spec = self.teacher_policy.get_agent_experience_spec()
 
