@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """Arena Basic Easy Shaped recipe targeting the SmolLLM policy."""
 
 import importlib.util

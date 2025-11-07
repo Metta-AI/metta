@@ -1,4 +1,5 @@
 #!/usr/bin/env -S uv run
+# ruff: noqa: E501
 
 # NOTE: when moving this file, make sure to update ObservatoryKeySetup.login_script_location
 
@@ -34,8 +35,7 @@ def main():
     parser.add_argument(
         "token_key",
         help=(
-            "Key to store the token under in the YAML file "
-            f"(e.g. {metta.common.util.constants.PROD_STATS_SERVER_URI})"
+            f"Key to store the token under in the YAML file (e.g. {metta.common.util.constants.PROD_STATS_SERVER_URI})"
         ),
     )
     parser.add_argument("--force", action="store_true", help="Get a new token even if one already exists")

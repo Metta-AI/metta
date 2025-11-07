@@ -9,9 +9,11 @@ import torch.distributed
 import metta.agent.policy
 import metta.common.util.log_config
 import metta.rl.system_config
-import metta.rl.trainer_config
 import metta.rl.training
 import mettagrid.base_config
+
+if typing.TYPE_CHECKING:
+    import metta.rl.trainer_config
 
 logger = metta.common.util.log_config.getRankAwareLogger(__name__)
 
@@ -143,7 +145,7 @@ class DistributedHelper:
 
     def scale_batch_config(
         self,
-        trainer_cfg: metta.rl.trainer_config.TrainerConfig,
+        trainer_cfg: "metta.rl.trainer_config.TrainerConfig",
         env_cfg: metta.rl.training.TrainingEnvironmentConfig,
     ) -> None:
         """Scale batch sizes for distributed training if configured.

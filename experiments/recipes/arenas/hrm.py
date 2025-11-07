@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """Arena recipe with HRM policy architecture."""
 
 import metta.agent.policies.hrm

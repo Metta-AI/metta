@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 import experiments.recipes.arena_basic_easy_shaped
 import metta.agent.policies.vit_sliding_trans
 import metta.agent.policy

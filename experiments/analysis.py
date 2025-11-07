@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 import csv
 import math
 import dataclasses

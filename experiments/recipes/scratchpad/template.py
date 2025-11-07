@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 try:
     import metta.tools.eval
     import metta.tools.play

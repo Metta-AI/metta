@@ -1,4 +1,5 @@
 #!/usr/bin/env -S uv run
+# ruff: noqa: E501
 # /// script
 # requires-python = ">=3.12"
 # dependencies = [

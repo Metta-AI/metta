@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """Arena recipe with GRPO (Group Relative Policy Optimization) for comparison testing."""
 
 import metta.agent.policies.vit_grpo

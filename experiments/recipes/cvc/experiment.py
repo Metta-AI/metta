@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """Programmatic helpers and Skypilot launch utilities for CVC recipes."""
 
 import subprocess

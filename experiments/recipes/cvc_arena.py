@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """A Cogs vs Clips version of the arena recipe.
 
 This is meant as a basic testbed for CvC buildings / mechanics, not as a full-fledged recipe.

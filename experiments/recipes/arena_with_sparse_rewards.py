@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """Arena recipe with contrastive loss enabled and sparse rewards: ore -> battery -> heart."""
 
 import typing

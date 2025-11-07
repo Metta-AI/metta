@@ -1,4 +1,5 @@
 #!/usr/bin/env -S uv run
+# ruff: noqa: E501
 """Runner that takes a function that creates a ToolConfig,
 invokes the function, and then runs the tool defined by the config."""
 

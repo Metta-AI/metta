@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """Training recipe for Cogs vs Clips eval missions.
 
 This recipe provides training and evaluation on the 13 canonical CoGs vs Clips

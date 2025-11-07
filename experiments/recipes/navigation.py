@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 import typing
 
 import metta.cogworks.curriculum as cc

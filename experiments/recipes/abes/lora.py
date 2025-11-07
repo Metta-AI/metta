@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """Arena Basic Easy Shaped recipe that trains LoRA adapters on SmolLLM."""
 
 import typing

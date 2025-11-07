@@ -1,4 +1,5 @@
 #!/usr/bin/env -S uv run
+# ruff: noqa: E501
 """
 Test script for validating cluster configurations and exit conditions.
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env -S uv run
+# ruff: noqa: E501
 """
 Push the local mettaai/metta:latest image to an ECR registry.
 """

@@ -79,11 +79,41 @@ _SUBMODULE_ALIASES = {
     "task_tracker": "metta.cogworks.curriculum.task_tracker",
 }
 
+_CLASS_EXPORTS = {
+    "Curriculum": ("metta.cogworks.curriculum.curriculum", "Curriculum"),
+    "CurriculumConfig": ("metta.cogworks.curriculum.curriculum", "CurriculumConfig"),
+    "CurriculumTask": ("metta.cogworks.curriculum.curriculum", "CurriculumTask"),
+    "LearningProgressAlgorithm": (
+        "metta.cogworks.curriculum.learning_progress_algorithm",
+        "LearningProgressAlgorithm",
+    ),
+    "LearningProgressConfig": ("metta.cogworks.curriculum.learning_progress_algorithm", "LearningProgressConfig"),
+    "StatsLogger": ("metta.cogworks.curriculum.stats", "StatsLogger"),
+    "SliceAnalyzer": ("metta.cogworks.curriculum.stats", "SliceAnalyzer"),
+    "TaskTracker": ("metta.cogworks.curriculum.task_tracker", "TaskTracker"),
+    "TaskGenerator": ("metta.cogworks.curriculum.task_generator", "TaskGenerator"),
+    "TaskGeneratorConfig": ("metta.cogworks.curriculum.task_generator", "TaskGeneratorConfig"),
+    "AnyTaskGeneratorConfig": ("metta.cogworks.curriculum.task_generator", "AnyTaskGeneratorConfig"),
+    "SingleTaskGenerator": ("metta.cogworks.curriculum.task_generator", "SingleTaskGenerator"),
+    "TaskGeneratorSet": ("metta.cogworks.curriculum.task_generator", "TaskGeneratorSet"),
+    "BucketedTaskGenerator": ("metta.cogworks.curriculum.task_generator", "BucketedTaskGenerator"),
+    "Span": ("metta.cogworks.curriculum.stats", "Span"),
+}
+
 
 def __getattr__(name: str):
     target = _SUBMODULE_ALIASES.get(name)
-    if target is None:
-        raise AttributeError(f"module 'metta.cogworks.curriculum' has no attribute '{name}'")
-    module = importlib.import_module(target)
-    globals()[name] = module
-    return module
+    if target is not None:
+        module = importlib.import_module(target)
+        globals()[name] = module
+        return module
+
+    class_target = _CLASS_EXPORTS.get(name)
+    if class_target is not None:
+        module_path, attr_name = class_target
+        module = importlib.import_module(module_path)
+        value = getattr(module, attr_name)
+        globals()[name] = value
+        return value
+
+    raise AttributeError(f"module 'metta.cogworks.curriculum' has no attribute '{name}'")

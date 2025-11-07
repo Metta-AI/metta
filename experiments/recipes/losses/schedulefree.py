@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """Arena recipe with ScheduleFree AdamW optimizer for comparison testing."""
 
 import typing

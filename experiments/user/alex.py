@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 # This file is for local experimentation only. It is not checked in, and therefore won't be usable on skypilot
 # You can run these functions locally with e.g. `./tools/run.py experiments.recipes.scratchpad.alex.train`
 # The VSCode "Run and Debug" section supports options to run these functions.
