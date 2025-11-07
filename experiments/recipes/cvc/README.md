@@ -1,10 +1,7 @@
 # CoGs vs Clips Training Recipes
 
 Training recipes for the Cogs vs Clips eval missions, supporting curriculum learning across multiple missions and
-difficulty variants. All `experiments.recipes.cvc.*` entry points now proxy directly to
-`experiments.recipes.cogs_v_clips`, so there is a single source of truth for missions, variants, and trainer defaults.
-The commands are still provided for continuity, but any options passed to them are forwarded unchanged to the shared
-recipe implementation.
+difficulty variants.
 
 ## Quick Start
 
@@ -94,47 +91,6 @@ uv run ./tools/run.py experiments.recipes.cvc.small_maps.play \\
 # Play without a policy (random actions)
 uv run ./tools/run.py experiments.recipes.cvc.curriculum.play
 ```
-
-### Built-in Variant Presets
-
-For every CVC entry point you can call:
-
-- `train_easy` / `train_shaped`
-- `play_easy` / `play_shaped`
-
-Examples:
-
-```bash
-uv run ./tools/run.py experiments.recipes.cvc.small_maps.train_easy run=my_easy_run
-uv run ./tools/run.py experiments.recipes.cvc.medium_maps.play_shaped mission_name=collect_resources_spread
-uv run ./tools/run.py experiments.recipes.cvc.curriculum.train_shaped run=my_curriculum
-uv run ./tools/run.py experiments.recipes.cvc.single_mission.train_easy mission_name=training_facility.harvest
-```
-
-Each helper defaults to the variant bundles below, but you can still override `variants=` or `eval_variants=` if needed.
-
-### Variant Presets (manual override)
-
-Prefer calling the base functions yourself? Just pass the preset variant names that now ship with cogames:
-
-- **Easy starter:** `cvc_easy` (expands to `lonely_heart`, `pack_rat`, `neutral_faced`)
-
-  ```bash
-  uv run ./tools/run.py experiments.recipes.cvc.small_maps.train \\
-      run=my_easy_run \\
-      variants='["cvc_easy"]'
-  ```
-
-- **Reward-shaped:** `cvc_shaped` (expands to `lonely_heart`, `heart_chorus`, `pack_rat`, `neutral_faced`)
-
-  ```bash
-  uv run ./tools/run.py experiments.recipes.cvc.small_maps.train \\
-      run=my_shaped_run \\
-      variants='["cvc_shaped"]'
-  ```
-
-Mix and match with other difficulty variants (e.g., add `difficulty=hard` or append `"clipped_oxygen"`). Everything
-ultimately routes through the cogames variant parser so you get the exact same behavior as the preset helpers.
 
 ## Recipe Functions
 
