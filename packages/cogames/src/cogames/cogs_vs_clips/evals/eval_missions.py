@@ -87,17 +87,42 @@ class EvalVariant(MissionVariant):
             env.game.objects["silicon_extractor"].max_uses = self.max_uses_silicon
 
         # Global quality-of-life tweaks for evals
-        # 1) Double agent inventory caps for core resources and gear
+        # 1) Double agent inventory caps for core resources and gear, but cap at uint8 max.
         try:
-            limits = env.game.agent.resource_limits
-            for key in ("carbon", "oxygen", "germanium", "silicon"):
-                if key in limits and isinstance(limits[key], int):
-                    limits[key] = limits[key] * 2
-            for key in ("decoder", "modulator", "scrambler", "resonator"):
-                if key in limits and isinstance(limits[key], int):
-                    limits[key] = limits[key] * 2
-            if "energy" in limits and isinstance(limits["energy"], int):
-                limits["energy"] = limits["energy"] * 2
+            limits = dict(env.game.agent.resource_limits)
+            resources_to_double = {
+                "carbon",
+                "oxygen",
+                "germanium",
+                "silicon",
+                "decoder",
+                "modulator",
+                "scrambler",
+                "resonator",
+                "energy",
+            }
+
+            def _should_double(key):
+                if isinstance(key, str):
+                    return key in resources_to_double
+                if isinstance(key, tuple):
+                    return all(entry in resources_to_double for entry in key)
+                return False
+
+            max_limit = 255
+            updated = False
+            for key, value in list(limits.items()):
+                if not isinstance(value, int):
+                    continue
+                new_value = value * 2 if _should_double(key) else value
+                if new_value > max_limit:
+                    new_value = max_limit
+                if new_value != value:
+                    limits[key] = new_value
+                    updated = True
+
+            if updated:
+                env.game.agent.resource_limits = limits
         except Exception:
             pass
 

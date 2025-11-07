@@ -102,10 +102,11 @@ class PackRatVariant(MissionVariant):
 
     @override
     def modify_mission(self, mission):
-        mission.heart_capacity = max(mission.heart_capacity, 255)
-        mission.energy_capacity = max(mission.energy_capacity, 255)
-        mission.cargo_capacity = max(mission.cargo_capacity, 255)
-        mission.gear_capacity = max(mission.gear_capacity, 255)
+        # Pack rats want the absolute ceiling, but hardware still caps at uint8.
+        mission.heart_capacity = 255
+        mission.energy_capacity = 255
+        mission.cargo_capacity = 255
+        mission.gear_capacity = 255
 
 
 class EnergizedVariant(MissionVariant):
