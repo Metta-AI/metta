@@ -409,6 +409,48 @@ class CyclicalUnclipVariant(MissionVariant):
             ]
 
 
+class VariantBundle(MissionVariant):
+    """Helper for bundling multiple variants under a single name."""
+
+    bundled_variants: tuple[type[MissionVariant], ...] = ()
+
+    def _iter_variants(self) -> list[MissionVariant]:
+        return [variant_cls() for variant_cls in self.bundled_variants]
+
+    @override
+    def modify_mission(self, mission):
+        for variant in self._iter_variants():
+            variant.modify_mission(mission)
+
+    @override
+    def modify_env(self, mission, env):
+        for variant in self._iter_variants():
+            variant.modify_env(mission, env)
+
+
+class CvcEasyPresetVariant(VariantBundle):
+    name: str = "cvc_easy"
+    description: str = "Simpler heart crafting with higher resource caps and neutral vibes."
+
+    bundled_variants: tuple[type[MissionVariant], ...] = (
+        LonelyHeartVariant,
+        PackRatVariant,
+        NeutralFacedVariant,
+    )
+
+
+class CvcShapedPresetVariant(VariantBundle):
+    name: str = "cvc_shaped"
+    description: str = "Heart-focused reward shaping preset used across Metta recipes."
+
+    bundled_variants: tuple[type[MissionVariant], ...] = (
+        LonelyHeartVariant,
+        HeartChorusVariant,
+        PackRatVariant,
+        NeutralFacedVariant,
+    )
+
+
 # TODO - validate that all variant names are unique
 VARIANTS: list[MissionVariant] = [
     MinedOutVariant(),
@@ -435,5 +477,7 @@ VARIANTS: list[MissionVariant] = [
     ClipBaseExceptCarbonVariant(),
     CyclicalUnclipVariant(),
     ClipRateOnVariant(),
+    CvcEasyPresetVariant(),
+    CvcShapedPresetVariant(),
     *DIFFICULTY_VARIANTS,
 ]

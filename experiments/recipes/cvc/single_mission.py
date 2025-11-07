@@ -8,12 +8,13 @@ from experiments.recipes.cogs_v_clips import (
     play as base_play,
     train_single_mission as base_train_single_mission,
 )
-from experiments.recipes.cvc.presets import (
-    EASY_VARIANTS,
-    SHAPED_VARIANTS,
-    resolve_eval_variants,
-    resolve_training_variants,
-)
+
+EASY_PRESET = "cvc_easy"
+SHAPED_PRESET = "cvc_shaped"
+
+
+def _preset_or_overrides(preset: str, overrides: Optional[Sequence[str]]) -> list[str]:
+    return list(overrides) if overrides is not None else [preset]
 
 
 def train(
@@ -56,13 +57,11 @@ def train_easy(
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
 ):
-    resolved_variants = resolve_training_variants(EASY_VARIANTS, variants)
-    resolved_eval_variants = resolve_eval_variants(eval_variants)
     return base_train_single_mission(
         mission_name=mission_name,
         num_cogs=num_cogs,
-        variants=resolved_variants,
-        eval_variants=resolved_eval_variants,
+        variants=_preset_or_overrides(EASY_PRESET, variants),
+        eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
     )
 
@@ -75,13 +74,11 @@ def train_shaped(
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
 ):
-    resolved_variants = resolve_training_variants(SHAPED_VARIANTS, variants)
-    resolved_eval_variants = resolve_eval_variants(eval_variants)
     return base_train_single_mission(
         mission_name=mission_name,
         num_cogs=num_cogs,
-        variants=resolved_variants,
-        eval_variants=resolved_eval_variants,
+        variants=_preset_or_overrides(SHAPED_PRESET, variants),
+        eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
     )
 
@@ -93,12 +90,11 @@ def play_easy(
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
 ):
-    resolved_variants = resolve_training_variants(EASY_VARIANTS, variants)
     return base_play(
         policy_uri=policy_uri,
         mission_name=mission_name,
         num_cogs=num_cogs,
-        variants=resolved_variants,
+        variants=_preset_or_overrides(EASY_PRESET, variants),
     )
 
 
@@ -109,12 +105,11 @@ def play_shaped(
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
 ):
-    resolved_variants = resolve_training_variants(SHAPED_VARIANTS, variants)
     return base_play(
         policy_uri=policy_uri,
         mission_name=mission_name,
         num_cogs=num_cogs,
-        variants=resolved_variants,
+        variants=_preset_or_overrides(SHAPED_PRESET, variants),
     )
 
 

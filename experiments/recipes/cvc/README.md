@@ -115,26 +115,26 @@ Each helper defaults to the variant bundles below, but you can still override `v
 
 ### Variant Presets (manual override)
 
-- **Easy starter:** `lonely_heart`, `pack_rat`, `neutral_faced`
+Prefer calling the base functions yourself? Just pass the preset variant names that now ship with cogames:
+
+- **Easy starter:** `cvc_easy` (expands to `lonely_heart`, `pack_rat`, `neutral_faced`)
 
   ```bash
   uv run ./tools/run.py experiments.recipes.cvc.small_maps.train \\
       run=my_easy_run \\
-      variants='["lonely_heart","pack_rat","neutral_faced"]'
+      variants='["cvc_easy"]'
   ```
 
-- **Reward-shaped:** `lonely_heart`, `heart_chorus`, `pack_rat`, `neutral_faced`, `extractor_base`
+- **Reward-shaped:** `cvc_shaped` (expands to `lonely_heart`, `heart_chorus`, `pack_rat`, `neutral_faced`)
 
   ```bash
   uv run ./tools/run.py experiments.recipes.cvc.small_maps.train \\
       run=my_shaped_run \\
-      variants='["lonely_heart","heart_chorus","pack_rat","neutral_faced","extractor_base"]'
-
-  > Note: `extractor_base` only affects BaseHub/Machina maps (e.g., training_facility). It is skipped automatically on fixed eval layouts.
+      variants='["cvc_shaped"]'
   ```
 
-Mix and match with difficulty variants (for example, add `difficulty=hard` or append `"clipped_oxygen"` to the list) as
-needed—the recipes forward everything to the `cogames` variant parser.
+Mix and match with other difficulty variants (e.g., add `difficulty=hard` or append `"clipped_oxygen"`). Everything
+ultimately routes through the cogames variant parser so you get the exact same behavior as the preset helpers.
 
 ## Recipe Functions
 
