@@ -1,6 +1,6 @@
 from typing import List
 
-from cortex.config import CortexStackConfig, LSTMCellConfig, PassThroughBlockConfig
+from cortex.stacks import build_cortex_auto_config
 
 from metta.agent.components.actor import ActionProbsConfig, ActorHeadConfig
 from metta.agent.components.component_config import ComponentConfig
@@ -47,11 +47,11 @@ class ViTDefaultConfig(PolicyArchitecture):
             d_hidden=_latent_dim,
             out_features=_core_dim,
             key_prefix="vit_cortex_state",
-            stack_cfg=CortexStackConfig(
-                blocks=[PassThroughBlockConfig(cell=LSTMCellConfig())],
+            stack_cfg=build_cortex_auto_config(
                 d_hidden=_latent_dim,
+                num_layers=1,
+                pattern="L",
                 post_norm=False,
-                compile_blocks=True,
             ),
         ),
         MLPConfig(

@@ -57,6 +57,9 @@ class CortexTDConfig(ComponentConfig):
 
     d_hidden: int = 128
     out_features: Optional[int] = None
+    # Apply a nonlinearity after the stack's output projection; name must be a torch.nn module
+    # Default chosen for good optimization behavior on RL heads
+    output_nonlinearity: str = "SiLU"
 
     # JSON‑serializable config for building the Cortex stack.
     stack_cfg: CortexStackConfig
@@ -108,6 +111,9 @@ class CortexTD(nn.Module):
             self._out_proj: nn.Module = nn.Identity()
         else:
             self._out_proj = nn.Linear(int(self.d_hidden), int(self.out_features))
+
+        # Output nonlinearity module constructed from torch.nn by name
+        self._out_act: nn.Module = self._make_activation(self.config.output_nonlinearity)
 
         self._leaf_shapes: Dict[LeafPath, Tuple[int, ...]] = self._discover_leaf_shapes()
         self._rollout_store: Dict[LeafPath, torch.Tensor] = {}
@@ -228,7 +234,7 @@ class CortexTD(nn.Module):
             y, state_next = self.stack.step(x_step, state_prev, resets=resets)
             self._maybe_register_new_leaves(state_next)
             self._rollout_current_state = state_next
-            y = self._out_proj(y)
+            y = self._out_act(self._out_proj(y))
             td.set(self.out_key, y.reshape(B * TT, -1))
             return td
         else:
@@ -241,7 +247,7 @@ class CortexTD(nn.Module):
 
             x_seq = rearrange(x, "(b t) h -> b t h", b=B, t=TT)
             y_seq, _ = self.stack(x_seq, state0, resets=resets)
-            y_seq = self._out_proj(y_seq)
+            y_seq = self._out_act(self._out_proj(y_seq))
             td.set(self.out_key, rearrange(y_seq, "b t h -> (b t) h"))
             return td
 
@@ -533,6 +539,21 @@ class CortexTD(nn.Module):
 
     def _flat_key(self, block_key: str, cell_key: str, leaf_key: str) -> FlatKey:
         return f"{self.key_prefix}__{block_key}__{cell_key}__{leaf_key}"
+
+    @staticmethod
+    def _make_activation(name: str) -> nn.Module:
+        n = name.lower()
+        if n in ("silu", "swish"):
+            return nn.SiLU()
+        if n == "relu":
+            return nn.ReLU()
+        if n == "tanh":
+            return nn.Tanh()
+        if n in ("linear", "identity"):
+            return nn.Identity()
+        raise ValueError(
+            f"Unsupported output_nonlinearity '{name}'. Allowed: silu/swish, relu, tanh, linear/identity."
+        )
 
 
 __all__ = ["CortexTDConfig", "CortexTD"]
