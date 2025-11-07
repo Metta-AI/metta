@@ -402,7 +402,6 @@ def train_small_maps(
     mission_name: str | None = None,
 ) -> TrainTool:
     """Train on small maps (30x30, classic layouts) or a specific mission."""
-
     return train(
         num_cogs=num_cogs,
         base_missions=list(SMALL_MAP_MISSIONS),
@@ -421,7 +420,6 @@ def train_medium_maps(
     mission_name: str | None = None,
 ) -> TrainTool:
     """Train on medium maps (50x50 layouts) or a specific mission."""
-
     return train(
         num_cogs=num_cogs,
         base_missions=list(MEDIUM_MAP_MISSIONS),
@@ -440,7 +438,6 @@ def train_large_maps(
     mission_name: str | None = None,
 ) -> TrainTool:
     """Train on large maps with more agents or focus on one mission."""
-
     return train(
         num_cogs=num_cogs,
         base_missions=list(LARGE_MAP_MISSIONS),
@@ -459,7 +456,6 @@ def train_coordination(
     mission_name: str | None = None,
 ) -> TrainTool:
     """Train on coordination-heavy missions or a specific target map."""
-
     return train(
         num_cogs=num_cogs,
         base_missions=list(COORDINATION_MISSIONS),
