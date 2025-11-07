@@ -186,8 +186,6 @@ class CvCChestConfig(CvCStationConfig):
         )
 
 
-
-
 class CvCAssemblerConfig(CvCStationConfig):
     type: Literal["assembler"] = Field(default="assembler")
     heart_cost: int = Field(default=10)

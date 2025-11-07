@@ -22,11 +22,13 @@ except Exception:  # pragma: no cover
 
 import platform
 
+
 def _is_wsl() -> bool:
     try:
         return "WSL2" in platform.uname().release
     except Exception:
         return False
+
 
 # CUDA fused sequential (all-in) availability
 try:
@@ -40,6 +42,7 @@ except Exception:  # pragma: no cover
 if _HAS_CUDA_SEQ:
     try:
         import platform as _plat
+
         if "WSL2" in _plat.uname().release:
             _HAS_CUDA_SEQ = False
     except Exception:

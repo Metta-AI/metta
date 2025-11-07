@@ -30,9 +30,7 @@ def test_walls_visible_without_tags():
             max_steps=1,
             actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
             objects={"wall": WallConfig()},
-            map_builder=AsciiMapBuilder.Config(
-                map_data=game_map.tolist(), char_to_map_name=DEFAULT_CHAR_TO_NAME
-            ),
+            map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist(), char_to_map_name=DEFAULT_CHAR_TO_NAME),
         )
     )
 

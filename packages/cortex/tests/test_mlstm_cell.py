@@ -14,6 +14,7 @@ def get_test_device():
     On WSL2, prefer CPU to avoid nondeterministic CuBLAS issues in CI/dev.
     """
     import platform
+
     if torch.cuda.is_available() and "WSL2" in platform.uname().release:
         device = torch.device("cpu")
     else:
