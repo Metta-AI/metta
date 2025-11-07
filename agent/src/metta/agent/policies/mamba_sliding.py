@@ -3,7 +3,7 @@ from typing import List
 from metta.agent.components.action import ActionEmbeddingConfig
 from metta.agent.components.actor import ActionProbsConfig, ActorKeyConfig, ActorQueryConfig
 from metta.agent.components.component_config import ComponentConfig
-from metta.agent.components.mamba.config import MambaBackboneConfig
+import metta.agent.components.mamba.config as mamba_config
 from metta.agent.components.misc import MLPConfig
 from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
 from metta.agent.components.obs_shim import ObsShimTokensConfig
@@ -37,7 +37,7 @@ class MambaSlidingConfig(PolicyArchitecture):
             num_heads=4,
             num_layers=1,
         ),
-        MambaBackboneConfig(
+        mamba_config.MambaBackboneConfig(
             in_key="encoded_obs",
             out_key="core",
             input_dim=_latent_dim,

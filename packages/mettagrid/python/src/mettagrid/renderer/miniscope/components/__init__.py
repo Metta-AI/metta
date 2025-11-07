@@ -1,4 +1,4 @@
-"""Component exports for the miniscope renderer."""
+"""Convenience re-exports for miniscope components."""
 
 from .agent_control import AgentControlComponent
 from .agent_info import AgentInfoComponent

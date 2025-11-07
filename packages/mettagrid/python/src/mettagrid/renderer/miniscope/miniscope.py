@@ -14,7 +14,7 @@ from rich.console import Console
 from mettagrid.config.vibes import VIBES as VIBE_DATA
 from mettagrid.renderer.renderer import Renderer
 
-from .components import (
+from mettagrid.renderer.miniscope.components import (
     AgentControlComponent,
     AgentInfoComponent,
     HelpPanelComponent,
