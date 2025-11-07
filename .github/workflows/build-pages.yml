@@ -29,7 +29,7 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-environment
         with:
-          install-mode: "minimal"
+          install-mode: "testing"
 
       - name: Install Mettascope Dependencies
         run: |
