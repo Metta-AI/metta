@@ -406,28 +406,26 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
     }
 
     //  process a single grid location
-    for (Layer layer = 0; layer < GridLayer::GridLayerCount; layer++) {
-      GridLocation object_loc(static_cast<GridCoord>(r), static_cast<GridCoord>(c), layer);
-      auto obj = _grid->object_at(object_loc);
-      if (!obj) {
-        continue;
-      }
-
-      // Prepare observation buffer for this object
-      ObservationToken* obs_ptr =
-          reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, tokens_written, 0));
-      ObservationTokens obs_tokens(
-          obs_ptr, static_cast<size_t>(observation_view.shape(1)) - static_cast<size_t>(tokens_written));
-
-      // Calculate position within the observation window (agent is at the center)
-      int obs_r = r - static_cast<int>(observer_row) + static_cast<int>(obs_height_radius);
-      int obs_c = c - static_cast<int>(observer_col) + static_cast<int>(obs_width_radius);
-
-      // Encode location and add tokens
-      uint8_t location = PackedCoordinate::pack(static_cast<uint8_t>(obs_r), static_cast<uint8_t>(obs_c));
-      attempted_tokens_written += _obs_encoder->encode_tokens(obj, obs_tokens, location);
-      tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
+    GridLocation object_loc(static_cast<GridCoord>(r), static_cast<GridCoord>(c));
+    auto obj = _grid->object_at(object_loc);
+    if (!obj) {
+      continue;
     }
+
+    // Prepare observation buffer for this object
+    ObservationToken* obs_ptr =
+        reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, tokens_written, 0));
+    ObservationTokens obs_tokens(
+        obs_ptr, static_cast<size_t>(observation_view.shape(1)) - static_cast<size_t>(tokens_written));
+
+    // Calculate position within the observation window (agent is at the center)
+    int obs_r = r - static_cast<int>(observer_row) + static_cast<int>(obs_height_radius);
+    int obs_c = c - static_cast<int>(observer_col) + static_cast<int>(obs_width_radius);
+
+    // Encode location and add tokens
+    uint8_t location = PackedCoordinate::pack(static_cast<uint8_t>(obs_r), static_cast<uint8_t>(obs_c));
+    attempted_tokens_written += _obs_encoder->encode_tokens(obj, obs_tokens, location);
+    tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
   }
 
   _stats->add("tokens_written", tokens_written);
@@ -718,14 +716,13 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
     obj_dict["id"] = obj_id;
     obj_dict["type_name"] = object_type_names[obj->type_id];
     // Location here is defined as XYZ coordinates specifically to be used by MettaScope.
-    // We define that for location: x is column, y is row, and z is layer.
+    // We define that for location: x is column, y is row. Currently, no z for grid objects.
     // Note: it might be different for matrix computations.
-    obj_dict["location"] = py::make_tuple(obj->location.c, obj->location.r, obj->location.layer);
+    obj_dict["location"] = py::make_tuple(obj->location.c, obj->location.r);
     obj_dict["is_swappable"] = obj->swappable();
 
     obj_dict["r"] = obj->location.r;          // To remove
     obj_dict["c"] = obj->location.c;          // To remove
-    obj_dict["layer"] = obj->location.layer;  // To remove
 
     // Inject observation features
     auto features = obj->obs_features();
