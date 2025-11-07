@@ -1,9 +1,11 @@
 from cogames.cogs_vs_clips.missions import (
     HarvestMission,
+    Mission,
     RepairMission,
     UnclipDrillsMission,
     make_game,
 )
+from cogames.cogs_vs_clips.stations import CvCStationConfig
 from cogames.cogs_vs_clips.variants import InventoryHeartTuneVariant, NeutralFacedVariant
 from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig
 
@@ -74,7 +76,7 @@ def test_inventory_heart_tune_caps_initial_inventory_to_limits():
     assert agent.initial_inventory["energy"] == energy_limit
 
 
-def _station_configs(mission):
+def _station_configs(mission: Mission) -> list[CvCStationConfig]:
     return [
         mission.carbon_extractor,
         mission.oxygen_extractor,
