@@ -339,6 +339,7 @@ class SimulationAgent:
                     feature=self._sim.get_feature(feature_id),
                     location=PackedCoordinate.unpack(location) or (0, 0),
                     value=int(value),
+                    raw_token=o,
                 )
             )
         return AgentObservation(agent_id=self._agent_id, tokens=tokens)

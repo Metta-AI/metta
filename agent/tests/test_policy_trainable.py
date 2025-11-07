@@ -79,7 +79,7 @@ def test_agent_policy_adapter_step():
     # Create a simple observation (single agent, token-based)
     # Create mock feature spec for padding tokens
     feature = ObservationFeatureSpec(id=0, name="padding", normalization=255.0)
-    tokens = [ObservationToken(feature=feature, location=(0, 0), value=0) for _ in range(10)]
+    tokens = [ObservationToken(feature=feature, location=(0, 0), value=0, raw_token=(255, 0, 0)) for _ in range(10)]
     obs = AgentObservation(agent_id=0, tokens=tokens)
 
     # Get action

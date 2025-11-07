@@ -150,24 +150,16 @@ class LSTMPolicyNet(torch.nn.Module):
 
 def obs_to_obs_tensor(obs: MettaGridObservation, obs_shape: Tuple[int, ...], device: torch.device) -> torch.Tensor:
     """Get action and update state for this agent."""
-    tokens = []
-    for token in obs.tokens:
-        col, row = token.location
-        # Pack coordinates into a single byte: first 4 bits are col, last 4 bits are row
-        coords_byte = ((col & 0x0F) << 4) | (row & 0x0F)
-        feature_id = token.feature.id
-        value = token.value
-        tokens.append([coords_byte, feature_id, value])
 
     # Create observation array matching the training format
     # Training uses a fixed-size buffer of (num_tokens, token_dim) from policy_env_info
     obs_array = np.full(obs_shape, [255, 0, 0], dtype=np.uint8)
 
     # Fill with actual token data
-    for i, token_data in enumerate(tokens):
+    for i, token in enumerate(obs.tokens):
         if i < obs_shape[0]:
-            obs_array[i] = token_data
-    # Flatten to match training format: (num_tokens, token_dim) -> (num_tokens * token_dim)
+            obs_array[i] = token.raw_token
+
     return torch.from_numpy(obs_array).unsqueeze(0).to(device)
 
 
