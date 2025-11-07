@@ -182,11 +182,21 @@ def make_training_env(
     env = mission.make_env()
 
     # Guard against upstream modifiers pushing limits beyond supported bounds.
-    energy_limit = env.game.agent.resource_limits.get("energy")
-    if isinstance(energy_limit, int) and energy_limit > 255:
-        env.game.agent.resource_limits["energy"] = 255
-        if env.game.agent.initial_inventory.get("energy", 0) > 255:
-            env.game.agent.initial_inventory["energy"] = 255
+    agent_cfg = env.game.agent
+    resource_limits = dict(agent_cfg.resource_limits)
+    updated_limits = False
+    for key, limit in list(resource_limits.items()):
+        if isinstance(limit, int) and limit > 255:
+            resource_limits[key] = 255
+            updated_limits = True
+    if updated_limits:
+        agent_cfg.resource_limits = resource_limits
+
+    if agent_cfg.default_resource_limit > 255:
+        agent_cfg.default_resource_limit = 255
+
+    if agent_cfg.initial_inventory.get("energy", 0) > 255:
+        agent_cfg.initial_inventory["energy"] = 255
 
     # If vibe swapping is disabled, prune stale vibe transfers to avoid invalid IDs.
     change_vibe_action = getattr(env.game.actions, "change_vibe", None)

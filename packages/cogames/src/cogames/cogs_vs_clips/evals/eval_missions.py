@@ -87,37 +87,17 @@ class EvalVariant(MissionVariant):
             env.game.objects["silicon_extractor"].max_uses = self.max_uses_silicon
 
         # Global quality-of-life tweaks for evals
-        # 1) Double agent inventory caps for core resources and gear, but cap at uint8 max.
+        # 1) Double agent inventory caps for core resources and gear
         try:
-            limits = dict(env.game.agent.resource_limits)
-            targets = {
-                "carbon",
-                "oxygen",
-                "germanium",
-                "silicon",
-                "decoder",
-                "modulator",
-                "scrambler",
-                "resonator",
-                "energy",
-            }
-            updated = False
-            for key, value in list(limits.items()):
-                if not isinstance(value, int):
-                    continue
-                wants_double = False
-                if isinstance(key, str):
-                    wants_double = key in targets
-                elif isinstance(key, tuple):
-                    wants_double = all(entry in targets for entry in key)
-                if not wants_double:
-                    continue
-                new_value = min(255, value * 2)
-                if new_value != value:
-                    limits[key] = new_value
-                    updated = True
-            if updated:
-                env.game.agent.resource_limits = limits
+            limits = env.game.agent.resource_limits
+            for key in ("carbon", "oxygen", "germanium", "silicon"):
+                if key in limits and isinstance(limits[key], int):
+                    limits[key] = limits[key] * 2
+            for key in ("decoder", "modulator", "scrambler", "resonator"):
+                if key in limits and isinstance(limits[key], int):
+                    limits[key] = limits[key] * 2
+            if "energy" in limits and isinstance(limits["energy"], int):
+                limits["energy"] = limits["energy"] * 2
         except Exception:
             pass
 
