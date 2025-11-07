@@ -90,7 +90,7 @@ class EvalVariant(MissionVariant):
         # 1) Double agent inventory caps for core resources and gear, but cap at uint8 max.
         try:
             limits = dict(env.game.agent.resource_limits)
-            resources_to_double = {
+            targets = {
                 "carbon",
                 "oxygen",
                 "germanium",
@@ -101,26 +101,21 @@ class EvalVariant(MissionVariant):
                 "resonator",
                 "energy",
             }
-
-            def _should_double(key):
-                if isinstance(key, str):
-                    return key in resources_to_double
-                if isinstance(key, tuple):
-                    return all(entry in resources_to_double for entry in key)
-                return False
-
-            max_limit = 255
             updated = False
             for key, value in list(limits.items()):
                 if not isinstance(value, int):
                     continue
-                new_value = value * 2 if _should_double(key) else value
-                if new_value > max_limit:
-                    new_value = max_limit
+                wants_double = False
+                if isinstance(key, str):
+                    wants_double = key in targets
+                elif isinstance(key, tuple):
+                    wants_double = all(entry in targets for entry in key)
+                if not wants_double:
+                    continue
+                new_value = min(255, value * 2)
                 if new_value != value:
                     limits[key] = new_value
                     updated = True
-
             if updated:
                 env.game.agent.resource_limits = limits
         except Exception:
