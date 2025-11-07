@@ -16,7 +16,7 @@ class FeatureSpec:
 
     For continuous/discrete types, values are normalized to [0, 1] with
     out-of-range values clipped before conversion.
-    
+
     """
 
     name: str
@@ -115,10 +115,10 @@ def extract_features_from_config(config: MettaGridConfig) -> Dict[str, Any]:
     height = int(mb.height)
 
     room_size = getattr(mb, "room_size", None)
-    terrain = getattr(mb, "terrain", None)
+    terrain = getattr(mb, "terrain", None) or getattr(mb, "density", None)
 
-    chain_length = getattr(config, "chain_length", None)
-    num_sinks = getattr(config, "num_sinks", None)
+    chain_length = getattr(mb, "chain_length", None)
+    num_sinks = getattr(mb, "num_sinks", None)
 
     missing_structured = []
     if room_size is None:
@@ -172,7 +172,7 @@ def serialize_config(
     resource_types: Sequence[str] | None = None,
     sentinels: Tuple[str, str] = ("nothing", "heart"),
 ) -> dict[str, np.ndarray]:
-    """Serialize MettaGridConfig into:   
+    """Serialize MettaGridConfig into:
         {
           "continuous": 1-D float32 array,
           "categorical": 1-D float32 array,
@@ -254,12 +254,12 @@ def _denormalize_from_blocks(continuous: np.ndarray, categorical: np.ndarray) ->
 
 def deserialize_config(features: Mapping[str, np.ndarray], *, rng: random.Random | None = None) -> MettaGridConfig:
     """Deserialize base feature back into a MettaGridConfig.
-    
+
     Expects:
 
       features["continuous"]: 1-D array of normalized scalars
       features["categorical"]: 1-D array of concatenated one-hots
-      
+
     Any auxiliary keys (e.g. "assemblers") are ignored.
     """
     if "continuous" not in features or "categorical" not in features:
