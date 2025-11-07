@@ -75,7 +75,7 @@ private:
       GridCoord check_r = pos.first;
       GridCoord check_c = pos.second;
       if (check_r < grid->height && check_c < grid->width) {
-        GridObject* obj = grid->object_at(GridLocation(check_r, check_c, GridLayer::AgentLayer));
+        GridObject* obj = grid->object_at(GridLocation(check_r, check_c));
         if (obj) {
           Agent* agent = dynamic_cast<Agent*>(obj);
           if (agent) {
@@ -201,8 +201,7 @@ public:
         protocol_details_obs(cfg.protocol_details_obs),
         allow_partial_usage(cfg.allow_partial_usage),
         clipper_ptr(nullptr) {
-    GridObject::init(
-        cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids, cfg.initial_vibe);
+    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c), cfg.tag_ids, cfg.initial_vibe);
   }
   virtual ~Assembler() = default;
 
@@ -277,7 +276,7 @@ public:
       GridCoord check_c = positions[i].second;
 
       if (check_r < grid->height && check_c < grid->width) {
-        GridObject* obj = grid->object_at(GridLocation(check_r, check_c, GridLayer::AgentLayer));
+        GridObject* obj = grid->object_at(GridLocation(check_r, check_c));
         if (obj) {
           Agent* agent = dynamic_cast<Agent*>(obj);
           if (agent && agent->vibe != 0) {
