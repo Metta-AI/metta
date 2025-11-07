@@ -47,12 +47,10 @@ def test_curriculum_env_with_stats_tracker_runs_episodes():
                 episodes_completed += 1
 
                 # Verify infos are being set
-                assert isinstance(infos, list)
-                assert infos, "Infos list should not be empty"
-                info_dict = infos[0]
-                assert "game" in info_dict
-                assert "agent" in info_dict
-                assert "attributes" in info_dict
+                assert isinstance(infos, dict)
+                assert "game" in infos
+                assert "agent" in infos
+                assert "attributes" in infos
 
     assert episodes_completed == num_episodes
 
@@ -124,12 +122,10 @@ def test_curriculum_with_multiple_tasks_runs_both():
                     seen_max_steps.add(post_completion_max_steps)
 
                 # Verify infos are being set
-                assert isinstance(infos, list)
-                assert infos, "Infos list should not be empty"
-                info_dict = infos[0]
-                assert "game" in info_dict
-                assert "agent" in info_dict
-                assert "attributes" in info_dict
+                assert isinstance(infos, dict)
+                assert "game" in infos
+                assert "agent" in infos
+                assert "attributes" in infos
 
     assert episodes_completed == num_episodes
     # Verify both tasks were run (both max_steps values were seen)

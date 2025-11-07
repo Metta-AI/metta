@@ -141,13 +141,13 @@ class MettaGridPufferEnv(PufferEnv):
             self._compute_supervisor_actions()
 
     @override
-    def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, List[Dict[str, Any]]]:
+    def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         if seed is not None:
             self._current_seed = seed
 
         self._new_sim()
 
-        return self._buffers.observations, self._sim._context.get("infos", {})
+        return self._buffers.observations, {}
 
     @override
     def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, List[Dict[str, Any]]]:

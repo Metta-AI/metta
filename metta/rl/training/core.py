@@ -160,10 +160,9 @@ class CoreTrainingLoop:
             with context.stopwatch("_rollout.send"):
                 env.send_actions(td["actions"].cpu().numpy())
 
-            if info:
-                if not isinstance(info, list):
-                    raise TypeError("Training environments must return infos as list[dict]")
-                raw_infos.extend(info)
+            infos_list: list[dict[str, Any]] = list(info) if info else []
+            if infos_list:
+                raw_infos.extend(infos_list)
 
             total_steps += num_steps
 

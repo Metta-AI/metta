@@ -45,20 +45,21 @@ class CurriculumEnv(PufferEnv):
         self._cached_stats = {}
         self._stats_cache_valid = False
 
-    def _add_curriculum_stats_to_info(self, infos: list[dict[str, Any]]) -> None:
-        """Add curriculum statistics to info dictionaries for logging."""
+    def _add_curriculum_stats_to_info(self, info_dict: dict) -> None:
+        """Add curriculum statistics to info dictionary for logging.
 
-        if not infos:
-            return
-
+        This method consolidates the curriculum stats logging logic to avoid duplication
+        and enables batching of expensive stats calculations.
+        """
+        # Only update curriculum stats periodically to reduce overhead
         if self._stats_update_counter >= self._stats_update_frequency:
             if not self._stats_cache_valid:
                 self._cached_stats = self._curriculum.stats()
                 self._stats_cache_valid = True
 
-            for info_dict in infos:
-                for key, value in self._cached_stats.items():
-                    info_dict[self._CURRICULUM_STAT_PREFIX + key] = value
+            # Use pre-computed prefix for better performance
+            for key, value in self._cached_stats.items():
+                info_dict[self._CURRICULUM_STAT_PREFIX + key] = value
             self._stats_update_counter = 0
 
     def reset(self, *args, **kwargs):
@@ -67,10 +68,7 @@ class CurriculumEnv(PufferEnv):
         # Get a new task from curriculum
         self._current_task = self._curriculum.get_task()
         self._env.set_mg_config(self._current_task.get_env_cfg())
-        obs, infos = self._env.reset(*args, **kwargs)
-        if not isinstance(infos, list):
-            raise TypeError("Wrapped environment must return infos as list[dict]")
-        info_batch = infos or [{}]
+        obs, info = self._env.reset(*args, **kwargs)
 
         # Invalidate stats cache on reset
         self._stats_cache_valid = False
@@ -78,12 +76,11 @@ class CurriculumEnv(PufferEnv):
         # Only log curriculum stats on reset if cache is invalid or this is first reset
         if not self._first_reset_done:
             curriculum_stats = self._curriculum.stats()
-            for info_dict in info_batch:
-                for key, value in curriculum_stats.items():
-                    info_dict[self._CURRICULUM_STAT_PREFIX + key] = value
+            for key, value in curriculum_stats.items():
+                info[self._CURRICULUM_STAT_PREFIX + key] = value
             self._first_reset_done = True
 
-        return obs, info_batch
+        return obs, info
 
     def step(self, *args, **kwargs):
         """Step the environment and handle task completion.
@@ -93,8 +90,6 @@ class CurriculumEnv(PufferEnv):
         environment a new env config.
         """
         obs, rewards, terminals, truncations, infos = self._env.step(*args, **kwargs)
-        if not isinstance(infos, list):
-            raise TypeError("Wrapped environment must return infos as list[dict]")
 
         if terminals.all() or truncations.all():
             mean_reward = self._env.get_episode_rewards().mean()

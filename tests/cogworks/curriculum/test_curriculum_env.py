@@ -29,7 +29,7 @@ class TestCurriculumEnv:
             np.array([0.5, 0.7]),  # rewards
             np.array([False, False]),  # terminals
             np.array([False, False]),  # truncations
-            [{}],  # infos
+            {},  # infos
         )
 
         mock_env.get_episode_rewards = Mock(return_value=np.array([1.0, 2.0]))  # Add get_episode_rewards method
@@ -71,7 +71,7 @@ class TestCurriculumEnv:
                 np.array([0.5, 0.7]),
                 np.array([False, False]),  # No termination
                 np.array([False, False]),  # No truncation
-                [{}],
+                {},
             )
             mock_env.get_episode_rewards.return_value = np.array([0.5, 0.7])
         elif termination_type == "full_termination":
@@ -80,7 +80,7 @@ class TestCurriculumEnv:
                 np.array([0.8, 0.9]),
                 np.array([True, True]),  # Both terminated
                 np.array([False, False]),
-                [{}],
+                {},
             )
             mock_env.get_episode_rewards.return_value = np.array([0.8, 0.9])
         elif termination_type == "partial_termination":
@@ -89,7 +89,7 @@ class TestCurriculumEnv:
                 np.array([0.8, 0.2]),
                 np.array([True, False]),  # Only first agent terminated
                 np.array([False, False]),
-                [{}],
+                {},
             )
             mock_env.get_episode_rewards.return_value = np.array([0.8, 0.2])
         elif termination_type == "truncation":
@@ -98,7 +98,7 @@ class TestCurriculumEnv:
                 np.array([0.6, 0.4]),
                 np.array([False, False]),
                 np.array([True, True]),  # Both truncated
-                [{}],
+                {},
             )
             mock_env.get_episode_rewards.return_value = np.array([0.6, 0.4])
 
@@ -132,7 +132,7 @@ class TestCurriculumEnv:
             np.array([0.6, 0.4]),
             np.array([False, False]),
             np.array([True, True]),  # Both truncated
-            [{}],
+            {},
         )
         # Set up get_episode_rewards to return matching values
         mock_env.get_episode_rewards.return_value = np.array([0.6, 0.4])
@@ -200,7 +200,7 @@ class TestCurriculumEnv:
                 np.array([0.5 + episode * 0.1, 0.6 + episode * 0.1]),
                 np.array([True, True]),
                 np.array([False, False]),
-                [{}],
+                {},
             )
             mock_env.get_episode_rewards.return_value = np.array([0.5 + episode * 0.1, 0.6 + episode * 0.1])
 
@@ -222,7 +222,7 @@ class TestCurriculumEnv:
             np.array([0.0, 0.0]),  # Zero rewards
             np.array([False, False]),  # No termination
             np.array([False, False]),  # No truncation
-            [{}],
+            {},
         )
 
         mock_env.get_episode_rewards = Mock(return_value=np.array([0.0, 0.0]))
@@ -250,7 +250,7 @@ class TestCurriculumEnv:
             np.array([0.8]),  # Single reward
             np.array([True]),  # Single terminal
             np.array([False]),  # Single truncation
-            [{}],
+            {},
         )
 
         mock_env.get_episode_rewards = Mock(return_value=np.array([0.8]))
@@ -277,7 +277,7 @@ class TestCurriculumEnv:
             np.array([0.7, 0.3]),
             np.array([True, True]),
             np.array([False, False]),
-            [{}],
+            {},
         )
 
         mock_env.get_episode_rewards = Mock(return_value=np.array([0.7, 0.3]))
