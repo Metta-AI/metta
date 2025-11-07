@@ -167,19 +167,17 @@ def make_training_env(
     variants: Optional[Sequence[str]] = None,
 ) -> MettaGridConfig:
     """Create a single training environment from a mission."""
-    mission_cls = _MISSION_CLASS_BY_NAME.get(mission_name)
-    if mission_cls is None:
+    mission_template = _MISSION_BY_NAME.get(mission_name)
+    if mission_template is None:
         raise ValueError(f"Mission '{mission_name}' not found in EVAL_MISSIONS")
 
-    mission_template = mission_cls()
-    map_builder = get_map(mission_template.map_name)
-    combined_variant = _build_variant(_normalize_variant_names(variants=variants))
-    instantiated = mission_template.instantiate(
-        map_builder,
-        num_cogs,
-        variant=combined_variant,
+    variant_names = _normalize_variant_names(variants=variants)
+    mission = _prepare_mission(
+        mission_template,
+        num_cogs=num_cogs,
+        variant_names=variant_names,
     )
-    env = instantiated.make_env()
+    env = mission.make_env()
 
     # Guard against upstream modifiers pushing limits beyond supported bounds.
     energy_limit = env.game.agent.resource_limits.get("energy")
