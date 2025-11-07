@@ -7,6 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from nim_bootstrap import NIM_BIN, NIMBY_BIN, ensure_nim_dependencies
 from setuptools.build_meta import (
     build_editable as _build_editable,
 )
@@ -24,12 +25,6 @@ from setuptools.build_meta import (
     prepare_metadata_for_build_wheel,
 )
 from setuptools.dist import Distribution
-
-BOOTSTRAP_DIR = Path(__file__).resolve().parent
-if str(BOOTSTRAP_DIR) not in sys.path:
-    sys.path.insert(0, str(BOOTSTRAP_DIR))
-
-from nim_bootstrap import NIM_BIN, NIMBY_BIN, ensure_nim_dependencies
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 METTASCOPE_DIR = PROJECT_ROOT / "nim" / "mettascope"
