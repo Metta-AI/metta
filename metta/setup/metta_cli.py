@@ -138,8 +138,12 @@ app = typer.Typer(
     rich_markup_mode="rich",
     no_args_is_help=True,
     context_settings={"help_option_names": ["-h", "--help"]},
-    callback=cli._init_all,
 )
+
+
+def _ensure_components_initialized() -> None:
+    """Load setup components on demand for commands that need them."""
+    cli._init_all()
 
 
 def _bump_version(version: str) -> str:
@@ -202,6 +206,7 @@ def cmd_configure(
 
 
 def configure_component(component_name: str):
+    _ensure_components_initialized()
     from metta.setup.registry import get_all_modules
     from metta.setup.utils import error, info
 
@@ -221,6 +226,7 @@ def configure_component(component_name: str):
 
 
 def _get_selected_modules(components: list[str] | None = None) -> list["SetupModule"]:
+    _ensure_components_initialized()
     from metta.setup.registry import get_all_modules
 
     return [
@@ -408,6 +414,7 @@ def cmd_run(
     component: Annotated[str, typer.Argument(help="Component to run command for")],
     args: Annotated[Optional[list[str]], typer.Argument(help="Arguments to pass to the component")] = None,
 ):
+    _ensure_components_initialized()
     from metta.setup.registry import get_all_modules
 
     modules = get_all_modules()
