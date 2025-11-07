@@ -735,7 +735,7 @@ wheels = [
 
 [[package]]
 name = "cortexcore"
-version = "0.1.0"
+version = "0.1.5"
 source = { editable = "packages/cortex" }
 dependencies = [
     { name = "einops" },
