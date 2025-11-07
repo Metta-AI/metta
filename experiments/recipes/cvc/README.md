@@ -1,7 +1,10 @@
 # CoGs vs Clips Training Recipes
 
 Training recipes for the Cogs vs Clips eval missions, supporting curriculum learning across multiple missions and
-difficulty variants.
+difficulty variants. All `experiments.recipes.cvc.*` entry points now proxy directly to
+`experiments.recipes.cogs_v_clips`, so there is a single source of truth for missions, variants, and trainer defaults.
+The commands are still provided for continuity, but any options passed to them are forwarded unchanged to the shared
+recipe implementation.
 
 ## Quick Start
 

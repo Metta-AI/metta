@@ -60,7 +60,9 @@ COORDINATION_MISSIONS: tuple[str, ...] = (
     "collect_resources_spread",
 )
 
-_MISSION_BY_NAME: dict[str, Mission] = {mission.name: mission for mission in EVAL_MISSIONS}
+_MISSION_BY_NAME: dict[str, Mission] = {
+    mission.name: mission for mission in EVAL_MISSIONS
+}
 
 
 def _normalize_variant_names(

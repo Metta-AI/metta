@@ -51,4 +51,5 @@ def train_small_maps(
         eval_difficulty=eval_difficulty,
     )
 
+
 __all__ = ["DEFAULT_VARIANTS", "play", "train_small_maps"]
