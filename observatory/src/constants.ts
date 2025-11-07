@@ -5,4 +5,4 @@ export const METTA_GITHUB_PRIMARY_BRANCH = 'main'
 export const METTA_WANDB_PROJECT = 'metta'
 export const METTA_WANDB_ENTITY = 'metta-research'
 
-export const METTASCOPE_REPLAY_URL_PREFIX = 'https://metta-ai.github.io/metta/mettascope2/mettascope.html?replay='
+export const METTASCOPE_REPLAY_URL_PREFIX = 'https://metta-ai.github.io/metta/mettascope/mettascope.html?replay='

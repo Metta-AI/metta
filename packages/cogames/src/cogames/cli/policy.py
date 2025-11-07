@@ -8,8 +8,8 @@ import typer
 from rich.table import Table
 
 from cogames.cli.base import console
-from cogames.policy.interfaces import PolicySpec
-from cogames.policy.utils import find_policy_checkpoints, resolve_policy_class_path, resolve_policy_data_path
+from mettagrid.policy.policy import PolicySpec
+from mettagrid.policy.utils import find_policy_checkpoints, resolve_policy_class_path, resolve_policy_data_path
 
 RawPolicyValues = Optional[Sequence[str]]
 ParsedPolicies = list[PolicySpec]
@@ -54,7 +54,7 @@ def describe_policy_arg(with_proportion: bool):
         + (policy_arg_example if not with_proportion else policy_arg_w_proportion_example)
     )
     subcommand_parts = [
-        "[blue]CLASS[/blue]: shorthand (e.g. 'simple', 'random') or fully qualified class path.",
+        "[blue]CLASS[/blue]: shorthand (e.g. 'stateless', 'random') or fully qualified class path.",
         "[cyan]DATA[/cyan]: optional checkpoint path.",
     ]
     if with_proportion:

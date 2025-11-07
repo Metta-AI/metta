@@ -2,8 +2,6 @@ import logging
 import uuid
 from pathlib import Path
 
-import torch
-
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.collections import is_unique
 from metta.common.util.heartbeat import record_heartbeat
@@ -20,8 +18,6 @@ def evaluate_policy(
     *,
     checkpoint_uri: str,
     simulations: list[SimulationConfig],
-    device: torch.device,
-    vectorization: str,
     replay_dir: str | None,
     stats_dir: str = "/tmp/stats",
     export_stats_db_uri: str | None = None,
@@ -38,8 +34,6 @@ def evaluate_policy(
         Simulation(
             cfg=sim,
             policy_uri=checkpoint_uri,
-            device=device,
-            vectorization=vectorization,
             stats_dir=stats_dir,
             replay_dir=replay_dir,
             stats_client=stats_client,
@@ -75,7 +69,9 @@ def evaluate_policy(
                 continue
             else:
                 # Re-raise for non-NPC compatibility issues
-                logger.error("Critical compatibility error in simulation '%s': %s", sim.full_name, str(e))
+                logger.error(
+                    "Critical compatibility error in simulation '%s': %s", sim.full_name, str(e), exc_info=True
+                )
                 raise
     if successful_simulations == 0:
         raise RuntimeError("No simulations could be run successfully")

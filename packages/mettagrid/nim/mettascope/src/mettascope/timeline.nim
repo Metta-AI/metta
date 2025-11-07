@@ -10,11 +10,6 @@ var
   # Drag state.
   scrubberActive = false
   minimapActive = false
-  # Double click detection.
-  lastClickTimeT: float64 = 0.0
-  lastClickPosT: Vec2 = vec2(0, 0)
-  clickIntervalT = 0.3 # seconds
-  clickDistanceT = 10.0 # pixels
 
   # Figma nodes within GlobalTimeline.
   nodesBound = false
@@ -111,7 +106,7 @@ proc onScrubberChange(localX, panelWidth: float32) =
 
 proc centerTracesOnStep(targetStep: int) =
   ## Recenters the Agent Traces panel on the given step.
-  if agentTracesPanel.isNil:
+  if agentTracesPanel.isNil or agentTracesPanel.rect.w <= 0 or agentTracesPanel.rect.h <= 0:
     return
   let zoom2 = agentTracesPanel.zoom * agentTracesPanel.zoom
   let worldX = targetStep.float32 * TraceWidth
@@ -261,15 +256,10 @@ proc drawTimeline*(panel: Panel) =
         mouseCaptured = false
         mouseCapturedPanel = nil
 
-    # Double-click detection to center traces on step.
-    if window.buttonPressed[MouseLeft]:
-      let currentTime = epochTime()
-      let isClick = dist(localMouse, lastClickPosT) < clickDistanceT
-      if currentTime - lastClickTimeT < clickIntervalT and isClick:
-        let s = getStepFromX(localMouse.x, panel.rect.w.float32)
-        centerTracesOnStep(s)
-      lastClickTimeT = currentTime
-      lastClickPosT = localMouse
+    # Double-click to center traces on step.
+    if window.buttonPressed[DoubleClick]:
+      let s = getStepFromX(localMouse.x, panel.rect.w.float32)
+      centerTracesOnStep(s)
 
   # Draw trace viewport minimap window and frozen markers as an overlay in panel space.
   panel.beginDraw()

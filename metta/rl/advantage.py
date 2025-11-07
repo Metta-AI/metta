@@ -30,7 +30,9 @@ def compute_advantage(
     """CUDA kernel for puffer advantage with automatic CPU & MPS fallback."""
 
     # Move tensors to device and compute advantage
-    if str(device) == "mps":
+    # for mps (macbook pro)
+    # for rocm (amd gpu) - pytorch has hip version
+    if str(device) == "mps" or torch.version.hip is not None:
         return mps.advantage(
             values, rewards, dones, importance_sampling_ratio, vtrace_rho_clip, vtrace_c_clip, gamma, gae_lambda, device
         )

@@ -12,7 +12,6 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -91,9 +90,7 @@ def train(
         enable_detailed_slice_logging=enable_detailed_slice_logging
     )
 
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
-    )
+    trainer_cfg = TrainerConfig()
 
     evaluator_cfg = EvaluatorConfig(
         simulations=[
@@ -142,16 +139,11 @@ def train_shaped(rewards: bool = True, assemblers: bool = True) -> TrainTool:
         # Update altar recipe to require battery_red input
         altar_config = env_cfg.game.objects["altar"]
         assert isinstance(altar_config, AssemblerConfig)
-        altar_config.recipes[0][1].input_resources["battery_red"] = 1
-
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
-    )
+        altar_config.protocols[0].input_resources["battery_red"] = 1
 
     curriculum = cc.env_curriculum(env_cfg)
 
     return TrainTool(
-        trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(simulations=simulations(env_cfg)),
     )

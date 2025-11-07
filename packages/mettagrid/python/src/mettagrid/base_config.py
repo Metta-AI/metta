@@ -5,7 +5,7 @@ from typing import Any, NoReturn, Self, Union, get_args, get_origin
 from pydantic import BaseModel, ConfigDict, TypeAdapter
 
 
-# Please don't move this class to mettagrid.config, it creates circular imports.
+# Please don't move this class to mettagrid.config, it would cause circular import issues that are difficult to avoid.
 class Config(BaseModel):
     """
     Common extension of Pydantic's BaseModel that:
@@ -15,7 +15,7 @@ class Config(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    def _auto_initialize_field(self, parent_obj: "Config", field_name: str) -> "Config | None":
+    def _auto_initialize_field(self, parent_obj: Config, field_name: str) -> Config | None:
         """Auto-initialize a None Config field if possible."""
         field = type(parent_obj).model_fields.get(field_name)
         if not field:
@@ -105,3 +105,6 @@ class Config(BaseModel):
         for key, value in updates.items():
             self.override(key, value)
         return self
+
+
+__all__ = ["Config"]

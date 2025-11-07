@@ -1,6 +1,5 @@
-from typing import Optional, Sequence, Tuple, TypeAlias, TypedDict
+from typing import Optional, TypeAlias, TypedDict
 
-import gymnasium as gym
 import numpy as np
 
 # Type alias for clarity
@@ -40,7 +39,7 @@ class PackedCoordinate:
         ...
 
     @staticmethod
-    def unpack(packed: int) -> Optional[Tuple[int, int]]:
+    def unpack(packed: int) -> Optional[tuple[int, int]]:
         """Unpack byte into (row, col) tuple or None if empty.
         Args:
             packed: Packed coordinate byte
@@ -76,6 +75,10 @@ class AgentConfig(GridObjectConfig):
         stat_reward_max: dict[str, float] = {},
         group_reward_pct: float = 0,
         initial_inventory: dict[int, int] = {},
+        soul_bound_resources: list[int] | None = None,
+        shareable_resources: list[int] | None = None,
+        inventory_regen_amounts: dict[int, int] | None = None,
+        diversity_tracked_resources: list[int] | None = None,
     ) -> None: ...
     type_id: int
     type_name: str
@@ -89,32 +92,10 @@ class AgentConfig(GridObjectConfig):
     stat_reward_max: dict[str, float]  # Added this
     group_reward_pct: float
     initial_inventory: dict[int, int]
-
-class ConverterConfig(GridObjectConfig):
-    def __init__(
-        self,
-        type_id: int,
-        type_name: str,
-        input_resources: dict[int, int],
-        output_resources: dict[int, int],
-        max_output: int,
-        max_conversions: int,
-        conversion_ticks: int,
-        cooldown_time: Sequence[int],
-        initial_resource_count: int = 0,
-        recipe_details_obs: bool = False,
-    ) -> None: ...
-    type_id: int
-    type_name: str
-    tag_ids: list[int]
-    input_resources: dict[int, int]
-    output_resources: dict[int, int]
-    max_output: int
-    max_conversions: int
-    conversion_ticks: int
-    cooldown_time: list[int]
-    initial_resource_count: int
-    recipe_details_obs: bool
+    soul_bound_resources: list[int]
+    shareable_resources: list[int]
+    inventory_regen_amounts: dict[int, int]
+    diversity_tracked_resources: list[int]
 
 class ActionConfig:
     def __init__(
@@ -125,13 +106,9 @@ class ActionConfig:
     required_resources: dict[int, int]
     consumed_resources: dict[int, float]
 
-class Recipe:
-    def __init__(
-        self,
-        input_resources: dict[int, int] = {},
-        output_resources: dict[int, int] = {},
-        cooldown: int = 0,
-    ) -> None: ...
+class Protocol:
+    def __init__(self) -> None: ...
+    vibes: list[int]
     input_resources: dict[int, int]
     output_resources: dict[int, int]
     cooldown: int
@@ -139,12 +116,12 @@ class Recipe:
 class ClipperConfig:
     def __init__(
         self,
-        unclipping_recipes: list[Recipe],
+        unclipping_protocols: list[Protocol],
         length_scale: float,
         cutoff_distance: float,
         clip_rate: float,
     ) -> None: ...
-    unclipping_recipes: list[Recipe]
+    unclipping_protocols: list[Protocol]
     length_scale: float
     cutoff_distance: float
     clip_rate: float
@@ -155,17 +132,19 @@ class AttackActionConfig(ActionConfig):
         required_resources: dict[int, int] = {},
         consumed_resources: dict[int, float] = {},
         defense_resources: dict[int, int] = {},
+        enabled: bool = True,
     ) -> None: ...
     defense_resources: dict[int, int]
+    enabled: bool
 
-class ChangeGlyphActionConfig(ActionConfig):
+class ChangeVibeActionConfig(ActionConfig):
     def __init__(
         self,
         required_resources: dict[int, int] = {},
         consumed_resources: dict[int, float] = {},
-        number_of_glyphs: int = ...,
+        number_of_vibes: int = ...,
     ) -> None: ...
-    number_of_glyphs: int
+    number_of_vibes: int
 
 class ResourceModConfig(ActionConfig):
     def __init__(
@@ -174,12 +153,10 @@ class ResourceModConfig(ActionConfig):
         consumed_resources: dict[int, float] = {},
         modifies: dict[int, float] = {},
         agent_radius: int = 0,
-        converter_radius: int = 0,
         scales: bool = False,
     ) -> None: ...
     modifies: dict[int, float]
     agent_radius: int
-    converter_radius: int
     scales: bool
 
 class GlobalObsConfig:
@@ -204,6 +181,7 @@ class GameConfig:
         obs_width: int,
         obs_height: int,
         resource_names: list[str],
+        vibe_names: list[str],
         num_observation_tokens: int,
         global_obs: GlobalObsConfig,
         actions: dict[str, ActionConfig],
@@ -211,7 +189,7 @@ class GameConfig:
         resource_loss_prob: float = 0.0,
         tag_id_map: dict[int, str] | None = None,
         track_movement_metrics: bool = False,
-        recipe_details_obs: bool = False,
+        protocol_details_obs: bool = False,
         allow_diagonals: bool = False,
         reward_estimates: Optional[dict[str, float]] = None,
         inventory_regen_amounts: dict[int, int] | None = None,
@@ -224,12 +202,13 @@ class GameConfig:
     obs_width: int
     obs_height: int
     resource_names: list[str]
+    vibe_names: list[str]
     num_observation_tokens: int
     global_obs: GlobalObsConfig
     resource_loss_prob: float
     # FEATURE FLAGS
     track_movement_metrics: bool
-    recipe_details_obs: bool
+    protocol_details_obs: bool
     allow_diagonals: bool
     reward_estimates: Optional[dict[str, float]]
     tag_id_map: dict[int, str]
@@ -245,15 +224,16 @@ class MettaGrid:
     map_width: int
     map_height: int
     num_agents: int
-    action_space: gym.spaces.Discrete
-    observation_space: gym.spaces.Box
-    initial_grid_hash: int
 
     def __init__(self, env_cfg: GameConfig, map: list, seed: int) -> None: ...
-    def reset(self) -> Tuple[np.ndarray, dict]: ...
-    def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]: ...
+    def step(self) -> None: ...
     def set_buffers(
-        self, observations: np.ndarray, terminals: np.ndarray, truncations: np.ndarray, rewards: np.ndarray
+        self,
+        observations: np.ndarray,
+        terminals: np.ndarray,
+        truncations: np.ndarray,
+        rewards: np.ndarray,
+        actions: np.ndarray,
     ) -> None: ...
     def grid_objects(
         self,
@@ -263,12 +243,12 @@ class MettaGrid:
         max_col: int = -1,
         ignore_types: list[str] = [],
     ) -> dict[int, dict]: ...
-    def action_names(self) -> list[str]: ...
-    def action_catalog(self) -> list[dict[str, int | str]]: ...
+    def observations(self) -> np.ndarray: ...
+    def terminals(self) -> np.ndarray: ...
+    def truncations(self) -> np.ndarray: ...
+    def rewards(self) -> np.ndarray: ...
+    def masks(self) -> np.ndarray: ...
     def get_episode_rewards(self) -> np.ndarray: ...
     def get_episode_stats(self) -> EpisodeStats: ...
     def action_success(self) -> list[bool]: ...
-    def object_type_names(self) -> list[str]: ...
-    def resource_names(self) -> list[str]: ...
-    def feature_spec(self) -> dict[str, dict[str, float | int]]: ...
     def set_inventory(self, agent_id: int, inventory: dict[int, int]) -> None: ...

@@ -9,11 +9,14 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss import LossConfig
+from metta.rl.loss.contrastive_config import ContrastiveConfig
+from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.sweep.core import make_sweep, SweepParameters as SP, Distribution as D
+from metta.sweep.core import Distribution as D
+from metta.sweep.core import SweepParameters as SP
+from metta.sweep.core import make_sweep
 from metta.tools.eval import EvaluateTool
 from metta.tools.eval_remote import EvalRemoteTool
 from metta.tools.play import PlayTool
@@ -21,11 +24,6 @@ from metta.tools.replay import ReplayTool
 from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
-from mettagrid.config import ConverterConfig
-
-
-from metta.rl.loss.contrastive_config import ContrastiveConfig
-from metta.rl.loss.ppo import PPOConfig
 
 
 def mettagrid(num_agents: int = 24) -> MettaGridConfig:
@@ -43,12 +41,6 @@ def mettagrid(num_agents: int = 24) -> MettaGridConfig:
     # Only heart gives reward (final objective)
     arena_env.game.agent.rewards.inventory["heart"] = 1.0
     arena_env.game.agent.rewards.inventory_max["heart"] = 100  # Allow accumulation
-
-    # Set up the resource chain: ore -> battery -> heart
-    # Ensure converter processes: mine ore, use ore to make battery, use battery to make heart
-    altar = arena_env.game.objects.get("altar")
-    if isinstance(altar, ConverterConfig) and hasattr(altar, "input_resources"):
-        altar.input_resources["battery_red"] = 1  # battery -> heart conversion
 
     return arena_env
 
@@ -111,23 +103,15 @@ def train(
     )
 
     contrastive_config = ContrastiveConfig(
+        enabled=enable_contrastive,
         temperature=temperature,
         contrastive_coef=contrastive_coef,
         embedding_dim=128,
         use_projection_head=True,
     )
 
-    ppo_config = PPOConfig()  # Default PPO config for action generation
-
-    loss_configs = {"ppo": ppo_config}
-    if enable_contrastive:
-        loss_configs["contrastive"] = contrastive_config
-
     trainer_config = TrainerConfig(
-        losses=LossConfig(
-            enable_contrastive=enable_contrastive,
-            loss_configs=loss_configs,
-        )
+        losses=LossesConfig(contrastive=contrastive_config),
     )
 
     return TrainTool(

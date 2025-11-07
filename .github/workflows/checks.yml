@@ -1,8 +1,14 @@
 name: "Test and Benchmark"
 
+# This workflow uses metta ci as the single source of truth for CI checks.
+# Each job calls metta ci with a specific stage:
+#   --stage lint, --stage python-tests-and-benchmarks,
+#   --stage cpp-tests, --stage cpp-benchmarks
+# Local development can run all stages with: metta ci
+
 on:
   pull_request:
-    types: [opened, synchronize, ready_for_review]
+    types: [opened, synchronize, ready_for_review, labeled]
   push:
     branches: [main]
   merge_group:
@@ -56,7 +62,7 @@ jobs:
   graphite-ci-optimizer:
     name: "Graphite CI Optimizer"
     if: |
-      github.event.pull_request.draft == false ||
+      !contains(github.event.pull_request.labels.*.name, 'skip-ci') ||
       github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'merge_group'
@@ -85,7 +91,7 @@ jobs:
     needs: graphite-ci-optimizer
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
-      (github.event.pull_request.draft == false ||
+      (!contains(github.event.pull_request.labels.*.name, 'skip-ci') ||
        github.event_name == 'push' ||
        github.event_name == 'workflow_dispatch' ||
        github.event_name == 'merge_group')
@@ -110,7 +116,7 @@ jobs:
         id: check_py_files
         uses: ./.github/actions/file-changes
         with:
-          patterns: "**/*.py,**/*.cpp,**/*.hpp,**/conftest.py,**/pyproject.toml,**/pytest.ini,.github/workflows/*.yml"
+          patterns: "**/*.py,**/*.cpp,**/*.hpp,**/*.md,**/*.toml,**/conftest.py,**/pyproject.toml,**/pytest.ini,.github/workflows/*.yml"
           specific_files: "uv.lock"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -171,25 +177,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install pnpm dependencies
+        run: pnpm install
+
       - name: Setup Environment
         uses: ./.github/actions/setup-environment
         with:
-          install-mode: "linting"
+          install-mode: "metta-cli"
 
-      - name: Run Ruff linter
-        run: |
-          uv run ruff format --check .
-
-      - name: Run Ruff formatting
-        run: |
-          uv run ruff check --exit-non-zero-on-fix .
-
-      - name: Install C++ linter
-        run: |
-          sudo apt-get install -y clang-format
-
-      - name: Run cpplint
-        run: ./packages/mettagrid/tests/cpplint.sh
+      - name: Run linting and formatting
+        run: uv run python .github/scripts/run_ci_stage.py lint
 
   observatory-typescript-check:
     name: "Observatory TypeScript Check"
@@ -253,7 +259,7 @@ jobs:
           echo "PUFFERLIB_CACHE_DIR=$HOME/pufferlib-cache" >> $GITHUB_ENV
           mkdir -p $HOME/pufferlib-cache
 
-      - name: Run Python tests
+      - name: Run Python tests and benchmarks
         shell: bash
         run: |
           set -eo pipefail
@@ -261,7 +267,7 @@ jobs:
           if [[ "${{ needs.setup-checks.outputs.app_backend_has_changes }}" != "true" ]]; then
             ARGS+=(--skip-package app_backend)
           fi
-          uv run metta pytest --ci "${ARGS[@]}"
+          uv run python .github/scripts/run_ci_stage.py python-tests-and-benchmarks -- "${ARGS[@]}"
 
   cpp-tests:
     name: "Tests - C++"
@@ -313,13 +319,13 @@ jobs:
           restore-keys: |
             bazel-${{ runner.os }}-
 
-      - name: Run C++ unit tests
+      - name: Run C++ tests
         id: mettagrid-cpp-tests
-        run: uv run metta cpptest --test --verbose
+        run: uv run python .github/scripts/run_ci_stage.py cpp-tests
 
       - name: Run C++ benchmarks
         id: mettagrid-cpp-benchmarks
-        run: uv run metta cpptest --benchmark --verbose
+        run: uv run python .github/scripts/run_ci_stage.py cpp-benchmarks
 
   tests-summary:
     name: "Tests"

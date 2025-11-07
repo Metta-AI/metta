@@ -1,8 +1,9 @@
 #!/usr/bin/env -S uv run
+import concurrent.futures
 import re
-import shutil
 import subprocess
 import sys
+import webbrowser
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Optional
 
@@ -17,6 +18,8 @@ from metta.setup.components.base import SetupModuleStatus
 from metta.setup.local_commands import app as local_app
 from metta.setup.symlink_setup import app as symlink_app
 from metta.setup.tools.book import app as book_app
+from metta.setup.tools.ci_runner import cmd_ci
+from metta.setup.tools.clean import cmd_clean
 from metta.setup.tools.code_formatters import get_formatters, parse_format_types, partition_files_by_type, run_formatter
 from metta.setup.tools.test_runner.test_cpp import app as cpp_test_runner_app
 from metta.setup.tools.test_runner.test_python import app as python_test_runner_app
@@ -247,7 +250,7 @@ def cmd_install(
     check_status: Annotated[bool, typer.Option("--check-status", help="Check status after installation")] = True,
 ):
     if not no_clean:
-        cmd_clean()
+        cmd_clean(force=force)
 
     from metta.setup.saved_settings import get_saved_settings
 
@@ -282,7 +285,7 @@ def cmd_install(
             continue
 
         try:
-            module.install(non_interactive=non_interactive)
+            module.install(non_interactive=non_interactive, force=force)
             print()
         except Exception as e:
             error(f"  Error: {e}\n")
@@ -299,8 +302,6 @@ def cmd_status(
     ] = None,
     non_interactive: Annotated[bool, typer.Option("-n", "--non-interactive", help="Non-interactive mode")] = False,
 ):
-    import concurrent.futures
-
     modules = _get_selected_modules(components if components else None)
     if not modules:
         warning("No modules to check.")
@@ -422,44 +423,10 @@ def cmd_run(
 
 
 @app.command(name="clean", help="Clean build artifacts and temporary files")
-def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False):
-    def _remove_matching_dirs(base: Path, patterns: list[str], *, include_globs: bool = False) -> None:
-        for pattern in patterns:
-            candidates = base.glob(pattern) if include_globs else (base / pattern,)
-            for path in candidates:
-                if not path.exists() or not path.is_dir():
-                    continue
-                info(f"  Removing {path.relative_to(cli.repo_root)}...")
-                subprocess.run(["chmod", "-R", "u+w", str(path)], cwd=cli.repo_root, check=False)
-                subprocess.run(["rm", "-rf", str(path)], cwd=cli.repo_root, check=False)
-
-    build_dir = cli.repo_root / "build"
-    if build_dir.exists():
-        info("  Removing root build directory...")
-        shutil.rmtree(build_dir)
-
-    mettagrid_dir = cli.repo_root / "packages" / "mettagrid"
-    for build_name in ["build-debug", "build-release"]:
-        build_path = mettagrid_dir / build_name
-        if build_path.exists():
-            info(f"  Removing packages/mettagrid/{build_name}...")
-            shutil.rmtree(build_path)
-
-    _remove_matching_dirs(cli.repo_root, ["bazel-*"], include_globs=True)
-    _remove_matching_dirs(cli.repo_root, [".bazel_output"])
-    if mettagrid_dir.exists():
-        _remove_matching_dirs(mettagrid_dir, ["bazel-*"], include_globs=True)
-        _remove_matching_dirs(mettagrid_dir, [".bazel_output"])
-
-    cleanup_script = cli.repo_root / "devops" / "tools" / "cleanup_repo.py"
-    if cleanup_script.exists():
-        cmd = [str(cleanup_script)]
-        if verbose:
-            cmd.append("--verbose")
-        try:
-            subprocess.run(cmd, cwd=str(cli.repo_root), check=True)
-        except subprocess.CalledProcessError as e:
-            warning(f"  Cleanup script failed: {e}")
+def clean(
+    force: Annotated[bool, typer.Option("--force", help="Force clean")] = False,
+):
+    cmd_clean(force=force)
 
 
 @app.command(name="publish", help="Create and push a release tag for a package")
@@ -677,16 +644,25 @@ def cmd_lint(
             continue
 
         # Run formatter
+        check_mode = check or not fix
         success_fmt = run_formatter(
             file_type,
             formatter,
             cli.repo_root,
-            check_only=check or not fix,
+            check_only=check_mode,
             files=type_files,
         )
 
+        # Only treat as failure if formatter ran and failed
+        # If check_mode is True and formatter doesn't support check, it returns False but that's not a failure
         if not success_fmt:
-            failed_formatters.append(formatter.name)
+            # If we're in check mode and the formatter doesn't have a check_cmd, ignore the failure
+            if check_mode and formatter.check_cmd is None:
+                # This is expected - formatter doesn't support check mode, was skipped
+                pass
+            else:
+                # This is an actual failure
+                failed_formatters.append(formatter.name)
 
     # Run Python linting (ruff check) if Python files are involved
     if "python" in types_to_format:
@@ -760,8 +736,6 @@ def cmd_shell():
 
 @app.command(name="go", help="Navigate to a Softmax Home shortcut", context_settings={"allow_extra_args": True})
 def cmd_go(ctx: typer.Context):
-    import webbrowser
-
     if not ctx.args:
         error("Please specify a shortcut (e.g., 'metta go g' for GitHub)")
         info("\nCommon shortcuts:")
@@ -782,13 +756,11 @@ def cmd_go(ctx: typer.Context):
 @app.command(name="report-env-details", help="Report environment details including UV project directory")
 def cmd_report_env_details():
     """Report environment details."""
-    import gitta
-
     info(f"UV Project Directory: {cli.repo_root}")
     info(f"Metta CLI Working Directory: {Path.cwd()}")
-    if branch := gitta.get_current_branch():
+    if branch := git.get_current_branch():
         info(f"Git Branch: {branch}")
-    if commit := gitta.get_current_commit():
+    if commit := git.get_current_commit():
         info(f"Git Commit: {commit}")
 
 
@@ -802,8 +774,6 @@ def cmd_clip(
     ctx: typer.Context,
 ):
     """Copy subsets of codebase for LLM contexts."""
-    import sys
-
     # Find all arguments after 'clip' command
     clip_index = sys.argv.index("clip")
     args_after_clip = sys.argv[clip_index + 1 :]
@@ -832,6 +802,11 @@ app.add_typer(symlink_app, name="symlink-setup")
 app.add_typer(softmax_system_health_app, name="softmax-system-health")
 app.add_typer(python_test_runner_app, name="pytest")
 app.add_typer(cpp_test_runner_app, name="cpptest")
+app.command(
+    name="ci",
+    help="Run CI checks locally",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True, "allow_interspersed_args": False},
+)(cmd_ci)
 
 
 def main() -> None:

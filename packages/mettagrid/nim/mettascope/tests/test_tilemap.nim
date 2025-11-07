@@ -83,13 +83,13 @@ proc generateTileMap(width: int, height: int, tileSize: int, atlasPath: string):
     else:
       let
         pattern = (
-          1 * asteroidMap.get(x-1, y+1) + # NW
-          2 * asteroidMap.get(x, y+1) + # N
-          4 * asteroidMap.get(x+1, y+1) + # NE
+          1 * asteroidMap.get(x-1, y-1) + # NW
+          2 * asteroidMap.get(x, y-1) + # N
+          4 * asteroidMap.get(x+1, y-1) + # NE
           8 * asteroidMap.get(x+1, y) + # E
-          16 * asteroidMap.get(x+1, y-1) + # SE
-          32 * asteroidMap.get(x, y-1) + # S
-          64 * asteroidMap.get(x-1, y-1) + # SW
+          16 * asteroidMap.get(x+1, y+1) + # SE
+          32 * asteroidMap.get(x, y+1) + # S
+          64 * asteroidMap.get(x-1, y+1) + # SW
           128 * asteroidMap.get(x-1, y) # W
         )
       tile = patternToTile[pattern].uint8
@@ -119,7 +119,7 @@ window.onFrame = proc() =
   # Handle input for panning and zooming.
   # Left mouse button: drag to pan.
   # Mouse wheel: zoom in/out
-  if window.buttonDown[MouseMiddle]:
+  if window.buttonDown[MouseMiddle] or window.buttonDown[MouseLeft]:
     vel = window.mouseDelta.vec2 + vel * 0.1
   else:
     vel *= 0.99
@@ -146,22 +146,6 @@ window.onFrame = proc() =
   let view = translate(vec3(pos.x, pos.y, 0.0f)) *
              scale(vec3(zoomPow2 * terrainMap.width.float32/2, zoomPow2 * terrainMap.height.float32/2, 1.0f))
   let mvp = projection * view
-
-  # Alter the terrain tiles by clicking on them.
-  if window.buttonDown[MouseLeft]:
-    let screenPos = vec2(
-      window.mousePos.x.float32,
-      window.mousePos.y.float32
-    )
-    let tilePos = view.inverse() * vec3(screenPos.x, screenPos.y, 0.0f)
-    let tileX = ((tilePos.x / 2 - 1) * terrainMap.width.float32).int
-    let tileY = ((tilePos.y / 2 - 1) * terrainMap.height.float32).int
-
-    let mouseTile = terrainMap.getTile(
-      tileX,
-      tileY
-    )
-    echo "mouse tile: ", tileX, ", ", tileY, " -> ", mouseTile
 
   terrainMap.draw(mvp, zoom, 1.25f)
   #terrainMap.draw(mat4(), 1.0f, 1.25f)

@@ -1,4 +1,4 @@
-.PHONY: help build build-prod benchmark test coverage
+.PHONY: help build build-prod benchmark test coverage format-check format-fix
 
 # Default target
 help:
@@ -8,6 +8,8 @@ help:
 	@echo "  benchmark       - Build and run benchmarks"
 	@echo "  test            - Run C++ unit tests"
 	@echo "  coverage        - Run tests (C++ coverage not available on macOS)"
+	@echo "  format-check    - Verify code is clang-formatted"
+	@echo "  format-fix      - Auto-format code with clang-format"
 
 # Debug build
 build:
@@ -43,3 +45,14 @@ benchmark:
 test: build
 	@echo "Running unit tests..."
 	bazel test --config=dbg //tests:tests_all
+
+# Formatting
+format-check:
+	@echo "Checking code formatting..."
+	@clang-format --dry-run --Werror -style=file $(shell find cpp/src cpp/include tests benchmarks -name '*.c' -o -name '*.h' -o -name '*.cpp' -o -name '*.hpp' 2>/dev/null)
+	@echo "All files are correctly formatted"
+
+format-fix:
+	@echo "Reformatting code..."
+	@clang-format -i -style=file $(shell find cpp/src cpp/include tests benchmarks -name '*.c' -o -name '*.h' -o -name '*.cpp' -o -name '*.hpp' 2>/dev/null)
+	@echo "Code reformatted"

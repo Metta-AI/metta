@@ -221,13 +221,13 @@ def upload_submission(
     Returns True on success, False otherwise.
     """
     # Get auth token from login server
-    authenticator = CoGamesAuthenticator(login_server_url)
-    if not authenticator.has_saved_token():
+    authenticator = CoGamesAuthenticator()
+    if not authenticator.has_saved_token(login_server_url):
         console.print("[red]Error:[/red] Not authenticated. Please run: [cyan]cogames login[/cyan]")
         return False
 
     # Load token
-    token = authenticator.load_token()
+    token = authenticator.load_token(login_server_url)
     if not token:
         console.print(f"[red]Error:[/red] Token not found for {login_server_url}")
         return False
@@ -309,8 +309,8 @@ def submit_command(
         console.print("[yellow]⚠ Skipping policy validation (--skip-validation)[/yellow]\n")
 
     # Check authentication first
-    authenticator = CoGamesAuthenticator(login_server)
-    if not authenticator.has_saved_token():
+    authenticator = CoGamesAuthenticator()
+    if not authenticator.has_saved_token(login_server):
         console.print("[red]Error:[/red] Not authenticated.")
         console.print("Please run: [cyan]cogames login[/cyan]")
         return

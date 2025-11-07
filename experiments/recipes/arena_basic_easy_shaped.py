@@ -9,18 +9,18 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.sweep.core import make_sweep, SweepParameters as SP, Distribution as D
+from metta.sweep.core import Distribution as D
+from metta.sweep.core import SweepParameters as SP
+from metta.sweep.core import make_sweep
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
-from mettagrid.config import ConverterConfig
 
 
 def mettagrid(num_agents: int = 24) -> MettaGridConfig:
@@ -42,11 +42,6 @@ def mettagrid(num_agents: int = 24) -> MettaGridConfig:
         "armor": 1,
         "blueprint": 1,
     }
-
-    # Easy converter: 1 battery_red to 1 heart (instead of 3 to 1)
-    altar = arena_env.game.objects.get("altar")
-    if isinstance(altar, ConverterConfig) and hasattr(altar, "input_resources"):
-        altar.input_resources["battery_red"] = 1
 
     return arena_env
 
@@ -106,9 +101,7 @@ def train(
     )
 
     eval_simulations = simulations()
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
-    )
+    trainer_cfg = TrainerConfig()
 
     if policy_architecture is None:
         policy_architecture = ViTDefaultConfig()

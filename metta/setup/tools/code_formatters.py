@@ -60,27 +60,27 @@ def get_formatters(repo_root: Path) -> dict[str, FormatterConfig]:
         "json": FormatterConfig(
             name="JSON",
             format_cmd=["bash", "devops/tools/format_json.sh"],
-            check_cmd=None,
+            check_cmd=["bash", "devops/tools/format_json.sh", "--check"],
         ),
         "markdown": FormatterConfig(
             name="Markdown",
             format_cmd=["bash", "devops/tools/format_md.sh"],
-            check_cmd=None,
+            check_cmd=["bash", "devops/tools/format_md.sh", "--check"],
         ),
         "shell": FormatterConfig(
             name="Shell",
             format_cmd=["bash", "devops/tools/format_sh.sh"],
-            check_cmd=None,
+            check_cmd=["bash", "devops/tools/format_sh.sh", "--check"],
         ),
         "toml": FormatterConfig(
             name="TOML",
             format_cmd=["bash", "devops/tools/format_toml.sh"],
-            check_cmd=None,
+            check_cmd=["bash", "devops/tools/format_toml.sh", "--check"],
         ),
         "yaml": FormatterConfig(
             name="YAML",
             format_cmd=["bash", "devops/tools/format_yml.sh"],
-            check_cmd=None,
+            check_cmd=["bash", "devops/tools/format_yml.sh", "--check"],
         ),
     }
 
@@ -167,13 +167,13 @@ def run_formatter(
     if check_only:
         if formatter.check_cmd is None:
             warning(f"--check not supported for {formatter.name}, skipping")
-            return False
+            return False  # Indicate check couldn't be performed
         cmd = formatter.check_cmd.copy()
     else:
         cmd = formatter.format_cmd.copy()
 
-    # Add specific files if provided (only for Python/C++)
-    if files and file_type in ("python", "cpp"):
+    # Add specific files if provided (all formatters now support this)
+    if files:
         cmd.extend(files)
 
     result = subprocess.run(cmd, cwd=repo_root, check=False)
