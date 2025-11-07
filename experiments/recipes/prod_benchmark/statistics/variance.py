@@ -1,48 +1,23 @@
-"""Variance Analysis for Production Benchmarks.
-
-This script analyzes the variance in summary statistics across multiple runs
-to determine the minimum number of runs needed for stable measurements.
-
-The script computes two key summary statistics:
-1. Area Under the Curve (AUC): Total reward accumulated over training
-2. Derivative (Slope): Rate of learning progress over time
-
-For each statistic, it computes the coefficient of variation (CV = std/mean)
-as a function of sample size (1 to N runs) and identifies when the variance
-drops below a configurable threshold (default: 5%).
+#!/usr/bin/env python3
+"""Simple variance analysis for a specific timestep window.
 
 Usage:
-    Command line:
-        python variance.py run_id_1 run_id_2 ... run_id_15 \\
-            --metric overview/reward \\
-            --threshold 0.05 \\
-            --output variance_plot.png
-
-    As a tool:
-        from experiments.recipes.prod_benchmark.variance import variance_analysis
-
-        tool = variance_analysis(
-            run_ids=["run1", "run2", "run3", ...],
-            metric_key="overview/reward",
-            variance_threshold=0.05,
-            output_path="variance_analysis.png"
-        )
-        tool.invoke({})
-
-Output:
-    - Console: Reports the minimum N where variance < threshold for each statistic
-    - Plot: Two-panel figure showing variance curves for AUC and Derivative
+    python simple_variance.py run1 run2 run3 ... run15
 """
 
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
+import sys
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-from metta.common.tool import Tool
-from pydantic import Field
+
+# Add paths for imports
+repo_root = Path(__file__).parent.parent.parent.parent
+sys.path.insert(0, str(repo_root / "common" / "src"))
+sys.path.insert(0, str(repo_root / "packages" / "mettagrid" / "python" / "src"))
 
 from experiments.recipes.prod_benchmark.statistics.analysis import (
     FetchSpec,
@@ -52,387 +27,161 @@ from experiments.recipes.prod_benchmark.statistics.analysis import (
 )
 
 
-@dataclass
-class VarianceResults:
-    """Results from variance analysis."""
+def compute_variance_curve(
+    run_ids: list[str],
+    metric_key: str,
+    percent: float = 0.25,
+    samples: int = 2000,
+    min_timesteps: float | None = None,
+) -> tuple[list[int], list[float], list[str]]:
+    """Compute coefficient of variation as a function of sample size.
 
-    num_samples: list[int]
-    auc_variance: list[float]
-    derivative_variance: list[float]
-    auc_variance_change: list[float]
-    derivative_variance_change: list[float]
-    auc_threshold_n: int | None
-    derivative_threshold_n: int | None
+    Args:
+        run_ids: List of W&B run IDs
+        metric_key: Metric to analyze (e.g., 'overview/reward')
+        percent: Percentage of training data to use (default: 0.25 for last 25%)
+        samples: Number of samples to request from W&B (default: 2000)
+        min_timesteps: Minimum timesteps required for a run to be included (default: None)
 
-
-class VarianceAnalysisTool(Tool):
-    """Analyze variance across multiple runs to determine stability."""
-
-    run_ids: list[str] = Field(
-        description="List of run IDs to analyze (should be 15 runs)"
+    Returns:
+        (sample_sizes, cv_values, included_runs): Sample sizes, CV values, and list of included run IDs
+    """
+    # Fetch and compute AUC for each run using percentage-based window
+    fetch_spec = FetchSpec(samples=samples)
+    summary_spec = SummarySpec(
+        type="auc",
+        percent=percent,
+        percent_window="last",
+        normalize_steps=True,
     )
-    metric_key: str = Field(default="overview/reward", description="Metric to analyze")
-    variance_threshold: float = Field(
-        default=0.05, description="Variance threshold as percentage (default 5%)"
-    )
-    fetch: FetchSpec = Field(default_factory=FetchSpec)
-    summary: SummarySpec = Field(default_factory=SummarySpec)
-    output_path: str | None = Field(
-        default=None, description="Path to save plot (default: variance_analysis.png)"
-    )
 
-    def _compute_derivative(self, steps: np.ndarray, values: np.ndarray) -> float:
-        """Compute the derivative (slope) of the reward curve using linear regression."""
-        if len(steps) < 2:
-            raise ValueError("Need at least 2 points to compute derivative")
+    auc_values = []
+    included_runs = []
+    excluded_runs = []
 
-        # Use linear regression to compute slope
-        coefficients = np.polyfit(steps, values, 1)
-        slope = float(coefficients[0])
-        return slope
+    for run_id in run_ids:
+        try:
+            series = _fetch_series(run_id, metric_key, fetch_spec)
 
-    def _compute_summary_statistics(
-        self, run_ids: list[str]
-    ) -> tuple[list[float], list[float]]:
-        """Compute AUC and derivative for all runs."""
-        auc_values = []
-        derivative_values = []
-
-        for run_id in run_ids:
-            try:
-                series = _fetch_series(run_id, self.metric_key, self.fetch)
-                # Compute AUC
-                auc = _reduce_summary(series, self.summary)
-                auc_values.append(auc)
-
-                # Compute derivative
-                derivative = self._compute_derivative(series.steps, series.values)
-                derivative_values.append(derivative)
-
-            except Exception as e:
-                print(f"Warning: Failed to process run {run_id}: {e}")
+            # Check if run meets minimum timestep requirement
+            max_step = float(series.steps[-1])
+            if min_timesteps is not None and max_step < min_timesteps:
+                print(
+                    f"  EXCLUDED {run_id}: Only reaches {max_step:,.0f} timesteps (need {min_timesteps:,.0f})"
+                )
+                excluded_runs.append((run_id, max_step))
                 continue
 
-        return auc_values, derivative_values
+            auc = _reduce_summary(series, summary_spec)
+            auc_values.append(auc)
+            included_runs.append(run_id)
+            print(f"  {run_id}: AUC = {auc:.6f} (max timestep: {max_step:,.0f})")
+        except Exception as e:
+            print(f"  Warning: Failed to process {run_id}: {e}")
+            excluded_runs.append((run_id, "error"))
+            continue
 
-    def _compute_variance_curve(
-        self, values: list[float]
-    ) -> tuple[list[int], list[float]]:
-        """Compute variance as a function of sample size."""
-        n_runs = len(values)
-        sample_sizes = list(range(1, n_runs + 1))
-        variances = []
+    if len(auc_values) < 2:
+        raise ValueError("Need at least 2 successful runs for variance analysis")
 
-        for n in sample_sizes:
-            # Use first n samples
-            subset = values[:n]
-            if len(subset) > 1:
-                # Compute coefficient of variation (CV = std/mean)
-                # This gives us variance as a percentage
-                mean_val = np.mean(subset)
-                std_val = np.std(subset, ddof=1)
-                if abs(mean_val) > 1e-10:
-                    cv = abs(std_val / mean_val)
-                else:
-                    cv = float("inf")
-                variances.append(cv)
+    print(f"\nSuccessfully included {len(auc_values)} runs in analysis")
+    if excluded_runs:
+        print(f"Excluded {len(excluded_runs)} runs that didn't meet criteria")
+
+    # Compute CV for each sample size
+    sample_sizes = list(range(1, len(auc_values) + 1))
+    cv_values = []
+
+    for n in sample_sizes:
+        subset = auc_values[:n]
+        if len(subset) > 1:
+            mean_val = np.mean(subset)
+            std_val = np.std(subset, ddof=1)
+            if abs(mean_val) > 1e-10:
+                cv = abs(std_val / mean_val)
             else:
-                variances.append(float("inf"))
-
-        return sample_sizes, variances
-
-    def _compute_variance_change(self, variances: list[float]) -> list[float]:
-        """Compute the rate of change in variance between consecutive sample sizes.
-
-        Returns the percent change: |variance[i] - variance[i-1]| / variance[i-1]
-        First element is inf since there's no previous value to compare.
-        """
-        changes = [float("inf")]  # No previous value for first sample
-
-        for i in range(1, len(variances)):
-            prev_var = variances[i - 1]
-            curr_var = variances[i]
-
-            # Avoid division by zero or inf
-            if prev_var == float("inf") or prev_var == 0 or curr_var == float("inf"):
-                changes.append(float("inf"))
-            else:
-                # Compute absolute percent change
-                pct_change = abs(curr_var - prev_var) / abs(prev_var)
-                changes.append(pct_change)
-
-        return changes
-
-    def _find_threshold_crossing(
-        self, sample_sizes: list[int], variance_changes: list[float], threshold: float
-    ) -> int | None:
-        """Find the first sample size where variance change drops below threshold.
-
-        This identifies when adding more runs doesn't significantly change the variance estimate.
-        """
-        for n, change in zip(sample_sizes, variance_changes):
-            # Skip first value (which is inf)
-            if n > 1 and change < threshold:
-                return n
-        return None
-
-    def _plot_variance_analysis(self, results: VarianceResults, output_path: str):
-        """Create visualization of variance change vs sample size."""
-        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
-        (ax1, ax2), (ax3, ax4) = axes
-
-        # Plot 1: AUC Variance (absolute)
-        ax1.plot(
-            results.num_samples,
-            [v * 100 for v in results.auc_variance],
-            marker="o",
-            linewidth=2,
-            markersize=6,
-            color="blue",
-        )
-        ax1.set_xlabel("Number of Runs", fontsize=12)
-        ax1.set_ylabel("Coefficient of Variation (%)", fontsize=12)
-        ax1.set_title("AUC: Absolute Variance", fontsize=14, fontweight="bold")
-        ax1.grid(True, alpha=0.3)
-
-        # Plot 2: Derivative Variance (absolute)
-        ax2.plot(
-            results.num_samples,
-            [v * 100 for v in results.derivative_variance],
-            marker="s",
-            linewidth=2,
-            markersize=6,
-            color="orange",
-        )
-        ax2.set_xlabel("Number of Runs", fontsize=12)
-        ax2.set_ylabel("Coefficient of Variation (%)", fontsize=12)
-        ax2.set_title("Derivative: Absolute Variance", fontsize=14, fontweight="bold")
-        ax2.grid(True, alpha=0.3)
-
-        # Plot 3: AUC Variance Change (rate of change)
-        # Filter out inf values for plotting
-        auc_changes_filtered = [
-            c if c != float("inf") else None for c in results.auc_variance_change
-        ]
-        ax3.plot(
-            results.num_samples[1:],  # Skip first sample (has inf change)
-            [c * 100 for c in auc_changes_filtered[1:] if c is not None],
-            marker="o",
-            linewidth=2,
-            markersize=6,
-            color="blue",
-        )
-        ax3.axhline(
-            y=self.variance_threshold * 100,
-            color="r",
-            linestyle="--",
-            linewidth=2,
-            label=f"{self.variance_threshold * 100}% threshold",
-        )
-        if results.auc_threshold_n:
-            ax3.axvline(
-                x=results.auc_threshold_n,
-                color="g",
-                linestyle=":",
-                linewidth=2,
-                label=f"Stable at N={results.auc_threshold_n}",
-            )
-            ax3.scatter(
-                [results.auc_threshold_n],
-                [results.auc_variance_change[results.auc_threshold_n - 1] * 100],
-                color="g",
-                s=200,
-                marker="*",
-                zorder=5,
-                edgecolor="black",
-                linewidth=1.5,
-            )
-        ax3.set_xlabel("Number of Runs", fontsize=12)
-        ax3.set_ylabel("Variance Change from Previous (%)", fontsize=12)
-        ax3.set_title("AUC: Rate of Variance Change", fontsize=14, fontweight="bold")
-        ax3.grid(True, alpha=0.3)
-        ax3.legend()
-
-        # Plot 4: Derivative Variance Change (rate of change)
-        deriv_changes_filtered = [
-            c if c != float("inf") else None for c in results.derivative_variance_change
-        ]
-        ax4.plot(
-            results.num_samples[1:],  # Skip first sample (has inf change)
-            [c * 100 for c in deriv_changes_filtered[1:] if c is not None],
-            marker="s",
-            linewidth=2,
-            markersize=6,
-            color="orange",
-        )
-        ax4.axhline(
-            y=self.variance_threshold * 100,
-            color="r",
-            linestyle="--",
-            linewidth=2,
-            label=f"{self.variance_threshold * 100}% threshold",
-        )
-        if results.derivative_threshold_n:
-            ax4.axvline(
-                x=results.derivative_threshold_n,
-                color="g",
-                linestyle=":",
-                linewidth=2,
-                label=f"Stable at N={results.derivative_threshold_n}",
-            )
-            ax4.scatter(
-                [results.derivative_threshold_n],
-                [
-                    results.derivative_variance_change[
-                        results.derivative_threshold_n - 1
-                    ]
-                    * 100
-                ],
-                color="g",
-                s=200,
-                marker="*",
-                zorder=5,
-                edgecolor="black",
-                linewidth=1.5,
-            )
-        ax4.set_xlabel("Number of Runs", fontsize=12)
-        ax4.set_ylabel("Variance Change from Previous (%)", fontsize=12)
-        ax4.set_title(
-            "Derivative: Rate of Variance Change", fontsize=14, fontweight="bold"
-        )
-        ax4.grid(True, alpha=0.3)
-        ax4.legend()
-
-        fig.tight_layout()
-        fig.savefig(output_path, dpi=300, bbox_inches="tight")
-        print(f"\nPlot saved to: {output_path}")
-
-    def invoke(self, args: dict[str, str]) -> int | None:
-        """Run variance analysis on the provided runs."""
-        if len(self.run_ids) < 2:
-            print("Error: Need at least 2 runs for variance analysis")
-            return 1
-
-        if len(self.run_ids) != 15:
-            print(
-                f"Warning: Expected 15 runs but got {len(self.run_ids)}. Continuing with provided runs..."
-            )
-
-        print(f"\nAnalyzing {len(self.run_ids)} runs...")
-        print(f"Metric: {self.metric_key}")
-        print(f"Variance threshold: {self.variance_threshold * 100}%")
-
-        # Compute summary statistics
-        auc_values, derivative_values = self._compute_summary_statistics(self.run_ids)
-
-        if len(auc_values) < 2:
-            print("Error: Not enough valid runs processed")
-            return 1
-
-        print(f"\nSuccessfully processed {len(auc_values)} runs")
-
-        # Compute variance curves
-        auc_samples, auc_variances = self._compute_variance_curve(auc_values)
-        deriv_samples, deriv_variances = self._compute_variance_curve(derivative_values)
-
-        # Compute variance change rates
-        auc_variance_changes = self._compute_variance_change(auc_variances)
-        deriv_variance_changes = self._compute_variance_change(deriv_variances)
-
-        # Find threshold crossings (using variance change, not absolute variance)
-        auc_threshold_n = self._find_threshold_crossing(
-            auc_samples, auc_variance_changes, self.variance_threshold
-        )
-        derivative_threshold_n = self._find_threshold_crossing(
-            deriv_samples, deriv_variance_changes, self.variance_threshold
-        )
-
-        # Create results
-        results = VarianceResults(
-            num_samples=auc_samples,
-            auc_variance=auc_variances,
-            derivative_variance=deriv_variances,
-            auc_variance_change=auc_variance_changes,
-            derivative_variance_change=deriv_variance_changes,
-            auc_threshold_n=auc_threshold_n,
-            derivative_threshold_n=derivative_threshold_n,
-        )
-
-        # Print results
-        print("\n" + "=" * 70)
-        print("VARIANCE ANALYSIS RESULTS")
-        print("=" * 70)
-        print(f"\nMetric: {self.metric_key}")
-        print(f"Summary type: {self.summary.type}")
-        print(f"Total runs analyzed: {len(auc_values)}")
-        print(
-            f"Stability threshold: Variance change < {self.variance_threshold * 100}%"
-        )
-
-        print("\n--- AUC Variance ---")
-        print(f"Final variance (N={len(auc_values)}): {auc_variances[-1] * 100:.2f}%")
-        if auc_threshold_n:
-            change_at_n = auc_variance_changes[auc_threshold_n - 1] * 100
-            print(
-                f" STABILIZED at N = {auc_threshold_n} runs (change: {change_at_n:.2f}%)"
-            )
+                cv = float("inf")
+            cv_values.append(cv)
         else:
-            last_change = (
-                auc_variance_changes[-1] * 100
-                if auc_variance_changes[-1] != float("inf")
-                else "inf"
-            )
-            print(
-                f" NOT YET STABLE (last change: {last_change if isinstance(last_change, str) else f'{last_change:.2f}'}%, need more runs)"
-            )
+            cv_values.append(float("inf"))
 
-        print("\n--- Derivative Variance ---")
-        print(
-            f"Final variance (N={len(derivative_values)}): {deriv_variances[-1] * 100:.2f}%"
+    return sample_sizes, cv_values, included_runs
+
+
+def plot_variance(
+    sample_sizes: list[int],
+    cv_values: list[float],
+    threshold: float,
+    output_path: str,
+    percent: float,
+):
+    """Create a simple plot of CV vs sample size."""
+    # Filter out inf values for plotting
+    x_vals = []
+    y_vals = []
+    for n, cv in zip(sample_sizes, cv_values):
+        if cv != float("inf"):
+            x_vals.append(n)
+            y_vals.append(cv * 100)  # Convert to percentage
+
+    # Find threshold crossing
+    threshold_n = None
+    for i in range(1, len(cv_values)):
+        prev_cv = cv_values[i - 1]
+        curr_cv = cv_values[i]
+        if prev_cv != float("inf") and curr_cv != float("inf"):
+            pct_change = abs(curr_cv - prev_cv) / abs(prev_cv)
+            if pct_change < threshold:
+                threshold_n = (
+                    i + 1
+                )  # +1 because index starts at 0 but sample sizes start at 1
+                break
+
+    # Create plot
+    plt.figure(figsize=(12, 7))
+    plt.plot(x_vals, y_vals, marker="o", linewidth=2, markersize=8, color="blue")
+
+    if threshold_n:
+        plt.axvline(
+            x=threshold_n,
+            color="green",
+            linestyle=":",
+            linewidth=2,
+            label=f"Stabilized at N={threshold_n}\n(CV change < {threshold * 100:.0f}%)",
         )
-        if derivative_threshold_n:
-            change_at_n = deriv_variance_changes[derivative_threshold_n - 1] * 100
-            print(
-                f" STABILIZED at N = {derivative_threshold_n} runs (change: {change_at_n:.2f}%)"
-            )
-        else:
-            last_change = (
-                deriv_variance_changes[-1] * 100
-                if deriv_variance_changes[-1] != float("inf")
-                else "inf"
-            )
-            print(
-                f" NOT YET STABLE (last change: {last_change if isinstance(last_change, str) else f'{last_change:.2f}'}%, need more runs)"
-            )
+        plt.scatter(
+            [threshold_n],
+            [cv_values[threshold_n - 1] * 100],
+            color="green",
+            s=300,
+            marker="*",
+            zorder=5,
+            edgecolor="black",
+            linewidth=2,
+        )
 
-        print("\n" + "=" * 70)
-
-        # Create plot
-        output_path = self.output_path or "variance_analysis.png"
-        self._plot_variance_analysis(results, output_path)
-
-        return 0
-
-
-def variance_analysis(
-    run_ids: list[str],
-    metric_key: str = "overview/reward",
-    variance_threshold: float = 0.05,
-    output_path: str | None = None,
-) -> VarianceAnalysisTool:
-    """Create a variance analysis tool."""
-    return VarianceAnalysisTool(
-        run_ids=run_ids,
-        metric_key=metric_key,
-        variance_threshold=variance_threshold,
-        output_path=output_path,
+    plt.xlabel("Number of Runs", fontsize=14, fontweight="bold")
+    plt.ylabel("Coefficient of Variation (%)", fontsize=14, fontweight="bold")
+    plt.title(
+        f"Variance Analysis: Last {percent * 100:.0f}% of Training\n(Stabilizes when CV change between consecutive points < {threshold * 100:.0f}%)",
+        fontsize=15,
+        fontweight="bold",
     )
+
+    # Set x-axis limits to show up to 20
+    plt.xlim(0, 21)
+    plt.xticks(range(0, 21, 2))
+
+    plt.grid(True, alpha=0.3)
+    plt.legend(fontsize=12, loc="best")
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    print(f"\nPlot saved to: {output_path}")
 
 
 def main():
-    """Command-line interface for variance analysis."""
     parser = argparse.ArgumentParser(
-        description="Analyze variance across multiple runs"
+        description="Simple variance analysis for the last portion of training"
     )
     parser.add_argument(
         "run_ids", nargs="+", help="List of run IDs to analyze (space-separated)"
@@ -443,41 +192,97 @@ def main():
         help="Metric to analyze (default: overview/reward)",
     )
     parser.add_argument(
+        "--percent",
+        type=float,
+        default=0.25,
+        help="Percentage of training data to analyze (default: 0.25 for last 25%%)",
+    )
+    parser.add_argument(
         "--threshold",
         type=float,
         default=0.05,
-        help="Variance threshold as decimal (default: 0.05 for 5%%)",
+        help="Variance change threshold (default: 0.05 for 5%%)",
     )
     parser.add_argument(
-        "--output", default="variance_analysis.png", help="Output plot path"
+        "--output",
+        default="variance_simple.png",
+        help="Output plot path (default: variance_simple.png)",
     )
     parser.add_argument(
-        "--window-percent",
+        "--samples",
+        type=int,
+        default=2000,
+        help="Number of samples to request from W&B (default: 2000)",
+    )
+    parser.add_argument(
+        "--min-timesteps",
         type=float,
         default=None,
-        help="Percent of data to use for AUC window (0-1). If None, uses all data. Default: None for full data",
+        help="Minimum timesteps required for inclusion (default: None, auto-computed from percent)",
     )
 
     args = parser.parse_args()
 
-    # Create SummarySpec with custom percent if provided
-    from experiments.recipes.prod_benchmark.statistics.analysis import SummarySpec
+    # Auto-compute min_timesteps if not provided (assumes 2B training)
+    if args.min_timesteps is None and args.percent > 0:
+        # If analyzing last 25% of 2B training, minimum should be 1.5B
+        args.min_timesteps = 2_000_000_000 * (1 - args.percent)
 
-    summary_spec = (
-        SummarySpec(percent=args.window_percent)
-        if args.window_percent
-        else SummarySpec(percent=None)
+    print(f"\nAnalyzing {len(args.run_ids)} runs...")
+    print(f"Metric: {args.metric}")
+    print(f"Window: Last {args.percent * 100:.0f}% of training")
+    if args.min_timesteps:
+        print(f"Minimum timesteps required: {args.min_timesteps:,.0f}")
+    print(f"Samples per run: {args.samples}")
+    print(f"Variance threshold: {args.threshold * 100}%\n")
+
+    # Compute variance curve
+    sample_sizes, cv_values, included_runs = compute_variance_curve(
+        args.run_ids, args.metric, args.percent, args.samples, args.min_timesteps
     )
 
-    tool = variance_analysis(
-        run_ids=args.run_ids,
-        metric_key=args.metric,
-        variance_threshold=args.threshold,
-        output_path=args.output,
+    # Print results
+    print("\n" + "=" * 70)
+    print("RESULTS")
+    print("=" * 70)
+    print(f"Included runs: {len(included_runs)} out of {len(args.run_ids)} total")
+    print(f"Final CV (N={len(sample_sizes)}): {cv_values[-1] * 100:.2f}%")
+    print(
+        f"\nLooking for when CV change between consecutive samples < {args.threshold * 100:.0f}%..."
     )
-    # Override the summary spec
-    tool.summary = summary_spec
-    tool.invoke({})
+
+    # Find threshold crossing
+    threshold_n = None
+    stabilization_change = None
+    for i in range(1, len(cv_values)):
+        prev_cv = cv_values[i - 1]
+        curr_cv = cv_values[i]
+        if prev_cv != float("inf") and curr_cv != float("inf"):
+            pct_change = abs(curr_cv - prev_cv) / abs(prev_cv)
+            if pct_change < args.threshold:
+                threshold_n = i + 1
+                stabilization_change = pct_change
+                break
+
+    if threshold_n:
+        print(
+            f"✓ STABILIZED at N = {threshold_n} runs (CV change: {stabilization_change * 100:.2f}%)"
+        )
+        print(
+            f"  → Adding more runs beyond {threshold_n} changes CV by < {args.threshold * 100:.0f}%"
+        )
+    else:
+        print("✗ NOT YET STABLE (need more runs)")
+    print("=" * 70)
+
+    # Create plot
+    plot_variance(
+        sample_sizes,
+        cv_values,
+        args.threshold,
+        args.output,
+        args.percent,
+    )
 
 
 if __name__ == "__main__":

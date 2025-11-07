@@ -144,7 +144,7 @@ markers = [
 ]
 console_output_style = "progress"
 addopts = "-n auto --import-mode=importlib --ignore-glob=**/bazel-*"
-pythonpath = [".", "packages/mettagrid/python/src"]
+pythonpath = [".", "common/src", "packages/mettagrid/python/src"]
 norecursedirs = ["bazel-*", ".bazel_output"]
 
 [tool.uv]
