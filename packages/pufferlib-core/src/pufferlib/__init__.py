@@ -4,33 +4,26 @@ import sys
 
 
 def _import_modules():
-    from . import pufferlib, spaces
+    import pufferlib
 
     current_module = sys.modules[__name__]
-    current_module.PufferEnv = pufferlib.PufferEnv
-    current_module.set_buffers = pufferlib.set_buffers
-    current_module.unroll_nested_dict = pufferlib.unroll_nested_dict
-    current_module.APIUsageError = pufferlib.APIUsageError
-
-    from . import emulation, vector
+    current_module.PufferEnv = pufferlib.pufferlib.PufferEnv
+    current_module.set_buffers = pufferlib.pufferlib.set_buffers
+    current_module.unroll_nested_dict = pufferlib.pufferlib.unroll_nested_dict
+    current_module.APIUsageError = pufferlib.pufferlib.APIUsageError
 
     try:
-        from . import _C
 
-        current_module._C = _C
+        current_module._C = pufferlib._C
     except ImportError:
         pass
 
-    from . import models, pytorch
+    current_module.pytorch = pufferlib.pytorch
+    current_module.models = pufferlib.models
 
-    current_module.pytorch = pytorch
-    current_module.models = models
+    current_module.pufferl = pufferlib.pufferl
 
-    from . import pufferl
-
-    current_module.pufferl = pufferl
-
-    return spaces, pufferlib, emulation, vector, pytorch, models, pufferl
+    return pufferlib.spaces, pufferlib.pufferlib, pufferlib.emulation, pufferlib.vector, pufferlib.pytorch, pufferlib.models, pufferlib.pufferl
 
 
 spaces, pufferlib, emulation, vector, pytorch, models, pufferl = _import_modules()

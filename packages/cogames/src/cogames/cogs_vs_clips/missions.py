@@ -1,174 +1,52 @@
-import typing
-
 import cogames.cogs_vs_clips.evals.eval_missions
 import cogames.cogs_vs_clips.mission
 import cogames.cogs_vs_clips.mission_utils
-import cogames.cogs_vs_clips.procedural
 import cogames.cogs_vs_clips.sites
+import cogames.cogs_vs_clips.variants
 import mettagrid.config.mettagrid_config
-import mettagrid.mapgen.scenes.building_distributions
 
 # Training Facility Missions
 
 
-# Note: variants in this file are one-time only, used to produce their
-# respective missions, and not registered in VARIANTS list.
-# We hope to refactor these variants into more reusable classes in variants.py.
-class HarvestMissionVariant(cogames.cogs_vs_clips.mission.MissionVariant):
-    name: str = "harvest_mission"
-
-    @typing.override
-    def modify_env(self, mission, env):
-        # Reset rewards to match pre-procedural behaviour; variants (e.g. Heart Chorus) will override as needed.
-        env.game.agent.rewards.inventory = {}
-        env.game.agent.rewards.stats = {}
-        env.game.agent.rewards.inventory_max = {}
-        env.game.agent.rewards.stats_max = {}
-
-        # Ensure that the extractors are configured to have high max uses
-        for name in ("germanium_extractor", "carbon_extractor", "oxygen_extractor", "silicon_extractor"):
-            cfg = env.game.objects[name]
-            if not isinstance(cfg, mettagrid.config.mettagrid_config.AssemblerConfig):
-                raise TypeError(f"Expected '{name}' to be AssemblerConfig")
-            cfg.max_uses = 100
-
-
-HarvestMission = HarvestMissionVariant().as_mission(
+# Recreated with existing variant(s)
+HarvestMission = cogames.cogs_vs_clips.mission.Mission(
     name="harvest",
     description="Collect resources, assemble hearts, and deposit them in the chest. Make sure to stay charged!",
     site=cogames.cogs_vs_clips.sites.TRAINING_FACILITY,
 )
 
 
-class AssembleMissionVariant(cogames.cogs_vs_clips.mission.MissionVariant):
-    name: str = "assemble_mission"
-
-    @typing.override
-    def modify_env(self, mission, env):
-        # Only extractors, no chests
-        node = cogames.cogs_vs_clips.procedural.BaseHubVariant.extract_node(env)
-        node.corner_bundle = "none"
-
-        for name in ("germanium_extractor", "carbon_extractor", "oxygen_extractor", "silicon_extractor"):
-            cfg = env.game.objects[name]
-            if not isinstance(cfg, mettagrid.config.mettagrid_config.AssemblerConfig):
-                raise TypeError(f"Expected '{name}' to be AssemblerConfig")
-            cfg.max_uses = 100
-
-
-AssembleMission = AssembleMissionVariant().as_mission(
+AssembleMission = cogames.cogs_vs_clips.mission.Mission(
     name="assemble",
     description="Make HEARTs by using the assembler. Coordinate your team to maximize efficiency.",
     site=cogames.cogs_vs_clips.sites.TRAINING_FACILITY,
+    variants=[cogames.cogs_vs_clips.variants.InventoryHeartTuneVariant(hearts=5), cogames.cogs_vs_clips.variants.PackRatVariant()],
 )
 
 
-class VibeCheckMissionVariant(cogames.cogs_vs_clips.mission.MissionVariant):
-    name: str = "vibe_check_mission"
-
-    # Modify the assembler recipe so that it can only make HEARTs when
-    # Set the number of cogs to 4
-    @typing.override
-    def modify_mission(self, mission):
-        mission.num_cogs = 4
-
-    @typing.override
-    def modify_env(self, mission, env):
-        # Require exactly 4 heart vibes for HEART crafting; keep gear recipes intact
-        assembler_cfg = env.game.objects["assembler"]
-        if not isinstance(assembler_cfg, mettagrid.config.mettagrid_config.AssemblerConfig):
-            raise TypeError("Expected 'assembler' to be AssemblerConfig")
-        filtered: list[mettagrid.config.mettagrid_config.ProtocolConfig] = []
-        for protocol in assembler_cfg.protocols:
-            if "heart" in protocol.vibes:
-                # Keep only the 4-heart recipe for heart crafting
-                if len(protocol.vibes) == 4 and all(v == "heart" for v in protocol.vibes):
-                    filtered.append(protocol)
-            else:
-                # Preserve non-heart (e.g., gear) recipes
-                filtered.append(protocol)
-        assembler_cfg.protocols = filtered
-
-
-VibeCheckMission = VibeCheckMissionVariant().as_mission(
+VibeCheckMission = cogames.cogs_vs_clips.mission.Mission(
     name="vibe_check",
-    description="Modulate the group vibe to assemble HEARTs and Gear.",
+    description="Modulate the group vibe to assemble HEARTs.",
     site=cogames.cogs_vs_clips.sites.TRAINING_FACILITY,
+    num_cogs=4,
+    variants=[cogames.cogs_vs_clips.variants.VibeCheckMin2Variant(), cogames.cogs_vs_clips.variants.InventoryHeartTuneVariant(hearts=1)],
 )
 
 
-class RepairMissionVariant(cogames.cogs_vs_clips.mission.MissionVariant):
-    name: str = "repair_mission"
-
-    @typing.override
-    def modify_mission(self, mission):
-        mission.num_cogs = 2
-
-        mission.carbon_extractor.start_clipped = True
-        mission.oxygen_extractor.start_clipped = True
-        mission.germanium_extractor.start_clipped = True
-        mission.silicon_extractor.start_clipped = True
-
-    @typing.override
-    def modify_env(self, mission, env):
-        # Place chests in corners, extractors on cross; start extractors clipped
-        node = cogames.cogs_vs_clips.procedural.BaseHubVariant.extract_node(env)
-        node.corner_bundle = "chests"
-        node.cross_bundle = "extractors"
-        node.cross_distance = 7
-
-        # Seed resource chests with one unit each to craft gear items
-        chest_cfg = env.game.objects["chest"]
-        if not isinstance(chest_cfg, mettagrid.config.mettagrid_config.ChestConfig):
-            raise TypeError("Expected 'chest' to be ChestConfig")
-        chest_cfg.initial_inventory = {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1}
-
-
-RepairMission = RepairMissionVariant().as_mission(
+RepairMission = cogames.cogs_vs_clips.mission.Mission(
     name="repair",
     description="Repair disabled stations to restore their functionality.",
     site=cogames.cogs_vs_clips.sites.TRAINING_FACILITY,
+    num_cogs=2,
+    variants=[cogames.cogs_vs_clips.variants.InventoryHeartTuneVariant(hearts=1), cogames.cogs_vs_clips.variants.ClipRateOnVariant()],
 )
 
 
-class UnclipDrillsMissionVariant(cogames.cogs_vs_clips.mission.MissionVariant):
-    name: str = "unclip_drills_mission"
-
-    @typing.override
-    def modify_mission(self, mission):
-        mission.clip_rate = 0.0
-
-        for station in (
-            mission.carbon_extractor,
-            mission.oxygen_extractor,
-            mission.germanium_extractor,
-            mission.silicon_extractor,
-            mission.charger,
-        ):
-            station.start_clipped = True
-
-    @typing.override
-    def modify_env(self, mission, env):
-        node = cogames.cogs_vs_clips.procedural.BaseHubVariant.extract_node(env)
-        node.cross_bundle = "extractors"
-        node.cross_distance = 7
-
-        chest_cfg = env.game.objects["chest"]
-        if not isinstance(chest_cfg, mettagrid.config.mettagrid_config.ChestConfig):
-            raise TypeError("Expected 'chest' to be ChestConfig")
-        for resource in ("carbon", "oxygen", "germanium", "silicon"):
-            chest_cfg.initial_inventory[resource] = max(chest_cfg.initial_inventory.get(resource, 0), 3)
-
-        agent_cfg = env.game.agent
-        agent_cfg.initial_inventory = dict(agent_cfg.initial_inventory)
-        for resource in ("decoder", "modulator", "scrambler", "resonator"):
-            agent_cfg.initial_inventory[resource] = agent_cfg.initial_inventory.get(resource, 0) + 2
-
-
-UnclipDrillsMission = UnclipDrillsMissionVariant().as_mission(
+UnclipDrillsMission = cogames.cogs_vs_clips.mission.Mission(
     name="unclip_drills",
     description="Practice unclipping hub facilities after a grid outage.",
     site=cogames.cogs_vs_clips.sites.TRAINING_FACILITY,
+    variants=[cogames.cogs_vs_clips.variants.ClipRateOnVariant(), cogames.cogs_vs_clips.variants.InventoryHeartTuneVariant(hearts=1)],
 )
 
 
@@ -178,12 +56,26 @@ SignsAndPortentsMission = cogames.cogs_vs_clips.mission.Mission(
     site=cogames.cogs_vs_clips.sites.TRAINING_FACILITY,
 )
 
+# Easy Hearts: simplified heart crafting and generous limits with extractor hub
+EasyHeartsMission = cogames.cogs_vs_clips.mission.Mission(
+    name="easy_hearts",
+    description="Simplified heart crafting, generous caps, extractor base, neutral vibe.",
+    site=cogames.cogs_vs_clips.sites.TRAINING_FACILITY,
+    variants=[
+        cogames.cogs_vs_clips.variants.LonelyHeartVariant(),
+        cogames.cogs_vs_clips.variants.HeartChorusVariant(),
+        cogames.cogs_vs_clips.variants.PackRatVariant(),
+        cogames.cogs_vs_clips.variants.NeutralFacedVariant(),
+    ],
+)
+
 
 # Hello World Missions
 ExploreMission = cogames.cogs_vs_clips.mission.Mission(
     name="explore",
-    description="There are HEARTs scattered around the map. Collect them all.",
+    description="There are HEART chests scattered around the map. Put your HEARTs in them.",
     site=cogames.cogs_vs_clips.sites.HELLO_WORLD,
+    variants=[cogames.cogs_vs_clips.variants.InventoryHeartTuneVariant(hearts=1, heart_capacity=10), cogames.cogs_vs_clips.variants.PackRatVariant()],
 )
 
 
@@ -194,6 +86,8 @@ TreasureHuntMission = cogames.cogs_vs_clips.mission.Mission(
         "A team of 4 is required to harvest germanium."
     ),
     site=cogames.cogs_vs_clips.sites.HELLO_WORLD,
+    num_cogs=4,
+    variants=[cogames.cogs_vs_clips.variants.ClipRateOnVariant()],
 )
 
 
@@ -212,69 +106,12 @@ Machina1OpenWorldMission = cogames.cogs_vs_clips.mission.Mission(
 )
 
 
-class UnclipFieldOpsMissionVariant(cogames.cogs_vs_clips.procedural.MachinaArenaVariant):
-    name: str = "unclip_field_ops_mission"
-
-    @typing.override
-    def modify_node(self, node):
-        node.building_names = [
-            "charger",
-            "germanium_extractor",
-            "silicon_extractor",
-            "oxygen_extractor",
-            "carbon_extractor",
-        ]
-        node.building_weights = {
-            "charger": 0.6,
-            "germanium_extractor": 0.6,
-            "silicon_extractor": 0.5,
-            "oxygen_extractor": 0.5,
-            "carbon_extractor": 0.5,
-        }
-        node.building_coverage = 0.015
-        node.hub.corner_bundle = "chests"
-        node.hub.cross_bundle = "extractors"
-        node.distribution = mettagrid.mapgen.scenes.building_distributions.DistributionConfig(
-            type=mettagrid.mapgen.scenes.building_distributions.DistributionType.POISSON
-        )
-
-    @typing.override
-    def modify_mission(self, mission):
-        # default to 4 cogs
-        mission.num_cogs = 4
-        mission.clip_rate = 0.02
-
-        for station in (
-            mission.carbon_extractor,
-            mission.oxygen_extractor,
-            mission.germanium_extractor,
-            mission.silicon_extractor,
-        ):
-            station.start_clipped = True
-        mission.charger.start_clipped = True
-
-    @typing.override
-    def modify_env(
-        self, mission: cogames.cogs_vs_clips.mission.Mission, env: mettagrid.config.mettagrid_config.MettaGridConfig
-    ):
-        super().modify_env(mission, env)
-
-        chest_cfg = env.game.objects["chest"]
-        if not isinstance(chest_cfg, mettagrid.config.mettagrid_config.ChestConfig):
-            raise TypeError("Expected 'chest' to be ChestConfig")
-        for resource in ("carbon", "oxygen", "germanium", "silicon"):
-            chest_cfg.initial_inventory[resource] = max(chest_cfg.initial_inventory.get(resource, 0), 2)
-
-        agent_cfg = env.game.agent
-        agent_cfg.initial_inventory = dict(agent_cfg.initial_inventory)
-        for resource in ("decoder", "modulator", "scrambler", "resonator"):
-            agent_cfg.initial_inventory[resource] = agent_cfg.initial_inventory.get(resource, 0) + 1
-
-
-HelloWorldUnclipMission = UnclipFieldOpsMissionVariant().as_mission(
+HelloWorldUnclipMission = cogames.cogs_vs_clips.mission.Mission(
     name="hello_world_unclip",
     description="Stabilize clipped extractors scattered across the hello_world sector.",
     site=cogames.cogs_vs_clips.sites.HELLO_WORLD,
+    num_cogs=4,
+    variants=[cogames.cogs_vs_clips.variants.ClipRateOnVariant(), cogames.cogs_vs_clips.variants.ChestHeartTuneVariant(hearts=2)],
 )
 
 MISSIONS: list[cogames.cogs_vs_clips.mission.Mission] = [
@@ -286,6 +123,7 @@ MISSIONS: list[cogames.cogs_vs_clips.mission.Mission] = [
     SignsAndPortentsMission,
     ExploreMission,
     TreasureHuntMission,
+    EasyHeartsMission,
     HelloWorldUnclipMission,
     HelloWorldOpenWorldMission,
     Machina1OpenWorldMission,
@@ -293,9 +131,7 @@ MISSIONS: list[cogames.cogs_vs_clips.mission.Mission] = [
 ]
 
 
-def make_game(
-    num_cogs: int = 2, map_name: str = "training_facility_open_1.map"
-) -> mettagrid.config.mettagrid_config.MettaGridConfig:
+def make_game(num_cogs: int = 2, map_name: str = "training_facility_open_1.map") -> mettagrid.config.mettagrid_config.MettaGridConfig:
     """Create a default cogs vs clips game configuration."""
     mission = HarvestMission.model_copy(deep=True)
     mission.num_cogs = num_cogs

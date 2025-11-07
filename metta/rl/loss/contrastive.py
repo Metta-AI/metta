@@ -8,10 +8,10 @@ import torchrl.data
 import metta.agent.policy
 import metta.rl.training.component_context as component_context
 import metta.rl.training.training_environment as training_environment
-from . import loss as loss_module
+import metta.rl.loss
 
 
-class ContrastiveLoss(loss_module.Loss):
+class ContrastiveLoss(metta.rl.loss.loss.Loss):
     """Contrastive loss for representation learning."""
 
     __slots__ = (
@@ -36,14 +36,14 @@ class ContrastiveLoss(loss_module.Loss):
     ):
         super().__init__(policy, trainer_cfg, env, device, instance_name, loss_config)
 
-        self.temperature = self.loss_cfg.temperature
-        self.contrastive_coef = self.loss_cfg.contrastive_coef
-        self.embedding_dim = self.loss_cfg.embedding_dim
-        self.embedding_key = getattr(self.loss_cfg, "embedding_key", None)
-        self.discount = self.loss_cfg.discount
+        self.temperature = self.cfg.temperature
+        self.contrastive_coef = self.cfg.contrastive_coef
+        self.embedding_dim = self.cfg.embedding_dim
+        self.embedding_key = getattr(self.cfg, "embedding_key", None)
+        self.discount = self.cfg.discount
 
         # Add projection head if needed
-        if self.loss_cfg.use_projection_head:
+        if self.cfg.use_projection_head:
             # We'll determine input_dim dynamically during first forward pass
             # This avoids hardcoded assumptions about encoder output dimensions
             self.projection_head = None  # Will be created in first forward pass
@@ -92,7 +92,7 @@ class ContrastiveLoss(loss_module.Loss):
             )
 
         # Create and apply projection head if needed
-        if self.loss_cfg.use_projection_head:
+        if self.cfg.use_projection_head:
             if self.projection_head is None:
                 # Create projection head dynamically based on actual embedding dimensions
                 actual_input_dim = embeddings.shape[-1]

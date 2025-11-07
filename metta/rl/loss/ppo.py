@@ -1,18 +1,17 @@
 import typing
 
 import numpy as np
+import torch
 import pydantic
 import tensordict
-import torch
 import torchrl.data
 
 import metta.agent.policy
 import metta.rl.advantage
-import metta.rl.training.component_context as component_context
-import metta.rl.training.training_environment as training_environment
+import metta.rl.loss.loss
+import metta.rl.training
 import metta.utils.batch
 import mettagrid.base_config
-from . import loss as loss_module
 
 
 class PrioritizedExperienceReplayConfig(mettagrid.base_config.Config):
@@ -28,7 +27,7 @@ class VTraceConfig(mettagrid.base_config.Config):
     c_clip: float = pydantic.Field(default=1.0, gt=0)
 
 
-class PPOConfig(mettagrid.base_config.Config):
+class PPOConfig(metta.rl.loss.loss.LossConfig):
     schedule: None = None  # TODO: Implement this
     # PPO hyperparameters
     # Clip coefficient (0.1-0.3 typical; Schulman et al. 2017)
@@ -69,11 +68,11 @@ class PPOConfig(mettagrid.base_config.Config):
         self,
         policy: metta.agent.policy.Policy,
         trainer_cfg: typing.Any,
-        env: training_environment.TrainingEnvironment,
+        env: metta.rl.training.TrainingEnvironment,
         device: torch.device,
         instance_name: str,
         loss_config: typing.Any,
-    ):
+    ) -> "PPO":
         """Points to the PPO class for initialization."""
         return PPO(
             policy,
@@ -85,7 +84,7 @@ class PPOConfig(mettagrid.base_config.Config):
         )
 
 
-class PPO(loss_module.Loss):
+class PPO(metta.rl.loss.loss.Loss):
     """PPO loss with prioritized replay and V-trace tweaks."""
 
     __slots__ = (
@@ -100,7 +99,7 @@ class PPO(loss_module.Loss):
         self,
         policy: metta.agent.policy.Policy,
         trainer_cfg: typing.Any,
-        env: training_environment.TrainingEnvironment,
+        env: metta.rl.training.TrainingEnvironment,
         device: torch.device,
         instance_name: str,
         loss_config: typing.Any,
@@ -129,7 +128,7 @@ class PPO(loss_module.Loss):
             values=scalar_f32,
         )
 
-    def run_rollout(self, td: tensordict.TensorDict, context: component_context.ComponentContext) -> None:
+    def run_rollout(self, td: tensordict.TensorDict, context: metta.rl.training.ComponentContext) -> None:
         with torch.no_grad():
             self.policy.forward(td)
 
@@ -146,10 +145,10 @@ class PPO(loss_module.Loss):
         return
 
     def run_train(
-        self, shared_loss_data: tensordict.TensorDict, context: component_context.ComponentContext, mb_idx: int
+        self, shared_loss_data: tensordict.TensorDict, context: metta.rl.training.ComponentContext, mb_idx: int
     ) -> tuple[torch.Tensor, tensordict.TensorDict, bool]:
         """This is the PPO algorithm training loop."""
-        config = self.loss_cfg
+        config = self.cfg
         stop_update_epoch = False
         self.policy.reset_memory()
         self.burn_in_steps_iter = 0
@@ -194,7 +193,7 @@ class PPO(loss_module.Loss):
 
         return loss, shared_loss_data, stop_update_epoch
 
-    def on_train_phase_end(self, context: component_context.ComponentContext) -> None:
+    def on_train_phase_end(self, context: metta.rl.training.ComponentContext) -> None:
         with torch.no_grad():
             y_pred = self.replay.buffer["values"].flatten()
             y_true = self.advantages.flatten() + self.replay.buffer["values"].flatten()
@@ -202,12 +201,12 @@ class PPO(loss_module.Loss):
             ev = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
             self.loss_tracker["explained_variance"].append(float(ev))
 
-    def _on_first_mb(self, context: component_context.ComponentContext) -> tuple[torch.Tensor, float]:
+    def _on_first_mb(self, context: metta.rl.training.ComponentContext) -> tuple[torch.Tensor, float]:
         # reset importance sampling ratio
         if "ratio" in self.replay.buffer.keys():
             self.replay.buffer["ratio"].fill_(1.0)
 
-        cfg = self.loss_cfg
+        cfg = self.cfg
         with torch.no_grad():
             anneal_beta = metta.utils.batch.calculate_prioritized_sampling_params(
                 epoch=context.epoch,
@@ -240,7 +239,7 @@ class PPO(loss_module.Loss):
         indices: torch.Tensor,
         prio_weights: torch.Tensor,
     ) -> torch.Tensor:
-        cfg = self.loss_cfg
+        cfg = self.cfg
         old_logprob = minibatch["act_log_prob"]
         new_logprob = policy_td["act_log_prob"].reshape(old_logprob.shape)
         entropy = policy_td["entropy"]
@@ -310,8 +309,8 @@ class PPO(loss_module.Loss):
         pg_loss1 = -adv * importance_sampling_ratio
         pg_loss2 = -adv * torch.clamp(
             importance_sampling_ratio,
-            1 - self.loss_cfg.clip_coef,
-            1 + self.loss_cfg.clip_coef,
+            1 - self.cfg.clip_coef,
+            1 + self.cfg.clip_coef,
         )
         pg_loss = torch.max(pg_loss1, pg_loss2).mean()
         returns = minibatch["returns"]
@@ -319,9 +318,9 @@ class PPO(loss_module.Loss):
 
         # Value loss
         newvalue_reshaped = newvalue.view(returns.shape)
-        if self.loss_cfg.clip_vloss:
+        if self.cfg.clip_vloss:
             v_loss_unclipped = (newvalue_reshaped - returns) ** 2
-            vf_clip_coef = self.loss_cfg.vf_clip_coef
+            vf_clip_coef = self.cfg.vf_clip_coef
             v_clipped = old_values + torch.clamp(
                 newvalue_reshaped - old_values,
                 -vf_clip_coef,
@@ -338,7 +337,7 @@ class PPO(loss_module.Loss):
         with torch.no_grad():
             logratio = new_logprob - minibatch["act_log_prob"]
             approx_kl = ((importance_sampling_ratio - 1) - logratio).mean()
-            clipfrac = ((importance_sampling_ratio - 1.0).abs() > self.loss_cfg.clip_coef).float().mean()
+            clipfrac = ((importance_sampling_ratio - 1.0).abs() > self.cfg.clip_coef).float().mean()
 
         return pg_loss, v_loss, entropy_loss, approx_kl, clipfrac
 

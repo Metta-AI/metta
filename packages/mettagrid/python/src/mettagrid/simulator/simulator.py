@@ -1,17 +1,16 @@
 from __future__ import annotations
 
+import logging
 import dataclasses
 import functools
-import logging
 import typing
 
 import numpy as np
 
-import mettagrid.config.id_map
-
 # Don't use `from ... import ...` here because it will cause a circular import.
 import mettagrid.config.mettagrid_c_config as mettagrid_c_config
 import mettagrid.config.mettagrid_config as mettagrid_config
+import mettagrid.config.id_map
 import mettagrid.map_builder.map_builder
 import mettagrid.mettagrid_c
 import mettagrid.profiling.stopwatch
@@ -31,14 +30,25 @@ class BoundingBox:
     max_col: int
 
 
+@dataclasses.dataclass
+class Buffers:
+    observations: np.ndarray
+    terminals: np.ndarray
+    truncations: np.ndarray
+    rewards: np.ndarray
+    masks: np.ndarray
+    actions: np.ndarray
+    teacher_actions: np.ndarray
+
+
 class Simulation:
     def __init__(
         self,
         config: mettagrid_config.MettaGridConfig,
         seed: int = 0,
-        event_handlers: typing.Optional[typing.Sequence[mettagrid.simulator.interface.SimulatorEventHandler]]
-        | None = None,
+        event_handlers: typing.Optional[typing.Sequence[mettagrid.simulator.interface.SimulatorEventHandler]] | None = None,
         simulator: typing.Optional[Simulator] | None = None,
+        buffers: typing.Optional[Buffers] = None,
     ):
         self._config = config
         self._seed = seed
@@ -72,10 +82,17 @@ class Simulation:
             action.name: idx for idx, action in enumerate(self._config.game.actions.actions())
         }
 
+        if buffers is not None:
+            self._c_sim.set_buffers(
+                buffers.observations,
+                buffers.terminals,
+                buffers.truncations,
+                buffers.rewards,
+                buffers.actions,
+            )
+
         # Build feature dict from id_map
-        self._features: dict[int, mettagrid.config.id_map.ObservationFeatureSpec] = {
-            feature.id: feature for feature in self.id_map.features()
-        }
+        self._features: dict[int, mettagrid.config.id_map.ObservationFeatureSpec] = {feature.id: feature for feature in self.id_map.features()}
 
         self._start_episode()
 
@@ -102,6 +119,7 @@ class Simulation:
         """Start a new episode (internal use only)."""
         self._episode_started = True
         self._context = {}
+
         for handler in self._event_handlers:
             with self._timer(f"sim.on_episode_start.{handler.__class__.__name__}"):
                 handler.on_episode_start()
@@ -257,7 +275,9 @@ class Simulator:
     def add_event_handler(self, handler: mettagrid.simulator.interface.SimulatorEventHandler) -> None:
         self._event_handlers.append(handler)
 
-    def new_simulation(self, config: mettagrid_config.MettaGridConfig, seed: int = 0) -> Simulation:
+    def new_simulation(
+        self, config: mettagrid_config.MettaGridConfig, seed: int = 0, buffers: typing.Optional[Buffers] = None
+    ) -> Simulation:
         assert self._current_simulation is None, "A simulation is already running"
         if self._config_invariants is None:
             self._config_invariants = self._compute_config_invariants(config)
@@ -270,7 +290,7 @@ class Simulator:
             raise ValueError("Config invariants have changed")
 
         self._current_simulation = Simulation(
-            config=config, seed=seed, event_handlers=self._event_handlers, simulator=self
+            config=config, seed=seed, event_handlers=self._event_handlers, simulator=self, buffers=buffers
         )
         return self._current_simulation
 

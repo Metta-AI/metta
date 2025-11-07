@@ -9,9 +9,9 @@ with app.setup:
 
 @app.cell
 def _():
-    import experiments.notebooks.utils.policy_selector_widget.policy_selector_widget
+    import notebooks.utils.policy_selector_widget.policy_selector_widget
 
-    widget = experiments.notebooks.utils.policy_selector_widget.policy_selector_widget.create_policy_selector_widget()
+    widget = notebooks.utils.policy_selector_widget.policy_selector_widget.create_policy_selector_widget()
     try:
         test_policies = [
             {
@@ -24,14 +24,12 @@ def _():
             }
         ]
         widget.set_policy_data(test_policies)
-        widget
+        widget  # noqa: B018 - render widget inside marimo cell
     except Exception as e:
         f"Error: {e}"
 
-    widget
-    return (
-        experiments.notebooks.utils.policy_selector_widget.policy_selector_widget.create_policy_selector_widget,
-    )
+    widget  # noqa: B018 - render widget inside marimo cell
+    return (notebooks.utils.policy_selector_widget.policy_selector_widget.create_policy_selector_widget,)
 
 
 @app.cell
@@ -44,9 +42,7 @@ def _():
 def _():
     import metta.app_backend.clients.scorecard_client
 
-    client = (
-        metta.app_backend.clients.scorecard_client.ScorecardClient()
-    )  # production data
+    client = metta.app_backend.clients.scorecard_client.ScorecardClient()  # production data
     # client = ScorecardClient("http://localhost:8000")  # development mode
     return (client,)
 
@@ -55,7 +51,7 @@ def _():
 def _(client, create_policy_selector_widget):
     live_widget = mo.ui.anywidget(create_policy_selector_widget(client=client))
 
-    live_widget
+    live_widget  # noqa: B018 - render widget inside marimo cell
     return (live_widget,)
 
 
@@ -65,9 +61,7 @@ def _(live_widget):
     selected_policies = live_widget.selected_policies
 
     mds = [mo.md(f"## You selected {len(selected_policies)} policies:")]
-    mds.append(
-        mo.md("\n".join([f"  - {policy_id}" for policy_id in selected_policies]))
-    )
+    mds.append(mo.md("\n".join([f"  - {policy_id}" for policy_id in selected_policies])))
 
     mo.vstack(mds)
     return
@@ -76,12 +70,10 @@ def _(live_widget):
 @app.cell
 async def _(client, live_widget):
     # Access the widget's value to trigger reactivity in Marimo
-    import experiments.notebooks.utils.scorecard_widget.scorecard_widget.ScorecardWidget
+    import notebooks.utils.scorecard_widget.scorecard_widget.ScorecardWidget
 
     policies_for_scorecard = live_widget.selected_policies
-    scorecard_widget = experiments.notebooks.utils.scorecard_widget.scorecard_widget.ScorecardWidget.ScorecardWidget(
-        client=client
-    )
+    scorecard_widget = notebooks.utils.scorecard_widget.scorecard_widget.ScorecardWidget.ScorecardWidget(client=client)
 
     await scorecard_widget.fetch_real_scorecard_data(
         restrict_to_metrics=["heart.gained", "reward"],
@@ -90,7 +82,7 @@ async def _(client, live_widget):
         max_policies=20,
     )
 
-    scorecard_widget
+    scorecard_widget  # noqa: B018 - render widget inside marimo cell
     return
 
 

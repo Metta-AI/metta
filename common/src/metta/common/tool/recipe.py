@@ -3,8 +3,11 @@
 A Recipe represents a module that defines tool makers - functions that return tool instances.
 """
 
+from __future__ import annotations
+
 import importlib
 import importlib.util
+import logging
 import types
 import typing
 
@@ -26,13 +29,12 @@ def is_tool_maker(obj: typing.Any) -> typing_extensions.TypeIs[ToolMaker]:
     try:
         hints = typing_extensions.get_type_hints(obj)
         return_type = hints.get("return")
-        return (
-            return_type is not None
-            and isinstance(return_type, type)
-            and issubclass(return_type, metta.common.tool.Tool)
-        )
+        return return_type is not None and isinstance(return_type, type) and issubclass(return_type, metta.common.tool.Tool)
     except Exception:
         return False
+
+
+logger = logging.getLogger(__name__)
 
 
 class Recipe:
@@ -76,9 +78,16 @@ class Recipe:
     @classmethod
     def load(cls, module_path: str) -> typing.Optional["Recipe"]:
         """Try to load a recipe from a module path. e.g. 'experiments.recipes.arena'"""
-        if importlib.util.find_spec(module_path) is not None:
+        if importlib.util.find_spec(module_path) is None:
+            return None
+
+        try:
             module = importlib.import_module(module_path)
-            return cls(module)
+        except Exception as exc:  # pragma: no cover - best-effort import guard
+            logger.debug("Skipping recipe %s due to import failure: %s", module_path, exc)
+            return None
+
+        return cls(module)
         return None
 
     def get_explicit_tool_makers(self) -> dict[str, ToolMaker]:

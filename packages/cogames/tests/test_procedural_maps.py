@@ -158,7 +158,7 @@ def _build_base_hub_only(*, corner_bundle: str | None, cross_bundle: str | None,
         instance=mettagrid.mapgen.scenes.base_hub.BaseHub.Config(
             spawn_count=0,
             include_inner_wall=False,
-            corner_bundle=corner_bundle or "chests",
+            corner_bundle=corner_bundle or "extractors",
             cross_bundle=cross_bundle or "none",
             cross_distance=cross_distance,
         ),
@@ -171,14 +171,9 @@ def _build_base_hub_only(*, corner_bundle: str | None, cross_bundle: str | None,
 @pytest.mark.parametrize(
     "corner_bundle,cross_bundle,expected_corner,expected_cross",
     [
-        ("chests", "none", mettagrid.mapgen.scenes.base_hub.DEFAULT_CORNER_CHESTS, ("empty",) * 4),
+        ("none", "none", ("empty",) * 4, ("empty",) * 4),
         ("extractors", "none", mettagrid.mapgen.scenes.base_hub.DEFAULT_EXTRACTORS, ("empty",) * 4),
-        (
-            "chests",
-            "extractors",
-            mettagrid.mapgen.scenes.base_hub.DEFAULT_CORNER_CHESTS,
-            mettagrid.mapgen.scenes.base_hub.DEFAULT_EXTRACTORS,
-        ),
+        ("extractors", "extractors", mettagrid.mapgen.scenes.base_hub.DEFAULT_EXTRACTORS, mettagrid.mapgen.scenes.base_hub.DEFAULT_EXTRACTORS),
     ],
 )
 def test_base_hub_grid_matches_bundles(
@@ -203,12 +198,8 @@ def test_base_hub_grid_matches_bundles(
 
 
 def test_procedural_builder_deterministic_with_seed():
-    cfg1 = mettagrid.mapgen.mapgen.MapGen.Config(
-        width=50, height=50, seed=42, instance=cogames.cogs_vs_clips.procedural.MachinaArenaConfig(spawn_count=2)
-    )
-    cfg2 = mettagrid.mapgen.mapgen.MapGen.Config(
-        width=50, height=50, seed=42, instance=cogames.cogs_vs_clips.procedural.MachinaArenaConfig(spawn_count=2)
-    )
+    cfg1 = mettagrid.mapgen.mapgen.MapGen.Config(width=50, height=50, seed=42, instance=cogames.cogs_vs_clips.procedural.MachinaArenaConfig(spawn_count=2))
+    cfg2 = mettagrid.mapgen.mapgen.MapGen.Config(width=50, height=50, seed=42, instance=cogames.cogs_vs_clips.procedural.MachinaArenaConfig(spawn_count=2))
 
     b1 = cfg1.create()
     b2 = cfg2.create()

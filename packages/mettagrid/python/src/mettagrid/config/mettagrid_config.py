@@ -6,14 +6,13 @@ import typing
 import pydantic
 
 import mettagrid.base_config
+import mettagrid.config.id_map
+import mettagrid.config.obs_config
+import mettagrid.config.vibes
 import mettagrid.map_builder.ascii
 import mettagrid.map_builder.map_builder
 import mettagrid.map_builder.random
 import mettagrid.simulator
-
-from . import id_map as id_map_module
-from . import obs_config as obs_config_module
-from . import vibes as vibes_module
 
 # ===== Python Configuration Models =====
 
@@ -116,9 +115,9 @@ class ChangeVibeActionConfig(ActionConfig):
     number_of_vibes: int = pydantic.Field(default=0, ge=0, le=255)
 
     def _actions(self) -> list[mettagrid.simulator.Action]:
-        return [self.ChangeVibe(vibe) for vibe in vibes_module.VIBES[: self.number_of_vibes]]
+        return [self.ChangeVibe(vibe) for vibe in mettagrid.config.vibes.VIBES[: self.number_of_vibes]]
 
-    def ChangeVibe(self, vibe: vibes_module.Vibe) -> mettagrid.simulator.Action:
+    def ChangeVibe(self, vibe: mettagrid.config.vibes.Vibe) -> mettagrid.simulator.Action:
         return mettagrid.simulator.Action(name=f"change_vibe_{vibe.name}")
 
 
@@ -134,9 +133,7 @@ class AttackActionConfig(ActionConfig):
     def _actions(self) -> list[mettagrid.simulator.Action]:
         return [self.Attack(location) for location in self.target_locations]
 
-    def Attack(
-        self, location: typing.Literal["1", "2", "3", "4", "5", "6", "7", "8", "9"]
-    ) -> mettagrid.simulator.Action:
+    def Attack(self, location: typing.Literal["1", "2", "3", "4", "5", "6", "7", "8", "9"]) -> mettagrid.simulator.Action:
         return mettagrid.simulator.Action(name=f"attack_{location}")
 
 
@@ -166,9 +163,7 @@ class ActionsConfig(mettagrid.base_config.Config):
     move: MoveActionConfig = pydantic.Field(default_factory=lambda: MoveActionConfig())
     attack: AttackActionConfig = pydantic.Field(default_factory=lambda: AttackActionConfig(enabled=False))
     change_vibe: ChangeVibeActionConfig = pydantic.Field(default_factory=lambda: ChangeVibeActionConfig())
-    resource_mod: ResourceModActionConfig = pydantic.Field(
-        default_factory=lambda: ResourceModActionConfig(enabled=False)
-    )
+    resource_mod: ResourceModActionConfig = pydantic.Field(default_factory=lambda: ResourceModActionConfig(enabled=False))
 
     def actions(self) -> list[mettagrid.simulator.Action]:
         return sum(
@@ -364,7 +359,7 @@ class GameConfig(mettagrid.base_config.Config):
     max_steps: int = pydantic.Field(ge=0, default=1000)
     # default is that we terminate / use "done" vs truncation
     episode_truncates: bool = pydantic.Field(default=False)
-    obs: obs_config_module.ObsConfig = pydantic.Field(default_factory=obs_config_module.ObsConfig)
+    obs: mettagrid.config.obs_config.ObsConfig = pydantic.Field(default_factory=mettagrid.config.obs_config.ObsConfig)
     agent: AgentConfig = pydantic.Field(default_factory=AgentConfig)
     agents: list[AgentConfig] = pydantic.Field(default_factory=list)
     actions: ActionsConfig = pydantic.Field(default_factory=lambda: ActionsConfig())
@@ -386,9 +381,7 @@ class GameConfig(mettagrid.base_config.Config):
     clipper: typing.Optional[ClipperConfig] = pydantic.Field(default=None, description="Global clipper configuration")
 
     # Map builder configuration - accepts any MapBuilder config
-    map_builder: mettagrid.map_builder.map_builder.AnyMapBuilderConfig = pydantic.Field(
-        default_factory=lambda: mettagrid.map_builder.random.RandomMapBuilder.Config(agents=24)
-    )
+    map_builder: mettagrid.map_builder.map_builder.AnyMapBuilderConfig = pydantic.Field(default_factory=lambda: mettagrid.map_builder.random.RandomMapBuilder.Config(agents=24))
 
     # Feature Flags
     track_movement_metrics: bool = pydantic.Field(
@@ -413,12 +406,12 @@ class GameConfig(mettagrid.base_config.Config):
         """Populate vibe_names from change_vibe action config if not already set."""
         if not self.vibe_names:
             num_vibes = self.actions.change_vibe.number_of_vibes
-            self.vibe_names = [vibe.name for vibe in vibes_module.VIBES[:num_vibes]]
+            self.vibe_names = [vibe.name for vibe in mettagrid.config.vibes.VIBES[:num_vibes]]
 
     def _ensure_type_ids_assigned(self) -> None:
         """Ensure type IDs are assigned if they haven't been yet."""
         if not self._resolved_type_ids:
-            id_map_module.IdMap.assign_type_ids(self)
+            mettagrid.config.id_map.IdMap.assign_type_ids(self)
             self._resolved_type_ids = True
 
     def __getattribute__(self, name: str):
@@ -427,18 +420,17 @@ class GameConfig(mettagrid.base_config.Config):
             self._ensure_type_ids_assigned()
         return super().__getattribute__(name)
 
-    def id_map(self) -> id_map_module.IdMap:
+    def id_map(self) -> "IdMap":
         """Get the observation feature ID map for this configuration."""
         # Create a minimal MettaGridConfig wrapper
         wrapper = MettaGridConfig(game=self)
-        return id_map_module.IdMap(wrapper)
+        return mettagrid.config.id_map.IdMap(wrapper)
 
 
-class TeacherConfig(mettagrid.base_config.Config):
-    """Teacher configuration."""
+class EnvSupervisorConfig(mettagrid.base_config.Config):
+    """Environment supervisor configuration."""
 
     enabled: bool = pydantic.Field(default=False)
-    use_actions: bool = pydantic.Field(default=False)
     policy: str = pydantic.Field(default="baseline")
 
 
@@ -448,11 +440,10 @@ class MettaGridConfig(mettagrid.base_config.Config):
     label: str = pydantic.Field(default="mettagrid")
     game: GameConfig = pydantic.Field(default_factory=GameConfig)
     desync_episodes: bool = pydantic.Field(default=True)
-    teacher: TeacherConfig = pydantic.Field(default_factory=TeacherConfig)
 
-    def id_map(self) -> id_map_module.IdMap:
+    def id_map(self) -> "IdMap":
         """Get the observation feature ID map for this configuration."""
-        return id_map_module.IdMap(self)
+        return mettagrid.config.id_map.IdMap(self)
 
     def with_ascii_map(self, map_data: list[list[str]]) -> "MettaGridConfig":
         self.game.map_builder = mettagrid.map_builder.ascii.AsciiMapBuilder.Config(
@@ -466,9 +457,7 @@ class MettaGridConfig(mettagrid.base_config.Config):
         num_agents: int, width: int = 10, height: int = 10, border_width: int = 1, with_walls: bool = False
     ) -> "MettaGridConfig":
         """Create an empty room environment configuration."""
-        map_builder = mettagrid.map_builder.random.RandomMapBuilder.Config(
-            agents=num_agents, width=width, height=height, border_width=border_width
-        )
+        map_builder = mettagrid.map_builder.random.RandomMapBuilder.Config(agents=num_agents, width=width, height=height, border_width=border_width)
         actions = ActionsConfig(
             move=MoveActionConfig(),
         )

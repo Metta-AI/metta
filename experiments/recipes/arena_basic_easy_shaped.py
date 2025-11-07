@@ -6,7 +6,6 @@ import metta.agent.policies.vit
 import metta.agent.policy
 import metta.cogworks.curriculum.curriculum
 import metta.cogworks.curriculum.learning_progress_algorithm
-import metta.rl.loss.loss_config
 import metta.rl.trainer_config
 import metta.rl.training
 import metta.sim.simulation_config
@@ -45,9 +44,7 @@ def mettagrid(num_agents: int = 24) -> mettagrid.MettaGridConfig:
 def make_curriculum(
     arena_env: typing.Optional[mettagrid.MettaGridConfig] = None,
     enable_detailed_slice_logging: bool = False,
-    algorithm_config: typing.Optional[
-        metta.cogworks.curriculum.curriculum.CurriculumAlgorithmConfig
-    ] = None,
+    algorithm_config: typing.Optional[metta.cogworks.curriculum.curriculum.CurriculumAlgorithmConfig] = None,
 ) -> metta.cogworks.curriculum.curriculum.CurriculumConfig:
     arena_env = arena_env or mettagrid()
 
@@ -76,9 +73,7 @@ def make_curriculum(
     return arena_tasks.to_curriculum(algorithm_config=algorithm_config)
 
 
-def simulations(
-    env: typing.Optional[mettagrid.MettaGridConfig] = None,
-) -> list[metta.sim.simulation_config.SimulationConfig]:
+def simulations(env: typing.Optional[mettagrid.MettaGridConfig] = None) -> list[metta.sim.simulation_config.SimulationConfig]:
     basic_env = env or mettagrid()
     basic_env.game.actions.attack.consumed_resources["laser"] = 100
 
@@ -86,19 +81,13 @@ def simulations(
     combat_env.game.actions.attack.consumed_resources["laser"] = 1
 
     return [
-        metta.sim.simulation_config.SimulationConfig(
-            suite="arena", name="basic", env=basic_env
-        ),
-        metta.sim.simulation_config.SimulationConfig(
-            suite="arena", name="combat", env=combat_env
-        ),
+        metta.sim.simulation_config.SimulationConfig(suite="arena", name="basic", env=basic_env),
+        metta.sim.simulation_config.SimulationConfig(suite="arena", name="combat", env=combat_env),
     ]
 
 
 def train(
-    curriculum: typing.Optional[
-        metta.cogworks.curriculum.curriculum.CurriculumConfig
-    ] = None,
+    curriculum: typing.Optional[metta.cogworks.curriculum.curriculum.CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
     policy_architecture: typing.Optional[metta.agent.policy.PolicyArchitecture] = None,
 ) -> metta.tools.train.TrainTool:
@@ -107,9 +96,7 @@ def train(
     )
 
     eval_simulations = simulations()
-    trainer_cfg = metta.rl.trainer_config.TrainerConfig(
-        losses=metta.rl.loss.loss_config.LossConfig(),
-    )
+    trainer_cfg = metta.rl.trainer_config.TrainerConfig()
 
     if policy_architecture is None:
         policy_architecture = metta.agent.policies.vit.ViTDefaultConfig()
@@ -123,13 +110,9 @@ def train(
     )
 
 
-def evaluate(
-    policy_uris: typing.Optional[typing.Sequence[str]] = None,
-) -> metta.tools.eval.EvaluateTool:
+def evaluate(policy_uris: typing.Optional[typing.Sequence[str]] = None) -> metta.tools.eval.EvaluateTool:
     """Evaluate policies on arena simulations."""
-    return metta.tools.eval.EvaluateTool(
-        simulations=simulations(), policy_uris=policy_uris or []
-    )
+    return metta.tools.eval.EvaluateTool(simulations=simulations(), policy_uris=policy_uris or [])
 
 
 def play(policy_uri: typing.Optional[str] = None) -> metta.tools.play.PlayTool:

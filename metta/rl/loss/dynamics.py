@@ -1,18 +1,17 @@
 import typing
 
 import einops
-import pydantic
-import tensordict
 import torch
 import torch.nn.functional as F
+import pydantic
+import tensordict
 
 import metta.agent.policy
-import metta.rl.training.component_context as component_context
-import mettagrid.base_config
-from . import loss as loss_module
+import metta.rl.loss.loss
+import metta.rl.training
 
 
-class DynamicsConfig(mettagrid.base_config.Config):
+class DynamicsConfig(metta.rl.loss.loss.LossConfig):
     returns_step_look_ahead: int = pydantic.Field(default=1)
     returns_pred_coef: float = pydantic.Field(default=1.0, ge=0, le=1.0)
     reward_pred_coef: float = pydantic.Field(default=1.0, ge=0, le=1.0)
@@ -25,7 +24,7 @@ class DynamicsConfig(mettagrid.base_config.Config):
         device: torch.device,
         instance_name: str,
         loss_config: typing.Any,
-    ):
+    ) -> "Dynamics":
         """Create Dynamics loss instance."""
         return Dynamics(
             policy,
@@ -37,14 +36,14 @@ class DynamicsConfig(mettagrid.base_config.Config):
         )
 
 
-class Dynamics(loss_module.Loss):
+class Dynamics(metta.rl.loss.loss.Loss):
     """The dynamics term in the Muesli loss."""
 
     # Loss calls this method
     def run_train(
         self,
         shared_loss_data: tensordict.TensorDict,
-        context: component_context.ComponentContext,
+        context: metta.rl.training.ComponentContext,
         mb_idx: int,
     ) -> tuple[torch.Tensor, tensordict.TensorDict, bool]:
         policy_td = shared_loss_data["policy_td"]
@@ -62,17 +61,17 @@ class Dynamics(loss_module.Loss):
 
         # The model predicts future returns and rewards.
         # We align the predictions with the future targets by slicing the tensors.
-        look_ahead = self.loss_cfg.returns_step_look_ahead
+        look_ahead = self.cfg.returns_step_look_ahead
 
         # Predict returns `look_ahead` steps into the future.
         future_returns = returns[look_ahead:]
         returns_pred_aligned = returns_pred[:-look_ahead]
-        returns_loss = F.mse_loss(returns_pred_aligned, future_returns) * self.loss_cfg.returns_pred_coef
+        returns_loss = F.mse_loss(returns_pred_aligned, future_returns) * self.cfg.returns_pred_coef
 
         # Predict reward at the next timestep.
         future_rewards = rewards[1:]
         reward_pred_aligned = reward_pred[:-1]
-        reward_loss = F.mse_loss(reward_pred_aligned, future_rewards) * self.loss_cfg.reward_pred_coef
+        reward_loss = F.mse_loss(reward_pred_aligned, future_rewards) * self.cfg.reward_pred_coef
 
         self.loss_tracker["dynamics_returns_loss"].append(float(returns_loss.item()))
         self.loss_tracker["dynamics_reward_loss"].append(float(reward_loss.item()))

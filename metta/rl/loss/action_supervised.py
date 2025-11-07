@@ -1,20 +1,20 @@
 import typing
 
+import torch
 import pydantic
 import tensordict
-import torch
 import torchrl.data
 
+if typing.TYPE_CHECKING:
+    import metta.rl.trainer_config; TrainerConfig = metta.rl.trainer_config.TrainerConfig
 import metta.agent.policy
 import metta.rl.advantage
+import metta.rl.loss.loss
 import metta.rl.loss.replay_samplers
-import metta.rl.trainer_config
-import metta.rl.training.component_context as component_context
-import mettagrid.base_config
-from . import loss as loss_module
+import metta.rl.training
 
 
-class ActionSupervisedConfig(mettagrid.base_config.Config):
+class ActionSupervisedConfig(metta.rl.loss.loss.LossConfig):
     action_loss_coef: float = pydantic.Field(default=0.75, ge=0)
     value_loss_coef: float = pydantic.Field(default=1.5, ge=0)
     gae_gamma: float = pydantic.Field(default=0.977, ge=0, le=1.0)  # pulling from our PPO config
@@ -22,7 +22,9 @@ class ActionSupervisedConfig(mettagrid.base_config.Config):
     vf_clip_coef: float = pydantic.Field(default=0.1, ge=0)  # pulling from our PPO config
     use_own_sampling: bool = True  # Does not use prioritized sampling
     use_own_rollout: bool = True  # Update when including PPO as concurent loss
-    student_led: bool = True  # sigma as per Matt's document
+    student_led: bool = pydantic.Field(
+        default=False, description="Whether to use student-led training"
+    )  # sigma as per Matt's document
     action_reward_coef: float = pydantic.Field(default=0.01, ge=0)  # wild ass guess at this point
 
     # Controls whether to add the imitation loss to the environment rewards.
@@ -32,12 +34,12 @@ class ActionSupervisedConfig(mettagrid.base_config.Config):
     def create(
         self,
         policy: metta.agent.policy.Policy,
-        trainer_cfg: metta.rl.trainer_config.TrainerConfig,
+        trainer_cfg: "TrainerConfig",
         vec_env: typing.Any,
         device: torch.device,
         instance_name: str,
         loss_config: typing.Any,
-    ):
+    ) -> "ActionSupervised":
         """Create ActionSupervised loss instance."""
         return ActionSupervised(
             policy, trainer_cfg, vec_env, device, instance_name=instance_name, loss_config=loss_config
@@ -45,7 +47,7 @@ class ActionSupervisedConfig(mettagrid.base_config.Config):
 
 
 # --------------------------ActionSupervised Loss----------------------------------
-class ActionSupervised(loss_module.Loss):
+class ActionSupervised(metta.rl.loss.loss.Loss):
     __slots__ = (
         "action_loss_coef",
         "value_loss_coef",
@@ -63,7 +65,7 @@ class ActionSupervised(loss_module.Loss):
     def __init__(
         self,
         policy: metta.agent.policy.Policy,
-        trainer_cfg: metta.rl.trainer_config.TrainerConfig,
+        trainer_cfg: "TrainerConfig",
         vec_env: typing.Any,
         device: torch.device,
         instance_name: str,
@@ -74,17 +76,17 @@ class ActionSupervised(loss_module.Loss):
             loss_config = getattr(trainer_cfg.losses, instance_name, None)
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
         # unpack config into slots
-        self.action_loss_coef = self.loss_cfg.action_loss_coef
-        self.value_loss_coef = self.loss_cfg.value_loss_coef
-        self.norm_adv = self.loss_cfg.norm_adv
-        self.vf_clip_coef = self.loss_cfg.vf_clip_coef
-        self.gae_gamma = self.loss_cfg.gae_gamma
-        self.gae_lambda = self.loss_cfg.gae_lambda
-        self.add_action_loss_to_rewards = self.loss_cfg.add_action_loss_to_rewards
-        self.use_own_rollout = self.loss_cfg.use_own_rollout
-        self.use_own_sampling = self.loss_cfg.use_own_sampling
-        self.student_led = self.loss_cfg.student_led
-        self.action_reward_coef = self.loss_cfg.action_reward_coef
+        self.action_loss_coef = self.cfg.action_loss_coef
+        self.value_loss_coef = self.cfg.value_loss_coef
+        self.norm_adv = self.cfg.norm_adv
+        self.vf_clip_coef = self.cfg.vf_clip_coef
+        self.gae_gamma = self.cfg.gae_gamma
+        self.gae_lambda = self.cfg.gae_lambda
+        self.add_action_loss_to_rewards = self.cfg.add_action_loss_to_rewards
+        self.use_own_rollout = self.cfg.use_own_rollout
+        self.use_own_sampling = self.cfg.use_own_sampling
+        self.student_led = self.cfg.student_led
+        self.action_reward_coef = self.cfg.action_reward_coef
 
     def get_experience_spec(self) -> torchrl.data.Composite:
         scalar_f32 = torchrl.data.UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
@@ -101,7 +103,7 @@ class ActionSupervised(loss_module.Loss):
 
         return spec
 
-    def run_rollout(self, td: tensordict.TensorDict, context: component_context.ComponentContext) -> None:
+    def run_rollout(self, td: tensordict.TensorDict, context: metta.rl.training.ComponentContext) -> None:
         if not self.use_own_rollout:
             # this will be replaced with loss run-gate scheduling
             return
@@ -115,6 +117,7 @@ class ActionSupervised(loss_module.Loss):
         env_slice = context.training_env_id
         if env_slice is None:
             raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
+        assert self.replay is not None
         self.replay.store(data_td=td, env_id=env_slice)
 
         if not self.student_led:
@@ -126,7 +129,7 @@ class ActionSupervised(loss_module.Loss):
     def run_train(
         self,
         shared_loss_data: tensordict.TensorDict,
-        context: component_context.ComponentContext,
+        context: metta.rl.training.ComponentContext,
         mb_idx: int,
     ) -> tuple[torch.Tensor, tensordict.TensorDict, bool]:
         if self.use_own_sampling:
@@ -158,7 +161,7 @@ class ActionSupervised(loss_module.Loss):
         # --------------------------Now Value Loss----------------------------------
         if self.add_action_loss_to_rewards:
             minibatch["rewards"] = minibatch["rewards"] + self.action_reward_coef * policy_td["act_log_prob"].detach()
-            # NOTE: we should somehownormalize the policy loss before adding it to rewards, perhaps exponentiate then
+            # NOTE: we should somehow normalize the policy loss before adding it to rewards, perhaps exponentiate then
             # softplus?
 
         if self.student_led:

@@ -3,12 +3,13 @@ Updated for Pydantic-based configuration system.
 """
 
 import os
-import pathlib
 import subprocess
 import tempfile
+import pathlib
 
 import pytest
 
+import mettagrid.builder.envs as eb
 import metta.cogworks.curriculum.curriculum
 import metta.cogworks.curriculum.task_generator
 import metta.sim.simulation
@@ -17,7 +18,7 @@ import metta.tools.eval
 import metta.tools.play
 import metta.tools.replay
 import mettagrid
-import mettagrid.builder.envs as eb
+import mettagrid.config.mettagrid_config
 import mettagrid.simulator
 
 
@@ -33,7 +34,8 @@ class TestBasicPolicyEnvironment:
     def env_with_config(self, simple_env_config):
         """Create PufferMettaGridEnv from config."""
         simulator = mettagrid.simulator.Simulator()
-        env = mettagrid.PufferMettaGridEnv(simulator, simple_env_config)
+        env_supervisor_cfg = mettagrid.config.mettagrid_config.EnvSupervisorConfig(enabled=False)
+        env = mettagrid.PufferMettaGridEnv(simulator, simple_env_config, env_supervisor_cfg)
         try:
             yield env
         finally:
@@ -136,9 +138,7 @@ class TestBasicPolicyEnvironment:
                 max_task_id=1,
             )
 
-        monkeypatch.setattr(
-            metta.cogworks.curriculum.curriculum.CurriculumConfig, "from_mg", classmethod(_small_curriculum)
-        )
+        monkeypatch.setattr(metta.cogworks.curriculum.curriculum.CurriculumConfig, "from_mg", classmethod(_small_curriculum))
         simulation = metta.sim.simulation.Simulation.create(
             sim_config=sim_config,
             policy_uri=None,
@@ -151,9 +151,7 @@ class TestBasicPolicyEnvironment:
         env_config = eb.make_arena(num_agents=4)
         sim_config = metta.sim.simulation_config.SimulationConfig(suite="test", name="test_arena", env=env_config)
 
-        eval_tool = metta.tools.eval.EvaluateTool(
-            simulations=[sim_config], policy_uris=["mock://test_policy"], stats_db_uri=None
-        )
+        eval_tool = metta.tools.eval.EvaluateTool(simulations=[sim_config], policy_uris=["mock://test_policy"], stats_db_uri=None)
 
         assert eval_tool.simulations[0].name == "test_arena"
         assert eval_tool.policy_uris == ["mock://test_policy"]

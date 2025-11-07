@@ -1,19 +1,18 @@
 import copy
 import typing
 
+import torch
 import pydantic
 import tensordict
-import torch
 import torch.nn
 
 import metta.agent.policy
-import metta.rl.training.component_context as component_context
+import metta.rl.loss.loss
+import metta.rl.training
 import metta.rl.utils
-import mettagrid.base_config
-from . import loss as loss_module
 
 
-class EMAConfig(mettagrid.base_config.Config):
+class EMAConfig(metta.rl.loss.loss.LossConfig):
     decay: float = pydantic.Field(default=0.995, ge=0, le=1.0)
     loss_coef: float = pydantic.Field(default=1.0, ge=0, le=1.0)
 
@@ -25,7 +24,7 @@ class EMAConfig(mettagrid.base_config.Config):
         device: torch.device,
         instance_name: str,
         loss_config: typing.Any,
-    ):
+    ) -> "EMA":
         """Create EMA loss instance."""
         return EMA(
             policy,
@@ -37,7 +36,7 @@ class EMAConfig(mettagrid.base_config.Config):
         )
 
 
-class EMA(loss_module.Loss):
+class EMA(metta.rl.loss.loss.Loss):
     __slots__ = (
         "target_model",
         "ema_decay",
@@ -58,8 +57,8 @@ class EMA(loss_module.Loss):
         self.target_model = copy.deepcopy(self.policy)
         for param in self.target_model.parameters():
             param.requires_grad = False
-        self.ema_decay = self.loss_cfg.decay
-        self.ema_coef = self.loss_cfg.loss_coef
+        self.ema_decay = self.cfg.decay
+        self.ema_coef = self.cfg.loss_coef
 
     def update_target_model(self):
         """Update target model with exponential moving average"""
@@ -72,7 +71,7 @@ class EMA(loss_module.Loss):
     def run_train(
         self,
         shared_loss_data: tensordict.TensorDict,
-        context: component_context.ComponentContext,
+        context: metta.rl.training.ComponentContext,
         mb_idx: int,
     ) -> tuple[torch.Tensor, tensordict.TensorDict, bool]:
         self.update_target_model()

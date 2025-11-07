@@ -4,16 +4,17 @@ import typing
 
 import pydantic
 
+import pufferlib
+import pufferlib.vector
 import metta.cogworks.curriculum
 import metta.common.util.log_config
 import metta.sim.replay_log_writer
+import mettagrid.config.mettagrid_config
 import mettagrid.envs.early_reset_handler
 import mettagrid.envs.mettagrid_puffer_env
 import mettagrid.envs.stats_tracker
 import mettagrid.simulator
 import mettagrid.util.stats_writer
-import pufferlib
-import pufferlib.vector
 
 logger = logging.getLogger("vecenv")
 
@@ -21,6 +22,7 @@ logger = logging.getLogger("vecenv")
 @pydantic.validate_call(config={"arbitrary_types_allowed": True})
 def make_env_func(
     curriculum: metta.cogworks.curriculum.Curriculum,
+    env_supervisor_cfg: typing.Optional[mettagrid.config.mettagrid_config.EnvSupervisorConfig] = None,
     stats_writer: typing.Optional[mettagrid.util.stats_writer.StatsWriter] = None,
     replay_writer: typing.Optional[metta.sim.replay_log_writer.ReplayLogWriter] = None,
     run_dir: str | None = None,
@@ -30,6 +32,8 @@ def make_env_func(
     if run_dir is not None:
         metta.common.util.log_config.init_logging(run_dir=pathlib.Path(run_dir))
 
+    env_supervisor_cfg = env_supervisor_cfg or mettagrid.config.mettagrid_config.EnvSupervisorConfig()
+
     sim = mettagrid.simulator.Simulator()
     # Replay writer is added first so it can complete the replay_url for stats tracker
     if replay_writer is not None:
@@ -38,7 +42,7 @@ def make_env_func(
     sim.add_event_handler(mettagrid.envs.stats_tracker.StatsTracker(stats_writer))
     sim.add_event_handler(mettagrid.envs.early_reset_handler.EarlyResetHandler())
 
-    env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(sim, curriculum.get_task().get_env_cfg(), buf)
+    env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(sim, curriculum.get_task().get_env_cfg(), env_supervisor_cfg=env_supervisor_cfg, buf=buf)
     env = metta.cogworks.curriculum.CurriculumEnv(env, curriculum)
 
     return env
@@ -54,6 +58,7 @@ def make_vecenv(
     stats_writer: mettagrid.util.stats_writer.StatsWriter | None = None,
     replay_writer: metta.sim.replay_log_writer.ReplayLogWriter | None = None,
     run_dir: str | None = None,
+    env_supervisor_cfg: mettagrid.config.mettagrid_config.EnvSupervisorConfig | None = None,
     **kwargs,
 ) -> typing.Any:  # Returns pufferlib VecEnv instance
     # Determine the vectorization class
@@ -75,6 +80,7 @@ def make_vecenv(
         "stats_writer": stats_writer,
         "replay_writer": replay_writer,
         "run_dir": run_dir,
+        "env_supervisor_cfg": env_supervisor_cfg,
     }
 
     # Note: PufferLib's vector.make accepts Serial, Multiprocessing, and Ray as valid backends,

@@ -1,24 +1,20 @@
 # metta/rl/loss/contrastive_config.py
 import typing
 
-import pydantic
 import torch
+import pydantic
 
 import metta.agent.policy
 import metta.rl.loss.contrastive
-import metta.rl.training.training_environment as training_environment
-import mettagrid.base_config
+import metta.rl.loss.loss
+import metta.rl.training
 
 
-class ContrastiveConfig(mettagrid.base_config.Config):
+class ContrastiveConfig(metta.rl.loss.loss.LossConfig):
     """Configuration for contrastive loss."""
 
-    temperature: float = pydantic.Field(
-        default=0.1902943104505539, gt=0, description="Temperature for contrastive learning"
-    )
-    contrastive_coef: float = pydantic.Field(
-        default=0.0006806607125326991, ge=0, description="Coefficient for contrastive loss"
-    )
+    temperature: float = pydantic.Field(default=0.1902943104505539, gt=0, description="Temperature for contrastive learning")
+    contrastive_coef: float = pydantic.Field(default=0.0006806607125326991, ge=0, description="Coefficient for contrastive loss")
     discount: float = pydantic.Field(
         default=0.977, ge=0, lt=1, description="Discount factor (gamma) used for geometric positive sampling"
     )
@@ -33,11 +29,11 @@ class ContrastiveConfig(mettagrid.base_config.Config):
         self,
         policy: metta.agent.policy.Policy,
         trainer_cfg: typing.Any,
-        env: training_environment.TrainingEnvironment,
+        env: metta.rl.training.TrainingEnvironment,
         device: torch.device,
         instance_name: str,
         loss_config: typing.Any,
-    ):
+    ) -> "ContrastiveLoss":
         """Create the contrastive loss instance."""
         return metta.rl.loss.contrastive.ContrastiveLoss(
             policy,

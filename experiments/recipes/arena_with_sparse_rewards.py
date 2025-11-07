@@ -6,10 +6,8 @@ import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
 import metta.cogworks.curriculum.curriculum
 import metta.cogworks.curriculum.learning_progress_algorithm
-import metta.rl.loss.loss_config
-import mettagrid.base_config
 import metta.rl.loss.contrastive_config
-import metta.rl.loss.ppo
+import metta.rl.loss.losses
 import metta.rl.trainer_config
 import metta.rl.training
 import metta.sim.simulation_config
@@ -45,9 +43,7 @@ def mettagrid(num_agents: int = 24) -> mettagrid.MettaGridConfig:
 def make_curriculum(
     arena_env: typing.Optional[mettagrid.MettaGridConfig] = None,
     enable_detailed_slice_logging: bool = False,
-    algorithm_config: typing.Optional[
-        metta.cogworks.curriculum.curriculum.CurriculumAlgorithmConfig
-    ] = None,
+    algorithm_config: typing.Optional[metta.cogworks.curriculum.curriculum.CurriculumAlgorithmConfig] = None,
 ) -> metta.cogworks.curriculum.curriculum.CurriculumConfig:
     """Create curriculum with sparse reward environment."""
     arena_env = arena_env or mettagrid()
@@ -74,9 +70,7 @@ def make_curriculum(
     return arena_tasks.to_curriculum(algorithm_config=algorithm_config)
 
 
-def simulations(
-    env: typing.Optional[mettagrid.MettaGridConfig] = None,
-) -> list[metta.sim.simulation_config.SimulationConfig]:
+def simulations(env: typing.Optional[mettagrid.MettaGridConfig] = None) -> list[metta.sim.simulation_config.SimulationConfig]:
     """Create evaluation environments with sparse rewards."""
     basic_env = env or mettagrid()
     basic_env.game.actions.attack.consumed_resources["laser"] = 100
@@ -85,19 +79,13 @@ def simulations(
     combat_env.game.actions.attack.consumed_resources["laser"] = 1
 
     return [
-        metta.sim.simulation_config.SimulationConfig(
-            suite="arena_sparse", name="basic", env=basic_env
-        ),
-        metta.sim.simulation_config.SimulationConfig(
-            suite="arena_sparse", name="combat", env=combat_env
-        ),
+        metta.sim.simulation_config.SimulationConfig(suite="arena_sparse", name="basic", env=basic_env),
+        metta.sim.simulation_config.SimulationConfig(suite="arena_sparse", name="combat", env=combat_env),
     ]
 
 
 def train(
-    curriculum: typing.Optional[
-        metta.cogworks.curriculum.curriculum.CurriculumConfig
-    ] = None,
+    curriculum: typing.Optional[metta.cogworks.curriculum.curriculum.CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
     enable_contrastive: bool = True,
     # These parameters can now be swept over.
@@ -110,25 +98,15 @@ def train(
     )
 
     contrastive_config = metta.rl.loss.contrastive_config.ContrastiveConfig(
+        enabled=enable_contrastive,
         temperature=temperature,
         contrastive_coef=contrastive_coef,
         embedding_dim=128,
         use_projection_head=True,
     )
 
-    ppo_config = (
-        metta.rl.loss.ppo.PPOConfig()
-    )  # Default PPO config for action generation
-
-    loss_configs: dict[str, mettagrid.base_config.Config] = {"ppo": ppo_config}
-    if enable_contrastive:
-        loss_configs["contrastive"] = contrastive_config
-
     trainer_config = metta.rl.trainer_config.TrainerConfig(
-        losses=metta.rl.loss.loss_config.LossConfig(
-            enable_contrastive=enable_contrastive,
-            loss_configs=loss_configs,
-        )
+        losses=metta.rl.loss.losses.LossesConfig(contrastive=contrastive_config),
     )
 
     return metta.tools.train.TrainTool(
@@ -150,9 +128,7 @@ def replay(policy_uri: typing.Optional[str] = None) -> metta.tools.replay.Replay
 
 def evaluate(
     policy_uris: typing.Sequence[str] | str | None = None,
-    eval_simulations: typing.Optional[
-        typing.Sequence[metta.sim.simulation_config.SimulationConfig]
-    ] = None,
+    eval_simulations: typing.Optional[typing.Sequence[metta.sim.simulation_config.SimulationConfig]] = None,
 ) -> metta.tools.eval.EvaluateTool:
     """Evaluate with sparse reward environments."""
     sims = list(eval_simulations) if eval_simulations is not None else simulations()
@@ -172,9 +148,7 @@ def evaluate(
 
 def evaluate_remote(
     policy_uri: str,
-    eval_simulations: typing.Optional[
-        typing.Sequence[metta.sim.simulation_config.SimulationConfig]
-    ] = None,
+    eval_simulations: typing.Optional[typing.Sequence[metta.sim.simulation_config.SimulationConfig]] = None,
 ) -> metta.tools.eval_remote.EvalRemoteTool:
     """Remote evaluation with sparse reward environments."""
     sims = list(eval_simulations) if eval_simulations is not None else simulations()
@@ -197,12 +171,8 @@ def evaluate_in_sweep(policy_uri: str) -> metta.tools.eval.EvaluateTool:
     combat_env.game.actions.attack.consumed_resources["laser"] = 1
 
     simulations = [
-        metta.sim.simulation_config.SimulationConfig(
-            suite=SWEEP_EVAL_SUITE, name="basic", env=basic_env
-        ),
-        metta.sim.simulation_config.SimulationConfig(
-            suite=SWEEP_EVAL_SUITE, name="combat", env=combat_env
-        ),
+        metta.sim.simulation_config.SimulationConfig(suite=SWEEP_EVAL_SUITE, name="basic", env=basic_env),
+        metta.sim.simulation_config.SimulationConfig(suite=SWEEP_EVAL_SUITE, name="combat", env=combat_env),
     ]
 
     return metta.tools.eval.EvaluateTool(
@@ -227,20 +197,8 @@ def sweep(sweep_name: str) -> metta.tools.sweep.SweepTool:
         ),
         # These two custom parameters are handled by the train function of this recipe,
         # and are therefore sweepable.
-        metta.sweep.core.SweepParameters.param(
-            "temperature",
-            metta.sweep.core.Distribution.UNIFORM,
-            min=0,
-            max=0.4,
-            search_center=0.07,
-        ),
-        metta.sweep.core.SweepParameters.param(
-            "contrastive_coef",
-            metta.sweep.core.Distribution.UNIFORM,
-            min=0.0001,
-            max=1,
-            search_center=0.2,
-        ),
+        metta.sweep.core.SweepParameters.param("temperature", metta.sweep.core.Distribution.UNIFORM, min=0, max=0.4, search_center=0.07),
+        metta.sweep.core.SweepParameters.param("contrastive_coef", metta.sweep.core.Distribution.UNIFORM, min=0.0001, max=1, search_center=0.2),
     ]
 
     return metta.sweep.core.make_sweep(

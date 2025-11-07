@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import pathlib
-from pkgutil import extend_path
+import pkgutil
 
-__path__ = extend_path(__path__, __name__)  # type: ignore[name-defined]
+__path__ = pkgutil.extend_path(__path__, __name__)  # type: ignore[name-defined]
 
 _extra = pathlib.Path(__file__).resolve().parents[3] / "common" / "src" / "metta" / "common" / "tool"
 if _extra.is_dir():
@@ -12,7 +12,7 @@ if _extra.is_dir():
         __path__.append(extra_path)
 
 try:
-    from .tool import Tool  # type: ignore[attr-defined]
+    import metta.common.tool.tool  # type: ignore[attr-defined]
 except ImportError:  # pragma: no cover - optional dependency
     Tool = None  # type: ignore[assignment]
 

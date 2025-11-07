@@ -30,9 +30,7 @@ def _():
     # Note: Marimo doesn't support IPython magic commands, use subprocess instead if needed
     import subprocess
 
-    subprocess.run(
-        ["metta", "status", "--components=core,system,aws,wandb", "--non-interactive"]
-    )
+    subprocess.run(["metta", "status", "--components=core,system,aws,wandb", "--non-interactive"])
     return
 
 
@@ -40,22 +38,23 @@ def _():
 def _():
     import altair as alt
     import pandas as pd
-    import experiments.notebooks.utils.metrics
-    import experiments.notebooks.utils.monitoring
-    import experiments.notebooks.utils.monitoring_marimo
-    import experiments.notebooks.utils.training
-    import experiments.notebooks.utils.replays
+
+    import notebooks.utils.metrics
+    import notebooks.utils.monitoring
+    import notebooks.utils.monitoring_marimo
+    import notebooks.utils.replays
+    import notebooks.utils.training
 
     print("Setup complete!")
     return (
         alt,
-        experiments.notebooks.utils.metrics.fetch_metrics,
-        experiments.notebooks.utils.monitoring.get_sky_jobs_data,
-        experiments.notebooks.utils.training.launch_training,
-        experiments.notebooks.utils.monitoring_marimo.monitor_training_statuses,
+        notebooks.utils.metrics.fetch_metrics,
+        notebooks.utils.monitoring.get_sky_jobs_data,
+        notebooks.utils.training.launch_training,
+        notebooks.utils.monitoring_marimo.monitor_training_statuses,
         pd,
-        experiments.notebooks.utils.replays.show_replay,
-        experiments.notebooks.utils.monitoring.sky_job_exists,
+        notebooks.utils.replays.show_replay,
+        notebooks.utils.monitoring.sky_job_exists,
     )
 
 
@@ -151,9 +150,7 @@ def _(fetch_metrics, run_names):
     # metrics_dfs = fetch_metrics(run_names, samples=10000)
 
     # Option 3: Fetch only specific metrics (much faster)
-    metrics_dfs = fetch_metrics(
-        run_names, samples=5000, keys=["overview/reward", "_step", "losses/policy_loss"]
-    )
+    metrics_dfs = fetch_metrics(run_names, samples=5000, keys=["overview/reward", "_step", "losses/policy_loss"])
 
     # Option 4: Fetch specific step range
     # metrics_dfs = fetch_metrics(run_names, samples=None, min_step=1000, max_step=5000)
@@ -166,8 +163,7 @@ def _(fetch_metrics, run_names):
 
 @app.cell
 def _(metrics_dfs):
-    metrics_dfs
-    return
+    return metrics_dfs
 
 
 @app.cell
@@ -199,11 +195,7 @@ def _(alt, metrics_dfs, pd):
             # Check if this column exists in at least one run with numeric data
             has_numeric_data = False
             for _df in metrics_dfs.values():
-                if (
-                    col in _df.columns
-                    and pd.api.types.is_numeric_dtype(_df[col])
-                    and _df[col].nunique() > 1
-                ):
+                if col in _df.columns and pd.api.types.is_numeric_dtype(_df[col]) and _df[col].nunique() > 1:
                     has_numeric_data = True
                     break
             if has_numeric_data:
@@ -220,9 +212,7 @@ def _(alt, metrics_dfs, pd):
                     if col in df.columns and "_step" in df.columns:
                         temp_df = df[["_step", col]].copy()
                         temp_df["run"] = run_name
-                        temp_df["metric"] = col.replace("overview/", "").replace(
-                            "_", " "
-                        )
+                        temp_df["metric"] = col.replace("overview/", "").replace("_", " ")
                         temp_df["value"] = temp_df[col]
                         temp_df = temp_df[["_step", "run", "metric", "value"]]
                         all_data.append(temp_df)
@@ -259,9 +249,7 @@ def _(alt, metrics_dfs, pd):
                 )
 
                 # Add interactive selection
-                selection = alt.selection_point(
-                    fields=["run"], bind="legend", on="click", clear="dblclick"
-                )
+                selection = alt.selection_point(fields=["run"], bind="legend", on="click", clear="dblclick")
 
                 chart = base.add_params(selection).encode(
                     opacity=alt.condition(selection, alt.value(0.8), alt.value(0.2))
@@ -276,8 +264,7 @@ def _(alt, metrics_dfs, pd):
                     .configure_title(fontSize=16, anchor="start")
                     .configure_legend(titleFontSize=14, labelFontSize=12)
                 )
-    display
-    return
+    return display
 
 
 @app.cell

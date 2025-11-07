@@ -1,23 +1,10 @@
-from __future__ import annotations
-
 import typing
 
 import pydantic
 
-import metta.rl.training.heartbeat as training_heartbeat
-import metta.rl.training.scheduler as training_scheduler
+import metta.rl.loss.losses
+import metta.rl.training
 import mettagrid.base_config
-
-if typing.TYPE_CHECKING:
-    from metta.rl.loss.loss_config import LossConfig as LossConfigType
-else:  # pragma: no cover - runtime only
-    LossConfigType = typing.Any
-
-
-def _default_loss_config() -> "metta.rl.loss.loss_config.LossConfig":
-    from metta.rl.loss import loss_config
-
-    return loss_config.LossConfig()
 
 
 class OptimizerConfig(mettagrid.base_config.Config):
@@ -62,7 +49,7 @@ class TorchProfilerConfig(mettagrid.base_config.Config):
 
 class TrainerConfig(mettagrid.base_config.Config):
     total_timesteps: int = pydantic.Field(default=50_000_000_000, gt=0)
-    losses: LossConfigType = pydantic.Field(default_factory=_default_loss_config)
+    losses: metta.rl.loss.losses.LossesConfig = pydantic.Field(default_factory=metta.rl.loss.losses.LossesConfig)
     optimizer: OptimizerConfig = pydantic.Field(default_factory=OptimizerConfig)
 
     require_contiguous_env_ids: bool = False
@@ -78,12 +65,8 @@ class TrainerConfig(mettagrid.base_config.Config):
     compile_mode: typing.Literal["default", "reduce-overhead", "max-autotune"] = "reduce-overhead"
     detect_anomaly: bool = pydantic.Field(default=False)
 
-    hyperparameter_scheduler: training_scheduler.HyperparameterSchedulerConfig = pydantic.Field(
-        default_factory=training_scheduler.HyperparameterSchedulerConfig
-    )
-    heartbeat: typing.Optional[training_heartbeat.HeartbeatConfig] = pydantic.Field(
-        default_factory=training_heartbeat.HeartbeatConfig
-    )
+    hyperparameter_scheduler: metta.rl.training.HyperparameterSchedulerConfig = pydantic.Field(default_factory=metta.rl.training.HyperparameterSchedulerConfig)
+    heartbeat: typing.Optional[metta.rl.training.HeartbeatConfig] = pydantic.Field(default_factory=metta.rl.training.HeartbeatConfig)
 
     initial_policy: InitialPolicyConfig = pydantic.Field(default_factory=InitialPolicyConfig)
     profiler: TorchProfilerConfig = pydantic.Field(default_factory=TorchProfilerConfig)

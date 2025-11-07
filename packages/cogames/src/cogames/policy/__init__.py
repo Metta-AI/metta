@@ -10,17 +10,10 @@ need to change.
 
 import importlib
 
-from mettagrid.policy.policy import (
-    AgentPolicy,
-    MultiAgentPolicy,
-    PolicySpec,
-    StatefulAgentPolicy,
-    StatefulPolicyImpl,
-    TrainablePolicy,
-)
+import mettagrid.policy.policy
 
 # Mirror the legacy alias that callers expect (Policy -> MultiAgentPolicy)
-Policy = MultiAgentPolicy
+Policy = mettagrid.policy.policy.MultiAgentPolicy
 
 
 class MockPolicy:  # pragma: no cover - test helper

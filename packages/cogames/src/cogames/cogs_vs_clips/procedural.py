@@ -22,7 +22,7 @@ import mettagrid.mapgen.scenes.maze
 import mettagrid.mapgen.scenes.radial_maze
 import mettagrid.mapgen.scenes.random_scene
 
-HubBundle = typing.Literal["chests", "extractors", "none", "custom"]
+HubBundle = typing.Literal["extractors", "none", "custom"]
 
 
 class MachinaArenaConfig(mettagrid.mapgen.scene.SceneConfig):
@@ -46,7 +46,7 @@ class MachinaArenaConfig(mettagrid.mapgen.scene.SceneConfig):
 
     # Hub config. `spawn_count` will be set based on `spawn_count` in this config.
     hub: mettagrid.mapgen.scenes.base_hub.BaseHubConfig = mettagrid.mapgen.scenes.base_hub.BaseHubConfig(
-        corner_bundle="chests",
+        corner_bundle="extractors",
         cross_bundle="none",
         cross_distance=7,
     )
@@ -64,9 +64,7 @@ class MachinaArenaConfig(mettagrid.mapgen.scene.SceneConfig):
     #### Distributions ####
 
     # How buildings are distributed on the map
-    distribution: mettagrid.mapgen.scenes.building_distributions.DistributionConfig = (
-        mettagrid.mapgen.scenes.building_distributions.DistributionConfig()
-    )
+    distribution: mettagrid.mapgen.scenes.building_distributions.DistributionConfig = mettagrid.mapgen.scenes.building_distributions.DistributionConfig()
 
     # How buildings are distributed on the map per building type, falls back to global distribution if not set
     building_distributions: dict[str, mettagrid.mapgen.scenes.building_distributions.DistributionConfig] | None = None
@@ -145,41 +143,21 @@ class MachinaArena(mettagrid.mapgen.scene.Scene[MachinaArenaConfig]):
         dungeon_count = max(int(dungeon_count), _min_count_for_fraction(cfg.max_dungeon_zone_fraction))
 
         # Candidates
-        def _make_biome_candidates(
-            weights: dict[str, float] | None,
-        ) -> list[mettagrid.mapgen.scenes.random_scene.RandomSceneCandidate]:
+        def _make_biome_candidates(weights: dict[str, float] | None) -> list[mettagrid.mapgen.scenes.random_scene.RandomSceneCandidate]:
             defaults = {"caves": 1.0, "forest": 1.0, "desert": 1.0, "city": 1.0}
             w = {**defaults, **(weights or {})}
             cands: list[mettagrid.mapgen.scenes.random_scene.RandomSceneCandidate] = []
             if w.get("caves", 0) > 0:
-                cands.append(
-                    mettagrid.mapgen.scenes.random_scene.RandomSceneCandidate(
-                        scene=mettagrid.mapgen.scenes.biome_caves.BiomeCavesConfig(), weight=w["caves"]
-                    )
-                )
+                cands.append(mettagrid.mapgen.scenes.random_scene.RandomSceneCandidate(scene=mettagrid.mapgen.scenes.biome_caves.BiomeCavesConfig(), weight=w["caves"]))
             if w.get("forest", 0) > 0:
-                cands.append(
-                    mettagrid.mapgen.scenes.random_scene.RandomSceneCandidate(
-                        scene=mettagrid.mapgen.scenes.biome_forest.BiomeForestConfig(), weight=w["forest"]
-                    )
-                )
+                cands.append(mettagrid.mapgen.scenes.random_scene.RandomSceneCandidate(scene=mettagrid.mapgen.scenes.biome_forest.BiomeForestConfig(), weight=w["forest"]))
             if w.get("desert", 0) > 0:
-                cands.append(
-                    mettagrid.mapgen.scenes.random_scene.RandomSceneCandidate(
-                        scene=mettagrid.mapgen.scenes.biome_desert.BiomeDesertConfig(), weight=w["desert"]
-                    )
-                )
+                cands.append(mettagrid.mapgen.scenes.random_scene.RandomSceneCandidate(scene=mettagrid.mapgen.scenes.biome_desert.BiomeDesertConfig(), weight=w["desert"]))
             if w.get("city", 0) > 0:
-                cands.append(
-                    mettagrid.mapgen.scenes.random_scene.RandomSceneCandidate(
-                        scene=mettagrid.mapgen.scenes.biome_city.BiomeCityConfig(), weight=w["city"]
-                    )
-                )
+                cands.append(mettagrid.mapgen.scenes.random_scene.RandomSceneCandidate(scene=mettagrid.mapgen.scenes.biome_city.BiomeCityConfig(), weight=w["city"]))
             return cands
 
-        def _make_dungeon_candidates(
-            weights: dict[str, float] | None,
-        ) -> list[mettagrid.mapgen.scenes.random_scene.RandomSceneCandidate]:
+        def _make_dungeon_candidates(weights: dict[str, float] | None) -> list[mettagrid.mapgen.scenes.random_scene.RandomSceneCandidate]:
             defaults = {"bsp": 1.0, "maze": 1.0, "radial": 1.0}
             w = {**defaults, **(weights or {})}
             cands: list[mettagrid.mapgen.scenes.random_scene.RandomSceneCandidate] = []
@@ -220,9 +198,7 @@ class MachinaArena(mettagrid.mapgen.scene.Scene[MachinaArenaConfig]):
             if w.get("radial", 0) > 0:
                 cands.append(
                     mettagrid.mapgen.scenes.random_scene.RandomSceneCandidate(
-                        scene=mettagrid.mapgen.scenes.radial_maze.RadialMaze.Config(
-                            arms=8, arm_width=2, clear_background=False, outline_walls=True
-                        ),
+                        scene=mettagrid.mapgen.scenes.radial_maze.RadialMaze.Config(arms=8, arm_width=2, clear_background=False, outline_walls=True),
                         weight=w["radial"],
                     )
                 )
@@ -233,9 +209,7 @@ class MachinaArena(mettagrid.mapgen.scene.Scene[MachinaArenaConfig]):
         dungeon_max_w = max(10, int(min(self.width * cfg.max_dungeon_zone_fraction, self.width // 2)))
         dungeon_max_h = max(10, int(min(self.height * cfg.max_dungeon_zone_fraction, self.height // 2)))
 
-        def _wrap_in_layout(
-            scene_cfg: mettagrid.mapgen.scene.SceneConfig, tag: str, max_w: int, max_h: int
-        ) -> mettagrid.mapgen.scene.SceneConfig:
+        def _wrap_in_layout(scene_cfg: mettagrid.mapgen.scene.SceneConfig, tag: str, max_w: int, max_h: int) -> mettagrid.mapgen.scene.SceneConfig:
             return mettagrid.mapgen.scenes.bounded_layout.BoundedLayout.Config(
                 max_width=max_w,
                 max_height=max_h,
@@ -362,11 +336,7 @@ class RandomTransform(mettagrid.mapgen.scene.Scene[RandomTransformConfig]):
         return [
             mettagrid.mapgen.scene.ChildrenAction(
                 scene=self.config.scene.model_copy(
-                    update={
-                        "transform": mettagrid.mapgen.scene.GridTransform(
-                            self.rng.choice(list(mettagrid.mapgen.scene.GridTransform))
-                        )
-                    }
+                    update={"transform": mettagrid.mapgen.scene.GridTransform(self.rng.choice(list(mettagrid.mapgen.scene.GridTransform)))}
                 ),
                 where="full",
             )
@@ -388,9 +358,7 @@ class EnvNodeVariant[T](cogames.cogs_vs_clips.mission.MissionVariant, abc.ABC):
 
 class MapGenVariant(EnvNodeVariant[mettagrid.mapgen.mapgen.MapGenConfig]):
     @classmethod
-    def extract_node(
-        cls, env: mettagrid.config.mettagrid_config.MettaGridConfig
-    ) -> mettagrid.mapgen.mapgen.MapGenConfig:
+    def extract_node(cls, env: mettagrid.config.mettagrid_config.MettaGridConfig) -> mettagrid.mapgen.mapgen.MapGenConfig:
         map_builder = env.game.map_builder
         if not isinstance(map_builder, mettagrid.mapgen.mapgen.MapGen.Config):
             raise TypeError("MapGenConfigVariant can only be applied to MapGen.Config builders")
@@ -399,16 +367,12 @@ class MapGenVariant(EnvNodeVariant[mettagrid.mapgen.mapgen.MapGenConfig]):
 
 class BaseHubVariant(EnvNodeVariant[mettagrid.mapgen.scenes.base_hub.BaseHubConfig]):
     @classmethod
-    def extract_node(
-        cls, env: mettagrid.config.mettagrid_config.MettaGridConfig
-    ) -> mettagrid.mapgen.scenes.base_hub.BaseHubConfig:
+    def extract_node(cls, env: mettagrid.config.mettagrid_config.MettaGridConfig) -> mettagrid.mapgen.scenes.base_hub.BaseHubConfig:
         map_builder = env.game.map_builder
         if not isinstance(map_builder, mettagrid.mapgen.mapgen.MapGen.Config):
             raise TypeError("BaseHubVariant can only be applied to MapGen.Config builders")
         instance = map_builder.instance
-        if isinstance(instance, RandomTransform.Config) and isinstance(
-            instance.scene, mettagrid.mapgen.scenes.base_hub.BaseHub.Config
-        ):
+        if isinstance(instance, RandomTransform.Config) and isinstance(instance.scene, mettagrid.mapgen.scenes.base_hub.BaseHub.Config):
             return instance.scene
         elif isinstance(instance, MachinaArena.Config):
             return instance.hub

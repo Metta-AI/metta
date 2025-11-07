@@ -58,3 +58,12 @@ def test_neutral_faced_variant_neutralizes_recipes():
         assert len(obj.protocols) == 1
         protocol = obj.protocols[0]
         assert protocol.vibes == ["default"]
+
+
+def test_inventory_heart_tune_caps_initial_inventory_to_limits():
+    mission = cogames.cogs_vs_clips.missions.HarvestMission.with_variants([cogames.cogs_vs_clips.variants.InventoryHeartTuneVariant(hearts=20)])
+    env = mission.make_env()
+    agent = env.game.agent
+
+    energy_limit = int(agent.resource_limits["energy"])
+    assert agent.initial_inventory["energy"] == energy_limit

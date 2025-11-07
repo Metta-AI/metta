@@ -1,10 +1,10 @@
 #!/usr/bin/env -S uv run
-import pathlib
 import subprocess
+import pathlib
 import typing
 
-import rich.console
 import typer
+import rich.console
 
 import metta.common.util.fs
 import metta.setup.utils
@@ -17,7 +17,7 @@ app = typer.Typer(
 )
 
 repo_root = metta.common.util.fs.get_repo_root()
-marimo_dir = repo_root / "experiments" / "marimo"
+marimo_dir = repo_root / "notebooks" / "marimo"
 
 
 def _get_notebooks() -> list[pathlib.Path]:
@@ -30,7 +30,7 @@ def _select_notebook() -> pathlib.Path | None:
     notebooks = _get_notebooks()
 
     if not notebooks:
-        metta.setup.utils.info("No notebooks found in experiments/marimo/")
+        metta.setup.utils.info("No notebooks found in notebooks/marimo/")
         return None
 
     choices = [(nb, nb.name) for nb in notebooks]
@@ -122,7 +122,7 @@ def cmd_list():
     """List all available notebooks."""
     notebooks = _get_notebooks()
     if not notebooks:
-        metta.setup.utils.info("No notebooks found in experiments/marimo/")
+        metta.setup.utils.info("No notebooks found in notebooks/marimo/")
     else:
         console.print("\n[bold]Available notebooks:[/bold]")
         for nb in notebooks:

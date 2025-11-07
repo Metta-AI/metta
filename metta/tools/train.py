@@ -98,6 +98,9 @@ class TrainTool(metta.common.tool.Tool):
         distributed_helper = metta.rl.training.DistributedHelper(self.system)
         distributed_helper.scale_batch_config(self.trainer, self.training_env)
 
+        if self.trainer.losses.supervisor.enabled:
+            self.training_env.supervisor.enabled = True
+
         self.training_env.seed += distributed_helper.get_rank()
         env = metta.rl.training.VectorizedTrainingEnvironment(self.training_env)
 

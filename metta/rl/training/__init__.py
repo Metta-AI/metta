@@ -8,7 +8,7 @@ actually needed.
 from __future__ import annotations
 
 import importlib
-from typing import Any
+import typing
 
 _EXPORTS: dict[str, tuple[str, str | None]] = {
     "Checkpointer": ("metta.rl.training.checkpointer", "Checkpointer"),
@@ -56,7 +56,7 @@ _EXPORTS: dict[str, tuple[str, str | None]] = {
 __all__ = list(_EXPORTS.keys())
 
 
-def __getattr__(name: str) -> Any:
+def __getattr__(name: str) -> typing.Any:
     if name in _EXPORTS:
         module_path, attr_name = _EXPORTS[name]
         module = importlib.import_module(module_path)

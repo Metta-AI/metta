@@ -16,16 +16,13 @@ def test_curriculum_env_with_stats_tracker_runs_episodes():
     env_cfg = mettagrid.config.mettagrid_config.MettaGridConfig.EmptyRoom(num_agents=2)
     env_cfg.game.max_steps = 50
 
-    curriculum = metta.cogworks.curriculum.Curriculum(
-        metta.cogworks.curriculum.CurriculumConfig(
-            task_generator=metta.cogworks.curriculum.SingleTaskGenerator.Config(env=env_cfg)
-        )
-    )
+    curriculum = metta.cogworks.curriculum.Curriculum(metta.cogworks.curriculum.CurriculumConfig(task_generator=metta.cogworks.curriculum.SingleTaskGenerator.Config(env=env_cfg)))
     stats_writer = mettagrid.util.stats_writer.NoopStatsWriter()
 
     sim = mettagrid.simulator.Simulator()
     sim.add_event_handler(mettagrid.envs.stats_tracker.StatsTracker(stats_writer))
-    env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(sim, curriculum.get_task().get_env_cfg())
+    env_supervisor_cfg = mettagrid.config.mettagrid_config.EnvSupervisorConfig(enabled=False)
+    env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(sim, curriculum.get_task().get_env_cfg(), env_supervisor_cfg)
     env = metta.cogworks.curriculum.curriculum_env.CurriculumEnv(env, curriculum)
 
     num_episodes = 3
@@ -87,7 +84,8 @@ def test_curriculum_with_multiple_tasks_runs_both():
     sim.add_event_handler(mettagrid.envs.stats_tracker.StatsTracker(stats_writer))
     # Don't pre-initialize with a task - let CurriculumEnv handle it
     initial_task = curriculum.get_task()
-    env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(sim, initial_task.get_env_cfg())
+    env_supervisor_cfg = mettagrid.config.mettagrid_config.EnvSupervisorConfig(enabled=False)
+    env = mettagrid.envs.mettagrid_puffer_env.MettaGridPufferEnv(sim, initial_task.get_env_cfg(), env_supervisor_cfg)
     env = metta.cogworks.curriculum.curriculum_env.CurriculumEnv(env, curriculum)
 
     # Track which tasks we've seen by their max_steps value

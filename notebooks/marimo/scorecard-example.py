@@ -21,6 +21,7 @@ def _(mo):
 def _():
     import altair as alt
     import pandas as pd
+
     import metta.app_backend.clients.scorecard_client
     import metta.common.util.collections
 
@@ -64,7 +65,7 @@ def _(mo, run_free_policies, training_run_policies):
         max_selections=30,
     )
 
-    training_run_selector
+    training_run_selector  # noqa: B018 - render selector inside marimo cell
     return (training_run_selector,)
 
 
@@ -113,7 +114,7 @@ async def _(client, group_by, mo, training_run_selector):
         else mo.md("Select training runs to continue")
     )
 
-    display
+    display  # noqa: B018 - render selector stack inside marimo cell
     return (category_selectors,)
 
 
@@ -126,7 +127,7 @@ def _(mo):
 @app.cell
 async def _(category_selectors, client, training_run_selector):
     selected_eval_names = []
-    for cat_name, cat_selector in category_selectors.items():
+    for _cat_name, cat_selector in category_selectors.items():
         selected_eval_names.extend(cat_selector.value)
 
     # Load available metrics
@@ -194,9 +195,7 @@ def _(pd, scorecard_data):
         for policy in sorted_policies:
             row = {
                 "Policy": policy.split(":v")[0][:40] if ":v" in policy else policy[:40],
-                "Overall Score": round(
-                    scorecard_data.policyAverageScores.get(policy, 0), 1
-                ),
+                "Overall Score": round(scorecard_data.policyAverageScores.get(policy, 0), 1),
                 "_original_policy": policy,
             }
 
@@ -211,9 +210,7 @@ def _(pd, scorecard_data):
                 if not cell_data:
                     row[eval_display] = None
                 else:
-                    value = (
-                        cell_data.value if hasattr(cell_data, "value") else cell_data
-                    )
+                    value = cell_data.value if hasattr(cell_data, "value") else cell_data
                     if isinstance(value, (int, float)):
                         row[eval_display] = round(value, 2)
                     else:
@@ -232,11 +229,7 @@ def _(alt, metric_selector, mo, table_df):
     def _get_heatmap(table_df):
         if len(table_df) > 0:
             # Heatmap view
-            eval_cols = [
-                col
-                for col in table_df.columns
-                if col not in ["Policy", "Overall Score"]
-            ]
+            eval_cols = [col for col in table_df.columns if col not in ["Policy", "Overall Score"]]
 
             if eval_cols:  # Only create heatmap if we have evaluation columns
                 # Melt data for Altair

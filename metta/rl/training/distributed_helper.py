@@ -1,7 +1,5 @@
 """Helper for distributed training operations."""
 
-from __future__ import annotations
-
 import os
 import typing
 
@@ -11,11 +9,9 @@ import torch.distributed
 import metta.agent.policy
 import metta.common.util.log_config
 import metta.rl.system_config
-import metta.rl.training.training_environment as training_environment
+import metta.rl.trainer_config
+import metta.rl.training
 import mettagrid.base_config
-
-if typing.TYPE_CHECKING:
-    import metta.rl.trainer_config
 
 logger = metta.common.util.log_config.getRankAwareLogger(__name__)
 
@@ -91,9 +87,7 @@ class DistributedHelper:
                 )
                 break
 
-    def _setup_distributed_training(
-        self, system_cfg: metta.rl.system_config.SystemConfig
-    ) -> typing.Optional[dict[str, typing.Any]]:
+    def _setup_distributed_training(self, system_cfg: metta.rl.system_config.SystemConfig) -> typing.Optional[dict[str, typing.Any]]:
         """Return distributed config values or None if world_size = 1"""
         if "LOCAL_RANK" not in os.environ or torch.device(system_cfg.device).type != "cuda":
             return None
@@ -148,7 +142,7 @@ class DistributedHelper:
     def scale_batch_config(
         self,
         trainer_cfg: metta.rl.trainer_config.TrainerConfig,
-        env_cfg: training_environment.TrainingEnvironmentConfig,
+        env_cfg: metta.rl.training.TrainingEnvironmentConfig,
     ) -> None:
         """Scale batch sizes for distributed training if configured.
 
@@ -180,9 +174,7 @@ class DistributedHelper:
             else getattr(trainer_cfg, "forward_pass_minibatch_target_size", "n/a"),
         )
 
-    def wrap_policy(
-        self, policy: metta.agent.policy.Policy, device: typing.Optional[torch.device] = None
-    ) -> metta.agent.policy.Policy | metta.agent.policy.DistributedPolicy:
+    def wrap_policy(self, policy: metta.agent.policy.Policy, device: typing.Optional[torch.device] = None) -> metta.agent.policy.Policy:
         """Wrap policy for distributed training if needed.
 
         Args:

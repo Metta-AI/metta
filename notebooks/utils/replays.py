@@ -1,7 +1,8 @@
 import re
 
-import experiments.notebooks.utils.metrics
 import IPython.display
+
+import notebooks.utils.metrics
 
 
 def show_replay(
@@ -11,7 +12,7 @@ def show_replay(
     height: int = 600,
     autoplay: bool = False,
 ) -> None:
-    run = experiments.notebooks.utils.metrics.get_run(run_name)
+    run = notebooks.utils.metrics.get_run(run_name)
     if run is None:
         return
 
@@ -46,7 +47,7 @@ def show_replay(
 
 
 def get_available_replays(run_name: str) -> list[dict]:
-    run = experiments.notebooks.utils.metrics.get_run(run_name)
+    run = notebooks.utils.metrics.get_run(run_name)
     if run is None:
         return []
 

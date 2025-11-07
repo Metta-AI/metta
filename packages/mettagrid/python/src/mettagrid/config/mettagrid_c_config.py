@@ -8,9 +8,9 @@ import mettagrid.mettagrid_c
 
 def convert_to_cpp_game_config(mettagrid_config: dict | "mettagrid.config.mettagrid_config.GameConfig"):
     """Convert a GameConfig to a CppGameConfig."""
-    from mettagrid.config import mettagrid_config as mettagrid_config_module
+    import mettagrid.config
 
-    if isinstance(mettagrid_config, mettagrid_config_module.GameConfig):
+    if isinstance(mettagrid_config, mettagrid.config.mettagrid_config.GameConfig):
         # If it's already a GameConfig instance, use it directly
         game_config = mettagrid_config
     else:
@@ -20,7 +20,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | "mettagrid.config.mettag
         if "obs" in config_dict and "features" in config_dict["obs"]:
             config_dict["obs"] = config_dict["obs"].copy()
             config_dict["obs"].pop("features", None)
-        game_config = mettagrid_config_module.GameConfig(**config_dict)
+        game_config = mettagrid.config.mettagrid_config.GameConfig(**config_dict)
 
     # Ensure type IDs are assigned even if objects were added/modified after construction
     # This mirrors the behavior documented in GameConfig._resolve_object_type_ids.
@@ -56,7 +56,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | "mettagrid.config.mettag
         for _ in range(game_config.num_agents):
             agent_dict = base_agent_dict.copy()
             agent_dict["team_id"] = 0  # All default agents are on team 0
-            game_config.agents.append(mettagrid_config_module.AgentConfig(**agent_dict))
+            game_config.agents.append(mettagrid.config.mettagrid_config.AgentConfig(**agent_dict))
 
     # Build tag mappings - collect all unique tags from all objects
     # Note: This must happen AFTER default agents are created, so their tags are included
