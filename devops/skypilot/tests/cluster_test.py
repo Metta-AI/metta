@@ -95,9 +95,9 @@ Examples:
         print(f"{metta.common.util.text_styles.cyan('Test conditions:')}")
         for _key, condition in TEST_CONDITIONS.items():
             print(f"  • {metta.common.util.text_styles.yellow(condition.name)}: {condition.description}")
-        print(
-            f"\n{metta.common.util.text_styles.cyan('Total jobs to launch:')} {len(NODE_CONFIGS) * len(TEST_CONDITIONS)}"
-        )
+        total_jobs = len(NODE_CONFIGS) * len(TEST_CONDITIONS)
+        jobs_label = metta.common.util.text_styles.cyan("Total jobs to launch:")
+        print(f"\n{jobs_label} {total_jobs}")
         print(f"{metta.common.util.text_styles.cyan('Output file:')} {args.output_file}")
 
         # Launch jobs

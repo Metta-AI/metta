@@ -1,4 +1,6 @@
 # metta/rl/loss/contrastive_config.py
+from __future__ import annotations
+
 import typing
 
 import pydantic
@@ -8,6 +10,9 @@ import metta.agent.policy
 import metta.rl.loss.contrastive
 import metta.rl.loss.loss
 import metta.rl.training
+
+if typing.TYPE_CHECKING:
+    ContrastiveLoss = metta.rl.loss.contrastive.ContrastiveLoss
 
 
 class ContrastiveConfig(metta.rl.loss.loss.LossConfig):
@@ -37,7 +42,7 @@ class ContrastiveConfig(metta.rl.loss.loss.LossConfig):
         device: torch.device,
         instance_name: str,
         loss_config: typing.Any,
-    ) -> "ContrastiveLoss":
+    ) -> ContrastiveLoss:
         """Create the contrastive loss instance."""
         return metta.rl.loss.contrastive.ContrastiveLoss(
             policy,

@@ -123,9 +123,8 @@ def print_cluster_status(clusters, title=None):
         # Additional guidance for INIT state clusters
         if cluster["status"].name == "INIT":
             cluster_name = cluster["name"]
-            print(
-                f"    💡 If stuck in INIT for >10min, try: {metta.common.util.text_styles.green(f'uv run sky launch -c {cluster_name} --no-setup')}"
-            )
+            launch_hint = metta.common.util.text_styles.green(f"uv run sky launch -c {cluster_name} --no-setup")
+            print(f"    💡 If stuck in INIT for >10min, try: {launch_hint}")
             print(f"    📊 Check logs: {metta.common.util.text_styles.green(f'uv run sky logs {cluster_name}')}")
 
 

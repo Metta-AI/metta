@@ -34,11 +34,13 @@ class GeminiAIClient:
         genai.configure(api_key=api_key)
 
         # Minimal safety settings for code analysis
+        harm_category = google.generativeai.types.HarmCategory
+        harm_threshold = google.generativeai.types.HarmBlockThreshold
         self.safety_settings = {
-            google.generativeai.types.HarmCategory.HARM_CATEGORY_HATE_SPEECH: google.generativeai.types.HarmBlockThreshold.BLOCK_NONE,
-            google.generativeai.types.HarmCategory.HARM_CATEGORY_HARASSMENT: google.generativeai.types.HarmBlockThreshold.BLOCK_NONE,
-            google.generativeai.types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: google.generativeai.types.HarmBlockThreshold.BLOCK_NONE,
-            google.generativeai.types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: google.generativeai.types.HarmBlockThreshold.BLOCK_NONE,
+            harm_category.HARM_CATEGORY_HATE_SPEECH: harm_threshold.BLOCK_NONE,
+            harm_category.HARM_CATEGORY_HARASSMENT: harm_threshold.BLOCK_NONE,
+            harm_category.HARM_CATEGORY_SEXUALLY_EXPLICIT: harm_threshold.BLOCK_NONE,
+            harm_category.HARM_CATEGORY_DANGEROUS_CONTENT: harm_threshold.BLOCK_NONE,
         }
 
         logging.info("Initialized AI client with Gemini 2.5 models")

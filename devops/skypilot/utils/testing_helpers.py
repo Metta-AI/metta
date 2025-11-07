@@ -113,9 +113,9 @@ class SkyPilotTestLauncher:
             }
             raise Exception(f"Failed to get request ID from launch output. Debug: {debug_info}")
 
-        print(
-            f"  {metta.common.util.text_styles.green('✅ Launched successfully')} - Request ID: {metta.common.util.text_styles.yellow(request_id)}"
-        )
+        launch_msg = metta.common.util.text_styles.green("✅ Launched successfully")
+        request_label = metta.common.util.text_styles.yellow(request_id)
+        print(f"  {launch_msg} - Request ID: {request_label}")
 
         # Try to get job ID with retries using retry_function
         def get_job_id_with_wait() -> str:
@@ -130,9 +130,9 @@ class SkyPilotTestLauncher:
                 max_retries=2,
                 initial_delay=2.0,
             )
-            print(
-                f"  {metta.common.util.text_styles.green('✅ Job ID retrieved:')} {metta.common.util.text_styles.yellow(job_id)}"
-            )
+            success_label = metta.common.util.text_styles.green("✅ Job ID retrieved:")
+            job_label = metta.common.util.text_styles.yellow(job_id)
+            print(f"  {success_label} {job_label}")
         except Exception:
             # Job ID not available yet, but launch was successful
             job_id = None
@@ -167,9 +167,9 @@ class SkyPilotTestLauncher:
             cmd.append("--skip-git-check")
 
         # Display launch info
-        print(
-            f"\n{metta.common.util.text_styles.bold('Launching job:')} {metta.common.util.text_styles.magenta(run_name)}"
-        )
+        launch_label = metta.common.util.text_styles.bold("Launching job:")
+        run_name_label = metta.common.util.text_styles.magenta(run_name)
+        print(f"\n{launch_label} {run_name_label}")
         print("  Test Configuration: {")
         for key, value in test_config.items():
             print(f"    {metta.common.util.text_styles.cyan(f'{key}:')} {value}")
@@ -449,10 +449,9 @@ class SkyPilotJobChecker:
             job_id_str = job.get("job_id")
             if job_id_str:
                 processed += 1
-                print(
-                    f"  [{processed}/{total_jobs}] Processing job {metta.common.util.text_styles.yellow(job_id_str)}...",
-                    end="\r",
-                )
+                job_label = metta.common.util.text_styles.yellow(job_id_str)
+                progress = f"[{processed}/{total_jobs}] Processing job {job_label}..."
+                print(f"  {progress}", end="\r")
 
                 job_id = int(job_id_str)
                 log_content = devops.skypilot.utils.job_helpers.tail_job_log(job_id_str, tail_lines)
@@ -467,19 +466,19 @@ class SkyPilotJobChecker:
                     log_lines = log_content.strip().split("\n")
                     last_lines = log_lines[-5:] if len(log_lines) > 5 else log_lines
 
-                    print(
-                        f"{metta.common.util.text_styles.green(f'[{processed}/{total_jobs}]')} Job {metta.common.util.text_styles.yellow(job_id_str)}:"
-                    )
+                    status_prefix = metta.common.util.text_styles.green(f"[{processed}/{total_jobs}]")
+                    job_label = metta.common.util.text_styles.yellow(job_id_str)
+                    print(f"{status_prefix} Job {job_label}:")
                     print(f"  {metta.common.util.text_styles.bold('Last log lines:')}")
                     for line in last_lines:
                         truncated = line[:100] + "..." if len(line) > 100 else line
                         print(f"    {truncated}")
                     print()
                 else:
-                    print(
-                        f"{metta.common.util.text_styles.yellow(f'[{processed}/{total_jobs}]')} Job {metta.common.util.text_styles.yellow(job_id_str)}: "
-                        f"{metta.common.util.text_styles.yellow('No job logs found')}"
-                    )
+                    progress = metta.common.util.text_styles.yellow(f"[{processed}/{total_jobs}]")
+                    job_label = metta.common.util.text_styles.yellow(job_id_str)
+                    no_logs = metta.common.util.text_styles.yellow("No job logs found")
+                    print(f"{progress} Job {job_label}: {no_logs}")
                     self.job_summaries[job_id] = {}
 
         print(f"{metta.common.util.text_styles.green('✔')} Parsed logs for {processed} jobs\n")
@@ -754,12 +753,14 @@ class SkyPilotJobChecker:
 
             # Display job header
             print("\n" + "=" * 80)
-            print(
-                f"{metta.common.util.text_styles.bold('Job ID:')} {metta.common.util.text_styles.yellow(job_id_str)} ({self.formatter.format_status(status)})"
-            )
-            print(
-                f"{metta.common.util.text_styles.bold('Run Name:')} {metta.common.util.text_styles.cyan(job['run_name'])}"
-            )
+            job_id_label = metta.common.util.text_styles.bold("Job ID:")
+            job_id_value = metta.common.util.text_styles.yellow(job_id_str)
+            status_value = self.formatter.format_status(status)
+            print(f"{job_id_label} {job_id_value} ({status_value})")
+
+            run_name_label = metta.common.util.text_styles.bold("Run Name:")
+            run_name_value = metta.common.util.text_styles.cyan(job["run_name"])
+            print(f"{run_name_label} {run_name_value}")
 
             # Display test configuration
             for key, value in job.items():

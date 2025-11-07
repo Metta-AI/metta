@@ -14,6 +14,8 @@ import mettagrid.map_builder.map_builder
 import mettagrid.map_builder.random
 import mettagrid.simulator
 
+IdMap = mettagrid.config.id_map.IdMap
+
 # ===== Python Configuration Models =====
 
 Direction = typing.Literal["north", "south", "east", "west", "northeast", "northwest", "southeast", "southwest"]

@@ -11,9 +11,10 @@ logger = logging.getLogger(__name__)
 @functools.cache
 def init_tracing():
     if metta.common.datadog.config.datadog_config.DD_TRACE_ENABLED:
+        dd_config = metta.common.datadog.config.datadog_config
         logger.info(
-            f"Datadog tracing enabled: service={metta.common.datadog.config.datadog_config.DD_SERVICE}, "
-            f"env={metta.common.datadog.config.datadog_config.DD_ENV}, agent={metta.common.datadog.config.datadog_config.DD_AGENT_HOST}"
+            "Datadog tracing enabled: "
+            f"service={dd_config.DD_SERVICE}, env={dd_config.DD_ENV}, agent={dd_config.DD_AGENT_HOST}"
         )
         ddtrace.trace.tracer.enabled = True
     else:

@@ -6,8 +6,10 @@ evaluation missions, supporting curriculum learning with difficulty variants.
 
 import typing
 
+import cogames
 import metta.cogworks.curriculum as cc
 import cogames.cogs_vs_clips.evals.eval_missions
+import cogames.cogs_vs_clips.mission
 import metta.cogworks.curriculum.curriculum
 import metta.cogworks.curriculum.learning_progress_algorithm
 import metta.rl.training
@@ -53,8 +55,6 @@ def make_eval_suite(
             continue
 
         # Apply number of agents variant
-        import cogames.cogs_vs_clips.mission
-
         mission_with_cogs = mission_template.with_variants(
             [cogames.cogs_vs_clips.mission.NumCogsVariant(num_cogs=num_cogs)]
         )

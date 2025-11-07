@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import importlib
 import pathlib
 import pkgutil
+import typing
 
 __path__ = pkgutil.extend_path(__path__, __name__)  # type: ignore[name-defined]
 
@@ -12,8 +14,10 @@ if _extra.is_dir():
         __path__.append(extra_path)
 
 try:
-    import metta.common.tool.tool  # type: ignore[attr-defined]
+    tool_module = importlib.import_module("metta.common.tool.tool")
 except ImportError:  # pragma: no cover - optional dependency
-    Tool = None  # type: ignore[assignment]
+    Tool: typing.Any | None = None
+else:
+    Tool = tool_module.Tool
 
 __all__ = ["Tool"]

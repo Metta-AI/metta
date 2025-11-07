@@ -588,9 +588,9 @@ constructor/function vs configuration overrides based on introspection.
 
         return 1
 
-    output_info(
-        f"\n{metta.common.util.text_styles.bold(metta.common.util.text_styles.cyan('Loading tool:'))} {tool_maker.__module__}.{tool_maker.__name__}"
-    )
+    loading_label = metta.common.util.text_styles.bold(metta.common.util.text_styles.cyan("Loading tool:"))
+    tool_name = f"{tool_maker.__module__}.{tool_maker.__name__}"
+    output_info(f"\n{loading_label} {tool_name}")
 
     # If help flag is set, list arguments and exit
     if known_args.help:
@@ -698,9 +698,9 @@ constructor/function vs configuration overrides based on introspection.
         return 1
 
     if not isinstance(tool_cfg, metta.common.tool.Tool):
-        output_error(
-            f"{metta.common.util.text_styles.red('Error:')} {known_args.tool_path} must return a Tool instance, got {type(tool_cfg)}"
-        )
+        error_label = metta.common.util.text_styles.red("Error:")
+        tool_type = type(tool_cfg)
+        output_error(f"{error_label} {known_args.tool_path} must return a Tool instance, got {tool_type}")
         return 1
 
     # ----------------------------------------------------------------------------------
@@ -737,9 +737,9 @@ constructor/function vs configuration overrides based on introspection.
     # Dry run check - exit here if --dry-run flag is set
     # ----------------------------------------------------------------------------------
     if known_args.dry_run:
-        output_info(
-            f"\n{metta.common.util.text_styles.bold(metta.common.util.text_styles.green('✅ Configuration validation successful'))}"
-        )
+        validation_label = metta.common.util.text_styles.green("✅ Configuration validation successful")
+        validation_label = metta.common.util.text_styles.bold(validation_label)
+        output_info(f"\n{validation_label}")
         if known_args.verbose:
             output_info(f"Tool type: {type(tool_cfg).__name__}")
             output_info(f"Module: {tool_maker.__module__}.{tool_maker.__name__}")

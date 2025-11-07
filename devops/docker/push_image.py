@@ -28,9 +28,9 @@ def main():
     if not account_id:
         sys.exit("ERROR: Failed to determine ACCOUNT_ID")
 
-    print(
-        f"Uploading {metta.common.util.text_styles.bold(args.local_image_name)} to {metta.common.util.text_styles.bold(args.remote_image_name)}"
-    )
+    local_image = metta.common.util.text_styles.bold(args.local_image_name)
+    remote_image = metta.common.util.text_styles.bold(args.remote_image_name)
+    print(f"Uploading {local_image} to {remote_image}")
     print(f"Region: {metta.common.util.text_styles.bold(args.region)}")
     print(f"Account ID: {metta.common.util.text_styles.bold(account_id)}")
     print("")

@@ -25,11 +25,18 @@ def main():
     parser = argparse.ArgumentParser(description="Authenticate with Observatory")
     parser.add_argument(
         "auth_server_url",
-        help=f"Stats server API URI (e.g., {metta.common.util.constants.OBSERVATORY_AUTH_SERVER_URL} or {metta.common.util.constants.DEV_STATS_SERVER_URI})",
+        help=(
+            "Stats server API URI (e.g., "
+            f"{metta.common.util.constants.OBSERVATORY_AUTH_SERVER_URL} or "
+            f"{metta.common.util.constants.DEV_STATS_SERVER_URI})"
+        ),
     )
     parser.add_argument(
         "token_key",
-        help=f"key to store the token under in the YAML file (e.g. {metta.common.util.constants.PROD_STATS_SERVER_URI})",
+        help=(
+            "Key to store the token under in the YAML file "
+            f"(e.g. {metta.common.util.constants.PROD_STATS_SERVER_URI})"
+        ),
     )
     parser.add_argument("--force", action="store_true", help="Get a new token even if one already exists")
     parser.add_argument("--timeout", type=int, default=300, help="Authentication timeout in seconds (default: 300)")
