@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import platform
 import shutil
+import stat
 import subprocess
 import tempfile
 import urllib.request
@@ -15,43 +16,31 @@ from setuptools.command.develop import develop
 from setuptools.command.install import install
 
 REQUIRED_NIM_VERSION = os.environ.get("COGAMES_NIM_VERSION", "2.2.6")
-REQUIRED_NIMBY_VERSION = os.environ.get("COGAMES_NIMBY_VERSION", "0.1.6")
-NIMBY_HOME = Path.home() / ".nimby" / "nim" / "bin"
-_BOOTSTRAPPED = False
+NIMBY_VERSION = os.environ.get("COGAMES_NIMBY_VERSION", "0.1.6")
 
 
 def ensure_nim_dependencies() -> None:
-    """Bootstrap Nim/Nimby following treeform's recommended steps."""
-    global _BOOTSTRAPPED
-    if _BOOTSTRAPPED:
-        return
+    system = platform.system()
+    arch = platform.machine().lower()
+    if system == "Linux":
+        url = f"https://github.com/treeform/nimby/releases/download/{NIMBY_VERSION}/nimby-Linux-X64"
+    elif system == "Darwin":
+        suffix = "ARM64" if "arm" in arch else "X64"
+        url = f"https://github.com/treeform/nimby/releases/download/{NIMBY_VERSION}/nimby-macOS-{suffix}"
+    else:
+        raise RuntimeError(f"Unsupported OS: {system}")
 
-    os_name = {"Linux": "Linux", "Darwin": "macOS"}.get(platform.system())
-    arch_name = {"x86_64": "X64", "amd64": "X64", "arm64": "ARM64", "aarch64": "ARM64"}.get(platform.machine())
-    if not os_name or not arch_name:
-        raise RuntimeError("Unsupported platform for Nimby download")
+    with tempfile.TemporaryDirectory() as tmp:
+        nimby = Path(tmp) / "nimby"
+        urllib.request.urlretrieve(url, nimby)
+        nimby.chmod(nimby.stat().st_mode | stat.S_IEXEC)
+        subprocess.check_call([str(nimby), "use", REQUIRED_NIM_VERSION])
 
-    url = f"https://github.com/treeform/nimby/releases/download/{REQUIRED_NIMBY_VERSION}/nimby-{os_name}-{arch_name}"
+        dst = Path.home() / ".nimby" / "nim" / "bin" / "nimby"
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(nimby, dst)
 
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        nimby_path = Path(tmp_dir) / "nimby"
-        with urllib.request.urlopen(url, timeout=30) as response, open(nimby_path, "wb") as handle:
-            shutil.copyfileobj(response, handle)
-        nimby_path.chmod(0o755)
-
-        subprocess.run([str(nimby_path), "use", REQUIRED_NIM_VERSION], check=True)
-
-        NIMBY_HOME.mkdir(parents=True, exist_ok=True)
-        destination = NIMBY_HOME / "nimby"
-        if destination.exists():
-            destination.unlink()
-        shutil.move(str(nimby_path), destination)
-
-    path = os.environ.get("PATH", "")
-    if str(NIMBY_HOME) not in path.split(os.pathsep):
-        os.environ["PATH"] = os.pathsep.join([str(NIMBY_HOME), path]) if path else str(NIMBY_HOME)
-
-    _BOOTSTRAPPED = True
+    os.environ["PATH"] = f"{dst.parent}{os.pathsep}" + os.environ.get("PATH", "")
 
 
 class _EnsureNimMixin:
