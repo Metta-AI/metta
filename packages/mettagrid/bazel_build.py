@@ -7,7 +7,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-from nim_bootstrap import NIM_BIN, NIMBY_BIN, ensure_nim_dependencies
 from setuptools.build_meta import (
     build_editable as _build_editable,
 )
@@ -35,12 +34,7 @@ METTASCOPE_PACKAGE_DIR = PYTHON_PACKAGE_DIR / "nim" / "mettascope"
 def cmd(cmd: str) -> None:
     """Run a command and raise an error if it fails."""
     print(f"Running: {cmd}")
-    parts = cmd.split()
-    if parts and parts[0] == "nimby":
-        parts[0] = str(NIMBY_BIN)
-    elif parts and parts[0] == "nim":
-        parts[0] = str(NIM_BIN)
-    result = subprocess.run(parts, cwd=METTASCOPE_DIR, capture_output=True, text=True)
+    result = subprocess.run(cmd.split(), cwd=METTASCOPE_DIR, capture_output=True, text=True)
     print(result.stderr, file=sys.stderr)
     print(result.stdout, file=sys.stderr)
     if result.returncode != 0:
@@ -197,12 +191,14 @@ def _sync_mettascope_package_data() -> None:
 def _run_mettascope_build() -> None:
     """Build Nim artifacts when cache misses."""
 
-    ensure_nim_dependencies()
-
     if _nim_artifacts_up_to_date():
         print("Skipping Nim build; artifacts up to date.")
         _sync_mettascope_package_data()
         return
+
+    for x in ["nim", "nimby"]:
+        if shutil.which(x) is None:
+            raise RuntimeError(f"{x} not found! Install from https://github.com/treeform/nimby.")
 
     print(f"Building mettascope from {METTASCOPE_DIR}")
 
