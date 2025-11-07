@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import inspect
 from enum import StrEnum, auto
-from typing import Any, ClassVar, Final, Generic, TypeVar, get_args, get_origin
+from typing import Any, ClassVar, Final, Generic, Self, TypeVar, get_args, get_origin
 
 import numpy as np
-from pydantic import field_validator, model_serializer
+from pydantic import ModelWrapValidatorHandler, SerializeAsAny, model_serializer, model_validator
 
 from mettagrid.base_config import Config
 from mettagrid.map_builder import MapGrid
@@ -109,18 +110,60 @@ class SceneConfig(Config):
     # Transform relative to the area that this scene config receives in `create`.
     transform: GridTransform = GridTransform.IDENTITY
 
+    def model_dump(self, **kwargs) -> dict[str, Any]:
+        return super().model_dump(serialize_as_any=True, **kwargs)
+
+    def model_dump_json(self, **kwargs) -> str:
+        return super().model_dump_json(serialize_as_any=True, **kwargs)
+
     @property
     def scene_cls(self) -> type[Scene]:
         if not self._scene_cls:
             raise ValueError(f"{self.__class__.__name__} is not bound to a scene class")
         return self._scene_cls
 
+    @classmethod
+    def _type_str(cls) -> str:
+        if not cls._scene_cls:
+            raise ValueError(f"{cls.__class__.__name__} is not bound to a scene class")
+        return f"{cls._scene_cls.__module__}.{cls._scene_cls.__name__}.Config"
+
     @model_serializer(mode="wrap")
     def _serialize_with_type(self, handler):
         data = handler(self)
-        if not self._scene_cls:
-            raise ValueError(f"{self.__class__.__name__} is not bound to a scene class")
-        return {"type": f"{self._scene_cls.__module__}.{self._scene_cls.__name__}", **data}
+        return {"type": self._type_str(), **data}
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _validate_with_type(cls, v: Any, handler: ModelWrapValidatorHandler[Self]) -> Self:
+        # This code is copy-pasted from MapBuilderConfig. Refer to that file for a better commented version.
+        # (Soon it will be refactored to use PolymorphicConfig.)
+        if isinstance(v, SceneConfig):
+            if not isinstance(v, cls):
+                raise TypeError(f"Expected {cls.__qualname__} subclass, got {type(v).__qualname__}")
+            return v
+
+        if not isinstance(v, dict):
+            raise ValueError("SceneConfig params must be a dict")
+
+        t = v.get("type")
+        if t is None:
+            return handler(v)
+
+        type_cls = load_symbol(t) if isinstance(t, str) else t
+
+        if not inspect.isclass(type_cls):
+            raise TypeError("'type' must point to a class")
+
+        if not issubclass(type_cls, cls):
+            raise TypeError(f"'type' {t} is not a subclass of {cls._type_str()}")
+
+        data = {k: v for k, v in v.items() if k != "type"}
+        result = type_cls.model_validate(data)
+
+        assert isinstance(result, cls)
+
+        return result
 
     def create_root(
         self,
@@ -159,44 +202,13 @@ class SceneConfig(Config):
         )
 
 
-def validate_any_scene_config(v: Any) -> SceneConfig:
-    # See also: _validate_open_map_builder in map_builder.py
-    # After Pydantic 2.12, we can simplify this by using SerializeAsAny.
-
-    if isinstance(v, SceneConfig):
-        return v
-
-    if not isinstance(v, dict):
-        raise ValueError("Scene config must be a dict")
-
-    t = v.get("type")
-    if t is None:
-        raise ValueError("'type' is required")
-
-    target = load_symbol(t) if isinstance(t, str) else t
-
-    if isinstance(target, type) and issubclass(target, Scene):
-        cfg_model = getattr(target, "Config", None)
-        if not (isinstance(cfg_model, type) and issubclass(cfg_model, SceneConfig)):
-            raise TypeError(f"{target.__name__} must define a nested class Config(SceneConfig).")
-        data = {k: v for k, v in v.items() if k != "type"}
-        return cfg_model.model_validate(data)
-
-    raise TypeError(f"'type' must point to a Scene subclass; got {target!r}")
+AnySceneConfig = SerializeAsAny[SceneConfig]
 
 
 class ChildrenAction(AreaQuery):
-    scene: SceneConfig
+    scene: AnySceneConfig
     instance_id: int | None = None
     use_instance_id_for_team_assignment: bool | None = None
-
-    @field_validator("scene", mode="wrap")
-    @classmethod
-    def _validate_scene(cls, v, handler):
-        # Accept already-validated SceneConfig or a dict with a 'type' pointer
-        if isinstance(v, SceneConfig):
-            return v
-        return validate_any_scene_config(v)
 
 
 ConfigT = TypeVar("ConfigT", bound=SceneConfig)

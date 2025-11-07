@@ -15,12 +15,16 @@ The goal is to force agents to:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+import logging
+from typing import override
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
-if TYPE_CHECKING:
-    from cogames.cogs_vs_clips.mission import Mission, MissionVariant
+from cogames.cogs_vs_clips.mission import Mission, MissionVariant
+from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig, ProtocolConfig
+
+logger = logging.getLogger(__name__)
+
 
 # -----------------------------------------------------------------------------
 # Module constants
@@ -35,11 +39,17 @@ CHARGER_EFFICIENCY_FLOOR = 50
 ENERGY_REGEN_FLOOR = 0
 
 
-class DifficultyLevel(BaseModel):
+# =============================================================================
+# Difficulty Registry
+# =============================================================================
+
+
+class DifficultyLevel(MissionVariant):
     """Configuration for a difficulty level."""
 
     name: str = Field(description="Difficulty name (easy, medium, hard, brutal, etc.)")
-    description: str = Field(description="What makes this difficulty challenging")
+    description: str = Field(description="What makes this difficulty challenging", default="")
+
     allow_agent_scaling: bool = Field(default=True, description="Whether agent-count scaling helpers should run")
 
     # Extractor max_uses multipliers (relative to mission baseline)
@@ -82,6 +92,271 @@ class DifficultyLevel(BaseModel):
         default=None, description="Specific extractor to clip (carbon/oxygen/germanium/silicon/charger)"
     )
     clip_immune_extractor: str | None = Field(default=None, description="Extractor that stays immune to clipping")
+
+    @override
+    def modify_mission(self, mission: Mission):
+        """Apply a difficulty level to a mission instance.
+
+        Modifies the mission's extractor configs and energy_regen in place.
+
+        Args:
+            mission: Mission instance to modify
+            difficulty: DifficultyLevel to apply
+        """
+        # Apply max_uses (override if set, else multiply), then enforce floor of 1 if baseline > 0
+        for res in RESOURCE_KEYS:
+            extractor = getattr(mission, f"{res}_extractor")
+            override_val = getattr(self, f"{res}_max_uses_override")
+            mult_val = getattr(self, f"{res}_max_uses_mult")
+            if override_val is not None:
+                extractor.max_uses = override_val
+            else:
+                try:
+                    mu = int(extractor.max_uses)
+                    scaled = int(mu * mult_val)
+                    extractor.max_uses = max(1, scaled) if mu > 0 else scaled
+                except Exception:
+                    # Best-effort; leave as-is on failure
+                    pass
+
+        # Apply efficiency (override if set, else multiply)
+        for res in RESOURCE_KEYS:
+            extractor = getattr(mission, f"{res}_extractor")
+            override_val = getattr(self, f"{res}_eff_override")
+            mult_val = getattr(self, f"{res}_eff_mult")
+            if override_val is not None:
+                extractor.efficiency = override_val
+            else:
+                try:
+                    eff = int(extractor.efficiency)
+                    extractor.efficiency = int(eff * mult_val)
+                except Exception:
+                    pass
+
+        # Charger efficiency
+        if self.charger_eff_override is not None:
+            mission.charger.efficiency = self.charger_eff_override
+        else:
+            mission.charger.efficiency = int(mission.charger.efficiency * self.charger_eff_mult)
+
+        # Energy regen
+        if self.energy_regen_override is not None:
+            mission.energy_regen_amount = self.energy_regen_override
+        else:
+            mission.energy_regen_amount = max(0, int(mission.energy_regen_amount * self.energy_regen_mult))
+
+        # Mission-level overrides
+        if self.move_energy_cost_override is not None:
+            mission.move_energy_cost = self.move_energy_cost_override
+        if self.energy_capacity_override is not None:
+            mission.energy_capacity = self.energy_capacity_override
+        if self.cargo_capacity_override is not None:
+            mission.cargo_capacity = self.cargo_capacity_override
+
+        # Set clip_rate on mission
+        if self.clip_rate > 0.0:
+            mission.clip_rate = self.clip_rate
+
+        # Apply clipping configuration
+        clip_target = self.clip_target
+
+        # Set the specific station to start clipped
+        if clip_target == "carbon":
+            mission.carbon_extractor.start_clipped = True
+            logger.info("Set carbon_extractor.start_clipped = True")
+        elif clip_target == "oxygen":
+            mission.oxygen_extractor.start_clipped = True
+            logger.info(
+                f"Set oxygen_extractor.start_clipped = True (current value: {mission.oxygen_extractor.start_clipped})"
+            )
+        elif clip_target == "germanium":
+            mission.germanium_extractor.start_clipped = True
+            logger.info("Set germanium_extractor.start_clipped = True")
+        elif clip_target == "silicon":
+            mission.silicon_extractor.start_clipped = True
+            logger.info("Set silicon_extractor.start_clipped = True")
+        elif clip_target == "charger":
+            mission.charger.start_clipped = True
+            logger.info("Set charger.start_clipped = True")
+
+    @override
+    def modify_env(self, mission: Mission, env: MettaGridConfig):
+        if self.max_steps_override is not None:
+            env.game.max_steps = self.max_steps_override
+
+        if not self.allow_agent_scaling:
+            return
+
+        # Post-build agent-aware scaling and solvability floors
+        # - Scale extractor max_uses roughly with num_agents
+        # - Mildly scale efficiency with num_agents
+        # - Enforce minimal floors to keep extreme solvable
+        num_agents = env.game.num_agents
+
+        # Efficiency scale: +20% per extra agent, capped at 2.0x
+        eff_scale = 1.0 + 0.2 * max(0, num_agents - 1)
+        if eff_scale > 2.0:
+            eff_scale = 2.0
+
+        for res in RESOURCE_KEYS:
+            key = f"{res}_extractor"
+            obj = env.game.objects.get(key)
+            if obj is None:
+                continue
+            try:
+                if hasattr(obj, "max_uses") and obj.max_uses is not None:
+                    mu = int(obj.max_uses)
+                    if mu > 0 and num_agents > 1:
+                        obj.max_uses = max(1, mu * num_agents)
+                    else:
+                        obj.max_uses = max(1, mu)
+                if hasattr(obj, "efficiency"):
+                    eff = int(obj.efficiency)
+                    obj.efficiency = max(EFFICIENCY_FLOOR, int(eff * eff_scale))
+            except Exception:
+                pass
+
+        # Charger floor to avoid energy starvation unless explicitly zero-regen
+        ch = env.game.objects.get("charger")
+        if ch is not None and hasattr(ch, "efficiency"):
+            try:
+                ch.efficiency = max(CHARGER_EFFICIENCY_FLOOR, int(ch.efficiency))
+            except Exception:
+                pass
+
+        # Energy regen floor: if nonzero, keep at least 1
+        try:
+            if env.game.agent.inventory_regen_amounts.get("energy", 1) > 0:
+                env.game.agent.inventory_regen_amounts["energy"] = max(
+                    ENERGY_REGEN_FLOOR,
+                    int(env.game.agent.inventory_regen_amounts.get("energy", 1)),
+                )
+        except Exception:
+            pass
+
+        # Clipping
+        self._apply_clipping(env)
+
+    def _apply_clipping(self, cfg: MettaGridConfig) -> None:
+        target = self.clip_target
+
+        # Determine gear and resource mapping for unclipping
+        gear_by_target: dict[str, tuple[str, str]] = {
+            "carbon": ("modulator", "oxygen"),
+            "oxygen": ("decoder", "carbon"),
+            "germanium": ("resonator", "silicon"),
+            "silicon": ("scrambler", "germanium"),
+        }
+
+        if target not in gear_by_target:
+            return
+
+        required_gear, resource_for_gear = gear_by_target[target]
+
+        def _filter_unclip() -> None:
+            """Filter unclipping protocols to only the required gear."""
+            if cfg.game.clipper is None:
+                logger.warning("_filter_unclip: clipper is None")
+                return
+            try:
+                original_count = (
+                    len(cfg.game.clipper.unclipping_protocols)
+                    if hasattr(cfg.game.clipper, "unclipping_protocols")
+                    else 0
+                )
+                cfg.game.clipper.unclipping_protocols = [
+                    r for r in cfg.game.clipper.unclipping_protocols if r.input_resources == {required_gear: 1}
+                ]
+                new_count = len(cfg.game.clipper.unclipping_protocols)
+                logger.info(
+                    f"_filter_unclip: filtered unclipping protocols from {original_count} to {new_count} "
+                    f"(keeping {required_gear})"
+                )
+            except Exception as e:
+                logger.error(f"_filter_unclip failed: {e}")
+                pass
+
+        def _tweak_assembler() -> None:
+            """Add gear crafting protocol to assembler."""
+            print(
+                f"[_tweak_assembler] Called with resource_for_gear={resource_for_gear}, required_gear={required_gear}"
+            )
+            asm = cfg.game.objects.get("assembler")
+            if not isinstance(asm, AssemblerConfig):
+                raise TypeError("Expected 'assembler' to be AssemblerConfig")
+            if asm is None:
+                print("[_tweak_assembler] assembler not found")
+                logger.warning("_tweak_assembler: assembler not found")
+                return
+            try:
+                print(f"[_tweak_assembler] Current protocols ({len(asm.protocols)}):")
+                for i, p in enumerate(asm.protocols):
+                    print(f"  [{i}] vibes={p.vibes}, in={p.input_resources}, out={p.output_resources}")
+
+                protocol = ProtocolConfig(
+                    vibes=["gear"], input_resources={resource_for_gear: 1}, output_resources={required_gear: 1}
+                )
+                print(
+                    f"[_tweak_assembler] Created protocol: vibes=['gear'], "
+                    f"input={resource_for_gear}:1, output={required_gear}:1"
+                )
+                # Check if this protocol already exists
+                if not any(p.vibes == ["gear"] and p.output_resources == {required_gear: 1} for p in asm.protocols):
+                    # APPEND to end (highest priority) instead of prepending (lowest priority)
+                    # Note: protocols are in "reverse order of priority" per AssemblerConfig
+                    asm.protocols = [*asm.protocols, protocol]
+                    print(
+                        f"[_tweak_assembler] ✓ Added gear protocol {resource_for_gear} -> {required_gear} "
+                        f"at END (highest priority)"
+                    )
+                    logger.info(f"_tweak_assembler: Added gear protocol {resource_for_gear} -> {required_gear}")
+                else:
+                    print(f"[_tweak_assembler] gear protocol {resource_for_gear} -> {required_gear} already exists")
+                    logger.info(
+                        f"_tweak_assembler: gear protocol {resource_for_gear} -> {required_gear} already exists"
+                    )
+            except Exception as e:
+                print(f"[_tweak_assembler] ERROR: {e}")
+                logger.error(f"_tweak_assembler failed: {e}")
+                pass
+
+        def _ensure_gear_resource_immune() -> None:
+            """Make the extractor for the gear resource immune."""
+            # Determine which extractor should be immune
+            immune_extractor_name = self.clip_immune_extractor or f"{resource_for_gear}_extractor"
+
+            obj = cfg.game.objects.get(immune_extractor_name)
+            if obj is None:
+                return
+            try:
+                if hasattr(obj, "clip_immune"):
+                    obj.clip_immune = True
+                if hasattr(obj, "start_clipped"):
+                    obj.start_clipped = False
+            except Exception:
+                pass
+
+        def _ensure_critical_stations_immune() -> None:
+            """Make charger, assembler, and chest immune when clipping is active."""
+            for station_name in ["charger", "assembler", "chest"]:
+                obj = cfg.game.objects.get(station_name)
+                if obj is None:
+                    continue
+                try:
+                    if hasattr(obj, "clip_immune"):
+                        obj.clip_immune = True
+                    if hasattr(obj, "start_clipped"):
+                        obj.start_clipped = False
+                except Exception:
+                    pass
+
+        _filter_unclip()
+        logger.info("Added _filter_unclip modifier")
+        _tweak_assembler()
+        _ensure_gear_resource_immune()
+        logger.info("Added _ensure_gear_resource_immune modifier")
+        _ensure_critical_stations_immune()
+        logger.info("Added _ensure_critical_stations_immune modifier")
 
 
 # =============================================================================
@@ -246,373 +521,36 @@ HARD_CLIPPED_OXYGEN = DifficultyLevel(
     allow_agent_scaling=False,
 )
 
-
-# =============================================================================
-# Difficulty Registry
-# =============================================================================
-
-CANONICAL_DIFFICULTY_ORDER = [
-    "story_mode",
-    "standard",
-    "hard",
-    "brutal",
-    "single_use",
-    "speed_run",
-    "energy_crisis",
-    "clipped_oxygen",
-    "clipped_carbon",
-    "clipped_germanium",
-    "clipped_silicon",
-    "clipping_chaos",
-    "hard_clipped_oxygen",
-]
-
-DIFFICULTY_LEVELS: dict[str, DifficultyLevel] = {
-    "story_mode": STORY_MODE,
-    "standard": STANDARD,
-    "hard": HARD,
-    "brutal": BRUTAL,
-    "single_use": SINGLE_USE,
-    "speed_run": SPEED_RUN,
-    "energy_crisis": ENERGY_CRISIS,
-    "clipped_oxygen": CLIPPED_OXYGEN,
-    "clipped_carbon": CLIPPED_CARBON,
-    "clipped_germanium": CLIPPED_GERMANIUM,
-    "clipped_silicon": CLIPPED_SILICON,
-    "clipping_chaos": CLIPPING_CHAOS,
-    "hard_clipped_oxygen": HARD_CLIPPED_OXYGEN,
-}
-
-DifficultyName = Literal[
-    "story_mode",
-    "standard",
-    "hard",
-    "brutal",
-    "single_use",
-    "speed_run",
-    "energy_crisis",
-    "clipped_oxygen",
-    "clipped_carbon",
-    "clipped_germanium",
-    "clipped_silicon",
-    "clipping_chaos",
-    "hard_clipped_oxygen",
+# Export variants for use with --variant CLI flag.
+# Ordered in canonical difficulty order.
+DIFFICULTY_VARIANTS: list[DifficultyLevel] = [
+    STORY_MODE,
+    STANDARD,
+    HARD,
+    BRUTAL,
+    SINGLE_USE,
+    SPEED_RUN,
+    ENERGY_CRISIS,
+    CLIPPED_OXYGEN,
+    CLIPPED_CARBON,
+    CLIPPED_GERMANIUM,
+    CLIPPED_SILICON,
+    CLIPPING_CHAOS,
+    HARD_CLIPPED_OXYGEN,
 ]
 
 
-def get_difficulty(name: DifficultyName) -> DifficultyLevel:
+def get_difficulty(name: str) -> DifficultyLevel:
     """Get a difficulty level by name."""
-    return DIFFICULTY_LEVELS[name]
-
-
-def _apply_clipping(mission, difficulty: DifficultyLevel) -> None:
-    """Apply clipping configuration from a difficulty level to a mission.
-
-    This sets clip_rate, marks target extractors as start_clipped, and adds
-    unclipping recipes and gear crafting recipes as needed.
-    """
-    import logging
-
-    logger = logging.getLogger(__name__)
-
-    # Set clip_rate on mission
-    if difficulty.clip_rate > 0.0:
-        mission.clip_rate = difficulty.clip_rate
-
-    # If no target specified, nothing to clip at start
-    if not difficulty.clip_target or difficulty.clip_target == "none":
-        return
-
-    target = difficulty.clip_target
-
-    # Set the specific station to start clipped
-    try:
-        if target == "carbon":
-            mission.carbon_extractor.start_clipped = True
-            logger.info("Set carbon_extractor.start_clipped = True")
-        elif target == "oxygen":
-            mission.oxygen_extractor.start_clipped = True
-            logger.info(
-                f"Set oxygen_extractor.start_clipped = True (current value: {mission.oxygen_extractor.start_clipped})"
-            )
-        elif target == "germanium":
-            mission.germanium_extractor.start_clipped = True
-            logger.info("Set germanium_extractor.start_clipped = True")
-        elif target == "silicon":
-            mission.silicon_extractor.start_clipped = True
-            logger.info("Set silicon_extractor.start_clipped = True")
-        elif target == "charger":
-            mission.charger.start_clipped = True
-            logger.info("Set charger.start_clipped = True")
-    except Exception as e:
-        # Some missions may not expose all station configs
-        logger.error(f"Failed to set start_clipped on {target}: {e}")
-        pass
-
-    # Determine gear and resource mapping for unclipping
-    gear_by_target: dict[str, tuple[str, str]] = {
-        "carbon": ("modulator", "oxygen"),
-        "oxygen": ("decoder", "carbon"),
-        "germanium": ("resonator", "silicon"),
-        "silicon": ("scrambler", "germanium"),
-    }
-
-    if target not in gear_by_target:
-        return
-
-    required_gear, resource_for_gear = gear_by_target[target]
-
-    # Determine which extractor should be immune
-    immune_extractor_name = difficulty.clip_immune_extractor or f"{resource_for_gear}_extractor"
-
-    try:
-        from cogames.cogs_vs_clips.mission_utils import _add_make_env_modifier
-        from mettagrid.config.mettagrid_config import MettaGridConfig, ProtocolConfig
-    except ImportError:
-        logger.warning("Cannot import mission utilities for clipping config")
-        return
-
-    def _filter_unclip(cfg: MettaGridConfig) -> None:
-        """Filter unclipping protocols to only the required gear."""
-        if cfg.game.clipper is None:
-            logger.warning("_filter_unclip: clipper is None")
-            return
-        try:
-            original_count = (
-                len(cfg.game.clipper.unclipping_protocols) if hasattr(cfg.game.clipper, "unclipping_protocols") else 0
-            )
-            cfg.game.clipper.unclipping_protocols = [
-                r for r in cfg.game.clipper.unclipping_protocols if r.input_resources == {required_gear: 1}
-            ]
-            new_count = len(cfg.game.clipper.unclipping_protocols)
-            logger.info(
-                f"_filter_unclip: filtered unclipping protocols from {original_count} to {new_count} "
-                f"(keeping {required_gear})"
-            )
-        except Exception as e:
-            logger.error(f"_filter_unclip failed: {e}")
-            pass
-
-    def _tweak_assembler(cfg: MettaGridConfig) -> None:
-        """Add gear crafting protocol to assembler."""
-        print(f"[_tweak_assembler] Called with resource_for_gear={resource_for_gear}, required_gear={required_gear}")
-        asm = cfg.game.objects.get("assembler")
-        if asm is None:
-            print("[_tweak_assembler] assembler not found")
-            logger.warning("_tweak_assembler: assembler not found")
-            return
-        try:
-            print(f"[_tweak_assembler] Current protocols ({len(asm.protocols)}):")
-            for i, p in enumerate(asm.protocols):
-                print(f"  [{i}] vibes={p.vibes}, in={p.input_resources}, out={p.output_resources}")
-
-            protocol = ProtocolConfig(
-                vibes=["gear"], input_resources={resource_for_gear: 1}, output_resources={required_gear: 1}
-            )
-            print(
-                f"[_tweak_assembler] Created protocol: vibes=['gear'], "
-                f"input={resource_for_gear}:1, output={required_gear}:1"
-            )
-            # Check if this protocol already exists
-            if not any(p.vibes == ["gear"] and p.output_resources == {required_gear: 1} for p in asm.protocols):
-                # APPEND to end (highest priority) instead of prepending (lowest priority)
-                # Note: protocols are in "reverse order of priority" per AssemblerConfig
-                asm.protocols = [*asm.protocols, protocol]
-                print(
-                    f"[_tweak_assembler] ✓ Added gear protocol {resource_for_gear} -> {required_gear} "
-                    f"at END (highest priority)"
-                )
-                logger.info(f"_tweak_assembler: Added gear protocol {resource_for_gear} -> {required_gear}")
-            else:
-                print(f"[_tweak_assembler] gear protocol {resource_for_gear} -> {required_gear} already exists")
-                logger.info(f"_tweak_assembler: gear protocol {resource_for_gear} -> {required_gear} already exists")
-        except Exception as e:
-            print(f"[_tweak_assembler] ERROR: {e}")
-            logger.error(f"_tweak_assembler failed: {e}")
-            pass
-
-    def _ensure_gear_resource_immune(cfg: MettaGridConfig) -> None:
-        """Make the extractor for the gear resource immune."""
-        obj = cfg.game.objects.get(immune_extractor_name)
-        if obj is None:
-            return
-        try:
-            if hasattr(obj, "clip_immune"):
-                obj.clip_immune = True
-            if hasattr(obj, "start_clipped"):
-                obj.start_clipped = False
-        except Exception:
-            pass
-
-    def _ensure_critical_stations_immune(cfg: MettaGridConfig) -> None:
-        """Make charger, assembler, and chest immune when clipping is active."""
-        for station_name in ["charger", "assembler", "chest"]:
-            obj = cfg.game.objects.get(station_name)
-            if obj is None:
-                continue
-            try:
-                if hasattr(obj, "clip_immune"):
-                    obj.clip_immune = True
-                if hasattr(obj, "start_clipped"):
-                    obj.start_clipped = False
-            except Exception:
-                pass
-
-    mission = _add_make_env_modifier(mission, _filter_unclip)
-    logger.info("Added _filter_unclip modifier")
-    mission = _add_make_env_modifier(mission, _tweak_assembler)
-    mission = _add_make_env_modifier(mission, _ensure_gear_resource_immune)
-    logger.info("Added _ensure_gear_resource_immune modifier")
-    mission = _add_make_env_modifier(mission, _ensure_critical_stations_immune)
-    logger.info("Added _ensure_critical_stations_immune modifier")
-
-
-def apply_difficulty(
-    mission,
-    difficulty: DifficultyLevel,
-) -> None:
-    """Apply a difficulty level to a mission instance.
-
-    Modifies the mission's extractor configs and energy_regen in place.
-
-    Args:
-        mission: Mission instance to modify
-        difficulty: DifficultyLevel to apply
-    """
-    # Apply max_uses (override if set, else multiply), then enforce floor of 1 if baseline > 0
-    for res in RESOURCE_KEYS:
-        extractor = getattr(mission, f"{res}_extractor")
-        override_val = getattr(difficulty, f"{res}_max_uses_override")
-        mult_val = getattr(difficulty, f"{res}_max_uses_mult")
-        if override_val is not None:
-            extractor.max_uses = override_val
-        else:
-            try:
-                mu = int(extractor.max_uses)
-                scaled = int(mu * mult_val)
-                extractor.max_uses = max(1, scaled) if mu > 0 else scaled
-            except Exception:
-                # Best-effort; leave as-is on failure
-                pass
-
-    # Apply efficiency (override if set, else multiply)
-    for res in RESOURCE_KEYS:
-        extractor = getattr(mission, f"{res}_extractor")
-        override_val = getattr(difficulty, f"{res}_eff_override")
-        mult_val = getattr(difficulty, f"{res}_eff_mult")
-        if override_val is not None:
-            extractor.efficiency = override_val
-        else:
-            try:
-                eff = int(extractor.efficiency)
-                extractor.efficiency = int(eff * mult_val)
-            except Exception:
-                pass
-
-    # Charger efficiency
-    if difficulty.charger_eff_override is not None:
-        mission.charger.efficiency = difficulty.charger_eff_override
-    else:
-        mission.charger.efficiency = int(mission.charger.efficiency * difficulty.charger_eff_mult)
-
-    # Energy regen
-    if difficulty.energy_regen_override is not None:
-        mission.energy_regen_amount = difficulty.energy_regen_override
-    else:
-        mission.energy_regen_amount = max(0, int(mission.energy_regen_amount * difficulty.energy_regen_mult))
-
-    # Mission-level overrides
-    if difficulty.move_energy_cost_override is not None:
-        mission.move_energy_cost = difficulty.move_energy_cost_override
-    if difficulty.energy_capacity_override is not None:
-        mission.energy_capacity = difficulty.energy_capacity_override
-    if difficulty.cargo_capacity_override is not None:
-        mission.cargo_capacity = difficulty.cargo_capacity_override
-    if difficulty.max_steps_override is not None:
-        try:
-            from cogames.cogs_vs_clips.missions import _add_make_env_modifier
-
-            def _override_max_steps(cfg):
-                cfg.game.max_steps = difficulty.max_steps_override
-
-            _add_make_env_modifier(mission, _override_max_steps)
-        except Exception:
-            pass
-
-    # Apply clipping configuration
-    if difficulty.clip_rate > 0.0 or difficulty.clip_target is not None:
-        _apply_clipping(mission, difficulty)
-
-    if not difficulty.allow_agent_scaling:
-        return
-
-    # Post-build agent-aware scaling and solvability floors
-    # - Scale extractor max_uses roughly with num_agents
-    # - Mildly scale efficiency with num_agents
-    # - Enforce minimal floors to keep extreme solvable
-    try:
-        # Lazy import to avoid circular imports at module import time
-        from cogames.cogs_vs_clips.missions import _add_make_env_modifier
-
-        def _scale_for_agents(cfg):
-            try:
-                num_agents = int(getattr(cfg.game, "num_agents", 1))
-            except Exception:
-                num_agents = 1
-
-            # Efficiency scale: +20% per extra agent, capped at 2.0x
-            eff_scale = 1.0 + 0.2 * max(0, num_agents - 1)
-            if eff_scale > 2.0:
-                eff_scale = 2.0
-
-            for res in RESOURCE_KEYS:
-                key = f"{res}_extractor"
-                obj = cfg.game.objects.get(key)
-                if obj is None:
-                    continue
-                try:
-                    if hasattr(obj, "max_uses") and obj.max_uses is not None:
-                        mu = int(obj.max_uses)
-                        if mu > 0 and num_agents > 1:
-                            obj.max_uses = max(1, mu * num_agents)
-                        else:
-                            obj.max_uses = max(1, mu)
-                    if hasattr(obj, "efficiency"):
-                        eff = int(obj.efficiency)
-                        obj.efficiency = max(EFFICIENCY_FLOOR, int(eff * eff_scale))
-                except Exception:
-                    pass
-
-            # Charger floor to avoid energy starvation unless explicitly zero-regen
-            ch = cfg.game.objects.get("charger")
-            if ch is not None and hasattr(ch, "efficiency"):
-                try:
-                    ch.efficiency = max(CHARGER_EFFICIENCY_FLOOR, int(ch.efficiency))
-                except Exception:
-                    pass
-
-            # Energy regen floor: if nonzero, keep at least 1
-            try:
-                if cfg.game.agent.inventory_regen_amounts.get("energy", 1) > 0:
-                    cfg.game.agent.inventory_regen_amounts["energy"] = max(
-                        ENERGY_REGEN_FLOOR,
-                        int(cfg.game.agent.inventory_regen_amounts.get("energy", 1)),
-                    )
-            except Exception:
-                pass
-
-        _add_make_env_modifier(mission, _scale_for_agents)
-    except Exception:
-        # If modifier cannot be attached (e.g., import timing), skip agent-aware scaling
-        pass
+    return next(difficulty for difficulty in DIFFICULTY_VARIANTS if difficulty.name == name)
 
 
 def list_difficulties() -> None:
     """Print all available difficulty levels."""
     print("\nAvailable Difficulty Levels")
     print("=" * 80)
-    for name, diff in DIFFICULTY_LEVELS.items():
-        print(f"\n{name.upper()}: {diff.description}")
+    for diff in DIFFICULTY_VARIANTS:
+        print(f"\n{diff.name.upper()}: {diff.description}")
         print(
             f"  Max uses mult: C={diff.carbon_max_uses_mult}, O={diff.oxygen_max_uses_mult}, "
             f"G={diff.germanium_max_uses_mult}, S={diff.silicon_max_uses_mult}"
@@ -622,59 +560,6 @@ def list_difficulties() -> None:
             f"G={diff.germanium_eff_mult}, S={diff.silicon_eff_mult}"
         )
         print(f"  Energy regen mult: {diff.energy_regen_mult}")
-
-
-# =============================================================================
-# MissionVariant Wrappers (for --variant CLI flag)
-# =============================================================================
-
-
-def create_difficulty_variant(difficulty_level: DifficultyLevel) -> type[MissionVariant]:
-    """Create a MissionVariant class for a difficulty level."""
-    from cogames.cogs_vs_clips.mission import MissionVariant
-
-    class DifficultyMissionVariant(MissionVariant):
-        name: str = difficulty_level.name
-        description: str = difficulty_level.description
-
-        def apply(self, mission: Mission) -> Mission:  # type: ignore[override]
-            apply_difficulty(mission, difficulty_level)
-            return mission
-
-    return DifficultyMissionVariant
-
-
-# Create mission variant classes for each difficulty level
-StoryModeVariant = create_difficulty_variant(STORY_MODE)
-StandardVariant = create_difficulty_variant(STANDARD)
-HardVariant = create_difficulty_variant(HARD)
-BrutalVariant = create_difficulty_variant(BRUTAL)
-SingleUseVariant = create_difficulty_variant(SINGLE_USE)
-SpeedRunVariant = create_difficulty_variant(SPEED_RUN)
-EnergyCrisisVariant = create_difficulty_variant(ENERGY_CRISIS)
-ClippedOxygenVariant = create_difficulty_variant(CLIPPED_OXYGEN)
-ClippedCarbonVariant = create_difficulty_variant(CLIPPED_CARBON)
-ClippedGermaniumVariant = create_difficulty_variant(CLIPPED_GERMANIUM)
-ClippedSiliconVariant = create_difficulty_variant(CLIPPED_SILICON)
-ClippingChaosVariant = create_difficulty_variant(CLIPPING_CHAOS)
-HardClippedOxygenVariant = create_difficulty_variant(HARD_CLIPPED_OXYGEN)
-
-# Export variants for use with --variant CLI flag
-DIFFICULTY_VARIANTS = [
-    StoryModeVariant,
-    StandardVariant,
-    HardVariant,
-    BrutalVariant,
-    SingleUseVariant,
-    SpeedRunVariant,
-    EnergyCrisisVariant,
-    ClippedOxygenVariant,
-    ClippedCarbonVariant,
-    ClippedGermaniumVariant,
-    ClippedSiliconVariant,
-    ClippingChaosVariant,
-    HardClippedOxygenVariant,
-]
 
 
 if __name__ == "__main__":

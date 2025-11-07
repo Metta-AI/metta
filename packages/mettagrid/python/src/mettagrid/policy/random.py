@@ -14,7 +14,7 @@ class RandomAgentPolicy(AgentPolicy):
         super().__init__(policy_env_info)
 
     def step(self, obs: AgentObservation) -> Action:
-        return random.choice(self._policy_env_info.actions.actions())
+        return random.choice(self.policy_env_info.actions.actions())
 
     def reset(self, simulation=None) -> None:
         pass
