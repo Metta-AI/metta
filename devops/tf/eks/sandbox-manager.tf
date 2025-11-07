@@ -61,7 +61,7 @@ resource "aws_iam_policy" "sandbox_manager" {
           "ec2:CreateTags",
           "ec2:DeleteTags"
         ]
-        Resource = "arn:aws:ec2:*:751442549699:*"
+        Resource = "arn:aws:ec2:us-east-1:751442549699:*"
       },
       # EC2 describe operations (for status checks)
       {

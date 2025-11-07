@@ -11,16 +11,18 @@ resource "aws_security_group" "sandbox" {
 
 # Allow SSH inbound from specified CIDR blocks
 resource "aws_vpc_security_group_ingress_rule" "ssh" {
+  for_each = toset(var.allowed_ssh_cidrs)
+
   security_group_id = aws_security_group.sandbox.id
   description       = "Allow SSH access from researchers"
 
   from_port   = 22
   to_port     = 22
   ip_protocol = "tcp"
-  cidr_ipv4   = "0.0.0.0/0" # Researchers connect from various IPs
+  cidr_ipv4   = each.value
 
   tags = merge(local.tags, {
-    Name = "sandbox-ssh-inbound"
+    Name = "sandbox-ssh-inbound-${each.key}"
   })
 }
 
