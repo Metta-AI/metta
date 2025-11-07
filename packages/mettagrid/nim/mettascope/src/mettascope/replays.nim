@@ -192,6 +192,11 @@ let EmptyReplay* = Replay(
   fileName: "",
 )
 
+proc parseHook*(s: string, i: var int, v: var IVec2) =
+  var arr: array[2, int32]
+  parseHook(s, i, arr)
+  v = ivec2(arr[0], arr[1])
+
 proc parseHook*(s: string, i: var int, v: var IVec3) =
   var arr: array[3, int32]
   parseHook(s, i, arr)
