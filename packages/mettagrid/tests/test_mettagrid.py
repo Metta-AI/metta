@@ -49,10 +49,6 @@ class TestBasicFunctionality:
 
         assert obs.shape == (basic_env.num_agents, NUM_OBS_TOKENS, TokenTypes.OBS_TOKEN_SIZE)
 
-    def test_grid_hash(self, basic_env: Simulation):
-        """Test grid hash consistency."""
-        assert basic_env.initial_grid_hash == 14602406112020495965  # Updated for RandomMapBuilder with seed=42
-
     def test_action_interface(self, basic_env: Simulation):
         """Test action interface and basic action execution."""
 

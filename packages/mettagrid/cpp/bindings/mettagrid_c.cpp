@@ -21,7 +21,6 @@
 #include "config/observation_features.hpp"
 #include "core/event.hpp"
 #include "core/grid.hpp"
-#include "core/hash.hpp"
 #include "core/types.hpp"
 #include "objects/agent.hpp"
 #include "objects/assembler.hpp"
@@ -142,16 +141,10 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
   }
 
   // Initialize objects from map
-  std::string grid_hash_data;                                        // String to accumulate grid data for hashing
-  grid_hash_data.reserve(static_cast<size_t>(height * width * 20));  // Pre-allocate for efficiency
-
   for (GridCoord r = 0; r < height; r++) {
     for (GridCoord c = 0; c < width; c++) {
       auto py_cell = map[r].cast<py::list>()[c].cast<py::str>();
       auto cell = py_cell.cast<std::string>();
-
-      // Add cell position and type to hash data
-      grid_hash_data += std::to_string(r) + "," + std::to_string(c) + ":" + cell + ";";
 
       // #HardCodedConfig
       if (cell == "empty" || cell == "." || cell == " ") {
@@ -216,9 +209,6 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
 
     _group_rewards.resize(_group_sizes.size());
   }
-
-  // Use wyhash for deterministic, high-performance grid fingerprinting across platforms
-  initial_grid_hash = wyhash::hash_string(grid_hash_data);
 }
 
 void MettaGrid::_make_buffers(unsigned int num_agents) {
@@ -232,7 +222,8 @@ void MettaGrid::_make_buffers(unsigned int num_agents) {
       py::array_t<TruncationType, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(TruncationType)});
   auto rewards = py::array_t<RewardType, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(RewardType)});
   auto actions = py::array_t<ActionType, py::array::c_style>(std::vector<ssize_t>{static_cast<ssize_t>(num_agents)});
-  this->_episode_rewards = py::array_t<float, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(RewardType)});
+  this->_episode_rewards =
+      py::array_t<float, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(RewardType)});
 
   set_buffers(observations, terminals, truncations, rewards, actions);
 }
@@ -975,7 +966,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readonly("current_step", &MettaGrid::current_step)
       .def_readonly("object_type_names", &MettaGrid::object_type_names)
       .def_readonly("resource_names", &MettaGrid::resource_names)
-      .def_readonly("initial_grid_hash", &MettaGrid::initial_grid_hash)
       .def("set_inventory", &MettaGrid::set_inventory, py::arg("agent_id"), py::arg("inventory"));
 
   // Expose this so we can cast python WallConfig / AgentConfig to a common GridConfig cpp object.

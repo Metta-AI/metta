@@ -123,9 +123,9 @@ class TestMiniscopeState:
         assert state.fps == pytest.approx(9.0)  # 6.0 * 1.5
 
         # Test max limit
-        state.fps = 50.0
+        state.fps = 400.0
         state.increase_speed()
-        assert state.fps == 60.0  # Max is 60
+        assert state.fps == 600.0  # Max is 600
 
         # Decrease speed
         state.fps = 6.0
@@ -133,9 +133,9 @@ class TestMiniscopeState:
         assert state.fps == pytest.approx(4.0)  # 6.0 / 1.5
 
         # Test min limit
-        state.fps = 0.6
+        state.fps = 0.015
         state.decrease_speed()
-        assert state.fps == 0.5  # Min is 0.5
+        assert state.fps == 0.01  # Min is 0.01
 
     def test_get_frame_delay(self):
         """Test get_frame_delay method."""
