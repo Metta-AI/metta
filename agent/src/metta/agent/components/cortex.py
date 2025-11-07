@@ -57,8 +57,6 @@ class CortexTDConfig(ComponentConfig):
 
     d_hidden: int = 128
     out_features: Optional[int] = None
-    # Apply a nonlinearity after the stack's output projection; name must be a torch.nn module
-    # Default chosen for good optimization behavior on RL heads
     output_nonlinearity: str = "SiLU"
 
     # JSON‑serializable config for building the Cortex stack.
@@ -551,9 +549,7 @@ class CortexTD(nn.Module):
             return nn.Tanh()
         if n in ("linear", "identity"):
             return nn.Identity()
-        raise ValueError(
-            f"Unsupported output_nonlinearity '{name}'. Allowed: silu/swish, relu, tanh, linear/identity."
-        )
+        raise ValueError(f"Unsupported output_nonlinearity '{name}'. Allowed: silu/swish, relu, tanh, linear/identity.")
 
 
 __all__ = ["CortexTDConfig", "CortexTD"]
