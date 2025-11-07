@@ -1,7 +1,7 @@
 import subprocess
 from collections import defaultdict
 from pathlib import Path
-from typing import Annotated, DefaultDict, Optional, Tuple
+from typing import Annotated, DefaultDict, Optional
 
 import typer
 from pydantic import BaseModel
@@ -13,9 +13,9 @@ from metta.setup.utils import error, info, success
 
 class FormatterConfig(BaseModel):
     name: str
-    format_cmds: Tuple[Tuple[str, ...], ...]
-    check_cmds: Tuple[Tuple[str, ...], ...]
-    extensions: Tuple[str, ...] = ()
+    format_cmds: tuple[tuple[str, ...], ...]
+    check_cmds: tuple[tuple[str, ...], ...]
+    extensions: tuple[str, ...] = ()
 
     def run(self, fix: bool = False, files: set[str] | None = None) -> bool:
         commands = self.check_cmds if not fix else self.format_cmds
@@ -26,6 +26,7 @@ class FormatterConfig(BaseModel):
             cmd = list(base_cmd)
             if file_args:
                 cmd.extend(file_args)
+            info(f"Running command: {' '.join(cmd)}")
             result = subprocess.run(cmd, cwd=get_repo_root(), check=False)
             if result.returncode != 0:
                 return False
@@ -39,12 +40,12 @@ def get_formatters() -> dict[str, FormatterConfig]:
             FormatterConfig(
                 name="Python (ruff)",
                 format_cmds=(
-                    ("uv", "run", "ruff", "check", "--select", "I", "--fix"),
+                    ("uv", "run", "ruff", "check", "--fix"),
                     ("uv", "run", "ruff", "format"),
                 ),
                 check_cmds=(
-                    ("uv", "run", "--active", "ruff", "check", "--select", "I"),
-                    ("uv", "run", "--active", "ruff", "format", "--check"),
+                    ("uv", "run", "ruff", "check"),
+                    ("uv", "run", "ruff", "format", "--check"),
                 ),
                 extensions=(".py",),
             ),
@@ -52,7 +53,7 @@ def get_formatters() -> dict[str, FormatterConfig]:
                 name="JSON",
                 format_cmds=(("bash", "devops/tools/format_json.sh"),),
                 check_cmds=(("bash", "devops/tools/format_json.sh", "--check"),),
-                extensions=(".json",),
+                extensions=(".json", ".jsonc", ".code-workspace"),
             ),
             FormatterConfig(
                 name="Markdown",
@@ -103,10 +104,10 @@ def cmd_lint(
     """Run linting and formatting on code files.
 
     Examples:
-        metta lint                    # Format and lint all detected files
-        metta lint --fix              # Format and lint with auto-fix
-        metta lint --staged --fix     # Format and lint only staged files
-        metta lint --files path/to/file1 --files path/to/file2 --fix
+        metta lint                                     # Check all files
+        metta lint --fix                               # Autofix all files
+        metta lint --staged --fix                      # Autofix staged files
+        metta lint path/to/file1 path/to/file2 --fix   # Autofix specific files
     """
     # Get available formatters
     formatters = get_formatters()
@@ -117,7 +118,7 @@ def cmd_lint(
     if files is not None:
         target_files = files
     elif staged:
-        target_files = [fname for status, fname in git.get_uncommitted_files_by_status() if status[1] == "M"]
+        target_files = [fname for status, fname in git.get_uncommitted_files_by_status() if status[0] == "M"]
 
     if target_files is not None:
         files_by_formatter = defaultdict(set)

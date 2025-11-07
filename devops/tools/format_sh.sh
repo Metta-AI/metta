@@ -23,5 +23,3 @@ fi
 
 # Format shell script files
 format_files "sh"
-
-echo "All shell script files (except excluded ones) have been $mode_past with Prettier."

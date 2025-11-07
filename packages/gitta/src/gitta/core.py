@@ -112,7 +112,7 @@ def run_git_cmd(
 
     # Handle errors
     if result.returncode != 0:
-        stderr = result.stderr.decode("utf-8", errors="replace").strip()
+        stderr = result.stderr.decode("utf-8", errors="replace")
 
         # Check for specific error conditions
         if "not a git repository" in stderr.lower():
@@ -132,7 +132,7 @@ def run_git_cmd(
         cmd_str = " ".join(shlex.quote(str(a)) for a in args)
         raise GitError(f"git {cmd_str} failed ({result.returncode}): {stderr}")
 
-    return result.stdout.decode("utf-8", errors="surrogateescape").strip()
+    return result.stdout.decode("utf-8", errors="surrogateescape")
 
 
 def run_git(*args: str) -> str:
