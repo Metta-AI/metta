@@ -192,7 +192,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             if resource_name not in configured_resources:
                 limits_list.append(([resource_name_to_id[resource_name]], default_resource_limit))
 
-        inventory_config = CppInventoryConfig(limits=limits_list)
+        inventory_config = CppInventoryConfig(limits_list)
 
         cpp_agent_config = CppAgentConfig(
             type_id=0,
@@ -294,7 +294,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 resource_id = resource_name_to_id[resource]
                 limits_list.append([[resource_id], limit])
 
-            inventory_config = CppInventoryConfig(limits=limits_list)
+            inventory_config = CppInventoryConfig(limits_list)
 
             cpp_chest_config = CppChestConfig(
                 type_id=object_config.type_id, type_name=object_type, initial_vibe=object_config.vibe
