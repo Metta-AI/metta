@@ -122,7 +122,6 @@ class TransformerPolicy(Policy):
             config = self.ConfigClass()
         self.config = config
 
-        self.policy_env_info = policy_env_info
         self.is_continuous = False
         self.action_space = policy_env_info.action_space
 
