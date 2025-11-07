@@ -64,6 +64,7 @@ _MISSION_BY_NAME: dict[str, Mission] = {
     mission.name: mission for mission in EVAL_MISSIONS
 }
 
+
 def _normalize_variant_names(
     *,
     initial: Optional[Sequence[str]] = None,
