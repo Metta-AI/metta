@@ -25,7 +25,7 @@ Agent::Agent(GridCoord r,
       stats(resource_names),
       current_stat_reward(0),
       reward(nullptr),
-      prev_location(r, c, GridLayer::AgentLayer),
+      prev_location(r, c),
       prev_action_name(""),
       steps_without_motion(0),
       inventory_regen_amounts(config.inventory_regen_amounts),
@@ -40,8 +40,7 @@ Agent::Agent(GridCoord r,
   }
 
   populate_initial_inventory(config.initial_inventory);
-  GridObject::init(
-      config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer), config.tag_ids, config.initial_vibe);
+  GridObject::init(config.type_id, config.type_name, GridLocation(r, c), config.tag_ids, config.initial_vibe);
 }
 
 void Agent::init(RewardType* reward_ptr) {
