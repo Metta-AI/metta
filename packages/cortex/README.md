@@ -133,6 +133,8 @@ stack = build_cortex_auto_stack(
     compile_blocks=True,             # torch.compile blocks (and Column experts) when grad-enabled
 )
 
+stack = stack.cuda()
+
 # Initialize and run
 B, T = 4, 16
 state = stack.init_state(batch=B, device="cuda", dtype=torch.float32)

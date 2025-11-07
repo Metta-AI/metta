@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cortexcore"
-version = "0.1.4"
+version = "0.1.5"
 description = "cortex is a modular library for building recurrent backbones and agent memory systems."
 readme = "README.md"
 requires-python = ">=3.12"
