@@ -14,7 +14,7 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config
 from mettagrid.policy.policy import AgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.policy.random import RandomMultiAgentPolicy
+from mettagrid.policy.random import RandomAgentPolicy
 from mettagrid.renderer.renderer import RenderMode
 from mettagrid.simulator.rollout import Rollout
 
