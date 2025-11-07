@@ -224,7 +224,6 @@ class MettaGrid:
     map_width: int
     map_height: int
     num_agents: int
-    initial_grid_hash: int
 
     def __init__(self, env_cfg: GameConfig, map: list, seed: int) -> None: ...
     def step(self) -> None: ...
