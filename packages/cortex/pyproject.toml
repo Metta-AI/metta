@@ -26,8 +26,18 @@ dev = ["pytest>=8.3.3", "pytest-cov>=6.1.1", "pytest-xdist>=3.8.0"]
 where = ["src"]
 include = ["cortex", "cortex.*"]
 
+[tool.setuptools]
+include-package-data = true
+
 [tool.setuptools.package-data]
-cortex = ["py.typed"]
+cortex = [
+  "py.typed",
+  "**/*.cu",
+  "**/*.cpp",
+  "**/*.cuh",
+  "**/*.h",
+  "**/*.hpp",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
