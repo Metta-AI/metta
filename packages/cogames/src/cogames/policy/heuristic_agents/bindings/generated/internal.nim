@@ -21,6 +21,6 @@ proc heuristic_agents_heuristic_agent_reset*(agent: HeuristicAgent) {.raises: []
 proc heuristic_agents_heuristic_agent_step*(agent: HeuristicAgent, num_agents: int, num_tokens: int, size_token: int, row_observations: pointer, num_actions: int, raw_actions: pointer) {.raises: [], cdecl, exportc, dynlib.} =
   step(agent, num_agents, num_tokens, size_token, row_observations, num_actions, raw_actions)
 
-proc heuristic_agents_init*() {.raises: [], cdecl, exportc, dynlib.} =
-  init()
+proc heuristic_agents_init_chook*() {.raises: [], cdecl, exportc, dynlib.} =
+  initCHook()
 
