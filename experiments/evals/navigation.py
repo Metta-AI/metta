@@ -30,7 +30,7 @@ def make_nav_ascii_env(
 
     map_instance = AsciiMapBuilder.Config.from_uri(path)
 
-    # replace objects with altars
+    # Replace objects with altars by setting char_to_map_name (char -> map_name, the stable ASCII map key).
     map_instance.char_to_map_name["n"] = "altar"
     map_instance.char_to_map_name["m"] = "altar"
 
