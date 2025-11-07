@@ -122,15 +122,12 @@ Built‑in expert tokens:
 ```python
 import torch
 from cortex.stacks import build_cortex_auto_stack  # packages/cortex/src/cortex/stacks/auto.py
-from cortex.config import RouterConfig
 
 # Build a 4-layer Column stack; each layer mixes A, X, M, S experts
 stack = build_cortex_auto_stack(
     d_hidden=256,
     num_layers=4,
     pattern="AXMS",                 # per-layer expert set (can be a list for per-layer patterns)
-    post_norm=True,
-    compile_blocks=True,             # torch.compile blocks (and Column experts) when grad-enabled
 )
 
 stack = stack.cuda()

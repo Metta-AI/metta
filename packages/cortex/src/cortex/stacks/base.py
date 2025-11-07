@@ -71,9 +71,7 @@ class CortexStack(nn.Module):
 
         return blocks
 
-    def init_state(
-        self, batch: int, *, device: torch.device | str = "cpu", dtype: torch.dtype
-    ) -> TensorDict:
+    def init_state(self, batch: int, *, device: torch.device | str = "cpu", dtype: torch.dtype) -> TensorDict:
         state = TensorDict({}, batch_size=[batch], device=torch.device(device))
         for i, block in enumerate(self.blocks):
             block_key = f"{block.__class__.__name__}_{i}"
