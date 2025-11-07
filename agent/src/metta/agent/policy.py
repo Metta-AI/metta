@@ -22,9 +22,9 @@ from metta.agent.components.obs_shim import (
 )
 from metta.rl.utils import ensure_sequence_metadata
 from mettagrid.base_config import Config
-from mettagrid.policy.policy import AgentPolicy, TrainablePolicy
+from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, TrainablePolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator import Action, AgentObservation
+from mettagrid.simulator import Action, AgentObservation, Simulation
 from mettagrid.util.module import load_symbol
 
 
@@ -115,7 +115,7 @@ class _SingleAgentAdapter(AgentPolicy):
         self._policy(td)
         return self._actions_by_id[int(td["actions"][0].item())]
 
-    def reset(self, simulation=None, *args, **kwargs) -> None:
+    def reset(self, simulation: Optional[Simulation] = None) -> None:
         """Reset policy state if needed."""
         self._policy.reset_memory()
 
@@ -139,22 +139,21 @@ class _SingleAgentAdapter(AgentPolicy):
         return td
 
 
-class DistributedPolicy(DistributedDataParallel):
+class DistributedPolicy(TrainablePolicy, DistributedDataParallel):
     """Thin wrapper around DistributedDataParallel that preserves Policy interface."""
 
-    module: "Policy"
+    def __init__(self, policy: MultiAgentPolicy, device: torch.device):
+        TrainablePolicy.__init__(self, policy.policy_env_info)
 
-    def __init__(self, policy: "Policy", device: torch.device):
+        # Then initialize DistributedDataParallel
         kwargs = {
             "module": policy,
             "broadcast_buffers": False,
             "find_unused_parameters": False,
         }
-        if device.type == "cpu" or device.index is None:
-            super().__init__(**kwargs)
-        else:
+        if device.type != "cpu" and device.index is not None:
             kwargs.update({"device_ids": [device.index], "output_device": device.index})
-            super().__init__(**kwargs)
+        DistributedDataParallel.__init__(self, **kwargs)
 
     def __getattr__(self, name: str):
         try:

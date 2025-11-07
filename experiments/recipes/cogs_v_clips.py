@@ -18,7 +18,7 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss.loss import LossConfig
+from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -271,7 +271,7 @@ def train(
     )
 
     trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
+        losses=LossesConfig(),
     )
 
     resolved_eval_variants = _resolve_eval_variants(variants, eval_variants)
@@ -309,7 +309,7 @@ def train_single_mission(
     curriculum_cfg = cc.env_curriculum(env)
 
     trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
+        losses=LossesConfig(),
     )
 
     resolved_eval_variants = _resolve_eval_variants(variants, eval_variants)
