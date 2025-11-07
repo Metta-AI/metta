@@ -137,9 +137,8 @@ stack = stack.cuda()
 
 # Initialize and run
 B, T = 4, 16
-state = stack.init_state(batch=B, device="cuda", dtype=torch.float32)
 x = torch.randn(B, T, 256, device="cuda")
-out, state = stack(x, state)
+out, state = stack(x)
 
 # Single-step inference
 x_step = torch.randn(B, 256, device="cuda")
