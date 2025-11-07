@@ -38,7 +38,7 @@ class ReplayTool(Tool):
         )
 
         result = sim.simulate()
-        
+
         if self.launch_viewer:
             # Get all replay URLs (needed for viewer)
             replay_urls = result.stats_db.get_replay_urls()
@@ -50,7 +50,7 @@ class ReplayTool(Tool):
         else:
             # For CI/non-visualization, just confirm replays were generated
             logger.info("Replay generation completed (viewer launch skipped)")
-        
+
         return 0
 
 
