@@ -561,7 +561,7 @@ block generated_replay_test:
   createDir(tmpDir)
   defer: removeDir(tmpDir)
 
-  # Generate a replay using the CI configuration (use reduced steps for faster testing in CI)
+  # Generate a replay using the CI configuration
   let projectRoot = parentDir(parentDir(parentDir(parentDir(parentDir(parentDir(currentSourcePath()))))))
   let cmd = &"cd {projectRoot} && uv run --no-sync tools/run.py ci.replay_null replay_dir={tmpDir} stats_dir={tmpDir}"
   echo &"Running replay generation: {cmd}"
