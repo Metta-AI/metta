@@ -5,12 +5,10 @@ Tool handler functions for the Observatory MCP server.
 """
 
 import logging
-import time
-from typing import Any
 
 from metta.app_backend.clients.scorecard_client import ScorecardClient
 
-from .utils import format_error_response, format_success_response, handle_backend_error, serialize_response_data
+from ..utils import format_success_response, handle_backend_error, serialize_response_data
 
 logger = logging.getLogger(__name__)
 
@@ -24,17 +22,14 @@ async def get_training_runs(client: ScorecardClient) -> str:
     Returns:
         JSON string with training runs data
     """
-    start_time = time.perf_counter()
     try:
         logger.info("Getting all training runs and policies")
         response = await client.get_policies()
         data = serialize_response_data(response)
-        duration = time.perf_counter() - start_time
-        logger.info(f"get_training_runs completed in {duration:.3f}s")
+        logger.info("get_training_runs completed")
         return format_success_response(data)
     except Exception as e:
-        duration = time.perf_counter() - start_time
-        logger.warning(f"get_training_runs failed after {duration:.3f}s: {e}")
+        logger.warning(f"get_training_runs failed: {e}")
         return handle_backend_error(e, "get_training_runs")
 
 
@@ -47,17 +42,14 @@ async def get_policies(client: ScorecardClient) -> str:
     Returns:
         JSON string with policies data
     """
-    start_time = time.perf_counter()
     try:
         logger.info("Getting all policies and training runs")
         response = await client.get_policies()
         data = serialize_response_data(response)
-        duration = time.perf_counter() - start_time
-        logger.info(f"get_policies completed in {duration:.3f}s")
+        logger.info("get_policies completed")
         return format_success_response(data)
     except Exception as e:
-        duration = time.perf_counter() - start_time
-        logger.warning(f"get_policies failed after {duration:.3f}s: {e}")
+        logger.warning(f"get_policies failed: {e}")
         return handle_backend_error(e, "get_policies")
 
 
@@ -84,7 +76,6 @@ async def search_policies(
     Returns:
         JSON string with matching policies
     """
-    start_time = time.perf_counter()
     try:
         logger.info(
             f"Searching policies: search={search}, type={policy_type}, "
@@ -99,12 +90,10 @@ async def search_policies(
             offset=offset,
         )
         data = serialize_response_data(response)
-        duration = time.perf_counter() - start_time
-        logger.info(f"search_policies completed in {duration:.3f}s")
+        logger.info("search_policies completed")
         return format_success_response(data)
     except Exception as e:
-        duration = time.perf_counter() - start_time
-        logger.warning(f"search_policies failed after {duration:.3f}s: {e}")
+        logger.warning(f"search_policies failed: {e}")
         return handle_backend_error(e, "search_policies")
 
 
@@ -123,7 +112,6 @@ async def get_eval_names(
     Returns:
         JSON string with list of eval names in format 'eval_category/env_name'
     """
-    start_time = time.perf_counter()
     try:
         logger.info(
             f"Getting eval names for {len(training_run_ids)} training runs "
@@ -133,12 +121,10 @@ async def get_eval_names(
             training_run_ids=training_run_ids,
             run_free_policy_ids=run_free_policy_ids,
         )
-        duration = time.perf_counter() - start_time
-        logger.info(f"get_eval_names completed in {duration:.3f}s (found {len(eval_names)} evals)")
+        logger.info(f"get_eval_names completed (found {len(eval_names)} evals)")
         return format_success_response(eval_names)
     except Exception as e:
-        duration = time.perf_counter() - start_time
-        logger.warning(f"get_eval_names failed after {duration:.3f}s: {e}")
+        logger.warning(f"get_eval_names failed: {e}")
         return handle_backend_error(e, "get_eval_names")
 
 
@@ -159,7 +145,6 @@ async def get_available_metrics(
     Returns:
         JSON string with list of available metrics
     """
-    start_time = time.perf_counter()
     try:
         logger.info(
             f"Getting available metrics for {len(eval_names)} evals, "
@@ -170,12 +155,10 @@ async def get_available_metrics(
             run_free_policy_ids=run_free_policy_ids,
             eval_names=eval_names,
         )
-        duration = time.perf_counter() - start_time
-        logger.info(f"get_available_metrics completed in {duration:.3f}s (found {len(metrics)} metrics)")
+        logger.info(f"get_available_metrics completed (found {len(metrics)} metrics)")
         return format_success_response(metrics)
     except Exception as e:
-        duration = time.perf_counter() - start_time
-        logger.warning(f"get_available_metrics failed after {duration:.3f}s: {e}")
+        logger.warning(f"get_available_metrics failed: {e}")
         return handle_backend_error(e, "get_available_metrics")
 
 
@@ -200,7 +183,6 @@ async def generate_scorecard(
     Returns:
         JSON string with scorecard data (policies, evals, cells)
     """
-    start_time = time.perf_counter()
     try:
         if policy_selector not in ["best", "latest"]:
             raise ValueError(f"policy_selector must be 'best' or 'latest', got '{policy_selector}'")
@@ -218,12 +200,10 @@ async def generate_scorecard(
             policy_selector=policy_selector,  # type: ignore
         )
         data = serialize_response_data(response)
-        duration = time.perf_counter() - start_time
-        logger.info(f"generate_scorecard completed in {duration:.3f}s")
+        logger.info("generate_scorecard completed")
         return format_success_response(data)
     except Exception as e:
-        duration = time.perf_counter() - start_time
-        logger.warning(f"generate_scorecard failed after {duration:.3f}s: {e}")
+        logger.warning(f"generate_scorecard failed: {e}")
         return handle_backend_error(e, "generate_scorecard")
 
 
@@ -237,7 +217,6 @@ async def run_sql_query(client: ScorecardClient, sql: str) -> str:
     Returns:
         JSON string with query results (columns, rows, row_count)
     """
-    start_time = time.perf_counter()
     try:
         if not sql or not sql.strip():
             raise ValueError("SQL query cannot be empty")
@@ -245,12 +224,10 @@ async def run_sql_query(client: ScorecardClient, sql: str) -> str:
         logger.info(f"Executing SQL query: {sql[:100]}...")
         response = await client.sql_query(sql)
         data = serialize_response_data(response)
-        duration = time.perf_counter() - start_time
-        logger.info(f"run_sql_query completed in {duration:.3f}s")
+        logger.info("run_sql_query completed")
         return format_success_response(data)
     except Exception as e:
-        duration = time.perf_counter() - start_time
-        logger.warning(f"run_sql_query failed after {duration:.3f}s: {e}")
+        logger.warning(f"run_sql_query failed: {e}")
         return handle_backend_error(e, "run_sql_query")
 
 
@@ -264,7 +241,6 @@ async def generate_ai_query(client: ScorecardClient, description: str) -> str:
     Returns:
         JSON string with generated SQL query
     """
-    start_time = time.perf_counter()
     try:
         if not description or not description.strip():
             raise ValueError("Description cannot be empty")
@@ -272,11 +248,8 @@ async def generate_ai_query(client: ScorecardClient, description: str) -> str:
         logger.info(f"Generating AI query from description: {description[:100]}...")
         response = await client.generate_ai_query(description)
         data = serialize_response_data(response)
-        duration = time.perf_counter() - start_time
-        logger.info(f"generate_ai_query completed in {duration:.3f}s")
+        logger.info("generate_ai_query completed")
         return format_success_response(data)
     except Exception as e:
-        duration = time.perf_counter() - start_time
-        logger.warning(f"generate_ai_query failed after {duration:.3f}s: {e}")
+        logger.warning(f"generate_ai_query failed: {e}")
         return handle_backend_error(e, "generate_ai_query")
-
