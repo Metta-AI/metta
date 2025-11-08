@@ -223,7 +223,7 @@ class GridObjectConfig(Config):
         # If no tags, inject a default kind tag so the object is visible in observations
         if not self.tags:
             default_tag = getattr(self, "type", None)  # this is typically what you want, a Wall gets tag "wall"
-            default_tag = default_tag or self.map_name  # this is a good fallback tag
+            default_tag = default_tag or self.render_name  # this is a good fallback tag
             default_tag = default_tag or "object"  # if nothing else, be visible as an object
             self.tags = [default_tag]
         return self
