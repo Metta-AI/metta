@@ -1,4 +1,5 @@
 import os
+import shutil
 
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
@@ -26,7 +27,10 @@ class IdeExtensions(SetupModule):
             "vscode": "code",
         }
         term_program = os.getenv("TERM_PROGRAM", "").lower()
-        return term_program_to_command.get(term_program)
+        cmd = term_program_to_command.get(term_program)
+        if cmd and shutil.which(cmd):
+            return cmd
+        return None
 
     def _list_installed_extensions(self, code_cmd: str) -> set[str]:
         result = self.run_command([code_cmd, "--list-extensions"], capture_output=True, check=False)
