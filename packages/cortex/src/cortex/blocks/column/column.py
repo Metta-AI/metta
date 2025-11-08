@@ -243,8 +243,7 @@ __all__ = ["ColumnBlock"]
 
 
 class _NoOpCell(MemoryCell):
-    """Top-level no-op cell to satisfy BaseBlock without projections.
-    """
+    """Top-level no-op cell to satisfy BaseBlock without projections."""
 
     def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> TensorDict:  # type: ignore[override]
         return TensorDict({}, batch_size=[batch], device=torch.device(device))
