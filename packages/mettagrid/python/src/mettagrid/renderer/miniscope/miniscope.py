@@ -12,9 +12,7 @@ from typing import List, Optional
 from rich.console import Console
 
 from mettagrid.config.vibes import VIBES as VIBE_DATA
-from mettagrid.renderer.renderer import Renderer
-
-from .components import (
+from mettagrid.renderer.miniscope.components import (
     AgentControlComponent,
     AgentInfoComponent,
     HelpPanelComponent,
@@ -25,6 +23,8 @@ from .components import (
     SymbolsTableComponent,
     VibePickerComponent,
 )
+from mettagrid.renderer.renderer import Renderer
+
 from .miniscope_panel import LAYOUT_PADDING, RESERVED_VERTICAL_LINES, SIDEBAR_WIDTH, PanelLayout
 from .miniscope_state import MiniscopeState, PlaybackState, RenderMode
 from .symbol import DEFAULT_SYMBOL_MAP

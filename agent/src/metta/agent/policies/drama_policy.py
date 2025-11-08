@@ -1,8 +1,13 @@
 from typing import List
 
-from metta.agent.components.actor import ActionProbsConfig, ActorHeadConfig
+import metta.agent.components.drama.config as drama_config
+from metta.agent.components.action import ActionEmbeddingConfig
+from metta.agent.components.actor import (
+    ActionProbsConfig,
+    ActorKeyConfig,
+    ActorQueryConfig,
+)
 from metta.agent.components.component_config import ComponentConfig
-from metta.agent.components.drama import DramaWorldModelConfig
 from metta.agent.components.misc import MLPConfig
 from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
 from metta.agent.components.obs_shim import ObsShimTokensConfig
@@ -36,7 +41,7 @@ class DramaPolicyConfig(PolicyArchitecture):
             num_heads=2,
             num_layers=1,
         ),
-        DramaWorldModelConfig(
+        drama_config.DramaWorldModelConfig(
             in_key="encoded_obs",
             out_key="core",
             action_key="last_actions",
@@ -53,7 +58,14 @@ class DramaPolicyConfig(PolicyArchitecture):
             out_features=1,
             hidden_features=[192],
         ),
-        ActorHeadConfig(in_key="core", out_key="logits", input_dim=_core_out_dim),
+        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embed_dim),
+        ActorQueryConfig(in_key="core", out_key="actor_query", hidden_size=_core_out_dim, embed_dim=_embed_dim),
+        ActorKeyConfig(
+            query_key="actor_query",
+            embedding_key="action_embedding",
+            out_key="logits",
+            embed_dim=_embed_dim,
+        ),
     ]
 
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
