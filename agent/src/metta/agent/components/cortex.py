@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from cgitb import reset
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -251,8 +252,13 @@ class CortexTD(nn.Module):
 
     def experience_keys(self) -> Dict[FlatKey, torch.Size]:
         """Replay keys required by the component."""
-
-        return {"training_env_ids": torch.Size([1])}
+        # Ensure training-time unrolls receive proper reset signals.
+        # training_env_ids maps envs to state slots; dones/truncateds provide per-step resets.
+        return {
+            "training_env_ids": torch.Size([1]),
+            "dones": torch.Size([]),
+            "truncateds": torch.Size([]),
+        }
 
     def reset_memory(self) -> None:
         return
