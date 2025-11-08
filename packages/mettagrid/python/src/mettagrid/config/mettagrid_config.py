@@ -423,16 +423,6 @@ class GameConfig(Config):
             num_vibes = self.actions.change_vibe.number_of_vibes
             self.vibe_names = [vibe.name for vibe in VIBES[:num_vibes]]
 
-    def model_dump(self, **kwargs):
-        """Override model_dump to ensure vibe_names is synced with change_vibe config."""
-        from mettagrid.config.vibes import VIBES
-
-        # Always update vibe_names to match current number_of_vibes
-        num_vibes = self.actions.change_vibe.number_of_vibes
-        self.vibe_names = [vibe.name for vibe in VIBES[:num_vibes]]
-
-        return super().model_dump(**kwargs)
-
     def id_map(self) -> "IdMap":
         """Get the observation feature ID map for this configuration."""
         # Create a minimal MettaGridConfig wrapper
