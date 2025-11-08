@@ -26,13 +26,15 @@ parse_format_args "$@"
 ensure_pnpm
 ensure_prettier
 
-# Format JSON files
+# Format JSON-based files
 format_files "json"
+format_files "jsonc"
+format_files "code-workspace"
 
-# Also format .code-workspace files
-if [ -f "metta.code-workspace" ]; then
-  echo "Formatting metta.code-workspace..."
-  pnpm exec prettier --write metta.code-workspace
+# Emit a short summary so callers know formatting completed
+if [ "${CHECK_MODE:-false}" = "true" ]; then
+  mode_past="checked"
+else
+  mode_past="formatted"
 fi
-
-echo "All JSON files (except excluded ones) have been formatted with Prettier."
+echo "All JSON-family files have been $mode_past with Prettier."

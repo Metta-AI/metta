@@ -50,8 +50,10 @@ public:
   explicit ResourceMod(const ResourceModConfig& cfg, const std::string& name = "resource_mod")
       : ActionHandler(cfg, name), _modifies(cfg.modifies), _agent_radius(cfg.agent_radius), _scales(cfg.scales) {}
 
-  unsigned char max_arg() const override {
-    return 0;
+  std::vector<Action> create_actions() override {
+    std::vector<Action> actions;
+    actions.emplace_back(this, action_name(), 0);
+    return actions;
   }
 
 protected:
@@ -84,10 +86,10 @@ protected:
 
           if (target_row >= 0 && target_row < static_cast<int>(_grid->height) && target_col >= 0 &&
               target_col < static_cast<int>(_grid->width)) {
-            GridLocation loc(target_row, target_col, GridLayer::AgentLayer);
+            GridLocation loc(target_row, target_col);
             GridObject* obj = _grid->object_at(loc);
-            if (obj != nullptr) {
-              Agent* agent = static_cast<Agent*>(obj);
+            Agent* agent = dynamic_cast<Agent*>(obj);
+            if (agent) {
               affected_agents.push_back(agent);
             }
           }

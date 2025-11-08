@@ -1,13 +1,15 @@
 """Help panel component for miniscope renderer."""
 
-from typing import List
+from typing import TYPE_CHECKING, List
 
 from rich import box
 from rich.table import Table
 
-from mettagrid import MettaGridEnv
 from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
+
+if TYPE_CHECKING:
+    from mettagrid.simulator import Simulation
 
 from .base import MiniscopeComponent
 
@@ -17,19 +19,22 @@ class HelpPanelComponent(MiniscopeComponent):
 
     def __init__(
         self,
-        env: MettaGridEnv,
+        sim: "Simulation",
         state: MiniscopeState,
         panels: PanelLayout,
     ):
         """Initialize the help panel component.
 
         Args:
-            env: MettaGrid environment reference
+            sim: MettaGrid simulator reference
             state: Miniscope state reference
             panels: Panel layout containing all panels
         """
-        super().__init__(env=env, state=state, panels=panels)
-        self._set_panel(panels.get_sidebar_panel("help"))
+        super().__init__(sim=sim, state=state, panels=panels)
+        sidebar_panel = panels.get_sidebar_panel("help")
+        if sidebar_panel is None:
+            sidebar_panel = panels.register_sidebar_panel("help")
+        self._set_panel(sidebar_panel)
 
     def update(self) -> None:
         """Render the help panel."""

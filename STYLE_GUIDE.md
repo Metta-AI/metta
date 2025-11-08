@@ -97,11 +97,18 @@ def some_function():
 
 ## General Guidelines
 
-- **Error handling:** Only catch exceptions you can meaningfully handle. When you do so, include the stack trace: `logger.error(..., exc_info=True)`
+- **Error handling:** Only catch exceptions you can meaningfully handle. When you do so, include the stack trace:
+  `logger.error(..., exc_info=True)`
 - **Defensive programming:** Reserve for truly unpredictable external inputs
 - **Code length:** Shorter is better when it doesn't sacrifice clarity
 - **Comments:** Should add value, not repeat what the code already says
 - **Dependencies:** Make them explicit and visible at the module level
+
+### Module Export Hygiene
+
+- Avoid `__all__` exports; they hide module structure and complicate static analysis
+- Keep `__init__.py` empty unless the package is public-facing and benefits from a single import surface
+- When an aggregation layer is needed, prefer dedicated modules over implicit `__init__` side effects
 
 ## Summary
 

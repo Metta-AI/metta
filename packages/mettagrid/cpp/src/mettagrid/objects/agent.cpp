@@ -3,15 +3,18 @@
 #include <algorithm>
 #include <cassert>
 
-#include "objects/agent_config.hpp"
+#include "config/observation_features.hpp"
 
-Agent::Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vector<std::string>* resource_names)
+Agent::Agent(GridCoord r,
+             GridCoord c,
+             const AgentConfig& config,
+             const std::vector<std::string>* resource_names,
+             const std::unordered_map<std::string, ObservationType>* feature_ids)
     : GridObject(),
-      HasInventory(config.inventory_config),
+      HasInventory(config.inventory_config, resource_names, feature_ids),
       group(config.group_id),
       frozen(0),
       freeze_duration(config.freeze_duration),
-      orientation(Orientation::North),
       stat_rewards(config.stat_rewards),
       stat_reward_max(config.stat_reward_max),
       action_failure_penalty(config.action_failure_penalty),
@@ -22,7 +25,7 @@ Agent::Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vec
       stats(resource_names),
       current_stat_reward(0),
       reward(nullptr),
-      prev_location(r, c, GridLayer::AgentLayer),
+      prev_location(r, c),
       prev_action_name(""),
       steps_without_motion(0),
       inventory_regen_amounts(config.inventory_regen_amounts),
@@ -37,8 +40,7 @@ Agent::Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vec
   }
 
   populate_initial_inventory(config.initial_inventory);
-  GridObject::init(
-      config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer), config.tag_ids, config.initial_vibe);
+  GridObject::init(config.type_id, config.type_name, GridLocation(r, c), config.tag_ids, config.initial_vibe);
 }
 
 void Agent::init(RewardType* reward_ptr) {
@@ -176,7 +178,7 @@ bool Agent::onUse(Agent& actor, ActionArg arg) {
 }
 
 std::vector<PartialObservationToken> Agent::obs_features() const {
-  const size_t num_tokens = this->inventory.get().size() + 5 + (this->vibe != 0 ? 1 : 0) + this->tag_ids.size();
+  const size_t num_tokens = this->inventory.get().size() + 4 + (vibe > 0 ? 1 : 0) + this->tag_ids.size();
 
   std::vector<PartialObservationToken> features;
   features.reserve(num_tokens);
@@ -184,13 +186,12 @@ std::vector<PartialObservationToken> Agent::obs_features() const {
   features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(type_id)});
   features.push_back({ObservationFeature::Group, static_cast<ObservationType>(group)});
   features.push_back({ObservationFeature::Frozen, static_cast<ObservationType>(frozen != 0 ? 1 : 0)});
-  features.push_back({ObservationFeature::Orientation, static_cast<ObservationType>(orientation)});
-  if (this->vibe != 0) features.push_back({ObservationFeature::Vibe, static_cast<ObservationType>(this->vibe)});
+  if (vibe != 0) features.push_back({ObservationFeature::Vibe, static_cast<ObservationType>(vibe)});
 
   for (const auto& [item, amount] : this->inventory.get()) {
     // inventory should only contain non-zero amounts
     assert(amount > 0);
-    auto item_observation_feature = static_cast<ObservationType>(InventoryFeatureOffset + item);
+    auto item_observation_feature = this->inventory.get_feature_id(item);
     features.push_back({item_observation_feature, static_cast<ObservationType>(amount)});
   }
 

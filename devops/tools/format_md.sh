@@ -16,15 +16,12 @@ parse_format_args "$@"
 ensure_pnpm
 ensure_prettier
 
-# Format markdown files
-format_files "md"
-
-# Also format README files without extension (if any)
-echo "Checking for README files without extension..."
-if [ -n "$EXCLUDE_PATTERN" ]; then
-  find . -name "README" -type f | grep -v "$EXCLUDE_PATTERN" | xargs -r pnpm exec prettier --write --parser markdown
+# Determine mode for final message
+if [ "${CHECK_MODE:-false}" = "true" ]; then
+  mode_past="checked"
 else
-  find . -name "README" -type f | xargs -r pnpm exec prettier --write --parser markdown
+  mode_past="formatted"
 fi
 
-echo "All Markdown files (except excluded ones) have been formatted with Prettier."
+# Format or check markdown files with Prettier
+format_files "md"

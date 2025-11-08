@@ -14,7 +14,12 @@ ensure_pnpm
 ensure_prettier
 ensure_prettier_plugin "prettier-plugin-sh" "Prettier plugin for shell scripts"
 
+# Determine mode for final message
+if [ "${CHECK_MODE:-false}" = "true" ]; then
+  mode_past="checked"
+else
+  mode_past="formatted"
+fi
+
 # Format shell script files
 format_files "sh"
-
-echo "All shell script files (except excluded ones) have been formatted with Prettier."

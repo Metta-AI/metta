@@ -17,9 +17,11 @@ members = [
     "metta-agent",
     "metta-app-backend",
     "metta-common",
+    "metta-pr-similarity-mcp",
     "mettagrid",
     "pufferlib-core",
     "softmax",
+    "wandb-dashboard-mcp",
 ]
 
 [[package]]
@@ -340,6 +342,17 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/b2/4d/71ec4d3939dc755264f680f6c2b4906423a304c3d18e96853f0a595dfe97/async_lru-2.0.5.tar.gz", hash = "sha256:481d52ccdd27275f42c43a928b4a50c3bfb2d67af4e78b170e3e0bb39c66e5bb", size = 10380, upload-time = "2025-03-16T17:25:36.919Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/03/49/d10027df9fce941cb8184e78a02857af36360d33e1721df81c5ed2179a1a/async_lru-2.0.5-py3-none-any.whl", hash = "sha256:ab95404d8d2605310d345932697371a5f40def0487c03d6d0ad9138de52c9943", size = 6069, upload-time = "2025-03-16T17:25:35.422Z" },
+]
+
+[[package]]
+name = "asyncio-mqtt"
+version = "0.16.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "paho-mqtt" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2a/64/c8a8c2ed51f3c1f4b8d2f244424d3bad3fbd4333eb01589c6b00a6dd2c04/asyncio_mqtt-0.16.2-py3-none-any.whl", hash = "sha256:fe70ea2c648b248779a7ff3d9218262cdd739083743dfaa7c0d52ba458a8ad71", size = 17380, upload-time = "2023-06-26T19:46:48.342Z" },
 ]
 
 [[package]]
@@ -1346,6 +1359,8 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/19/0d/6660d55f7373b2ff8152401a83e02084956da23ae58cddbfb0b330978fe9/greenlet-3.2.4-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:3b3812d8d0c9579967815af437d96623f45c0f2ae5f04e366de62a12d83a8fb0", size = 607586, upload-time = "2025-08-07T13:18:28.544Z" },
     { url = "https://files.pythonhosted.org/packages/8e/1a/c953fdedd22d81ee4629afbb38d2f9d71e37d23caace44775a3a969147d4/greenlet-3.2.4-cp312-cp312-musllinux_1_1_aarch64.whl", hash = "sha256:abbf57b5a870d30c4675928c37278493044d7c14378350b3aa5d484fa65575f0", size = 1123281, upload-time = "2025-08-07T13:42:39.858Z" },
     { url = "https://files.pythonhosted.org/packages/3f/c7/12381b18e21aef2c6bd3a636da1088b888b97b7a0362fac2e4de92405f97/greenlet-3.2.4-cp312-cp312-musllinux_1_1_x86_64.whl", hash = "sha256:20fb936b4652b6e307b8f347665e2c615540d4b42b3b4c8a321d8286da7e520f", size = 1151142, upload-time = "2025-08-07T13:18:22.981Z" },
+    { url = "https://files.pythonhosted.org/packages/27/45/80935968b53cfd3f33cf99ea5f08227f2646e044568c9b1555b58ffd61c2/greenlet-3.2.4-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:ee7a6ec486883397d70eec05059353b8e83eca9168b9f3f9a361971e77e0bcd0", size = 1564846, upload-time = "2025-11-04T12:42:15.191Z" },
+    { url = "https://files.pythonhosted.org/packages/69/02/b7c30e5e04752cb4db6202a3858b149c0710e5453b71a3b2aec5d78a1aab/greenlet-3.2.4-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:326d234cbf337c9c3def0676412eb7040a35a768efc92504b947b3e9cfc7543d", size = 1633814, upload-time = "2025-11-04T12:42:17.175Z" },
     { url = "https://files.pythonhosted.org/packages/e9/08/b0814846b79399e585f974bbeebf5580fbe59e258ea7be64d9dfb253c84f/greenlet-3.2.4-cp312-cp312-win_amd64.whl", hash = "sha256:a7d4e128405eea3814a12cc2605e0e6aedb4035bf32697f72deca74de4105e02", size = 299899, upload-time = "2025-08-07T13:38:53.448Z" },
 ]
 
@@ -2218,6 +2233,7 @@ dependencies = [
     { name = "simple-term-menu" },
     { name = "skypilot" },
     { name = "softmax" },
+    { name = "sqlmodel" },
     { name = "sympy" },
     { name = "tabulate" },
     { name = "tensordict" },
@@ -2237,6 +2253,7 @@ dependencies = [
 dev = [
     { name = "cpplint" },
     { name = "gcovr" },
+    { name = "metta-pr-similarity-mcp" },
     { name = "mypy" },
     { name = "pyright" },
     { name = "pytest" },
@@ -2248,6 +2265,7 @@ dev = [
     { name = "pytest-xdist" },
     { name = "ruff" },
     { name = "testcontainers" },
+    { name = "wandb-dashboard-mcp" },
 ]
 interactive = [
     { name = "anywidget" },
@@ -2264,6 +2282,10 @@ lint = [
     { name = "cpplint" },
     { name = "mypy" },
     { name = "ruff" },
+]
+mcp-servers = [
+    { name = "metta-pr-similarity-mcp" },
+    { name = "wandb-dashboard-mcp" },
 ]
 testing = [
     { name = "gcovr" },
@@ -2333,6 +2355,7 @@ requires-dist = [
     { name = "simple-term-menu", specifier = ">=1.6.4" },
     { name = "skypilot", specifier = "==0.10.3.post2" },
     { name = "softmax", editable = "softmax" },
+    { name = "sqlmodel", specifier = ">=0.0.27" },
     { name = "sympy", specifier = ">=1.13.3" },
     { name = "tabulate", specifier = ">=0.9.0" },
     { name = "tensordict", specifier = ">=0.8.3" },
@@ -2352,6 +2375,7 @@ requires-dist = [
 dev = [
     { name = "cpplint", specifier = ">=2.0.2" },
     { name = "gcovr", specifier = ">=8.3" },
+    { name = "metta-pr-similarity-mcp", editable = "mcp_servers/pr_similarity" },
     { name = "mypy", specifier = ">=1.18.2" },
     { name = "pyright", specifier = ">=1.1.401" },
     { name = "pytest", specifier = ">=8.3.3" },
@@ -2363,6 +2387,7 @@ dev = [
     { name = "pytest-xdist", specifier = ">=3.8.0" },
     { name = "ruff", specifier = ">=0.11.13" },
     { name = "testcontainers", specifier = ">=4.10.0" },
+    { name = "wandb-dashboard-mcp", editable = "mcp_servers/wandb_dashboard" },
 ]
 interactive = [
     { name = "anywidget", specifier = ">=0.9.18" },
@@ -2379,6 +2404,10 @@ lint = [
     { name = "cpplint", specifier = ">=2.0.2" },
     { name = "mypy", specifier = ">=1.18.2" },
     { name = "ruff", specifier = ">=0.11.13" },
+]
+mcp-servers = [
+    { name = "metta-pr-similarity-mcp", editable = "mcp_servers/pr_similarity" },
+    { name = "wandb-dashboard-mcp", editable = "mcp_servers/wandb_dashboard" },
 ]
 testing = [
     { name = "gcovr", specifier = ">=8.3" },
@@ -2490,6 +2519,7 @@ name = "metta-common"
 version = "0.1.0"
 source = { editable = "common" }
 dependencies = [
+    { name = "cogames" },
     { name = "rich" },
     { name = "wandb" },
 ]
@@ -2506,6 +2536,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "cogames", editable = "packages/cogames" },
     { name = "rich", specifier = ">=14.1" },
     { name = "wandb", specifier = ">=0.21.2" },
 ]
@@ -2518,6 +2549,25 @@ dev = [
     { name = "pytest-cov", specifier = ">=6.1.1" },
     { name = "pytest-xdist", specifier = ">=3.8.0" },
     { name = "ruff", specifier = ">=0.11.13" },
+]
+
+[[package]]
+name = "metta-pr-similarity-mcp"
+version = "0.1.0"
+source = { editable = "mcp_servers/pr_similarity" }
+dependencies = [
+    { name = "boto3" },
+    { name = "google-genai" },
+    { name = "mcp" },
+    { name = "numpy" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "boto3", specifier = ">=1.34.0" },
+    { name = "google-genai", specifier = ">=1.46.0" },
+    { name = "mcp", specifier = ">=1.0.0" },
+    { name = "numpy", specifier = ">=1.24.0" },
 ]
 
 [[package]]
@@ -3065,6 +3115,15 @@ wheels = [
 ]
 
 [[package]]
+name = "paho-mqtt"
+version = "2.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/39/15/0a6214e76d4d32e7f663b109cf71fb22561c2be0f701d67f93950cd40542/paho_mqtt-2.1.0.tar.gz", hash = "sha256:12d6e7511d4137555a3f6ea167ae846af2c7357b10bc6fa4f7c3968fc1723834", size = 148848, upload-time = "2024-04-29T19:52:55.591Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c4/cb/00451c3cf31790287768bb12c6bec834f5d292eaf3022afc88e14b8afc94/paho_mqtt-2.1.0-py3-none-any.whl", hash = "sha256:6db9ba9b34ed5bc6b6e3812718c7e06e2fd7444540df2455d2c51bd58808feee", size = 67219, upload-time = "2024-04-29T19:52:48.345Z" },
+]
+
+[[package]]
 name = "pandas"
 version = "2.3.3"
 source = { registry = "https://pypi.org/simple" }
@@ -3415,8 +3474,10 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/2d/75/364847b879eb630b3ac8293798e380e441a957c53657995053c5ec39a316/psycopg2_binary-2.9.11-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:ab8905b5dcb05bf3fb22e0cf90e10f469563486ffb6a96569e51f897c750a76a", size = 4411159, upload-time = "2025-10-10T11:12:00.49Z" },
     { url = "https://files.pythonhosted.org/packages/6f/a0/567f7ea38b6e1c62aafd58375665a547c00c608a471620c0edc364733e13/psycopg2_binary-2.9.11-cp312-cp312-manylinux2014_ppc64le.manylinux_2_17_ppc64le.whl", hash = "sha256:bf940cd7e7fec19181fdbc29d76911741153d51cab52e5c21165f3262125685e", size = 4468234, upload-time = "2025-10-10T11:12:04.892Z" },
     { url = "https://files.pythonhosted.org/packages/30/da/4e42788fb811bbbfd7b7f045570c062f49e350e1d1f3df056c3fb5763353/psycopg2_binary-2.9.11-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:fa0f693d3c68ae925966f0b14b8edda71696608039f4ed61b1fe9ffa468d16db", size = 4166236, upload-time = "2025-10-10T11:12:11.674Z" },
+    { url = "https://files.pythonhosted.org/packages/3c/94/c1777c355bc560992af848d98216148be5f1be001af06e06fc49cbded578/psycopg2_binary-2.9.11-cp312-cp312-manylinux_2_38_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:a1cf393f1cdaf6a9b57c0a719a1068ba1069f022a59b8b1fe44b006745b59757", size = 3983083, upload-time = "2025-10-30T02:55:15.73Z" },
     { url = "https://files.pythonhosted.org/packages/bd/42/c9a21edf0e3daa7825ed04a4a8588686c6c14904344344a039556d78aa58/psycopg2_binary-2.9.11-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:ef7a6beb4beaa62f88592ccc65df20328029d721db309cb3250b0aae0fa146c3", size = 3652281, upload-time = "2025-10-10T11:12:17.713Z" },
     { url = "https://files.pythonhosted.org/packages/12/22/dedfbcfa97917982301496b6b5e5e6c5531d1f35dd2b488b08d1ebc52482/psycopg2_binary-2.9.11-cp312-cp312-musllinux_1_2_ppc64le.whl", hash = "sha256:31b32c457a6025e74d233957cc9736742ac5a6cb196c6b68499f6bb51390bd6a", size = 3298010, upload-time = "2025-10-10T11:12:22.671Z" },
+    { url = "https://files.pythonhosted.org/packages/66/ea/d3390e6696276078bd01b2ece417deac954dfdd552d2edc3d03204416c0c/psycopg2_binary-2.9.11-cp312-cp312-musllinux_1_2_riscv64.whl", hash = "sha256:edcb3aeb11cb4bf13a2af3c53a15b3d612edeb6409047ea0b5d6a21a9d744b34", size = 3044641, upload-time = "2025-10-30T02:55:19.929Z" },
     { url = "https://files.pythonhosted.org/packages/12/9a/0402ded6cbd321da0c0ba7d34dc12b29b14f5764c2fc10750daa38e825fc/psycopg2_binary-2.9.11-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:62b6d93d7c0b61a1dd6197d208ab613eb7dcfdcca0a49c42ceb082257991de9d", size = 3347940, upload-time = "2025-10-10T11:12:26.529Z" },
     { url = "https://files.pythonhosted.org/packages/b1/d2/99b55e85832ccde77b211738ff3925a5d73ad183c0b37bcbbe5a8ff04978/psycopg2_binary-2.9.11-cp312-cp312-win_amd64.whl", hash = "sha256:b33fabeb1fde21180479b2d4667e994de7bbf0eec22832ba5d9b5e4cf65b6c6d", size = 2714147, upload-time = "2025-10-10T11:12:29.535Z" },
 ]
@@ -4467,6 +4528,19 @@ wheels = [
 ]
 
 [[package]]
+name = "sqlmodel"
+version = "0.0.27"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "sqlalchemy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/90/5a/693d90866233e837d182da76082a6d4c2303f54d3aaaa5c78e1238c5d863/sqlmodel-0.0.27.tar.gz", hash = "sha256:ad1227f2014a03905aef32e21428640848ac09ff793047744a73dfdd077ff620", size = 118053, upload-time = "2025-10-08T16:39:11.938Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8c/92/c35e036151fe53822893979f8a13e6f235ae8191f4164a79ae60a95d66aa/sqlmodel-0.0.27-py3-none-any.whl", hash = "sha256:667fe10aa8ff5438134668228dc7d7a08306f4c5c4c7e6ad3ad68defa0e7aa49", size = 29131, upload-time = "2025-10-08T16:39:10.917Z" },
+]
+
+[[package]]
 name = "sse-starlette"
 version = "3.0.2"
 source = { registry = "https://pypi.org/simple" }
@@ -4991,6 +5065,55 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/4b/3c/ad6d173639e233461329899067dcd3af7d4d20f637f323ecfe74bbead463/wandb_core-0.17.0b11-py3-none-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:da7cf560a04b248d736542070b439847578a706d2f667e12a7a59c69cdafaa39", size = 4521565, upload-time = "2024-04-12T02:14:05.419Z" },
     { url = "https://files.pythonhosted.org/packages/f1/00/1c2375e0cbac18dd0e0ccf7cc8249711e8b6dddab885b4e90cf193cf7b0b/wandb_core-0.17.0b11-py3-none-win32.whl", hash = "sha256:219f2def5ce8e0180e7231ba3e3cc8d186493ad8ac39907b69adf51684a083fa", size = 4585070, upload-time = "2024-04-12T02:14:07.498Z" },
     { url = "https://files.pythonhosted.org/packages/fb/ed/13e49074a044b28da55265e0ae95dd14f6f2e2b16b9d08ec94253d045bd4/wandb_core-0.17.0b11-py3-none-win_amd64.whl", hash = "sha256:1891ae0af383c9c32d393f057e04ce0718dba5d70bfab55747718a92e3bca7df", size = 4585076, upload-time = "2024-04-12T02:14:09.552Z" },
+]
+
+[[package]]
+name = "wandb-dashboard-mcp"
+version = "0.1.0"
+source = { editable = "mcp_servers/wandb_dashboard" }
+dependencies = [
+    { name = "asyncio-mqtt" },
+    { name = "mcp" },
+    { name = "pydantic" },
+    { name = "typing-extensions" },
+    { name = "wandb" },
+    { name = "wandb-workspaces" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "mypy" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "asyncio-mqtt" },
+    { name = "mcp", specifier = ">=1.0.0" },
+    { name = "mypy", marker = "extra == 'dev'" },
+    { name = "pydantic", specifier = ">=2.0.0" },
+    { name = "pytest", marker = "extra == 'dev'" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'" },
+    { name = "ruff", marker = "extra == 'dev'" },
+    { name = "typing-extensions" },
+    { name = "wandb" },
+    { name = "wandb-workspaces" },
+]
+provides-extras = ["dev"]
+
+[[package]]
+name = "wandb-workspaces"
+version = "0.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "wandb" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/59/d3/fce5adfa563b031540d876315fda1133d1923c6f69dfc0b96e0f5a023ee5/wandb_workspaces-0.2.1.tar.gz", hash = "sha256:772d16d21e3ed86dc3a2c8351b1e326dca42f67622236e406ff13421c8f3e6fe", size = 183263, upload-time = "2025-11-05T20:56:04.944Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3b/1e/d31ad23fd99b3be9963b002c80578b33119214cfa35797caa5d8acadeb2a/wandb_workspaces-0.2.1-py3-none-any.whl", hash = "sha256:57b5434977c8a98e5049b88eca6774559df35974cbe6240fa0c0bc6337e24699", size = 88651, upload-time = "2025-11-05T20:56:03.305Z" },
 ]
 
 [[package]]

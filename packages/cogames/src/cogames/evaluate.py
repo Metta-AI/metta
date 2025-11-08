@@ -5,9 +5,7 @@ from __future__ import annotations
 import json
 import math
 import re
-import time
 from collections import defaultdict
-from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Literal, Optional
@@ -19,9 +17,10 @@ from pydantic import BaseModel, Field
 from rich.console import Console
 from rich.table import Table
 
-from cogames.policy.interfaces import AgentPolicy, PolicySpec
-from cogames.policy.utils import initialize_or_load_policy
-from mettagrid import MettaGridConfig, MettaGridEnv
+from mettagrid import MettaGridConfig
+from mettagrid.policy.policy import PolicySpec
+from mettagrid.policy.utils import initialize_or_load_policy
+from mettagrid.simulator.rollout import Rollout
 
 if TYPE_CHECKING:
     from mettagrid.mettagrid_c import EpisodeStats
@@ -301,17 +300,24 @@ def _evaluate_single_mission(
     max_steps: Optional[int],
     seed: int,
 ) -> MissionEvaluationResult:
-    env = MettaGridEnv(env_cfg=env_cfg)
+    # Create PolicyEnvInterface from config to get observation shape for policies that require it (e.g., LSTM)
+    from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
+    policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
     policy_instances = [
-        initialize_or_load_policy(spec.policy_class_path, spec.policy_data_path, env) for spec in policy_specs
+        initialize_or_load_policy(
+            policy_env_info,
+            spec.policy_class_path,
+            spec.policy_data_path,
+        )
+        for spec in policy_specs
     ]
-    policy_counts = _compute_policy_agent_counts(env.num_agents, policy_specs)
+    policy_counts = _compute_policy_agent_counts(env_cfg.game.num_agents, policy_specs)
     policy_names = [spec.name for spec in policy_specs]
 
     assignments = np.repeat(np.arange(len(policy_specs)), policy_counts)
 
-    assert len(assignments) == env.num_agents
+    assert len(assignments) == env_cfg.game.num_agents
 
     per_episode_rewards: list[np.ndarray] = []
     per_episode_stats: list["EpisodeStats"] = []
@@ -320,46 +326,33 @@ def _evaluate_single_mission(
 
     progress_label = f"Evaluating episodes ({mission_name})"
     rng = np.random.default_rng(seed)
-    noop = np.array(0, dtype=env.action_space.dtype)
     with typer.progressbar(range(episodes), label=progress_label) as progress:
         for episode_idx in progress:
-            obs, _ = env.reset(seed=seed + episode_idx)
             rng.shuffle(assignments)
-            agent_policies: list[AgentPolicy] = [
-                policy_instances[assignments[agent_id]].agent_policy(agent_id) for agent_id in range(env.num_agents)
+            agent_policies = [
+                policy_instances[assignments[agent_id]].agent_policy(agent_id)
+                for agent_id in range(env_cfg.game.num_agents)
             ]
-            for agent_policy in agent_policies:
-                agent_policy.reset()
 
-            done = np.zeros(env.num_agents, dtype=bool)
-            truncated = np.zeros(env.num_agents, dtype=bool)
+            rollout = Rollout(
+                env_cfg,
+                agent_policies,
+                max_action_time_ms=action_timeout_ms,
+                render_mode=None,
+                seed=seed + episode_idx,
+            )
 
-            step_count = 0
+            rollout.run_until_done()
 
-            while max_steps is None or step_count < max_steps:
-                actions = np.zeros(env.num_agents, dtype=env.action_space.dtype)
-                for i in range(env.num_agents):
-                    start_time = time.time()
-                    action = agent_policies[i].step(obs[i])
-                    if isinstance(action, tuple):
-                        raise TypeError(
-                            "AgentPolicy.step must return a single MettaGridAction under the single-discrete API. "
-                            "Update the policy to emit an int-compatible action instead of a tuple."
-                        )
-                    end_time = time.time()
-                    if (end_time - start_time) > action_timeout_ms / 1000:
-                        per_policy_timeouts[assignments[i]] += 1
-                        action = noop
-                    actions[i] = np.asarray(action).astype(env.action_space.dtype).item()
-                obs, rewards, done, truncated, _ = env.step(actions)
-
-                step_count += 1
-                if done.all() or truncated.all():
-                    break
-
-            per_episode_rewards.append(np.array(env.get_episode_rewards(), dtype=float))
-            per_episode_stats.append(deepcopy(env.get_episode_stats()))
+            per_episode_rewards.append(np.array(rollout._sim.episode_rewards, dtype=float))
+            per_episode_stats.append(rollout._sim.episode_stats)
             per_episode_assignments.append(assignments.copy())
+
+            # Aggregate timeout counts by policy
+            for agent_id, timeout_count in enumerate(rollout.timeout_counts):
+                if timeout_count > 0:
+                    policy_idx = int(assignments[agent_id])
+                    per_policy_timeouts[policy_idx] += timeout_count
 
     summed_game_stats: dict[str, float] = defaultdict(float)
     summed_policy_stats: list[dict[str, float]] = [defaultdict(float) for _ in policy_specs]
@@ -376,8 +369,6 @@ def _evaluate_single_mission(
                 if any(re.match(pattern, key) for pattern in _SKIP_STATS):
                     continue
                 summed_policy_stats[policy_idx][key] += float(value)
-
-    env.close()
 
     transpired_episodes = len(per_episode_stats)
 

@@ -2,16 +2,13 @@
 
 import logging
 import os
-import platform
-from urllib.parse import quote
+import subprocess
+from pathlib import Path
 
-import mettascope.server as server
 from metta.common.tool import Tool
-from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.common.wandb.context import WandbConfig
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.play import PlayTool
 from metta.tools.utils.auto_config import auto_wandb_config
 
 logger = logging.getLogger(__name__)
@@ -20,8 +17,8 @@ logger = logging.getLogger(__name__)
 class ReplayTool(Tool):
     """Tool for generating and viewing replay files in MettaScope.
     Creates a simulation specifically to generate replay files and automatically
-    opens them in a browser for visualization. This tool focuses on replay viewing
-    and browser integration, unlike EvaluateTool which focuses on policy evaluation."""
+    opens them in the Nim MettaScope application for visualization. This tool focuses
+    on replay viewing, unlike EvaluateTool which focuses on policy evaluation."""
 
     wandb: WandbConfig = auto_wandb_config()
     sim: SimulationConfig
@@ -35,28 +32,25 @@ class ReplayTool(Tool):
         # Create simulation using CheckpointManager integration
         sim = Simulation.create(
             sim_config=self.sim,
-            device=self.system.device,
-            vectorization=self.system.vectorization,
             stats_dir=self.stats_dir,
             replay_dir=self.replay_dir,
             policy_uri=self.policy_uri,
         )
 
         result = sim.simulate()
-        # Get all replay URLs (no filtering needed since we just ran this simulation)
-        replay_urls = result.stats_db.get_replay_urls()
-        if not replay_urls:
-            logger.error("No replay URLs found in simulation results", exc_info=True)
-            return 1
-        replay_url = replay_urls[0]
 
         if self.launch_viewer:
-            open_browser(replay_url, self)
+            # Get all replay URLs (needed for viewer)
+            replay_urls = result.stats_db.get_replay_urls()
+            if not replay_urls:
+                logger.error("No replay URLs found in simulation results", exc_info=True)
+                return 1
+            replay_url = replay_urls[0]
+            launch_mettascope(replay_url)
         else:
-            logger.info(
-                "Generated replay at %s (MettaScope viewer launch skipped because launch_viewer=False)",
-                get_clean_path(replay_url),
-            )
+            # For CI/non-visualization, just confirm replays were generated
+            logger.info("Replay generation completed (viewer launch skipped)")
+
         return 0
 
 
@@ -73,29 +67,29 @@ def get_clean_path(replay_url: str) -> str:
         return path.removeprefix(current_dir)
 
 
-def open_browser(replay_url: str, cfg: ReplayTool) -> None:
-    # Only on macos open a browser to the replay
-    if platform.system() == "Darwin":
-        if not replay_url.startswith("http"):
-            # Remove ./ prefix if it exists
-            clean_path = get_clean_path(replay_url)
-            local_url = f"{DEV_METTASCOPE_FRONTEND_URL}/local/{clean_path}"
-            full_url = f"/?replayUrl={quote(local_url)}"
+def launch_mettascope(replay_url: str) -> None:
+    """Launch the Nim MettaScope application with the given replay file."""
+    if replay_url.startswith("http"):
+        logger.error("HTTP replay URLs are not supported with the Nim MettaScope. Use file:// URLs instead.")
+        return
 
-            # Run a metascope server that serves the replay
-            # Create a PlayTool from ReplayTool (they have the same fields)
-            play_cfg = PlayTool(
-                system=cfg.system,
-                wandb=cfg.wandb,
-                sim=cfg.sim,
-                policy_uri=cfg.policy_uri,
-                replay_dir=cfg.replay_dir,
-                stats_dir=cfg.stats_dir,
-                open_browser_on_start=cfg.open_browser_on_start,
-            )
+    # Get the clean file path
+    replay_path = get_clean_path(replay_url)
 
-            if cfg.open_browser_on_start:
-                server.run(play_cfg, open_url=full_url)
-            else:
-                logger.info(f"Enter MettaGrid @ {full_url}")
-                server.run(play_cfg)
+    # Find the mettascope source directory
+    project_root = Path(__file__).resolve().parent.parent.parent
+    mettascope_src = project_root / "packages" / "mettagrid" / "nim" / "mettascope" / "src" / "mettascope.nim"
+
+    if not mettascope_src.exists():
+        logger.error(f"MettaScope source not found at {mettascope_src}")
+        return
+
+    # Launch mettascope with the replay file
+    try:
+        logger.info(f"Launching MettaScope with replay: {replay_path}")
+        cmd = ["nim", "r", str(mettascope_src), "--replay=./" + replay_path]
+        subprocess.run(cmd, cwd=project_root, check=True)
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to launch MettaScope: {e}")
+    except FileNotFoundError:
+        logger.error("Nim compiler not found. Please ensure Nim is installed and in PATH.")

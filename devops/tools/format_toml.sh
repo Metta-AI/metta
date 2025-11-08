@@ -14,6 +14,12 @@ ensure_pnpm
 ensure_prettier
 ensure_prettier_plugin "prettier-plugin-toml" "Prettier plugin for TOML files"
 
+# Determine mode for final message
+if [ "${CHECK_MODE:-false}" = "true" ]; then
+  mode_past="checked"
+else
+  mode_past="formatted"
+fi
+
 # Format TOML files
 format_files "toml"
-echo "All TOML files (except excluded ones) have been formatted with Prettier."
