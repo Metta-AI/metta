@@ -29,6 +29,7 @@ public:
     _last_reward = get("last_reward");
     _vibe = get("vibe");
     _visitation_counts = get("agent:visitation_counts");
+    _compass = get("agent:compass");
     _tag = get("tag");
     _cooldown_remaining = get("cooldown_remaining");
     _clipped = get("clipped");
@@ -48,6 +49,7 @@ public:
     LastReward = _last_reward;
     Vibe = _vibe;
     VisitationCounts = _visitation_counts;
+    Compass = _compass;
     Tag = _tag;
     CooldownRemaining = _cooldown_remaining;
     Clipped = _clipped;
@@ -82,6 +84,7 @@ public:
   ObservationType LastReward;
   ObservationType Vibe;
   ObservationType VisitationCounts;
+  ObservationType Compass;
   ObservationType Tag;
   ObservationType CooldownRemaining;
   ObservationType Clipped;
@@ -104,6 +107,7 @@ private:
   ObservationType _last_reward;
   ObservationType _vibe;
   ObservationType _visitation_counts;
+  ObservationType _compass;
   ObservationType _tag;
   ObservationType _cooldown_remaining;
   ObservationType _clipped;
@@ -133,6 +137,7 @@ extern ObservationType LastActionArg;
 extern ObservationType LastReward;
 extern ObservationType Vibe;
 extern ObservationType VisitationCounts;
+extern ObservationType Compass;
 extern ObservationType Tag;
 extern ObservationType CooldownRemaining;
 extern ObservationType Clipped;

@@ -65,10 +65,11 @@ protected:
         {"vibe", 11},
         {"agent:vibe", 12},
         {"agent:visitation_counts", 13},
-        {"tag", 14},
-        {"cooldown_remaining", 15},
-        {"clipped", 16},
-        {"remaining_uses", 17},
+        {"agent:compass", 14},
+        {"tag", 15},
+        {"cooldown_remaining", 16},
+        {"clipped", 17},
+        {"remaining_uses", 18},
     };
     ObservationFeature::Initialize(feature_ids);
   }

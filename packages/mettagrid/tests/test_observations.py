@@ -44,6 +44,8 @@ def basic_sim() -> Simulation:
         )
     )
 
+    cfg.game.global_obs.compass = True
+
     return Simulation(cfg)
 
 
@@ -82,14 +84,45 @@ class TestObservations:
         obs = basic_sim._c_sim.observations()
 
         # global token is always at the center of the observation window
-        global_token_location = PackedCoordinate.pack(
-            basic_sim.config.game.obs.height // 2, basic_sim.config.game.obs.width // 2
-        )
+        obs_half_height = basic_sim.config.game.obs.height // 2
+        obs_half_width = basic_sim.config.game.obs.width // 2
+        global_token_location = PackedCoordinate.pack(obs_half_height, obs_half_width)
+        compass_feature_id = basic_sim.config.id_map().feature_id("agent:compass")
+        helper = ObservationHelper()
 
-        # Test global tokens (first 4 tokens)
+        # Map agent_id -> (row, col)
+        agent_positions: dict[int, tuple[int, int]] = {}
+        for obj in basic_sim.grid_objects().values():
+            type_name = obj["type_name"]
+            if type_name in {"agent", "agent.agent"}:
+                agent_positions[int(obj["agent_id"])] = (int(obj["r"]), int(obj["c"]))
+
+        map_center_row = basic_sim.map_height // 2
+        map_center_col = basic_sim.map_width // 2
+        center_obs_position = (obs_half_width, obs_half_height)
+
+        # Test center-aligned global tokens
         for agent_idx in range(basic_sim.num_agents):
-            for token_idx in range(4):
+            for token_idx in range(3):
                 assert obs[agent_idx, token_idx, 0] == global_token_location
+
+            compass_tokens = helper.find_tokens(obs[agent_idx], feature_id=compass_feature_id)
+
+            agent_row, agent_col = agent_positions[agent_idx]
+            delta_row = map_center_row - agent_row
+            delta_col = map_center_col - agent_col
+            step_row = 0 if delta_row == 0 else (1 if delta_row > 0 else -1)
+            step_col = 0 if delta_col == 0 else (1 if delta_col > 0 else -1)
+
+            if step_row == 0 and step_col == 0:
+                assert compass_tokens.shape[0] == 0, "Compass should be absent when agent is at the center"
+            else:
+                assert compass_tokens.shape[0] == 1, "Expected exactly one compass token"
+                compass_position = helper.get_positions_from_tokens(compass_tokens)[0]
+                expected_position = (center_obs_position[0] + step_col, center_obs_position[1] + step_row)
+                assert compass_position == expected_position, (
+                    f"Compass should point from {center_obs_position} toward {expected_position}"
+                )
 
         # Test empty terminator
         assert (obs[0, -1, :] == TokenTypes.EMPTY_TOKEN).all()

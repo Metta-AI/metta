@@ -154,6 +154,10 @@ class IdMap:
         features.append(ObservationFeatureSpec(id=feature_id, normalization=1000.0, name="agent:visitation_counts"))
         feature_id += 1
 
+        # Compass direction toward assembler
+        features.append(ObservationFeatureSpec(id=feature_id, normalization=1.0, name="agent:compass"))
+        feature_id += 1
+
         # Tag feature (always included)
         features.append(ObservationFeatureSpec(id=feature_id, normalization=10.0, name="tag"))
         feature_id += 1
