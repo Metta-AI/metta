@@ -220,9 +220,11 @@ class GridObjectConfig(Config):
             self.map_name = self.name
         if not getattr(self, "render_name", None):
             self.render_name = self.name
-        # If no tags, inject a default kind tag for visibility
+        # If no tags, inject a default kind tag so the object is visible in observations
         if not self.tags:
-            default_tag = getattr(self, "type", None) or self.map_name or self.name or "object"
+            default_tag = getattr(self, "type", None)  # this is typically what you want, a Wall gets tag "wall"
+            default_tag = default_tag or self.map_name  # this is a good fallback tag
+            default_tag = default_tag or "object"  # if nothing else, be visible as an object
             self.tags = [default_tag]
         return self
 
