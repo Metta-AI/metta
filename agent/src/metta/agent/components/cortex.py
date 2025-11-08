@@ -105,13 +105,13 @@ class CortexTD(nn.Module):
 
         self._flat_entries: List[Tuple[FlatKey, LeafPath]] = self._discover_state_entries()
 
-        if self.out_features is None or int(self.out_features) == int(self.d_hidden):
-            self._out_proj: nn.Module = nn.Identity()
-        else:
-            self._out_proj = nn.Linear(int(self.d_hidden), int(self.out_features))
-
-        # Output nonlinearity module constructed from torch.nn by name
-        self._out_act: nn.Module = self._make_activation(self.config.output_nonlinearity)
+        # Compose projection + activation as a single module.
+        layers: List[nn.Module] = []
+        # Single conditional: only add layers when size changes and features set.
+        if self.out_features is not None and self.out_features != self.d_hidden:
+            layers.append(nn.Linear(self.d_hidden, self.out_features))
+            layers.append(self._make_activation(self.config.output_nonlinearity))
+        self._out: nn.Module = nn.Sequential(*layers) if layers else nn.Identity()
 
         self._leaf_shapes: Dict[LeafPath, Tuple[int, ...]] = self._discover_leaf_shapes()
         self._rollout_store: Dict[LeafPath, torch.Tensor] = {}
@@ -232,7 +232,7 @@ class CortexTD(nn.Module):
             y, state_next = self.stack.step(x_step, state_prev, resets=resets)
             self._maybe_register_new_leaves(state_next)
             self._rollout_current_state = state_next
-            y = self._out_act(self._out_proj(y))
+            y = self._out(y)
             td.set(self.out_key, y.reshape(B * TT, -1))
             return td
         else:
@@ -245,7 +245,7 @@ class CortexTD(nn.Module):
 
             x_seq = rearrange(x, "(b t) h -> b t h", b=B, t=TT)
             y_seq, _ = self.stack(x_seq, state0, resets=resets)
-            y_seq = self._out_act(self._out_proj(y_seq))
+            y_seq = self._out(y_seq)
             td.set(self.out_key, rearrange(y_seq, "b t h -> (b t) h"))
             return td
 
