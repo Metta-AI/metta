@@ -2,10 +2,13 @@
 # This backend compiles the C++ extension using Bazel during package installation
 
 import os
+import re
+import shlex
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Iterable, Sequence
 
 from setuptools.build_meta import (
     build_editable as _build_editable,
@@ -202,11 +205,139 @@ def _run_mettascope_build() -> None:
 
     print(f"Building mettascope from {METTASCOPE_DIR}")
 
-    cmd("nimby sync -g nimby.lock")
-    cmd("nim c bindings/bindings.nim")
+    lock_path = METTASCOPE_DIR / "nimby.lock"
+    workdir = _prepare_nimby_workdir()
+    _run_nimby_sync(lock_path, workdir)
+    include_paths = _collect_include_paths(lock_path)
+    _remove_repo_nim_cfg()
+    _run_nim_build(include_paths)
 
     print("Successfully built mettascope")
     _sync_mettascope_package_data()
+
+
+def _run_process(args: Sequence[str], *, cwd: Path) -> subprocess.CompletedProcess[str]:
+    """Execute a command, streaming output for easier diagnosis."""
+    printable = " ".join(shlex.quote(str(part)) for part in args)
+    print(f"Running: {printable}")
+    result = subprocess.run(
+        [str(part) for part in args],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+    )
+    if result.stderr:
+        print(result.stderr, file=sys.stderr)
+    if result.stdout:
+        print(result.stdout, file=sys.stderr)
+    if result.returncode != 0:
+        raise RuntimeError(f"Mettascope build failed: {printable}")
+    return result
+
+
+def _prepare_nimby_workdir() -> Path:
+    """Create a clean scratch directory Nimby can write into safely."""
+    workdir = METTASCOPE_DIR / ".nimby-work"
+    if workdir.exists():
+        shutil.rmtree(workdir)
+    workdir.mkdir(parents=True, exist_ok=True)
+    return workdir
+
+
+def _run_nimby_sync(lock_path: Path, workdir: Path) -> None:
+    """Invoke Nimby in a scratch directory so repo files stay untouched."""
+    if not lock_path.exists():
+        raise RuntimeError(f"Nimby lock file missing: {lock_path}")
+    _run_process(["nimby", "sync", "-g", str(lock_path)], cwd=workdir)
+
+
+def _collect_package_names(lock_path: Path) -> list[str]:
+    """Read package names from the lock file in declared order."""
+    packages: list[str] = []
+    for raw_line in lock_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        tokens = line.split()
+        if tokens:
+            packages.append(tokens[0])
+    return packages
+
+
+_SRC_DIR_PATTERN = re.compile(r'^\s*srcDir\s*=\s*"([^"]+)"', re.MULTILINE)
+
+
+def _candidate_package_paths(package_dir: Path) -> Iterable[Path]:
+    """Yield plausible source directories for a Nimble package."""
+    nimble_files = sorted(package_dir.glob("*.nimble"))
+    if nimble_files:
+        contents = nimble_files[0].read_text(encoding="utf-8")
+        match = _SRC_DIR_PATTERN.search(contents)
+        if match:
+            candidate = (package_dir / match.group(1)).resolve()
+            if candidate.exists():
+                yield candidate
+    src_dir = package_dir / "src"
+    if src_dir.exists():
+        yield src_dir.resolve()
+    yield package_dir.resolve()
+
+
+def _package_source_paths(package_names: Sequence[str]) -> list[str]:
+    """Translate package names into normalized include paths."""
+    pkgs_root = Path.home() / ".nimby" / "pkgs"
+    seen: set[str] = set()
+    resolved_paths: list[str] = []
+    for name in package_names:
+        package_dir = pkgs_root / name
+        if not package_dir.exists():
+            raise RuntimeError(f"Nimby package directory missing: {package_dir}")
+        for candidate in _candidate_package_paths(package_dir):
+            candidate_str = candidate.as_posix()
+            if candidate_str not in seen:
+                seen.add(candidate_str)
+                resolved_paths.append(candidate_str)
+    return resolved_paths
+
+
+def _collect_include_paths(lock_path: Path) -> list[str]:
+    """Build the ordered list of include directories for Nim."""
+    package_names = _collect_package_names(lock_path)
+    include_paths = [METTASCOPE_DIR.resolve().as_posix()]
+    src_candidate = (METTASCOPE_DIR / "src").resolve()
+    if src_candidate.exists():
+        include_paths.append(src_candidate.as_posix())
+    include_paths.extend(_package_source_paths(package_names))
+    seen: set[str] = set()
+    ordered_paths: list[str] = []
+    for path in include_paths:
+        if path not in seen:
+            seen.add(path)
+            ordered_paths.append(path)
+    return ordered_paths
+
+
+def _remove_repo_nim_cfg() -> None:
+    """Delete stray nim.cfg files that Nim would otherwise ingest."""
+    cfg_path = METTASCOPE_DIR / "nim.cfg"
+    if cfg_path.exists():
+        cfg_path.unlink()
+
+
+def _run_nim_build(include_paths: Sequence[str]) -> None:
+    """Compile bindings while passing include paths explicitly."""
+    args = (
+        [
+            "nim",
+            "c",
+            "--skipParentCfg",
+        ]
+        + [f"--path:{path}" for path in include_paths]
+        + [
+            "bindings/bindings.nim",
+        ]
+    )
+    _run_process(args, cwd=METTASCOPE_DIR)
 
 
 def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
