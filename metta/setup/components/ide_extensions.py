@@ -1,6 +1,4 @@
-from __future__ import annotations
-
-import shutil
+import os
 
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
@@ -22,14 +20,13 @@ class IdeExtensions(SetupModule):
     def description(self) -> str:
         return "VS Code extensions required for developer ergonomics"
 
-    def _candidate_commands(self) -> list[str]:
-        return ["cursor", "code"]
-
     def _find_code_command(self) -> str | None:
-        for candidate in self._candidate_commands():
-            if (cmd := shutil.which(candidate)) is not None:
-                return cmd
-        return None
+        term_program_to_command = {
+            "cursor": "cursor",
+            "vscode": "code",
+        }
+        term_program = os.getenv("TERM_PROGRAM", "").lower()
+        return term_program_to_command.get(term_program)
 
     def _list_installed_extensions(self, code_cmd: str) -> set[str]:
         result = self.run_command([code_cmd, "--list-extensions"], capture_output=True, check=False)
@@ -40,20 +37,13 @@ class IdeExtensions(SetupModule):
         return {line.strip() for line in result.stdout.splitlines() if line.strip()}
 
     def _is_applicable(self) -> bool:
-        if self._find_code_command():
-            return True
-
-        warning("VS Code (code/cursor) CLI not detected; skipping VS Code extension installation. ")
-        return False
+        return bool(self._find_code_command())
 
     def check_installed(self) -> bool:
-        code_cmd = self._find_code_command()
-        if not code_cmd:
+        if not (code_cmd := self._find_code_command()):
             return True
-
         installed = self._list_installed_extensions(code_cmd)
-        missing = set(self._required_extensions) - installed
-        return not missing
+        return not (set(self._required_extensions) - installed)
 
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
         self._non_interactive = non_interactive
