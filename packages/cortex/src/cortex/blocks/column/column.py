@@ -29,11 +29,11 @@ class ColumnBlock(BaseBlock):
         self.d_hidden = d_hidden
         self.experts = nn.ModuleList(self._build_experts(config.experts, d_hidden))
         num_experts = len(self.experts)
-        # Keep boundary norm regardless of expert count.
-        self.boundary_norm = nn.RMSNorm(d_hidden)
 
         # Initialize router/refiner/mixer only when there is actual expert mixing.
         if num_experts > 1:
+            # Boundary norm applied at expert block boundary when mixing
+            self.boundary_norm = nn.RMSNorm(d_hidden)
             self.router: GlobalContextRouter | None = GlobalContextRouter(d_hidden, num_experts, config.router)
             lam0 = float(getattr(config.router, "whisper_lambda", 0.0))
             self.refiner: TokenRefiner | None = (
@@ -44,15 +44,22 @@ class ColumnBlock(BaseBlock):
                 d_hidden=d_hidden, num_experts=num_experts, d_key=d_k_mix
             )
         else:
-            # Avoid allocating unused parameters when E=1; fast path in forward will bypass them.
+            # Avoid allocating unused parameters when E=1; passthrough fast‑path in forward will bypass them.
+            self.boundary_norm = nn.Identity()
             self.router = None
             self.refiner = None
             self.e_mixer = None
 
-        self.head = _ColumnReZeroHead(d_hidden=d_hidden, hidden_mult=2)
-        init_alpha = float(getattr(config, "alpha_init", 0.01))
-        self.alpha_col = nn.Parameter(torch.tensor(init_alpha, dtype=torch.float32))
-        self.alpha_main = nn.Parameter(torch.tensor(init_alpha, dtype=torch.float32))
+        # ReZero head and gates are only needed when mixing
+        if num_experts > 1:
+            self.head: nn.Module = _ColumnReZeroHead(d_hidden=d_hidden, hidden_mult=2)
+            init_alpha = float(getattr(config, "alpha_init", 0.01))
+            self.alpha_col = nn.Parameter(torch.tensor(init_alpha, dtype=torch.float32))
+            self.alpha_main = nn.Parameter(torch.tensor(init_alpha, dtype=torch.float32))
+        else:
+            self.head = nn.Identity()
+            self.alpha_col = None  # not a parameter when unused
+            self.alpha_main = None  # not a parameter when unused
         # Precompute stable per‑expert state keys once.
         self._expert_keys: list[str] = [self._expert_state_key(i, expert) for i, expert in enumerate(self.experts)]
         self._compiled_experts: list | None = None
@@ -62,17 +69,6 @@ class ColumnBlock(BaseBlock):
     @staticmethod
     def _make_placeholder_cell(hidden_size: int) -> MemoryCell:
         """Minimal placeholder MemoryCell for BaseBlock."""
-
-        class _NoOpCell(MemoryCell):
-            def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> TensorDict:
-                return TensorDict({}, batch_size=[batch], device=torch.device(device))
-
-            def forward(self, x: Tensor, state: MaybeState, *, resets: Optional[ResetMask] = None):
-                return x, state
-
-            def reset_state(self, state: MaybeState, mask: ResetMask) -> MaybeState:
-                return state
-
         return _NoOpCell(hidden_size)
 
     def _build_experts(self, expert_cfgs: list[BlockConfig], d_hidden: int) -> list[BaseBlock]:
@@ -244,6 +240,20 @@ class ColumnBlock(BaseBlock):
 
 
 __all__ = ["ColumnBlock"]
+
+
+class _NoOpCell(MemoryCell):
+    """Top-level no-op cell to satisfy BaseBlock without projections.
+    """
+
+    def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> TensorDict:  # type: ignore[override]
+        return TensorDict({}, batch_size=[batch], device=torch.device(device))
+
+    def forward(self, x: Tensor, state: MaybeState, *, resets: Optional[ResetMask] = None):  # type: ignore[override]
+        return x, state
+
+    def reset_state(self, state: MaybeState, mask: ResetMask) -> MaybeState:  # type: ignore[override]
+        return state
 
 
 class _EAxisCrossAttention(nn.Module):
