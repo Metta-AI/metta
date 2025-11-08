@@ -5,7 +5,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, cast
 
 import torch
 
@@ -13,6 +13,7 @@ from metta.agent.mocks import MockAgent
 from metta.agent.policy import Policy
 from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.npc.factory import load_npc_policy
 from metta.rl.policy_artifact import PolicyArtifact
 from metta.sim.replay_log_writer import ReplayLogWriter
 from metta.sim.simulation_config import SimulationConfig
@@ -80,14 +81,19 @@ class Simulation:
         self._policy_uri = resolved_policy_uri
 
         # Load NPC policy if specified
-        if cfg.npc_policy_uri:
-            self._npc_artifact = CheckpointManager.load_artifact_from_uri(cfg.npc_policy_uri)
-            self._npc_policy: Policy | None = None
+        self._npc_policy: Policy | None = None
+        self._npc_policy_identifier: str | None = None
+        self._npc_policy_uri = cfg.npc_policy_uri
+        self._npc_policy_class = getattr(cfg, "npc_policy_class", None)
+        self._npc_policy_kwargs = getattr(cfg, "npc_policy_kwargs", {})
+        self._npc_policy_is_uri = bool(cfg.npc_policy_uri)
+
+        if self._npc_policy_uri:
+            self._npc_artifact = CheckpointManager.load_artifact_from_uri(self._npc_policy_uri)
         else:
             self._npc_artifact = None
-            self._npc_policy = None
-        self._npc_policy_uri = cfg.npc_policy_uri
-        self._policy_agents_pct = cfg.policy_agents_pct if cfg.npc_policy_uri else 1.0
+
+        self._policy_agents_pct = cfg.policy_agents_pct if (self._npc_policy_uri or self._npc_policy_class) else 1.0
 
         self._stats_client: StatsClient | None = stats_client
         self._stats_epoch_id: uuid.UUID | None = stats_epoch_id
@@ -101,7 +107,7 @@ class Simulation:
         self._npc_agents_per_env = self._agents_per_env - self._policy_agents_per_env
 
         self._episode_counter = 0
-        self._rollouts_data = []  # Store rollout data for stats
+        self._rollouts_data: list[Any] = []  # Store rollout data for stats
 
     def _materialize_policy(
         self,
@@ -109,11 +115,12 @@ class Simulation:
         existing_policy: Policy | None,
         policy_env_info: PolicyEnvInterface,
     ) -> Policy:
-        using_existing = existing_policy is not None
-        if using_existing:
+        if existing_policy is not None:
             policy = existing_policy
+            using_existing = True
         else:
             policy = artifact.instantiate(policy_env_info, device=self._device)
+            using_existing = False
 
         policy = policy.to(self._device)
         policy.eval()
@@ -159,23 +166,52 @@ class Simulation:
 
         if self._npc_artifact is not None:
             self._npc_policy = self._materialize_policy(self._npc_artifact, self._npc_policy, policy_env_info)
+            self._npc_policy_identifier = self._npc_policy_uri
+        elif self._npc_policy_class:
+            try:
+                npc_policy_raw, descriptor = load_npc_policy(
+                    npc_policy_uri=None,
+                    npc_policy_class=self._npc_policy_class,
+                    npc_policy_kwargs=self._npc_policy_kwargs,
+                    policy_env_info=policy_env_info,
+                    device=self._device,
+                    vector_env=None,
+                )
+            except Exception as exc:  # pragma: no cover - defensive log path
+                msg = f"Failed to load scripted NPC policy '{self._npc_policy_class}': {exc}"
+                logger.error(msg, exc_info=True)
+                raise SimulationCompatibilityError(msg) from exc
+
+            npc_policy = cast(Policy, npc_policy_raw)
+            assert npc_policy is not None
+            npc_policy.to(self._device)
+            npc_policy.eval()
+            if hasattr(npc_policy, "initialize_to_environment"):
+                npc_policy.initialize_to_environment(policy_env_info, self._device)
+            self._npc_policy = cast(Policy, npc_policy)
+            self._npc_policy_identifier = descriptor
 
         self._t0 = time.time()
 
     def _create_agent_policies(self, seed: int) -> list[AgentPolicy]:
         """Create agent policies for a single episode."""
+        if self._policy is None:
+            raise RuntimeError("Simulation policy has not been initialized")
+
         agent_policies = []
+        policy = self._policy
+        npc_policy = self._npc_policy
 
         for agent_id in range(self._agents_per_env):
             # Assign main policy to first N agents, NPC policy to remaining
             if agent_id < self._policy_agents_per_env:
-                agent_policy = self._policy.agent_policy(agent_id)
+                agent_policy = policy.agent_policy(agent_id)
             else:
-                if self._npc_policy is not None:
-                    agent_policy = self._npc_policy.agent_policy(agent_id)
+                if npc_policy is not None:
+                    agent_policy = npc_policy.agent_policy(agent_id)
                 else:
                     # Fallback to main policy if no NPC policy
-                    agent_policy = self._policy.agent_policy(agent_id)
+                    agent_policy = policy.agent_policy(agent_id)
 
             agent_policies.append(agent_policy)
 
@@ -185,9 +221,14 @@ class Simulation:
         """Run the simulation; returns the merged `StatsDB`."""
         self.start_simulation()
 
-        self._policy.reset_memory()
-        if self._npc_policy is not None:
-            self._npc_policy.reset_memory()
+        if self._policy is None:
+            raise RuntimeError("Simulation policy has not been initialized")
+
+        policy = self._policy
+        policy.reset_memory()
+        npc_policy = self._npc_policy
+        if npc_policy is not None:
+            npc_policy.reset_memory()
 
         # Run episodes sequentially
         for episode_idx in range(self._num_episodes):
@@ -291,9 +332,9 @@ class Simulation:
                 agent_map[agent_id] = self._policy_uri
 
         # Add NPC agents to the map if they exist
-        if self._npc_policy is not None and self._npc_policy_uri:
+        if self._npc_policy is not None and self._npc_policy_identifier:
             for agent_id in range(self._policy_agents_per_env, self._agents_per_env):
-                agent_map[agent_id] = self._npc_policy_uri
+                agent_map[agent_id] = self._npc_policy_identifier
 
         # Pass the policy URI directly
         db = SimulationStatsDB.from_shards_and_context(
@@ -316,7 +357,7 @@ class Simulation:
                 policy_details.append((self._policy_uri, None))
 
             # Add NPC policy if it exists
-            if self._npc_policy_uri:
+            if self._npc_policy_is_uri and self._npc_policy_uri:
                 policy_details.append((self._npc_policy_uri, "NPC policy"))
 
             policy_ids = get_or_create_policy_ids(self._stats_client, policy_details, self._stats_epoch_id)
@@ -327,7 +368,7 @@ class Simulation:
                 for agent_id in range(self._policy_agents_per_env):
                     agent_map[agent_id] = policy_ids[self._policy_uri]
 
-            if self._npc_policy_uri:
+            if self._npc_policy_is_uri and self._npc_policy_uri:
                 for agent_id in range(self._policy_agents_per_env, self._agents_per_env):
                     agent_map[agent_id] = policy_ids[self._npc_policy_uri]
 

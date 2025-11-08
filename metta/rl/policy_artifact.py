@@ -56,7 +56,8 @@ def _load_component_config(
     if not (hasattr(component_class, "model_validate") and hasattr(component_class, "model_dump")):
         raise TypeError(f"Loaded symbol {class_path} for {context} does not have required model methods")
 
-    return component_class.model_validate(payload)
+    component_type: Any = component_class
+    return component_type.model_validate(payload)
 
 
 def _expr_to_dotted(expr: ast.expr) -> str:
@@ -153,7 +154,8 @@ def policy_architecture_from_string(spec: str) -> PolicyArchitecture:
             default_class=default_class,
         )
 
-    architecture = config_class.model_validate(payload)
+    config_type: Any = config_class
+    architecture = config_type.model_validate(payload)
     if not isinstance(architecture, PolicyArchitecture):
         raise TypeError("Deserialized object is not a PolicyArchitecture")
     return architecture
@@ -225,7 +227,8 @@ class PolicyArtifact:
             policy = self.policy_architecture.make_policy(policy_env_info)
             policy = policy.to(device)
 
-            if hasattr(policy, "initialize_to_environment"):
+            needs_env_init = hasattr(policy, "initialize_to_environment")
+            if needs_env_init:
                 policy.initialize_to_environment(policy_env_info, device)
 
             ordered_state = OrderedDict(self.state_dict.items())
@@ -233,6 +236,8 @@ class PolicyArtifact:
             if strict and (missing or unexpected):
                 msg = f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}"
                 raise RuntimeError(msg)
+            if needs_env_init:
+                policy.initialize_to_environment(policy_env_info, device)
             self.policy = policy
             self.state_dict = None
             return policy
@@ -364,8 +369,8 @@ def load_policy_artifact(path: str | Path, is_pt_file: bool = False) -> PolicyAr
             raise FileNotFoundError(f"Invalid or corrupted checkpoint file: {input_path}") from err
 
         if _is_puffer_state_dict(legacy_payload):
-            policy = load_pufferlib_checkpoint(legacy_payload, device="cpu")
-            return PolicyArtifact(policy=policy)
+            converted_policy = load_pufferlib_checkpoint(legacy_payload, device="cpu")
+            return PolicyArtifact(policy=converted_policy)
 
         return PolicyArtifact(policy=legacy_payload)
 

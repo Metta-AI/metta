@@ -1,6 +1,6 @@
 # metta/sim/simulation_config.py
 
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import Field
 
@@ -20,6 +20,8 @@ class SimulationConfig(Config):
     max_time_s: int = Field(default=120, description="Maximum time in seconds to run the simulation", ge=0)
 
     npc_policy_uri: Optional[str] = Field(default=None, description="URI of the policy to use for NPC agents")
+    npc_policy_class: Optional[str] = Field(default=None, description="Import path to scripted NPC policy class")
+    npc_policy_kwargs: dict[str, Any] = Field(default_factory=dict, description="Keyword args for scripted NPC policy")
     policy_agents_pct: float = Field(default=1.0, description="pct of agents to be controlled by policies", ge=0, le=1)
 
     episode_tags: Optional[list[str]] = Field(default=None, description="Tags to add to each episode")

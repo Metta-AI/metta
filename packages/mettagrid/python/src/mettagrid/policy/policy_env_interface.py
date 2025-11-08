@@ -52,3 +52,9 @@ class PolicyEnvInterface:
             obs_width=mg_cfg.game.obs.width,
             obs_height=mg_cfg.game.obs.height,
         )
+
+    @property
+    def action_names(self) -> list[str]:
+        """Return available action names for the environment."""
+
+        return [action.name for action in self.actions.actions()]

@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
+import gymnasium as gym
+import numpy as np
 import pytest
 import torch
 import torch.nn as nn
 from pydantic import Field
 from tensordict import TensorDict
 
+from metta.agent.components.action import ActionEmbedding, ActionEmbeddingConfig
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 from metta.agent.policies.vit import ViTDefaultConfig
@@ -60,6 +64,51 @@ def _policy_env_info() -> PolicyEnvInterface:
     from mettagrid.config import MettaGridConfig
 
     return PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
+
+
+class ActionTestArchitecture(PolicyArchitecture):
+    class_path: str = "tests.rl.test_policy_artifact.ActionTestPolicy"
+    action_probs_config: DummyActionComponentConfig = Field(default_factory=DummyActionComponentConfig)
+
+
+class ActionTestPolicy(Policy):
+    def __init__(self, policy_env_info: PolicyEnvInterface | None, _: PolicyArchitecture | None = None):
+        super().__init__(policy_env_info or _policy_env_info())
+        config = ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=4)
+        self.components = nn.ModuleDict({"action_embedding": ActionEmbedding(config)})
+        self._device = torch.device("cpu")
+
+    def forward(
+        self, td: TensorDict, action: torch.Tensor | None = None
+    ) -> TensorDict:  # pragma: no cover - simple passthrough
+        return td
+
+    def initialize_to_environment(self, policy_env_info: PolicyEnvInterface, device: torch.device):
+        self._device = torch.device(device)
+        self.components["action_embedding"].initialize_to_environment(policy_env_info, self._device)
+
+    @property
+    def device(self) -> torch.device:
+        return self._device
+
+    def reset_memory(self) -> None:  # pragma: no cover - no-op for test policy
+        return None
+
+
+def _make_env_info(action_names: list[str]) -> PolicyEnvInterface:
+    actions = SimpleNamespace(
+        actions=lambda: [SimpleNamespace(name=name) for name in action_names],
+    )
+    env_info = PolicyEnvInterface(
+        obs_features=[],
+        actions=actions,  # type: ignore[arg-type]
+        num_agents=1,
+        observation_space=gym.spaces.Box(low=0, high=255, shape=(1, 3), dtype=np.uint8),
+        action_space=gym.spaces.Discrete(len(action_names) or 1),
+        obs_width=1,
+        obs_height=1,
+    )
+    return env_info
 
 
 def test_policy_only_artifact_instantiate() -> None:
@@ -175,3 +224,24 @@ def test_safetensors_save_with_shared_lstm_parameters(tmp_path: Path) -> None:
 
     # Access lstm_reset component from the components dict and check lstm_h buffer
     assert reloaded.components["lstm_reset"].lstm_h.size(1) == 0
+
+
+def test_policy_artifact_reinitializes_environment_dependent_buffers() -> None:
+    """Policies should refresh action embeddings after weights are loaded."""
+
+    action_names = ["noop", "attack_0", "attack_1"]
+    old_env_info = _make_env_info(action_names)
+    new_env_info = _make_env_info(action_names)
+
+    architecture = ActionTestArchitecture()
+    policy = architecture.make_policy(old_env_info)
+    policy.initialize_to_environment(old_env_info, torch.device("cpu"))
+
+    artifact = PolicyArtifact(policy_architecture=architecture, state_dict=policy.state_dict())
+    artifact.state_dict["components.action_embedding.active_indices"] = torch.tensor([5, 6, 7], dtype=torch.long)
+
+    reloaded = artifact.instantiate(new_env_info, torch.device("cpu"))
+
+    action_component = reloaded.components["action_embedding"]
+    assert tuple(action_component.active_indices.tolist()) == (0, 1, 2)
+    assert action_component.num_actions == 3
