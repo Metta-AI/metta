@@ -99,7 +99,7 @@ proc computeMapBounds(map: Table[Location, seq[FeatureValue]]): MapBounds =
     if location.y > result.maxY:
       result.maxY = location.y
 
-proc drawMap(map: Table[Location, seq[FeatureValue]]) =
+proc drawMap(map: Table[Location, seq[FeatureValue]], seen: HashSet[Location]) =
   ## Draw the map to the console.
   let bounds = computeMapBounds(map)
   var line = "+"
@@ -111,8 +111,11 @@ proc drawMap(map: Table[Location, seq[FeatureValue]]) =
     line = "|"
     for x in bounds.minX .. bounds.maxX:
       var cell = "  "
-      if Location(x: x, y: y) in map:
-        for featureValue in map[Location(x: x, y: y)]:
+      let location = Location(x: x, y: y)
+      if location notin seen:
+        cell = "~~"
+      if location in map:
+        for featureValue in map[location]:
           if featureValue.featureId == 0:
             case featureValue.value
             of 0:
@@ -179,11 +182,13 @@ proc updateMap(agent: HeuristicAgent, visible: Table[Location, seq[FeatureValue]
   var
     bestScore = 0
     bestLocation = agent.location
-    possibleOffsets = @[
-      Location(x: 0, y: 0), # Staying put.
-    ]
+    possibleOffsets: seq[Location]
+
+  # We know we can only have N states, either stay put or move.
+  # If the last actions was not known check all possible offsets.
+  # Note: Checking all possible offsets does not allows work!
+  # Last action is nearly required.
   var lastAction = visible.getLastAction()
-  echo "last action: ", lastAction
   if lastAction == 1 or lastAction == -1: # Moving north.
     possibleOffsets.add(Location(x: 0, y: -1))
   if lastAction == 2 or lastAction == -1: # Moving south.
@@ -192,7 +197,7 @@ proc updateMap(agent: HeuristicAgent, visible: Table[Location, seq[FeatureValue]
     possibleOffsets.add(Location(x: -1, y: 0))
   if lastAction == 4 or lastAction == -1: # Moving east.
     possibleOffsets.add(Location(x: 1, y: 0))
-  echo "possible offsets: ", possibleOffsets
+  possibleOffsets.add(Location(x: 0, y: 0)) # Staying put.
 
   for offset in possibleOffsets:
     var score = 0
@@ -214,11 +219,9 @@ proc updateMap(agent: HeuristicAgent, visible: Table[Location, seq[FeatureValue]
           else:
             # Other types of features are worth 1 point each.
             score += 10
-    echo "score for location ", location.x, ", ", location.y, " is ", score
     if score > bestScore:
       bestScore = score
       bestLocation = location
-  echo "  best location: ", bestLocation.x, ", ", bestLocation.y, " score: ", bestScore
 
   # Update the big map with the small visible map.
   if bestScore < 2:
@@ -226,7 +229,6 @@ proc updateMap(agent: HeuristicAgent, visible: Table[Location, seq[FeatureValue]
     echo "  current location: ", agent.location.x, ", ", agent.location.y
     echo "  best location: ", bestLocation.x, ", ", bestLocation.y
   else:
-    echo "Updating map with location: ", bestLocation.x, ", ", bestLocation.y
     agent.location =  bestLocation
     for x in -5 .. 5:
       for y in -5 .. 5:
@@ -236,7 +238,7 @@ proc updateMap(agent: HeuristicAgent, visible: Table[Location, seq[FeatureValue]
           agent.map[location] = visible[visibleLocation]
         else:
           agent.map[location] = @[]
-
+        agent.seen.incl(location)
 
 proc step(
   agent: HeuristicAgent,
@@ -273,10 +275,10 @@ proc step(
 
     echo "current location: ", agent.location.x, ", ", agent.location.y
     echo "visible map:"
-    drawMap(map)
+    drawMap(map, initHashSet[Location]())
     updateMap(agent, map)
     echo "updated map:"
-    drawMap(agent.map)
+    drawMap(agent.map, agent.seen)
 
     let actions = cast[ptr UncheckedArray[int32]](rawActions)
     let action = agent.random.rand(1 .. 4).int32
