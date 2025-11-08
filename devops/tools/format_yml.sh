@@ -33,17 +33,6 @@ else
   mode_past="formatted"
 fi
 
-# Show what exclusion pattern is being used
-if [ -n "$EXCLUDE_PATTERN" ]; then
-  echo "Using exclusion pattern: $EXCLUDE_PATTERN"
-else
-  echo "No exclusion pattern - $mode_action all YAML files"
-fi
-echo ""
-
 # Format YAML files
 format_files "yml"
 format_files "yaml"
-
-echo ""
-echo "All matching YAML files have been $mode_past with Prettier."

@@ -23,4 +23,3 @@ fi
 
 # Format TOML files
 format_files "toml"
-echo "All TOML files (except excluded ones) have been $mode_past with Prettier."

@@ -82,12 +82,9 @@ format_files() {
       return
     fi
 
-    echo "$action ${#matching_files[@]} *.$file_ext file(s)..."
     pnpm exec prettier $prettier_mode "${matching_files[@]}"
   else
     # Fall back to finding all tracked files (respects .gitignore)
-    echo "$action *.$file_ext files..."
-
     if [ -n "$exclude_pattern" ]; then
       echo "  Excluding: $exclude_pattern"
       git ls-files "*.${file_ext}" | grep -v "$exclude_pattern" | xargs -r pnpm exec prettier $prettier_mode
