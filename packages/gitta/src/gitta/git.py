@@ -60,7 +60,7 @@ def get_commit_message(commit_hash: str) -> str:
     return _get_commit_message_cached(resolved_hash)
 
 
-def get_uncommitted_files_by_status() -> list[tuple[str, str]]:
+def get_uncommitted_files_and_statuses() -> list[tuple[str, str]]:
     """
     Returns a list of (status code, fname).
 
@@ -88,7 +88,7 @@ def has_uncommitted_changes(allow_untracked: bool = False) -> tuple[bool, str]:
     - Lines starting with '??' indicate untracked files
     - Any other status lines indicate changes to tracked files
     """
-    files_by_status = get_uncommitted_files_by_status()
+    files_by_status = get_uncommitted_files_and_statuses()
     statuses = set(status for status, _ in files_by_status)
     if allow_untracked:
         statuses.discard("??")

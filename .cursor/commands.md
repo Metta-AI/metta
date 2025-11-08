@@ -123,17 +123,10 @@ metta pytest --changed
 
 ```bash
 # Run linting and formatting (all file types by default)
-metta lint
+metta lint path/to/file_or_dir [...]
 
 # Format and lint with auto-fix
-metta lint --fix
-
-# Format specific file types only
-metta lint --type json,yaml
-metta lint --type python
-
-# Check formatting without modifying files
-metta lint --check
+metta lint --fix path/to/file_or_dir [...]
 
 # Format only staged files
 metta lint --staged --fix
@@ -141,13 +134,7 @@ metta lint --staged --fix
 
 **Supported File Types:**
 
-- `python` - Python files (ruff format + ruff check)
-- `json` - JSON files
-- `markdown` (alias: `md`) - Markdown files
-- `shell` (alias: `sh`) - Shell scripts
-- `toml` - TOML config files
-- `yaml` (alias: `yml`) - YAML config files
-- `cpp` - C++ files (if mettagrid Makefile available)
+- Automatically handled: Python, JSON/JSONC, Markdown, Shell, TOML, YAML, and selected C++ files.
 
 ---
 

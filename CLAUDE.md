@@ -81,16 +81,12 @@ implementation.
 
 3. **Track deviations** - If you need to deviate from the plan, document why and update the approach
 4. **Keep it concise** - Focus on what changed and why, not how (the code shows how)
-5. **CRITICAL: Always format Python code** - After editing any Python file (\*.py), immediately run:
+5. **CRITICAL: Always run `metta lint`** - After editing any file, immediately run:
    ```bash
-   metta lint --fix
+   metta lint --fix path/to/file_or_dir [...]
    ```
-   Or alternatively, for individual files:
-   ```bash
-   ruff format [file_path]
-   ruff check --fix [file_path]
-   ```
-   Note: Only run these commands on Python files, not on other file types like Markdown, YAML, etc.
+   This single command handles Ruff + Prettier. Avoid calling `ruff`/`prettier` directly unless `metta lint` instructs
+   you to.
 
 ### After Implementation
 
@@ -261,17 +257,10 @@ metta pytest tests/rl/test_trainer_config.py -v
 metta pytest tests/sim/ -v
 
 # Run linting and formatting (formats all file types by default)
-metta lint
+metta lint path/to/file_or_dir [...]
 
 # Format and lint with auto-fix
-metta lint --fix
-
-# Format specific file types only
-metta lint --type json,yaml
-metta lint --type python
-
-# Check formatting without modifying files
-metta lint --check
+metta lint --fix path/to/file_or_dir [...]
 
 # Format only staged files
 metta lint --staged --fix
