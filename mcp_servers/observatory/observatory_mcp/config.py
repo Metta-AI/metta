@@ -20,43 +20,25 @@ class ObservatoryMCPConfig:
     version: str = "0.1.0"
 
     # Backend API configuration
-    backend_url: str = field(
-        default_factory=lambda: os.getenv("METTA_MCP_BACKEND_URL", "http://localhost:8000")
-    )
+    backend_url: str = field(default_factory=lambda: os.getenv("METTA_MCP_BACKEND_URL", "http://localhost:8000"))
 
     # Authentication configuration
-    machine_token: Optional[str] = field(
-        default_factory=lambda: os.getenv("METTA_MCP_MACHINE_TOKEN")
-    )
+    machine_token: Optional[str] = field(default_factory=lambda: os.getenv("METTA_MCP_MACHINE_TOKEN"))
 
     # AWS configuration
-    aws_profile: Optional[str] = field(
-        default_factory=lambda: os.getenv("AWS_PROFILE")
-    )
-    s3_bucket: str = field(
-        default_factory=lambda: os.getenv("METTA_S3_BUCKET", "softmax-public")
-    )
+    aws_profile: Optional[str] = field(default_factory=lambda: os.getenv("AWS_PROFILE"))
+    s3_bucket: str = field(default_factory=lambda: os.getenv("METTA_S3_BUCKET", "softmax-public"))
 
     # W&B configuration
-    wandb_api_key: Optional[str] = field(
-        default_factory=lambda: os.getenv("WANDB_API_KEY")
-    )
-    wandb_entity: Optional[str] = field(
-        default_factory=lambda: os.getenv("WANDB_ENTITY")
-    )
-    wandb_project: Optional[str] = field(
-        default_factory=lambda: os.getenv("WANDB_PROJECT")
-    )
+    wandb_api_key: Optional[str] = field(default_factory=lambda: os.getenv("WANDB_API_KEY"))
+    wandb_entity: Optional[str] = field(default_factory=lambda: os.getenv("WANDB_ENTITY"))
+    wandb_project: Optional[str] = field(default_factory=lambda: os.getenv("WANDB_PROJECT"))
 
     # Skypilot configuration
-    skypilot_url: Optional[str] = field(
-        default_factory=lambda: os.getenv("METTA_SKYPILOT_URL")
-    )
+    skypilot_url: Optional[str] = field(default_factory=lambda: os.getenv("METTA_SKYPILOT_URL"))
 
     # Logging configuration
-    log_level: str = field(
-        default_factory=lambda: os.getenv("LOG_LEVEL", "INFO")
-    )
+    log_level: str = field(default_factory=lambda: os.getenv("LOG_LEVEL", "INFO"))
     log_format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
     @classmethod
@@ -100,16 +82,12 @@ class ObservatoryMCPConfig:
 
         valid_log_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         if self.log_level.upper() not in valid_log_levels:
-            errors.append(
-                f"Invalid log level: {self.log_level}. "
-                f"Must be one of: {', '.join(valid_log_levels)}"
-            )
+            errors.append(f"Invalid log level: {self.log_level}. Must be one of: {', '.join(valid_log_levels)}")
 
         if self.s3_bucket:
             if not (3 <= len(self.s3_bucket) <= 63):
                 errors.append(
-                    f"Invalid S3 bucket name: {self.s3_bucket}. "
-                    "Bucket names must be between 3 and 63 characters."
+                    f"Invalid S3 bucket name: {self.s3_bucket}. Bucket names must be between 3 and 63 characters."
                 )
 
         return errors
@@ -137,4 +115,3 @@ class ObservatoryMCPConfig:
     def is_authenticated(self) -> bool:
         """Check if authentication token is available."""
         return bool(self.machine_token)
-

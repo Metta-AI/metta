@@ -3,8 +3,6 @@
 import logging
 from typing import Any
 
-from .training_context import WandbTrainingContext, analyze_training_progression
-
 logger = logging.getLogger(__name__)
 
 
@@ -118,21 +116,25 @@ def identify_critical_moments(
 
             if change_pct > threshold:
                 if curr > prev and next_val > curr:
-                    moments.append({
-                        "type": "breakthrough",
-                        "metric": key,
-                        "step": i,
-                        "value": curr,
-                        "change_percent": change_pct * 100,
-                    })
+                    moments.append(
+                        {
+                            "type": "breakthrough",
+                            "metric": key,
+                            "step": i,
+                            "value": curr,
+                            "change_percent": change_pct * 100,
+                        }
+                    )
                 elif curr < prev and next_val < curr:
-                    moments.append({
-                        "type": "drop",
-                        "metric": key,
-                        "step": i,
-                        "value": curr,
-                        "change_percent": change_pct * 100,
-                    })
+                    moments.append(
+                        {
+                            "type": "drop",
+                            "metric": key,
+                            "step": i,
+                            "value": curr,
+                            "change_percent": change_pct * 100,
+                        }
+                    )
 
     return sorted(moments, key=lambda x: x.get("change_percent", 0), reverse=True)
 
@@ -192,8 +194,8 @@ def _detect_trend(values: list[float]) -> str:
     if len(values) < 2:
         return "unknown"
 
-    first_half = values[:len(values) // 2]
-    second_half = values[len(values) // 2:]
+    first_half = values[: len(values) // 2]
+    second_half = values[len(values) // 2 :]
 
     first_avg = sum(first_half) / len(first_half) if first_half else 0
     second_avg = sum(second_half) / len(second_half) if second_half else 0
@@ -246,7 +248,7 @@ def _calculate_std(values: list[float]) -> float:
 
     mean = sum(values) / len(values)
     variance = sum((v - mean) ** 2 for v in values) / len(values)
-    return variance ** 0.5
+    return variance**0.5
 
 
 def _calculate_variance(values: list[float]) -> float:
@@ -294,7 +296,8 @@ def _calculate_p_value(x: list[float], y: list[float], correlation: float) -> fl
 def _normal_cdf(x: float) -> float:
     """Approximate normal CDF."""
     import math
-    return 0.5 * (1 + math.erf(x / (2 ** 0.5)))
+
+    return 0.5 * (1 + math.erf(x / (2**0.5)))
 
 
 def _interpret_correlation(correlation: float) -> str:
@@ -308,4 +311,3 @@ def _interpret_correlation(correlation: float) -> str:
         return "weak"
     else:
         return "negligible"
-

@@ -43,4 +43,3 @@ class SkypilotClient:
         except Exception as e:
             logger.error(f"Skypilot command failed: {cmd}, error: {e}")
             return "", str(e), -1
-

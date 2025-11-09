@@ -60,4 +60,3 @@ class S3Client:
         if parsed.scheme == "s3":
             return parsed.require_s3()
         return (self.bucket, uri)
-

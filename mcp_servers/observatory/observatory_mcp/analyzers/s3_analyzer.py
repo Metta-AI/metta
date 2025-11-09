@@ -31,12 +31,14 @@ def analyze_checkpoint_progression(
 
     progression = []
     for i, checkpoint in enumerate(checkpoints_with_epoch):
-        progression.append({
-            "epoch": checkpoint.get("epoch", 0),
-            "size": checkpoint.get("size", 0),
-            "size_delta": sizes[i] - sizes[i - 1] if i > 0 else 0,
-            "epoch_delta": epochs[i] - epochs[i - 1] if i > 0 else 0,
-        })
+        progression.append(
+            {
+                "epoch": checkpoint.get("epoch", 0),
+                "size": checkpoint.get("size", 0),
+                "size_delta": sizes[i] - sizes[i - 1] if i > 0 else 0,
+                "epoch_delta": epochs[i] - epochs[i - 1] if i > 0 else 0,
+            }
+        )
 
     trends = {
         "size_trend": _calculate_trend(sizes),
@@ -120,7 +122,9 @@ def analyze_checkpoint_usage(
 
     patterns = {
         "creation_rate": len(recent_checkpoints) / time_window_days if time_window_days > 0 else 0,
-        "average_size": sum(c.get("size", 0) for c in recent_checkpoints) / len(recent_checkpoints) if recent_checkpoints else 0,
+        "average_size": (
+            sum(c.get("size", 0) for c in recent_checkpoints) / len(recent_checkpoints) if recent_checkpoints else 0
+        ),
     }
 
     return {
@@ -202,8 +206,8 @@ def _calculate_trend(values: list[float]) -> str:
     if len(values) < 2:
         return "stable"
 
-    first_half = values[:len(values) // 2]
-    second_half = values[len(values) // 2:]
+    first_half = values[: len(values) // 2]
+    second_half = values[len(values) // 2 :]
 
     first_avg = sum(first_half) / len(first_half) if first_half else 0
     second_avg = sum(second_half) / len(second_half) if second_half else 0
@@ -223,4 +227,3 @@ def _calculate_frequency(epochs: list[int]) -> float:
 
     epoch_range = max(epochs) - min(epochs)
     return len(epochs) / epoch_range if epoch_range > 0 else 0.0
-

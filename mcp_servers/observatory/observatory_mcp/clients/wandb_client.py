@@ -51,4 +51,3 @@ class WandBClient:
         except Exception as e:
             logger.error(f"Failed to initialize WandB API: {e}", exc_info=True)
             raise
-

@@ -156,4 +156,3 @@ def get_job_cost_estimates(
     }
 
     return {"cost_estimates": cost_estimates}
-

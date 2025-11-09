@@ -20,14 +20,7 @@ def format_success_response(data: Any) -> str:
     Returns:
         JSON string with success response
     """
-    return json.dumps(
-        {
-            "status": "success",
-            "data": data
-        },
-        indent=2,
-        default=str
-    )
+    return json.dumps({"status": "success", "data": data}, indent=2, default=str)
 
 
 def format_error_response(error: Exception, tool_name: str, context: str | None = None) -> str:
@@ -41,12 +34,7 @@ def format_error_response(error: Exception, tool_name: str, context: str | None 
     Returns:
         JSON string with error information
     """
-    error_data = {
-        "status": "error",
-        "tool": tool_name,
-        "message": str(error),
-        "error_type": type(error).__name__
-    }
+    error_data = {"status": "error", "tool": tool_name, "message": str(error), "error_type": type(error).__name__}
 
     if context:
         error_data["context"] = context
@@ -73,7 +61,7 @@ def handle_backend_error(error: Exception, tool_name: str) -> str:
         return format_error_response(
             Exception("Backend connection failed. Is the backend running at the configured URL?"),
             tool_name,
-            context="Check METTA_MCP_BACKEND_URL environment variable"
+            context="Check METTA_MCP_BACKEND_URL environment variable",
         )
 
     if "HTTPStatusError" in error_type or "HTTPError" in error_type:
@@ -81,18 +69,14 @@ def handle_backend_error(error: Exception, tool_name: str) -> str:
             return format_error_response(
                 Exception("Authentication failed. Check your machine token."),
                 tool_name,
-                context="Set METTA_MCP_MACHINE_TOKEN environment variable"
+                context="Set METTA_MCP_MACHINE_TOKEN environment variable",
             )
         if "404" in error_message:
             return format_error_response(
-                Exception("Backend endpoint not found. The backend may be outdated."),
-                tool_name
+                Exception("Backend endpoint not found. The backend may be outdated."), tool_name
             )
         if "500" in error_message:
-            return format_error_response(
-                Exception("Backend server error. Check backend logs."),
-                tool_name
-            )
+            return format_error_response(Exception("Backend server error. Check backend logs."), tool_name)
 
     return format_error_response(error, tool_name)
 
@@ -113,9 +97,7 @@ def handle_validation_error(error: Exception, tool_name: str, field: str | None 
         error_msg = f"Validation error for field '{field}': {error_msg}"
 
     return format_error_response(
-        ValueError(error_msg),
-        tool_name,
-        context="Check tool arguments and ensure all required fields are provided"
+        ValueError(error_msg), tool_name, context="Check tool arguments and ensure all required fields are provided"
     )
 
 
@@ -137,4 +119,3 @@ def serialize_response_data(data: Any) -> Any:
     if isinstance(data, list):
         return [serialize_response_data(item) for item in data]
     return data
-

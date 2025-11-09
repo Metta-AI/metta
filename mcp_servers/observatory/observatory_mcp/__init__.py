@@ -5,4 +5,3 @@ Model Context Protocol server for accessing Metta Observatory backend functional
 """
 
 __version__ = "0.1.0"
-

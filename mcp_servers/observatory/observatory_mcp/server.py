@@ -18,7 +18,7 @@ from metta.app_backend.clients.scorecard_client import ScorecardClient
 
 from .clients import S3Client, SkypilotClient, WandBClient
 from .config import ObservatoryMCPConfig
-from .tools import scorecard, s3, skypilot, wandb
+from .tools import s3, scorecard, skypilot, wandb
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,9 @@ class ObservatoryMCPServer:
         if self.config.is_wandb_configured():
             try:
                 self.wandb_client = WandBClient(api_key=self.config.wandb_api_key)
-                logger.info(f"WandB client initialized (entity={self.config.wandb_entity}, project={self.config.wandb_project})")
+                logger.info(
+                    f"WandB client initialized (entity={self.config.wandb_entity}, project={self.config.wandb_project})"
+                )
             except Exception as e:
                 logger.warning(f"Failed to initialize WandB client: {e}. WandB tools will be unavailable.")
                 self.wandb_client = None
@@ -67,7 +69,9 @@ class ObservatoryMCPServer:
                 self.s3_client = None
                 logger.warning("S3 client initialization failed. S3 tools will be unavailable.")
             else:
-                profile_info = f"profile={self.config.aws_profile}" if self.config.aws_profile else "default credentials"
+                profile_info = (
+                    f"profile={self.config.aws_profile}" if self.config.aws_profile else "default credentials"
+                )
                 logger.info(f"S3 client initialized ({profile_info}, bucket={self.config.s3_bucket})")
         except Exception as e:
             logger.warning(f"Failed to initialize S3 client: {e}. S3 tools will be unavailable.")
@@ -91,12 +95,17 @@ class ObservatoryMCPServer:
 
     def _setup_tools(self) -> None:
         """Register all MCP tools with the server."""
+
         @self.app.list_tools()
         async def list_tools() -> List[types.Tool]:
             return [
                 types.Tool(
                     name="get_training_runs",
-                    description="Get all training runs from the backend. Returns training runs along with their metadata (name, created_at, tags, etc.).",
+                    description=(
+                        "Get all training runs from the backend. "
+                        "Returns training runs along with their metadata "
+                        "(name, created_at, tags, etc.)."
+                    ),
                     inputSchema={
                         "type": "object",
                         "properties": {},
@@ -105,7 +114,10 @@ class ObservatoryMCPServer:
                 ),
                 types.Tool(
                     name="get_policies",
-                    description="Get all policies and training runs from the backend. Returns both training runs and standalone (run-free) policies.",
+                    description=(
+                        "Get all policies and training runs from the backend. "
+                        "Returns both training runs and standalone (run-free) policies."
+                    ),
                     inputSchema={
                         "type": "object",
                         "properties": {},
@@ -114,7 +126,10 @@ class ObservatoryMCPServer:
                 ),
                 types.Tool(
                     name="search_policies",
-                    description="Search policies with filtering and pagination. Supports filtering by name, type, tags, and user ID.",
+                    description=(
+                        "Search policies with filtering and pagination. "
+                        "Supports filtering by name, type, tags, and user ID."
+                    ),
                     inputSchema={
                         "type": "object",
                         "properties": {
@@ -155,7 +170,10 @@ class ObservatoryMCPServer:
                 ),
                 types.Tool(
                     name="get_eval_names",
-                    description="Get available evaluation names for selected training runs and policies. Returns list of eval names in format 'eval_category/env_name'.",
+                    description=(
+                        "Get available evaluation names for selected training runs and policies. "
+                        "Returns list of eval names in format 'eval_category/env_name'."
+                    ),
                     inputSchema={
                         "type": "object",
                         "properties": {
@@ -175,7 +193,10 @@ class ObservatoryMCPServer:
                 ),
                 types.Tool(
                     name="get_available_metrics",
-                    description="Get available metrics for selected policies and evaluations. Returns list of metric names that can be used for scorecard generation.",
+                    description=(
+                        "Get available metrics for selected policies and evaluations. "
+                        "Returns list of metric names that can be used for scorecard generation."
+                    ),
                     inputSchema={
                         "type": "object",
                         "properties": {
@@ -200,7 +221,11 @@ class ObservatoryMCPServer:
                 ),
                 types.Tool(
                     name="generate_scorecard",
-                    description="Generate scorecard (heatmap) data showing policy performance across evaluations for a specific metric. Creates a 2D grid of policy vs evaluation performance.",
+                    description=(
+                        "Generate scorecard (heatmap) data showing policy performance "
+                        "across evaluations for a specific metric. "
+                        "Creates a 2D grid of policy vs evaluation performance."
+                    ),
                     inputSchema={
                         "type": "object",
                         "properties": {
@@ -221,12 +246,17 @@ class ObservatoryMCPServer:
                             },
                             "metric": {
                                 "type": "string",
-                                "description": "Metric to use for scorecard (e.g., 'reward', 'score', 'episode_length')",
+                                "description": (
+                                    "Metric to use for scorecard (e.g., 'reward', 'score', 'episode_length')"
+                                ),
                             },
                             "policy_selector": {
                                 "type": "string",
                                 "enum": ["best", "latest"],
-                                "description": "Policy selection strategy for training runs: 'best' (best performing) or 'latest' (most recent)",
+                                "description": (
+                                    "Policy selection strategy for training runs: "
+                                    "'best' (best performing) or 'latest' (most recent)"
+                                ),
                                 "default": "best",
                             },
                         },
@@ -235,7 +265,11 @@ class ObservatoryMCPServer:
                 ),
                 types.Tool(
                     name="run_sql_query",
-                    description="Execute SQL query against the backend database. The query is validated and executed by the backend API. Returns query results with columns and rows.",
+                    description=(
+                        "Execute SQL query against the backend database. "
+                        "The query is validated and executed by the backend API. "
+                        "Returns query results with columns and rows."
+                    ),
                     inputSchema={
                         "type": "object",
                         "properties": {
@@ -249,13 +283,20 @@ class ObservatoryMCPServer:
                 ),
                 types.Tool(
                     name="generate_ai_query",
-                    description="Generate SQL query from natural language description using AI. Converts a natural language description into a SQL query that can be executed against the backend database.",
+                    description=(
+                        "Generate SQL query from natural language description using AI. "
+                        "Converts a natural language description into a SQL query "
+                        "that can be executed against the backend database."
+                    ),
                     inputSchema={
                         "type": "object",
                         "properties": {
                             "description": {
                                 "type": "string",
-                                "description": "Natural language description of desired query (e.g., 'Get all training runs created in the last week')",
+                                "description": (
+                                    "Natural language description of desired query "
+                                    "(e.g., 'Get all training runs created in the last week')"
+                                ),
                             },
                         },
                         "required": ["description"],
@@ -270,8 +311,16 @@ class ObservatoryMCPServer:
                             "entity": {"type": "string", "description": "WandB entity (user/team)"},
                             "project": {"type": "string", "description": "WandB project name"},
                             "tags": {"type": "array", "items": {"type": "string"}, "description": "Filter by tags"},
-                            "state": {"type": "string", "enum": ["running", "finished", "crashed", "killed"], "description": "Filter by state"},
-                            "limit": {"type": "integer", "description": "Maximum number of runs to return", "default": 50},
+                            "state": {
+                                "type": "string",
+                                "enum": ["running", "finished", "crashed", "killed"],
+                                "description": "Filter by state",
+                            },
+                            "limit": {
+                                "type": "integer",
+                                "description": "Maximum number of runs to return",
+                                "default": 50,
+                            },
                         },
                         "required": ["entity", "project"],
                     },
@@ -285,7 +334,10 @@ class ObservatoryMCPServer:
                             "entity": {"type": "string", "description": "WandB entity (user/team)"},
                             "project": {"type": "string", "description": "WandB project name"},
                             "run_id": {"type": "string", "description": "WandB run ID (preferred if available)"},
-                            "run_name": {"type": "string", "description": "WandB run name (used if run_id not provided)"},
+                            "run_name": {
+                                "type": "string",
+                                "description": "WandB run name (used if run_id not provided)",
+                            },
                         },
                         "required": ["entity", "project"],
                     },
@@ -299,7 +351,11 @@ class ObservatoryMCPServer:
                             "entity": {"type": "string", "description": "WandB entity (user/team)"},
                             "project": {"type": "string", "description": "WandB project name"},
                             "run_id": {"type": "string", "description": "WandB run ID"},
-                            "metric_keys": {"type": "array", "items": {"type": "string"}, "description": "List of metric names to fetch"},
+                            "metric_keys": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "List of metric names to fetch",
+                            },
                             "samples": {"type": "integer", "description": "Optional limit on number of samples"},
                         },
                         "required": ["entity", "project", "run_id", "metric_keys"],
@@ -333,16 +389,30 @@ class ObservatoryMCPServer:
                 ),
                 types.Tool(
                     name="analyze_wandb_training_progression",
-                    description="Analyze training progression for a WandB run with learning velocity, stability, and critical moments.",
+                    description=(
+                        "Analyze training progression for a WandB run with "
+                        "learning velocity, stability, and critical moments."
+                    ),
                     inputSchema={
                         "type": "object",
                         "properties": {
                             "entity": {"type": "string", "description": "WandB entity (user/team)"},
                             "project": {"type": "string", "description": "WandB project name"},
                             "run_id": {"type": "string", "description": "WandB run ID"},
-                            "metric_keys": {"type": "array", "items": {"type": "string"}, "description": "List of metric keys to analyze"},
-                            "context_window_steps": {"type": "integer", "description": "Number of steps to analyze around center", "default": 1000},
-                            "center_step": {"type": "integer", "description": "Optional center step (defaults to middle of data)"},
+                            "metric_keys": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "List of metric keys to analyze",
+                            },
+                            "context_window_steps": {
+                                "type": "integer",
+                                "description": "Number of steps to analyze around center",
+                                "default": 1000,
+                            },
+                            "center_step": {
+                                "type": "integer",
+                                "description": "Optional center step (defaults to middle of data)",
+                            },
                         },
                         "required": ["entity", "project", "run_id", "metric_keys"],
                     },
@@ -355,8 +425,16 @@ class ObservatoryMCPServer:
                         "properties": {
                             "entity": {"type": "string", "description": "WandB entity (user/team)"},
                             "project": {"type": "string", "description": "WandB project name"},
-                            "run_ids": {"type": "array", "items": {"type": "string"}, "description": "List of WandB run IDs to compare"},
-                            "metric_keys": {"type": "array", "items": {"type": "string"}, "description": "List of metric keys to compare"},
+                            "run_ids": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "List of WandB run IDs to compare",
+                            },
+                            "metric_keys": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "List of metric keys to compare",
+                            },
                         },
                         "required": ["entity", "project", "run_ids", "metric_keys"],
                     },
@@ -370,8 +448,16 @@ class ObservatoryMCPServer:
                             "entity": {"type": "string", "description": "WandB entity (user/team)"},
                             "project": {"type": "string", "description": "WandB project name"},
                             "run_id": {"type": "string", "description": "WandB run ID"},
-                            "metric_keys": {"type": "array", "items": {"type": "string"}, "description": "List of metric keys to analyze"},
-                            "smoothing_window": {"type": "integer", "description": "Window size for smoothing", "default": 10},
+                            "metric_keys": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "List of metric keys to analyze",
+                            },
+                            "smoothing_window": {
+                                "type": "integer",
+                                "description": "Window size for smoothing",
+                                "default": 10,
+                            },
                         },
                         "required": ["entity", "project", "run_id", "metric_keys"],
                     },
@@ -385,8 +471,16 @@ class ObservatoryMCPServer:
                             "entity": {"type": "string", "description": "WandB entity (user/team)"},
                             "project": {"type": "string", "description": "WandB project name"},
                             "run_id": {"type": "string", "description": "WandB run ID"},
-                            "metric_keys": {"type": "array", "items": {"type": "string"}, "description": "List of metric keys to analyze"},
-                            "threshold": {"type": "number", "description": "Threshold for detecting significant changes", "default": 0.1},
+                            "metric_keys": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "List of metric keys to analyze",
+                            },
+                            "threshold": {
+                                "type": "number",
+                                "description": "Threshold for detecting significant changes",
+                                "default": 0.1,
+                            },
                         },
                         "required": ["entity", "project", "run_id", "metric_keys"],
                     },
@@ -400,28 +494,42 @@ class ObservatoryMCPServer:
                             "entity": {"type": "string", "description": "WandB entity (user/team)"},
                             "project": {"type": "string", "description": "WandB project name"},
                             "run_id": {"type": "string", "description": "WandB run ID"},
-                            "metric_pairs": {"type": "array", "items": {"type": "array", "items": {"type": "string"}}, "description": "List of [metric1, metric2] pairs to correlate"},
+                            "metric_pairs": {
+                                "type": "array",
+                                "items": {"type": "array", "items": {"type": "string"}},
+                                "description": "List of [metric1, metric2] pairs to correlate",
+                            },
                         },
                         "required": ["entity", "project", "run_id", "metric_pairs"],
                     },
                 ),
                 types.Tool(
                     name="analyze_wandb_behavioral_patterns",
-                    description="Analyze behavioral patterns including action mastery, resource efficiency, and strategy consistency.",
+                    description=(
+                        "Analyze behavioral patterns including action mastery, "
+                        "resource efficiency, and strategy consistency."
+                    ),
                     inputSchema={
                         "type": "object",
                         "properties": {
                             "entity": {"type": "string", "description": "WandB entity (user/team)"},
                             "project": {"type": "string", "description": "WandB project name"},
                             "run_id": {"type": "string", "description": "WandB run ID"},
-                            "behavior_categories": {"type": "array", "items": {"type": "string"}, "description": "Optional list of behavior categories to analyze"},
+                            "behavior_categories": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Optional list of behavior categories to analyze",
+                            },
                         },
                         "required": ["entity", "project", "run_id"],
                     },
                 ),
                 types.Tool(
                     name="generate_wandb_training_insights",
-                    description="Generate AI-powered training insights including achievements, concerning patterns, and recommendations.",
+                    description=(
+                        "Generate AI-powered training insights including achievements, "
+                        "concerning patterns, and recommendations."
+                    ),
                     inputSchema={
                         "type": "object",
                         "properties": {
@@ -441,8 +549,15 @@ class ObservatoryMCPServer:
                             "entity": {"type": "string", "description": "WandB entity (user/team)"},
                             "project": {"type": "string", "description": "WandB project name"},
                             "run_id": {"type": "string", "description": "WandB run ID"},
-                            "target_metric": {"type": "string", "description": "Metric to predict (e.g., 'overview/reward')"},
-                            "projection_steps": {"type": "integer", "description": "Number of steps to project forward", "default": 1000},
+                            "target_metric": {
+                                "type": "string",
+                                "description": "Metric to predict (e.g., 'overview/reward')",
+                            },
+                            "projection_steps": {
+                                "type": "integer",
+                                "description": "Number of steps to project forward",
+                                "default": 1000,
+                            },
                         },
                         "required": ["entity", "project", "run_id", "target_metric"],
                     },
@@ -454,8 +569,15 @@ class ObservatoryMCPServer:
                         "type": "object",
                         "properties": {
                             "run_name": {"type": "string", "description": "Optional training run name to filter by"},
-                            "prefix": {"type": "string", "description": "Optional S3 prefix (overrides run_name if both provided)"},
-                            "max_keys": {"type": "integer", "description": "Maximum number of objects to return", "default": 1000},
+                            "prefix": {
+                                "type": "string",
+                                "description": "Optional S3 prefix (overrides run_name if both provided)",
+                            },
+                            "max_keys": {
+                                "type": "integer",
+                                "description": "Maximum number of objects to return",
+                                "default": 1000,
+                            },
                         },
                         "required": [],
                     },
@@ -478,7 +600,11 @@ class ObservatoryMCPServer:
                         "type": "object",
                         "properties": {
                             "key": {"type": "string", "description": "S3 object key (full path)"},
-                            "expires_in": {"type": "integer", "description": "URL expiration time in seconds", "default": 3600},
+                            "expires_in": {
+                                "type": "integer",
+                                "description": "URL expiration time in seconds",
+                                "default": 3600,
+                            },
                         },
                         "required": ["key"],
                     },
@@ -490,8 +616,15 @@ class ObservatoryMCPServer:
                         "type": "object",
                         "properties": {
                             "run_name": {"type": "string", "description": "Optional training run name to filter by"},
-                            "prefix": {"type": "string", "description": "Optional S3 prefix (overrides run_name if both provided)"},
-                            "max_keys": {"type": "integer", "description": "Maximum number of objects to return", "default": 1000},
+                            "prefix": {
+                                "type": "string",
+                                "description": "Optional S3 prefix (overrides run_name if both provided)",
+                            },
+                            "max_keys": {
+                                "type": "integer",
+                                "description": "Maximum number of objects to return",
+                                "default": 1000,
+                            },
                         },
                         "required": [],
                     },
@@ -513,8 +646,16 @@ class ObservatoryMCPServer:
                     inputSchema={
                         "type": "object",
                         "properties": {
-                            "status": {"type": "string", "enum": ["PENDING", "RUNNING", "SUCCEEDED", "FAILED", "CANCELLED"], "description": "Optional status filter"},
-                            "limit": {"type": "integer", "description": "Maximum number of jobs to return", "default": 100},
+                            "status": {
+                                "type": "string",
+                                "enum": ["PENDING", "RUNNING", "SUCCEEDED", "FAILED", "CANCELLED"],
+                                "description": "Optional status filter",
+                            },
+                            "limit": {
+                                "type": "integer",
+                                "description": "Maximum number of jobs to return",
+                                "default": 100,
+                            },
                         },
                         "required": [],
                     },
@@ -537,7 +678,11 @@ class ObservatoryMCPServer:
                         "type": "object",
                         "properties": {
                             "job_id": {"type": "string", "description": "Skypilot job ID"},
-                            "tail_lines": {"type": "integer", "description": "Number of lines to return", "default": 100},
+                            "tail_lines": {
+                                "type": "integer",
+                                "description": "Number of lines to return",
+                                "default": 100,
+                            },
                         },
                         "required": ["job_id"],
                     },
@@ -549,7 +694,10 @@ class ObservatoryMCPServer:
                         "type": "object",
                         "properties": {
                             "run_name": {"type": "string", "description": "Training run name"},
-                            "prefix": {"type": "string", "description": "Optional S3 prefix (overrides run_name if provided)"},
+                            "prefix": {
+                                "type": "string",
+                                "description": "Optional S3 prefix (overrides run_name if provided)",
+                            },
                         },
                         "required": ["run_name"],
                     },
@@ -561,8 +709,16 @@ class ObservatoryMCPServer:
                         "type": "object",
                         "properties": {
                             "run_name": {"type": "string", "description": "Training run name"},
-                            "criteria": {"type": "string", "enum": ["latest", "largest", "smallest", "earliest"], "description": "Criteria to use", "default": "latest"},
-                            "prefix": {"type": "string", "description": "Optional S3 prefix (overrides run_name if provided)"},
+                            "criteria": {
+                                "type": "string",
+                                "enum": ["latest", "largest", "smallest", "earliest"],
+                                "description": "Criteria to use",
+                                "default": "latest",
+                            },
+                            "prefix": {
+                                "type": "string",
+                                "description": "Optional S3 prefix (overrides run_name if provided)",
+                            },
                         },
                         "required": ["run_name"],
                     },
@@ -574,8 +730,15 @@ class ObservatoryMCPServer:
                         "type": "object",
                         "properties": {
                             "run_name": {"type": "string", "description": "Optional training run name to filter by"},
-                            "prefix": {"type": "string", "description": "Optional S3 prefix (overrides run_name if both provided)"},
-                            "time_window_days": {"type": "integer", "description": "Time window in days to analyze", "default": 30},
+                            "prefix": {
+                                "type": "string",
+                                "description": "Optional S3 prefix (overrides run_name if both provided)",
+                            },
+                            "time_window_days": {
+                                "type": "integer",
+                                "description": "Time window in days to analyze",
+                                "default": 30,
+                            },
                         },
                         "required": [],
                     },
@@ -587,7 +750,10 @@ class ObservatoryMCPServer:
                         "type": "object",
                         "properties": {
                             "run_name": {"type": "string", "description": "Optional training run name to filter by"},
-                            "prefix": {"type": "string", "description": "Optional S3 prefix (overrides run_name if both provided)"},
+                            "prefix": {
+                                "type": "string",
+                                "description": "Optional S3 prefix (overrides run_name if both provided)",
+                            },
                         },
                         "required": [],
                     },
@@ -598,7 +764,11 @@ class ObservatoryMCPServer:
                     inputSchema={
                         "type": "object",
                         "properties": {
-                            "run_names": {"type": "array", "items": {"type": "string"}, "description": "List of training run names to compare"},
+                            "run_names": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "List of training run names to compare",
+                            },
                         },
                         "required": ["run_names"],
                     },
@@ -609,7 +779,11 @@ class ObservatoryMCPServer:
                     inputSchema={
                         "type": "object",
                         "properties": {
-                            "limit": {"type": "integer", "description": "Maximum number of jobs to analyze", "default": 100},
+                            "limit": {
+                                "type": "integer",
+                                "description": "Maximum number of jobs to analyze",
+                                "default": 100,
+                            },
                         },
                         "required": [],
                     },
@@ -620,7 +794,11 @@ class ObservatoryMCPServer:
                     inputSchema={
                         "type": "object",
                         "properties": {
-                            "limit": {"type": "integer", "description": "Maximum number of jobs to analyze", "default": 100},
+                            "limit": {
+                                "type": "integer",
+                                "description": "Maximum number of jobs to analyze",
+                                "default": 100,
+                            },
                         },
                         "required": [],
                     },
@@ -631,7 +809,11 @@ class ObservatoryMCPServer:
                     inputSchema={
                         "type": "object",
                         "properties": {
-                            "job_ids": {"type": "array", "items": {"type": "string"}, "description": "List of job IDs to compare"},
+                            "job_ids": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "List of job IDs to compare",
+                            },
                         },
                         "required": ["job_ids"],
                     },
@@ -642,7 +824,11 @@ class ObservatoryMCPServer:
                     inputSchema={
                         "type": "object",
                         "properties": {
-                            "limit": {"type": "integer", "description": "Maximum number of jobs to analyze", "default": 100},
+                            "limit": {
+                                "type": "integer",
+                                "description": "Maximum number of jobs to analyze",
+                                "default": 100,
+                            },
                         },
                         "required": [],
                     },
@@ -653,7 +839,11 @@ class ObservatoryMCPServer:
                     inputSchema={
                         "type": "object",
                         "properties": {
-                            "limit": {"type": "integer", "description": "Maximum number of jobs to analyze", "default": 100},
+                            "limit": {
+                                "type": "integer",
+                                "description": "Maximum number of jobs to analyze",
+                                "default": 100,
+                            },
                         },
                         "required": [],
                     },
@@ -699,7 +889,9 @@ class ObservatoryMCPServer:
                 ),
                 types.Tool(
                     name="link_s3_checkpoint_to_skypilot_job",
-                    description="Link an S3 checkpoint to its Skypilot job by extracting run name from checkpoint path.",
+                    description=(
+                        "Link an S3 checkpoint to its Skypilot job by extracting run name from checkpoint path."
+                    ),
                     inputSchema={
                         "type": "object",
                         "properties": {
@@ -776,7 +968,10 @@ class ObservatoryMCPServer:
                         return [
                             types.TextContent(
                                 type="text",
-                                text='{"status": "error", "message": "At least one of training_run_ids or run_free_policy_ids must be provided"}'
+                                text=(
+                                    '{"status": "error", "message": '
+                                    '"At least one of training_run_ids or run_free_policy_ids must be provided"}'
+                                ),
                             )
                         ]
 
@@ -796,7 +991,10 @@ class ObservatoryMCPServer:
                         return [
                             types.TextContent(
                                 type="text",
-                                text='{"status": "error", "message": "At least one of training_run_ids or run_free_policy_ids must be provided"}'
+                                text=(
+                                    '{"status": "error", "message": '
+                                    '"At least one of training_run_ids or run_free_policy_ids must be provided"}'
+                                ),
                             )
                         ]
 
@@ -804,7 +1002,7 @@ class ObservatoryMCPServer:
                         return [
                             types.TextContent(
                                 type="text",
-                                text='{"status": "error", "message": "eval_names is required and cannot be empty"}'
+                                text='{"status": "error", "message": "eval_names is required and cannot be empty"}',
                             )
                         ]
 
@@ -827,7 +1025,10 @@ class ObservatoryMCPServer:
                         return [
                             types.TextContent(
                                 type="text",
-                                text='{"status": "error", "message": "At least one of training_run_ids or run_free_policy_ids must be provided"}'
+                                text=(
+                                    '{"status": "error", "message": '
+                                    '"At least one of training_run_ids or run_free_policy_ids must be provided"}'
+                                ),
                             )
                         ]
 
@@ -835,16 +1036,13 @@ class ObservatoryMCPServer:
                         return [
                             types.TextContent(
                                 type="text",
-                                text='{"status": "error", "message": "eval_names is required and cannot be empty"}'
+                                text='{"status": "error", "message": "eval_names is required and cannot be empty"}',
                             )
                         ]
 
                     if not metric:
                         return [
-                            types.TextContent(
-                                type="text",
-                                text='{"status": "error", "message": "metric is required"}'
-                            )
+                            types.TextContent(type="text", text='{"status": "error", "message": "metric is required"}')
                         ]
 
                     result = await scorecard.generate_scorecard(
@@ -862,8 +1060,7 @@ class ObservatoryMCPServer:
                     if not sql:
                         return [
                             types.TextContent(
-                                type="text",
-                                text='{"status": "error", "message": "sql parameter is required"}'
+                                type="text", text='{"status": "error", "message": "sql parameter is required"}'
                             )
                         ]
 
@@ -875,8 +1072,7 @@ class ObservatoryMCPServer:
                     if not description:
                         return [
                             types.TextContent(
-                                type="text",
-                                text='{"status": "error", "message": "description parameter is required"}'
+                                type="text", text='{"status": "error", "message": "description parameter is required"}'
                             )
                         ]
 
@@ -885,11 +1081,19 @@ class ObservatoryMCPServer:
 
                 elif name == "list_wandb_runs":
                     if not self.wandb_client:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "WandB client not initialized"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "WandB client not initialized"}'
+                            )
+                        ]
                     entity = arguments.get("entity")
                     project = arguments.get("project")
                     if not entity or not project:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "entity and project are required"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "entity and project are required"}'
+                            )
+                        ]
                     result = await wandb.list_wandb_runs(
                         self.wandb_client,
                         entity=entity,
@@ -902,11 +1106,19 @@ class ObservatoryMCPServer:
 
                 elif name == "get_wandb_run":
                     if not self.wandb_client:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "WandB client not initialized"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "WandB client not initialized"}'
+                            )
+                        ]
                     entity = arguments.get("entity")
                     project = arguments.get("project")
                     if not entity or not project:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "entity and project are required"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "entity and project are required"}'
+                            )
+                        ]
                     result = await wandb.get_wandb_run(
                         self.wandb_client,
                         entity=entity,
@@ -918,13 +1130,25 @@ class ObservatoryMCPServer:
 
                 elif name == "get_wandb_run_metrics":
                     if not self.wandb_client:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "WandB client not initialized"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "WandB client not initialized"}'
+                            )
+                        ]
                     entity = arguments.get("entity")
                     project = arguments.get("project")
                     run_id = arguments.get("run_id")
                     metric_keys = arguments.get("metric_keys")
                     if not entity or not project or not run_id or not metric_keys:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "entity, project, run_id, and metric_keys are required"}')]
+                        return [
+                            types.TextContent(
+                                type="text",
+                                text=(
+                                    '{"status": "error", "message": '
+                                    '"entity, project, run_id, and metric_keys are required"}'
+                                ),
+                            )
+                        ]
                     result = await wandb.get_wandb_run_metrics(
                         self.wandb_client,
                         entity=entity,
@@ -937,12 +1161,21 @@ class ObservatoryMCPServer:
 
                 elif name == "get_wandb_run_artifacts":
                     if not self.wandb_client:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "WandB client not initialized"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "WandB client not initialized"}'
+                            )
+                        ]
                     entity = arguments.get("entity")
                     project = arguments.get("project")
                     run_id = arguments.get("run_id")
                     if not entity or not project or not run_id:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "entity, project, and run_id are required"}')]
+                        return [
+                            types.TextContent(
+                                type="text",
+                                text=('{"status": "error", "message": "entity, project, and run_id are required"}'),
+                            )
+                        ]
                     result = await wandb.get_wandb_run_artifacts(
                         self.wandb_client,
                         entity=entity,
@@ -953,12 +1186,21 @@ class ObservatoryMCPServer:
 
                 elif name == "get_wandb_run_logs":
                     if not self.wandb_client:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "WandB client not initialized"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "WandB client not initialized"}'
+                            )
+                        ]
                     entity = arguments.get("entity")
                     project = arguments.get("project")
                     run_id = arguments.get("run_id")
                     if not entity or not project or not run_id:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "entity, project, and run_id are required"}')]
+                        return [
+                            types.TextContent(
+                                type="text",
+                                text=('{"status": "error", "message": "entity, project, and run_id are required"}'),
+                            )
+                        ]
                     result = await wandb.get_wandb_run_logs(
                         self.wandb_client,
                         entity=entity,
@@ -969,13 +1211,25 @@ class ObservatoryMCPServer:
 
                 elif name == "analyze_wandb_training_progression":
                     if not self.wandb_client:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "WandB client not initialized"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "WandB client not initialized"}'
+                            )
+                        ]
                     entity = arguments.get("entity")
                     project = arguments.get("project")
                     run_id = arguments.get("run_id")
                     metric_keys = arguments.get("metric_keys")
                     if not entity or not project or not run_id or not metric_keys:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "entity, project, run_id, and metric_keys are required"}')]
+                        return [
+                            types.TextContent(
+                                type="text",
+                                text=(
+                                    '{"status": "error", "message": '
+                                    '"entity, project, run_id, and metric_keys are required"}'
+                                ),
+                            )
+                        ]
                     result = await wandb.analyze_wandb_training_progression(
                         self.wandb_client,
                         entity=entity,
@@ -989,13 +1243,25 @@ class ObservatoryMCPServer:
 
                 elif name == "compare_wandb_runs":
                     if not self.wandb_client:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "WandB client not initialized"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "WandB client not initialized"}'
+                            )
+                        ]
                     entity = arguments.get("entity")
                     project = arguments.get("project")
                     run_ids = arguments.get("run_ids")
                     metric_keys = arguments.get("metric_keys")
                     if not entity or not project or not run_ids or not metric_keys:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "entity, project, run_ids, and metric_keys are required"}')]
+                        return [
+                            types.TextContent(
+                                type="text",
+                                text=(
+                                    '{"status": "error", "message": '
+                                    '"entity, project, run_ids, and metric_keys are required"}'
+                                ),
+                            )
+                        ]
                     result = await wandb.compare_wandb_runs(
                         self.wandb_client,
                         entity=entity,
@@ -1007,13 +1273,25 @@ class ObservatoryMCPServer:
 
                 elif name == "analyze_wandb_learning_curves":
                     if not self.wandb_client:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "WandB client not initialized"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "WandB client not initialized"}'
+                            )
+                        ]
                     entity = arguments.get("entity")
                     project = arguments.get("project")
                     run_id = arguments.get("run_id")
                     metric_keys = arguments.get("metric_keys")
                     if not entity or not project or not run_id or not metric_keys:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "entity, project, run_id, and metric_keys are required"}')]
+                        return [
+                            types.TextContent(
+                                type="text",
+                                text=(
+                                    '{"status": "error", "message": '
+                                    '"entity, project, run_id, and metric_keys are required"}'
+                                ),
+                            )
+                        ]
                     result = await wandb.analyze_wandb_learning_curves(
                         self.wandb_client,
                         entity=entity,
@@ -1026,13 +1304,25 @@ class ObservatoryMCPServer:
 
                 elif name == "identify_wandb_critical_moments":
                     if not self.wandb_client:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "WandB client not initialized"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "WandB client not initialized"}'
+                            )
+                        ]
                     entity = arguments.get("entity")
                     project = arguments.get("project")
                     run_id = arguments.get("run_id")
                     metric_keys = arguments.get("metric_keys")
                     if not entity or not project or not run_id or not metric_keys:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "entity, project, run_id, and metric_keys are required"}')]
+                        return [
+                            types.TextContent(
+                                type="text",
+                                text=(
+                                    '{"status": "error", "message": '
+                                    '"entity, project, run_id, and metric_keys are required"}'
+                                ),
+                            )
+                        ]
                     result = await wandb.identify_wandb_critical_moments(
                         self.wandb_client,
                         entity=entity,
@@ -1045,13 +1335,25 @@ class ObservatoryMCPServer:
 
                 elif name == "correlate_wandb_metrics":
                     if not self.wandb_client:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "WandB client not initialized"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "WandB client not initialized"}'
+                            )
+                        ]
                     entity = arguments.get("entity")
                     project = arguments.get("project")
                     run_id = arguments.get("run_id")
                     metric_pairs = arguments.get("metric_pairs")
                     if not entity or not project or not run_id or not metric_pairs:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "entity, project, run_id, and metric_pairs are required"}')]
+                        return [
+                            types.TextContent(
+                                type="text",
+                                text=(
+                                    '{"status": "error", "message": '
+                                    '"entity, project, run_id, and metric_pairs are required"}'
+                                ),
+                            )
+                        ]
                     result = await wandb.correlate_wandb_metrics(
                         self.wandb_client,
                         entity=entity,
@@ -1063,12 +1365,21 @@ class ObservatoryMCPServer:
 
                 elif name == "analyze_wandb_behavioral_patterns":
                     if not self.wandb_client:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "WandB client not initialized"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "WandB client not initialized"}'
+                            )
+                        ]
                     entity = arguments.get("entity")
                     project = arguments.get("project")
                     run_id = arguments.get("run_id")
                     if not entity or not project or not run_id:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "entity, project, and run_id are required"}')]
+                        return [
+                            types.TextContent(
+                                type="text",
+                                text=('{"status": "error", "message": "entity, project, and run_id are required"}'),
+                            )
+                        ]
                     result = await wandb.analyze_wandb_behavioral_patterns(
                         self.wandb_client,
                         entity=entity,
@@ -1080,12 +1391,21 @@ class ObservatoryMCPServer:
 
                 elif name == "generate_wandb_training_insights":
                     if not self.wandb_client:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "WandB client not initialized"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "WandB client not initialized"}'
+                            )
+                        ]
                     entity = arguments.get("entity")
                     project = arguments.get("project")
                     run_id = arguments.get("run_id")
                     if not entity or not project or not run_id:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "entity, project, and run_id are required"}')]
+                        return [
+                            types.TextContent(
+                                type="text",
+                                text=('{"status": "error", "message": "entity, project, and run_id are required"}'),
+                            )
+                        ]
                     result = await wandb.generate_wandb_training_insights(
                         self.wandb_client,
                         entity=entity,
@@ -1096,13 +1416,25 @@ class ObservatoryMCPServer:
 
                 elif name == "predict_wandb_training_outcome":
                     if not self.wandb_client:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "WandB client not initialized"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "WandB client not initialized"}'
+                            )
+                        ]
                     entity = arguments.get("entity")
                     project = arguments.get("project")
                     run_id = arguments.get("run_id")
                     target_metric = arguments.get("target_metric")
                     if not entity or not project or not run_id or not target_metric:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "entity, project, run_id, and target_metric are required"}')]
+                        return [
+                            types.TextContent(
+                                type="text",
+                                text=(
+                                    '{"status": "error", "message": '
+                                    '"entity, project, run_id, and target_metric are required"}'
+                                ),
+                            )
+                        ]
                     result = await wandb.predict_wandb_training_outcome(
                         self.wandb_client,
                         entity=entity,
@@ -1115,7 +1447,11 @@ class ObservatoryMCPServer:
 
                 elif name == "list_s3_checkpoints":
                     if not self.s3_client:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "S3 client not initialized"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "S3 client not initialized"}'
+                            )
+                        ]
                     result = await s3.list_s3_checkpoints(
                         self.s3_client,
                         run_name=arguments.get("run_name"),
@@ -1126,19 +1462,35 @@ class ObservatoryMCPServer:
 
                 elif name == "get_s3_checkpoint_metadata":
                     if not self.s3_client:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "S3 client not initialized"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "S3 client not initialized"}'
+                            )
+                        ]
                     key = arguments.get("key")
                     if not key:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "key parameter is required"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "key parameter is required"}'
+                            )
+                        ]
                     result = await s3.get_s3_checkpoint_metadata(self.s3_client, key=key)
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "get_s3_checkpoint_url":
                     if not self.s3_client:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "S3 client not initialized"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "S3 client not initialized"}'
+                            )
+                        ]
                     key = arguments.get("key")
                     if not key:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "key parameter is required"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "key parameter is required"}'
+                            )
+                        ]
                     result = await s3.get_s3_checkpoint_url(
                         self.s3_client,
                         key=key,
@@ -1148,7 +1500,11 @@ class ObservatoryMCPServer:
 
                 elif name == "list_s3_replays":
                     if not self.s3_client:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "S3 client not initialized"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "S3 client not initialized"}'
+                            )
+                        ]
                     result = await s3.list_s3_replays(
                         self.s3_client,
                         run_name=arguments.get("run_name"),
@@ -1159,10 +1515,18 @@ class ObservatoryMCPServer:
 
                 elif name == "check_s3_object_exists":
                     if not self.s3_client:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "S3 client not initialized"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "S3 client not initialized"}'
+                            )
+                        ]
                     key = arguments.get("key")
                     if not key:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "key parameter is required"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "key parameter is required"}'
+                            )
+                        ]
                     result = await s3.check_s3_object_exists(self.s3_client, key=key)
                     return [types.TextContent(type="text", text=result)]
 
@@ -1177,14 +1541,22 @@ class ObservatoryMCPServer:
                 elif name == "get_skypilot_job_status":
                     job_id = arguments.get("job_id")
                     if not job_id:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "job_id parameter is required"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "job_id parameter is required"}'
+                            )
+                        ]
                     result = await skypilot.get_skypilot_job_status(self.skypilot_client, job_id=job_id)
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "get_skypilot_job_logs":
                     job_id = arguments.get("job_id")
                     if not job_id:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "job_id parameter is required"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "job_id parameter is required"}'
+                            )
+                        ]
                     result = await skypilot.get_skypilot_job_logs(
                         self.skypilot_client,
                         job_id=job_id,
@@ -1194,10 +1566,18 @@ class ObservatoryMCPServer:
 
                 elif name == "analyze_s3_checkpoint_progression":
                     if not self.s3_client:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "S3 client not initialized"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "S3 client not initialized"}'
+                            )
+                        ]
                     run_name = arguments.get("run_name")
                     if not run_name:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "run_name parameter is required"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "run_name parameter is required"}'
+                            )
+                        ]
                     result = await s3.analyze_s3_checkpoint_progression(
                         self.s3_client,
                         run_name=run_name,
@@ -1207,10 +1587,18 @@ class ObservatoryMCPServer:
 
                 elif name == "find_best_s3_checkpoint":
                     if not self.s3_client:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "S3 client not initialized"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "S3 client not initialized"}'
+                            )
+                        ]
                     run_name = arguments.get("run_name")
                     if not run_name:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "run_name parameter is required"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "run_name parameter is required"}'
+                            )
+                        ]
                     result = await s3.find_best_s3_checkpoint(
                         self.s3_client,
                         run_name=run_name,
@@ -1221,7 +1609,11 @@ class ObservatoryMCPServer:
 
                 elif name == "analyze_s3_checkpoint_usage":
                     if not self.s3_client:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "S3 client not initialized"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "S3 client not initialized"}'
+                            )
+                        ]
                     result = await s3.analyze_s3_checkpoint_usage(
                         self.s3_client,
                         run_name=arguments.get("run_name"),
@@ -1232,7 +1624,11 @@ class ObservatoryMCPServer:
 
                 elif name == "get_s3_checkpoint_statistics":
                     if not self.s3_client:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "S3 client not initialized"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "S3 client not initialized"}'
+                            )
+                        ]
                     result = await s3.get_s3_checkpoint_statistics(
                         self.s3_client,
                         run_name=arguments.get("run_name"),
@@ -1242,10 +1638,18 @@ class ObservatoryMCPServer:
 
                 elif name == "compare_s3_checkpoints_across_runs":
                     if not self.s3_client:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "S3 client not initialized"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "S3 client not initialized"}'
+                            )
+                        ]
                     run_names = arguments.get("run_names")
                     if not run_names:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "run_names parameter is required"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "run_names parameter is required"}'
+                            )
+                        ]
                     result = await s3.compare_s3_checkpoints_across_runs(
                         self.s3_client,
                         run_names=run_names,
@@ -1269,7 +1673,11 @@ class ObservatoryMCPServer:
                 elif name == "compare_skypilot_job_configs":
                     job_ids = arguments.get("job_ids")
                     if not job_ids:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "job_ids parameter is required"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "job_ids parameter is required"}'
+                            )
+                        ]
                     result = await skypilot.compare_skypilot_job_configs(
                         self.skypilot_client,
                         job_ids=job_ids,
@@ -1292,12 +1700,22 @@ class ObservatoryMCPServer:
 
                 elif name == "link_wandb_run_to_s3_checkpoints":
                     if not self.wandb_client or not self.s3_client:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "WandB and S3 clients must be initialized"}')]
+                        return [
+                            types.TextContent(
+                                type="text",
+                                text=('{"status": "error", "message": "WandB and S3 clients must be initialized"}'),
+                            )
+                        ]
                     entity = arguments.get("entity")
                     project = arguments.get("project")
                     run_id = arguments.get("run_id")
                     if not entity or not project or not run_id:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "entity, project, and run_id are required"}')]
+                        return [
+                            types.TextContent(
+                                type="text",
+                                text=('{"status": "error", "message": "entity, project, and run_id are required"}'),
+                            )
+                        ]
                     result = await wandb.link_wandb_run_to_s3_checkpoints(
                         self.wandb_client,
                         self.s3_client,
@@ -1309,12 +1727,21 @@ class ObservatoryMCPServer:
 
                 elif name == "link_wandb_run_to_skypilot_job":
                     if not self.wandb_client:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "WandB client not initialized"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "WandB client not initialized"}'
+                            )
+                        ]
                     entity = arguments.get("entity")
                     project = arguments.get("project")
                     run_id = arguments.get("run_id")
                     if not entity or not project or not run_id:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "entity, project, and run_id are required"}')]
+                        return [
+                            types.TextContent(
+                                type="text",
+                                text=('{"status": "error", "message": "entity, project, and run_id are required"}'),
+                            )
+                        ]
                     result = await wandb.link_wandb_run_to_skypilot_job(
                         self.wandb_client,
                         self.skypilot_client,
@@ -1326,12 +1753,22 @@ class ObservatoryMCPServer:
 
                 elif name == "link_s3_checkpoint_to_wandb_run":
                     if not self.s3_client or not self.wandb_client:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "S3 and WandB clients must be initialized"}')]
+                        return [
+                            types.TextContent(
+                                type="text",
+                                text=('{"status": "error", "message": "S3 and WandB clients must be initialized"}'),
+                            )
+                        ]
                     key = arguments.get("key")
                     entity = arguments.get("entity")
                     project = arguments.get("project")
                     if not key or not entity or not project:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "key, entity, and project are required"}')]
+                        return [
+                            types.TextContent(
+                                type="text",
+                                text=('{"status": "error", "message": "key, entity, and project are required"}'),
+                            )
+                        ]
                     result = await s3.link_s3_checkpoint_to_wandb_run(
                         self.s3_client,
                         self.wandb_client,
@@ -1343,10 +1780,18 @@ class ObservatoryMCPServer:
 
                 elif name == "link_s3_checkpoint_to_skypilot_job":
                     if not self.s3_client:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "S3 client not initialized"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "S3 client not initialized"}'
+                            )
+                        ]
                     key = arguments.get("key")
                     if not key:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "key parameter is required"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "key parameter is required"}'
+                            )
+                        ]
                     result = await s3.link_s3_checkpoint_to_skypilot_job(
                         self.s3_client,
                         self.skypilot_client,
@@ -1356,12 +1801,21 @@ class ObservatoryMCPServer:
 
                 elif name == "link_skypilot_job_to_wandb_runs":
                     if not self.wandb_client:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "WandB client not initialized"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "WandB client not initialized"}'
+                            )
+                        ]
                     job_id = arguments.get("job_id")
                     entity = arguments.get("entity")
                     project = arguments.get("project")
                     if not job_id or not entity or not project:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "job_id, entity, and project are required"}')]
+                        return [
+                            types.TextContent(
+                                type="text",
+                                text=('{"status": "error", "message": "job_id, entity, and project are required"}'),
+                            )
+                        ]
                     result = await skypilot.link_skypilot_job_to_wandb_runs(
                         self.skypilot_client,
                         self.wandb_client,
@@ -1373,10 +1827,18 @@ class ObservatoryMCPServer:
 
                 elif name == "link_skypilot_job_to_s3_checkpoints":
                     if not self.s3_client:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "S3 client not initialized"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "S3 client not initialized"}'
+                            )
+                        ]
                     job_id = arguments.get("job_id")
                     if not job_id:
-                        return [types.TextContent(type="text", text='{"status": "error", "message": "job_id parameter is required"}')]
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "job_id parameter is required"}'
+                            )
+                        ]
                     result = await skypilot.link_skypilot_job_to_s3_checkpoints(
                         self.skypilot_client,
                         self.s3_client,
@@ -1386,23 +1848,20 @@ class ObservatoryMCPServer:
 
                 else:
                     return [
-                        types.TextContent(
-                            type="text",
-                            text=f'{{"status": "error", "message": "Unknown tool: {name}"}}'
-                        )
+                        types.TextContent(type="text", text=f'{{"status": "error", "message": "Unknown tool: {name}"}}')
                     ]
 
             except Exception as e:
                 logger.error(f"Error calling tool {name}: {e}", exc_info=True)
                 return [
                     types.TextContent(
-                        type="text",
-                        text=f'{{"status": "error", "tool": "{name}", "message": "{str(e)}"}}'
+                        type="text", text=f'{{"status": "error", "tool": "{name}", "message": "{str(e)}"}}'
                     )
                 ]
 
     def _setup_resources(self) -> None:
         """Register MCP resources with the server."""
+
         @self.app.list_resources()
         async def list_resources() -> List[types.Resource]:
             return []
@@ -1437,11 +1896,7 @@ async def main() -> None:
     try:
         async with stdio_server() as (read_stream, write_stream):
             logger.info("Entering MCP stdio server loop...")
-            await server.app.run(
-                read_stream,
-                write_stream,
-                server.app.create_initialization_options()
-            )
+            await server.app.run(read_stream, write_stream, server.app.create_initialization_options())
     except KeyboardInterrupt:
         logger.info("Server stopped by user (KeyboardInterrupt)")
     except Exception as e:
@@ -1463,4 +1918,3 @@ def cli_main() -> None:
 
 if __name__ == "__main__":
     cli_main()
-
