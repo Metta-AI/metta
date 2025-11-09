@@ -18,8 +18,8 @@ class EvalVariant(MissionVariant):
 
     # Clipping
     # Note: For clipping configuration, use difficulty variants (e.g., CLIPPED_OXYGEN)
-    # instead of setting clip_rate directly here
-    clip_rate: float = 0.0
+    # instead of setting clip_period directly here
+    clip_period: int = 0
     charger_eff: int = 120
     carbon_eff: int = 115
     oxygen_eff: int = 110
@@ -46,7 +46,7 @@ class EvalVariant(MissionVariant):
         mission.silicon_extractor.efficiency = self.silicon_eff
         mission.energy_regen_amount = self.energy_regen
         mission.inventory_regen_interval = self.inventory_regen_interval
-        mission.clip_rate = self.clip_rate
+        mission.clip_period = self.clip_period
 
     @override
     def modify_env(self, mission, env) -> None:

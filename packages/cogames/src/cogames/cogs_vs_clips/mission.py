@@ -112,7 +112,7 @@ class Mission(Config):
     wall: CvCWallConfig = Field(default_factory=CvCWallConfig)
     assembler: CvCAssemblerConfig = Field(default_factory=CvCAssemblerConfig)
 
-    clip_rate: float = Field(default=0.0)
+    clip_period: int = Field(default=0)
     cargo_capacity: int = Field(default=255)
     energy_capacity: int = Field(default=100)
     energy_regen_amount: int = Field(default=1)
@@ -216,7 +216,7 @@ class Mission(Config):
                         cooldown=1,
                     ),
                 ],
-                clip_rate=self.clip_rate,
+                clip_period=self.clip_period,
             ),
             objects={
                 "wall": self.wall.station_cfg(),
