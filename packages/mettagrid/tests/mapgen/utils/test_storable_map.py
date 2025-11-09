@@ -32,7 +32,7 @@ def test_serializes_map_from_yaml_string():
           #.m#
           #_@#
           #n.#
-        char_to_name_map:
+        char_to_map_name:
           "#": wall
           ".": empty
           "m": mine_red
@@ -45,14 +45,14 @@ def test_serializes_map_from_yaml_string():
     config = AsciiMapBuilder.Config.from_str(ascii_yaml)
     assert ["".join(row) for row in config.map_data] == MAP_LINE_STRINGS
     for token, name in LEGEND.items():
-        assert config.char_to_name_map[token] == name
+        assert config.char_to_map_name[token] == name
 
     storable_map = StorableMap.from_cfg(
         MapBuilderConfig.model_validate(
             {
                 "type": "mettagrid.map_builder.ascii.AsciiMapBuilder.Config",
                 "map_data": config.map_data,
-                "char_to_name_map": config.char_to_name_map,
+                "char_to_map_name": config.char_to_map_name,
             }
         )
     )
@@ -61,12 +61,12 @@ def test_serializes_map_from_yaml_string():
     config_dict = storable_map.config.model_dump()
     assert config_dict["map_data"] == MAP_LINES  # model_dump returns nested lists, not strings
     for token, name in LEGEND.items():
-        assert config_dict["char_to_name_map"][token] == name
+        assert config_dict["char_to_map_name"][token] == name
 
     # Test string representation via model_dump
     config_str = str(storable_map.config.model_dump())
     assert "map_data" in config_str
-    assert "char_to_name_map" in config_str
+    assert "char_to_map_name" in config_str
     assert "['#', '#', '#', '#']" in config_str  # nested list format
     assert "['#', '.', 'm', '#']" in config_str
     assert "['#', '_', '@', '#']" in config_str

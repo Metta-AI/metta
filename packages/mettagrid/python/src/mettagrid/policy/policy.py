@@ -90,6 +90,10 @@ class MultiAgentPolicy:
         """
         pass  # Default: no-op for policies without learnable parameters
 
+    @property
+    def policy_env_info(self) -> PolicyEnvInterface:
+        return self._policy_env_info
+
 
 class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
     """AgentPolicy wrapper that manages internal state (e.g., for RNNs).

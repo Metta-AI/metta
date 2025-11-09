@@ -166,11 +166,13 @@ class GlobalObsConfig:
         last_action: bool = True,
         last_reward: bool = True,
         visitation_counts: bool = False,
+        compass: bool = False,
     ) -> None: ...
     episode_completion_pct: bool
     last_action: bool
     last_reward: bool
     visitation_counts: bool
+    compass: bool
 
 class GameConfig:
     def __init__(
@@ -224,7 +226,6 @@ class MettaGrid:
     map_width: int
     map_height: int
     num_agents: int
-    initial_grid_hash: int
 
     def __init__(self, env_cfg: GameConfig, map: list, seed: int) -> None: ...
     def step(self) -> None: ...

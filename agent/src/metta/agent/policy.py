@@ -22,7 +22,8 @@ from metta.agent.components.obs_shim import (
 )
 from metta.rl.utils import ensure_sequence_metadata
 from mettagrid.base_config import Config
-from mettagrid.policy.policy import AgentPolicy, TrainablePolicy
+from mettagrid.policy.lstm import obs_to_obs_tensor
+from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, TrainablePolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action, AgentObservation, Simulation
 from mettagrid.util.module import load_symbol
@@ -121,8 +122,8 @@ class _SingleAgentAdapter(AgentPolicy):
 
     def _obs_to_td(self, obs: AgentObservation, device: torch.device) -> TensorDict:
         """Convert AgentObservation to TensorDict."""
-        tokens = [token.value for token in obs.tokens]
-        obs_tensor = torch.tensor(tokens, dtype=torch.uint8).unsqueeze(0).to(device)
+
+        obs_tensor = obs_to_obs_tensor(obs, self._policy_env_info.observation_space.shape, device)
 
         td = TensorDict(
             {
@@ -135,26 +136,24 @@ class _SingleAgentAdapter(AgentPolicy):
         )
 
         ensure_sequence_metadata(td, batch_size=1, time_steps=1)
-
         return td
 
 
-class DistributedPolicy(DistributedDataParallel, Policy):
+class DistributedPolicy(TrainablePolicy, DistributedDataParallel):
     """Thin wrapper around DistributedDataParallel that preserves Policy interface."""
 
-    module: "Policy"
+    def __init__(self, policy: MultiAgentPolicy, device: torch.device):
+        TrainablePolicy.__init__(self, policy.policy_env_info)
 
-    def __init__(self, policy: "Policy", device: torch.device):
+        # Then initialize DistributedDataParallel
         kwargs = {
             "module": policy,
             "broadcast_buffers": False,
             "find_unused_parameters": False,
         }
-        if device.type == "cpu" or device.index is None:
-            super().__init__(**kwargs)
-        else:
+        if device.type != "cpu" and device.index is not None:
             kwargs.update({"device_ids": [device.index], "output_device": device.index})
-            super().__init__(**kwargs)
+        DistributedDataParallel.__init__(self, **kwargs)
 
     def __getattr__(self, name: str):
         try:

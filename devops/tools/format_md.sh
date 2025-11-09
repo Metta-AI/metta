@@ -25,5 +25,3 @@ fi
 
 # Format or check markdown files with Prettier
 format_files "md"
-
-echo "All Markdown files (except excluded ones) have been $mode_past with Prettier."
