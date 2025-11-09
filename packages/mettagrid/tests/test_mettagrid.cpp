@@ -1020,19 +1020,14 @@ TEST_F(MettaGridCppTest, AssemblerBasicObservationFeatures) {
 
   auto features = assembler.obs_features();
 
-  // Should have at least TypeId and Tag features
-  EXPECT_GE(features.size(), 3);  // TypeId + 2 tags
+  // Should have at least Tag features
+  EXPECT_GE(features.size(), 2);
 
-  // Find TypeId feature
-  bool found_type_id = false;
   bool found_tag1 = false;
   bool found_tag2 = false;
 
   for (const auto& feature : features) {
-    if (feature.feature_id == ObservationFeature::TypeId) {
-      EXPECT_EQ(feature.value, 1);  // Our test assembler type_id
-      found_type_id = true;
-    } else if (feature.feature_id == ObservationFeature::Tag) {
+    if (feature.feature_id == ObservationFeature::Tag) {
       if (feature.value == 1) {
         found_tag1 = true;
       } else if (feature.value == 2) {
@@ -1041,7 +1036,6 @@ TEST_F(MettaGridCppTest, AssemblerBasicObservationFeatures) {
     }
   }
 
-  EXPECT_TRUE(found_type_id) << "TypeId feature not found";
   EXPECT_TRUE(found_tag1) << "Tag 1 not found";
   EXPECT_TRUE(found_tag2) << "Tag 2 not found";
 }
@@ -1223,6 +1217,17 @@ TEST_F(MettaGridCppTest, AssemblerProtocolObservationsEnabled) {
 
   // Add assembler to grid
   grid.add_object(assembler);
+
+  // Provide an ObservationEncoder so protocol details can be emitted
+  auto resource_names = create_test_resource_names();
+  std::unordered_map<std::string, ObservationType> proto_feature_ids;
+  // Assign arbitrary, unique feature ids for protocol input/output per resource
+  for (size_t i = 0; i < resource_names.size(); ++i) {
+    proto_feature_ids[std::string("input:") + resource_names[i]] = static_cast<ObservationType>(100 + i);
+    proto_feature_ids[std::string("output:") + resource_names[i]] = static_cast<ObservationType>(120 + i);
+  }
+  ObservationEncoder encoder(resource_names.size(), /*protocol_details_obs=*/true, &resource_names, &proto_feature_ids);
+  assembler->set_obs_encoder(&encoder);
 
   // Test with pattern 0 (no agents around) - should get protocol0
   auto features = assembler->obs_features();

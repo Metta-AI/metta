@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel, ConfigDict
 
 if TYPE_CHECKING:
-    from mettagrid.config.mettagrid_config import GameConfig, MettaGridConfig
+    from mettagrid.config.mettagrid_config import MettaGridConfig
 
 
 class ObservationFeatureSpec(BaseModel):
@@ -79,39 +79,6 @@ class IdMap:
 
         return tag_id_to_name
 
-    @staticmethod
-    def assign_type_ids(game_config: GameConfig) -> None:
-        """Auto-assign type_ids for objects that don't have one, filling gaps deterministically."""
-        # Access objects directly via __dict__ to avoid recursion
-        objects = object.__getattribute__(game_config, "objects")
-        if not objects:
-            return
-
-        # Collect explicit type_ids
-        explicit_type_ids = {obj.type_id for obj in objects.values() if obj.type_id is not None}
-
-        # Sort objects by name for deterministic assignment
-        sorted_objects = sorted(objects.items())
-
-        # Start type_id assignment at 1 (0 is reserved for agents)
-        next_type_id = 1
-        for object_name, object_config in sorted_objects:
-            if object_config.type_id is None:
-                # Find next available type_id, skipping explicit ones
-                while next_type_id in explicit_type_ids:
-                    next_type_id += 1
-
-                # Check if we exceed uint8 range
-                if next_type_id > 255:
-                    raise ValueError(
-                        f"auto-generated type_id exceeds uint8 range (255). "
-                        f"Object '{object_name}' would be assigned type_id {next_type_id}. "
-                        f"Reduce the number of objects or use explicit type_ids to manage the range."
-                    )
-
-                object_config.type_id = next_type_id
-                next_type_id += 1
-
     def _compute_features(self) -> list[ObservationFeatureSpec]:
         """Compute observation features from the game configuration."""
         game_cfg = self._config.game
@@ -121,7 +88,6 @@ class IdMap:
 
         # Core features (fixed set)
         core_features = [
-            ("type_id", 1.0),
             ("agent:group", 10.0),
             ("agent:frozen", 1.0),
             ("agent:orientation", 1.0),

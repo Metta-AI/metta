@@ -5,7 +5,6 @@ namespace ObservationFeature {
 std::shared_ptr<ObservationFeaturesImpl> _instance;
 
 // Define the extern variables
-ObservationType TypeId;
 ObservationType Group;
 ObservationType Frozen;
 ObservationType Orientation;
@@ -28,7 +27,6 @@ void Initialize(const std::unordered_map<std::string, ObservationType>& feature_
   _instance = std::make_shared<ObservationFeaturesImpl>(feature_ids);
 
   // Update the global variables with values from the instance
-  TypeId = _instance->TypeId;
   Group = _instance->Group;
   Frozen = _instance->Frozen;
   Orientation = _instance->Orientation;

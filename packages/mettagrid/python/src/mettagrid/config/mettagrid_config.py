@@ -200,26 +200,33 @@ class GlobalObsConfig(Config):
 class GridObjectConfig(Config):
     """Base configuration for all grid objects.
 
-    Type IDs are automatically assigned if not explicitly provided. Auto-assignment
-    is deterministic (sorted by object name) and fills gaps in the 1-255 range.
-    Type ID 0 is reserved for agents.
-
-    Explicit type_ids are optional and primarily useful for:
-    - Ensuring stable IDs across config changes
-    - Matching specific C++ expectations
-    - Debugging and development
-
-    In most cases, omit type_id and let the system auto-assign.
+    Python uses only names. Numeric type_ids are an internal C++ detail and are
+    computed during Python→C++ conversion; they are never part of Python config
+    or observations.
     """
 
-    name: str = Field(default="", description="Object name (used for identification)")
-    type_id: Optional[int] = Field(
-        default=None, ge=0, le=255, description="Numeric type ID for C++ runtime (auto-assigned if None)"
-    )
+    name: str = Field(default="", description="Canonical type_name (human-readable)")
+    map_name: str = Field(default="", description="Stable key used by maps to select this config")
+    render_name: str = Field(default="", description="Stable display-class identifier for theming")
     map_char: str = Field(default="?", description="Character used in ASCII maps")
     render_symbol: str = Field(default="❓", description="Symbol used for rendering (e.g., emoji)")
     tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
     vibe: int = Field(default=0, ge=0, le=255, description="Vibe value for this object instance")
+
+    @model_validator(mode="after")
+    def _defaults_from_name(self) -> "GridObjectConfig":
+        # Default map_name/render_name to name when not provided
+        if not getattr(self, "map_name", None):
+            self.map_name = self.name
+        if not getattr(self, "render_name", None):
+            self.render_name = self.name
+        # If no tags, inject a default kind tag so the object is visible in observations
+        if not self.tags:
+            default_tag = getattr(self, "type", None)  # this is typically what you want, a Wall gets tag "wall"
+            default_tag = default_tag or self.render_name  # this is a good fallback tag
+            default_tag = default_tag or "object"  # if nothing else, be visible as an object
+            self.tags = [default_tag]
+        return self
 
 
 class WallConfig(GridObjectConfig):
@@ -342,8 +349,7 @@ class GameConfig(Config):
 
     Note: Type IDs are automatically assigned during validation when the GameConfig
     is constructed. If you need to add objects after construction, create a new
-    GameConfig instance rather than modifying the objects dict post-construction,
-    as type_id assignment only happens at validation time.
+    GameConfig instance rather than modifying the objects dict post-construction.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -419,18 +425,6 @@ class GameConfig(Config):
             num_vibes = self.actions.change_vibe.number_of_vibes
             self.vibe_names = [vibe.name for vibe in VIBES[:num_vibes]]
 
-    def _ensure_type_ids_assigned(self) -> None:
-        """Ensure type IDs are assigned if they haven't been yet."""
-        if not self._resolved_type_ids:
-            IdMap.assign_type_ids(self)
-            self._resolved_type_ids = True
-
-    def __getattribute__(self, name: str):
-        """Intercept attribute access to ensure type IDs are assigned when accessing objects."""
-        if name == "objects":
-            self._ensure_type_ids_assigned()
-        return super().__getattribute__(name)
-
     def id_map(self) -> "IdMap":
         """Get the observation feature ID map for this configuration."""
         # Create a minimal MettaGridConfig wrapper
@@ -459,7 +453,7 @@ class MettaGridConfig(Config):
     def with_ascii_map(self, map_data: list[list[str]]) -> "MettaGridConfig":
         self.game.map_builder = AsciiMapBuilder.Config(
             map_data=map_data,
-            char_to_name_map={o.map_char: o.name for o in self.game.objects.values()},
+            char_to_map_name={o.map_char: o.map_name for o in self.game.objects.values()},
         )
         return self
 
