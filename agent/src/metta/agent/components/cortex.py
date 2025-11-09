@@ -230,6 +230,7 @@ class CortexTD(nn.Module):
         row_ids = row_tensor.view(B, TT)[:, 0]
 
         state0 = self._gather_state_by_slots(row_ids, store=self._row_store, B=B, device=device, dtype=dtype)
+        #state0=None
         x_seq = rearrange(x, "(b t) h -> b t h", b=B, t=TT)
         y_seq, _ = self.stack(x_seq, state0, resets=resets)
         y_seq = self._out(y_seq)
@@ -510,7 +511,7 @@ class CortexTD(nn.Module):
             return nn.Identity()
         raise ValueError(f"Unsupported output_nonlinearity '{name}'. Allowed: silu/swish, relu, tanh, linear/identity.")
 
-    
+
 
 
 __all__ = ["CortexTDConfig", "CortexTD"]
