@@ -115,6 +115,11 @@ class CoreTrainingLoop:
                     td["truncateds"] = t.to(device=target_device, dtype=torch.float32, non_blocking=True)
                 td["teacher_actions"] = ta.to(device=target_device, dtype=torch.long, non_blocking=True)
                 td["training_env_ids"] = self._gather_env_indices(training_env_id, td.device).unsqueeze(1)
+                # Row-aligned state: provide row slot id and position within row
+                row_ids = self.experience.ep_indices[training_env_id].to(device=target_device, dtype=torch.long)
+                t_in_row = self.experience.ep_lengths[training_env_id].to(device=target_device, dtype=torch.long)
+                td["row_id"] = row_ids
+                td["t_in_row"] = t_in_row
                 self.add_last_action_to_td(td, env)
 
                 self._ensure_rollout_metadata(td)
