@@ -308,6 +308,15 @@ class DoxascopeLogger:
                 logger.error(f"Fallback concatenation failed: {e}")
                 return None
 
+    def _extract_memory_cortex(self, policy: Any, policy_idxs: torch.Tensor, layer_n: int) -> Tensor:
+        """
+        General method to extract the memory tensors from the Cortex architecture.
+        Will extract
+        self._rollout_current_state (see agent/src/metta/agent/components/cortex.py) from the policy.
+        """
+        pass
+
+
     def log_timestep(
         self,
         policy: Any,
@@ -331,20 +340,12 @@ class DoxascopeLogger:
 
         memory_matrix: Optional[torch.Tensor] = None
 
-        # Try extraction methods in order of preference
-        if memory_matrix is None:
-            memory_matrix = self._extract_memory_from_policy_state(policy, policy_idxs)
+        ###############################
+        # TODO: Implement new general
+        # cortex _extract_memory_general
+        ###############################
 
-        if memory_matrix is None:
-            memory_matrix = self._extract_memory_from_components(policy, policy_idxs)
-
-        if memory_matrix is None:
-            memory_matrix = self._extract_memory_from_get_memory(policy, policy_idxs)
-
-        if memory_matrix is None:
-            logger.warning("No recurrent state found on timestep %d. Disabling doxascope logging.", self.timestep)
-            self.enabled = False
-            return
+        memory_matrix = _extract_memory_cortex(policy, policy_idxs)
 
         agent_map = self._build_agent_id_map(env_grid_objects)
         timestep_data: Dict[str, Any] = {"timestep": self.timestep, "agents": []}
@@ -374,6 +375,119 @@ class DoxascopeLogger:
             timestep_data["agents"].append(record)
 
         self.data.append(timestep_data)
+
+        """
+        def _detect_architecture(self, policy: Any) -> str:
+            ""
+            Detects the high-level config name (i.e. the name of the policy_architecture, such as ViTDefaultConfig
+            or TransformerConfig. Then depending on that, attempts to go deeper to get an exact name for the config
+            e.g. for GTrXL finds policy_architecture.transformer which returns GTrXLConfig.
+            The high_level may be enough, but I wanted to get both to start with and can remove the exact later if needed.
+            ""
+            # You can actually just grab it from "transformerPolicy" you don't need to use the config here.
+            high_level_config_name = type(policy.config).__name__
+
+            if high_level_config_name == "TransformerPolicyConfig":
+                exact_config_name = type(policy.config.transformer).__name__
+
+            # More to be added as I check the exact structure of other architectures.
+
+            return [high_level_config_name, exact_config_name]
+        """
+        """
+
+        def _extract_memory_any_architecture(self, policy: Any, policy_idxs: torch.Tensor, layer_n: int) -> Optional[torch.Tensor]:
+            high_level_config_name, exact_config_name = self._detect_architecture(policy)
+
+            if high_level_config_name == "TransformerPolicyConfig": # Could be extracted into a helper function
+                ""
+                The TransformerConfig object stores memory in tensors defined as
+                    self._memory_tensor: torch.Tensor | None = None  # [num_envs, layers, mem_len, hidden]
+                (there is also self._memory which appears to be vestigial and unused.)
+                The memory_tensor contains the current timestep, last layer at [:, num_layers, -1, :]
+                ""
+                try:
+                    memory_tensor = getattr(policy, "_memory_tensor", None)
+                    if memory_tensor is not None:
+                        # Shape: [capacity, num_layers, memory_len, hidden_size]
+                        if layer_n < 0:
+                            layer_n = memory_tensor.size(1) + layer_n  # Support negative indexing other than -1
+
+                        # Get agents specified by policy_idxs
+                        select_rows = policy_idxs.to(torch.long)
+                        agent_memories = memory_tensor.index_select(0, select_rows)
+
+                        # Extract layer n, last memory timestep
+                        layer_activations = agent_memories[:, layer_n, -1, :]  # [agents, hidden]
+                except Exception:
+                    logger.warning("No activations found in _memory_tensor on timestep %d. Disabling doxascope logging.", self.timestep)
+                    return None
+            else:
+                logger.warning(f"Doxascope is not implemented for policies of configuration {high_level_config_name}. Disabling doxascope logging.")
+                self.enabled = False
+                return None
+
+            return layer_activations
+        """
+
+
+        """
+        def log_timestep_flexible(
+            self,
+            policy: Any,
+            policy_idxs: torch.Tensor,
+            env_grid_objects: Dict,
+            layer_n: int = -1, # May want layer_n to be required, or default to -1.
+        ):
+
+            if not self.enabled:
+                return
+
+            self.timestep += 1
+
+            memory_matrix = self._extract_memory_any_architecture(policy, policy_idxs, layer_n)
+            if memory_matrix is None:
+                return # error message already handled in _extract_memory_any_architecture
+
+            agent_map = self._build_agent_id_map(env_grid_objects)
+            timestep_data: Dict[str, Any] = {"timestep": self.timestep, "agents": []}
+
+            for i, agent_idx in enumerate(policy_idxs):
+                # Directly duplicated from previous logger.
+                flat_idx = int(agent_idx.item())
+                row = i
+                if row < 0 or row >= memory_matrix.shape[0]:
+                    continue
+
+                # extracts memory vector
+                # then flattens the memory vector for given agent
+                # removes grad, and moves it to cpu, and changes it to numpy format
+                memory_vector = memory_matrix[row].flatten().detach().cpu()
+                mv_np = memory_vector.numpy().astype(np.float32)
+
+                agent_id = flat_idx
+                if agent_id not in agent_map:
+                    logger.warning(f"Agent {agent_id} not found in grid objects")
+                    continue
+
+                # extracts agent's position on the grid
+                grid_obj_id = agent_map[agent_id]
+                grid_obj = env_grid_objects[grid_obj_id]  # type: ignore[index]
+                position = (grid_obj["r"], grid_obj["c"])
+                agent_id_record = {"agent_id": agent_id}
+
+                # creates record vector
+                record = {
+                    **agent_id_record,
+                    "memory_vector": mv_np.tolist(),
+                    "position": position,
+                }
+                #appends record for agent #i to position i of timestep_data for this timestep
+                # structure: timestep_data = [{..., memory_vector, position}, {..., memory_vector, position}] where timestep_data[n-1] contains the data for agent n
+                timestep_data["agents"].append(record)
+
+            self.data.append(timestep_data)
+        """
 
     def save(self):
         """Save logged data to JSON file."""

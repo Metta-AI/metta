@@ -48,6 +48,8 @@ class Simulation:
         stats_client: StatsClient | None = None,
         stats_epoch_id: uuid.UUID | None = None,
         eval_task_id: uuid.UUID | None = None,
+        doxascope_enabled = False,
+
     ):
         self._config = cfg
         self._id = uuid.uuid4().hex[:12]
@@ -78,6 +80,8 @@ class Simulation:
         self._policy_artifact = policy_artifact
         self._policy: Policy | None = None
         self._policy_uri = resolved_policy_uri
+        self._doxascope_logger = DoxascopeLogger(doxascope_enabled, self._policy_uri) # what should be the default out directory?
+
 
         # Load NPC policy if specified
         if cfg.npc_policy_uri:
@@ -211,6 +215,7 @@ class Simulation:
                 seed=episode_idx,
                 event_handlers=event_handlers if event_handlers else None,
                 stats_writer=self._stats_writer,
+                doxascope_logger = self._doxascope_logger
             )
 
             rollout.run_until_done()

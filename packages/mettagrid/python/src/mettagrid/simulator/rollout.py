@@ -8,6 +8,8 @@ from mettagrid.policy.policy import AgentPolicy
 from mettagrid.renderer.renderer import Renderer, RenderMode, create_renderer
 from mettagrid.simulator import Simulator, SimulatorEventHandler
 from mettagrid.util.stats_writer import StatsWriter
+from metta.doxascope.doxascope_data import DoxascopeLogger
+
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +27,7 @@ class Rollout:
         pass_sim_to_policies: bool = False,
         event_handlers: Optional[List[SimulatorEventHandler]] = None,
         stats_writer: Optional[StatsWriter] = None,
+        doxascope_logger: Optional[DoxascopeLogger] = None,
     ):
         self._config = config
         self._policies = policies
@@ -47,6 +50,8 @@ class Rollout:
         self._sim = self._simulator.new_simulation(config, seed)
         self._agents = self._sim.agents()
 
+        self._doxascope_logger = doxascope_logger
+
         sim = self._sim if self._pass_sim_to_policies else None
         # Reset policies and create agent policies if needed
         for policy in self._policies:
@@ -57,6 +62,18 @@ class Rollout:
         for i in range(len(self._policies)):
             start_time = time.time()
             action = self._policies[i].step(self._agents[i].observation)
+
+            if self._doxascope_logger.enabled:
+                # UNSURE IF THIS WILL WORK OOTB
+                metta_grid_env: MettaGridEnv = self._vecenv.driver_env  # type: ignore
+                env_grid_objects = metta_grid_env.grid_objects()
+
+                self._doxascope_logger.log_timestep(
+                    self._policies[i],
+                    self._policy_idxs, # TO DO: CURRENTLY UNDEFINED
+                    env_grid_objects,
+                )
+
             end_time = time.time()
             if (end_time - start_time) > self._max_action_time_ms:
                 logger.warning(
