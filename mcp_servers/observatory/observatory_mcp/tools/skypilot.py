@@ -4,11 +4,11 @@ import json
 import logging
 from typing import Optional
 
-from ..analyzers import skypilot_analyzer
-from ..clients.s3_client import S3Client
-from ..clients.skypilot_client import SkypilotClient
-from ..clients.wandb_client import WandBClient
-from ..utils import format_error_response, format_success_response
+from observatory_mcp.analyzers import skypilot_analyzer
+from observatory_mcp.clients.s3_client import S3Client
+from observatory_mcp.clients.skypilot_client import SkypilotClient
+from observatory_mcp.clients.wandb_client import WandBClient
+from observatory_mcp.utils import format_error_response, format_success_response
 
 logger = logging.getLogger(__name__)
 

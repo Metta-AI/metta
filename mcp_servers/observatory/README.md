@@ -33,6 +33,7 @@ uv run devops/observatory_login.py <backend_url> <backend_url>
 ## Available Tools
 
 ### Backend & Policy Management
+
 - `get_training_runs` - List all training runs with metadata
 - `get_policies` - Get all policies and training runs
 - `search_policies` - Search policies with filters (name, type, tags, user ID)
@@ -43,6 +44,7 @@ uv run devops/observatory_login.py <backend_url> <backend_url>
 - `generate_ai_query` - Generate SQL queries from natural language descriptions
 
 ### WandB Integration
+
 - `list_wandb_runs` - List WandB runs with optional filters (tags, state)
 - `get_wandb_run` - Get detailed information about a WandB run
 - `get_wandb_run_metrics` - Get metric time series data for a WandB run
@@ -58,6 +60,7 @@ uv run devops/observatory_login.py <backend_url> <backend_url>
 - `predict_wandb_training_outcome` - Predict training outcome with projected values
 
 ### S3 Storage
+
 - `list_s3_checkpoints` - List checkpoints in S3 bucket/prefix
 - `get_s3_checkpoint_metadata` - Get metadata for a specific S3 checkpoint
 - `get_s3_checkpoint_url` - Generate presigned URL for downloading a checkpoint
@@ -70,6 +73,7 @@ uv run devops/observatory_login.py <backend_url> <backend_url>
 - `compare_s3_checkpoints_across_runs` - Compare checkpoints across multiple training runs
 
 ### Skypilot Job Management
+
 - `list_skypilot_jobs` - List Skypilot jobs with optional status filter
 - `get_skypilot_job_status` - Get detailed status for a specific Skypilot job
 - `get_skypilot_job_logs` - Get logs for a Skypilot job
@@ -80,6 +84,7 @@ uv run devops/observatory_login.py <backend_url> <backend_url>
 - `get_skypilot_job_cost_estimates` - Get job cost estimates
 
 ### Cross-Platform Linking
+
 - `link_wandb_run_to_s3_checkpoints` - Link a WandB run to its S3 checkpoints
 - `link_wandb_run_to_skypilot_job` - Link a WandB run to its Skypilot job
 - `link_s3_checkpoint_to_wandb_run` - Link an S3 checkpoint to its WandB run
@@ -88,4 +93,3 @@ uv run devops/observatory_login.py <backend_url> <backend_url>
 - `link_skypilot_job_to_s3_checkpoints` - Link a Skypilot job to its S3 checkpoints
 
 See `CODEX_SETUP.md`, `CLAUDE_DESKTOP_SETUP.md`, or `CURSOR_SETUP.md` for client-specific setup.
-

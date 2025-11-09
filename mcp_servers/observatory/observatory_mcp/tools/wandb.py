@@ -4,11 +4,11 @@ import json
 import logging
 from typing import Any, Optional
 
-from ..analyzers import training_context, wandb_analyzer
-from ..clients.s3_client import S3Client
-from ..clients.skypilot_client import SkypilotClient
-from ..clients.wandb_client import WandBClient
-from ..utils import format_error_response, format_success_response
+from observatory_mcp.analyzers import training_context, wandb_analyzer
+from observatory_mcp.clients.s3_client import S3Client
+from observatory_mcp.clients.skypilot_client import SkypilotClient
+from observatory_mcp.clients.wandb_client import WandBClient
+from observatory_mcp.utils import format_error_response, format_success_response
 
 logger = logging.getLogger(__name__)
 
@@ -927,7 +927,7 @@ async def link_wandb_run_to_skypilot_job(
         try:
             jobs_data = json.loads(stdout)
         except json.JSONDecodeError:
-            from ..tools.skypilot import _parse_sky_jobs_text_output
+            from observatory_mcp.tools.skypilot import _parse_sky_jobs_text_output
 
             jobs_data = _parse_sky_jobs_text_output(stdout)
 

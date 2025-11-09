@@ -13,14 +13,7 @@
      "mcpServers": {
        "observatory": {
          "command": "uv",
-         "args": [
-           "run",
-           "--project",
-           "/path/to/metta",
-           "python",
-           "-m",
-           "observatory_mcp.server"
-         ],
+         "args": ["run", "--project", "/path/to/metta", "python", "-m", "observatory_mcp.server"],
          "env": {
            "METTA_MCP_BACKEND_URL": "https://api.observatory.softmax-research.net",
            "PYTHONPATH": "/path/to/metta/mcp_servers/observatory",
