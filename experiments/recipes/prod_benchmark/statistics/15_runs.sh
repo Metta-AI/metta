@@ -19,7 +19,9 @@ fi
 # Configuration
 RECIPE="$1"
 # Include recipe identifier in the run name so runs are easy to group in W&B
+# Replace dots with underscores for readability, then drop the literal word 'recipes'
 RECIPE_SLUG="${RECIPE//./_}"
+RECIPE_SLUG="${RECIPE_SLUG//recipes/}"
 BASE_RUN_NAME="benchmark_${RECIPE_SLUG}_$(date +%Y%m%d_%H%M%S)"
 NUM_GPUS=4
 
