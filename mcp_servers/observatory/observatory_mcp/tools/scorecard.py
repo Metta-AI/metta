@@ -7,7 +7,6 @@ Tool handler functions for the Observatory MCP server.
 import logging
 
 from metta.app_backend.clients.scorecard_client import ScorecardClient
-
 from observatory_mcp.utils import format_success_response, handle_backend_error, serialize_response_data
 
 logger = logging.getLogger(__name__)
