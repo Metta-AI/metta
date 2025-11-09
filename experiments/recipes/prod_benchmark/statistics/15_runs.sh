@@ -18,7 +18,9 @@ fi
 
 # Configuration
 RECIPE="$1"
-BASE_RUN_NAME="benchmark_$(date +%Y%m%d_%H%M%S)"
+# Include recipe identifier in the run name so runs are easy to group in W&B
+RECIPE_SLUG="${RECIPE//./_}"
+BASE_RUN_NAME="benchmark_${RECIPE_SLUG}_$(date +%Y%m%d_%H%M%S)"
 NUM_GPUS=4
 
 # Seeds for the 15 runs (using diverse seeds for better coverage)

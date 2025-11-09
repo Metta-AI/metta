@@ -8,6 +8,8 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
+import re
 import sys
 from pathlib import Path
 
@@ -25,6 +27,33 @@ from experiments.recipes.prod_benchmark.statistics.analysis import (  # noqa: E4
     _fetch_series,
     _reduce_summary,
 )
+
+
+def _infer_run_label(run_ids: list[str]) -> str:
+    """Create a readable label from the provided run IDs."""
+
+    if not run_ids:
+        return ""
+
+    first = run_ids[0]
+    if ".seed" in first:
+        candidate = first.split(".seed", 1)[0]
+        if all(run_id.startswith(candidate) for run_id in run_ids):
+            return candidate
+
+    prefix = os.path.commonprefix(run_ids)
+    prefix = prefix.rstrip("._- ")
+    return prefix or first
+
+
+def _slugify(text: str) -> str:
+    """Return a filesystem-friendly slug."""
+
+    if not text:
+        return "variance"
+    slug = re.sub(r"[^A-Za-z0-9._-]+", "_", text.strip())
+    slug = re.sub(r"_+", "_", slug)
+    return slug.strip("._-") or "variance"
 
 
 def compute_variance_curve(
@@ -144,6 +173,7 @@ def plot_variance(
     output_path: str,
     percent: float,
     ci_level: float,
+    run_label: str,
 ):
     """Create a simple plot of CV vs sample size."""
     # Filter out inf values for plotting
@@ -205,8 +235,13 @@ def plot_variance(
 
     plt.xlabel("Number of Runs", fontsize=14, fontweight="bold")
     plt.ylabel("Coefficient of Variation (%)", fontsize=14, fontweight="bold")
+    title_lines = [
+        run_label,
+        f"Variance Analysis: Last {percent * 100:.0f}% of Training",
+        f"Stabilizes when CV change between consecutive points < {threshold * 100:.0f}%",
+    ]
     plt.title(
-        f"Variance Analysis: Last {percent * 100:.0f}% of Training\n(Stabilizes when CV change between consecutive points < {threshold * 100:.0f}%)",
+        "\n".join(line for line in title_lines if line),
         fontsize=15,
         fontweight="bold",
     )
@@ -248,8 +283,10 @@ def main():
     )
     parser.add_argument(
         "--output",
-        default="variance_simple.png",
-        help="Output plot path (default: variance_simple.png)",
+        default=None,
+        help=(
+            "Output plot path. Defaults to <run_label>_variance.png inside prod_benchmark/statistics"
+        ),
     )
     parser.add_argument(
         "--samples",
@@ -281,6 +318,11 @@ def main():
         default=None,
         help="Random seed for reproducible bootstrapping (default: None)",
     )
+    parser.add_argument(
+        "--run-label",
+        default=None,
+        help="Optional label to display in the plot title (default: inferred from run IDs)",
+    )
 
     args = parser.parse_args()
 
@@ -294,9 +336,17 @@ def main():
     print(f"Window: Last {args.percent * 100:.0f}% of training")
     if args.min_timesteps:
         print(f"Minimum timesteps required: {args.min_timesteps:,.0f}")
+    run_label = args.run_label or _infer_run_label(args.run_ids)
     print(f"Samples per run: {args.samples}")
     print(f"Bootstrap iterations per point: {args.bootstrap_iterations}")
     print(f"Variance threshold: {args.threshold * 100}%\n")
+    if run_label:
+        print(f"Run label for plots: {run_label}\n")
+
+    output_path = Path(args.output) if args.output else Path(__file__).parent / (
+        f"{_slugify(run_label)}_variance.png"
+    )
+    print(f"Output path: {output_path}\n")
 
     # Compute variance curve
     (
@@ -355,9 +405,10 @@ def main():
         mean_cv_values,
         ci_bounds,
         args.threshold,
-        args.output,
+        str(output_path),
         args.percent,
         args.ci_level,
+        run_label,
     )
 
 
