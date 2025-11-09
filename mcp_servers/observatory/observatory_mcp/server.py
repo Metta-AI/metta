@@ -60,19 +60,18 @@ class ObservatoryMCPServer:
             logger.debug("WandB not configured. WandB tools will be unavailable.")
 
         self.s3_client: S3Client | None = None
-        if self.config.is_aws_configured():
-            try:
-                self.s3_client = S3Client(profile=self.config.aws_profile, bucket=self.config.s3_bucket)
-                if self.s3_client._client is None:
-                    self.s3_client = None
-                    logger.warning("S3 client initialization failed. S3 tools will be unavailable.")
-                else:
-                    logger.info(f"S3 client initialized (profile={self.config.aws_profile}, bucket={self.config.s3_bucket})")
-            except Exception as e:
-                logger.warning(f"Failed to initialize S3 client: {e}. S3 tools will be unavailable.")
+        # Always try to initialize S3 client - it can use profile or default credentials
+        try:
+            self.s3_client = S3Client(profile=self.config.aws_profile, bucket=self.config.s3_bucket)
+            if self.s3_client._client is None:
                 self.s3_client = None
-        else:
-            logger.debug("AWS not configured. S3 tools will be unavailable.")
+                logger.warning("S3 client initialization failed. S3 tools will be unavailable.")
+            else:
+                profile_info = f"profile={self.config.aws_profile}" if self.config.aws_profile else "default credentials"
+                logger.info(f"S3 client initialized ({profile_info}, bucket={self.config.s3_bucket})")
+        except Exception as e:
+            logger.warning(f"Failed to initialize S3 client: {e}. S3 tools will be unavailable.")
+            self.s3_client = None
 
         self.skypilot_client = SkypilotClient(url=self.config.skypilot_url)
         if self.config.skypilot_url:

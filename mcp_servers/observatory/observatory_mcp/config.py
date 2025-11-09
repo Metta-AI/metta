@@ -119,8 +119,16 @@ class ObservatoryMCPConfig:
         return bool(self.backend_url) and len(self.validate()) == 0
 
     def is_aws_configured(self) -> bool:
-        """Check if AWS is configured."""
-        return bool(self.aws_profile)
+        """Check if AWS is configured.
+
+        Always returns True to allow boto3 to attempt initialization using either:
+        - AWS_PROFILE environment variable (if set), or
+        - Default AWS credentials (from ~/.aws/credentials, IAM role, etc.)
+
+        Returns:
+            Always True - initialization will be attempted regardless
+        """
+        return True  # Always try - boto3 can use default credentials or profile
 
     def is_wandb_configured(self) -> bool:
         """Check if W&B is configured."""
