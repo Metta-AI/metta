@@ -1,7 +1,10 @@
-from typing import Optional, Sequence
+from typing import Callable, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
+from metta.agent.policies.trxl import trxl_policy_config
+from metta.agent.policies.vit_reset import ViTResetConfig
+from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -9,9 +12,10 @@ from metta.cogworks.curriculum.curriculum import (
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import Span
 from metta.map.terrain_from_numpy import NavigationFromNumpy
-from metta.rl.loss import LossConfig
-from metta.rl.trainer_config import TrainerConfig
+from metta.rl.loss.loss import LossConfig
+from metta.rl.system_config import SystemConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.trainer_config import TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import make_sweep, SweepParameters as SP, Distribution as D
 from metta.tools.eval import EvaluateTool
@@ -24,6 +28,34 @@ from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.mapgen.mapgen import MapGen
 
 from experiments.evals.navigation import make_navigation_eval_suite
+
+BENCHMARK_SEED = 63
+BENCHMARK_TIMESTEPS = 5_000_000_000
+
+_ARCHITECTURES: dict[str, Callable[[], PolicyArchitecture]] = {
+    "vit_reset": ViTResetConfig,
+    "trxl": trxl_policy_config,
+}
+
+
+def _resolve_seed(seed: int | None) -> int:
+    return seed if seed is not None else BENCHMARK_SEED
+
+
+def _resolve_policy_architecture(name: str) -> PolicyArchitecture:
+    key = name.lower()
+    if key not in _ARCHITECTURES:
+        options = ", ".join(sorted(_ARCHITECTURES))
+        raise ValueError(f"Unknown architecture '{name}'. Expected one of: {options}")
+    return _ARCHITECTURES[key]()
+
+
+def _build_trainer(total_timesteps: int = BENCHMARK_TIMESTEPS) -> TrainerConfig:
+    return TrainerConfig(total_timesteps=total_timesteps, losses=LossConfig())
+
+
+def _build_system(seed: int) -> SystemConfig:
+    return SystemConfig(seed=seed)
 
 
 def mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConfig:
@@ -39,6 +71,8 @@ def mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConfig:
             dir="varied_terrain/dense_large",
         ),
     )
+    if hasattr(nav.game.actions, "attack"):
+        nav.game.actions.attack.enabled = False
     return nav
 
 
@@ -94,35 +128,22 @@ def make_curriculum(
 
 
 def train(
-    use_curriculum: bool = False,
+    *,
+    architecture: str = "vit_reset",
+    seed: int | None = None,
     enable_detailed_slice_logging: bool = False,
 ) -> TrainTool:
-    """Train with fixed environment (no curriculum by default for benchmarking).
+    """Curriculum-enabled navigation benchmark."""
 
-    Set use_curriculum=True to enable curriculum learning.
-    """
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
-    )
-
-    evaluator_cfg = EvaluatorConfig(
-        simulations=make_navigation_eval_suite(),
-    )
-
-    # For benchmarking, use fixed environment by default (no curriculum)
-    if use_curriculum:
-        curriculum = make_curriculum(
-            enable_detailed_slice_logging=enable_detailed_slice_logging
-        )
-        training_env = TrainingEnvironmentConfig(curriculum=curriculum)
-    else:
-        # Fixed environment for benchmarking
-        training_env = TrainingEnvironmentConfig(env=mettagrid())
+    effective_seed = _resolve_seed(seed)
+    curriculum = make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
     return TrainTool(
-        trainer=trainer_cfg,
-        training_env=training_env,
-        evaluator=evaluator_cfg,
+        system=_build_system(effective_seed),
+        trainer=_build_trainer(),
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum, seed=effective_seed),
+        evaluator=EvaluatorConfig(simulations=make_navigation_eval_suite()),
+        policy_architecture=_resolve_policy_architecture(architecture),
     )
 
 
@@ -222,7 +243,7 @@ def sweep(sweep_name: str) -> SweepTool:
 
     return make_sweep(
         name=sweep_name,
-        recipe="experiments.recipes.benchmarks.navigation",
+        recipe="experiments.recipes.prod_benchmark.navigation",
         train_entrypoint="train",
         # NB: You MUST use a specific sweep eval suite, different than those in training.
         # Besides this being a recommended practice, using the same eval suite in both

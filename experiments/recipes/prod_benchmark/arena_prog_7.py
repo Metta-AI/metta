@@ -1,15 +1,17 @@
-from typing import Optional, Sequence
+from typing import Callable, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from metta.agent.policies.vit import ViTDefaultConfig
+from metta.agent.policies.trxl import trxl_policy_config
+from metta.agent.policies.vit_reset import ViTResetConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss import LossConfig
+from metta.rl.loss.loss import LossConfig
+from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -20,7 +22,34 @@ from metta.tools.replay import ReplayTool
 from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
-from mettagrid.config import ConverterConfig
+
+BENCHMARK_SEED = 63
+BENCHMARK_TIMESTEPS = 5_000_000_000
+
+_ARCHITECTURES: dict[str, Callable[[], PolicyArchitecture]] = {
+    "vit_reset": ViTResetConfig,
+    "trxl": trxl_policy_config,
+}
+
+
+def _resolve_seed(seed: int | None) -> int:
+    return seed if seed is not None else BENCHMARK_SEED
+
+
+def _resolve_policy_architecture(name: str) -> PolicyArchitecture:
+    key = name.lower()
+    if key not in _ARCHITECTURES:
+        options = ", ".join(sorted(_ARCHITECTURES))
+        raise ValueError(f"Unknown architecture '{name}'. Expected one of: {options}")
+    return _ARCHITECTURES[key]()
+
+
+def _build_trainer(total_timesteps: int = BENCHMARK_TIMESTEPS) -> TrainerConfig:
+    return TrainerConfig(total_timesteps=total_timesteps, losses=LossConfig())
+
+
+def _build_system(seed: int) -> SystemConfig:
+    return SystemConfig(seed=seed)
 
 
 def mettagrid(num_agents: int = 24) -> MettaGridConfig:
@@ -45,7 +74,7 @@ def mettagrid(num_agents: int = 24) -> MettaGridConfig:
 
     # Easy converter: 1 battery_red to 1 heart (instead of 3 to 1)
     altar = arena_env.game.objects.get("altar")
-    if isinstance(altar, ConverterConfig) and hasattr(altar, "input_resources"):
+    if hasattr(altar, "input_resources"):
         altar.input_resources["battery_red"] = 1
 
     arena_env.game.map_builder.width = 70
@@ -105,37 +134,23 @@ def simulations(env: Optional[MettaGridConfig] = None) -> list[SimulationConfig]
 
 
 def train(
-    use_curriculum: bool = False,
+    *,
+    architecture: str = "vit_reset",
+    seed: int | None = None,
     enable_detailed_slice_logging: bool = False,
-    policy_architecture: Optional[PolicyArchitecture] = None,
 ) -> TrainTool:
-    """Train with fixed environment (no curriculum by default for benchmarking).
+    """Train with curriculum-enabled arena benchmarks."""
 
-    Set use_curriculum=True to enable curriculum learning.
-    """
+    effective_seed = _resolve_seed(seed)
+    curriculum = make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
     eval_simulations = simulations()
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
-    )
-
-    if policy_architecture is None:
-        policy_architecture = ViTDefaultConfig()
-
-    # For benchmarking, use fixed environment by default (no curriculum)
-    if use_curriculum:
-        curriculum = make_curriculum(
-            enable_detailed_slice_logging=enable_detailed_slice_logging
-        )
-        training_env = TrainingEnvironmentConfig(curriculum=curriculum)
-    else:
-        # Fixed environment for benchmarking
-        training_env = TrainingEnvironmentConfig(env=mettagrid())
 
     return TrainTool(
-        trainer=trainer_cfg,
-        training_env=training_env,
+        system=_build_system(effective_seed),
+        trainer=_build_trainer(),
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum, seed=effective_seed),
         evaluator=EvaluatorConfig(simulations=eval_simulations),
-        policy_architecture=policy_architecture,
+        policy_architecture=_resolve_policy_architecture(architecture),
         torch_profiler=TorchProfilerConfig(),
     )
 

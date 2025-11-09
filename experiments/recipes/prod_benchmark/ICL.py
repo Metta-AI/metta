@@ -9,7 +9,7 @@ Key Configuration:
 - Domain Randomization: ON (varied chain lengths, sinks, room sizes, terrains)
 - Seed Synchronization: ON (BENCHMARK_SEED=63 for reproducibility)
 - Evaluations: ENABLED (every 30 epochs, held-out configurations, local evaluation)
-- Training Duration: 2B timesteps
+- Training Duration: 5B timesteps
 
 The controlled settings ensure fair comparison between architectures by:
 1. Using adaptive curriculum learning for efficient training
@@ -23,7 +23,7 @@ import random
 import subprocess
 import time
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 
 from metta.agent.policies.trxl import trxl_policy_config
 from metta.agent.policies.vit_reset import ViTResetConfig
@@ -31,13 +31,18 @@ from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
-from metta.rl.loss import LossConfig
+from metta.rl.loss.loss import LossConfig
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.sweep.core import Distribution as D
+from metta.sweep.core import SweepParameters as SP
+from metta.sweep.core import make_sweep
+from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
+from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid.builder import empty_assemblers
 from mettagrid.builder.envs import make_assembly_lines
@@ -482,7 +487,7 @@ def train(
 
     policy_config = _get_policy_config(architecture)
 
-    trainer_cfg = TrainerConfig(losses=LossConfig(), total_timesteps=2_000_000_000)
+    trainer_cfg = TrainerConfig(losses=LossConfig(), total_timesteps=5_000_000_000)
 
     train_tool = TrainTool(
         system=SystemConfig(seed=effective_seed),
@@ -523,13 +528,51 @@ def replay(
     task_generator = AssemblyLinesTaskGenerator(
         make_task_generator_cfg(**curriculum_args[curriculum_style])
     )
-    # Default to the research policy if none specified
-    default_policy_uri = "s3://softmax-public/policies/icl_resource_chain_terrain_1.2.2025-09-24/icl_resource_chain_terrain_1.2.2025-09-24:v2070.pt"
+    default_policy_uri = (
+        "s3://softmax-public/policies/icl_resource_chain_terrain_1.2.2025-09-24/"
+        "icl_resource_chain_terrain_1.2.2025-09-24:v2070.pt"
+    )
+
     return ReplayTool(
         sim=SimulationConfig(
             env=make_mettagrid(task_generator), suite="assembly_lines", name="replay"
         ),
         policy_uri=default_policy_uri,
+    )
+
+
+def evaluate(policy_uris: Sequence[str] | None = None) -> EvaluateTool:
+    return EvaluateTool(
+        simulations=make_assembly_line_eval_suite(),
+        policy_uris=policy_uris or [],
+    )
+
+
+def sweep(sweep_name: str) -> SweepTool:
+    parameters = [
+        SP.LEARNING_RATE,
+        SP.PPO_CLIP_COEF,
+        SP.PPO_GAE_LAMBDA,
+        SP.PPO_VF_COEF,
+        SP.ADAM_EPS,
+        SP.param(
+            "trainer.total_timesteps",
+            D.INT_UNIFORM,
+            min=4.5e9,
+            max=5.5e9,
+            search_center=5e9,
+        ),
+    ]
+
+    return make_sweep(
+        name=sweep_name,
+        recipe="experiments.recipes.prod_benchmark.ICL",
+        train_entrypoint="train",
+        eval_entrypoint="evaluate",
+        objective="evaluator/eval_assembly_lines/score",
+        parameters=parameters,
+        num_trials=80,
+        num_parallel_trials=4,
     )
 
 

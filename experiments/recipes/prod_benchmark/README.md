@@ -15,7 +15,7 @@
 
 What all recipes have in common:
 
-- Same seed enabled for paired runs (environment, weight init, curriculum); seed is not hardcoded it is recorded
+- Same seed enabled for paired runs (environment, weight init, curriculum) with or without an intervention
 - Evaluations enabled
 - Curriculum enabled
 - Run separately for a new architecture with architecture=vit_reset or trxl
