@@ -620,7 +620,7 @@ def _plot_by_preset(aggregated, presets, agents, experiments, difficulties, outp
     ax = axes[2]
     top_diffs = sorted(
         difficulties,
-        key=lambda d: np.mean([v["avg_reward"] for k, v in aggregated.items() if v["difficulty"] == d]),
+        key=lambda d: np.mean([v["avg_reward"] for k, v in aggregated.items() if v["difficulty"] == d]),  # type: ignore
         reverse=True,
     )[:3]
 
