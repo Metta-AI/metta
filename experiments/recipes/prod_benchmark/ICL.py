@@ -548,7 +548,10 @@ def evaluate(policy_uris: Sequence[str] | None = None) -> EvaluateTool:
     )
 
 
-def sweep(sweep_name: str) -> SweepTool:
+def sweep(sweep_name: str, run: str | None = None) -> SweepTool:
+    # `run` is accepted so that devops/skypilot/launch.py can always append a run
+    # argument after auto-generating the Sky task name. The sweep configuration
+    # itself does not need this value.
     parameters = [
         SP.LEARNING_RATE,
         SP.PPO_CLIP_COEF,
