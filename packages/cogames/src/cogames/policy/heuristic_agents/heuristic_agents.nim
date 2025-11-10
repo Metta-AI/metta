@@ -14,7 +14,7 @@ type
     obsWidth*: int
     obsHeight*: int
     actions*: seq[string]
-    tagNames*: Table[string, int]
+    tags*: seq[string]
     obsFeatures*: seq[ConfigFeature]
 
   FeatureValue* = object
@@ -118,7 +118,7 @@ proc newHeuristicAgent(agentId: int, environmentConfig: string): HeuristicAgent 
     echo "  obsWidth", config.obsWidth
     echo "  obsHeight", config.obsHeight
     echo "  actions", config.actions
-    echo "  tagNames", config.tagNames
+    echo "  tags", config.tags
     echo "  obsFeatures", config.obsFeatures
 
     for feature in config.obsFeatures:
@@ -216,24 +216,24 @@ proc newHeuristicAgent(agentId: int, environmentConfig: string): HeuristicAgent 
       else:
         discard
     echo "  actions", result.actions
-    for name, id in config.tagNames:
+    for id, name in config.tags:
       echo "    tag name ", name, " id ", id
       case name:
       of "agent":
         result.tags.agent = id
       of "assembler":
         result.tags.assembler = id
-      of "carbonExtractor":
+      of "carbon_extractor":
         result.tags.carbonExtractor = id
       of "charger":
         result.tags.charger = id
       of "chest":
         result.tags.chest = id
-      of "germaniumExtractor":
+      of "germanium_extractor":
         result.tags.germaniumExtractor = id
-      of "oxygenExtractor":
+      of "oxygen_extractor":
         result.tags.oxygenExtractor = id
-      of "siliconExtractor":
+      of "silicon_extractor":
         result.tags.siliconExtractor = id
       of "wall":
         result.tags.wall = id
