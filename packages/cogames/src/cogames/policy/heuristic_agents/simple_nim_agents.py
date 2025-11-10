@@ -50,7 +50,7 @@ class HeuristicAgentPolicy(AgentPolicy):
             num_agents=raw_obs.shape[0],
             num_tokens=raw_obs.shape[1],
             size_token=raw_obs.shape[2],
-            row_observations=raw_obs.ctypes.data,
+            raw_observations=raw_obs.ctypes.data,
             num_actions=raw_action.shape[0],
             raw_actions=raw_action.ctypes.data,
         )
