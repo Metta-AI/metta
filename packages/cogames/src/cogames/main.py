@@ -251,6 +251,7 @@ def train_cmd(
         help="Override vectorized environment batch size",
         min=1,
     ),
+    log_outputs: bool = typer.Option(False, "--log-outputs", help="Log training outputs"),
 ) -> None:
     selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs)
     if len(selected_missions) == 1:
@@ -284,6 +285,7 @@ def train_cmd(
             vector_batch_size=vector_batch_size,
             env_cfg_supplier=supplier,
             missions_arg=missions,
+            log_outputs=log_outputs,
         )
 
     except ValueError as exc:  # pragma: no cover - user input
@@ -327,6 +329,11 @@ def evaluate_cmd(
         min=1,
     ),
     steps: Optional[int] = typer.Option(1000, "--steps", "-s", help="Max steps per episode", min=1),
+    format_: Optional[Literal["yaml", "json"]] = typer.Option(
+        None,
+        "--format",
+        help="Output results in YAML or JSON format",
+    ),
 ) -> None:
     selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs, steps=steps)
 
@@ -347,6 +354,7 @@ def evaluate_cmd(
         policy_specs=policy_specs,
         action_timeout_ms=action_timeout_ms,
         episodes=episodes,
+        output_format=format_,
     )
 
 

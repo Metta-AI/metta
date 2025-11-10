@@ -13,6 +13,7 @@ from mettagrid.config.mettagrid_config import (
     WallConfig,
 )
 from mettagrid.simulator import Action, Simulation
+from mettagrid.test_support import ObservationHelper
 from mettagrid.test_support.map_builders import ObjectNameMapBuilder
 
 
@@ -151,3 +152,29 @@ def test_global_obs_default_values():
     assert "episode_completion_pct" in global_obs_data, "Should have episode_completion_pct by default"
     assert "last_action" in global_obs_data, "Should have last_action by default"
     assert "last_reward" in global_obs_data, "Should have last_reward by default"
+
+
+def test_compass_toggle():
+    """Compass token should be present only when enabled."""
+    helper = ObservationHelper()
+
+    enabled_sim = create_test_sim(
+        {"episode_completion_pct": False, "last_action": False, "last_reward": False, "compass": True}
+    )
+    compass_feature_id = enabled_sim.config.id_map().feature_id("agent:compass")
+
+    enabled_obs = enabled_sim._c_sim.observations()
+    compass_counts = [
+        helper.find_tokens(enabled_obs[i], feature_id=compass_feature_id).shape[0]
+        for i in range(enabled_sim.num_agents)
+    ]
+    assert any(count == 1 for count in compass_counts), "At least one agent should receive a compass token"
+
+    disabled_sim = create_test_sim(
+        {"episode_completion_pct": False, "last_action": False, "last_reward": False, "compass": False}
+    )
+    disabled_obs = disabled_sim._c_sim.observations()
+    for i in range(disabled_sim.num_agents):
+        assert helper.find_tokens(disabled_obs[i], feature_id=compass_feature_id).shape[0] == 0, (
+            "Compass tokens should be absent when disabled"
+        )

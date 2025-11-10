@@ -6,41 +6,46 @@ class TestChest:
     """Test chest deposit and withdrawal functionality."""
 
     def test_chest_deposit(self):
-        """Test that deposit/withdrawal only work from configured positions."""
+        """Test that deposit/withdrawal work with vibe-based transfers."""
         cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True)
 
+        cfg.game.resource_names = ["gold"]
+        cfg.game.agent.initial_inventory = {"gold": 5}
+
         cfg.game.objects["chest"] = ChestConfig(
-            resource_type="gold",
             map_char="C",
             name="chest",
-            position_deltas=[("N", 1), ("S", -1)],  # N=deposit 1, S=withdraw 1
+            vibe_transfers={
+                "down": {"gold": 1},  # When showing deposit vibe, deposit 1 gold
+                "up": {"gold": -1},  # When showing withdraw vibe, withdraw 1 gold
+            },
+            resource_limits={"gold": 100},  # Chest can hold up to 100 gold
         )
 
         cfg = cfg.with_ascii_map(
             [
                 ["#", "#", "#", "#", "#"],
-                ["#", ".", "@", ".", "#"],
-                ["#", ".", "C", ".", "#"],
                 ["#", ".", ".", ".", "#"],
+                ["#", ".", "C", ".", "#"],
+                ["#", ".", "@", ".", "#"],
                 ["#", "#", "#", "#", "#"],
             ]
         )
 
-        cfg.game.resource_names = ["gold"]
-        cfg.game.agent.initial_inventory = {"gold": 5}
-
-        # Configure chest with specific positions only
+        # Enable actions
+        cfg.game.actions.change_vibe.enabled = True
+        cfg.game.actions.change_vibe.number_of_vibes = 100  # make sure it's high enough for up and down.
         cfg.game.actions.move.enabled = True
 
         sim = Simulation(cfg)
 
         gold_idx = sim.resource_names.index("gold")
 
-        # Agent starts at (3,2), chest is at (2,2)
-        # Agent is south of chest (withdrawal position)
+        sim.agent(0).set_action("change_vibe_down")
+        sim.step()
 
-        # Try to move south (to chest position) - should trigger deposit
-        sim.agent(0).set_action("move_south")
+        # Try to move north (to chest position) - should trigger deposit
+        sim.agent(0).set_action("move_north")
         sim.step()
 
         # Check deposit happened
@@ -55,21 +60,11 @@ class TestChest:
             f"Chest should have 1 gold. Has {chest['inventory'].get(gold_idx, 0)}"
         )
 
-        # Move around to south position to withdraw
-        sim.agent(0).set_action("move_west")
+        # Change vibe to withdraw
+        sim.agent(0).set_action("change_vibe_up")
         sim.step()
 
-        # Then south
-        sim.agent(0).set_action("move_south")
-        sim.step()
-        sim.agent(0).set_action("move_south")
-        sim.step()
-
-        # Then east to be south of chest
-        sim.agent(0).set_action("move_east")
-        sim.step()
-
-        # Now move north to chest (from withdrawal position)
+        # Try to move INTO the chest position again to trigger withdrawal
         sim.agent(0).set_action("move_north")
         sim.step()
 
@@ -83,99 +78,4 @@ class TestChest:
         )
         assert chest_after["inventory"].get(gold_idx, 0) == 0, (
             f"Chest should have 0 gold after withdrawal, has {chest_after['inventory'].get(gold_idx, 0)}"
-        )
-
-    def test_chest_partial_transfers(self):
-        """Test that partial transfers work when resources are limited."""
-        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True)
-
-        cfg.game.resource_names = ["gold"]
-        cfg.game.agent.initial_inventory = {"gold": 3}  # Agent starts with only 3 gold
-
-        # Configure chest with larger deltas than available resources
-        cfg.game.objects["chest"] = ChestConfig(
-            name="chest",
-            resource_type="gold",
-            map_char="C",
-            position_deltas=[("N", 5), ("S", -5)],  # N=deposit 5, S=withdraw 5
-            initial_inventory=2,  # Chest starts with 2 gold
-        )
-
-        cfg = cfg.with_ascii_map(
-            [
-                ["#", "#", "#", "#", "#"],
-                ["#", ".", "@", ".", "#"],
-                ["#", ".", "C", ".", "#"],
-                ["#", ".", ".", ".", "#"],
-                ["#", "#", "#", "#", "#"],
-            ]
-        )
-
-        cfg.game.actions.move.enabled = True
-
-        sim = Simulation(cfg)
-
-        gold_idx = sim.resource_names.index("gold")
-
-        # Agent starts at (1,2), chest is at (2,2)
-        # Agent is north of chest (deposit position)
-
-        # Try to deposit 5 gold, but agent only has 3
-        sim.agent(0).set_action("move_south")
-        sim.step()
-
-        # Check partial deposit happened
-        grid_objects = sim.grid_objects()
-        agent = next(obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj)
-        chest = next(obj for _obj_id, obj in grid_objects.items() if obj["type_name"] == "chest")
-
-        assert agent["inventory"].get(gold_idx, 0) == 0, (
-            f"Agent should have 0 gold (deposited all 3). Has {agent['inventory'].get(gold_idx, 0)}"
-        )
-        assert chest["inventory"].get(gold_idx, 0) == 5, (
-            f"Chest should have 5 gold (initial 2 + deposited 3). Has {chest['inventory'].get(gold_idx, 0)}"
-        )
-
-        # Move around to south position to withdraw
-        sim.agent(0).set_action("move_west")
-        sim.step()
-        sim.agent(0).set_action("move_south")
-        sim.step()
-        sim.agent(0).set_action("move_south")
-        sim.step()
-        sim.agent(0).set_action("move_east")
-        sim.step()
-
-        # Try to withdraw 5 gold, chest has exactly 5
-        sim.agent(0).set_action("move_north")
-        sim.step()
-
-        # Check full withdrawal happened
-        grid_objects_after = sim.grid_objects()
-        agent_after = next(obj for _obj_id, obj in grid_objects_after.items() if "agent_id" in obj)
-        chest_after = next(obj for _obj_id, obj in grid_objects_after.items() if obj["type_name"] == "chest")
-
-        assert agent_after["inventory"].get(gold_idx, 0) == 5, (
-            f"Agent should have 5 gold after withdrawal, has {agent_after['inventory'].get(gold_idx, 0)}"
-        )
-        assert chest_after["inventory"].get(gold_idx, 0) == 0, (
-            f"Chest should have 0 gold after withdrawal, has {chest_after['inventory'].get(gold_idx, 0)}"
-        )
-
-        # Try to withdraw again when chest is empty
-        sim.agent(0).set_action("move_south")
-        sim.step()
-        sim.agent(0).set_action("move_north")
-        sim.step()
-
-        # Check nothing changed (no resources to withdraw)
-        grid_objects_final = sim.grid_objects()
-        agent_final = next(obj for _obj_id, obj in grid_objects_final.items() if "agent_id" in obj)
-        chest_final = next(obj for _obj_id, obj in grid_objects_final.items() if obj["type_name"] == "chest")
-
-        assert agent_final["inventory"].get(gold_idx, 0) == 5, (
-            f"Agent should still have 5 gold, has {agent_final['inventory'].get(gold_idx, 0)}"
-        )
-        assert chest_final["inventory"].get(gold_idx, 0) == 0, (
-            f"Chest should still have 0 gold, has {chest_final['inventory'].get(gold_idx, 0)}"
         )

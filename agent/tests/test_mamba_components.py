@@ -4,12 +4,12 @@ from tensordict import TensorDict
 
 pytest.importorskip("mamba_ssm", reason="Mamba components require the mamba-ssm CUDA package.")
 
-from metta.agent.components.mamba import MambaBackboneConfig
-from metta.agent.components.mamba.backbone import MambaBackboneComponent
+import metta.agent.components.mamba.backbone as mamba_backbone
+import metta.agent.components.mamba.config as mamba_config
 
 
 def test_mamba_backbone_forward_rollout():
-    config = MambaBackboneConfig(
+    config = mamba_config.MambaBackboneConfig(
         in_key="encoded",
         out_key="core",
         input_dim=16,
@@ -18,7 +18,7 @@ def test_mamba_backbone_forward_rollout():
         n_layer=2,
         max_cache_size=16,
     )
-    component = MambaBackboneComponent(config)
+    component = mamba_backbone.MambaBackboneComponent(config)
 
     td = TensorDict(
         {
@@ -36,7 +36,7 @@ def test_mamba_backbone_forward_rollout():
 
 
 def test_mamba_backbone_forward_training():
-    config = MambaBackboneConfig(
+    config = mamba_config.MambaBackboneConfig(
         in_key="encoded",
         out_key="core",
         input_dim=16,
@@ -45,7 +45,7 @@ def test_mamba_backbone_forward_training():
         n_layer=2,
         max_cache_size=16,
     )
-    component = MambaBackboneComponent(config)
+    component = mamba_backbone.MambaBackboneComponent(config)
 
     td = TensorDict(
         {
@@ -61,7 +61,7 @@ def test_mamba_backbone_forward_training():
 
 
 def test_mamba_config_resolves_stride_multiple():
-    cfg = MambaBackboneConfig(
+    cfg = mamba_config.MambaBackboneConfig(
         in_key="encoded",
         out_key="core",
         input_dim=8,

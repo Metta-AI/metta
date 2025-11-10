@@ -1,5 +1,5 @@
-"""Small-map CoGs vs Clips training entrypoint."""
+"""Small-map CoGs vs Clips entry points."""
 
-from experiments.recipes.cvc.core import play, train_small_maps as train
+from experiments.recipes.cogs_v_clips import play, train_small_maps as train
 
 __all__ = ["train", "play"]

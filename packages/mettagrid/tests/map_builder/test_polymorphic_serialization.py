@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from pytest import fixture
 
-from mettagrid.config import Config
+from mettagrid.base_config import Config
 from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.map_builder import AnyMapBuilderConfig, MapBuilderConfig
 from mettagrid.map_builder.maze import MazePrimMapBuilder
@@ -101,7 +101,7 @@ map_data: |-
     ###
     #.#
     ###
-char_to_name_map:
+char_to_map_name:
     "#": wall
     ".": empty
 """

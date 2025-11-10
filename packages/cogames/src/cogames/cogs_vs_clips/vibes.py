@@ -1,16 +1,6 @@
 """Vibe definitions for Cogs vs Clips game."""
 
-from dataclasses import dataclass
-
-
-@dataclass(frozen=True)
-class Vibe:
-    """A vibe with its symbol and searchable name."""
-
-    symbol: str
-    name: str
-    category: str = "misc"
-
+from mettagrid.config.vibes import Vibe
 
 VIBES = [
     Vibe("😐", "default", category="emotion"),  # neutral
