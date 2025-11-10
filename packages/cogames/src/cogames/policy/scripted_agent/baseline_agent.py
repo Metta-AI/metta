@@ -17,9 +17,11 @@ import random
 from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Callable, Optional, Tuple
+from typing import TYPE_CHECKING, Callable, Dict, Optional, Tuple
 
-from cogames.policy import StatefulPolicyImpl
+import numpy as np
+
+from cogames.policy import AgentPolicy, StatefulPolicyImpl
 from mettagrid.config.mettagrid_config import CardinalDirections
 from mettagrid.config.vibes import VIBE_BY_NAME
 from mettagrid.policy.policy import MultiAgentPolicy, StatefulAgentPolicy
@@ -1319,11 +1321,78 @@ class BaselinePolicy(MultiAgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface):
         super().__init__(policy_env_info)
         self._shared_state = SharedAgentState()
-        self._agent_policies: dict[int, StatefulAgentPolicy[SimpleAgentState]] = {}
+        self._agent_policies: Dict[int, AgentPolicy] = {}
+        self._last_reset_simulation: Optional["Simulation"] = None
 
-    def agent_policy(self, agent_id: int) -> StatefulAgentPolicy[SimpleAgentState]:
+    def agent_policy(self, agent_id: int) -> AgentPolicy:
         if agent_id not in self._agent_policies:
-            self._agent_policies[agent_id] = StatefulAgentPolicy(
+            policy = StatefulAgentPolicy(
                 BaselineAgentPolicyImpl(self._policy_env_info, self._shared_state, agent_id), self._policy_env_info
             )
+            self._agent_policies[agent_id] = policy
+            if self._last_reset_simulation is not None:
+                policy.reset(self._last_reset_simulation)
         return self._agent_policies[agent_id]
+
+    def reset(self, simulation: Optional["Simulation"]) -> None:
+        self._last_reset_simulation = simulation
+        if simulation is None:
+            return
+        for policy in self._agent_policies.values():
+            policy.reset(simulation)
+
+    def step_batch(
+        self,
+        observations: np.ndarray,
+        out_actions: np.ndarray,
+        simulation: "Simulation",
+    ) -> np.ndarray:
+        """Compute batched actions using shared buffers."""
+        if observations.shape[0] != simulation.num_agents:
+            msg = "Observation batch does not match number of agents"
+            raise ValueError(msg)
+
+        agents = simulation.agents()
+        action_ids = simulation.action_ids
+
+        for agent_id in range(simulation.num_agents):
+            action = self.agent_policy(agent_id).step(agents[agent_id].observation)
+            out_actions[agent_id] = action_ids[action.name]
+
+        return out_actions
+
+
+class NoopAgentPolicy(AgentPolicy):
+    def __init__(self, policy_env_info: PolicyEnvInterface, action_name: str = "noop"):
+        super().__init__(policy_env_info)
+        self._action = Action(name=action_name)
+
+    def step(self, obs: AgentObservation) -> Action:
+        return self._action
+
+
+class NoopBaselinePolicy(BaselinePolicy):
+    def __init__(self, policy_env_info: PolicyEnvInterface, action_name: str = "noop"):
+        super().__init__(policy_env_info)
+        self._noop_action_name = action_name
+        self._agent_policies: Dict[int, AgentPolicy] = {}
+
+    def agent_policy(self, agent_id: int) -> AgentPolicy:
+        if agent_id not in self._agent_policies:
+            policy = NoopAgentPolicy(self._policy_env_info, self._noop_action_name)
+            self._agent_policies[agent_id] = policy
+        return self._agent_policies[agent_id]
+
+    def step_batch(
+        self,
+        observations: np.ndarray,
+        out_actions: np.ndarray,
+        simulation: "Simulation",
+    ) -> np.ndarray:
+        action_ids = simulation.action_ids
+        try:
+            noop_idx = action_ids[self._noop_action_name]
+        except KeyError as exc:  # pragma: no cover - configuration error
+            raise KeyError(f"Noop action '{self._noop_action_name}' not present in simulation actions") from exc
+        out_actions[:] = noop_idx
+        return out_actions

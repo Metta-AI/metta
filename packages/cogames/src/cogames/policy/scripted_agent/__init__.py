@@ -5,10 +5,11 @@ Contains two baseline policies:
 - UnclippingPolicy: Extends baseline with extractor unclipping capability
 """
 
-from cogames.policy.scripted_agent.baseline_agent import BaselinePolicy
+from cogames.policy.scripted_agent.baseline_agent import BaselinePolicy, NoopBaselinePolicy
 from cogames.policy.scripted_agent.unclipping_agent import UnclippingPolicy
 
 __all__ = [
     "BaselinePolicy",
+    "NoopBaselinePolicy",
     "UnclippingPolicy",
 ]

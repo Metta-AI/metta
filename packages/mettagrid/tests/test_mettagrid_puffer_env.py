@@ -216,6 +216,25 @@ class TestMettaGridPufferEnvStep:
         obs_next, rewards_next, terminals_next, truncations_next, info_next = env.step(actions)
         assert obs_next.shape == (2, 20, 3), "Should be able to continue stepping after auto-reset"
 
+    def test_teacher_noop_policy_overrides_actions(self, simulator, puffer_sim_config):
+        """Ensure noop teacher fills shared buffers and overrides env actions when enabled."""
+        puffer_sim_config.teacher.enabled = True
+        puffer_sim_config.teacher.use_actions = True
+        puffer_sim_config.teacher.policy = "noop"
+
+        env = MettaGridPufferEnv(simulator, puffer_sim_config)
+        env.reset()
+
+        provided_actions = np.zeros(env.num_agents, dtype=np.int32)
+        noop_idx = env._sim.action_ids["noop"]
+        if env.single_action_space.n > 1:
+            provided_actions.fill((noop_idx + 1) % env.single_action_space.n)
+
+        env.step(provided_actions)
+
+        assert np.all(env.teacher_actions == noop_idx)
+        assert np.all(env.actions == noop_idx)
+
 
 class TestMettaGridPufferEnvBuffers:
     """Test buffer management."""

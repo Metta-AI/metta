@@ -6,6 +6,7 @@ from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.policy.policy import AgentPolicy
 from mettagrid.renderer.renderer import Renderer, RenderMode, create_renderer
 from mettagrid.simulator import Simulator
+from mettagrid.simulator.simulator import Buffers, create_simulation_buffers
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +30,12 @@ class Rollout:
         self._renderer: Optional[Renderer] = None
         self._timeout_counts: list[int] = [0] * len(policies)
         self._pass_sim_to_policies = pass_sim_to_policies  # Whether to pass the simulation to the policies
+        self._buffers: Buffers = create_simulation_buffers(config)
         # Attach renderer if specified
         if render_mode is not None:
             self._renderer = create_renderer(render_mode)
             self._simulator.add_event_handler(self._renderer)
-        self._sim = self._simulator.new_simulation(config, seed)
+        self._sim = self._simulator.new_simulation(config, seed, buffers=self._buffers)
         self._agents = self._sim.agents()
 
         sim = self._sim if self._pass_sim_to_policies else None
@@ -43,25 +45,17 @@ class Rollout:
 
     def step(self) -> None:
         """Execute one step of the rollout."""
-        for i in range(len(self._policies)):
-            if type(self._policies[i]).__name__ == "HeuristicAgentPolicy":
-                # David I need to know how you want this architecture to work.
-                # This policy needs the raw observations and raw actions to step.
-                self._policies[i].step(
-                    raw_obs=self._sim.raw_observations(),
-                    raw_action=self._sim.raw_actions()
+        for i, policy in enumerate(self._policies):
+            start_time = time.time()
+            action = policy.step(self._agents[i].observation)
+            end_time = time.time()
+            if (end_time - start_time) > self._max_action_time_ms:
+                logger.warning(
+                    f"Action took {end_time - start_time} seconds, exceeding max of {self._max_action_time_ms}ms"
                 )
-            else:
-                start_time = time.time()
-                action = self._policies[i].step(self._agents[i].observation)
-                end_time = time.time()
-                if (end_time - start_time) > self._max_action_time_ms:
-                    logger.warning(
-                        f"Action took {end_time - start_time} seconds, exceeding max of {self._max_action_time_ms}ms"
-                    )
-                    action = self._config.game.actions.noop.Noop()
-                    self._timeout_counts[i] += 1
-                self._agents[i].set_action(action)
+                action = self._config.game.actions.noop.Noop()
+                self._timeout_counts[i] += 1
+            self._agents[i].set_action(action)
 
         if self._renderer is not None:
             self._renderer.render()

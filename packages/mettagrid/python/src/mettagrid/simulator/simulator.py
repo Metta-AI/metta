@@ -12,8 +12,18 @@ import mettagrid.config.mettagrid_c_config as mettagrid_c_config
 import mettagrid.config.mettagrid_config as mettagrid_config
 from mettagrid.config.id_map import IdMap, ObservationFeatureSpec
 from mettagrid.map_builder.map_builder import GameMap
-from mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
-from mettagrid.mettagrid_c import PackedCoordinate
+from mettagrid.mettagrid_c import (
+    MettaGrid as MettaGridCpp,
+)
+from mettagrid.mettagrid_c import (
+    PackedCoordinate,
+    dtype_actions,
+    dtype_masks,
+    dtype_observations,
+    dtype_rewards,
+    dtype_terminals,
+    dtype_truncations,
+)
 from mettagrid.profiling.stopwatch import Stopwatch, with_instance_timer
 from mettagrid.simulator.interface import Action, AgentObservation, ObservationToken, SimulatorEventHandler
 
@@ -40,6 +50,20 @@ class Buffers:
     masks: np.ndarray
     actions: np.ndarray
     teacher_actions: np.ndarray
+
+
+def create_simulation_buffers(config: mettagrid_config.MettaGridConfig) -> Buffers:
+    num_agents = config.game.num_agents
+    obs = config.game.obs
+    return Buffers(
+        observations=np.zeros((num_agents, obs.num_tokens, obs.token_dim), dtype=dtype_observations),
+        terminals=np.zeros(num_agents, dtype=dtype_terminals),
+        truncations=np.zeros(num_agents, dtype=dtype_truncations),
+        rewards=np.zeros(num_agents, dtype=dtype_rewards),
+        masks=np.ones(num_agents, dtype=dtype_masks),
+        actions=np.zeros(num_agents, dtype=dtype_actions),
+        teacher_actions=np.zeros(num_agents, dtype=dtype_actions),
+    )
 
 
 class Simulation:
@@ -83,6 +107,7 @@ class Simulation:
             action.name: idx for idx, action in enumerate(self._config.game.actions.actions())
         }
 
+        self._buffers = buffers
         if buffers is not None:
             self._c_sim.set_buffers(
                 buffers.observations,
@@ -189,12 +214,22 @@ class Simulation:
         return self._config.game.num_agents
 
     @property
+    def buffers(self) -> Optional[Buffers]:
+        return self._buffers
+
+    @property
     def action_ids(self) -> dict[str, int]:
         return self._action_ids
 
     @property
     def action_names(self) -> list[str]:
         return list(self._action_ids.keys())
+
+    def raw_observations(self) -> np.ndarray:
+        return self._buffers.observations if self._buffers is not None else self.__c_sim.observations()
+
+    def raw_actions(self) -> np.ndarray:
+        return self._buffers.actions if self._buffers is not None else self.__c_sim.actions()
 
     @property
     def object_type_names(self) -> list[str]:

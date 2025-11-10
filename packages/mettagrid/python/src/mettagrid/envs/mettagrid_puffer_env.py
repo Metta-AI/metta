@@ -30,7 +30,7 @@ import numpy as np
 from gymnasium.spaces import Box, Discrete
 from typing_extensions import override
 
-from cogames.policy.scripted_agent.baseline_agent import BaselinePolicy
+from cogames.policy.scripted_agent.baseline_agent import BaselinePolicy, NoopBaselinePolicy
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.mettagrid_c import (
     dtype_actions,
@@ -100,8 +100,9 @@ class MettaGridPufferEnv(PufferEnv):
         self.single_observation_space: Box = policy_env_info.observation_space
         self.single_action_space: Discrete = policy_env_info.action_space
 
-        self._teacher_policy = None
-        self._teacher_agent_policies = []
+        self._teacher_policy: Optional[BaselinePolicy] = None
+        self._teacher_policy_name: Optional[str] = None
+        self._teacher_policy_signature: Optional[Tuple[int, int, int, int, int]] = None
         self._new_sim()
         self.num_agents: int = self._sim.num_agents
 
@@ -141,18 +142,47 @@ class MettaGridPufferEnv(PufferEnv):
             self._sim.close()
         self._sim = self._simulator.new_simulation(self._current_cfg, self._current_seed)
         if self._current_cfg.teacher.enabled:
-            self._teacher_policy = BaselinePolicy(PolicyEnvInterface.from_mg_cfg(self._current_cfg))
-            self._teacher_agent_policies = [
-                self._teacher_policy.agent_policy(agent_id) for agent_id in range(self._current_cfg.game.num_agents)
-            ]
-            for agent_policy in self._teacher_agent_policies:
-                agent_policy.reset(self._sim)
+            self._initialize_teacher_policy()
+        else:
+            self._teacher_policy = None
+            self._teacher_policy_name = None
+            self._teacher_policy_signature = None
 
         self._update_buffers()
         self._buffers.rewards[:] = 0.0
         self._buffers.terminals[:] = False
         self._buffers.truncations[:] = False
         self._buffers.teacher_actions[:] = 0
+
+    def _teacher_policy_signature_from_cfg(self) -> Tuple[int, int, int, int, int]:
+        game_cfg = self._current_cfg.game
+        return (
+            game_cfg.num_agents,
+            game_cfg.obs.width,
+            game_cfg.obs.height,
+            game_cfg.obs.num_tokens,
+            len(game_cfg.actions.actions()),
+        )
+
+    def _initialize_teacher_policy(self) -> None:
+        policy_name = (self._current_cfg.teacher.policy or "baseline").lower()
+        signature = self._teacher_policy_signature_from_cfg()
+        if (
+            self._teacher_policy is None
+            or self._teacher_policy_name != policy_name
+            or self._teacher_policy_signature != signature
+        ):
+            policy_env_info = PolicyEnvInterface.from_mg_cfg(self._current_cfg)
+            policy_cls: type[BaselinePolicy]
+            if policy_name == "noop":
+                policy_cls = NoopBaselinePolicy
+            else:
+                policy_cls = BaselinePolicy
+            self._teacher_policy = policy_cls(policy_env_info)
+            self._teacher_policy_name = policy_name
+            self._teacher_policy_signature = signature
+        assert self._teacher_policy is not None
+        self._teacher_policy.reset(self._sim)
 
     @override
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
@@ -169,17 +199,14 @@ class MettaGridPufferEnv(PufferEnv):
 
         self._buffers.actions[:] = actions
 
-        if self._current_cfg.teacher.enabled:
-            agents = self._sim.agents()
-            teacher_actions = [
-                self._sim.action_names.index(
-                    self._teacher_agent_policies[agent_id].step(agents[agent_id].observation).name
-                )
-                for agent_id in range(self._current_cfg.game.num_agents)
-            ]
-            self._buffers.teacher_actions[:] = np.array(teacher_actions, dtype=dtype_actions)
+        if self._current_cfg.teacher.enabled and self._teacher_policy is not None:
+            teacher_actions = self._teacher_policy.step_batch(
+                observations=self._buffers.observations,
+                out_actions=self._buffers.teacher_actions,
+                simulation=self._sim,
+            )
             if self._current_cfg.teacher.use_actions:
-                self._buffers.actions[:] = self._buffers.teacher_actions[:]
+                self._buffers.actions[:] = teacher_actions
 
         self._sim.step()
 
