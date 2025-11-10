@@ -55,10 +55,11 @@ class JobResult:
 class Job(ABC):
     """Abstract base class for job execution."""
 
-    def __init__(self, name: str, log_dir: str, timeout_s: int = 3600):
+    def __init__(self, name: str, log_dir: str, timeout_s: int, config: "JobConfig"):
         self.name = name
         self.log_dir = Path(log_dir)
         self.timeout_s = timeout_s
+        self.config = config
         self._submitted = False
         self._result: Optional[JobResult] = None
 
@@ -164,7 +165,17 @@ class Job(ABC):
 
     @property
     def run_name(self) -> str | None:
-        """Get WandB run name (remote training jobs only, returns None for local jobs)."""
+        """Extract WandB run name from job config args if present.
+
+        Only applicable for training jobs. Returns None for non-training jobs
+        or if run= is not specified in args.
+        """
+        if not self.config.is_training_job:
+            return None
+        # Look for run=<name> in args
+        for arg in self.config.args:
+            if arg.startswith("run="):
+                return arg.split("=", 1)[1]
         return None
 
     @property
@@ -182,9 +193,8 @@ class LocalJob(Job):
         log_dir: str = "logs/local",
         cwd: Optional[str] = None,
     ):
-        super().__init__(config.name, log_dir, config.timeout_s)
+        super().__init__(config.name, log_dir, config.timeout_s, config)
         self.cwd = cwd or get_repo_root()
-        self.config = config  # Store config for run_name extraction
 
         if "cmd" in config.metadata:
             cmd = config.metadata["cmd"]
@@ -301,17 +311,6 @@ class LocalJob(Job):
             return str(self._proc.pid)
         return None
 
-    @property
-    def run_name(self) -> str | None:
-        """Extract WandB run name from args if present."""
-        if not self.config.is_training_job:
-            return None
-        # Look for run=<name> in args
-        for arg in self.config.args:
-            if arg.startswith("run="):
-                return arg.split("=", 1)[1]
-        return None
-
     def _handle_interrupt(self) -> None:
         self.cancel()
 
@@ -352,7 +351,7 @@ class RemoteJob(Job):
         job_id: Optional[int] = None,
         skip_git_check: bool = False,
     ):
-        super().__init__(config.name, log_dir, config.timeout_s)
+        super().__init__(config.name, log_dir, config.timeout_s, config)
 
         if not config.remote and not job_id:
             raise ValueError("RemoteJob requires config.remote to be set (or job_id for resuming)")
@@ -365,8 +364,6 @@ class RemoteJob(Job):
                 base_args.insert(0, "--no-spot")
         else:
             base_args = ["--no-spot", "--gpus=4", "--nodes", "1"]
-
-        self.config = config
         self.module = config.module
         self.args = arg_list
         self.base_args = base_args
@@ -379,7 +376,6 @@ class RemoteJob(Job):
         self._exit_code: Optional[int] = None
         self._timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         self._full_logs_fetched = False
-        self._run_name: Optional[str] = None  # WandB run name (only for training jobs)
 
     def _generate_run_name(self) -> str:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -405,7 +401,9 @@ class RemoteJob(Job):
         ]
 
         # Only pass run= for training jobs (they use WandB for experiment tracking)
-        if run_name:
+        # Check if run= is already in args to avoid conflicts
+        has_run_arg = any(arg.startswith("run=") for arg in self.args)
+        if run_name and not has_run_arg:
             cmd.append(f"run={run_name}")
 
         cmd.extend(self.args)
@@ -468,7 +466,6 @@ class RemoteJob(Job):
         try:
             # Only generate run_name for training jobs (they use WandB)
             run_name = self._generate_run_name() if self.config.is_training_job else None
-            self._run_name = run_name  # Store for WandB URL construction (None for non-training)
             request_id, job_id, _ = retry_function(
                 lambda: self._launch_via_script(run_name),
                 max_retries=max_attempts - 1,
@@ -694,11 +691,6 @@ class RemoteJob(Job):
     def request_id(self) -> str | None:
         """Return SkyPilot request ID if available."""
         return self._request_id
-
-    @property
-    def run_name(self) -> str | None:
-        """Return the WandB run name used for this job."""
-        return self._run_name
 
     def _handle_interrupt(self) -> None:
         if self._job_id:
