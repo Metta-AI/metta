@@ -60,6 +60,12 @@ class CortexTDConfig(ComponentConfig):
     # Cache storage dtype for CortexTD: 'fp32' (default) or 'bf16'
     store_dtype: str = "fp32"
 
+    # Controls whether training passes the cached pre-state (`state0`) to the
+    # underlying Cortex stack. When False, training runs without
+    # passing hidden state (i.e., `state0=None`). When True, training will
+    # gather the cached pre-state per row and pass it to the stack.
+    pass_state_during_training: bool = True
+
     def make_component(self, env: Any = None) -> nn.Module:
         return CortexTD(config=self)
 
@@ -187,8 +193,8 @@ class CortexTD(nn.Module):
         if x.shape[0] != B * TT:
             raise ValueError(f"input length {x.shape[0]} must equal batch*bptt ({B}*{TT})")
 
-
-        resets = _as_reset_mask(td.get("dones", None), td.get("truncateds", None), B=B, TT=TT, device=device)
+        # We use only dones for reset to keep parity with advantage calculation.
+        resets = _as_reset_mask(td.get("dones", None), None, B=B, TT=TT, device=device)
 
         if TT == 1:
             # Rollout step: maintain env-based state and cache pre-state for new rows
@@ -204,7 +210,7 @@ class CortexTD(nn.Module):
                 raise KeyError("CortexTD rollout requires 'row_id' and 't_in_row' keys")
             row_id_flat = td["row_id"].to(device=device, dtype=torch.long).view(-1)
             t_in_row_flat = td["t_in_row"].to(device=device, dtype=torch.long).view(-1)
-            mask_start = (t_in_row_flat == 0)
+            mask_start = t_in_row_flat == 0
             if bool(mask_start.any()):
                 idx = torch.nonzero(mask_start, as_tuple=False).reshape(-1)
                 state_sel = state_prev[idx]
@@ -219,18 +225,24 @@ class CortexTD(nn.Module):
             td.set(self.out_key, y.reshape(B * TT, -1))
             return td
 
-        # Training: initialize from per-row cached pre-state
-        if "row_id" not in td.keys():
-            raise KeyError("CortexTD training path (TT>1) requires 'row_id' in TensorDict")
-
-        row_tensor = td["row_id"].to(device=device, dtype=torch.long)
-        assert row_tensor.dim() == 1, "row_id must be 1D [B*TT] in training TD"
-        row_ids = row_tensor.view(B, TT)[:, 0]
-
-        state0 = self._gather_state_by_slots(row_ids, store=self._row_store, B=B, device=device, dtype=dtype)
-        #state0=None
+        # Training path: optionally pass cached pre-state depending on config
+        if self.config.pass_state_during_training:
+            if "row_id" not in td.keys():
+                raise KeyError("CortexTD training path (TT>1) requires 'row_id' when pass_state_during_training=True")
+            row_tensor = td["row_id"].to(device=device, dtype=torch.long)
+            assert row_tensor.dim() == 1, "row_id must be 1D [B*TT] in training TD"
+            row_ids = row_tensor.view(B, TT)[:, 0]
+            state0 = self._gather_state_by_slots(row_ids, store=self._row_store, B=B, device=device, dtype=dtype)
+        else:
+            state0 = None
         x_seq = rearrange(x, "(b t) h -> b t h", b=B, t=TT)
-        y_seq, _ = self.stack(x_seq, state0)#,resets=resets)
+
+        # NOTE: We currently do not reset during training as it seems to be
+        # acting as a regularizer which helps in training as some sort of a
+        # warm start, which means gradient information flows between episodes;
+        # in future maybe we want resets to only detach and not zero out the
+        # states, but currently cortex does not support this.
+        y_seq, _ = self.stack(x_seq, state0)
         y_seq = self._out(y_seq)
         td.set(self.out_key, rearrange(y_seq, "b t h -> (b t) h"))
         return td
@@ -255,7 +267,7 @@ class CortexTD(nn.Module):
         """Serialize dense stores for checkpointing."""
 
         def pack(store: Dict[LeafPath, torch.Tensor]) -> Dict[str, torch.Tensor]:
-            return {f"{b}|{c}|{l}": t for (b, c, l), t in store.items()}
+            return {f"{b}|{c}|{leaf}": t for (b, c, leaf), t in store.items()}
 
         return {
             "rollout_store": {"data": pack(self._rollout_store)},
@@ -434,8 +446,6 @@ class CortexTD(nn.Module):
             dest = store[(bkey, ckey, lkey)]
             dest.index_copy_(0, slot_ids, src.to(dtype=dest.dtype).detach())
 
-
-
     def _flush_rollout_current_to_store(self) -> None:
         if self._rollout_current_state is not None and self._rollout_current_env_ids is not None:
             slots = self._map_ids_to_slots(self._rollout_current_env_ids, self._rollout_id2slot, create_missing=True)
@@ -508,8 +518,6 @@ class CortexTD(nn.Module):
         if n in ("linear", "identity"):
             return nn.Identity()
         raise ValueError(f"Unsupported output_nonlinearity '{name}'. Allowed: silu/swish, relu, tanh, linear/identity.")
-
-
 
 
 __all__ = ["CortexTDConfig", "CortexTD"]
