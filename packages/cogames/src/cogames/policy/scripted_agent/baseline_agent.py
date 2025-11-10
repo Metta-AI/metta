@@ -137,6 +137,10 @@ class ObjectState:
     clipped: int = 0
     remaining_uses: int = 999
 
+    # Protocol details (recipes for assemblers/extractors)
+    protocol_inputs: dict[str, int] = field(default_factory=dict)
+    protocol_outputs: dict[str, int] = field(default_factory=dict)
+
     # Agent features (when object is another agent)
     agent_id: int = -1  # Which agent (-1 if not an agent) - NOT in observations, kept for API
     agent_group: int = -1  # Team/group
@@ -307,6 +311,10 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             "agent:visitation_counts": "agent_visitation_counts",
         }
         self._agent_feature_key_by_name: dict[str, str] = agent_feature_pairs
+        
+        # Protocol feature prefixes (for dynamic recipe discovery)
+        self._protocol_input_prefix = "protocol_input:"
+        self._protocol_output_prefix = "protocol_output:"
 
         # Resource requirements for one heart
         self._heart_recipe = {"carbon": 20, "oxygen": 20, "germanium": 5, "silicon": 50}
@@ -377,6 +385,18 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
                     agent_feature_key = self._agent_feature_key_by_name.get(feature_name)
                     if agent_feature_key is not None:
                         position_features[pos][agent_feature_key] = value
+                        continue
+                    
+                    # Collect protocol features (recipes)
+                    if feature_name.startswith(self._protocol_input_prefix):
+                        resource = feature_name[len(self._protocol_input_prefix):]
+                        position_features[pos].setdefault("protocol_inputs", {})[resource] = value
+                        continue
+                    
+                    if feature_name.startswith(self._protocol_output_prefix):
+                        resource = feature_name[len(self._protocol_output_prefix):]
+                        position_features[pos].setdefault("protocol_outputs", {})[resource] = value
+                        continue
 
         # Second pass: create ObjectState for each position
         for pos, features in position_features.items():
@@ -393,6 +413,8 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
                 cooldown_remaining=features.get("cooldown_remaining", 0),
                 clipped=features.get("clipped", 0),
                 remaining_uses=features.get("remaining_uses", 999),
+                protocol_inputs=features.get("protocol_inputs", {}),
+                protocol_outputs=features.get("protocol_outputs", {}),
                 agent_group=features.get("agent_group", -1),
                 agent_frozen=features.get("agent_frozen", 0),
                 agent_orientation=features.get("agent_orientation", 0),

@@ -21,4 +21,3 @@ __all__ = [
     "SUCCESSFUL_MISSIONS",
     "get_difficulty",
 ]
-
