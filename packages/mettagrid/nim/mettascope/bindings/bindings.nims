@@ -1,3 +1,4 @@
+--define:gennyPython
 
 switch("app", "lib")
 --define:fidgetUseCached
