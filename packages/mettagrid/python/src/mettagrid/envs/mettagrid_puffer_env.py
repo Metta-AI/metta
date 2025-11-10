@@ -30,7 +30,6 @@ import numpy as np
 from gymnasium.spaces import Box, Discrete
 from typing_extensions import override
 
-from cogames.policy.scripted_agent.baseline_agent import BaselinePolicy, NoopBaselinePolicy
 from mettagrid.config.mettagrid_config import EnvSupervisorConfig, MettaGridConfig
 from mettagrid.mettagrid_c import (
     dtype_actions,
@@ -41,6 +40,7 @@ from mettagrid.mettagrid_c import (
     dtype_truncations,
 )
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.policy.utils import initialize_or_load_policy, resolve_policy_class_path
 from mettagrid.simulator import Simulation, Simulator
 from mettagrid.simulator.simulator import Buffers
 from pufferlib.pufferlib import PufferEnv
@@ -76,7 +76,7 @@ class MettaGridPufferEnv(PufferEnv):
         self._simulator = simulator
         self._current_cfg = cfg
         self._current_seed = seed
-        self._env_supervisor_cfg = env_supervisor_cfg or EnvSupervisorConfig(enabled=False)
+        self._env_supervisor_cfg = env_supervisor_cfg or EnvSupervisorConfig()
 
         # Initialize shared buffers FIRST (before super().__init__)
         # because PufferLib may access them during initialization
@@ -100,7 +100,8 @@ class MettaGridPufferEnv(PufferEnv):
         self.single_observation_space: Box = policy_env_info.observation_space
         self.single_action_space: Discrete = policy_env_info.action_space
 
-        self._env_supervisor_policy: Optional[BaselinePolicy] = None
+        self._env_supervisor_policy = None
+        self._env_supervisor_agent_policies = []
         self._new_sim()
         self.num_agents: int = self._sim.num_agents
 
@@ -127,14 +128,20 @@ class MettaGridPufferEnv(PufferEnv):
 
         self._sim = self._simulator.new_simulation(self._current_cfg, self._current_seed, buffers=self._buffers)
 
-        if self._env_supervisor_cfg.enabled:
-            self._reset_env_supervisor_policy()
-            teacher_actions = self._env_supervisor_policy.step_batch(
-                simulation=self._sim,
-                out_actions=self._buffers.teacher_actions,
-                observations=self._buffers.observations,
+        if self._env_supervisor_cfg.policy is not None:
+            self._env_supervisor_policy = initialize_or_load_policy(
+                PolicyEnvInterface.from_mg_cfg(self._current_cfg),
+                resolve_policy_class_path(self._env_supervisor_cfg.policy),
+                self._env_supervisor_cfg.policy_data_path,
             )
-            self._buffers.teacher_actions[:] = teacher_actions
+            self._env_supervisor_agent_policies = [
+                self._env_supervisor_policy.agent_policy(agent_id)
+                for agent_id in range(self._current_cfg.game.num_agents)
+            ]
+            for agent_policy in self._env_supervisor_agent_policies:
+                agent_policy.reset(self._sim)
+
+            self._compute_supervisor_actions()
 
     @override
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
@@ -154,15 +161,8 @@ class MettaGridPufferEnv(PufferEnv):
         self._sim.step()
 
         # Do this after step() so that the trainer can use it if needed
-        if self._env_supervisor_cfg.enabled:
-            if self._env_supervisor_policy is None:
-                self._reset_env_supervisor_policy()
-            teacher_actions = self._env_supervisor_policy.step_batch(
-                simulation=self._sim,
-                out_actions=self._buffers.teacher_actions,
-                observations=self._buffers.observations,
-            )
-            self._buffers.teacher_actions[:] = teacher_actions
+        if self._env_supervisor_cfg.policy is not None:
+            self._compute_supervisor_actions()
 
         return (
             self._buffers.observations,
@@ -172,22 +172,17 @@ class MettaGridPufferEnv(PufferEnv):
             self._sim._context.get("infos", {}),
         )
 
-    def _reset_env_supervisor_policy(self) -> None:
-        policy_name = (self._env_supervisor_cfg.policy or "baseline").lower()
-        if policy_name == "baseline":
-            policy_cls = BaselinePolicy
-        elif policy_name == "noop":
-            policy_cls = NoopBaselinePolicy
-        elif policy_name == "heuristic":
-            from cogames.policy.heuristic_agents.simple_nim_agents import HeuristicAgentsPolicy
-
-            policy_cls = HeuristicAgentsPolicy
-        else:
-            raise ValueError(f"Unsupported env supervisor policy: {self._env_supervisor_cfg.policy}")
-
-        self._env_supervisor_policy = policy_cls(PolicyEnvInterface.from_mg_cfg(self._current_cfg))
-        for agent_id in range(self._current_cfg.game.num_agents):
-            self._env_supervisor_policy.agent_policy(agent_id).reset(self._sim)
+    def _compute_supervisor_actions(self) -> None:
+        teacher_actions = np.array(
+            [
+                self._sim.action_names.index(
+                    self._env_supervisor_agent_policies[agent_id].step(self._sim.agents()[agent_id].observation).name
+                )
+                for agent_id in range(self._current_cfg.game.num_agents)
+            ],
+            dtype=dtype_actions,
+        )
+        self._buffers.teacher_actions[:] = np.array(teacher_actions, dtype=dtype_actions)
 
     @property
     def observations(self) -> np.ndarray:

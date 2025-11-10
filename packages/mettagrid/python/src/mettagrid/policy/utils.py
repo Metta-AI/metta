@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple, Union
 
 import torch
 
@@ -13,9 +13,6 @@ from mettagrid.policy.policy import MultiAgentPolicy as Policy
 from mettagrid.policy.policy import TrainablePolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.module import load_symbol
-
-if TYPE_CHECKING:
-    pass
 
 _POLICY_CLASS_SHORTHAND: dict[str, str] = {
     "random": "mettagrid.policy.random.RandomMultiAgentPolicy",
@@ -29,6 +26,10 @@ _POLICY_CLASS_SHORTHAND: dict[str, str] = {
     "baseline": "cogames.policy.scripted_agent.baseline_agent.BaselinePolicy",
     "simple_baseline": "cogames.policy.scripted_agent.baseline_agent.BaselinePolicy",
     "unclipping": "cogames.policy.scripted_agent.unclipping_agent.UnclippingPolicy",
+    "baseline_noop": "cogames.policy.scripted_agent.baseline_agent.NoopBaselinePolicy",
+    "noop_baseline": "cogames.policy.scripted_agent.baseline_agent.NoopBaselinePolicy",
+    "heuristic": "cogames.policy.heuristic_agents.simple_nim_agents.HeuristicAgentsPolicy",
+    "heuristic_nim": "cogames.policy.heuristic_agents.simple_nim_agents.HeuristicAgentsPolicy",
 }
 
 
@@ -36,18 +37,13 @@ def initialize_or_load_policy(
     policy_env_info: PolicyEnvInterface,
     policy_class_path: str,
     policy_data_path: Optional[str] = None,
-    *,
-    device: Optional[torch.device] = None,
 ) -> Policy:
     """Initialize a policy from its class path and optionally load weights.
 
     Args:
+        policy_env_info: PolicyEnvInterface (created from env if not provided)
         policy_class_path: Full class path to the policy
         policy_data_path: Optional path to policy checkpoint
-        actions: Actions configuration from the environment
-        device: Optional device to use for policy
-        env: Optional environment instance (required for some policies like LSTM)
-        policy_env_info: Optional PolicyEnvInterface (created from env if not provided)
 
     Returns:
         Initialized policy instance
@@ -55,10 +51,7 @@ def initialize_or_load_policy(
 
     policy_class = load_symbol(policy_class_path)
 
-    if device is None:
-        policy = policy_class(policy_env_info)  # type: ignore[misc]
-    else:
-        policy = policy_class(policy_env_info, device=device)  # type: ignore[misc]
+    policy = policy_class(policy_env_info)  # type: ignore[misc]
 
     if policy_data_path:
         if not isinstance(policy, TrainablePolicy):

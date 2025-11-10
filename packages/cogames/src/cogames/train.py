@@ -201,7 +201,7 @@ def train(
         simulator = Simulator()
         simulator.add_event_handler(StatsTracker(NoopStatsWriter()))
         simulator.add_event_handler(EarlyResetHandler())
-        env_supervisor_cfg = EnvSupervisorConfig(enabled=False)
+        env_supervisor_cfg = EnvSupervisorConfig()
         env = PufferMettaGridEnv(simulator, target_cfg, env_supervisor_cfg, buf, seed if seed is not None else 0)
         set_buffers(env, buf)
         return env
@@ -227,11 +227,11 @@ def train(
         PolicyEnvInterface.from_mg_cfg(vecenv.driver_env.env_cfg),
         policy_class_path=policy_class_path,
         policy_data_path=resolved_initial_weights,
-        device=device,
     )
     assert isinstance(policy, TrainablePolicy), (
         f"Policy class {policy_class_path} must implement TrainablePolicy interface"
     )
+    policy.network().to(device)
 
     use_rnn = getattr(policy, "is_recurrent", lambda: False)()
     if not use_rnn:
