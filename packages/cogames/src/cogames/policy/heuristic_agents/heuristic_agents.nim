@@ -420,7 +420,7 @@ proc step(
   numAgents: int,
   numTokens: int,
   sizeToken: int,
-  rowObservations: pointer,
+  rawObservations: pointer,
   numActions: int,
   rawActions: pointer
 ) {.raises: [].} =
@@ -430,7 +430,7 @@ proc step(
     # echo "  numTokens", numTokens
     # echo "  sizeToken", sizeToken
     # echo "  numActions", numActions
-    let observations = cast[ptr UncheckedArray[uint8]](rowObservations)
+    let observations = cast[ptr UncheckedArray[uint8]](rawObservations)
 
     var map: Table[Location, seq[FeatureValue]]
     for token in 0 ..< numTokens:
