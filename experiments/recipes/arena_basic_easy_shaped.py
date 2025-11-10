@@ -10,7 +10,11 @@ from metta.cogworks.curriculum.curriculum import (
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.training import (
+    CheckpointerConfig,
+    EvaluatorConfig,
+    TrainingEnvironmentConfig,
+)
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
@@ -110,6 +114,7 @@ def train(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(simulations=eval_simulations, epoch_interval=24),
+        checkpointer=CheckpointerConfig(epoch_interval=24),
         policy_architecture=policy_architecture,
         torch_profiler=TorchProfilerConfig(),
     )
