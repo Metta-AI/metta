@@ -1,3 +1,4 @@
+import ctypes
 import json
 import os
 import sys
@@ -31,6 +32,16 @@ class HeuristicAgentPolicy(AgentPolicy):
         current_dir = os.path.dirname(os.path.abspath(__file__))
         sys.path.append(os.path.join(current_dir, "bindings/generated"))
         import heuristic_agents as ha
+
+        ha.dll.heuristic_agents_heuristic_agent_step.argtypes = [
+            ha.HeuristicAgent,
+            ctypes.c_longlong,
+            ctypes.c_longlong,
+            ctypes.c_longlong,
+            ctypes.c_void_p,
+            ctypes.c_longlong,
+            ctypes.c_void_p,
+        ]
 
         self._agent = ha.HeuristicAgent(agent_id, json.dumps(config))
 
