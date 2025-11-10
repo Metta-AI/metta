@@ -4,8 +4,6 @@ import logging
 import re
 from typing import Optional
 
-import wandb
-
 logger = logging.getLogger(__name__)
 
 
@@ -81,6 +79,9 @@ def fetch_wandb_metrics(
     current_step: int | None = None
 
     try:
+        # import here to delay heavy import until needed
+        import wandb
+
         api = wandb.Api()
         # Find run by name
         runs = api.runs(f"{entity}/{project}", filters={"display_name": run_name})
