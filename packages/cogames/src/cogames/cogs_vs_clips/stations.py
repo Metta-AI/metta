@@ -200,10 +200,10 @@ class CvCAssemblerConfig(CvCStationConfig):
     def station_cfg(self) -> AssemblerConfig:
         gear = [("oxygen", "modulator"), ("germanium", "scrambler"), ("silicon", "resonator"), ("carbon", "decoder")]
         return AssemblerConfig(
-            name=self.type,
+            name="assembler",
             map_char="&",
             render_symbol=vibes.VIBE_BY_NAME["assembler"].symbol,
-            tags=[self.type],
+            tags=["assembler"],
             clip_immune=True,
             protocols=[
                 ProtocolConfig(
