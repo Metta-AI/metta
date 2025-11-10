@@ -25,16 +25,19 @@ def get_all_jobs(version: str) -> list[JobConfig]:
     Returns:
         List of fully configured job configs
     """
+    # Use consistent prefix across all jobs: user.stable.version
+    user = os.environ.get("USER", "unknown")
+    prefix = f"{user}.stable.{version}"
+
     # Basic CI checks (python/cpp tests)
-    python_ci = ci_job("python_ci", ["metta", "pytest", "--ci"])
-    cpp_ci = ci_job("cpp_ci", ["metta", "cpptest", "--test"])
-    cpp_benchmark = ci_job("cpp_benchmark", ["metta", "cpptest", "--benchmark"])
+    python_ci = ci_job(f"{prefix}.python_ci", ["metta", "pytest", "--ci"])
+    cpp_ci = ci_job(f"{prefix}.cpp_ci", ["metta", "cpptest", "--test"])
+    cpp_benchmark = ci_job(f"{prefix}.cpp_benchmark", ["metta", "cpptest", "--benchmark"])
 
     # Recipe CI smoke tests
-    user = os.environ.get("USER", "unknown")
-    ci_recipe_jobs, _group = get_ci_jobs(f"{user}.stable.{version}")
+    ci_recipe_jobs, _group = get_ci_jobs(prefix=prefix)
 
     # Stable-specific long-running tests
-    stable_recipe_jobs = get_stable_jobs(f"{user}.stable.{version}")
+    stable_recipe_jobs = get_stable_jobs(prefix=prefix)
 
     return [python_ci, cpp_ci, cpp_benchmark] + ci_recipe_jobs + stable_recipe_jobs
