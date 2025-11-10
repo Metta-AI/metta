@@ -6,7 +6,6 @@ import subprocess
 import threading
 import time
 from datetime import datetime
-from enum import IntEnum
 from pathlib import Path
 
 from sqlmodel import Session, SQLModel, create_engine, select
@@ -16,16 +15,10 @@ from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.jobs.cogames_metrics import _strip_ansi_codes, parse_cogames_stats_from_logs
 from metta.jobs.job_config import JobConfig, MetricsSource
 from metta.jobs.job_metrics import extract_skypilot_job_id, fetch_wandb_metrics
-from metta.jobs.job_runner import LocalJob, RemoteJob
+from metta.jobs.job_runner import ExitCode, LocalJob, RemoteJob
 from metta.jobs.job_state import JobState, JobStatus
 
 logger = logging.getLogger(__name__)
-
-
-class ExitCode(IntEnum):
-    """Special exit codes for job execution."""
-
-    SKIPPED = -2  # Job skipped due to failed dependency
 
 
 class JobManager:
@@ -94,7 +87,7 @@ class JobManager:
                 if not is_remote:
                     # Mark all local running jobs as stale on startup (can't reattach to subprocesses)
                     job_state.status = "completed"
-                    job_state.exit_code = -1  # Abnormal termination
+                    job_state.exit_code = ExitCode.ABNORMAL
                     job_state.completed_at = datetime.now().isoformat(timespec="seconds")
                     session.add(job_state)
                     local_stale_count += 1
@@ -880,7 +873,7 @@ class JobManager:
 
                     # Mark as completed with SIGINT exit code
                     job_state.status = "completed"
-                    job_state.exit_code = 130  # Standard exit code for SIGINT/user cancel
+                    job_state.exit_code = ExitCode.CANCELLED
                     job_state.completed_at = datetime.now().isoformat(timespec="seconds")
 
                     session.add(job_state)

@@ -13,6 +13,7 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
+from enum import IntEnum
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -29,6 +30,35 @@ from devops.skypilot.utils.job_helpers import (
 from metta.common.util.fs import get_repo_root
 from metta.common.util.retry import retry_function
 from metta.jobs.job_config import JobConfig, MetricsSource
+
+
+class ExitCode(IntEnum):
+    """Exit codes for job execution.
+
+    Standard exit codes:
+    - SUCCESS (0): Job completed successfully
+    - FAILURE (1): Job failed with error
+
+    Special exit codes (negative values for internal use):
+    - SKIPPED (-2): Job skipped due to failed dependency
+    - ABNORMAL (-1): Abnormal termination (e.g., lost connection to remote job)
+
+    Signal-based exit codes (128+N convention):
+    - CANCELLED (130): Job cancelled by user (SIGINT)
+    - TIMEOUT (124): Job timed out (used by timeout command)
+    """
+
+    # Standard exit codes
+    SUCCESS = 0
+    FAILURE = 1
+
+    # Special internal codes (negative)
+    ABNORMAL = -1
+    SKIPPED = -2
+
+    # Signal-based codes
+    TIMEOUT = 124  # Standard timeout command exit code
+    CANCELLED = 130  # 128 + SIGINT(2)
 
 
 @dataclass
@@ -315,7 +345,7 @@ class LocalJob(Job):
                 os.killpg(pgid, signal.SIGKILL)
                 self._proc.wait()
 
-            self._exit_code = -1
+            self._exit_code = ExitCode.ABNORMAL
 
         except (ProcessLookupError, PermissionError) as e:
             print(f"Could not kill process: {e}")
@@ -483,7 +513,7 @@ class RemoteJob(Job):
             self._submitted = True
             self._job_id = None
             self._request_id = None
-            self._exit_code = 1
+            self._exit_code = ExitCode.FAILURE
 
     def wait(
         self,
@@ -655,16 +685,16 @@ class RemoteJob(Job):
         if self._exit_code is not None:
             exit_code = self._exit_code
         elif self._job_status == "SUCCEEDED":
-            exit_code = 0
+            exit_code = ExitCode.SUCCESS
         elif self._job_status in ("FAILED", "FAILED_SETUP", "FAILED_DRIVER", "UNKNOWN", "ERROR"):
-            exit_code = 1
+            exit_code = ExitCode.FAILURE
         elif self._job_status == "CANCELLED":
-            exit_code = 130
+            exit_code = ExitCode.CANCELLED
         elif not self._job_id:
-            exit_code = 1
+            exit_code = ExitCode.FAILURE
         else:
             # Unknown status - default to failure for safety
-            exit_code = 1
+            exit_code = ExitCode.FAILURE
 
         duration = None
         if self._start_time:

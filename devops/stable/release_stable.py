@@ -44,7 +44,8 @@ from metta.common.util.fs import get_repo_root
 from metta.common.util.text_styles import bold, cyan, green, red, yellow
 from metta.jobs.job_config import JobConfig, MetricsSource
 from metta.jobs.job_display import JobDisplay, format_progress_bar
-from metta.jobs.job_manager import ExitCode, JobManager
+from metta.jobs.job_manager import JobManager
+from metta.jobs.job_runner import ExitCode
 
 # ============================================================================
 # Constants
