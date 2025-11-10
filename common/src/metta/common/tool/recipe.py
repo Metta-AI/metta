@@ -88,7 +88,6 @@ class Recipe:
             return None
 
         return cls(module)
-        return None
 
     def get_explicit_tool_makers(self) -> dict[str, ToolMaker]:
         """Returns only tool makers explicitly defined in this recipe."""

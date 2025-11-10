@@ -101,7 +101,7 @@ map_data: |-
     ###
     #.#
     ###
-char_to_name_map:
+char_to_map_name:
     "#": wall
     ".": empty
 """

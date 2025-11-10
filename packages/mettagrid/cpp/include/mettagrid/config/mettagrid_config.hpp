@@ -24,6 +24,7 @@ struct GlobalObsConfig {
   bool last_action = true;
   bool last_reward = true;
   bool visitation_counts = false;
+  bool compass = false;
 };
 
 struct GameConfig {
@@ -59,15 +60,17 @@ namespace py = pybind11;
 inline void bind_global_obs_config(py::module& m) {
   py::class_<GlobalObsConfig>(m, "GlobalObsConfig")
       .def(py::init<>())
-      .def(py::init<bool, bool, bool, bool>(),
+      .def(py::init<bool, bool, bool, bool, bool>(),
            py::arg("episode_completion_pct") = true,
            py::arg("last_action") = true,
            py::arg("last_reward") = true,
-           py::arg("visitation_counts") = false)
+           py::arg("visitation_counts") = false,
+           py::arg("compass") = false)
       .def_readwrite("episode_completion_pct", &GlobalObsConfig::episode_completion_pct)
       .def_readwrite("last_action", &GlobalObsConfig::last_action)
       .def_readwrite("last_reward", &GlobalObsConfig::last_reward)
-      .def_readwrite("visitation_counts", &GlobalObsConfig::visitation_counts);
+      .def_readwrite("visitation_counts", &GlobalObsConfig::visitation_counts)
+      .def_readwrite("compass", &GlobalObsConfig::compass);
 }
 
 inline void bind_game_config(py::module& m) {

@@ -22,6 +22,7 @@ from metta.agent.components.obs_shim import (
 )
 from metta.rl.utils import ensure_sequence_metadata
 from mettagrid.base_config import Config
+from mettagrid.policy.lstm import obs_to_obs_tensor
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, TrainablePolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action, AgentObservation, Simulation
@@ -121,8 +122,8 @@ class _SingleAgentAdapter(AgentPolicy):
 
     def _obs_to_td(self, obs: AgentObservation, device: torch.device) -> TensorDict:
         """Convert AgentObservation to TensorDict."""
-        tokens = [token.value for token in obs.tokens]
-        obs_tensor = torch.tensor(tokens, dtype=torch.uint8).unsqueeze(0).to(device)
+
+        obs_tensor = obs_to_obs_tensor(obs, self._policy_env_info.observation_space.shape, device)
 
         td = TensorDict(
             {
@@ -135,7 +136,6 @@ class _SingleAgentAdapter(AgentPolicy):
         )
 
         ensure_sequence_metadata(td, batch_size=1, time_steps=1)
-
         return td
 
 

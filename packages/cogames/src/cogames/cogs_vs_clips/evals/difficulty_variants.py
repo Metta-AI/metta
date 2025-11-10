@@ -21,7 +21,7 @@ from typing import override
 from pydantic import Field
 
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant
-from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig, ProtocolConfig
+from mettagrid.config.mettagrid_config import MettaGridConfig
 
 logger = logging.getLogger(__name__)
 
@@ -184,6 +184,9 @@ class DifficultyLevel(MissionVariant):
         if self.max_steps_override is not None:
             env.game.max_steps = self.max_steps_override
 
+        # Apply clipping first (before agent scaling)
+        self._apply_clipping(env)
+
         if not self.allow_agent_scaling:
             return
 
@@ -198,44 +201,31 @@ class DifficultyLevel(MissionVariant):
         if eff_scale > 2.0:
             eff_scale = 2.0
 
+        # Scale extractor resources for multi-agent scenarios
         for res in RESOURCE_KEYS:
             key = f"{res}_extractor"
             obj = env.game.objects.get(key)
             if obj is None:
                 continue
-            try:
-                if hasattr(obj, "max_uses") and obj.max_uses is not None:
-                    mu = int(obj.max_uses)
-                    if mu > 0 and num_agents > 1:
-                        obj.max_uses = max(1, mu * num_agents)
-                    else:
-                        obj.max_uses = max(1, mu)
-                if hasattr(obj, "efficiency"):
-                    eff = int(obj.efficiency)
-                    obj.efficiency = max(EFFICIENCY_FLOOR, int(eff * eff_scale))
-            except Exception:
-                pass
 
-        # Charger floor to avoid energy starvation unless explicitly zero-regen
-        ch = env.game.objects.get("charger")
-        if ch is not None and hasattr(ch, "efficiency"):
-            try:
-                ch.efficiency = max(CHARGER_EFFICIENCY_FLOOR, int(ch.efficiency))
-            except Exception:
-                pass
+            # Scale max_uses by agent count (leave unlimited=0 as-is)
+            if hasattr(obj, "max_uses") and obj.max_uses > 0 and num_agents > 1:
+                obj.max_uses = obj.max_uses * num_agents
+            # Single agent or unlimited: no scaling needed
+
+            # Scale efficiency with diminishing returns, enforce floor
+            if hasattr(obj, "efficiency"):
+                obj.efficiency = max(EFFICIENCY_FLOOR, int(obj.efficiency * eff_scale))
+
+        # Charger efficiency floor to avoid energy starvation
+        charger = env.game.objects.get("charger")
+        if charger is not None and hasattr(charger, "efficiency"):
+            charger.efficiency = max(CHARGER_EFFICIENCY_FLOOR, charger.efficiency)
 
         # Energy regen floor: if nonzero, keep at least 1
-        try:
-            if env.game.agent.inventory_regen_amounts.get("energy", 1) > 0:
-                env.game.agent.inventory_regen_amounts["energy"] = max(
-                    ENERGY_REGEN_FLOOR,
-                    int(env.game.agent.inventory_regen_amounts.get("energy", 1)),
-                )
-        except Exception:
-            pass
-
-        # Clipping
-        self._apply_clipping(env)
+        current_regen = env.game.agent.inventory_regen_amounts.get("energy", 1)
+        if current_regen > 0:
+            env.game.agent.inventory_regen_amounts["energy"] = max(ENERGY_REGEN_FLOOR, current_regen)
 
     def _apply_clipping(self, cfg: MettaGridConfig) -> None:
         target = self.clip_target
@@ -256,107 +246,67 @@ class DifficultyLevel(MissionVariant):
         def _filter_unclip() -> None:
             """Filter unclipping protocols to only the required gear."""
             if cfg.game.clipper is None:
-                logger.warning("_filter_unclip: clipper is None")
+                logger.warning("_filter_unclip: clipper is None, skipping")
                 return
-            try:
-                original_count = (
-                    len(cfg.game.clipper.unclipping_protocols)
-                    if hasattr(cfg.game.clipper, "unclipping_protocols")
-                    else 0
-                )
-                cfg.game.clipper.unclipping_protocols = [
-                    r for r in cfg.game.clipper.unclipping_protocols if r.input_resources == {required_gear: 1}
-                ]
-                new_count = len(cfg.game.clipper.unclipping_protocols)
-                logger.info(
-                    f"_filter_unclip: filtered unclipping protocols from {original_count} to {new_count} "
-                    f"(keeping {required_gear})"
-                )
-            except Exception as e:
-                logger.error(f"_filter_unclip failed: {e}")
-                pass
 
-        def _tweak_assembler() -> None:
-            """Add gear crafting protocol to assembler."""
-            print(
-                f"[_tweak_assembler] Called with resource_for_gear={resource_for_gear}, required_gear={required_gear}"
+            original_count = len(cfg.game.clipper.unclipping_protocols)
+            cfg.game.clipper.unclipping_protocols = [
+                r for r in cfg.game.clipper.unclipping_protocols if r.input_resources == {required_gear: 1}
+            ]
+            new_count = len(cfg.game.clipper.unclipping_protocols)
+            logger.info(
+                f"_filter_unclip: filtered unclipping protocols from {original_count} to {new_count} "
+                f"(keeping {required_gear})"
             )
-            asm = cfg.game.objects.get("assembler")
-            if not isinstance(asm, AssemblerConfig):
-                raise TypeError("Expected 'assembler' to be AssemblerConfig")
-            if asm is None:
-                print("[_tweak_assembler] assembler not found")
-                logger.warning("_tweak_assembler: assembler not found")
-                return
-            try:
-                print(f"[_tweak_assembler] Current protocols ({len(asm.protocols)}):")
-                for i, p in enumerate(asm.protocols):
-                    print(f"  [{i}] vibes={p.vibes}, in={p.input_resources}, out={p.output_resources}")
 
-                protocol = ProtocolConfig(
-                    vibes=["gear"], input_resources={resource_for_gear: 1}, output_resources={required_gear: 1}
-                )
-                print(
-                    f"[_tweak_assembler] Created protocol: vibes=['gear'], "
-                    f"input={resource_for_gear}:1, output={required_gear}:1"
-                )
-                # Check if this protocol already exists
-                if not any(p.vibes == ["gear"] and p.output_resources == {required_gear: 1} for p in asm.protocols):
-                    # APPEND to end (highest priority) instead of prepending (lowest priority)
-                    # Note: protocols are in "reverse order of priority" per AssemblerConfig
-                    asm.protocols = [*asm.protocols, protocol]
-                    print(
-                        f"[_tweak_assembler] ✓ Added gear protocol {resource_for_gear} -> {required_gear} "
-                        f"at END (highest priority)"
-                    )
-                    logger.info(f"_tweak_assembler: Added gear protocol {resource_for_gear} -> {required_gear}")
-                else:
-                    print(f"[_tweak_assembler] gear protocol {resource_for_gear} -> {required_gear} already exists")
-                    logger.info(
-                        f"_tweak_assembler: gear protocol {resource_for_gear} -> {required_gear} already exists"
-                    )
-            except Exception as e:
-                print(f"[_tweak_assembler] ERROR: {e}")
-                logger.error(f"_tweak_assembler failed: {e}")
-                pass
+        def _add_gear_protocol() -> None:
+            """Add generic ['gear'] protocol to assembler for this specific clipping variant.
+
+            C++ only allows ONE protocol per unique vibe list, so we add just the one needed.
+            """
+            from mettagrid.config.mettagrid_config import AssemblerConfig, ProtocolConfig
+
+            asm = cfg.game.objects.get("assembler")
+            if asm is None or not isinstance(asm, AssemblerConfig):
+                return
+
+            # Check if ['gear'] protocol already exists
+            if any(p.vibes == ["gear"] for p in asm.protocols):
+                return  # Already added
+
+            # Add the ONE generic gear protocol for this variant
+            protocol = ProtocolConfig(
+                vibes=["gear"], input_resources={resource_for_gear: 1}, output_resources={required_gear: 1}
+            )
+            asm.protocols.append(protocol)
 
         def _ensure_gear_resource_immune() -> None:
-            """Make the extractor for the gear resource immune."""
-            # Determine which extractor should be immune
+            """Make the extractor for the gear resource immune to clipping."""
             immune_extractor_name = self.clip_immune_extractor or f"{resource_for_gear}_extractor"
-
             obj = cfg.game.objects.get(immune_extractor_name)
             if obj is None:
                 return
-            try:
-                if hasattr(obj, "clip_immune"):
-                    obj.clip_immune = True
-                if hasattr(obj, "start_clipped"):
-                    obj.start_clipped = False
-            except Exception:
-                pass
+            if hasattr(obj, "clip_immune"):
+                obj.clip_immune = True
+            if hasattr(obj, "start_clipped"):
+                obj.start_clipped = False
 
         def _ensure_critical_stations_immune() -> None:
-            """Make charger, assembler, and chest immune when clipping is active."""
+            """Make charger, assembler, and chest immune to clipping."""
             for station_name in ["charger", "assembler", "chest"]:
                 obj = cfg.game.objects.get(station_name)
                 if obj is None:
                     continue
-                try:
-                    if hasattr(obj, "clip_immune"):
-                        obj.clip_immune = True
-                    if hasattr(obj, "start_clipped"):
-                        obj.start_clipped = False
-                except Exception:
-                    pass
+                if hasattr(obj, "clip_immune"):
+                    obj.clip_immune = True
+                if hasattr(obj, "start_clipped"):
+                    obj.start_clipped = False
 
+        # Apply clipping modifiers
         _filter_unclip()
-        logger.info("Added _filter_unclip modifier")
-        _tweak_assembler()
+        _add_gear_protocol()
         _ensure_gear_resource_immune()
-        logger.info("Added _ensure_gear_resource_immune modifier")
         _ensure_critical_stations_immune()
-        logger.info("Added _ensure_critical_stations_immune modifier")
 
 
 # =============================================================================
@@ -386,18 +336,18 @@ STANDARD = DifficultyLevel(
 
 HARD = DifficultyLevel(
     name="hard",
-    description="Tight extractor budgets and no passive regen",
+    description="Tight extractor budgets and minimal passive regen",
     carbon_max_uses_override=4,
     oxygen_max_uses_override=4,
     germanium_max_uses_override=6,
     silicon_max_uses_override=3,
-    carbon_eff_override=80,
+    carbon_eff_override=85,
     oxygen_eff_override=65,
     germanium_eff_override=75,
     silicon_eff_override=70,
-    charger_eff_override=80,
-    energy_regen_override=0,
-    move_energy_cost_override=3,
+    charger_eff_override=100,
+    energy_regen_override=1,  # Minimal regen prevents deadlock
+    move_energy_cost_override=2,
     allow_agent_scaling=False,
 )
 
@@ -413,7 +363,7 @@ BRUTAL = DifficultyLevel(
     germanium_eff_override=50,
     silicon_eff_override=50,
     charger_eff_override=60,
-    energy_regen_override=0,
+    energy_regen_override=1,  # Minimal regen prevents deadlock
     move_energy_cost_override=3,
     energy_capacity_override=70,
     cargo_capacity_override=80,
@@ -452,9 +402,9 @@ SPEED_RUN = DifficultyLevel(
 
 ENERGY_CRISIS = DifficultyLevel(
     name="energy_crisis",
-    description="Zero passive regen and weak chargers - plan every move",
+    description="Minimal passive regen and weak chargers - plan every move",
     charger_eff_override=50,
-    energy_regen_override=0,
+    energy_regen_override=1,  # Minimal regen prevents deadlock
     allow_agent_scaling=False,
 )
 
@@ -468,6 +418,7 @@ CLIPPED_OXYGEN = DifficultyLevel(
     clip_rate=0.0,
     clip_target="oxygen",
     clip_immune_extractor="carbon_extractor",
+    allow_agent_scaling=False,
 )
 
 CLIPPED_CARBON = DifficultyLevel(
@@ -476,6 +427,7 @@ CLIPPED_CARBON = DifficultyLevel(
     clip_rate=0.0,
     clip_target="carbon",
     clip_immune_extractor="oxygen_extractor",
+    allow_agent_scaling=False,
 )
 
 CLIPPED_GERMANIUM = DifficultyLevel(
@@ -484,6 +436,7 @@ CLIPPED_GERMANIUM = DifficultyLevel(
     clip_rate=0.0,
     clip_target="germanium",
     clip_immune_extractor="silicon_extractor",
+    allow_agent_scaling=False,
 )
 
 CLIPPED_SILICON = DifficultyLevel(
@@ -492,6 +445,7 @@ CLIPPED_SILICON = DifficultyLevel(
     clip_rate=0.0,
     clip_target="silicon",
     clip_immune_extractor="germanium_extractor",
+    allow_agent_scaling=False,
 )
 
 CLIPPING_CHAOS = DifficultyLevel(
@@ -499,6 +453,7 @@ CLIPPING_CHAOS = DifficultyLevel(
     description="Random extractors clip over time - must craft unclip items reactively",
     clip_rate=0.15,
     clip_target=None,
+    allow_agent_scaling=False,
 )
 
 HARD_CLIPPED_OXYGEN = DifficultyLevel(
@@ -513,7 +468,7 @@ HARD_CLIPPED_OXYGEN = DifficultyLevel(
     germanium_eff_override=75,
     silicon_eff_override=70,
     charger_eff_override=80,
-    energy_regen_override=0,
+    energy_regen_override=1,  # Minimal regen prevents deadlock
     move_energy_cost_override=3,
     clip_rate=0.0,
     clip_target="oxygen",
