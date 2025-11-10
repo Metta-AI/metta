@@ -3,7 +3,6 @@ import
   genny, jsony
 
 import ./priority_agent
-
 type
 
   ConfigFeature* = object

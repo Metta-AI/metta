@@ -1,24 +1,34 @@
+from __future__ import annotations
+
+import importlib
 import json
 import os
 import sys
+from typing import Any
 
 import numpy as np
 
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
-current_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.join(current_dir, "bindings/generated"))
+_HA_MODULE: Any | None = None
 
-import heuristic_agents as ha  # noqa: E402
 
-# ha.initCHook()
+def _heuristic_agents_module() -> Any:
+    global _HA_MODULE
+    if _HA_MODULE is None:
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        bindings_dir = os.path.join(current_dir, "bindings/generated")
+        if bindings_dir not in sys.path:
+            sys.path.append(bindings_dir)
+        _HA_MODULE = importlib.import_module("heuristic_agents")
+    return _HA_MODULE
 
 
 class HeuristicAgentPolicy(AgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info)
-        # Convert the policy_env_info to a JSON string.
+        ha = _heuristic_agents_module()
         config = {
             "num_agents": policy_env_info.num_agents,
             "obs_width": policy_env_info.obs_width,
@@ -48,14 +58,13 @@ class HeuristicAgentPolicy(AgentPolicy):
         self._agent = ha.HeuristicAgent(agent_id, json.dumps(config))
 
     def step(self, raw_obs: np.ndarray, raw_action: np.ndarray):
-        # Pass everything to the Nim agent.
         self._agent.step(
-            num_agents=raw_obs.shape[0],
-            num_tokens=raw_obs.shape[1],
-            size_token=raw_obs.shape[2],
-            row_observations=raw_obs.ctypes.data,
-            num_actions=raw_action.shape[0],
-            raw_actions=raw_action.ctypes.data,
+            raw_obs.shape[0],
+            raw_obs.shape[1],
+            raw_obs.shape[2],
+            raw_obs.ctypes.data,
+            raw_action.shape[0],
+            raw_action.ctypes.data,
         )
 
 
