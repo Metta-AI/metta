@@ -187,8 +187,8 @@ class CortexTD(nn.Module):
         if x.shape[0] != B * TT:
             raise ValueError(f"input length {x.shape[0]} must equal batch*bptt ({B}*{TT})")
 
-        #Reset only on trucated to keep parity with current advantage calculations
-        resets = _as_reset_mask(td.get("dones", None), None, B=B, TT=TT, device=device)
+
+        resets = _as_reset_mask(td.get("dones", None), td.get("truncateds", None), B=B, TT=TT, device=device)
 
         if TT == 1:
             # Rollout step: maintain env-based state and cache pre-state for new rows
