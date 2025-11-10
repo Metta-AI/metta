@@ -343,6 +343,9 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   int c_end =
       std::min(static_cast<int>(observer_col) + static_cast<int>(obs_width_radius) + 1, static_cast<int>(_grid->width));
 
+  const int map_center_r = static_cast<int>(_grid->height) / 2;
+  const int map_center_c = static_cast<int>(_grid->width) / 2;
+
   // Fill in visible objects. Observations should have been cleared in _step, so
   // we don't need to do that here.
   size_t attempted_tokens_written = 0;
@@ -394,6 +397,53 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   attempted_tokens_written +=
       _obs_encoder->append_tokens_if_room_available(agent_obs_tokens, global_tokens, global_location);
   tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
+
+  /*
+   * COMPASS TOKEN EMISSION
+   * ----------------------
+   * Some missions opt in to a lightweight "compass" hint by enabling the global_obs.compass flag.
+   * Rather than mutate the world, we inject a synthetic observation token that occupies one of the
+   * eight neighbor slots around the agent inside its egocentric window. The location byte alone
+   * communicates the direction: it is offset one step toward the assembler hub (which always sits
+   * in the map center for CvC missions). The token value is a simple sentinel (currently 1).
+   * When the agent is already at the hub there is no direction to emit, and although the offset
+   * should always land inside the observation window, we keep the bounds check as a defensive guard.
+   */
+  if (_global_obs_config.compass) {
+    const int delta_r = map_center_r - static_cast<int>(observer_row);
+    const int delta_c = map_center_c - static_cast<int>(observer_col);
+
+    int step_r = 0;
+    int step_c = 0;
+    if (delta_r != 0) {
+      step_r = (delta_r > 0) ? 1 : -1;
+    }
+    if (delta_c != 0) {
+      step_c = (delta_c > 0) ? 1 : -1;
+    }
+
+    if (step_r != 0 || step_c != 0) {
+      int obs_r = static_cast<int>(obs_height_radius) + step_r;
+      int obs_c = static_cast<int>(obs_width_radius) + step_c;
+
+      if (obs_r >= 0 && obs_r < static_cast<int>(observable_height) && obs_c >= 0 &&
+          obs_c < static_cast<int>(observable_width)) {
+        uint8_t compass_location = PackedCoordinate::pack(static_cast<uint8_t>(obs_r), static_cast<uint8_t>(obs_c));
+
+        ObservationToken* compass_ptr =
+            reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, tokens_written, 0));
+        ObservationTokens compass_tokens(
+            compass_ptr, static_cast<size_t>(observation_view.shape(1)) - static_cast<size_t>(tokens_written));
+
+        const std::vector<PartialObservationToken> compass_token = {
+            {ObservationFeature::Compass, static_cast<ObservationType>(1)}};
+
+        attempted_tokens_written +=
+            _obs_encoder->append_tokens_if_room_available(compass_tokens, compass_token, compass_location);
+        tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
+      }
+    }
+  }
 
   // Process locations in increasing manhattan distance order
   for (const auto& [r_offset, c_offset] : PackedCoordinate::ObservationPattern{observable_height, observable_width}) {

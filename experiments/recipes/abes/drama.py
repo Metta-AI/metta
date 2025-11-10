@@ -103,7 +103,7 @@ def train(
 
     try:
         from metta.agent.policies.drama_policy import DramaPolicyConfig
-        from metta.agent.components.drama import DramaWorldModelConfig
+        import metta.agent.components.drama.config as drama_config
     except ModuleNotFoundError as exc:
         if exc.name == "mamba_ssm":
             raise RuntimeError(
@@ -122,7 +122,7 @@ def train(
         )
 
     for component in policy.components:
-        if isinstance(component, DramaWorldModelConfig):
+        if isinstance(component, drama_config.DramaWorldModelConfig):
             ssm_cfg = dict(component.ssm_cfg) if component.ssm_cfg else {}
             if not mem_eff_supported:
                 ssm_cfg["use_mem_eff_path"] = False

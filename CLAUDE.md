@@ -81,16 +81,6 @@ implementation.
 
 3. **Track deviations** - If you need to deviate from the plan, document why and update the approach
 4. **Keep it concise** - Focus on what changed and why, not how (the code shows how)
-5. **CRITICAL: Always format Python code** - After editing any Python file (\*.py), immediately run:
-   ```bash
-   metta lint --fix
-   ```
-   Or alternatively, for individual files:
-   ```bash
-   ruff format [file_path]
-   ruff check --fix [file_path]
-   ```
-   Note: Only run these commands on Python files, not on other file types like Markdown, YAML, etc.
 
 ### After Implementation
 
@@ -235,7 +225,7 @@ See @.cursor/commands.md for quick test commands and examples.
 #### Code Quality
 
 ```bash
-# Run full CI (tests + linting) - ALWAYS run this to verify changes
+# Run full CI (tests + linting)
 metta ci
 
 # Run specific CI stages (used by GitHub Actions)
@@ -260,18 +250,11 @@ metta pytest --ci --test --benchmark
 metta pytest tests/rl/test_trainer_config.py -v
 metta pytest tests/sim/ -v
 
-# Run linting and formatting (formats all file types by default)
-metta lint
+# Run linting and formatting (to provided paths, or all files by default)
+metta lint [path/to/file_or_dir]
 
 # Format and lint with auto-fix
-metta lint --fix
-
-# Format specific file types only
-metta lint --type json,yaml
-metta lint --type python
-
-# Check formatting without modifying files
-metta lint --check
+metta lint --fix [path/to/file_or_dir]
 
 # Format only staged files
 metta lint --staged --fix

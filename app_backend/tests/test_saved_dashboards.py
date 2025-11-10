@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from metta.app_backend.metta_repo import MettaRepo
-from metta.app_backend.test_support import BaseAsyncTest
+from metta.app_backend.test_support.base_async_test import BaseAsyncTest
 
 
 class TestSavedDashboards(BaseAsyncTest):

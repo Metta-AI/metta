@@ -12,9 +12,7 @@ from typing import List, Optional
 from rich.console import Console
 
 from mettagrid.config.vibes import VIBES as VIBE_DATA
-from mettagrid.renderer.renderer import Renderer
-
-from .components import (
+from mettagrid.renderer.miniscope.components import (
     AgentControlComponent,
     AgentInfoComponent,
     HelpPanelComponent,
@@ -25,6 +23,8 @@ from .components import (
     SymbolsTableComponent,
     VibePickerComponent,
 )
+from mettagrid.renderer.renderer import Renderer
+
 from .miniscope_panel import LAYOUT_PADDING, RESERVED_VERTICAL_LINES, SIDEBAR_WIDTH, PanelLayout
 from .miniscope_state import MiniscopeState, PlaybackState, RenderMode
 from .symbol import DEFAULT_SYMBOL_MAP
@@ -97,7 +97,10 @@ class MiniscopeRenderer(Renderer):
 
         # Add custom symbols from game config
         for obj in self._sim.config.game.objects.values():
-            self._state.symbol_map[obj.name] = obj.render_symbol
+            # Key by render_name (preferred) and also alias by name for convenience
+            self._state.symbol_map[obj.render_name or obj.name] = obj.render_symbol
+            if obj.render_name and obj.render_name != obj.name:
+                self._state.symbol_map[obj.name] = obj.render_symbol
 
         self._state.vibes = [g.symbol for g in VIBE_DATA] if VIBE_DATA else None
 
