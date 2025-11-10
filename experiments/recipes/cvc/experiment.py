@@ -67,15 +67,16 @@ class SkypilotExperiment:
         """Create the command line for this experiment."""
         cmd = [
             "./devops/skypilot/launch.py",
+            "--tool",
             self.tool_path,
             f"run={run_name}",
             f"num_cogs={self.num_cogs}",
             f"trainer.total_timesteps={self.timesteps}",
             f"--gpus={self.gpus}",
-            f"--heartbeat-timeout={heartbeat_timeout}",
+            f"--heartbeat-timeout-seconds={heartbeat_timeout}",
         ]
         if self.mission:
-            cmd.insert(3, f"mission={self.mission}")
+            cmd.insert(4, f"mission={self.mission}")
         if skip_git_check:
             cmd.append("--skip-git-check")
         return cmd
