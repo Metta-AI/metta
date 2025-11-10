@@ -1491,9 +1491,14 @@ class NoopBaselinePolicy(BaselinePolicy):
         out_actions: Optional[np.ndarray] = None,
         observations: Optional[np.ndarray] = None,
     ) -> np.ndarray:
-        del simulation, observations
+        del observations
 
         if out_actions is None:
             out_actions = np.empty(self._policy_env_info.num_agents, dtype=np.int32)
-        out_actions.fill(self._noop_value)
+        noop_idx = self._noop_value
+        try:
+            noop_idx = simulation.action_ids["noop"]
+        except (AttributeError, KeyError):
+            noop_idx = self._noop_value
+        out_actions.fill(noop_idx)
         return out_actions

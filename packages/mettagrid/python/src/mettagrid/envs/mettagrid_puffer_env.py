@@ -29,6 +29,7 @@ import numpy as np
 from gymnasium.spaces import Box, Discrete
 from typing_extensions import override
 
+from cogames.policy.heuristic_agents.simple_nim_agents import HeuristicAgentsPolicy
 from cogames.policy.scripted_agent.baseline_agent import BaselinePolicy, NoopBaselinePolicy
 from mettagrid.config.mettagrid_config import EnvSupervisorConfig, MettaGridConfig
 from mettagrid.mettagrid_c import (
@@ -163,6 +164,8 @@ class MettaGridPufferEnv(PufferEnv):
             policy_cls = BaselinePolicy
         elif policy_name == "noop":
             policy_cls = NoopBaselinePolicy
+        elif policy_name == "heuristic":
+            policy_cls = HeuristicAgentsPolicy
         else:
             raise ValueError(f"Unsupported env supervisor policy: {self._env_supervisor_cfg.policy}")
 

@@ -2,6 +2,7 @@ import importlib
 import json
 import os
 import sys
+from typing import Optional
 
 import numpy as np
 
@@ -101,3 +102,27 @@ class HeuristicAgentsPolicy(MultiAgentPolicy):
 
     def agent_policy(self, agent_id: int) -> HeuristicAgentPolicy:
         return HeuristicAgentPolicy(self._policy_env_info, agent_id)
+
+    def step_batch(
+        self,
+        simulation: Simulation,
+        out_actions: Optional[np.ndarray] = None,
+        observations: Optional[np.ndarray] = None,
+    ) -> np.ndarray:
+        del observations
+
+        num_agents = simulation.num_agents
+        if out_actions is None:
+            out_actions = np.empty(num_agents, dtype=np.int32)
+
+        agents = simulation.agents()
+        action_ids = simulation.action_ids
+
+        for agent_id in range(num_agents):
+            policy = self.agent_policy(agent_id)
+            action = policy.step_with_simulation(simulation)
+            if action is None:
+                action = policy.step(agents[agent_id].observation)
+            out_actions[agent_id] = action_ids[action.name]
+
+        return out_actions
