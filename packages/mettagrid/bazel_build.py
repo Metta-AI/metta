@@ -206,6 +206,7 @@ def _run_mettascope_build() -> None:
 
     lock_path = METTASCOPE_DIR / "nimby.lock"
     workdir = _prepare_nimby_workdir()
+    _sanitize_nimby_cache(lock_path)
     _run_nimby_sync(lock_path, workdir)
     include_paths = _load_nimby_include_paths(workdir)
     _remove_repo_nim_cfg()
@@ -248,6 +249,44 @@ def _run_nimby_sync(lock_path: Path, workdir: Path) -> None:
     if not lock_path.exists():
         raise RuntimeError(f"Nimby lock file missing: {lock_path}")
     _run_process(["nimby", "sync", "-g", str(lock_path)], cwd=workdir)
+
+
+def _collect_package_names(lock_path: Path) -> list[str]:
+    """Read package names from the lock file in declared order."""
+    packages: list[str] = []
+    for raw_line in lock_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        tokens = line.split()
+        if tokens:
+            packages.append(tokens[0])
+    return packages
+
+
+def _sanitize_nimby_cache(lock_path: Path) -> None:
+    """Delete Nimby packages whose nimble metadata is missing or unreadable."""
+    pkgs_root = Path.home() / ".nimby" / "pkgs"
+    if not pkgs_root.exists():
+        return
+
+    for package in _collect_package_names(lock_path):
+        package_dir = pkgs_root / package
+        if not package_dir.exists():
+            continue
+
+        nimble_files = list(package_dir.glob("*.nimble"))
+        needs_purge = not nimble_files
+        for nimble_file in nimble_files:
+            try:
+                nimble_file.open("r", encoding="utf-8").close()
+            except OSError:
+                needs_purge = True
+                break
+
+        if needs_purge:
+            print(f"Removing corrupt Nimby cache for {package}: {package_dir}")
+            shutil.rmtree(package_dir, ignore_errors=True)
 
 
 def _load_nimby_include_paths(workdir: Path) -> list[str]:
