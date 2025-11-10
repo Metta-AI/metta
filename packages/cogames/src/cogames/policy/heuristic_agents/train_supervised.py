@@ -1,5 +1,6 @@
 """Supervised learning training loop for imitating Nim scripted agent."""
 
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -20,11 +21,12 @@ MISSION_NAME = "evals.extractor_hub_30"
 VARIANT = "lonely_heart"
 NUM_AGENTS = 1
 NUM_STEPS = 10000
+BATCH_SIZE = 1
 LEARNING_RATE = 1e-4
 DEVICE = "cpu"
 CHECKPOINT_DIR = Path("./train_dir")
 SEED = 42
-LOG_INTERVAL = 100
+LOG_INTERVAL = 1
 CHECKPOINT_INTERVAL = 1000
 
 
@@ -47,6 +49,7 @@ def train_supervised(
     variant: Optional[str] = VARIANT,
     num_agents: int = NUM_AGENTS,
     num_steps: int = NUM_STEPS,
+    batch_size: int = BATCH_SIZE,
     learning_rate: float = LEARNING_RATE,
     device: str = DEVICE,
     checkpoint_dir: Path = CHECKPOINT_DIR,
@@ -59,12 +62,13 @@ def train_supervised(
         variant: Mission variant (e.g., "lonely_heart")
         num_agents: Number of agents in the environment
         num_steps: Number of training steps
+        batch_size: Number of parallel environments to collect observations from
         learning_rate: Learning rate for optimizer
         device: Device to train on ('cpu' or 'cuda')
         checkpoint_dir: Directory to save checkpoints
         seed: Random seed
     """
-    device = torch.device(device)
+    torch_device = torch.device(device)
 
     # Initialize environment
     variants_arg = [variant] if variant else None
@@ -78,74 +82,113 @@ def train_supervised(
 
     # Initialize model
     model = SimpleMLP()
-
-    model = model.to(device)
+    model = model.to(torch_device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     loss_fn = nn.CrossEntropyLoss()
 
-    # Create simulation for environment interaction
-    sim = Simulation(env_cfg, seed=seed)
+    # Create multiple simulations for batching
+    simulations = []
+    scripted_agent_policies_list = []
+    episode_counts = []
 
-    # Create scripted agent policies for getting teacher actions
-    scripted_agent_policies = [scripted_policy.agent_policy(agent_id) for agent_id in range(num_agents)]
+    for i in range(batch_size):
+        sim = Simulation(env_cfg, seed=seed + i)
+        simulations.append(sim)
+        policies = [scripted_policy.agent_policy(agent_id) for agent_id in range(num_agents)]
+        scripted_agent_policies_list.append(policies)
+        episode_counts.append(0)
 
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
     step_count = 0
-    episode_count = 0
+    start_time = time.perf_counter()
+    last_log_time = start_time
+    last_log_steps = 0
 
     print(f"Starting supervised training on {mission_name}")
     if variant:
         print(f"Variant: {variant}")
-    print(f"Device: {device}, Agents: {num_agents}")
+    print(f"Device: {device}, Agents: {num_agents}, Batch size: {batch_size}")
 
     while step_count < num_steps:
-        # Check if episode is done, reset if needed
-        if sim.is_done():
-            episode_count += 1
-            sim.close()
-            sim = Simulation(env_cfg, seed=seed + episode_count)
-            # Reset agent policies
-            for policy in scripted_agent_policies:
-                policy.reset(simulation=sim)
+        # Collect observations and actions from all environments
+        obs_batch = []
+        action_batch = []
+        valid_indices = []
+
+        for env_idx, sim in enumerate(simulations):
+            # Reset if episode is done
+            if sim.is_done():
+                episode_counts[env_idx] += 1
+                sim.close()
+                simulations[env_idx] = Simulation(env_cfg, seed=seed + env_idx + episode_counts[env_idx] * batch_size)
+                for policy in scripted_agent_policies_list[env_idx]:
+                    policy.reset(simulation=simulations[env_idx])
+                sim = simulations[env_idx]
+
+            # Get observations from environment
+            raw_obs = sim.raw_observations()  # Shape: (num_agents, num_tokens, 3)
+            raw_action = sim.raw_actions()  # Shape: (num_agents,)
+
+            # Get scripted agent's action (teacher)
+            scripted_agent_policies_list[env_idx][0].step(raw_obs, raw_action)
+            teacher_action = int(raw_action[0])
+
+            # Flatten observation
+            obs_flat = raw_obs[0].flatten()  # Shape: (num_tokens * 3,)
+            if len(obs_flat) != INPUT_SIZE:
+                raise ValueError(f"Observation length {len(obs_flat)} is not equal to INPUT_SIZE {INPUT_SIZE}")
+
+            obs_batch.append(obs_flat)
+            action_batch.append(teacher_action)
+            valid_indices.append(env_idx)
+
+        # Skip if no valid environments (all done)
+        if not valid_indices:
             continue
 
-        # Get observations from environment
-        raw_obs = sim.raw_observations()  # Shape: (num_agents, num_tokens, 3)
-        raw_action = sim.raw_actions()  # Shape: (num_agents,)
-
-        # Get scripted agent's action (teacher)
-        # The scripted agent writes its action to raw_action array
-        scripted_agent_policies[0].step(raw_obs, raw_action)
-        teacher_action = int(raw_action[0])  # Get action for agent 0
-
-        # Convert observation to tensor for model
-        # raw_obs[0] is shape (num_tokens, 3) - flatten to (num_tokens * 3,)
-        obs_flat = raw_obs[0].flatten()  # Flatten to 1D array
-        if len(obs_flat) != INPUT_SIZE:
-            raise ValueError(f"Observation length {len(obs_flat)} is not equal to INPUT_SIZE {INPUT_SIZE}")
-        obs_tensor = torch.from_numpy(obs_flat).float().unsqueeze(0).to(device)  # Add batch dimension
+        # Convert to batched tensors
+        # Shape: (batch_size, INPUT_SIZE)
+        obs_batch_tensor = torch.stack([torch.from_numpy(obs).float() for obs in obs_batch]).to(torch_device)
+        # Shape: (batch_size,)
+        action_batch_tensor = torch.tensor(action_batch, dtype=torch.long).to(torch_device)
 
         # Forward pass through model
-        logits = model(obs_tensor)  # Shape: (1, num_actions)
+        logits = model(obs_batch_tensor)  # Shape: (batch_size, num_actions)
 
         # Compute loss
-        teacher_action_tensor = torch.tensor(teacher_action, dtype=torch.long).to(device)
-        loss = loss_fn(logits, teacher_action_tensor.unsqueeze(0))
+        loss = loss_fn(logits, action_batch_tensor)
 
         # Backward pass
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
-        # Step environment with scripted agent's action (already set in raw_action)
-        sim.step()
+        # Step all environments
+        for env_idx in valid_indices:
+            simulations[env_idx].step()
 
-        step_count += 1
+        step_count += len(valid_indices)
 
         # Logging
         if step_count % LOG_INTERVAL == 0:
-            print(f"Step {step_count}/{num_steps}, Loss: {loss.item():.4f}, Episode: {episode_count}")
+            current_time = time.perf_counter()
+            elapsed_since_last_log = current_time - last_log_time
+            steps_since_last_log = step_count - last_log_steps
+
+            if elapsed_since_last_log > 0:
+                steps_per_second = steps_since_last_log / elapsed_since_last_log
+            else:
+                steps_per_second = 0.0
+
+            avg_episode = sum(episode_counts) / len(episode_counts) if episode_counts else 0
+            print(
+                f"Step {step_count}/{num_steps}, Loss: {loss.item():.4f}, "
+                f"Avg Episode: {avg_episode:.1f}, Steps/s: {steps_per_second:.1f}"
+            )
+
+            last_log_time = current_time
+            last_log_steps = step_count
 
         # Save checkpoint periodically
         if step_count % CHECKPOINT_INTERVAL == 0:
@@ -158,7 +201,9 @@ def train_supervised(
     torch.save(model.state_dict(), final_checkpoint)
     print(f"Training complete! Final checkpoint saved to {final_checkpoint}")
 
-    sim.close()
+    # Close all simulations
+    for sim in simulations:
+        sim.close()
 
 
 if __name__ == "__main__":
@@ -169,6 +214,9 @@ if __name__ == "__main__":
     parser.add_argument("--variant", type=str, default=VARIANT, help="Mission variant")
     parser.add_argument("--agents", type=int, default=NUM_AGENTS, help="Number of agents")
     parser.add_argument("--steps", type=int, default=NUM_STEPS, help="Number of training steps")
+    parser.add_argument(
+        "--batch-size", type=int, default=BATCH_SIZE, help="Batch size (number of parallel environments)"
+    )
     parser.add_argument("--lr", type=float, default=LEARNING_RATE, help="Learning rate")
     parser.add_argument("--device", type=str, default=DEVICE, help="Device (cpu/cuda)")
     parser.add_argument("--checkpoint-dir", type=str, default=str(CHECKPOINT_DIR), help="Checkpoint directory")
@@ -181,6 +229,7 @@ if __name__ == "__main__":
         variant=args.variant,
         num_agents=args.agents,
         num_steps=args.steps,
+        batch_size=args.batch_size,
         learning_rate=args.lr,
         device=args.device,
         checkpoint_dir=Path(args.checkpoint_dir),
