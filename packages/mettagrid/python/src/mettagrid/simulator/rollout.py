@@ -58,10 +58,7 @@ class Rollout:
             if type(self._policies[i]).__name__ == "HeuristicAgentPolicy":
                 # David I need to know how you want this architecture to work.
                 # This policy needs the raw observations and raw actions to step.
-                self._policies[i].step(
-                    raw_obs=self._sim.raw_observations(),
-                    raw_action=self._sim.raw_actions()
-                )
+                self._policies[i].step(raw_obs=self._sim.raw_observations(), raw_action=self._sim.raw_actions())
             else:
                 start_time = time.time()
                 action = self._policies[i].step(self._agents[i].observation)

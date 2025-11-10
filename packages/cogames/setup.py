@@ -2,11 +2,11 @@
 from __future__ import annotations
 
 import os
-import sys
 import platform
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import urllib.request
 from pathlib import Path
@@ -16,20 +16,17 @@ from setuptools.command.build_py import build_py
 from setuptools.command.develop import develop
 from setuptools.command.install import install
 
+
 def _build_nim() -> None:
     # Run the Nim build script
     # > nim c heuristic_agents.nim
     path = Path(__file__).parent / "src" / "cogames" / "policy" / "heuristic_agents"
-    result = subprocess.run(
-        ["nim", "c", "heuristic_agents.nim"],
-        cwd=path,
-        capture_output=True,
-        text=True
-    )
+    result = subprocess.run(["nim", "c", "heuristic_agents.nim"], cwd=path, capture_output=True, text=True)
     if result.returncode != 0:
         print(result.stderr, file=sys.stderr)
         print(result.stdout, file=sys.stderr)
         raise RuntimeError(f"Failed to build Nim agents: {result.returncode}")
+
 
 _build_nim()
 
