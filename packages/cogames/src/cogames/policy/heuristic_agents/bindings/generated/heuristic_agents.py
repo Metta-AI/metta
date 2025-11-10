@@ -54,8 +54,8 @@ class HeuristicAgent(Structure):
     def reset(self):
         dll.heuristic_agents_heuristic_agent_reset(self)
 
-    def step(self, num_agents, num_tokens, size_token, row_observations, num_actions, raw_actions):
-        dll.heuristic_agents_heuristic_agent_step(self, num_agents, num_tokens, size_token, row_observations, num_actions, raw_actions)
+    def step(self, num_agents, num_tokens, size_token, raw_observations, num_actions, raw_actions):
+        dll.heuristic_agents_heuristic_agent_step(self, num_agents, num_tokens, size_token, raw_observations, num_actions, raw_actions)
 
 def init_chook():
     dll.heuristic_agents_init_chook()
