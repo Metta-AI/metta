@@ -5,9 +5,11 @@ import
 const
   debugHeuristicLogs = false
 
-template debugLog(args: varargs[string, `$`]) =
-  when debugHeuristicLogs:
-    debugLog args
+when debugHeuristicLogs:
+  template debugLog(args: varargs[string, `$`]) =
+    echo args
+else:
+  template debugLog(args: varargs[string, `$`]) = discard
 
 type
 
