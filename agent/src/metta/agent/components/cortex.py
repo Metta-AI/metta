@@ -87,14 +87,11 @@ class CortexTD(nn.Module):
         # Build the stack from config
         scfg: CortexStackConfig = config.stack_cfg
         stack = build_cortex(scfg)
-        try:
-            stack_hidden = int(stack.cfg.d_hidden)  # type: ignore[attr-defined]
-            if stack_hidden != int(config.d_hidden):
-                raise ValueError(
-                    f"CortexTDConfig.d_hidden ({config.d_hidden}) does not match stack.cfg.d_hidden ({stack_hidden})."
-                )
-        except Exception:
-            pass
+        stack_hidden = int(stack.cfg.d_hidden)  # type: ignore[attr-defined]
+        if stack_hidden != int(config.d_hidden):
+            raise ValueError(
+                f"CortexTDConfig.d_hidden ({config.d_hidden}) does not match stack.cfg.d_hidden ({stack_hidden})."
+            )
 
         self.stack: CortexStack = stack
         self.d_hidden: int = int(config.d_hidden)
