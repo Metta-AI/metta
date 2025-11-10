@@ -453,7 +453,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
     # Set feature flags
     game_cpp_params["protocol_details_obs"] = game_config.protocol_details_obs
-    game_cpp_params["track_movement_metrics"] = game_config.track_movement_metrics
 
     # Add tag mappings for C++ debugging/display
     game_cpp_params["tag_id_map"] = tag_id_to_name
