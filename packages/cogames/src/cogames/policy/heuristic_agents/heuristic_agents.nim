@@ -454,7 +454,6 @@ proc step(
     echo "updated map:"
     agent.drawMap(agent.map, agent.seen)
 
-
     let vibe = agent.getVibe(map)
     echo "vibe: ", vibe
 
