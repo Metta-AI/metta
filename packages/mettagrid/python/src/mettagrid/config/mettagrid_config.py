@@ -444,7 +444,7 @@ class EnvSupervisorConfig(Config):
     """Environment supervisor configuration."""
 
     enabled: bool = Field(default=False)
-    policy: str = Field(default="baseline")
+    policy: str = Field(default="heuristic")
 
 
 class MettaGridConfig(Config):
