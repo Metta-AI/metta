@@ -222,6 +222,7 @@ class HeartChorusVariant(MissionVariant):
 class VibeCheckMin2Variant(MissionVariant):
     name: str = "vibe_check_min_2"
     description: str = "Require at least 2 heart vibes to craft a heart."
+    min_vibes: int = 2
 
     @override
     def modify_env(self, mission, env):
@@ -236,7 +237,7 @@ class VibeCheckMin2Variant(MissionVariant):
                 filtered.append(proto)
                 continue
             # Keep only heart protocols that require >= 2 'heart' vibes
-            if len(proto.vibes) >= 2 and all(v == "heart" for v in proto.vibes):
+            if len(proto.vibes) >= self.min_vibes and all(v == "heart" for v in proto.vibes):
                 filtered.append(proto)
         assembler.protocols = filtered
 
@@ -495,6 +496,64 @@ class DistantResourcesVariant(MachinaArenaVariant):
         node.distribution = DistributionConfig(type=DistributionType.UNIFORM)
 
 
+class SingleUseSwarmVariant(MissionVariant):
+    name: str = "single_use_swarm"
+    description: str = "Everything is single use; agents must fan out and reconverge."
+    building_coverage: float = 0.03
+
+    @override
+    def modify_mission(self, mission):
+        # Make each extractor single-use
+        for res in ("carbon", "oxygen", "germanium", "silicon"):
+            extractor = getattr(mission, f"{res}_extractor", None)
+            if extractor is not None:
+                extractor.max_uses = 1
+
+    @override
+    def modify_env(self, mission, env):
+        # Ensure charger is also single-use (its Config defaults to unlimited)
+        charger = env.game.objects.get("charger")
+        if isinstance(charger, AssemblerConfig):
+            charger.max_uses = 1
+
+        # Increase building coverage a bit to create many single-use points
+        map_builder = getattr(env.game, "map_builder", None)
+        instance = getattr(map_builder, "instance", None)
+        if instance is not None and hasattr(instance, "building_coverage"):
+            current = float(getattr(instance, "building_coverage", 0.01))
+            instance.building_coverage = max(current, float(self.building_coverage))
+
+
+class QuadrantBuildingsVariant(MachinaArenaVariant):
+    name: str = "quadrant_buildings"
+    description: str = "Place buildings in the four quadrants of the map."
+    building_names: list[str] = ["carbon_extractor", "oxygen_extractor", "germanium_extractor", "silicon_extractor"]
+
+    @override
+    def modify_node(self, node):
+        node.building_names = self.building_names
+
+        names = list(node.building_names or self.building_names)
+        centers = [
+            (0.25, 0.25),  # top-left
+            (0.75, 0.25),  # top-right
+            (0.25, 0.75),  # bottom-left
+            (0.75, 0.75),  # bottom-right
+        ]
+        dists: dict[str, DistributionConfig] = {}
+        for i, name in enumerate(names):
+            cx, cy = centers[i % len(centers)]
+            dists[name] = DistributionConfig(
+                type=DistributionType.NORMAL,
+                mean_x=cx,
+                mean_y=cy,
+                std_x=0.18,
+                std_y=0.18,
+            )
+        node.building_distributions = dists
+        node.distribution = DistributionConfig(type=DistributionType.UNIFORM)
+
+
 class SingleResourceUniformVariant(MachinaArenaVariant):
     name: str = "single_resource_uniform"
     description: str = "Place only a single building via uniform distribution across the map."
@@ -553,6 +612,7 @@ VARIANTS: list[MissionVariant] = [
     InventoryHeartTuneVariant(),
     ChestHeartTuneVariant(),
     ExtractorHeartTuneVariant(),
+    QuadrantBuildingsVariant(),
     ClipStationsVariant(),
     CyclicalUnclipVariant(),
     ClipRateOnVariant(),

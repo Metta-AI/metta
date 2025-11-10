@@ -1,17 +1,21 @@
 from __future__ import annotations
 
 import logging
-from typing import override
 
-from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVariant
-from cogames.cogs_vs_clips.mission_utils import get_map
-from cogames.cogs_vs_clips.sites import HELLO_WORLD, TRAINING_FACILITY
-from cogames.cogs_vs_clips.variants import ExtractorHeartTuneVariant, ResourceBottleneckVariant, SingleResourceUniformVariant, EmptyBaseVariant, DistantResourcesVariant
-from cogames.cogs_vs_clips.mission import Site
-from cogames.cogs_vs_clips.mission_utils import get_map
-from cogames.cogs_vs_clips.procedural import MachinaArena, RandomTransform
+from cogames.cogs_vs_clips.mission import Mission, Site
+from cogames.cogs_vs_clips.procedural import MachinaArena
+from cogames.cogs_vs_clips.sites import TRAINING_FACILITY
+from cogames.cogs_vs_clips.variants import (
+    DistantResourcesVariant,
+    EmptyBaseVariant,
+    ExtractorHeartTuneVariant,
+    QuadrantBuildingsVariant,
+    ResourceBottleneckVariant,
+    SingleResourceUniformVariant,
+    SingleUseSwarmVariant,
+    VibeCheckMin2Variant,
+)
 from mettagrid.mapgen.mapgen import MapGen
-from mettagrid.mapgen.scenes.base_hub import BaseHub
 
 logger = logging.getLogger(__name__)
 
@@ -79,8 +83,36 @@ DistantResources = Mission(
 
 # Divide and Conquer evals (Resources split by regions; specialize per resource and reconvene at base.)
 
+QuadrantBuildings = Mission(
+    name="quadrant_buildings",
+    description="Place buildings in the four quadrants of the map.",
+    site=SMALL_HELLO_WORLD,
+    variants=[
+        EmptyBaseVariant(),
+        QuadrantBuildingsVariant(),
+    ],
+)
+
 # Single Use Swarm evals (Everything is single use, so agents must fan out and reconverge with needed resources.)
+
+SingleUseSwarm = Mission(
+    name="single_use_swarm",
+    description="Everything is single use, so agents must fan out and reconverge with needed resources.",
+    site=SMALL_HELLO_WORLD,
+    variants=[
+        EmptyBaseVariant(),
+        SingleUseSwarmVariant(),
+    ],
+)
 
 # Vibe Check evals (Agents must check their vibe, either binary or full, and then coordinate others for assembly.)
 
-
+VibeCheck = Mission(
+    name="vibe_check",
+    description="Agents must check their vibe, either binary or full, and then coordinate others for assembly.",
+    site=SMALL_HELLO_WORLD,
+    variants=[
+        EmptyBaseVariant(),
+        VibeCheckMin2Variant(),
+    ],
+)
