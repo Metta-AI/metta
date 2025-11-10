@@ -72,10 +72,10 @@ class CarbonExtractorConfig(ExtractorConfig):
 
     def station_cfg(self) -> AssemblerConfig:
         return AssemblerConfig(
-            name=self.type,
+            name="carbon_extractor",
             map_char="C",
             render_symbol=vibes.VIBE_BY_NAME["carbon"].symbol,
-            tags=[self.type],
+            tags=["carbon_extractor"],
             # Protocols
             max_uses=self.max_uses,
             protocols=[
@@ -100,7 +100,7 @@ class OxygenExtractorConfig(ExtractorConfig):
             name="oxygen_extractor",
             map_char="O",
             render_symbol=vibes.VIBE_BY_NAME["oxygen"].symbol,
-            tags=[self.type],
+            tags=["oxygen_extractor"],
             # Protocols
             max_uses=self.max_uses,
             allow_partial_usage=True,  # can use it while its on cooldown
@@ -127,7 +127,7 @@ class GermaniumExtractorConfig(ExtractorConfig):
             name="germanium_extractor",
             map_char="G",
             render_symbol=vibes.VIBE_BY_NAME["germanium"].symbol,
-            tags=[self.type],
+            tags=["germanium_extractor"],
             # Protocols
             max_uses=self.max_uses,
             protocols=[
@@ -154,7 +154,7 @@ class SiliconExtractorConfig(ExtractorConfig):
             name="silicon_extractor",
             map_char="S",
             render_symbol=vibes.VIBE_BY_NAME["silicon"].symbol,
-            tags=[self.type],
+            tags=["silicon_extractor"],
             # Protocols
             max_uses=self.max_uses,  # Use direct value, no division
             protocols=[
