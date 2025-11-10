@@ -8,49 +8,53 @@ from datetime import datetime
 from metta.jobs.job_config import JobConfig
 
 
+def get_user_timestamp() -> str:
+    """Get a timestamped group name for this CI run with username to avoid collisions."""
+    user = os.environ.get("USER", "unknown")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return f"{user}.{timestamp}"
+
+
 def get_ci_jobs() -> tuple[list[JobConfig], str]:
     """Define CI test jobs for recipes.
 
     These are lightweight smoke tests that run quickly on every commit.
 
+    Args:
+        version: Version prefix for job names (e.g., "v0.1.0" for stable, or None for timestamped)
+
     Returns:
         Tuple of (job configs, group name for this CI run)
     """
-    # Create timestamped group name for this CI run with username to avoid collisions
-    user = os.environ.get("USER", "unknown")
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    group = f"{user}.ci.{timestamp}"
-    run_prefix = f"{user}.ci.{timestamp}"
+    group = get_user_timestamp()
 
-    # Version job names with timestamp to avoid collisions on reruns
-    arena_train_name = f"{run_prefix}.arena_train"
-    arena_eval_name = f"{run_prefix}.arena_eval"
-    arena_play_name = f"{run_prefix}.arena_play"
-    cvc_small_train_name = f"{run_prefix}.cvc_small_train"
-    cvc_small_play_name = f"{run_prefix}.cvc_small_play"
+    arena_train_name = f"{group}.arena_train"
+    arena_eval_name = f"{group}.arena_eval"
+    arena_play_name = f"{group}.arena_play"
+    cvc_small_train_name = f"{group}.cvc_small_train"
+    cvc_small_play_name = f"{group}.cvc_small_play"
 
-    # Train just enough to get a single checkpoint
-    # With checkpoint every epoch, this ensures at least 1 checkpoint
     arena_train = JobConfig(
         name=arena_train_name,
         module="recipes.prod.arena_basic_easy_shaped.train",
         args=[
-            f"run={run_prefix}.arena_train",
-            "trainer.total_timesteps=10000",  # Train for 10k timesteps - enough for checkpoint
-            "checkpointer.epoch_interval=1",  # Checkpoint every epoch
+            f"run={arena_train_name}",
+            "trainer.total_timesteps=10000",
+            "checkpointer.epoch_interval=1",
         ],
-        timeout_s=300,  # 5 minutes should be plenty
+        timeout_s=300,
         is_training_job=True,
-        group=group,  # Tag with group for monitoring
+        group=group,
     )
 
-    # Evaluate the trained policy
+    # Evaluate the trained policy from the training run
     arena_eval = JobConfig(
         name=arena_eval_name,
         module="recipes.prod.arena_basic_easy_shaped.evaluate",
+        args=[f'policy_uris=["s3://softmax-public/policies/{arena_train_name}:latest"]'],
         dependency_names=[arena_train_name],
         timeout_s=300,
-        group=group,  # Tag with group for monitoring
+        group=group,
     )
 
     # Play test with random policy (run with minimal steps)
@@ -67,15 +71,15 @@ def get_ci_jobs() -> tuple[list[JobConfig], str]:
         name=cvc_small_train_name,
         module="recipes.prod.cvc.small_maps.train",
         args=[
-            f"run={run_prefix}.cvc_small_train",
-            "trainer.total_timesteps=10000",  # Train for 10k timesteps - enough for checkpoint
-            "checkpointer.epoch_interval=1",  # Checkpoint every epoch
+            f"run={cvc_small_train_name}",
+            "trainer.total_timesteps=10000",
+            "checkpointer.epoch_interval=1",
             "num_cogs=4",
             'variants=["lonely_heart","heart_chorus","pack_rat","neutral_faced"]',
         ],
-        timeout_s=300,  # 5 minutes should be plenty
+        timeout_s=300,
         is_training_job=True,
-        group=group,  # Tag with group for monitoring
+        group=group,
     )
 
     # CvC Small Maps - Play test with random policy

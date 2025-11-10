@@ -240,7 +240,8 @@ def _prepare_jobs_for_release(
     prepared_jobs = []
 
     for job_config in job_configs:
-        job_name = f"{state_version}_{job_config.name}"
+        # Job names are already fully qualified by get_stable_jobs()
+        job_name = job_config.name
 
         # Check if job already exists
         existing_state = job_manager.get_job_state(job_name)
@@ -269,13 +270,9 @@ def _prepare_jobs_for_release(
             # Don't add to prepared_jobs since it's already submitted
             continue
 
-        # Prepare job with version prefix and group
-        job_config.name = job_name
+        # Set group for monitoring
+        # Note: Job names and args are already fully qualified by get_stable_jobs()
         job_config.group = state_version
-
-        # Also prefix dependency names with version
-        if job_config.dependency_names:
-            job_config.dependency_names = [f"{state_version}_{dep_name}" for dep_name in job_config.dependency_names]
 
         prepared_jobs.append(job_config)
 
@@ -383,7 +380,7 @@ def step_job_validation(
     # Load state and filter jobs
     state_version = f"v{version}"
     load_or_create_state(state_version, git.get_current_commit())
-    all_job_configs = get_all_jobs()
+    all_job_configs = get_all_jobs(version=state_version)
 
     if job:
         job_configs = [t for t in all_job_configs if job in t.name]
@@ -491,13 +488,13 @@ def step_summary(version: str, skip_commit_match: bool = False, **_kwargs) -> No
     git_log = git.git_log_since("origin/stable")
 
     # Get all jobs to display results and collect training job info
-    all_job_configs = get_all_jobs()
+    all_job_configs = get_all_jobs(version=state_version)
     training_jobs = []  # Track training jobs separately
 
     # Print job results summary
     print("Task Results:")
     for job_config in all_job_configs:
-        job_name = f"{state_version}_{job_config.name}"
+        job_name = job_config.name  # Already fully qualified
         job_state = job_manager.get_job_state(job_name)
         if job_state:
             if job_state.is_successful:
@@ -566,11 +563,11 @@ def step_release(version: str, skip_commit_match: bool = False, **_kwargs) -> No
     job_manager = get_job_manager()
 
     # Verify all jobs passed
-    all_job_configs = get_all_jobs()
+    all_job_configs = get_all_jobs(version=state_version)
 
     failed_jobs = []
     for job_config in all_job_configs:
-        job_name = f"{state_version}_{job_config.name}"
+        job_name = job_config.name  # Already fully qualified
         job_state = job_manager.get_job_state(job_name)
         if not job_state:
             failed_jobs.append(f"{job_config.name} (not run)")

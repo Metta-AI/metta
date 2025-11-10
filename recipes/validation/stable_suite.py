@@ -1,33 +1,39 @@
 """Stable release suite - comprehensive tests for releases.
 
-All tests use the "stable." prefix to assert they're running stable recipes.
 Includes both CI smoke tests and long-running stable validation tests.
+Job names are fully qualified with user/timestamp and version.
 """
 
 from __future__ import annotations
 
 from metta.jobs.job_config import AcceptanceCriterion, JobConfig, RemoteConfig
-from recipes.validation.ci_suite import get_ci_jobs
 
 
-def get_stable_jobs() -> list[JobConfig]:
-    """Define stable release test jobs for recipes.
+def get_stable_jobs(version: str) -> list[JobConfig]:
+    """Define stable-specific test jobs for recipes.
 
-    These are comprehensive tests that validate releases on remote infrastructure.
-    Includes CI smoke tests plus longer-running validation tests.
+    These are comprehensive long-running tests that validate releases on remote infrastructure.
+    Does NOT include CI smoke tests - those are combined in devops/stable/jobs.py.
+
+    Args:
+        version: Version prefix for job names (e.g., "v0.1.0")
+
+    Returns:
+        List of fully configured job configs with version-prefixed names
     """
-    # Include all CI smoke tests
-    ci_jobs, _group = get_ci_jobs()
-
     # ========================================
     # Arena Basic Easy Shaped - Stable Tests
     # ========================================
 
     # Single GPU training - 100M timesteps
+    arena_train_name = f"{version}_arena_single_gpu_100m"
     arena_train_100m = JobConfig(
-        name="arena_single_gpu_100m",
+        name=arena_train_name,
         module="recipes.prod.arena_basic_easy_shaped.train",
-        args=["trainer.total_timesteps=100000000"],
+        args=[
+            f"run={arena_train_name}",
+            "trainer.total_timesteps=100000000",
+        ],
         timeout_s=7200,
         remote=RemoteConfig(gpus=1, nodes=1),
         is_training_job=True,
@@ -39,11 +45,15 @@ def get_stable_jobs() -> list[JobConfig]:
     )
 
     # Multi-GPU training - 2B timesteps
+    arena_train_2b_name = f"{version}_arena_multi_gpu_2b"
     arena_train_2b = JobConfig(
-        name="arena_multi_gpu_2b",
+        name=arena_train_2b_name,
         module="recipes.prod.arena_basic_easy_shaped.train",
-        args=["trainer.total_timesteps=2000000000"],
-        timeout_s=172800,  # 48 hours
+        args=[
+            f"run={arena_train_2b_name}",
+            "trainer.total_timesteps=2000000000",
+        ],
+        timeout_s=172800,
         remote=RemoteConfig(gpus=4, nodes=4),
         is_training_job=True,
         metrics_to_track=["overview/sps", "env_agent/heart.gained"],
@@ -54,10 +64,12 @@ def get_stable_jobs() -> list[JobConfig]:
     )
 
     # Evaluation - depends on single-GPU 100M training run
+    arena_eval_name = f"{version}_arena_evaluate"
     arena_eval = JobConfig(
-        name="arena_evaluate",
+        name=arena_eval_name,
         module="recipes.prod.arena_basic_easy_shaped.evaluate",
-        dependency_names=["arena_single_gpu_100m"],
+        args=[f'policy_uris=["s3://softmax-public/policies/{arena_train_name}:latest"]'],
+        dependency_names=[arena_train_name],
         timeout_s=1800,
     )
 
@@ -66,15 +78,17 @@ def get_stable_jobs() -> list[JobConfig]:
     # ========================================
 
     # Multi-GPU training - 2B timesteps
+    cvc_small_train_name = f"{version}_cvc_small_multi_gpu_2b"
     cvc_small_train_2b = JobConfig(
-        name="cvc_small_multi_gpu_2b",
+        name=cvc_small_train_name,
         module="recipes.prod.cvc.small_maps.train",
         args=[
+            f"run={cvc_small_train_name}",
             "trainer.total_timesteps=2000000000",
             "num_cogs=4",
             'variants=["lonely_heart","heart_chorus","pack_rat","neutral_faced"]',
         ],
-        timeout_s=172800,  # 48 hours
+        timeout_s=172800,
         remote=RemoteConfig(gpus=4, nodes=4),
         is_training_job=True,
         metrics_to_track=["overview/sps", "env_agent/heart.gained"],
@@ -84,7 +98,7 @@ def get_stable_jobs() -> list[JobConfig]:
         ],
     )
 
-    return ci_jobs + [
+    return [
         arena_train_100m,
         arena_train_2b,
         arena_eval,
