@@ -382,7 +382,7 @@ class TestGlobalTokens:
             )
         )
         sim = Simulation(cfg)
-        vibe_feature_id = sim.id_map.feature_id("vibe")
+        vibe_feature_id = sim.config.id_map().feature_id("vibe")
 
         obs = sim._c_sim.observations()
 
