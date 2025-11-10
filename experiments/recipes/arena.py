@@ -14,7 +14,6 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
-from mettagrid.config import ConverterConfig
 
 # TODO(dehydration): make sure this trains as well as main on arena
 # it's possible the maps are now different
@@ -48,6 +47,8 @@ def make_curriculum(
     # enable or disable attacks. we use cost instead of 'enabled'
     # to maintain action space consistency.
     arena_tasks.add_bucket("game.actions.attack.consumed_resources.laser", [1, 100])
+    arena_tasks.add_bucket("game.agent.initial_inventory.ore_red", [0, 1, 3])
+    arena_tasks.add_bucket("game.agent.initial_inventory.battery_red", [0, 3])
 
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
@@ -89,7 +90,7 @@ def train(
     )
 
 
-def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
+def train_shaped(rewards: bool = True) -> TrainTool:
     env_cfg = mettagrid()
     env_cfg.game.agent.rewards.inventory["heart"] = 1
     env_cfg.game.agent.rewards.inventory_max["heart"] = 100
@@ -113,11 +114,6 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
                 "blueprint": 1,
             }
         )
-
-    if converters:
-        altar = env_cfg.game.objects.get("altar")
-        if isinstance(altar, ConverterConfig) and hasattr(altar, "input_resources"):
-            altar.input_resources["battery_red"] = 1
 
     return TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=cc.env_curriculum(env_cfg)),

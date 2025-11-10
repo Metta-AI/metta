@@ -8,8 +8,6 @@ from metta.agent.policies.vit_reset import ViTResetConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
-from metta.rl.loss import LossConfig
-from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
@@ -177,15 +175,12 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
         assembler = self.assembler_types[assembler_name].copy()
         cfg.used_objects.append(assembler_name)
 
-        recipe = (
-            [],
-            ProtocolConfig(
-                input_resources=input_resources,
-                output_resources=output_resources,
-                cooldown=cooldown,
-            ),
+        protocol = ProtocolConfig(
+            input_resources=input_resources,
+            output_resources=output_resources,
+            cooldown=cooldown,
         )
-        assembler.recipes = [recipe]
+        assembler.protocols = [protocol]
         cfg.game_objects[assembler_name] = assembler
         cfg.map_builder_objects[assembler_name] = 1
 
@@ -346,10 +341,7 @@ def train(
 
     policy_config = ViTResetConfig()
 
-    trainer_cfg = TrainerConfig(losses=LossConfig())
-
     return TrainTool(
-        trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         policy_architecture=policy_config,
         evaluator=EvaluatorConfig(simulations=make_assembly_line_eval_suite()),

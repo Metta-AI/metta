@@ -1,20 +1,20 @@
 """Arena recipe with GRPO (Group Relative Policy Optimization) for comparison testing."""
 
 from metta.agent.policies.vit_grpo import ViTGRPOConfig
-from metta.rl.loss import LossConfig
 from metta.rl.loss.grpo import GRPOConfig
+from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import OptimizerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.tools.train import TrainTool
-from experiments.recipes.arena import train_shaped as base_train_shaped
-from experiments.recipes.arena_basic_easy_shaped import (
-    train as arena_basic_easy_shaped_train,
-)
 
 # Import everything from the base arena recipe
 from experiments.recipes.arena import (
     make_curriculum,
     simulations,
+)
+from experiments.recipes.arena import train_shaped as base_train_shaped
+from experiments.recipes.arena_basic_easy_shaped import (
+    train as arena_basic_easy_shaped_train,
 )
 
 
@@ -42,10 +42,6 @@ def train(
         target_kl=None,
     )
 
-    loss_config = LossConfig(
-        loss_configs={"grpo": grpo_config},
-    )
-
     # Configure optimizer
     optimizer_config = OptimizerConfig(
         type="adamw_schedulefree",
@@ -58,7 +54,7 @@ def train(
     )
 
     trainer_config = TrainerConfig(
-        losses=loss_config,
+        losses=LossesConfig(grpo=grpo_config),
         optimizer=optimizer_config,
         total_timesteps=50_000_000_000,
     )
@@ -79,7 +75,7 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
     """
 
     # Get the base shaped training tool
-    base_tool = base_train_shaped(rewards=rewards, converters=converters)
+    base_tool = base_train_shaped(rewards=rewards)
 
     # Configure GRPO loss
     grpo_config = GRPOConfig(
@@ -91,8 +87,8 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
         target_kl=None,
     )
 
-    loss_config = LossConfig(
-        loss_configs={"grpo": grpo_config},
+    loss_config = LossesConfig(
+        grpo=grpo_config,
     )
 
     # Configure optimizer
@@ -140,8 +136,8 @@ def basic_easy_shaped() -> TrainTool:
         target_kl=None,
     )
 
-    loss_config = LossConfig(
-        loss_configs={"grpo": grpo_config},
+    loss_config = LossesConfig(
+        grpo=grpo_config,
     )
 
     # Configure optimizer

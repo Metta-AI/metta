@@ -114,6 +114,9 @@ class TrainTool(Tool):
         distributed_helper = DistributedHelper(self.system)
         distributed_helper.scale_batch_config(self.trainer, self.training_env)
 
+        if self.trainer.losses.supervisor.enabled:
+            self.training_env.supervisor.enabled = True
+
         self.training_env.seed += distributed_helper.get_rank()
         env = VectorizedTrainingEnvironment(self.training_env)
 
@@ -158,7 +161,7 @@ class TrainTool(Tool):
             return 130  # Standard exit code for Ctrl+C
 
         except Exception as e:
-            logger.error(f"Training failed with exception: {e}")
+            logger.error(f"Training failed with exception: {e}", exc_info=True)
             return 1
 
         finally:
@@ -184,7 +187,7 @@ class TrainTool(Tool):
             policy_architecture=self.policy_architecture,
         )
         policy = policy_checkpointer.load_or_create_policy(
-            env.game_rules,
+            env.policy_env_info,
             policy_uri=self.initial_policy_uri,
         )
         return policy_checkpointer, policy

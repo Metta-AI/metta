@@ -81,16 +81,6 @@ implementation.
 
 3. **Track deviations** - If you need to deviate from the plan, document why and update the approach
 4. **Keep it concise** - Focus on what changed and why, not how (the code shows how)
-5. **CRITICAL: Always format Python code** - After editing any Python file (\*.py), immediately run:
-   ```bash
-   metta lint --fix
-   ```
-   Or alternatively, for individual files:
-   ```bash
-   ruff format [file_path]
-   ruff check --fix [file_path]
-   ```
-   Note: Only run these commands on Python files, not on other file types like Markdown, YAML, etc.
 
 ### After Implementation
 
@@ -147,7 +137,7 @@ dynamics (like kinship and mate selection) on learning and cooperative behaviors
 
 - `metta/`: Core Python implementation for agents, maps, RL algorithms, simulation
 - `packages/mettagrid/`: C++/Python grid environment implementation with Pybind11 bindings
-- `mettascope/`: Interactive visualization and replay tools (TypeScript/web-based)
+- `packages/mettagrid/nim/mettascope/`: Interactive visualization and replay tools (Nim)
 - `observatory/`: React-based dashboard for viewing training runs and evaluations
 - `gridworks/`: Next.js web interface
 - `app_backend/`: FastAPI backend server for stats and data services
@@ -223,7 +213,8 @@ uv run ./tools/run.py evaluate arena --dry-run
 **Note**: These commands start development servers that run indefinitely. In Claude Code, they may hang without clear
 feedback. Consider running them in separate terminals outside of Claude Code.
 
-- **MettaScope**: Run `cd mettascope && pnpm run dev` for interactive replay viewer
+- **MettaScope**: Built automatically as part of the mettagrid Python package, see
+  `packages/mettagrid/nim/mettascope/README.md`
 - **Observatory**: Run `cd observatory && pnpm run dev` for training dashboard
 - **GridWorks**: Run `cd gridworks && pnpm run dev` for web interface
 
@@ -234,28 +225,36 @@ See @.cursor/commands.md for quick test commands and examples.
 #### Code Quality
 
 ```bash
-# Run full CI (tests + linting) - ALWAYS run this to verify changes
+# Run full CI (tests + linting)
 metta ci
 
-# Run full Python test sweep (CI-style)
-metta pytest --ci
+# Run specific CI stages (used by GitHub Actions)
+metta ci --stage lint                            # Linting only
+metta ci --stage python-tests-and-benchmarks     # Python tests and benchmarks together
+metta ci --stage cpp-tests                       # C++ tests only
+metta ci --stage cpp-benchmarks                  # C++ benchmarks only
+
+# Run Python tests (default, fastest for development - skips benchmarks)
+metta pytest
+
+# Run Python benchmarks only
+metta pytest --benchmark
+
+# Run both Python tests and benchmarks together
+metta pytest --test --benchmark
+
+# Run full Python test sweep (CI-style, includes both tests and benchmarks)
+metta pytest --ci --test --benchmark
 
 # Run specific test modules
 metta pytest tests/rl/test_trainer_config.py -v
 metta pytest tests/sim/ -v
 
-# Run linting and formatting (formats all file types by default)
-metta lint
+# Run linting and formatting (to provided paths, or all files by default)
+metta lint [path/to/file_or_dir]
 
 # Format and lint with auto-fix
-metta lint --fix
-
-# Format specific file types only
-metta lint --type json,yaml
-metta lint --type python
-
-# Check formatting without modifying files
-metta lint --check
+metta lint --fix [path/to/file_or_dir]
 
 # Format only staged files
 metta lint --staged --fix
@@ -266,6 +265,9 @@ uv run ./devops/tools/auto_ruff_fix.py path/to/file
 
 **IMPORTANT**: Always run `metta ci` after making changes to verify that all tests pass. This is the standard way to
 check if your changes are working correctly.
+
+**Note**: The `metta ci` command is the single source of truth for CI checks. GitHub Actions calls individual stages
+(`metta ci --stage <name>`), while local development typically runs all stages with `metta ci`.
 
 #### Building
 

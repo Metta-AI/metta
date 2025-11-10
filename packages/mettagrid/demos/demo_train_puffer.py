@@ -13,14 +13,14 @@
 
 """Puffer Demo - Pure PufferLib ecosystem integration.
 
-This demo shows how to use MettaGridEnv with PufferLib and external training libraries.
+This demo shows how to use PufferMettaGridEnv with PufferLib and external training libraries.
 
-IMPORTANT: MettaGridEnv inherits from PufferLib's PufferEnv, making it fully compatible
-with the PufferLib ecosystem. You can use MettaGridEnv directly with PufferLib training
+IMPORTANT: PufferMettaGridEnv inherits from PufferLib's PufferEnv, making it fully compatible
+with the PufferLib ecosystem. You can use PufferMettaGridEnv directly with PufferLib training
 code, or use PufferLib's MettaPuff wrapper for additional PufferLib-specific features.
 
 Architecture:
-- MettaGridEnv -> MettaGridPufferBase -> PufferEnv (PufferLib compatibility)
+- PufferMettaGridEnv -> PufferEnv (PufferLib compatibility)
 - For pure PufferLib usage, you can also use: github.com/PufferAI/PufferLib/pufferlib/environments/metta/
 
 Run with: uv run python packages/mettagrid/demos/demo_train_puffer.py (from project root)
@@ -31,10 +31,11 @@ import time
 import numpy as np
 
 # MettaGrid imports
-# Note: MettaGridEnv inherits from PufferEnv, so it's fully PufferLib-compatible
-from mettagrid import MettaGridEnv, dtype_actions
+# Note: MettaGridPufferEnv inherits from PufferEnv, so it's fully PufferLib-compatible
 from mettagrid.builder.envs import make_arena
-from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.envs.mettagrid_puffer_env import MettaGridPufferEnv
+from mettagrid.mettagrid_c import dtype_actions
+from mettagrid.simulator import Simulator
 
 # Training framework imports
 try:
@@ -45,9 +46,9 @@ except ImportError:
     PUFFERLIB_AVAILABLE = False
 
 
-def create_test_config() -> MettaGridConfig:
-    """Create test configuration for Puffer integration."""
-    return MettaGridConfig()
+def create_simulator():
+    """Create simulator instance for Puffer integration."""
+    return Simulator()
 
 
 def demo_puffer_env():
@@ -55,19 +56,21 @@ def demo_puffer_env():
     print("PUFFERLIB ENVIRONMENT DEMO")
     print("=" * 60)
 
-    # Create MettaGridEnv - which IS a PufferLib environment!
-    # MettaGridEnv inherits from PufferEnv, so it has all PufferLib functionality
-    env = MettaGridEnv(
-        env_cfg=make_arena(num_agents=24),
-        render_mode=None,
-        is_training=False,  # Disable training-specific features for this demo
+    # Create simulator and config
+    simulator = Simulator()
+    cfg = make_arena(num_agents=24)
+
+    # Create MettaGridPufferEnv - which IS a PufferLib environment!
+    # MettaGridPufferEnv inherits from PufferEnv, so it has all PufferLib functionality
+    env = MettaGridPufferEnv(
+        simulator=simulator,
+        cfg=cfg,
     )
 
     print("PufferLib environment created")
     print(f"   - Agents: {env.num_agents}")
-    print(f"   - Observation space: {env.observation_space}")
-    print(f"   - Action space: {env.action_space}")
-    print(f"   - Max steps: {env.max_steps}")
+    print(f"   - Observation space: {env.single_observation_space}")
+    print(f"   - Action space: {env.single_action_space}")
 
     observations, _ = env.reset(seed=42)
     print(f"   - Reset successful: observations shape {observations.shape}")
@@ -75,8 +78,8 @@ def demo_puffer_env():
     # Generate random actions compatible with the action space
     from gymnasium import spaces
 
-    assert isinstance(env.action_space, spaces.Discrete)
-    actions = np.random.randint(0, env.action_space.n, size=(env.num_agents,)).astype(dtype_actions, copy=False)
+    assert isinstance(env.single_action_space, spaces.Discrete)
+    actions = np.random.randint(0, env.single_action_space.n, size=(env.num_agents,)).astype(dtype_actions, copy=False)
 
     _, rewards, terminals, truncations, _ = env.step(actions)
     print(f"   - Step successful: obs {observations.shape}, rewards {rewards.shape}")
@@ -89,17 +92,19 @@ def demo_random_rollout():
     print("\nRANDOM ROLLOUT DEMO")
     print("=" * 60)
 
-    # Create MettaGridEnv for rollout
-    # Note: is_training=True enables training features like stats collection
-    env = MettaGridEnv(
-        env_cfg=make_arena(num_agents=24),
-        render_mode=None,
-        is_training=True,
+    # Create simulator and config
+    simulator = Simulator()
+    config = make_arena(num_agents=24)
+
+    # Create MettaGridPufferEnv for rollout
+    env = MettaGridPufferEnv(
+        simulator=simulator,
+        config=config,
     )
 
     print("Running random policy rollout...")
     print(f"   - Agents: {env.num_agents}")
-    print(f"   - Action space: {env.action_space}")
+    print(f"   - Action space: {env.single_action_space}")
 
     _, _ = env.reset(seed=42)
     total_reward = 0
@@ -111,8 +116,10 @@ def demo_random_rollout():
         # Generate random actions for all agents
         from gymnasium import spaces
 
-        assert isinstance(env.action_space, spaces.Discrete)
-        actions = np.random.randint(0, env.action_space.n, size=(env.num_agents,)).astype(dtype_actions, copy=False)
+        assert isinstance(env.single_action_space, spaces.Discrete)
+        actions = np.random.randint(0, env.single_action_space.n, size=(env.num_agents,)).astype(
+            dtype_actions, copy=False
+        )
 
         _, rewards, terminals, truncations, _ = env.step(actions)
         total_reward += rewards.sum()
@@ -148,17 +155,20 @@ def demo_pufferlib_training():
         print("   - Integration with CleanRL algorithms")
         return
 
-    # MettaGridEnv can be used directly with PufferLib training code
-    env = MettaGridEnv(
-        env_cfg=make_arena(num_agents=24),
-        render_mode=None,
-        is_training=True,
+    # Create simulator and config
+    simulator = Simulator()
+    config = make_arena(num_agents=24)
+
+    # MettaGridPufferEnv can be used directly with PufferLib training code
+    env = MettaGridPufferEnv(
+        simulator=simulator,
+        config=config,
     )
 
     print("Running PufferLib training...")
     print(f"   - Agents: {env.num_agents}")
-    print(f"   - Observation space: {env.observation_space}")
-    print(f"   - Action space: {env.action_space}")
+    print(f"   - Observation space: {env.single_observation_space}")
+    print(f"   - Action space: {env.single_action_space}")
 
     # Try to use PufferLib's training capabilities if available
     try:
@@ -174,13 +184,13 @@ def demo_pufferlib_training():
         # Initialize simple policies based on action space type
         from gymnasium import spaces
 
-        assert isinstance(env.action_space, spaces.Discrete)
-        action_preferences = np.ones(env.action_space.n)
+        assert isinstance(env.single_action_space, spaces.Discrete)
+        action_preferences = np.ones(env.single_action_space.n)
 
         for _ in range(max_steps):
             # Sample actions based on current preferences
             probs = action_preferences / action_preferences.sum()
-            actions = np.random.choice(env.action_space.n, size=env.num_agents, p=probs).astype(
+            actions = np.random.choice(env.single_action_space.n, size=env.num_agents, p=probs).astype(
                 dtype_actions, copy=False
             )
 
@@ -220,8 +230,8 @@ def main():
     """Run PufferLib adapter demo."""
     print("PUFFERLIB INTEGRATION DEMO")
     print("=" * 80)
-    print("This demo shows MettaGridEnv's PufferLib integration.")
-    print("MettaGridEnv inherits from PufferEnv, making it fully compatible")
+    print("This demo shows PufferMettaGridEnv's PufferLib integration.")
+    print("PufferMettaGridEnv inherits from PufferEnv, making it fully compatible")
     print("with the PufferLib high-performance training ecosystem.")
     print()
 

@@ -3,30 +3,44 @@
 #include <algorithm>
 #include <cassert>
 
-Agent::Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vector<std::string>* resource_names)
+#include "config/observation_features.hpp"
+
+Agent::Agent(GridCoord r,
+             GridCoord c,
+             const AgentConfig& config,
+             const std::vector<std::string>* resource_names,
+             const std::unordered_map<std::string, ObservationType>* feature_ids)
     : GridObject(),
-      HasInventory(config.inventory_config),
+      HasInventory(config.inventory_config, resource_names, feature_ids),
       group(config.group_id),
       frozen(0),
       freeze_duration(config.freeze_duration),
-      orientation(Orientation::North),
       stat_rewards(config.stat_rewards),
       stat_reward_max(config.stat_reward_max),
       action_failure_penalty(config.action_failure_penalty),
       group_name(config.group_name),
       soul_bound_resources(config.soul_bound_resources),
       shareable_resources(config.shareable_resources),
-      glyph(0),
       agent_id(0),
       stats(resource_names),
       current_stat_reward(0),
       reward(nullptr),
-      prev_location(r, c, GridLayer::AgentLayer),
+      prev_location(r, c),
       prev_action_name(""),
       steps_without_motion(0),
-      inventory_regen_amounts(config.inventory_regen_amounts) {
+      inventory_regen_amounts(config.inventory_regen_amounts),
+      diversity_tracked_mask_(resource_names != nullptr ? resource_names->size() : 0, 0),
+      tracked_resource_presence_(resource_names != nullptr ? resource_names->size() : 0, 0),
+      tracked_resource_diversity_(0) {
+  for (InventoryItem item : config.diversity_tracked_resources) {
+    const size_t index = static_cast<size_t>(item);
+    if (index < diversity_tracked_mask_.size()) {
+      diversity_tracked_mask_[index] = 1;
+    }
+  }
+
   populate_initial_inventory(config.initial_inventory);
-  GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer), config.tag_ids);
+  GridObject::init(config.type_id, config.type_name, GridLocation(r, c), config.tag_ids, config.initial_vibe);
 }
 
 void Agent::init(RewardType* reward_ptr) {
@@ -86,7 +100,10 @@ void Agent::set_inventory(const std::unordered_map<InventoryItem, InventoryQuant
   }
 
   for (const auto& existing_item : existing_items) {
-    this->inventory.update(existing_item, -static_cast<InventoryDelta>(this->inventory.amount(existing_item)));
+    const InventoryQuantity current_amount = this->inventory.amount(existing_item);
+    this->inventory.update(existing_item, -static_cast<InventoryDelta>(current_amount));
+    this->stats.set(this->stats.resource_name(existing_item) + ".amount", 0);
+    update_inventory_diversity_stats(existing_item, 0);
   }
 
   // Then, set provided items to their specified amounts
@@ -98,15 +115,16 @@ void Agent::set_inventory(const std::unordered_map<InventoryItem, InventoryQuant
 
 InventoryDelta Agent::update_inventory(InventoryItem item, InventoryDelta attempted_delta) {
   const InventoryDelta delta = this->inventory.update(item, attempted_delta);
-
+  const InventoryQuantity amount = this->inventory.amount(item);
   if (delta != 0) {
     if (delta > 0) {
       this->stats.add(this->stats.resource_name(item) + ".gained", delta);
     } else if (delta < 0) {
       this->stats.add(this->stats.resource_name(item) + ".lost", -delta);
     }
-    this->stats.set(this->stats.resource_name(item) + ".amount", this->inventory.amount(item));
+    this->stats.set(this->stats.resource_name(item) + ".amount", amount);
   }
+  update_inventory_diversity_stats(item, amount);
 
   return delta;
 }
@@ -160,21 +178,19 @@ bool Agent::onUse(Agent& actor, ActionArg arg) {
 }
 
 std::vector<PartialObservationToken> Agent::obs_features() const {
-  const size_t num_tokens = this->inventory.get().size() + 5 + (glyph > 0 ? 1 : 0) + this->tag_ids.size();
+  const size_t num_tokens = this->inventory.get().size() + 3 + (vibe > 0 ? 1 : 0) + this->tag_ids.size();
 
   std::vector<PartialObservationToken> features;
   features.reserve(num_tokens);
 
-  features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(type_id)});
   features.push_back({ObservationFeature::Group, static_cast<ObservationType>(group)});
   features.push_back({ObservationFeature::Frozen, static_cast<ObservationType>(frozen != 0 ? 1 : 0)});
-  features.push_back({ObservationFeature::Orientation, static_cast<ObservationType>(orientation)});
-  if (glyph != 0) features.push_back({ObservationFeature::Glyph, static_cast<ObservationType>(glyph)});
+  if (vibe != 0) features.push_back({ObservationFeature::Vibe, static_cast<ObservationType>(vibe)});
 
   for (const auto& [item, amount] : this->inventory.get()) {
     // inventory should only contain non-zero amounts
     assert(amount > 0);
-    auto item_observation_feature = static_cast<ObservationType>(InventoryFeatureOffset + item);
+    auto item_observation_feature = this->inventory.get_feature_id(item);
     features.push_back({item_observation_feature, static_cast<ObservationType>(amount)});
   }
 
@@ -192,4 +208,30 @@ unsigned int Agent::get_visitation_count(GridCoord r, GridCoord c) const {
     return 0;  // Return 0 for out-of-bounds positions
   }
   return visitation_grid[r][c];
+}
+
+void Agent::update_inventory_diversity_stats(InventoryItem item, InventoryQuantity amount) {
+  const size_t index = static_cast<size_t>(item);
+  if (index >= diversity_tracked_mask_.size() || !diversity_tracked_mask_[index]) {
+    return;
+  }
+
+  const bool now_present = amount > 0;
+  const bool currently_present = tracked_resource_presence_[index] != 0;
+  if (currently_present == now_present) {
+    return;
+  }
+
+  const float prev_diversity = static_cast<float>(tracked_resource_diversity_);
+  tracked_resource_presence_[index] = now_present ? 1 : 0;
+  tracked_resource_diversity_ += now_present ? 1 : -1;
+
+  const float new_diversity = static_cast<float>(tracked_resource_diversity_);
+  this->stats.set("inventory.diversity", new_diversity);
+
+  for (int threshold = 2; threshold <= 5; ++threshold) {
+    if (prev_diversity < static_cast<float>(threshold) && new_diversity >= static_cast<float>(threshold)) {
+      this->stats.set("inventory.diversity.ge." + std::to_string(threshold), 1.0f);
+    }
+  }
 }

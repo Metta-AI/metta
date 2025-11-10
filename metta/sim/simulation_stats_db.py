@@ -108,7 +108,11 @@ class SimulationStatsDB(EpisodeStatsDB):
         # Merge each shard
         for shard_path in shards:
             logger.debug(f"Merging shard {shard_path}")
-            merged._merge_db(shard_path)
+            try:
+                merged._merge_db(shard_path)
+            except Exception as e:
+                logger.warning(f"Failed to merge shard {shard_path}: {e}")
+                # Continue with other shards
 
         # Update all episodes to use our simulation ID
         all_episode_ids = [row[0] for row in merged.con.execute("SELECT id FROM episodes").fetchall()]
@@ -296,7 +300,7 @@ class SimulationStatsDB(EpisodeStatsDB):
             self.con.execute("CHECKPOINT")  # ← this writes tables & data pages
         except Exception as e:
             logger = logging.getLogger(__name__)
-            logger.error(f"Error merging {other_path}: {e}")
+            logger.error(f"Error merging {other_path}: {e}", exc_info=True)
             raise
         finally:
             self.con.execute("DETACH other")

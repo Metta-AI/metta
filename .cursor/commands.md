@@ -96,21 +96,37 @@ grep -r "agent_raw" train_dir/test_$TEST_ID/wandb || echo "✓ No agent_raw metr
 
 ## Code Quality
 
+### Python Testing
+
+```bash
+# Run tests only (default, fastest for development - skips benchmarks)
+metta pytest
+
+# Run benchmarks only
+metta pytest --benchmark
+
+# Run both tests and benchmarks together
+metta pytest --test --benchmark
+
+# Run specific test modules
+metta pytest tests/rl/test_trainer_config.py -v
+metta pytest tests/sim/ -v
+
+# Run in CI mode (parallel execution, includes both tests and benchmarks)
+metta pytest --ci --test --benchmark
+
+# Run only changed tests (fast iteration)
+metta pytest --changed
+```
+
 ### Linting and Formatting
 
 ```bash
-# Run linting and formatting (all file types by default)
-metta lint
+# Run linting and formatting (to provided paths, or all files by default)
+metta lint [path/to/file_or_dir]
 
 # Format and lint with auto-fix
-metta lint --fix
-
-# Format specific file types only
-metta lint --type json,yaml
-metta lint --type python
-
-# Check formatting without modifying files
-metta lint --check
+metta lint --fix [path/to/file_or_dir]
 
 # Format only staged files
 metta lint --staged --fix
@@ -118,13 +134,7 @@ metta lint --staged --fix
 
 **Supported File Types:**
 
-- `python` - Python files (ruff format + ruff check)
-- `json` - JSON files
-- `markdown` (alias: `md`) - Markdown files
-- `shell` (alias: `sh`) - Shell scripts
-- `toml` - TOML config files
-- `yaml` (alias: `yml`) - YAML config files
-- `cpp` - C++ files (if mettagrid Makefile available)
+- Automatically handled: Python, JSON/JSONC, Markdown, Shell, TOML, YAML, and selected C++ files.
 
 ---
 

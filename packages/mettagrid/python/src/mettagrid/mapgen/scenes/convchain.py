@@ -26,7 +26,8 @@ import math
 
 import numpy as np
 
-from mettagrid.mapgen.scene import Config, Scene, SceneConfig
+from mettagrid.base_config import Config
+from mettagrid.mapgen.scene import Scene, SceneConfig
 from mettagrid.mapgen.utils.pattern import Pattern, Symmetry, ascii_to_weights_of_all_patterns
 
 

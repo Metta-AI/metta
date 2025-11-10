@@ -2,26 +2,6 @@ from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from metta.agent.policies.vit import ViTDefaultConfig
-from metta.cogworks.curriculum.curriculum import (
-    CurriculumAlgorithmConfig,
-    CurriculumConfig,
-)
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss import LossConfig
-from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.sim.simulation_config import SimulationConfig
-from metta.sweep.core import (
-    grid_search,
-    SweepParameters as SP,
-)
-from metta.tools.eval import EvaluateTool
-from metta.tools.sweep import SweepTool
-from metta.tools.train import TrainTool
-from mettagrid import MettaGridConfig
-from mettagrid.config import ConverterConfig
-
 from metta.agent.policies.agalite import AGaLiTeConfig
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policies.fast_dynamics import FastDynamicsConfig
@@ -32,8 +12,27 @@ from metta.agent.policies.puffer import PufferPolicyConfig
 from metta.agent.policies.transformer import TransformerPolicyConfig
 from metta.agent.policies.trxl import trxl_policy_config
 from metta.agent.policies.trxl_nvidia import trxl_nvidia_policy_config
+from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policies.vit_reset import ViTResetConfig
 from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
+from metta.cogworks.curriculum.curriculum import (
+    CurriculumAlgorithmConfig,
+    CurriculumConfig,
+)
+from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.rl.trainer_config import TorchProfilerConfig
+from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.sim.simulation_config import SimulationConfig
+from metta.sweep.core import (
+    SweepParameters as SP,
+)
+from metta.sweep.core import (
+    grid_search,
+)
+from metta.tools.eval import EvaluateTool
+from metta.tools.sweep import SweepTool
+from metta.tools.train import TrainTool
+from mettagrid import MettaGridConfig
 
 # Architecture configurations for benchmark testing
 ARCHITECTURES = {
@@ -72,11 +71,6 @@ def mettagrid(num_agents: int = 24) -> MettaGridConfig:
         "armor": 1,
         "blueprint": 1,
     }
-
-    # Easy converter: 1 battery_red to 1 heart (instead of 3 to 1)
-    altar = arena_env.game.objects.get("altar")
-    if isinstance(altar, ConverterConfig) and hasattr(altar, "input_resources"):
-        altar.input_resources["battery_red"] = 1
 
     return arena_env
 
@@ -136,14 +130,9 @@ def train(
     )
 
     eval_simulations = simulations()
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
-    )
-
     policy_architecture = ARCHITECTURES[arch_type]
 
     return TrainTool(
-        trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(simulations=eval_simulations),
         policy_architecture=policy_architecture,

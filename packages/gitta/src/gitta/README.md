@@ -248,6 +248,21 @@ split_pr(
 | `GITTA_SPLIT_MODEL`    | No                  | `claude-sonnet-4-5` | Anthropic model name to use for PR splitting                     |
 | `GITTA_SKIP_HOOKS`     | No                  | `false`             | Set to `1` to skip git hooks (use `--no-verify`) when committing |
 | `GITTA_COMMIT_TIMEOUT` | No                  | `300`               | Git commit timeout in seconds                                    |
+| `AWS_REGION`           | No                  | `us-east-1`         | AWS region for Secrets Manager (when using AWS secrets)          |
+
+### AWS Secrets Manager
+
+Gitta can automatically retrieve secrets from AWS Secrets Manager when environment variables are not set. This is useful
+in AWS production environments.
+
+**Secret Mapping:**
+
+- `GITHUB_TOKEN` → AWS secret: `github/token`
+- `ANTHROPIC_API_KEY` → AWS secret: `anthropic/api-key`
+
+**Fallback Order:** Environment variable → AWS Secrets Manager → Error (if required)
+
+**Caching:** AWS secrets are cached for 1 hour to minimize API calls.
 
 ### Getting API Keys
 

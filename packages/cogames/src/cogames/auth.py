@@ -3,6 +3,7 @@
 import asyncio
 import html
 import os
+import socket
 import threading
 import webbrowser
 from datetime import datetime
@@ -16,6 +17,84 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 
 
+class AuthConfigReaderWriter:
+    def __init__(self, token_file_name: str, token_storage_key: str | None = None):
+        home = Path.home()
+        self.config_dir = home / ".metta"
+        self.config_dir.mkdir(parents=True, exist_ok=True)
+        self.yaml_file = self.config_dir / token_file_name
+
+        self.token_file_name = token_file_name
+        self.token_storage_key = token_storage_key
+
+    def load_token(self, token_key: str) -> str | None:
+        """Load the token for this auth server from the YAML file.
+
+        Returns the token string if found, None otherwise.
+        """
+        if not self.yaml_file.exists():
+            return None
+
+        try:
+            with open(self.yaml_file, "r") as f:
+                data = yaml.safe_load(f) or {}
+
+            # Get the token dictionary based on storage structure
+            if self.token_storage_key:
+                tokens = data.get(self.token_storage_key, {})
+            else:
+                tokens = data
+
+            return tokens.get(token_key)
+        except Exception:
+            return None
+
+    def has_saved_token(self, token_key: str) -> bool:
+        """Check if we have a saved token for this server"""
+        token = self.load_token(token_key)
+        if token is None:
+            return False
+        return True
+
+    def save_token(self, token: str, auth_server_key: str) -> None:
+        """Save the token to a YAML file with secure permissions.
+
+        If token_storage_key is set, tokens are nested under that key.
+        Otherwise, they are stored at the top level.
+        """
+        try:
+            # Read existing data
+            existing_data = {}
+            if self.yaml_file.exists():
+                with open(self.yaml_file, "r") as f:
+                    existing_data = yaml.safe_load(f) or {}
+
+            # Prepare token data
+            token_data = {auth_server_key: token}
+
+            # Update data structure based on token_storage_key
+            if self.token_storage_key:
+                # Nested structure: {token_storage_key: {url: token}}
+                if self.token_storage_key not in existing_data:
+                    existing_data[self.token_storage_key] = {}
+                existing_data[self.token_storage_key].update(token_data)
+            else:
+                # Flat structure: {url: token}
+                existing_data.update(token_data)
+
+            # Write all data back
+            with open(self.yaml_file, "w") as f:
+                yaml.safe_dump(existing_data, f, default_flow_style=False)
+
+            # Set secure permissions (readable only by owner)
+            os.chmod(self.yaml_file, 0o600)
+
+            print(f"Token saved for {auth_server_key}")
+
+        except Exception as e:
+            raise Exception(f"Failed to save token: {e}") from e
+
+
 class BaseCLIAuthenticator:
     """Base class for CLI authentication with OAuth2 flow.
 
@@ -25,32 +104,23 @@ class BaseCLIAuthenticator:
 
     def __init__(
         self,
-        auth_server_url: str,
         token_file_name: str,
         token_storage_key: str | None = None,
     ):
         """Initialize the authenticator.
 
         Args:
-            auth_server_url: Base URL of the authentication server
             token_file_name: Name of the YAML file to store tokens (e.g., 'observatory_tokens.yaml')
             token_storage_key: Optional key to nest tokens under in YAML (e.g., 'login_tokens').
                              If None, tokens are stored at the top level.
-            extra_uris: Optional dict mapping auth server URLs to lists of additional URIs
-                       that should receive the same token
         """
-        self.auth_url = auth_server_url + "/tokens/cli"
-        self.auth_server_url = auth_server_url
+
         self.token_storage_key = token_storage_key
         self.token = None
         self.error = None
         self.server_started = threading.Event()
         self.auth_completed = threading.Event()
-
-        home = Path.home()
-        self.config_dir = home / ".metta"
-        self.config_dir.mkdir(parents=True, exist_ok=True)
-        self.yaml_file = self.config_dir / token_file_name
+        self.config_reader_writer = AuthConfigReaderWriter(token_file_name, token_storage_key)
 
     def create_app(self) -> FastAPI:
         """Create the FastAPI application for handling OAuth2 callbacks."""
@@ -268,63 +338,23 @@ class BaseCLIAuthenticator:
 
     def _find_free_port(self) -> int:
         """Find a free port to bind the server to"""
-        import socket
-
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind(("127.0.0.1", 0))
             return s.getsockname()[1]
 
-    def _build_auth_url(self, callback_url: str) -> str:
+    def _build_auth_url(self, auth_server_url: str, callback_url: str) -> str:
         """Build the authentication URL with callback parameter"""
         params = {
             "callback": callback_url,
         }
 
-        return f"{self.auth_url}?{urlencode(params)}"
+        return f"{auth_server_url}/tokens/cli?{urlencode(params)}"
 
     def _open_browser(self, url: str) -> None:
         """Open the default browser to the authentication URL"""
         if not webbrowser.open(url):
             print("Failed to open browser automatically")
             print(f"Please manually visit: {url}")
-
-    def save_token(self, token: str) -> None:
-        """Save the token to a YAML file with secure permissions.
-
-        If token_storage_key is set, tokens are nested under that key.
-        Otherwise, they are stored at the top level.
-        """
-        try:
-            # Read existing data
-            existing_data = {}
-            if self.yaml_file.exists():
-                with open(self.yaml_file, "r") as f:
-                    existing_data = yaml.safe_load(f) or {}
-
-            # Prepare token data
-            token_data = {self.auth_server_url: token}
-
-            # Update data structure based on token_storage_key
-            if self.token_storage_key:
-                # Nested structure: {token_storage_key: {url: token}}
-                if self.token_storage_key not in existing_data:
-                    existing_data[self.token_storage_key] = {}
-                existing_data[self.token_storage_key].update(token_data)
-            else:
-                # Flat structure: {url: token}
-                existing_data.update(token_data)
-
-            # Write all data back
-            with open(self.yaml_file, "w") as f:
-                yaml.safe_dump(existing_data, f, default_flow_style=False)
-
-            # Set secure permissions (readable only by owner)
-            os.chmod(self.yaml_file, 0o600)
-
-            print(f"Token saved for {self.auth_server_url}")
-
-        except Exception as e:
-            raise Exception(f"Failed to save token: {e}") from e
 
     def _run_server(self, port: int) -> None:
         """Run the FastAPI server in a separate thread"""
@@ -350,10 +380,14 @@ class BaseCLIAuthenticator:
             self.server_started.set()
             self.auth_completed.set()
 
-    def authenticate(self, timeout: int = 300) -> bool:
+    def authenticate(self, auth_server_url: str, token_key: str, timeout: int = 300) -> bool:
         """Perform the OAuth2 authentication flow.
 
         Args:
+            auth_server_url: Base URL of the authentication server
+            auth_server_key: Key to store the token under in the YAML file. Used since observatory has the
+              auth server URL of 'https://observatory.softmax-research.net/api' but api calls are made to
+              'https://api.observatory.softmax-research.net'
             timeout: Maximum time to wait for authentication (seconds)
 
         Returns:
@@ -378,7 +412,7 @@ class BaseCLIAuthenticator:
                 raise Exception(self.error)
 
             # Build auth URL and open browser
-            auth_url = self._build_auth_url(callback_url)
+            auth_url = self._build_auth_url(auth_server_url, callback_url)
             print(f"Opening browser to: {auth_url}")
             self._open_browser(auth_url)
 
@@ -395,7 +429,7 @@ class BaseCLIAuthenticator:
                 raise Exception("No token received")
 
             # Save token
-            self.save_token(self.token)
+            self.config_reader_writer.save_token(self.token, token_key)
 
             return True
 
@@ -403,31 +437,16 @@ class BaseCLIAuthenticator:
             print(f"Authentication failed: {e}")
             return False
 
-    def load_token(self) -> str | None:
+    def load_token(self, token_key: str) -> str | None:
         """Load the token for this auth server from the YAML file.
 
         Returns the token string if found, None otherwise.
         """
-        if not self.yaml_file.exists():
-            return None
+        return self.config_reader_writer.load_token(token_key)
 
-        try:
-            with open(self.yaml_file, "r") as f:
-                data = yaml.safe_load(f) or {}
-
-            # Get the token dictionary based on storage structure
-            if self.token_storage_key:
-                tokens = data.get(self.token_storage_key, {})
-            else:
-                tokens = data
-
-            return tokens.get(self.auth_server_url)
-        except Exception:
-            return None
-
-    def has_saved_token(self) -> bool:
+    def has_saved_token(self, token_key: str) -> bool:
         """Check if we have a saved token for this server"""
-        token = self.load_token()
+        token = self.load_token(token_key)
         if token is None:
             return False
         return True

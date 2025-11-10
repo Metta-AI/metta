@@ -37,7 +37,7 @@ type
   Config* = object
     label*: string
     game*: GameConfig
-    desyncEpisodes*: bool
+    desync_episodes*: bool
 
   ItemAmount* = object
     itemId*: int
@@ -49,7 +49,7 @@ type
     typeName*: string
     groupId*: int
     agentId*: int
-    location*: seq[IVec3]
+    location*: seq[IVec2]
     orientation*: seq[int]
     inventory*: seq[seq[ItemAmount]]
     inventoryMax*: int
@@ -118,12 +118,15 @@ type
     mgConfig*: JsonNode
     config*: Config
 
+    # Cached action IDs for common actions.
     noopActionId*: int
-    moveActionId*: int
+    attackActionId*: int
     putItemsActionId*: int
     getItemsActionId*: int
-    attackActionId*: int
-    changeGlyphActionId*: int
+    moveNorthActionId*: int
+    moveSouthActionId*: int
+    moveWestActionId*: int
+    moveEastActionId*: int
 
   ReplayEntity* = ref object
     ## Replay entity does not have time series and only has the current step value.
@@ -132,7 +135,7 @@ type
     typeId*: int
     groupId*: int
     agentId*: int
-    location*: IVec3
+    location*: IVec2
     orientation*: int
     inventory*: seq[ItemAmount]
     inventoryMax*: int
@@ -188,6 +191,11 @@ let EmptyReplay* = Replay(
   mapSize: (0, 0),
   fileName: "",
 )
+
+proc parseHook*(s: string, i: var int, v: var IVec2) =
+  var arr: array[2, int32]
+  parseHook(s, i, arr)
+  v = ivec2(arr[0], arr[1])
 
 proc parseHook*(s: string, i: var int, v: var IVec3) =
   var arr: array[3, int32]
@@ -301,22 +309,17 @@ proc convertReplayV1ToV2(replayData: JsonNode): JsonNode =
       gridObject["c"] = expandSequenceV2(gridObject["c"], maxSteps)
     if "r" in gridObject:
       gridObject["r"] = expandSequenceV2(gridObject["r"], maxSteps)
-    if "layer" in gridObject:
-      gridObject["layer"] = expandSequenceV2(gridObject["layer"], maxSteps)
 
     var location = newJArray()
     for step in 0 ..< maxSteps:
       let xNode = getAttrV1(gridObject, "c", step, newJInt(0))
       let yNode = getAttrV1(gridObject, "r", step, newJInt(0))
-      let zNode = getAttrV1(gridObject, "layer", step, newJInt(0))
       let x = if xNode.kind == JInt: xNode.getInt else: 0
       let y = if yNode.kind == JInt: yNode.getInt else: 0
-      let z = if zNode.kind == JInt: zNode.getInt else: 0
-      var triple = newJArray()
-      triple.add(newJInt(x))
-      triple.add(newJInt(y))
-      triple.add(newJInt(z))
-      location.add(pair(newJInt(step), triple))
+      var double = newJArray()
+      double.add(newJInt(x))
+      double.add(newJInt(y))
+      location.add(pair(newJInt(step), double))
       if x > maxX: maxX = x
       if y > maxY: maxY = y
 
@@ -539,8 +542,6 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
     let idx = replay.actionNames.find(actionName)
     if idx != -1:
       replay.drawnAgentActionMask = replay.drawnAgentActionMask or (1'u64 shl idx)
-  replay.attackActionId = replay.actionNames.find("attack")
-
   if "file_name" in jsonObj:
     replay.fileName = jsonObj["file_name"].getStr
 
@@ -558,13 +559,12 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
             count: inventoryRaw[i][j][1]))
       inventory.add(itemAmounts)
 
-    let locationRaw = expand[seq[int]](obj["location"], replay.maxSteps, @[0, 0, 0])
-    var location: seq[IVec3]
+    let locationRaw = expand[seq[int]](obj["location"], replay.maxSteps, @[0, 0])
+    var location: seq[IVec2]
     for i in 0 ..< locationRaw.len:
-      location.add(ivec3(
+      location.add(ivec2(
         locationRaw[i][0].int32,
-        locationRaw[i][1].int32,
-        locationRaw[i][2].int32
+        locationRaw[i][1].int32
       ))
 
     var resolvedTypeName = ""
@@ -655,12 +655,15 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
   # compute gain maps for static replays.
   computeGainMap(replay)
 
+  # Cache common action IDs for fast lookup.
   replay.noopActionId = replay.actionNames.find("noop")
-  replay.moveActionId = replay.actionNames.find("move")
+  replay.attackActionId = replay.actionNames.find("attack")
   replay.putItemsActionId = replay.actionNames.find("put_items")
   replay.getItemsActionId = replay.actionNames.find("get_items")
-  replay.attackActionId = replay.actionNames.find("attack")
-  replay.changeGlyphActionId = replay.actionNames.find("change_glyph")
+  replay.moveNorthActionId = replay.actionNames.find("move_north")
+  replay.moveSouthActionId = replay.actionNames.find("move_south")
+  replay.moveWestActionId = replay.actionNames.find("move_west")
+  replay.moveEastActionId = replay.actionNames.find("move_east")
 
   return replay
 

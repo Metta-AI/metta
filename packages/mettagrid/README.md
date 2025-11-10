@@ -121,10 +121,6 @@ The `use` action allows agents to interact with objects such as altars, converte
 of the `use` action depend on the target object and can include converting resources to energy, powering the altar for
 rewards, or harvesting resources from generators.
 
-### Swap
-
-The `swap` action allows agents to swap positions with other agents. It is currently not implemented.
-
 ## Configuration
 
 The MettaGrid environment is highly configurable through the use of YAML configuration files. These files specify the
@@ -156,21 +152,21 @@ maintain compatibility with external RL frameworks:
 
 ### Primary Training Environment
 
-**`MettaGridEnv`** - The main environment actively developed for Softmax Studio training systems
+**`PufferMettaGridEnv`** - The main environment actively developed for Softmax Studio training systems
 
 - Full-featured environment with comprehensive stats collection, replay recording, and curriculum support
-- Inherits from `MettaGridCore` for C++ environment implementation
+- PufferLib-compatible environment wrapper that provides reset/step API
 - **Exclusively used** by `metta.rl.trainer` and `metta.sim.simulation`
 - Continuously developed and optimized for Softmax Studio use cases
 - Backward compatible with existing training code
 
 ### Core Infrastructure
 
-**`MettaGridCore`** - Low-level C++ environment wrapper
+**`Simulation`** - Core simulation class for running MettaGrid simulations
 
 - Foundation that provides the core game mechanics and performance
-- **Not used directly** for training - serves as implementation detail for `MettaGridEnv`
-- Provides the base functionality that external adapters wrap
+- Direct simulation access without environment API (no reset/step)
+- Use when you need fine-grained control over simulation steps
 
 ### External Framework Compatibility Adapters
 
@@ -184,7 +180,7 @@ Lightweight wrappers around `MettaGridCore` to maintain compatibility with other
 
 ### Design Philosophy
 
-- **Primary Focus**: `MettaGridEnv` receives active development and new features for Softmax Studio
+- **Primary Focus**: `PufferMettaGridEnv` receives active development and new features for Softmax Studio
 - **Compatibility Maintenance**: External adapters ensure other frameworks continue working as the core evolves
 - **Testing for Compatibility**: Demos verify external frameworks remain functional during core development
 - **Clear Separation**: Each environment type serves its specific training system - no mixing between systems
