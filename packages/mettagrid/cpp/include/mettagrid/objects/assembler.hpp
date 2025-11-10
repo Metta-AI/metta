@@ -199,6 +199,7 @@ public:
         grid(nullptr),
         current_timestep_ptr(nullptr),
         protocol_details_obs(cfg.protocol_details_obs),
+        obs_encoder(nullptr),
         allow_partial_usage(cfg.allow_partial_usage),
         clipper_ptr(nullptr) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c), cfg.tag_ids, cfg.initial_vibe);
