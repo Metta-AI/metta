@@ -228,18 +228,12 @@ class Mission(Config):
                 "germanium_extractor": self.germanium_extractor.station_cfg(),
                 "silicon_extractor": self.silicon_extractor.station_cfg(),
                 # Clipped variants
-                "clipped_carbon_extractor": _clipped_station_cfg(
-                    self.carbon_extractor, "clipped_carbon_extractor"
-                ),
-                "clipped_oxygen_extractor": _clipped_station_cfg(
-                    self.oxygen_extractor, "clipped_oxygen_extractor"
-                ),
+                "clipped_carbon_extractor": _clipped_station_cfg(self.carbon_extractor, "clipped_carbon_extractor"),
+                "clipped_oxygen_extractor": _clipped_station_cfg(self.oxygen_extractor, "clipped_oxygen_extractor"),
                 "clipped_germanium_extractor": _clipped_station_cfg(
                     self.germanium_extractor, "clipped_germanium_extractor"
                 ),
-                "clipped_silicon_extractor": _clipped_station_cfg(
-                    self.silicon_extractor, "clipped_silicon_extractor"
-                ),
+                "clipped_silicon_extractor": _clipped_station_cfg(self.silicon_extractor, "clipped_silicon_extractor"),
             },
         )
 
