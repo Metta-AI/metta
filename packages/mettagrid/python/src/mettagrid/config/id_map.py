@@ -58,7 +58,11 @@ class IdMap:
     def tag_names(self) -> list[str]:
         """Get mapping of tag IDs to tag names.
 
-        Returns a dictionary mapping tag ID (int) to tag name (str).
+        """Get all tag names in alphabetical order.
+
+        Returns a list of tag names (str) sorted alphabetically.
+        Tags are collected from all objects and agents.
+        """
         Tags are sorted alphabetically and assigned consecutive IDs starting from 0.
         """
         # Collect all unique tags from all objects
