@@ -529,20 +529,28 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         With ~370 objects in a typical map, this reduces lookups from 1,480/step (4 agents)
         to just 370/step - a 4x speedup for position updates.
         """
-        try:
-            # Use cached grid_objects if it's from the current step
-            if s.shared_state.cached_grid_objects_step != s.step_count:
+        # Early exit if simulation is not available (shouldn't happen but be defensive)
+        if s.simulation is None:
+            return
+
+        # Use cached grid_objects if it's from the current step
+        if s.shared_state.cached_grid_objects_step != s.step_count:
+            try:
                 s.shared_state.cached_grid_objects = s.simulation.grid_objects()
                 s.shared_state.cached_grid_objects_step = s.step_count
+            except (AttributeError, RuntimeError):
+                # grid_objects() might not be available or simulation in invalid state
+                return
 
-            # Find this agent in the cached grid objects
+        # Find this agent in the cached grid objects
+        if s.shared_state.cached_grid_objects:
             for _id, obj in s.shared_state.cached_grid_objects.items():
                 if obj.get("agent_id") == s.agent_id:
                     new_row, new_col = obj.get("r", -1), obj.get("c", -1)
-                    s.row, s.col = new_row, new_col
+                    # Validate position is within map bounds
+                    if 0 <= new_row < s.map_height and 0 <= new_col < s.map_width:
+                        s.row, s.col = new_row, new_col
                     break
-        except Exception:
-            pass  # Silently fail if we can't get position
 
         # Update position history and detect loops
         current_pos = (s.row, s.col)
