@@ -1226,7 +1226,7 @@ TEST_F(MettaGridCppTest, AssemblerProtocolObservationsEnabled) {
     proto_feature_ids[std::string("input:") + resource_names[i]] = static_cast<ObservationType>(100 + i);
     proto_feature_ids[std::string("output:") + resource_names[i]] = static_cast<ObservationType>(120 + i);
   }
-  ObservationEncoder encoder(resource_names.size(), /*protocol_details_obs=*/true, &resource_names, &proto_feature_ids);
+  ObservationEncoder encoder(true, resource_names, proto_feature_ids);
   assembler->set_obs_encoder(&encoder);
 
   // Test with pattern 0 (no agents around) - should get protocol0
