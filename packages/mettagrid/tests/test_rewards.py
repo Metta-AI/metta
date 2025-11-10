@@ -48,10 +48,11 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         objects={
             "wall": WallConfig(),
             "assembler": AssemblerConfig(
+                name="assembler",
                 protocols=[
                     # Protocol that produces 1 heart with cooldown of 5 steps
                     ProtocolConfig(input_resources={}, output_resources={"heart": 1}, cooldown=5)
-                ]
+                ],
             ),
         },
         agent=AgentConfig(default_resource_limit=10, rewards=AgentRewards(inventory={"heart": 1.0})),

@@ -61,7 +61,7 @@ proc setupTestMap(testMap: TestMap) =
         let obj = Entity(
           id: replay.objects.len,
           typeName: "wall",
-          location: @[ivec3(x.int32, y.int32, 0)],
+          location: @[ivec2(x.int32, y.int32)],
         )
         replay.objects.add(obj)
 

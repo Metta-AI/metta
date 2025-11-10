@@ -7,9 +7,7 @@ from mettagrid.policy.policy import (
     StatefulPolicyImpl,
     TrainablePolicy,
 )
-from mettagrid.policy.policy import (
-    MultiAgentPolicy as Policy,
-)
+from mettagrid.policy.policy import MultiAgentPolicy as Policy
 
 __all__ = [
     "AgentPolicy",

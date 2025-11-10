@@ -1,6 +1,6 @@
-"""Curriculum-focused CoGs vs Clips training entrypoints."""
+"""Curriculum CoGs vs Clips entry points."""
 
-from experiments.recipes.cvc.core import (
+from experiments.recipes.cogs_v_clips import (
     make_curriculum,
     make_training_env,
     play,

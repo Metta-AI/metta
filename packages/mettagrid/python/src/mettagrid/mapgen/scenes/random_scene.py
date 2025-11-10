@@ -1,21 +1,12 @@
 import numpy as np
-from pydantic import field_validator
 
 from mettagrid.base_config import Config
-from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig, validate_any_scene_config
+from mettagrid.mapgen.scene import AnySceneConfig, ChildrenAction, Scene, SceneConfig
 
 
 class RandomSceneCandidate(Config):
-    scene: SceneConfig
+    scene: AnySceneConfig
     weight: float = 1
-
-    @field_validator("scene", mode="wrap")
-    @classmethod
-    def _validate_scene(cls, v, handler):
-        # Accept already-validated SceneConfig or a dict with a 'type' pointer
-        if isinstance(v, SceneConfig):
-            return v
-        return validate_any_scene_config(v)
 
 
 class RandomSceneConfig(SceneConfig):

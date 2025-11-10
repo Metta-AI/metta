@@ -14,6 +14,7 @@ from rich.console import Console
 from cogames.cli.policy import POLICY_ARG_DELIMITER
 from cogames.policy.signal_handler import DeferSigintContextManager
 from mettagrid import MettaGridConfig, PufferMettaGridEnv
+from mettagrid.config.mettagrid_config import EnvSupervisorConfig
 from mettagrid.envs.early_reset_handler import EarlyResetHandler
 from mettagrid.envs.stats_tracker import StatsTracker
 from mettagrid.policy.policy import TrainablePolicy
@@ -89,6 +90,7 @@ def train(
     batch_size: int,
     minibatch_size: int,
     missions_arg: Optional[list[str]] = None,
+    variants_arg: Optional[list[str]] = None,
     vector_num_envs: Optional[int] = None,
     vector_batch_size: Optional[int] = None,
     vector_num_workers: Optional[int] = None,
@@ -199,7 +201,8 @@ def train(
         simulator = Simulator()
         simulator.add_event_handler(StatsTracker(NoopStatsWriter()))
         simulator.add_event_handler(EarlyResetHandler())
-        env = PufferMettaGridEnv(simulator, target_cfg, buf, seed if seed is not None else 0)
+        env_supervisor_cfg = EnvSupervisorConfig(enabled=False)
+        env = PufferMettaGridEnv(simulator, target_cfg, env_supervisor_cfg, buf, seed if seed is not None else 0)
         set_buffers(env, buf)
         return env
 
@@ -224,6 +227,7 @@ def train(
         PolicyEnvInterface.from_mg_cfg(vecenv.driver_env.env_cfg),
         policy_class_path=policy_class_path,
         policy_data_path=resolved_initial_weights,
+        device=device,
     )
     assert isinstance(policy, TrainablePolicy), (
         f"Policy class {policy_class_path} must implement TrainablePolicy interface"
@@ -404,16 +408,19 @@ def train(
 
             first_mission = missions_arg[0] if missions_arg else "training_facility_1"
             all_missions = " ".join(f"-m {m}" for m in (missions_arg or ["training_facility_1"]))
+            variant_args = " ".join(f"--variant {variant}" for variant in (variants_arg or []))
+            mission_and_variant_args = " ".join(filter(None, [all_missions, variant_args]))
+            first_mission_with_variants = " ".join(filter(None, [f"-m {first_mission}", variant_args]))
 
             console.print()
             console.print("To continue training this policy:", style="bold")
-            console.print(f"  [yellow]cogames train {all_missions} -p {policy_arg}[/yellow]")
+            console.print(f"  [yellow]cogames train {mission_and_variant_args} -p {policy_arg}[/yellow]")
             console.print()
             console.print("To play with this policy:", style="bold")
-            console.print(f"  [yellow]cogames play -m {first_mission} -p {policy_arg}[/yellow]")
+            console.print(f"  [yellow]cogames play {first_mission_with_variants} -p {policy_arg}[/yellow]")
             console.print()
             console.print("To evaluate this policy:", style="bold")
-            console.print(f"  [yellow]cogames eval -m {first_mission} -p {policy_arg}[/yellow]")
+            console.print(f"  [yellow]cogames eval {first_mission_with_variants} -p {policy_arg}[/yellow]")
         elif checkpoints and training_diverged:
             console.print()
             console.print(f"[yellow]Found {len(checkpoints)} checkpoint(s). The most recent may be corrupted.[/yellow]")

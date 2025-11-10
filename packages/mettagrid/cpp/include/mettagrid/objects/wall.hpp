@@ -27,15 +27,13 @@ public:
   bool _swappable;
 
   Wall(GridCoord r, GridCoord c, const WallConfig& cfg) {
-    GridObject::init(
-        cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids, cfg.initial_vibe);
+    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c), cfg.tag_ids, cfg.initial_vibe);
     this->_swappable = cfg.swappable;
   }
 
   std::vector<PartialObservationToken> obs_features() const override {
     std::vector<PartialObservationToken> features;
-    features.reserve(2 + tag_ids.size() + (this->vibe != 0 ? 1 : 0));
-    features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
+    features.reserve(1 + tag_ids.size() + (this->vibe != 0 ? 1 : 0));
 
     if (_swappable) {
       // Only emit the swappable observation feature when True to reduce the number of tokens.

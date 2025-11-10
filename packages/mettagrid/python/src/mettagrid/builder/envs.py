@@ -95,7 +95,6 @@ def make_arena(
 def make_navigation(num_agents: int) -> MettaGridConfig:
     nav_assembler = building.AssemblerConfig(
         name="altar",
-        type_id=8,
         map_char="_",
         render_symbol="🛣️",
         protocols=[building.ProtocolConfig(input_resources={}, output_resources={"heart": 1}, cooldown=255)],

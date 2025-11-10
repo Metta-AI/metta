@@ -8,8 +8,8 @@ import torch.nn as nn
 from pydantic import Field
 from tensordict import TensorDict
 
+from metta.agent.components.cortex import CortexTD
 from metta.agent.policies.fast import FastConfig
-from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.policy_artifact import (
@@ -154,12 +154,12 @@ def test_policy_architecture_from_string_with_args_round_trip() -> None:
     assert round_tripped.model_dump() == architecture.model_dump()
 
 
-def test_safetensors_save_with_shared_lstm_parameters(tmp_path: Path) -> None:
+def test_safetensors_save_with_fast_core(tmp_path: Path) -> None:
     from mettagrid.config import MettaGridConfig
 
     policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
 
-    architecture = FastLSTMResetConfig()
+    architecture = FastConfig()
     policy = architecture.make_policy(policy_env_info)
     policy.initialize_to_environment(policy_env_info, torch.device("cpu"))
 
@@ -173,5 +173,5 @@ def test_safetensors_save_with_shared_lstm_parameters(tmp_path: Path) -> None:
     loaded = load_policy_artifact(artifact_path)
     reloaded = loaded.instantiate(policy_env_info, torch.device("cpu"))
 
-    # Access lstm_reset component from the components dict and check lstm_h buffer
-    assert reloaded.components["lstm_reset"].lstm_h.size(1) == 0
+    assert hasattr(reloaded, "core")
+    assert isinstance(reloaded.core, CortexTD)

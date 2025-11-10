@@ -64,11 +64,11 @@ class StorableMap:
         if isinstance(map_builder, MapGen):
             scene_tree = map_builder.get_scene_tree()
 
-        # Extract char_to_name_map from config if available
+        # Extract char_to_map_name from config if available
         # Note that this is the only production code still using DEFAULT_CHAR_TO_NAME - should we remove this?
         char_to_name: dict[str, str] = DEFAULT_CHAR_TO_NAME
         if isinstance(cfg, AsciiMapBuilder.Config):
-            char_to_name = cfg.char_to_name_map
+            char_to_name = cfg.char_to_map_name
 
         char_to_name = char_to_name.copy()
 
