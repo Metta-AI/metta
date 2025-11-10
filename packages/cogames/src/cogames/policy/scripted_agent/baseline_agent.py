@@ -1478,3 +1478,22 @@ class BaselinePolicy(MultiAgentPolicy):
             out_actions[agent_id] = action_ids[action.name]
 
         return out_actions
+
+
+class NoopBaselinePolicy(BaselinePolicy):
+    def __init__(self, policy_env_info: PolicyEnvInterface, noop_value: int = 1):
+        super().__init__(policy_env_info)
+        self._noop_value = noop_value
+
+    def step_batch(
+        self,
+        simulation: "Simulation",
+        out_actions: Optional[np.ndarray] = None,
+        observations: Optional[np.ndarray] = None,
+    ) -> np.ndarray:
+        del simulation, observations
+
+        if out_actions is None:
+            out_actions = np.empty(self._policy_env_info.num_agents, dtype=np.int32)
+        out_actions.fill(self._noop_value)
+        return out_actions

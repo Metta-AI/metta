@@ -29,7 +29,7 @@ import numpy as np
 from gymnasium.spaces import Box, Discrete
 from typing_extensions import override
 
-from cogames.policy.scripted_agent.baseline_agent import BaselinePolicy
+from cogames.policy.scripted_agent.baseline_agent import BaselinePolicy, NoopBaselinePolicy
 from mettagrid.config.mettagrid_config import EnvSupervisorConfig, MettaGridConfig
 from mettagrid.mettagrid_c import (
     dtype_actions,
@@ -158,32 +158,29 @@ class MettaGridPufferEnv(PufferEnv):
         )
 
     def _reset_env_supervisor_policy(self) -> None:
-        if self._env_supervisor_cfg.policy == "baseline":
-            self._env_supervisor_policy = BaselinePolicy(PolicyEnvInterface.from_mg_cfg(self._current_cfg))
-            for agent_id in range(self._current_cfg.game.num_agents):
-                self._env_supervisor_policy.agent_policy(agent_id).reset(self._sim)
+        policy_name = (self._env_supervisor_cfg.policy or "baseline").lower()
+        if policy_name == "baseline":
+            policy_cls = BaselinePolicy
+        elif policy_name == "noop":
+            policy_cls = NoopBaselinePolicy
         else:
-            self._env_supervisor_policy = None
+            raise ValueError(f"Unsupported env supervisor policy: {self._env_supervisor_cfg.policy}")
+
+        self._env_supervisor_policy = policy_cls(PolicyEnvInterface.from_mg_cfg(self._current_cfg))
+        for agent_id in range(self._current_cfg.game.num_agents):
+            self._env_supervisor_policy.agent_policy(agent_id).reset(self._sim)
 
     def _compute_supervisor_actions(self) -> None:
         assert self._env_supervisor_cfg.enabled
-        if self._env_supervisor_cfg.policy == "noop":
-            self._buffers.teacher_actions[:] = np.ones(self._current_cfg.game.num_agents, dtype=dtype_actions)
-            return
-
-        if self._env_supervisor_cfg.policy == "baseline":
-            if self._env_supervisor_policy is None:
-                self._reset_env_supervisor_policy()
-            assert self._env_supervisor_policy is not None
-            teacher_actions = self._env_supervisor_policy.step_batch(
-                observations=self._buffers.observations,
-                simulation=self._sim,
-                out_actions=self._buffers.teacher_actions,
-            )
-            self._buffers.teacher_actions[:] = teacher_actions
-            return
-
-        raise ValueError(f"Unsupported env supervisor policy: {self._env_supervisor_cfg.policy}")
+        if self._env_supervisor_policy is None:
+            self._reset_env_supervisor_policy()
+        assert self._env_supervisor_policy is not None
+        teacher_actions = self._env_supervisor_policy.step_batch(
+            simulation=self._sim,
+            out_actions=self._buffers.teacher_actions,
+            observations=self._buffers.observations,
+        )
+        self._buffers.teacher_actions[:] = teacher_actions
 
     @property
     def observations(self) -> np.ndarray:
