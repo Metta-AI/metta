@@ -31,7 +31,7 @@ from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
-from metta.rl.loss.loss import LossConfig
+from metta.rl.loss.losses import LossesConfig
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
@@ -487,7 +487,7 @@ def train(
 
     policy_config = _get_policy_config(architecture)
 
-    trainer_cfg = TrainerConfig(losses=LossConfig(), total_timesteps=5_000_000_000)
+    trainer_cfg = TrainerConfig(losses=LossesConfig(), total_timesteps=5_000_000_000)
 
     train_tool = TrainTool(
         system=SystemConfig(seed=effective_seed),
@@ -571,9 +571,7 @@ def sweep(sweep_name: str) -> SweepTool:
         eval_entrypoint="evaluate",
         objective="evaluator/eval_assembly_lines/score",
         parameters=parameters,
-    ).update(
-        {"max_trials": 80, "batch_size": 4}
-    )
+    ).update({"max_trials": 80, "batch_size": 4})
 
 
 def experiment():
