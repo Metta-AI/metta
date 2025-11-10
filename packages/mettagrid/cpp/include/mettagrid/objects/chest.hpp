@@ -104,9 +104,8 @@ public:
 
   virtual std::vector<PartialObservationToken> obs_features() const override {
     std::vector<PartialObservationToken> features;
-    features.reserve(2 + this->inventory.get().size() + this->tag_ids.size() + (this->vibe != 0 ? 1 : 0));
+    features.reserve(1 + this->inventory.get().size() + this->tag_ids.size() + (this->vibe != 0 ? 1 : 0));
 
-    features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
     if (this->vibe != 0) features.push_back({ObservationFeature::Vibe, static_cast<ObservationType>(this->vibe)});
 
     // Add current inventory (inv:resource)

@@ -2,10 +2,7 @@ from typing import override
 
 from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_VARIANTS
 from cogames.cogs_vs_clips.mission import MissionVariant
-from cogames.cogs_vs_clips.procedural import (
-    BaseHubVariant,
-    MachinaArenaVariant,
-)
+from cogames.cogs_vs_clips.procedural import BaseHubVariant, MachinaArenaVariant
 from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, ProtocolConfig
 
 
@@ -137,6 +134,15 @@ class NeutralFacedVariant(MissionVariant):
                 obj.protocols = [primary_protocol]
             elif isinstance(obj, ChestConfig) and name == "chest":
                 obj.vibe_transfers = {neutral_vibe_name: {"heart": 255}}
+
+
+class CompassVariant(MissionVariant):
+    name: str = "compass"
+    description: str = "Enable compass observation pointing toward the assembler."
+
+    @override
+    def modify_mission(self, mission):
+        mission.compass_enabled = True
 
 
 class HeartChorusVariant(MissionVariant):
@@ -440,6 +446,7 @@ VARIANTS: list[MissionVariant] = [
     PackRatVariant(),
     EnergizedVariant(),
     NeutralFacedVariant(),
+    CompassVariant(),
     Small50Variant(),
     CogToolsOnlyVariant(),
     InventoryHeartTuneVariant(),

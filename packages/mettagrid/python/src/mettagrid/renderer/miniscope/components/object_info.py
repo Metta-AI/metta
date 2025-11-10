@@ -100,12 +100,10 @@ class ObjectInfoComponent(MiniscopeComponent):
             lines.append("Status: (empty space)".ljust(width))
             return lines
 
-        # Get type name - prefer type_name field if available, otherwise look up
-        if "type_name" in selected_obj:
-            type_name = selected_obj["type_name"]
-        else:
-            object_type_names = self._get_object_type_names()
-            type_name = object_type_names[selected_obj["type"]] if object_type_names else str(selected_obj["type"])
+        # Get type name (breaking: require type_name present)
+        type_name = selected_obj.get("type_name")
+        if type_name is None:
+            type_name = "<missing type_name>"
         lines.append(f"Type: {type_name}"[:width].ljust(width))
         lines.append(f"Cursor pos: ({cursor_row}, {cursor_col})"[:width].ljust(width))
         actual_r = selected_obj.get("r", "?")
