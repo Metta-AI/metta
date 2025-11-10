@@ -1,5 +1,3 @@
-from typing import Literal
-
 from pydantic import Field
 
 from cogames.cogs_vs_clips import vibes
@@ -29,8 +27,6 @@ class CvCStationConfig(Config):
 
 
 class CvCWallConfig(CvCStationConfig):
-    type: Literal["wall"] = Field(default="wall")
-
     def station_cfg(self) -> WallConfig:
         return WallConfig(name="wall", map_char="#", render_symbol=vibes.VIBE_BY_NAME["wall"].symbol)
 
@@ -43,8 +39,6 @@ class ExtractorConfig(CvCStationConfig):
 
 
 class ChargerConfig(ExtractorConfig):
-    type: Literal["charger"] = Field(default="charger")
-
     def station_cfg(self) -> AssemblerConfig:
         return AssemblerConfig(
             name="charger",
@@ -67,11 +61,9 @@ class ChargerConfig(ExtractorConfig):
 
 # Time consuming but easy to mine.
 class CarbonExtractorConfig(ExtractorConfig):
-    type: Literal["carbon_extractor"] = Field(default="carbon_extractor")
-
     def station_cfg(self) -> AssemblerConfig:
         return AssemblerConfig(
-            name=self.type,
+            name="carbon_extractor",
             map_char="C",
             render_symbol=vibes.VIBE_BY_NAME["carbon"].symbol,
             # Protocols
@@ -91,8 +83,6 @@ class CarbonExtractorConfig(ExtractorConfig):
 # Accumulates oxygen over time, needs to be emptied periodically.
 # Takes a lot of space, relative to usage needs.
 class OxygenExtractorConfig(ExtractorConfig):
-    type: Literal["oxygen_extractor"] = Field(default="oxygen_extractor")
-
     def station_cfg(self) -> AssemblerConfig:
         return AssemblerConfig(
             name="oxygen_extractor",
@@ -115,7 +105,6 @@ class OxygenExtractorConfig(ExtractorConfig):
 
 # Rare and doesn't regenerate. But more cogs increase efficiency.
 class GermaniumExtractorConfig(ExtractorConfig):
-    type: Literal["germanium_extractor"] = Field(default="germanium_extractor")
     synergy: int = 1
     efficiency: int = 1
 
@@ -142,7 +131,6 @@ class GermaniumExtractorConfig(ExtractorConfig):
 
 
 class SiliconExtractorConfig(ExtractorConfig):
-    type: Literal["silicon_extractor"] = Field(default="silicon_extractor")
     max_uses: int = Field(default=100)  # Silicon has lower default than other extractors
 
     def station_cfg(self) -> AssemblerConfig:
@@ -165,14 +153,12 @@ class SiliconExtractorConfig(ExtractorConfig):
 
 
 class CvCChestConfig(CvCStationConfig):
-    type: Literal["communal_chest"] = Field(default="communal_chest")
     initial_inventory: dict[str, int] = Field(default={}, description="Initial inventory for each resource type")
 
     def station_cfg(self) -> ChestConfig:
         # Use map_name/name "chest" so maps and procedural builders that place
         # "chest" resolve to this config. The specific CvC type remains a label.
         return ChestConfig(
-            name="chest",
             map_char="C",
             render_symbol=vibes.VIBE_BY_NAME["chest"].symbol,
             vibe_transfers={
@@ -188,13 +174,12 @@ class CvCChestConfig(CvCStationConfig):
 
 
 class CvCAssemblerConfig(CvCStationConfig):
-    type: Literal["assembler"] = Field(default="assembler")
     heart_cost: int = Field(default=10)
 
     def station_cfg(self) -> AssemblerConfig:
         gear = [("oxygen", "modulator"), ("germanium", "scrambler"), ("silicon", "resonator"), ("carbon", "decoder")]
         return AssemblerConfig(
-            name=self.type,
+            name="assembler",
             map_char="&",
             render_symbol=vibes.VIBE_BY_NAME["assembler"].symbol,
             clip_immune=True,
