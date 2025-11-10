@@ -14,7 +14,9 @@ echo "[SETUP] Installing system dependencies..."
 bash ./devops/tools/install-system.sh
 
 echo "[SETUP] Installing Datadog agent..."
+set +e  # Temporarily allow errors for optional datadog installation
 uv run metta install datadog-agent --non-interactive || echo "[SETUP] Datadog agent installation failed or skipped"
+set -e  # Re-enable exit on error
 
 # Note that different sets of skypilot environment variables are available in "run" vs "setup"
 # see https://docs.skypilot.co/en/latest/running-jobs/environment-variables.html
