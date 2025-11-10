@@ -1,5 +1,6 @@
+import os
+import sys
 from ctypes import *
-import os, sys
 
 dir = os.path.dirname(sys.modules["heuristic_agents"].__file__)
 if sys.platform == "win32":

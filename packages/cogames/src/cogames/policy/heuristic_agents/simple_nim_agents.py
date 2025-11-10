@@ -1,16 +1,16 @@
-import sys
 import os
+import sys
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(current_dir, "bindings/generated"))
 
+import json
+
 import heuristic_agents as ha
 import numpy as np
-import json
 
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator import AgentObservation, Action
 
 # ha.initCHook()
 
