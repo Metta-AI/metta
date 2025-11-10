@@ -38,6 +38,12 @@ Examples:
     parser.add_argument("--skip-git-check", action="store_true", help="Skip clean git tree check")
     parser.add_argument("--dry-run", action="store_true", help="Show summary and exit")
     parser.add_argument("--wandb-project", type=str, default="sweeps", help="WandB project name")
+    parser.add_argument(
+        "--heartbeat-timeout-seconds",
+        type=int,
+        default=300,
+        help="Per-node heartbeat timeout in seconds (default: 300)",
+    )
     return parser.parse_known_args()
 
 
@@ -60,6 +66,7 @@ def build_task(
         "METTA_MODULE_PATH": args.module_path,
         "METTA_ARGS": " ".join(tool_args),
         "WANDB_PROJECT": args.wandb_project,
+        "HEARTBEAT_TIMEOUT": args.heartbeat_timeout_seconds,
     }
     task = task.update_envs(env_updates)
 

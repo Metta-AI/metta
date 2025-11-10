@@ -29,9 +29,16 @@ fi
 
 export RANK=${SKYPILOT_NODE_RANK:-0}
 export IS_HEAD=$([[ "$RANK" == "0" ]] && echo "true" || echo "false")
+export IS_MASTER="$IS_HEAD"  # For compatibility with monitor_utils.sh
 HEAD_IP=$(echo "${SKYPILOT_NODE_IPS:-127.0.0.1}" | head -n1)
 RAY_PORT=${RAY_HEAD_PORT:-6379}
 RAY_CLIENT_PORT=${RAY_CLIENT_PORT:-10001}
+
+# Set up per-node heartbeat monitoring
+export START_TIME=$(date +%s)
+# Create per-node heartbeat file using node rank to ensure isolation
+export HEARTBEAT_FILE="${JOB_METADATA_DIR}/heartbeat_node_${RANK}"
+echo "[SWEEP] Per-node heartbeat file: $HEARTBEAT_FILE"
 
 # Detect GPUs and CPUs on this node (not provided by SkyPilot)
 if command -v nvidia-smi >/dev/null 2>&1; then

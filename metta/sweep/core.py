@@ -73,11 +73,7 @@ class SweepParameters:
 
     @classmethod
     def muon_optimizer_hypers(cls) -> list[ParameterSpec]:
-        """Canonical set of Muon optimizer hyperparameters.
-
-        Muon is a momentum-based optimizer designed for large-scale training.
-        It typically uses higher momentum values than Adam.
-        """
+        """Canonical set of Muon optimizer hyperparameters."""
         return [
             ParameterSpec("trainer.optimizer.learning_rate", tune.loguniform(5e-4, 5e-2)),  # Higher LR range for Muon
             ParameterSpec("trainer.optimizer.beta1", tune.uniform(0.9, 0.99)),  # High momentum for Muon
