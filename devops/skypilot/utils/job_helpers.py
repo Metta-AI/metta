@@ -9,7 +9,6 @@ from typing import cast
 import sky
 import sky.exceptions
 import sky.jobs
-import wandb
 from sky.server.common import RequestId, get_server_url
 
 import gitta as git
@@ -174,6 +173,9 @@ def set_task_secrets(task: sky.Task) -> None:
     """Write job secrets to task envs."""
     # Note: we can't mount these with `file_mounts` because of skypilot bug with service accounts.
     # Also, copying the entire `.netrc` is too much (it could contain other credentials).
+
+    # Lazy import to avoid loading wandb at CLI startup
+    import wandb
 
     wandb_password = netrc.netrc(os.path.expanduser("~/.netrc")).hosts["api.wandb.ai"][2]
     if not wandb_password:
