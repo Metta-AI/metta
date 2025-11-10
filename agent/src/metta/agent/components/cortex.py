@@ -4,6 +4,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import optree
 import torch
+import logging
 import torch.nn as nn
 from cortex.config import CortexStackConfig
 from cortex.factory import build_cortex
@@ -14,6 +15,9 @@ from tensordict import TensorDict, TensorDictBase
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.components.component_config import ComponentConfig
+
+
+logger = logging.getLogger(__name__)
 
 FlatKey = str
 LeafPath = Tuple[str, str, str]  # (block_key, cell_key, leaf_key)
@@ -212,12 +216,18 @@ class CortexTD(nn.Module):
         if TT == 1:
             # Rollout step: maintain env-based state and cache pre-state for new rows
             if "training_env_ids" not in td.keys():
-                raise KeyError("CortexTD requires 'training_env_ids' during rollout (TT==1)")
+                td.set("training_env_ids", torch.arange(B, device=device, dtype=torch.long).view(B, 1))
+                logger.debug(
+                    "[CortexTD] Missing 'training_env_ids'; defaulting to arange(B) with B=%d.",
+                    B,
+                )
             env_ids_2d = td["training_env_ids"].to(device=device, dtype=torch.long)
             assert env_ids_2d.dim() == 2 and env_ids_2d.shape[1] == 1, "training_env_ids must be [B,1]"
             env_ids_long = env_ids_2d.view(-1)
 
             state_prev = self._ensure_rollout_current_state(env_ids_long, B=B, device=device, dtype=dtype)
+
+            self._maybe_refresh_template(state_prev)
             # Cache pre-state at row starts into row store (TensorDict)
             if "row_id" not in td.keys() or "t_in_row" not in td.keys():
                 raise KeyError("CortexTD rollout requires 'row_id' and 't_in_row' keys")
@@ -232,7 +242,6 @@ class CortexTD(nn.Module):
 
             x_step = x.view(B, -1)
             y, state_next = self.stack.step(x_step, state_prev, resets=resets)
-            self._maybe_refresh_template(state_next)
             self._rollout_current_state = state_next
             y = self._out(y)
             td.set(self.out_key, y.reshape(B * TT, -1))
@@ -243,7 +252,9 @@ class CortexTD(nn.Module):
             if "row_id" not in td.keys():
                 raise KeyError("CortexTD training path (TT>1) requires 'row_id' when pass_state_during_training=True")
             row_tensor = td["row_id"].to(device=device, dtype=torch.long)
-            assert row_tensor.dim() == 1, "row_id must be 1D [B*TT] in training TD"
+            # Accept either flattened [B*TT] or shaped [B,TT]
+            if row_tensor.numel() != B * TT:
+                raise ValueError("row_id must contain exactly B*TT elements")
             row_ids = row_tensor.view(B, TT)[:, 0]
             state0 = self._gather_state_by_slots_list(
                 row_ids, store=self._row_store_leaves, B=B, device=device, dtype=dtype
