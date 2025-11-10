@@ -2,14 +2,6 @@ import
   std/[strformat, strutils, tables, random, sets],
   genny, jsony
 
-const
-  debugHeuristicLogs = false
-
-when debugHeuristicLogs:
-  template debugLog(args: varargs[untyped]) = echo args
-else:
-  template debugLog(args: varargs[untyped]) = discard
-
 type
 
   ConfigFeature* = object
@@ -22,7 +14,7 @@ type
     obsWidth*: int
     obsHeight*: int
     actions*: seq[string]
-    tagNames*: Table[string, int]
+    tags*: seq[string]
     obsFeatures*: seq[ConfigFeature]
 
   FeatureValue* = object
@@ -110,27 +102,27 @@ type
 
 proc ctrlCHandler() {.noconv.} =
   ## Handle ctrl-c signal to exit cleanly.
-  debugLog "\nNim DLL caught ctrl-c, exiting..."
+  echo "\nNim DLL caught ctrl-c, exiting..."
   quit(0)
 
 proc initCHook() =
   setControlCHook(ctrlCHandler)
-  debugLog "HeuristicAgents initialized"
+  echo "HeuristicAgents initialized"
 
 proc newHeuristicAgent(agentId: int, environmentConfig: string): HeuristicAgent {.raises: [].} =
-  debugLog "Creating new heuristic agent ", agentId
+  echo "Creating new heuristic agent ", agentId
   try:
     var config = environmentConfig.fromJson(Config)
     result = HeuristicAgent(agentId: agentId, config: config)
-    debugLog "  numAgents", config.numAgents
-    debugLog "  obsWidth", config.obsWidth
-    debugLog "  obsHeight", config.obsHeight
-    debugLog "  actions", config.actions
-    debugLog "  tagNames", config.tagNames
-    debugLog "  obsFeatures", config.obsFeatures
+    echo "  numAgents", config.numAgents
+    echo "  obsWidth", config.obsWidth
+    echo "  obsHeight", config.obsHeight
+    echo "  actions", config.actions
+    echo "  tags", config.tags
+    echo "  obsFeatures", config.obsFeatures
 
     for feature in config.obsFeatures:
-      debugLog "    feature ", feature.id, " ", feature.name, " ", feature.normalization
+      echo "    feature ", feature.id, " ", feature.name, " ", feature.normalization
       case feature.name:
       of "agent:group":
         result.features.group = feature.id
@@ -185,7 +177,7 @@ proc newHeuristicAgent(agentId: int, environmentConfig: string): HeuristicAgent 
       of "inv:scrambler":
         result.features.invScrambler = feature.id
       else:
-        debugLog "Unknown feature: ", feature.name
+        echo "Unknown feature: ", feature.name
 
     for id, name in config.actions:
       case name:
@@ -223,37 +215,37 @@ proc newHeuristicAgent(agentId: int, environmentConfig: string): HeuristicAgent 
         result.actions.vibeWall = id
       else:
         discard
-    debugLog "  actions", result.actions
-    for name, id in config.tagNames:
-      debugLog "    tag name ", name, " id ", id
+    echo "  actions", result.actions
+    for id, name in config.tags:
+      echo "    tag name ", name, " id ", id
       case name:
       of "agent":
         result.tags.agent = id
       of "assembler":
         result.tags.assembler = id
-      of "carbonExtractor":
+      of "carbon_extractor":
         result.tags.carbonExtractor = id
       of "charger":
         result.tags.charger = id
       of "chest":
         result.tags.chest = id
-      of "germaniumExtractor":
+      of "germanium_extractor":
         result.tags.germaniumExtractor = id
-      of "oxygenExtractor":
+      of "oxygen_extractor":
         result.tags.oxygenExtractor = id
-      of "siliconExtractor":
+      of "silicon_extractor":
         result.tags.siliconExtractor = id
       of "wall":
         result.tags.wall = id
       else:
         discard
-    debugLog "  types_names", result.tags
+    echo "  types_names", result.tags
     result.random = initRand(agentId)
   except JsonError, ValueError:
-    debugLog "Error parsing environment config: ", getCurrentExceptionMsg()
+    echo "Error parsing environment config: ", getCurrentExceptionMsg()
 
 proc reset(agent: HeuristicAgent) =
-  debugLog "Resetting heuristic agent ", agent.agentId
+  echo "Resetting heuristic agent ", agent.agentId
 
 proc computeMapBounds(map: Table[Location, seq[FeatureValue]]): MapBounds =
   ## Compute the bounds of the map.
@@ -278,7 +270,7 @@ proc drawMap(agent: HeuristicAgent, map: Table[Location, seq[FeatureValue]], see
   for x in bounds.minX .. bounds.maxX:
     line.add "--"
   line.add "+"
-  debugLog line
+  echo line
   for y in bounds.minY .. bounds.maxY:
     line = "|"
     for x in bounds.minX .. bounds.maxX:
@@ -311,12 +303,12 @@ proc drawMap(agent: HeuristicAgent, map: Table[Location, seq[FeatureValue]], see
               cell = &"{featureValue.value:2d}"
       line.add cell
     line.add "|"
-    debugLog line
+    echo line
   line = "+"
   for x in bounds.minX .. bounds.maxX:
     line.add "--"
   line.add "+"
-  debugLog line
+  echo line
 
 proc getTag(agent: HeuristicAgent, map: Table[Location, seq[FeatureValue]], location: Location): int =
   ## Get the type id of the location in the map.
@@ -407,9 +399,9 @@ proc updateMap(agent: HeuristicAgent, visible: Table[Location, seq[FeatureValue]
 
   # Update the big map with the small visible map.
   if bestScore < 2:
-    debugLog "Looks like we are lost?"
-    debugLog "  current location: ", agent.location.x, ", ", agent.location.y
-    debugLog "  best location: ", bestLocation.x, ", ", bestLocation.y
+    echo "Looks like we are lost?"
+    echo "  current location: ", agent.location.x, ", ", agent.location.y
+    echo "  best location: ", bestLocation.x, ", ", bestLocation.y
   else:
     agent.location =  bestLocation
     for x in -5 .. 5:
@@ -432,7 +424,7 @@ proc step(
   rawActions: pointer
 ) {.raises: [].} =
   try:
-    debugLog "Thinking heuristic agent ", agent.agentId
+    echo "Thinking heuristic agent ", agent.agentId
     # echo "  numAgents", numAgents
     # echo "  numTokens", numTokens
     # echo "  sizeToken", sizeToken
@@ -455,16 +447,15 @@ proc step(
         map[location] = @[]
       map[location].add(FeatureValue(featureId: featureId.int, value: value.int))
 
-    debugLog "current location: ", agent.location.x, ", ", agent.location.y
-    debugLog "visible map:"
+    echo "current location: ", agent.location.x, ", ", agent.location.y
+    echo "visible map:"
     agent.drawMap(map, initHashSet[Location]())
     updateMap(agent, map)
-    debugLog "updated map:"
+    echo "updated map:"
     agent.drawMap(agent.map, agent.seen)
 
-
     let vibe = agent.getVibe(map)
-    debugLog "vibe: ", vibe
+    echo "vibe: ", vibe
 
     let invEnergy = agent.getInventory(map, agent.features.invEnergy)
     let invCarbon = agent.getInventory(map, agent.features.invCarbon)
@@ -477,16 +468,16 @@ proc step(
     let invResonator = agent.getInventory(map, agent.features.invResonator)
     let invScrambler = agent.getInventory(map, agent.features.invScrambler)
 
-    debugLog &"H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
+    echo &"H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
 
     let actions = cast[ptr UncheckedArray[int32]](rawActions)
     let action = agent.random.rand(1 .. 4).int32
     actions[agent.agentId] = action
-    debugLog "taking action ", action
+    echo "taking action ", action
 
   except:
-    debugLog getCurrentException().getStackTrace()
-    debugLog getCurrentExceptionMsg()
+    echo getCurrentException().getStackTrace()
+    echo getCurrentExceptionMsg()
     quit()
 
 exportRefObject HeuristicAgent:
