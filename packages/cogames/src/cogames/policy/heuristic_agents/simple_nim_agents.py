@@ -59,12 +59,9 @@ class HeuristicAgentPolicy(AgentPolicy):
         self._simulation = simulation
         self._buffers = simulation.buffers
 
-    def step(self, obs: AgentObservation) -> Action:
-        if self._simulation is None or self._buffers is None:
-            raise RuntimeError("HeuristicAgentPolicy must be reset with a simulation before stepping.")
-
-        raw_obs = self._buffers.observations
-        raw_actions = self._buffers.actions
+    def _step_with_buffers(self, simulation: Simulation, buffers: Buffers) -> Action:
+        raw_obs = buffers.observations
+        raw_actions = buffers.actions
 
         self._agent.step(
             num_agents=raw_obs.shape[0],
@@ -76,8 +73,20 @@ class HeuristicAgentPolicy(AgentPolicy):
         )
 
         action_idx = int(raw_actions[self._agent_id])
-        action_name = self._simulation.action_names[action_idx]
+        action_name = simulation.action_names[action_idx]
         return Action(name=action_name)
+
+    def step_with_simulation(self, simulation: Simulation | None) -> Action | None:
+        if simulation is None or simulation.buffers is None:
+            return None
+        self._simulation = simulation
+        self._buffers = simulation.buffers
+        return self._step_with_buffers(simulation, simulation.buffers)
+
+    def step(self, obs: AgentObservation) -> Action:
+        if self._simulation is None or self._buffers is None:
+            raise RuntimeError("HeuristicAgentPolicy must be reset with a simulation before stepping.")
+        return self._step_with_buffers(self._simulation, self._buffers)
 
 
 class HeuristicAgentsPolicy(MultiAgentPolicy):

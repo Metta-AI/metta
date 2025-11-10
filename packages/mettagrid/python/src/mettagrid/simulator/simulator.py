@@ -138,12 +138,6 @@ class Simulation:
     def observations(self) -> list[AgentObservation]:
         return [self.agent(agent_id).observation for agent_id in range(self.num_agents)]
 
-    def raw_observations(self) -> np.ndarray:
-        return self.__c_sim.observations()
-
-    def raw_actions(self) -> np.ndarray:
-        return self.__c_sim.actions()
-
     def is_done(self) -> bool:
         return bool(self.__c_sim.truncations().all() or self.__c_sim.terminals().all())
 
@@ -230,12 +224,6 @@ class Simulation:
     @property
     def action_names(self) -> list[str]:
         return list(self._action_ids.keys())
-
-    def raw_observations(self) -> np.ndarray:
-        return self._buffers.observations if self._buffers is not None else self.__c_sim.observations()
-
-    def raw_actions(self) -> np.ndarray:
-        return self._buffers.actions if self._buffers is not None else self.__c_sim.actions()
 
     @property
     def object_type_names(self) -> list[str]:
