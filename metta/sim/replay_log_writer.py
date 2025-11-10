@@ -4,7 +4,7 @@ import json
 import logging
 import uuid
 import zlib
-from typing import Dict
+from typing import Any, Dict
 
 import numpy as np
 
@@ -130,14 +130,10 @@ class EpisodeReplay:
 
     def get_replay_data(self):
         """Gets full replay as a tree of plain python dictionaries."""
-        self.replay_data["max_steps"] = self.step
-        # Trim value changes to make them more compact.
-        for grid_object in self.objects:
-            for key, changes in list(grid_object.items()):
-                if isinstance(changes, list) and len(changes) == 1:
-                    grid_object[key] = changes[0][1]
-
-        return self.replay_data
+        replay_data = dict(self.replay_data)
+        replay_data["max_steps"] = self.step
+        replay_data["objects"] = [self._trim_grid_object(grid_object) for grid_object in self.objects]
+        return replay_data
 
     def write_replay(self, path: str):
         """Writes a replay to a file."""
@@ -164,3 +160,22 @@ class EpisodeReplay:
                     field_name,
                     index,
                 )
+
+    @staticmethod
+    def _collapse_changes(changes: Any) -> Any:
+        """Return a collapsed value if the history only contains a single [step, value] entry."""
+        if (
+            isinstance(changes, list)
+            and len(changes) == 1
+            and isinstance(changes[0], (list, tuple))
+            and len(changes[0]) == 2
+        ):
+            return changes[0][1]
+        return changes
+
+    def _trim_grid_object(self, grid_object: dict) -> dict:
+        """Produce a trimmed copy of a grid object's change histories."""
+        trimmed: dict[str, Any] = {}
+        for key, changes in grid_object.items():
+            trimmed[key] = self._collapse_changes(changes)
+        return trimmed

@@ -2,12 +2,10 @@
 # This backend compiles the C++ extension using Bazel during package installation
 
 import os
-import shlex
 import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Sequence
 
 from setuptools.build_meta import (
     build_editable as _build_editable,
@@ -205,145 +203,12 @@ def _run_mettascope_build() -> None:
     print(f"Building mettascope from {METTASCOPE_DIR}")
 
     lock_path = METTASCOPE_DIR / "nimby.lock"
-    workdir = _prepare_nimby_workdir()
-    _sanitize_nimby_cache(lock_path)
-    _run_nimby_sync(lock_path, workdir)
-    include_paths = _load_nimby_include_paths(workdir)
-    _remove_repo_nim_cfg()
-    _run_nim_build(include_paths)
+    _repair_nimby_cache(lock_path)
+    cmd("nimby sync -g nimby.lock")
+    cmd("nim c bindings/bindings.nim")
 
     print("Successfully built mettascope")
     _sync_mettascope_package_data()
-
-
-def _run_process(args: Sequence[str], *, cwd: Path) -> subprocess.CompletedProcess[str]:
-    """Execute a command, streaming output for easier diagnosis."""
-    printable = " ".join(shlex.quote(str(part)) for part in args)
-    print(f"Running: {printable}")
-    result = subprocess.run(
-        [str(part) for part in args],
-        cwd=cwd,
-        capture_output=True,
-        text=True,
-    )
-    if result.stderr:
-        print(result.stderr, file=sys.stderr)
-    if result.stdout:
-        print(result.stdout, file=sys.stderr)
-    if result.returncode != 0:
-        raise RuntimeError(f"Mettascope build failed: {printable}")
-    return result
-
-
-def _prepare_nimby_workdir() -> Path:
-    """Create a clean scratch directory Nimby can write into safely."""
-    workdir = METTASCOPE_DIR / ".nimby-work"
-    if workdir.exists():
-        shutil.rmtree(workdir)
-    workdir.mkdir(parents=True, exist_ok=True)
-    return workdir
-
-
-def _run_nimby_sync(lock_path: Path, workdir: Path) -> None:
-    """Invoke Nimby in a scratch directory so repo files stay untouched."""
-    if not lock_path.exists():
-        raise RuntimeError(f"Nimby lock file missing: {lock_path}")
-    _run_process(["nimby", "sync", "-g", str(lock_path)], cwd=workdir)
-
-
-def _collect_package_names(lock_path: Path) -> list[str]:
-    """Read package names from the lock file in declared order."""
-    packages: list[str] = []
-    for raw_line in lock_path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
-            continue
-        tokens = line.split()
-        if tokens:
-            packages.append(tokens[0])
-    return packages
-
-
-def _sanitize_nimby_cache(lock_path: Path) -> None:
-    """Delete Nimby packages whose nimble metadata is missing or unreadable."""
-    pkgs_root = Path.home() / ".nimby" / "pkgs"
-    if not pkgs_root.exists():
-        return
-
-    for package in _collect_package_names(lock_path):
-        package_dir = pkgs_root / package
-        if not package_dir.exists():
-            continue
-
-        nimble_files = list(package_dir.glob("*.nimble"))
-        needs_purge = not nimble_files
-        for nimble_file in nimble_files:
-            try:
-                nimble_file.open("r", encoding="utf-8").close()
-            except OSError:
-                needs_purge = True
-                break
-
-        if needs_purge:
-            print(f"Removing corrupt Nimby cache for {package}: {package_dir}")
-            shutil.rmtree(package_dir, ignore_errors=True)
-
-
-def _load_nimby_include_paths(workdir: Path) -> list[str]:
-    """Read the include directives Nimby generated into nim.cfg."""
-    cfg_path = workdir / "nim.cfg"
-    if not cfg_path.exists():
-        raise RuntimeError(f"Nimby did not write {cfg_path}")
-
-    include_paths: list[str] = []
-    for raw_line in cfg_path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line.startswith("--path:"):
-            continue
-        _, _, raw_path = line.partition(":")
-        cleaned = raw_path.strip().strip('"')
-        if cleaned:
-            include_paths.append(Path(cleaned).resolve().as_posix())
-
-    include_paths.extend(
-        path.as_posix()
-        for path in (
-            METTASCOPE_DIR.resolve(),
-            (METTASCOPE_DIR / "src").resolve(),
-        )
-        if path.exists()
-    )
-
-    ordered: list[str] = []
-    seen: set[str] = set()
-    for path in include_paths:
-        if path not in seen:
-            seen.add(path)
-            ordered.append(path)
-    return ordered
-
-
-def _remove_repo_nim_cfg() -> None:
-    """Delete stray nim.cfg files that Nim would otherwise ingest."""
-    cfg_path = METTASCOPE_DIR / "nim.cfg"
-    if cfg_path.exists():
-        cfg_path.unlink()
-
-
-def _run_nim_build(include_paths: Sequence[str]) -> None:
-    """Compile bindings while passing include paths explicitly."""
-    args = (
-        [
-            "nim",
-            "c",
-            "--skipParentCfg",
-        ]
-        + [f"--path:{path}" for path in include_paths]
-        + [
-            "bindings/bindings.nim",
-        ]
-    )
-    _run_process(args, cwd=METTASCOPE_DIR)
 
 
 def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
@@ -370,6 +235,35 @@ def build_editable(wheel_directory, config_settings=None, metadata_directory=Non
 def build_sdist(sdist_directory, config_settings=None):
     """Build a source distribution without compiling the extension."""
     return _build_sdist(sdist_directory, config_settings)
+
+
+def _repair_nimby_cache(lock_path: Path) -> None:
+    """Delete Nimby packages whose metadata files are missing or unreadable."""
+    pkgs_root = Path.home() / ".nimby" / "pkgs"
+    if not lock_path.exists() or not pkgs_root.exists():
+        return
+
+    for raw_line in lock_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        package_name = line.split()[0]
+        package_dir = pkgs_root / package_name
+        if not package_dir.exists():
+            continue
+
+        nimble_files = list(package_dir.glob("*.nimble"))
+        needs_refresh = not nimble_files
+        for nimble_file in nimble_files:
+            try:
+                nimble_file.open("r", encoding="utf-8").close()
+            except OSError:
+                needs_refresh = True
+                break
+
+        if needs_refresh:
+            print(f"Refreshing Nimby package cache for {package_name} at {package_dir}")
+            shutil.rmtree(package_dir, ignore_errors=True)
 
 
 __all__ = [
