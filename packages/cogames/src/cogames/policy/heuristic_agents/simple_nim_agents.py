@@ -17,17 +17,7 @@ class HeuristicAgentPolicy(AgentPolicy):
             "obs_width": policy_env_info.obs_width,
             "obs_height": policy_env_info.obs_height,
             "actions": [action.name for action in policy_env_info.actions.actions()],
-            "tag_names": {
-                "agent": 99,
-                "assembler": 0,
-                "carbonExtractor": 1,
-                "charger": 2,
-                "chest": 3,
-                "germaniumExtractor": 4,
-                "oxygenExtractor": 5,
-                "siliconExtractor": 6,
-                "wall": 7,
-            },
+            "tags": policy_env_info.tags,
             "obs_features": [],
         }
         for feature in policy_env_info.obs_features:
