@@ -2,26 +2,26 @@
 
 import json
 import logging
-from typing import Optional
+import subprocess
+from typing import TYPE_CHECKING, Optional
 
 from observatory_mcp.analyzers import skypilot_analyzer
-from observatory_mcp.clients.s3_client import S3Client
-from observatory_mcp.clients.skypilot_client import SkypilotClient
-from observatory_mcp.clients.wandb_client import WandBClient
 from observatory_mcp.utils import format_error_response, format_success_response
+
+if TYPE_CHECKING:
+    from metta.adaptive.stores.wandb import WandbStore
+    from metta.utils.s3 import S3Store
 
 logger = logging.getLogger(__name__)
 
 
 async def list_skypilot_jobs(
-    skypilot_client: SkypilotClient,
     status: Optional[str] = None,
     limit: int = 100,
 ) -> str:
     """List Skypilot jobs with optional status filter.
 
     Args:
-        skypilot_client: Skypilot client instance
         status: Optional status filter ("PENDING", "RUNNING", "SUCCEEDED", "FAILED", "CANCELLED")
         limit: Maximum number of jobs to return (default: 100)
 
@@ -32,7 +32,8 @@ async def list_skypilot_jobs(
         logger.info("Listing Skypilot jobs")
 
         cmd = ["sky", "jobs", "queue", "--json"]
-        stdout, stderr, returncode = skypilot_client.run_command(cmd, timeout=30)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
 
         if returncode != 0:
             raise RuntimeError(f"sky jobs queue failed: {stderr}")
@@ -79,13 +80,11 @@ def _parse_sky_jobs_text_output(text: str) -> list[dict]:
 
 
 async def get_skypilot_job_status(
-    skypilot_client: SkypilotClient,
     job_id: str,
 ) -> str:
     """Get detailed status for a specific Skypilot job.
 
     Args:
-        skypilot_client: Skypilot client instance
         job_id: Skypilot job ID
 
     Returns:
@@ -95,7 +94,8 @@ async def get_skypilot_job_status(
         logger.info(f"Getting Skypilot job status: {job_id}")
 
         cmd = ["sky", "jobs", "status", job_id, "--json"]
-        stdout, stderr, returncode = skypilot_client.run_command(cmd, timeout=30)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
 
         if returncode != 0:
             raise RuntimeError(f"sky jobs status failed: {stderr}")
@@ -114,14 +114,12 @@ async def get_skypilot_job_status(
 
 
 async def get_skypilot_job_logs(
-    skypilot_client: SkypilotClient,
     job_id: str,
     tail_lines: int = 100,
 ) -> str:
     """Get logs for a Skypilot job.
 
     Args:
-        skypilot_client: Skypilot client instance
         job_id: Skypilot job ID
         tail_lines: Number of lines to return (default: 100)
 
@@ -132,7 +130,8 @@ async def get_skypilot_job_logs(
         logger.info(f"Getting Skypilot job logs: {job_id}")
 
         cmd = ["sky", "jobs", "logs", job_id, "--tail", str(tail_lines)]
-        stdout, stderr, returncode = skypilot_client.run_command(cmd, timeout=60)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
 
         if returncode != 0:
             raise RuntimeError(f"sky jobs logs failed: {stderr}")
@@ -153,13 +152,11 @@ async def get_skypilot_job_logs(
 
 
 async def analyze_skypilot_job_performance(
-    skypilot_client: SkypilotClient,
     limit: int = 100,
 ) -> str:
     """Analyze job performance trends.
 
     Args:
-        skypilot_client: Skypilot client instance
         limit: Maximum number of jobs to analyze (default: 100)
 
     Returns:
@@ -169,7 +166,8 @@ async def analyze_skypilot_job_performance(
         logger.info("Analyzing Skypilot job performance")
 
         cmd = ["sky", "jobs", "queue", "--json"]
-        stdout, stderr, returncode = skypilot_client.run_command(cmd, timeout=30)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
 
         if returncode != 0:
             raise RuntimeError(f"sky jobs queue failed: {stderr}")
@@ -192,13 +190,11 @@ async def analyze_skypilot_job_performance(
 
 
 async def get_skypilot_resource_utilization(
-    skypilot_client: SkypilotClient,
     limit: int = 100,
 ) -> str:
     """Get resource utilization statistics.
 
     Args:
-        skypilot_client: Skypilot client instance
         limit: Maximum number of jobs to analyze (default: 100)
 
     Returns:
@@ -208,7 +204,8 @@ async def get_skypilot_resource_utilization(
         logger.info("Getting Skypilot resource utilization")
 
         cmd = ["sky", "jobs", "queue", "--json"]
-        stdout, stderr, returncode = skypilot_client.run_command(cmd, timeout=30)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
 
         if returncode != 0:
             raise RuntimeError(f"sky jobs queue failed: {stderr}")
@@ -231,13 +228,11 @@ async def get_skypilot_resource_utilization(
 
 
 async def compare_skypilot_job_configs(
-    skypilot_client: SkypilotClient,
     job_ids: list[str],
 ) -> str:
     """Compare job configurations.
 
     Args:
-        skypilot_client: Skypilot client instance
         job_ids: List of job IDs to compare
 
     Returns:
@@ -249,7 +244,8 @@ async def compare_skypilot_job_configs(
         jobs_data = []
         for job_id in job_ids:
             cmd = ["sky", "jobs", "status", job_id, "--json"]
-            stdout, stderr, returncode = skypilot_client.run_command(cmd, timeout=30)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            stdout, returncode = result.stdout, result.returncode
 
             if returncode == 0:
                 try:
@@ -270,13 +266,11 @@ async def compare_skypilot_job_configs(
 
 
 async def analyze_skypilot_job_failures(
-    skypilot_client: SkypilotClient,
     limit: int = 100,
 ) -> str:
     """Analyze job failure patterns.
 
     Args:
-        skypilot_client: Skypilot client instance
         limit: Maximum number of jobs to analyze (default: 100)
 
     Returns:
@@ -286,7 +280,8 @@ async def analyze_skypilot_job_failures(
         logger.info("Analyzing Skypilot job failures")
 
         cmd = ["sky", "jobs", "queue", "--json"]
-        stdout, stderr, returncode = skypilot_client.run_command(cmd, timeout=30)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
 
         if returncode != 0:
             raise RuntimeError(f"sky jobs queue failed: {stderr}")
@@ -309,13 +304,11 @@ async def analyze_skypilot_job_failures(
 
 
 async def get_skypilot_job_cost_estimates(
-    skypilot_client: SkypilotClient,
     limit: int = 100,
 ) -> str:
     """Get job cost estimates.
 
     Args:
-        skypilot_client: Skypilot client instance
         limit: Maximum number of jobs to analyze (default: 100)
 
     Returns:
@@ -325,7 +318,8 @@ async def get_skypilot_job_cost_estimates(
         logger.info("Getting Skypilot job cost estimates")
 
         cmd = ["sky", "jobs", "queue", "--json"]
-        stdout, stderr, returncode = skypilot_client.run_command(cmd, timeout=30)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
 
         if returncode != 0:
             raise RuntimeError(f"sky jobs queue failed: {stderr}")
@@ -348,8 +342,7 @@ async def get_skypilot_job_cost_estimates(
 
 
 async def link_skypilot_job_to_wandb_runs(
-    skypilot_client: SkypilotClient,
-    wandb_client: WandBClient,
+    wandb_store: "WandbStore",
     job_id: str,
     entity: str,
     project: str,
@@ -357,8 +350,7 @@ async def link_skypilot_job_to_wandb_runs(
     """Link a Skypilot job to its WandB runs.
 
     Args:
-        skypilot_client: Skypilot client instance
-        wandb_client: WandB client instance
+        wandb_store: WandbStore instance
         job_id: Skypilot job ID
         entity: WandB entity (user/team)
         project: WandB project name
@@ -370,7 +362,8 @@ async def link_skypilot_job_to_wandb_runs(
         logger.info(f"Linking Skypilot job to WandB runs: {job_id}")
 
         cmd = ["sky", "jobs", "status", job_id, "--json"]
-        stdout, stderr, returncode = skypilot_client.run_command(cmd, timeout=30)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
 
         if returncode != 0:
             raise RuntimeError(f"sky jobs status failed: {stderr}")
@@ -384,16 +377,22 @@ async def link_skypilot_job_to_wandb_runs(
 
         matching_runs = []
         if job_name:
-            runs = wandb_client.api.runs(f"{entity}/{project}", filters={"name": {"$regex": job_name}})
-            for run in runs:
-                matching_runs.append(
-                    {
-                        "id": run.id,
-                        "name": run.name,
-                        "url": run.url,
-                        "state": run.state,
-                    }
-                )
+            # Use wandb_store to search for runs matching the job name
+            runs = wandb_store.list_runs(
+                entity=entity,
+                project=project,
+                filters={"name": {"$regex": job_name}},
+                limit=100,  # Reasonable limit for linking
+            )
+            matching_runs = [
+                {
+                    "id": run.get("id"),
+                    "name": run.get("name"),
+                    "url": run.get("url"),
+                    "state": run.get("state"),
+                }
+                for run in runs
+            ]
 
         data = {
             "skypilot_job": {
@@ -413,15 +412,13 @@ async def link_skypilot_job_to_wandb_runs(
 
 
 async def link_skypilot_job_to_s3_checkpoints(
-    skypilot_client: SkypilotClient,
-    s3_client: S3Client,
+    s3_store: "S3Store",
     job_id: str,
 ) -> str:
     """Link a Skypilot job to its S3 checkpoints.
 
     Args:
-        skypilot_client: Skypilot client instance
-        s3_client: S3 client instance
+        s3_store: S3Store instance
         job_id: Skypilot job ID
 
     Returns:
@@ -431,7 +428,8 @@ async def link_skypilot_job_to_s3_checkpoints(
         logger.info(f"Linking Skypilot job to S3 checkpoints: {job_id}")
 
         cmd = ["sky", "jobs", "status", job_id, "--json"]
-        stdout, stderr, returncode = skypilot_client.run_command(cmd, timeout=30)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
 
         if returncode != 0:
             raise RuntimeError(f"sky jobs status failed: {stderr}")
@@ -447,32 +445,8 @@ async def link_skypilot_job_to_s3_checkpoints(
         checkpoints = []
         if run_name:
             s3_prefix = f"checkpoints/{run_name}/"
-            paginator = s3_client.client.get_paginator("list_objects_v2")
-
-            for page in paginator.paginate(Bucket=s3_client.bucket, Prefix=s3_prefix):
-                if "Contents" not in page:
-                    continue
-
-                for obj in page["Contents"]:
-                    key = obj["Key"]
-                    if key.endswith(".mpt"):
-                        filename = key.split("/")[-1]
-                        checkpoint_info = {
-                            "key": key,
-                            "uri": f"s3://{s3_client.bucket}/{key}",
-                            "filename": filename,
-                            "size": obj["Size"],
-                            "last_modified": obj["LastModified"].isoformat(),
-                        }
-
-                        if ":v" in filename:
-                            try:
-                                epoch_str = filename.split(":v")[1].replace(".mpt", "")
-                                checkpoint_info["epoch"] = int(epoch_str)
-                            except ValueError:
-                                pass
-
-                        checkpoints.append(checkpoint_info)
+            # Use s3_store to list checkpoints
+            checkpoints = s3_store.list_checkpoints(prefix=s3_prefix, max_keys=1000)
 
         data = {
             "skypilot_job": {

@@ -2,13 +2,16 @@
 
 import json
 import logging
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from observatory_mcp.analyzers import training_context, wandb_analyzer
-from observatory_mcp.clients.s3_client import S3Client
-from observatory_mcp.clients.skypilot_client import SkypilotClient
-from observatory_mcp.clients.wandb_client import WandBClient
 from observatory_mcp.utils import format_error_response, format_success_response
+
+if TYPE_CHECKING:
+    from mypy_boto3_s3 import S3Client as BotoS3Client
+    from wandb import Api
+
+    from metta.adaptive.stores.wandb import WandbStore
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +48,7 @@ def _safe_dict_convert(obj: Any) -> dict:
 
 
 async def list_wandb_runs(
-    wandb_client: WandBClient,
+    wandb_store: "WandbStore",
     entity: str,
     project: str,
     tags: Optional[list[str]] = None,
@@ -55,7 +58,7 @@ async def list_wandb_runs(
     """List WandB runs for entity/project with optional filters.
 
     Args:
-        wandb_client: WandB client instance
+        wandb_store: WandbStore instance
         entity: WandB entity (user/team)
         project: WandB project name
         tags: Filter by tags (list of tag strings)
@@ -74,58 +77,13 @@ async def list_wandb_runs(
         if tags:
             filters["tags"] = {"$in": tags}
 
-        runs = wandb_client.api.runs(
-            f"{entity}/{project}",
+        # Use store's list_runs method
+        run_list = wandb_store.list_runs(
+            entity=entity,
+            project=project,
             filters=filters if filters else None,
-            order="-created_at",
+            limit=limit,
         )
-
-        run_list = []
-        count = 0
-        for run in runs:
-            if count >= limit:
-                break
-
-            try:
-                # Handle created_at - can be datetime or string
-                created_at = None
-                if hasattr(run, "created_at") and run.created_at:
-                    if isinstance(run.created_at, str):
-                        created_at = run.created_at
-                    else:
-                        created_at = run.created_at.isoformat()
-
-                # Handle updated_at - can be datetime or string (may not exist)
-                updated_at = None
-                if hasattr(run, "updated_at") and run.updated_at:
-                    if isinstance(run.updated_at, str):
-                        updated_at = run.updated_at
-                    else:
-                        updated_at = run.updated_at.isoformat()
-
-                # Handle tags - ensure it's always a list
-                tags = run.tags if hasattr(run, "tags") else []
-                if not isinstance(tags, list):
-                    tags = list(tags) if tags else []
-
-                run_data = {
-                    "id": run.id,
-                    "name": run.name,
-                    "display_name": getattr(run, "display_name", run.name),
-                    "state": run.state,
-                    "tags": tags,
-                    "created_at": created_at,
-                    "updated_at": updated_at,
-                    "url": run.url,
-                    "config": _safe_dict_convert(run.config),
-                    "summary": _safe_dict_convert(run.summary),
-                }
-                run_list.append(run_data)
-                count += 1
-            except Exception as e:
-                logger.warning(f"Error processing run {getattr(run, 'id', 'unknown')}: {e}")
-                # Skip this run and continue
-                continue
 
         data = {
             "entity": entity,
@@ -143,7 +101,7 @@ async def list_wandb_runs(
 
 
 async def get_wandb_run(
-    wandb_client: WandBClient,
+    wandb_store: "WandbStore",
     entity: str,
     project: str,
     run_id: Optional[str] = None,
@@ -152,7 +110,7 @@ async def get_wandb_run(
     """Get detailed information about a specific WandB run.
 
     Args:
-        wandb_client: WandB client instance
+        wandb_store: WandbStore instance
         entity: WandB entity (user/team)
         project: WandB project name
         run_id: WandB run ID (preferred if available)
@@ -162,57 +120,27 @@ async def get_wandb_run(
         JSON string with detailed run information
     """
     try:
-        if run_id:
-            logger.info(f"Getting WandB run by ID: {entity}/{project}/{run_id}")
-            run = wandb_client.api.run(f"{entity}/{project}/{run_id}")
-        elif run_name:
-            logger.info(f"Getting WandB run by name: {entity}/{project}/{run_name}")
-            runs = wandb_client.api.runs(f"{entity}/{project}", filters={"display_name": run_name})
-            run = next(iter(runs), None)
-            if not run:
-                return format_error_response(
-                    ValueError(f"Run not found: {run_name}"),
-                    "get_wandb_run",
-                    f"Run '{run_name}' not found in {entity}/{project}",
-                )
-        else:
+        if not run_id and not run_name:
             return format_error_response(
                 ValueError("Either run_id or run_name must be provided"),
                 "get_wandb_run",
                 "Missing required parameter: run_id or run_name",
             )
 
-        # Handle created_at - can be datetime or string
-        created_at = None
-        if hasattr(run, "created_at") and run.created_at:
-            if isinstance(run.created_at, str):
-                created_at = run.created_at
-            else:
-                created_at = run.created_at.isoformat()
+        # Use run_id if provided, otherwise use run_name
+        target_id = run_id or run_name
+        logger.info(f"Getting WandB run: {entity}/{project}/{target_id}")
 
-        # Handle updated_at - can be datetime or string (may not exist)
-        updated_at = None
-        if hasattr(run, "updated_at") and run.updated_at:
-            if isinstance(run.updated_at, str):
-                updated_at = run.updated_at
-            else:
-                updated_at = run.updated_at.isoformat()
-
-        data = {
-            "id": run.id,
-            "name": run.name,
-            "display_name": getattr(run, "display_name", run.name),
-            "state": run.state,
-            "tags": run.tags,
-            "created_at": created_at,
-            "updated_at": updated_at,
-            "url": run.url,
-            "config": _safe_dict_convert(run.config),
-            "summary": _safe_dict_convert(run.summary),
-        }
+        run_data = wandb_store.get_run(entity=entity, project=project, run_id=target_id)
+        if not run_data:
+            return format_error_response(
+                ValueError(f"Run not found: {target_id}"),
+                "get_wandb_run",
+                f"Run '{target_id}' not found in {entity}/{project}",
+            )
 
         logger.info("get_wandb_run completed")
-        return format_success_response(data)
+        return format_success_response(run_data)
 
     except Exception as e:
         logger.warning(f"get_wandb_run failed: {e}")
@@ -220,7 +148,7 @@ async def get_wandb_run(
 
 
 async def get_wandb_run_metrics(
-    wandb_client: WandBClient,
+    wandb_store: "WandbStore",
     entity: str,
     project: str,
     run_id: str,
@@ -230,7 +158,7 @@ async def get_wandb_run_metrics(
     """Get metric time series data for a WandB run.
 
     Args:
-        wandb_client: WandB client instance
+        wandb_store: WandbStore instance
         entity: WandB entity (user/team)
         project: WandB project name
         run_id: WandB run ID
@@ -243,24 +171,32 @@ async def get_wandb_run_metrics(
     try:
         logger.info(f"Getting WandB run metrics: {entity}/{project}/{run_id}")
 
-        run = wandb_client.api.run(f"{entity}/{project}/{run_id}")
+        metrics_data = wandb_store.get_run_metrics(
+            entity=entity,
+            project=project,
+            run_id=run_id,
+            metric_keys=metric_keys,
+            samples=samples,
+        )
 
-        if samples:
-            history = run.history(keys=metric_keys, pandas=False, samples=samples)
-        else:
-            history = run.history(keys=metric_keys, pandas=False)
-
-        metrics_data = list(history)
+        # If no data found, try to discover available metrics
+        available_metrics = None
+        if len(metrics_data.get("data", [])) == 0:
+            discover_result = wandb_store.discover_run_metrics(
+                entity=entity,
+                project=project,
+                run_id=run_id,
+            )
+            if discover_result.get("all_metrics"):
+                available_metrics = discover_result["all_metrics"]
+                logger.info(f"Discovered {len(available_metrics)} available metrics in run")
 
         data = {
-            "run_id": run_id,
-            "run_name": run.name,
-            "metric_keys": metric_keys,
-            "samples": len(metrics_data),
-            "data": metrics_data,
+            **metrics_data,
+            "available_metrics": available_metrics,
         }
 
-        logger.info(f"get_wandb_run_metrics completed ({len(metrics_data)} samples)")
+        logger.info(f"get_wandb_run_metrics completed ({metrics_data.get('samples', 0)} samples)")
         return format_success_response(data)
 
     except Exception as e:
@@ -268,8 +204,42 @@ async def get_wandb_run_metrics(
         return format_error_response(e, "get_wandb_run_metrics")
 
 
+async def discover_wandb_run_metrics(
+    wandb_store: "WandbStore",
+    entity: str,
+    project: str,
+    run_id: str,
+) -> str:
+    """Discover available metrics for a WandB run by sampling its history.
+
+    Args:
+        wandb_store: WandbStore instance
+        entity: WandB entity (user/team)
+        project: WandB project name
+        run_id: WandB run ID
+
+    Returns:
+        JSON string with list of available metric keys
+    """
+    try:
+        logger.info(f"Discovering metrics for WandB run: {entity}/{project}/{run_id}")
+
+        data = wandb_store.discover_run_metrics(
+            entity=entity,
+            project=project,
+            run_id=run_id,
+        )
+
+        logger.info(f"discover_wandb_run_metrics completed ({data.get('count', 0)} metrics found)")
+        return format_success_response(data)
+
+    except Exception as e:
+        logger.warning(f"discover_wandb_run_metrics failed: {e}")
+        return format_error_response(e, "discover_wandb_run_metrics")
+
+
 async def get_wandb_run_artifacts(
-    wandb_client: WandBClient,
+    wandb_api: "Api",
     entity: str,
     project: str,
     run_id: str,
@@ -277,7 +247,7 @@ async def get_wandb_run_artifacts(
     """Get list of artifacts for a WandB run.
 
     Args:
-        wandb_client: WandB client instance
+        wandb_api: WandB API instance
         entity: WandB entity (user/team)
         project: WandB project name
         run_id: WandB run ID
@@ -288,7 +258,7 @@ async def get_wandb_run_artifacts(
     try:
         logger.info(f"Getting WandB run artifacts: {entity}/{project}/{run_id}")
 
-        run = wandb_client.api.run(f"{entity}/{project}/{run_id}")
+        run = wandb_api.run(f"{entity}/{project}/{run_id}")
         artifacts = run.logged_artifacts()
 
         artifact_list = []
@@ -328,7 +298,7 @@ async def get_wandb_run_artifacts(
 
 
 async def get_wandb_run_logs(
-    wandb_client: WandBClient,
+    wandb_api: "Api",
     entity: str,
     project: str,
     run_id: str,
@@ -336,7 +306,7 @@ async def get_wandb_run_logs(
     """Get logs for a WandB run.
 
     Args:
-        wandb_client: WandB client instance
+        wandb_api: WandB API instance
         entity: WandB entity (user/team)
         project: WandB project name
         run_id: WandB run ID
@@ -347,7 +317,7 @@ async def get_wandb_run_logs(
     try:
         logger.info(f"Getting WandB run logs: {entity}/{project}/{run_id}")
 
-        run = wandb_client.api.run(f"{entity}/{project}/{run_id}")
+        run = wandb_api.run(f"{entity}/{project}/{run_id}")
 
         log_data = {
             "run_id": run_id,
@@ -364,7 +334,7 @@ async def get_wandb_run_logs(
 
 
 async def analyze_wandb_training_progression(
-    wandb_client: WandBClient,
+    wandb_store: "WandbStore",
     entity: str,
     project: str,
     run_id: str,
@@ -375,7 +345,7 @@ async def analyze_wandb_training_progression(
     """Analyze training progression for a WandB run.
 
     Args:
-        wandb_client: WandB client instance
+        wandb_store: WandbStore instance
         entity: WandB entity (user/team)
         project: WandB project name
         run_id: WandB run ID
@@ -389,9 +359,18 @@ async def analyze_wandb_training_progression(
     try:
         logger.info(f"Analyzing WandB training progression: {entity}/{project}/{run_id}")
 
-        run = wandb_client.api.run(f"{entity}/{project}/{run_id}")
-        history = run.history(keys=metric_keys, pandas=False)
-        metrics_data = list(history)
+        # Get metrics data using WandbStore
+        metrics_result = wandb_store.get_run_metrics(
+            entity=entity,
+            project=project,
+            run_id=run_id,
+            metric_keys=metric_keys,
+        )
+        metrics_data = metrics_result.get("data", [])
+
+        # Get run name
+        run_data = wandb_store.get_run(entity=entity, project=project, run_id=run_id)
+        run_name = run_data.get("name", run_id) if run_data else run_id
 
         context = training_context.analyze_training_progression(
             metrics_data=metrics_data,
@@ -401,7 +380,7 @@ async def analyze_wandb_training_progression(
         )
 
         context.run_id = run_id
-        context.run_name = run.name
+        context.run_name = run_name
 
         data = context.to_dict()
 
@@ -414,7 +393,7 @@ async def analyze_wandb_training_progression(
 
 
 async def compare_wandb_runs(
-    wandb_client: WandBClient,
+    wandb_store: "WandbStore",
     entity: str,
     project: str,
     run_ids: list[str],
@@ -423,7 +402,7 @@ async def compare_wandb_runs(
     """Compare multiple WandB runs.
 
     Args:
-        wandb_client: WandB client instance
+        wandb_store: WandbStore instance
         entity: WandB entity (user/team)
         project: WandB project name
         run_ids: List of WandB run IDs to compare
@@ -437,15 +416,16 @@ async def compare_wandb_runs(
 
         runs_data = []
         for run_id in run_ids:
-            run = wandb_client.api.run(f"{entity}/{project}/{run_id}")
-            runs_data.append(
-                {
-                    "id": run.id,
-                    "name": run.name,
-                    "summary": _safe_dict_convert(run.summary),
-                    "config": _safe_dict_convert(run.config),
-                }
-            )
+            run_data = wandb_store.get_run(entity=entity, project=project, run_id=run_id)
+            if run_data:
+                runs_data.append(
+                    {
+                        "id": run_data.get("id", run_id),
+                        "name": run_data.get("name", run_id),
+                        "summary": run_data.get("summary", {}),
+                        "config": run_data.get("config", {}),
+                    }
+                )
 
         comparison = wandb_analyzer.compare_runs(runs_data, metric_keys)
 
@@ -458,7 +438,7 @@ async def compare_wandb_runs(
 
 
 async def analyze_wandb_learning_curves(
-    wandb_client: WandBClient,
+    wandb_store: "WandbStore",
     entity: str,
     project: str,
     run_id: str,
@@ -468,7 +448,7 @@ async def analyze_wandb_learning_curves(
     """Analyze learning curves for a WandB run.
 
     Args:
-        wandb_client: WandB client instance
+        wandb_store: WandbStore instance
         entity: WandB entity (user/team)
         project: WandB project name
         run_id: WandB run ID
@@ -481,9 +461,18 @@ async def analyze_wandb_learning_curves(
     try:
         logger.info(f"Analyzing WandB learning curves: {entity}/{project}/{run_id}")
 
-        run = wandb_client.api.run(f"{entity}/{project}/{run_id}")
-        history = run.history(keys=metric_keys, pandas=False)
-        metrics_data = list(history)
+        # Get metrics data using WandbStore
+        metrics_result = wandb_store.get_run_metrics(
+            entity=entity,
+            project=project,
+            run_id=run_id,
+            metric_keys=metric_keys,
+        )
+        metrics_data = metrics_result.get("data", [])
+
+        # Get run name
+        run_data = wandb_store.get_run(entity=entity, project=project, run_id=run_id)
+        run_name = run_data.get("name", run_id) if run_data else run_id
 
         analysis = wandb_analyzer.analyze_learning_curves(
             metrics_data=metrics_data,
@@ -492,7 +481,7 @@ async def analyze_wandb_learning_curves(
         )
 
         analysis["run_id"] = run_id
-        analysis["run_name"] = run.name
+        analysis["run_name"] = run_name
 
         logger.info("analyze_wandb_learning_curves completed")
         return format_success_response(analysis)
@@ -503,7 +492,7 @@ async def analyze_wandb_learning_curves(
 
 
 async def identify_wandb_critical_moments(
-    wandb_client: WandBClient,
+    wandb_store: "WandbStore",
     entity: str,
     project: str,
     run_id: str,
@@ -513,7 +502,7 @@ async def identify_wandb_critical_moments(
     """Identify critical moments in a WandB run.
 
     Args:
-        wandb_client: WandB client instance
+        wandb_store: WandbStore instance
         entity: WandB entity (user/team)
         project: WandB project name
         run_id: WandB run ID
@@ -526,9 +515,18 @@ async def identify_wandb_critical_moments(
     try:
         logger.info(f"Identifying WandB critical moments: {entity}/{project}/{run_id}")
 
-        run = wandb_client.api.run(f"{entity}/{project}/{run_id}")
-        history = run.history(keys=metric_keys, pandas=False)
-        metrics_data = list(history)
+        # Get metrics data using WandbStore
+        metrics_result = wandb_store.get_run_metrics(
+            entity=entity,
+            project=project,
+            run_id=run_id,
+            metric_keys=metric_keys,
+        )
+        metrics_data = metrics_result.get("data", [])
+
+        # Get run name
+        run_data = wandb_store.get_run(entity=entity, project=project, run_id=run_id)
+        run_name = run_data.get("name", run_id) if run_data else run_id
 
         moments = wandb_analyzer.identify_critical_moments(
             metrics_data=metrics_data,
@@ -538,7 +536,7 @@ async def identify_wandb_critical_moments(
 
         data = {
             "run_id": run_id,
-            "run_name": run.name,
+            "run_name": run_name,
             "critical_moments": moments,
             "count": len(moments),
         }
@@ -552,7 +550,7 @@ async def identify_wandb_critical_moments(
 
 
 async def correlate_wandb_metrics(
-    wandb_client: WandBClient,
+    wandb_store: "WandbStore",
     entity: str,
     project: str,
     run_id: str,
@@ -561,7 +559,7 @@ async def correlate_wandb_metrics(
     """Calculate correlations between metric pairs for a WandB run.
 
     Args:
-        wandb_client: WandB client instance
+        wandb_store: WandbStore instance
         entity: WandB entity (user/team)
         project: WandB project name
         run_id: WandB run ID
@@ -573,14 +571,22 @@ async def correlate_wandb_metrics(
     try:
         logger.info(f"Correlating WandB metrics: {entity}/{project}/{run_id}")
 
-        run = wandb_client.api.run(f"{entity}/{project}/{run_id}")
-
         all_metrics = set()
         for pair in metric_pairs:
             all_metrics.update(pair)
 
-        history = run.history(keys=list(all_metrics), pandas=False)
-        metrics_data = list(history)
+        # Get metrics data using WandbStore
+        metrics_result = wandb_store.get_run_metrics(
+            entity=entity,
+            project=project,
+            run_id=run_id,
+            metric_keys=list(all_metrics),
+        )
+        metrics_data = metrics_result.get("data", [])
+
+        # Get run name
+        run_data = wandb_store.get_run(entity=entity, project=project, run_id=run_id)
+        run_name = run_data.get("name", run_id) if run_data else run_id
 
         metric_tuples = [tuple(pair) for pair in metric_pairs]
         correlations = wandb_analyzer.correlate_metrics(
@@ -589,7 +595,7 @@ async def correlate_wandb_metrics(
         )
 
         correlations["run_id"] = run_id
-        correlations["run_name"] = run.name
+        correlations["run_name"] = run_name
 
         logger.info("correlate_wandb_metrics completed")
         return format_success_response(correlations)
@@ -600,7 +606,7 @@ async def correlate_wandb_metrics(
 
 
 async def analyze_wandb_behavioral_patterns(
-    wandb_client: WandBClient,
+    wandb_store: "WandbStore",
     entity: str,
     project: str,
     run_id: str,
@@ -609,7 +615,7 @@ async def analyze_wandb_behavioral_patterns(
     """Analyze behavioral patterns in a WandB run.
 
     Args:
-        wandb_client: WandB client instance
+        wandb_store: WandbStore instance
         entity: WandB entity (user/team)
         project: WandB project name
         run_id: WandB run ID
@@ -621,20 +627,28 @@ async def analyze_wandb_behavioral_patterns(
     try:
         logger.info(f"Analyzing WandB behavioral patterns: {entity}/{project}/{run_id}")
 
-        run = wandb_client.api.run(f"{entity}/{project}/{run_id}")
-
         default_metrics = ["overview/reward", "metric/agent_step", "experience/rewards"]
         if behavior_categories:
             metric_keys = behavior_categories
         else:
             metric_keys = default_metrics
 
-        history = run.history(keys=metric_keys, pandas=False)
-        metrics_data = list(history)
+        # Get metrics data using WandbStore
+        metrics_result = wandb_store.get_run_metrics(
+            entity=entity,
+            project=project,
+            run_id=run_id,
+            metric_keys=metric_keys,
+        )
+        metrics_data = metrics_result.get("data", [])
+
+        # Get run name
+        run_data = wandb_store.get_run(entity=entity, project=project, run_id=run_id)
+        run_name = run_data.get("name", run_id) if run_data else run_id
 
         analysis = {
             "run_id": run_id,
-            "run_name": run.name,
+            "run_name": run_name,
             "behavior_categories": behavior_categories or default_metrics,
             "patterns": {
                 "action_mastery": _analyze_action_mastery(metrics_data),
@@ -667,7 +681,7 @@ def _analyze_strategy_consistency(metrics_data: list[dict[str, Any]]) -> dict[st
 
 
 async def generate_wandb_training_insights(
-    wandb_client: WandBClient,
+    wandb_store: "WandbStore",
     entity: str,
     project: str,
     run_id: str,
@@ -675,7 +689,7 @@ async def generate_wandb_training_insights(
     """Generate AI-powered training insights for a WandB run.
 
     Args:
-        wandb_client: WandB client instance
+        wandb_store: WandbStore instance
         entity: WandB entity (user/team)
         project: WandB project name
         run_id: WandB run ID
@@ -686,14 +700,21 @@ async def generate_wandb_training_insights(
     try:
         logger.info(f"Generating WandB training insights: {entity}/{project}/{run_id}")
 
-        run = wandb_client.api.run(f"{entity}/{project}/{run_id}")
+        # Get run data using WandbStore
+        run_data = wandb_store.get_run(entity=entity, project=project, run_id=run_id)
+        if not run_data:
+            return format_error_response(
+                ValueError(f"Run not found: {run_id}"),
+                "generate_wandb_training_insights",
+                f"Run '{run_id}' not found in {entity}/{project}",
+            )
 
-        summary = _safe_dict_convert(run.summary)
-        config = _safe_dict_convert(run.config)
+        summary = run_data.get("summary", {})
+        config = run_data.get("config", {})
 
         insights = {
             "run_id": run_id,
-            "run_name": run.name,
+            "run_name": run_data.get("name", run_id),
             "key_achievements": _extract_achievements(summary),
             "concerning_patterns": _extract_concerning_patterns(summary),
             "recommendations": _generate_recommendations(summary, config),
@@ -730,7 +751,7 @@ def _generate_recommendations(summary: dict[str, Any], config: dict[str, Any]) -
 
 
 async def predict_wandb_training_outcome(
-    wandb_client: WandBClient,
+    wandb_store: "WandbStore",
     entity: str,
     project: str,
     run_id: str,
@@ -740,7 +761,7 @@ async def predict_wandb_training_outcome(
     """Predict training outcome for a WandB run.
 
     Args:
-        wandb_client: WandB client instance
+        wandb_store: WandbStore instance
         entity: WandB entity (user/team)
         project: WandB project name
         run_id: WandB run ID
@@ -753,9 +774,14 @@ async def predict_wandb_training_outcome(
     try:
         logger.info(f"Predicting WandB training outcome: {entity}/{project}/{run_id}")
 
-        run = wandb_client.api.run(f"{entity}/{project}/{run_id}")
-        history = run.history(keys=[target_metric], pandas=False)
-        metrics_data = list(history)
+        # Get metrics data using WandbStore
+        metrics_result = wandb_store.get_run_metrics(
+            entity=entity,
+            project=project,
+            run_id=run_id,
+            metric_keys=[target_metric],
+        )
+        metrics_data = metrics_result.get("data", [])
 
         if not metrics_data:
             raise ValueError(f"No data found for metric: {target_metric}")
@@ -764,12 +790,16 @@ async def predict_wandb_training_outcome(
         if len(values) < 2:
             raise ValueError("Insufficient data for prediction")
 
+        # Get run name
+        run_data = wandb_store.get_run(entity=entity, project=project, run_id=run_id)
+        run_name = run_data.get("name", run_id) if run_data else run_id
+
         projected_value = _project_value(values, projection_steps)
         convergence_estimate = _estimate_convergence(values)
 
         prediction = {
             "run_id": run_id,
-            "run_name": run.name,
+            "run_name": run_name,
             "target_metric": target_metric,
             "current_value": values[-1],
             "projected_value": projected_value,
@@ -822,8 +852,9 @@ def _calculate_confidence(values: list[float]) -> float:
 
 
 async def link_wandb_run_to_s3_checkpoints(
-    wandb_client: WandBClient,
-    s3_client: S3Client,
+    wandb_api: "Api",
+    s3_client: "BotoS3Client",
+    bucket: str,
     entity: str,
     project: str,
     run_id: str,
@@ -831,7 +862,7 @@ async def link_wandb_run_to_s3_checkpoints(
     """Link a WandB run to its S3 checkpoints.
 
     Args:
-        wandb_client: WandB client instance
+        wandb_api: WandB API instance
         s3_client: S3 client instance
         entity: WandB entity (user/team)
         project: WandB project name
@@ -843,14 +874,14 @@ async def link_wandb_run_to_s3_checkpoints(
     try:
         logger.info(f"Linking WandB run to S3 checkpoints: {entity}/{project}/{run_id}")
 
-        run = wandb_client.api.run(f"{entity}/{project}/{run_id}")
+        run = wandb_api.run(f"{entity}/{project}/{run_id}")
         run_name = run.name or run_id
 
         s3_prefix = f"checkpoints/{run_name}/"
-        paginator = s3_client.client.get_paginator("list_objects_v2")
+        paginator = s3_client.get_paginator("list_objects_v2")
         checkpoints = []
 
-        for page in paginator.paginate(Bucket=s3_client.bucket, Prefix=s3_prefix):
+        for page in paginator.paginate(Bucket=bucket, Prefix=s3_prefix):
             if "Contents" not in page:
                 continue
 
@@ -860,7 +891,7 @@ async def link_wandb_run_to_s3_checkpoints(
                     filename = key.split("/")[-1]
                     checkpoint_info = {
                         "key": key,
-                        "uri": f"s3://{s3_client.bucket}/{key}",
+                        "uri": f"s3://{bucket}/{key}",
                         "filename": filename,
                         "size": obj["Size"],
                         "last_modified": obj["LastModified"].isoformat(),
@@ -894,8 +925,7 @@ async def link_wandb_run_to_s3_checkpoints(
 
 
 async def link_wandb_run_to_skypilot_job(
-    wandb_client: WandBClient,
-    skypilot_client: SkypilotClient,
+    wandb_api: "Api",
     entity: str,
     project: str,
     run_id: str,
@@ -903,7 +933,7 @@ async def link_wandb_run_to_skypilot_job(
     """Link a WandB run to its Skypilot job.
 
     Args:
-        wandb_client: WandB client instance
+        wandb_api: WandB API instance
         skypilot_client: Skypilot client instance
         entity: WandB entity (user/team)
         project: WandB project name
@@ -915,11 +945,14 @@ async def link_wandb_run_to_skypilot_job(
     try:
         logger.info(f"Linking WandB run to Skypilot job: {entity}/{project}/{run_id}")
 
-        run = wandb_client.api.run(f"{entity}/{project}/{run_id}")
+        run = wandb_api.run(f"{entity}/{project}/{run_id}")
         run_name = run.name or run_id
 
         cmd = ["sky", "jobs", "queue", "--json"]
-        stdout, stderr, returncode = skypilot_client.run_command(cmd, timeout=30)
+        import subprocess
+
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
 
         if returncode != 0:
             raise RuntimeError(f"sky jobs queue failed: {stderr}")

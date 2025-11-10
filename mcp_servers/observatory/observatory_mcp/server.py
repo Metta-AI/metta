@@ -10,13 +10,23 @@ import logging
 import sys
 from typing import Any, Dict, List
 
+import boto3
 import mcp.types as types
+from botocore.exceptions import ClientError, NoCredentialsError
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 
-from metta.app_backend.clients.scorecard_client import ScorecardClient
+try:
+    import wandb
+    from wandb import Api
+except ImportError:
+    wandb = None
+    Api = None
 
-from .clients import S3Client, SkypilotClient, WandBClient
+from metta.adaptive.stores.wandb import WandbStore
+from metta.app_backend.clients.scorecard_client import ScorecardClient
+from metta.utils.s3 import S3Store
+
 from .config import ObservatoryMCPConfig
 from .tools import s3, scorecard, skypilot, wandb
 
@@ -48,36 +58,64 @@ class ObservatoryMCPServer:
             machine_token=self.config.machine_token,
         )
 
-        self.wandb_client: WandBClient | None = None
+        # Initialize WandB store
+        self.wandb_store: WandbStore | None = None
         if self.config.is_wandb_configured():
             try:
-                self.wandb_client = WandBClient(api_key=self.config.wandb_api_key)
+                if Api is None:
+                    raise ImportError("wandb package not installed")
+
+                # Try to use existing wandb authentication first
+                try:
+                    test_api = Api()
+                    _ = test_api.viewer
+                    logger.info("WandB API initialized using cached credentials")
+                except Exception:
+                    logger.info("Cached credentials not working, trying explicit login...")
+                    if self.config.wandb_api_key:
+                        wandb.login(key=self.config.wandb_api_key)
+                        logger.info("WandB API initialized with provided API key")
+                    else:
+                        logger.info("WandB API initialized (authentication may be limited)")
+
+                # Create WandB store instance
+                self.wandb_store = WandbStore(
+                    entity=self.config.wandb_entity,
+                    project=self.config.wandb_project,
+                )
+
                 logger.info(
-                    f"WandB client initialized (entity={self.config.wandb_entity}, project={self.config.wandb_project})"
+                    f"WandB store initialized (entity={self.config.wandb_entity}, project={self.config.wandb_project})"
                 )
             except Exception as e:
-                logger.warning(f"Failed to initialize WandB client: {e}. WandB tools will be unavailable.")
-                self.wandb_client = None
+                logger.warning(f"Failed to initialize WandB store: {e}. WandB tools will be unavailable.")
+                self.wandb_store = None
         else:
             logger.debug("WandB not configured. WandB tools will be unavailable.")
 
-        self.s3_client: S3Client | None = None
+        # Initialize S3 client and store
+        self.s3_client = None
+        self.s3_bucket = self.config.s3_bucket
+        self.s3_store: S3Store | None = None
         # Always try to initialize S3 client - it can use profile or default credentials
         try:
-            self.s3_client = S3Client(profile=self.config.aws_profile, bucket=self.config.s3_bucket)
-            if self.s3_client._client is None:
-                self.s3_client = None
-                logger.warning("S3 client initialization failed. S3 tools will be unavailable.")
+            if self.config.aws_profile:
+                session = boto3.Session(profile_name=self.config.aws_profile)
+                self.s3_client = session.client("s3")
+                logger.info(f"S3 client initialized (profile={self.config.aws_profile}, bucket={self.s3_bucket})")
             else:
-                profile_info = (
-                    f"profile={self.config.aws_profile}" if self.config.aws_profile else "default credentials"
-                )
-                logger.info(f"S3 client initialized ({profile_info}, bucket={self.config.s3_bucket})")
-        except Exception as e:
+                self.s3_client = boto3.client("s3")
+                logger.info(f"S3 client initialized (bucket={self.s3_bucket})")
+
+            # Create S3 store instance
+            self.s3_store = S3Store(self.s3_client, self.s3_bucket)
+        except (NoCredentialsError, ClientError) as e:
             logger.warning(f"Failed to initialize S3 client: {e}. S3 tools will be unavailable.")
             self.s3_client = None
+            self.s3_store = None
 
-        self.skypilot_client = SkypilotClient(url=self.config.skypilot_url)
+        # Skypilot doesn't need a client - we'll use subprocess directly
+        # Store the URL for reference if needed
         if self.config.skypilot_url:
             logger.info(f"Skypilot URL configured: {self.config.skypilot_url}")
 
@@ -88,7 +126,7 @@ class ObservatoryMCPServer:
             f"Observatory MCP Server initialized "
             f"(backend={self.config.backend_url}, "
             f"authenticated={self.config.is_authenticated()}, "
-            f"wandb={'enabled' if self.wandb_client else 'disabled'}, "
+            f"wandb={'enabled' if self.wandb_store else 'disabled'}, "
             f"s3={'enabled' if self.s3_client else 'disabled'}, "
             f"skypilot={'enabled' if self.config.skypilot_url else 'disabled'})"
         )
@@ -359,6 +397,22 @@ class ObservatoryMCPServer:
                             "samples": {"type": "integer", "description": "Optional limit on number of samples"},
                         },
                         "required": ["entity", "project", "run_id", "metric_keys"],
+                    },
+                ),
+                types.Tool(
+                    name="discover_wandb_run_metrics",
+                    description=(
+                        "Discover available metrics for a WandB run by sampling its history and summary. "
+                        "Useful when you don't know what metrics are logged in a run."
+                    ),
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "entity": {"type": "string", "description": "WandB entity (user/team)"},
+                            "project": {"type": "string", "description": "WandB project name"},
+                            "run_id": {"type": "string", "description": "WandB run ID"},
+                        },
+                        "required": ["entity", "project", "run_id"],
                     },
                 ),
                 types.Tool(
@@ -998,14 +1052,8 @@ class ObservatoryMCPServer:
                             )
                         ]
 
-                    if not eval_names:
-                        return [
-                            types.TextContent(
-                                type="text",
-                                text='{"status": "error", "message": "eval_names is required and cannot be empty"}',
-                            )
-                        ]
-
+                    # Backend returns empty list if eval_names is empty, so we match that behavior
+                    # rather than throwing an error
                     result = await scorecard.get_available_metrics(
                         self.scorecard_client,
                         training_run_ids=training_run_ids,
@@ -1080,10 +1128,10 @@ class ObservatoryMCPServer:
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "list_wandb_runs":
-                    if not self.wandb_client:
+                    if not self.wandb_store:
                         return [
                             types.TextContent(
-                                type="text", text='{"status": "error", "message": "WandB client not initialized"}'
+                                type="text", text='{"status": "error", "message": "WandB store not initialized"}'
                             )
                         ]
                     entity = arguments.get("entity")
@@ -1095,7 +1143,7 @@ class ObservatoryMCPServer:
                             )
                         ]
                     result = await wandb.list_wandb_runs(
-                        self.wandb_client,
+                        self.wandb_store,
                         entity=entity,
                         project=project,
                         tags=arguments.get("tags"),
@@ -1105,10 +1153,10 @@ class ObservatoryMCPServer:
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "get_wandb_run":
-                    if not self.wandb_client:
+                    if not self.wandb_store:
                         return [
                             types.TextContent(
-                                type="text", text='{"status": "error", "message": "WandB client not initialized"}'
+                                type="text", text='{"status": "error", "message": "WandB store not initialized"}'
                             )
                         ]
                     entity = arguments.get("entity")
@@ -1120,7 +1168,7 @@ class ObservatoryMCPServer:
                             )
                         ]
                     result = await wandb.get_wandb_run(
-                        self.wandb_client,
+                        self.wandb_store,
                         entity=entity,
                         project=project,
                         run_id=arguments.get("run_id"),
@@ -1129,10 +1177,10 @@ class ObservatoryMCPServer:
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "get_wandb_run_metrics":
-                    if not self.wandb_client:
+                    if not self.wandb_store:
                         return [
                             types.TextContent(
-                                type="text", text='{"status": "error", "message": "WandB client not initialized"}'
+                                type="text", text='{"status": "error", "message": "WandB store not initialized"}'
                             )
                         ]
                     entity = arguments.get("entity")
@@ -1150,7 +1198,7 @@ class ObservatoryMCPServer:
                             )
                         ]
                     result = await wandb.get_wandb_run_metrics(
-                        self.wandb_client,
+                        self.wandb_store,
                         entity=entity,
                         project=project,
                         run_id=run_id,
@@ -1159,8 +1207,33 @@ class ObservatoryMCPServer:
                     )
                     return [types.TextContent(type="text", text=result)]
 
+                elif name == "discover_wandb_run_metrics":
+                    if not self.wandb_store:
+                        return [
+                            types.TextContent(
+                                type="text", text='{"status": "error", "message": "WandB store not initialized"}'
+                            )
+                        ]
+                    entity = arguments.get("entity")
+                    project = arguments.get("project")
+                    run_id = arguments.get("run_id")
+                    if not entity or not project or not run_id:
+                        return [
+                            types.TextContent(
+                                type="text",
+                                text=('{"status": "error", "message": "entity, project, and run_id are required"}'),
+                            )
+                        ]
+                    result = await wandb.discover_wandb_run_metrics(
+                        self.wandb_store,
+                        entity=entity,
+                        project=project,
+                        run_id=run_id,
+                    )
+                    return [types.TextContent(type="text", text=result)]
+
                 elif name == "get_wandb_run_artifacts":
-                    if not self.wandb_client:
+                    if not self.wandb_api:
                         return [
                             types.TextContent(
                                 type="text", text='{"status": "error", "message": "WandB client not initialized"}'
@@ -1177,7 +1250,7 @@ class ObservatoryMCPServer:
                             )
                         ]
                     result = await wandb.get_wandb_run_artifacts(
-                        self.wandb_client,
+                        self.wandb_api,
                         entity=entity,
                         project=project,
                         run_id=run_id,
@@ -1185,7 +1258,7 @@ class ObservatoryMCPServer:
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "get_wandb_run_logs":
-                    if not self.wandb_client:
+                    if not self.wandb_api:
                         return [
                             types.TextContent(
                                 type="text", text='{"status": "error", "message": "WandB client not initialized"}'
@@ -1202,7 +1275,7 @@ class ObservatoryMCPServer:
                             )
                         ]
                     result = await wandb.get_wandb_run_logs(
-                        self.wandb_client,
+                        self.wandb_api,
                         entity=entity,
                         project=project,
                         run_id=run_id,
@@ -1210,10 +1283,10 @@ class ObservatoryMCPServer:
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "analyze_wandb_training_progression":
-                    if not self.wandb_client:
+                    if not self.wandb_store:
                         return [
                             types.TextContent(
-                                type="text", text='{"status": "error", "message": "WandB client not initialized"}'
+                                type="text", text='{"status": "error", "message": "WandB store not initialized"}'
                             )
                         ]
                     entity = arguments.get("entity")
@@ -1231,7 +1304,7 @@ class ObservatoryMCPServer:
                             )
                         ]
                     result = await wandb.analyze_wandb_training_progression(
-                        self.wandb_client,
+                        self.wandb_store,
                         entity=entity,
                         project=project,
                         run_id=run_id,
@@ -1242,10 +1315,10 @@ class ObservatoryMCPServer:
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "compare_wandb_runs":
-                    if not self.wandb_client:
+                    if not self.wandb_store:
                         return [
                             types.TextContent(
-                                type="text", text='{"status": "error", "message": "WandB client not initialized"}'
+                                type="text", text='{"status": "error", "message": "WandB store not initialized"}'
                             )
                         ]
                     entity = arguments.get("entity")
@@ -1263,7 +1336,7 @@ class ObservatoryMCPServer:
                             )
                         ]
                     result = await wandb.compare_wandb_runs(
-                        self.wandb_client,
+                        self.wandb_store,
                         entity=entity,
                         project=project,
                         run_ids=run_ids,
@@ -1272,10 +1345,10 @@ class ObservatoryMCPServer:
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "analyze_wandb_learning_curves":
-                    if not self.wandb_client:
+                    if not self.wandb_store:
                         return [
                             types.TextContent(
-                                type="text", text='{"status": "error", "message": "WandB client not initialized"}'
+                                type="text", text='{"status": "error", "message": "WandB store not initialized"}'
                             )
                         ]
                     entity = arguments.get("entity")
@@ -1293,7 +1366,7 @@ class ObservatoryMCPServer:
                             )
                         ]
                     result = await wandb.analyze_wandb_learning_curves(
-                        self.wandb_client,
+                        self.wandb_store,
                         entity=entity,
                         project=project,
                         run_id=run_id,
@@ -1303,10 +1376,10 @@ class ObservatoryMCPServer:
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "identify_wandb_critical_moments":
-                    if not self.wandb_client:
+                    if not self.wandb_store:
                         return [
                             types.TextContent(
-                                type="text", text='{"status": "error", "message": "WandB client not initialized"}'
+                                type="text", text='{"status": "error", "message": "WandB store not initialized"}'
                             )
                         ]
                     entity = arguments.get("entity")
@@ -1324,7 +1397,7 @@ class ObservatoryMCPServer:
                             )
                         ]
                     result = await wandb.identify_wandb_critical_moments(
-                        self.wandb_client,
+                        self.wandb_store,
                         entity=entity,
                         project=project,
                         run_id=run_id,
@@ -1334,10 +1407,10 @@ class ObservatoryMCPServer:
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "correlate_wandb_metrics":
-                    if not self.wandb_client:
+                    if not self.wandb_store:
                         return [
                             types.TextContent(
-                                type="text", text='{"status": "error", "message": "WandB client not initialized"}'
+                                type="text", text='{"status": "error", "message": "WandB store not initialized"}'
                             )
                         ]
                     entity = arguments.get("entity")
@@ -1355,7 +1428,7 @@ class ObservatoryMCPServer:
                             )
                         ]
                     result = await wandb.correlate_wandb_metrics(
-                        self.wandb_client,
+                        self.wandb_store,
                         entity=entity,
                         project=project,
                         run_id=run_id,
@@ -1364,10 +1437,10 @@ class ObservatoryMCPServer:
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "analyze_wandb_behavioral_patterns":
-                    if not self.wandb_client:
+                    if not self.wandb_store:
                         return [
                             types.TextContent(
-                                type="text", text='{"status": "error", "message": "WandB client not initialized"}'
+                                type="text", text='{"status": "error", "message": "WandB store not initialized"}'
                             )
                         ]
                     entity = arguments.get("entity")
@@ -1381,7 +1454,7 @@ class ObservatoryMCPServer:
                             )
                         ]
                     result = await wandb.analyze_wandb_behavioral_patterns(
-                        self.wandb_client,
+                        self.wandb_store,
                         entity=entity,
                         project=project,
                         run_id=run_id,
@@ -1390,10 +1463,10 @@ class ObservatoryMCPServer:
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "generate_wandb_training_insights":
-                    if not self.wandb_client:
+                    if not self.wandb_store:
                         return [
                             types.TextContent(
-                                type="text", text='{"status": "error", "message": "WandB client not initialized"}'
+                                type="text", text='{"status": "error", "message": "WandB store not initialized"}'
                             )
                         ]
                     entity = arguments.get("entity")
@@ -1407,7 +1480,7 @@ class ObservatoryMCPServer:
                             )
                         ]
                     result = await wandb.generate_wandb_training_insights(
-                        self.wandb_client,
+                        self.wandb_store,
                         entity=entity,
                         project=project,
                         run_id=run_id,
@@ -1415,10 +1488,10 @@ class ObservatoryMCPServer:
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "predict_wandb_training_outcome":
-                    if not self.wandb_client:
+                    if not self.wandb_store:
                         return [
                             types.TextContent(
-                                type="text", text='{"status": "error", "message": "WandB client not initialized"}'
+                                type="text", text='{"status": "error", "message": "WandB store not initialized"}'
                             )
                         ]
                     entity = arguments.get("entity")
@@ -1436,7 +1509,7 @@ class ObservatoryMCPServer:
                             )
                         ]
                     result = await wandb.predict_wandb_training_outcome(
-                        self.wandb_client,
+                        self.wandb_store,
                         entity=entity,
                         project=project,
                         run_id=run_id,
@@ -1446,14 +1519,14 @@ class ObservatoryMCPServer:
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "list_s3_checkpoints":
-                    if not self.s3_client:
+                    if not self.s3_store:
                         return [
                             types.TextContent(
-                                type="text", text='{"status": "error", "message": "S3 client not initialized"}'
+                                type="text", text='{"status": "error", "message": "S3 store not initialized"}'
                             )
                         ]
                     result = await s3.list_s3_checkpoints(
-                        self.s3_client,
+                        self.s3_store,
                         run_name=arguments.get("run_name"),
                         prefix=arguments.get("prefix"),
                         max_keys=arguments.get("max_keys", 1000),
@@ -1461,10 +1534,10 @@ class ObservatoryMCPServer:
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "get_s3_checkpoint_metadata":
-                    if not self.s3_client:
+                    if not self.s3_store:
                         return [
                             types.TextContent(
-                                type="text", text='{"status": "error", "message": "S3 client not initialized"}'
+                                type="text", text='{"status": "error", "message": "S3 store not initialized"}'
                             )
                         ]
                     key = arguments.get("key")
@@ -1474,14 +1547,14 @@ class ObservatoryMCPServer:
                                 type="text", text='{"status": "error", "message": "key parameter is required"}'
                             )
                         ]
-                    result = await s3.get_s3_checkpoint_metadata(self.s3_client, key=key)
+                    result = await s3.get_s3_checkpoint_metadata(self.s3_store, key=key)
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "get_s3_checkpoint_url":
-                    if not self.s3_client:
+                    if not self.s3_store:
                         return [
                             types.TextContent(
-                                type="text", text='{"status": "error", "message": "S3 client not initialized"}'
+                                type="text", text='{"status": "error", "message": "S3 store not initialized"}'
                             )
                         ]
                     key = arguments.get("key")
@@ -1492,21 +1565,21 @@ class ObservatoryMCPServer:
                             )
                         ]
                     result = await s3.get_s3_checkpoint_url(
-                        self.s3_client,
+                        self.s3_store,
                         key=key,
                         expires_in=arguments.get("expires_in", 3600),
                     )
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "list_s3_replays":
-                    if not self.s3_client:
+                    if not self.s3_store:
                         return [
                             types.TextContent(
-                                type="text", text='{"status": "error", "message": "S3 client not initialized"}'
+                                type="text", text='{"status": "error", "message": "S3 store not initialized"}'
                             )
                         ]
                     result = await s3.list_s3_replays(
-                        self.s3_client,
+                        self.s3_store,
                         run_name=arguments.get("run_name"),
                         prefix=arguments.get("prefix"),
                         max_keys=arguments.get("max_keys", 1000),
@@ -1527,12 +1600,11 @@ class ObservatoryMCPServer:
                                 type="text", text='{"status": "error", "message": "key parameter is required"}'
                             )
                         ]
-                    result = await s3.check_s3_object_exists(self.s3_client, key=key)
+                    result = await s3.check_s3_object_exists(self.s3_client, self.s3_bucket, key=key)
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "list_skypilot_jobs":
                     result = await skypilot.list_skypilot_jobs(
-                        self.skypilot_client,
                         status=arguments.get("status"),
                         limit=arguments.get("limit", 100),
                     )
@@ -1546,7 +1618,7 @@ class ObservatoryMCPServer:
                                 type="text", text='{"status": "error", "message": "job_id parameter is required"}'
                             )
                         ]
-                    result = await skypilot.get_skypilot_job_status(self.skypilot_client, job_id=job_id)
+                    result = await skypilot.get_skypilot_job_status(job_id=job_id)
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "get_skypilot_job_logs":
@@ -1558,17 +1630,16 @@ class ObservatoryMCPServer:
                             )
                         ]
                     result = await skypilot.get_skypilot_job_logs(
-                        self.skypilot_client,
                         job_id=job_id,
                         tail_lines=arguments.get("tail_lines", 100),
                     )
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "analyze_s3_checkpoint_progression":
-                    if not self.s3_client:
+                    if not self.s3_store:
                         return [
                             types.TextContent(
-                                type="text", text='{"status": "error", "message": "S3 client not initialized"}'
+                                type="text", text='{"status": "error", "message": "S3 store not initialized"}'
                             )
                         ]
                     run_name = arguments.get("run_name")
@@ -1579,17 +1650,17 @@ class ObservatoryMCPServer:
                             )
                         ]
                     result = await s3.analyze_s3_checkpoint_progression(
-                        self.s3_client,
+                        self.s3_store,
                         run_name=run_name,
                         prefix=arguments.get("prefix"),
                     )
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "find_best_s3_checkpoint":
-                    if not self.s3_client:
+                    if not self.s3_store:
                         return [
                             types.TextContent(
-                                type="text", text='{"status": "error", "message": "S3 client not initialized"}'
+                                type="text", text='{"status": "error", "message": "S3 store not initialized"}'
                             )
                         ]
                     run_name = arguments.get("run_name")
@@ -1600,7 +1671,7 @@ class ObservatoryMCPServer:
                             )
                         ]
                     result = await s3.find_best_s3_checkpoint(
-                        self.s3_client,
+                        self.s3_store,
                         run_name=run_name,
                         criteria=arguments.get("criteria", "latest"),
                         prefix=arguments.get("prefix"),
@@ -1608,14 +1679,14 @@ class ObservatoryMCPServer:
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "analyze_s3_checkpoint_usage":
-                    if not self.s3_client:
+                    if not self.s3_store:
                         return [
                             types.TextContent(
-                                type="text", text='{"status": "error", "message": "S3 client not initialized"}'
+                                type="text", text='{"status": "error", "message": "S3 store not initialized"}'
                             )
                         ]
                     result = await s3.analyze_s3_checkpoint_usage(
-                        self.s3_client,
+                        self.s3_store,
                         run_name=arguments.get("run_name"),
                         prefix=arguments.get("prefix"),
                         time_window_days=arguments.get("time_window_days", 30),
@@ -1623,24 +1694,24 @@ class ObservatoryMCPServer:
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "get_s3_checkpoint_statistics":
-                    if not self.s3_client:
+                    if not self.s3_store:
                         return [
                             types.TextContent(
-                                type="text", text='{"status": "error", "message": "S3 client not initialized"}'
+                                type="text", text='{"status": "error", "message": "S3 store not initialized"}'
                             )
                         ]
                     result = await s3.get_s3_checkpoint_statistics(
-                        self.s3_client,
+                        self.s3_store,
                         run_name=arguments.get("run_name"),
                         prefix=arguments.get("prefix"),
                     )
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "compare_s3_checkpoints_across_runs":
-                    if not self.s3_client:
+                    if not self.s3_store:
                         return [
                             types.TextContent(
-                                type="text", text='{"status": "error", "message": "S3 client not initialized"}'
+                                type="text", text='{"status": "error", "message": "S3 store not initialized"}'
                             )
                         ]
                     run_names = arguments.get("run_names")
@@ -1651,21 +1722,19 @@ class ObservatoryMCPServer:
                             )
                         ]
                     result = await s3.compare_s3_checkpoints_across_runs(
-                        self.s3_client,
+                        self.s3_store,
                         run_names=run_names,
                     )
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "analyze_skypilot_job_performance":
                     result = await skypilot.analyze_skypilot_job_performance(
-                        self.skypilot_client,
                         limit=arguments.get("limit", 100),
                     )
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "get_skypilot_resource_utilization":
                     result = await skypilot.get_skypilot_resource_utilization(
-                        self.skypilot_client,
                         limit=arguments.get("limit", 100),
                     )
                     return [types.TextContent(type="text", text=result)]
@@ -1679,27 +1748,24 @@ class ObservatoryMCPServer:
                             )
                         ]
                     result = await skypilot.compare_skypilot_job_configs(
-                        self.skypilot_client,
                         job_ids=job_ids,
                     )
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "analyze_skypilot_job_failures":
                     result = await skypilot.analyze_skypilot_job_failures(
-                        self.skypilot_client,
                         limit=arguments.get("limit", 100),
                     )
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "get_skypilot_job_cost_estimates":
                     result = await skypilot.get_skypilot_job_cost_estimates(
-                        self.skypilot_client,
                         limit=arguments.get("limit", 100),
                     )
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "link_wandb_run_to_s3_checkpoints":
-                    if not self.wandb_client or not self.s3_client:
+                    if not self.wandb_api or not self.s3_client:
                         return [
                             types.TextContent(
                                 type="text",
@@ -1717,8 +1783,9 @@ class ObservatoryMCPServer:
                             )
                         ]
                     result = await wandb.link_wandb_run_to_s3_checkpoints(
-                        self.wandb_client,
+                        self.wandb_api,
                         self.s3_client,
+                        self.s3_bucket,
                         entity=entity,
                         project=project,
                         run_id=run_id,
@@ -1726,7 +1793,7 @@ class ObservatoryMCPServer:
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "link_wandb_run_to_skypilot_job":
-                    if not self.wandb_client:
+                    if not self.wandb_api:
                         return [
                             types.TextContent(
                                 type="text", text='{"status": "error", "message": "WandB client not initialized"}'
@@ -1743,8 +1810,7 @@ class ObservatoryMCPServer:
                             )
                         ]
                     result = await wandb.link_wandb_run_to_skypilot_job(
-                        self.wandb_client,
-                        self.skypilot_client,
+                        self.wandb_api,
                         entity=entity,
                         project=project,
                         run_id=run_id,
@@ -1752,7 +1818,7 @@ class ObservatoryMCPServer:
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "link_s3_checkpoint_to_wandb_run":
-                    if not self.s3_client or not self.wandb_client:
+                    if not self.s3_client or not self.wandb_api:
                         return [
                             types.TextContent(
                                 type="text",
@@ -1771,7 +1837,8 @@ class ObservatoryMCPServer:
                         ]
                     result = await s3.link_s3_checkpoint_to_wandb_run(
                         self.s3_client,
-                        self.wandb_client,
+                        self.s3_bucket,
+                        self.wandb_api,
                         key=key,
                         entity=entity,
                         project=project,
@@ -1794,16 +1861,16 @@ class ObservatoryMCPServer:
                         ]
                     result = await s3.link_s3_checkpoint_to_skypilot_job(
                         self.s3_client,
-                        self.skypilot_client,
+                        self.s3_bucket,
                         key=key,
                     )
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "link_skypilot_job_to_wandb_runs":
-                    if not self.wandb_client:
+                    if not self.wandb_store:
                         return [
                             types.TextContent(
-                                type="text", text='{"status": "error", "message": "WandB client not initialized"}'
+                                type="text", text='{"status": "error", "message": "WandB store not initialized"}'
                             )
                         ]
                     job_id = arguments.get("job_id")
@@ -1817,8 +1884,7 @@ class ObservatoryMCPServer:
                             )
                         ]
                     result = await skypilot.link_skypilot_job_to_wandb_runs(
-                        self.skypilot_client,
-                        self.wandb_client,
+                        self.wandb_store,
                         job_id=job_id,
                         entity=entity,
                         project=project,
@@ -1826,10 +1892,10 @@ class ObservatoryMCPServer:
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "link_skypilot_job_to_s3_checkpoints":
-                    if not self.s3_client:
+                    if not self.s3_store:
                         return [
                             types.TextContent(
-                                type="text", text='{"status": "error", "message": "S3 client not initialized"}'
+                                type="text", text='{"status": "error", "message": "S3 store not initialized"}'
                             )
                         ]
                     job_id = arguments.get("job_id")
@@ -1840,8 +1906,7 @@ class ObservatoryMCPServer:
                             )
                         ]
                     result = await skypilot.link_skypilot_job_to_s3_checkpoints(
-                        self.skypilot_client,
-                        self.s3_client,
+                        self.s3_store,
                         job_id=job_id,
                     )
                     return [types.TextContent(type="text", text=result)]
