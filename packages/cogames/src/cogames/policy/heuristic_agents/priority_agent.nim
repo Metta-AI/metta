@@ -8,8 +8,6 @@
 
 import std/[heapqueue, options, strformat, tables]
 
-import ./heuristic_agents
-
 type
   ## Simplified coordinate used by the planner. We intentionally duplicate this
   ## instead of importing from `heuristic_agents` to avoid relying on private
@@ -69,8 +67,6 @@ type
     seenAssembler*: bool
 
   PriorityAgent* = ref object
-    ## Planner that wraps the existing Nim heuristic agent.
-    agent*: HeuristicAgent
     queue: TaskQueue
     lastSnapshot: Option[AgentSnapshot]
 
@@ -95,11 +91,6 @@ proc popTask(queue: var TaskQueue): Option[PriorityTask] =
   if queue.heap.len == 0:
     return none(PriorityTask)
   some(queue.heap.pop())
-
-proc getAmount(tableRef: Table[ResourceKind, int], kind: ResourceKind): int =
-  if kind in tableRef:
-    return tableRef[kind]
-  0
 
 proc totalInventory(snapshot: AgentSnapshot): int =
   var total = 0
@@ -139,8 +130,8 @@ proc saturatedStack(snapshot: AgentSnapshot): bool =
       return true
   false
 
-proc newPriorityAgent*(agent: HeuristicAgent): PriorityAgent =
-  PriorityAgent(agent: agent, queue: emptyQueue())
+proc newPriorityAgent*(): PriorityAgent =
+  PriorityAgent(queue: emptyQueue())
 
 proc enqueueTask(tasks: var seq[PriorityTask], kind: TaskKind, priority: int, payload: TaskPayload, note: string) =
   tasks.add(PriorityTask(priority: priority, kind: kind, payload: payload, note: note))
