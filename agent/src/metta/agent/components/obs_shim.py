@@ -112,6 +112,11 @@ class ObsTokenPadStrip(nn.Module):
     def forward(self, td: TensorDict) -> TensorDict:
         # [B, M, 3] the 3 vector is: coord (unit8), attr_idx, attr_val
         observations = td[self.in_key]
+        if observations.dim() == 2:
+            # Some call sites (single-agent eval/play) feed a single sequence; add batch axis
+            observations = observations.unsqueeze(0)
+            td[self.in_key] = observations
+
         M = observations.shape[1]
 
         # Apply feature remapping if active

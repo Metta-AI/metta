@@ -16,7 +16,6 @@ public:
   explicit ObservationFeaturesImpl(const std::unordered_map<std::string, ObservationType>& feature_ids)
       : _name_to_id(feature_ids) {
     // Cache commonly used feature IDs (all are always present now)
-    _type_id = get("type_id");
     _group = get("agent:group");
     _frozen = get("agent:frozen");
     _orientation = get("agent:orientation");
@@ -29,13 +28,13 @@ public:
     _last_reward = get("last_reward");
     _vibe = get("vibe");
     _visitation_counts = get("agent:visitation_counts");
+    _compass = get("agent:compass");
     _tag = get("tag");
     _cooldown_remaining = get("cooldown_remaining");
     _clipped = get("clipped");
     _remaining_uses = get("remaining_uses");
 
     // Initialize public members (must be done AFTER private members are set above)
-    TypeId = _type_id;
     Group = _group;
     Frozen = _frozen;
     Orientation = _orientation;
@@ -48,6 +47,7 @@ public:
     LastReward = _last_reward;
     Vibe = _vibe;
     VisitationCounts = _visitation_counts;
+    Compass = _compass;
     Tag = _tag;
     CooldownRemaining = _cooldown_remaining;
     Clipped = _clipped;
@@ -69,7 +69,6 @@ public:
   }
 
   // Commonly used feature IDs (cached for performance)
-  ObservationType TypeId;
   ObservationType Group;
   ObservationType Frozen;
   ObservationType Orientation;
@@ -82,6 +81,7 @@ public:
   ObservationType LastReward;
   ObservationType Vibe;
   ObservationType VisitationCounts;
+  ObservationType Compass;
   ObservationType Tag;
   ObservationType CooldownRemaining;
   ObservationType Clipped;
@@ -91,7 +91,6 @@ private:
   std::unordered_map<std::string, ObservationType> _name_to_id;
 
   // Cached feature IDs
-  ObservationType _type_id;
   ObservationType _group;
   ObservationType _frozen;
   ObservationType _orientation;
@@ -104,6 +103,7 @@ private:
   ObservationType _last_reward;
   ObservationType _vibe;
   ObservationType _visitation_counts;
+  ObservationType _compass;
   ObservationType _tag;
   ObservationType _cooldown_remaining;
   ObservationType _clipped;
@@ -118,9 +118,8 @@ extern std::shared_ptr<ObservationFeaturesImpl> _instance;
 // Initialize the singleton (called by MettaGrid)
 void Initialize(const std::unordered_map<std::string, ObservationType>& feature_ids);
 
-// Access feature IDs with the same syntax as before: ObservationFeature::TypeId
+// Access feature IDs with the same syntax as before: ObservationFeature::X
 // These are extern variables defined in observation_features.cpp
-extern ObservationType TypeId;
 extern ObservationType Group;
 extern ObservationType Frozen;
 extern ObservationType Orientation;
@@ -133,6 +132,7 @@ extern ObservationType LastActionArg;
 extern ObservationType LastReward;
 extern ObservationType Vibe;
 extern ObservationType VisitationCounts;
+extern ObservationType Compass;
 extern ObservationType Tag;
 extern ObservationType CooldownRemaining;
 extern ObservationType Clipped;

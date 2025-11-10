@@ -37,6 +37,60 @@ DEBUG = False
 AGENT_SENTINEL = 0x55
 
 
+@dataclass
+class BaselineHyperparameters:
+    """Hyperparameters controlling baseline agent behavior."""
+
+    # Energy management (recharge timing)
+    recharge_threshold_low: int = 35  # Enter RECHARGE phase when energy < this
+    recharge_threshold_high: int = 85  # Exit RECHARGE phase when energy >= this
+
+    # Exploration strategy
+    exploration_visit_weight: float = 15.0  # Multiplier for visit_score (higher = prefer unexplored)
+    exploration_distance_penalty: float = 0.7  # Multiplier for distance (lower = willing to travel far)
+    exploration_quadrant_bonus: float = 40.0  # Bonus for exploring opposite quadrant
+    exploration_target_persistence: int = 12  # Steps to commit to exploration target
+
+    # Stuck detection and escape
+    stuck_detection_enabled: bool = True  # Enable loop detection
+    stuck_escape_distance: int = 12  # Minimum distance for escape target
+
+
+# Hyperparameter Presets for Ensemble Creation
+BASELINE_HYPERPARAMETER_PRESETS = {
+    "default": BaselineHyperparameters(
+        recharge_threshold_low=35,  # Moderate energy management
+        recharge_threshold_high=85,
+        exploration_visit_weight=15.0,  # Moderate exploration preference
+        exploration_distance_penalty=0.7,  # Moderate willingness to travel
+        exploration_quadrant_bonus=40.0,  # Moderate cross-map exploration
+        exploration_target_persistence=12,  # Moderate target persistence
+        stuck_detection_enabled=True,
+        stuck_escape_distance=12,
+    ),
+    "conservative": BaselineHyperparameters(
+        recharge_threshold_low=50,  # Recharge early
+        recharge_threshold_high=95,  # Stay charged
+        exploration_visit_weight=10.0,  # Less willing to travel far for exploration
+        exploration_distance_penalty=1.0,  # Higher penalty = prefer nearby
+        exploration_quadrant_bonus=30.0,  # Lower cross-map bonus
+        exploration_target_persistence=8,  # Switch targets more frequently
+        stuck_detection_enabled=True,
+        stuck_escape_distance=8,  # Shorter escape distance
+    ),
+    "aggressive": BaselineHyperparameters(
+        recharge_threshold_low=20,  # Low energy tolerance
+        recharge_threshold_high=80,  # Don't wait for full charge
+        exploration_visit_weight=30.0,  # Strongly prefer unexplored areas
+        exploration_distance_penalty=0.3,  # Very willing to travel far
+        exploration_quadrant_bonus=70.0,  # Strong cross-map exploration
+        exploration_target_persistence=15,  # Commit longer to distant targets
+        stuck_detection_enabled=True,
+        stuck_escape_distance=15,  # Longer escape distance
+    ),
+}
+
+
 class CellType(Enum):
     """Occupancy map cell states."""
 
@@ -216,9 +270,16 @@ class SimpleAgentState:
 
 
 class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
-    def __init__(self, policy_env_info: PolicyEnvInterface, shared_state: SharedAgentState, agent_id: int):
+    def __init__(
+        self,
+        policy_env_info: PolicyEnvInterface,
+        shared_state: SharedAgentState,
+        agent_id: int,
+        hyperparams: BaselineHyperparameters,
+    ):
         self._shared_state = shared_state
         self._agent_id = agent_id
+        self._hyperparams = hyperparams
 
         # Observation grid half-ranges from config
         self._obs_hr = policy_env_info.obs_height // 2  # Egocentric observation half-radius (rows)
@@ -327,7 +388,16 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             type_id = features.get("type_id", 0)
 
             obj_name = state.simulation.object_type_names[type_id]
-            nearby_objects[pos] = ObjectState(name=obj_name)
+            nearby_objects[pos] = ObjectState(
+                name=obj_name,
+                converting=features.get("converting", 0),
+                cooldown_remaining=features.get("cooldown_remaining", 0),
+                clipped=features.get("clipped", 0),
+                remaining_uses=features.get("remaining_uses", 999),
+                agent_group=features.get("agent_group", -1),
+                agent_frozen=features.get("agent_frozen", 0),
+                agent_orientation=features.get("agent_orientation", 0),
+            )
 
         return ParsedObservation(
             row=state.row,  # Position from tracking
@@ -365,6 +435,9 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
     def _check_stuck_and_escape(self, s: SimpleAgentState) -> Optional[Action]:
         """Check if agent is stuck in a loop and return escape action if needed."""
+        if not self._hyperparams.stuck_detection_enabled:
+            return None
+
         if not s.stuck_loop_detected:
             return None
 
@@ -376,12 +449,15 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
         # If we don't have an escape target, pick a random distant free cell
         if s.stuck_escape_target is None:
-            # Find a free cell at least 10 cells away
+            # Find a free cell at least escape_distance cells away
             for _ in range(50):  # Try 50 random locations
                 rand_r = random.randint(0, s.map_height - 1)
                 rand_c = random.randint(0, s.map_width - 1)
                 dist = abs(rand_r - s.row) + abs(rand_c - s.col)
-                if dist >= 10 and s.occupancy[rand_r][rand_c] == CellType.FREE.value:
+                if (
+                    dist >= self._hyperparams.stuck_escape_distance
+                    and s.occupancy[rand_r][rand_c] == CellType.FREE.value
+                ):
                     s.stuck_escape_target = (rand_r, rand_c)
                     # Clear cached path to force new pathfinding
                     s.cached_path = None
@@ -424,6 +500,15 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         self._update_state_from_obs(state, obs)
         self._update_phase(state)
 
+        # Update vibe to match phase (for visual debugging in replays)
+        desired_vibe = self._get_vibe_for_phase(state.phase)
+        if state.current_glyph != desired_vibe:
+            state.current_glyph = desired_vibe
+            # Return vibe change action this step
+            action = self._actions.change_vibe.ChangeVibe(VIBE_BY_NAME[desired_vibe])
+            state.last_action = action
+            return action, state
+
         # Check for stuck loop and attempt escape
         action = self._check_stuck_and_escape(state)
         if action is not None:
@@ -444,20 +529,28 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         With ~370 objects in a typical map, this reduces lookups from 1,480/step (4 agents)
         to just 370/step - a 4x speedup for position updates.
         """
-        try:
-            # Use cached grid_objects if it's from the current step
-            if s.shared_state.cached_grid_objects_step != s.step_count:
+        # Early exit if simulation is not available (shouldn't happen but be defensive)
+        if s.simulation is None:
+            return
+
+        # Use cached grid_objects if it's from the current step
+        if s.shared_state.cached_grid_objects_step != s.step_count:
+            try:
                 s.shared_state.cached_grid_objects = s.simulation.grid_objects()
                 s.shared_state.cached_grid_objects_step = s.step_count
+            except (AttributeError, RuntimeError):
+                # grid_objects() might not be available or simulation in invalid state
+                return
 
-            # Find this agent in the cached grid objects
+        # Find this agent in the cached grid objects
+        if s.shared_state.cached_grid_objects:
             for _id, obj in s.shared_state.cached_grid_objects.items():
                 if obj.get("agent_id") == s.agent_id:
                     new_row, new_col = obj.get("r", -1), obj.get("c", -1)
-                    s.row, s.col = new_row, new_col
+                    # Validate position is within map bounds
+                    if 0 <= new_row < s.map_height and 0 <= new_col < s.map_width:
+                        s.row, s.col = new_row, new_col
                     break
-        except Exception:
-            pass  # Silently fail if we can't get position
 
         # Update position history and detect loops
         current_pos = (s.row, s.col)
@@ -543,11 +636,14 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         if s.row < 0:
             return
 
-        # First pass: for everything we can see, reset to FREE (will be remarked below)
-        # This clears old agent positions
-        for pos in parsed.nearby_objects.keys():
-            r, c = pos
-            s.occupancy[r][c] = CellType.FREE.value
+        # First pass: Mark ALL observed cells as FREE (will be updated to OBSTACLE below if needed)
+        # This ensures empty cells are marked as traversable
+        for obs_r in range(2 * self._obs_hr + 1):
+            for obs_c in range(2 * self._obs_wr + 1):
+                # Convert observation-relative coords to world coords
+                r, c = obs_r - self._obs_hr + s.row, obs_c - self._obs_wr + s.col
+                if 0 <= r < s.map_height and 0 <= c < s.map_width:
+                    s.occupancy[r][c] = CellType.FREE.value
 
         # Second pass: mark obstacles
         for pos, obj_state in parsed.nearby_objects.items():
@@ -635,8 +731,8 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         old_phase = s.phase
 
         # Priority 1: Recharge if energy low
-        # Enter RECHARGE if energy drops below 30
-        if s.energy < 30:
+        # Enter RECHARGE if energy drops below threshold
+        if s.energy < self._hyperparams.recharge_threshold_low:
             if s.phase != Phase.RECHARGE:
                 s.phase = Phase.RECHARGE
                 # Clear extractor waiting state when leaving GATHER
@@ -645,9 +741,9 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
                 s.waiting_at_extractor = None
             return
 
-        # Stay in RECHARGE until energy is fully restored (>= 90)
+        # Stay in RECHARGE until energy is fully restored
         if s.phase == Phase.RECHARGE:
-            if s.energy >= 90:
+            if s.energy >= self._hyperparams.recharge_threshold_high:
                 s.phase = Phase.GATHER
                 s.target_position = None
             # Still recharging, stay in this phase
@@ -693,6 +789,18 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         if old_phase != s.phase:
             s.cached_path = None
             s.cached_path_target = None
+
+    def _get_vibe_for_phase(self, phase: Phase) -> str:
+        """Map phase to a vibe for visual debugging in replays."""
+        phase_to_vibe = {
+            Phase.GATHER: "carbon",  # Brown/earth tone for gathering
+            Phase.ASSEMBLE: "heart",  # Red for assembly
+            Phase.DELIVER: "default",  # Must be "default" to deposit hearts into chest
+            Phase.RECHARGE: "charger",  # Blue/electric for recharging
+            Phase.CRAFT_UNCLIP: "gear",  # Gear icon for crafting unclip items
+            Phase.UNCLIP: "gear",  # Gear icon for unclipping
+        }
+        return phase_to_vibe.get(phase, "default")
 
     def _calculate_deficits(self, s: SimpleAgentState) -> dict[str, int]:
         """Calculate how many more of each resource we need for a heart."""
@@ -757,8 +865,11 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         # Check if we should keep current exploration target
         if s.exploration_target is not None:
             tr, tc = s.exploration_target
-            # Keep target if: we set it recently (within 10 steps) AND haven't reached it yet
-            if s.step_count - s.exploration_target_step < 10 and (s.row, s.col) != s.exploration_target:
+            # Keep target if: we set it recently AND haven't reached it yet
+            if (
+                s.step_count - s.exploration_target_step < self._hyperparams.exploration_target_persistence
+                and (s.row, s.col) != s.exploration_target
+            ):
                 # Check if target is still valid (FREE and in bounds)
                 if self._is_within_bounds(s, tr, tc) and s.occupancy[tr][tc] == CellType.FREE.value:
                     return self._move_towards(s, s.exploration_target)
@@ -779,7 +890,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             target_left = c < map_center_c
             # Give bonus if target is in opposite quadrant
             if in_top != target_top or in_left != target_left:
-                return 50  # Moderate bonus to encourage crossing to other side
+                return self._hyperparams.exploration_quadrant_bonus
             return 0
 
         # Find nearest least-recently-visited cell
@@ -806,10 +917,14 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
                     visit_score = s.step_count - last_visited
                     distance = abs(dr) + abs(dc)
 
-                    # Increased visit weight (20x) and reduced distance penalty (0.5x)
-                    # This helps agents travel to far-away unexplored regions
+                    # Visit weight and distance penalty control exploration behavior
+                    # This helps agents balance between exploring far regions vs nearby cells
                     quadrant_bonus = get_quadrant_bonus(r, c)
-                    score = visit_score * 20 - (distance * 0.5) + quadrant_bonus
+                    score = (
+                        visit_score * self._hyperparams.exploration_visit_weight
+                        - (distance * self._hyperparams.exploration_distance_penalty)
+                        + quadrant_bonus
+                    )
 
                     if score > best_score:
                         best_score = score
@@ -1046,7 +1161,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         if explore_action is not None:
             return explore_action
 
-        # Charger is known, move adjacent to it
+        # Charger is known, move adjacent to it then use it (same as extractors/chest)
         charger = s.shared_state.stations["charger"]
         chr, chc = charger
         dr = abs(s.row - chr)
@@ -1054,8 +1169,8 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         is_adjacent = (dr == 1 and dc == 0) or (dr == 0 and dc == 1)
 
         if is_adjacent:
-            # Adjacent to charger - NOOP to recharge
-            return self._actions.noop.Noop()
+            # Adjacent - move into it to recharge
+            return self._move_into_cell(s, charger)
 
         # Not adjacent yet, move towards it
         return self._move_towards(s, charger, reach_adjacent=True)
@@ -1073,8 +1188,8 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         if not extractors:
             return None
 
-        # Filter out clipped (depleted) extractors
-        available = [e for e in extractors if not e.clipped]
+        # Filter out clipped or depleted extractors
+        available = [e for e in extractors if not e.clipped and e.remaining_uses > 0]
         if not available:
             return None
 
@@ -1316,14 +1431,16 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
 
 class BaselinePolicy(MultiAgentPolicy):
-    def __init__(self, policy_env_info: PolicyEnvInterface):
+    def __init__(self, policy_env_info: PolicyEnvInterface, hyperparams: Optional[BaselineHyperparameters] = None):
         super().__init__(policy_env_info)
         self._shared_state = SharedAgentState()
         self._agent_policies: dict[int, StatefulAgentPolicy[SimpleAgentState]] = {}
+        self._hyperparams = hyperparams or BaselineHyperparameters()
 
     def agent_policy(self, agent_id: int) -> StatefulAgentPolicy[SimpleAgentState]:
         if agent_id not in self._agent_policies:
             self._agent_policies[agent_id] = StatefulAgentPolicy(
-                BaselineAgentPolicyImpl(self._policy_env_info, self._shared_state, agent_id), self._policy_env_info
+                BaselineAgentPolicyImpl(self._policy_env_info, self._shared_state, agent_id, self._hyperparams),
+                self._policy_env_info,
             )
         return self._agent_policies[agent_id]
