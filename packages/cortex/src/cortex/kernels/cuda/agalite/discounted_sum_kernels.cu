@@ -1,8 +1,10 @@
+// CUDA kernels for AGaLiTe discounted sum recurrence
+
 #include <torch/extension.h>
 #include <type_traits>
 #include <vector>
 
-namespace agalite_cuda {
+namespace agalite_cuda_ds {
 
 namespace {
 
@@ -64,10 +66,10 @@ __global__ void discounted_sum_backward_kernel(const scalar_t* __restrict__ grad
 
 }  // namespace
 
-torch::Tensor discounted_sum_forward(torch::Tensor start_state,
-                                      torch::Tensor x,
-                                      torch::Tensor discounts) {
-  auto output = torch::empty_like(x);
+at::Tensor discounted_sum_forward_cuda(at::Tensor start_state,
+                                       at::Tensor x,
+                                       at::Tensor discounts) {
+  auto output = at::empty_like(x);
   const auto T = x.size(0);
   const auto N = x.size(1);
 
@@ -75,7 +77,7 @@ torch::Tensor discounted_sum_forward(torch::Tensor start_state,
   const int blocks = (N + threads - 1) / threads;
 
   AT_DISPATCH_FLOATING_TYPES_AND_HALF(
-      x.scalar_type(), "discounted_sum_forward_cuda", [&] {
+      x.scalar_type(), "agalite_discounted_sum_forward_cuda", [&] {
         discounted_sum_forward_kernel<scalar_t><<<blocks, threads>>>(
             start_state.data_ptr<scalar_t>(),
             x.data_ptr<scalar_t>(),
@@ -88,13 +90,13 @@ torch::Tensor discounted_sum_forward(torch::Tensor start_state,
   return output;
 }
 
-std::vector<torch::Tensor> discounted_sum_backward(const torch::Tensor& grad_out,
-                                                   const torch::Tensor& discounts,
-                                                   const torch::Tensor& output,
-                                                   const torch::Tensor& start_state) {
-  auto grad_start = torch::zeros_like(start_state);
-  auto grad_x = torch::empty_like(grad_out);
-  auto grad_discounts = torch::empty_like(discounts);
+std::vector<at::Tensor> discounted_sum_backward_cuda(const at::Tensor& grad_out,
+                                                     const at::Tensor& discounts,
+                                                     const at::Tensor& output,
+                                                     const at::Tensor& start_state) {
+  auto grad_start = at::zeros_like(start_state);
+  auto grad_x = at::empty_like(grad_out);
+  auto grad_discounts = at::empty_like(discounts);
 
   const auto T = grad_out.size(0);
   const auto N = grad_out.size(1);
@@ -103,7 +105,7 @@ std::vector<torch::Tensor> discounted_sum_backward(const torch::Tensor& grad_out
   const int blocks = (N + threads - 1) / threads;
 
   AT_DISPATCH_FLOATING_TYPES_AND_HALF(
-      grad_out.scalar_type(), "discounted_sum_backward_cuda", [&] {
+      grad_out.scalar_type(), "agalite_discounted_sum_backward_cuda", [&] {
         discounted_sum_backward_kernel<scalar_t><<<blocks, threads>>>(
             grad_out.data_ptr<scalar_t>(),
             discounts.data_ptr<scalar_t>(),
@@ -116,7 +118,7 @@ std::vector<torch::Tensor> discounted_sum_backward(const torch::Tensor& grad_out
             N);
       });
 
-  std::vector<torch::Tensor> grads;
+  std::vector<at::Tensor> grads;
   grads.reserve(3);
   grads.push_back(grad_start);
   grads.push_back(grad_x);
@@ -124,4 +126,5 @@ std::vector<torch::Tensor> discounted_sum_backward(const torch::Tensor& grad_out
   return grads;
 }
 
-}  // namespace agalite_cuda
+}  // namespace agalite_cuda_ds
+
