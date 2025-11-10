@@ -1,18 +1,19 @@
+import json
 import os
 import sys
 
-current_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.join(current_dir, "bindings/generated"))
-
-import json
-
-import heuristic_agents as ha
 import numpy as np
 
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.join(current_dir, "bindings/generated"))
+
+import heuristic_agents as ha  # noqa: E402
+
 # ha.initCHook()
+
 
 class HeuristicAgentPolicy(AgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
@@ -32,16 +33,18 @@ class HeuristicAgentPolicy(AgentPolicy):
                 "germaniumExtractor": 9,
                 "oxygenExtractor": 10,
                 "siliconExtractor": 11,
-                "wall": 12
+                "wall": 12,
             },
             "obs_features": [],
         }
         for feature in policy_env_info.obs_features:
-            config["obs_features"].append({
-                "id": feature.id,
-                "name": feature.name,
-                "normalization": feature.normalization,
-            })
+            config["obs_features"].append(
+                {
+                    "id": feature.id,
+                    "name": feature.name,
+                    "normalization": feature.normalization,
+                }
+            )
         self._agent = ha.HeuristicAgent(agent_id, json.dumps(config))
 
     def step(self, raw_obs: np.ndarray, raw_action: np.ndarray):
@@ -52,8 +55,9 @@ class HeuristicAgentPolicy(AgentPolicy):
             size_token=raw_obs.shape[2],
             row_observations=raw_obs.ctypes.data,
             num_actions=raw_action.shape[0],
-            raw_actions=raw_action.ctypes.data
+            raw_actions=raw_action.ctypes.data,
         )
+
 
 class HeuristicAgentsPolicy(MultiAgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface):

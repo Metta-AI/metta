@@ -23,6 +23,7 @@ _POLICY_CLASS_SHORTHAND: dict[str, str] = {
     "stateless": "mettagrid.policy.stateless.StatelessPolicy",
     "token": "mettagrid.policy.token.TokenPolicy",
     "lstm": "mettagrid.policy.lstm.LSTMPolicy",
+    "heuristic_agents": "cogames.policy.heuristic_agents.simple_nim_agents.HeuristicAgentsPolicy",
     "scripted_baseline": "cogames.policy.scripted_agent.baseline_agent.BaselinePolicy",
     "scripted_unclipping": "cogames.policy.scripted_agent.unclipping_agent.UnclippingPolicy",
     # Backwards compatibility aliases
