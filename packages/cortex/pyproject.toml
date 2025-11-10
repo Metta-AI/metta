@@ -33,14 +33,7 @@ include = ["cortex", "cortex.*"]
 include-package-data = true
 
 [tool.setuptools.package-data]
-cortex = [
-  "py.typed",
-  "**/*.cu",
-  "**/*.cpp",
-  "**/*.cuh",
-  "**/*.h",
-  "**/*.hpp",
-]
+cortex = ["py.typed", "**/*.cu", "**/*.cpp", "**/*.cuh", "**/*.h", "**/*.hpp"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

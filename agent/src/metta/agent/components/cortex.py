@@ -109,8 +109,7 @@ class CortexTDConfig(ComponentConfig):
 
 
 class CortexTD(nn.Module):
-    """Stateful Cortex stack component with TensorDict integration.
-    """
+    """Stateful Cortex stack component with TensorDict integration."""
 
     def __init__(self, config: CortexTDConfig) -> None:
         super().__init__()
