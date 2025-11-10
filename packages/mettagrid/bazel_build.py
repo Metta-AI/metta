@@ -202,8 +202,6 @@ def _run_mettascope_build() -> None:
 
     print(f"Building mettascope from {METTASCOPE_DIR}")
 
-    lock_path = METTASCOPE_DIR / "nimby.lock"
-    _repair_nimby_cache(lock_path)
     cmd("nimby sync -g nimby.lock")
     cmd("nim c bindings/bindings.nim")
 
@@ -235,35 +233,6 @@ def build_editable(wheel_directory, config_settings=None, metadata_directory=Non
 def build_sdist(sdist_directory, config_settings=None):
     """Build a source distribution without compiling the extension."""
     return _build_sdist(sdist_directory, config_settings)
-
-
-def _repair_nimby_cache(lock_path: Path) -> None:
-    """Delete Nimby packages whose metadata files are missing or unreadable."""
-    pkgs_root = Path.home() / ".nimby" / "pkgs"
-    if not lock_path.exists() or not pkgs_root.exists():
-        return
-
-    for raw_line in lock_path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
-            continue
-        package_name = line.split()[0]
-        package_dir = pkgs_root / package_name
-        if not package_dir.exists():
-            continue
-
-        nimble_files = list(package_dir.glob("*.nimble"))
-        needs_refresh = not nimble_files
-        for nimble_file in nimble_files:
-            try:
-                nimble_file.open("r", encoding="utf-8").close()
-            except OSError:
-                needs_refresh = True
-                break
-
-        if needs_refresh:
-            print(f"Refreshing Nimby package cache for {package_name} at {package_dir}")
-            shutil.rmtree(package_dir, ignore_errors=True)
 
 
 __all__ = [
