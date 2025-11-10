@@ -55,28 +55,15 @@ class IdMap:
         """Get mapping of feature names to IDs."""
         return {feature.name: feature.id for feature in self.features()}
 
-    def tag_names(self) -> dict[int, str]:
-        """Get mapping of tag IDs to tag names.
+    def tag_names(self) -> list[str]:
+        """Get all tag names in alphabetical order."""
 
-        Returns a dictionary mapping tag ID (int) to tag name (str).
-        Tags are sorted alphabetically and assigned consecutive IDs starting from 0.
-        """
-        # Collect all unique tags from all objects
-        all_tags = set()
-
-        # Collect tags from objects
-        for obj_config in self._config.objects.values():
-            all_tags.update(obj_config.tags)
-
-        # Collect tags from agents
-        for agent_config in self._config.agents:
-            all_tags.update(agent_config.tags)
-
-        # Sort tags alphabetically and create mapping
-        sorted_tags = sorted(all_tags)
-        tag_id_to_name = {i: tag for i, tag in enumerate(sorted_tags)}
-
-        return tag_id_to_name
+        return sorted(
+            set(
+                [tag for obj_config in self._config.objects.values() for tag in obj_config.tags]
+                + [tag for agent_config in self._config.agents for tag in agent_config.tags]
+            )
+        )
 
     def _compute_features(self) -> list[ObservationFeatureSpec]:
         """Compute observation features from the game configuration."""

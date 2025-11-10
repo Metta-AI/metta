@@ -448,10 +448,6 @@ class MettaGridConfig(Config):
     game: GameConfig = Field(default_factory=GameConfig)
     desync_episodes: bool = Field(default=True)
 
-    def id_map(self) -> "IdMap":
-        """Get the observation feature ID map for this configuration."""
-        return IdMap(self.game)
-
     def with_ascii_map(self, map_data: list[list[str]]) -> "MettaGridConfig":
         self.game.map_builder = AsciiMapBuilder.Config(
             map_data=map_data,
