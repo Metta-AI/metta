@@ -1,24 +1,30 @@
+# ruff: noqa
+import os
+import sys
 from ctypes import *
-import os, sys
 
 dir = os.path.dirname(sys.modules["heuristic_agents"].__file__)
 if sys.platform == "win32":
-  libName = "heuristic_agents.dll"
+    libName = "heuristic_agents.dll"
 elif sys.platform == "darwin":
-  libName = "libheuristic_agents.dylib"
+    libName = "libheuristic_agents.dylib"
 else:
-  libName = "libheuristic_agents.so"
+    libName = "libheuristic_agents.so"
 dll = cdll.LoadLibrary(os.path.join(dir, libName))
+
 
 class HeuristicAgentsError(Exception):
     pass
+
 
 class SeqIterator(object):
     def __init__(self, seq):
         self.idx = 0
         self.seq = seq
+
     def __iter__(self):
         return self
+
     def __next__(self):
         if self.idx < len(self.seq):
             self.idx += 1
@@ -26,6 +32,7 @@ class SeqIterator(object):
         else:
             self.idx = 0
             raise StopIteration
+
 
 class HeuristicAgent(Structure):
     _fields_ = [("ref", c_ulonglong)]
@@ -55,10 +62,14 @@ class HeuristicAgent(Structure):
         dll.heuristic_agents_heuristic_agent_reset(self)
 
     def step(self, num_agents, num_tokens, size_token, row_observations, num_actions, raw_actions):
-        dll.heuristic_agents_heuristic_agent_step(self, num_agents, num_tokens, size_token, row_observations, num_actions, raw_actions)
+        dll.heuristic_agents_heuristic_agent_step(
+            self, num_agents, num_tokens, size_token, row_observations, num_actions, raw_actions
+        )
+
 
 def init_chook():
     dll.heuristic_agents_init_chook()
+
 
 dll.heuristic_agents_heuristic_agent_unref.argtypes = [HeuristicAgent]
 dll.heuristic_agents_heuristic_agent_unref.restype = None
@@ -75,9 +86,16 @@ dll.heuristic_agents_heuristic_agent_set_agent_id.restype = None
 dll.heuristic_agents_heuristic_agent_reset.argtypes = [HeuristicAgent]
 dll.heuristic_agents_heuristic_agent_reset.restype = None
 
-dll.heuristic_agents_heuristic_agent_step.argtypes = [HeuristicAgent, c_longlong, c_longlong, c_longlong, c_void_p, c_longlong, c_void_p]
+dll.heuristic_agents_heuristic_agent_step.argtypes = [
+    HeuristicAgent,
+    c_longlong,
+    c_longlong,
+    c_longlong,
+    c_void_p,
+    c_longlong,
+    c_void_p,
+]
 dll.heuristic_agents_heuristic_agent_step.restype = None
 
 dll.heuristic_agents_init_chook.argtypes = []
 dll.heuristic_agents_init_chook.restype = None
-
