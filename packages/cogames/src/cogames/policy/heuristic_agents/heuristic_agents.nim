@@ -105,9 +105,12 @@ type
     planner: PriorityAgent
     chestInventory: Table[ResourceKind, int]
     chestTargets: Table[ResourceKind, int]
+    chestHearts: int
     assemblerLocation: Option[Location]
     chestLocation: Option[Location]
     homeLocation: Option[Location]
+    lastInventorySample: Table[ResourceKind, int]
+    lastHeartInventory: int
 
 proc getTypeId(agent: HeuristicAgent, map: Table[Location, seq[FeatureValue]], location: Location): int
 proc getInventory(agent: HeuristicAgent, visible: Table[Location, seq[FeatureValue]], inventoryId: int): int

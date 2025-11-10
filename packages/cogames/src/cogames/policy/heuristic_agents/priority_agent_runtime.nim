@@ -15,7 +15,7 @@ proc chebyshevDistance(a, b: Location): int =
   max(abs(a.x - b.x), abs(a.y - b.y))
 
 proc initPriorityFields(agent: HeuristicAgent) =
-  agent.planner = newPriorityAgent()
+  agent.planner = newPriorityAgent(agent.agentId)
   agent.chestInventory = initTable[ResourceKind, int]()
   agent.chestTargets = initTable[ResourceKind, int]()
   for resource in HeartResources:
@@ -23,11 +23,43 @@ proc initPriorityFields(agent: HeuristicAgent) =
   agent.assemblerLocation = none(Location)
   agent.chestLocation = none(Location)
   agent.homeLocation = none(Location)
+  agent.chestHearts = 0
+  agent.lastInventorySample = initTable[ResourceKind, int]()
+  agent.lastHeartInventory = 0
 
 proc cloneResourceTable(source: Table[ResourceKind, int]): Table[ResourceKind, int] =
   result = initTable[ResourceKind, int]()
   for key, value in source.pairs:
     result[key] = value
+
+proc recordInventorySnapshot(agent: HeuristicAgent, snapshot: var AgentSnapshot) =
+  if agent.lastInventorySample.len == 0:
+    agent.lastInventorySample = cloneResourceTable(snapshot.inventory)
+    agent.lastHeartInventory = snapshot.heartInventory
+    snapshot.chest = cloneResourceTable(agent.chestInventory)
+    return
+
+  let atChest = snapshot.seenChest and snapshot.chestLocation.isSome and snapshot.location == snapshot.chestLocation.get()
+  if atChest:
+    for resource in ResourceKind:
+      let previous = agent.lastInventorySample.getOrDefault(resource, 0)
+      let current = snapshot.inventory.getOrDefault(resource, 0)
+      if current < previous:
+        agent.chestInventory[resource] = agent.chestInventory.getOrDefault(resource, 0) + (previous - current)
+      elif current > previous:
+        let newValue = agent.chestInventory.getOrDefault(resource, 0) - (current - previous)
+        agent.chestInventory[resource] = max(0, newValue)
+
+    let prevHeart = agent.lastHeartInventory
+    let currHeart = snapshot.heartInventory
+    if currHeart < prevHeart:
+      agent.chestHearts += prevHeart - currHeart
+    elif currHeart > prevHeart:
+      agent.chestHearts = max(0, agent.chestHearts - (currHeart - prevHeart))
+
+  agent.lastInventorySample = cloneResourceTable(snapshot.inventory)
+  agent.lastHeartInventory = snapshot.heartInventory
+  snapshot.chest = cloneResourceTable(agent.chestInventory)
 
 proc updateStructureKnowledge(agent: HeuristicAgent) =
   ## Remember assembler/chest locations once seen.
@@ -67,14 +99,10 @@ proc countFriendsAtAssembler(agent: HeuristicAgent): int =
         inc result
 
 proc readyToCraft(inventory: Table[ResourceKind, int]): bool =
-  var total = 0
-  var minResource = int.high
   for resource in HeartResources:
-    let amount = inventory.getOrDefault(resource, 0)
-    total += amount
-    if amount < minResource:
-      minResource = amount
-  total >= 50 and minResource >= 10
+    if inventory.getOrDefault(resource, 0) < resourceQuota(resource):
+      return false
+  true
 
 proc buildSnapshot(agent: HeuristicAgent, visible: Table[Location, seq[FeatureValue]]): AgentSnapshot =
   result.inventory = buildInventory(agent, visible)
@@ -92,6 +120,7 @@ proc buildSnapshot(agent: HeuristicAgent, visible: Table[Location, seq[FeatureVa
   result.location = agent.location.toCoord()
   result.seenChest = agent.chestLocation.isSome
   result.seenAssembler = agent.assemblerLocation.isSome
+  result.heartInventory = agent.getInventory(visible, agent.features.invHeart)
 
 proc resourceTypeId(agent: HeuristicAgent, resource: ResourceKind): int =
   case resource:
@@ -113,7 +142,21 @@ proc findStructure(agent: HeuristicAgent, typeId: int): Option[Coord] =
   none(Coord)
 
 proc targetForResource(agent: HeuristicAgent, resource: ResourceKind): Option[Coord] =
-  findStructure(agent, agent.resourceTypeId(resource))
+  let typeId = agent.resourceTypeId(resource)
+  var bestScore = int.low
+  var best: Option[Coord] = none(Coord)
+  let baseLocation = if agent.homeLocation.isSome: agent.homeLocation.get() else: agent.location
+  for location, _ in agent.map:
+    if agent.getTypeId(agent.map, location) == typeId:
+      let distFromBase = chebyshevDistance(location, baseLocation)
+      let distFromAgent = chebyshevDistance(location, agent.location)
+      let score = distFromBase * 10 - distFromAgent
+      if score > bestScore:
+        bestScore = score
+        best = some(location.toCoord())
+  if best.isSome:
+    return best
+  findStructure(agent, typeId)
 
 proc randomMove(agent: HeuristicAgent): int32 =
   case agent.random.rand(0 .. 3)
@@ -162,6 +205,14 @@ proc exploreAction(agent: HeuristicAgent): int32 =
   let idx = agent.random.rand(0 ..< candidates.len)
   candidates[idx][1]
 
+proc interactWithChest(agent: HeuristicAgent, target: Option[Coord]): int32 =
+  if target.isSome:
+    let coord = target.get()
+    if coord == agent.location.toCoord():
+      return agent.actions.vibeChest.int32
+    return agent.moveTowards(coord)
+  agent.exploreAction()
+
 proc chooseAction(agent: HeuristicAgent, taskOpt: Option[PriorityTask]): int32 =
   if taskOpt.isNone:
     return agent.exploreAction()
@@ -184,9 +235,11 @@ proc chooseAction(agent: HeuristicAgent, taskOpt: Option[PriorityTask]): int32 =
       return agent.moveTowards(targetCoord.get())
     return agent.exploreAction()
   of tkDepositToChest:
-    if targetCoord.isSome:
-      return agent.moveTowards(targetCoord.get())
-    return agent.actions.vibeChest.int32
+    return agent.interactWithChest(targetCoord)
+  of tkWithdrawResources:
+    return agent.interactWithChest(targetCoord)
+  of tkDepositHeart:
+    return agent.interactWithChest(targetCoord)
   of tkCollectScarce:
     if task.payload.resource.isSome:
       let locus = agent.targetForResource(task.payload.resource.get())
@@ -200,7 +253,8 @@ proc chooseAction(agent: HeuristicAgent, taskOpt: Option[PriorityTask]): int32 =
 
 proc planAndSelectAction(agent: HeuristicAgent, visible: Table[Location, seq[FeatureValue]]): (Option[PriorityTask], int32) =
   updateStructureKnowledge(agent)
-  let snapshot = agent.buildSnapshot(visible)
+  var snapshot = agent.buildSnapshot(visible)
+  agent.recordInventorySnapshot(snapshot)
   agent.planner.plan(snapshot)
   let plannedTask = agent.planner.nextTask()
   let chosenAction = agent.chooseAction(plannedTask)

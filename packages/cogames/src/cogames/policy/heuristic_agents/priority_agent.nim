@@ -6,7 +6,7 @@
 # observations into this planner while we gradually migrate shared utilities
 # into a common module.
 
-import std/[heapqueue, options, strformat, tables]
+import std/[heapqueue, options, random, strformat, tables]
 
 type
   ## Simplified coordinate used by the planner. We intentionally duplicate this
@@ -30,7 +30,9 @@ type
     tkReturnInventory,
     tkCoordinateHeart,
     tkHoldAssembler,
-    tkDepositToChest
+    tkDepositToChest,
+    tkWithdrawResources,
+    tkDepositHeart
 
   TaskPayload* = object
     ## Optional payload used by downstream action-selection code. For now the
@@ -65,14 +67,65 @@ type
     location*: Coord
     seenChest*: bool
     seenAssembler*: bool
+    heartInventory*: int
 
   PriorityAgent* = ref object
     queue: TaskQueue
     lastSnapshot: Option[AgentSnapshot]
+    randomizer: Rand
 
 const
   ## Resources that contribute directly to a heart recipe.
   HeartResources* = [rkCarbon, rkOxygen, rkGermanium, rkSilicon]
+
+proc resourceQuota*(resource: ResourceKind): int =
+  ## Required inventory stack before switching to deposit/craft behaviors.
+  case resource
+  of rkSilicon:
+    50
+  of rkCarbon, rkOxygen, rkGermanium:
+    30
+  else:
+    0
+
+proc chestHasBundle(snapshot: AgentSnapshot): bool =
+  ## True when the chest holds enough of every ingredient to assemble one heart.
+  for resource in HeartResources:
+    if snapshot.chest.getOrDefault(resource, 0) < resourceQuota(resource):
+      return false
+  true
+
+proc inventoryReadyForHeart(snapshot: AgentSnapshot): bool =
+  for resource in HeartResources:
+    if snapshot.inventory.getOrDefault(resource, 0) < resourceQuota(resource):
+      return false
+  true
+
+proc currentCarry(snapshot: AgentSnapshot): Option[(ResourceKind, int)] =
+  var bestAmount = 0
+  var bestResource = rkCarbon
+  for resource in HeartResources:
+    let amount = snapshot.inventory.getOrDefault(resource, 0)
+    if amount > bestAmount:
+      bestAmount = amount
+      bestResource = resource
+  if bestAmount > 0:
+    return some((bestResource, bestAmount))
+  none((ResourceKind, int))
+
+proc missingResources(snapshot: AgentSnapshot): seq[ResourceKind] =
+  for resource in HeartResources:
+    if snapshot.chest.getOrDefault(resource, 0) < resourceQuota(resource):
+      result.add(resource)
+
+proc chooseMissingResource(planner: PriorityAgent, snapshot: AgentSnapshot): ResourceKind =
+  let missing = snapshot.missingResources()
+  if missing.len == 0:
+    return rkCarbon
+  if missing.len == 1:
+    return missing[0]
+  let idx = planner.randomizer.rand(0 ..< missing.len)
+  missing[idx]
 
 proc `<`(a, b: PriorityTask): bool =
   ## heapqueue is a min-heap, so invert the comparison to treat a higher
@@ -92,107 +145,72 @@ proc popTask(queue: var TaskQueue): Option[PriorityTask] =
     return none(PriorityTask)
   some(queue.heap.pop())
 
-proc totalInventory(snapshot: AgentSnapshot): int =
-  var total = 0
-  for resource in ResourceKind:
-    total += snapshot.inventory.getOrDefault(resource, 0)
-  total
-
-proc chestNeed(snapshot: AgentSnapshot, kind: ResourceKind): int =
-  let target = snapshot.chestTarget.getOrDefault(kind, 0)
-  let have = snapshot.chest.getOrDefault(kind, 0)
-  result = target - have
-  if result < 0:
-    result = 0
-
-proc leastSatisfiedResource(snapshot: AgentSnapshot): ResourceKind =
-  var bestKind = rkCarbon
-  var bestNeed = -1
-  for resource in HeartResources:
-    let need = chestNeed(snapshot, resource)
-    if need > bestNeed:
-      bestNeed = need
-      bestKind = resource
-  bestKind
-
-proc chestAlmostReady(snapshot: AgentSnapshot): bool =
-  var unmet = 0
-  for resource in HeartResources:
-    unmet += chestNeed(snapshot, resource)
-  unmet <= 10 # Tunable buffer before declaring "almost ready".
-
-proc halfInventory(snapshot: AgentSnapshot): bool =
-  totalInventory(snapshot) >= (snapshot.inventoryCapacity div 2)
-
-proc saturatedStack(snapshot: AgentSnapshot): bool =
-  for resource in HeartResources:
-    if snapshot.inventory.getOrDefault(resource, 0) >= snapshot.maxStackPerResource:
-      return true
-  false
-
-proc newPriorityAgent*(): PriorityAgent =
-  PriorityAgent(queue: emptyQueue())
+proc newPriorityAgent*(seed: int): PriorityAgent =
+  PriorityAgent(queue: emptyQueue(), randomizer: initRand(seed))
 
 proc enqueueTask(tasks: var seq[PriorityTask], kind: TaskKind, priority: int, payload: TaskPayload, note: string) =
   tasks.add(PriorityTask(priority: priority, kind: kind, payload: payload, note: note))
 
-proc buildPriorityPlan(snapshot: AgentSnapshot): seq[PriorityTask] =
+proc buildPriorityPlan(planner: PriorityAgent, snapshot: AgentSnapshot): seq[PriorityTask] =
   ## Evaluate predicates and emit desired tasks ordered by priority.
   var tasks: seq[PriorityTask]
 
-  if snapshot.readyToCraft and snapshot.friendsAtAssembler > 0 and snapshot.seenAssembler:
+  if snapshot.heartInventory > 0:
     tasks.enqueueTask(
-      tkCoordinateHeart,
-      priority = 100,
-      payload = TaskPayload(target: snapshot.assemblerLocation),
-      note = "Friends ready at assembler; coordinate heart"
-    )
-    tasks.enqueueTask(
-      tkHoldAssembler,
-      priority = 95,
-      payload = TaskPayload(target: snapshot.assemblerLocation),
-      note = "Hold assembler perimeter while waiting"
+      tkDepositHeart,
+      priority = 120,
+      payload = TaskPayload(target: snapshot.chestLocation),
+      note = "Carrying a heart; deposit to chest"
     )
     return tasks
 
-  if snapshot.seenAssembler and chestAlmostReady(snapshot):
+  if inventoryReadyForHeart(snapshot) and snapshot.seenAssembler:
     tasks.enqueueTask(
-      tkHoldAssembler,
-      priority = 90,
+      tkCoordinateHeart,
+      priority = 110,
       payload = TaskPayload(target: snapshot.assemblerLocation),
-      note = "Chest nearly ready; stage near assembler"
+      note = "Inventory stocked; craft a heart"
     )
+    return tasks
 
-  if (halfInventory(snapshot) or saturatedStack(snapshot)) and snapshot.homeLocation.isSome:
+  if chestHasBundle(snapshot) and snapshot.seenChest:
     tasks.enqueueTask(
-      tkReturnInventory,
-      priority = 80,
-      payload = TaskPayload(target: snapshot.homeLocation),
-      note = "Inventory threshold reached; return home"
+      tkWithdrawResources,
+      priority = 100,
+      payload = TaskPayload(target: snapshot.chestLocation),
+      note = "Chest stocked; withdraw ingredients"
     )
-    if snapshot.seenChest:
+    return tasks
+
+  let carrying = snapshot.currentCarry()
+  if carrying.isSome:
+    let (resource, amount) = carrying.get()
+    if amount >= resourceQuota(resource) and snapshot.seenChest:
       tasks.enqueueTask(
         tkDepositToChest,
-        priority = 70,
-        payload = TaskPayload(target: snapshot.chestLocation),
-        note = "No partners home; deposit to chest"
+        priority = 90,
+        payload = TaskPayload(target: snapshot.chestLocation, resource: some(resource), stashAmount: amount),
+        note = &"Delivering {amount} units of {resource}"
       )
-
-  if snapshot.scavengedDropNearby and not saturatedStack(snapshot):
+      return tasks
     tasks.enqueueTask(
-      tkCollect,
-      priority = 65,
-      payload = TaskPayload(target: none(Coord)),
-      note = "Loose resources nearby"
+      tkCollectScarce,
+      priority = 80,
+      payload = TaskPayload(resource: some(resource), stashAmount: resourceQuota(resource)),
+      note = &"Continue gathering {resource}"
     )
+    return tasks
 
-  let scarce = leastSatisfiedResource(snapshot)
-  tasks.enqueueTask(
-    tkCollectScarce,
-    priority = 60,
-    payload = TaskPayload(resource: some(scarce)),
-    note = &"Hunting scarce resource {scarce}"
-  )
+  let missing = snapshot.missingResources()
+  if missing.len > 0:
+    let chosen = planner.chooseMissingResource(snapshot)
+    tasks.enqueueTask(
+      tkCollectScarce,
+      priority = 70,
+      payload = TaskPayload(resource: some(chosen), stashAmount: resourceQuota(chosen)),
+      note = &"Seeking extractor for {chosen}"
+    )
+    return tasks
 
   tasks.enqueueTask(
     tkExplore,
@@ -206,7 +224,7 @@ proc buildPriorityPlan(snapshot: AgentSnapshot): seq[PriorityTask] =
 proc plan*(planner: PriorityAgent, snapshot: AgentSnapshot) =
   planner.lastSnapshot = some(snapshot)
   planner.queue = emptyQueue()
-  for task in buildPriorityPlan(snapshot):
+  for task in planner.buildPriorityPlan(snapshot):
     planner.queue.pushTask(task)
 
 proc nextTask*(planner: PriorityAgent): Option[PriorityTask] =
