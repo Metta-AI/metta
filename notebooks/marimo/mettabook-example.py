@@ -30,7 +30,9 @@ def _():
     # Note: Marimo doesn't support IPython magic commands, use subprocess instead if needed
     import subprocess
 
-    subprocess.run(["metta", "status", "--components=core,system,aws,wandb", "--non-interactive"])
+    subprocess.run(
+        ["metta", "status", "--components=core,system,aws,wandb", "--non-interactive"]
+    )
     return
 
 
@@ -157,7 +159,11 @@ def _(alt, metrics_dfs, pd):
             # Check if this column exists in at least one run with numeric data
             has_numeric_data = False
             for _df in metrics_dfs.values():
-                if col in _df.columns and pd.api.types.is_numeric_dtype(_df[col]) and _df[col].nunique() > 1:
+                if (
+                    col in _df.columns
+                    and pd.api.types.is_numeric_dtype(_df[col])
+                    and _df[col].nunique() > 1
+                ):
                     has_numeric_data = True
                     break
             if has_numeric_data:
@@ -174,7 +180,9 @@ def _(alt, metrics_dfs, pd):
                     if col in df.columns and "_step" in df.columns:
                         temp_df = df[["_step", col]].copy()
                         temp_df["run"] = run_name
-                        temp_df["metric"] = col.replace("overview/", "").replace("_", " ")
+                        temp_df["metric"] = col.replace("overview/", "").replace(
+                            "_", " "
+                        )
                         temp_df["value"] = temp_df[col]
                         temp_df = temp_df[["_step", "run", "metric", "value"]]
                         all_data.append(temp_df)
@@ -211,7 +219,9 @@ def _(alt, metrics_dfs, pd):
                 )
 
                 # Add interactive selection
-                selection = alt.selection_point(fields=["run"], bind="legend", on="click", clear="dblclick")
+                selection = alt.selection_point(
+                    fields=["run"], bind="legend", on="click", clear="dblclick"
+                )
 
                 chart = base.add_params(selection).encode(
                     opacity=alt.condition(selection, alt.value(0.8), alt.value(0.2))

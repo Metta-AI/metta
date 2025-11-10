@@ -253,3 +253,10 @@ class EvaluateTool(Tool):
         print("===JSON_OUTPUT_START===")
         print(json.dumps(all_results, indent=2))
         print("===JSON_OUTPUT_END===")
+
+        # Fail if no policies were successfully evaluated
+        if not all_results["policies"]:
+            raise ValueError(
+                f"Failed to evaluate any policies. Attempted to load {len(self.policy_uris)} "
+                f"policy URIs but none succeeded."
+            )

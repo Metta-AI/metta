@@ -609,7 +609,7 @@ class JobManager:
         """Submit job to queue, starting immediately if worker slot available.
 
         Note: Job is identified by config.name. Callers are responsible for ensuring
-        unique names across their use case (e.g., release_stable.py prefixes names
+        unique names across their use case (e.g., stable.py prefixes names
         with version like "v0.1.0_train_arena" to avoid collisions across releases).
         """
 
@@ -622,10 +622,15 @@ class JobManager:
                 )
             job_state = JobState(name=config.name, config=config, status="pending")
 
-            # Set checkpoint URI (known at submission time)
+            # Set checkpoint URI using run name (from args) for training jobs
             # WandB URL will be extracted from logs once job starts running
             # Uses the same S3 prefix that CheckpointManager uses for policy storage
-            job_state.checkpoint_uri = f"{SOFTMAX_S3_POLICY_PREFIX}/{config.name}"
+            if config.is_training_job:
+                from metta.jobs.job_metrics import parse_run_name
+
+                run_name = parse_run_name(config.args)
+                if run_name:
+                    job_state.checkpoint_uri = f"{SOFTMAX_S3_POLICY_PREFIX}/{run_name}"
 
             session.add(job_state)
             session.commit()

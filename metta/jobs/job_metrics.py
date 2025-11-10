@@ -25,6 +25,20 @@ def extract_skypilot_job_id(log_text: str) -> Optional[str]:
     return None
 
 
+def parse_run_name(args: list[str]) -> str | None:
+    """Extract run name from job config args.
+
+    Parses args list looking for 'run=X' format.
+    """
+    for arg in args:
+        if arg.startswith("run="):
+            try:
+                return arg.split("=", 1)[1]
+            except IndexError:
+                continue
+    return None
+
+
 def parse_total_timesteps(args: list[str]) -> int | None:
     """Extract total_timesteps from job config args.
 
