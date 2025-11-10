@@ -27,7 +27,6 @@ DEVICE = "cpu"
 CHECKPOINT_DIR = Path("./train_dir")
 SEED = 42
 LOG_INTERVAL = 1
-CHECKPOINT_INTERVAL = 1000
 NIM_DEBUG = False
 
 
@@ -192,12 +191,6 @@ def train_supervised(
 
             last_log_time = current_time
             last_log_steps = step_count
-
-        # Save checkpoint periodically
-        if step_count % CHECKPOINT_INTERVAL == 0:
-            checkpoint_path = checkpoint_dir / f"supervised_{step_count}.pt"
-            torch.save(model.state_dict(), checkpoint_path)
-            print(f"Saved checkpoint to {checkpoint_path}")
 
     # Final checkpoint
     final_checkpoint = checkpoint_dir / "supervised_final.pt"
