@@ -373,6 +373,7 @@ class TestTags:
                 actions=ActionsConfig(noop=NoopActionConfig()),
                 objects={
                     "assembler": AssemblerConfig(
+                        name="assembler",
                         protocols=[
                             ProtocolConfig(input_resources={"wood": 1}, output_resources={"coal": 1}, cooldown=5)
                         ],
@@ -653,6 +654,7 @@ def test_tag_mapping_in_id_map():
             objects={
                 "wall": WallConfig(tags=["solid", "blocking"]),
                 "assembler": AssemblerConfig(
+                    name="assembler",
                     protocols=[ProtocolConfig(input_resources={"wood": 1}, output_resources={"coal": 1}, cooldown=5)],
                     max_uses=10,
                     tags=["machine", "industrial"],
@@ -731,4 +733,6 @@ def test_tag_mapping_empty_tags():
     # Now expect mapping to include the default 'wall' tag
     tag_values = id_map.tag_names()
     assert isinstance(tag_values, dict)
-    assert any(name == "wall" for name in tag_values.values()), "Expected default 'wall' tag"
+    assert any(name == "wall" for name in tag_values.values()), (
+        f"Expected default 'wall' tag. Got {tag_values.values()}"
+    )
