@@ -344,7 +344,7 @@ proc validateObject(obj: JsonNode, objIndex: int, replayData: JsonNode) =
   elif "input_resources" in obj:
     validateBuildingFields(obj, objName)
 
-proc validateReplaySchema(data: JsonNode) =
+proc validateReplaySchema*(data: JsonNode) =
   ## Validate that replay data matches the version 2 schema specification.
   # Check required keys and absence of unexpected keys.
   let dataKeys = toSeq(keys(data))
@@ -452,7 +452,7 @@ proc loadReplay(path: string): JsonNode =
   except:
     raise newException(ValueError, "Invalid JSON in replay file")
 
-proc makeValidReplay(fileName: string = "sample.json.z"): JsonNode =
+proc makeValidReplay*(fileName: string = "sample.json.z"): JsonNode =
   ## Create a minimal valid replay dict per the spec.
   result = %*{
     "version": 2,
