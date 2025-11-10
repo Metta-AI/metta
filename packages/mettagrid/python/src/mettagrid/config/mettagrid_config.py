@@ -408,10 +408,6 @@ class GameConfig(Config):
     # Map builder configuration - accepts any MapBuilder config
     map_builder: AnyMapBuilderConfig = Field(default_factory=lambda: RandomMapBuilder.Config(agents=24))
 
-    # Feature Flags
-    track_movement_metrics: bool = Field(
-        default=True, description="Enable movement metrics tracking (sequential rotations)"
-    )
     protocol_details_obs: bool = Field(
         default=False, description="Objects show their protocol inputs and outputs when observed"
     )
@@ -435,9 +431,7 @@ class GameConfig(Config):
 
     def id_map(self) -> "IdMap":
         """Get the observation feature ID map for this configuration."""
-        # Create a minimal MettaGridConfig wrapper
-        wrapper = MettaGridConfig(game=self)
-        return IdMap(wrapper)
+        return IdMap(self)
 
 
 class EnvSupervisorConfig(Config):
@@ -453,10 +447,6 @@ class MettaGridConfig(Config):
     label: str = Field(default="mettagrid")
     game: GameConfig = Field(default_factory=GameConfig)
     desync_episodes: bool = Field(default=True)
-
-    def id_map(self) -> "IdMap":
-        """Get the observation feature ID map for this configuration."""
-        return IdMap(self)
 
     def with_ascii_map(self, map_data: list[list[str]]) -> "MettaGridConfig":
         self.game.map_builder = AsciiMapBuilder.Config(

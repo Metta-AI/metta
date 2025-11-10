@@ -92,7 +92,6 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
                     0.0f,
                     tag_id_map,
                     false,
-                    false,
                     std::unordered_map<std::string, float>(),
                     0,
                     nullptr);
