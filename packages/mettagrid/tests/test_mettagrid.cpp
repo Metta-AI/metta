@@ -1194,7 +1194,6 @@ TEST_F(MettaGridCppTest, AssemblerProtocolObservationsEnabled) {
   Grid grid(10, 10);
 
   AssemblerConfig config(1, "test_assembler");
-  config.protocol_details_obs = true;
 
   // Create test protocols - one for pattern 0 (no agents), one for pattern 1 (some agents)
   auto protocol0 = std::make_shared<Protocol>();  // Default protocol (vibe 0)
@@ -1223,8 +1222,8 @@ TEST_F(MettaGridCppTest, AssemblerProtocolObservationsEnabled) {
   std::unordered_map<std::string, ObservationType> proto_feature_ids;
   // Assign arbitrary, unique feature ids for protocol input/output per resource
   for (size_t i = 0; i < resource_names.size(); ++i) {
-    proto_feature_ids[std::string("input:") + resource_names[i]] = static_cast<ObservationType>(100 + i);
-    proto_feature_ids[std::string("output:") + resource_names[i]] = static_cast<ObservationType>(120 + i);
+    proto_feature_ids[std::string("protocol_input:") + resource_names[i]] = static_cast<ObservationType>(100 + i);
+    proto_feature_ids[std::string("protocol_output:") + resource_names[i]] = static_cast<ObservationType>(120 + i);
   }
   ObservationEncoder encoder(true, resource_names, proto_feature_ids);
   assembler->set_obs_encoder(&encoder);
