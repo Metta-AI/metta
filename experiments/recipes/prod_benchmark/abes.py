@@ -95,8 +95,10 @@ def make_curriculum(
 
     arena_tasks.add_bucket("game.map_builder.width", [64, 70, 80])
     arena_tasks.add_bucket("game.map_builder.height", [64, 70, 80])
-    arena_tasks.add_bucket("game.objects.mine_red.initial_resource_count", [0, 1])
-    arena_tasks.add_bucket("game.objects.generator_red.initial_resource_count", [0, 1])
+    if "mine_red" in arena_env.game.objects:
+        arena_tasks.add_bucket("game.objects.mine_red.initial_resource_count", [0, 1])
+    if "generator_red" in arena_env.game.objects:
+        arena_tasks.add_bucket("game.objects.generator_red.initial_resource_count", [0, 1])
 
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
