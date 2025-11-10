@@ -37,10 +37,7 @@ def _as_reset_mask(
     if dones.numel() == 0 and truncateds.numel() == 0:
         return None
     resets_bool = (dones.bool() | truncateds.bool()).to(device=device)
-    try:
-        return resets_bool.view(B) if TT == 1 else resets_bool.view(B, TT)
-    except RuntimeError:
-        return resets_bool.reshape(-1)[:B] if TT == 1 else resets_bool.reshape(B, TT)
+    return resets_bool.view(B) if TT == 1 else resets_bool.view(B, TT)
 
 
 class CortexTDConfig(ComponentConfig):
@@ -190,7 +187,8 @@ class CortexTD(nn.Module):
         if x.shape[0] != B * TT:
             raise ValueError(f"input length {x.shape[0]} must equal batch*bptt ({B}*{TT})")
 
-        resets = _as_reset_mask(td.get("dones", None), td.get("truncateds", None), B=B, TT=TT, device=device)
+        #Reset only on trucated to keep parity with current advantage calculations
+        resets = _as_reset_mask(td.get("dones", None), None, B=B, TT=TT, device=device)
 
         if TT == 1:
             # Rollout step: maintain env-based state and cache pre-state for new rows
@@ -232,7 +230,7 @@ class CortexTD(nn.Module):
         state0 = self._gather_state_by_slots(row_ids, store=self._row_store, B=B, device=device, dtype=dtype)
         #state0=None
         x_seq = rearrange(x, "(b t) h -> b t h", b=B, t=TT)
-        y_seq, _ = self.stack(x_seq, state0, resets=resets)
+        y_seq, _ = self.stack(x_seq, state0)#,resets=resets)
         y_seq = self._out(y_seq)
         td.set(self.out_key, rearrange(y_seq, "b t h -> (b t) h"))
         return td
