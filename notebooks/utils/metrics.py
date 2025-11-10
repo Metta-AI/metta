@@ -5,7 +5,9 @@ from wandb.apis.public.runs import Run
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 
 
-def get_run(run_name: str, entity: str = METTA_WANDB_ENTITY, project: str = METTA_WANDB_PROJECT) -> Run | None:
+def get_run(
+    run_name: str, entity: str = METTA_WANDB_ENTITY, project: str = METTA_WANDB_PROJECT
+) -> Run | None:
     try:
         api = wandb.Api()
     except Exception as e:
@@ -60,21 +62,31 @@ def fetch_metrics(
         if run is None:
             continue
 
-        print(f"Fetching metrics for {run_name}: {run.state}, {run.created_at}\n{run.url}...")
+        print(
+            f"Fetching metrics for {run_name}: {run.state}, {run.created_at}\n{run.url}..."
+        )
 
         try:
             if samples is None:
                 # Check if this is likely to be problematic
                 last_step = getattr(run, "lastHistoryStep", None)
                 if last_step and last_step > 10000000:  # 10 million steps
-                    print(f"  ⚠️  ERROR: This run has {last_step:,} steps (over 10 million)!")
-                    print("     Fetching all data is not practical and will likely timeout.")
-                    print("     SOLUTION: Use samples=50000 or similar for comprehensive sampling instead.")
+                    print(
+                        f"  ⚠️  ERROR: This run has {last_step:,} steps (over 10 million)!"
+                    )
+                    print(
+                        "     Fetching all data is not practical and will likely timeout."
+                    )
+                    print(
+                        "     SOLUTION: Use samples=50000 or similar for comprehensive sampling instead."
+                    )
                 elif last_step and last_step > 1000000:  # 1 million steps
                     print(f"  ⚠️  WARNING: This run has {last_step:,} steps!")
                     print("     Fetching all data will take several minutes.")
                     if min_step is None and max_step is None:
-                        print("     Proceed with caution. Be prepared to be patient or cancel this python process.")
+                        print(
+                            "     Proceed with caution. Be prepared to be patient or cancel this python process."
+                        )
 
                 if min_step is not None or max_step is not None:
                     print(f"    Step range: {min_step or 0} to {max_step or 'end'}")
@@ -83,7 +95,11 @@ def fetch_metrics(
 
                 # scan_history - this WILL be slow for large datasets
                 try:
-                    history_records = list(run.scan_history(keys=keys, min_step=min_step, max_step=max_step))
+                    history_records = list(
+                        run.scan_history(
+                            keys=keys, min_step=min_step, max_step=max_step
+                        )
+                    )
                     print(f"    Loaded {len(history_records)} records from wandb")
                 except Exception as e:
                     print(f"    ERROR: Failed to load data: {str(e)}")
@@ -94,14 +110,20 @@ def fetch_metrics(
             else:
                 # Use sampled history for faster retrieval
                 if min_step is not None or max_step is not None:
-                    print(f"  ⚠️  Warning: min_step and max_step are ignored when using sampling (samples={samples})")
-                    print("     To filter by step range, use samples=None for full scan")
+                    print(
+                        f"  ⚠️  Warning: min_step and max_step are ignored when using sampling (samples={samples})"
+                    )
+                    print(
+                        "     To filter by step range, use samples=None for full scan"
+                    )
 
                 if keys:
                     print(f"  Fetching {samples} samples for keys: {keys}")
                 else:
                     print(f"  Fetching {samples} sampled data points")
-                metrics_df: pd.DataFrame = run.history(samples=samples, keys=keys, pandas=True)  # type: ignore
+                metrics_df: pd.DataFrame = run.history(
+                    samples=samples, keys=keys, pandas=True
+                )  # type: ignore
 
             metrics_dfs[run_name] = metrics_df
             print(f"  Fetched {len(metrics_df)} data points.")

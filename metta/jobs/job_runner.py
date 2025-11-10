@@ -184,6 +184,7 @@ class LocalJob(Job):
     ):
         super().__init__(config.name, log_dir, config.timeout_s)
         self.cwd = cwd or get_repo_root()
+        self.config = config  # Store config for run_name extraction
 
         if "cmd" in config.metadata:
             cmd = config.metadata["cmd"]
@@ -298,6 +299,17 @@ class LocalJob(Job):
         """Return PID of local process if available."""
         if self._proc:
             return str(self._proc.pid)
+        return None
+
+    @property
+    def run_name(self) -> str | None:
+        """Extract WandB run name from args if present."""
+        if not self.config.is_training_job:
+            return None
+        # Look for run=<name> in args
+        for arg in self.config.args:
+            if arg.startswith("run="):
+                return arg.split("=", 1)[1]
         return None
 
     def _handle_interrupt(self) -> None:
