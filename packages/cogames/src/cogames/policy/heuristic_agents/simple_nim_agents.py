@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import ctypes
 import json
 import os
@@ -26,13 +28,10 @@ ha.dll.heuristic_agents_heuristic_agent_step.argtypes = [
     ctypes.c_void_p,
 ]
 
-# ha.initCHook()
-
 
 class HeuristicAgentPolicy(AgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info)
-        # Convert the policy_env_info to a JSON string.
         config = {
             "num_agents": policy_env_info.num_agents,
             "obs_width": policy_env_info.obs_width,
@@ -49,16 +48,16 @@ class HeuristicAgentPolicy(AgentPolicy):
                 "siliconExtractor": 6,
                 "wall": 7,
             },
-            "obs_features": [],
-        }
-        for feature in policy_env_info.obs_features:
-            config["obs_features"].append(
+            "obs_features": [
                 {
                     "id": feature.id,
                     "name": feature.name,
                     "normalization": feature.normalization,
                 }
-            )
+                for feature in policy_env_info.obs_features
+            ],
+        }
+
         self._agent = ha.HeuristicAgent(agent_id, json.dumps(config))
         self._agent_id = agent_id
         self._simulation: Simulation | None = None
@@ -74,7 +73,7 @@ class HeuristicAgentPolicy(AgentPolicy):
         buffers = simulation.buffers
         if buffers is not None:
             return buffers.observations, buffers.actions
-        c_sim = simulation._c_sim  # Access shared C++ buffers when Python ones aren't provided
+        c_sim = simulation._c_sim
         return c_sim.observations(), c_sim.actions()
 
     def _step_with_arrays(self, simulation: Simulation, raw_obs: np.ndarray, raw_actions: np.ndarray) -> Action:
@@ -100,6 +99,7 @@ class HeuristicAgentPolicy(AgentPolicy):
         return self._step_with_arrays(simulation, raw_obs, raw_actions)
 
     def step(self, obs: AgentObservation) -> Action:
+        del obs
         if self._simulation is None:
             raise RuntimeError("HeuristicAgentPolicy must be reset with a simulation before stepping.")
         raw_obs, raw_actions = self._resolve_arrays(self._simulation)

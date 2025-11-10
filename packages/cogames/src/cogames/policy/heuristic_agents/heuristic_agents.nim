@@ -6,10 +6,9 @@ const
   debugHeuristicLogs = false
 
 when debugHeuristicLogs:
-  template debugLog(args: varargs[string, `$`]) =
-    echo args
+  template debugLog(args: varargs[untyped]) = echo args
 else:
-  template debugLog(args: varargs[string, `$`]) = discard
+  template debugLog(args: varargs[untyped]) = discard
 
 type
 
@@ -111,32 +110,27 @@ type
 
 proc ctrlCHandler() {.noconv.} =
   ## Handle ctrl-c signal to exit cleanly.
-  when debugHeuristicLogs:
-    debugLog "\nNim DLL caught ctrl-c, exiting..."
+  debugLog "\nNim DLL caught ctrl-c, exiting..."
   quit(0)
 
 proc initCHook() =
   setControlCHook(ctrlCHandler)
-  when debugHeuristicLogs:
-    debugLog "HeuristicAgents initialized"
+  debugLog "HeuristicAgents initialized"
 
 proc newHeuristicAgent(agentId: int, environmentConfig: string): HeuristicAgent {.raises: [].} =
-  when debugHeuristicLogs:
-    debugLog "Creating new heuristic agent ", agentId
+  debugLog "Creating new heuristic agent ", agentId
   try:
     var config = environmentConfig.fromJson(Config)
     result = HeuristicAgent(agentId: agentId, config: config)
-
-    echo "  numAgents", config.numAgents
-    echo "  obsWidth", config.obsWidth
-    echo "  obsHeight", config.obsHeight
-    echo "  actions", config.actions
-    echo "  tagNames", config.tagNames
-    echo "  obsFeatures", config.obsFeatures
+    debugLog "  numAgents", config.numAgents
+    debugLog "  obsWidth", config.obsWidth
+    debugLog "  obsHeight", config.obsHeight
+    debugLog "  actions", config.actions
+    debugLog "  tagNames", config.tagNames
+    debugLog "  obsFeatures", config.obsFeatures
 
     for feature in config.obsFeatures:
-      when debugHeuristicLogs:
-        debugLog "    feature ", feature.id, " ", feature.name, " ", feature.normalization
+      debugLog "    feature ", feature.id, " ", feature.name, " ", feature.normalization
       case feature.name:
       of "agent:group":
         result.features.group = feature.id
@@ -229,10 +223,9 @@ proc newHeuristicAgent(agentId: int, environmentConfig: string): HeuristicAgent 
         result.actions.vibeWall = id
       else:
         discard
-
-    echo "  actions", result.actions
+    debugLog "  actions", result.actions
     for name, id in config.tagNames:
-      echo "    tag name ", name, " id ", id
+      debugLog "    tag name ", name, " id ", id
       case name:
       of "agent":
         result.tags.agent = id
@@ -254,8 +247,7 @@ proc newHeuristicAgent(agentId: int, environmentConfig: string): HeuristicAgent 
         result.tags.wall = id
       else:
         discard
-
-    echo "  types_names", result.tags
+    debugLog "  types_names", result.tags
     result.random = initRand(agentId)
   except JsonError, ValueError:
     debugLog "Error parsing environment config: ", getCurrentExceptionMsg()
