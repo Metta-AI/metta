@@ -48,7 +48,7 @@ TEST_CONDITIONS = {
 }
 
 # Base configuration
-BASE_MODULE = "experiments.recipes.arena_basic_easy_shaped.train"
+BASE_MODULE = "recipes.prod.arena_basic_easy_shaped.train"
 BASE_ARGS = ["--no-spot", "--gpus=4"]
 
 

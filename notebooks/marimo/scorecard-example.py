@@ -195,7 +195,9 @@ def _(pd, scorecard_data):
         for policy in sorted_policies:
             row = {
                 "Policy": policy.split(":v")[0][:40] if ":v" in policy else policy[:40],
-                "Overall Score": round(scorecard_data.policyAverageScores.get(policy, 0), 1),
+                "Overall Score": round(
+                    scorecard_data.policyAverageScores.get(policy, 0), 1
+                ),
                 "_original_policy": policy,
             }
 
@@ -210,7 +212,9 @@ def _(pd, scorecard_data):
                 if not cell_data:
                     row[eval_display] = None
                 else:
-                    value = cell_data.value if hasattr(cell_data, "value") else cell_data
+                    value = (
+                        cell_data.value if hasattr(cell_data, "value") else cell_data
+                    )
                     if isinstance(value, (int, float)):
                         row[eval_display] = round(value, 2)
                     else:
@@ -229,7 +233,11 @@ def _(alt, metric_selector, mo, table_df):
     def _get_heatmap(table_df):
         if len(table_df) > 0:
             # Heatmap view
-            eval_cols = [col for col in table_df.columns if col not in ["Policy", "Overall Score"]]
+            eval_cols = [
+                col
+                for col in table_df.columns
+                if col not in ["Policy", "Overall Score"]
+            ]
 
             if eval_cols:  # Only create heatmap if we have evaluation columns
                 # Melt data for Altair
