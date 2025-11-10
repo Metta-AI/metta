@@ -99,6 +99,9 @@ notebooks/.ipynb_checkpoints
 notebooks/utils/eval_finder_widget/eval_finder_widget/static/index.js
 notebooks/utils/scorecard_widget/scorecard_widget/static/index.js
 recipes/experiment/scratchpad/
+!recipes/experiment/scratchpad/README.md
+!recipes/experiment/scratchpad/template.py
+!recipes/experiment/scratchpad/__init__.py
 packages/cogames/experiments
 
 resources
