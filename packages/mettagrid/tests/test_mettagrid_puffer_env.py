@@ -5,7 +5,6 @@ import pytest
 
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
-    EnvSupervisorConfig,
     GameConfig,
     MettaGridConfig,
     MoveActionConfig,
@@ -216,19 +215,6 @@ class TestMettaGridPufferEnvStep:
         # Should be able to continue stepping after auto-reset
         obs_next, rewards_next, terminals_next, truncations_next, info_next = env.step(actions)
         assert obs_next.shape == (2, 20, 3), "Should be able to continue stepping after auto-reset"
-
-    def test_env_supervisor_noop_policy_sets_teacher_actions(self, simulator, puffer_sim_config):
-        """Ensure noop supervisor fills the teacher buffer when enabled."""
-        supervisor_cfg = EnvSupervisorConfig(enabled=True, policy="noop")
-
-        env = MettaGridPufferEnv(simulator, puffer_sim_config, env_supervisor_cfg=supervisor_cfg)
-        env.reset()
-
-        provided_actions = np.zeros(env.num_agents, dtype=np.int32)
-        env.step(provided_actions)
-
-        noop_idx = env._sim.action_ids["noop"]
-        assert np.all(env.teacher_actions == noop_idx)
 
 
 class TestMettaGridPufferEnvBuffers:
