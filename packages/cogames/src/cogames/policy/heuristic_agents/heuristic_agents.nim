@@ -23,7 +23,7 @@ type
     obsWidth*: int
     obsHeight*: int
     actions*: seq[string]
-    typeNames*: Table[string, int]
+    tagNames*: Table[string, int]
     obsFeatures*: seq[ConfigFeature]
 
   FeatureValue* = object
@@ -58,7 +58,7 @@ type
     vibeChest*: int
     vibeWall*: int
 
-  Types = object
+  Tags = object
     agent*: int
     assembler*: int
     carbonExtractor*: int
@@ -70,7 +70,6 @@ type
     wall*: int
 
   Features = object
-    typeId*: int
     group*: int
     frozen*: int
     orientation*: int
@@ -106,7 +105,7 @@ type
     config: Config
     actions: Actions
     features: Features
-    types: Types
+    tags: Tags
     random: Rand
     location: Location
 
@@ -127,18 +126,18 @@ proc newHeuristicAgent(agentId: int, environmentConfig: string): HeuristicAgent 
   try:
     var config = environmentConfig.fromJson(Config)
     result = HeuristicAgent(agentId: agentId, config: config)
-    when debugHeuristicLogs:
-      debugLog "  numAgents", config.numAgents
-      debugLog "  obsWidth", config.obsWidth
-      debugLog "  obsHeight", config.obsHeight
-      debugLog "  actions", config.actions
-      debugLog "  typeNames", config.typeNames # TODO? how to get type names?
+
+    echo "  numAgents", config.numAgents
+    echo "  obsWidth", config.obsWidth
+    echo "  obsHeight", config.obsHeight
+    echo "  actions", config.actions
+    echo "  tagNames", config.tagNames
+    echo "  obsFeatures", config.obsFeatures
+
     for feature in config.obsFeatures:
       when debugHeuristicLogs:
         debugLog "    feature ", feature.id, " ", feature.name, " ", feature.normalization
       case feature.name:
-      of "type_id":
-        result.features.typeId = feature.id
       of "agent:group":
         result.features.group = feature.id
       of "agent:frozen":
@@ -230,31 +229,33 @@ proc newHeuristicAgent(agentId: int, environmentConfig: string): HeuristicAgent 
         result.actions.vibeWall = id
       else:
         discard
-    debugLog "  actions", result.actions
-    for name, id in config.typeNames:
-      debugLog "    type name ", name, " id ", id
+
+    echo "  actions", result.actions
+    for name, id in config.tagNames:
+      echo "    tag name ", name, " id ", id
       case name:
       of "agent":
-        result.types.agent = id
+        result.tags.agent = id
       of "assembler":
-        result.types.assembler = id
+        result.tags.assembler = id
       of "carbonExtractor":
-        result.types.carbonExtractor = id
+        result.tags.carbonExtractor = id
       of "charger":
-        result.types.charger = id
+        result.tags.charger = id
       of "chest":
-        result.types.chest = id
+        result.tags.chest = id
       of "germaniumExtractor":
-        result.types.germaniumExtractor = id
+        result.tags.germaniumExtractor = id
       of "oxygenExtractor":
-        result.types.oxygenExtractor = id
+        result.tags.oxygenExtractor = id
       of "siliconExtractor":
-        result.types.siliconExtractor = id
+        result.tags.siliconExtractor = id
       of "wall":
-        result.types.wall = id
+        result.tags.wall = id
       else:
         discard
-    debugLog "  types_names", result.types
+
+    echo "  types_names", result.tags
     result.random = initRand(agentId)
   except JsonError, ValueError:
     debugLog "Error parsing environment config: ", getCurrentExceptionMsg()
@@ -295,24 +296,24 @@ proc drawMap(agent: HeuristicAgent, map: Table[Location, seq[FeatureValue]], see
         cell = "~~"
       if location in map:
         for featureValue in map[location]:
-          if featureValue.featureId == 0:
-            if featureValue.value == agent.types.agent:
+          if featureValue.featureId == agent.features.tag:
+            if featureValue.value == agent.tags.agent:
               cell = "@@"
-            elif featureValue.value == agent.types.assembler:
+            elif featureValue.value == agent.tags.assembler:
               cell = "As"
-            elif featureValue.value == agent.types.carbonExtractor:
+            elif featureValue.value == agent.tags.carbonExtractor:
               cell = "Ca"
-            elif featureValue.value == agent.types.charger:
+            elif featureValue.value == agent.tags.charger:
               cell = "En"
-            elif featureValue.value == agent.types.chest:
+            elif featureValue.value == agent.tags.chest:
               cell = "Ch"
-            elif featureValue.value == agent.types.germaniumExtractor:
+            elif featureValue.value == agent.tags.germaniumExtractor:
               cell = "Ge"
-            elif featureValue.value == agent.types.oxygenExtractor:
+            elif featureValue.value == agent.tags.oxygenExtractor:
               cell = "O2"
-            elif featureValue.value == agent.types.siliconExtractor:
+            elif featureValue.value == agent.tags.siliconExtractor:
               cell = "Si"
-            elif featureValue.value == agent.types.wall:
+            elif featureValue.value == agent.tags.wall:
               cell = "##"
             else:
               cell = &"{featureValue.value:2d}"
@@ -325,11 +326,11 @@ proc drawMap(agent: HeuristicAgent, map: Table[Location, seq[FeatureValue]], see
   line.add "+"
   debugLog line
 
-proc getTypeId(agent: HeuristicAgent, map: Table[Location, seq[FeatureValue]], location: Location): int =
+proc getTag(agent: HeuristicAgent, map: Table[Location, seq[FeatureValue]], location: Location): int =
   ## Get the type id of the location in the map.
   if location in map:
     for featureValue in map[location]:
-      if featureValue.featureId == agent.features.typeId:
+      if featureValue.featureId == agent.features.tag:
         return featureValue.value
   return -1
 
@@ -393,16 +394,16 @@ proc updateMap(agent: HeuristicAgent, visible: Table[Location, seq[FeatureValue]
     let location = Location(x: agent.location.x + offset.x, y: agent.location.y + offset.y)
     for x in -5 .. 5:
       for y in -5 .. 5:
-        let visibleTypeId = agent.getTypeId(visible, Location(x: x, y: y))
-        let mapTypeId = agent.getTypeId(agent.map, Location(x: x + location.x, y: y + location.y))
-        if visibleTypeId == mapTypeId:
-          if visibleTypeId == 0 or visibleTypeId == -1:
+        let visibleTag = agent.getTag(visible, Location(x: x, y: y))
+        let mapTag = agent.getTag(agent.map, Location(x: x + location.x, y: y + location.y))
+        if visibleTag == mapTag:
+          if visibleTag == agent.tags.agent or visibleTag == -1:
             # No points for empty or agent locations.
             discard
-          elif visibleTypeId == 1:
+          elif visibleTag == agent.tags.assembler:
             # There is only one assembler per map, so this is a good score.
             score += 100
-          elif visibleTypeId == 12:
+          elif visibleTag == agent.tags.wall:
             # Walls can repeat and cause issues, so not worth much.
             score += 1
           else:
@@ -485,7 +486,6 @@ proc step(
     let invScrambler = agent.getInventory(map, agent.features.invScrambler)
 
     debugLog &"H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
-
 
     let actions = cast[ptr UncheckedArray[int32]](rawActions)
     let action = agent.random.rand(1 .. 4).int32
