@@ -135,16 +135,24 @@ for i in 0 ..< iterations:
   # Make a copy and fuzz it
   let fuzzedReplay = fuzzReplay(baseReplay)
 
-  # Only test validation - loading causes crashes due to image system
+  # Test BOTH validation and loading - show all failures
+  let jsonStr = $fuzzedReplay
+
   try:
+    # Step 1: Validate the schema
     validateReplaySchema(fuzzedReplay)
+
+    # Step 2: If validation passed, test loading
+    let replay = loadReplayString(jsonStr, "fuzz_test.json.z")
+    doAssert replay != nil
+
+    # Both validation and loading succeeded
     passedCount += 1
-  except ValueError as e:
-    failedCount += 1
-    echo &"Iteration {i}: Validation failed: {e.msg}"
+
   except Exception as e:
+    # Loading failed or crashed - this is a real bug
+    echo &"Iteration {i}: Loading failed: {e.msg}"
     failedCount += 1
-    echo &"Iteration {i}: Unexpected error: {e.msg}"
 
   # Progress reporting every 100 iterations
   if (i + 1) mod 100 == 0:
