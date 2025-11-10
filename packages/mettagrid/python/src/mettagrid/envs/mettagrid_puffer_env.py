@@ -23,13 +23,13 @@ This avoids double-wrapping while maintaining full PufferLib compatibility.
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from gymnasium.spaces import Box, Discrete
 from typing_extensions import override
 
-from cogames.policy.heuristic_agents.simple_nim_agents import HeuristicAgentsPolicy
 from cogames.policy.scripted_agent.baseline_agent import BaselinePolicy, NoopBaselinePolicy
 from mettagrid.config.mettagrid_config import EnvSupervisorConfig, MettaGridConfig
 from mettagrid.mettagrid_c import (
@@ -44,6 +44,8 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Simulation, Simulator
 from mettagrid.simulator.simulator import Buffers
 from pufferlib.pufferlib import PufferEnv
+
+logger = logging.getLogger(__name__)
 
 # Type compatibility assertions - ensure C++ types match PufferLib expectations
 # PufferLib expects particular datatypes - see pufferlib/vector.py
@@ -127,7 +129,12 @@ class MettaGridPufferEnv(PufferEnv):
 
         if self._env_supervisor_cfg.enabled:
             self._reset_env_supervisor_policy()
-            self._compute_supervisor_actions()
+            teacher_actions = self._env_supervisor_policy.step_batch(
+                simulation=self._sim,
+                out_actions=self._buffers.teacher_actions,
+                observations=self._buffers.observations,
+            )
+            self._buffers.teacher_actions[:] = teacher_actions
 
     @override
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
@@ -148,7 +155,14 @@ class MettaGridPufferEnv(PufferEnv):
 
         # Do this after step() so that the trainer can use it if needed
         if self._env_supervisor_cfg.enabled:
-            self._compute_supervisor_actions()
+            if self._env_supervisor_policy is None:
+                self._reset_env_supervisor_policy()
+            teacher_actions = self._env_supervisor_policy.step_batch(
+                simulation=self._sim,
+                out_actions=self._buffers.teacher_actions,
+                observations=self._buffers.observations,
+            )
+            self._buffers.teacher_actions[:] = teacher_actions
 
         return (
             self._buffers.observations,
@@ -165,6 +179,8 @@ class MettaGridPufferEnv(PufferEnv):
         elif policy_name == "noop":
             policy_cls = NoopBaselinePolicy
         elif policy_name == "heuristic":
+            from cogames.policy.heuristic_agents.simple_nim_agents import HeuristicAgentsPolicy
+
             policy_cls = HeuristicAgentsPolicy
         else:
             raise ValueError(f"Unsupported env supervisor policy: {self._env_supervisor_cfg.policy}")
@@ -172,18 +188,6 @@ class MettaGridPufferEnv(PufferEnv):
         self._env_supervisor_policy = policy_cls(PolicyEnvInterface.from_mg_cfg(self._current_cfg))
         for agent_id in range(self._current_cfg.game.num_agents):
             self._env_supervisor_policy.agent_policy(agent_id).reset(self._sim)
-
-    def _compute_supervisor_actions(self) -> None:
-        assert self._env_supervisor_cfg.enabled
-        if self._env_supervisor_policy is None:
-            self._reset_env_supervisor_policy()
-        assert self._env_supervisor_policy is not None
-        teacher_actions = self._env_supervisor_policy.step_batch(
-            simulation=self._sim,
-            out_actions=self._buffers.teacher_actions,
-            observations=self._buffers.observations,
-        )
-        self._buffers.teacher_actions[:] = teacher_actions
 
     @property
     def observations(self) -> np.ndarray:
