@@ -14,7 +14,7 @@ type
     obsWidth*: int
     obsHeight*: int
     actions*: seq[string]
-    typeNames*: seq[string]
+    typeNames*: Table[string, int]
     obsFeatures*: seq[ConfigFeature]
 
   FeatureValue* = object
@@ -50,15 +50,15 @@ type
     vibeWall*: int
 
   Types = object
-    agent*: int = 0
-    assembler*: int = 1
-    carbonExtractor*: int = 2
-    charger*: int = 3
-    chest*: int = 4
-    germaniumExtractor*: int = 9
-    oxygenExtractor*: int = 10
-    siliconExtractor*: int = 11
-    wall*: int = 12
+    agent*: int
+    assembler*: int
+    carbonExtractor*: int
+    charger*: int
+    chest*: int
+    germaniumExtractor*: int
+    oxygenExtractor*: int
+    siliconExtractor*: int
+    wall*: int
 
   Features = object
     typeId*: int
@@ -217,6 +217,30 @@ proc newHeuristicAgent(agentId: int, environmentConfig: string): HeuristicAgent 
       else:
         discard
     echo "  actions", result.actions
+    for name, id in config.typeNames:
+      echo "    type name ", name, " id ", id
+      case name:
+      of "agent":
+        result.types.agent = id
+      of "assembler":
+        result.types.assembler = id
+      of "carbonExtractor":
+        result.types.carbonExtractor = id
+      of "charger":
+        result.types.charger = id
+      of "chest":
+        result.types.chest = id
+      of "germaniumExtractor":
+        result.types.germaniumExtractor = id
+      of "oxygenExtractor":
+        result.types.oxygenExtractor = id
+      of "siliconExtractor":
+        result.types.siliconExtractor = id
+      of "wall":
+        result.types.wall = id
+      else:
+        discard
+    echo "  types_names", result.types
     result.random = initRand(agentId)
   except JsonError, ValueError:
     echo "Error parsing environment config: ", getCurrentExceptionMsg()
