@@ -6,6 +6,7 @@ import platform
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import urllib.request
 from pathlib import Path
@@ -14,6 +15,20 @@ from setuptools import setup
 from setuptools.command.build_py import build_py
 from setuptools.command.develop import develop
 from setuptools.command.install import install
+
+
+def _build_nim() -> None:
+    # Run the Nim build script
+    # > nim c fast_agents.nim
+    path = Path(__file__).parent / "src" / "cogames" / "policy" / "fast_agents"
+    result = subprocess.run(["nim", "c", "fast_agents.nim"], cwd=path, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(result.stderr, file=sys.stderr)
+        print(result.stdout, file=sys.stderr)
+        raise RuntimeError(f"Failed to build Nim agents: {result.returncode}")
+
+
+_build_nim()
 
 REQUIRED_NIM_VERSION = os.environ.get("COGAMES_NIM_VERSION", "2.2.6")
 NIMBY_VERSION = os.environ.get("COGAMES_NIMBY_VERSION", "0.1.6")

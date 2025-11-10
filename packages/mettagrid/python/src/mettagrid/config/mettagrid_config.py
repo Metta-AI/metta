@@ -437,8 +437,8 @@ class GameConfig(Config):
 class EnvSupervisorConfig(Config):
     """Environment supervisor configuration."""
 
-    enabled: bool = Field(default=False)
-    policy: str = Field(default="baseline")
+    policy: Optional[str] = Field(default=None)
+    policy_data_path: Optional[str] = Field(default=None)
 
 
 class MettaGridConfig(Config):
