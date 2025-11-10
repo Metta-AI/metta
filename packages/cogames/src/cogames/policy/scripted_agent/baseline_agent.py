@@ -224,8 +224,6 @@ class SimpleAgentState:
     map_width: int = 0
     occupancy: list[list[int]] = field(default_factory=list)  # 1=free, 2=obstacle (initialized in reset)
 
-    # Note: Station positions are now in shared self._stations, not per-agent
-
     # Track last action for position updates
     last_action: Action = field(default_factory=lambda: Action(name="noop"))
 
@@ -369,8 +367,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
                     # Collect all features for this position
                     feature_key = self._spatial_feature_key_by_name.get(feature_name)
                     if feature_key is not None:
-                        # For tag, only take the FIRST value (don't overwrite)
-                        # Note: tag=0 is valid (e.g., "assembler" is alphabetically first)
                         if feature_key == "tag":
                             if "tag" not in position_features[pos]:
                                 position_features[pos][feature_key] = value
