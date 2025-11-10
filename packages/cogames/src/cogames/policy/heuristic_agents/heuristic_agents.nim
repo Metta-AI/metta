@@ -31,12 +31,73 @@ type
     minY*: int
     maxY*: int
 
+  Actions = object
+    noop*: int
+    moveNorth*: int
+    moveSouth*: int
+    moveWest*: int
+    moveEast*: int
+    vibeDefault*: int
+    vibeCharger*: int
+    vibeCarbon*: int
+    vibeOxygen*: int
+    vibeGermanium*: int
+    vibeSilicon*: int
+    vibeHeart*: int
+    vibeGear*: int
+    vibeAssembler*: int
+    vibeChest*: int
+    vibeWall*: int
+
+  Types = object
+    agent*: int = 0
+    assembler*: int = 1
+    carbonExtractor*: int = 2
+    charger*: int = 3
+    chest*: int = 4
+    germaniumExtractor*: int = 9
+    oxygenExtractor*: int = 10
+    siliconExtractor*: int = 11
+    wall*: int = 12
+
+  Features = object
+    typeId*: int
+    group*: int
+    frozen*: int
+    orientation*: int
+    reservedForFutureUse*: int
+    converting*: int
+    swappable*: int
+    episodeCompletionPct*: int
+    lastAction*: int
+    lastActionArg*: int
+    lastReward*: int
+    vibe*: int
+    visitationCounts*: int
+    tag*: int
+    cooldownRemaining*: int
+    clipped*: int
+    remainingUses*: int
+    invEnergy*: int
+    invCarbon*: int
+    invOxygen*: int
+    invGermanium*: int
+    invSilicon*: int
+    invHeart*: int
+    invDecoder*: int
+    invModulator*: int
+    invResonator*: int
+    invScrambler*: int
+
   HeuristicAgent* = ref object
     agentId: int
 
     map: Table[Location, seq[FeatureValue]]
     seen: HashSet[Location]
     config: Config
+    actions: Actions
+    features: Features
+    types: Types
     random: Rand
     location: Location
 
@@ -53,29 +114,109 @@ proc newHeuristicAgent(agentId: int, environmentConfig: string): HeuristicAgent 
   echo "Creating new heuristic agent ", agentId
   try:
     var config = environmentConfig.fromJson(Config)
+    result = HeuristicAgent(agentId: agentId, config: config)
     echo "  numAgents", config.numAgents
     echo "  obsWidth", config.obsWidth
     echo "  obsHeight", config.obsHeight
     echo "  actions", config.actions
-    if config.typeNames.len == 0:
-      config.typeNames = @[
-        "wall",
-        "assembler",
-        "chest",
-        "charger",
-        "carbon_extractor",
-        "oxygen_extractor",
-        "germanium_extractor",
-        "silicon_extractor",
-        "clipped_carbon_extractor",
-        "clipped_oxygen_extractor",
-        "clipped_germanium_extractor",
-        "clipped_silicon_extractor",
-      ]
-    echo "  typeNames", config.typeNames
+    echo "  typeNames", config.typeNames # TODO? how to get type names?
     for feature in config.obsFeatures:
       echo "    feature ", feature.id, " ", feature.name, " ", feature.normalization
-    result = HeuristicAgent(agentId: agentId, config: config)
+      case feature.name:
+      of "type_id":
+        result.features.typeId = feature.id
+      of "agent:group":
+        result.features.group = feature.id
+      of "agent:frozen":
+        result.features.frozen = feature.id
+      of "agent:orientation":
+        result.features.orientation = feature.id
+      of "agent:reserved_for_future_use":
+        result.features.reservedForFutureUse = feature.id
+      of "converting":
+        result.features.converting = feature.id
+      of "swappable":
+        result.features.swappable = feature.id
+      of "episode_completion_pct":
+        result.features.episodeCompletionPct = feature.id
+      of "last_action":
+        result.features.lastAction = feature.id
+      of "last_action_arg":
+        result.features.lastActionArg = feature.id
+      of "last_reward":
+        result.features.lastReward = feature.id
+      of "vibe":
+        result.features.vibe = feature.id
+      of "agent:visitation_counts":
+        result.features.visitationCounts = feature.id
+      of "tag":
+        result.features.tag = feature.id
+      of "cooldown_remaining":
+        result.features.cooldownRemaining = feature.id
+      of "clipped":
+        result.features.clipped = feature.id
+      of "remaining_uses":
+        result.features.remainingUses = feature.id
+      of "inv:energy":
+        result.features.invEnergy = feature.id
+      of "inv:carbon":
+        result.features.invCarbon = feature.id
+      of "inv:oxygen":
+        result.features.invOxygen = feature.id
+      of "inv:germanium":
+        result.features.invGermanium = feature.id
+      of "inv:silicon":
+        result.features.invSilicon = feature.id
+      of "inv:heart":
+        result.features.invHeart = feature.id
+      of "inv:decoder":
+        result.features.invDecoder = feature.id
+      of "inv:modulator":
+        result.features.invModulator = feature.id
+      of "inv:resonator":
+        result.features.invResonator = feature.id
+      of "inv:scrambler":
+        result.features.invScrambler = feature.id
+      else:
+        echo "Unknown feature: ", feature.name
+
+    for id, name in config.actions:
+      case name:
+      of "noop":
+        result.actions.noop = id
+      of "move_north":
+        result.actions.moveNorth = id
+      of "move_south":
+        result.actions.moveSouth = id
+      of "move_west":
+        result.actions.moveWest = id
+      of "move_east":
+        result.actions.moveEast = id
+      of "change_vibe_default":
+        result.actions.vibeDefault = id
+      of "change_vibe_charger":
+        result.actions.vibeCharger = id
+      of "change_vibe_carbon":
+        result.actions.vibeCarbon = id
+      of "change_vibe_oxygen":
+        result.actions.vibeOxygen = id
+      of "change_vibe_germanium":
+        result.actions.vibeGermanium = id
+      of "change_vibe_silicon":
+        result.actions.vibeSilicon = id
+      of "change_vibe_heart":
+        result.actions.vibeHeart = id
+      of "change_vibe_gear":
+        result.actions.vibeGear = id
+      of "change_vibe_assembler":
+        result.actions.vibeAssembler = id
+      of "change_vibe_chest":
+        result.actions.vibeChest = id
+      of "change_vibe_wall":
+        result.actions.vibeWall = id
+      else:
+        discard
+    echo "  actions", result.actions
     result.random = initRand(agentId)
   except JsonError, ValueError:
     echo "Error parsing environment config: ", getCurrentExceptionMsg()
@@ -99,7 +240,7 @@ proc computeMapBounds(map: Table[Location, seq[FeatureValue]]): MapBounds =
     if location.y > result.maxY:
       result.maxY = location.y
 
-proc drawMap(map: Table[Location, seq[FeatureValue]], seen: HashSet[Location]) =
+proc drawMap(agent: HeuristicAgent, map: Table[Location, seq[FeatureValue]], seen: HashSet[Location]) =
   ## Draw the map to the console.
   let bounds = computeMapBounds(map)
   var line = "+"
@@ -117,24 +258,23 @@ proc drawMap(map: Table[Location, seq[FeatureValue]], seen: HashSet[Location]) =
       if location in map:
         for featureValue in map[location]:
           if featureValue.featureId == 0:
-            case featureValue.value
-            of 0:
+            if featureValue.value == agent.types.agent:
               cell = "@@"
-            of 1:
+            elif featureValue.value == agent.types.assembler:
               cell = "As"
-            of 2:
+            elif featureValue.value == agent.types.carbonExtractor:
               cell = "Ca"
-            of 3:
+            elif featureValue.value == agent.types.charger:
               cell = "En"
-            of 4:
+            elif featureValue.value == agent.types.chest:
               cell = "Ch"
-            of 9:
+            elif featureValue.value == agent.types.germaniumExtractor:
               cell = "Ge"
-            of 10:
+            elif featureValue.value == agent.types.oxygenExtractor:
               cell = "O2"
-            of 11:
+            elif featureValue.value == agent.types.siliconExtractor:
               cell = "Si"
-            of 12:
+            elif featureValue.value == agent.types.wall:
               cell = "##"
             else:
               cell = &"{featureValue.value:2d}"
@@ -147,25 +287,36 @@ proc drawMap(map: Table[Location, seq[FeatureValue]], seen: HashSet[Location]) =
   line.add "+"
   echo line
 
-proc getTypeId(map: Table[Location, seq[FeatureValue]], location: Location): int =
+proc getTypeId(agent: HeuristicAgent, map: Table[Location, seq[FeatureValue]], location: Location): int =
   ## Get the type id of the location in the map.
   if location in map:
     for featureValue in map[location]:
-      if featureValue.featureId == 0:
+      if featureValue.featureId == agent.features.typeId:
         return featureValue.value
   return -1
 
-proc getLastAction(visible: Table[Location, seq[FeatureValue]]): int =
-  ## Get the last action of the visible map.
-  let lastActionId = 8 # last_action
-  echo "searching for last action in visible map"
+proc getFeature(agent: HeuristicAgent, visible: Table[Location, seq[FeatureValue]], featureId: int): int =
+  ## Get the feature of the visible map.
   if Location(x: 0, y: 0) in visible:
     for featureValue in visible[Location(x: 0, y: 0)]:
-      echo "featureValue: ", featureValue.featureId, " ", featureValue.value
-      if featureValue.featureId == lastActionId:
-        echo "found last action: ", featureValue.value
+      if featureValue.featureId == featureId:
         return featureValue.value
   return -1
+
+proc getLastAction(agent: HeuristicAgent, visible: Table[Location, seq[FeatureValue]]): int =
+  ## Get the last action of the visible map.
+  agent.getFeature(visible, agent.features.lastAction)
+
+proc getInventory(agent: HeuristicAgent, visible: Table[Location, seq[FeatureValue]], inventoryId: int): int =
+  ## Get the inventory of the visible map.
+  result = agent.getFeature(visible, inventoryId)
+  # Missing inventory is 0.
+  if result == -1:
+    result = 0
+
+proc getVibe(agent: HeuristicAgent, visible: Table[Location, seq[FeatureValue]]): int =
+  ## Get the vibe of the visible map.
+  agent.getFeature(visible, agent.features.vibe)
 
 proc updateMap(agent: HeuristicAgent, visible: Table[Location, seq[FeatureValue]]) =
   ## Update the big map with the small visible map.
@@ -188,14 +339,14 @@ proc updateMap(agent: HeuristicAgent, visible: Table[Location, seq[FeatureValue]
   # If the last actions was not known check all possible offsets.
   # Note: Checking all possible offsets does not allows work!
   # Last action is nearly required.
-  var lastAction = visible.getLastAction()
-  if lastAction == 1 or lastAction == -1: # Moving north.
+  var lastAction = agent.getLastAction(visible)
+  if lastAction == agent.actions.moveNorth or lastAction == -1: # Moving north.
     possibleOffsets.add(Location(x: 0, y: -1))
-  if lastAction == 2 or lastAction == -1: # Moving south.
+  if lastAction == agent.actions.moveSouth or lastAction == -1: # Moving south.
     possibleOffsets.add(Location(x: 0, y: 1))
-  if lastAction == 3 or lastAction == -1: # Moving west.
+  if lastAction == agent.actions.moveWest or lastAction == -1: # Moving west.
     possibleOffsets.add(Location(x: -1, y: 0))
-  if lastAction == 4 or lastAction == -1: # Moving east.
+  if lastAction == agent.actions.moveEast or lastAction == -1: # Moving east.
     possibleOffsets.add(Location(x: 1, y: 0))
   possibleOffsets.add(Location(x: 0, y: 0)) # Staying put.
 
@@ -204,8 +355,8 @@ proc updateMap(agent: HeuristicAgent, visible: Table[Location, seq[FeatureValue]
     let location = Location(x: agent.location.x + offset.x, y: agent.location.y + offset.y)
     for x in -5 .. 5:
       for y in -5 .. 5:
-        let visibleTypeId = visible.getTypeId(Location(x: x, y: y))
-        let mapTypeId = agent.map.getTypeId(Location(x: x + location.x, y: y + location.y))
+        let visibleTypeId = agent.getTypeId(visible, Location(x: x, y: y))
+        let mapTypeId = agent.getTypeId(agent.map, Location(x: x + location.x, y: y + location.y))
         if visibleTypeId == mapTypeId:
           if visibleTypeId == 0 or visibleTypeId == -1:
             # No points for empty or agent locations.
@@ -275,10 +426,28 @@ proc step(
 
     echo "current location: ", agent.location.x, ", ", agent.location.y
     echo "visible map:"
-    drawMap(map, initHashSet[Location]())
+    agent.drawMap(map, initHashSet[Location]())
     updateMap(agent, map)
     echo "updated map:"
-    drawMap(agent.map, agent.seen)
+    agent.drawMap(agent.map, agent.seen)
+
+
+    let vibe = agent.getVibe(map)
+    echo "vibe: ", vibe
+
+    let invEnergy = agent.getInventory(map, agent.features.invEnergy)
+    let invCarbon = agent.getInventory(map, agent.features.invCarbon)
+    let invOxygen = agent.getInventory(map, agent.features.invOxygen)
+    let invGermanium = agent.getInventory(map, agent.features.invGermanium)
+    let invSilicon = agent.getInventory(map, agent.features.invSilicon)
+    let invHeart = agent.getInventory(map, agent.features.invHeart)
+    let invDecoder = agent.getInventory(map, agent.features.invDecoder)
+    let invModulator = agent.getInventory(map, agent.features.invModulator)
+    let invResonator = agent.getInventory(map, agent.features.invResonator)
+    let invScrambler = agent.getInventory(map, agent.features.invScrambler)
+
+    echo &"H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
+
 
     let actions = cast[ptr UncheckedArray[int32]](rawActions)
     let action = agent.random.rand(1 .. 4).int32
