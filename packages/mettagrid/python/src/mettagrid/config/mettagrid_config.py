@@ -205,7 +205,7 @@ class GridObjectConfig(Config):
     or observations.
     """
 
-    name: str = Field(default="", description="Canonical type_name (human-readable)")
+    name: str = Field(description="Canonical type_name (human-readable)")
     map_name: str = Field(default="", description="Stable key used by maps to select this config")
     render_name: str = Field(default="", description="Stable display-class identifier for theming")
     map_char: str = Field(default="?", description="Character used in ASCII maps")
@@ -215,24 +215,24 @@ class GridObjectConfig(Config):
 
     @model_validator(mode="after")
     def _defaults_from_name(self) -> "GridObjectConfig":
-        # Default map_name/render_name to name when not provided
-        if not getattr(self, "map_name", None):
+        if not self.map_name:
             self.map_name = self.name
-        if not getattr(self, "render_name", None):
+        if not self.render_name:
             self.render_name = self.name
         # If no tags, inject a default kind tag so the object is visible in observations
         if not self.tags:
-            default_tag = getattr(self, "type", None)  # this is typically what you want, a Wall gets tag "wall"
-            default_tag = default_tag or self.render_name  # this is a good fallback tag
-            default_tag = default_tag or "object"  # if nothing else, be visible as an object
-            self.tags = [default_tag]
+            self.tags = [self.render_name]
         return self
 
 
 class WallConfig(GridObjectConfig):
     """Python wall/block configuration."""
 
-    type: Literal["wall"] = Field(default="wall")
+    # This is used to discriminate between different GridObjectConfig subclasses in Pydantic.
+    # See AnyGridObjectConfig.
+    # Please don't use this for anything game related.
+    pydantic_type: Literal["wall"] = "wall"
+    name: str = Field(default="wall")
     swappable: bool = Field(default=False)
 
 
@@ -246,7 +246,11 @@ class ProtocolConfig(Config):
 class AssemblerConfig(GridObjectConfig):
     """Python assembler configuration."""
 
-    type: Literal["assembler"] = Field(default="assembler")
+    # This is used to discriminate between different GridObjectConfig subclasses in Pydantic.
+    # See AnyGridObjectConfig.
+    # Please don't use this for anything game related.
+    pydantic_type: Literal["assembler"] = "assembler"
+    # No default name -- we want to make sure that meaningful names are provided.
     protocols: list[ProtocolConfig] = Field(
         default_factory=list,
         description="Protocols in reverse order of priority.",
@@ -277,7 +281,11 @@ class AssemblerConfig(GridObjectConfig):
 class ChestConfig(GridObjectConfig):
     """Python chest configuration for multi-resource chests."""
 
-    type: Literal["chest"] = Field(default="chest")
+    # This is used to discriminate between different GridObjectConfig subclasses in Pydantic.
+    # See AnyGridObjectConfig.
+    # Please don't use this for anything game related.
+    pydantic_type: Literal["chest"] = "chest"
+    name: str = Field(default="chest")
 
     # Vibe-based transfers: vibe -> resource -> delta
     vibe_transfers: dict[str, dict[str, int]] = Field(
@@ -339,7 +347,7 @@ AnyGridObjectConfig = SerializeAsAny[
             Annotated[AssemblerConfig, Tag("assembler")],
             Annotated[ChestConfig, Tag("chest")],
         ],
-        Discriminator("type"),
+        Discriminator("pydantic_type"),
     ]
 ]
 
@@ -468,7 +476,7 @@ class MettaGridConfig(Config):
         )
         objects = {}
         if border_width > 0 or with_walls:
-            objects["wall"] = WallConfig(name="wall", map_char="#", render_symbol="⬛", swappable=False)
+            objects["wall"] = WallConfig(map_char="#", render_symbol="⬛", swappable=False)
         return MettaGridConfig(
             game=GameConfig(map_builder=map_builder, actions=actions, num_agents=num_agents, objects=objects)
         )

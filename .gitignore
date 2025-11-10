@@ -136,7 +136,6 @@ packages/mettagrid/python/src/mettagrid/nim/mettascope/
 packages/mettagrid/nim/mettascope/nim.cfg
 
 # Uncategorized
-agent/src/metta/ops/agalite_kernels/_build/
 .terraform*
 terraform.tfstate
 .cache/torch_ext/

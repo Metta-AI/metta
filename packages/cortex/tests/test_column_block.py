@@ -1,9 +1,11 @@
 import torch
 from cortex import (
     AxonLayer,
+    CausalConv1dConfig,
     ColumnBlockConfig,
     CortexStackConfig,
     LSTMCellConfig,
+    PassThroughBlockConfig,
     PostUpBlockConfig,
     PreUpBlockConfig,
     RouterConfig,
@@ -95,8 +97,18 @@ def test_auto_config_builtin_patterns():
     cfg3 = build_column_auto_config(d_hidden=64, pattern="M^X^S^")
     assert len(cfg3.experts) == 3
     assert isinstance(cfg3.experts[0], PreUpBlockConfig)
-    assert isinstance(cfg3.experts[1], PostUpBlockConfig)
     assert isinstance(cfg3.experts[2], PostUpBlockConfig)
+
+
+def test_auto_config_all_builtin_cells():
+    cfg = build_column_auto_config(d_hidden=64, pattern="CL")
+    assert len(cfg.experts) == 2
+    conv_cfg = cfg.experts[0]
+    lstm_cfg = cfg.experts[1]
+    assert isinstance(conv_cfg, PassThroughBlockConfig)
+    assert isinstance(conv_cfg.cell, CausalConv1dConfig)
+    assert isinstance(lstm_cfg, PassThroughBlockConfig)
+    assert isinstance(lstm_cfg.cell, LSTMCellConfig)
 
 
 def test_auto_config_custom_overrides_and_tokens():
@@ -122,7 +134,6 @@ def test_auto_config_axonify_flags():
     x_cfg = cfg.experts[1]
     s_cfg = cfg.experts[2]
     assert isinstance(m_cfg, PreUpBlockConfig)
-    assert isinstance(x_cfg, PostUpBlockConfig)
     assert isinstance(s_cfg, PostUpBlockConfig)
     assert isinstance(m_cfg.cell, mLSTMCellConfig) and m_cfg.cell.use_axon_layer and m_cfg.cell.use_axon_qkv
     assert isinstance(x_cfg.cell, XLCellConfig) and x_cfg.cell.use_axon_qkv

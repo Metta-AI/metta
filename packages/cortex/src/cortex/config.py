@@ -95,6 +95,23 @@ class XLCellConfig(CellConfig):
     axon_qkv_config: AxonConfig | None = Field(default=None)
 
 
+class AGaLiTeCellConfig(CellConfig):
+    """Configuration for AGaLiTe attention cell with recurrent discounted state."""
+
+    cell_type: str = "agalite"
+    hidden_size: int | None = Field(default=None)
+    n_heads: int = Field(default=4, ge=1)
+    head_dim: int | None = Field(default=None, ge=1)
+
+    # Feature expansion parameter (outer products)
+    eta: int = Field(default=6, ge=1)
+
+    # Oscillatory basis and numerics
+    r: int = Field(default=2, ge=1)  # number of oscillatory frequencies
+    eps: float = Field(default=1e-5, ge=0.0)
+    dropout: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
 class AxonConfig(CellConfig):
     """Configuration for Axon cell with streaming RTU and diagonal input weights."""
 
@@ -181,6 +198,15 @@ class PostUpBlockConfig(BlockConfig):
 
     block_type: str = "postup"
     proj_factor: float = Field(default=1.5, gt=0.0)
+
+
+class PostUpGatedBlockConfig(BlockConfig):
+    """Configuration for GRU‑gated post blocks (GTrXL‑style gating)."""
+
+    block_type: str = "postup_gated"
+    proj_factor: float = Field(default=1.5, gt=0.0)
+    # Gate bias b_g; larger values bias towards identity mapping at init.
+    gru_bias: float = Field(default=2.0)
 
 
 class AdapterBlockConfig(BlockConfig):
@@ -327,6 +353,7 @@ __all__ = [
     "PassThroughBlockConfig",
     "PreUpBlockConfig",
     "PostUpBlockConfig",
+    "PostUpGatedBlockConfig",
     "AdapterBlockConfig",
     "CortexStackConfig",
     "RouterConfig",
