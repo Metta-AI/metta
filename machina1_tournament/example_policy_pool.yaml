@@ -1,0 +1,80 @@
+# Example policy pool configuration for tournament.py
+#
+# Each policy should specify:
+#   - name: Human-readable name for the policy
+#   - class_path: Full Python path to the policy class
+#   - data_path: (optional) Path to checkpoint file for trained policies
+#
+# Usage:
+#   python metta/machina1_tournament/tournament.py --policies metta/machina1_tournament/example_policy_pool.yaml
+
+policies:
+  # Random agents
+  - name: Random_1
+    class_path: mettagrid.policy.random.RandomPolicy
+
+  - name: Random_2
+    class_path: mettagrid.policy.random.RandomPolicy
+
+  - name: Random_3
+    class_path: mettagrid.policy.random.RandomPolicy
+
+  - name: Random_4
+    class_path: mettagrid.policy.random.RandomPolicy
+
+  # Baseline scripted agents
+  - name: Baseline_1
+    class_path: cogames.policy.scripted_agent.baseline_agent.BaselineAgent
+
+  - name: Baseline_2
+    class_path: cogames.policy.scripted_agent.baseline_agent.BaselineAgent
+
+  - name: Baseline_3
+    class_path: cogames.policy.scripted_agent.baseline_agent.BaselineAgent
+
+  - name: Baseline_4
+    class_path: cogames.policy.scripted_agent.baseline_agent.BaselineAgent
+
+  # Unclipping scripted agents
+  - name: Unclipping_1
+    class_path: cogames.policy.scripted_agent.unclipping_agent.UnclippingAgent
+
+  - name: Unclipping_2
+    class_path: cogames.policy.scripted_agent.unclipping_agent.UnclippingAgent
+
+  - name: Unclipping_3
+    class_path: cogames.policy.scripted_agent.unclipping_agent.UnclippingAgent
+
+  - name: Unclipping_4
+    class_path: cogames.policy.scripted_agent.unclipping_agent.UnclippingAgent
+
+  # Example trained policies (uncomment and adjust paths as needed)
+  # - name: FastPolicy_Checkpoint1
+  #   class_path: metta.agent.policies.fast.FastPolicy
+  #   data_path: ./checkpoints/run1/policy.pt
+
+  # - name: FastPolicy_Checkpoint2
+  #   class_path: metta.agent.policies.fast.FastPolicy
+  #   data_path: ./checkpoints/run2/policy.pt
+
+  # - name: PufferPolicy_Best
+  #   class_path: metta.agent.policies.puffer.PufferPolicy
+  #   data_path: ./train_dir/best_policy.pt
+
+  # - name: PufferPolicy_Final
+  #   class_path: metta.agent.policies.puffer.PufferPolicy
+  #   data_path: ./train_dir/final_policy.pt
+
+  # Additional random agents to reach 16
+  - name: Random_5
+    class_path: mettagrid.policy.random.RandomPolicy
+
+  - name: Random_6
+    class_path: mettagrid.policy.random.RandomPolicy
+
+  - name: Random_7
+    class_path: mettagrid.policy.random.RandomPolicy
+
+  - name: Random_8
+    class_path: mettagrid.policy.random.RandomPolicy
+
