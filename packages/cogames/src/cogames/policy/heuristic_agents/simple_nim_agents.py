@@ -1,3 +1,4 @@
+import ctypes
 import json
 import os
 import sys
@@ -14,6 +15,16 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(current_dir, "bindings/generated"))
 
 import heuristic_agents as ha  # noqa: E402
+
+ha.dll.heuristic_agents_heuristic_agent_step.argtypes = [
+    ha.HeuristicAgent,
+    ctypes.c_longlong,
+    ctypes.c_longlong,
+    ctypes.c_longlong,
+    ctypes.c_void_p,
+    ctypes.c_longlong,
+    ctypes.c_void_p,
+]
 
 # ha.initCHook()
 
