@@ -55,7 +55,7 @@ class IdMap:
         """Get mapping of feature names to IDs."""
         return {feature.name: feature.id for feature in self.features()}
 
-    def tag_names(self) -> dict[int, str]:
+    def tag_names(self) -> list[str]:
         """Get mapping of tag IDs to tag names.
 
         Returns a dictionary mapping tag ID (int) to tag name (str).
@@ -74,9 +74,8 @@ class IdMap:
 
         # Sort tags alphabetically and create mapping
         sorted_tags = sorted(all_tags)
-        tag_id_to_name = {i: tag for i, tag in enumerate(sorted_tags)}
 
-        return tag_id_to_name
+        return sorted_tags
 
     def _compute_features(self) -> list[ObservationFeatureSpec]:
         """Compute observation features from the game configuration."""

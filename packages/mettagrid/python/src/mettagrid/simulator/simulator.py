@@ -93,7 +93,7 @@ class Simulation:
 
         # Build feature dict from id_map
         self._features: dict[int, ObservationFeatureSpec] = {
-            feature.id: feature for feature in self._config.id_map().features()
+            feature.id: feature for feature in self._config.game.id_map().features()
         }
 
         self._start_episode()

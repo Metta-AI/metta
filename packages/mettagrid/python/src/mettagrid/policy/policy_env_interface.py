@@ -19,6 +19,7 @@ class PolicyEnvInterface:
     """
 
     obs_features: list[ObservationFeatureSpec]
+    tags: list[str]
     actions: ActionsConfig
     num_agents: int
     observation_space: gym.spaces.Box
@@ -42,7 +43,8 @@ class PolicyEnvInterface:
             A PolicyEnvInterface instance with environment information
         """
         return PolicyEnvInterface(
-            obs_features=mg_cfg.id_map().features(),
+            obs_features=mg_cfg.game.id_map().features(),
+            tags=mg_cfg.game.id_map().tag_names(),
             actions=mg_cfg.game.actions,
             num_agents=mg_cfg.game.num_agents,
             observation_space=gym.spaces.Box(
