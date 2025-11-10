@@ -12,7 +12,7 @@ from metta.cogworks.curriculum.curriculum import (
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import Span
 from metta.map.terrain_from_numpy import NavigationFromNumpy
-from metta.rl.loss.loss import LossConfig
+from metta.rl.loss.losses import LossesConfig
 from metta.rl.system_config import SystemConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.rl.trainer_config import TrainerConfig
@@ -51,7 +51,7 @@ def _resolve_policy_architecture(name: str) -> PolicyArchitecture:
 
 
 def _build_trainer(total_timesteps: int = BENCHMARK_TIMESTEPS) -> TrainerConfig:
-    return TrainerConfig(total_timesteps=total_timesteps, losses=LossConfig())
+    return TrainerConfig(total_timesteps=total_timesteps, losses=LossesConfig())
 
 
 def _build_system(seed: int) -> SystemConfig:
