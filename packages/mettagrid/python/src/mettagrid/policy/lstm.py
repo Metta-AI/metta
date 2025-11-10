@@ -235,6 +235,8 @@ class LSTMAgentPolicy(StatefulPolicyImpl[LSTMState]):
 class LSTMPolicy(TrainablePolicy):
     """LSTM-based policy that creates StatefulPolicy wrappers for each agent."""
 
+    short_names = ["lstm"]
+
     def __init__(self, policy_env_info: PolicyEnvInterface, device: Optional[torch.device] = None):
         super().__init__(policy_env_info)
         self._device = device if device is not None else torch.device("cpu")

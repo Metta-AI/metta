@@ -19,6 +19,8 @@ class NoopAgentPolicy(AgentPolicy):
 class NoopPolicy(MultiAgentPolicy):
     """Policy that always selects the noop action when available."""
 
+    short_names = ["noop"]
+
     def __init__(self, policy_env_info: PolicyEnvInterface):
         super().__init__(policy_env_info)
 

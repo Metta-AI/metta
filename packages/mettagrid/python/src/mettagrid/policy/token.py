@@ -137,6 +137,8 @@ class TokenAgentPolicyImpl(AgentPolicy):
 class TokenPolicy(TrainablePolicy):
     """Feed-forward token encoder baseline derived from Metta's token-based basic policy."""
 
+    short_names = ["token"]
+
     def __init__(
         self,
         features: list[ObservationFeatureSpec],

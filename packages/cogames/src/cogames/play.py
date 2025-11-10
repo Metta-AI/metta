@@ -6,9 +6,9 @@ from typing import TYPE_CHECKING
 from rich.console import Console
 
 from mettagrid import MettaGridConfig
+from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.policy.utils import initialize_or_load_policy
 from mettagrid.renderer.renderer import RenderMode
 from mettagrid.simulator.rollout import Rollout
 

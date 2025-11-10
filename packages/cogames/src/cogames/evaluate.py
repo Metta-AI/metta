@@ -18,8 +18,8 @@ from rich.console import Console
 from rich.table import Table
 
 from mettagrid import MettaGridConfig
+from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import PolicySpec
-from mettagrid.policy.utils import initialize_or_load_policy
 from mettagrid.simulator.rollout import Rollout
 
 if TYPE_CHECKING:
