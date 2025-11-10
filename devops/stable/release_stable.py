@@ -44,7 +44,7 @@ from metta.common.util.fs import get_repo_root
 from metta.common.util.text_styles import bold, cyan, green, red, yellow
 from metta.jobs.job_config import JobConfig, MetricsSource
 from metta.jobs.job_display import JobDisplay, format_progress_bar
-from metta.jobs.job_manager import JobManager
+from metta.jobs.job_manager import ExitCode, JobManager
 
 # ============================================================================
 # Constants
@@ -502,7 +502,7 @@ def step_job_validation(
         job_state = job_manager.get_job_state(job_config.name)
         if not job_state:
             skipped += 1
-        elif job_state.exit_code == -2:  # SKIPPED (job skipped due to failed dependency)
+        elif job_state.exit_code == ExitCode.SKIPPED:
             skipped += 1
         elif job_state.is_successful:
             passed += 1

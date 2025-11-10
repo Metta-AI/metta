@@ -6,6 +6,7 @@ import subprocess
 import threading
 import time
 from datetime import datetime
+from enum import IntEnum
 from pathlib import Path
 
 from sqlmodel import Session, SQLModel, create_engine, select
@@ -19,6 +20,12 @@ from metta.jobs.job_runner import LocalJob, RemoteJob
 from metta.jobs.job_state import JobState, JobStatus
 
 logger = logging.getLogger(__name__)
+
+
+class ExitCode(IntEnum):
+    """Special exit codes for job execution."""
+
+    SKIPPED = -2  # Job skipped due to failed dependency
 
 
 class JobManager:
