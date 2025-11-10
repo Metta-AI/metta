@@ -27,7 +27,7 @@ import typer
 
 import gitta as git
 from devops.stable.asana_bugs import check_blockers
-from devops.stable.display import format_job_with_acceptance, format_training_job_section
+from devops.stable.display import format_job_result, format_training_job_section
 from devops.stable.jobs import get_all_jobs
 from devops.stable.state import (
     Gate,
@@ -431,7 +431,7 @@ def step_job_validation(
             continue
 
         # Show acceptance criteria and training artifacts
-        display = format_job_with_acceptance(job_state)
+        display = format_job_result(job_state)
         print(display)
         print()
 

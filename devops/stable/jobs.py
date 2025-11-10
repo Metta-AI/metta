@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 from metta.jobs.job_config import JobConfig
 from recipes.validation.ci_suite import get_ci_jobs
 from recipes.validation.stable_suite import get_stable_jobs
@@ -29,9 +31,10 @@ def get_all_jobs(version: str) -> list[JobConfig]:
     cpp_benchmark = ci_job("cpp_benchmark", ["metta", "cpptest", "--benchmark"])
 
     # Recipe CI smoke tests
-    ci_recipe_jobs, _group = get_ci_jobs(version=version)
+    user = os.environ.get("USER", "unknown")
+    ci_recipe_jobs, _group = get_ci_jobs(group=f"{user}.stable.{version}")
 
     # Stable-specific long-running tests
-    stable_recipe_jobs = get_stable_jobs(version=version)
+    stable_recipe_jobs = get_stable_jobs(group=f"{user}.stable.{version}")
 
     return [python_ci, cpp_ci, cpp_benchmark] + ci_recipe_jobs + stable_recipe_jobs

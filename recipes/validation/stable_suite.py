@@ -9,14 +9,14 @@ from __future__ import annotations
 from metta.jobs.job_config import AcceptanceCriterion, JobConfig, RemoteConfig
 
 
-def get_stable_jobs(version: str) -> list[JobConfig]:
+def get_stable_jobs(prefix: str) -> list[JobConfig]:
     """Define stable-specific test jobs for recipes.
 
     These are comprehensive long-running tests that validate releases on remote infrastructure.
     Does NOT include CI smoke tests - those are combined in devops/stable/jobs.py.
 
     Args:
-        version: Version prefix for job names (e.g., "v0.1.0")
+        prefix: Prefix for job names (e.g., "stable.v0.1.0")
 
     Returns:
         List of fully configured job configs with version-prefixed names
@@ -26,7 +26,7 @@ def get_stable_jobs(version: str) -> list[JobConfig]:
     # ========================================
 
     # Single GPU training - 100M timesteps
-    arena_train_name = f"{version}_arena_single_gpu_100m"
+    arena_train_name = f"{prefix}.arena_single_gpu_100m"
     arena_train_100m = JobConfig(
         name=arena_train_name,
         module="recipes.prod.arena_basic_easy_shaped.train",
@@ -45,7 +45,7 @@ def get_stable_jobs(version: str) -> list[JobConfig]:
     )
 
     # Multi-GPU training - 2B timesteps
-    arena_train_2b_name = f"{version}_arena_multi_gpu_2b"
+    arena_train_2b_name = f"{prefix}.arena_multi_gpu_2b"
     arena_train_2b = JobConfig(
         name=arena_train_2b_name,
         module="recipes.prod.arena_basic_easy_shaped.train",
@@ -64,7 +64,7 @@ def get_stable_jobs(version: str) -> list[JobConfig]:
     )
 
     # Evaluation - depends on single-GPU 100M training run
-    arena_eval_name = f"{version}_arena_evaluate"
+    arena_eval_name = f"{prefix}.arena_evaluate"
     arena_eval = JobConfig(
         name=arena_eval_name,
         module="recipes.prod.arena_basic_easy_shaped.evaluate",
@@ -78,7 +78,7 @@ def get_stable_jobs(version: str) -> list[JobConfig]:
     # ========================================
 
     # Multi-GPU training - 2B timesteps
-    cvc_small_train_name = f"{version}_cvc_small_multi_gpu_2b"
+    cvc_small_train_name = f"{prefix}.cvc_small_multi_gpu_2b"
     cvc_small_train_2b = JobConfig(
         name=cvc_small_train_name,
         module="recipes.prod.cvc.small_maps.train",
