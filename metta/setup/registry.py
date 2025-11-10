@@ -39,7 +39,7 @@ def get_all_modules() -> list["SetupModule"]:
         visited.add(module.name)
         result.append(module)
 
-    # Visit all required modules
+    # Visit all modules, required ones first
     for module in list(filter(lambda m: m.always_required, all_modules)) + list(
         filter(lambda m: not m.always_required, all_modules)
     ):
