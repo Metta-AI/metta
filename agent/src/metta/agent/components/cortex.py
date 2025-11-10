@@ -230,15 +230,18 @@ class CortexTD(nn.Module):
             self._maybe_refresh_template(state_prev)
             # Cache pre-state at row starts into row store (TensorDict)
             if "row_id" not in td.keys() or "t_in_row" not in td.keys():
-                raise KeyError("CortexTD rollout requires 'row_id' and 't_in_row' keys")
-            row_id_flat = td["row_id"].to(device=device, dtype=torch.long).view(-1)
-            t_in_row_flat = td["t_in_row"].to(device=device, dtype=torch.long).view(-1)
-            mask_start = t_in_row_flat == 0
-            if bool(mask_start.any()):
-                idx = torch.nonzero(mask_start, as_tuple=False).reshape(-1)
-                state_sel = self._select_state_rows(state_prev, idx)
-                row_ids_sel = row_id_flat[idx]
-                self._scatter_state_by_slots_list(state_sel, row_ids_sel, store=self._row_store_leaves)
+                logger.debug(
+                    "[CortexTD] Missing 'row_id' or 't_in_row' during evaluation (TT==1); skipping row_store caching."
+                )
+            else:
+                row_id_flat = td["row_id"].to(device=device, dtype=torch.long).view(-1)
+                t_in_row_flat = td["t_in_row"].to(device=device, dtype=torch.long).view(-1)
+                mask_start = t_in_row_flat == 0
+                if bool(mask_start.any()):
+                    idx = torch.nonzero(mask_start, as_tuple=False).reshape(-1)
+                    state_sel = self._select_state_rows(state_prev, idx)
+                    row_ids_sel = row_id_flat[idx]
+                    self._scatter_state_by_slots_list(state_sel, row_ids_sel, store=self._row_store_leaves)
 
             x_step = x.view(B, -1)
             y, state_next = self.stack.step(x_step, state_prev, resets=resets)
