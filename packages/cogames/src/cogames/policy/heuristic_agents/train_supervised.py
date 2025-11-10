@@ -10,13 +10,10 @@ import torch.nn as nn
 from cogames.cli.mission import get_mission
 from cogames.policy.heuristic_agents.simple_nim_agents import HeuristicAgentsPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.policy.stateless import StatelessPolicyNet
 from mettagrid.simulator import Simulation
 
 # CONSTANTS
-INPUT_SIZE = 200 * 3
-HIDDEN_SIZE = 256
-OUTPUT_SIZE = 12
-
 MISSION_NAME = "evals.extractor_hub_30"
 VARIANT = "lonely_heart"
 NUM_AGENTS = 1
@@ -26,22 +23,8 @@ LEARNING_RATE = 1e-4
 DEVICE = "cpu"
 CHECKPOINT_DIR = Path("./train_dir")
 SEED = 42
-LOG_INTERVAL = 1
+LOG_INTERVAL = 10
 NIM_DEBUG = False
-
-
-class SimpleMLP(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.fc1 = nn.Linear(INPUT_SIZE, HIDDEN_SIZE)
-        self.relu = nn.ReLU()
-        self.fc2 = nn.Linear(HIDDEN_SIZE, OUTPUT_SIZE)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.fc1(x)
-        x = self.relu(x)
-        x = self.fc2(x)
-        return x  # Return logits, not softmax (CrossEntropyLoss includes softmax)
 
 
 def train_supervised(
@@ -82,8 +65,9 @@ def train_supervised(
     # Create scripted agent policy (teacher)
     scripted_policy = HeuristicAgentsPolicy(policy_env_info, debug=nim_debug)
 
-    # Initialize model
-    model = SimpleMLP()
+    # Initialize model using StatelessPolicyNet for compatibility with cogames play
+    obs_shape = policy_env_info.observation_space.shape
+    model = StatelessPolicyNet(policy_env_info.actions, obs_shape)
     model = model.to(torch_device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     loss_fn = nn.CrossEntropyLoss()
@@ -136,12 +120,10 @@ def train_supervised(
             scripted_agent_policies_list[env_idx][0].step(raw_obs, raw_action)
             teacher_action = int(raw_action[0])
 
-            # Flatten observation
-            obs_flat = raw_obs[0].flatten()  # Shape: (num_tokens * 3,)
-            if len(obs_flat) != INPUT_SIZE:
-                raise ValueError(f"Observation length {len(obs_flat)} is not equal to INPUT_SIZE {INPUT_SIZE}")
+            # Get observation in shape expected by StatelessPolicyNet: (num_tokens, token_dim)
+            obs_tokens = raw_obs[0]  # Shape: (num_tokens, 3)
 
-            obs_batch.append(obs_flat)
+            obs_batch.append(obs_tokens)
             action_batch.append(teacher_action)
             valid_indices.append(env_idx)
 
@@ -150,13 +132,13 @@ def train_supervised(
             continue
 
         # Convert to batched tensors
-        # Shape: (batch_size, INPUT_SIZE)
+        # Shape: (batch_size, num_tokens, token_dim)
         obs_batch_tensor = torch.stack([torch.from_numpy(obs).float() for obs in obs_batch]).to(torch_device)
         # Shape: (batch_size,)
         action_batch_tensor = torch.tensor(action_batch, dtype=torch.long).to(torch_device)
 
-        # Forward pass through model
-        logits = model(obs_batch_tensor)  # Shape: (batch_size, num_actions)
+        # Forward pass through model (StatelessPolicyNet divides by 255.0 internally)
+        logits, _ = model.forward_eval(obs_batch_tensor)  # Shape: (batch_size, num_actions)
 
         # Compute loss
         loss = loss_fn(logits, action_batch_tensor)
@@ -192,10 +174,11 @@ def train_supervised(
             last_log_time = current_time
             last_log_steps = step_count
 
-    # Final checkpoint
-    final_checkpoint = checkpoint_dir / "supervised_final.pt"
+    # Final checkpoint - save as policy.pt for compatibility with cogames play
+    final_checkpoint = checkpoint_dir / "policy.pt"
     torch.save(model.state_dict(), final_checkpoint)
     print(f"Training complete! Final checkpoint saved to {final_checkpoint}")
+    print(f"Load with: uv run cogames play -m {mission_name} -p stateless:{final_checkpoint}")
 
     # Close all simulations
     for sim in simulations:

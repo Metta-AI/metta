@@ -6,7 +6,6 @@ import torch.nn as nn
 
 import pufferlib.pytorch
 from mettagrid.config.mettagrid_config import ActionsConfig
-from mettagrid.mettagrid_c import dtype_actions
 from mettagrid.policy.policy import AgentPolicy, TrainablePolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action as MettaGridAction
@@ -51,22 +50,50 @@ class StatelessPolicyNet(torch.nn.Module):
 class StatelessAgentPolicyImpl(AgentPolicy):
     """Per-agent policy that uses the shared feedforward network."""
 
-    def __init__(self, net: StatelessPolicyNet, device: torch.device, num_actions: int):
+    def __init__(
+        self,
+        net: StatelessPolicyNet,
+        device: torch.device,
+        num_actions: int,
+        expected_num_tokens: int,
+        policy_env_info: PolicyEnvInterface,
+    ):
+        super().__init__(policy_env_info)
         self._net = net
         self._device = device
         self._num_actions = num_actions
+        self._expected_num_tokens = expected_num_tokens
 
     def step(self, obs: MettaGridObservation) -> MettaGridAction:
         """Get action for this agent."""
-        # Convert single observation to batch of 1 for network forward pass
-        obs_tensor = torch.tensor(obs, device=self._device).unsqueeze(0).float()
+        # Convert AgentObservation to numpy array format: (num_tokens, 3)
+        # Each token is [coords_byte, feature_id, value]
+        tokens = []
+        for token in obs.tokens:
+            col, row = token.location
+            coords_byte = ((col & 0x0F) << 4) | (row & 0x0F)
+            feature_id = token.feature.id
+            value = token.value
+            tokens.append([coords_byte, feature_id, value])
+
+        # Pad to expected number of tokens (padding uses coords_byte=255)
+        num_tokens = len(tokens)
+        if num_tokens < self._expected_num_tokens:
+            padding_needed = self._expected_num_tokens - num_tokens
+            tokens.extend([[255, 0, 0]] * padding_needed)
+
+        # Convert to numpy array and then to tensor
+        obs_array = np.array(tokens, dtype=np.uint8)
+        obs_tensor = torch.from_numpy(obs_array).unsqueeze(0).to(self._device).float()
 
         with torch.no_grad():
             self._net.eval()
             logits, _ = self._net.forward_eval(obs_tensor)
             dist = torch.distributions.Categorical(logits=logits)
             sampled_action = dist.sample().cpu().item()
-            return dtype_actions.type(sampled_action)
+            # Convert action index to Action object
+            action = list(self._policy_env_info.actions.actions())[sampled_action]
+            return action
 
 
 class StatelessPolicy(TrainablePolicy):
@@ -79,13 +106,16 @@ class StatelessPolicy(TrainablePolicy):
         self._net = StatelessPolicyNet(actions_cfg, obs_shape).to(device)
         self._device = device
         self.num_actions = len(actions_cfg.actions())
+        self._expected_num_tokens = obs_shape[0]
 
     def network(self) -> nn.Module:
         return self._net
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Create a Policy instance for a specific agent."""
-        return StatelessAgentPolicyImpl(self._net, self._device, self.num_actions)
+        return StatelessAgentPolicyImpl(
+            self._net, self._device, self.num_actions, self._expected_num_tokens, self._policy_env_info
+        )
 
     def is_recurrent(self) -> bool:
         return False
