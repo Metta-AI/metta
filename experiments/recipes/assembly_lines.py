@@ -8,7 +8,11 @@ from metta.agent.policies.vit_reset import ViTResetConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.training import (
+    CheckpointerConfig,
+    EvaluatorConfig,
+    TrainingEnvironmentConfig,
+)
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
@@ -339,12 +343,15 @@ def train(
         task_generator=task_generator_cfg, algorithm_config=LearningProgressConfig()
     )
 
+    checkpointer_cfg = CheckpointerConfig(epoch_interval=24)
+
     policy_config = ViTResetConfig()
 
     return TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         policy_architecture=policy_config,
         evaluator=EvaluatorConfig(simulations=make_assembly_line_eval_suite()),
+        checkpointer=checkpointer_cfg,
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
 
