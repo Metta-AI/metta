@@ -73,6 +73,7 @@ class TrainTool(Tool):
     context_checkpointer: dict[str, Any] = Field(default_factory=dict)
     stats_reporter: StatsReporterConfig = Field(default_factory=StatsReporterConfig)
     wandb_aborter: WandbAborterConfig = Field(default_factory=WandbAborterConfig)
+    wandb_log_ranks: list[int] = Field(default_factory=lambda: [0])
 
     map_preview_uri: str | None = None
     disable_macbook_optimize: bool = False
@@ -370,8 +371,21 @@ class TrainTool(Tool):
             return None
 
     def _build_wandb_manager(self, distributed_helper: DistributedHelper):
-        if distributed_helper.is_master() and self.wandb.enabled:
+        rank = distributed_helper.get_rank()
+        should_log = self.wandb.enabled and (
+            not distributed_helper.is_distributed or rank in self.wandb_log_ranks
+        )
+
+        if should_log:
+            logger.info("WandB logging enabled on rank %s (allowed ranks: %s)", rank, self.wandb_log_ranks)
             return WandbContext(self.wandb, self)
+
+        logger.info(
+            "Skipping WandB logging on rank %s (is_master=%s, allowed ranks=%s)",
+            rank,
+            distributed_helper.is_master(),
+            self.wandb_log_ranks,
+        )
         return contextlib.nullcontext(None)
 
     def _minimize_config_for_debugging(self) -> None:
