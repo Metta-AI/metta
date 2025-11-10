@@ -47,7 +47,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       _global_obs_config(game_config.global_obs),
       _game_config(game_config),
       _num_observation_tokens(game_config.num_observation_tokens),
-      _track_movement_metrics(game_config.track_movement_metrics),
       _resource_loss_prob(game_config.resource_loss_prob),
       _inventory_regen_interval(game_config.inventory_regen_interval) {
   _seed = seed;

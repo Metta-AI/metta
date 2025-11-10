@@ -408,10 +408,6 @@ class GameConfig(Config):
     # Map builder configuration - accepts any MapBuilder config
     map_builder: AnyMapBuilderConfig = Field(default_factory=lambda: RandomMapBuilder.Config(agents=24))
 
-    # Feature Flags
-    track_movement_metrics: bool = Field(
-        default=True, description="Enable movement metrics tracking (sequential rotations)"
-    )
     protocol_details_obs: bool = Field(
         default=False, description="Objects show their protocol inputs and outputs when observed"
     )
