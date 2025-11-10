@@ -18,7 +18,6 @@ from metta.rl.training import (
     TrainingEnvironment,
 )
 from metta.rl.training.optimizer import create_optimizer, is_schedulefree_optimizer
-from metta.rl.training.scheduler import LossScheduler
 from mettagrid.profiling.stopwatch import Stopwatch
 
 try:
@@ -109,7 +108,6 @@ class Trainer:
         )
         self._context.get_train_epoch_fn = lambda: self._train_epoch_callable
         self._context.set_train_epoch_fn = self._set_train_epoch_callable
-        self._scheduler: LossScheduler | None = None
 
         self._train_epoch_callable: Callable[[], None] = self._run_epoch
 
@@ -162,8 +160,6 @@ class Trainer:
 
         # Rollout phase
         with self.timer("_rollout"):
-            if self._scheduler is not None:
-                self._scheduler.apply(phase="rollout")
             # Ensure ScheduleFree optimizer is in eval mode during rollout
             if self._is_schedulefree:
                 self.optimizer.eval()
@@ -177,13 +173,12 @@ class Trainer:
             if rollout_result.raw_infos:
                 self._prev_agent_step_for_step_callbacks = previous_agent_step
                 self._invoke_callback(TrainerCallback.STEP, rollout_result.raw_infos)
+            self._invoke_callback(TrainerCallback.ROLLOUT_END)
 
         # Training phase
         with self.timer("_train"):
             if self._context.training_env_id is None:
                 raise RuntimeError("Training environment slice unavailable for training phase")
-            if self._scheduler is not None:
-                self._scheduler.apply(phase="train")
 
             # ScheduleFree optimizer is in train mode for training phase
             if self._is_schedulefree:
@@ -266,6 +261,8 @@ class Trainer:
                 elif callback_type == TrainerCallback.EPOCH_END:
                     if component.should_handle_epoch(current_epoch):
                         component.on_epoch_end(current_epoch)
+                elif callback_type == TrainerCallback.ROLLOUT_END:
+                    component.on_rollout_end()
                 elif callback_type == TrainerCallback.TRAINING_COMPLETE:
                     component.on_training_complete()
                 elif callback_type == TrainerCallback.FAILURE:

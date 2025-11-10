@@ -260,6 +260,13 @@ class LossScheduler(TrainerComponent):
         super().__init__(epoch_interval=1, step_interval=0)
         self.config = config
 
+    def register(self, context) -> None:
+        """Attach context and initialize gates for the very first rollout."""
+        super().register(context)
+
+        # Initialize rollout gates/hypers for epoch 0 before the first rollout
+        self.apply(phase="rollout")
+
     def apply(self, *, phase: Literal["rollout", "train"]) -> None:
         epoch = self.context.epoch
         agent_step = self.context.agent_step
@@ -288,6 +295,15 @@ class LossScheduler(TrainerComponent):
                 # Skip silently to allow optional losses
                 continue
             rule.apply(obj=loss.loss_cfg, ctx=self.context)
+
+    # ----------------- Trainer callbacks -----------------
+    def on_rollout_end(self) -> None:
+        """Prepare gates and hypers for the upcoming train phase."""
+        self.apply(phase="train")
+
+    def on_epoch_end(self, epoch: int) -> None:
+        """Prepare gates and hypers for the next epoch's rollout."""
+        self.apply(phase="rollout")
 
 
 def _set_attr_path(obj: object, path: str, value: Any) -> None:

@@ -109,7 +109,7 @@ def train(
 
     eval_simulations = simulations()
 
-    # Configure losses with tl_kickstarter
+    # Configure losses with PPO then add tl_kickstarter
     loss_config = LossConfig()
     loss_config.loss_configs["tl_kickstarter"] = TLKickstarterConfig(
         teacher_uri="s3://softmax-public/policies/av.scheduler.11.4.00/av.scheduler.11.4.00:v240.mpt"
@@ -141,9 +141,7 @@ def train(
         policy_architecture=policy_architecture,
         torch_profiler=TorchProfilerConfig(),
         scheduler=scheduler,
-        checkpointer=CheckpointerConfig(
-            epoch_interval=100
-        ),
+        checkpointer=CheckpointerConfig(epoch_interval=100),
     )
 
 
