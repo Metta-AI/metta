@@ -122,11 +122,11 @@ metta pytest --changed
 ### Linting and Formatting
 
 ```bash
-# Run linting and formatting (all file types by default)
-metta lint path/to/file_or_dir [...]
+# Run linting and formatting (to provided paths, or all files by default)
+metta lint [path/to/file_or_dir]
 
 # Format and lint with auto-fix
-metta lint --fix path/to/file_or_dir [...]
+metta lint --fix [path/to/file_or_dir]
 
 # Format only staged files
 metta lint --staged --fix

@@ -81,12 +81,6 @@ implementation.
 
 3. **Track deviations** - If you need to deviate from the plan, document why and update the approach
 4. **Keep it concise** - Focus on what changed and why, not how (the code shows how)
-5. **CRITICAL: Always run `metta lint`** - After editing any file, immediately run:
-   ```bash
-   metta lint --fix path/to/file_or_dir [...]
-   ```
-   This single command handles Ruff + Prettier. Avoid calling `ruff`/`prettier` directly unless `metta lint` instructs
-   you to.
 
 ### After Implementation
 
@@ -231,7 +225,7 @@ See @.cursor/commands.md for quick test commands and examples.
 #### Code Quality
 
 ```bash
-# Run full CI (tests + linting) - ALWAYS run this to verify changes
+# Run full CI (tests + linting)
 metta ci
 
 # Run specific CI stages (used by GitHub Actions)
@@ -256,11 +250,11 @@ metta pytest --ci --test --benchmark
 metta pytest tests/rl/test_trainer_config.py -v
 metta pytest tests/sim/ -v
 
-# Run linting and formatting (formats all file types by default)
-metta lint path/to/file_or_dir [...]
+# Run linting and formatting (to provided paths, or all files by default)
+metta lint [path/to/file_or_dir]
 
 # Format and lint with auto-fix
-metta lint --fix path/to/file_or_dir [...]
+metta lint --fix [path/to/file_or_dir]
 
 # Format only staged files
 metta lint --staged --fix
