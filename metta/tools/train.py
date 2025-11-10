@@ -113,9 +113,23 @@ class TrainTool(Tool):
 
         distributed_helper = DistributedHelper(self.system)
         distributed_helper.scale_batch_config(self.trainer, self.training_env)
+        logger.info(
+            "Distributed helper initialized (run=%s, rank=%s, world_size=%s, device=%s, node_rank=%s)",
+            self.run,
+            distributed_helper.get_rank(),
+            distributed_helper.get_world_size(),
+            self.system.device,
+            os.environ.get("SKYPILOT_NODE_RANK"),
+        )
 
         self.training_env.seed += distributed_helper.get_rank()
         env = VectorizedTrainingEnvironment(self.training_env)
+        logger.info(
+            "VectorizedTrainingEnvironment ready (run=%s, rank=%s, num_envs=%s)",
+            self.run,
+            distributed_helper.get_rank(),
+            env.num_envs,
+        )
 
         self._configure_torch_backends()
 
@@ -128,8 +142,13 @@ class TrainTool(Tool):
         init_logging(run_dir=checkpoint_manager.run_dir)
         record_heartbeat()
 
+        logger.info("Loading or creating policy (run=%s, rank=%s)", self.run, distributed_helper.get_rank())
         policy_checkpointer, policy = self._load_or_create_policy(checkpoint_manager, distributed_helper, env)
+        logger.info("Policy ready (run=%s, rank=%s)", self.run, distributed_helper.get_rank())
+
+        logger.info("Initializing trainer (run=%s, rank=%s)", self.run, distributed_helper.get_rank())
         trainer = self._initialize_trainer(env, policy, distributed_helper)
+        logger.info("Trainer initialized (run=%s, rank=%s)", self.run, distributed_helper.get_rank())
 
         self._log_run_configuration(distributed_helper, checkpoint_manager, env)
 
