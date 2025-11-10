@@ -40,14 +40,9 @@ def get_all_modules() -> list["SetupModule"]:
         result.append(module)
 
     # Visit all required modules
-    for module in all_modules:
-        if module.always_required:
-            visit(module)
-
-    # Visit all non-required modules
-    for module in all_modules:
-        if not module.always_required:
-            if module.name not in visited:
-                visit(module)
+    for module in list(filter(lambda m: m.always_required, all_modules)) + list(
+        filter(lambda m: not m.always_required, all_modules)
+    ):
+        visit(module)
 
     return result
