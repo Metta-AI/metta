@@ -8,6 +8,7 @@ import torch.nn as nn
 
 from cogames.cli.mission import get_mission
 from cogames.policy.heuristic_agents.simple_nim_agents import HeuristicAgentsPolicy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Simulation
 
 # CONSTANTS
@@ -67,10 +68,13 @@ def train_supervised(
 
     # Initialize environment
     variants_arg = [variant] if variant else None
-    _, env_cfg = get_mission(mission_name, variants_arg=variants_arg, cogs=num_agents)
+    _, env_cfg, _ = get_mission(mission_name, variants_arg=variants_arg, cogs=num_agents)
+
+    # Create PolicyEnvInterface from config
+    policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
 
     # Create scripted agent policy (teacher)
-    scripted_policy = HeuristicAgentsPolicy(env_cfg.policy_env_info)
+    scripted_policy = HeuristicAgentsPolicy(policy_env_info)
 
     # Initialize model
     model = SimpleMLP()
