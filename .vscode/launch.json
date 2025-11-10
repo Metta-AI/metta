@@ -154,5 +154,17 @@
       "python": "${workspaceFolder}/.venv/bin/python",
       "preLaunchTask": "${defaultBuildTask}",
     },
+    {
+      "name": "Train Supervised Heuristic Agents",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "cogames.policy.heuristic_agents.train_supervised",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
+    },
   ],
 }
