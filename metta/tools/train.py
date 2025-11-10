@@ -125,10 +125,9 @@ class TrainTool(Tool):
         self.training_env.seed += distributed_helper.get_rank()
         env = VectorizedTrainingEnvironment(self.training_env)
         logger.info(
-            "VectorizedTrainingEnvironment ready (run=%s, rank=%s, num_envs=%s)",
+            "VectorizedTrainingEnvironment ready (run=%s, rank=%s)",
             self.run,
             distributed_helper.get_rank(),
-            env.num_envs,
         )
 
         self._configure_torch_backends()
