@@ -173,17 +173,8 @@ class MettaGridPufferEnv(PufferEnv):
         )
 
     def _reset_env_supervisor_policy(self) -> None:
-        policy_name = (self._env_supervisor_cfg.policy or "baseline").lower()
-        if policy_name == "baseline":
-            policy_cls = BaselinePolicy
-        elif policy_name == "noop":
-            policy_cls = NoopBaselinePolicy
-        elif policy_name == "heuristic":
-            from cogames.policy.heuristic_agents.simple_nim_agents import HeuristicAgentsPolicy
-
-            policy_cls = HeuristicAgentsPolicy
-        else:
-            raise ValueError(f"Unsupported env supervisor policy: {self._env_supervisor_cfg.policy}")
+        policy_name = self._env_supervisor_cfg.policy or "baseline"
+        policy_cls = _resolve_supervisor_policy(policy_name)
 
         self._env_supervisor_policy = policy_cls(PolicyEnvInterface.from_mg_cfg(self._current_cfg))
         for agent_id in range(self._current_cfg.game.num_agents):
@@ -249,3 +240,17 @@ class MettaGridPufferEnv(PufferEnv):
         """Close the environment."""
         if hasattr(self, "_sim") and self._sim is not None:
             self._sim.close()
+
+
+def _resolve_supervisor_policy(policy_name: str) -> type[BaselinePolicy]:
+    normalized = policy_name.lower()
+    if normalized == "baseline":
+        return BaselinePolicy
+    if normalized == "noop":
+        return NoopBaselinePolicy
+    if normalized == "heuristic":
+        from cogames.policy.heuristic_agents.simple_nim_agents import HeuristicAgentsPolicy
+
+        return HeuristicAgentsPolicy
+
+    raise ValueError(f"Unsupported env supervisor policy: {policy_name}")
