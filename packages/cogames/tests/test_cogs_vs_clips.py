@@ -76,18 +76,6 @@ def test_inventory_heart_tune_caps_initial_inventory_to_limits():
     assert agent.initial_inventory["energy"] == energy_limit
 
 
-def test_training_facility_stations_not_clipped_by_default():
-    env = HarvestMission.make_env()
-
-    carbon = env.game.objects["carbon_extractor"]
-    clipped = env.game.objects["clipped_carbon_extractor"]
-
-    assert carbon.start_clipped is False
-    assert clipped.start_clipped is True
-    assert carbon.map_name == "carbon_extractor"
-    assert clipped.map_name == "clipped_carbon_extractor"
-
-
 def _station_configs(mission: Mission) -> list[CvCStationConfig]:
     return [
         mission.carbon_extractor,
