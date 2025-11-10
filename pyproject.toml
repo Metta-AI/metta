@@ -39,6 +39,7 @@ dependencies = [
   "ninja>=1.11.1",
   "nvidia-ml-py",
   "omegaconf>=2.3.0",
+  "optree>=0.17.0",
   "pandas>=2.3.0",
   "pettingzoo>=1.25",
   "peft>=0.12.0",

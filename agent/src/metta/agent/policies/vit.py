@@ -21,6 +21,9 @@ class ViTDefaultConfig(PolicyArchitecture):
     _fourier_freqs = 3
     _latent_dim = 64
     _actor_hidden = 256
+
+    # Whether training passes cached pre-state to the Cortex core
+    pass_state_during_training: bool = False
     _critic_hidden = 512
 
     components: List[ComponentConfig] = [
@@ -52,6 +55,7 @@ class ViTDefaultConfig(PolicyArchitecture):
                 pattern="L",
                 post_norm=False,
             ),
+            pass_state_during_training=pass_state_during_training,
         ),
         MLPConfig(
             in_key="core",
