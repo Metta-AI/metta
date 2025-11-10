@@ -100,7 +100,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
         BaseCfgModel: type[SceneConfig] = biome_map[cfg.base_biome]
         base_cfg: SceneConfig = BaseCfgModel.model_validate(cfg.base_biome_config or {})
         if hasattr(base_cfg, "dither_edges"):
-            setattr(base_cfg, "dither_edges", bool(cfg.dither_edges))
+            base_cfg.dither_edges = bool(cfg.dither_edges)
 
         # Building weights
         default_building_weights = {
@@ -157,7 +157,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
         # Candidates
         def _disable_dither(scene_cfg: SceneConfig) -> None:
             if hasattr(scene_cfg, "dither_edges"):
-                setattr(scene_cfg, "dither_edges", bool(cfg.dither_edges))
+                scene_cfg.dither_edges = bool(cfg.dither_edges)
 
         def _make_biome_candidates(weights: dict[str, float] | None) -> list[RandomSceneCandidate]:
             defaults = {"caves": 1.0, "forest": 1.0, "desert": 1.0, "city": 1.0}
