@@ -571,8 +571,8 @@ def sweep(sweep_name: str) -> SweepTool:
         eval_entrypoint="evaluate",
         objective="evaluator/eval_assembly_lines/score",
         parameters=parameters,
-        num_trials=80,
-        num_parallel_trials=4,
+    ).update(
+        {"max_trials": 80, "batch_size": 4}
     )
 
 
