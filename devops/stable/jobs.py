@@ -32,9 +32,9 @@ def get_all_jobs(version: str) -> list[JobConfig]:
 
     # Recipe CI smoke tests
     user = os.environ.get("USER", "unknown")
-    ci_recipe_jobs, _group = get_ci_jobs(group=f"{user}.stable.{version}")
+    ci_recipe_jobs, _group = get_ci_jobs(f"{user}.stable.{version}")
 
     # Stable-specific long-running tests
-    stable_recipe_jobs = get_stable_jobs(group=f"{user}.stable.{version}")
+    stable_recipe_jobs = get_stable_jobs(f"{user}.stable.{version}")
 
     return [python_ci, cpp_ci, cpp_benchmark] + ci_recipe_jobs + stable_recipe_jobs
