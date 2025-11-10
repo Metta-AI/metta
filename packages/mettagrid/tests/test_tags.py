@@ -128,7 +128,7 @@ class TestTags:
         assert len(wall_locations) > 0, "Should find walls in observation"
 
         # Get tag feature ID from environment
-        tag_feature_id = sim.id_map.feature_id("tag")
+        tag_feature_id = sim.config.id_map().feature_id("tag")
 
         # Check for tag features in observation (not restricted to location)
         tag_features = [token[2] for token in agent0_obs if token[1] == tag_feature_id]
@@ -148,7 +148,7 @@ class TestTags:
         expected_tag_ids = [0, 1]  # 0, 1
 
         # Get tag feature ID from environment
-        tag_feature_id = sim.id_map.feature_id("tag")
+        tag_feature_id = sim.config.id_map().feature_id("tag")
 
         # Find tag features in observation
         found_tags = {token[2] for token in agent0_obs if token[1] == tag_feature_id}
@@ -191,7 +191,7 @@ class TestTags:
         agent_obs = obs[0]
 
         # Get tag feature ID from environment
-        tag_feature_id = env.id_map.feature_id("tag")
+        tag_feature_id = env.config.id_map().feature_id("tag")
 
         # Find wall locations from map data
         wall_locations = _positions_with_char(env, "#")
@@ -216,7 +216,7 @@ class TestTags:
         shared_tag_id = 1  # "shared_tag" should be ID 1
 
         # Get tag feature ID from environment
-        tag_feature_id = sim.id_map.feature_id("tag")
+        tag_feature_id = sim.config.id_map().feature_id("tag")
 
         # Find wall and agent locations
         wall_locations = _positions_with_char(sim, "#")
@@ -268,7 +268,7 @@ class TestTags:
         agent_obs = obs[0]
 
         # Get tag feature ID from environment
-        tag_feature_id = env.id_map.feature_id("tag")
+        tag_feature_id = env.config.id_map().feature_id("tag")
 
         # Find wall locations from map data
         wall_locations = _positions_with_char(env, "#")
@@ -399,7 +399,7 @@ class TestTags:
         obs = sim._c_sim.observations()
 
         # Get tag feature ID from environment
-        tag_feature_id = sim.id_map.feature_id("tag")
+        tag_feature_id = sim.config.id_map().feature_id("tag")
 
         assert obs is not None
 
@@ -416,7 +416,7 @@ class TestTags:
                 wall_tag_ids.add(token[2])  # token[2] contains the tag ID
 
         # Walls should have the "solid" tag present in the tag mapping
-        id_map = sim.id_map
+        id_map = sim.config.id_map()
         tag_values = id_map.tag_names()
         assert any(name == "solid" for name in tag_values.values()), "Expected 'solid' in tag mapping"
 
@@ -448,7 +448,7 @@ class TestTags:
         obs = env._c_sim.observations()
 
         # Get tag feature ID from environment
-        tag_feature_id = env.id_map.feature_id("tag")
+        tag_feature_id = env.config.id_map().feature_id("tag")
 
         assert obs is not None
         assert len(obs) == 2  # Two agents
@@ -676,7 +676,7 @@ def test_tag_mapping_in_id_map():
     )
 
     sim = Simulation(cfg)
-    id_map = sim.id_map
+    id_map = sim.config.id_map()
 
     # Check that tag feature exists
     tag_feature_id = id_map.feature_id("tag")
@@ -724,7 +724,7 @@ def test_tag_mapping_empty_tags():
     )
 
     env = Simulation(cfg)
-    id_map = env.id_map
+    id_map = env.config.id_map()
 
     # Check that tag feature exists
     tag_feature_id = id_map.feature_id("tag")

@@ -431,9 +431,7 @@ class GameConfig(Config):
 
     def id_map(self) -> "IdMap":
         """Get the observation feature ID map for this configuration."""
-        # Create a minimal MettaGridConfig wrapper
-        wrapper = MettaGridConfig(game=self)
-        return IdMap(wrapper)
+        return IdMap(self)
 
 
 class EnvSupervisorConfig(Config):
@@ -452,7 +450,7 @@ class MettaGridConfig(Config):
 
     def id_map(self) -> "IdMap":
         """Get the observation feature ID map for this configuration."""
-        return IdMap(self)
+        return IdMap(self.game)
 
     def with_ascii_map(self, map_data: list[list[str]]) -> "MettaGridConfig":
         self.game.map_builder = AsciiMapBuilder.Config(
