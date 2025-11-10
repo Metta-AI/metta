@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Optional
 
 from rich.console import Console
 
-from mettagrid import MettaGridConfig
+from mettagrid import MettaGridEnvConfig
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
@@ -15,7 +15,7 @@ from mettagrid.simulator.replay_log_writer import ReplayLogWriter
 from mettagrid.simulator.rollout import Rollout
 
 if TYPE_CHECKING:
-    from mettagrid import MettaGridConfig
+    from mettagrid import MettaGridEnvConfig
 
 
 logger = logging.getLogger("cogames.play")
@@ -23,7 +23,7 @@ logger = logging.getLogger("cogames.play")
 
 def play(
     console: Console,
-    env_cfg: "MettaGridConfig",
+    env_cfg: "MettaGridEnvConfig",
     policy_spec: PolicySpec,
     game_name: str,
     seed: int = 42,
@@ -45,7 +45,7 @@ def play(
 
     logger.debug("Starting play session", extra={"game_name": game_name})
 
-    policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
+    policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg.game)
     policy = initialize_or_load_policy(policy_env_info, policy_spec)
     agent_policies = [policy.agent_policy(agent_id) for agent_id in range(env_cfg.game.num_agents)]
 
@@ -58,7 +58,7 @@ def play(
 
     # Create simulator and renderer
     rollout = Rollout(
-        env_cfg,
+        env_cfg.game,
         agent_policies,
         render_mode=render_mode,
         seed=seed,

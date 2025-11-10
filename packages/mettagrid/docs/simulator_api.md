@@ -22,7 +22,7 @@ names, number of agents, etc.). It manages event handlers and enforces that only
 
 ```python
 from mettagrid.simulator.simulator import Simulator
-from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.config.mettagrid_config import MettaGridEnvConfig
 
 simulator = Simulator()
 ```
@@ -31,7 +31,7 @@ simulator = Simulator()
 
 - **`add_event_handler(handler: SimulatorEventHandler)`**: Register an event handler that will be attached to all
   simulations
-- **`new_simulation(config: MettaGridConfig, seed: int = 0) -> Simulation`**: Create a new simulation with the given
+- **`new_simulation(config: MettaGridEnvConfig, seed: int = 0) -> Simulation`**: Create a new simulation with the given
   config and seed. Throws an error if a simulation is already running or if config invariants don't match previous
   simulations.
 - **`close()`**: Shut down the simulator
@@ -73,7 +73,7 @@ rewards, and environment state.
 
 ##### Configuration and Setup
 
-- **`config: MettaGridConfig`**: The configuration used for this simulation
+- **`config: MettaGridEnvConfig`**: The configuration used for this simulation
 - **`seed: int`**: Random seed for this simulation
 - **`num_agents: int`**: Number of agents in the simulation
 - **`current_step: int`**: Current timestep in the episode
@@ -368,10 +368,10 @@ for obj_id, obj_data in all_objects.items():
 ```python
 from mettagrid.simulator.simulator import Simulator
 from mettagrid.simulator.interface import Action
-from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.config.mettagrid_config import MettaGridEnvConfig
 
 # Setup
-config = MettaGridConfig.load("arena")
+config = MettaGridEnvConfig.load("arena")
 simulator = Simulator()
 
 # Optional: Add event handlers

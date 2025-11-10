@@ -38,7 +38,7 @@
 
 namespace py = pybind11;
 
-MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned int seed)
+MettaGrid::MettaGrid(const MettaGridConfig& game_config, const py::list map, unsigned int seed)
     : obs_width(game_config.obs_width),
       obs_height(game_config.obs_height),
       max_steps(game_config.max_steps),
@@ -111,7 +111,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
 MettaGrid::~MettaGrid() = default;
 
-void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
+void MettaGrid::_init_grid(const MettaGridConfig& game_config, const py::list& map) {
   GridCoord height = static_cast<GridCoord>(py::len(map));
   GridCoord width = static_cast<GridCoord>(py::len(map[0]));
 
@@ -243,7 +243,7 @@ void MettaGrid::_init_buffers(unsigned int num_agents) {
   _compute_observations(executed_actions);
 }
 
-void MettaGrid::init_action_handlers(const GameConfig& game_config) {
+void MettaGrid::init_action_handlers(const MettaGridConfig& game_config) {
   _max_action_priority = 0;
 
   // Noop
@@ -917,7 +917,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
 
   // MettaGrid class bindings
   py::class_<MettaGrid>(m, "MettaGrid")
-      .def(py::init<const GameConfig&, const py::list&, unsigned int>())
+      .def(py::init<const MettaGridConfig&, const py::list&, unsigned int>())
       .def("step", &MettaGrid::step)
       .def("set_buffers",
            &MettaGrid::set_buffers,

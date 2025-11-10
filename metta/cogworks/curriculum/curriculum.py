@@ -16,7 +16,7 @@ from pydantic import ConfigDict, Field
 from metta.cogworks.curriculum.stats import SliceAnalyzer, StatsLogger
 from metta.cogworks.curriculum.task_generator import AnyTaskGeneratorConfig, SingleTaskGenerator
 from mettagrid.base_config import Config
-from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.config.mettagrid_config import MettaGridEnvConfig
 
 logger = logging.getLogger(__name__)
 
@@ -232,8 +232,8 @@ class CurriculumConfig(Config):
     )
 
     @classmethod
-    def from_mg(cls, mg_config: MettaGridConfig) -> "CurriculumConfig":
-        """Create a CurriculumConfig from a MettaGridConfig."""
+    def from_mg(cls, mg_config: MettaGridEnvConfig) -> "CurriculumConfig":
+        """Create a CurriculumConfig from a MettaGridEnvConfig."""
         return cls(
             task_generator=SingleTaskGenerator.Config(env=mg_config),
         )

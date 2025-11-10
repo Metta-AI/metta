@@ -16,7 +16,7 @@ from pydantic import (
 from typing_extensions import Generic
 
 from mettagrid.base_config import Config
-from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.config.mettagrid_config import MettaGridEnvConfig
 from mettagrid.util.module import load_symbol
 
 logger = logging.getLogger(__name__)
@@ -108,14 +108,14 @@ class TaskGenerator(ABC):
         self._config = config
         self._overrides = config.overrides
 
-    def get_task(self, task_id: int) -> MettaGridConfig:
-        """Generate a task (MettaGridConfig) using task_id as seed."""
+    def get_task(self, task_id: int) -> MettaGridEnvConfig:
+        """Generate a task (MettaGridEnvConfig) using task_id as seed."""
         rng = random.Random()
         rng.seed(task_id)
         return self._apply_overrides(self._generate_task(task_id, rng), self._config.overrides)
 
     @abstractmethod
-    def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
+    def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridEnvConfig:
         """Generate a task with the given task_id and RNG.
 
         This method should be overridden by subclasses to implement
@@ -126,12 +126,12 @@ class TaskGenerator(ABC):
             rng: A seeded random number generator
 
         Returns:
-            An MettaGridConfig for the generated task
+            An MettaGridEnvConfig for the generated task
         """
         raise NotImplementedError("TaskGenerator._generate_task() must be overridden by subclasses")
 
-    def _apply_overrides(self, mg_config: MettaGridConfig, overrides: dict[str, Any]) -> MettaGridConfig:
-        """Apply overrides to an MettaGridConfig using dot-separated keys."""
+    def _apply_overrides(self, mg_config: MettaGridEnvConfig, overrides: dict[str, Any]) -> MettaGridEnvConfig:
+        """Apply overrides to an MettaGridEnvConfig using dot-separated keys."""
         if not overrides:
             return mg_config
 
@@ -143,19 +143,19 @@ class TaskGenerator(ABC):
 # SingleTaskGenerator
 ################################################################################
 class SingleTaskGenerator(TaskGenerator):
-    """TaskGenerator that always returns the same MettaGridConfig."""
+    """TaskGenerator that always returns the same MettaGridEnvConfig."""
 
     class Config(TaskGeneratorConfig["SingleTaskGenerator"]):
         """Configuration for SingleTaskGenerator."""
 
-        env: MettaGridConfig = Field(description="The environment configuration to always return")
+        env: MettaGridEnvConfig = Field(description="The environment configuration to always return")
 
     def __init__(self, config: "SingleTaskGenerator.Config"):
         super().__init__(config)
         self._config = config
 
-    def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
-        """Always return the same MettaGridConfig."""
+    def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridEnvConfig:
+        """Always return the same MettaGridEnvConfig."""
         return self._config.env.model_copy(deep=True)
 
 
@@ -208,7 +208,7 @@ class TaskGeneratorSet(TaskGenerator):
         self._sub_task_generators = [gen_config.create() for gen_config in self._config.task_generators]
         self._weights = self._config.weights if self._config.weights else [1.0] * len(self._sub_task_generators)
 
-    def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
+    def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridEnvConfig:
         if not self._sub_task_generators:
             raise ValueError("TaskGeneratorSet has no task generators to sample from")
         chosen_generator = rng.choices(self._sub_task_generators, weights=self._weights)[0]
@@ -260,7 +260,7 @@ class BucketedTaskGenerator(TaskGenerator):
     When get_task() is called:
     1. Sample a value from each bucket
     2. Call the child TaskGenerator's get_task()
-    3. Apply the sampled bucket values as overrides to the returned MettaGridConfig
+    3. Apply the sampled bucket values as overrides to the returned MettaGridEnvConfig
     """
 
     class Config(TaskGeneratorConfig["BucketedTaskGenerator"]):
@@ -278,8 +278,8 @@ class BucketedTaskGenerator(TaskGenerator):
             return self
 
         @classmethod
-        def from_mg(cls, mg_config: MettaGridConfig) -> "BucketedTaskGenerator.Config":
-            """Create a BucketedTaskGenerator.Config from an MettaGridConfig."""
+        def from_mg(cls, mg_config: MettaGridEnvConfig) -> "BucketedTaskGenerator.Config":
+            """Create a BucketedTaskGenerator.Config from an MettaGridEnvConfig."""
             return cls(child_generator_config=SingleTaskGenerator.Config(env=mg_config))
 
     def __init__(self, config: "BucketedTaskGenerator.Config"):
@@ -299,7 +299,7 @@ class BucketedTaskGenerator(TaskGenerator):
                 bucket_value = rng.uniform(min_val, max_val)
         return bucket_value
 
-    def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
+    def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridEnvConfig:
         """Generate task by calling child generator then applying bucket overrides."""
         # First, sample values from each bucket
         overrides = {}

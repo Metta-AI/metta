@@ -33,7 +33,7 @@ struct AttackActionConfig : public ActionConfig {
 class Attack : public ActionHandler {
 public:
   explicit Attack(const AttackActionConfig& cfg,
-                  const GameConfig* game_config,
+                  const MettaGridConfig* game_config,
                   const std::string& action_name = "attack")
       : ActionHandler(cfg, action_name),
         _defense_resources(cfg.defense_resources),
@@ -55,7 +55,7 @@ public:
 
 protected:
   std::unordered_map<InventoryItem, InventoryQuantity> _defense_resources;
-  const GameConfig* _game_config;
+  const MettaGridConfig* _game_config;
   bool _enabled;
 
   bool _handle_action(Agent& actor, ActionArg arg) override {

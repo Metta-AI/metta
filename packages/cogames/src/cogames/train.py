@@ -13,7 +13,7 @@ from rich.console import Console
 
 from cogames.cli.policy import POLICY_ARG_DELIMITER
 from cogames.policy.signal_handler import DeferSigintContextManager
-from mettagrid import MettaGridConfig, PufferMettaGridEnv
+from mettagrid import MettaGridEnvConfig, PufferMettaGridEnv
 from mettagrid.config.mettagrid_config import EnvSupervisorConfig
 from mettagrid.envs.early_reset_handler import EarlyResetHandler
 from mettagrid.envs.stats_tracker import StatsTracker
@@ -80,7 +80,7 @@ def _resolve_vector_counts(
 
 
 def train(
-    env_cfg: Optional[MettaGridConfig],
+    env_cfg: Optional[MettaGridEnvConfig],
     policy_class_path: str,
     device: "torch.device",
     initial_weights_path: Optional[str],
@@ -93,7 +93,7 @@ def train(
     vector_num_envs: Optional[int] = None,
     vector_batch_size: Optional[int] = None,
     vector_num_workers: Optional[int] = None,
-    env_cfg_supplier: Optional[Callable[[], MettaGridConfig]] = None,
+    env_cfg_supplier: Optional[Callable[[], MettaGridEnvConfig]] = None,
     log_outputs: bool = False,
 ) -> None:
     import pufferlib.pytorch  # noqa: F401 - ensure modules register with torch
@@ -414,24 +414,24 @@ class _EnvCreator:
 
     def __init__(
         self,
-        env_cfg: Optional[MettaGridConfig],
-        env_cfg_supplier: Optional[Callable[[], MettaGridConfig]],
+        env_cfg: Optional[MettaGridEnvConfig],
+        env_cfg_supplier: Optional[Callable[[], MettaGridEnvConfig]],
     ) -> None:
         self._env_cfg = env_cfg
         self._env_cfg_supplier = env_cfg_supplier
 
-    def clone_cfg(self) -> MettaGridConfig:
+    def clone_cfg(self) -> MettaGridEnvConfig:
         if self._env_cfg_supplier is not None:
             supplied = self._env_cfg_supplier()
-            if not isinstance(supplied, MettaGridConfig):  # pragma: no cover - defensive
-                raise TypeError("env_cfg_supplier must return a MettaGridConfig")
+            if not isinstance(supplied, MettaGridEnvConfig):  # pragma: no cover - defensive
+                raise TypeError("env_cfg_supplier must return a MettaGridEnvConfig")
             return supplied.model_copy(deep=True)
         assert self._env_cfg is not None
         return self._env_cfg.model_copy(deep=True)
 
     def __call__(
         self,
-        cfg: Optional[MettaGridConfig] = None,
+        cfg: Optional[MettaGridEnvConfig] = None,
         buf: Optional[Any] = None,
         seed: Optional[int] = None,
     ) -> PufferMettaGridEnv:

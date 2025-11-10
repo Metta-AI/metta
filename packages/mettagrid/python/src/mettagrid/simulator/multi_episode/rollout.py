@@ -8,7 +8,7 @@ from typing import Callable, Optional, Sequence
 import numpy as np
 from pydantic import BaseModel, ConfigDict
 
-from mettagrid import MettaGridConfig
+from mettagrid import MettaGridEnvConfig
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.simulator import SimulatorEventHandler
 from mettagrid.simulator.replay_log_writer import ReplayLogWriter
@@ -53,7 +53,7 @@ def _compute_policy_agent_counts(num_agents: int, proportions: list[float]) -> l
 
 
 def multi_episode_rollout(
-    env_cfg: MettaGridConfig,
+    env_cfg: MettaGridEnvConfig,
     policies: list[MultiAgentPolicy],
     episodes: int,
     seed: int = 0,
@@ -101,7 +101,7 @@ def multi_episode_rollout(
             handlers.append(episode_replay_writer)
 
         rollout = Rollout(
-            env_cfg,
+            env_cfg.game,
             agent_policies,
             max_action_time_ms=max_action_time_ms,
             event_handlers=handlers,

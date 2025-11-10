@@ -1,4 +1,4 @@
-from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.config.mettagrid_config import MettaGridEnvConfig
 
 from .curriculum import Curriculum, CurriculumConfig, CurriculumTask
 from .curriculum_env import CurriculumEnv
@@ -39,13 +39,13 @@ __all__ = [
 ]
 
 
-def single_task(mg_config: MettaGridConfig) -> SingleTaskGenerator.Config:
-    """Create a `SingleTaskGenerator.Config` from a `MettaGridConfig`."""
+def single_task(mg_config: MettaGridEnvConfig) -> SingleTaskGenerator.Config:
+    """Create a `SingleTaskGenerator.Config` from a `MettaGridEnvConfig`."""
     return SingleTaskGenerator.Config(env=mg_config.model_copy(deep=True))
 
 
-def bucketed(mg_config: MettaGridConfig) -> BucketedTaskGenerator.Config:
-    """Create a `BucketedTaskGenerator.Config` from a `MettaGridConfig`."""
+def bucketed(mg_config: MettaGridEnvConfig) -> BucketedTaskGenerator.Config:
+    """Create a `BucketedTaskGenerator.Config` from a `MettaGridEnvConfig`."""
     return BucketedTaskGenerator.Config.from_mg(mg_config.model_copy(deep=True))
 
 
@@ -54,6 +54,6 @@ def merge(task_generator_configs: list[AnyTaskGeneratorConfig]) -> TaskGenerator
     return TaskGeneratorSet.Config(task_generators=task_generator_configs, weights=[1.0] * len(task_generator_configs))
 
 
-def env_curriculum(mg_config: MettaGridConfig) -> CurriculumConfig:
-    """Create a curriculum configuration from an MettaGridConfig."""
+def env_curriculum(mg_config: MettaGridEnvConfig) -> CurriculumConfig:
+    """Create a curriculum configuration from an MettaGridEnvConfig."""
     return CurriculumConfig(task_generator=SingleTaskGenerator.Config(env=mg_config))

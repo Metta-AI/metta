@@ -1,4 +1,4 @@
-from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.config.mettagrid_config import MettaGridEnvConfig
 from mettagrid.simulator import Simulation
 
 
@@ -8,7 +8,7 @@ class TestAgentResourceSharing:
     def test_basic_resource_sharing(self):
         """Test that agents can share resources via vibe_transfers when one moves onto another."""
         # Create a simple environment with 2 agents
-        cfg = MettaGridConfig.EmptyRoom(num_agents=2, with_walls=True).with_ascii_map(
+        cfg = MettaGridEnvConfig.EmptyRoom(num_agents=2, with_walls=True).with_ascii_map(
             [
                 ["#", "#", "#", "#"],
                 ["#", "@", "@", "#"],
@@ -34,7 +34,7 @@ class TestAgentResourceSharing:
         cfg.game.actions.change_vibe.enabled = True
         cfg.game.actions.change_vibe.number_of_vibes = 10
 
-        sim = Simulation(cfg)
+        sim = Simulation(cfg.game)
 
         # Get initial state
         grid_objects = sim.grid_objects()

@@ -9,8 +9,8 @@ from mettagrid.config.mettagrid_config import (
     AgentConfig,
     AgentRewards,
     AttackActionConfig,
-    GameConfig,
     MettaGridConfig,
+    MettaGridEnvConfig,
     MoveActionConfig,
     NoopActionConfig,
     ResourceLimitsConfig,
@@ -25,7 +25,7 @@ def make_arena(
     num_agents: int,
     combat: bool = True,
     map_builder: MapBuilderConfig | None = None,  # custom map builder; must match num_agents
-) -> MettaGridConfig:
+) -> MettaGridEnvConfig:
     objects = {
         "wall": building.wall,
         "altar": building.assembler_altar,
@@ -71,9 +71,9 @@ def make_arena(
             ),
         )
 
-    return MettaGridConfig(
+    return MettaGridEnvConfig(
         label="arena" + (".combat" if combat else ""),
-        game=GameConfig(
+        game=MettaGridConfig(
             num_agents=num_agents,
             actions=actions,
             objects=objects,
@@ -93,15 +93,15 @@ def make_arena(
     )
 
 
-def make_navigation(num_agents: int) -> MettaGridConfig:
+def make_navigation(num_agents: int) -> MettaGridEnvConfig:
     nav_assembler = building.AssemblerConfig(
         name="altar",
         map_char="_",
         render_symbol="🛣️",
         protocols=[building.ProtocolConfig(input_resources={}, output_resources={"heart": 1}, cooldown=255)],
     )
-    cfg = MettaGridConfig(
-        game=GameConfig(
+    cfg = MettaGridEnvConfig(
+        game=MettaGridConfig(
             num_agents=num_agents,
             objects={
                 "altar": nav_assembler,
@@ -137,11 +137,11 @@ def make_assembly_lines(
     chain_length: int = 2,
     num_sinks: int = 0,
     dir: Optional[str] = None,
-) -> MettaGridConfig:
+) -> MettaGridEnvConfig:
     game_objects["wall"] = empty_assemblers.wall
-    cfg = MettaGridConfig(
+    cfg = MettaGridEnvConfig(
         desync_episodes=False,
-        game=GameConfig(
+        game=MettaGridConfig(
             max_steps=max_steps,
             num_agents=num_agents,
             objects=game_objects,

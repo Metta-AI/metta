@@ -2,8 +2,8 @@ import pytest
 
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
-    GameConfig,
     MettaGridConfig,
+    MettaGridEnvConfig,
     MoveActionConfig,
     NoopActionConfig,
     ObsConfig,
@@ -14,8 +14,8 @@ from mettagrid.simulator import Action, Simulation
 
 @pytest.fixture
 def sim_with_resources() -> Simulation:
-    cfg = MettaGridConfig(
-        game=GameConfig(
+    cfg = MettaGridEnvConfig(
+        game=MettaGridConfig(
             num_agents=1,
             obs=ObsConfig(width=3, height=3, num_tokens=32),
             actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
@@ -23,7 +23,7 @@ def sim_with_resources() -> Simulation:
             map_builder=RandomMapBuilder.Config(width=5, height=3, agents=1, seed=7),
         )
     )
-    return Simulation(cfg)
+    return Simulation(cfg.game)
 
 
 def _find_agent_id(grid_objects: dict[int, dict]) -> int:

@@ -15,7 +15,7 @@ from metta.cogworks.curriculum.curriculum import (
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
-from mettagrid import MettaGridConfig
+from mettagrid import MettaGridEnvConfig
 from recipes.prod.arena_basic_easy_shaped import (
     evaluate,
     evaluate_in_sweep,
@@ -131,7 +131,7 @@ __all__ = [
 
 
 def make_curriculum(
-    arena_env: Optional[MettaGridConfig] = None,
+    arena_env: Optional[MettaGridEnvConfig] = None,
     *,
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,

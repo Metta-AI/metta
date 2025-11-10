@@ -8,9 +8,9 @@ from mettagrid.mapgen.scenes.inline_ascii import InlineAscii
 
 def mapgen_transform_demo() -> MettaGridConfig:
     mg_config = MettaGridConfig()
-    mg_config.game.num_agents = 0
-    mg_config.game.map_builder = MapGen.Config(
-        num_agents=mg_config.game.num_agents,
+    mg_config.num_agents = 0
+    mg_config.map_builder = MapGen.Config(
+        num_agents=mg_config.num_agents,
         border_width=1,
         instance=InlineAscii.Config(
             data="""

@@ -366,12 +366,20 @@ AnyGridObjectConfig = SerializeAsAny[
 ]
 
 
-class GameConfig(Config):
-    """Python game configuration.
+class MetadataConfig(Config):
+    """Metadata for MettaGrid configurations (RL-specific tracking info)."""
 
-    Note: Type IDs are automatically assigned during validation when the GameConfig
+    label: str = Field(default="mettagrid")
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
+class MettaGridConfig(Config):
+    """Core MettaGrid game configuration.
+
+    Note: Type IDs are automatically assigned during validation when the MettaGridConfig
     is constructed. If you need to add objects after construction, create a new
-    GameConfig instance rather than modifying the objects dict post-construction.
+    MettaGridConfig instance rather than modifying the objects dict post-construction,
+    as type_id assignment only happens at validation time.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -429,8 +437,10 @@ class GameConfig(Config):
 
     reward_estimates: Optional[dict[str, float]] = Field(default=None)
 
+    metadata: MetadataConfig = Field(default_factory=MetadataConfig)
+
     @model_validator(mode="after")
-    def _compute_feature_ids(self) -> "GameConfig":
+    def _compute_feature_ids(self) -> "MettaGridConfig":
         self._populate_vibe_names()
         # Note that this validation only runs once by default, so later changes by the user can cause this to no
         # longer be true.
@@ -449,6 +459,14 @@ class GameConfig(Config):
         return IdMap(self)
 
 
+class TeacherConfig(Config):
+    """Teacher configuration."""
+
+    enabled: bool = Field(default=False)
+    use_actions: bool = Field(default=False)
+    policy: str = Field(default="baseline")
+
+
 class EnvSupervisorConfig(Config):
     """Environment supervisor configuration."""
 
@@ -456,14 +474,19 @@ class EnvSupervisorConfig(Config):
     policy_data_path: Optional[str] = Field(default=None)
 
 
-class MettaGridConfig(Config):
-    """Environment configuration."""
+class MettaGridEnvConfig(Config):
+    """RL Environment wrapper configuration."""
 
     label: str = Field(default="mettagrid")
-    game: GameConfig = Field(default_factory=GameConfig)
+    game: MettaGridConfig = Field(default_factory=MettaGridConfig)
     desync_episodes: bool = Field(default=True)
+    teacher: TeacherConfig = Field(default_factory=TeacherConfig)
 
-    def with_ascii_map(self, map_data: list[list[str]]) -> "MettaGridConfig":
+    def id_map(self) -> "IdMap":
+        """Get the observation feature ID map for this configuration."""
+        return self.game.id_map()
+
+    def with_ascii_map(self, map_data: list[list[str]]) -> "MettaGridEnvConfig":
         self.game.map_builder = AsciiMapBuilder.Config(
             map_data=map_data,
             char_to_map_name={o.map_char: o.map_name for o in self.game.objects.values()},
@@ -473,7 +496,7 @@ class MettaGridConfig(Config):
     @staticmethod
     def EmptyRoom(
         num_agents: int, width: int = 10, height: int = 10, border_width: int = 1, with_walls: bool = False
-    ) -> "MettaGridConfig":
+    ) -> "MettaGridEnvConfig":
         """Create an empty room environment configuration."""
         map_builder = RandomMapBuilder.Config(agents=num_agents, width=width, height=height, border_width=border_width)
         actions = ActionsConfig(
@@ -482,6 +505,6 @@ class MettaGridConfig(Config):
         objects = {}
         if border_width > 0 or with_walls:
             objects["wall"] = WallConfig(map_char="#", render_symbol="⬛")
-        return MettaGridConfig(
-            game=GameConfig(map_builder=map_builder, actions=actions, num_agents=num_agents, objects=objects)
+        return MettaGridEnvConfig(
+            game=MettaGridConfig(map_builder=map_builder, actions=actions, num_agents=num_agents, objects=objects)
         )

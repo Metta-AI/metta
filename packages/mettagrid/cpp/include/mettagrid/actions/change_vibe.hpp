@@ -20,11 +20,11 @@ struct ChangeVibeActionConfig : public ActionConfig {
 };
 
 // Forward declaration
-struct GameConfig;
+struct MettaGridConfig;
 
 class ChangeVibe : public ActionHandler {
 public:
-  explicit ChangeVibe(const ChangeVibeActionConfig& cfg, const GameConfig* game_config)
+  explicit ChangeVibe(const ChangeVibeActionConfig& cfg, const MettaGridConfig* game_config)
       : ActionHandler(cfg, "change_vibe"), _number_of_vibes(cfg.number_of_vibes), _game_config(game_config) {}
 
   std::vector<Action> create_actions() override {
@@ -43,7 +43,7 @@ public:
 
 protected:
   const ObservationType _number_of_vibes;
-  const GameConfig* _game_config;
+  const MettaGridConfig* _game_config;
 
   bool _handle_action(Agent& actor, ActionArg arg) override {
     actor.vibe = static_cast<ObservationType>(arg);  // ActionArg is int32 for puffer compatibility

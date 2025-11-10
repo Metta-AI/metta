@@ -6,7 +6,7 @@ This test verifies that agents share resources based on their current vibe:
 - If vibe doesn't have configured transfers, no sharing occurs
 """
 
-from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.config.mettagrid_config import MettaGridEnvConfig
 from mettagrid.simulator import Simulation
 
 
@@ -16,7 +16,7 @@ class TestVibeBasedSharing:
     def test_vibe_based_single_resource_sharing(self):
         """Test that agents share resources according to vibe_transfers config."""
         # Create a simple environment with 2 agents
-        cfg = MettaGridConfig.EmptyRoom(num_agents=2, with_walls=True).with_ascii_map(
+        cfg = MettaGridEnvConfig.EmptyRoom(num_agents=2, with_walls=True).with_ascii_map(
             [
                 ["#", "#", "#", "#"],
                 ["#", "@", "@", "#"],
@@ -40,7 +40,7 @@ class TestVibeBasedSharing:
         cfg.game.actions.change_vibe.enabled = True
         cfg.game.actions.change_vibe.number_of_vibes = 100  # Ensure we have enough vibes
 
-        sim = Simulation(cfg)
+        sim = Simulation(cfg.game)
 
         # Get initial state
         charger_idx = sim.resource_names.index("charger")
@@ -116,7 +116,7 @@ class TestVibeBasedSharing:
         In this case, no resources should be shared even if they're shareable.
         """
         # Create environment
-        cfg = MettaGridConfig.EmptyRoom(num_agents=2, with_walls=True).with_ascii_map(
+        cfg = MettaGridEnvConfig.EmptyRoom(num_agents=2, with_walls=True).with_ascii_map(
             [
                 ["#", "#", "#", "#"],
                 ["#", "@", "@", "#"],
@@ -135,7 +135,7 @@ class TestVibeBasedSharing:
         cfg.game.actions.change_vibe.enabled = True
         cfg.game.actions.change_vibe.number_of_vibes = 100
 
-        sim = Simulation(cfg)
+        sim = Simulation(cfg.game)
 
         # Get resource indices
         charger_idx = sim.resource_names.index("charger")

@@ -6,8 +6,8 @@ from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
     AssemblerConfig,
-    GameConfig,
     MettaGridConfig,
+    MettaGridEnvConfig,
     MoveActionConfig,
     NoopActionConfig,
     ObsConfig,
@@ -34,7 +34,7 @@ def _positions_with_char(sim: Simulation, ch: str, visible_only: bool = True) ->
         obs = sim._c_sim.observations()
         agent0 = obs[0]
         visible = {int(t[0]) for t in agent0 if int(t[0]) != 0xFF}
-    m = sim.config.game.map_builder.map_data
+    m = sim.config.map_builder.map_data
     for r, row in enumerate(m):
         for c, ch2 in enumerate(row):
             if ch2 == ch:
@@ -47,8 +47,8 @@ def _positions_with_char(sim: Simulation, ch: str, visible_only: bool = True) ->
 @pytest.fixture
 def sim_with_tags() -> Simulation:
     """Create an environment with objects that have tags."""
-    cfg = MettaGridConfig(
-        game=GameConfig(
+    cfg = MettaGridEnvConfig(
+        game=MettaGridConfig(
             num_agents=2,
             obs=ObsConfig(width=7, height=7, num_tokens=NUM_OBS_TOKENS),
             max_steps=1000,
@@ -69,14 +69,14 @@ def sim_with_tags() -> Simulation:
         )
     )
 
-    return Simulation(cfg)
+    return Simulation(cfg.game)
 
 
 @pytest.fixture
 def sim_with_duplicate_tags() -> Simulation:
     """Create an environment where multiple objects share tags."""
-    cfg = MettaGridConfig(
-        game=GameConfig(
+    cfg = MettaGridEnvConfig(
+        game=MettaGridConfig(
             num_agents=1,
             obs=ObsConfig(width=5, height=5, num_tokens=NUM_OBS_TOKENS),
             max_steps=1000,
@@ -99,7 +99,7 @@ def sim_with_duplicate_tags() -> Simulation:
         )
     )
 
-    return Simulation(cfg)
+    return Simulation(cfg.game)
 
 
 class TestTags:
@@ -128,7 +128,7 @@ class TestTags:
         assert len(wall_locations) > 0, "Should find walls in observation"
 
         # Get tag feature ID from environment
-        tag_feature_id = sim.config.game.id_map().feature_id("tag")
+        tag_feature_id = sim.config.id_map().feature_id("tag")
 
         # Check for tag features in observation (not restricted to location)
         tag_features = [token[2] for token in agent0_obs if token[1] == tag_feature_id]
@@ -148,7 +148,7 @@ class TestTags:
         expected_tag_ids = [0, 1]  # 0, 1
 
         # Get tag feature ID from environment
-        tag_feature_id = sim.config.game.id_map().feature_id("tag")
+        tag_feature_id = sim.config.id_map().feature_id("tag")
 
         # Find tag features in observation
         found_tags = {token[2] for token in agent0_obs if token[1] == tag_feature_id}
@@ -161,8 +161,8 @@ class TestTags:
 
     def test_empty_tags(self):
         """Objects with no explicit tags get a default kind tag (e.g., 'wall')."""
-        cfg = MettaGridConfig(
-            game=GameConfig(
+        cfg = MettaGridEnvConfig(
+            game=MettaGridConfig(
                 num_agents=1,
                 obs=ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
                 max_steps=100,
@@ -182,7 +182,7 @@ class TestTags:
             )
         )
 
-        env = Simulation(cfg)
+        env = Simulation(cfg.game)
         obs = env._c_sim.observations()
 
         # Environment should work fine with objects that have no tags
@@ -191,7 +191,7 @@ class TestTags:
         agent_obs = obs[0]
 
         # Get tag feature ID from environment
-        tag_feature_id = env.config.game.id_map().feature_id("tag")
+        tag_feature_id = env.config.id_map().feature_id("tag")
 
         # Find wall locations from map data
         wall_locations = _positions_with_char(env, "#")
@@ -216,7 +216,7 @@ class TestTags:
         shared_tag_id = 1  # "shared_tag" should be ID 1
 
         # Get tag feature ID from environment
-        tag_feature_id = sim.config.game.id_map().feature_id("tag")
+        tag_feature_id = sim.config.id_map().feature_id("tag")
 
         # Find wall and agent locations
         wall_locations = _positions_with_char(sim, "#")
@@ -240,8 +240,8 @@ class TestTags:
         """Test that an object can have many tags."""
         tags = [f"tag{i:02d}" for i in range(1, 11)]  # tag01 through tag10
 
-        cfg = MettaGridConfig(
-            game=GameConfig(
+        cfg = MettaGridEnvConfig(
+            game=MettaGridConfig(
                 num_agents=1,
                 obs=ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
                 max_steps=100,
@@ -259,7 +259,7 @@ class TestTags:
             )
         )
 
-        env = Simulation(cfg)
+        env = Simulation(cfg.game)
         obs = env._c_sim.observations()
 
         # Should handle many tags without issues
@@ -268,7 +268,7 @@ class TestTags:
         agent_obs = obs[0]
 
         # Get tag feature ID from environment
-        tag_feature_id = env.config.game.id_map().feature_id("tag")
+        tag_feature_id = env.config.id_map().feature_id("tag")
 
         # Find wall locations from map data
         wall_locations = _positions_with_char(env, "#")
@@ -285,8 +285,8 @@ class TestTags:
     def test_tag_id_mapping(self):
         """Test that tag names are consistently mapped to IDs."""
         # Create two environments with same tags in different order
-        cfg1 = MettaGridConfig(
-            game=GameConfig(
+        cfg1 = MettaGridEnvConfig(
+            game=MettaGridConfig(
                 num_agents=1,
                 obs=ObsConfig(width=3, height=3, num_tokens=200),
                 max_steps=100,
@@ -304,8 +304,8 @@ class TestTags:
             )
         )
 
-        cfg2 = MettaGridConfig(
-            game=GameConfig(
+        cfg2 = MettaGridEnvConfig(
+            game=MettaGridConfig(
                 num_agents=1,
                 obs=ObsConfig(width=3, height=3, num_tokens=200),
                 max_steps=100,
@@ -328,8 +328,8 @@ class TestTags:
         )
 
         # Both configs should work and map tags consistently
-        env1 = Simulation(cfg1)
-        env2 = Simulation(cfg2)
+        env1 = Simulation(cfg1.game)
+        env2 = Simulation(cfg2.game)
 
         obs1 = env1._c_sim.observations()
         obs2 = env2._c_sim.observations()
@@ -338,9 +338,9 @@ class TestTags:
         assert obs2 is not None
 
         # Get tag feature ID from environment
-        tag_feature_id = env1.config.game.id_map().feature_id("tag")
-        alpha_tag_value = env1.config.game.id_map().tag_names().index("alpha")
-        beta_tag_value = env1.config.game.id_map().tag_names().index("beta")
+        tag_feature_id = env1.config.id_map().feature_id("tag")
+        alpha_tag_value = env1.config.id_map().tag_names().index("alpha")
+        beta_tag_value = env1.config.id_map().tag_names().index("beta")
 
         # Extract tag IDs from both environments
         def get_wall_tag_ids(sim, obs):
@@ -366,8 +366,8 @@ class TestTags:
 
     def test_assembler_with_tags(self):
         """Test that assembler objects can have tags."""
-        cfg = MettaGridConfig(
-            game=GameConfig(
+        cfg = MettaGridEnvConfig(
+            game=MettaGridConfig(
                 num_agents=1,
                 obs=ObsConfig(width=3, height=3, num_tokens=200),
                 max_steps=100,
@@ -396,11 +396,11 @@ class TestTags:
         )
 
         # The test verifies that assembler config accepts tags without errors
-        sim = Simulation(cfg)
+        sim = Simulation(cfg.game)
         obs = sim._c_sim.observations()
 
         # Get tag feature ID from environment
-        tag_feature_id = sim.config.game.id_map().feature_id("tag")
+        tag_feature_id = sim.config.id_map().feature_id("tag")
 
         assert obs is not None
 
@@ -417,14 +417,14 @@ class TestTags:
                 wall_tag_ids.add(token[2])  # token[2] contains the tag ID
 
         # Walls should have the "solid" tag present in the tag mapping
-        id_map = sim.config.game.id_map()
+        id_map = sim.config.id_map()
         tag_values = id_map.tag_names()
         assert "solid" in tag_values, "Expected 'solid' in tag mapping"
 
     def test_agent_with_tags(self):
         """Test that agents can have tags."""
-        cfg = MettaGridConfig(
-            game=GameConfig(
+        cfg = MettaGridEnvConfig(
+            game=MettaGridConfig(
                 num_agents=2,
                 obs=ObsConfig(width=3, height=3, num_tokens=200),
                 max_steps=100,
@@ -445,11 +445,11 @@ class TestTags:
             )
         )
 
-        env = Simulation(cfg)
+        env = Simulation(cfg.game)
         obs = env._c_sim.observations()
 
         # Get tag feature ID from environment
-        tag_feature_id = env.config.game.id_map().feature_id("tag")
+        tag_feature_id = env.config.id_map().feature_id("tag")
 
         assert obs is not None
         assert len(obs) == 2  # Two agents
@@ -466,7 +466,7 @@ class TestTags:
 def test_tag_id_bounds():
     """Test that tag IDs start at 0 and validate bounds."""
     # Create a config with a few tags
-    game_config = GameConfig()
+    game_config = MettaGridConfig()
     game_config.agents = [
         AgentConfig(team_id=0, tags=["alpha", "beta", "gamma"]),
         AgentConfig(team_id=1, tags=["delta", "epsilon"]),
@@ -492,7 +492,7 @@ def test_tag_id_bounds():
 def test_too_many_tags_error():
     """Test that having more than 256 tags raises an error."""
     # Create config with 257 unique tags (exceeds uint8 max)
-    game_config = GameConfig()
+    game_config = MettaGridConfig()
 
     # Create agents with many unique tags
     tags_per_agent = 50
@@ -513,7 +513,7 @@ def test_too_many_tags_error():
 
 def test_team_tag_consistency_enforced():
     """Test that all agents in a team must have identical tags."""
-    game_config = GameConfig()
+    game_config = MettaGridConfig()
 
     # Create agents in same team with different tags
     game_config.agents = [
@@ -532,7 +532,7 @@ def test_team_tag_consistency_enforced():
 
 def test_team_tag_consistency_success():
     """Test that agents in same team with identical tags work correctly."""
-    game_config = GameConfig()
+    game_config = MettaGridConfig()
 
     # Create agents in same team with identical tags
     game_config.agents = [
@@ -558,7 +558,7 @@ def test_team_tag_consistency_success():
 
 def test_empty_tags_allowed():
     """Test that agents with no tags work correctly."""
-    game_config = GameConfig()
+    game_config = MettaGridConfig()
 
     # Create agents with no tags
     game_config.agents = [
@@ -579,8 +579,8 @@ def test_default_agent_tags_preserved():
     # This test verifies the fix for the issue where default-agent tags were dropped
     # when agents list was empty but game_config.agent.tags was set
 
-    cfg = MettaGridConfig(
-        game=GameConfig(
+    cfg = MettaGridEnvConfig(
+        game=MettaGridConfig(
             num_agents=2,  # Will create 2 default agents
             max_steps=100,
             actions=ActionsConfig(noop=NoopActionConfig()),
@@ -601,14 +601,14 @@ def test_default_agent_tags_preserved():
     )
 
     # Create environment - this will trigger convert_to_cpp_game_config
-    env = Simulation(cfg)
+    env = Simulation(cfg.game)
     obs = env._c_sim.observations()
 
     assert obs is not None
     assert len(obs) == 2  # Two default agents
 
     # Get tag feature ID from environment
-    tag_feature_id = env.config.game.id_map().feature_id("tag")
+    tag_feature_id = env.config.id_map().feature_id("tag")
 
     # Check both agents have the default tags
     for agent_idx in range(2):
@@ -625,7 +625,7 @@ def test_default_agent_tags_preserved():
 
 def test_default_agent_tags_in_cpp_config():
     """Test that default agent tags are included in the cpp config tag mapping."""
-    game_config = GameConfig()
+    game_config = MettaGridConfig()
 
     # Set default agent tags but leave agents list empty
     game_config.agent = AgentConfig(tags=["hero", "player"])
@@ -646,8 +646,8 @@ def test_default_agent_tags_in_cpp_config():
 
 def test_tag_mapping_in_id_map():
     """Test that tag mapping is exposed through id_map"""
-    cfg = MettaGridConfig(
-        game=GameConfig(
+    cfg = MettaGridEnvConfig(
+        game=MettaGridConfig(
             num_agents=1,
             obs=ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
             max_steps=100,
@@ -678,8 +678,8 @@ def test_tag_mapping_in_id_map():
         )
     )
 
-    sim = Simulation(cfg)
-    id_map = sim.config.game.id_map()
+    sim = Simulation(cfg.game)
+    id_map = sim.config.id_map()
 
     # Check that tag feature exists
     tag_feature_id = id_map.feature_id("tag")
@@ -701,9 +701,9 @@ def test_tag_mapping_in_id_map():
 
 
 def test_tag_mapping_empty_tags():
-    """Tag mapping includes default kind tags when objects have no explicit tags."""
-    cfg = MettaGridConfig(
-        game=GameConfig(
+    """Test that tag mapping works correctly when there are no tags."""
+    cfg = MettaGridEnvConfig(
+        game=MettaGridConfig(
             num_agents=1,
             obs=ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
             max_steps=100,
@@ -726,8 +726,8 @@ def test_tag_mapping_empty_tags():
         )
     )
 
-    env = Simulation(cfg)
-    id_map = env.config.game.id_map()
+    env = Simulation(cfg.game)
+    id_map = env.config.id_map()
 
     # Check that tag feature exists
     tag_feature_id = id_map.feature_id("tag")

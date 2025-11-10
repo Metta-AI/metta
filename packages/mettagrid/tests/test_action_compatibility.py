@@ -6,7 +6,6 @@ from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
     AttackActionConfig,
-    GameConfig,
     MettaGridConfig,
     MoveActionConfig,
     NoopActionConfig,
@@ -18,20 +17,20 @@ from mettagrid.simulator import Action, Simulation
 from mettagrid.test_support.actions import get_agent_position
 from mettagrid.test_support.map_builders import ObjectNameMapBuilder
 
-# Rebuild GameConfig after MapBuilderConfig is imported
-GameConfig.model_rebuild()
+# Rebuild MettaGridConfig after MapBuilderConfig is imported
+MettaGridConfig.model_rebuild()
 
 
-def create_sim(game_config: GameConfig, game_map: list[list[str]], seed: int = 42) -> Simulation:
+def create_sim(game_config: MettaGridConfig, game_map: list[list[str]], seed: int = 42) -> Simulation:
     """Helper to create a Simulation from config and map."""
-    cfg = MettaGridConfig(game=game_config)
-    cfg.game.map_builder = ObjectNameMapBuilder.Config(map_data=game_map)
+    cfg = game_config.model_copy(deep=True)
+    cfg.map_builder = ObjectNameMapBuilder.Config(map_data=game_map)
     return Simulation(cfg, seed=seed)
 
 
-def create_basic_config() -> GameConfig:
+def create_basic_config() -> MettaGridConfig:
     """Create a minimal valid game configuration."""
-    return GameConfig(
+    return MettaGridConfig(
         resource_names=["ore", "wood"],
         num_agents=1,
         obs=ObsConfig(width=7, height=7, num_tokens=50),
@@ -100,7 +99,7 @@ class TestActionOrdering:
         action_names1 = sim1.action_names
 
         # Create config with different action order
-        reordered_config = GameConfig(
+        reordered_config = MettaGridConfig(
             resource_names=basic_config.resource_names,
             num_agents=basic_config.num_agents,
             max_steps=basic_config.max_steps,
@@ -166,7 +165,7 @@ class TestResourceRequirements:
     def test_action_with_resource_requirement(self, basic_config, simple_map):
         """Test that actions fail when resource requirements aren't met."""
         # Create new config with resource requirement
-        config = GameConfig(
+        config = MettaGridConfig(
             resource_names=basic_config.resource_names,
             num_agents=basic_config.num_agents,
             max_steps=basic_config.max_steps,
@@ -190,7 +189,7 @@ class TestResourceRequirements:
 
     def test_action_consumes_resources(self, basic_config, simple_map):
         """Test that actions consume resources when configured."""
-        config = GameConfig(
+        config = MettaGridConfig(
             resource_names=basic_config.resource_names,
             num_agents=basic_config.num_agents,
             max_steps=basic_config.max_steps,
@@ -266,7 +265,7 @@ class TestActionSpace:
 
     def test_single_action_space(self, basic_config, multi_agent_map):
         """Test action space for multi-agent environment."""
-        config = GameConfig(
+        config = MettaGridConfig(
             resource_names=basic_config.resource_names,
             num_agents=3,
             max_steps=basic_config.max_steps,
@@ -299,7 +298,7 @@ class TestSpecialActions:
 
     def test_attack_action_registration(self, basic_config, simple_map):
         """Test that attack action is properly registered when enabled."""
-        config = GameConfig(
+        config = MettaGridConfig(
             resource_names=basic_config.resource_names,
             num_agents=basic_config.num_agents,
             max_steps=basic_config.max_steps,
@@ -337,7 +336,7 @@ class TestResourceOrdering:
     def test_resource_order(self, basic_config, simple_map):
         """Test that resources maintain their order."""
         # Config with ore first
-        config1 = GameConfig(
+        config1 = MettaGridConfig(
             resource_names=["ore", "wood"],
             num_agents=basic_config.num_agents,
             max_steps=basic_config.max_steps,
@@ -348,7 +347,7 @@ class TestResourceOrdering:
         )
 
         # Config with wood first
-        config2 = GameConfig(
+        config2 = MettaGridConfig(
             resource_names=["wood", "ore"],
             num_agents=basic_config.num_agents,
             max_steps=basic_config.max_steps,

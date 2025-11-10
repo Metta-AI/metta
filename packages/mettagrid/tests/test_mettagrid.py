@@ -2,8 +2,8 @@ import pytest
 
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
-    GameConfig,
     MettaGridConfig,
+    MettaGridEnvConfig,
     MoveActionConfig,
     NoopActionConfig,
     ObsConfig,
@@ -19,8 +19,8 @@ NUM_OBS_TOKENS = 50
 @pytest.fixture
 def basic_env() -> Simulation:
     """Create a basic test environment with 8x4 grid and 2 agents."""
-    cfg = MettaGridConfig(
-        game=GameConfig(
+    cfg = MettaGridEnvConfig(
+        game=MettaGridConfig(
             num_agents=2,
             obs=ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
             actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
@@ -32,7 +32,7 @@ def basic_env() -> Simulation:
             ),
         )
     )
-    return Simulation(cfg)
+    return Simulation(cfg.game)
 
 
 class TestBasicFunctionality:

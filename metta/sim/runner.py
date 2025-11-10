@@ -3,7 +3,7 @@ from typing import Callable, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from mettagrid import MettaGridConfig
+from mettagrid import MettaGridEnvConfig
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class SimulationRunConfig(BaseModel):
-    env: MettaGridConfig  # noqa: F821
+    env: MettaGridEnvConfig  # noqa: F821
     num_episodes: int = Field(default=1, description="Number of episodes to run", ge=1)
     proportions: Sequence[float] | None = None
 
@@ -46,7 +46,7 @@ def run_simulations(
     for i, simulation in enumerate(simulations):
         proportions = simulation.proportions
 
-        env_interface = PolicyEnvInterface.from_mg_cfg(simulation.env)
+        env_interface = PolicyEnvInterface.from_mg_cfg(simulation.env.game)
         multi_agent_policies: list[MultiAgentPolicy] = [
             initialize_or_load_policy(env_interface, spec) for spec in policy_specs
         ]

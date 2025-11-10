@@ -774,7 +774,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionChangeVibeAction) {
 
   // Create change vibe action with fractional consumption (1.25)
   ChangeVibeActionConfig vibe_cfg({{TestItems::ORE, 2}}, {{TestItems::ORE, 1.25f}}, 4);
-  GameConfig game_config;
+  MettaGridConfig game_config;
   ChangeVibe change_vibe(vibe_cfg, &game_config);
   std::mt19937 rng(42);
   change_vibe.init(&grid, &rng);

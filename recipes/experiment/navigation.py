@@ -15,14 +15,14 @@ from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
-from mettagrid.config.mettagrid_config import AsciiMapBuilder, MettaGridConfig
+from mettagrid.config.mettagrid_config import AsciiMapBuilder, MettaGridEnvConfig
 from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.scenes.mean_distance import MeanDistance
 from recipes.experiment.cfg import NAVIGATION_EVALS
 
 
-def make_nav_eval_env(env: MettaGridConfig) -> MettaGridConfig:
+def make_nav_eval_env(env: MettaGridEnvConfig) -> MettaGridEnvConfig:
     """Set the heart reward to 0.333 for normalization"""
     env.game.agent.rewards.inventory["heart"] = 0.333
     return env
@@ -35,7 +35,7 @@ def make_nav_ascii_env(
     num_instances=4,
     border_width: int = 6,
     instance_border_width: int = 3,
-) -> MettaGridConfig:
+) -> MettaGridEnvConfig:
     # we re-use nav sequence maps, but replace all objects with altars
     path = f"packages/mettagrid/configs/maps/navigation_sequence/{name}.map"
 
@@ -58,7 +58,7 @@ def make_nav_ascii_env(
     return make_nav_eval_env(env)
 
 
-def make_emptyspace_sparse_env() -> MettaGridConfig:
+def make_emptyspace_sparse_env() -> MettaGridEnvConfig:
     env = eb.make_navigation(num_agents=4)
     env.game.max_steps = 300
     env.game.map_builder = MapGen.Config(
@@ -99,7 +99,7 @@ def make_navigation_eval_suite() -> list[SimulationConfig]:
     return evals
 
 
-def mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConfig:
+def mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridEnvConfig:
     nav = eb.make_navigation(num_agents=num_agents * num_instances)
 
     nav.game.map_builder = MapGen.Config(
@@ -120,7 +120,7 @@ def simulations() -> list[SimulationConfig]:
 
 
 def make_curriculum(
-    nav_env: Optional[MettaGridConfig] = None,
+    nav_env: Optional[MettaGridEnvConfig] = None,
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
 ) -> CurriculumConfig:

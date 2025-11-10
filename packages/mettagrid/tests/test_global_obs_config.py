@@ -4,7 +4,6 @@ from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
     AgentRewards,
-    GameConfig,
     GlobalObsConfig,
     MettaGridConfig,
     MoveActionConfig,
@@ -19,7 +18,7 @@ from mettagrid.test_support.map_builders import ObjectNameMapBuilder
 
 def create_test_sim(global_obs_config: dict[str, bool]) -> Simulation:
     """Create test simulation with specified global_obs configuration."""
-    game_config = GameConfig(
+    game_config = MettaGridConfig(
         num_agents=2,
         obs=ObsConfig(width=11, height=11, num_tokens=100),
         max_steps=100,
@@ -38,10 +37,9 @@ def create_test_sim(global_obs_config: dict[str, bool]) -> Simulation:
         ["wall", "wall", "wall", "wall"],
     ]
 
-    cfg = MettaGridConfig(game=game_config)
-    cfg.game.map_builder = ObjectNameMapBuilder.Config(map_data=game_map)
+    game_config.map_builder = ObjectNameMapBuilder.Config(map_data=game_map)
 
-    sim = Simulation(cfg, seed=42)
+    sim = Simulation(game_config, seed=42)
 
     # Step once to populate observations
     for i in range(sim.num_agents):
@@ -121,7 +119,7 @@ def test_all_global_tokens_disabled():
 def test_global_obs_default_values():
     """Test that global_obs uses default values when not specified."""
     # Test with no global_obs specified - should use defaults (all True)
-    game_config = GameConfig(
+    game_config = MettaGridConfig(
         num_agents=1,
         obs=ObsConfig(width=11, height=11, num_tokens=100),
         max_steps=100,
@@ -136,10 +134,9 @@ def test_global_obs_default_values():
 
     game_map = [["agent.agent"]]
 
-    cfg = MettaGridConfig(game=game_config)
-    cfg.game.map_builder = ObjectNameMapBuilder.Config(map_data=game_map)
+    game_config.map_builder = ObjectNameMapBuilder.Config(map_data=game_map)
 
-    sim = Simulation(cfg, seed=42)
+    sim = Simulation(game_config, seed=42)
 
     # Step once to populate observations
     sim.agent(0).set_action(Action(name="noop"))
@@ -161,7 +158,7 @@ def test_compass_toggle():
     enabled_sim = create_test_sim(
         {"episode_completion_pct": False, "last_action": False, "last_reward": False, "compass": True}
     )
-    compass_feature_id = enabled_sim.config.game.id_map().feature_id("agent:compass")
+    compass_feature_id = enabled_sim.config.id_map().feature_id("agent:compass")
 
     enabled_obs = enabled_sim._c_sim.observations()
     compass_counts = [

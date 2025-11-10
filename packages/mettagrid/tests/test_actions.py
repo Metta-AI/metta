@@ -7,7 +7,6 @@ from mettagrid.config.mettagrid_config import (
     AgentConfig,
     AgentRewards,
     AttackActionConfig,
-    GameConfig,
     MettaGridConfig,
     MoveActionConfig,
     NoopActionConfig,
@@ -23,7 +22,7 @@ from mettagrid.test_support.orientation import Orientation
 @pytest.fixture
 def base_config():
     """Base configuration for integration tests."""
-    return GameConfig(
+    return MettaGridConfig(
         max_steps=50,
         num_agents=1,
         obs=ObsConfig(width=3, height=3, num_tokens=100),
@@ -64,7 +63,7 @@ def complex_game_map():
 
 
 @pytest.fixture
-def make_sim(base_config: GameConfig):
+def make_sim(base_config: MettaGridConfig):
     """Factory fixture that creates a configured Simulation environment."""
 
     def _create_sim(game_map, config_overrides=None):
@@ -86,17 +85,14 @@ def make_sim(base_config: GameConfig):
                 else:
                     config_dict[key] = value
 
-            # Create new GameConfig from updated dict
-            game_config = GameConfig(**config_dict)
-
-        # Create MettaGridConfig wrapper
-        cfg = MettaGridConfig(game=game_config)
+            # Create new MettaGridConfig from updated dict
+            game_config = MettaGridConfig(**config_dict)
 
         # Put the map into the config using ObjectNameMapBuilder
         map_list = game_map.tolist() if hasattr(game_map, "tolist") else game_map
-        cfg.game.map_builder = ObjectNameMapBuilder.Config(map_data=map_list)
+        game_config.map_builder = ObjectNameMapBuilder.Config(map_data=map_list)
 
-        sim = Simulation(cfg, seed=42)
+        sim = Simulation(game_config, seed=42)
 
         return sim
 
@@ -276,22 +272,21 @@ def test_diagonal_movement_integration(make_sim):
 def test_noop_is_always_index_0():
     """Test that noop action is always at index 0 when present."""
     # Test 1: Default config with noop enabled
-    config = GameConfig(
+    config = MettaGridConfig(
         max_steps=10,
         num_agents=2,
         actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
     )
 
     map_data = [[".", "."], ["agent.team_0", "agent.team_0"]]
-    mg_config = MettaGridConfig(game=config)
-    mg_config.game.map_builder = ObjectNameMapBuilder.Config(map_data=map_data)
-    sim = Simulation(mg_config, seed=0)
+    config.map_builder = ObjectNameMapBuilder.Config(map_data=map_data)
+    sim = Simulation(config, seed=0)
 
     action_names = sim.action_names
     assert action_names[0] == "noop", f"Expected 'noop' at index 0, got '{action_names[0]}'"
 
     # Test 2: noop listed last but should still be at index 0
-    config2 = GameConfig(
+    config2 = MettaGridConfig(
         max_steps=10,
         num_agents=2,
         actions=ActionsConfig(
@@ -301,16 +296,15 @@ def test_noop_is_always_index_0():
         ),
     )
 
-    mg_config2 = MettaGridConfig(game=config2)
-    mg_config2.game.map_builder = ObjectNameMapBuilder.Config(map_data=map_data)
-    sim2 = Simulation(mg_config2, seed=0)
+    config2.map_builder = ObjectNameMapBuilder.Config(map_data=map_data)
+    sim2 = Simulation(config2, seed=0)
 
     action_names2 = sim2.action_names
     assert action_names2[0] == "noop", f"Expected 'noop' at index 0, got '{action_names2[0]}'"
 
     # Test 3: Config without noop - currently noop is always present even when disabled
     # This is a known limitation - the enabled flag is not fully implemented yet
-    config3 = GameConfig(
+    config3 = MettaGridConfig(
         max_steps=10,
         num_agents=2,
         actions=ActionsConfig(
@@ -318,9 +312,8 @@ def test_noop_is_always_index_0():
         ),
     )
 
-    mg_config3 = MettaGridConfig(game=config3)
-    mg_config3.game.map_builder = ObjectNameMapBuilder.Config(map_data=map_data)
-    sim3 = Simulation(mg_config3, seed=0)
+    config3.map_builder = ObjectNameMapBuilder.Config(map_data=map_data)
+    sim3 = Simulation(config3, seed=0)
 
     action_names3 = sim3.action_names
     # When noop is disabled, it should not be in the action list

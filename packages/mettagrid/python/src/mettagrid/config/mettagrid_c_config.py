@@ -5,7 +5,7 @@ from mettagrid.config.mettagrid_config import (
     AssemblerConfig,
     ChestConfig,
     ClipperConfig,
-    GameConfig,
+    MettaGridConfig,
     WallConfig,
 )
 from mettagrid.config.vibes import VIBES
@@ -16,18 +16,18 @@ from mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
 from mettagrid.mettagrid_c import ChangeVibeActionConfig as CppChangeVibeActionConfig
 from mettagrid.mettagrid_c import ChestConfig as CppChestConfig
 from mettagrid.mettagrid_c import ClipperConfig as CppClipperConfig
-from mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
+from mettagrid.mettagrid_c import MettaGridConfig as CppMettaGridConfig
 from mettagrid.mettagrid_c import MoveActionConfig as CppMoveActionConfig
 from mettagrid.mettagrid_c import Protocol as CppProtocol
 from mettagrid.mettagrid_c import ResourceModConfig as CppResourceModConfig
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
 
 
-def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
-    """Convert a GameConfig to a CppGameConfig."""
-    if isinstance(mettagrid_config, GameConfig):
+def convert_to_cpp_game_config(mettagrid_config: dict | MettaGridConfig):
+    """Convert a MettaGridConfig to a CppMettaGridConfig."""
+    if isinstance(mettagrid_config, MettaGridConfig):
         # If it's already a GameConfig instance, use it directly
         game_config = mettagrid_config
     else:
@@ -37,7 +37,9 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         if "obs" in config_dict and "features" in config_dict["obs"]:
             config_dict["obs"] = config_dict["obs"].copy()
             config_dict["obs"].pop("features", None)
-        game_config = GameConfig(**config_dict)
+        # metadata is not needed for C++ config
+        config_dict.pop("metadata", None)
+        game_config = MettaGridConfig(**config_dict)
 
     # Set up resource mappings
     resource_names = list(game_config.resource_names)
@@ -306,7 +308,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         else:
             raise ValueError(f"Unknown object type: {object_type}")
 
-    game_cpp_params = game_config.model_dump(exclude_none=True)
+    game_cpp_params = game_config.model_dump(exclude_none=True, exclude={"metadata"})
     del game_cpp_params["agent"]
     if "agents" in game_cpp_params:
         del game_cpp_params["agents"]
@@ -457,4 +459,4 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     # Add tag mappings for C++ debugging/display
     game_cpp_params["tag_id_map"] = tag_id_to_name
 
-    return CppGameConfig(**game_cpp_params)
+    return CppMettaGridConfig(**game_cpp_params)

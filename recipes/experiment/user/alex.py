@@ -21,11 +21,11 @@ from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
-from mettagrid import MettaGridConfig
+from mettagrid import MettaGridEnvConfig
 from recipes.experiment import arena
 
 
-def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
+def make_mettagrid(num_agents: int = 24) -> MettaGridEnvConfig:
     arena_env = eb.make_arena(num_agents=num_agents)
 
     arena_env.game.agent.rewards.inventory = {
@@ -49,7 +49,7 @@ def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
 
 
 def make_curriculum(
-    arena_env: Optional[MettaGridConfig] = None,
+    arena_env: Optional[MettaGridEnvConfig] = None,
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
 ) -> CurriculumConfig:
@@ -78,7 +78,7 @@ def make_curriculum(
     return arena_tasks.to_curriculum(algorithm_config=algorithm_config)
 
 
-def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
+def make_evals(env: Optional[MettaGridEnvConfig] = None) -> List[SimulationConfig]:
     basic_env = env or make_mettagrid()
     basic_env.game.actions.attack.consumed_resources["laser"] = 100
 

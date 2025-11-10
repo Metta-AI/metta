@@ -5,7 +5,6 @@ import numpy as np
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
-    GameConfig,
     MettaGridConfig,
     MoveActionConfig,
     NoopActionConfig,
@@ -22,7 +21,7 @@ def create_test_sim(initial_inventory: dict[str, int] | None = None) -> Simulati
     if initial_inventory is None:
         initial_inventory = {"wood": 5, "stone": 3, "iron": 1}
 
-    game_config = GameConfig(
+    game_config = MettaGridConfig(
         max_steps=50,
         num_agents=2,
         obs=ObsConfig(width=3, height=3, num_tokens=50),
@@ -39,8 +38,7 @@ def create_test_sim(initial_inventory: dict[str, int] | None = None) -> Simulati
         ),
     )
 
-    cfg = MettaGridConfig(game=game_config)
-    cfg.game.map_builder = ObjectNameMapBuilder.Config(
+    game_config.map_builder = ObjectNameMapBuilder.Config(
         map_data=[
             ["wall", "wall", "wall", "wall", "wall"],
             ["wall", "agent.default", "empty", "agent.default", "wall"],
@@ -49,7 +47,7 @@ def create_test_sim(initial_inventory: dict[str, int] | None = None) -> Simulati
         ]
     )
 
-    return Simulation(cfg, seed=42)
+    return Simulation(game_config, seed=42)
 
 
 class TestSimulationAgentProperties:

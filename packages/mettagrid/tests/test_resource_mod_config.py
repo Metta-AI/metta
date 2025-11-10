@@ -9,7 +9,7 @@ low-level C++ API to avoid duplication.
 from mettagrid.config.mettagrid_c_config import convert_to_cpp_game_config
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
-    GameConfig,
+    MettaGridConfig,
     ResourceModActionConfig,
 )
 
@@ -59,8 +59,8 @@ def test_resource_mod_conversion_to_cpp():
     """Test that ResourceModActionConfig converts properly to C++ config."""
     from mettagrid.config.mettagrid_config import MoveActionConfig
 
-    # Create a GameConfig with resource_mod action
-    game_config = GameConfig(
+    # Create a MettaGridConfig with resource_mod action
+    game_config = MettaGridConfig(
         resource_names=["health", "mana", "gold"],
         num_agents=2,
         actions=ActionsConfig(
@@ -97,7 +97,7 @@ def test_resource_mod_passthrough_fields_to_cpp():
     config includes the resource_mod action in the action list. Detailed
     runtime semantics are validated in test_resource_mod.py.
     """
-    game_config = GameConfig(
+    game_config = MettaGridConfig(
         resource_names=["energy", "health", "gold"],
         num_agents=1,
         actions=ActionsConfig(

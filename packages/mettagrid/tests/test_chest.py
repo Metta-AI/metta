@@ -1,4 +1,4 @@
-from mettagrid.config.mettagrid_config import ChestConfig, MettaGridConfig, ResourceLimitsConfig
+from mettagrid.config.mettagrid_config import ChestConfig, MettaGridEnvConfig, ResourceLimitsConfig
 from mettagrid.simulator import Simulation
 
 
@@ -7,7 +7,7 @@ class TestChest:
 
     def test_chest_deposit(self):
         """Test that deposit/withdrawal work with vibe-based transfers."""
-        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True)
+        cfg = MettaGridEnvConfig.EmptyRoom(num_agents=1, with_walls=True)
 
         cfg.game.resource_names = ["gold"]
         cfg.game.agent.initial_inventory = {"gold": 5}
@@ -38,7 +38,7 @@ class TestChest:
         cfg.game.actions.change_vibe.number_of_vibes = 100  # make sure it's high enough for up and down.
         cfg.game.actions.move.enabled = True
 
-        sim = Simulation(cfg)
+        sim = Simulation(cfg.game)
 
         gold_idx = sim.resource_names.index("gold")
 

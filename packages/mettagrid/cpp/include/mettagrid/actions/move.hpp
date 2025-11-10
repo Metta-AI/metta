@@ -15,11 +15,11 @@
 #include "objects/usable.hpp"
 
 // Forward declaration
-struct GameConfig;
+struct MettaGridConfig;
 
 class Move : public ActionHandler {
 public:
-  explicit Move(const MoveActionConfig& cfg, const GameConfig* game_config)
+  explicit Move(const MoveActionConfig& cfg, const MettaGridConfig* game_config)
       : ActionHandler(cfg, "move"), _game_config(game_config), _allowed_directions(cfg.allowed_directions) {
     // Build direction name to orientation mapping
     _direction_map["north"] = Orientation::North;
@@ -96,7 +96,7 @@ protected:
   }
 
 private:
-  const GameConfig* _game_config;
+  const MettaGridConfig* _game_config;
   std::vector<std::string> _allowed_directions;
   std::unordered_map<std::string, Orientation> _direction_map;
 };

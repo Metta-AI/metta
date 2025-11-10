@@ -6,8 +6,8 @@ import pytest
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     EnvSupervisorConfig,
-    GameConfig,
     MettaGridConfig,
+    MettaGridEnvConfig,
     MoveActionConfig,
     NoopActionConfig,
     ObsConfig,
@@ -21,8 +21,8 @@ from mettagrid.simulator import Simulator
 @pytest.fixture
 def puffer_sim_config():
     """Create a basic simulation config for Puffer testing."""
-    return MettaGridConfig(
-        game=GameConfig(
+    return MettaGridEnvConfig(
+        game=MettaGridConfig(
             num_agents=2,
             obs=ObsConfig(width=3, height=3, num_tokens=50),
             max_steps=10,
@@ -148,8 +148,8 @@ class TestMettaGridPufferEnvStep:
 
     def test_episode_completion(self, simulator):
         """Test that episode completes at max_steps."""
-        config = MettaGridConfig(
-            game=GameConfig(
+        config = MettaGridEnvConfig(
+            game=MettaGridConfig(
                 num_agents=1,
                 obs=ObsConfig(width=3, height=3, num_tokens=20),
                 max_steps=3,  # Short episode
@@ -174,8 +174,8 @@ class TestMettaGridPufferEnvStep:
 
     def test_auto_reset_on_episode_end(self, simulator):
         """Test that environment automatically resets when all agents are done."""
-        config = MettaGridConfig(
-            game=GameConfig(
+        config = MettaGridEnvConfig(
+            game=MettaGridConfig(
                 num_agents=2,
                 obs=ObsConfig(width=3, height=3, num_tokens=20),
                 max_steps=2,  # Very short episode

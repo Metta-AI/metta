@@ -3,9 +3,9 @@ import pytest
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     ChangeVibeActionConfig,
-    GameConfig,
     GlobalObsConfig,
     MettaGridConfig,
+    MettaGridEnvConfig,
     MoveActionConfig,
     NoopActionConfig,
     ObsConfig,
@@ -24,8 +24,8 @@ NUM_OBS_TOKENS = 50
 @pytest.fixture
 def basic_sim() -> Simulation:
     """Create a basic test environment."""
-    cfg = MettaGridConfig(
-        game=GameConfig(
+    cfg = MettaGridEnvConfig(
+        game=MettaGridConfig(
             num_agents=2,
             obs=ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
             max_steps=1000,
@@ -46,14 +46,14 @@ def basic_sim() -> Simulation:
 
     cfg.game.global_obs.compass = True
 
-    return Simulation(cfg)
+    return Simulation(cfg.game)
 
 
 @pytest.fixture
 def adjacent_agents_sim() -> Simulation:
     """Create an environment with adjacent agents."""
-    cfg = MettaGridConfig(
-        game=GameConfig(
+    cfg = MettaGridEnvConfig(
+        game=MettaGridConfig(
             num_agents=2,
             obs=ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
             max_steps=1000,
@@ -73,7 +73,7 @@ def adjacent_agents_sim() -> Simulation:
         )
     )
 
-    return Simulation(cfg)
+    return Simulation(cfg.game)
 
 
 class TestObservations:
@@ -84,10 +84,10 @@ class TestObservations:
         obs = basic_sim._c_sim.observations()
 
         # global token is always at the center of the observation window
-        obs_half_height = basic_sim.config.game.obs.height // 2
-        obs_half_width = basic_sim.config.game.obs.width // 2
+        obs_half_height = basic_sim.config.obs.height // 2
+        obs_half_width = basic_sim.config.obs.width // 2
         global_token_location = PackedCoordinate.pack(obs_half_height, obs_half_width)
-        compass_feature_id = basic_sim.config.game.id_map().feature_id("agent:compass")
+        compass_feature_id = basic_sim.config.id_map().feature_id("agent:compass")
         helper = ObservationHelper()
 
         # Map agent_id -> (row, col)
@@ -131,9 +131,9 @@ class TestObservations:
     def test_detailed_wall_observations(self, basic_sim):
         """Test detailed wall observations for both agents."""
         obs = basic_sim._c_sim.observations()
-        tag_feature_id = basic_sim.config.game.id_map().feature_id("tag")
+        tag_feature_id = basic_sim.config.id_map().feature_id("tag")
         # Find tag id for 'wall'
-        tag_names_list = basic_sim.config.game.id_map().tag_names()  # list of tag names, sorted alphabetically
+        tag_names_list = basic_sim.config.id_map().tag_names()  # list of tag names, sorted alphabetically
         wall_tag_id = next(i for i, name in enumerate(tag_names_list) if name == "wall")
         helper = ObservationHelper()
 
@@ -260,14 +260,14 @@ class TestGlobalTokens:
     def test_initial_global_tokens(self, basic_sim):
         """Test initial global token values."""
         obs = basic_sim._c_sim.observations()
-        episode_completion_pct_feature_id = basic_sim.config.game.id_map().feature_id("episode_completion_pct")
-        last_action_feature_id = basic_sim.config.game.id_map().feature_id("last_action")
-        last_reward_feature_id = basic_sim.config.game.id_map().feature_id("last_reward")
+        episode_completion_pct_feature_id = basic_sim.config.id_map().feature_id("episode_completion_pct")
+        last_action_feature_id = basic_sim.config.id_map().feature_id("last_action")
+        last_reward_feature_id = basic_sim.config.id_map().feature_id("last_reward")
         helper = ObservationHelper()
 
         # Global tokens are at the center of the observation window
-        global_x = basic_sim.config.game.obs.width // 2
-        global_y = basic_sim.config.game.obs.height // 2
+        global_x = basic_sim.config.obs.width // 2
+        global_y = basic_sim.config.obs.height // 2
 
         # Check token types and values
         assert helper.find_token_values(
@@ -290,8 +290,8 @@ class TestGlobalTokens:
         game_map[2, 4] = "@"
 
         # Create environment with max_steps=10 so that 1 step = 10% completion
-        cfg = MettaGridConfig(
-            game=GameConfig(
+        cfg = MettaGridEnvConfig(
+            game=MettaGridConfig(
                 num_agents=2,
                 obs=ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
                 max_steps=10,  # Important: 10 steps total so 1 step = 10%
@@ -302,15 +302,15 @@ class TestGlobalTokens:
                 map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist(), char_to_map_name=DEFAULT_CHAR_TO_NAME),
             )
         )
-        env = Simulation(cfg)
-        episode_completion_pct_feature_id = env.config.game.id_map().feature_id("episode_completion_pct")
-        last_action_feature_id = env.config.game.id_map().feature_id("last_action")
+        env = Simulation(cfg.game)
+        episode_completion_pct_feature_id = env.config.id_map().feature_id("episode_completion_pct")
+        last_action_feature_id = env.config.id_map().feature_id("last_action")
         obs = env._c_sim.observations()
         helper = ObservationHelper()
 
         # Global tokens are at the center of the observation window
-        global_x = env.config.game.obs.width // 2
-        global_y = env.config.game.obs.height // 2
+        global_x = env.config.obs.width // 2
+        global_y = env.config.obs.height // 2
 
         # Take a noop action
         for agent_id in range(env.num_agents):
@@ -365,8 +365,8 @@ class TestGlobalTokens:
         game_map[2, 2] = "@"
 
         # Create environment with change_vibe enabled and 8 vibes
-        cfg = MettaGridConfig(
-            game=GameConfig(
+        cfg = MettaGridEnvConfig(
+            game=MettaGridConfig(
                 num_agents=2,
                 obs=ObsConfig(width=3, height=3, num_tokens=NUM_OBS_TOKENS),
                 max_steps=10,
@@ -381,8 +381,8 @@ class TestGlobalTokens:
                 map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist(), char_to_map_name=DEFAULT_CHAR_TO_NAME),
             )
         )
-        sim = Simulation(cfg)
-        vibe_feature_id = sim.config.game.id_map().feature_id("vibe")
+        sim = Simulation(cfg.game)
+        vibe_feature_id = sim.config.id_map().feature_id("vibe")
 
         obs = sim._c_sim.observations()
 
@@ -474,8 +474,8 @@ class TestEdgeObservations:
         # No need to place any other objects
 
         # Create environment with 7x7 observation window
-        cfg = MettaGridConfig(
-            game=GameConfig(
+        cfg = MettaGridEnvConfig(
+            game=MettaGridConfig(
                 num_agents=1,
                 obs=ObsConfig(width=7, height=7, num_tokens=NUM_OBS_TOKENS),
                 max_steps=50,  # Enough steps to walk around
@@ -487,9 +487,9 @@ class TestEdgeObservations:
                 map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist(), char_to_map_name=DEFAULT_CHAR_TO_NAME),
             )
         )
-        sim = Simulation(cfg)
-        tag_feature_id = sim.config.game.id_map().feature_id("tag")
-        tag_names_list = sim.config.game.id_map().tag_names()
+        sim = Simulation(cfg.game)
+        tag_feature_id = sim.config.id_map().feature_id("tag")
+        tag_names_list = sim.config.id_map().tag_names()
         wall_tag_id = tag_names_list.index("wall")
 
         obs = sim._c_sim.observations()
