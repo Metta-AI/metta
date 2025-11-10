@@ -143,6 +143,7 @@ class GermaniumExtractorConfig(ExtractorConfig):
 
 class SiliconExtractorConfig(ExtractorConfig):
     type: Literal["silicon_extractor"] = Field(default="silicon_extractor")
+    max_uses: int = Field(default=100)  # Silicon has lower default than other extractors
 
     def station_cfg(self) -> AssemblerConfig:
         return AssemblerConfig(
@@ -150,7 +151,7 @@ class SiliconExtractorConfig(ExtractorConfig):
             map_char="S",
             render_symbol=vibes.VIBE_BY_NAME["silicon"].symbol,
             # Protocols
-            max_uses=max(1, self.max_uses // 10),
+            max_uses=self.max_uses,  # Use direct value, no division
             protocols=[
                 ProtocolConfig(
                     input_resources={"energy": 25},
@@ -212,6 +213,8 @@ class CvCAssemblerConfig(CvCStationConfig):
                 for i in range(4)
             ]
             + [
+                # Specific gear protocols: ['gear', 'resource'] -> gear_item
+                # Agent must have the specific resource AND use gear vibe
                 ProtocolConfig(
                     vibes=["gear", gear[i][0]],
                     input_resources={gear[i][0]: 1},
@@ -219,4 +222,6 @@ class CvCAssemblerConfig(CvCStationConfig):
                 )
                 for i in range(len(gear))
             ],
+            # Note: Generic ['gear'] protocol is added dynamically by clipping variants
+            # C++ only allows ONE protocol per unique vibe list, so we can't pre-add all 4 here
         )
