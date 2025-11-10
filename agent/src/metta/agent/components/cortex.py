@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import optree
 import torch
-import logging
 import torch.nn as nn
 from cortex.config import CortexStackConfig
 from cortex.factory import build_cortex
@@ -15,7 +15,6 @@ from tensordict import TensorDict, TensorDictBase
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.components.component_config import ComponentConfig
-
 
 logger = logging.getLogger(__name__)
 
