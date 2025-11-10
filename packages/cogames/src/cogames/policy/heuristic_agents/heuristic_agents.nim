@@ -16,6 +16,7 @@ type
     actions*: seq[string]
     typeNames*: Table[string, int]
     obsFeatures*: seq[ConfigFeature]
+    debug*: bool
 
   FeatureValue* = object
     featureId*: int
@@ -111,17 +112,20 @@ proc initCHook() =
   echo "HeuristicAgents initialized"
 
 proc newHeuristicAgent(agentId: int, environmentConfig: string): HeuristicAgent {.raises: [].} =
-  echo "Creating new heuristic agent ", agentId
   try:
     var config = environmentConfig.fromJson(Config)
+    if config.debug:
+      echo "Creating new heuristic agent ", agentId
     result = HeuristicAgent(agentId: agentId, config: config)
-    echo "  numAgents", config.numAgents
-    echo "  obsWidth", config.obsWidth
-    echo "  obsHeight", config.obsHeight
-    echo "  actions", config.actions
-    echo "  typeNames", config.typeNames # TODO? how to get type names?
+    if config.debug:
+      echo "  numAgents", config.numAgents
+      echo "  obsWidth", config.obsWidth
+      echo "  obsHeight", config.obsHeight
+      echo "  actions", config.actions
+      echo "  typeNames", config.typeNames # TODO? how to get type names?
     for feature in config.obsFeatures:
-      echo "    feature ", feature.id, " ", feature.name, " ", feature.normalization
+      if config.debug:
+        echo "    feature ", feature.id, " ", feature.name, " ", feature.normalization
       case feature.name:
       of "type_id":
         result.features.typeId = feature.id
@@ -178,7 +182,8 @@ proc newHeuristicAgent(agentId: int, environmentConfig: string): HeuristicAgent 
       of "inv:scrambler":
         result.features.invScrambler = feature.id
       else:
-        echo "Unknown feature: ", feature.name
+        if config.debug:
+          echo "Unknown feature: ", feature.name
 
     for id, name in config.actions:
       case name:
@@ -216,9 +221,11 @@ proc newHeuristicAgent(agentId: int, environmentConfig: string): HeuristicAgent 
         result.actions.vibeWall = id
       else:
         discard
-    echo "  actions", result.actions
+    if config.debug:
+      echo "  actions", result.actions
     for name, id in config.typeNames:
-      echo "    type name ", name, " id ", id
+      if config.debug:
+        echo "    type name ", name, " id ", id
       case name:
       of "agent":
         result.types.agent = id
@@ -240,13 +247,15 @@ proc newHeuristicAgent(agentId: int, environmentConfig: string): HeuristicAgent 
         result.types.wall = id
       else:
         discard
-    echo "  types_names", result.types
+    if config.debug:
+      echo "  types_names", result.types
     result.random = initRand(agentId)
   except JsonError, ValueError:
     echo "Error parsing environment config: ", getCurrentExceptionMsg()
 
 proc reset(agent: HeuristicAgent) =
-  echo "Resetting heuristic agent ", agent.agentId
+  if agent.config.debug:
+    echo "Resetting heuristic agent ", agent.agentId
 
 proc computeMapBounds(map: Table[Location, seq[FeatureValue]]): MapBounds =
   ## Compute the bounds of the map.
@@ -400,9 +409,10 @@ proc updateMap(agent: HeuristicAgent, visible: Table[Location, seq[FeatureValue]
 
   # Update the big map with the small visible map.
   if bestScore < 2:
-    echo "Looks like we are lost?"
-    echo "  current location: ", agent.location.x, ", ", agent.location.y
-    echo "  best location: ", bestLocation.x, ", ", bestLocation.y
+    if agent.config.debug:
+      echo "Looks like we are lost?"
+      echo "  current location: ", agent.location.x, ", ", agent.location.y
+      echo "  best location: ", bestLocation.x, ", ", bestLocation.y
   else:
     agent.location =  bestLocation
     for x in -5 .. 5:
@@ -425,7 +435,8 @@ proc step(
   rawActions: pointer
 ) {.raises: [].} =
   try:
-    echo "Thinking heuristic agent ", agent.agentId
+    if agent.config.debug:
+      echo "Thinking heuristic agent ", agent.agentId
     # echo "  numAgents", numAgents
     # echo "  numTokens", numTokens
     # echo "  sizeToken", sizeToken
@@ -448,16 +459,18 @@ proc step(
         map[location] = @[]
       map[location].add(FeatureValue(featureId: featureId.int, value: value.int))
 
-    echo "current location: ", agent.location.x, ", ", agent.location.y
-    echo "visible map:"
-    agent.drawMap(map, initHashSet[Location]())
+    if agent.config.debug:
+      echo "current location: ", agent.location.x, ", ", agent.location.y
+      echo "visible map:"
+      agent.drawMap(map, initHashSet[Location]())
     updateMap(agent, map)
-    echo "updated map:"
-    agent.drawMap(agent.map, agent.seen)
-
+    if agent.config.debug:
+      echo "updated map:"
+      agent.drawMap(agent.map, agent.seen)
 
     let vibe = agent.getVibe(map)
-    echo "vibe: ", vibe
+    if agent.config.debug:
+      echo "vibe: ", vibe
 
     let invEnergy = agent.getInventory(map, agent.features.invEnergy)
     let invCarbon = agent.getInventory(map, agent.features.invCarbon)
@@ -470,13 +483,14 @@ proc step(
     let invResonator = agent.getInventory(map, agent.features.invResonator)
     let invScrambler = agent.getInventory(map, agent.features.invScrambler)
 
-    echo &"H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
-
+    if agent.config.debug:
+      echo &"H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
 
     let actions = cast[ptr UncheckedArray[int32]](rawActions)
     let action = agent.random.rand(1 .. 4).int32
     actions[agent.agentId] = action
-    echo "taking action ", action
+    if agent.config.debug:
+      echo "taking action ", action
 
   except:
     echo getCurrentException().getStackTrace()

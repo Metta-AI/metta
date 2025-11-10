@@ -28,6 +28,7 @@ CHECKPOINT_DIR = Path("./train_dir")
 SEED = 42
 LOG_INTERVAL = 1
 CHECKPOINT_INTERVAL = 1000
+NIM_DEBUG = False
 
 
 class SimpleMLP(nn.Module):
@@ -54,6 +55,7 @@ def train_supervised(
     device: str = DEVICE,
     checkpoint_dir: Path = CHECKPOINT_DIR,
     seed: int = SEED,
+    nim_debug: bool = NIM_DEBUG,
 ):
     """Train a policy to imitate the Nim scripted agent using supervised learning.
 
@@ -67,6 +69,7 @@ def train_supervised(
         device: Device to train on ('cpu' or 'cuda')
         checkpoint_dir: Directory to save checkpoints
         seed: Random seed
+        nim_debug: Enable debug prints from Nim heuristic agent
     """
     torch_device = torch.device(device)
 
@@ -78,7 +81,7 @@ def train_supervised(
     policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
 
     # Create scripted agent policy (teacher)
-    scripted_policy = HeuristicAgentsPolicy(policy_env_info)
+    scripted_policy = HeuristicAgentsPolicy(policy_env_info, debug=nim_debug)
 
     # Initialize model
     model = SimpleMLP()
@@ -221,6 +224,9 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, default=DEVICE, help="Device (cpu/cuda)")
     parser.add_argument("--checkpoint-dir", type=str, default=str(CHECKPOINT_DIR), help="Checkpoint directory")
     parser.add_argument("--seed", type=int, default=SEED, help="Random seed")
+    parser.add_argument(
+        "--nim-debug", action="store_true", default=NIM_DEBUG, help="Enable debug prints from Nim heuristic agent"
+    )
 
     args = parser.parse_args()
 
@@ -234,4 +240,5 @@ if __name__ == "__main__":
         device=args.device,
         checkpoint_dir=Path(args.checkpoint_dir),
         seed=args.seed,
+        nim_debug=args.nim_debug,
     )
