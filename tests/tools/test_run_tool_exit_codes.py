@@ -2,6 +2,8 @@
 
 import subprocess
 
+from metta.common.util.fs import get_repo_root
+
 
 def test_run_tool_returns_exit_code_1_on_exception():
     """Test that tools/run.py exits with code 1 when a tool raises an exception.
@@ -10,9 +12,10 @@ def test_run_tool_returns_exit_code_1_on_exception():
     exceptions properly result in non-zero exit codes.
     """
     # Run a command with a non-existent recipe to trigger an error
+
     result = subprocess.run(
         ["uv", "run", "./tools/run.py", "train", "nonexistent_recipe_that_does_not_exist"],
-        cwd="/Users/jack/src/metta",
+        cwd=get_repo_root(),
         capture_output=True,
         timeout=30,
     )
@@ -36,10 +39,11 @@ def test_run_tool_returns_exit_code_1_on_exception():
 
 def test_run_tool_returns_exit_code_0_on_success():
     """Test that tools/run.py exits with code 0 when a tool succeeds."""
+
     # Run a --dry-run which should succeed
     result = subprocess.run(
         ["uv", "run", "./tools/run.py", "train", "arena_basic_easy_shaped", "--dry-run"],
-        cwd="/Users/jack/src/metta",
+        cwd=get_repo_root(),
         capture_output=True,
         timeout=30,
     )
