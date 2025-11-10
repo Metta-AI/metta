@@ -101,7 +101,7 @@ def train(
     )
 
     eval_simulations = simulations()
-    trainer_cfg = TrainerConfig(total_timesteps=10_000_000_000)
+    trainer_cfg = TrainerConfig(total_timesteps=50_000_000_000)
 
     if policy_architecture is None:
         policy_architecture = ViTDefaultConfig()
@@ -109,7 +109,7 @@ def train(
     return TrainTool(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        evaluator=EvaluatorConfig(simulations=eval_simulations, epoch_interval=24),
+        evaluator=EvaluatorConfig(simulations=eval_simulations, epoch_interval=500),
         policy_architecture=policy_architecture,
         torch_profiler=TorchProfilerConfig(),
     )
