@@ -141,6 +141,95 @@ dynamics (like kinship and mate selection) on learning and cooperative behaviors
 - `observatory/`: React-based dashboard for viewing training runs and evaluations
 - `gridworks/`: Next.js web interface
 - `app_backend/`: FastAPI backend server for stats and data services
+- `recipes/`: Recipe configurations for training and evaluation
+  - `prod/`: Production-ready recipes with automated validation
+  - `experiment/`: Experimental recipes, no stability guarantees
+    - `user/`: User-specific experimental recipes
+  - `validation/`: CI and release validation test suites
+- `metta/evals/`: Remote evaluation infrastructure
+- `analysis/`: Analysis tools and notebooks
+  - `marimo/`: Interactive analysis notebooks (Marimo)
+  - `notebooks/`: Jupyter notebooks
+  - `analysis.py`: Analysis utilities
+
+### Recipe System
+
+#### Prod vs Experiment Recipes
+
+Recipes are organized into two categories:
+
+- **`recipes/prod/`**: Production-ready recipes with automated validation
+  - Two levels of testing:
+    - **CI Suite** (`recipes/validation/ci_suite.py`): Quick smoke tests that verify processes don't crash
+      - Run on every commit (eventually on GitHub before merge)
+      - Low timesteps (e.g., 10k), short timeouts (e.g., 5 minutes)
+      - Goal: Ensure basic functionality works, not performance
+    - **Stable Suite** (`recipes/validation/stable_suite.py`): Comprehensive performance validation
+      - Run during releases on remote infrastructure
+      - Longer training jobs (100M-2B timesteps), multi-GPU (1-16 GPUs)
+      - Tracks end-to-end performance metrics (SPS, learning curves)
+      - Acceptance criteria for SPS and training outcomes
+  - Examples: `arena_basic_easy_shaped`, `cvc.small_maps`
+
+- **`recipes/experiment/`**: Work-in-progress recipes
+  - No stability guarantees
+  - Can import from prod or other experiment recipes
+  - Examples: architecture experiments (`abes/`), loss experiments (`losses/`)
+
+#### Adding a Prod Recipe
+
+To add a new prod recipe:
+
+1. Create the recipe in `recipes/prod/your_recipe.py` with the required tool functions (train, evaluate, play, etc.)
+
+2. Add **CI smoke tests** to `recipes/validation/ci_suite.py`:
+   - Purpose: Verify the recipe doesn't crash, not that it performs well
+   - Keep timesteps low (10k) and timeouts short (5 minutes)
+   - Will eventually run on GitHub before every merge
+
+```python
+# In get_ci_jobs() function:
+my_recipe_train = JobConfig(
+    name=f"{run_prefix}.my_recipe_train",
+    module="recipes.prod.my_recipe.train",  # Note: full module path
+    args=[
+        f"run={run_prefix}.my_recipe_train",
+        "trainer.total_timesteps=10000",  # Quick smoke test - just verify no crash
+        "checkpointer.epoch_interval=1",
+    ],
+    timeout_s=300,  # 5 minutes - keep it fast
+    is_training_job=True,
+    group=group,
+)
+```
+
+3. Add **performance validation tests** to `recipes/validation/stable_suite.py`:
+   - Purpose: Track end-to-end performance (SPS, learning outcomes)
+   - Use realistic training runs (100M-2B timesteps)
+   - Run on remote multi-GPU infrastructure during releases
+   - Include acceptance criteria for performance metrics
+
+```python
+# In get_stable_jobs() function:
+my_recipe_train_100m = JobConfig(
+    name="my_recipe_single_gpu_100m",
+    module="recipes.prod.my_recipe.train",  # Note: full module path
+    args=["trainer.total_timesteps=100000000"],  # Real training run
+    timeout_s=7200,  # 2 hours - enough for meaningful training
+    remote=RemoteConfig(gpus=1, nodes=1),
+    is_training_job=True,
+    metrics_to_track=["overview/sps", "env_agent/heart.gained"],
+    acceptance_criteria=[
+        # These verify performance, not just that it runs
+        AcceptanceCriterion(metric="overview/sps", operator=">=", threshold=40000),
+        AcceptanceCriterion(metric="env_agent/heart.gained", operator=">", threshold=0.1),
+    ],
+)
+```
+
+4. The tests will automatically run:
+   - CI smoke tests: `metta ci --stage recipe-tests` (on every commit)
+   - Stable performance tests: During release validation on remote infrastructure
 
 ### Architecture Overview
 
@@ -233,6 +322,7 @@ metta ci --stage lint                            # Linting only
 metta ci --stage python-tests-and-benchmarks     # Python tests and benchmarks together
 metta ci --stage cpp-tests                       # C++ tests only
 metta ci --stage cpp-benchmarks                  # C++ benchmarks only
+metta ci --stage recipe-tests                    # Run CI smoke tests from prod recipes
 
 # Run Python tests (default, fastest for development - skips benchmarks)
 metta pytest
