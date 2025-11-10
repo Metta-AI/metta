@@ -144,7 +144,7 @@ dynamics (like kinship and mate selection) on learning and cooperative behaviors
 - `recipes/`: Recipe configurations for training and evaluation
   - `prod/`: Production-ready recipes with automated validation
   - `experiment/`: Experimental recipes, no stability guarantees
-    - `user/`: User-specific experimental recipes
+    - `scratchpad/`: User-specific experimental recipes (git-ignored except template files)
   - `validation/`: CI and release validation test suites
 - `metta/evals/`: Remote evaluation infrastructure
 - `analysis/`: Analysis tools and notebooks
