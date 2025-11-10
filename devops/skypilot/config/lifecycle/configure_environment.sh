@@ -63,6 +63,14 @@ if [ -f "$METTA_ENV_FILE" ]; then
   echo "Warning: $METTA_ENV_FILE already exists, appending new content"
 fi
 
+# Ensure WANDB_PASSWORD is populated from WANDB_API_KEY if the password is missing.
+if [ -z "${WANDB_PASSWORD:-}" ] && [ -n "${WANDB_API_KEY:-}" ]; then
+  export WANDB_PASSWORD="${WANDB_API_KEY}"
+fi
+
+# Determine the key we’ll hand to wandb.init (prefer explicit API key, fall back to password)
+WANDB_EFFECTIVE_API_KEY="${WANDB_API_KEY:-${WANDB_PASSWORD:-}}"
+
 # Write all environment variables using heredoc
 cat >> "$METTA_ENV_FILE" << EOF
 export PYTHONUNBUFFERED=1
@@ -71,7 +79,7 @@ export PYTHONOPTIMIZE=1
 export HYDRA_FULL_ERROR=1
 
 export WANDB_DIR="./wandb"
-export WANDB_API_KEY="${WANDB_PASSWORD}"
+export WANDB_API_KEY="${WANDB_EFFECTIVE_API_KEY}"
 export DATA_DIR="\${DATA_DIR:-./train_dir}"
 
 # Datadog configuration
@@ -114,15 +122,15 @@ export NCCL_IB_DISABLE="\${NCCL_IB_DISABLE:-1}"
 EOF
 
 # Create job secrets (idempotent - overwrites if exists)
-if [ -z "$WANDB_PASSWORD" ]; then
-  echo "ERROR: WANDB_PASSWORD environment variable is required but not set"
+if [ -z "${WANDB_PASSWORD:-}" ] && [ -z "${WANDB_API_KEY:-}" ]; then
+  echo "ERROR: WANDB credentials are required but neither WANDB_PASSWORD nor WANDB_API_KEY is set"
   echo "Please ensure WANDB_PASSWORD is set in your Skypilot environment variables"
   exit 1
 fi
 
 echo "Creating/updating job secrets..."
 
-CMD=(uv run ./devops/skypilot/config/lifecycle/create_job_secrets.py --profile softmax-docker --wandb-password="$WANDB_PASSWORD")
+CMD=(uv run ./devops/skypilot/config/lifecycle/create_job_secrets.py --profile softmax-docker --wandb-password="${WANDB_PASSWORD:-$WANDB_API_KEY}")
 
 if [ -n "$OBSERVATORY_TOKEN" ]; then
   echo "Found OBSERVATORY_TOKEN and providing to create_job_secrets.py - Observatory features should be available!"
