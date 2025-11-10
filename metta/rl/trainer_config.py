@@ -2,7 +2,7 @@ from typing import Any, ClassVar, Literal, Optional
 
 from pydantic import ConfigDict, Field, model_validator
 
-from metta.rl.loss import LossConfig
+from metta.rl.loss.losses import LossesConfig
 from metta.rl.training import HeartbeatConfig, HyperparameterSchedulerConfig
 from mettagrid.base_config import Config
 
@@ -49,7 +49,7 @@ class TorchProfilerConfig(Config):
 
 class TrainerConfig(Config):
     total_timesteps: int = Field(default=50_000_000_000, gt=0)
-    losses: LossConfig = Field(default_factory=LossConfig)
+    losses: LossesConfig = Field(default_factory=LossesConfig)
     optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig)
 
     require_contiguous_env_ids: bool = False

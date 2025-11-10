@@ -34,6 +34,7 @@ CUDA_TAG_PREFERENCES: dict[str, list[str]] = {
 BUILD_ENV = os.environ.copy()
 BUILD_ENV.setdefault("UV_PIP_NO_BUILD_ISOLATION", "1")
 BUILD_ENV.setdefault("PIP_NO_BUILD_ISOLATION", "1")
+BUILD_ENV.setdefault("MAX_JOBS", "8")
 
 
 def run(cmd: Iterable[str]) -> bool:
@@ -114,6 +115,18 @@ def main() -> int:
 
     ensure_cuda_home()
 
+    # Optionally narrow compiled architectures to all visible GPUs.
+    try:
+        assert torch.cuda.is_available()
+        caps = sorted(
+            {f"{m}.{n}" for i in range(torch.cuda.device_count()) for (m, n) in [torch.cuda.get_device_capability(i)]}
+        )
+        if caps:
+            BUILD_ENV.setdefault("TORCH_CUDA_ARCH_LIST", ";".join(caps))
+            print(f"[cuda-extras] Setting TORCH_CUDA_ARCH_LIST to {';'.join(caps)}")
+    except Exception:
+        pass
+
     # Ensure build requirements that flash-attn often assumes are already present.
     install_default(["packaging"], no_isolation=True)  # idempotent
     install_default(["torch"])
@@ -128,10 +141,10 @@ def main() -> int:
     # Try tag-specific wheels first, then fall back to source installs.
     for tag in tags:
         if not flash_installed:
-            flash_installed = install_with_index(["flash-attn"], tag)
+            flash_installed = install_with_index(["flash-attn"], tag, no_isolation=True)
         if not causal_installed:
             for pkg in (f"causal-conv1d-{tag}", "causal-conv1d"):
-                if install_with_index([pkg], tag):
+                if install_with_index([pkg], tag, no_isolation=True):
                     causal_installed = True
                     break
         if flash_installed and causal_installed:

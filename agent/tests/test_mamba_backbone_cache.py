@@ -4,13 +4,13 @@ from tensordict import TensorDict
 
 pytest.importorskip("mamba_ssm", reason="Mamba components require the mamba-ssm CUDA package.")
 
-from metta.agent.components.mamba import MambaBackboneConfig
-from metta.agent.components.mamba.backbone import MambaBackboneComponent
+import metta.agent.components.mamba.backbone as mamba_backbone
+import metta.agent.components.mamba.config as mamba_config
 
 
-def _make_backbone(d_model: int = 32) -> MambaBackboneComponent:
-    return MambaBackboneComponent(
-        MambaBackboneConfig(
+def _make_backbone(d_model: int = 32) -> mamba_backbone.MambaBackboneComponent:
+    return mamba_backbone.MambaBackboneComponent(
+        mamba_config.MambaBackboneConfig(
             in_key="encoded",
             out_key="core",
             input_dim=16,

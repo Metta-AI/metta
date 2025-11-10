@@ -28,7 +28,7 @@ Make sure you're in the Metta repository root directory and have the proper Pyth
 Build the widget assets:
 
 ```bash
-cd experiments/notebooks/utils/eval_finder_widget
+cd notebooks/utils/eval_finder_widget
 pnpm install
 pnpm run build
 ```
@@ -40,7 +40,7 @@ The widget is now ready to use in your notebooks.
 1. Install the Python package:
 
    ```bash
-   cd experiments/notebooks/utils/eval_finder_widget
+   cd notebooks/utils/eval_finder_widget
    pip install -e .
    ```
 
@@ -95,8 +95,8 @@ For production use or when you're done developing:
 ### Basic Usage
 
 ```python
-from experiments.notebooks.utils.eval_finder_widget.eval_finder_widget import EvalFinderWidget
-from experiments.notebooks.utils.eval_finder_widget.eval_finder_widget.util import create_demo_eval_finder_widget
+from notebooks.utils.eval_finder_widget.eval_finder_widget import EvalFinderWidget
+from notebooks.utils.eval_finder_widget.eval_finder_widget.util import create_demo_eval_finder_widget
 
 # Create a demo widget with sample data
 widget = create_demo_eval_finder_widget()
@@ -106,8 +106,8 @@ widget
 ### Policy-Aware Real Data
 
 ```python
-from experiments.notebooks.utils.eval_finder_widget.eval_finder_widget import EvalFinderWidget
-from experiments.notebooks.utils.eval_finder_widget.eval_finder_widget.util import fetch_eval_data_for_policies
+from notebooks.utils.eval_finder_widget.eval_finder_widget import EvalFinderWidget
+from notebooks.utils.eval_finder_widget.eval_finder_widget.util import fetch_eval_data_for_policies
 
 # Create widget and fetch real evaluation data for specific policies
 widget = EvalFinderWidget()
@@ -183,7 +183,7 @@ scorecard = ScorecardWidget()
 
 ## Marimo Integration
 
-See `experiments/marimo/eval-finder-example.py` for a complete example of using the widget in Marimo notebooks.
+See `notebooks/marimo/eval-finder-example.py` for a complete example of using the widget in Marimo notebooks.
 
 ## Data Sources
 

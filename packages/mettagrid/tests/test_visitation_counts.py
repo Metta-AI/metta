@@ -33,7 +33,7 @@ def env_with_visitation():
             actions=ActionsConfig(
                 move=MoveActionConfig(),  # Enable 8-way movement
             ),
-            objects={"wall": WallConfig(type_id=1)},
+            objects={"wall": WallConfig()},
             global_obs=GlobalObsConfig(
                 episode_completion_pct=True,
                 last_action=True,
@@ -50,7 +50,7 @@ def env_with_visitation():
                     [".", ".", ".", ".", ".", ".", "."],
                     [".", ".", ".", ".", ".", ".", "."],
                 ],
-                char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                char_to_map_name=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
@@ -71,7 +71,7 @@ def env_without_visitation():
             actions=ActionsConfig(
                 move=MoveActionConfig(),  # Enable 8-way movement
             ),
-            objects={"wall": WallConfig(type_id=1)},
+            objects={"wall": WallConfig()},
             global_obs=GlobalObsConfig(
                 episode_completion_pct=True,
                 last_action=True,
@@ -88,7 +88,7 @@ def env_without_visitation():
                     [".", ".", ".", ".", ".", ".", "."],
                     [".", ".", ".", ".", ".", ".", "."],
                 ],
-                char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                char_to_map_name=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
@@ -109,7 +109,7 @@ def env_default():
             actions=ActionsConfig(
                 move=MoveActionConfig(),  # Enable 8-way movement
             ),
-            objects={"wall": WallConfig(type_id=1)},
+            objects={"wall": WallConfig()},
             # No explicit visitation_counts setting - uses default (False)
             map_builder=AsciiMapBuilder.Config(
                 map_data=[
@@ -121,7 +121,7 @@ def env_default():
                     [".", ".", ".", ".", ".", ".", "."],
                     [".", ".", ".", ".", ".", ".", "."],
                 ],
-                char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                char_to_map_name=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
@@ -210,8 +210,8 @@ def performance_config():
             max_steps=1000,
             resource_names=["wood", "stone"],
             actions=ActionsConfig(move=MoveActionConfig()),
-            objects={"wall": WallConfig(type_id=1)},
-            map_builder=AsciiMapBuilder.Config(map_data=simple_map, char_to_name_map=DEFAULT_CHAR_TO_NAME),
+            objects={"wall": WallConfig()},
+            map_builder=AsciiMapBuilder.Config(map_data=simple_map, char_to_map_name=DEFAULT_CHAR_TO_NAME),
         )
     )
     return config

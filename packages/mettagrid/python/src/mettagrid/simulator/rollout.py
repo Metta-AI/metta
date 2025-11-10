@@ -1,11 +1,13 @@
 import logging
 import time
-from typing import Optional
+from typing import List, Optional
 
 from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.envs.stats_tracker import StatsTracker
 from mettagrid.policy.policy import AgentPolicy
 from mettagrid.renderer.renderer import Renderer, RenderMode, create_renderer
-from mettagrid.simulator import Simulator
+from mettagrid.simulator import Simulator, SimulatorEventHandler
+from mettagrid.util.stats_writer import StatsWriter
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +23,8 @@ class Rollout:
         render_mode: Optional[RenderMode] = None,
         seed: int = 0,
         pass_sim_to_policies: bool = False,
+        event_handlers: Optional[List[SimulatorEventHandler]] = None,
+        stats_writer: Optional[StatsWriter] = None,
     ):
         self._config = config
         self._policies = policies
@@ -33,6 +37,13 @@ class Rollout:
         if render_mode is not None:
             self._renderer = create_renderer(render_mode)
             self._simulator.add_event_handler(self._renderer)
+        # Attach stats tracker if provided
+        if stats_writer is not None:
+            self._simulator.add_event_handler(StatsTracker(stats_writer))
+        # Attach additional event handlers
+        if event_handlers:
+            for handler in event_handlers:
+                self._simulator.add_event_handler(handler)
         self._sim = self._simulator.new_simulation(config, seed)
         self._agents = self._sim.agents()
 

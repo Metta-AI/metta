@@ -102,8 +102,7 @@ For post-training evaluation to compare different policies:
 To run style checks and tests locally:
 
 ```bash
-ruff format
-ruff check
+metta lint --fix
 pyright metta  # optional, some stubs are missing
 pytest
 ```

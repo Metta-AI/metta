@@ -7,15 +7,14 @@ from rich import box
 from rich.table import Table
 
 from cogames.cli.base import console
-from cogames.cogs_vs_clips.mission import Mission, MissionVariant
-from cogames.cogs_vs_clips.missions import MISSIONS, SITES, VARIANTS
-from cogames.cogs_vs_clips.sites import Site
+from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, MissionVariant, NumCogsVariant, Site
+from cogames.cogs_vs_clips.missions import MISSIONS
+from cogames.cogs_vs_clips.sites import SITES
+from cogames.cogs_vs_clips.variants import VARIANTS
 from cogames.game import load_mission_config, load_mission_config_from_python
 from mettagrid import MettaGridConfig
 from mettagrid.config.mettagrid_config import AssemblerConfig
-from mettagrid.map_builder.map_builder import MapBuilderConfig
-
-MAP_MISSION_DELIMITER = "."
+from mettagrid.mapgen.mapgen import MapGen
 
 
 def parse_variants(variants_arg: Optional[list[str]]) -> list[MissionVariant]:
@@ -36,28 +35,26 @@ def parse_variants(variants_arg: Optional[list[str]]) -> list[MissionVariant]:
     variants: list[MissionVariant] = []
     for name in variants_arg:
         # Find matching variant class by instantiating and checking the name
-        variant_class = None
-        for v_class in VARIANTS:
-            # Create temporary instance to check the name
-            temp_instance = v_class()
-            if temp_instance.name == name or v_class.__name__.lower().replace("variant", "") == name:
-                variant_class = v_class
+        variant: MissionVariant | None = None
+        for v in VARIANTS:
+            if v.name == name:
+                variant = v
                 break
 
-        if variant_class is None:
+        if variant is None:
             # Get available variant names
-            available = ", ".join(v_class().name for v_class in VARIANTS)
+            available = ", ".join(v.name for v in VARIANTS)
             raise ValueError(f"Unknown variant '{name}'.\nAvailable variants: {available}")
 
         # Instantiate with default configuration
-        variants.append(variant_class())
+        variants.append(variant)
 
     return variants
 
 
 def get_all_missions() -> list[str]:
     """Get all mission names in the format site.mission."""
-    return [f"{mission_class().site.name}{MAP_MISSION_DELIMITER}{mission_class().name}" for mission_class in MISSIONS]
+    return [mission.full_name() for mission in MISSIONS]
 
 
 def get_site_by_name(site_name: str) -> Site:
@@ -155,6 +152,26 @@ def _get_missions_by_possible_wildcard(
     return [(name, env_cfg)]
 
 
+def find_mission(
+    site_name: str,
+    mission_name: str | None = None,  # None means first mission on the site
+) -> Mission:
+    for mission in MISSIONS:
+        if mission.site.name != site_name:
+            continue
+        if mission_name is not None and mission.name != mission_name:
+            continue
+        return mission
+
+    if mission_name is not None:
+        raise ValueError(f"Mission {mission_name} not available on site {site_name}")
+    else:
+        if site_name in [site.name for site in SITES]:
+            raise ValueError(f"No missions available on site {site_name}")
+        else:
+            raise ValueError(f"Could not find mission name or site {site_name}")
+
+
 def get_mission(
     mission_arg: str, variants_arg: Optional[list[str]] = None, cogs: Optional[int] = None
 ) -> tuple[str, MettaGridConfig, Optional[Mission]]:
@@ -190,7 +207,7 @@ def get_mission(
     # Parse variants if provided
     variants = parse_variants(variants_arg)
 
-    # Otherwise, treat it as a mission name
+    # Otherwise, treat it as a fully qualified mission name, or as a site name
     if (delim_count := mission_arg.count(MAP_MISSION_DELIMITER)) == 0:
         site_name, mission_name = mission_arg, None
     elif delim_count > 1:
@@ -198,97 +215,18 @@ def get_mission(
     else:
         site_name, mission_name = mission_arg.split(MAP_MISSION_DELIMITER)
 
-    # Get the site
-    site = get_site_by_name(site_name)
+    mission = find_mission(site_name, mission_name)
+    # Apply variants
+    mission = mission.with_variants(variants)
 
-    # Determine number of cogs to use
-    num_cogs = cogs if cogs is not None else site.min_cogs
-    cli_override = cogs is not None
+    if cogs is not None:
+        mission = mission.with_variants([NumCogsVariant(num_cogs=cogs)])
 
-    # Validate cogs is within site's allowed range
-    if num_cogs < site.min_cogs or num_cogs > site.max_cogs:
-        raise ValueError(
-            f"Invalid number of cogs for {site_name}: {num_cogs}. "
-            + f"Must be between {site.min_cogs} and {site.max_cogs}"
-        )
-
-    # Apply variants to the mission
-    def apply_variants_to_config(
-        mission: Mission,
-        map_builder: MapBuilderConfig,
-        num_cogs: int,
-        *,
-        cli_override: bool = False,
-    ) -> tuple[MettaGridConfig, Mission]:
-        """Apply variants and return both MettaGridConfig and Mission.
-
-        Important: Variants must be applied BEFORE finalizing the map builder.
-        For procedural missions, the map builder is reconstructed inside
-        `instantiate` based on `procedural_overrides`. If we apply variants
-        after instantiation, those overrides won't affect the generated map.
-        To preserve existing variant semantics (multiple variants in order and
-        after `configure()`), we compose the provided variants into a single
-        variant and pass it into `instantiate`.
-        """
-
-        if variants:
-            # Compose multiple variants so they apply in order during instantiate
-            class _CombinedVariant(MissionVariant):
-                name: str = "combined"
-                description: str = "Composite of CLI variants applied in order"
-
-                def apply(self, m: Mission) -> Mission:  # type: ignore[override]
-                    for v in variants:
-                        m = v.apply(m)
-                    return m
-
-            combined_variant = _CombinedVariant()
-        else:
-            combined_variant = None
-
-        # Instantiate with the combined variant to ensure overrides affect map
-        instantiated_mission = mission.instantiate(map_builder, num_cogs, combined_variant, cli_override=cli_override)
-        return instantiated_mission.make_env(), instantiated_mission
-
-    if mission_name is not None:
-        # Find the matching mission class
-        matching_mission_class = None
-        for mission_class in MISSIONS:
-            temp_mission = mission_class()
-            if temp_mission.site.name == site_name and temp_mission.name == mission_name:
-                matching_mission_class = mission_class
-                break
-
-        if not matching_mission_class:
-            raise ValueError(f"Mission {mission_name} not available on site {site_name}")
-
-        mission_instance = matching_mission_class()
-        env_cfg, mission_cfg = apply_variants_to_config(
-            mission_instance, site.map_builder, num_cogs, cli_override=cli_override
-        )
-        return (
-            f"{site.name}{MAP_MISSION_DELIMITER}{mission_name}",
-            env_cfg,
-            mission_cfg,
-        )
-    else:
-        # Use first mission of the site if no specific mission is specified
-        site_missions = [m for m in MISSIONS if m().site.name == site_name]
-        if site_missions:
-            first_mission_class = site_missions[0]
-            first_mission = first_mission_class()
-            env_cfg, mission_cfg = apply_variants_to_config(
-                first_mission, site.map_builder, num_cogs, cli_override=cli_override
-            )
-            return (
-                f"{site.name}{MAP_MISSION_DELIMITER}{first_mission.name}",
-                env_cfg,
-                mission_cfg,
-            )
-        else:
-            # Fallback to default map if no missions exist
-            built_map = site.map_builder.create().build()
-            return f"{site.name}", built_map.make_env(), None
+    return (
+        mission.full_name(),
+        mission.make_env(),
+        mission,
+    )
 
 
 def list_variants() -> None:
@@ -303,9 +241,8 @@ def list_variants() -> None:
     variant_table.add_column("Variant", style="yellow", no_wrap=True)
     variant_table.add_column("Description", style="white")
 
-    for variant_class in VARIANTS:
-        variant_instance = variant_class()
-        variant_table.add_row(variant_instance.name, variant_instance.description)
+    for variant in VARIANTS:
+        variant_table.add_row(variant.name, variant.description)
 
     console.print(variant_table)
 
@@ -326,7 +263,7 @@ def list_missions() -> None:
 
     for idx, site in enumerate(SITES):
         # Get missions for this site
-        site_missions = [mission_class for mission_class in MISSIONS if mission_class().site.name == site.name]
+        site_missions = [mission for mission in MISSIONS if mission.site.name == site.name]
 
         # Get map size from the map builder
         try:
@@ -349,18 +286,16 @@ def list_missions() -> None:
         )
 
         # Add missions for this site
-        for mission_idx, mission_class in enumerate(site_missions):
-            mission_instance = mission_class()
-            mission_name = f"{site.name}.{mission_instance.name}"
+        for mission_idx, mission in enumerate(site_missions):
             is_last_mission = mission_idx == len(site_missions) - 1
             is_last_site = idx == len(SITES) - 1
 
             # Add mission row with description in column
             table.add_row(
-                mission_name,
+                mission.full_name(),
                 "",
                 "",
-                mission_instance.description,
+                mission.description,
             )
 
             # Add blank row for spacing between missions (except before section separator)
@@ -411,7 +346,8 @@ def describe_mission(mission_name: str, game_config: MettaGridConfig) -> None:
     # Display mission configuration
     console.print("[bold]Mission Configuration:[/bold]")
     console.print(f"  • Number of agents: {game_config.game.num_agents}")
-    console.print(f"  • Map size: {game_config.game.map_builder.width}x{game_config.game.map_builder.height}")  # type: ignore[attr-defined]
+    if isinstance(game_config.game.map_builder, MapGen.Config):
+        console.print(f"  • Map size: {game_config.game.map_builder.width}x{game_config.game.map_builder.height}")
 
     # Display available actions
     console.print("\n[bold]Available Actions:[/bold]")

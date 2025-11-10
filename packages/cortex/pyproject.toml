@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cortexcore"
-version = "0.1.0"
-description = "Memory module library for Metta policies"
+version = "0.1.5"
+description = "cortex is a modular library for building recurrent backbones and agent memory systems."
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
@@ -19,6 +19,9 @@ dependencies = [
   "triton>=2.0.0; platform_system == 'Linux'",
 ]
 
+[project.urls]
+Repository = "https://github.com/Metta-AI/metta/tree/main/packages/cortex"
+
 [dependency-groups]
 dev = ["pytest>=8.3.3", "pytest-cov>=6.1.1", "pytest-xdist>=3.8.0"]
 
@@ -26,12 +29,17 @@ dev = ["pytest>=8.3.3", "pytest-cov>=6.1.1", "pytest-xdist>=3.8.0"]
 where = ["src"]
 include = ["cortex", "cortex.*"]
 
+[tool.setuptools]
+include-package-data = true
+
 [tool.setuptools.package-data]
-cortex = ["py.typed"]
+cortex = ["py.typed", "**/*.cu", "**/*.cpp", "**/*.cuh", "**/*.h", "**/*.hpp"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
+# Slow cortex tests are module-skipped by default.
+# Set RUN_SLOW_CORTEX_TESTS=1 to enable them when running pytest.
 
 [tool.coverage.run]
 source = ["cortex"]
