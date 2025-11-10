@@ -156,7 +156,7 @@ def run_evaluation(
                 try:
                     env_config = mission.make_env()
                     # Only override max_steps if difficulty doesn't specify it
-                    if not hasattr(difficulty, 'max_steps_override') or difficulty.max_steps_override is None:
+                    if not hasattr(difficulty, "max_steps_override") or difficulty.max_steps_override is None:
                         env_config.game.max_steps = max_steps
 
                     # Get the actual max_steps from env_config (after all modifications)
@@ -506,9 +506,7 @@ def _plot_heatmap_env_agent(aggregated, experiments, agents, output_path):
     # Add text annotations
     for i in range(len(experiments)):
         for j in range(len(agents)):
-            ax.text(
-                j, i, f"{matrix[i, j]:.1f}", ha="center", va="center", color="black", fontsize=9, fontweight="bold"
-            )
+            ax.text(j, i, f"{matrix[i, j]:.1f}", ha="center", va="center", color="black", fontsize=9, fontweight="bold")
 
     ax.set_title("Average Reward: Environment × Agent", fontsize=14, fontweight="bold", pad=20)
     ax.set_xlabel("Agent", fontsize=12, fontweight="bold")
@@ -547,9 +545,7 @@ def _plot_heatmap_diff_agent(aggregated, difficulties, agents, output_path):
     # Add text annotations
     for i in range(len(difficulties)):
         for j in range(len(agents)):
-            ax.text(
-                j, i, f"{matrix[i, j]:.1f}", ha="center", va="center", color="black", fontsize=9, fontweight="bold"
-            )
+            ax.text(j, i, f"{matrix[i, j]:.1f}", ha="center", va="center", color="black", fontsize=9, fontweight="bold")
 
     ax.set_title("Average Reward: Difficulty × Agent", fontsize=14, fontweight="bold", pad=20)
     ax.set_xlabel("Agent", fontsize=12, fontweight="bold")
