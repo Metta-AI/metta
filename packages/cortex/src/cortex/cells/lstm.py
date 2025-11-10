@@ -37,6 +37,15 @@ class LSTMCell(MemoryCell):
             proj_size=0,
         )
 
+        # Align initialization with agent LSTM defaults for training parity:
+        # - Orthogonal weights
+        # - Biases initialized to 1.0
+        for name, param in self.net.named_parameters():
+            if "bias" in name:
+                nn.init.constant_(param, 1.0)
+            elif "weight" in name:
+                nn.init.orthogonal_(param, 1.0)
+
     @property
     def out_hidden_size(self) -> int:
         return self.cfg.proj_size if self.cfg.proj_size > 0 else self.cfg.hidden_size

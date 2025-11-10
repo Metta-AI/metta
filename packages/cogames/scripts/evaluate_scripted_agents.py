@@ -22,8 +22,13 @@ Usage:
 import argparse
 import json
 import logging
+from collections import defaultdict
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Dict, List
+
+import matplotlib.pyplot as plt
+import numpy as np
 
 from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_VARIANTS, get_difficulty
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
@@ -50,7 +55,7 @@ class EvalResult:
     difficulty: str
     preset: str
     clip_rate: float
-    total_reward: float
+    total_reward: float  # Average reward per agent
     hearts_assembled: int
     steps_taken: int
     max_steps: int
@@ -80,7 +85,7 @@ AGENT_CONFIGS: Dict[str, AgentConfig] = {
         label="Baseline",
         policy_class=BaselinePolicy,
         cogs_list=[1, 2, 4, 8],
-        difficulties=[d.name for d in DIFFICULTY_VARIANTS if not is_clipping_difficulty(d.name)],
+        difficulties=[d.name for d in DIFFICULTY_VARIANTS],  # Run on all including clipping for comparison
     ),
     "unclipping": AgentConfig(
         key="unclipping",
@@ -129,7 +134,7 @@ def run_evaluation(
             logger.error(f"Unknown experiment: {exp_name}")
             continue
 
-        mission = EXPERIMENT_MAP[exp_name]
+        base_mission = EXPERIMENT_MAP[exp_name]
 
         for difficulty_name in difficulties:
             try:
@@ -142,15 +147,20 @@ def run_evaluation(
                 completed += 1
                 logger.info(f"[{completed}/{total_tests}] {exp_name} | {difficulty_name} | {num_cogs} agent(s)")
 
-                # Create mission and apply difficulty
-                mission = mission.with_variants([difficulty, NumCogsVariant(num_cogs=num_cogs)])
+                # Create mission and apply difficulty (always from base_mission)
+                mission = base_mission.with_variants([difficulty, NumCogsVariant(num_cogs=num_cogs)])
 
                 # Get clip rate for metadata
                 clip_rate = getattr(difficulty, "extractor_clip_rate", 0.0)
 
                 try:
                     env_config = mission.make_env()
-                    env_config.game.max_steps = max_steps
+                    # Only override max_steps if difficulty doesn't specify it
+                    if not hasattr(difficulty, "max_steps_override") or difficulty.max_steps_override is None:
+                        env_config.game.max_steps = max_steps
+
+                    # Get the actual max_steps from env_config (after all modifications)
+                    actual_max_steps = env_config.game.max_steps
 
                     # Create policy with PolicyEnvInterface and hyperparameters
                     policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
@@ -167,8 +177,8 @@ def run_evaluation(
                     )
                     rollout.run_until_done()
 
-                    # Get results
-                    total_reward = float(sum(rollout._sim.episode_rewards))
+                    # Get results - average reward per agent
+                    total_reward = float(sum(rollout._sim.episode_rewards)) / num_cogs
                     final_step = rollout._sim.current_step
 
                     # Record result
@@ -182,13 +192,13 @@ def run_evaluation(
                         total_reward=total_reward,
                         hearts_assembled=int(total_reward),
                         steps_taken=final_step + 1,
-                        max_steps=max_steps,
+                        max_steps=actual_max_steps,
                         success=total_reward > 0,
                     )
                     results.append(result)
 
                     status = "✓" if result.success else "✗"
-                    logger.info(f"  {status} Reward: {total_reward:.1f}, Steps: {final_step + 1}/{max_steps}")
+                    logger.info(f"  {status} Reward: {total_reward:.1f}, Steps: {final_step + 1}/{actual_max_steps}")
 
                 except Exception as e:
                     logger.error(f"  ✗ Error: {e}")
@@ -280,6 +290,361 @@ def print_summary(results: List[EvalResult]):
             )
 
 
+def create_plots(results: List[EvalResult], output_dir: str = "eval_plots"):
+    """Create comprehensive plots from evaluation results."""
+    import matplotlib
+
+    matplotlib.use("Agg")  # Non-interactive backend
+
+    output_path = Path(output_dir)
+    output_path.mkdir(exist_ok=True)
+    logger.info(f"\nGenerating plots in {output_path}/...")
+
+    # Convert results to dicts for easier processing
+    data = defaultdict(lambda: defaultdict(list))
+
+    for r in results:
+        key = (r.agent, r.experiment, r.difficulty, r.num_cogs, r.preset)
+        data[key]["rewards"].append(r.total_reward)
+        data[key]["successes"].append(r.success)
+
+    # Aggregate data
+    aggregated = {}
+    for key, vals in data.items():
+        agent, experiment, difficulty, num_cogs, preset = key
+        aggregated[key] = {
+            "agent": agent,
+            "experiment": experiment,
+            "difficulty": difficulty,
+            "num_cogs": num_cogs,
+            "preset": preset,
+            "avg_reward": np.mean(vals["rewards"]),
+            "success_rate": np.mean(vals["successes"]),
+        }
+
+    # Get unique values for each dimension
+    agents = sorted(set(r.agent for r in results))
+    experiments = sorted(set(r.experiment for r in results))
+    difficulties = sorted(set(r.difficulty for r in results))
+    num_cogs_list = sorted(set(r.num_cogs for r in results))
+    presets = sorted(set(r.preset for r in results))
+
+    # 1. Average reward by agent
+    _plot_by_agent(aggregated, agents, output_path)
+
+    # 2. Average reward by num_cogs
+    _plot_by_num_cogs(aggregated, num_cogs_list, agents, output_path)
+
+    # 3. Average reward by eval environment
+    _plot_by_environment(aggregated, experiments, agents, output_path)
+
+    # 4. Average reward by difficulty
+    _plot_by_difficulty(aggregated, difficulties, agents, output_path)
+
+    # 5. Heatmap: Environment x Agent
+    _plot_heatmap_env_agent(aggregated, experiments, agents, output_path)
+
+    # 6. Heatmap: Difficulty x Agent
+    _plot_heatmap_diff_agent(aggregated, difficulties, agents, output_path)
+
+    # 7. Reward by preset (if multiple presets)
+    if len(presets) > 1:
+        _plot_by_preset(aggregated, presets, agents, experiments, difficulties, output_path)
+
+    logger.info(f"✓ Plots saved to {output_path}/")
+
+
+def _plot_by_agent(aggregated, agents, output_path):
+    """Plot average reward grouped by agent."""
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    agent_rewards = defaultdict(list)
+    for _key, vals in aggregated.items():
+        agent_rewards[vals["agent"]].append(vals["avg_reward"])
+
+    avg_rewards = [np.mean(agent_rewards[agent]) for agent in agents]
+    colors = plt.cm.Set2(range(len(agents)))
+
+    bars = ax.bar(agents, avg_rewards, color=colors, alpha=0.8, edgecolor="black")
+    ax.set_ylabel("Average Reward", fontsize=12, fontweight="bold")
+    ax.set_xlabel("Agent", fontsize=12, fontweight="bold")
+    ax.set_title("Average Reward by Agent", fontsize=14, fontweight="bold")
+    ax.grid(axis="y", alpha=0.3)
+
+    # Add value labels on bars
+    for bar in bars:
+        height = bar.get_height()
+        ax.text(
+            bar.get_x() + bar.get_width() / 2.0, height, f"{height:.2f}", ha="center", va="bottom", fontweight="bold"
+        )
+
+    plt.tight_layout()
+    plt.savefig(output_path / "reward_by_agent.png", dpi=150, bbox_inches="tight")
+    plt.close()
+
+
+def _plot_by_num_cogs(aggregated, num_cogs_list, agents, output_path):
+    """Plot average reward by number of agents."""
+    fig, ax = plt.subplots(figsize=(12, 7))
+
+    width = 0.35
+    x = np.arange(len(num_cogs_list))
+
+    for i, agent in enumerate(agents):
+        rewards = []
+        for num_cogs in num_cogs_list:
+            vals = [v["avg_reward"] for k, v in aggregated.items() if v["agent"] == agent and v["num_cogs"] == num_cogs]
+            rewards.append(np.mean(vals) if vals else 0)
+
+        offset = width * (i - len(agents) / 2 + 0.5)
+        bars = ax.bar(x + offset, rewards, width, label=agent, alpha=0.8, edgecolor="black")
+
+        # Add value labels
+        for bar in bars:
+            height = bar.get_height()
+            if height > 0:
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2.0, height, f"{height:.1f}", ha="center", va="bottom", fontsize=9
+                )
+
+    ax.set_ylabel("Average Reward", fontsize=12, fontweight="bold")
+    ax.set_xlabel("Number of Agents", fontsize=12, fontweight="bold")
+    ax.set_title("Average Reward by Number of Agents", fontsize=14, fontweight="bold")
+    ax.set_xticks(x)
+    ax.set_xticklabels(num_cogs_list)
+    ax.legend(fontsize=11)
+    ax.grid(axis="y", alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(output_path / "reward_by_num_cogs.png", dpi=150, bbox_inches="tight")
+    plt.close()
+
+
+def _plot_by_environment(aggregated, experiments, agents, output_path):
+    """Plot average reward by eval environment."""
+    fig, ax = plt.subplots(figsize=(16, 8))
+
+    width = 0.35
+    x = np.arange(len(experiments))
+
+    for i, agent in enumerate(agents):
+        rewards = []
+        for exp in experiments:
+            vals = [v["avg_reward"] for k, v in aggregated.items() if v["agent"] == agent and v["experiment"] == exp]
+            rewards.append(np.mean(vals) if vals else 0)
+
+        offset = width * (i - len(agents) / 2 + 0.5)
+        ax.bar(x + offset, rewards, width, label=agent, alpha=0.8, edgecolor="black")
+
+    ax.set_ylabel("Average Reward", fontsize=12, fontweight="bold")
+    ax.set_xlabel("Eval Environment", fontsize=12, fontweight="bold")
+    ax.set_title("Average Reward by Eval Environment", fontsize=14, fontweight="bold")
+    ax.set_xticks(x)
+    ax.set_xticklabels(experiments, rotation=45, ha="right")
+    ax.legend(fontsize=11)
+    ax.grid(axis="y", alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(output_path / "reward_by_environment.png", dpi=150, bbox_inches="tight")
+    plt.close()
+
+
+def _plot_by_difficulty(aggregated, difficulties, agents, output_path):
+    """Plot average reward by difficulty variant."""
+    fig, ax = plt.subplots(figsize=(16, 8))
+
+    width = 0.35
+    x = np.arange(len(difficulties))
+
+    for i, agent in enumerate(agents):
+        rewards = []
+        for diff in difficulties:
+            vals = [v["avg_reward"] for k, v in aggregated.items() if v["agent"] == agent and v["difficulty"] == diff]
+            rewards.append(np.mean(vals) if vals else 0)
+
+        offset = width * (i - len(agents) / 2 + 0.5)
+        ax.bar(x + offset, rewards, width, label=agent, alpha=0.8, edgecolor="black")
+
+    ax.set_ylabel("Average Reward", fontsize=12, fontweight="bold")
+    ax.set_xlabel("Difficulty Variant", fontsize=12, fontweight="bold")
+    ax.set_title("Average Reward by Difficulty Variant", fontsize=14, fontweight="bold")
+    ax.set_xticks(x)
+    ax.set_xticklabels(difficulties, rotation=45, ha="right")
+    ax.legend(fontsize=11)
+    ax.grid(axis="y", alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(output_path / "reward_by_difficulty.png", dpi=150, bbox_inches="tight")
+    plt.close()
+
+
+def _plot_heatmap_env_agent(aggregated, experiments, agents, output_path):
+    """Create heatmap of Environment x Agent."""
+    fig, ax = plt.subplots(figsize=(10, len(experiments) * 0.5 + 2))
+
+    matrix = np.zeros((len(experiments), len(agents)))
+    for i, exp in enumerate(experiments):
+        for j, agent in enumerate(agents):
+            vals = [v["avg_reward"] for k, v in aggregated.items() if v["agent"] == agent and v["experiment"] == exp]
+            matrix[i, j] = np.mean(vals) if vals else 0
+
+    im = ax.imshow(matrix, cmap="YlOrRd", aspect="auto")
+
+    # Set ticks
+    ax.set_xticks(np.arange(len(agents)))
+    ax.set_yticks(np.arange(len(experiments)))
+    ax.set_xticklabels(agents)
+    ax.set_yticklabels(experiments)
+
+    # Rotate the x labels
+    plt.setp(ax.get_xticklabels(), rotation=0, ha="center")
+
+    # Add colorbar
+    cbar = plt.colorbar(im, ax=ax)
+    cbar.set_label("Average Reward", rotation=270, labelpad=20, fontweight="bold")
+
+    # Add text annotations
+    for i in range(len(experiments)):
+        for j in range(len(agents)):
+            ax.text(j, i, f"{matrix[i, j]:.1f}", ha="center", va="center", color="black", fontsize=9, fontweight="bold")
+
+    ax.set_title("Average Reward: Environment × Agent", fontsize=14, fontweight="bold", pad=20)
+    ax.set_xlabel("Agent", fontsize=12, fontweight="bold")
+    ax.set_ylabel("Environment", fontsize=12, fontweight="bold")
+
+    plt.tight_layout()
+    plt.savefig(output_path / "heatmap_env_agent.png", dpi=150, bbox_inches="tight")
+    plt.close()
+
+
+def _plot_heatmap_diff_agent(aggregated, difficulties, agents, output_path):
+    """Create heatmap of Difficulty x Agent."""
+    fig, ax = plt.subplots(figsize=(10, len(difficulties) * 0.4 + 2))
+
+    matrix = np.zeros((len(difficulties), len(agents)))
+    for i, diff in enumerate(difficulties):
+        for j, agent in enumerate(agents):
+            vals = [v["avg_reward"] for k, v in aggregated.items() if v["agent"] == agent and v["difficulty"] == diff]
+            matrix[i, j] = np.mean(vals) if vals else 0
+
+    im = ax.imshow(matrix, cmap="YlGnBu", aspect="auto")
+
+    # Set ticks
+    ax.set_xticks(np.arange(len(agents)))
+    ax.set_yticks(np.arange(len(difficulties)))
+    ax.set_xticklabels(agents)
+    ax.set_yticklabels(difficulties)
+
+    # Rotate the x labels
+    plt.setp(ax.get_xticklabels(), rotation=0, ha="center")
+
+    # Add colorbar
+    cbar = plt.colorbar(im, ax=ax)
+    cbar.set_label("Average Reward", rotation=270, labelpad=20, fontweight="bold")
+
+    # Add text annotations
+    for i in range(len(difficulties)):
+        for j in range(len(agents)):
+            ax.text(j, i, f"{matrix[i, j]:.1f}", ha="center", va="center", color="black", fontsize=9, fontweight="bold")
+
+    ax.set_title("Average Reward: Difficulty × Agent", fontsize=14, fontweight="bold", pad=20)
+    ax.set_xlabel("Agent", fontsize=12, fontweight="bold")
+    ax.set_ylabel("Difficulty", fontsize=12, fontweight="bold")
+
+    plt.tight_layout()
+    plt.savefig(output_path / "heatmap_diff_agent.png", dpi=150, bbox_inches="tight")
+    plt.close()
+
+
+def _plot_by_preset(aggregated, presets, agents, experiments, difficulties, output_path):
+    """Plot reward by hyperparameter preset across different dimensions."""
+
+    # Preset x Agent
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+
+    # Plot 1: Overall by preset and agent
+    ax = axes[0]
+    width = 0.35
+    x = np.arange(len(presets))
+
+    for i, agent in enumerate(agents):
+        rewards = []
+        for preset in presets:
+            vals = [v["avg_reward"] for k, v in aggregated.items() if v["agent"] == agent and v["preset"] == preset]
+            rewards.append(np.mean(vals) if vals else 0)
+
+        offset = width * (i - len(agents) / 2 + 0.5)
+        ax.bar(x + offset, rewards, width, label=agent, alpha=0.8, edgecolor="black")
+
+    ax.set_ylabel("Average Reward", fontsize=11, fontweight="bold")
+    ax.set_xlabel("Hyperparameter Preset", fontsize=11, fontweight="bold")
+    ax.set_title("Reward by Preset (Overall)", fontsize=12, fontweight="bold")
+    ax.set_xticks(x)
+    ax.set_xticklabels(presets, rotation=45, ha="right")
+    ax.legend(fontsize=10)
+    ax.grid(axis="y", alpha=0.3)
+
+    # Plot 2: Preset performance on top 3 environments
+    ax = axes[1]
+    top_envs = sorted(
+        experiments,
+        key=lambda e: np.mean([v["avg_reward"] for k, v in aggregated.items() if v["experiment"] == e]),
+        reverse=True,
+    )[:3]  # type: ignore
+
+    x = np.arange(len(presets))
+    width = 0.25
+
+    for i, env in enumerate(top_envs):
+        rewards = []
+        for preset in presets:
+            vals = [v["avg_reward"] for k, v in aggregated.items() if v["preset"] == preset and v["experiment"] == env]
+            rewards.append(np.mean(vals) if vals else 0)
+
+        offset = width * (i - 1)
+        ax.bar(x + offset, rewards, width, label=env, alpha=0.8, edgecolor="black")
+
+    ax.set_ylabel("Average Reward", fontsize=11, fontweight="bold")
+    ax.set_xlabel("Hyperparameter Preset", fontsize=11, fontweight="bold")
+    ax.set_title("Reward by Preset (Top 3 Envs)", fontsize=12, fontweight="bold")
+    ax.set_xticks(x)
+    ax.set_xticklabels(presets, rotation=45, ha="right")
+    ax.legend(fontsize=9)
+    ax.grid(axis="y", alpha=0.3)
+
+    # Plot 3: Preset performance on top 3 difficulties
+    ax = axes[2]
+    top_diffs = sorted(
+        difficulties,
+        key=lambda d: np.mean([v["avg_reward"] for k, v in aggregated.items() if v["difficulty"] == d]),  # type: ignore
+        reverse=True,
+    )[:3]
+
+    x = np.arange(len(presets))
+    width = 0.25
+
+    for i, diff in enumerate(top_diffs):
+        rewards = []
+        for preset in presets:
+            vals = [v["avg_reward"] for k, v in aggregated.items() if v["preset"] == preset and v["difficulty"] == diff]
+            rewards.append(np.mean(vals) if vals else 0)
+
+        offset = width * (i - 1)
+        ax.bar(x + offset, rewards, width, label=diff, alpha=0.8, edgecolor="black")
+
+    ax.set_ylabel("Average Reward", fontsize=11, fontweight="bold")
+    ax.set_xlabel("Hyperparameter Preset", fontsize=11, fontweight="bold")
+    ax.set_title("Reward by Preset (Top 3 Difficulties)", fontsize=12, fontweight="bold")
+    ax.set_xticks(x)
+    ax.set_xticklabels(presets, rotation=45, ha="right")
+    ax.legend(fontsize=9)
+    ax.grid(axis="y", alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(output_path / "reward_by_preset.png", dpi=150, bbox_inches="tight")
+    plt.close()
+
+
 def main():
     parser = argparse.ArgumentParser(description="Evaluate baseline scripted agents")
     parser.add_argument(
@@ -320,6 +685,17 @@ def main():
         "--all-presets",
         action="store_true",
         help="Run evaluation across all hyperparameter presets",
+    )
+    parser.add_argument(
+        "--plot-dir",
+        type=str,
+        default="eval_plots",
+        help="Directory to save plots (default: eval_plots)",
+    )
+    parser.add_argument(
+        "--no-plots",
+        action="store_true",
+        help="Skip generating plots",
     )
 
     args = parser.parse_args()
@@ -371,6 +747,10 @@ def main():
         with open(args.output, "w") as f:
             json.dump([asdict(r) for r in all_results], f, indent=2)
         logger.info(f"\nResults saved to: {args.output}")
+
+    # Generate plots
+    if not args.no_plots and all_results:
+        create_plots(all_results, output_dir=args.plot_dir)
 
 
 if __name__ == "__main__":

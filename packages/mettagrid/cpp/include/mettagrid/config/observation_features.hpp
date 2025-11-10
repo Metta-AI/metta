@@ -16,7 +16,6 @@ public:
   explicit ObservationFeaturesImpl(const std::unordered_map<std::string, ObservationType>& feature_ids)
       : _name_to_id(feature_ids) {
     // Cache commonly used feature IDs (all are always present now)
-    _type_id = get("type_id");
     _group = get("agent:group");
     _frozen = get("agent:frozen");
     _orientation = get("agent:orientation");
@@ -36,7 +35,6 @@ public:
     _remaining_uses = get("remaining_uses");
 
     // Initialize public members (must be done AFTER private members are set above)
-    TypeId = _type_id;
     Group = _group;
     Frozen = _frozen;
     Orientation = _orientation;
@@ -71,7 +69,6 @@ public:
   }
 
   // Commonly used feature IDs (cached for performance)
-  ObservationType TypeId;
   ObservationType Group;
   ObservationType Frozen;
   ObservationType Orientation;
@@ -94,7 +91,6 @@ private:
   std::unordered_map<std::string, ObservationType> _name_to_id;
 
   // Cached feature IDs
-  ObservationType _type_id;
   ObservationType _group;
   ObservationType _frozen;
   ObservationType _orientation;
@@ -122,9 +118,8 @@ extern std::shared_ptr<ObservationFeaturesImpl> _instance;
 // Initialize the singleton (called by MettaGrid)
 void Initialize(const std::unordered_map<std::string, ObservationType>& feature_ids);
 
-// Access feature IDs with the same syntax as before: ObservationFeature::TypeId
+// Access feature IDs with the same syntax as before: ObservationFeature::X
 // These are extern variables defined in observation_features.cpp
-extern ObservationType TypeId;
 extern ObservationType Group;
 extern ObservationType Frozen;
 extern ObservationType Orientation;

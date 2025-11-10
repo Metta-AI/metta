@@ -33,8 +33,7 @@ public:
 
   std::vector<PartialObservationToken> obs_features() const override {
     std::vector<PartialObservationToken> features;
-    features.reserve(2 + tag_ids.size() + (this->vibe != 0 ? 1 : 0));
-    features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
+    features.reserve(1 + tag_ids.size() + (this->vibe != 0 ? 1 : 0));
 
     if (_swappable) {
       // Only emit the swappable observation feature when True to reduce the number of tokens.

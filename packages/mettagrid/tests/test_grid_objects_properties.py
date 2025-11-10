@@ -38,6 +38,7 @@ def sim_with_assembler():
             objects={
                 "wall": WallConfig(),
                 "assembler": AssemblerConfig(
+                    name="assembler",
                     protocols=[
                         ProtocolConfig(input_resources={"iron": 10}, output_resources={"steel": 5}, cooldown=20)
                     ],

@@ -3,19 +3,20 @@ import types
 from typing import List
 
 import torch
+from cortex.stacks import build_cortex_auto_config
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule as TDM
 from torch import nn
 
 from metta.agent.components.actor import ActionProbsConfig, ActorHeadConfig
 from metta.agent.components.component_config import ComponentConfig
+from metta.agent.components.cortex import CortexTDConfig
 from metta.agent.components.misc import MLPConfig
 from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
 from metta.agent.components.obs_shim import ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import (
     ObsAttrEmbedFourierConfig,
 )
-from metta.agent.policies.sliding_transformer import SlidingTransformerConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.module import load_symbol
@@ -63,12 +64,18 @@ class FastDynamicsConfig(PolicyArchitecture):
             num_heads=4,
             num_layers=2,
         ),
-        SlidingTransformerConfig(
+        CortexTDConfig(
             in_key="encoded_obs",
             out_key="core",
-            hidden_size=_core_out_dim,
-            latent_size=_latent_dim,
-            num_layers=_memory_num_layers,
+            d_hidden=_latent_dim,
+            out_features=_core_out_dim,
+            key_prefix="fastdyn_cortex_state",
+            stack_cfg=build_cortex_auto_config(
+                d_hidden=_latent_dim,
+                num_layers=_memory_num_layers,
+                pattern="X",
+                post_norm=True,
+            ),
         ),
         MLPConfig(
             in_key="core",
