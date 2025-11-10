@@ -1,4 +1,3 @@
-import importlib
 import json
 import os
 import sys
@@ -14,7 +13,7 @@ from mettagrid.simulator.simulator import Buffers
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(current_dir, "bindings/generated"))
 
-ha = importlib.import_module("heuristic_agents")
+import heuristic_agents as ha  # noqa: E402
 
 # ha.initCHook()
 
