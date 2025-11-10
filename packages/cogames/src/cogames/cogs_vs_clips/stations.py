@@ -168,8 +168,10 @@ class CvCChestConfig(CvCStationConfig):
     initial_inventory: dict[str, int] = Field(default={}, description="Initial inventory for each resource type")
 
     def station_cfg(self) -> ChestConfig:
+        # Use map_name/name "chest" so maps and procedural builders that place
+        # "chest" resolve to this config. The specific CvC type remains a label.
         return ChestConfig(
-            name=self.type,
+            name="chest",
             map_char="C",
             render_symbol=vibes.VIBE_BY_NAME["chest"].symbol,
             vibe_transfers={
