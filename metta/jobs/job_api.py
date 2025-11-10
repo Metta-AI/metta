@@ -107,6 +107,9 @@ def monitor_jobs_until_complete(
             )
         print(buffer.getvalue())
 
+        # Reset all terminal formatting
+        print("\033[0m", end="", flush=True)
+
     except KeyboardInterrupt:
         print("\n\n⚠️  Interrupted by user (Ctrl+C)")
         print("   • Killing local jobs...")
@@ -115,6 +118,9 @@ def monitor_jobs_until_complete(
             cancelled = job_manager.cancel_group(group, local_only=True)
             print(f"   • Killed {cancelled} local job(s)")
             print("\n💡 On restart: stale local jobs will be retried, running remote jobs will be reattached")
+
+        # Reset all terminal formatting before exit
+        print("\033[0m", end="", flush=True)
         sys.exit(130)
 
 
