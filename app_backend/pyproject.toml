@@ -39,10 +39,10 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+namespaces = true
 include = ["metta.app_backend"]
 
 [tool.setuptools.package-data]
-"metta" = ["__init__.py"]
 "metta.app_backend" = ["py.typed"]
 
 [tool.pytest.ini_options]

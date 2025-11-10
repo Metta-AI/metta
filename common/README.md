@@ -18,9 +18,9 @@ uv run pytest
 # Run tests with coverage
 uv run pytest --cov=metta.common --cov-report=term-missing
 
-# Run linting
-uv run ruff check --fix .
+# Run linting/formatting from the repo root
+metta lint packages/common
 
-# Run formatting
-uv run ruff format .
+# Apply auto-fixes
+metta lint --fix packages/common
 ```

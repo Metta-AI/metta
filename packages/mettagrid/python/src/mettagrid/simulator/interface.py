@@ -14,6 +14,8 @@ class ObservationToken:
     location: tuple[int, int]
     value: int
 
+    raw_token: tuple[int, int, int]
+
     def row(self) -> int:
         return self.location[1]
 
