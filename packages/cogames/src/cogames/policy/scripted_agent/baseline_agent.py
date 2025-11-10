@@ -294,27 +294,21 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             "west": (0, -1),
         }
 
-        # Feature ID lookup for parsing observations
-        self._fid: dict[str, int] = {f.name: f.id for f in policy_env_info.obs_features}
-
         # Fast lookup tables for observation feature decoding
-        self._spatial_feature_key_by_id: dict[int, str] = {}
-        for feature_name in ("type_id", "converting", "cooldown_remaining", "clipped", "remaining_uses"):
-            fid = self._fid.get(feature_name)
-            if fid is not None:
-                self._spatial_feature_key_by_id[fid] = feature_name
-
+        self._spatial_feature_key_by_name: dict[str, str] = {
+            "tag": "tag",
+            "converting": "converting",
+            "cooldown_remaining": "cooldown_remaining",
+            "clipped": "clipped",
+            "remaining_uses": "remaining_uses",
+        }
         agent_feature_pairs = {
             "agent:group": "agent_group",
             "agent:frozen": "agent_frozen",
             "agent:orientation": "agent_orientation",
             "agent:visitation_counts": "agent_visitation_counts",
         }
-        self._agent_feature_key_by_id: dict[int, str] = {}
-        for feature_name, key in agent_feature_pairs.items():
-            fid = self._fid.get(feature_name)
-            if fid is not None:
-                self._agent_feature_key_by_id[fid] = key
+        self._agent_feature_key_by_name: dict[str, str] = agent_feature_pairs
 
         # Resource requirements for one heart
         self._heart_recipe = {"carbon": 20, "oxygen": 20, "germanium": 5, "silicon": 50}
@@ -322,6 +316,10 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
     def initial_agent_state(self, simulation: Optional["Simulation"]) -> SimpleAgentState:
         """Get initial state for an agent."""
         assert simulation is not None
+
+        # Cache tag name mapping for efficient tag -> object name lookup
+        self._tag_names = simulation.id_map.tag_names()
+
         return SimpleAgentState(
             agent_id=self._agent_id,
             shared_state=self._shared_state,
@@ -351,8 +349,8 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
         # Parse tokens - only spatial features
         for tok in obs.tokens:
-            obs_r, obs_c = tok.location
-            feature_id = tok.feature.id
+            obs_r, obs_c = tok.location  # (row, col) in world coordinates
+            feature_name = tok.feature.name  # Feature names remain stable across builds
             value = tok.value
 
             # Skip center location - that's inventory/global obs, obtained via agent.inventory
@@ -369,25 +367,30 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
                         position_features[pos] = {}
 
                     # Collect all features for this position
-                    feature_key = self._spatial_feature_key_by_id.get(feature_id)
+                    feature_key = self._spatial_feature_key_by_name.get(feature_name)
                     if feature_key is not None:
-                        # For type_id, only take the FIRST non-zero value (don't overwrite)
-                        if feature_key == "type_id":
-                            if "type_id" not in position_features[pos] and value != 0:
+                        # For tag, only take the FIRST value (don't overwrite)
+                        # Note: tag=0 is valid (e.g., "assembler" is alphabetically first)
+                        if feature_key == "tag":
+                            if "tag" not in position_features[pos]:
                                 position_features[pos][feature_key] = value
                         else:
                             position_features[pos][feature_key] = value
                         continue
 
-                    agent_feature_key = self._agent_feature_key_by_id.get(feature_id)
+                    agent_feature_key = self._agent_feature_key_by_name.get(feature_name)
                     if agent_feature_key is not None:
                         position_features[pos][agent_feature_key] = value
 
         # Second pass: create ObjectState for each position
         for pos, features in position_features.items():
-            type_id = features.get("type_id", 0)
+            # Only create ObjectState if the position has a tag (i.e., an actual object)
+            if "tag" not in features:
+                continue
 
-            obj_name = state.simulation.object_type_names[type_id]
+            tag_id = features["tag"]
+            # Use tag mapping (not type_id mapping) to get object name
+            obj_name = self._tag_names.get(tag_id, f"unknown_tag_{tag_id}")
             nearby_objects[pos] = ObjectState(
                 name=obj_name,
                 converting=features.get("converting", 0),
@@ -673,7 +676,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             elif "extractor" in obj_name:
                 # Extractors are obstacles (can't walk through them)
                 s.occupancy[r][c] = CellType.OBSTACLE.value
-                resource_type = obj_name.replace("_extractor", "")
+                resource_type = obj_name.replace("_extractor", "").replace("clipped_", "")
                 if resource_type:
                     self._discover_extractor(s, pos, resource_type, obj_state)
 
