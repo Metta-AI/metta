@@ -9,13 +9,12 @@ from torch import Tensor
 
 from metta.agent.policy import Policy
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.loss import Loss
+from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import ComponentContext
-from mettagrid.base_config import Config
 
 
-class TLKickstarterConfig(Config):
+class TLKickstarterConfig(LossConfig):
     teacher_uri: str = Field(default="")
     action_loss_coef: float = Field(default=0.995, ge=0, le=1.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
@@ -29,7 +28,7 @@ class TLKickstarterConfig(Config):
         device: torch.device,
         instance_name: str,
         loss_config: Any,
-    ):
+    ) -> "TLKickstarter":
         """Create TLKickstarter loss instance."""
         return TLKickstarter(policy, trainer_cfg, vec_env, device, instance_name=instance_name, loss_config=loss_config)
 
@@ -57,14 +56,14 @@ class TLKickstarter(Loss):
         if loss_config is None:
             loss_config = getattr(trainer_cfg.losses, instance_name, None)
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
-        self.action_loss_coef = self.loss_cfg.action_loss_coef
-        self.value_loss_coef = self.loss_cfg.value_loss_coef
-        self.temperature = self.loss_cfg.temperature
+        self.action_loss_coef = self.cfg.action_loss_coef
+        self.value_loss_coef = self.cfg.value_loss_coef
+        self.temperature = self.cfg.temperature
         game_rules = getattr(self.env, "game_rules", getattr(self.env, "meta_data", None))
         if game_rules is None:
             raise RuntimeError("Environment metadata is required to instantiate teacher policy")
 
-        self.teacher_policy = CheckpointManager.load_from_uri(self.loss_cfg.teacher_uri, game_rules, self.device)
+        self.teacher_policy = CheckpointManager.load_from_uri(self.cfg.teacher_uri, game_rules, self.device)
 
         # Detach gradient
         for param in self.teacher_policy.parameters():
@@ -84,7 +83,6 @@ class TLKickstarter(Loss):
         self.replay.store(data_td=td, env_id=env_slice)
 
         return
-
 
     def run_train(
         self,

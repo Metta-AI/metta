@@ -12,15 +12,21 @@ import psutil
 from rich.console import Console
 
 from cogames.cli.policy import POLICY_ARG_DELIMITER
-from cogames.policy.interfaces import TrainablePolicy
 from cogames.policy.signal_handler import DeferSigintContextManager
-from cogames.policy.utils import (
+from mettagrid import MettaGridConfig, PufferMettaGridEnv
+from mettagrid.config.mettagrid_config import EnvSupervisorConfig
+from mettagrid.envs.early_reset_handler import EarlyResetHandler
+from mettagrid.envs.stats_tracker import StatsTracker
+from mettagrid.policy.policy import TrainablePolicy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.policy.utils import (
     find_policy_checkpoints,
     get_policy_class_shorthand,
     initialize_or_load_policy,
     resolve_policy_data_path,
 )
-from mettagrid import MettaGridConfig, MettaGridEnv
+from mettagrid.simulator import Simulator
+from mettagrid.util.stats_writer import NoopStatsWriter
 from pufferlib import pufferl
 from pufferlib import vector as pvector
 from pufferlib.pufferlib import set_buffers
@@ -84,6 +90,7 @@ def train(
     batch_size: int,
     minibatch_size: int,
     missions_arg: Optional[list[str]] = None,
+    variants_arg: Optional[list[str]] = None,
     vector_num_envs: Optional[int] = None,
     vector_batch_size: Optional[int] = None,
     vector_num_workers: Optional[int] = None,
@@ -191,7 +198,11 @@ def train(
         seed: Optional[int] = None,
     ):
         target_cfg = cfg.model_copy(deep=True) if cfg is not None else _clone_cfg()
-        env = MettaGridEnv(env_cfg=target_cfg)
+        simulator = Simulator()
+        simulator.add_event_handler(StatsTracker(NoopStatsWriter()))
+        simulator.add_event_handler(EarlyResetHandler())
+        env_supervisor_cfg = EnvSupervisorConfig(enabled=False)
+        env = PufferMettaGridEnv(simulator, target_cfg, env_supervisor_cfg, buf, seed if seed is not None else 0)
         set_buffers(env, buf)
         return env
 
@@ -213,10 +224,10 @@ def train(
             resolved_initial_weights = None
 
     policy = initialize_or_load_policy(
-        policy_class_path,
-        resolved_initial_weights,
-        vecenv.driver_env,
-        device,
+        PolicyEnvInterface.from_mg_cfg(vecenv.driver_env.env_cfg),
+        policy_class_path=policy_class_path,
+        policy_data_path=resolved_initial_weights,
+        device=device,
     )
     assert isinstance(policy, TrainablePolicy), (
         f"Policy class {policy_class_path} must implement TrainablePolicy interface"
@@ -397,16 +408,19 @@ def train(
 
             first_mission = missions_arg[0] if missions_arg else "training_facility_1"
             all_missions = " ".join(f"-m {m}" for m in (missions_arg or ["training_facility_1"]))
+            variant_args = " ".join(f"--variant {variant}" for variant in (variants_arg or []))
+            mission_and_variant_args = " ".join(filter(None, [all_missions, variant_args]))
+            first_mission_with_variants = " ".join(filter(None, [f"-m {first_mission}", variant_args]))
 
             console.print()
             console.print("To continue training this policy:", style="bold")
-            console.print(f"  [yellow]cogames train {all_missions} -p {policy_arg}[/yellow]")
+            console.print(f"  [yellow]cogames train {mission_and_variant_args} -p {policy_arg}[/yellow]")
             console.print()
             console.print("To play with this policy:", style="bold")
-            console.print(f"  [yellow]cogames play -m {first_mission} -p {policy_arg}[/yellow]")
+            console.print(f"  [yellow]cogames play {first_mission_with_variants} -p {policy_arg}[/yellow]")
             console.print()
             console.print("To evaluate this policy:", style="bold")
-            console.print(f"  [yellow]cogames eval -m {first_mission} -p {policy_arg}[/yellow]")
+            console.print(f"  [yellow]cogames eval {first_mission_with_variants} -p {policy_arg}[/yellow]")
         elif checkpoints and training_diverged:
             console.print()
             console.print(f"[yellow]Found {len(checkpoints)} checkpoint(s). The most recent may be corrupted.[/yellow]")

@@ -13,17 +13,29 @@ find "/UI/Main/**/VibePanel":
       let row = thisNode.parent.childIndex
       let column = thisNode.childIndex
       let vibeId = row * 10 + column
-      if selection.isNil:
-        # TODO: Maybe gray out the vibe buttons?
-        echo "no selection, can't send vibe action"
+      if selection.isNil or not selection.isAgent:
+        echo "no agent selected, can't send vibe action"
         return
-      let vibeActionId = replay.actionNames.find("change_vibe_" & $vibeId)
+
+      # Check if vibeId is valid (within bounds of vibeNames)
+      if vibeId < 0 or vibeId >= replay.config.game.vibeNames.len:
+        echo "invalid vibe id: ", vibeId, " (max: ",
+            replay.config.game.vibeNames.len - 1, ")"
+        return
+
+      # Get the vibe name and find the corresponding action
+      let vibeName = replay.config.game.vibeNames[vibeId]
+      let vibeActionId = replay.actionNames.find("change_vibe_" & vibeName)
+      if vibeActionId == -1:
+        echo "vibe action not found: change_vibe_", vibeName
+        return
       let shiftDown = window.buttonDown[KeyLeftShift] or window.buttonDown[KeyRightShift]
 
       if shiftDown:
         # Queue the vibe action as an objective.
         let objective = Objective(kind: Vibe, vibeActionId: vibeActionId, repeat: false)
-        if not agentObjectives.hasKey(selection.agentId) or agentObjectives[selection.agentId].len == 0:
+        if not agentObjectives.hasKey(selection.agentId) or agentObjectives[
+            selection.agentId].len == 0:
           agentObjectives[selection.agentId] = @[objective]
           # Append vibe action directly to path queue.
           agentPaths[selection.agentId] = @[
@@ -42,8 +54,7 @@ find "/UI/Main/**/VibePanel":
             ]
       else:
         # Execute immediately.
-        sendAction(selection.agentId, vibeActionId)
-        clearPath(selection.agentId)
+        sendAction(selection.agentId, replay.actionNames[vibeActionId])
 
 proc updateVibePanel*() =
   ## Updates the vibe panel to display the current vibe frequency for the agent.

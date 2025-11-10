@@ -2,13 +2,6 @@ from typing import Literal, Sequence
 
 from mettagrid.mapgen.scene import Scene, SceneConfig
 
-DEFAULT_CORNER_CHESTS: tuple[str, str, str, str] = (
-    "chest_carbon",
-    "chest_oxygen",
-    "chest_germanium",
-    "chest_silicon",
-)
-
 DEFAULT_EXTRACTORS: tuple[str, str, str, str] = (
     "carbon_extractor",
     "oxygen_extractor",
@@ -27,10 +20,14 @@ class BaseHubConfig(SceneConfig):
     hub_height: int = 21
     include_inner_wall: bool = True
     # Order: top-left, top-right, bottom-left, bottom-right.
+    # Notes:
+    # - If corner_objects is provided (len==4), BaseHub will use that set directly.
+    # - corner_bundle/cross_bundle can be "none" | "extractors" | "custom".
+    # - When both objects and bundle are provided, objects win (per BaseHub logic).
     corner_objects: list[str] | None = None
-    corner_bundle: Literal["chests", "extractors", "none", "custom"] = "chests"
+    corner_bundle: Literal["extractors", "none", "custom"] = "extractors"
     cross_objects: list[str] | None = None
-    cross_bundle: Literal["none", "chests", "extractors", "custom"] = "none"
+    cross_bundle: Literal["none", "extractors", "custom"] = "none"
     cross_distance: int = 4
     layout: Literal["default", "tight"] = "default"
     charger_object: str = "charger"
@@ -113,25 +110,28 @@ class BaseHub(Scene[BaseHubConfig]):
 
     def _resolve_corner_names(self) -> list[str]:
         cfg = self.config
+        names: list[str] = []
         if cfg.corner_objects and len(cfg.corner_objects) == 4:
-            return list(cfg.corner_objects)
-        if cfg.corner_generator:
-            return [cfg.corner_generator] * 4
-        if cfg.corner_bundle == "extractors":
-            return list(DEFAULT_EXTRACTORS)
-        if cfg.corner_bundle == "none":
-            return []
-        return list(DEFAULT_CORNER_CHESTS)
+            names = list(cfg.corner_objects)
+        elif cfg.corner_generator:
+            names = [cfg.corner_generator] * 4
+        elif cfg.corner_bundle == "extractors":
+            names = list(DEFAULT_EXTRACTORS)
+        else:
+            names = []
+        return [n for n in names]
 
     def _resolve_cross_names(self) -> list[str]:
         cfg = self.config
+        names: list[str] = []
         if cfg.cross_objects and len(cfg.cross_objects) == 4:
-            return list(cfg.cross_objects)
-        if cfg.cross_bundle == "chests":
-            return list(DEFAULT_CORNER_CHESTS)
-        if cfg.cross_bundle == "extractors":
-            return list(DEFAULT_EXTRACTORS)
-        return []
+            names = list(cfg.cross_objects)
+        elif cfg.cross_bundle == "extractors":
+            names = list(DEFAULT_EXTRACTORS)
+        else:
+            names = []
+
+        return [n for n in names]
 
     def _cross_positions(self, cx: int, cy: int, distance: int) -> list[tuple[int, int]]:
         dist = max(1, distance)

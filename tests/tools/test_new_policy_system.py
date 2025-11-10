@@ -43,8 +43,6 @@ class TestNewPolicySystem:
         env_config = eb.make_navigation(num_agents=2)
         sim = Simulation.create(
             sim_config=SimulationConfig(suite="sim_suite", name="test", env=env_config),
-            device="cpu",
-            vectorization="serial",
             policy_uri=None,
         )
 

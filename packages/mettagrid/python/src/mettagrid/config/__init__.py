@@ -1,4 +1,4 @@
-from .mettagrid_c_config import from_mettagrid_config
+from .mettagrid_c_config import convert_to_cpp_game_config
 from .mettagrid_config import (
     ActionConfig,
     ActionsConfig,
@@ -7,9 +7,9 @@ from .mettagrid_config import (
     AssemblerConfig,
     AttackActionConfig,
     ChangeVibeActionConfig,
+    ClipperConfig,
     GameConfig,
     GlobalObsConfig,
-    GridObjectConfig,
     MettaGridConfig,
     ProtocolConfig,
     WallConfig,
@@ -23,11 +23,11 @@ __all__ = [
     "AssemblerConfig",
     "AttackActionConfig",
     "ChangeVibeActionConfig",
-    "from_mettagrid_config",
+    "convert_to_cpp_game_config",
     "GameConfig",
     "GlobalObsConfig",
-    "GridObjectConfig",
     "MettaGridConfig",
+    "ClipperConfig",
     "ProtocolConfig",
     "WallConfig",
 ]

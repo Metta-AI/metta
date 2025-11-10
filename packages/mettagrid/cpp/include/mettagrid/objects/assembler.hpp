@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "config/observation_features.hpp"
 #include "core/grid.hpp"
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
@@ -16,6 +17,7 @@
 #include "objects/constants.hpp"
 #include "objects/protocol.hpp"
 #include "objects/usable.hpp"
+#include "systems/observation_encoder.hpp"
 
 class Clipper;
 
@@ -73,7 +75,7 @@ private:
       GridCoord check_r = pos.first;
       GridCoord check_c = pos.second;
       if (check_r < grid->height && check_c < grid->width) {
-        GridObject* obj = grid->object_at(GridLocation(check_r, check_c, GridLayer::AgentLayer));
+        GridObject* obj = grid->object_at(GridLocation(check_r, check_c));
         if (obj) {
           Agent* agent = dynamic_cast<Agent*>(obj);
           if (agent) {
@@ -137,7 +139,7 @@ public:
     }
   }
 
-  // Recipe lookup table for recipes that depend on agents vibing- keyed by local vibe (64-bit number from sorted
+  // Protocol lookup table for protocols that depend on agents vibing- keyed by local vibe (64-bit number from sorted
   // vibes). Later, this may be switched to having string keys based on the vibes.
   // Note that 0 is both the vibe you get when no one is showing a vibe, and also the default vibe.
   const std::unordered_map<GroupVibe, std::shared_ptr<Protocol>> protocols;
@@ -177,8 +179,7 @@ public:
 
   // Protocol observation configuration
   bool protocol_details_obs;
-  ObservationType input_protocol_offset;
-  ObservationType output_protocol_offset;
+  const class ObservationEncoder* obs_encoder;
 
   // Allow partial usage during cooldown
   bool allow_partial_usage;
@@ -198,12 +199,9 @@ public:
         grid(nullptr),
         current_timestep_ptr(nullptr),
         protocol_details_obs(cfg.protocol_details_obs),
-        input_protocol_offset(cfg.input_protocol_offset),
-        output_protocol_offset(cfg.output_protocol_offset),
         allow_partial_usage(cfg.allow_partial_usage),
         clipper_ptr(nullptr) {
-    GridObject::init(
-        cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids, cfg.initial_vibe);
+    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c), cfg.tag_ids, cfg.initial_vibe);
   }
   virtual ~Assembler() = default;
 
@@ -215,6 +213,11 @@ public:
   // Set current timestep pointer
   void set_current_timestep_ptr(unsigned int* timestep_ptr) {
     this->current_timestep_ptr = timestep_ptr;
+  }
+
+  // Set observation encoder for protocol feature ID lookup
+  void set_obs_encoder(const class ObservationEncoder* encoder) {
+    this->obs_encoder = encoder;
   }
 
   // Get the remaining cooldown duration in ticks (0 when ready for use)
@@ -273,7 +276,7 @@ public:
       GridCoord check_c = positions[i].second;
 
       if (check_r < grid->height && check_c < grid->width) {
-        GridObject* obj = grid->object_at(GridLocation(check_r, check_c, GridLayer::AgentLayer));
+        GridObject* obj = grid->object_at(GridLocation(check_r, check_c));
         if (obj) {
           Agent* agent = dynamic_cast<Agent*>(obj);
           if (agent && agent->vibe != 0) {
@@ -337,8 +340,9 @@ public:
       scaled_protocol.output_resources[resource] = scaled_amount;
     }
 
-    // Keep the same cooldown
+    // Keep the same cooldown and vibes
     scaled_protocol.cooldown = original_protocol.cooldown;
+    scaled_protocol.vibes = original_protocol.vibes;
 
     return scaled_protocol;
   }
@@ -403,7 +407,6 @@ public:
 
   virtual std::vector<PartialObservationToken> obs_features() const override {
     std::vector<PartialObservationToken> features;
-    features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
 
     unsigned int remaining = std::min(cooldown_remaining(), 255u);
     if (remaining > 0) {
@@ -423,22 +426,20 @@ public:
     }
 
     // Add protocol details if configured to do so
-    if (this->protocol_details_obs) {
+    if (this->protocol_details_obs && this->obs_encoder) {
       const Protocol* current_protocol = get_current_protocol();
       if (current_protocol) {
         // Add protocol inputs (input:resource) - only non-zero values
         for (const auto& [item, amount] : current_protocol->input_resources) {
           if (amount > 0) {
-            features.push_back(
-                {static_cast<ObservationType>(input_protocol_offset + item), static_cast<ObservationType>(amount)});
+            features.push_back({obs_encoder->get_input_feature_id(item), static_cast<ObservationType>(amount)});
           }
         }
 
         // Add protocol outputs (output:resource) - only non-zero values
         for (const auto& [item, amount] : current_protocol->output_resources) {
           if (amount > 0) {
-            features.push_back(
-                {static_cast<ObservationType>(output_protocol_offset + item), static_cast<ObservationType>(amount)});
+            features.push_back({obs_encoder->get_output_feature_id(item), static_cast<ObservationType>(amount)});
           }
         }
       }
@@ -449,7 +450,9 @@ public:
       features.push_back({ObservationFeature::Tag, static_cast<ObservationType>(tag_id)});
     }
 
-    if (this->vibe != 0) features.push_back({ObservationFeature::Vibe, static_cast<ObservationType>(this->vibe)});
+    if (this->vibe != 0) {
+      features.push_back({ObservationFeature::Vibe, static_cast<ObservationType>(this->vibe)});
+    }
 
     return features;
   }

@@ -95,8 +95,9 @@ gpu_names_cache.json
 sweep_id
 
 # Notebooks
-experiments/notebooks/.ipynb_checkpoints
-experiments/notebooks/utils/scorecard_widget/scorecard_widget/static/index.js
+notebooks/.ipynb_checkpoints
+notebooks/utils/eval_finder_widget/eval_finder_widget/static/index.js
+notebooks/utils/scorecard_widget/scorecard_widget/static/index.js
 experiments/recipes/scratchpad/*.py
 !experiments/recipes/scratchpad/README.md
 !experiments/recipes/scratchpad/template.py
@@ -117,8 +118,8 @@ mettagrid/MODULE.bazel.lock
 
 # Stable Release System
 devops/stable/state/
-devops/stable/logs/
 devops/stable/release-notes/
+
 mcp_servers/pr_similarity/cache/
 
 # skypilot testing
@@ -132,11 +133,9 @@ mettascope.out
 !packages/mettagrid/nim/mettascope/data/resources/
 packages/mettagrid/nim/mettascope/src/tmp
 packages/mettagrid/python/src/mettagrid/nim/mettascope/
-agent/src/metta/ops/agalite_kernels/_build/
+packages/mettagrid/nim/mettascope/nim.cfg
 
-# Nim runtime
-.nim_runtime
-
+# Uncategorized
 .terraform*
 terraform.tfstate
 .cache/torch_ext/

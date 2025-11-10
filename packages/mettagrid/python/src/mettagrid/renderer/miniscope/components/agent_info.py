@@ -1,14 +1,15 @@
 """Agent info panel component for miniscope renderer."""
 
-from typing import Dict, Optional
+from typing import TYPE_CHECKING, Dict, Optional
 
 import numpy as np
 
-from mettagrid import MettaGridEnv
-from mettagrid.core import BoundingBox
-from mettagrid.renderer.miniscope.miniscope_panel import SIDEBAR_WIDTH, PanelLayout
+from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
 from mettagrid.renderer.miniscope.symbol import get_symbol_for_object
+
+if TYPE_CHECKING:
+    from mettagrid.simulator import Simulation
 
 from .base import MiniscopeComponent
 
@@ -18,7 +19,7 @@ class AgentInfoComponent(MiniscopeComponent):
 
     def __init__(
         self,
-        env: MettaGridEnv,
+        sim: "Simulation",
         state: MiniscopeState,
         panels: PanelLayout,
     ):
@@ -29,8 +30,11 @@ class AgentInfoComponent(MiniscopeComponent):
             state: Miniscope state reference
             panels: Panel layout containing all panels
         """
-        super().__init__(env=env, state=state, panels=panels)
-        self._set_panel(panels.get_sidebar_panel("agent_info"))
+        super().__init__(sim=sim, state=state, panels=panels)
+        sidebar_panel = panels.get_sidebar_panel("agent_info")
+        if sidebar_panel is None:
+            sidebar_panel = panels.register_sidebar_panel("agent_info")
+        self._set_panel(sidebar_panel)
 
     def _get_object_type_names(self) -> list[str]:
         """Get object type names from state."""
@@ -58,13 +62,7 @@ class AgentInfoComponent(MiniscopeComponent):
             self._panel.set_content(["Agent info unavailable"])
             return
 
-        bbox = BoundingBox(
-            min_row=0,
-            max_row=self.env.map_height,
-            min_col=0,
-            max_col=self.env.map_width,
-        )
-        grid_objects = self.env.grid_objects(bbox)
+        grid_objects = self._sim.grid_objects()
 
         lines = self._build_lines(
             grid_objects,
@@ -82,7 +80,7 @@ class AgentInfoComponent(MiniscopeComponent):
         manual_agents: set[int],
     ) -> list[str]:
         """Build fixed-width lines for agent info display."""
-        width = self._width if self._width else SIDEBAR_WIDTH
+        width = self._width if self._width else 40
         width = max(24, width)
 
         lines: list[str] = []

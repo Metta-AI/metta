@@ -257,8 +257,6 @@ class Evaluator(TrainerComponent):
         return evaluate_policy(
             checkpoint_uri=policy_uri,
             simulations=simulations,
-            device=self._device,
-            vectorization=self._system_cfg.vectorization,
             replay_dir=self._config.replay_dir,
             stats_epoch_id=stats_epoch_id,
             stats_client=self._stats_client,

@@ -1,25 +1,35 @@
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal, Optional, Union
+from abc import abstractmethod
+from typing import Annotated, Any, Literal, Optional, Union, get_args
 
 from pydantic import (
     ConfigDict,
     Discriminator,
     Field,
+    PrivateAttr,
     SerializeAsAny,
     Tag,
     model_validator,
 )
 
 from mettagrid.base_config import Config
+from mettagrid.config.id_map import IdMap
+from mettagrid.config.obs_config import ObsConfig
+from mettagrid.config.vibes import VIBES, Vibe
 from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 from mettagrid.map_builder.random import RandomMapBuilder
+from mettagrid.simulator import Action
 
 # ===== Python Configuration Models =====
 
-# Left to right, top to bottom.
-FixedPosition = Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE"]
+Direction = Literal["north", "south", "east", "west", "northeast", "northwest", "southeast", "southwest"]
+Directions = list(get_args(Direction))
+
+# Order must match C++ expectations: north, south, west, east
+CardinalDirection = Literal["north", "south", "west", "east"]
+CardinalDirections = list(get_args(CardinalDirection))
 
 
 class AgentRewards(Config):
@@ -66,30 +76,88 @@ class AgentConfig(Config):
 class ActionConfig(Config):
     """Python action configuration."""
 
+    action_handler: str
     enabled: bool = Field(default=True)
     # required_resources defaults to consumed_resources. Otherwise, should be a superset of consumed_resources.
     required_resources: dict[str, int] = Field(default_factory=dict)
     consumed_resources: dict[str, float] = Field(default_factory=dict)
 
+    def actions(self) -> list[Action]:
+        if self.enabled:
+            return self._actions()
+        return []
 
-class AttackActionConfig(ActionConfig):
-    """Python attack action configuration."""
+    @abstractmethod
+    def _actions(self) -> list[Action]: ...
 
-    defense_resources: dict[str, int] = Field(default_factory=dict)
+
+class NoopActionConfig(ActionConfig):
+    """Noop action configuration."""
+
+    action_handler: str = Field(default="noop")
+
+    def _actions(self) -> list[Action]:
+        return [self.Noop()]
+
+    def Noop(self) -> Action:
+        return Action(name="noop")
+
+
+class MoveActionConfig(ActionConfig):
+    """Move action configuration."""
+
+    action_handler: str = Field(default="move")
+    allowed_directions: list[Direction] = Field(default_factory=lambda: CardinalDirections)
+
+    def _actions(self) -> list[Action]:
+        return [self.Move(direction) for direction in self.allowed_directions]
+
+    def Move(self, direction: Direction) -> Action:
+        return Action(name=f"move_{direction}")
 
 
 class ChangeVibeActionConfig(ActionConfig):
     """Change vibe action configuration."""
 
+    action_handler: str = Field(default="change_vibe")
     number_of_vibes: int = Field(default=0, ge=0, le=255)
+
+    def _actions(self) -> list[Action]:
+        return [self.ChangeVibe(vibe) for vibe in VIBES[: self.number_of_vibes]]
+
+    def ChangeVibe(self, vibe: Vibe) -> Action:
+        return Action(name=f"change_vibe_{vibe.name}")
+
+
+class AttackActionConfig(ActionConfig):
+    """Python attack action configuration."""
+
+    action_handler: str = Field(default="attack")
+    defense_resources: dict[str, int] = Field(default_factory=dict)
+    target_locations: list[Literal["1", "2", "3", "4", "5", "6", "7", "8", "9"]] = Field(
+        default_factory=lambda: ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+    )
+
+    def _actions(self) -> list[Action]:
+        return [self.Attack(location) for location in self.target_locations]
+
+    def Attack(self, location: Literal["1", "2", "3", "4", "5", "6", "7", "8", "9"]) -> Action:
+        return Action(name=f"attack_{location}")
 
 
 class ResourceModActionConfig(ActionConfig):
     """Resource mod action configuration."""
 
+    action_handler: str = Field(default="resource_mod")
     modifies: dict[str, float] = Field(default_factory=dict)
     agent_radius: int = Field(default=0, ge=0, le=255)
     scales: bool = Field(default=False)
+
+    def _actions(self) -> list[Action]:
+        return [self.ResourceMod()]
+
+    def ResourceMod(self) -> Action:
+        return Action(name="resource_mod")
 
 
 class ActionsConfig(Config):
@@ -99,13 +167,17 @@ class ActionsConfig(Config):
     Omitted actions are disabled by default.
     """
 
-    noop: ActionConfig = Field(default_factory=lambda: ActionConfig())
-    move: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))  # Default movement action
-    rotate: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
+    noop: NoopActionConfig = Field(default_factory=lambda: NoopActionConfig())
+    move: MoveActionConfig = Field(default_factory=lambda: MoveActionConfig())
     attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
-    swap: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
-    change_vibe: ChangeVibeActionConfig = Field(default_factory=lambda: ChangeVibeActionConfig(enabled=False))
+    change_vibe: ChangeVibeActionConfig = Field(default_factory=lambda: ChangeVibeActionConfig())
     resource_mod: ResourceModActionConfig = Field(default_factory=lambda: ResourceModActionConfig(enabled=False))
+
+    def actions(self) -> list[Action]:
+        return sum(
+            [action.actions() for action in [self.noop, self.move, self.attack, self.change_vibe, self.resource_mod]],
+            [],
+        )
 
 
 class GlobalObsConfig(Config):
@@ -121,30 +193,40 @@ class GlobalObsConfig(Config):
     # Controls whether visitation counts are included in observations
     visitation_counts: bool = Field(default=False)
 
+    # Compass token that points toward the assembler/hub center
+    compass: bool = Field(default=False)
+
 
 class GridObjectConfig(Config):
     """Base configuration for all grid objects.
 
-    Type IDs are automatically assigned if not explicitly provided. Auto-assignment
-    is deterministic (sorted by object name) and fills gaps in the 1-255 range.
-    Type ID 0 is reserved for agents.
-
-    Explicit type_ids are optional and primarily useful for:
-    - Ensuring stable IDs across config changes
-    - Matching specific C++ expectations
-    - Debugging and development
-
-    In most cases, omit type_id and let the system auto-assign.
+    Python uses only names. Numeric type_ids are an internal C++ detail and are
+    computed during Python→C++ conversion; they are never part of Python config
+    or observations.
     """
 
-    name: str = Field(default="", description="Object name (used for identification)")
-    type_id: Optional[int] = Field(
-        default=None, ge=0, le=255, description="Numeric type ID for C++ runtime (auto-assigned if None)"
-    )
+    name: str = Field(default="", description="Canonical type_name (human-readable)")
+    map_name: str = Field(default="", description="Stable key used by maps to select this config")
+    render_name: str = Field(default="", description="Stable display-class identifier for theming")
     map_char: str = Field(default="?", description="Character used in ASCII maps")
     render_symbol: str = Field(default="❓", description="Symbol used for rendering (e.g., emoji)")
     tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
-    vibe: Optional[int] = Field(default=0, ge=0, le=255, description="Vibe value for this object instance")
+    vibe: int = Field(default=0, ge=0, le=255, description="Vibe value for this object instance")
+
+    @model_validator(mode="after")
+    def _defaults_from_name(self) -> "GridObjectConfig":
+        # Default map_name/render_name to name when not provided
+        if not getattr(self, "map_name", None):
+            self.map_name = self.name
+        if not getattr(self, "render_name", None):
+            self.render_name = self.name
+        # If no tags, inject a default kind tag so the object is visible in observations
+        if not self.tags:
+            default_tag = getattr(self, "type", None)  # this is typically what you want, a Wall gets tag "wall"
+            default_tag = default_tag or self.render_name  # this is a good fallback tag
+            default_tag = default_tag or "object"  # if nothing else, be visible as an object
+            self.tags = [default_tag]
+        return self
 
 
 class WallConfig(GridObjectConfig):
@@ -193,22 +275,28 @@ class AssemblerConfig(GridObjectConfig):
 
 
 class ChestConfig(GridObjectConfig):
-    """Python chest configuration."""
+    """Python chest configuration for multi-resource chests."""
 
     type: Literal["chest"] = Field(default="chest")
-    resource_type: str = Field(description="Resource type that this chest can store")
-    position_deltas: list[tuple[FixedPosition, int]] = Field(
-        default_factory=list,
+
+    # Vibe-based transfers: vibe -> resource -> delta
+    vibe_transfers: dict[str, dict[str, int]] = Field(
+        default_factory=dict,
         description=(
-            "List of (position, delta) tuples. "
-            "Positive delta = deposit, negative = withdraw (e.g., (E, 1) deposits 1, (N, -5) withdraws 5)"
+            "Map from vibe to resource deltas. "
+            "E.g., {'carbon': {'carbon': 10, 'energy': -5}} deposits 10 carbon and withdraws 5 energy when "
+            "showing carbon vibe"
         ),
     )
-    initial_inventory: int = Field(default=0, ge=0, description="Initial amount of resource_type in the chest")
-    max_inventory: int = Field(
-        default=255,
-        ge=-1,
-        description="Maximum inventory (resources are destroyed when depositing beyond this, -1 = unlimited)",
+
+    # Initial inventory for each resource
+    initial_inventory: dict[str, int] = Field(
+        default_factory=dict, description="Initial inventory for each resource type"
+    )
+
+    # Resource limits for the chest's inventory
+    resource_limits: dict[str, int] = Field(
+        default_factory=dict, description="Maximum amount per resource (uses inventory system's built-in limits)"
     )
 
 
@@ -229,7 +317,6 @@ class ClipperConfig(Config):
     negligible. Set cutoff_distance > 0 to use a manual cutoff.
     """
 
-    # TODO: for now, the vibes in the ProtocolConfig are ignored.
     unclipping_protocols: list[ProtocolConfig] = Field(default_factory=list)
     length_scale: float = Field(
         default=0.0,
@@ -262,11 +349,12 @@ class GameConfig(Config):
 
     Note: Type IDs are automatically assigned during validation when the GameConfig
     is constructed. If you need to add objects after construction, create a new
-    GameConfig instance rather than modifying the objects dict post-construction,
-    as type_id assignment only happens at validation time.
+    GameConfig instance rather than modifying the objects dict post-construction.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    _resolved_type_ids: bool = PrivateAttr(default=False)
 
     resource_names: list[str] = Field(
         default=[
@@ -282,21 +370,18 @@ class GameConfig(Config):
             "blueprint",
         ]
     )
-    vibe_names: list[str] = Field(default_factory=list, description="List of vibe names for assembler protocols")
+    vibe_names: list[str] = Field(default_factory=list)
     num_agents: int = Field(ge=1, default=24)
     # max_steps = zero means "no limit"
     max_steps: int = Field(ge=0, default=1000)
     # default is that we terminate / use "done" vs truncation
     episode_truncates: bool = Field(default=False)
-    obs_width: Literal[3, 5, 7, 9, 11, 13, 15] = Field(default=11)
-    obs_height: Literal[3, 5, 7, 9, 11, 13, 15] = Field(default=11)
-    num_observation_tokens: int = Field(ge=1, default=200)
+    obs: ObsConfig = Field(default_factory=ObsConfig)
     agent: AgentConfig = Field(default_factory=AgentConfig)
     agents: list[AgentConfig] = Field(default_factory=list)
-    actions: ActionsConfig = Field(default_factory=lambda: ActionsConfig(noop=ActionConfig()))
+    actions: ActionsConfig = Field(default_factory=lambda: ActionsConfig())
     global_obs: GlobalObsConfig = Field(default_factory=GlobalObsConfig)
     objects: dict[str, AnyGridObjectConfig] = Field(default_factory=dict)
-    resolved_type_ids: dict[str, int] = Field(default_factory=dict, exclude=True)
     # these are not used in the C++ code, but we allow them to be set for other uses.
     # E.g., templates can use params as a place where values are expected to be written,
     # and other parts of the template can read from there.
@@ -313,7 +398,7 @@ class GameConfig(Config):
     clipper: Optional[ClipperConfig] = Field(default=None, description="Global clipper configuration")
 
     # Map builder configuration - accepts any MapBuilder config
-    map_builder: AnyMapBuilderConfig = RandomMapBuilder.Config(agents=24)
+    map_builder: AnyMapBuilderConfig = Field(default_factory=lambda: RandomMapBuilder.Config(agents=24))
 
     # Feature Flags
     track_movement_metrics: bool = Field(
@@ -322,63 +407,36 @@ class GameConfig(Config):
     protocol_details_obs: bool = Field(
         default=False, description="Objects show their protocol inputs and outputs when observed"
     )
-    allow_diagonals: bool = Field(default=False, description="Enable actions to be aware of diagonal orientations")
 
     reward_estimates: Optional[dict[str, float]] = Field(default=None)
 
     @model_validator(mode="after")
-    def _assign_type_ids(self) -> "GameConfig":
-        self._resolve_object_type_ids()
+    def _compute_feature_ids(self) -> "GameConfig":
+        self._populate_vibe_names()
+        # Note that this validation only runs once by default, so later changes by the user can cause this to no
+        # longer be true.
+        if not self.actions.change_vibe.number_of_vibes == len(self.vibe_names):
+            raise ValueError("number_of_vibes must match the number of vibe names")
         return self
 
-    def _resolve_object_type_ids(self) -> None:
-        resolved: dict[str, int] = {}
-        if not self.objects:
-            self.resolved_type_ids = resolved
-            return
+    def _populate_vibe_names(self) -> None:
+        """Populate vibe_names from change_vibe action config if not already set."""
+        if not self.vibe_names:
+            num_vibes = self.actions.change_vibe.number_of_vibes
+            self.vibe_names = [vibe.name for vibe in VIBES[:num_vibes]]
 
-        sorted_objects = sorted(self.objects.items(), key=lambda item: item[0])
-        used_ids: set[int] = {0}
+    def id_map(self) -> "IdMap":
+        """Get the observation feature ID map for this configuration."""
+        # Create a minimal MettaGridConfig wrapper
+        wrapper = MettaGridConfig(game=self)
+        return IdMap(wrapper)
 
-        for object_name, object_config in sorted_objects:
-            if not object_config.name:
-                object_config.name = object_name
 
-            if object_config.type_id is None:
-                continue
+class EnvSupervisorConfig(Config):
+    """Environment supervisor configuration."""
 
-            if object_config.type_id == 0:
-                raise ValueError("type_id 0 is reserved for agents and cannot be assigned to objects")
-
-            if object_config.type_id in used_ids:
-                raise ValueError(f"Duplicate type_id {object_config.type_id} found for object '{object_name}'")
-
-            used_ids.add(object_config.type_id)
-            resolved[object_name] = object_config.type_id
-
-        next_candidate = 1
-        for object_name, object_config in sorted_objects:
-            if object_config.type_id is not None:
-                continue
-
-            while next_candidate in used_ids:
-                next_candidate += 1
-
-            if next_candidate > 255:
-                raise ValueError("Too many object types configured; auto-generated type_id exceeds uint8 range")
-
-            object_config.type_id = next_candidate
-            used_ids.add(next_candidate)
-            resolved[object_name] = next_candidate
-            next_candidate += 1
-
-        self.resolved_type_ids = resolved
-
-    def resolved_type_id(self, object_name: str) -> int:
-        self._resolve_object_type_ids()
-        if object_name not in self.resolved_type_ids:
-            raise KeyError(f"No object named '{object_name}' is registered")
-        return self.resolved_type_ids[object_name]
+    enabled: bool = Field(default=False)
+    policy: str = Field(default="baseline")
 
 
 class MettaGridConfig(Config):
@@ -388,14 +446,14 @@ class MettaGridConfig(Config):
     game: GameConfig = Field(default_factory=GameConfig)
     desync_episodes: bool = Field(default=True)
 
-    @model_validator(mode="after")
-    def validate_fields(self) -> "MettaGridConfig":
-        return self
+    def id_map(self) -> "IdMap":
+        """Get the observation feature ID map for this configuration."""
+        return IdMap(self)
 
     def with_ascii_map(self, map_data: list[list[str]]) -> "MettaGridConfig":
         self.game.map_builder = AsciiMapBuilder.Config(
             map_data=map_data,
-            char_to_name_map={o.map_char: o.name for o in self.game.objects.values()},
+            char_to_map_name={o.map_char: o.map_name for o in self.game.objects.values()},
         )
         return self
 
@@ -406,7 +464,7 @@ class MettaGridConfig(Config):
         """Create an empty room environment configuration."""
         map_builder = RandomMapBuilder.Config(agents=num_agents, width=width, height=height, border_width=border_width)
         actions = ActionsConfig(
-            move=ActionConfig(),
+            move=MoveActionConfig(),
         )
         objects = {}
         if border_width > 0 or with_walls:
