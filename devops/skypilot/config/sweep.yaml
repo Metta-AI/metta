@@ -27,7 +27,7 @@ setup: |
 
 run: |
   set -e
-  /workspace/metta/devops/skypilot/config/simple_sweep_run.sh
+  /workspace/metta/devops/skypilot/config/sweep_run.sh
 
 envs:
   GITHUB_REPOSITORY: Metta-AI/metta

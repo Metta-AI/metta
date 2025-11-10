@@ -80,6 +80,17 @@ start_ray_worker() {
   sleep 5
 }
 
+start_heartbeat_monitor() {
+  if [[ -n "${HEARTBEAT_TIMEOUT:-}" ]]; then
+    echo "[SWEEP] Starting per-node heartbeat monitor (timeout: ${HEARTBEAT_TIMEOUT}s)..."
+    bash ./devops/skypilot/config/monitors/heartbeat_monitor.sh &
+    HEARTBEAT_PID=$!
+    echo "[SWEEP] Started heartbeat monitor with PID $HEARTBEAT_PID for node $RANK"
+  else
+    echo "[SWEEP] Heartbeat monitoring disabled (HEARTBEAT_TIMEOUT not set)"
+  fi
+}
+
 if [[ "$IS_HEAD" == "true" ]]; then
   start_ray_head
   # Use local mode address instead of client mode for better GPU allocation
@@ -90,13 +101,43 @@ else
   start_ray_worker
 fi
 
-MODULE_PATH=${SIMPLE_SWEEP_MODULE_PATH:?missing SIMPLE_SWEEP_MODULE_PATH}
-MODULE_ARGS=${SIMPLE_SWEEP_MODULE_ARGS:-}
+# Start per-node heartbeat monitor after Ray is up
+start_heartbeat_monitor
+
+# Set up cleanup handler
+cleanup() {
+  echo "[SWEEP] Cleaning up node $RANK..."
+  if [[ -n "${HEARTBEAT_PID:-}" ]]; then
+    kill $HEARTBEAT_PID 2>/dev/null || true
+  fi
+  ray stop || true
+  exit 0
+}
+trap cleanup EXIT INT TERM
+
+MODULE_PATH=${SWEEP_MODULE_PATH:?missing SWEEP_MODULE_PATH}
+MODULE_ARGS=${SWEEP_MODULE_ARGS:-}
 
 if [[ "$IS_HEAD" == "true" ]]; then
   echo "[SWEEP] Launching tool: ${MODULE_PATH} ${MODULE_ARGS}"
+  # Update heartbeat file periodically while running the sweep
+  (
+    while true; do
+      echo "$(date +%s)" > "$HEARTBEAT_FILE"
+      sleep 30
+    done
+  ) &
+  HEARTBEAT_UPDATER_PID=$!
+
   uv run tools/run.py "${MODULE_PATH}" ${MODULE_ARGS}
+
+  # Stop heartbeat updater when done
+  kill $HEARTBEAT_UPDATER_PID 2>/dev/null || true
 else
-  echo "[SWEEP] Worker node entering idle loop."
-  while true; do sleep 3600; done
+  echo "[SWEEP] Worker node entering idle loop with heartbeat updates."
+  # Worker nodes also update their heartbeat files
+  while true; do
+    echo "$(date +%s)" > "$HEARTBEAT_FILE"
+    sleep 30
+  done
 fi

@@ -14,12 +14,12 @@ from metta.common.util.fs import cd_repo_root
 from metta.common.util.text_styles import red
 from metta.tools.utils.auto_config import auto_run_name
 
-logger = logging.getLogger("launch_simple_sweep.py")
+logger = logging.getLogger("launch_sweep.py")
 
 
 def parse_args() -> tuple[argparse.Namespace, list[str]]:
     parser = argparse.ArgumentParser(
-        description="Launch a lightweight SkyPilot job for Ray sweeps.",
+        description="Launch a SkyPilot job for Ray sweeps.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -53,12 +53,12 @@ def build_task(
     tool_args: list[str],
     commit_hash: str,
 ) -> sky.Task:
-    task = sky.Task.from_yaml("./devops/skypilot/config/simple_sweep.yaml")
+    task = sky.Task.from_yaml("./devops/skypilot/config/sweep.yaml")
 
     env_updates = {
-        "SIMPLE_SWEEP_RUN_ID": run_id,
-        "SIMPLE_SWEEP_MODULE_PATH": args.module_path,
-        "SIMPLE_SWEEP_MODULE_ARGS": " ".join(shlex.quote(arg) for arg in tool_args),
+        "SWEEP_RUN_ID": run_id,
+        "SWEEP_MODULE_PATH": args.module_path,
+        "SWEEP_MODULE_ARGS": " ".join(shlex.quote(arg) for arg in tool_args),
         "RAY_HEAD_PORT": args.ray_head_port,
         "RAY_CLIENT_PORT": args.ray_client_port,
         "METTA_GIT_REF": commit_hash,
