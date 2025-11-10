@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -32,6 +33,24 @@ _POLICY_CLASS_SHORTHAND: dict[str, str] = {
 }
 
 
+def _instantiate_policy(policy_class: type, policy_env_info: PolicyEnvInterface) -> Policy:
+    try:
+        return policy_class(policy_env_info)  # type: ignore[misc]
+    except TypeError:
+        signature = inspect.signature(policy_class)
+        parameter_names = tuple(signature.parameters)
+        expected = ("actions_cfg", "obs_shape", "device", "policy_env_info")
+        if all(name in parameter_names for name in expected):
+            device = torch.device("cpu")
+            return policy_class(
+                policy_env_info.actions,
+                policy_env_info.observation_space.shape,
+                device,
+                policy_env_info,
+            )
+        raise
+
+
 def initialize_or_load_policy(
     policy_env_info: PolicyEnvInterface,
     policy_class_path: str,
@@ -53,7 +72,7 @@ def initialize_or_load_policy(
 
     policy_class = load_symbol(policy_class_path)
 
-    policy = policy_class(policy_env_info)  # type: ignore[misc]
+    policy = _instantiate_policy(policy_class, policy_env_info)
 
     if policy_data_path:
         if not isinstance(policy, TrainablePolicy):
