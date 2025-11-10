@@ -81,15 +81,8 @@ class HeuristicAgentPolicy(AgentPolicy):
         action_name = simulation.action_names[action_idx]
         return Action(name=action_name)
 
-    def step_with_simulation(self, simulation: Simulation | None) -> Action | None:
-        if simulation is None:
-            return None
-        self._simulation = simulation
-        self._buffers = simulation.buffers
-        raw_obs, raw_actions = self._resolve_arrays(simulation)
-        return self._step_with_arrays(simulation, raw_obs, raw_actions)
-
     def step(self, obs: AgentObservation) -> Action:
+        del obs
         if self._simulation is None:
             raise RuntimeError("HeuristicAgentPolicy must be reset with a simulation before stepping.")
         raw_obs, raw_actions = self._resolve_arrays(self._simulation)

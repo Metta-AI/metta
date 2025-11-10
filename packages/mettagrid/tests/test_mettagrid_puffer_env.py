@@ -227,7 +227,8 @@ class TestMettaGridPufferEnvStep:
         provided_actions = np.zeros(env.num_agents, dtype=np.int32)
         env.step(provided_actions)
 
-        assert np.all(env.teacher_actions == 1)
+        noop_idx = env._sim.action_ids["noop"]
+        assert np.all(env.teacher_actions == noop_idx)
 
 
 class TestMettaGridPufferEnvBuffers:

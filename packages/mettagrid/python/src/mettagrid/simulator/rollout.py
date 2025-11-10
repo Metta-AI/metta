@@ -56,9 +56,7 @@ class Rollout:
         """Execute one step of the rollout."""
         for i, policy in enumerate(self._policies):
             start_time = time.time()
-            action = policy.step_with_simulation(self._sim)
-            if action is None:
-                action = policy.step(self._agents[i].observation)
+            action = policy.step(self._agents[i].observation)
             end_time = time.time()
             if (end_time - start_time) > self._max_action_time_ms:
                 logger.warning(

@@ -44,16 +44,6 @@ class AgentPolicy:
         """Reset the policy state. Default implementation does nothing."""
         pass
 
-    def step_with_simulation(self, simulation: Optional[Simulation]) -> Optional[Action]:
-        """Optional hook for policies that act using direct simulation access.
-
-        Default implementation returns ``None`` so callers fall back to
-        :meth:`step`. Policies may override this to consume shared buffers or
-        other simulation internals when producing an action.
-        """
-
-        return None
-
 
 class MultiAgentPolicy:
     """Abstract base class for multi-agent policies.
