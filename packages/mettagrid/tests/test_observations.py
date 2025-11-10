@@ -490,7 +490,7 @@ class TestEdgeObservations:
         sim = Simulation(cfg)
         tag_feature_id = sim.config.game.id_map().feature_id("tag")
         tag_names_list = sim.config.game.id_map().tag_names()
-        wall_tag_id = next(i for i, name in enumerate(tag_names_list) if name == "wall")
+        wall_tag_id = tag_names_list.index("wall")
 
         obs = sim._c_sim.observations()
 
