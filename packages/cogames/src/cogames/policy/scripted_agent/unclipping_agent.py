@@ -19,7 +19,6 @@ from .baseline_agent import (
     BaselineHyperparameters,
     ExtractorInfo,
     Phase,
-    SharedAgentState,
     SimpleAgentState,
 )
 
@@ -62,23 +61,30 @@ class UnclippingAgentPolicyImpl(BaselineAgentPolicyImpl):
     def __init__(
         self,
         policy_env_info: PolicyEnvInterface,
-        shared_state: SharedAgentState,
         agent_id: int,
         hyperparams: UnclippingHyperparameters,
     ):
-        super().__init__(policy_env_info, shared_state, agent_id, hyperparams)
+        super().__init__(policy_env_info, agent_id, hyperparams)
         self._unclip_recipes = self._load_unclip_recipes()
 
     def initial_agent_state(self, simulation: Optional["Simulation"]) -> UnclippingAgentState:
         """Create initial state for unclipping agent."""
         assert simulation is not None
+
+        # Cache tag name mapping for efficient tag -> object name lookup
+        self._tag_names = simulation.id_map.tag_names()
+
+        # Create a large enough map to handle origin-relative positioning
+        map_size = max(simulation.map_height, simulation.map_width) * 2
+        center = map_size // 2
+
         return UnclippingAgentState(
             agent_id=self._agent_id,
-            simulation=simulation,
-            shared_state=self._shared_state,
-            map_height=simulation.map_height,
-            map_width=simulation.map_width,
-            occupancy=[[1] * simulation.map_width for _ in range(simulation.map_height)],
+            map_height=map_size,
+            map_width=map_size,
+            occupancy=[[1] * map_size for _ in range(map_size)],
+            row=center,
+            col=center,
             agent_occupancy=set(),
         )
 

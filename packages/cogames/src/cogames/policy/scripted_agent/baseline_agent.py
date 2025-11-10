@@ -17,7 +17,7 @@ import random
 from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Callable, Optional, Tuple
+from typing import TYPE_CHECKING, Callable, Optional, Tuple, Union
 
 from cogames.policy import StatefulPolicyImpl
 from mettagrid.config.mettagrid_config import CardinalDirections
@@ -174,39 +174,26 @@ class ParsedObservation:
 
 
 @dataclass
-class SharedAgentState:
-    """Shared state for all agents."""
-
-    # Cached grid_objects for position lookups - shared across all agents per step
-    cached_grid_objects: Optional[dict] = None
-    cached_grid_objects_step: int = -1
-
-    # Shared knowledge across all agents
-    extractors: dict[str, list[ExtractorInfo]] = field(
-        default_factory=lambda: {"carbon": [], "oxygen": [], "germanium": [], "silicon": []}
-    )
-
-    # Shared station positions (discovered by any agent)
-    stations: dict[str, tuple[int, int] | None] = field(
-        default_factory=lambda: {"assembler": None, "chest": None, "charger": None}
-    )
-
-
-@dataclass
 class SimpleAgentState:
     """State for a single agent."""
 
     agent_id: int
-    simulation: Simulation
-    shared_state: SharedAgentState
 
     phase: Phase = Phase.GATHER  # Start gathering immediately
     step_count: int = 0
 
-    # Current position
-    row: int = -1
-    col: int = -1
+    # Current position (origin-relative, starting at (0, 0))
+    row: int = 0
+    col: int = 0
     energy: int = 100
+
+    # Per-agent discovered extractors and stations (no shared state, each agent tracks independently)
+    extractors: dict[str, list[ExtractorInfo]] = field(
+        default_factory=lambda: {"carbon": [], "oxygen": [], "germanium": [], "silicon": []}
+    )
+    stations: dict[str, tuple[int, int] | None] = field(
+        default_factory=lambda: {"assembler": None, "chest": None, "charger": None}
+    )
 
     # Inventory
     carbon: int = 0
@@ -233,6 +220,9 @@ class SimpleAgentState:
 
     # Current glyph (vibe) for interacting with assembler
     current_glyph: str = "default"
+
+    # Discovered assembler recipe (dynamically discovered from observations)
+    heart_recipe: Optional[dict[str, int]] = None
 
     # Extractor activation state
     waiting_at_extractor: Optional[tuple[int, int]] = None
@@ -275,11 +265,9 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
     def __init__(
         self,
         policy_env_info: PolicyEnvInterface,
-        shared_state: SharedAgentState,
         agent_id: int,
         hyperparams: BaselineHyperparameters,
     ):
-        self._shared_state = shared_state
         self._agent_id = agent_id
         self._hyperparams = hyperparams
 
@@ -311,13 +299,10 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             "agent:visitation_counts": "agent_visitation_counts",
         }
         self._agent_feature_key_by_name: dict[str, str] = agent_feature_pairs
-        
+
         # Protocol feature prefixes (for dynamic recipe discovery)
         self._protocol_input_prefix = "protocol_input:"
         self._protocol_output_prefix = "protocol_output:"
-
-        # Resource requirements for one heart
-        self._heart_recipe = {"carbon": 20, "oxygen": 20, "germanium": 5, "silicon": 50}
 
     def initial_agent_state(self, simulation: Optional["Simulation"]) -> SimpleAgentState:
         """Get initial state for an agent."""
@@ -326,13 +311,18 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         # Cache tag name mapping for efficient tag -> object name lookup
         self._tag_names = simulation.id_map.tag_names()
 
+        # Create a large enough map to handle origin-relative positioning
+        # We'll expand the map as needed, but start with a reasonable size
+        map_size = max(simulation.map_height, simulation.map_width) * 2  # Allow exploration beyond initial view
+        center = map_size // 2  # Agent starts at center of this larger map
+
         return SimpleAgentState(
             agent_id=self._agent_id,
-            shared_state=self._shared_state,
-            simulation=simulation,
-            map_height=simulation.map_height,
-            map_width=simulation.map_width,
-            occupancy=[[CellType.FREE.value] * simulation.map_width for _ in range(simulation.map_height)],
+            map_height=map_size,
+            map_width=map_size,
+            occupancy=[[CellType.FREE.value] * map_size for _ in range(map_size)],
+            row=center,
+            col=center,
         )
 
     def parse_observation(
@@ -351,7 +341,8 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         nearby_objects: dict[tuple[int, int], ObjectState] = {}
 
         # First pass: collect all spatial features by position
-        position_features: dict[tuple[int, int], dict[str, int]] = {}
+        # Note: Values can be int (for simple features) or dict[str, int] (for protocol features)
+        position_features: dict[tuple[int, int], dict[str, Union[int, dict[str, int]]]] = {}
 
         # Parse tokens - only spatial features
         for tok in obs.tokens:
@@ -386,15 +377,15 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
                     if agent_feature_key is not None:
                         position_features[pos][agent_feature_key] = value
                         continue
-                    
+
                     # Collect protocol features (recipes)
                     if feature_name.startswith(self._protocol_input_prefix):
-                        resource = feature_name[len(self._protocol_input_prefix):]
+                        resource = feature_name[len(self._protocol_input_prefix) :]
                         position_features[pos].setdefault("protocol_inputs", {})[resource] = value
                         continue
-                    
+
                     if feature_name.startswith(self._protocol_output_prefix):
-                        resource = feature_name[len(self._protocol_output_prefix):]
+                        resource = feature_name[len(self._protocol_output_prefix) :]
                         position_features[pos].setdefault("protocol_outputs", {})[resource] = value
                         continue
 
@@ -438,21 +429,8 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
     def reset(self, simulation: Optional["Simulation"]) -> None:
         """Reset the policy state."""
-        # Only reset shared state once (when agent 0 is reset)
-        if self._agent_id == 0:
-            self._shared_state.cached_grid_objects = None
-            self._shared_state.cached_grid_objects_step = -1
-            self._shared_state.extractors = {
-                "carbon": [],
-                "oxygen": [],
-                "germanium": [],
-                "silicon": [],
-            }
-            self._shared_state.stations = {
-                "assembler": None,
-                "chest": None,
-                "charger": None,
-            }
+        # No shared state to reset - each agent manages its own state independently
+        pass
 
     def _check_stuck_and_escape(self, s: SimpleAgentState) -> Optional[Action]:
         """Check if agent is stuck in a loop and return escape action if needed."""
@@ -487,7 +465,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
             # If we couldn't find a distant target, just pick a different direction
             if s.stuck_escape_target is None:
-                directions = ["north", "south", "east", "west"]
+                directions: list[CardinalDirections] = ["north", "south", "east", "west"]
                 random.shuffle(directions)
                 for direction in directions:
                     dr, dc = self._move_deltas[direction]
@@ -543,35 +521,19 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
         return action, state
 
-    def _update_agent_position(self, s: SimpleAgentState) -> None:
-        """Get agent position from simulation grid_objects().
+    def _update_agent_position(self, s: SimpleAgentState, action_success: bool) -> None:
+        """Update agent position based on last action and whether it succeeded.
 
-        Optimization: Cache grid_objects() result and share across all agents in same step.
-        With ~370 objects in a typical map, this reduces lookups from 1,480/step (4 agents)
-        to just 370/step - a 4x speedup for position updates.
+        Position is tracked relative to origin (starting position), using only movement deltas.
+        No dependency on simulation.grid_objects().
         """
-        # Early exit if simulation is not available (shouldn't happen but be defensive)
-        if s.simulation is None:
-            return
-
-        # Use cached grid_objects if it's from the current step
-        if s.shared_state.cached_grid_objects_step != s.step_count:
-            try:
-                s.shared_state.cached_grid_objects = s.simulation.grid_objects()
-                s.shared_state.cached_grid_objects_step = s.step_count
-            except (AttributeError, RuntimeError):
-                # grid_objects() might not be available or simulation in invalid state
-                return
-
-        # Find this agent in the cached grid objects
-        if s.shared_state.cached_grid_objects:
-            for _id, obj in s.shared_state.cached_grid_objects.items():
-                if obj.get("agent_id") == s.agent_id:
-                    new_row, new_col = obj.get("r", -1), obj.get("c", -1)
-                    # Validate position is within map bounds
-                    if 0 <= new_row < s.map_height and 0 <= new_col < s.map_width:
-                        s.row, s.col = new_row, new_col
-                    break
+        # If last action was a move and it succeeded, update position
+        if action_success and s.last_action.name == "move":
+            direction = s.last_action.args[0] if s.last_action.args else None  # type: ignore[attr-defined]
+            if direction in self._move_deltas:
+                dr, dc = self._move_deltas[direction]
+                s.row += dr
+                s.col += dc
 
         # Update position history and detect loops
         current_pos = (s.row, s.col)
@@ -600,11 +562,11 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
                     s.stuck_loop_detected = True
                     s.stuck_escape_step = s.step_count
 
-    def _update_state_from_obs(self, s: SimpleAgentState, obs: AgentObservation) -> None:
+    def _update_state_from_obs(self, s: SimpleAgentState, obs: AgentObservation, action_success: bool = True) -> None:
         """Update agent state from observation."""
 
-        # STEP 1: Get agent position directly from environment
-        self._update_agent_position(s)
+        # STEP 1: Update agent position based on last action (origin-relative positioning)
+        self._update_agent_position(s, action_success)
 
         # STEP 2: Get inventory from observation tokens AT THE CENTER (agent's own position)
         # NOTE: Observations contain inventory for ALL visible agents. We must only read
@@ -635,6 +597,17 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         # STEP 3: Parse spatial observation with known position
         debug = s.step_count <= 2
         parsed = self.parse_observation(s, obs, debug=debug)
+
+        # STEP 3.5: Discover heart recipe from assembler protocol (if not yet discovered)
+        if s.heart_recipe is None:
+            for _pos, obj_state in parsed.nearby_objects.items():
+                if obj_state.name == "assembler" and obj_state.protocol_inputs:
+                    # Check if this is the heart recipe (outputs "heart")
+                    if obj_state.protocol_outputs.get("heart", 0) > 0:
+                        s.heart_recipe = dict(obj_state.protocol_inputs)
+                        if DEBUG:
+                            print(f"[Agent {s.agent_id}] Discovered heart recipe: {s.heart_recipe}")
+                        break
 
         # Check if we received the resource from an extractor activation
         if s.pending_use_resource is not None:
@@ -709,8 +682,8 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         return station in obj_name
 
     def _discover_station(self, s: SimpleAgentState, pos: tuple[int, int], station_key: str) -> None:
-        if s.shared_state.stations.get(station_key) is None:
-            s.shared_state.stations[station_key] = pos
+        if s.stations.get(station_key) is None:
+            s.stations[station_key] = pos
 
     def _discover_extractor(
         self,
@@ -720,7 +693,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         obj_state: ObjectState,
     ) -> None:
         extractor = None
-        for existing in s.shared_state.extractors[resource_type]:
+        for existing in s.extractors[resource_type]:
             if existing.position == pos:
                 extractor = existing
                 break
@@ -731,7 +704,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
                 resource_type=resource_type,
                 last_seen_step=s.step_count,
             )
-            s.shared_state.extractors[resource_type].append(extractor)
+            s.extractors[resource_type].append(extractor)
 
         extractor.last_seen_step = s.step_count
         extractor.converting = obj_state.converting > 0
@@ -781,12 +754,15 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             return
 
         # Priority 3: Assemble if we have all resources
-        can_assemble = (
-            s.carbon >= self._heart_recipe["carbon"]
-            and s.oxygen >= self._heart_recipe["oxygen"]
-            and s.germanium >= self._heart_recipe["germanium"]
-            and s.silicon >= self._heart_recipe["silicon"]
-        )
+        # Only check if we've discovered the recipe
+        can_assemble = False
+        if s.heart_recipe is not None:
+            can_assemble = (
+                s.carbon >= s.heart_recipe.get("carbon", 0)
+                and s.oxygen >= s.heart_recipe.get("oxygen", 0)
+                and s.germanium >= s.heart_recipe.get("germanium", 0)
+                and s.silicon >= s.heart_recipe.get("silicon", 0)
+            )
 
         if can_assemble:
             if s.phase != Phase.ASSEMBLE:
@@ -825,11 +801,15 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
     def _calculate_deficits(self, s: SimpleAgentState) -> dict[str, int]:
         """Calculate how many more of each resource we need for a heart."""
+        # If we haven't discovered the recipe yet, return empty deficits
+        if s.heart_recipe is None:
+            return {"carbon": 0, "oxygen": 0, "germanium": 0, "silicon": 0}
+
         return {
-            "carbon": max(0, self._heart_recipe["carbon"] - s.carbon),
-            "oxygen": max(0, self._heart_recipe["oxygen"] - s.oxygen),
-            "germanium": max(0, self._heart_recipe["germanium"] - s.germanium),
-            "silicon": max(0, self._heart_recipe["silicon"] - s.silicon),
+            "carbon": max(0, s.heart_recipe.get("carbon", 0) - s.carbon),
+            "oxygen": max(0, s.heart_recipe.get("oxygen", 0) - s.oxygen),
+            "germanium": max(0, s.heart_recipe.get("germanium", 0) - s.germanium),
+            "silicon": max(0, s.heart_recipe.get("silicon", 0) - s.silicon),
         }
 
     def _execute_phase(self, s: SimpleAgentState) -> Action:
@@ -1117,7 +1097,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         """Assemble hearts at assembler."""
         # Explore until we find assembler
         explore_action = self._explore_until(
-            s, condition=lambda: s.shared_state.stations["assembler"] is not None, reason="Need assembler"
+            s, condition=lambda: s.stations["assembler"] is not None, reason="Need assembler"
         )
         if explore_action is not None:
             return explore_action
@@ -1129,7 +1109,8 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             return vibe_action
 
         # Assembler is known, move adjacent to it then use it
-        assembler = s.shared_state.stations["assembler"]
+        assembler = s.stations["assembler"]
+        assert assembler is not None  # Guaranteed by _explore_until above
         ar, ac = assembler
         dr = abs(s.row - ar)
         dc = abs(s.col - ac)
@@ -1145,9 +1126,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
     def _do_deliver(self, s: SimpleAgentState) -> Action:
         """Deliver hearts to chest."""
         # Explore until we find chest
-        explore_action = self._explore_until(
-            s, condition=lambda: s.shared_state.stations["chest"] is not None, reason="Need chest"
-        )
+        explore_action = self._explore_until(s, condition=lambda: s.stations["chest"] is not None, reason="Need chest")
         if explore_action is not None:
             return explore_action
 
@@ -1160,7 +1139,8 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             return vibe_action
 
         # Chest is known, move adjacent to it then use it
-        chest = s.shared_state.stations["chest"]
+        chest = s.stations["chest"]
+        assert chest is not None  # Guaranteed by _explore_until above
         cr, cc = chest
         dr = abs(s.row - cr)
         dc = abs(s.col - cc)
@@ -1177,13 +1157,14 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         """Recharge at charger."""
         # Explore until we find charger
         explore_action = self._explore_until(
-            s, condition=lambda: s.shared_state.stations["charger"] is not None, reason="Need charger"
+            s, condition=lambda: s.stations["charger"] is not None, reason="Need charger"
         )
         if explore_action is not None:
             return explore_action
 
         # Charger is known, move adjacent to it then use it (same as extractors/chest)
-        charger = s.shared_state.stations["charger"]
+        charger = s.stations["charger"]
+        assert charger is not None  # Guaranteed by _explore_until above
         chr, chc = charger
         dr = abs(s.row - chr)
         dc = abs(s.col - chc)
@@ -1205,7 +1186,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
     def _find_nearest_extractor(self, s: SimpleAgentState, resource_type: str) -> Optional[ExtractorInfo]:
         """Find the nearest AVAILABLE extractor of the given type."""
-        extractors = s.shared_state.extractors.get(resource_type, [])
+        extractors = s.extractors.get(resource_type, [])
         if not extractors:
             return None
 
@@ -1379,7 +1360,9 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         path: list[tuple[int, int]] = []
         while came_from[current] is not None:
             path.append(current)
-            current = came_from[current]
+            prev = came_from[current]
+            assert prev is not None  # Loop condition ensures this
+            current = prev
         path.reverse()
         return path
 
@@ -1410,20 +1393,20 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
     def _trace_log(self, s: SimpleAgentState) -> None:
         """Detailed trace logging."""
-        extractors_known = {r: len(s.shared_state.extractors[r]) for r in ["carbon", "oxygen", "germanium", "silicon"]}
+        extractors_known = {r: len(s.extractors[r]) for r in ["carbon", "oxygen", "germanium", "silicon"]}
         print(f"[TRACE Step {s.step_count}] Agent {s.agent_id} @ ({s.row},{s.col})")
         print(f"  Phase: {s.phase.name}, Energy: {s.energy}")
         print(f"  Inventory: C={s.carbon} O={s.oxygen} G={s.germanium} S={s.silicon} Hearts={s.hearts}")
         print(f"  Extractors known: {extractors_known}")
         # Debug: show first few extractors if any
-        if s.step_count == 100:
-            for rtype in self._heart_recipe:
-                if len(s.shared_state.extractors[rtype]) > 0:
-                    first_3 = s.shared_state.extractors[rtype][:3]
+        if s.step_count == 100 and s.heart_recipe:
+            for rtype in s.heart_recipe:
+                if len(s.extractors[rtype]) > 0:
+                    first_3 = s.extractors[rtype][:3]
                     print(f"    {rtype}: {[(e.position, e.last_seen_step) for e in first_3]}")
-        stations = f"assembler={s.shared_state.stations['assembler'] is not None}"
-        stations += f" chest={s.shared_state.stations['chest'] is not None}"
-        stations += f" charger={s.shared_state.stations['charger'] is not None}"
+        stations = f"assembler={s.stations['assembler'] is not None}"
+        stations += f" chest={s.stations['chest'] is not None}"
+        stations += f" charger={s.stations['charger'] is not None}"
         print(f"  Stations: {stations}")
         print(f"  Target: {s.target_position}, Target resource: {s.target_resource}")
 
@@ -1454,14 +1437,13 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 class BaselinePolicy(MultiAgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface, hyperparams: Optional[BaselineHyperparameters] = None):
         super().__init__(policy_env_info)
-        self._shared_state = SharedAgentState()
         self._agent_policies: dict[int, StatefulAgentPolicy[SimpleAgentState]] = {}
         self._hyperparams = hyperparams or BaselineHyperparameters()
 
     def agent_policy(self, agent_id: int) -> StatefulAgentPolicy[SimpleAgentState]:
         if agent_id not in self._agent_policies:
             self._agent_policies[agent_id] = StatefulAgentPolicy(
-                BaselineAgentPolicyImpl(self._policy_env_info, self._shared_state, agent_id, self._hyperparams),
+                BaselineAgentPolicyImpl(self._policy_env_info, agent_id, self._hyperparams),
                 self._policy_env_info,
             )
         return self._agent_policies[agent_id]
