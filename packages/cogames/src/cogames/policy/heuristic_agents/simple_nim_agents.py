@@ -68,12 +68,12 @@ class HeuristicAgentPolicy(AgentPolicy):
 
     def _step_with_arrays(self, simulation: Simulation, raw_obs: np.ndarray, raw_actions: np.ndarray) -> Action:
         self._agent.step(
-            num_agents=raw_obs.shape[0],
-            num_tokens=raw_obs.shape[1],
-            size_token=raw_obs.shape[2],
-            row_observations=raw_obs.ctypes.data,
-            num_actions=raw_actions.shape[0],
-            raw_actions=raw_actions.ctypes.data,
+            raw_obs.shape[0],
+            raw_obs.shape[1],
+            raw_obs.shape[2],
+            raw_obs.ctypes.data,
+            raw_actions.shape[0],
+            raw_actions.ctypes.data,
         )
 
         action_idx = int(raw_actions[self._agent_id])
