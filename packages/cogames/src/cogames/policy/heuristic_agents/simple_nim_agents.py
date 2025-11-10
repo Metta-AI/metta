@@ -3,6 +3,8 @@ import json
 import os
 import sys
 
+import numpy as np
+
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action, AgentObservation, Simulation
@@ -54,15 +56,17 @@ class HeuristicAgentPolicy(AgentPolicy):
     def reset(self, simulation: Simulation | None) -> None:
         if simulation is None:
             raise RuntimeError("HeuristicAgentPolicy requires simulation access; pass pass_sim_to_policies=True.")
-        if simulation.buffers is None:
-            raise RuntimeError("Simulation is not configured with shared buffers required by HeuristicAgentPolicy.")
         self._simulation = simulation
         self._buffers = simulation.buffers
 
-    def _step_with_buffers(self, simulation: Simulation, buffers: Buffers) -> Action:
-        raw_obs = buffers.observations
-        raw_actions = buffers.actions
+    def _resolve_arrays(self, simulation: Simulation) -> tuple[np.ndarray, np.ndarray]:
+        buffers = simulation.buffers
+        if buffers is not None:
+            return buffers.observations, buffers.actions
+        c_sim = simulation._c_sim  # Access shared C++ buffers when Python ones aren't provided
+        return c_sim.observations(), c_sim.actions()
 
+    def _step_with_arrays(self, simulation: Simulation, raw_obs: np.ndarray, raw_actions: np.ndarray) -> Action:
         self._agent.step(
             num_agents=raw_obs.shape[0],
             num_tokens=raw_obs.shape[1],
@@ -77,16 +81,18 @@ class HeuristicAgentPolicy(AgentPolicy):
         return Action(name=action_name)
 
     def step_with_simulation(self, simulation: Simulation | None) -> Action | None:
-        if simulation is None or simulation.buffers is None:
+        if simulation is None:
             return None
         self._simulation = simulation
         self._buffers = simulation.buffers
-        return self._step_with_buffers(simulation, simulation.buffers)
+        raw_obs, raw_actions = self._resolve_arrays(simulation)
+        return self._step_with_arrays(simulation, raw_obs, raw_actions)
 
     def step(self, obs: AgentObservation) -> Action:
-        if self._simulation is None or self._buffers is None:
+        if self._simulation is None:
             raise RuntimeError("HeuristicAgentPolicy must be reset with a simulation before stepping.")
-        return self._step_with_buffers(self._simulation, self._buffers)
+        raw_obs, raw_actions = self._resolve_arrays(self._simulation)
+        return self._step_with_arrays(self._simulation, raw_obs, raw_actions)
 
 
 class HeuristicAgentsPolicy(MultiAgentPolicy):
