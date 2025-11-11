@@ -75,7 +75,7 @@ dll.heuristic_agents_heuristic_agent_set_agent_id.restype = None
 dll.heuristic_agents_heuristic_agent_reset.argtypes = [HeuristicAgent]
 dll.heuristic_agents_heuristic_agent_reset.restype = None
 
-dll.heuristic_agents_heuristic_agent_step.argtypes = [HeuristicAgent, c_longlong, c_longlong, c_longlong, pointer, c_longlong, pointer]
+dll.heuristic_agents_heuristic_agent_step.argtypes = [HeuristicAgent, c_longlong, c_longlong, c_longlong, c_void_p, c_longlong, c_void_p]
 dll.heuristic_agents_heuristic_agent_step.restype = None
 
 dll.heuristic_agents_init_chook.argtypes = []
