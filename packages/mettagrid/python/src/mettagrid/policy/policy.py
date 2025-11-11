@@ -24,6 +24,7 @@ class AgentPolicy:
 
     def __init__(self, policy_env_info: PolicyEnvInterface):
         self._policy_env_info = policy_env_info
+        self._uses_raw_numpy = False
 
     @property
     def policy_env_info(self) -> PolicyEnvInterface:
