@@ -5,6 +5,7 @@ from contextlib import contextmanager
 
 import numpy as np
 
+from mettagrid.mettagrid_c import dtype_observations
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action, AgentObservation, Simulation
@@ -41,7 +42,26 @@ def _import_fast_agents():
     return fa
 
 
-class RandomAgentPolicy(AgentPolicy):
+class _FastAgentPolicyBase(AgentPolicy):
+    def __init__(self, policy_env_info: PolicyEnvInterface):
+        super().__init__(policy_env_info)
+        obs_shape = policy_env_info.observation_space.shape
+        self._num_tokens = obs_shape[0]
+        self._token_dim = obs_shape[1]
+        self._raw_buffer = np.empty(obs_shape, dtype=dtype_observations)
+
+    def _pack_raw_observation(self, obs: AgentObservation) -> np.ndarray:
+        raw = self._raw_buffer
+        raw.fill(255)
+        for idx, token in enumerate(obs.tokens):
+            if idx >= self._num_tokens:
+                break
+            token_values = token.raw_token
+            raw[idx, : len(token_values)] = token_values
+        return raw
+
+
+class RandomAgentPolicy(_FastAgentPolicyBase):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info)
         fa = _import_fast_agents()
@@ -61,9 +81,7 @@ class RandomAgentPolicy(AgentPolicy):
             )
 
     def step(self, obs: AgentObservation) -> Action:
-        if obs.raw_observation is None:
-            raise ValueError("Nim agents require raw observation buffers.")
-        raw = obs.raw_observation
+        raw = np.ascontiguousarray(self._pack_raw_observation(obs))
         with _suppress_fast_agent_output():
             action_index = self._agent.step(
                 num_tokens=raw.shape[0],
@@ -85,7 +103,7 @@ class RandomAgentsMultiPolicy(MultiAgentPolicy):
         return RandomAgentPolicy(self._policy_env_info, agent_id)
 
 
-class ThinkyAgentPolicy(AgentPolicy):
+class ThinkyAgentPolicy(_FastAgentPolicyBase):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info)
         fa = _import_fast_agents()
@@ -105,9 +123,7 @@ class ThinkyAgentPolicy(AgentPolicy):
             )
 
     def step(self, obs: AgentObservation) -> Action:
-        if obs.raw_observation is None:
-            raise ValueError("Nim agents require raw observation buffers.")
-        raw = obs.raw_observation
+        raw = np.ascontiguousarray(self._pack_raw_observation(obs))
         with _suppress_fast_agent_output():
             action_index = self._agent.step(
                 num_tokens=raw.shape[0],
@@ -129,7 +145,7 @@ class ThinkyAgentsMultiPolicy(MultiAgentPolicy):
         return ThinkyAgentPolicy(self._policy_env_info, agent_id)
 
 
-class RaceCarAgentPolicy(AgentPolicy):
+class RaceCarAgentPolicy(_FastAgentPolicyBase):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info)
         fa = _import_fast_agents()
@@ -149,9 +165,7 @@ class RaceCarAgentPolicy(AgentPolicy):
             )
 
     def step(self, obs: AgentObservation) -> Action:
-        if obs.raw_observation is None:
-            raise ValueError("Nim agents require raw observation buffers.")
-        raw = obs.raw_observation
+        raw = np.ascontiguousarray(self._pack_raw_observation(obs))
         with _suppress_fast_agent_output():
             action_index = self._agent.step(
                 num_tokens=raw.shape[0],

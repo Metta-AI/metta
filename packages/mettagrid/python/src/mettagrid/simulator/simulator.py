@@ -338,7 +338,7 @@ class SimulationAgent:
                     raw_token=o,
                 )
             )
-        return AgentObservation(agent_id=self._agent_id, tokens=tokens, raw_observation=raw_obs)
+        return AgentObservation(agent_id=self._agent_id, tokens=tokens)
 
     @property
     def step_reward(self) -> float:

@@ -3,8 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional, Sequence
 
-import numpy as np
-
 if TYPE_CHECKING:
     from mettagrid.config.id_map import ObservationFeatureSpec
     from mettagrid.simulator.simulator import Simulation
@@ -29,7 +27,6 @@ class ObservationToken:
 class AgentObservation:
     agent_id: int
     tokens: Sequence[ObservationToken]
-    raw_observation: Optional[np.ndarray] = None
 
 
 @dataclass
