@@ -390,11 +390,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         # Update position history and detect loops
         current_pos = (s.row, s.col)
         s.position_history.append(current_pos)
-<<<<<<< HEAD
         if len(s.position_history) > self._hyperparams.position_history_size:
-=======
-        if len(s.position_history) > 30:
->>>>>>> 82c9c906b819f47891dc673c0e8ebe46422f2363
             s.position_history.pop(0)
 
         # Detect if agent is stuck in a back-and-forth loop
@@ -620,14 +616,9 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         Changes direction when blocked or after persistence expires.
         Uses move_towards for actual movement to benefit from collision detection and pathfinding checks.
 
-<<<<<<< HEAD
         Anti-stuck mechanism: If stuck in a small area (configurable via hyperparameters) for
         a configurable number of steps, navigates to assembler for a configurable duration
         to escape, then continues exploring.
-=======
-        Anti-stuck mechanism: If stuck in a 10x10 area for 30 steps, navigates to assembler
-        for 10 steps to escape, then continues exploring.
->>>>>>> 82c9c906b819f47891dc673c0e8ebe46422f2363
         """
         if s.row < 0:
             return self._actions.noop.Noop()
@@ -650,15 +641,9 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
                     # Don't know where assembler is yet, just continue exploring
                     s.exploration_escape_until_step = 0
 
-<<<<<<< HEAD
         # Check if stuck in small area using last N positions from history
         if len(s.position_history) >= self._hyperparams.exploration_area_check_window:
             recent_positions = s.position_history[-self._hyperparams.exploration_area_check_window :]
-=======
-        # Check if stuck in small area using last 30 positions from history
-        if len(s.position_history) >= 30:
-            recent_positions = s.position_history[-30:]
->>>>>>> 82c9c906b819f47891dc673c0e8ebe46422f2363
             min_row = min(pos[0] for pos in recent_positions)
             max_row = max(pos[0] for pos in recent_positions)
             min_col = min(pos[1] for pos in recent_positions)
@@ -667,41 +652,27 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             area_height = max_row - min_row + 1
             area_width = max_col - min_col + 1
 
-<<<<<<< HEAD
             if (
                 area_height <= self._hyperparams.exploration_area_size_threshold
                 and area_width <= self._hyperparams.exploration_area_size_threshold
                 and s.stations["assembler"] is not None
             ):
-=======
-            if area_height <= 7 and area_width <= 7 and s.stations["assembler"] is not None:
->>>>>>> 82c9c906b819f47891dc673c0e8ebe46422f2363
                 assembler_pos = s.stations["assembler"]
                 if assembler_pos is not None:
                     dist = abs(s.row - assembler_pos[0]) + abs(s.col - assembler_pos[1])
                     # Only trigger escape if far from assembler and not already in escape mode
                     # Also prevent triggering too frequently (wait at least 25 steps since last escape ended)
-<<<<<<< HEAD
                     if (
                         dist > self._hyperparams.exploration_assembler_distance_threshold
                         and s.exploration_escape_until_step == 0
                     ):
                         # Stuck in small area and far from assembler! Enter escape mode
                         s.exploration_escape_until_step = s.step_count + self._hyperparams.exploration_escape_duration
-=======
-                    if dist > 10 and s.exploration_escape_until_step == 0:
-                        # Stuck in small area and far from assembler! Enter escape mode for 10 steps
-                        s.exploration_escape_until_step = s.step_count + 10
->>>>>>> 82c9c906b819f47891dc673c0e8ebe46422f2363
                         return self._move_towards(s, assembler_pos, reach_adjacent=True)
         # Check if we should keep current exploration direction
         if s.exploration_target_step is not None:
             steps_in_direction = s.step_count - s.exploration_target_step
-<<<<<<< HEAD
             if steps_in_direction < self._hyperparams.exploration_direction_persistence:
-=======
-            if steps_in_direction < 10:
->>>>>>> 82c9c906b819f47891dc673c0e8ebe46422f2363
                 # Still committed to current direction, try to move that way
                 if s.exploration_target is not None and isinstance(s.exploration_target, str):
                     # exploration_target stores the direction as a string
