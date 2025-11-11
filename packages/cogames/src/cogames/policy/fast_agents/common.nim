@@ -4,6 +4,8 @@ import
   jsony
 
 type
+  c_void_p* {.importc: "void *", nodecl.} = pointer
+
   ConfigFeature* = object
     id*: int
     name*: string

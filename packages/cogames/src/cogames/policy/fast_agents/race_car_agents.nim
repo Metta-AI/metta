@@ -104,9 +104,9 @@ proc step*(
   numAgents: int,
   numTokens: int,
   sizeToken: int,
-  rawObservations: pointer,
+  rawObservations: c_void_p,
   numActions: int,
-  rawActions: pointer
+  rawActions: c_void_p
 ) {.raises: [].} =
   try:
     echo "Driving race car agent ", agent.agentId

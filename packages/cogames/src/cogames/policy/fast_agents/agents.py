@@ -1,10 +1,11 @@
+import ctypes
 import os
 import sys
 from typing import Callable
 
 import numpy as np
 
-from mettagrid.mettagrid_c import dtype_actions
+from mettagrid.mettagrid_c import dtype_actions, dtype_observations
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action, AgentObservation, Simulation
@@ -27,7 +28,7 @@ class _FastAgentPolicy(AgentPolicy):
         self._agent = ctor(agent_id, policy_env_info.to_json())
         self._num_agents = policy_env_info.num_agents
         self._num_tokens, self._token_dim = policy_env_info.observation_space.shape
-        self._obs_dtype = policy_env_info.observation_space.dtype
+        self._obs_dtype = dtype_observations
         self._action_names = [action.name for action in policy_env_info.actions.actions()]
 
     def step(self, obs: AgentObservation) -> Action:
@@ -63,9 +64,9 @@ class _FastAgentPolicy(AgentPolicy):
             num_agents=int(raw_observations.shape[0]),
             num_tokens=int(raw_observations.shape[1]),
             size_token=int(raw_observations.shape[2]),
-            raw_observations=raw_observations.ctypes.data,
+            raw_observations=ctypes.c_void_p(raw_observations.ctypes.data),
             num_actions=int(raw_actions.shape[0]),
-            raw_actions=raw_actions.ctypes.data,
+            raw_actions=ctypes.c_void_p(raw_actions.ctypes.data),
         )
         return None
 
