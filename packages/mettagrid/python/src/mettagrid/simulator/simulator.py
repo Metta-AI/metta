@@ -82,7 +82,6 @@ class Simulation:
             action.name: idx for idx, action in enumerate(self._config.game.actions.actions())
         }
 
-        self._buffers = buffers
         if buffers is not None:
             self._c_sim.set_buffers(
                 buffers.observations,
