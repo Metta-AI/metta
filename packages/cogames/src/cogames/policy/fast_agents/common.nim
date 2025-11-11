@@ -1,6 +1,6 @@
 
 import
-  std/[strformat, strutils, tables, sets],
+  std/[strformat, strutils, tables, sets, options, algorithm],
   jsony
 
 type
@@ -22,6 +22,7 @@ type
     actions*: Actions
     features*: Features
     tags*: Tags
+    vibes*: Vibes
 
   FeatureValue* = object
     featureId*: int
@@ -66,6 +67,10 @@ type
     siliconExtractor*: int
     wall*: int
 
+  Vibes* = object
+    # TODO: Pass with vibes from config.
+    heart*: int = 6
+
   Features* = object
     group*: int
     frozen*: int
@@ -93,6 +98,49 @@ type
     invModulator*: int
     invResonator*: int
     invScrambler*: int
+
+proc `+`*(location1: Location, location2: Location): Location =
+  ## Add two locations.
+  result.x = location1.x + location2.x
+  result.y = location1.y + location2.y
+
+proc `-`*(location1: Location, location2: Location): Location =
+  ## Subtract two locations.
+  result.x = location1.x - location2.x
+  result.y = location1.y - location2.y
+
+proc manhattan*(a, b: Location): int =
+  ## Get the Manhattan distance between two locations.
+  abs(a.x - b.x) + abs(a.y - b.y)
+
+proc generateSpiral*(count: int): seq[Location] =
+  ## Generate a square spiral starting at (0,0) and spiraling outwards.
+  result = @[]
+  var
+    x = 0
+    y = 0
+    dx = 1
+    dy = 0
+    stepSize = 1
+    stepsTaken = 0
+    directionChanges = 0
+  for i in 0 ..< count:
+    result.add(Location(x: x, y: y))
+    x += dx
+    y += dy
+    inc stepsTaken
+    if stepsTaken == stepSize:
+      stepsTaken = 0
+      inc(directionChanges)
+      # Rotate direction: (dx, dy) -> (-dy, dx)
+      let tmp = dx
+      dx = -dy
+      dy = tmp
+      if directionChanges mod 2 == 0:
+        inc stepSize
+  return result
+
+const spiral* = generateSpiral(1000)
 
 proc ctrlCHandler*() {.noconv.} =
   ## Handle ctrl-c signal to exit cleanly.
@@ -261,6 +309,18 @@ proc drawMap*(cfg: Config, map: Table[Location, seq[FeatureValue]], seen: HashSe
         cell = "~~"
       if location in map:
         for featureValue in map[location]:
+          if featureValue.featureId == cfg.features.orientation:
+            if featureValue.value == 0:
+              cell = "@N"
+            elif featureValue.value == 1:
+              cell = "@E"
+            elif featureValue.value == 2:
+              cell = "@S"
+            elif featureValue.value == 3:
+              cell = "@W"
+          if featureValue.featureId == cfg.features.group:
+            if featureValue.value == 0:
+              cell = "@" & ($featureValue.value)[0]
           if featureValue.featureId == cfg.features.tag:
             if featureValue.value == cfg.tags.agent:
               cell = "@@"
@@ -321,3 +381,195 @@ proc getInventory*(cfg: Config, visible: Table[Location, seq[FeatureValue]], inv
 proc getVibe*(cfg: Config, visible: Table[Location, seq[FeatureValue]]): int =
   ## Get the vibe of the visible map.
   cfg.getFeature(visible, cfg.features.vibe)
+
+proc getNearby*(
+  cfg: Config,
+  currentLocation: Location,
+  map: Table[Location, seq[FeatureValue]],
+  tagId: int
+): Option[Location] =
+  ## Get if there is a nearby location with the given tag.
+  var
+    found = false
+    closestLocation = Location(x: 0, y: 0)
+    closestDistance = 9999
+  for location, featureValues in map:
+    for featureValue in featureValues:
+      if featureValue.featureId == cfg.features.tag and featureValue.value == tagId:
+        let distance = manhattan(location, currentLocation)
+        if distance < closestDistance:
+          closestDistance = distance
+          closestLocation = location
+          found = true
+  if found:
+    return some(closestLocation)
+  return none(Location)
+
+proc getNearbyUnseen*(
+  cfg: Config,
+  currentLocation: Location,
+  map: Table[Location, seq[FeatureValue]],
+  seen: HashSet[Location]
+): Option[Location] =
+  ## Get if there is a nearby location that is unseen.
+  var
+    found = false
+    closestLocation = Location(x: 0, y: 0)
+    closestDistance = 9999
+  for spiralLocation in spiral:
+    let location = spiralLocation + currentLocation
+    if location notin seen:
+      let distance = manhattan(location, currentLocation)
+      if distance < closestDistance:
+        closestDistance = distance
+        closestLocation = location
+        found = true
+  if found:
+    return some(closestLocation)
+  else:
+    return none(Location)
+
+proc simpleGoTo*(cfg: Config, currentLocation: Location, targetLocation: Location): int =
+  ## Navigate to the given location.
+  echo "currentLocation: ", currentLocation.x, ", ", currentLocation.y
+  echo "targetLocation: ", targetLocation.x, ", ", targetLocation.y
+  if currentLocation.x < targetLocation.x:
+    echo "moving east"
+    return cfg.actions.moveEast
+  elif currentLocation.x > targetLocation.x:
+    echo "moving west"
+    return cfg.actions.moveWest
+  elif currentLocation.y < targetLocation.y:
+    echo "moving south"
+    return cfg.actions.moveSouth
+  elif currentLocation.y > targetLocation.y:
+    echo "moving north"
+    return cfg.actions.moveNorth
+  else:
+    echo "no action"
+    return cfg.actions.noop
+
+proc isWalkable*(cfg: Config, map: Table[Location, seq[FeatureValue]], loc: Location): bool =
+  # Default: tiles not present are walkable; present tiles are walkable unless you decide otherwise.
+  if loc in map:
+    for featureValue in map[loc]:
+      if featureValue.featureId == cfg.features.tag:
+        # Its something that blocks movement.
+        return false
+      if featureValue.featureId == cfg.features.orientation:
+        # Its the agent's orientation, so an agent can't move through it.
+        return false
+      if featureValue.featureId == cfg.features.group:
+        # If the group there, then its an agent.
+        return false
+  return true
+
+proc neighbors(loc: Location): array[4, Location] =
+  [
+    Location(x: loc.x + 1, y: loc.y), # East
+    Location(x: loc.x - 1, y: loc.y), # West
+    Location(x: loc.x, y: loc.y - 1), # North (assuming y-1 is north)
+    Location(x: loc.x, y: loc.y + 1)  # South
+  ]
+
+proc reconstructPath(cameFrom: Table[Location, Location], current: Location): seq[Location] =
+  var cur = current
+  result = @[cur]
+  var cf = cameFrom
+  while cf.hasKey(cur):
+    cur = cf[cur]
+    result.add(cur)
+  result.reverse()
+
+proc stepToAction(cfg: Config, fromLoc, toLoc: Location): int =
+  # Translate the first step along the path into an action id.
+  if toLoc.x == fromLoc.x + 1 and toLoc.y == fromLoc.y:
+    return cfg.actions.moveEast
+  elif toLoc.x == fromLoc.x - 1 and toLoc.y == fromLoc.y:
+    return cfg.actions.moveWest
+  elif toLoc.y == fromLoc.y - 1 and toLoc.x == fromLoc.x:
+    return cfg.actions.moveNorth
+  elif toLoc.y == fromLoc.y + 1 and toLoc.x == fromLoc.x:
+    return cfg.actions.moveSouth
+  else:
+    # Not an adjacent cardinal move; noop as a safeguard.
+    return cfg.actions.noop
+
+proc aStar*(
+  cfg: Config,
+  currentLocation: Location,
+  targetLocation: Location,
+  map: Table[Location, seq[FeatureValue]]
+): Option[int] =
+  ## Navigate to the given location using A*. Returns the next action to take.
+  if currentLocation == targetLocation:
+    return none(int)
+
+  # Open set: nodes to evaluate
+  var openSet = initHashSet[Location]()
+  openSet.incl(currentLocation)
+
+  # For path reconstruction
+  var cameFrom = initTable[Location, Location]()
+
+  # gScore: cost from start
+  var gScore = initTable[Location, int]()
+  gScore[currentLocation] = 0
+
+  # fScore: g + heuristic
+  var fScore = initTable[Location, int]()
+  fScore[currentLocation] = manhattan(currentLocation, targetLocation)
+
+  # Utility to get fScore with default "infinite"
+  proc getF(loc: Location): int =
+    if fScore.hasKey(loc): fScore[loc] else: high(int)
+
+  while openSet.len > 0:
+
+    if openSet.len > 100:
+      # Too far... bail out.
+      return none(int)
+
+    # Pick node in openSet with lowest fScore
+    var currentIter = false
+    var current: Location
+    var bestF = high(int)
+    for n in openSet:
+      let f = getF(n)
+      if not currentIter or f < bestF:
+        bestF = f
+        current = n
+        currentIter = true
+
+    # (Optional sanity guard)
+    if not currentIter:
+      # openSet was somehow empty; break out safely
+      return none(int)
+    if current == targetLocation:
+      let path = reconstructPath(cameFrom, current)
+      # path[0] is currentLocation; path[1] is our next step (if exists)
+      if path.len >= 2:
+        return some(stepToAction(cfg, path[0], path[1]))
+      else:
+        return none(int)
+
+    openSet.excl(current)
+
+    # Explore neighbors
+    for nb in neighbors(current).items:
+      # Allow stepping onto the goal even if it's "blocked" (e.g., extractor tile).
+      if nb != targetLocation and not cfg.isWalkable(map, nb):
+        continue
+
+      let tentativeG = (if gScore.hasKey(current): gScore[current] else: high(int)) + 1
+      # If nb has no gScore or this path is better, record it
+      let nbG = (if gScore.hasKey(nb): gScore[nb] else: high(int))
+      if tentativeG < nbG:
+        cameFrom[nb] = current
+        gScore[nb] = tentativeG
+        fScore[nb] = tentativeG + manhattan(nb, targetLocation)
+        if nb notin openSet:
+          openSet.incl(nb)
+
+  # No path found — fall back to greedy single-step
+  return none(int)

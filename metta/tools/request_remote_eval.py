@@ -4,22 +4,27 @@ from typing import Sequence
 from metta.app_backend.clients.stats_client import HttpStatsClient
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
 from metta.common.tool.tool import Tool
-from metta.common.util.constants import PROD_STATS_SERVER_URI
 from metta.common.util.git_helpers import get_task_commit_hash
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.utils import get_or_create_policy_ids
+from metta.tools.utils.auto_config import auto_stats_server_uri
 
 logger = logging.getLogger(__name__)
 
 
-class EvalRemoteTool(Tool):
-    stats_server_uri: str = PROD_STATS_SERVER_URI
+# Used to evaluate a policy on a remote simulation suite
+class RequestRemoteEvalTool(Tool):
+    stats_server_uri: str | None = auto_stats_server_uri()
 
     policy_uri: str
     simulations: Sequence[SimulationConfig]
 
     def invoke(self, args: dict[str, str]) -> int | None:
+        if self.stats_server_uri is None:
+            logger.error("No stats server URI provided")
+            return 1
+
         stats_client = HttpStatsClient.create(self.stats_server_uri)
         normalized_uri = CheckpointManager.normalize_uri(self.policy_uri)
         policy_id = get_or_create_policy_ids(stats_client, [(normalized_uri, "")])[normalized_uri]

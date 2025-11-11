@@ -76,6 +76,8 @@ class RandomAgentsMultiPolicy(MultiAgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface):
         super().__init__(policy_env_info)
 
+    short_names = ["fast_random"]
+
     def agent_policy(self, agent_id: int) -> RandomAgentPolicy:
         return RandomAgentPolicy(self._policy_env_info, agent_id)
 
@@ -114,6 +116,8 @@ class ThinkyAgentsMultiPolicy(MultiAgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface):
         super().__init__(policy_env_info)
 
+    short_names = ["fast_thinky"]
+
     def agent_policy(self, agent_id: int) -> ThinkyAgentPolicy:
         return ThinkyAgentPolicy(self._policy_env_info, agent_id)
 
@@ -151,6 +155,8 @@ class RaceCarAgentPolicy(_FastAgentPolicyBase):
 class RaceCarAgentsMultiPolicy(MultiAgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface):
         super().__init__(policy_env_info)
+
+    short_names = ["fast_race_car"]
 
     def agent_policy(self, agent_id: int) -> RaceCarAgentPolicy:
         return RaceCarAgentPolicy(self._policy_env_info, agent_id)

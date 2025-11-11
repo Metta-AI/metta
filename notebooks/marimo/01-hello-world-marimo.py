@@ -511,7 +511,6 @@ def _(
 
     # Global configuration flags from old mettagrid.yaml
     mg_config.desync_episodes = True  # Changes max_steps for first episode only
-    mg_config.game.protocol_details_obs = False
 
     # Global observation tokens from old config
     mg_config.game.global_obs.episode_completion_pct = True

@@ -33,10 +33,8 @@ import numpy as np
 from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_VARIANTS, get_difficulty
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import NumCogsVariant
-from cogames.policy.scripted_agent.baseline_agent import (
-    BASELINE_HYPERPARAMETER_PRESETS,
-    BaselinePolicy,
-)
+from cogames.policy.scripted_agent.baseline_agent import BaselinePolicy
+from cogames.policy.scripted_agent.types import BASELINE_HYPERPARAMETER_PRESETS
 from cogames.policy.scripted_agent.unclipping_agent import UnclippingPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
@@ -54,7 +52,7 @@ class EvalResult:
     num_cogs: int
     difficulty: str
     preset: str
-    clip_rate: float
+    clip_period: int
     total_reward: float  # Average reward per agent
     hearts_assembled: int
     steps_taken: int
@@ -150,8 +148,8 @@ def run_evaluation(
                 # Create mission and apply difficulty (always from base_mission)
                 mission = base_mission.with_variants([difficulty, NumCogsVariant(num_cogs=num_cogs)])
 
-                # Get clip rate for metadata
-                clip_rate = getattr(difficulty, "extractor_clip_rate", 0.0)
+                # Get clip period for metadata
+                clip_period = getattr(difficulty, "extractor_clip_period", 0)
 
                 try:
                     env_config = mission.make_env()
@@ -188,7 +186,7 @@ def run_evaluation(
                         num_cogs=num_cogs,
                         difficulty=difficulty_name,
                         preset=preset,
-                        clip_rate=clip_rate,
+                        clip_period=clip_period,
                         total_reward=total_reward,
                         hearts_assembled=int(total_reward),
                         steps_taken=final_step + 1,
@@ -209,7 +207,7 @@ def run_evaluation(
                         num_cogs=num_cogs,
                         difficulty=difficulty_name,
                         preset=preset,
-                        clip_rate=0.0,
+                        clip_period=0,
                         total_reward=0.0,
                         hearts_assembled=0,
                         steps_taken=0,

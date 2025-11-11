@@ -1,5 +1,5 @@
 #!/bin/sh
-set -u
+set -eu
 PROFILE_ADDITION=""
 NON_INTERACTIVE_ADDITION=""
 INSTALL_CUDA_EXTRAS="0"
@@ -38,6 +38,7 @@ while [ $# -gt 0 ]; do
       echo ""
       echo "Examples:"
       echo "  $0                     # Interactive setup"
+
       echo "  $0 --profile softmax   # Setup for Softmax employee"
       echo "  $0 --with-cuda-extras  # Also install flash-attn/causal-conv1d (Linux + CUDA)"
       exit 0

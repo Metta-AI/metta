@@ -39,8 +39,8 @@ from mettagrid.mettagrid_c import (
     dtype_terminals,
     dtype_truncations,
 )
+from mettagrid.policy.loader import initialize_or_load_policy, resolve_policy_class_path
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.policy.utils import initialize_or_load_policy, resolve_policy_class_path
 from mettagrid.simulator import Simulation, Simulator
 from mettagrid.simulator.simulator import Buffers
 from pufferlib.pufferlib import PufferEnv

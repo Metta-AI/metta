@@ -55,16 +55,21 @@ class Rollout:
     def step(self) -> None:
         """Execute one step of the rollout."""
         for i in range(len(self._policies)):
-            start_time = time.time()
-            action = self._policies[i].step(self._agents[i].observation)
-            end_time = time.time()
-            if (end_time - start_time) > self._max_action_time_ms:
-                logger.warning(
-                    f"Action took {end_time - start_time} seconds, exceeding max of {self._max_action_time_ms}ms"
-                )
-                action = self._config.game.actions.noop.Noop()
-                self._timeout_counts[i] += 1
-            self._agents[i].set_action(action)
+            if self._policies[i].uses_raw_numpy:
+                # David I need to know how you want this architecture to work.
+                # This policy needs the raw observations and raw actions to step.
+                self._policies[i].step(raw_observations=self._sim.raw_observations(), raw_actions=self._sim.raw_actions())
+            else:
+                start_time = time.time()
+                action = self._policies[i].step(self._agents[i].observation)
+                end_time = time.time()
+                if (end_time - start_time) > self._max_action_time_ms:
+                    logger.warning(
+                        f"Action took {end_time - start_time} seconds, exceeding max of {self._max_action_time_ms}ms"
+                    )
+                    action = self._config.game.actions.noop.Noop()
+                    self._timeout_counts[i] += 1
+                self._agents[i].set_action(action)
 
         if self._renderer is not None:
             self._renderer.render()

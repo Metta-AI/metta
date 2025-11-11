@@ -1,5 +1,5 @@
 import
-  std/[strformat, strutils, tables, random, sets],
+  std/[strformat, strutils, tables, random, sets, options],
   genny, jsony,
   common
 
@@ -14,14 +14,14 @@ type
     location: Location
 
 proc newThinkyAgent*(agentId: int, environmentConfig: string): ThinkyAgent {.raises: [].} =
-  echo "Creating new heuristic agent ", agentId
+  #echo "Creating new heuristic agent ", agentId
 
   var config = parseConfig(environmentConfig)
   result = ThinkyAgent(agentId: agentId, cfg: config)
   result.random = initRand(agentId)
 
 proc reset*(agent: ThinkyAgent) =
-  echo "Resetting heuristic agent ", agent.agentId
+  #echo "Resetting heuristic agent ", agent.agentId
   agent.map.clear()
   agent.seen.clear()
   agent.location = Location(x: 0, y: 0)
@@ -84,9 +84,10 @@ proc updateMap(agent: ThinkyAgent, visible: Table[Location, seq[FeatureValue]]) 
 
   # Update the big map with the small visible map.
   if bestScore < 2:
-    echo "Looks like we are lost?"
-    echo "  current location: ", agent.location.x, ", ", agent.location.y
-    echo "  best location: ", bestLocation.x, ", ", bestLocation.y
+    # echo "Looks like we are lost?"
+    # echo "  current location: ", agent.location.x, ", ", agent.location.y
+    # echo "  best location: ", bestLocation.x, ", ", bestLocation.y
+    discard
   else:
     agent.location =  bestLocation
     for x in -5 .. 5:
@@ -101,63 +102,6 @@ proc updateMap(agent: ThinkyAgent, visible: Table[Location, seq[FeatureValue]]) 
 
 proc step*(
   agent: ThinkyAgent,
-  numTokens: int,
-  sizeToken: int,
-  rawObservation: pointer
-): int32 {.raises: [].} =
-  try:
-    echo "Thinking heuristic agent ", agent.agentId
-    let observations = cast[ptr UncheckedArray[uint8]](rawObservation)
-
-    var map: Table[Location, seq[FeatureValue]]
-    for token in 0 ..< numTokens:
-      let baseIdx = token * sizeToken
-      let locationPacked = observations[baseIdx]
-      let featureId = observations[baseIdx + 1]
-      let value = observations[baseIdx + 2]
-      if locationPacked == 255 and featureId == 255 and value == 255:
-        break
-      var location: Location
-      if locationPacked != 0xFF:
-        location.y = (locationPacked shr 4).int - 5
-        location.x = (locationPacked and 0x0F).int - 5
-      if location notin map:
-        map[location] = @[]
-      map[location].add(FeatureValue(featureId: featureId.int, value: value.int))
-
-    echo "current location: ", agent.location.x, ", ", agent.location.y
-    echo "visible map:"
-    agent.cfg.drawMap(map, initHashSet[Location]())
-    updateMap(agent, map)
-    echo "updated map:"
-    agent.cfg.drawMap(agent.map, agent.seen)
-
-    let vibe = agent.cfg.getVibe(map)
-    echo "vibe: ", vibe
-
-    let invEnergy = agent.cfg.getInventory(map, agent.cfg.features.invEnergy)
-    let invCarbon = agent.cfg.getInventory(map, agent.cfg.features.invCarbon)
-    let invOxygen = agent.cfg.getInventory(map, agent.cfg.features.invOxygen)
-    let invGermanium = agent.cfg.getInventory(map, agent.cfg.features.invGermanium)
-    let invSilicon = agent.cfg.getInventory(map, agent.cfg.features.invSilicon)
-    let invHeart = agent.cfg.getInventory(map, agent.cfg.features.invHeart)
-    let invDecoder = agent.cfg.getInventory(map, agent.cfg.features.invDecoder)
-    let invModulator = agent.cfg.getInventory(map, agent.cfg.features.invModulator)
-    let invResonator = agent.cfg.getInventory(map, agent.cfg.features.invResonator)
-    let invScrambler = agent.cfg.getInventory(map, agent.cfg.features.invScrambler)
-
-    echo &"H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
-
-    result = agent.random.rand(1 .. 4).int32
-    echo "taking action ", result
-
-  except:
-    echo getCurrentException().getStackTrace()
-    echo getCurrentExceptionMsg()
-    quit()
-
-proc stepBatch*(
-  agent: ThinkyAgent,
   numAgents: int,
   numTokens: int,
   sizeToken: int,
@@ -166,7 +110,7 @@ proc stepBatch*(
   rawActions: pointer
 ) {.raises: [].} =
   try:
-    echo "Thinking heuristic agent ", agent.agentId
+    # echo "Thinking heuristic agent ", agent.agentId
     # echo "  numAgents", numAgents
     # echo "  numTokens", numTokens
     # echo "  sizeToken", sizeToken
@@ -189,15 +133,15 @@ proc stepBatch*(
         map[location] = @[]
       map[location].add(FeatureValue(featureId: featureId.int, value: value.int))
 
-    echo "current location: ", agent.location.x, ", ", agent.location.y
-    echo "visible map:"
-    agent.cfg.drawMap(map, initHashSet[Location]())
+    #echo "current location: ", agent.location.x, ", ", agent.location.y
+    #echo "visible map:"
+    #agent.cfg.drawMap(map, initHashSet[Location]())
     updateMap(agent, map)
-    echo "updated map:"
-    agent.cfg.drawMap(agent.map, agent.seen)
+    #echo "updated map:"
+    #agent.cfg.drawMap(agent.map, agent.seen)
 
     let vibe = agent.cfg.getVibe(map)
-    echo "vibe: ", vibe
+    #echo "vibe: ", vibe
 
     let invEnergy = agent.cfg.getInventory(map, agent.cfg.features.invEnergy)
     let invCarbon = agent.cfg.getInventory(map, agent.cfg.features.invCarbon)
@@ -210,12 +154,115 @@ proc stepBatch*(
     let invResonator = agent.cfg.getInventory(map, agent.cfg.features.invResonator)
     let invScrambler = agent.cfg.getInventory(map, agent.cfg.features.invScrambler)
 
-    echo &"H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
+    #echo &"H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
 
     let actions = cast[ptr UncheckedArray[int32]](rawActions)
+
+    # If not vibing here at heart then vibe heart.
+    if vibe != agent.cfg.vibes.heart:
+      actions[agent.agentId] = agent.cfg.actions.vibeHeart.int32
+      #echo "vibing heart"
+      return
+
+    # Is there an energy charger nearby?
+    let chargerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.charger)
+    if invEnergy < 100 and chargerNearby.isSome():
+      let action = agent.cfg.aStar(agent.location, chargerNearby.get(), agent.map)
+      if action.isSome():
+        actions[agent.agentId] = action.get().int32
+        #echo "going to charger"
+        return
+
+    # Explore locations around the assembler.
+    let keyLocations = [
+      Location(x: -10, y: -10),
+      Location(x: -10, y: +10),
+      Location(x: +10, y: -10),
+      Location(x: +10, y: +10),
+    ]
+    let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
+    if assemblerNearby.isSome():
+      for keyLocation in keyLocations:
+        let location = assemblerNearby.get() + keyLocation
+        if location notin agent.seen:
+          let action = agent.cfg.aStar(agent.location, location, agent.map)
+          if action.isSome():
+            actions[agent.agentId] = action.get().int32
+            #echo "going to key location to explore"
+            return
+
+    # Is there carbon nearby?
+    let carbonNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.carbonExtractor)
+    if invCarbon == 0 and carbonNearby.isSome():
+      let action = agent.cfg.aStar(agent.location, carbonNearby.get(), agent.map)
+      if action.isSome():
+        actions[agent.agentId] = action.get().int32
+        #echo "going to carbon"
+        return
+
+    # Is there oxygen nearby?
+    let oxygenNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.oxygenExtractor)
+    if invOxygen == 0 and oxygenNearby.isSome():
+      let action = agent.cfg.aStar(agent.location, oxygenNearby.get(), agent.map)
+      if action.isSome():
+        actions[agent.agentId] = action.get().int32
+        #echo "going to oxygen"
+        return
+
+    # Is there germanium nearby?
+    let germaniumNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.germaniumExtractor)
+    if invGermanium == 0 and germaniumNearby.isSome():
+      let action = agent.cfg.aStar(agent.location, germaniumNearby.get(), agent.map)
+      if action.isSome():
+        actions[agent.agentId] = action.get().int32
+        #echo "going to germanium"
+        return
+
+    # Is there silicon nearby?
+    let siliconNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.siliconExtractor)
+    if invSilicon == 0 and siliconNearby.isSome():
+      let action = agent.cfg.aStar(agent.location, siliconNearby.get(), agent.map)
+      if action.isSome():
+        actions[agent.agentId] = action.get().int32
+        #echo "going to silicon"
+        return
+
+    if invSilicon > 0 and invOxygen > 0 and invCarbon > 0 and invGermanium > 0:
+      # We have all the resources we need, so we can build an assembler.
+      let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
+      if assemblerNearby.isSome():
+        let action = agent.cfg.aStar(agent.location, assemblerNearby.get(), agent.map)
+        if action.isSome():
+          actions[agent.agentId] = action.get().int32
+          #echo "going to assembler to build heart"
+          return
+
+    # Try to find a nearby unseen location nearest to the agent.
+    let unseenNearby = agent.cfg.getNearbyUnseen(agent.location, agent.map, agent.seen)
+    if unseenNearby.isSome():
+      let action = agent.cfg.aStar(agent.location, unseenNearby.get(), agent.map)
+      if action.isSome():
+        actions[agent.agentId] = action.get().int32
+        #echo "going to unseen location nearest to agent"
+        return
+
+    # # Find the nearest unexplored location to the assembler.
+    # let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
+    # if assemblerNearby.isSome():
+    #   echo "assembler nearby"
+    #   let unseenNearby = agent.cfg.getNearbyUnseen(assemblerNearby.get(), agent.map, agent.seen)
+    #   if unseenNearby.isSome():
+    #     echo "unseen nearby"
+    #     let action = agent.cfg.aStar(agent.location, unseenNearby.get(), agent.map)
+    #     if action.isSome():
+    #       actions[agent.agentId] = action.get().int32
+    #       echo "going to unseen location"
+    #       return
+
+    # If all else fails, take a random move to explore the map or get unstuck.
     let action = agent.random.rand(1 .. 4).int32
     actions[agent.agentId] = action
-    echo "taking action ", action
+    #echo "taking random action ", action
 
   except:
     echo getCurrentException().getStackTrace()

@@ -20,7 +20,7 @@ public:
   std::unordered_map<Assembler*, std::vector<Assembler*>> adjacent_assemblers;
   // A map of all assemblers to their current infection weight. This is the weight at which they'll be selected
   // for clipping (if currently unclipped).
-  std::unordered_map<Assembler*, float> assembler_infection_weight;
+  std::unordered_map<Assembler*, uint32_t> assembler_infection_weight;
   // A set of assemblers that are adjacent to the set of clipped assemblers. Any unclipped assembler with
   // non-zero infection weight will be in this set.
   std::set<Assembler*> border_assemblers;
@@ -30,20 +30,20 @@ public:
   float length_scale;
   float cutoff_distance;
   Grid& grid;
-  float clip_rate;
+  uint32_t clip_period;
   std::mt19937 rng;
 
   Clipper(Grid& grid,
           std::vector<std::shared_ptr<Protocol>> protocol_ptrs,
           float length_scale,
           float cutoff_distance,
-          float clip_rate,
+          uint32_t clip_period,
           std::mt19937 rng_init)
       : unclipping_protocols(std::move(protocol_ptrs)),
         length_scale(length_scale),
         cutoff_distance(cutoff_distance),
         grid(grid),
-        clip_rate(clip_rate),
+        clip_period(clip_period),
         rng(std::move(rng_init)) {
     std::vector<Assembler*> starting_clipped_assemblers;
     for (size_t obj_id = 1; obj_id < grid.objects.size(); obj_id++) {
@@ -53,7 +53,7 @@ public:
         // Skip clip-immune assemblers
         if (assembler->clip_immune) continue;
 
-        assembler_infection_weight[assembler] = 0.0f;
+        assembler_infection_weight[assembler] = 0;
         unclipped_assemblers.insert(assembler);
 
         if (assembler->start_clipped) {
@@ -92,7 +92,7 @@ public:
 
     // This can be expensive, so only do it if the clipper is active. Note that having a Clipper with
     // a zero clip rate is value, since we can still clip assemblers that start clipped.
-    if (clip_rate > 0.0f) {
+    if (clip_period > 0) {
       compute_adjacencies();
     }
 
@@ -102,10 +102,12 @@ public:
     }
   }
 
-  float infection_weight(Assembler& from, Assembler& to) const {
+  uint32_t infection_weight(Assembler& from, Assembler& to) const {
     float distance = this->distance(from, to);
-    if (cutoff_distance > 0.0f && distance > cutoff_distance) return 0.0f;
-    return std::exp(-distance / length_scale);
+    if (cutoff_distance > 0.0f && distance > cutoff_distance) return 0;
+    // The * 1000000.0f is a hack to get us from float to uint32_t, as we move to get rid of floats. We only care
+    // about relative weights, so scaling them linearly (like this) doesn't matter.
+    return static_cast<uint32_t>(std::exp(-distance / length_scale) * 1000000.0f);
   }
 
   // it's a little funky to use L2 distance here, since everywhere else we use L1 or Linf.
@@ -164,7 +166,7 @@ public:
     // Update infection weights only for adjacent assemblers
     for (auto* adjacent : adjacent_assemblers[&to_infect]) {
       // Track this even for clipped assemblers, so we'll have an accurate number if they become unclipped.
-      assembler_infection_weight[adjacent] += infection_weight(to_infect, *adjacent);
+      assembler_infection_weight.at(adjacent) += infection_weight(to_infect, *adjacent);
       if (adjacent->is_clipped) continue;
       border_assemblers.insert(adjacent);
     }
@@ -184,39 +186,40 @@ public:
   void on_unclip_assembler(Assembler& to_unclip) {
     // Update infection weights only for adjacent assemblers
     for (auto* adjacent : adjacent_assemblers[&to_unclip]) {
-      assembler_infection_weight[adjacent] -= infection_weight(to_unclip, *adjacent);
+      assembler_infection_weight.at(adjacent) -= infection_weight(to_unclip, *adjacent);
     }
     unclipped_assemblers.insert(&to_unclip);
-    if (assembler_infection_weight[&to_unclip] > 0.0f) {
+    if (assembler_infection_weight.at(&to_unclip) > 0) {
       border_assemblers.insert(&to_unclip);
     }
   }
 
   Assembler* pick_assembler_to_clip() {
-    float total_weight = 0.0f;
+    if (unclipped_assemblers.size() == 0) {
+      return nullptr;
+    }
+    uint32_t total_weight = 0;
     for (auto& candidate_assembler : border_assemblers) {
       total_weight += assembler_infection_weight.at(candidate_assembler);
     }
-    float random_weight = std::generate_canonical<float, 10>(rng) * total_weight;
-    for (auto& candidate_assembler : border_assemblers) {
-      random_weight -= assembler_infection_weight.at(candidate_assembler);
-      if (random_weight <= 0.0f) {
-        return candidate_assembler;
-      }
-    }
-    // We failed to find an assembler to clip. That _should_ be because there are no border assemblers. But maybe
-    // it's a floating point error. In any case, pick a random assembler from the unclipped assemblers.
-    if (!unclipped_assemblers.empty()) {
+    if (total_weight == 0) {
+      // If there are no border assemblers, pick a random assembler from the unclipped assemblers.
       auto it = unclipped_assemblers.begin();
       std::advance(it, std::uniform_int_distribution<size_t>(0, unclipped_assemblers.size() - 1)(rng));
       return *it;
     }
-
-    return nullptr;
+    uint32_t random_weight = std::uniform_int_distribution<>(1, total_weight)(rng);
+    for (auto& candidate_assembler : border_assemblers) {
+      if (random_weight <= assembler_infection_weight.at(candidate_assembler)) {
+        return candidate_assembler;
+      }
+      random_weight -= assembler_infection_weight.at(candidate_assembler);
+    }
+    throw std::runtime_error("Failed to pick an assembler to clip");
   }
 
   void maybe_clip_new_assembler() {
-    if (std::generate_canonical<float, 10>(rng) < clip_rate) {
+    if (std::uniform_int_distribution<uint32_t>(1, clip_period)(rng) == 1) {
       Assembler* assembler = pick_assembler_to_clip();
       if (assembler) {
         clip_assembler(*assembler);

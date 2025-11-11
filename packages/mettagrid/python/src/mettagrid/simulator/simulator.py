@@ -109,6 +109,12 @@ class Simulation:
     def observations(self) -> list[AgentObservation]:
         return [self.agent(agent_id).observation for agent_id in range(self.num_agents)]
 
+    def raw_observations(self) -> np.ndarray:
+        return self.__c_sim.observations()
+
+    def raw_actions(self) -> np.ndarray:
+        return self.__c_sim.actions()
+
     def is_done(self) -> bool:
         return bool(self.__c_sim.truncations().all() or self.__c_sim.terminals().all())
 
