@@ -192,30 +192,14 @@ class SimpleAgentState:
     pending_use_resource: Optional[str] = None
     pending_use_amount: int = 0
 
-    # Random walk state (for exploration within GATHER phase)
-    explore_direction: int = -1
-
-    # Frontier exploration state (tracking visited cells)
-    visited_map: Optional[list[list[int]]] = None
-    exploration_target: Optional[tuple[int, int]] = None  # Commit to exploration target
-    exploration_target_step: int = 0  # When we set the target
-
-    # Track unreachable extractors (position -> consecutive failed pathfind attempts)
-    unreachable_extractors: dict[tuple[int, int], int] = field(default_factory=dict)
-
-    # Agent positions (cleared and refreshed every step)
-    agent_occupancy: set[tuple[int, int]] = field(default_factory=set)
+    # Directional exploration state
+    exploration_target: Optional[str] = None  # Current direction ("north", "south", "east", "west")
+    exploration_target_step: int = 0  # When we set the direction
 
     # Stuck detection
-    last_position: Optional[tuple[int, int]] = None
-    stuck_counter: int = 0
     position_history: list[tuple[int, int]] = field(default_factory=list)  # Last 10 positions
     stuck_loop_detected: bool = False
-    stuck_escape_target: Optional[tuple[int, int]] = None
     stuck_escape_step: int = 0
-
-    # Agent position update frequency (to avoid constant re-planning)
-    agent_positions_last_updated: int = 0
 
     # Path caching for efficient navigation (per-agent)
     cached_path: Optional[list[tuple[int, int]]] = None
