@@ -12,6 +12,7 @@ type
     cfg: Config
     random: Rand
     location: Location
+    lastActions: seq[int]
 
 proc newThinkyAgent*(agentId: int, environmentConfig: string): ThinkyAgent {.raises: [].} =
   #echo "Creating new heuristic agent ", agentId
@@ -117,6 +118,50 @@ proc step*(
     # echo "  numActions", numActions
     let observations = cast[ptr UncheckedArray[uint8]](rawObservations)
 
+    proc doAction(action: int) =
+
+      # Stuck prevention: if last 2 actions are left, right and this is left.
+      if agent.lastActions.len >= 2 and
+        action == agent.cfg.actions.moveWest and
+        agent.lastActions[^1] == agent.cfg.actions.moveEast and
+        agent.lastActions[^2] == agent.cfg.actions.moveWest:
+        # Noop 50% of the time.
+        if agent.random.rand(1 .. 2) == 1:
+          echo "Stuck prevention: left, right, left"
+          doAction(agent.cfg.actions.noop.int32)
+          return
+      if agent.lastActions.len >= 2 and
+        action == agent.cfg.actions.moveEast and
+        agent.lastActions[^1] == agent.cfg.actions.moveWest and
+        agent.lastActions[^2] == agent.cfg.actions.moveEast:
+        # Noop 50% of the time.
+        if agent.random.rand(1 .. 2) == 1:
+          echo "Stuck prevention: right, left, right"
+          doAction(agent.cfg.actions.noop.int32)
+          return
+      if agent.lastActions.len >= 2 and
+        action == agent.cfg.actions.moveNorth and
+        agent.lastActions[^1] == agent.cfg.actions.moveSouth and
+        agent.lastActions[^2] == agent.cfg.actions.moveNorth:
+        # Noop 50% of the time.
+        if agent.random.rand(1 .. 2) == 1:
+          echo "Stuck prevention: north, south, north"
+          doAction(agent.cfg.actions.noop.int32)
+          return
+      if agent.lastActions.len >= 2 and
+        action == agent.cfg.actions.moveSouth and
+        agent.lastActions[^1] == agent.cfg.actions.moveNorth and
+        agent.lastActions[^2] == agent.cfg.actions.moveSouth:
+        # Noop 50% of the time.
+        if agent.random.rand(1 .. 2) == 1:
+          echo "Stuck prevention: south, north, south"
+          doAction(agent.cfg.actions.noop.int32)
+          return
+
+      agent.lastActions.add(action)
+      let actions = cast[ptr UncheckedArray[int32]](rawActions)
+      actions[agent.agentId] = action.int32
+
     var map: Table[Location, seq[FeatureValue]]
     for token in 0 ..< numTokens:
       let locationPacked = observations[token * sizeToken + agent.agentId * numTokens * sizeToken]
@@ -156,22 +201,29 @@ proc step*(
 
     #echo &"H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
 
-    let actions = cast[ptr UncheckedArray[int32]](rawActions)
-
-    # If not vibing here at heart then vibe heart.
-    if vibe != agent.cfg.vibes.heart:
-      actions[agent.agentId] = agent.cfg.actions.vibeHeart.int32
-      #echo "vibing heart"
-      return
-
     # Is there an energy charger nearby?
     let chargerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.charger)
-    if invEnergy < 100 and chargerNearby.isSome():
+    if invEnergy < 50 and chargerNearby.isSome():
       let action = agent.cfg.aStar(agent.location, chargerNearby.get(), agent.map)
       if action.isSome():
-        actions[agent.agentId] = action.get().int32
+        doAction(action.get().int32)
         #echo "going to charger"
         return
+
+    # Deposit heart into the chest.
+    if invHeart > 0:
+      if vibe != agent.cfg.vibes.default:
+        echo "my current vibe is", vibe
+        doAction(agent.cfg.actions.vibeDefault.int32)
+        echo "vibing default"
+        return
+      let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
+      if chestNearby.isSome():
+        let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
+        if action.isSome():
+          doAction(action.get().int32)
+          echo "going to chest"
+          return
 
     # Explore locations around the assembler.
     let keyLocations = [
@@ -187,53 +239,64 @@ proc step*(
         if location notin agent.seen:
           let action = agent.cfg.aStar(agent.location, location, agent.map)
           if action.isSome():
-            actions[agent.agentId] = action.get().int32
+            doAction(action.get().int32)
             #echo "going to key location to explore"
             return
 
     # Is there carbon nearby?
-    let carbonNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.carbonExtractor)
-    if invCarbon == 0 and carbonNearby.isSome():
-      let action = agent.cfg.aStar(agent.location, carbonNearby.get(), agent.map)
-      if action.isSome():
-        actions[agent.agentId] = action.get().int32
-        #echo "going to carbon"
-        return
+    if invCarbon == 0:
+      let carbonNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.carbonExtractor)
+      if carbonNearby.isSome():
+        let action = agent.cfg.aStar(agent.location, carbonNearby.get(), agent.map)
+        if action.isSome():
+          doAction(action.get().int32)
+          #echo "going to carbon"
+          return
 
     # Is there oxygen nearby?
-    let oxygenNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.oxygenExtractor)
-    if invOxygen == 0 and oxygenNearby.isSome():
-      let action = agent.cfg.aStar(agent.location, oxygenNearby.get(), agent.map)
-      if action.isSome():
-        actions[agent.agentId] = action.get().int32
-        #echo "going to oxygen"
-        return
+    if invOxygen == 0:
+      let oxygenNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.oxygenExtractor)
+      if oxygenNearby.isSome():
+        let action = agent.cfg.aStar(agent.location, oxygenNearby.get(), agent.map)
+        if action.isSome():
+          doAction(action.get().int32)
+          #echo "going to oxygen"
+          return
 
     # Is there germanium nearby?
-    let germaniumNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.germaniumExtractor)
-    if invGermanium == 0 and germaniumNearby.isSome():
-      let action = agent.cfg.aStar(agent.location, germaniumNearby.get(), agent.map)
-      if action.isSome():
-        actions[agent.agentId] = action.get().int32
-        #echo "going to germanium"
-        return
+    if invGermanium == 0:
+      let germaniumNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.germaniumExtractor)
+      if germaniumNearby.isSome():
+        let action = agent.cfg.aStar(agent.location, germaniumNearby.get(), agent.map)
+        if action.isSome():
+          doAction(action.get().int32)
+          #echo "going to germanium"
+          return
 
     # Is there silicon nearby?
-    let siliconNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.siliconExtractor)
-    if invSilicon == 0 and siliconNearby.isSome():
-      let action = agent.cfg.aStar(agent.location, siliconNearby.get(), agent.map)
-      if action.isSome():
-        actions[agent.agentId] = action.get().int32
-        #echo "going to silicon"
-        return
+    if invSilicon == 0:
+      let siliconNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.siliconExtractor)
+      if siliconNearby.isSome():
+        let action = agent.cfg.aStar(agent.location, siliconNearby.get(), agent.map)
+        if action.isSome():
+          doAction(action.get().int32)
+          #echo "going to silicon"
+          return
 
     if invSilicon > 0 and invOxygen > 0 and invCarbon > 0 and invGermanium > 0:
       # We have all the resources we need, so we can build an assembler.
+
+      # If not vibing here at heart then vibe heart.
+      if vibe != agent.cfg.vibes.heart:
+        doAction(agent.cfg.actions.vibeHeart.int32)
+        echo "vibing heart"
+        return
+
       let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
       if assemblerNearby.isSome():
         let action = agent.cfg.aStar(agent.location, assemblerNearby.get(), agent.map)
         if action.isSome():
-          actions[agent.agentId] = action.get().int32
+          doAction(action.get().int32)
           #echo "going to assembler to build heart"
           return
 
@@ -242,7 +305,7 @@ proc step*(
     if unseenNearby.isSome():
       let action = agent.cfg.aStar(agent.location, unseenNearby.get(), agent.map)
       if action.isSome():
-        actions[agent.agentId] = action.get().int32
+        doAction(action.get().int32)
         #echo "going to unseen location nearest to agent"
         return
 
@@ -261,7 +324,7 @@ proc step*(
 
     # If all else fails, take a random move to explore the map or get unstuck.
     let action = agent.random.rand(1 .. 4).int32
-    actions[agent.agentId] = action
+    doAction(action.int32)
     #echo "taking random action ", action
 
   except:

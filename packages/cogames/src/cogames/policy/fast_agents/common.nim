@@ -69,6 +69,7 @@ type
 
   Vibes* = object
     # TODO: Pass with vibes from config.
+    default*: int = 0
     heart*: int = 6
 
   Features* = object
@@ -226,6 +227,7 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
       of "move_east":
         result.actions.moveEast = id
       of "change_vibe_default":
+        echo "change_vibe_default: ", id
         result.actions.vibeDefault = id
       of "change_vibe_charger":
         result.actions.vibeCharger = id
@@ -380,7 +382,9 @@ proc getInventory*(cfg: Config, visible: Table[Location, seq[FeatureValue]], inv
 
 proc getVibe*(cfg: Config, visible: Table[Location, seq[FeatureValue]]): int =
   ## Get the vibe of the visible map.
-  cfg.getFeature(visible, cfg.features.vibe)
+  result = cfg.getFeature(visible, cfg.features.vibe)
+  if result == -1:
+    result = cfg.vibes.default
 
 proc getNearby*(
   cfg: Config,
