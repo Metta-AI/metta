@@ -614,6 +614,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         """
         Simple directional exploration: pick a random direction and stick to it for ~15 steps.
         Changes direction when blocked or after persistence expires.
+        Uses move_towards for actual movement to benefit from collision detection and pathfinding checks.
         """
         if s.row < 0:
             return self._actions.noop.Noop()
@@ -626,14 +627,19 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
                 if s.exploration_target is not None and isinstance(s.exploration_target, str):
                     # exploration_target stores the direction as a string
                     direction = s.exploration_target
-                    # Try to move in that direction
+                    # Calculate target position in that direction
                     dr, dc = {"north": (-1, 0), "south": (1, 0), "east": (0, 1), "west": (0, -1)}.get(direction, (0, 0))
                     next_r, next_c = s.row + dr, s.col + dc
 
-                    # Check if we can move in that direction
-                    if path_is_traversable(s, next_r, next_c, CellType):
-                        return self._actions.move.Move(direction)
-                    # Blocked, pick a new direction
+                    # Use move_towards to handle the movement (includes all checks)
+                    action = self._move_towards(s, (next_r, next_c))
+
+                    # If move_towards returned noop (blocked), pick a new direction
+                    if action == self._actions.noop.Noop():
+                        # Fall through to pick new direction
+                        pass
+                    else:
+                        return action
 
         # Need to pick a new direction
         # Try all directions and pick a random valid one
@@ -649,10 +655,17 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             new_direction = random.choice(valid_directions)
             s.exploration_target = new_direction  # Store direction as string
             s.exploration_target_step = s.step_count
-            return self._actions.move.Move(new_direction)
 
-        # No valid moves, just noop
-        return random.choice(CardinalDirections)
+            # Calculate target position for the new direction
+            dr, dc = {"north": (-1, 0), "south": (1, 0), "east": (0, 1), "west": (0, -1)}.get(new_direction, (0, 0))
+            next_r, next_c = s.row + dr, s.col + dc
+
+            # Use move_towards for actual movement
+            return self._move_towards(s, (next_r, next_c))
+
+        # No valid moves, use try_random_direction (which also checks agent collisions)
+        random_action = self._try_random_direction(s)
+        return random_action if random_action else self._actions.noop.Noop()
 
     def _explore_until(
         self, s: SimpleAgentState, condition: Callable[[], bool], reason: str = "Exploring"
