@@ -1,6 +1,7 @@
 import ctypes
 import os
 import sys
+from contextlib import contextmanager
 
 import numpy as np
 
@@ -10,6 +11,24 @@ from mettagrid.simulator import Action, AgentObservation, Simulation
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(current_dir, "bindings/generated"))
+
+
+@contextmanager
+def _suppress_fast_agent_output():
+    fd_stdout = sys.stdout.fileno()
+    fd_stderr = sys.stderr.fileno()
+    with open(os.devnull, "w") as devnull:
+        saved_stdout = os.dup(fd_stdout)
+        saved_stderr = os.dup(fd_stderr)
+        try:
+            os.dup2(devnull.fileno(), fd_stdout)
+            os.dup2(devnull.fileno(), fd_stderr)
+            yield
+        finally:
+            os.dup2(saved_stdout, fd_stdout)
+            os.dup2(saved_stderr, fd_stderr)
+            os.close(saved_stdout)
+            os.close(saved_stderr)
 
 
 def _import_fast_agents():
@@ -26,28 +45,31 @@ class RandomAgentPolicy(AgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info)
         fa = _import_fast_agents()
-        self._agent = fa.RandomAgent(agent_id, policy_env_info.to_json())
+        with _suppress_fast_agent_output():
+            self._agent = fa.RandomAgent(agent_id, policy_env_info.to_json())
         self._action_names = [action.name for action in policy_env_info.actions.actions()]
 
     def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
-        self._agent.step_batch(
-            num_agents=raw_observations.shape[0],
-            num_tokens=raw_observations.shape[1],
-            size_token=raw_observations.shape[2],
-            raw_observations=raw_observations.ctypes.data,
-            num_actions=raw_actions.shape[0],
-            raw_actions=raw_actions.ctypes.data,
-        )
+        with _suppress_fast_agent_output():
+            self._agent.step_batch(
+                num_agents=raw_observations.shape[0],
+                num_tokens=raw_observations.shape[1],
+                size_token=raw_observations.shape[2],
+                raw_observations=raw_observations.ctypes.data,
+                num_actions=raw_actions.shape[0],
+                raw_actions=raw_actions.ctypes.data,
+            )
 
     def step(self, obs: AgentObservation) -> Action:
         if obs.raw_observation is None:
             raise ValueError("Nim agents require raw observation buffers.")
         raw = obs.raw_observation
-        action_index = self._agent.step(
-            num_tokens=raw.shape[0],
-            size_token=raw.shape[1],
-            raw_observation=raw.ctypes.data,
-        )
+        with _suppress_fast_agent_output():
+            action_index = self._agent.step(
+                num_tokens=raw.shape[0],
+                size_token=raw.shape[1],
+                raw_observation=raw.ctypes.data,
+            )
         return Action(name=self._action_names[action_index])
 
     def reset(self, simulation: Simulation = None) -> None:
@@ -66,28 +88,31 @@ class ThinkyAgentPolicy(AgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info)
         fa = _import_fast_agents()
-        self._agent = fa.ThinkyAgent(agent_id, policy_env_info.to_json())
+        with _suppress_fast_agent_output():
+            self._agent = fa.ThinkyAgent(agent_id, policy_env_info.to_json())
         self._action_names = [action.name for action in policy_env_info.actions.actions()]
 
     def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
-        self._agent.step_batch(
-            num_agents=raw_observations.shape[0],
-            num_tokens=raw_observations.shape[1],
-            size_token=raw_observations.shape[2],
-            raw_observations=raw_observations.ctypes.data,
-            num_actions=raw_actions.shape[0],
-            raw_actions=raw_actions.ctypes.data,
-        )
+        with _suppress_fast_agent_output():
+            self._agent.step_batch(
+                num_agents=raw_observations.shape[0],
+                num_tokens=raw_observations.shape[1],
+                size_token=raw_observations.shape[2],
+                raw_observations=raw_observations.ctypes.data,
+                num_actions=raw_actions.shape[0],
+                raw_actions=raw_actions.ctypes.data,
+            )
 
     def step(self, obs: AgentObservation) -> Action:
         if obs.raw_observation is None:
             raise ValueError("Nim agents require raw observation buffers.")
         raw = obs.raw_observation
-        action_index = self._agent.step(
-            num_tokens=raw.shape[0],
-            size_token=raw.shape[1],
-            raw_observation=raw.ctypes.data,
-        )
+        with _suppress_fast_agent_output():
+            action_index = self._agent.step(
+                num_tokens=raw.shape[0],
+                size_token=raw.shape[1],
+                raw_observation=raw.ctypes.data,
+            )
         return Action(name=self._action_names[action_index])
 
     def reset(self, simulation: Simulation = None) -> None:
@@ -106,28 +131,31 @@ class RaceCarAgentPolicy(AgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info)
         fa = _import_fast_agents()
-        self._agent = fa.RaceCarAgent(agent_id, policy_env_info.to_json())
+        with _suppress_fast_agent_output():
+            self._agent = fa.RaceCarAgent(agent_id, policy_env_info.to_json())
         self._action_names = [action.name for action in policy_env_info.actions.actions()]
 
     def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
-        self._agent.step_batch(
-            num_agents=raw_observations.shape[0],
-            num_tokens=raw_observations.shape[1],
-            size_token=raw_observations.shape[2],
-            raw_observations=raw_observations.ctypes.data,
-            num_actions=raw_actions.shape[0],
-            raw_actions=raw_actions.ctypes.data,
-        )
+        with _suppress_fast_agent_output():
+            self._agent.step_batch(
+                num_agents=raw_observations.shape[0],
+                num_tokens=raw_observations.shape[1],
+                size_token=raw_observations.shape[2],
+                raw_observations=raw_observations.ctypes.data,
+                num_actions=raw_actions.shape[0],
+                raw_actions=raw_actions.ctypes.data,
+            )
 
     def step(self, obs: AgentObservation) -> Action:
         if obs.raw_observation is None:
             raise ValueError("Nim agents require raw observation buffers.")
         raw = obs.raw_observation
-        action_index = self._agent.step(
-            num_tokens=raw.shape[0],
-            size_token=raw.shape[1],
-            raw_observation=raw.ctypes.data,
-        )
+        with _suppress_fast_agent_output():
+            action_index = self._agent.step(
+                num_tokens=raw.shape[0],
+                size_token=raw.shape[1],
+                raw_observation=raw.ctypes.data,
+            )
         return Action(name=self._action_names[action_index])
 
     def reset(self, simulation: Simulation = None) -> None:
