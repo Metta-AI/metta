@@ -265,6 +265,10 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_assembler_config.exhaustion = object_config.exhaustion
             cpp_assembler_config.clip_immune = object_config.clip_immune
             cpp_assembler_config.start_clipped = object_config.start_clipped
+            # Older compiled extensions may not expose protocol_details_obs on AssemblerConfig.
+            # Guard to maintain compatibility across versions.
+            if hasattr(cpp_assembler_config, "protocol_details_obs"):
+                cpp_assembler_config.protocol_details_obs = game_config.protocol_details_obs
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_assembler_config
         elif isinstance(object_config, ChestConfig):
