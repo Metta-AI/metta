@@ -309,6 +309,18 @@ proc drawMap*(cfg: Config, map: Table[Location, seq[FeatureValue]], seen: HashSe
         cell = "~~"
       if location in map:
         for featureValue in map[location]:
+          if featureValue.featureId == cfg.features.orientation:
+            if featureValue.value == 0:
+              cell = "@N"
+            elif featureValue.value == 1:
+              cell = "@E"
+            elif featureValue.value == 2:
+              cell = "@S"
+            elif featureValue.value == 3:
+              cell = "@W"
+          if featureValue.featureId == cfg.features.group:
+            if featureValue.value == 0:
+              cell = "@" & ($featureValue.value)[0]
           if featureValue.featureId == cfg.features.tag:
             if featureValue.value == cfg.tags.agent:
               cell = "@@"
@@ -447,6 +459,9 @@ proc isWalkable*(cfg: Config, map: Table[Location, seq[FeatureValue]], loc: Loca
       if featureValue.featureId == cfg.features.orientation:
         # Its the agent's orientation, so an agent can't move through it.
         return false
+      if featureValue.featureId == cfg.features.group:
+        # If the group there, then its an agent.
+        return false
   return true
 
 proc neighbors(loc: Location): array[4, Location] =
@@ -466,8 +481,8 @@ proc reconstructPath(cameFrom: Table[Location, Location], current: Location): se
     result.add(cur)
   result.reverse()
 
-# Translate the first step along the path into an action id.
 proc stepToAction(cfg: Config, fromLoc, toLoc: Location): int =
+  # Translate the first step along the path into an action id.
   if toLoc.x == fromLoc.x + 1 and toLoc.y == fromLoc.y:
     return cfg.actions.moveEast
   elif toLoc.x == fromLoc.x - 1 and toLoc.y == fromLoc.y:
@@ -488,7 +503,6 @@ proc aStar*(
 ): Option[int] =
   ## Navigate to the given location using A*. Returns the next action to take.
   if currentLocation == targetLocation:
-    echo "Already at target."
     return none(int)
 
   # Open set: nodes to evaluate
@@ -514,7 +528,6 @@ proc aStar*(
 
     if openSet.len > 100:
       # Too far... bail out.
-      echo "Too far... bailing out."
       return none(int)
 
     # Pick node in openSet with lowest fScore
@@ -549,7 +562,6 @@ proc aStar*(
         continue
 
       let tentativeG = (if gScore.hasKey(current): gScore[current] else: high(int)) + 1
-
       # If nb has no gScore or this path is better, record it
       let nbG = (if gScore.hasKey(nb): gScore[nb] else: high(int))
       if tentativeG < nbG:
