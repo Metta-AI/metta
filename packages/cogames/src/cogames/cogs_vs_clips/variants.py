@@ -34,6 +34,7 @@ class LonelyHeartVariant(MissionVariant):
     @override
     def modify_mission(self, mission):
         mission.assembler.heart_cost = 1
+        mission.heart_capacity = max(mission.heart_capacity, 255)
 
     @override
     def modify_env(self, mission, env):
