@@ -1,6 +1,5 @@
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import einops
 import torch
 import torch.nn.functional as F
 from pydantic import Field
@@ -9,10 +8,11 @@ from torch import Tensor
 from torchrl.data import Composite
 
 from metta.agent.policy import Policy
-from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.loss.loss import Loss, LossConfig
-from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import ComponentContext
+
+if TYPE_CHECKING:
+    from metta.rl.trainer_config import TrainerConfig
 
 
 class SLKickstarterConfig(LossConfig):
@@ -20,11 +20,12 @@ class SLKickstarterConfig(LossConfig):
     action_loss_coef: float = Field(default=0.995, ge=0, le=1.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
     temperature: float = Field(default=2.0, gt=0)
+    student_forward: bool = Field(default=False)
 
     def create(
         self,
         policy: Policy,
-        trainer_cfg: TrainerConfig,
+        trainer_cfg: "TrainerConfig",
         vec_env: Any,
         device: torch.device,
         instance_name: str,
@@ -42,12 +43,13 @@ class SLKickstarter(Loss):
         "value_loss_coef",
         "temperature",
         "teacher_policy_spec",
+        "student_forward",
     )
 
     def __init__(
         self,
         policy: Policy,
-        trainer_cfg: TrainerConfig,
+        trainer_cfg: "TrainerConfig",
         vec_env: Any,
         device: torch.device,
         instance_name: str,
@@ -60,11 +62,14 @@ class SLKickstarter(Loss):
         self.action_loss_coef = self.cfg.action_loss_coef
         self.value_loss_coef = self.cfg.value_loss_coef
         self.temperature = self.cfg.temperature
-        # load teacher policy
+        self.student_forward = self.cfg.student_forward
 
-        game_rules = getattr(self.env, "game_rules", getattr(self.env, "meta_data", None))
+        game_rules = getattr(self.env, "policy_env_info", None)
         if game_rules is None:
             raise RuntimeError("Environment metadata is required to instantiate teacher policy")
+
+        # Lazy import to avoid circular dependency
+        from metta.rl.checkpoint_manager import CheckpointManager
 
         self.teacher_policy = CheckpointManager.load_from_uri(self.cfg.teacher_uri, game_rules, self.device)
 
@@ -83,15 +88,26 @@ class SLKickstarter(Loss):
         context: ComponentContext,
         mb_idx: int,
     ) -> tuple[Tensor, TensorDict, bool]:
-        policy_td = shared_loss_data["policy_td"].clone()
+        minibatch = shared_loss_data["sampled_mb"]
 
         # Teacher forward pass
-        teacher_td = policy_td.select(*self.teacher_policy_spec.keys(include_nested=True)).clone()
+        teacher_td = minibatch.select(*self.teacher_policy_spec.keys(include_nested=True)).clone()
+        B, TT = teacher_td.batch_size
+        teacher_td = teacher_td.reshape(B * TT)
+        teacher_td.set("bptt", torch.full((B * TT,), TT, device=teacher_td.device, dtype=torch.long))
+        teacher_td.set("batch", torch.full((B * TT,), B, device=teacher_td.device, dtype=torch.long))
         teacher_td = self.teacher_policy(teacher_td, action=None)
 
         # Student forward pass
-        student_td = policy_td.select(*self.policy_experience_spec.keys(include_nested=True))
-        student_td = self.policy(student_td, action=None)
+        if self.student_forward:
+            student_td = minibatch.select(*self.policy.get_agent_experience_spec().keys(include_nested=True)).clone()
+            B, TT = student_td.batch_size
+            student_td = student_td.reshape(B * TT)
+            student_td.set("bptt", torch.full((B * TT,), TT, device=student_td.device, dtype=torch.long))
+            student_td.set("batch", torch.full((B * TT,), B, device=student_td.device, dtype=torch.long))
+            student_td = self.policy(student_td, action=None)
+        else:
+            student_td = shared_loss_data["policy_td"].reshape(B * TT)
 
         temperature = self.temperature
         teacher_logits = teacher_td["logits"].to(dtype=torch.float32)
@@ -108,8 +124,6 @@ class SLKickstarter(Loss):
         # Value loss
         student_value = student_td["values"].to(dtype=torch.float32)
         teacher_value = teacher_td["values"].to(dtype=torch.float32).detach()
-        teacher_value = einops.rearrange(teacher_value, "b t 1 -> b (t 1)")
-        student_value = einops.rearrange(student_value, "b t 1 -> b (t 1)")
         ks_value_loss = ((teacher_value.detach() - student_value) ** 2).mean()
 
         loss = ks_action_loss * self.action_loss_coef + ks_value_loss * self.value_loss_coef

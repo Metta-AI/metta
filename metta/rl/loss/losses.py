@@ -9,6 +9,7 @@ from metta.rl.loss.action_supervised import ActionSupervisedConfig
 from metta.rl.loss.grpo import GRPOConfig
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.loss.ppo import PPOConfig
+from metta.rl.loss.sl_kickstarter import SLKickstarterConfig
 from metta.rl.loss.tl_kickstarter import TLKickstarterConfig
 from metta.rl.training import TrainingEnvironment
 from mettagrid.base_config import Config
@@ -27,6 +28,7 @@ class LossesConfig(Config):
     supervisor: ActionSupervisedConfig = Field(default_factory=lambda: ActionSupervisedConfig(enabled=False))
     grpo: GRPOConfig = Field(default_factory=lambda: GRPOConfig(enabled=False))
     tl_kickstarter: TLKickstarterConfig = Field(default_factory=lambda: TLKickstarterConfig(enabled=False))
+    sl_kickstarter: SLKickstarterConfig = Field(default_factory=lambda: SLKickstarterConfig(enabled=False))
 
     def _configs(self) -> dict[str, LossConfig]:
         loss_configs: dict[str, LossConfig] = {}
@@ -40,6 +42,8 @@ class LossesConfig(Config):
             loss_configs["grpo"] = self.grpo
         if self.tl_kickstarter.enabled:
             loss_configs["tl_kickstarter"] = self.tl_kickstarter
+        if self.sl_kickstarter.enabled:
+            loss_configs["sl_kickstarter"] = self.sl_kickstarter
         return loss_configs
 
     def init_losses(

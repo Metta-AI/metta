@@ -11,12 +11,15 @@ from metta.cogworks.curriculum.curriculum import (
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.loss.ppo import PPOConfig
+from metta.rl.loss.sl_kickstarter import SLKickstarterConfig
+from metta.rl.loss.tl_kickstarter import TLKickstarterConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import (
     CheckpointerConfig,
     EvaluatorConfig,
     TrainingEnvironmentConfig,
 )
+from metta.rl.training.scheduler import LossRunGate, SchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
@@ -111,10 +114,14 @@ def train(
     # Configure losses with PPO and tl_kickstarter
     loss_config = LossesConfig(
         ppo=PPOConfig(enabled=True),  # PPO is enabled by default, but explicit here
-        # tl_kickstarter=TLKickstarterConfig(
-        #     enabled=True,
-        #     teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.09.06/av.teach.24checks.11.09.06:v24.mpt"
-        # )
+        tl_kickstarter=TLKickstarterConfig(
+            enabled=True,
+            teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v1032.mpt",
+        ),
+        sl_kickstarter=SLKickstarterConfig(
+            enabled=True,
+            teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v1032.mpt",
+        ),
     )
 
     trainer_cfg = TrainerConfig(
@@ -125,16 +132,20 @@ def train(
         policy_architecture = ViTDefaultConfig()
 
     # Configure scheduler with run gates
-    # scheduler = SchedulerConfig(
-    #     run_gates=[
-    #         # PPO rollout doesn't run for the first n epochs
-    #         LossRunGate(loss_instance_name="ppo", phase="rollout", begin_at_epoch=5),
-    #         # tl_kickstarter rollout doesn't run after the 50th epoch (ends before epoch 51)
-    #         LossRunGate(
-    #             loss_instance_name="tl_kickstarter", phase="rollout", end_at_epoch=4
-    #         ),
-    #     ],
-    # )
+    scheduler = SchedulerConfig(
+        run_gates=[
+            LossRunGate(loss_instance_name="ppo", phase="rollout", begin_at_epoch=50),
+            LossRunGate(
+                loss_instance_name="tl_kickstarter", phase="rollout", end_at_epoch=50
+            ),
+            LossRunGate(
+                loss_instance_name="sl_kickstarter", phase="rollout", begin_at_epoch=50
+            ),
+            LossRunGate(
+                loss_instance_name="sl_kickstarter", phase="train", begin_at_epoch=50
+            ),
+        ],
+    )
 
     return TrainTool(
         trainer=trainer_cfg,
@@ -142,7 +153,7 @@ def train(
         evaluator=EvaluatorConfig(simulations=eval_simulations),
         policy_architecture=policy_architecture,
         torch_profiler=TorchProfilerConfig(),
-        # scheduler=scheduler,
+        scheduler=scheduler,
         checkpointer=CheckpointerConfig(epoch_interval=24),
     )
 

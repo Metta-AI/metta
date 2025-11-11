@@ -1,6 +1,5 @@
 from typing import TYPE_CHECKING, Any
 
-import einops
 import torch
 import torch.nn.functional as F
 from pydantic import Field
@@ -20,6 +19,7 @@ class TLKickstarterConfig(LossConfig):
     action_loss_coef: float = Field(default=0.995, ge=0, le=1.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
     temperature: float = Field(default=2.0, gt=0)
+    student_forward: bool = Field(default=False)
 
     def create(
         self,
@@ -29,6 +29,7 @@ class TLKickstarterConfig(LossConfig):
         device: torch.device,
         instance_name: str,
         loss_config: Any,
+        student_forward: bool = False,
     ) -> "TLKickstarter":
         """Create TLKickstarter loss instance."""
         return TLKickstarter(policy, trainer_cfg, vec_env, device, instance_name=instance_name, loss_config=loss_config)
@@ -42,6 +43,7 @@ class TLKickstarter(Loss):
         "value_loss_coef",
         "temperature",
         "teacher_policy_spec",
+        "student_forward",
     )
 
     def __init__(
@@ -60,6 +62,7 @@ class TLKickstarter(Loss):
         self.action_loss_coef = self.cfg.action_loss_coef
         self.value_loss_coef = self.cfg.value_loss_coef
         self.temperature = self.cfg.temperature
+        self.student_forward = self.cfg.student_forward
         # game_rules = getattr(self.env, "game_rules", getattr(self.env, "meta_data", None))
         game_rules = getattr(self.env, "policy_env_info", None)
         if game_rules is None:
@@ -87,23 +90,33 @@ class TLKickstarter(Loss):
             raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
         self.replay.store(data_td=td, env_id=env_slice)
 
-        return
-
     def run_train(
         self,
         shared_loss_data: TensorDict,
         context: ComponentContext,
         mb_idx: int,
     ) -> tuple[Tensor, TensorDict, bool]:
-        policy_td = shared_loss_data["policy_td"]
+        # policy_td = shared_loss_data["policy_td"]
+        minibatch = shared_loss_data["sampled_mb"]
 
         # Teacher forward pass
-        teacher_td = policy_td.select(*self.teacher_policy_spec.keys(include_nested=True)).clone()
+        teacher_td = minibatch.select(*self.teacher_policy_spec.keys(include_nested=True)).clone()
+        B, TT = teacher_td.batch_size
+        teacher_td = teacher_td.reshape(B * TT)
+        teacher_td.set("bptt", torch.full((B * TT,), TT, device=teacher_td.device, dtype=torch.long))
+        teacher_td.set("batch", torch.full((B * TT,), B, device=teacher_td.device, dtype=torch.long))
         teacher_td = self.teacher_policy(teacher_td, action=None)
 
         # Student forward pass
-        student_td = policy_td.select(*self.policy_experience_spec.keys(include_nested=True)).clone()
-        student_td = self.policy(student_td, action=None)
+        if self.student_forward:
+            student_td = minibatch.select(*self.policy.get_agent_experience_spec().keys(include_nested=True)).clone()
+            B, TT = student_td.batch_size
+            student_td = student_td.reshape(B * TT)
+            student_td.set("bptt", torch.full((B * TT,), TT, device=student_td.device, dtype=torch.long))
+            student_td.set("batch", torch.full((B * TT,), B, device=student_td.device, dtype=torch.long))
+            student_td = self.policy(student_td, action=None)
+        else:
+            student_td = shared_loss_data["policy_td"].reshape(B * TT)
 
         # action loss
         temperature = self.temperature
@@ -119,8 +132,6 @@ class TLKickstarter(Loss):
         # value loss
         teacher_value = teacher_td["values"].to(dtype=torch.float32).detach()
         student_value = student_td["values"].to(dtype=torch.float32)
-        teacher_value = einops.rearrange(teacher_value, "b t 1 -> b (t 1)")
-        student_value = einops.rearrange(student_value, "b t 1 -> b (t 1)")
         ks_value_loss = ((teacher_value.detach() - student_value) ** 2).mean()
 
         loss = ks_action_loss * self.action_loss_coef + ks_value_loss * self.value_loss_coef
