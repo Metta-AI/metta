@@ -4,6 +4,7 @@ from abc import abstractmethod
 from pathlib import Path
 from typing import Generic, Optional, Tuple, TypeVar
 
+import numpy as np
 import torch.nn as nn
 from pydantic import BaseModel
 
@@ -44,6 +45,27 @@ class AgentPolicy:
     def reset(self, simulation: Optional[Simulation] = None) -> None:
         """Reset the policy state. Default implementation does nothing."""
         pass
+
+    def step_batch(
+        self,
+        *,
+        agent_id: int,
+        simulation: Optional[Simulation],
+        raw_observations: np.ndarray,
+        raw_actions: np.ndarray,
+    ) -> Action | None:
+        """Optional batch-friendly hook.
+
+        Default behavior simply defers to ``step`` using the agent's observation.
+        Policies that operate directly on the raw simulator buffers can override
+        this to avoid per-agent object construction.
+        """
+
+        del raw_observations, raw_actions
+        if simulation is None:
+            raise ValueError("simulation is required for AgentPolicy.step_batch default implementation")
+        observation = simulation.agent(agent_id).observation
+        return self.step(observation)
 
     @property
     def uses_raw_numpy(self) -> bool:
@@ -103,6 +125,41 @@ class MultiAgentPolicy:
     def policy_env_info(self) -> PolicyEnvInterface:
         return self._policy_env_info
 
+    def step_batch(
+        self,
+        simulation: Simulation,
+        out_actions: Optional[np.ndarray] = None,
+        observations: Optional[np.ndarray] = None,
+    ) -> np.ndarray:
+        """Compute batched actions for all agents.
+
+        Subclasses can override for custom behavior. By default this loops over
+        agents, calls their individual ``step`` (via AgentPolicy.step_batch),
+        and writes the resulting action indices into ``out_actions``.
+        """
+
+        del observations
+        num_agents = simulation.num_agents
+        if out_actions is None:
+            out_actions = simulation.raw_actions()
+        raw_observations = simulation.raw_observations()
+        raw_actions = out_actions
+        action_ids = simulation.action_ids
+
+        for agent_id in range(num_agents):
+            policy = self.agent_policy(agent_id)
+            maybe_action = policy.step_batch(
+                agent_id=agent_id,
+                simulation=simulation,
+                raw_observations=raw_observations,
+                raw_actions=raw_actions,
+            )
+            if maybe_action is None:
+                continue
+            out_actions[agent_id] = action_ids[maybe_action.name]
+
+        return out_actions
+
 
 class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
     """AgentPolicy wrapper that manages internal state (e.g., for RNNs).
@@ -135,6 +192,20 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
         """Reset the hidden state to initial state."""
         self._base_policy.reset(simulation)
         self._state = self._base_policy.initial_agent_state(simulation)
+
+    def step_batch(
+        self,
+        *,
+        agent_id: int,
+        simulation: Optional[Simulation],
+        raw_observations: np.ndarray,
+        raw_actions: np.ndarray,
+    ) -> Action | None:
+        del raw_observations, raw_actions
+        if simulation is None:
+            raise ValueError("simulation is required for StatefulAgentPolicy.step_batch")
+        observation = simulation.agent(agent_id).observation
+        return self.step(observation)
 
 
 class StatefulPolicyImpl(Generic[StateType]):
