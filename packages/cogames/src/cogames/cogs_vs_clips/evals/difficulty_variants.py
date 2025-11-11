@@ -87,7 +87,7 @@ class DifficultyLevel(MissionVariant):
     max_steps_override: int | None = Field(default=None)
 
     # Clipping configuration
-    clip_rate: float = Field(default=0.0, description="Probability per step that extractors get clipped")
+    clip_period: int = Field(default=0, description="Approximate period of time between clips")
     clip_target: str | None = Field(
         default=None, description="Specific extractor to clip (carbon/oxygen/germanium/silicon/charger)"
     )
@@ -153,9 +153,9 @@ class DifficultyLevel(MissionVariant):
         if self.cargo_capacity_override is not None:
             mission.cargo_capacity = self.cargo_capacity_override
 
-        # Set clip_rate on mission
-        if self.clip_rate > 0.0:
-            mission.clip_rate = self.clip_rate
+        # Set clip_period on mission
+        if self.clip_period > 0:
+            mission.clip_period = self.clip_period
 
         # Apply clipping configuration
         clip_target = self.clip_target
@@ -415,7 +415,7 @@ ENERGY_CRISIS = DifficultyLevel(
 CLIPPED_OXYGEN = DifficultyLevel(
     name="clipped_oxygen",
     description="Oxygen extractor starts clipped - craft decoder from carbon to unclip",
-    clip_rate=0.0,
+    clip_period=0,
     clip_target="oxygen",
     clip_immune_extractor="carbon_extractor",
     allow_agent_scaling=False,
@@ -424,7 +424,7 @@ CLIPPED_OXYGEN = DifficultyLevel(
 CLIPPED_CARBON = DifficultyLevel(
     name="clipped_carbon",
     description="Carbon extractor starts clipped - craft modulator from oxygen to unclip",
-    clip_rate=0.0,
+    clip_period=0,
     clip_target="carbon",
     clip_immune_extractor="oxygen_extractor",
     allow_agent_scaling=False,
@@ -433,7 +433,7 @@ CLIPPED_CARBON = DifficultyLevel(
 CLIPPED_GERMANIUM = DifficultyLevel(
     name="clipped_germanium",
     description="Germanium extractor starts clipped - craft resonator from silicon to unclip",
-    clip_rate=0.0,
+    clip_period=0,
     clip_target="germanium",
     clip_immune_extractor="silicon_extractor",
     allow_agent_scaling=False,
@@ -442,7 +442,7 @@ CLIPPED_GERMANIUM = DifficultyLevel(
 CLIPPED_SILICON = DifficultyLevel(
     name="clipped_silicon",
     description="Silicon extractor starts clipped - craft scrambler from germanium to unclip",
-    clip_rate=0.0,
+    clip_period=0,
     clip_target="silicon",
     clip_immune_extractor="germanium_extractor",
     allow_agent_scaling=False,
@@ -451,7 +451,7 @@ CLIPPED_SILICON = DifficultyLevel(
 CLIPPING_CHAOS = DifficultyLevel(
     name="clipping_chaos",
     description="Random extractors clip over time - must craft unclip items reactively",
-    clip_rate=0.15,
+    clip_period=7,
     clip_target=None,
     allow_agent_scaling=False,
 )
@@ -470,7 +470,7 @@ HARD_CLIPPED_OXYGEN = DifficultyLevel(
     charger_eff_override=80,
     energy_regen_override=1,  # Minimal regen prevents deadlock
     move_energy_cost_override=3,
-    clip_rate=0.0,
+    clip_period=0,
     clip_target="oxygen",
     clip_immune_extractor="carbon_extractor",
     allow_agent_scaling=False,

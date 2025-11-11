@@ -22,7 +22,7 @@ def test_curriculum_env_with_stats_tracker_runs_episodes():
 
     sim = Simulator()
     sim.add_event_handler(StatsTracker(stats_writer))
-    env_supervisor_cfg = EnvSupervisorConfig(enabled=False)
+    env_supervisor_cfg = EnvSupervisorConfig()
     env = MettaGridPufferEnv(sim, curriculum.get_task().get_env_cfg(), env_supervisor_cfg)
     env = CurriculumEnv(env, curriculum)
 
@@ -85,7 +85,7 @@ def test_curriculum_with_multiple_tasks_runs_both():
     sim.add_event_handler(StatsTracker(stats_writer))
     # Don't pre-initialize with a task - let CurriculumEnv handle it
     initial_task = curriculum.get_task()
-    env_supervisor_cfg = EnvSupervisorConfig(enabled=False)
+    env_supervisor_cfg = EnvSupervisorConfig()
     env = MettaGridPufferEnv(sim, initial_task.get_env_cfg(), env_supervisor_cfg)
     env = CurriculumEnv(env, curriculum)
 

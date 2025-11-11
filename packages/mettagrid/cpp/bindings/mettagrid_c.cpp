@@ -70,7 +70,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   _grid = std::make_unique<Grid>(height, width);
   _obs_encoder = std::make_unique<ObservationEncoder>(
-      resource_names.size(), game_config.protocol_details_obs, &resource_names, &game_config.feature_ids);
+      game_config.protocol_details_obs, resource_names, game_config.feature_ids);
 
   // Initialize ObservationFeature namespace with feature IDs
   ObservationFeature::Initialize(game_config.feature_ids);
@@ -104,7 +104,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
                                          clipper_cfg.unclipping_protocols,
                                          clipper_cfg.length_scale,
                                          clipper_cfg.cutoff_distance,
-                                         clipper_cfg.clip_rate,
+                                         clipper_cfg.clip_period,
                                          _rng);
   }
 }

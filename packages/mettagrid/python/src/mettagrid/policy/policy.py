@@ -8,6 +8,7 @@ import torch.nn as nn
 from pydantic import BaseModel
 
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.policy.policy_registry import PolicyRegistryMeta
 from mettagrid.simulator import Action, AgentObservation, Simulation
 
 # Type variable for agent state - can be any type
@@ -45,14 +46,19 @@ class AgentPolicy:
         pass
 
 
-class MultiAgentPolicy:
+class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
     """Abstract base class for multi-agent policies.
 
     A Policy manages creating AgentPolicy instances for multiple agents.
     This is the class users instantiate and pass to training/play functions.
     Training uses the Policy directly, while play calls agent_policy() to
     get per-agent instances.
+
+    Subclasses can register themselves by defining:
+    - short_names: list[str] = ["name1", "name2"] for one or more aliases
     """
+
+    short_names: list[str] | None = None
 
     def __init__(self, policy_env_info: PolicyEnvInterface):
         self._policy_env_info = policy_env_info

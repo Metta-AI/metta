@@ -8,8 +8,8 @@ import typer
 from rich.table import Table
 
 from cogames.cli.base import console
+from mettagrid.policy.loader import find_policy_checkpoints, resolve_policy_class_path, resolve_policy_data_path
 from mettagrid.policy.policy import PolicySpec
-from mettagrid.policy.utils import find_policy_checkpoints, resolve_policy_class_path, resolve_policy_data_path
 
 RawPolicyValues = Optional[Sequence[str]]
 ParsedPolicies = list[PolicySpec]
