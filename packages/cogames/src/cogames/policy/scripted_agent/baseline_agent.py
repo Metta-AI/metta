@@ -300,14 +300,24 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         )
 
     def _try_random_direction(self, s: SimpleAgentState) -> Optional[Action]:
-        """Try to move in any free adjacent direction. Returns None if all blocked."""
+        """Try to move in any free adjacent direction, avoiding agent collisions. Returns None if all blocked."""
         directions: list[CardinalDirection] = ["north", "south", "east", "west"]
         random.shuffle(directions)
         for direction in directions:
             dr, dc = self._move_deltas[direction]
             nr, nc = s.row + dr, s.col + dc
-            if path_is_within_bounds(s, nr, nc) and s.occupancy[nr][nc] == CellType.FREE.value:
-                return self._actions.move.Move(direction)
+
+            # Check if cell is traversable
+            if not (path_is_within_bounds(s, nr, nc) and s.occupancy[nr][nc] == CellType.FREE.value):
+                continue
+
+            # Check for agent collision
+            target_obs_r = self._obs_hr + dr
+            target_obs_c = self._obs_wr + dc
+            if self._is_agent_at_obs_location(s, target_obs_r, target_obs_c):
+                continue
+
+            return self._actions.move.Move(direction)
         return None
 
     def _clear_stuck_state(self, s: SimpleAgentState) -> None:
@@ -1101,10 +1111,15 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
         # Check for agent collision and try alternative direction if blocked
         if self._is_agent_at_obs_location(s, target_obs_r, target_obs_c):
-            # Agent collision detected! Try a random direction instead
-            action = random.choice([s for s in ["north", "south", "east", "west"] if s != action])
-            s.cached_path = None
-            s.cached_path_target = None
+            # Agent collision detected! Try a random collision-free direction
+            random_action = self._try_random_direction(s)
+            if random_action:
+                s.cached_path = None
+                s.cached_path_target = None
+                return random_action
+            # No valid moves, just noop
+            return self._actions.noop.Noop()
+
         return self._actions.move.Move(action)
 
     def _is_agent_at_obs_location(self, s: SimpleAgentState, obs_r: int, obs_c: int) -> bool:
