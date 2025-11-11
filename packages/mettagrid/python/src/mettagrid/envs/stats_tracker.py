@@ -108,8 +108,6 @@ class StatsTracker(SimulatorEventHandler):
             self._episode_start_ts,
         )
 
-        self._stats_writer.close()
-
     def _add_timing_info(self) -> None:
         """Add timing information to infos."""
         assert self._sim is not None
