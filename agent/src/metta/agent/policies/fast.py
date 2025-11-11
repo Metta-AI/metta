@@ -3,6 +3,7 @@ from typing import List, Optional
 
 import numpy as np
 import torch
+from cortex.stacks import build_cortex_auto_config
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule as TDM
 from torch import nn
@@ -11,7 +12,7 @@ from torchrl.data import Composite, UnboundedDiscrete
 import pufferlib.pytorch
 from metta.agent.components.actor import ActionProbs, ActionProbsConfig
 from metta.agent.components.cnn_encoder import CNNEncoder, CNNEncoderConfig
-from metta.agent.components.lstm import LSTM, LSTMConfig
+from metta.agent.components.cortex import CortexTD, CortexTDConfig
 from metta.agent.components.obs_shim import ObsShimBox, ObsShimBoxConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
@@ -25,15 +26,27 @@ class FastConfig(PolicyArchitecture):
 
     This particular class is also set up without using PolicyAutoBuilder to demonstrate an alternative way to build a
     policy, affording more control over the process at the expense of more code. It demonstrates that we can use config
-    objects (ie LSTMConfig) for classes as layers (self.lstm) or attributes (ie actor_hidden_dim) for simple torch
+    objects (ie CortexTDConfig) for classes as layers (self.core) or attributes (ie actor_hidden_dim) for simple torch
     classes as layers (ie self.critic_1), wrap them in a TensorDictModule, and intermix."""
 
     class_path: str = "metta.agent.policies.fast.FastPolicy"
 
+    _hidden_size = 128
+
     obs_shim_config: ObsShimBoxConfig = ObsShimBoxConfig(in_key="env_obs", out_key="obs_normalizer")
     cnn_encoder_config: CNNEncoderConfig = CNNEncoderConfig(in_key="obs_normalizer", out_key="encoded_obs")
-    lstm_config: LSTMConfig = LSTMConfig(
-        in_key="encoded_obs", out_key="core", latent_size=128, hidden_size=128, num_layers=2
+    cortex_core_config: CortexTDConfig = CortexTDConfig(
+        in_key="encoded_obs",
+        out_key="core",
+        d_hidden=_hidden_size,
+        out_features=_hidden_size,
+        key_prefix="fast_cortex_state",
+        stack_cfg=build_cortex_auto_config(
+            d_hidden=_hidden_size,
+            num_layers=1,
+            pattern="L",
+            post_norm=False,
+        ),
     )
     critic_hidden_dim: int = 1024
     actor_hidden_dim: int = 512
@@ -57,18 +70,15 @@ class FastPolicy(Policy):
 
         self.cnn_encoder = CNNEncoder(config=self.config.cnn_encoder_config, policy_env_interface=policy_env_info)
 
-        self.lstm = LSTM(config=self.config.lstm_config)
+        self.core = CortexTD(config=self.config.cortex_core_config)
+        core_width = int(self.config.cortex_core_config.out_features or self.config.cortex_core_config.d_hidden)
 
-        module = pufferlib.pytorch.layer_init(
-            nn.Linear(self.config.lstm_config.hidden_size, self.config.actor_hidden_dim), std=1.0
-        )
+        module = pufferlib.pytorch.layer_init(nn.Linear(core_width, self.config.actor_hidden_dim), std=1.0)
         self.actor_1 = TDM(module, in_keys=["core"], out_keys=["actor_1"])
 
         # Critic branch
         # critic_1 uses gain=sqrt(2) because it's followed by tanh (YAML: nonlinearity: nn.Tanh)
-        module = pufferlib.pytorch.layer_init(
-            nn.Linear(self.config.lstm_config.hidden_size, self.config.critic_hidden_dim), std=np.sqrt(2)
-        )
+        module = pufferlib.pytorch.layer_init(nn.Linear(core_width, self.config.critic_hidden_dim), std=np.sqrt(2))
         self.critic_1 = TDM(module, in_keys=["core"], out_keys=["critic_1"])
         self.critic_activation = nn.Tanh()
         module = pufferlib.pytorch.layer_init(nn.Linear(self.config.critic_hidden_dim, 1), std=1.0)
@@ -89,7 +99,7 @@ class FastPolicy(Policy):
     def forward(self, td: TensorDict, state=None, action: torch.Tensor = None):
         self.obs_shim(td)
         self.cnn_encoder(td)
-        self.lstm(td)
+        self.core(td)
         self.actor_1(td)
         td["actor_1"] = torch.relu(td["actor_1"])
         self.critic_1(td)
@@ -114,7 +124,7 @@ class FastPolicy(Policy):
         return [log]
 
     def reset_memory(self):
-        self.lstm.reset_memory()
+        self.core.reset_memory()
 
     def get_agent_experience_spec(self) -> Composite:
         return Composite(

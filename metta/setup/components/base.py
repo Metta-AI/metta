@@ -22,6 +22,7 @@ class SetupModuleStatus(BaseModel):
 class SetupModule(ABC):
     install_once: bool = False
     repo_root: Path = get_repo_root()
+    always_required: bool = False
 
     def __init__(self):
         self._non_interactive = False
@@ -56,7 +57,7 @@ class SetupModule(ABC):
 
     def dependencies(self) -> list[str]:
         # Other components that must be installed before this one
-        # It is assumed that `core` and `system` are always installed first
+        # It is assumed that modules with .always_required is True are always installed first
         return []
 
     def install(self, non_interactive: bool = False, force: bool = False) -> None:

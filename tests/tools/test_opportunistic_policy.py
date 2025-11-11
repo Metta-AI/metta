@@ -34,7 +34,7 @@ class TestBasicPolicyEnvironment:
     def env_with_config(self, simple_env_config):
         """Create PufferMettaGridEnv from config."""
         simulator = Simulator()
-        env_supervisor_cfg = EnvSupervisorConfig(enabled=False)
+        env_supervisor_cfg = EnvSupervisorConfig()
         env = PufferMettaGridEnv(simulator, simple_env_config, env_supervisor_cfg)
         try:
             yield env

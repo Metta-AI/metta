@@ -10,6 +10,8 @@ from metta.setup.utils import error, success
 
 @register_module
 class CoreSetup(SetupModule):
+    always_required = True
+
     @property
     def description(self) -> str:
         return "Core Python dependencies and virtual environment"

@@ -142,7 +142,7 @@ def extract_visitation_features(visitation_feature_id: int, obs: np.ndarray, age
 def test_visitation_counts_enabled(env_with_visitation):
     """Test that visitation counts work correctly when enabled."""
     obs = env_with_visitation._c_sim.observations()
-    visitation_feature_id = env_with_visitation.config.id_map().feature_id("agent:visitation_counts")
+    visitation_feature_id = env_with_visitation.config.game.id_map().feature_id("agent:visitation_counts")
 
     # Check initial visitation counts
     initial_features = extract_visitation_features(visitation_feature_id, obs)
@@ -167,7 +167,7 @@ def test_visitation_counts_enabled(env_with_visitation):
 def test_visitation_counts_disabled(env_without_visitation):
     """Test that visitation counts are not present when disabled."""
     obs = env_without_visitation._c_sim.observations()
-    visitation_feature_id = env_without_visitation.config.id_map().feature_id("agent:visitation_counts")
+    visitation_feature_id = env_without_visitation.config.game.id_map().feature_id("agent:visitation_counts")
 
     features = extract_visitation_features(visitation_feature_id, obs)
     assert len(features) == 0, f"Expected no visitation features when disabled, got {len(features)}"
@@ -183,7 +183,7 @@ def test_visitation_counts_disabled(env_without_visitation):
 def test_visitation_counts_default_disabled(env_default):
     """Test that visitation counts are disabled by default."""
     obs = env_default._c_sim.observations()
-    visitation_feature_id = env_default.config.id_map().feature_id("agent:visitation_counts")
+    visitation_feature_id = env_default.config.game.id_map().feature_id("agent:visitation_counts")
 
     features = extract_visitation_features(visitation_feature_id, obs)
     assert len(features) == 0, "Visitation counts should be disabled by default"
@@ -259,7 +259,7 @@ def test_visitation_performance_impact(performance_config):
 def test_observation_structure(env_with_visitation):
     """Test the structure of observations with visitation counts."""
     obs = env_with_visitation._c_sim.observations()
-    visitation_feature_id = env_with_visitation.config.id_map().feature_id("agent:visitation_counts")
+    visitation_feature_id = env_with_visitation.config.game.id_map().feature_id("agent:visitation_counts")
 
     # Check observation shape
     assert len(obs.shape) == 3, f"Expected 3D observation array, got shape {obs.shape}"

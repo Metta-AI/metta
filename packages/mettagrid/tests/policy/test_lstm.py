@@ -18,6 +18,7 @@ def create_mock_policy_env_info() -> PolicyEnvInterface:
     action_space = Discrete(8)
     return PolicyEnvInterface(
         obs_features=[],
+        tags=[],
         actions=actions_cfg,
         num_agents=1,
         observation_space=obs_space,

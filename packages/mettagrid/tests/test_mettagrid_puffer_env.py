@@ -5,6 +5,7 @@ import pytest
 
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
+    EnvSupervisorConfig,
     GameConfig,
     MettaGridConfig,
     MoveActionConfig,
@@ -289,3 +290,64 @@ class TestMettaGridPufferEnvIntegration:
 
         # Close should not raise
         env.close()
+
+
+class TestMettaGridPufferEnvSupervisorPolicy:
+    """Test supervisor policy functionality."""
+
+    def test_mettagrid_puffer_env_supervisor_policy(self, simulator, puffer_sim_config):
+        """Test that supervisor policy correctly sets teacher_actions."""
+
+        # Create supervisor config
+        supervisor_cfg = EnvSupervisorConfig(policy="noop")
+
+        # Create environment with supervisor
+        env = MettaGridPufferEnv(simulator, puffer_sim_config, env_supervisor_cfg=supervisor_cfg)
+
+        # Verify supervisor policy was initialized
+        assert env._env_supervisor_policy is not None
+        assert len(env._env_supervisor_agent_policies) == 2
+
+        # Reset environment
+        obs, info = env.reset()
+
+        # Get action names from simulation
+        action_names = env._sim.action_names
+
+        # Verify teacher_actions are set after reset
+        teacher_actions = env.teacher_actions
+        assert teacher_actions.shape == (2,)
+        # Check that dtype is an integer type (int32 or int64 depending on platform)
+        assert np.issubdtype(teacher_actions.dtype, np.integer)
+
+        # NoopPolicy should always return noop actions
+        noop_idx = action_names.index("noop")
+        assert teacher_actions[0] == noop_idx
+        assert teacher_actions[1] == noop_idx
+
+        # Step the environment
+        actions = np.array([noop_idx, noop_idx], dtype=np.int32)
+        obs, rewards, terminals, truncations, info = env.step(actions)
+
+        # After step, teacher_actions should still be noop (NoopPolicy always returns noop)
+        teacher_actions_after_step = env.teacher_actions
+        assert teacher_actions_after_step[0] == noop_idx
+        assert teacher_actions_after_step[1] == noop_idx
+
+        # Step again - should still be noop
+        obs, rewards, terminals, truncations, info = env.step(actions)
+        teacher_actions_after_step2 = env.teacher_actions
+        assert teacher_actions_after_step2[0] == noop_idx
+        assert teacher_actions_after_step2[1] == noop_idx
+
+        # Step again - should still be noop
+        obs, rewards, terminals, truncations, info = env.step(actions)
+        teacher_actions_after_step3 = env.teacher_actions
+        assert teacher_actions_after_step3[0] == noop_idx
+        assert teacher_actions_after_step3[1] == noop_idx
+
+        # Step again - should still be noop
+        obs, rewards, terminals, truncations, info = env.step(actions)
+        teacher_actions_after_step4 = env.teacher_actions
+        assert teacher_actions_after_step4[0] == noop_idx
+        assert teacher_actions_after_step4[1] == noop_idx
