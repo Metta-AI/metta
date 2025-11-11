@@ -19,15 +19,6 @@ def compute_goal_cells(
 ) -> list[tuple[int, int]]:
     """
     Compute the set of goal cells for pathfinding.
-
-    Args:
-        state: Agent state with occupancy map
-        target: Target position
-        reach_adjacent: If True, goal is any cell adjacent to target (not target itself)
-        cell_type: CellType enum for checking obstacles
-
-    Returns:
-        List of valid goal positions
     """
     if not reach_adjacent:
         return [target]
@@ -56,16 +47,6 @@ def shortest_path(
 ) -> list[tuple[int, int]]:
     """
     Find shortest path from start to any goal using BFS.
-
-    Args:
-        state: Agent state with occupancy map
-        start: Starting position
-        goals: List of valid goal positions
-        allow_goal_block: If True, allow pathfinding to blocked goal cells
-        cell_type: CellType enum for checking obstacles
-
-    Returns:
-        List of positions from start to goal (excluding start, including goal)
     """
     goal_set = set(goals)
     queue: deque[tuple[int, int]] = deque([start])
@@ -95,13 +76,6 @@ def reconstruct_path(
 ) -> list[tuple[int, int]]:
     """
     Reconstruct path from BFS came_from dict.
-
-    Args:
-        came_from: Dictionary mapping position -> previous position
-        current: Goal position to reconstruct path to
-
-    Returns:
-        List of positions from start to current (excluding start, including current)
     """
     path: list[tuple[int, int]] = []
     while came_from[current] is not None:
@@ -116,13 +90,6 @@ def reconstruct_path(
 def get_neighbors(state: SimpleAgentState, pos: tuple[int, int]) -> list[tuple[int, int]]:
     """
     Get valid neighboring positions (4-connected grid).
-
-    Args:
-        state: Agent state with map dimensions
-        pos: Current position
-
-    Returns:
-        List of neighboring positions within bounds
     """
     r, c = pos
     candidates = [(r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1)]
@@ -132,14 +99,6 @@ def get_neighbors(state: SimpleAgentState, pos: tuple[int, int]) -> list[tuple[i
 def is_within_bounds(state: SimpleAgentState, r: int, c: int) -> bool:
     """
     Check if position is within map bounds.
-
-    Args:
-        state: Agent state with map dimensions
-        r: Row coordinate
-        c: Column coordinate
-
-    Returns:
-        True if position is within bounds
     """
     return 0 <= r < state.map_height and 0 <= c < state.map_width
 
@@ -147,15 +106,6 @@ def is_within_bounds(state: SimpleAgentState, r: int, c: int) -> bool:
 def is_passable(state: SimpleAgentState, r: int, c: int, cell_type: type[CellType]) -> bool:
     """
     Check if a cell is passable (not an obstacle).
-
-    Args:
-        state: Agent state with occupancy map
-        r: Row coordinate
-        c: Column coordinate
-        cell_type: CellType enum for checking obstacles
-
-    Returns:
-        True if cell is passable
     """
     if not is_within_bounds(state, r, c):
         return False
@@ -165,15 +115,6 @@ def is_passable(state: SimpleAgentState, r: int, c: int, cell_type: type[CellTyp
 def is_traversable(state: SimpleAgentState, r: int, c: int, cell_type: type[CellType]) -> bool:
     """
     Check if a cell is traversable (free and no agent there).
-
-    Args:
-        state: Agent state with occupancy map and agent positions
-        r: Row coordinate
-        c: Column coordinate
-        cell_type: CellType enum for checking obstacles
-
-    Returns:
-        True if cell is traversable
     """
     if not is_within_bounds(state, r, c):
         return False
