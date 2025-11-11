@@ -14,7 +14,6 @@ Just simple, clean, correct behavior.
 from __future__ import annotations
 
 import random
-from collections import deque
 from typing import TYPE_CHECKING, Callable, Optional, Tuple, Union
 
 from cogames.policy import StatefulPolicyImpl
@@ -25,6 +24,16 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action
 from mettagrid.simulator.interface import AgentObservation
 
+from .pathfinding import (
+    compute_goal_cells,
+    shortest_path,
+)
+from .pathfinding import (
+    is_traversable as path_is_traversable,
+)
+from .pathfinding import (
+    is_within_bounds as path_is_within_bounds,
+)
 from .types import (
     BaselineHyperparameters,
     CellType,
@@ -303,7 +312,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         for direction in directions:
             dr, dc = self._move_deltas[direction]
             nr, nc = s.row + dr, s.col + dc
-            if self._is_within_bounds(s, nr, nc) and s.occupancy[nr][nc] == CellType.FREE.value:
+            if path_is_within_bounds(s, nr, nc) and s.occupancy[nr][nc] == CellType.FREE.value:
                 return self._actions.move.Move(direction)
         return None
 
@@ -673,7 +682,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
                     next_r, next_c = s.row + dr, s.col + dc
 
                     # Check if we can move in that direction
-                    if self._is_traversable(s, next_r, next_c):
+                    if path_is_traversable(s, next_r, next_c, CellType):
                         return self._actions.move.Move(direction)
                     # Blocked, pick a new direction
 
@@ -683,7 +692,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         for direction in CardinalDirections:
             dr, dc = {"north": (-1, 0), "south": (1, 0), "east": (0, 1), "west": (0, -1)}.get(direction, (0, 0))
             next_r, next_c = s.row + dr, s.col + dc
-            if self._is_traversable(s, next_r, next_c):
+            if path_is_traversable(s, next_r, next_c, CellType):
                 valid_directions.append(direction)
 
         if valid_directions:
@@ -1051,7 +1060,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         if start == target and not reach_adjacent:
             return self._actions.noop.Noop()
 
-        goal_cells = self._compute_goal_cells(s, target, reach_adjacent)
+        goal_cells = compute_goal_cells(s, target, reach_adjacent, CellType)
         if not goal_cells:
             return self._actions.noop.Noop()
 
@@ -1065,14 +1074,16 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         ):
             # Validate cached path - check if next step is still walkable
             next_pos = s.cached_path[0]
-            if self._is_traversable(s, next_pos[0], next_pos[1]) or (allow_goal_block and next_pos in goal_cells):
+            if path_is_traversable(s, next_pos[0], next_pos[1], CellType) or (
+                allow_goal_block and next_pos in goal_cells
+            ):
                 # Cached path is valid! Use it
                 path = s.cached_path
             # If next step blocked, fall through to recompute
 
         # Need to recompute path
         if path is None:
-            path = self._shortest_path(s, start, goal_cells, allow_goal_block)
+            path = shortest_path(s, start, goal_cells, allow_goal_block, CellType)
             # Cache the new path
             s.cached_path = path.copy() if path else None
             s.cached_path_target = target
@@ -1120,95 +1131,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             s.cached_path = None
             s.cached_path_target = None
         return self._actions.move.Move(action)
-
-    def _compute_goal_cells(
-        self, s: SimpleAgentState, target: tuple[int, int], reach_adjacent: bool
-    ) -> list[tuple[int, int]]:
-        if not reach_adjacent:
-            return [target]
-
-        goals: list[tuple[int, int]] = []
-        for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-            nr, nc = target[0] + dr, target[1] + dc
-            if self._is_traversable(s, nr, nc):
-                goals.append((nr, nc))
-
-        # If no adjacent traversable tiles are known yet, allow exploring toward unknown ones
-        if not goals:
-            for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-                nr, nc = target[0] + dr, target[1] + dc
-                if self._is_within_bounds(s, nr, nc) and s.occupancy[nr][nc] != CellType.OBSTACLE.value:
-                    goals.append((nr, nc))
-        return goals
-
-    def _shortest_path(
-        self,
-        s: SimpleAgentState,
-        start: tuple[int, int],
-        goals: list[tuple[int, int]],
-        allow_goal_block: bool,
-    ) -> list[tuple[int, int]]:
-        goal_set = set(goals)
-        queue: deque[tuple[int, int]] = deque([start])
-        came_from: dict[tuple[int, int], tuple[int, int] | None] = {start: None}
-
-        def walkable(r: int, c: int) -> bool:
-            if (r, c) in goal_set and allow_goal_block:
-                return True
-            return self._is_traversable(s, r, c)
-
-        while queue:
-            current = queue.popleft()
-            if current in goal_set:
-                return self._reconstruct_path(came_from, current)
-
-            for nr, nc in self._neighbors(s, current):
-                if (nr, nc) not in came_from and walkable(nr, nc):
-                    came_from[(nr, nc)] = current
-                    queue.append((nr, nc))
-
-        return []
-
-    def _reconstruct_path(
-        self,
-        came_from: dict[tuple[int, int], tuple[int, int] | None],
-        current: tuple[int, int],
-    ) -> list[tuple[int, int]]:
-        path: list[tuple[int, int]] = []
-        while came_from[current] is not None:
-            path.append(current)
-            prev = came_from[current]
-            assert prev is not None  # Loop condition ensures this
-            current = prev
-        path.reverse()
-        return path
-
-    def _neighbors(self, s: SimpleAgentState, pos: tuple[int, int]) -> list[tuple[int, int]]:
-        """Get valid neighboring cells (4-way cardinal directions) within bounds."""
-        r, c = pos
-        candidates = [(r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1)]
-        return [(nr, nc) for nr, nc in candidates if self._is_within_bounds(s, nr, nc)]
-
-    def _is_within_bounds(self, s: SimpleAgentState, r: int, c: int) -> bool:
-        """Check if a position is within the agent's known map bounds."""
-        return 0 <= r < s.map_height and 0 <= c < s.map_width
-
-    def _is_passable(self, s: SimpleAgentState, r: int, c: int) -> bool:
-        """Check if a cell is passable."""
-        if not self._is_within_bounds(s, r, c):
-            return False
-        return self._is_traversable(s, r, c)
-
-    def _is_traversable(self, s: SimpleAgentState, r: int, c: int) -> bool:
-        """Check if a cell is traversable (explicitly known to be free and no agent there)."""
-        if not self._is_within_bounds(s, r, c):
-            return False
-        # Don't walk through other agents
-        if (r, c) in s.agent_occupancy:
-            return False
-        cell = s.occupancy[r][c]
-        # Only traverse cells we KNOW are free, not unknown cells
-        return cell == CellType.FREE.value
 
     def _is_agent_at_obs_location(self, s: SimpleAgentState, obs_r: int, obs_c: int) -> bool:
         """Check if there's an agent at the given observation coordinates.
