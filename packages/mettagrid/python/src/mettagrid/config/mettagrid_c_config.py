@@ -300,6 +300,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_chest_config.vibe_transfers = vibe_transfers_map
             cpp_chest_config.initial_inventory = initial_inventory_cpp
             cpp_chest_config.inventory_config = inventory_config
+            cpp_chest_config.excess_input_discarded = object_config.excess_input_discarded
             cpp_chest_config.tag_ids = tag_ids
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_chest_config

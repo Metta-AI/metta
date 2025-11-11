@@ -444,7 +444,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
                 continue
 
             # Discover stations (all stations are obstacles - can't walk through them)
-            for station_name in ("assembler", "chest", "charger"):
+            for station_name in ("assembler", "chest", "charger", "garbage_can"):
                 if is_station(obj_name, station_name):
                     s.occupancy[r][c] = CellType.OBSTACLE.value
                     self._discover_station(s, pos, station_name)

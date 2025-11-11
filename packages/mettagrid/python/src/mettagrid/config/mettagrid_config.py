@@ -286,7 +286,6 @@ class ChestConfig(GridObjectConfig):
     # Please don't use this for anything game related.
     pydantic_type: Literal["chest"] = "chest"
     name: str = Field(default="chest")
-
     # Vibe-based transfers: vibe -> resource -> delta
     vibe_transfers: dict[str, dict[str, int]] = Field(
         default_factory=dict,
@@ -296,15 +295,21 @@ class ChestConfig(GridObjectConfig):
             "showing carbon vibe"
         ),
     )
-
     # Initial inventory for each resource
     initial_inventory: dict[str, int] = Field(
         default_factory=dict, description="Initial inventory for each resource type"
     )
-
     # Resource limits for the chest's inventory
     resource_limits: dict[str, int] = Field(
         default_factory=dict, description="Maximum amount per resource (uses inventory system's built-in limits)"
+    )
+    # Whether excess input items are discarded (true) or kept by the agent (false)
+    excess_input_discarded: bool = Field(
+        default=False,
+        description=(
+            "If true, excess items that cannot fit in the chest are discarded from the agent's inventory. "
+            "If false, excess items remain in the agent's inventory."
+        ),
     )
 
 

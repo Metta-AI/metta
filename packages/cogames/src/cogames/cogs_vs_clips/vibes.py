@@ -16,6 +16,7 @@ VIBES = [
     # Stations
     Vibe("⭐", "assembler", category="station"),
     Vibe("📦", "chest", category="station"),
+    Vibe("🗑️", "garbage_can", category="station"),
     Vibe("⬛", "wall", category="station"),
     # Identity
     Vibe("📎", "paperclip", category="identity"),

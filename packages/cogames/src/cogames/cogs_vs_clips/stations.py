@@ -173,6 +173,34 @@ class CvCChestConfig(CvCStationConfig):
         )
 
 
+class CvCGarbageCanConfig(CvCStationConfig):
+    def station_cfg(self) -> ChestConfig:
+        return ChestConfig(
+            name="garbage_can",
+            map_char="R",
+            render_symbol=vibes.VIBE_BY_NAME["garbage_can"].symbol,
+            resource_limits={
+                "heart": 0,
+                "carbon": 0,
+                "oxygen": 0,
+                "germanium": 0,
+                "silicon": 0,
+            },
+            vibe_transfers={
+                # Sort of match what chests do.
+                # Default is to throw away everything.
+                "default": {"heart": 255, "carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255},
+                # Or you can throw away specific resources.
+                "heart": {"heart": 1},
+                "carbon": {"carbon": 10},
+                "oxygen": {"oxygen": 10},
+                "germanium": {"germanium": 1},
+                "silicon": {"silicon": 25},
+            },
+            excess_input_discarded=True,
+        )
+
+
 class CvCAssemblerConfig(CvCStationConfig):
     # These could be "fixed_cost" and "variable_cost" instead, but we're more likely to want to read them like this.
     first_heart_cost: int = Field(default=10)

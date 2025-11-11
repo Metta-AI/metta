@@ -26,6 +26,9 @@ struct ChestConfig : public GridObjectConfig {
 
   // Inventory configuration with limits
   InventoryConfig inventory_config;
+
+  // Whether excess input items are discarded (true) or kept by the agent (false)
+  bool excess_input_discarded = false;
 };
 
 namespace py = pybind11;
@@ -42,6 +45,7 @@ inline void bind_chest_config(py::module& m) {
       .def_readwrite("vibe_transfers", &ChestConfig::vibe_transfers)
       .def_readwrite("initial_inventory", &ChestConfig::initial_inventory)
       .def_readwrite("inventory_config", &ChestConfig::inventory_config)
+      .def_readwrite("excess_input_discarded", &ChestConfig::excess_input_discarded)
       .def_readwrite("initial_vibe", &ChestConfig::initial_vibe);
 }
 

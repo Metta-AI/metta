@@ -22,6 +22,9 @@ private:
   // a reference to the game stats tracker
   StatsTracker* stats_tracker;
 
+  // Whether excess input items are discarded (true) or kept by the agent (false)
+  bool excess_input_discarded;
+
   // Transfer multiple resources based on resource deltas map
   // Positive delta = deposit from agent to chest
   // Negative delta = withdraw from chest to agent
@@ -33,17 +36,26 @@ private:
 
     for (const auto& [resource, delta] : resource_deltas) {
       if (delta > 0) {
-        InventoryDelta transferred = HasInventory::transfer_resources(agent, *this, resource, delta, true);
+        InventoryDelta transferred = HasInventory::transfer_resources(agent, *this, resource, delta);
         if (transferred > 0) {
-          stats_tracker->add("chest." + stats_tracker->resource_name(resource) + ".deposited", transferred);
-          stats_tracker->set("chest." + stats_tracker->resource_name(resource) + ".amount", inventory.amount(resource));
+          stats_tracker->add(type_name + "." + stats_tracker->resource_name(resource) + ".deposited", transferred);
+          stats_tracker->set(type_name + "." + stats_tracker->resource_name(resource) + ".amount", inventory.amount(resource));
           any_transfer = true;
         }
+        if (excess_input_discarded) {
+          InventoryDelta untransferred = delta - transferred;
+          InventoryDelta discarded = -agent.update_inventory(resource, -untransferred);
+          if (discarded > 0) {
+            stats_tracker->add(type_name + "." + stats_tracker->resource_name(resource) + ".discarded", discarded);
+            any_transfer = true;
+          }
+        }
       } else if (delta < 0) {
-        InventoryDelta transferred = HasInventory::transfer_resources(*this, agent, resource, -delta, true);
+        // Don't discard excess when the agent is withdrawing.
+        InventoryDelta transferred = HasInventory::transfer_resources(*this, agent, resource, -delta);
         if (transferred > 0) {
-          stats_tracker->add("chest." + stats_tracker->resource_name(resource) + ".withdrawn", transferred);
-          stats_tracker->set("chest." + stats_tracker->resource_name(resource) + ".amount", inventory.amount(resource));
+          stats_tracker->add(type_name + "." + stats_tracker->resource_name(resource) + ".withdrawn", transferred);
+          stats_tracker->set(type_name + "." + stats_tracker->resource_name(resource) + ".amount", inventory.amount(resource));
           any_transfer = true;
         }
       }
@@ -63,6 +75,7 @@ public:
         HasInventory(cfg.inventory_config),
         vibe_transfers(cfg.vibe_transfers),
         stats_tracker(stats_tracker),
+        excess_input_discarded(cfg.excess_input_discarded),
         grid(nullptr) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c), cfg.tag_ids, cfg.initial_vibe);
     // Set initial inventory for all configured resources

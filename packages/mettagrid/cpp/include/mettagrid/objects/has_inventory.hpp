@@ -23,14 +23,12 @@ public:
                                       InventoryItem item,
                                       InventoryDelta delta);
 
-  // Transfer resources from source to target. Returns the amount actually transferred.
-  // If destroy_untransferred_resources is true, the source loses min(delta, available) resources
-  // even if the target cannot accept all of them.
+  // Transfer resources from source to target. Transfers as much as possible, up to delta.
+  // Returns the amount actually transferred.
   static InventoryDelta transfer_resources(HasInventory& source,
                                            HasInventory& target,
                                            InventoryItem item,
-                                           InventoryDelta delta,
-                                           bool destroy_untransferred_resources);
+                                           InventoryDelta delta);
 
   // Whether the inventory is accessible to an agent.
   virtual bool inventory_is_accessible();

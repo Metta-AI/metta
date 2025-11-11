@@ -293,7 +293,7 @@ class DifficultyLevel(MissionVariant):
 
         def _ensure_critical_stations_immune() -> None:
             """Make charger, assembler, and chest immune to clipping."""
-            for station_name in ["charger", "assembler", "chest"]:
+            for station_name in ["charger", "assembler", "chest", "garbage_can"]:
                 obj = cfg.game.objects.get(station_name)
                 if obj is None:
                     continue

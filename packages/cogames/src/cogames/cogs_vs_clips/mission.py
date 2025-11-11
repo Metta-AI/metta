@@ -11,6 +11,7 @@ from cogames.cogs_vs_clips.stations import (
     ChargerConfig,
     CvCAssemblerConfig,
     CvCChestConfig,
+    CvCGarbageCanConfig,
     CvCStationConfig,
     CvCWallConfig,
     GermaniumExtractorConfig,
@@ -109,6 +110,7 @@ class Mission(Config):
     silicon_extractor: SiliconExtractorConfig = Field(default_factory=SiliconExtractorConfig)
     charger: ChargerConfig = Field(default_factory=ChargerConfig)
     chest: CvCChestConfig = Field(default_factory=CvCChestConfig)
+    garbage_can: CvCGarbageCanConfig = Field(default_factory=CvCGarbageCanConfig)
     wall: CvCWallConfig = Field(default_factory=CvCWallConfig)
     assembler: CvCAssemblerConfig = Field(default_factory=CvCAssemblerConfig)
 
@@ -222,6 +224,7 @@ class Mission(Config):
                 "wall": self.wall.station_cfg(),
                 "assembler": self.assembler.station_cfg(),
                 "chest": self.chest.station_cfg(),
+                "garbage_can": self.garbage_can.station_cfg(),
                 "charger": self.charger.station_cfg(),
                 "carbon_extractor": self.carbon_extractor.station_cfg(),
                 "oxygen_extractor": self.oxygen_extractor.station_cfg(),

@@ -76,8 +76,7 @@ InventoryDelta HasInventory::shared_update(std::vector<HasInventory*> inventory_
 InventoryDelta HasInventory::transfer_resources(HasInventory& source,
                                                 HasInventory& target,
                                                 InventoryItem item,
-                                                InventoryDelta delta,
-                                                bool destroy_untransferred_resources) {
+                                                InventoryDelta delta) {
   // We want to only transfer positive deltas. If you want to transfer negative, switch source and target.
   if (delta <= 0) {
     return 0;
@@ -93,11 +92,10 @@ InventoryDelta HasInventory::transfer_resources(HasInventory& source,
 
   // Calculate the actual transfer amount
   InventoryDelta transfer_amount = std::min(max_source_can_give, max_target_can_receive);
-  InventoryDelta source_loss = destroy_untransferred_resources ? max_source_can_give : transfer_amount;
 
   // Remove resources from source
-  [[maybe_unused]] InventoryDelta actually_removed = source.update_inventory(item, -source_loss);
-  assert(actually_removed == -source_loss && "Expected source to lose the amount of resources it claimed to lose");
+  [[maybe_unused]] InventoryDelta actually_removed = source.update_inventory(item, -transfer_amount);
+  assert(actually_removed == -transfer_amount && "Expected source to lose the amount of resources it claimed to lose");
 
   // Add resources to target
   [[maybe_unused]] InventoryDelta actually_added = target.update_inventory(item, transfer_amount);

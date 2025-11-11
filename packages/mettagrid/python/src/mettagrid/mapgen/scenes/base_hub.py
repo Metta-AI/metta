@@ -32,6 +32,7 @@ class BaseHubConfig(SceneConfig):
     layout: Literal["default", "tight"] = "default"
     charger_object: str = "charger"
     heart_chest_object: str = "chest"
+    garbage_can_object: str = "garbage_can"
 
 
 class BaseHub(Scene[BaseHubConfig]):
@@ -169,7 +170,7 @@ class BaseHub(Scene[BaseHubConfig]):
         grid[1 : h - 1, x0:x1] = "empty"
         grid[y0:y1, 1 : w - 1] = "empty"
 
-        # Place central altar, charger, and chest after carving so they persist
+        # Place central altar, charger, chest, and garbage can after carving so they persist
         if 1 <= cx < w - 1 and 1 <= cy < h - 1:
             grid[cy, cx] = cfg.assembler_object
 
@@ -180,6 +181,10 @@ class BaseHub(Scene[BaseHubConfig]):
             chest_y = cy + 3
             if 1 <= chest_y < h - 1:
                 grid[chest_y, cx] = cfg.heart_chest_object
+
+            garbage_can_y = cy + 5
+            if 1 <= garbage_can_y < h - 1:
+                grid[garbage_can_y, cx] = cfg.garbage_can_object
 
         # Spawn pads: ensure at least spawn_count if provided, otherwise place 4
         desired = max(0, int(cfg.spawn_count)) if cfg.spawn_count is not None else 4
