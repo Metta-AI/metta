@@ -1,12 +1,14 @@
 import logging
 from collections import OrderedDict
 from contextlib import ExitStack
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 import torch
+import torch.nn as nn
 from tensordict import TensorDict
 from tensordict.nn import TensorDictSequential
 from torch.nn.parameter import UninitializedParameter
+from torch.utils.hooks import RemovableHandle
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.policy import Policy
@@ -28,7 +30,7 @@ class PolicyAutoBuilder(Policy):
         super().__init__(policy_env_info)
         self.config = config
 
-        self.components = OrderedDict()
+        self.components: OrderedDict[str, nn.Module] = OrderedDict()
         for component_config in self.config.components:
             name = component_config.name
             self.components[name] = component_config.make_component(policy_env_info)
@@ -167,3 +169,27 @@ class PolicyAutoBuilder(Policy):
     @property
     def device(self) -> torch.device:
         return next(self.parameters()).device
+
+    # Hook registration ---------------------------------------------------
+
+    def register_component_hook_rule(
+        self,
+        *,
+        component_name: str,
+        hook: Callable[..., None],
+    ) -> RemovableHandle:
+        module = self.components.get(component_name)
+        if module is None:
+            raise KeyError(f"Component '{component_name}' not found in policy.")
+        return module.register_forward_hook(hook)  # type: ignore[arg-type]
+
+    def register_component_backward_hook_rule(
+        self,
+        *,
+        component_name: str,
+        hook: Callable[..., None],
+    ) -> RemovableHandle:
+        module = self.components.get(component_name)
+        if module is None:
+            raise KeyError(f"Component '{component_name}' not found in policy.")
+        return module.register_full_backward_hook(hook)  # type: ignore[arg-type]

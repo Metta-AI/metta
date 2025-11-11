@@ -69,6 +69,7 @@ class ContextCheckpointer(TrainerComponent):
 
         optimizer_state = payload.get("optimizer_state")
         context.state.optimizer_state = optimizer_state
+
         if optimizer_state:
             try:
                 context.optimizer.load_state_dict(optimizer_state)

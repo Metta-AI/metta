@@ -2,13 +2,15 @@ import contextlib
 import os
 import platform
 from datetime import timedelta
-from typing import Any, Optional
+from typing import Any, Callable, Optional, Tuple
 
 import torch
-from pydantic import Field, model_validator
+from pydantic import Field, PrivateAttr, model_validator
+from torch.utils.hooks import RemovableHandle
 
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
+from metta.agent.policy_auto_builder import PolicyAutoBuilder
 from metta.agent.util.torch_backends import build_sdpa_context
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
@@ -21,6 +23,7 @@ from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import (
     Checkpointer,
     CheckpointerConfig,
+    ComponentContext,
     ContextCheckpointer,
     DistributedHelper,
     Evaluator,
@@ -52,6 +55,16 @@ from metta.tools.utils.auto_config import (
 
 logger = getRankAwareLogger(__name__)
 
+# Forward hook: called after forward pass with (module, input, output) -> None
+HookBuilder = Callable[[str, ComponentContext], Optional[Callable[[Any, tuple[Any, ...], Any], None]]]
+HookSpec = Tuple[str, HookBuilder]
+
+# Backward hook: called during backward pass with (module, grad_input, grad_output) -> None
+BackwardHookBuilder = Callable[
+    [str, ComponentContext], Optional[Callable[[Any, tuple[Any, ...], tuple[Any, ...]], None]]
+]
+BackwardHookSpec = Tuple[str, BackwardHookBuilder]
+
 
 class TrainTool(Tool):
     run: Optional[str] = None
@@ -76,6 +89,11 @@ class TrainTool(Tool):
 
     map_preview_uri: str | None = None
     disable_macbook_optimize: bool = False
+
+    _training_hooks: list[HookSpec] = PrivateAttr(default_factory=list)
+    _training_backward_hooks: list[BackwardHookSpec] = PrivateAttr(default_factory=list)
+    _active_policy_hooks: list[RemovableHandle] = PrivateAttr(default_factory=list)
+    _active_policy_backward_hooks: list[RemovableHandle] = PrivateAttr(default_factory=list)
 
     @model_validator(mode="after")
     def validate_fields(self) -> "TrainTool":
@@ -132,6 +150,7 @@ class TrainTool(Tool):
 
         policy_checkpointer, policy = self._load_or_create_policy(checkpoint_manager, distributed_helper, env)
         trainer = self._initialize_trainer(env, policy, distributed_helper)
+        self._register_policy_hooks(policy=policy, trainer=trainer)
 
         self._log_run_configuration(distributed_helper, checkpoint_manager, env)
 
@@ -172,6 +191,7 @@ class TrainTool(Tool):
             if sdpa_stack is not None:
                 sdpa_stack.close()
                 self._sdpa_context_stack = None
+            self._clear_policy_hooks()
 
     def _load_or_create_policy(
         self,
@@ -210,6 +230,71 @@ class TrainTool(Tool):
             self.gradient_reporter.epoch_interval = self.stats_reporter.grad_mean_variance_interval
 
         return trainer
+
+    def add_training_hook(
+        self,
+        component_name: str,
+        hook_builder: HookBuilder,
+    ) -> None:
+        """Register a hook-producing builder for a specific component after initialization."""
+        self._training_hooks.append((component_name, hook_builder))
+
+    def add_training_backward_hook(
+        self,
+        component_name: str,
+        hook_builder: BackwardHookBuilder,
+    ) -> None:
+        """Register a backward hook-producing builder for a specific component after initialization."""
+        self._training_backward_hooks.append((component_name, hook_builder))
+
+    def _register_policy_hooks(self, *, policy: Policy, trainer: Trainer) -> None:
+        self._clear_policy_hooks()
+        if not isinstance(policy, PolicyAutoBuilder):
+            return
+
+        # Register forward hooks
+        for component_name, hook_builder in self._training_hooks:
+            module = policy.components.get(component_name)
+            if module is None:
+                continue
+            hook = hook_builder(component_name, trainer.context)
+            if hook is None:
+                continue
+            handle = policy.register_component_hook_rule(
+                component_name=component_name,
+                hook=hook,
+            )
+            self._active_policy_hooks.append(handle)
+
+        # Register backward hooks
+        for component_name, hook_builder in self._training_backward_hooks:
+            module = policy.components.get(component_name)
+            if module is None:
+                continue
+            hook = hook_builder(component_name, trainer.context)
+            if hook is None:
+                continue
+            handle = policy.register_component_backward_hook_rule(
+                component_name=component_name,
+                hook=hook,
+            )
+            self._active_policy_backward_hooks.append(handle)
+
+    def _clear_policy_hooks(self) -> None:
+        if self._active_policy_hooks:
+            for handle in self._active_policy_hooks:
+                try:
+                    handle.remove()
+                except Exception:
+                    continue
+            self._active_policy_hooks.clear()
+        if self._active_policy_backward_hooks:
+            for handle in self._active_policy_backward_hooks:
+                try:
+                    handle.remove()
+                except Exception:
+                    continue
+            self._active_policy_backward_hooks.clear()
 
     def _register_components(
         self,
