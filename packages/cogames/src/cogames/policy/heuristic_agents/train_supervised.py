@@ -30,7 +30,29 @@ NIM_DEBUG = False
 
 
 def convert_raw_obs_to_policy_tokens(raw_obs: np.ndarray, expected_num_tokens: int) -> np.ndarray:
-    """Convert simulator raw observations into the token layout used by StatelessPolicyNet."""
+    """Convert simulator raw observations into the token layout used by StatelessPolicyNet.
+
+    Input format (raw_obs from simulator):
+        Shape: (num_tokens, 3) where each row is [packed_coord, feature_id, value]
+        - packed_coord: Packed coordinate byte from PackedCoordinate encoding (row, col) coordinates.
+          Can be unpacked using PackedCoordinate.unpack() to get (row, col) tuple.
+        - feature_id: Feature/attribute identifier (0xFF indicates end of sequence, stops processing)
+        - value: Feature value
+        - Variable length: Sequence terminates when feature_id == 0xFF
+
+    Output format (policy tokens for StatelessPolicyNet):
+        Shape: (expected_num_tokens, 3) where each row is [coords_byte, feature_id, value]
+        - coords_byte: Single byte encoding coordinates with col in high nibble (bits 4-7) and
+          row in low nibble (bits 0-3). Formula: ((col & 0x0F) << 4) | (row & 0x0F)
+        - feature_id: Same as input (feature/attribute identifier)
+        - value: Same as input (feature value)
+        - Fixed length: Padded to expected_num_tokens with [255, 0, 0] padding tokens
+          (coords_byte=255 indicates padding/invalid token)
+
+    The conversion unpacks the PackedCoordinate format and re-encodes coordinates into the
+    format expected by StatelessPolicyNet (matching StatelessAgentPolicyImpl.step()), while
+    preserving feature_id and value.
+    """
 
     tokens = []
     for packed_coord, feature_id, value in raw_obs:
@@ -38,9 +60,8 @@ def convert_raw_obs_to_policy_tokens(raw_obs: np.ndarray, expected_num_tokens: i
             break
 
         location = PackedCoordinate.unpack(int(packed_coord)) or (0, 0)
-        row, col = location
-        # StatelessPolicyImpl encodes coords with row in the high nibble and col in the low nibble
-        coords_byte = ((row & 0x0F) << 4) | (col & 0x0F)
+        col, row = location
+        coords_byte = ((col & 0x0F) << 4) | (row & 0x0F)
         tokens.append([coords_byte, int(feature_id), int(value)])
 
     if len(tokens) < expected_num_tokens:
