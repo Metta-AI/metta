@@ -91,7 +91,6 @@ class RunToolExecutor:
                     resolved_tool_path, _ = parse_two_token_syntax(first_token, second_token_from_path)
                     tool_path = resolved_tool_path  # Use resolved path for further processing
 
-
             cli_args_list: list[str] = []
             if arguments:
                 for key, value in arguments.items():
@@ -138,7 +137,6 @@ class RunToolExecutor:
             # Build nested payload using existing utility
             nested_cli = nestify(cli_args)
 
-
             tool_maker = resolve_and_load_tool_maker(resolved_tool_path)
             if tool_maker is None:
                 return {
@@ -152,7 +150,6 @@ class RunToolExecutor:
 
             if verbose:
                 logger.info(f"Loading tool: {tool_maker.__module__}.{tool_maker.__name__}")
-
 
             func_args_for_invoke: dict[str, str] = {}
             try:

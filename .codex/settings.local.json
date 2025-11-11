@@ -20,6 +20,22 @@
   "mcpServers": {
     "metta-pr-similarity": {
       "command": "metta-pr-similarity-mcp"
+    },
+    "observatory": {
+      "command": "observatory-mcp",
+      "env": {
+        "METTA_MCP_BACKEND_URL": "https://api.observatory.softmax-research.net",
+        "PYTHONPATH": "$(pwd)/mcp_servers/observatory",
+        "LOG_LEVEL": "INFO"
+      }
+    },
+    "run-tool-mcp": {
+      "command": "uv",
+      "args": ["run", "--project", "/Users/sovitnayak/Documents/GitHub/metta", "run-tool-mcp"],
+      "env": {
+        "METTA_REPO_ROOT": "/Users/sovitnayak/Documents/GitHub/metta",
+        "LOG_LEVEL": "INFO"
+      }
     }
   }
 }

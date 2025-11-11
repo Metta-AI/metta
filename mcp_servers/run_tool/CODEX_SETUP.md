@@ -53,12 +53,7 @@ You can also configure it in `.codex/settings.local.json`:
   "mcpServers": {
     "run-tool-mcp": {
       "command": "uv",
-      "args": [
-        "run",
-        "--project",
-        "/path/to/metta",
-        "run-tool-mcp"
-      ],
+      "args": ["run", "--project", "/path/to/metta", "run-tool-mcp"],
       "env": {
         "METTA_REPO_ROOT": "/path/to/metta",
         "LOG_LEVEL": "INFO"
@@ -86,5 +81,3 @@ After setting up, open a new Codex session in the Metta repository and test by a
 - **Repository not found**: Set `METTA_REPO_ROOT` environment variable to the correct path
 - **Check registration**: Run `codex mcp list` to see if the server is registered
 - **Remove and re-add**: If having issues, try `codex mcp remove run-tool-mcp` then re-add it
-
-

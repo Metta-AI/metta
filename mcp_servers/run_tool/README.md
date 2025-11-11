@@ -5,6 +5,7 @@ Model Context Protocol server for executing and discovering Metta `run.py` comma
 ## Overview
 
 This MCP server provides AI assistants (Claude Desktop, Cursor, etc.) with the ability to:
+
 - **Discover** available recipes and tools
 - **Execute** training, evaluation, play, and replay commands
 - **Validate** commands before execution
@@ -109,5 +110,3 @@ await mcp_client.call_tool("run_tool", {
 4. **Error Handling**: Provides helpful error messages and suggestions
 
 See `CURSOR_SETUP.md` or `CLAUDE_DESKTOP_SETUP.md` for client-specific setup instructions.
-
-
