@@ -6,6 +6,7 @@ Supports both sync (wait) and async (submit + poll) execution patterns.
 
 from __future__ import annotations
 
+import logging
 import os
 import shlex
 import signal
@@ -30,6 +31,8 @@ from devops.skypilot.utils.job_helpers import (
 from metta.common.util.fs import get_repo_root
 from metta.common.util.retry import retry_function
 from metta.jobs.job_config import JobConfig
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -575,11 +578,20 @@ class RemoteJob(Job):
             job_info = job_statuses.get(self._job_id)
 
             if not job_info:
+                logger.warning(f"[STATUS_QUERY] Job {self._job_id}: No job info returned from SkyPilot API")
                 return True
 
+            prev_status = self._job_status
             self._job_status = job_info["status"]
 
-            return self._job_status in (
+            if prev_status != self._job_status:
+                logger.info(
+                    f"[STATUS_QUERY] Job {self._job_id}: "
+                    f"prev_status={prev_status} -> new_status={self._job_status}, "
+                    f"full_job_info={job_info}"
+                )
+
+            is_terminal = self._job_status in (
                 "SUCCEEDED",
                 "FAILED",
                 "FAILED_SETUP",
@@ -588,6 +600,11 @@ class RemoteJob(Job):
                 "UNKNOWN",
                 "ERROR",
             )
+
+            if is_terminal:
+                logger.info(f"[STATUS_TERMINAL] Job {self._job_id}: detected terminal status={self._job_status}")
+
+            return is_terminal
 
         except sky.exceptions.ClusterNotUpError:
             return False
@@ -652,17 +669,28 @@ class RemoteJob(Job):
     def _fetch_result(self) -> JobResult:
         if self._exit_code is not None:
             exit_code = self._exit_code
+            reason = "explicit_exit_code"
         elif self._job_status == "SUCCEEDED":
             exit_code = 0
+            reason = "job_status=SUCCEEDED"
         elif self._job_status in ("FAILED", "FAILED_SETUP", "FAILED_DRIVER", "UNKNOWN", "ERROR"):
             exit_code = 1
+            reason = f"job_status={self._job_status}"
         elif self._job_status == "CANCELLED":
             exit_code = 130
+            reason = "job_status=CANCELLED"
         elif not self._job_id:
             exit_code = 1
+            reason = "no_job_id"
         else:
             # Unknown status - default to failure for safety
             exit_code = 1
+            reason = f"unknown_status={self._job_status}"
+
+        logger.info(
+            f"[FETCH_RESULT] Job {self.name} (job_id={self._job_id}): "
+            f"status={self._job_status}, exit_code={exit_code}, reason={reason}"
+        )
 
         duration = None
         if self._start_time:

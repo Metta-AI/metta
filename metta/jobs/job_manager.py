@@ -25,7 +25,8 @@ class ExitCode:
 
 
 # SkyPilot job statuses that indicate the job is still running
-SKYPILOT_RUNNING_STATUSES = frozenset({"PENDING", "RUNNING", "SETTING_UP"})
+# Per SkyPilot docs: PENDING, STARTING, RUNNING, RECOVERING
+SKYPILOT_RUNNING_STATUSES = frozenset({"PENDING", "STARTING", "RUNNING", "RECOVERING"})
 
 
 class JobManager:
@@ -156,6 +157,13 @@ class JobManager:
                 for job_id, (job_name, job_state) in remote_job_map.items():
                     status_info = statuses.get(job_id, {})
                     status = status_info.get("status")
+                    prev_status = job_state.skypilot_status
+
+                    logger.debug(
+                        f"[STATUS_CHECK] Job {job_name} (job_id={job_id}): "
+                        f"prev_status={prev_status}, new_status={status}, "
+                        f"full_status_info={status_info}"
+                    )
 
                     if status and status not in SKYPILOT_RUNNING_STATUSES:
                         # Job finished while we were down - mark complete
@@ -165,7 +173,11 @@ class JobManager:
                         job_state.completed_at = datetime.now().isoformat(timespec="seconds")
                         session.add(job_state)
                         completed_count += 1
-                        logger.info(f"Job {job_name} finished while down: {status}")
+                        logger.info(
+                            f"[STATUS_TERMINAL] Job {job_name} finished while down: "
+                            f"prev_status={prev_status} -> new_status={status}, "
+                            f"exit_code={job_state.exit_code}"
+                        )
                     else:
                         # Still running or status unknown - reattach and monitor
                         try:
@@ -213,11 +225,14 @@ class JobManager:
     def _map_skypilot_status_to_exit_code(status: str) -> int:
         """Map SkyPilot job status to exit code."""
         if status == "SUCCEEDED":
-            return 0
+            exit_code = 0
         elif status == "CANCELLED":
-            return 130  # Standard exit code for SIGINT
+            exit_code = 130  # Standard exit code for SIGINT
         else:
-            return 1  # Generic failure
+            exit_code = 1  # Generic failure
+            logger.debug(f"[EXIT_CODE_MAPPING] Mapping status={status} to exit_code={exit_code}")
+
+        return exit_code
 
     def _get_all_active_jobs(self) -> dict[str, LocalJob | RemoteJob]:
         """Get all active jobs (both local and remote) as a merged dictionary.
@@ -359,13 +374,18 @@ class JobManager:
             # Determine exit code from SkyPilot status
             exit_code = self._map_skypilot_status_to_exit_code(status)
 
+            prev_status = job_state.skypilot_status
             job_state.status = JobStatus.COMPLETED
             job_state.completed_at = datetime.now().isoformat(timespec="seconds")
             job_state.exit_code = exit_code
             if not job_state.job_id:
                 job_state.job_id = str(job_id)
 
-            logger.info(f"Job completed: {job_name} (skypilot_status={status}, exit_code={exit_code}, job_id={job_id})")
+            logger.info(
+                f"[JOB_COMPLETE] Job completed: {job_name} "
+                f"(prev_skypilot_status={prev_status}, new_skypilot_status={status}, "
+                f"exit_code={exit_code}, job_id={job_id})"
+            )
 
             # Fetch final metrics
             if job_state.config.metrics_to_track and job_state.wandb_run_id:
@@ -499,6 +519,13 @@ class JobManager:
                                     if status:
                                         job_state = session.get(JobState, job_name)
                                         if job_state:
+                                            prev_status = job_state.skypilot_status
+                                            if prev_status != status:
+                                                logger.info(
+                                                    f"[STATUS_UPDATE] Job {job_name} (job_id={job_id}): "
+                                                    f"prev_status={prev_status} -> new_status={status}, "
+                                                    f"full_status_info={status_info}"
+                                                )
                                             job_state.skypilot_status = status
                                             session.add(job_state)
 
