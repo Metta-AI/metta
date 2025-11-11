@@ -82,6 +82,7 @@ class Simulation:
             action.name: idx for idx, action in enumerate(self._config.game.actions.actions())
         }
 
+        self._buffers = buffers
         if buffers is not None:
             self._c_sim.set_buffers(
                 buffers.observations,
@@ -108,6 +109,10 @@ class Simulation:
 
     def observations(self) -> list[AgentObservation]:
         return [self.agent(agent_id).observation for agent_id in range(self.num_agents)]
+
+    @property
+    def buffers(self) -> Optional[Buffers]:
+        return self._buffers
 
     def raw_observations(self) -> np.ndarray:
         return self.__c_sim.observations()
