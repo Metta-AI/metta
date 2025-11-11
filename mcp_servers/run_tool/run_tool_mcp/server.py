@@ -19,6 +19,7 @@ from mcp.server.stdio import stdio_server
 from .config import RunToolMCPConfig
 
 
+<<<<<<< Updated upstream
 # Change directory before importing metta modules that might call get_repo_root()
 def _setup_working_directory() -> Path:
     """Set working directory to repo root before importing metta modules."""
@@ -30,11 +31,35 @@ def _setup_working_directory() -> Path:
         os.chdir(repo_root)
     except Exception:
         pass  # Will be logged after logging is configured
+=======
+# Change directory BEFORE importing metta modules that might call get_repo_root()
+# This must happen before any imports from metta.common or metta.tools
+def _setup_working_directory() -> Path:
+    """Set up working directory to repo root before importing metta modules."""
+    config = RunToolMCPConfig.from_env()
+    repo_root = config.repo_root
+
+    # Change to repo root
+    # NOTE: Don't use logging here - it might output to stdout before logging is configured
+    # and MCP client expects clean JSON on stdout
+    try:
+        os.chdir(repo_root)
+    except Exception:
+        # Silently handle - will be logged later after logging is configured
+        pass
+>>>>>>> Stashed changes
 
     return repo_root
 
 
+<<<<<<< Updated upstream
 _setup_working_directory()
+=======
+# Setup working directory early
+_setup_working_directory()
+
+# Now safe to import metta modules
+>>>>>>> Stashed changes
 from .executor import RunToolExecutor  # noqa: E402
 from .tools import run_tool  # noqa: E402
 
@@ -86,9 +111,14 @@ class RunToolMCPServer:
                 types.Tool(
                     name="list_recipes",
                     description=(
+<<<<<<< Updated upstream
                         "USE THIS TOOL when the user asks about available recipes, wants to see what recipes exist, "
                         "or needs to discover what training/evaluation options are available. "
                         "Examples: 'What recipes are available?', 'List all recipes', 'Show me available recipes'."
+=======
+                        "List all available recipes in the Metta codebase. "
+                        "Returns recipes along with their available tools."
+>>>>>>> Stashed changes
                     ),
                     inputSchema={
                         "type": "object",
@@ -99,10 +129,15 @@ class RunToolMCPServer:
                 types.Tool(
                     name="list_tools_in_recipe",
                     description=(
+<<<<<<< Updated upstream
                         "USE THIS TOOL when the user asks what tools are available in a specific recipe, "
                         "wants to see what commands a recipe supports, or needs to discover available operations. "
                         "Examples: 'What tools does arena have?', 'Show me what I can do with navigation recipe', "
                         "'What commands are available for ci?'"
+=======
+                        "List all tools available in a specific recipe. "
+                        "Returns the tool maker names and their full paths."
+>>>>>>> Stashed changes
                     ),
                     inputSchema={
                         "type": "object",
@@ -118,10 +153,15 @@ class RunToolMCPServer:
                 types.Tool(
                     name="list_recipes_for_tool",
                     description=(
+<<<<<<< Updated upstream
                         "USE THIS TOOL when the user asks which recipes support a specific tool type, "
                         "wants to find recipes that can train/evaluate/play, or needs to discover recipes "
                         "by capability. Examples: 'Which recipes support training?', "
                         "'Show me recipes that can evaluate', 'What recipes have play functionality?'"
+=======
+                        "List all recipes that support a specific tool type. "
+                        "Useful for finding which recipes have 'train', 'evaluate', etc."
+>>>>>>> Stashed changes
                     ),
                     inputSchema={
                         "type": "object",
@@ -137,11 +177,16 @@ class RunToolMCPServer:
                 types.Tool(
                     name="get_tool_arguments",
                     description=(
+<<<<<<< Updated upstream
                         "USE THIS TOOL when the user asks about command arguments, wants to know what "
                         "parameters a tool accepts, or needs help with command syntax. "
                         "Examples: 'What arguments does train arena accept?', "
                         "'What parameters can I pass to evaluate?', "
                         "'Show me the available options for this command'."
+=======
+                        "Get available arguments for a tool. "
+                        "Returns function parameters and tool configuration fields with types and defaults."
+>>>>>>> Stashed changes
                     ),
                     inputSchema={
                         "type": "object",
@@ -160,10 +205,16 @@ class RunToolMCPServer:
                 types.Tool(
                     name="validate_command",
                     description=(
+<<<<<<< Updated upstream
                         "USE THIS TOOL when the user asks if a command is valid, wants to check command syntax, "
                         "or needs to verify a command before running it. "
                         "Examples: 'Is this command valid?', 'Validate this command', "
                         "'Check if train arena run=test works'."
+=======
+                        "Validate a command without executing it. "
+                        "Checks if the tool path exists and arguments are valid. "
+                        "Returns suggestions if the tool is not found."
+>>>>>>> Stashed changes
                     ),
                     inputSchema={
                         "type": "object",
@@ -183,12 +234,17 @@ class RunToolMCPServer:
                 types.Tool(
                     name="run_tool",
                     description=(
+<<<<<<< Updated upstream
                         "USE THIS TOOL when the user wants to execute Metta run.py commands like training, evaluation, "
                         "play, or replay. This is the primary tool for running any Metta recipe command. "
                         "Examples: 'train arena', 'evaluate navigation', 'play arena', 'replay ci'. "
                         "Always prefer this MCP tool over running './tools/run.py' via terminal commands. "
                         "IMPORTANT: When using this tool, ALWAYS display the 'command' field from the response "
                         "in your chat message so the user can see the exact run.py command that was executed."
+=======
+                        "Execute a run.py command. "
+                        "This is the main execution tool for running training, evaluation, play, replay, etc."
+>>>>>>> Stashed changes
                     ),
                     inputSchema={
                         "type": "object",
@@ -228,6 +284,7 @@ class RunToolMCPServer:
                 types.Tool(
                     name="train",
                     description=(
+<<<<<<< Updated upstream
                         "USE THIS TOOL when the user wants to start training a model. "
                         "Examples: 'Start training on arena', 'Train a model with 50k timesteps', "
                         "'Begin training using the navigation recipe'. "
@@ -235,6 +292,9 @@ class RunToolMCPServer:
                         "prefer this over run_tool for training. "
                         "IMPORTANT: When using this tool, ALWAYS display the 'command' or 'summary' field "
                         "from the response in your chat message so the user can see the exact run.py command."
+=======
+                        "Execute a training command. Convenience wrapper around run_tool for training operations."
+>>>>>>> Stashed changes
                     ),
                     inputSchema={
                         "type": "object",
@@ -268,6 +328,7 @@ class RunToolMCPServer:
                 types.Tool(
                     name="evaluate",
                     description=(
+<<<<<<< Updated upstream
                         "USE THIS TOOL when the user wants to evaluate a policy or checkpoint, "
                         "or says 'evaluate using [recipe]' or 'evaluate a policy using [recipe]'. "
                         "Examples: 'Evaluate a policy using arena', 'Evaluate this checkpoint', "
@@ -277,6 +338,9 @@ class RunToolMCPServer:
                         "prefer this over run_tool for evaluation. "
                         "IMPORTANT: When using this tool, ALWAYS display the 'command' or 'summary' field "
                         "from the response in your chat message so the user can see the exact run.py command."
+=======
+                        "Execute an evaluation command. Convenience wrapper around run_tool for evaluation operations."
+>>>>>>> Stashed changes
                     ),
                     inputSchema={
                         "type": "object",
@@ -314,13 +378,21 @@ class RunToolMCPServer:
 
             Args:
                 name: Name of the tool to call
+<<<<<<< Updated upstream
                 arguments: Dictionary of tool arguments
+=======
+                arguments: Dictionary of tool arguments (from client)
+>>>>>>> Stashed changes
 
             Returns:
                 List of TextContent objects with tool results
             """
+<<<<<<< Updated upstream
             if logger.isEnabledFor(logging.DEBUG):
                 logger.debug(f"Tool called: {name} with arguments: {arguments}")
+=======
+            logger.info(f"Tool called: {name} with arguments: {arguments}")
+>>>>>>> Stashed changes
 
             try:
                 if name == "list_recipes":
@@ -460,11 +532,20 @@ class RunToolMCPServer:
 
 async def main() -> None:
     """Main entry point for the Run Tool MCP Server."""
+<<<<<<< Updated upstream
+=======
+    # Note: Working directory is already set by _setup_working_directory() at module import time
+>>>>>>> Stashed changes
     config = RunToolMCPConfig.from_env()
     log_level_str = config.log_level.upper()
     log_level = getattr(logging, log_level_str, logging.INFO)
 
+<<<<<<< Updated upstream
     # All logging must go to stderr (MCP uses stdout for JSON)
+=======
+    # CRITICAL: All logging must go to stderr, not stdout
+    # MCP protocol uses stdout for JSON communication
+>>>>>>> Stashed changes
     logging.basicConfig(
         level=log_level,
         format=config.log_format,

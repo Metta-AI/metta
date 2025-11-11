@@ -22,9 +22,15 @@
 
    ```bash
    codex mcp add run-tool-mcp \
+<<<<<<< Updated upstream
      --env METTA_REPO_ROOT="/path/to/metta" \
      --env LOG_LEVEL="INFO" \
      /path/to/metta/.venv/bin/run-tool-mcp
+=======
+     --env METTA_REPO_ROOT="/Users/sovitnayak/Documents/GitHub/metta" \
+     --env LOG_LEVEL="INFO" \
+     /Users/sovitnayak/Documents/GitHub/metta/.venv/bin/run-tool-mcp
+>>>>>>> Stashed changes
    ```
 
    **Note**: If the command is not in `.venv/bin`, you can also use `uv run`:
@@ -53,9 +59,20 @@ You can also configure it in `.codex/settings.local.json`:
   "mcpServers": {
     "run-tool-mcp": {
       "command": "uv",
+<<<<<<< Updated upstream
       "args": ["run", "--project", "/path/to/metta", "run-tool-mcp"],
       "env": {
         "METTA_REPO_ROOT": "/path/to/metta",
+=======
+      "args": [
+        "run",
+        "--project",
+        "/Users/sovitnayak/Documents/GitHub/metta",
+        "run-tool-mcp"
+      ],
+      "env": {
+        "METTA_REPO_ROOT": "/Users/sovitnayak/Documents/GitHub/metta",
+>>>>>>> Stashed changes
         "LOG_LEVEL": "INFO"
       }
     }
@@ -63,7 +80,11 @@ You can also configure it in `.codex/settings.local.json`:
 }
 ```
 
+<<<<<<< Updated upstream
 Replace `/path/to/metta` with your actual repository path.
+=======
+Replace `/Users/sovitnayak/Documents/GitHub/metta` with your actual repository path.
+>>>>>>> Stashed changes
 
 ## Verification
 
@@ -81,3 +102,8 @@ After setting up, open a new Codex session in the Metta repository and test by a
 - **Repository not found**: Set `METTA_REPO_ROOT` environment variable to the correct path
 - **Check registration**: Run `codex mcp list` to see if the server is registered
 - **Remove and re-add**: If having issues, try `codex mcp remove run-tool-mcp` then re-add it
+<<<<<<< Updated upstream
+=======
+
+
+>>>>>>> Stashed changes
