@@ -176,4 +176,3 @@ dll.fast_agents_race_car_agent_reset.restype = None
 
 dll.fast_agents_race_car_agent_step.argtypes = [RaceCarAgent, c_longlong, c_longlong, c_longlong, c_void_p, c_longlong, c_void_p]
 dll.fast_agents_race_car_agent_step.restype = None
-

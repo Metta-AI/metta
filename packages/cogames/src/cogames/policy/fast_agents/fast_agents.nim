@@ -88,7 +88,7 @@ type
     invResonator*: int
     invScrambler*: int
 
-  HeuristicAgent* = ref object
+  FastAgents* = ref object
     agentId: int
 
     map: Table[Location, seq[FeatureValue]]
@@ -107,13 +107,13 @@ proc ctrlCHandler() {.noconv.} =
 
 proc initCHook() =
   setControlCHook(ctrlCHandler)
-  echo "HeuristicAgents initialized"
+  echo "FastAgents initialized"
 
-proc newHeuristicAgent(agentId: int, environmentConfig: string): HeuristicAgent {.raises: [].} =
+proc newFastAgents(agentId: int, environmentConfig: string): FastAgents {.raises: [].} =
   echo "Creating new heuristic agent ", agentId
   try:
     var config = environmentConfig.fromJson(Config)
-    result = HeuristicAgent(agentId: agentId, config: config)
+    result = FastAgents(agentId: agentId, config: config)
     echo "  numAgents", config.numAgents
     echo "  obsWidth", config.obsWidth
     echo "  obsHeight", config.obsHeight
@@ -244,7 +244,7 @@ proc newHeuristicAgent(agentId: int, environmentConfig: string): HeuristicAgent 
   except JsonError, ValueError:
     echo "Error parsing environment config: ", getCurrentExceptionMsg()
 
-proc reset(agent: HeuristicAgent) =
+proc reset(agent: FastAgents) =
   echo "Resetting heuristic agent ", agent.agentId
 
 proc computeMapBounds(map: Table[Location, seq[FeatureValue]]): MapBounds =
@@ -263,7 +263,7 @@ proc computeMapBounds(map: Table[Location, seq[FeatureValue]]): MapBounds =
     if location.y > result.maxY:
       result.maxY = location.y
 
-proc drawMap(agent: HeuristicAgent, map: Table[Location, seq[FeatureValue]], seen: HashSet[Location]) =
+proc drawMap(agent: FastAgents, map: Table[Location, seq[FeatureValue]], seen: HashSet[Location]) =
   ## Draw the map to the console.
   let bounds = computeMapBounds(map)
   var line = "+"
@@ -310,7 +310,7 @@ proc drawMap(agent: HeuristicAgent, map: Table[Location, seq[FeatureValue]], see
   line.add "+"
   echo line
 
-proc getTag(agent: HeuristicAgent, map: Table[Location, seq[FeatureValue]], location: Location): int =
+proc getTag(agent: FastAgents, map: Table[Location, seq[FeatureValue]], location: Location): int =
   ## Get the type id of the location in the map.
   if location in map:
     for featureValue in map[location]:
@@ -318,7 +318,7 @@ proc getTag(agent: HeuristicAgent, map: Table[Location, seq[FeatureValue]], loca
         return featureValue.value
   return -1
 
-proc getFeature(agent: HeuristicAgent, visible: Table[Location, seq[FeatureValue]], featureId: int): int =
+proc getFeature(agent: FastAgents, visible: Table[Location, seq[FeatureValue]], featureId: int): int =
   ## Get the feature of the visible map.
   if Location(x: 0, y: 0) in visible:
     for featureValue in visible[Location(x: 0, y: 0)]:
@@ -326,22 +326,22 @@ proc getFeature(agent: HeuristicAgent, visible: Table[Location, seq[FeatureValue
         return featureValue.value
   return -1
 
-proc getLastAction(agent: HeuristicAgent, visible: Table[Location, seq[FeatureValue]]): int =
+proc getLastAction(agent: FastAgents, visible: Table[Location, seq[FeatureValue]]): int =
   ## Get the last action of the visible map.
   agent.getFeature(visible, agent.features.lastAction)
 
-proc getInventory(agent: HeuristicAgent, visible: Table[Location, seq[FeatureValue]], inventoryId: int): int =
+proc getInventory(agent: FastAgents, visible: Table[Location, seq[FeatureValue]], inventoryId: int): int =
   ## Get the inventory of the visible map.
   result = agent.getFeature(visible, inventoryId)
   # Missing inventory is 0.
   if result == -1:
     result = 0
 
-proc getVibe(agent: HeuristicAgent, visible: Table[Location, seq[FeatureValue]]): int =
+proc getVibe(agent: FastAgents, visible: Table[Location, seq[FeatureValue]]): int =
   ## Get the vibe of the visible map.
   agent.getFeature(visible, agent.features.vibe)
 
-proc updateMap(agent: HeuristicAgent, visible: Table[Location, seq[FeatureValue]]) =
+proc updateMap(agent: FastAgents, visible: Table[Location, seq[FeatureValue]]) =
   ## Update the big map with the small visible map.
 
   if agent.map.len == 0:
@@ -415,7 +415,7 @@ proc updateMap(agent: HeuristicAgent, visible: Table[Location, seq[FeatureValue]
         agent.seen.incl(location)
 
 proc step(
-  agent: HeuristicAgent,
+  agent: FastAgents,
   numAgents: int,
   numTokens: int,
   sizeToken: int,
@@ -480,18 +480,18 @@ proc step(
     echo getCurrentExceptionMsg()
     quit()
 
-exportRefObject HeuristicAgent:
+exportRefObject FastAgents:
   constructor:
-    newHeuristicAgent(int, string)
+    newFastAgents(int, string)
   fields:
     agentId
   procs:
-    reset(HeuristicAgent)
+    reset(FastAgents)
     step
 
 exportProcs:
   initCHook
 
-writeFiles("bindings/generated", "HeuristicAgents")
+writeFiles("bindings/generated", "FastAgents")
 
 include bindings/generated/internal

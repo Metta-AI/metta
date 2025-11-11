@@ -59,4 +59,3 @@ proc fast_agents_race_car_agent_reset*(agent: RaceCarAgent) {.raises: [], cdecl,
 
 proc fast_agents_race_car_agent_step*(agent: RaceCarAgent, num_agents: int, num_tokens: int, size_token: int, raw_observations: pointer, num_actions: int, raw_actions: pointer) {.raises: [], cdecl, exportc, dynlib.} =
   step(agent, num_agents, num_tokens, size_token, raw_observations, num_actions, raw_actions)
-

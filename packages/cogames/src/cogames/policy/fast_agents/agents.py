@@ -8,7 +8,7 @@ from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 
-class HeuristicAgentPolicy(AgentPolicy):
+class FastAgentsPolicy(AgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info)
         # Convert the policy_env_info to a JSON string.
@@ -30,9 +30,9 @@ class HeuristicAgentPolicy(AgentPolicy):
             )
         current_dir = os.path.dirname(os.path.abspath(__file__))
         sys.path.append(os.path.join(current_dir, "bindings/generated"))
-        import heuristic_agents as ha
+        import fast_agents as fa
 
-        self._agent = ha.HeuristicAgent(agent_id, json.dumps(config))
+        self._agent = fa.FastAgents(agent_id, json.dumps(config))
 
     def step(self, raw_obs: np.ndarray, raw_action: np.ndarray):
         # Pass everything to the Nim agent.
@@ -46,9 +46,9 @@ class HeuristicAgentPolicy(AgentPolicy):
         )
 
 
-class HeuristicAgentsPolicy(MultiAgentPolicy):
+class FastAgentsMultiPolicy(MultiAgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface):
         super().__init__(policy_env_info)
 
-    def agent_policy(self, agent_id: int) -> HeuristicAgentPolicy:
-        return HeuristicAgentPolicy(self._policy_env_info, agent_id)
+    def agent_policy(self, agent_id: int) -> FastAgentsPolicy:
+        return FastAgentsPolicy(self._policy_env_info, agent_id)
