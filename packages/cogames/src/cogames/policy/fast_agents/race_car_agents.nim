@@ -45,7 +45,7 @@ proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]])
 
   # We know we can only have N states, either stay put or move.
   # If the last actions was not known check all possible offsets.
-  # Note: Checking all possible offsets does not allows work!
+  # Note: Checking all possible offsets does not always work!
   # Last action is nearly required.
   var lastAction = agent.cfg.getLastAction(visible)
   if lastAction == agent.cfg.actions.moveNorth or lastAction == -1: # Moving north.
