@@ -178,25 +178,21 @@ class UnclippingAgentPolicyImpl(BaselineAgentPolicyImpl):
             return
 
         # Priority 5: Craft unclip item if blocked but don't have item
-        # Only transition to CRAFT_UNCLIP if we have EXTRA craft resource (beyond what's needed for heart)
-        # This prevents us from using our only carbon to craft decoder, then being stuck without carbon for hearts
+        # When blocked by clipped extractor, prioritize unclipping over heart assembly
+        # Rationale: Can't make hearts anyway without access to the clipped resource
         if s.blocked_by_clipped_extractor is not None and not self._has_unclip_item(s):
             craft_resource = self._unclip_recipes.get(s.unclip_target_resource) if s.unclip_target_resource else None
 
             if craft_resource:
                 current_amount = getattr(s, craft_resource, 0)
-                needed_for_heart = self._heart_recipe.get(craft_resource, 0)
-                needed_for_craft = 1  # Need 1 unit to craft the unclip item
-                total_needed = needed_for_heart + needed_for_craft
 
-                has_enough = current_amount >= total_needed
-
-                if has_enough:
+                # If we have at least 1 unit of craft resource, craft the unclip item
+                if current_amount >= 1:
                     if s.phase != Phase.CRAFT_UNCLIP:
                         s.phase = Phase.CRAFT_UNCLIP
                     return
                 else:
-                    # Stay in GATHER to collect more craft resource
+                    # Stay in GATHER to collect craft resource
                     if s.phase != Phase.GATHER:
                         s.phase = Phase.GATHER
                     return
@@ -229,6 +225,10 @@ class UnclippingAgentPolicyImpl(BaselineAgentPolicyImpl):
         for resource_type in ["carbon", "oxygen", "germanium", "silicon"]:
             deficit = deficits.get(resource_type, 0)
             if deficit <= 0:
+                continue
+
+            # If we're blocked by this resource being clipped, skip it and gather craft resource instead
+            if s.blocked_by_clipped_extractor is not None and s.unclip_target_resource == resource_type:
                 continue
 
             extractors = s.shared_state.extractors.get(resource_type, [])

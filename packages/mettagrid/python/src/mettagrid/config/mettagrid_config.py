@@ -193,36 +193,46 @@ class GlobalObsConfig(Config):
     # Controls whether visitation counts are included in observations
     visitation_counts: bool = Field(default=False)
 
+    # Compass token that points toward the assembler/hub center
+    compass: bool = Field(default=False)
+
 
 class GridObjectConfig(Config):
     """Base configuration for all grid objects.
 
-    Type IDs are automatically assigned if not explicitly provided. Auto-assignment
-    is deterministic (sorted by object name) and fills gaps in the 1-255 range.
-    Type ID 0 is reserved for agents.
-
-    Explicit type_ids are optional and primarily useful for:
-    - Ensuring stable IDs across config changes
-    - Matching specific C++ expectations
-    - Debugging and development
-
-    In most cases, omit type_id and let the system auto-assign.
+    Python uses only names. Numeric type_ids are an internal C++ detail and are
+    computed during Python→C++ conversion; they are never part of Python config
+    or observations.
     """
 
-    name: str = Field(default="", description="Object name (used for identification)")
-    type_id: Optional[int] = Field(
-        default=None, ge=0, le=255, description="Numeric type ID for C++ runtime (auto-assigned if None)"
-    )
+    name: str = Field(description="Canonical type_name (human-readable)")
+    map_name: str = Field(default="", description="Stable key used by maps to select this config")
+    render_name: str = Field(default="", description="Stable display-class identifier for theming")
     map_char: str = Field(default="?", description="Character used in ASCII maps")
     render_symbol: str = Field(default="❓", description="Symbol used for rendering (e.g., emoji)")
     tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
     vibe: int = Field(default=0, ge=0, le=255, description="Vibe value for this object instance")
 
+    @model_validator(mode="after")
+    def _defaults_from_name(self) -> "GridObjectConfig":
+        if not self.map_name:
+            self.map_name = self.name
+        if not self.render_name:
+            self.render_name = self.name
+        # If no tags, inject a default kind tag so the object is visible in observations
+        if not self.tags:
+            self.tags = [self.render_name]
+        return self
+
 
 class WallConfig(GridObjectConfig):
     """Python wall/block configuration."""
 
-    type: Literal["wall"] = Field(default="wall")
+    # This is used to discriminate between different GridObjectConfig subclasses in Pydantic.
+    # See AnyGridObjectConfig.
+    # Please don't use this for anything game related.
+    pydantic_type: Literal["wall"] = "wall"
+    name: str = Field(default="wall")
     swappable: bool = Field(default=False)
 
 
@@ -236,7 +246,11 @@ class ProtocolConfig(Config):
 class AssemblerConfig(GridObjectConfig):
     """Python assembler configuration."""
 
-    type: Literal["assembler"] = Field(default="assembler")
+    # This is used to discriminate between different GridObjectConfig subclasses in Pydantic.
+    # See AnyGridObjectConfig.
+    # Please don't use this for anything game related.
+    pydantic_type: Literal["assembler"] = "assembler"
+    # No default name -- we want to make sure that meaningful names are provided.
     protocols: list[ProtocolConfig] = Field(
         default_factory=list,
         description="Protocols in reverse order of priority.",
@@ -267,7 +281,11 @@ class AssemblerConfig(GridObjectConfig):
 class ChestConfig(GridObjectConfig):
     """Python chest configuration for multi-resource chests."""
 
-    type: Literal["chest"] = Field(default="chest")
+    # This is used to discriminate between different GridObjectConfig subclasses in Pydantic.
+    # See AnyGridObjectConfig.
+    # Please don't use this for anything game related.
+    pydantic_type: Literal["chest"] = "chest"
+    name: str = Field(default="chest")
 
     # Vibe-based transfers: vibe -> resource -> delta
     vibe_transfers: dict[str, dict[str, int]] = Field(
@@ -329,7 +347,7 @@ AnyGridObjectConfig = SerializeAsAny[
             Annotated[AssemblerConfig, Tag("assembler")],
             Annotated[ChestConfig, Tag("chest")],
         ],
-        Discriminator("type"),
+        Discriminator("pydantic_type"),
     ]
 ]
 
@@ -339,8 +357,7 @@ class GameConfig(Config):
 
     Note: Type IDs are automatically assigned during validation when the GameConfig
     is constructed. If you need to add objects after construction, create a new
-    GameConfig instance rather than modifying the objects dict post-construction,
-    as type_id assignment only happens at validation time.
+    GameConfig instance rather than modifying the objects dict post-construction.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -391,10 +408,6 @@ class GameConfig(Config):
     # Map builder configuration - accepts any MapBuilder config
     map_builder: AnyMapBuilderConfig = Field(default_factory=lambda: RandomMapBuilder.Config(agents=24))
 
-    # Feature Flags
-    track_movement_metrics: bool = Field(
-        default=True, description="Enable movement metrics tracking (sequential rotations)"
-    )
     protocol_details_obs: bool = Field(
         default=False, description="Objects show their protocol inputs and outputs when observed"
     )
@@ -415,18 +428,6 @@ class GameConfig(Config):
         if not self.vibe_names:
             num_vibes = self.actions.change_vibe.number_of_vibes
             self.vibe_names = [vibe.name for vibe in VIBES[:num_vibes]]
-
-    def _ensure_type_ids_assigned(self) -> None:
-        """Ensure type IDs are assigned if they haven't been yet."""
-        if not self._resolved_type_ids:
-            IdMap.assign_type_ids(self)
-            self._resolved_type_ids = True
-
-    def __getattribute__(self, name: str):
-        """Intercept attribute access to ensure type IDs are assigned when accessing objects."""
-        if name == "objects":
-            self._ensure_type_ids_assigned()
-        return super().__getattribute__(name)
 
     def id_map(self) -> "IdMap":
         """Get the observation feature ID map for this configuration."""
@@ -456,7 +457,7 @@ class MettaGridConfig(Config):
     def with_ascii_map(self, map_data: list[list[str]]) -> "MettaGridConfig":
         self.game.map_builder = AsciiMapBuilder.Config(
             map_data=map_data,
-            char_to_name_map={o.map_char: o.name for o in self.game.objects.values()},
+            char_to_map_name={o.map_char: o.map_name for o in self.game.objects.values()},
         )
         return self
 
@@ -471,7 +472,7 @@ class MettaGridConfig(Config):
         )
         objects = {}
         if border_width > 0 or with_walls:
-            objects["wall"] = WallConfig(name="wall", map_char="#", render_symbol="⬛", swappable=False)
+            objects["wall"] = WallConfig(map_char="#", render_symbol="⬛", swappable=False)
         return MettaGridConfig(
             game=GameConfig(map_builder=map_builder, actions=actions, num_agents=num_agents, objects=objects)
         )

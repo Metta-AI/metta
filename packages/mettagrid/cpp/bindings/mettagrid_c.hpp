@@ -150,8 +150,6 @@ private:
   std::mt19937 _rng;
   unsigned int _seed;
 
-  // Movement tracking
-  bool _track_movement_metrics;
   float _resource_loss_prob;
 
   // Inventory regeneration
