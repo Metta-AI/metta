@@ -58,7 +58,7 @@ These agents are designed for **ablation studies** and **baseline evaluation**:
 **Usage**:
 
 ```python
-from cogames.policy.scripted_agent import BaselinePolicy
+from cogames.policy.scripted_agent.baseline_agent import BaselinePolicy
 from mettagrid import MettaGridEnv
 
 env = MettaGridEnv(env_config)
@@ -109,7 +109,7 @@ oxygen | gear | | Germanium | resonator | silicon | gear | | Silicon | scrambler
 **Usage**:
 
 ```python
-from cogames.policy.scripted_agent import UnclippingPolicy
+from cogames.policy.scripted_agent.unclipping_agent import UnclippingPolicy
 
 policy = UnclippingPolicy(env)
 # ... same as BaselinePolicy

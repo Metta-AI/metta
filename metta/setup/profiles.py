@@ -102,6 +102,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "scratchpad": {"enabled": True},
             "helm": {"enabled": True},
             "pr-similarity": {"enabled": True},
+            "ide-extensions": {"enabled": True},
         }
     },
 }

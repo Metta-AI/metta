@@ -56,7 +56,7 @@ uv run ./tools/run.py train arena run=my_experiment wandb.enabled=false
 uv run pytest
 
 # Format code
-uv run ruff format && uv run ruff check
+metta lint --fix
 ```
 
 ## Project Structure

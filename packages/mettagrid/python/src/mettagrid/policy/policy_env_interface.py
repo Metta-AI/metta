@@ -1,5 +1,6 @@
 """Policy environment interface for providing environment information to policies."""
 
+import json
 from dataclasses import dataclass
 
 import gymnasium as gym
@@ -19,12 +20,18 @@ class PolicyEnvInterface:
     """
 
     obs_features: list[ObservationFeatureSpec]
+    tags: list[str]
     actions: ActionsConfig
     num_agents: int
     observation_space: gym.spaces.Box
     action_space: gym.spaces.Discrete
     obs_width: int
     obs_height: int
+
+    @property
+    def action_names(self) -> list[str]:
+        """Expose action names for policies that expect a flat list."""
+        return [action.name for action in self.actions.actions()]
 
     @staticmethod
     def from_mg_cfg(mg_cfg: MettaGridConfig) -> "PolicyEnvInterface":
@@ -37,7 +44,8 @@ class PolicyEnvInterface:
             A PolicyEnvInterface instance with environment information
         """
         return PolicyEnvInterface(
-            obs_features=mg_cfg.id_map().features(),
+            obs_features=mg_cfg.game.id_map().features(),
+            tags=mg_cfg.game.id_map().tag_names(),
             actions=mg_cfg.game.actions,
             num_agents=mg_cfg.game.num_agents,
             observation_space=gym.spaces.Box(
@@ -47,3 +55,23 @@ class PolicyEnvInterface:
             obs_width=mg_cfg.game.obs.width,
             obs_height=mg_cfg.game.obs.height,
         )
+
+    def to_json(self) -> str:
+        """Convert PolicyEnvInterface to JSON."""
+        config = {
+            "num_agents": self.num_agents,
+            "obs_width": self.obs_width,
+            "obs_height": self.obs_height,
+            "actions": [action.name for action in self.actions.actions()],
+            "tags": self.tags,
+            "obs_features": [],
+        }
+        for feature in self.obs_features:
+            config["obs_features"].append(
+                {
+                    "id": feature.id,
+                    "name": feature.name,
+                    "normalization": feature.normalization,
+                }
+            )
+        return json.dumps(config)

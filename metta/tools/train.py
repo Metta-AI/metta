@@ -113,6 +113,9 @@ class TrainTool(Tool):
         distributed_helper = DistributedHelper(self.system)
         distributed_helper.scale_batch_config(self.trainer, self.training_env)
 
+        if self.training_env.supervisor.policy is not None:
+            self.trainer.losses.supervisor.enabled = True
+
         self.training_env.seed += distributed_helper.get_rank()
         env = VectorizedTrainingEnvironment(self.training_env)
 

@@ -92,7 +92,6 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
                     0.0f,
                     tag_id_map,
                     false,
-                    false,
                     std::unordered_map<std::string, float>(),
                     0,
                     nullptr);
@@ -264,8 +263,7 @@ BENCHMARK_F(MettaGridBenchmark, Step)(benchmark::State& state) {
     env->set_buffers(observations, terminals, truncations, rewards, actions_buffer);
 
     // Perform the step (no arguments - uses actions from buffer)
-    auto result = env->step();
-    benchmark::DoNotOptimize(result);
+    env->step();
 
     // Note: Intentionally ignoring termination states to measure pure step performance,
     // matching the Python implementation

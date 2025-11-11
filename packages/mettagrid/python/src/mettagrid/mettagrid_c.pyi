@@ -166,11 +166,13 @@ class GlobalObsConfig:
         last_action: bool = True,
         last_reward: bool = True,
         visitation_counts: bool = False,
+        compass: bool = False,
     ) -> None: ...
     episode_completion_pct: bool
     last_action: bool
     last_reward: bool
     visitation_counts: bool
+    compass: bool
 
 class GameConfig:
     def __init__(
@@ -188,7 +190,6 @@ class GameConfig:
         objects: dict[str, GridObjectConfig],
         resource_loss_prob: float = 0.0,
         tag_id_map: dict[int, str] | None = None,
-        track_movement_metrics: bool = False,
         protocol_details_obs: bool = False,
         allow_diagonals: bool = False,
         reward_estimates: Optional[dict[str, float]] = None,
@@ -207,7 +208,6 @@ class GameConfig:
     global_obs: GlobalObsConfig
     resource_loss_prob: float
     # FEATURE FLAGS
-    track_movement_metrics: bool
     protocol_details_obs: bool
     allow_diagonals: bool
     reward_estimates: Optional[dict[str, float]]
@@ -224,7 +224,6 @@ class MettaGrid:
     map_width: int
     map_height: int
     num_agents: int
-    initial_grid_hash: int
 
     def __init__(self, env_cfg: GameConfig, map: list, seed: int) -> None: ...
     def step(self) -> None: ...

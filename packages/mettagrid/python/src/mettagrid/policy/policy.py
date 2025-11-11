@@ -24,6 +24,7 @@ class AgentPolicy:
 
     def __init__(self, policy_env_info: PolicyEnvInterface):
         self._policy_env_info = policy_env_info
+        self._uses_raw_numpy = False
 
     @property
     def policy_env_info(self) -> PolicyEnvInterface:
@@ -89,6 +90,10 @@ class MultiAgentPolicy:
         Default implementation does nothing. Override to save weights/parameters.
         """
         pass  # Default: no-op for policies without learnable parameters
+
+    @property
+    def policy_env_info(self) -> PolicyEnvInterface:
+        return self._policy_env_info
 
 
 class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
