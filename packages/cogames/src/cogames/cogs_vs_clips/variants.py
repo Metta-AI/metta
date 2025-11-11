@@ -146,6 +146,7 @@ class NeutralFacedVariant(MissionVariant):
         # Fully neutralize the vibe mechanic
         change_vibe.enabled = False
         change_vibe.number_of_vibes = 1
+        env.game.vibe_names = ["default"]
 
         neutral_vibe_name = "default"
         # Make assembler/chest behavior neutral-only.
