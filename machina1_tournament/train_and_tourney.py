@@ -1,0 +1,558 @@
+#!/usr/bin/env python
+"""Train an agent on CoGs vs Clips missions, then run tournament on the same mission.
+
+This script:
+1. Trains a ViT policy agent on a specific CoGs vs Clips mission (e.g., extractor_hub_30)
+2. Saves checkpoints at regular intervals (default every 10 epochs)
+3. Runs tournament with all checkpoints + baseline policies on the SAME mission
+
+Usage:
+    # Train and run tournament on default mission (extractor_hub_30)
+    python metta/machina1_tournament/train_and_tourney.py --num-episodes 100
+
+    # Train on a specific mission
+    python metta/machina1_tournament/train_and_tourney.py --mission collect_resources_classic --num-episodes 100
+    
+    # Just run tournament with existing checkpoints
+    python metta/machina1_tournament/train_and_tourney.py \\
+        --skip-training --run relh.main.1110.2 --mission extractor_hub_30
+"""
+
+import json
+import random
+import subprocess
+import sys
+from collections import defaultdict
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional
+
+import numpy as np
+import torch
+import typer
+from rich.console import Console
+from rich.progress import track
+from rich.table import Table
+
+from metta.rl.checkpoint_manager import CheckpointManager
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.policy.utils import initialize_or_load_policy
+from mettagrid.simulator.rollout import Rollout
+
+try:
+    from cogames.cli.mission import get_mission
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).parent.parent / "packages" / "cogames" / "src"))
+    from cogames.cli.mission import get_mission
+
+
+@dataclass
+class PolicyConfig:
+    """Configuration for a single policy."""
+
+    name: str
+    class_path: Optional[str] = None  # Optional for .mpt files which embed architecture
+    data_path: Optional[str] = None
+
+
+@dataclass
+class GameResult:
+    """Result of a single game."""
+
+    episode_id: int
+    policy_indices: list[int]
+    total_hearts: float
+    per_agent_hearts: list[float]
+    steps: int
+
+
+@dataclass
+class PolicyStats:
+    """Statistics for a single policy."""
+
+    policy_idx: int
+    policy_name: str
+    games_played: int
+    total_hearts_when_playing: float
+    mean_hearts_when_playing: float
+    value_of_replacement: float
+    agent_positions: list[int]
+
+
+def train_with_checkpoints(
+    checkpoint_dir: Path,
+    max_epochs: int,
+    checkpoint_interval: int,
+    num_cogs: int,
+    mission: str,
+    console: Console,
+) -> list[Path]:
+    """Train agent and save checkpoints at specified intervals.
+
+    Returns list of checkpoint paths.
+    """
+    console.print("\n[bold cyan]Training Agent with Checkpoints[/bold cyan]")
+    console.print(f"Mission: {mission}")
+    console.print(f"Training for {max_epochs} epochs")
+    console.print(f"Checkpoints every {checkpoint_interval} epochs")
+    console.print(f"Number of cogs: {num_cogs}")
+    console.print(f"Output directory: {checkpoint_dir}")
+
+    # Create checkpoint directory
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
+    # Calculate total timesteps based on epochs
+    # Each epoch is ~1024 steps (batch_size / num_envs)
+    # For small maps recipe with default settings, epochs are small
+    timesteps_per_epoch = 1024  # Actual steps per epoch for this configuration
+    total_timesteps = max_epochs * timesteps_per_epoch
+
+    # Build training command using the recipe system
+    # Train on a single specific mission to match evaluation
+    # Note: checkpointer.epoch_interval controls checkpoint frequency
+    # Device is controlled by system.device, not trainer.device
+    cmd = [
+        "uv",
+        "run",
+        "./tools/run.py",
+        "experiments.recipes.cvc.small_maps.train",
+        f"run={checkpoint_dir.name}",
+        f"num_cogs={num_cogs}",
+        f"mission={mission}",  # Train on specific mission
+        'variants=["lonely_heart","heart_chorus","neutral_faced","pack_rat"]',
+        f"trainer.total_timesteps={total_timesteps}",
+        f"checkpointer.epoch_interval={checkpoint_interval}",
+        "evaluator.evaluate_local=true",  # Enable local evaluation
+        "system.device=cpu",
+        "system.vectorization=serial",
+    ]
+
+    console.print(f"\n[yellow]Running: {' '.join(cmd)}[/yellow]\n")
+
+    # Run training
+    try:
+        subprocess.run(cmd, check=True, capture_output=False)
+    except subprocess.CalledProcessError as e:
+        console.print(f"[red]Training failed with error: {e}[/red]")
+        raise
+
+    # Find all checkpoint files
+    # The recipe system saves to train_dir/{run_name}/checkpoints/
+    train_dir = Path("./train_dir")
+    actual_checkpoint_dir = train_dir / checkpoint_dir.name / "checkpoints"
+
+    console.print(f"[cyan]Looking for checkpoints in: {actual_checkpoint_dir}[/cyan]")
+
+    # List what's actually in train_dir for debugging
+    if train_dir.exists():
+        console.print(f"[cyan]Contents of {train_dir}:[/cyan]")
+        for item in sorted(train_dir.iterdir()):
+            if item.is_dir():
+                console.print(f"  📁 {item.name}/")
+                # Check if it has a checkpoints subdirectory
+                checkpoints_subdir = item / "checkpoints"
+                if checkpoints_subdir.exists():
+                    num_checkpoints = len(list(checkpoints_subdir.glob("*.pt")))
+                    console.print(f"     └─ checkpoints/ ({num_checkpoints} .pt files)")
+
+    if not actual_checkpoint_dir.exists():
+        console.print(f"[yellow]Warning: Checkpoint directory {actual_checkpoint_dir} does not exist![/yellow]")
+        console.print("[yellow]Trying to find any checkpoint directory...[/yellow]")
+
+        # Try to find any recent training run
+        if train_dir.exists():
+            for run_dir in sorted(train_dir.iterdir(), reverse=True):
+                if run_dir.is_dir() and (run_dir / "checkpoints").exists():
+                    checkpoint_subdir = run_dir / "checkpoints"
+                    # Look for policy checkpoints (.mpt files), exclude trainer_state.mpt
+                    all_mpt = sorted(checkpoint_subdir.glob("*.mpt"))
+                    checkpoints = [f for f in all_mpt if f.name != "trainer_state.mpt"]
+                    if checkpoints:
+                        console.print(
+                            f"[green]Found {len(checkpoints)} policy checkpoints in: {checkpoint_subdir}[/green]"
+                        )
+                        actual_checkpoint_dir = checkpoint_subdir
+                        break
+
+        if not actual_checkpoint_dir.exists():
+            return []
+
+    # Look for policy checkpoint files (.mpt), not trainer state files (.pt)
+    # Explicitly exclude trainer_state.pt
+    all_mpt_files = sorted(actual_checkpoint_dir.glob("*.mpt"))
+    checkpoints = [f for f in all_mpt_files if f.name != "trainer_state.mpt"]
+
+    if not checkpoints:
+        console.print("[yellow]Warning: No policy checkpoints found after training![/yellow]")
+        console.print(f"[yellow]Searched in: {actual_checkpoint_dir}[/yellow]")
+        console.print(f"[yellow]Found {len(all_mpt_files)} .mpt files total, but none were policy checkpoints[/yellow]")
+
+        # List what we did find for debugging
+        if all_mpt_files:
+            console.print("[cyan]Files found:[/cyan]")
+            for f in all_mpt_files:
+                console.print(f"  - {f.name}")
+        return []
+
+    console.print(f"\n[green]Training complete! Found {len(checkpoints)} policy checkpoints[/green]")
+    for cp in checkpoints:
+        console.print(f"  ✓ {cp.name}")
+
+    # Select checkpoints at desired intervals
+    # For simplicity, take the last 5 checkpoints if we have that many
+    selected_checkpoints = checkpoints[-min(5, len(checkpoints)) :]
+
+    return selected_checkpoints
+
+
+def build_policy_pool(
+    checkpoint_paths: list[Path],
+    console: Console,
+) -> list[PolicyConfig]:
+    """Build policy pool including trained checkpoints and baselines."""
+    policies = []
+
+    # Add trained checkpoint policies
+    # For .mpt files, don't specify class_path - it's embedded in the checkpoint
+    for i, checkpoint_path in enumerate(checkpoint_paths):
+        policies.append(
+            PolicyConfig(
+                name=f"Trained_CP{i + 1}",
+                class_path=None,  # Architecture is embedded in .mpt file
+                data_path=str(checkpoint_path),
+            )
+        )
+
+    # Add baseline policies for comparison
+    baseline_templates = [
+        ("mettagrid.policy.random.RandomMultiAgentPolicy", None, "Random"),
+        ("cogames.policy.scripted_agent.baseline_agent.BaselinePolicy", None, "Baseline"),
+        ("cogames.policy.scripted_agent.unclipping_agent.UnclippingPolicy", None, "Unclipping"),
+    ]
+
+    # Add a few of each baseline
+    for i in range(2):  # 2 of each baseline type
+        for class_path, data_path, name in baseline_templates:
+            policies.append(
+                PolicyConfig(
+                    name=f"{name}_{i + 1}",
+                    class_path=class_path,
+                    data_path=data_path,
+                )
+            )
+
+    console.print(f"\n[cyan]Policy Pool ({len(policies)} policies):[/cyan]")
+    for i, policy in enumerate(policies):
+        console.print(f"  {i}: {policy.name}")
+
+    return policies
+
+
+def run_tournament(
+    mission: str,
+    policy_pool: list[PolicyConfig],
+    num_episodes: int,
+    team_size: int,
+    seed: int,
+    console: Console,
+    max_steps: int = 1000,
+    variants: Optional[list[str]] = None,
+) -> tuple[list[GameResult], list[PolicyStats]]:
+    """Run tournament on CoGs vs Clips missions."""
+    # Default to CoGs vs Clips variants if none provided
+    if variants is None:
+        variants = ["lonely_heart", "heart_chorus", "pack_rat", "neutral_faced"]
+
+    console.print("\n[bold cyan]Tournament Configuration[/bold cyan]")
+    console.print(f"Mission: {mission}")
+    console.print(f"Variants: {', '.join(variants)}")
+    console.print(f"Policy Pool Size: {len(policy_pool)}")
+    console.print(f"Team Size: {team_size}")
+    console.print(f"Number of Episodes: {num_episodes}")
+
+    _, env_cfg, _ = get_mission(mission, variants_arg=variants)
+
+    if env_cfg.game.num_agents != team_size:
+        env_cfg.game.num_agents = team_size
+
+    # Initialize policies
+    console.print(f"\n[cyan]Initializing {len(policy_pool)} policies...[/cyan]")
+    policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
+
+    policy_instances = []
+    for i, policy_cfg in enumerate(policy_pool):
+        try:
+            # For .mpt files (PolicyArtifact), use CheckpointManager which loads the embedded architecture
+            if policy_cfg.class_path is None and policy_cfg.data_path is not None:
+                checkpoint_path = Path(policy_cfg.data_path)
+                if checkpoint_path.suffix == ".mpt":
+                    # Load PolicyArtifact with embedded architecture
+                    # CheckpointManager returns a metta.agent.policy.Policy which already
+                    # implements agent_policy() method and is compatible with Rollout
+                    uri = f"file://{checkpoint_path.resolve()}"
+                    policy = CheckpointManager.load_from_uri(uri, policy_env_info, torch.device("cpu"))
+                else:
+                    raise ValueError(f"class_path is None but data_path is not .mpt: {policy_cfg.data_path}")
+            else:
+                # For regular policies (non-.mpt), use the standard loading mechanism
+                policy = initialize_or_load_policy(
+                    policy_env_info,
+                    policy_cfg.class_path,
+                    policy_cfg.data_path,
+                )
+
+            policy_instances.append(policy)
+            console.print(f"  ✓ {i}: {policy_cfg.name}")
+        except Exception as e:
+            console.print(f"  ✗ {i}: {policy_cfg.name} - Error: {e}")
+            raise
+
+    random.seed(seed)
+    np.random.seed(seed)
+
+    # Run episodes
+    console.print(f"\n[cyan]Running {num_episodes} episodes...[/cyan]")
+    game_results = []
+
+    for episode_id in track(range(num_episodes), description="Running episodes"):
+        sampled_indices = random.sample(range(len(policy_pool)), team_size)
+
+        agent_policies = []
+        for agent_id in range(team_size):
+            policy_idx = sampled_indices[agent_id]
+            policy = policy_instances[policy_idx]
+            agent_policy = policy.agent_policy(agent_id)
+            agent_policies.append(agent_policy)
+
+        rollout = Rollout(
+            env_cfg,
+            agent_policies,
+            max_action_time_ms=10000,
+            render_mode=None,
+            seed=seed + episode_id,
+            pass_sim_to_policies=True,
+        )
+
+        step_count = 0
+        while not rollout.is_done() and step_count < max_steps:
+            rollout.step()
+            step_count += 1
+
+        episode_stats = rollout._sim.episode_stats
+        game_stats = episode_stats.get("game", {})
+        total_hearts = float(game_stats.get("chest.heart.amount", 0.0))
+
+        agent_stats_list = episode_stats.get("agent", [])
+        per_agent_hearts = []
+        for agent_stats in agent_stats_list:
+            agent_heart_stats = sum(v for k, v in agent_stats.items() if "heart" in k.lower())
+            per_agent_hearts.append(float(agent_heart_stats))
+
+        game_results.append(
+            GameResult(
+                episode_id=episode_id,
+                policy_indices=sampled_indices,
+                total_hearts=total_hearts,
+                per_agent_hearts=per_agent_hearts,
+                steps=step_count,
+            )
+        )
+
+    # Calculate statistics
+    console.print("\n[cyan]Calculating value-of-replacement...[/cyan]")
+    overall_mean_hearts = np.mean([r.total_hearts for r in game_results])
+
+    policy_game_tracking = defaultdict(lambda: {"games": [], "positions": []})
+
+    for result in game_results:
+        for agent_pos, policy_idx in enumerate(result.policy_indices):
+            policy_game_tracking[policy_idx]["games"].append(result.total_hearts)
+            policy_game_tracking[policy_idx]["positions"].append(agent_pos)
+
+    policy_stats = []
+    for policy_idx in range(len(policy_pool)):
+        if policy_idx in policy_game_tracking:
+            games = policy_game_tracking[policy_idx]["games"]
+            positions = policy_game_tracking[policy_idx]["positions"]
+            total_hearts = sum(games)
+            mean_hearts = np.mean(games)
+            value_of_replacement = mean_hearts - overall_mean_hearts
+        else:
+            total_hearts = 0.0
+            mean_hearts = 0.0
+            value_of_replacement = 0.0
+            positions = []
+
+        games_count = len(policy_game_tracking[policy_idx]["games"]) if policy_idx in policy_game_tracking else 0
+
+        policy_stats.append(
+            PolicyStats(
+                policy_idx=policy_idx,
+                policy_name=policy_pool[policy_idx].name,
+                games_played=games_count,
+                total_hearts_when_playing=total_hearts,
+                mean_hearts_when_playing=mean_hearts,
+                value_of_replacement=value_of_replacement,
+                agent_positions=positions,
+            )
+        )
+
+    policy_stats.sort(key=lambda x: x.value_of_replacement, reverse=True)
+
+    return game_results, policy_stats
+
+
+def display_results(
+    game_results: list[GameResult],
+    policy_stats: list[PolicyStats],
+    console: Console,
+) -> None:
+    """Display tournament results."""
+    console.print("\n[bold green]Tournament Results[/bold green]")
+
+    total_hearts = sum(r.total_hearts for r in game_results)
+    mean_hearts = np.mean([r.total_hearts for r in game_results])
+    std_hearts = np.std([r.total_hearts for r in game_results])
+
+    console.print("\n[cyan]Overall Statistics[/cyan]")
+    console.print(f"  Total Episodes: {len(game_results)}")
+    console.print(f"  Total Hearts: {total_hearts:.1f}")
+    console.print(f"  Mean Hearts/Game: {mean_hearts:.2f}")
+    console.print(f"  Std Hearts/Game: {std_hearts:.2f}")
+
+    console.print("\n[bold cyan]Policy Rankings (by Value of Replacement)[/bold cyan]")
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("Rank", justify="right", style="cyan")
+    table.add_column("Policy Name", style="white")
+    table.add_column("Games", justify="right")
+    table.add_column("Mean Hearts", justify="right")
+    table.add_column("Value of Replacement", justify="right")
+
+    for rank, stats in enumerate(policy_stats, 1):
+        vor = stats.value_of_replacement
+        if vor > 0:
+            vor_str = f"[green]+{vor:.2f}[/green]"
+        elif vor < 0:
+            vor_str = f"[red]{vor:.2f}[/red]"
+        else:
+            vor_str = f"{vor:.2f}"
+
+        table.add_row(
+            str(rank),
+            stats.policy_name,
+            str(stats.games_played),
+            f"{stats.mean_hearts_when_playing:.2f}",
+            vor_str,
+        )
+
+    console.print(table)
+
+
+def main(
+    skip_training: bool = typer.Option(False, "--skip-training", help="Skip training, use existing checkpoints"),
+    run: str = typer.Option(
+        "relh.main.1110.2",
+        "--run",
+        help="Run name for training checkpoint directory",
+    ),
+    max_epochs: int = typer.Option(146500, "--max-epochs", help="Maximum training epochs (~150M steps)"),
+    checkpoint_interval: int = typer.Option(50, "--checkpoint-interval", help="Save checkpoint every N epochs"),
+    num_episodes: int = typer.Option(50, "--num-episodes", "-n", help="Number of tournament episodes"),
+    seed: int = typer.Option(42, "--seed", "-s", help="Random seed"),
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output JSON file"),  # noqa: B008
+    mission: str = typer.Option(
+        "extractor_hub_30",
+        "--mission",
+        "-m",
+        help="CoGs vs Clips mission to train and evaluate on (e.g., extractor_hub_30, collect_resources_classic)",
+    ),
+    num_cogs: int = typer.Option(4, "--num-cogs", help="Number of cogs/agents in the mission"),
+) -> None:
+    """Train agent with checkpoints, then run tournament on CoGs vs Clips missions."""
+    console = Console()
+
+    console.print("[bold cyan]Train & Tournament System[/bold cyan]")
+    console.print(f"Training and evaluating on CoGs vs Clips mission: {mission}\n")
+
+    checkpoint_dir = Path(run)
+
+    # Step 1: Training (or skip if requested)
+    if skip_training:
+        console.print("[yellow]Skipping training, looking for existing checkpoints...[/yellow]")
+        # Look in the train_dir structure
+        train_dir = Path("./train_dir")
+        actual_checkpoint_dir = train_dir / checkpoint_dir.name / "checkpoints"
+
+        if not actual_checkpoint_dir.exists():
+            # Fallback: try the provided directory directly
+            actual_checkpoint_dir = checkpoint_dir
+
+        # Get all .mpt files and exclude trainer_state.mpt
+        all_mpt = sorted(actual_checkpoint_dir.glob("*.mpt"))
+        checkpoint_paths = [f for f in all_mpt if f.name != "trainer_state.mpt"]
+
+        if not checkpoint_paths:
+            console.print(f"[red]Error: No policy checkpoints found in {actual_checkpoint_dir}[/red]")
+            if all_mpt:
+                console.print(
+                    f"[yellow]Found {len(all_mpt)} .mpt files, but they appear to be trainer checkpoints[/yellow]"
+                )
+            raise typer.Exit(1)
+        console.print(f"Found {len(checkpoint_paths)} policy checkpoints in {actual_checkpoint_dir}")
+        # Take last 5 checkpoints
+        checkpoint_paths = checkpoint_paths[-min(5, len(checkpoint_paths)) :]
+    else:
+        checkpoint_paths = train_with_checkpoints(
+            checkpoint_dir=checkpoint_dir,
+            max_epochs=max_epochs,
+            checkpoint_interval=checkpoint_interval,
+            num_cogs=num_cogs,
+            mission=mission,
+            console=console,
+        )
+
+    # Step 2: Build policy pool with checkpoints
+    policy_pool = build_policy_pool(checkpoint_paths, console)
+
+    # Step 3: Run tournament
+    game_results, policy_stats = run_tournament(
+        mission=mission,
+        policy_pool=policy_pool,
+        num_episodes=num_episodes,
+        team_size=num_cogs,  # Use num_cogs for team size
+        seed=seed,
+        console=console,
+    )
+
+    # Step 4: Display results
+    display_results(game_results, policy_stats, console)
+
+    # Step 5: Save results if requested
+    if output:
+        results = {
+            "tournament_summary": {
+                "num_episodes": len(game_results),
+                "overall_mean_hearts": np.mean([r.total_hearts for r in game_results]),
+                "overall_std_hearts": np.std([r.total_hearts for r in game_results]),
+            },
+            "policy_rankings": [
+                {
+                    "rank": i + 1,
+                    "policy_idx": stats.policy_idx,
+                    "policy_name": stats.policy_name,
+                    "games_played": stats.games_played,
+                    "mean_hearts_when_playing": stats.mean_hearts_when_playing,
+                    "value_of_replacement": stats.value_of_replacement,
+                }
+                for i, stats in enumerate(policy_stats)
+            ],
+        }
+
+        with open(output, "w") as f:
+            json.dump(results, f, indent=2)
+
+        console.print(f"\n[green]Results saved to {output}[/green]")
+
+
+if __name__ == "__main__":
+    typer.run(main)

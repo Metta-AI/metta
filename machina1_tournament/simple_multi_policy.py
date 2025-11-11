@@ -10,7 +10,7 @@ from pathlib import Path
 # Add cogames to path if not installed
 sys.path.insert(0, str(Path(__file__).parent.parent / "packages" / "cogames" / "src"))
 
-from cogames.missions import get_mission_config
+from cogames.cli.mission import get_mission
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.utils import initialize_or_load_policy
 from mettagrid.simulator.rollout import Rollout
@@ -20,7 +20,7 @@ def main():
     """Run machina_1 with 4 different policies."""
 
     # 1. Load the mission config
-    env_cfg = get_mission_config("machina_1")
+    _, env_cfg, _ = get_mission("machina_1")
     print(f"Loaded machina_1: {env_cfg.game.num_agents} agents")
 
     # 2. Create PolicyEnvInterface (needed for policy initialization)
@@ -29,15 +29,15 @@ def main():
     # 3. Define what policies you want for each agent
     # Format: (class_path, checkpoint_path_or_None, description)
     policy_configs = [
-        ("mettagrid.policy.random.RandomPolicy", None, "Random Agent"),
-        ("mettagrid.policy.random.RandomPolicy", None, "Random Agent"),
+        ("mettagrid.policy.random.RandomMultiAgentPolicy", None, "Random Agent"),
+        ("mettagrid.policy.random.RandomMultiAgentPolicy", None, "Random Agent"),
         (
-            "cogames.policy.scripted_agent.baseline_agent.BaselineAgent",
+            "cogames.policy.scripted_agent.baseline_agent.BaselinePolicy",
             None,
             "Baseline Scripted",
         ),
         (
-            "cogames.policy.scripted_agent.unclipping_agent.UnclippingAgent",
+            "cogames.policy.scripted_agent.unclipping_agent.UnclippingPolicy",
             None,
             "Unclipping Scripted",
         ),

@@ -11,42 +11,42 @@
 policies:
   # Random agents
   - name: Random_1
-    class_path: mettagrid.policy.random.RandomPolicy
+    class_path: mettagrid.policy.random.RandomMultiAgentPolicy
 
   - name: Random_2
-    class_path: mettagrid.policy.random.RandomPolicy
+    class_path: mettagrid.policy.random.RandomMultiAgentPolicy
 
   - name: Random_3
-    class_path: mettagrid.policy.random.RandomPolicy
+    class_path: mettagrid.policy.random.RandomMultiAgentPolicy
 
   - name: Random_4
-    class_path: mettagrid.policy.random.RandomPolicy
+    class_path: mettagrid.policy.random.RandomMultiAgentPolicy
 
   # Baseline scripted agents
   - name: Baseline_1
-    class_path: cogames.policy.scripted_agent.baseline_agent.BaselineAgent
+    class_path: cogames.policy.scripted_agent.baseline_agent.BaselinePolicy
 
   - name: Baseline_2
-    class_path: cogames.policy.scripted_agent.baseline_agent.BaselineAgent
+    class_path: cogames.policy.scripted_agent.baseline_agent.BaselinePolicy
 
   - name: Baseline_3
-    class_path: cogames.policy.scripted_agent.baseline_agent.BaselineAgent
+    class_path: cogames.policy.scripted_agent.baseline_agent.BaselinePolicy
 
   - name: Baseline_4
-    class_path: cogames.policy.scripted_agent.baseline_agent.BaselineAgent
+    class_path: cogames.policy.scripted_agent.baseline_agent.BaselinePolicy
 
   # Unclipping scripted agents
   - name: Unclipping_1
-    class_path: cogames.policy.scripted_agent.unclipping_agent.UnclippingAgent
+    class_path: cogames.policy.scripted_agent.unclipping_agent.UnclippingPolicy
 
   - name: Unclipping_2
-    class_path: cogames.policy.scripted_agent.unclipping_agent.UnclippingAgent
+    class_path: cogames.policy.scripted_agent.unclipping_agent.UnclippingPolicy
 
   - name: Unclipping_3
-    class_path: cogames.policy.scripted_agent.unclipping_agent.UnclippingAgent
+    class_path: cogames.policy.scripted_agent.unclipping_agent.UnclippingPolicy
 
   - name: Unclipping_4
-    class_path: cogames.policy.scripted_agent.unclipping_agent.UnclippingAgent
+    class_path: cogames.policy.scripted_agent.unclipping_agent.UnclippingPolicy
 
   # Example trained policies (uncomment and adjust paths as needed)
   # - name: FastPolicy_Checkpoint1
@@ -67,14 +67,14 @@ policies:
 
   # Additional random agents to reach 16
   - name: Random_5
-    class_path: mettagrid.policy.random.RandomPolicy
+    class_path: mettagrid.policy.random.RandomMultiAgentPolicy
 
   - name: Random_6
-    class_path: mettagrid.policy.random.RandomPolicy
+    class_path: mettagrid.policy.random.RandomMultiAgentPolicy
 
   - name: Random_7
-    class_path: mettagrid.policy.random.RandomPolicy
+    class_path: mettagrid.policy.random.RandomMultiAgentPolicy
 
   - name: Random_8
-    class_path: mettagrid.policy.random.RandomPolicy
+    class_path: mettagrid.policy.random.RandomMultiAgentPolicy
 

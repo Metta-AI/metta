@@ -1,18 +1,21 @@
 #!/usr/bin/env python
-"""Tournament system for evaluating policies using value-of-replacement.
+"""Easy Tournament system for evaluating policies using value-of-replacement.
+
+This version uses the training_facility mission (13x13 map) which is simpler and smaller
+than machina_1, making it easier for random agents to score some rewards.
 
 Takes a pool of N policies and runs simulations with randomly sampled teams.
 Calculates value-of-replacement: how much better/worse games are when a policy participates.
 
 Usage:
-    # Run tournament with 16 random/scripted policies
-    python metta/machina1_tournament/tournament.py --num-episodes 100
+    # Run easy tournament with 16 random/scripted policies
+    python metta/machina1_tournament/tourney_easy.py --num-episodes 100
 
     # Run with specific policy pool file
-    python metta/machina1_tournament/tournament.py --policies tournament_policies.yaml --num-episodes 200
+    python metta/machina1_tournament/tourney_easy.py --policies tournament_policies.yaml --num-episodes 200
 
     # Quick test with fewer policies
-    python metta/machina1_tournament/tournament.py --num-episodes 20 --team-size 4 --pool-size 8
+    python metta/machina1_tournament/tourney_easy.py --num-episodes 20 --team-size 4 --pool-size 8
 """
 
 import json
@@ -143,14 +146,21 @@ def run_tournament(
 ) -> tuple[list[GameResult], list[PolicyStats]]:
     """Run the tournament and calculate value-of-replacement."""
     # Load mission
-    console.print("\n[bold cyan]Tournament Configuration[/bold cyan]")
-    console.print(f"Mission: {mission}")
+    console.print("\n[bold cyan]Easy Tournament Configuration[/bold cyan]")
+    console.print(f"Mission: {mission} (smaller 13x13 map)")
+    console.print("Variants: lonely_heart, heart_chorus, pack_rat, neutral_faced")
     console.print(f"Policy Pool Size: {len(policy_pool)}")
     console.print(f"Team Size: {team_size}")
     console.print(f"Number of Episodes: {num_episodes}")
     console.print(f"Seed: {seed}")
 
-    _, env_cfg, _ = get_mission(mission)
+    # Apply variants to match training configuration
+    # lonely_heart: Easy heart crafting (1 of each resource)
+    # heart_chorus: Heart-centric reward shaping
+    # pack_rat: Raise caps to 255
+    # neutral_faced: No vibe coordination needed
+    variant_args = ["lonely_heart", "heart_chorus", "pack_rat", "neutral_faced"]
+    _, env_cfg, mission_obj = get_mission(mission, variants_arg=variant_args)
 
     if env_cfg.game.num_agents != team_size:
         console.print(
@@ -292,7 +302,7 @@ def display_results(
     console: Console,
 ) -> None:
     """Display tournament results."""
-    console.print("\n[bold green]Tournament Results[/bold green]")
+    console.print("\n[bold green]Easy Tournament Results[/bold green]")
 
     # Overall statistics
     total_hearts = sum(r.total_hearts for r in game_results)
@@ -386,7 +396,9 @@ def save_results(
 
 
 def main(
-    mission: str = typer.Option("machina_1", "--mission", "-m", help="Mission name"),
+    mission: str = typer.Option(
+        "training_facility", "--mission", "-m", help="Mission name (default: training_facility 13x13)"
+    ),
     num_episodes: int = typer.Option(100, "--num-episodes", "-n", help="Number of tournament episodes"),
     team_size: int = typer.Option(4, "--team-size", "-t", help="Number of agents per team"),
     pool_size: int = typer.Option(16, "--pool-size", "-p", help="Size of policy pool (if generating default)"),
@@ -396,10 +408,26 @@ def main(
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file for results (JSON)"),  # noqa: B008
     max_steps: int = typer.Option(1000, "--max-steps", help="Max steps per episode"),
 ) -> None:
-    """Run a tournament to evaluate policies using value-of-replacement metric."""
+    """Run an EASY tournament to evaluate policies using value-of-replacement metric.
+
+    This version uses:
+    - training_facility (13x13 map) instead of machina_1 (200x200)
+    - Variants matching small_maps training recipe:
+      * lonely_heart: Easy heart crafting (1 of each resource per heart)
+      * heart_chorus: Heart-centric reward shaping
+      * pack_rat: Raise caps to 255
+      * neutral_faced: No vibe coordination needed
+
+    This makes it MUCH easier for even random agents to score rewards quickly.
+    """
     console = Console()
 
-    console.print("[bold cyan]Policy Tournament System[/bold cyan]")
+    console.print("[bold cyan]Easy Policy Tournament System[/bold cyan]")
+    console.print("💚 lonely_heart: Easy heart crafting (1 of each resource)")
+    console.print("🎵 heart_chorus: Heart-centric reward shaping")
+    console.print("🎒 pack_rat: Caps raised to 255")
+    console.print("😐 neutral_faced: No vibe coordination needed")
+    console.print("🗺️  training_facility (13x13 map)")
     console.print("Value of Replacement = Mean Hearts when Playing - Overall Mean\n")
 
     # Load policy pool

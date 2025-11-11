@@ -202,7 +202,7 @@ class TrainablePolicy(MultiAgentPolicy):
         """
         import torch
 
-        self.network().load_state_dict(torch.load(policy_data_path, map_location="cpu"))
+        self.network().load_state_dict(torch.load(policy_data_path, map_location="cpu", weights_only=False))
 
     def save_policy_data(self, policy_data_path: str) -> None:
         """Save network weights to file.

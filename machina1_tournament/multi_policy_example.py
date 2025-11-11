@@ -35,13 +35,13 @@ from mettagrid.simulator.rollout import Rollout
 
 # Import cogames mission registry
 try:
-    from cogames.missions import get_mission_config
+    from cogames.cli.mission import get_mission
 except ImportError:
     # Fallback if cogames not installed as package
     import sys
 
     sys.path.insert(0, str(Path(__file__).parent.parent / "packages" / "cogames" / "src"))
-    from cogames.missions import get_mission_config
+    from cogames.cli.mission import get_mission
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -60,9 +60,9 @@ def parse_policy_spec(policy_str: str) -> PolicySpec:
 
     # Map common names to full class paths
     policy_class_map = {
-        "random": "mettagrid.policy.random.RandomPolicy",
-        "simple": "cogames.policy.scripted_agent.baseline_agent.BaselineAgent",
-        "unclipping": "cogames.policy.scripted_agent.unclipping_agent.UnclippingAgent",
+        "random": "mettagrid.policy.random.RandomMultiAgentPolicy",
+        "simple": "cogames.policy.scripted_agent.baseline_agent.BaselinePolicy",
+        "unclipping": "cogames.policy.scripted_agent.unclipping_agent.UnclippingPolicy",
         "stateless": "metta.agent.policies.fast.FastPolicy",
         "puffer": "metta.agent.policies.puffer.PufferPolicy",
     }
@@ -92,7 +92,7 @@ def main(
 
     # Load mission config
     console.print(f"[cyan]Loading mission: {mission}[/cyan]")
-    env_cfg = get_mission_config(mission)
+    _, env_cfg, _ = get_mission(mission)
 
     # Verify this mission has exactly 4 agents
     num_agents = env_cfg.game.num_agents

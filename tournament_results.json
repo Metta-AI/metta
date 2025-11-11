@@ -1,0 +1,1239 @@
+{
+  "tournament_summary": {
+    "num_episodes": 100,
+    "overall_mean_hearts": 0.0,
+    "overall_std_hearts": 0.0
+  },
+  "policy_rankings": [
+    {
+      "rank": 1,
+      "policy_idx": 0,
+      "policy_name": "Random_0",
+      "games_played": 28,
+      "mean_hearts_when_playing": 0.0,
+      "value_of_replacement": 0.0
+    },
+    {
+      "rank": 2,
+      "policy_idx": 1,
+      "policy_name": "Baseline_1",
+      "games_played": 21,
+      "mean_hearts_when_playing": 0.0,
+      "value_of_replacement": 0.0
+    },
+    {
+      "rank": 3,
+      "policy_idx": 2,
+      "policy_name": "Unclipping_2",
+      "games_played": 31,
+      "mean_hearts_when_playing": 0.0,
+      "value_of_replacement": 0.0
+    },
+    {
+      "rank": 4,
+      "policy_idx": 3,
+      "policy_name": "Random_3",
+      "games_played": 22,
+      "mean_hearts_when_playing": 0.0,
+      "value_of_replacement": 0.0
+    },
+    {
+      "rank": 5,
+      "policy_idx": 4,
+      "policy_name": "Baseline_4",
+      "games_played": 20,
+      "mean_hearts_when_playing": 0.0,
+      "value_of_replacement": 0.0
+    },
+    {
+      "rank": 6,
+      "policy_idx": 5,
+      "policy_name": "Unclipping_5",
+      "games_played": 19,
+      "mean_hearts_when_playing": 0.0,
+      "value_of_replacement": 0.0
+    },
+    {
+      "rank": 7,
+      "policy_idx": 6,
+      "policy_name": "Random_6",
+      "games_played": 23,
+      "mean_hearts_when_playing": 0.0,
+      "value_of_replacement": 0.0
+    },
+    {
+      "rank": 8,
+      "policy_idx": 7,
+      "policy_name": "Baseline_7",
+      "games_played": 23,
+      "mean_hearts_when_playing": 0.0,
+      "value_of_replacement": 0.0
+    },
+    {
+      "rank": 9,
+      "policy_idx": 8,
+      "policy_name": "Unclipping_8",
+      "games_played": 25,
+      "mean_hearts_when_playing": 0.0,
+      "value_of_replacement": 0.0
+    },
+    {
+      "rank": 10,
+      "policy_idx": 9,
+      "policy_name": "Random_9",
+      "games_played": 34,
+      "mean_hearts_when_playing": 0.0,
+      "value_of_replacement": 0.0
+    },
+    {
+      "rank": 11,
+      "policy_idx": 10,
+      "policy_name": "Baseline_10",
+      "games_played": 21,
+      "mean_hearts_when_playing": 0.0,
+      "value_of_replacement": 0.0
+    },
+    {
+      "rank": 12,
+      "policy_idx": 11,
+      "policy_name": "Unclipping_11",
+      "games_played": 26,
+      "mean_hearts_when_playing": 0.0,
+      "value_of_replacement": 0.0
+    },
+    {
+      "rank": 13,
+      "policy_idx": 12,
+      "policy_name": "Random_12",
+      "games_played": 25,
+      "mean_hearts_when_playing": 0.0,
+      "value_of_replacement": 0.0
+    },
+    {
+      "rank": 14,
+      "policy_idx": 13,
+      "policy_name": "Baseline_13",
+      "games_played": 24,
+      "mean_hearts_when_playing": 0.0,
+      "value_of_replacement": 0.0
+    },
+    {
+      "rank": 15,
+      "policy_idx": 14,
+      "policy_name": "Unclipping_14",
+      "games_played": 30,
+      "mean_hearts_when_playing": 0.0,
+      "value_of_replacement": 0.0
+    },
+    {
+      "rank": 16,
+      "policy_idx": 15,
+      "policy_name": "Random_15",
+      "games_played": 28,
+      "mean_hearts_when_playing": 0.0,
+      "value_of_replacement": 0.0
+    }
+  ],
+  "game_results": [
+    {
+      "episode_id": 0,
+      "policy_indices": [
+        3,
+        0,
+        11,
+        4
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 1,
+      "policy_indices": [
+        15,
+        3,
+        1,
+        0
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 2,
+      "policy_indices": [
+        6,
+        12,
+        8,
+        9
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 3,
+      "policy_indices": [
+        12,
+        15,
+        4,
+        10
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 4,
+      "policy_indices": [
+        7,
+        3,
+        14,
+        15
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 5,
+      "policy_indices": [
+        3,
+        8,
+        0,
+        9
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 6,
+      "policy_indices": [
+        8,
+        1,
+        3,
+        2
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 7,
+      "policy_indices": [
+        7,
+        15,
+        4,
+        6
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 8,
+      "policy_indices": [
+        9,
+        0,
+        4,
+        3
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 9,
+      "policy_indices": [
+        1,
+        11,
+        3,
+        2
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 10,
+      "policy_indices": [
+        9,
+        14,
+        13,
+        7
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 11,
+      "policy_indices": [
+        6,
+        0,
+        4,
+        14
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 12,
+      "policy_indices": [
+        2,
+        9,
+        8,
+        4
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 13,
+      "policy_indices": [
+        3,
+        9,
+        2,
+        0
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 14,
+      "policy_indices": [
+        15,
+        10,
+        14,
+        4
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 15,
+      "policy_indices": [
+        10,
+        15,
+        9,
+        12
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 16,
+      "policy_indices": [
+        15,
+        13,
+        6,
+        11
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 17,
+      "policy_indices": [
+        4,
+        2,
+        5,
+        7
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 18,
+      "policy_indices": [
+        11,
+        15,
+        7,
+        8
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 19,
+      "policy_indices": [
+        14,
+        11,
+        2,
+        13
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 20,
+      "policy_indices": [
+        10,
+        14,
+        6,
+        1
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 21,
+      "policy_indices": [
+        3,
+        1,
+        11,
+        6
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 22,
+      "policy_indices": [
+        4,
+        9,
+        2,
+        5
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 23,
+      "policy_indices": [
+        15,
+        14,
+        1,
+        9
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 24,
+      "policy_indices": [
+        0,
+        14,
+        9,
+        1
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 25,
+      "policy_indices": [
+        5,
+        13,
+        7,
+        14
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 26,
+      "policy_indices": [
+        8,
+        4,
+        3,
+        5
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 27,
+      "policy_indices": [
+        5,
+        9,
+        4,
+        8
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 28,
+      "policy_indices": [
+        12,
+        10,
+        9,
+        15
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 29,
+      "policy_indices": [
+        8,
+        12,
+        10,
+        13
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 30,
+      "policy_indices": [
+        14,
+        9,
+        7,
+        0
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 31,
+      "policy_indices": [
+        10,
+        9,
+        13,
+        6
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 32,
+      "policy_indices": [
+        15,
+        11,
+        12,
+        2
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 33,
+      "policy_indices": [
+        15,
+        3,
+        14,
+        4
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 34,
+      "policy_indices": [
+        6,
+        10,
+        2,
+        1
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 35,
+      "policy_indices": [
+        8,
+        0,
+        11,
+        14
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 36,
+      "policy_indices": [
+        9,
+        14,
+        13,
+        1
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 37,
+      "policy_indices": [
+        13,
+        9,
+        5,
+        12
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 38,
+      "policy_indices": [
+        9,
+        7,
+        15,
+        8
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 39,
+      "policy_indices": [
+        0,
+        2,
+        11,
+        10
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 40,
+      "policy_indices": [
+        5,
+        13,
+        0,
+        1
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 41,
+      "policy_indices": [
+        11,
+        6,
+        15,
+        13
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 42,
+      "policy_indices": [
+        14,
+        6,
+        2,
+        15
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 43,
+      "policy_indices": [
+        3,
+        8,
+        10,
+        11
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 44,
+      "policy_indices": [
+        3,
+        8,
+        10,
+        2
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 45,
+      "policy_indices": [
+        3,
+        15,
+        5,
+        1
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 46,
+      "policy_indices": [
+        1,
+        10,
+        2,
+        9
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 47,
+      "policy_indices": [
+        14,
+        0,
+        8,
+        5
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 48,
+      "policy_indices": [
+        13,
+        4,
+        8,
+        5
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 49,
+      "policy_indices": [
+        0,
+        2,
+        7,
+        15
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 50,
+      "policy_indices": [
+        4,
+        10,
+        7,
+        0
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 51,
+      "policy_indices": [
+        14,
+        0,
+        11,
+        12
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 52,
+      "policy_indices": [
+        0,
+        11,
+        6,
+        1
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 53,
+      "policy_indices": [
+        4,
+        3,
+        15,
+        9
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 54,
+      "policy_indices": [
+        1,
+        9,
+        11,
+        7
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 55,
+      "policy_indices": [
+        11,
+        12,
+        13,
+        15
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 56,
+      "policy_indices": [
+        0,
+        6,
+        5,
+        14
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 57,
+      "policy_indices": [
+        7,
+        14,
+        0,
+        13
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 58,
+      "policy_indices": [
+        9,
+        3,
+        4,
+        0
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 59,
+      "policy_indices": [
+        11,
+        9,
+        12,
+        6
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 60,
+      "policy_indices": [
+        2,
+        8,
+        14,
+        7
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 61,
+      "policy_indices": [
+        7,
+        10,
+        11,
+        13
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 62,
+      "policy_indices": [
+        11,
+        5,
+        14,
+        12
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 63,
+      "policy_indices": [
+        5,
+        15,
+        0,
+        6
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 64,
+      "policy_indices": [
+        11,
+        5,
+        13,
+        6
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 65,
+      "policy_indices": [
+        10,
+        1,
+        14,
+        12
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 66,
+      "policy_indices": [
+        0,
+        14,
+        3,
+        11
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 67,
+      "policy_indices": [
+        12,
+        9,
+        15,
+        2
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 68,
+      "policy_indices": [
+        2,
+        6,
+        3,
+        7
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 69,
+      "policy_indices": [
+        2,
+        9,
+        1,
+        8
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 70,
+      "policy_indices": [
+        10,
+        3,
+        14,
+        2
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 71,
+      "policy_indices": [
+        2,
+        13,
+        1,
+        10
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 72,
+      "policy_indices": [
+        12,
+        0,
+        14,
+        3
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 73,
+      "policy_indices": [
+        4,
+        2,
+        8,
+        12
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 74,
+      "policy_indices": [
+        14,
+        8,
+        12,
+        1
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 75,
+      "policy_indices": [
+        6,
+        1,
+        11,
+        9
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 76,
+      "policy_indices": [
+        10,
+        5,
+        13,
+        7
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 77,
+      "policy_indices": [
+        11,
+        4,
+        5,
+        15
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 78,
+      "policy_indices": [
+        13,
+        2,
+        11,
+        12
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 79,
+      "policy_indices": [
+        12,
+        2,
+        15,
+        8
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 80,
+      "policy_indices": [
+        0,
+        13,
+        8,
+        12
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 81,
+      "policy_indices": [
+        10,
+        13,
+        15,
+        7
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 82,
+      "policy_indices": [
+        3,
+        2,
+        6,
+        13
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 83,
+      "policy_indices": [
+        5,
+        8,
+        0,
+        12
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 84,
+      "policy_indices": [
+        13,
+        15,
+        7,
+        8
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 85,
+      "policy_indices": [
+        8,
+        6,
+        0,
+        12
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 86,
+      "policy_indices": [
+        8,
+        15,
+        6,
+        9
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 87,
+      "policy_indices": [
+        6,
+        15,
+        0,
+        9
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 88,
+      "policy_indices": [
+        2,
+        4,
+        1,
+        3
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 89,
+      "policy_indices": [
+        2,
+        14,
+        13,
+        12
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 90,
+      "policy_indices": [
+        9,
+        7,
+        12,
+        13
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 91,
+      "policy_indices": [
+        7,
+        6,
+        9,
+        10
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 92,
+      "policy_indices": [
+        2,
+        0,
+        14,
+        5
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 93,
+      "policy_indices": [
+        14,
+        0,
+        7,
+        2
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 94,
+      "policy_indices": [
+        9,
+        11,
+        7,
+        12
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 95,
+      "policy_indices": [
+        4,
+        14,
+        11,
+        9
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 96,
+      "policy_indices": [
+        10,
+        6,
+        9,
+        15
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 97,
+      "policy_indices": [
+        2,
+        1,
+        7,
+        11
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 98,
+      "policy_indices": [
+        9,
+        12,
+        2,
+        14
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    },
+    {
+      "episode_id": 99,
+      "policy_indices": [
+        8,
+        2,
+        9,
+        5
+      ],
+      "total_hearts": 0.0,
+      "steps": 1000
+    }
+  ]
+}

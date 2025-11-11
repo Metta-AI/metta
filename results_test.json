@@ -1,0 +1,97 @@
+{
+  "tournament_summary": {
+    "num_episodes": 5,
+    "overall_mean_hearts": 0.0,
+    "overall_std_hearts": 0.0
+  },
+  "policy_rankings": [
+    {
+      "rank": 1,
+      "policy_idx": 0,
+      "policy_name": "Trained_CP1",
+      "games_played": 3,
+      "mean_hearts_when_playing": 0.0,
+      "value_of_replacement": 0.0
+    },
+    {
+      "rank": 2,
+      "policy_idx": 1,
+      "policy_name": "Trained_CP2",
+      "games_played": 3,
+      "mean_hearts_when_playing": 0.0,
+      "value_of_replacement": 0.0
+    },
+    {
+      "rank": 3,
+      "policy_idx": 2,
+      "policy_name": "Trained_CP3",
+      "games_played": 2,
+      "mean_hearts_when_playing": 0.0,
+      "value_of_replacement": 0.0
+    },
+    {
+      "rank": 4,
+      "policy_idx": 3,
+      "policy_name": "Trained_CP4",
+      "games_played": 1,
+      "mean_hearts_when_playing": 0.0,
+      "value_of_replacement": 0.0
+    },
+    {
+      "rank": 5,
+      "policy_idx": 4,
+      "policy_name": "Trained_CP5",
+      "games_played": 1,
+      "mean_hearts_when_playing": 0.0,
+      "value_of_replacement": 0.0
+    },
+    {
+      "rank": 6,
+      "policy_idx": 5,
+      "policy_name": "Random_1",
+      "games_played": 2,
+      "mean_hearts_when_playing": 0.0,
+      "value_of_replacement": 0.0
+    },
+    {
+      "rank": 7,
+      "policy_idx": 6,
+      "policy_name": "Baseline_1",
+      "games_played": 1,
+      "mean_hearts_when_playing": 0.0,
+      "value_of_replacement": 0.0
+    },
+    {
+      "rank": 8,
+      "policy_idx": 7,
+      "policy_name": "Unclipping_1",
+      "games_played": 2,
+      "mean_hearts_when_playing": 0.0,
+      "value_of_replacement": 0.0
+    },
+    {
+      "rank": 9,
+      "policy_idx": 8,
+      "policy_name": "Random_2",
+      "games_played": 0,
+      "mean_hearts_when_playing": 0.0,
+      "value_of_replacement": 0.0
+    },
+    {
+      "rank": 10,
+      "policy_idx": 9,
+      "policy_name": "Baseline_2",
+      "games_played": 1,
+      "mean_hearts_when_playing": 0.0,
+      "value_of_replacement": 0.0
+    },
+    {
+      "rank": 11,
+      "policy_idx": 10,
+      "policy_name": "Unclipping_2",
+      "games_played": 4,
+      "mean_hearts_when_playing": 0.0,
+      "value_of_replacement": 0.0
+    }
+  ]
+}
