@@ -1,4 +1,4 @@
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import einops
 import torch
@@ -8,10 +8,11 @@ from tensordict import TensorDict
 from torch import Tensor
 
 from metta.agent.policy import Policy
-from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.loss.loss import Loss, LossConfig
-from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import ComponentContext
+
+if TYPE_CHECKING:
+    from metta.rl.trainer_config import TrainerConfig
 
 
 class TLKickstarterConfig(LossConfig):
@@ -23,7 +24,7 @@ class TLKickstarterConfig(LossConfig):
     def create(
         self,
         policy: Policy,
-        trainer_cfg: TrainerConfig,
+        trainer_cfg: "TrainerConfig",
         vec_env: Any,
         device: torch.device,
         instance_name: str,
@@ -46,7 +47,7 @@ class TLKickstarter(Loss):
     def __init__(
         self,
         policy: Policy,
-        trainer_cfg: TrainerConfig,
+        trainer_cfg: "TrainerConfig",
         vec_env: Any,
         device: torch.device,
         instance_name: str,
@@ -59,9 +60,13 @@ class TLKickstarter(Loss):
         self.action_loss_coef = self.cfg.action_loss_coef
         self.value_loss_coef = self.cfg.value_loss_coef
         self.temperature = self.cfg.temperature
-        game_rules = getattr(self.env, "game_rules", getattr(self.env, "meta_data", None))
+        # game_rules = getattr(self.env, "game_rules", getattr(self.env, "meta_data", None))
+        game_rules = getattr(self.env, "policy_env_info", None)
         if game_rules is None:
             raise RuntimeError("Environment metadata is required to instantiate teacher policy")
+
+        # Lazy import to avoid circular dependency
+        from metta.rl.checkpoint_manager import CheckpointManager
 
         self.teacher_policy = CheckpointManager.load_from_uri(self.cfg.teacher_uri, game_rules, self.device)
 

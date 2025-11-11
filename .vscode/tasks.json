@@ -7,12 +7,12 @@
       "label": "uv sync",
       "group": "build",
     },
-    {
-      "type": "shell",
-      "command": "bash ./mettascope/install.sh",
-      "label": "build frontend",
-      "group": "build",
-    },
+    // {
+    //   "type": "shell",
+    //   "command": "bash ./mettascope/install.sh",
+    //   "label": "build frontend",
+    //   "group": "build",
+    // },
     {
       "label": "build all",
       "dependsOrder": "sequence",
