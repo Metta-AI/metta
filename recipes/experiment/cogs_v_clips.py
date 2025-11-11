@@ -60,9 +60,7 @@ COORDINATION_MISSIONS: tuple[str, ...] = (
     "collect_resources_spread",
 )
 
-_MISSION_BY_NAME: dict[str, Mission] = {
-    mission.name: mission for mission in EVAL_MISSIONS
-}
+_MISSION_BY_NAME: dict[str, Mission] = {mission.name: mission for mission in EVAL_MISSIONS}
 
 
 def _normalize_variant_names(
@@ -211,9 +209,7 @@ def make_training_env(
         if chest is not None and hasattr(chest, "vibe_transfers"):
             try:
                 chest.vibe_transfers = {
-                    vibe: transfers
-                    for vibe, transfers in chest.vibe_transfers.items()
-                    if vibe in allowed_vibes
+                    vibe: transfers for vibe, transfers in chest.vibe_transfers.items() if vibe in allowed_vibes
                 }
             except Exception:
                 pass
@@ -242,9 +238,7 @@ def make_curriculum(
         mission_tasks = cc.bucketed(mission_env)
 
         mission_tasks.add_bucket("game.max_steps", [750, 1000, 1250, 1500])
-        mission_tasks.add_bucket(
-            "game.agent.rewards.inventory.heart", [0.1, 0.333, 0.5, 1.0]
-        )
+        mission_tasks.add_bucket("game.agent.rewards.inventory.heart", [0.1, 0.333, 0.5, 1.0])
 
         all_mission_tasks.append(mission_tasks)
 

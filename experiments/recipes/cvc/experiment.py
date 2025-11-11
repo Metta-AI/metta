@@ -7,17 +7,20 @@ import time
 from dataclasses import dataclass
 from typing import Sequence
 
+from experiments.recipes.cogs_v_clips import play
 from experiments.recipes.cvc.coordination import train as train_coordination
+from experiments.recipes.cvc.medium_maps import train as train_medium_maps
+from experiments.recipes.cvc.single_mission import train as train_single_mission
+from experiments.recipes.cvc.small_maps import train as train_small_maps
+
 from experiments.recipes.cvc.curriculum import (
     make_curriculum,
     make_training_env,
+)
+from experiments.recipes.cvc.curriculum import (
     train as train_curriculum,
 )
 from experiments.recipes.cvc.evaluation import evaluate, make_eval_suite
-from experiments.recipes.cvc.medium_maps import train as train_medium_maps
-from experiments.recipes.cogs_v_clips import play
-from experiments.recipes.cvc.single_mission import train as train_single_mission
-from experiments.recipes.cvc.small_maps import train as train_small_maps
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
@@ -139,9 +142,7 @@ EXPERIMENTS: dict[str, SkypilotExperiment] = {
     ),
 }
 
-DEFAULT_EXPERIMENTS: tuple[str, ...] = tuple(
-    name for name in EXPERIMENTS if not name.startswith("debug")
-)
+DEFAULT_EXPERIMENTS: tuple[str, ...] = tuple(name for name in EXPERIMENTS if not name.startswith("debug"))
 
 
 def basic_training(*, num_cogs: int = 4) -> TrainTool:
@@ -258,9 +259,7 @@ def experiment(
         print(f"\nLaunching: {name}")
         print(f"  Run: {run_name}")
         print(f"  Tool: {config.tool_path}")
-        print(
-            f"  Agents: {config.num_cogs}, GPUs: {config.gpus}, Steps: {config.timesteps:,}"
-        )
+        print(f"  Agents: {config.num_cogs}, GPUs: {config.gpus}, Steps: {config.timesteps:,}")
 
         subprocess.run(cmd_args, check=False)
         time.sleep(1)
