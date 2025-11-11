@@ -1431,6 +1431,8 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
 
 class BaselinePolicy(MultiAgentPolicy):
+    short_names = ["cvc_simple", "scripted_baseline", "baseline", "simple_baseline"]
+
     def __init__(self, policy_env_info: PolicyEnvInterface, hyperparams: Optional[BaselineHyperparameters] = None):
         super().__init__(policy_env_info)
         self._shared_state = SharedAgentState()
