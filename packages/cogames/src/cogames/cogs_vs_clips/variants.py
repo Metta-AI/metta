@@ -339,13 +339,13 @@ class ClipHubStationsVariant(MissionVariant):
         mission.charger.start_clipped = True
 
 
-class ClipRateOnVariant(MissionVariant):
-    name: str = "clip_rate_on"
-    description: str = "Enable global clipping with a small non-zero clip rate."
+class ClipPeriodOnVariant(MissionVariant):
+    name: str = "clip_period_on"
+    description: str = "Enable global clipping with a small non-zero clip period."
 
     @override
     def modify_mission(self, mission):
-        mission.clip_rate = 0.02
+        mission.clip_period = 50
 
 
 # Biome variants (weather) for procedural maps
@@ -451,6 +451,6 @@ VARIANTS: list[MissionVariant] = [
     ClipBaseExceptCarbonVariant(),
     ClipHubStationsVariant(),
     CyclicalUnclipVariant(),
-    ClipRateOnVariant(),
+    ClipPeriodOnVariant(),
     *DIFFICULTY_VARIANTS,
 ]

@@ -51,7 +51,7 @@ protected:
 TEST_F(ClipperTest, InfectionWeightCalculation) {
   float length_scale = 2.0f;
   float cutoff_distance = 5.0f;
-  float clip_rate = 0.1f;
+  uint32_t clip_period = 10;
 
   // Create two assemblers at different distances
   Assembler* a1 = create_assembler(0, 0);
@@ -61,7 +61,7 @@ TEST_F(ClipperTest, InfectionWeightCalculation) {
 
   std::vector<std::shared_ptr<Protocol>> unclip_protocols = {unclip_protocol};
   std::mt19937 rng(42);
-  Clipper clipper(*grid, unclip_protocols, length_scale, cutoff_distance, clip_rate, rng);
+  Clipper clipper(*grid, unclip_protocols, length_scale, cutoff_distance, clip_period, rng);
 
   // Test distance calculation
   float dist_close = clipper.distance(*a1, *a2_close);
@@ -90,7 +90,7 @@ TEST_F(ClipperTest, InfectionWeightCalculation) {
 TEST_F(ClipperTest, WeightAdjustmentDuringClipping) {
   float length_scale = 2.0f;
   float cutoff_distance = 10.0f;
-  float clip_rate = 0.1f;
+  uint32_t clip_period = 10;
 
   // Create three assemblers in a line
   Assembler* a1 = create_assembler(0, 0);
@@ -99,7 +99,7 @@ TEST_F(ClipperTest, WeightAdjustmentDuringClipping) {
 
   std::vector<std::shared_ptr<Protocol>> unclip_protocols = {unclip_protocol};
   std::mt19937 rng(42);
-  Clipper clipper(*grid, unclip_protocols, length_scale, cutoff_distance, clip_rate, rng);
+  Clipper clipper(*grid, unclip_protocols, length_scale, cutoff_distance, clip_period, rng);
 
   // Initially all assemblers should have weight 0
   EXPECT_EQ(clipper.assembler_infection_weight[a1], 0);
@@ -133,7 +133,7 @@ TEST_F(ClipperTest, WeightAdjustmentDuringClipping) {
 TEST_F(ClipperTest, WeightAdjustmentDuringUnclipping) {
   float length_scale = 2.0f;
   float cutoff_distance = 10.0f;
-  float clip_rate = 0.1f;
+  uint32_t clip_period = 10;
 
   // Create three assemblers
   Assembler* a1 = create_assembler(0, 0);
@@ -142,7 +142,7 @@ TEST_F(ClipperTest, WeightAdjustmentDuringUnclipping) {
 
   std::vector<std::shared_ptr<Protocol>> unclip_protocols = {unclip_protocol};
   std::mt19937 rng(42);
-  Clipper clipper(*grid, unclip_protocols, length_scale, cutoff_distance, clip_rate, rng);
+  Clipper clipper(*grid, unclip_protocols, length_scale, cutoff_distance, clip_period, rng);
 
   // Clip a2
   clipper.clip_assembler(*a2);
@@ -171,7 +171,7 @@ TEST_F(ClipperTest, WeightAdjustmentDuringUnclipping) {
 TEST_F(ClipperTest, MultipleClippedAssemblersAccumulateWeights) {
   float length_scale = 2.0f;
   float cutoff_distance = 10.0f;
-  float clip_rate = 0.1f;
+  uint32_t clip_period = 10;
 
   // Create four assemblers in a square
   Assembler* a1 = create_assembler(0, 0);
@@ -181,7 +181,7 @@ TEST_F(ClipperTest, MultipleClippedAssemblersAccumulateWeights) {
 
   std::vector<std::shared_ptr<Protocol>> unclip_protocols = {unclip_protocol};
   std::mt19937 rng(42);
-  Clipper clipper(*grid, unclip_protocols, length_scale, cutoff_distance, clip_rate, rng);
+  Clipper clipper(*grid, unclip_protocols, length_scale, cutoff_distance, clip_period, rng);
 
   // Clip a1 and a2
   clipper.clip_assembler(*a1);
@@ -205,7 +205,7 @@ TEST_F(ClipperTest, MultipleClippedAssemblersAccumulateWeights) {
 TEST_F(ClipperTest, PickAssemblerRespectsWeights) {
   float length_scale = 2.0f;
   float cutoff_distance = 10.0f;
-  float clip_rate = 1.0f;  // Always clip
+  uint32_t clip_period = 1;  // Always clip
 
   // Create assemblers with one having much higher weight
   Assembler* a_high_weight = create_assembler(0, 0);
@@ -213,7 +213,7 @@ TEST_F(ClipperTest, PickAssemblerRespectsWeights) {
 
   std::vector<std::shared_ptr<Protocol>> unclip_protocols = {unclip_protocol};
   std::mt19937 rng(42);
-  Clipper clipper(*grid, unclip_protocols, length_scale, cutoff_distance, clip_rate, rng);
+  Clipper clipper(*grid, unclip_protocols, length_scale, cutoff_distance, clip_period, rng);
 
   // Give a_high_weight artificial high weight
   clipper.assembler_infection_weight[a_high_weight] = static_cast<uint32_t>(100.0f * 1000000.0f);
@@ -295,7 +295,7 @@ TEST_F(ClipperPercolationTest, AutoLengthScaleBasic) {
   Grid grid(50, 50);
   place_assemblers(grid, 25);
 
-  Clipper clipper(grid, {unclip_protocol}, -1.0f, 0.0f, 0.1f, rng);
+  Clipper clipper(grid, {unclip_protocol}, -1.0f, 0.0f, 10, rng);
 
   // Expected: (50 / sqrt(25)) * sqrt(4.51 / (4*π)) ≈ 5.991
   EXPECT_NEAR(clipper.length_scale, 5.991f, 0.01f);
@@ -306,7 +306,7 @@ TEST_F(ClipperPercolationTest, ManualLengthScale) {
   Grid grid(50, 50);
   place_assemblers(grid, 25);
 
-  Clipper clipper(grid, {unclip_protocol}, 3.14f, 0.0f, 0.1f, rng);
+  Clipper clipper(grid, {unclip_protocol}, 3.14f, 0.0f, 10, rng);
 
   EXPECT_FLOAT_EQ(clipper.length_scale, 3.14f);
 }
@@ -321,7 +321,7 @@ TEST_F(ClipperPercolationTest, ClipImmuneExcluded) {
   // Place 5 clip-immune assemblers
   place_assemblers(grid, 5, true);
 
-  Clipper clipper(grid, {unclip_protocol}, -1.0f, 0.0f, 0.1f, rng);
+  Clipper clipper(grid, {unclip_protocol}, -1.0f, 0.0f, 10, rng);
 
   // Should use 20 (not 25) for calculation
   // Expected: (50 / sqrt(20)) * sqrt(4.51 / (4*π)) ≈ 6.704
@@ -333,7 +333,7 @@ TEST_F(ClipperPercolationTest, NoAssemblers) {
   Grid grid(50, 50);
   // Don't place any assemblers
 
-  Clipper clipper(grid, {unclip_protocol}, 2.5f, 0.0f, 0.1f, rng);
+  Clipper clipper(grid, {unclip_protocol}, 2.5f, 0.0f, 10, rng);
 
   // Should keep provided length_scale when no buildings (no auto-calculation)
   EXPECT_FLOAT_EQ(clipper.length_scale, 2.5f);
@@ -348,8 +348,8 @@ TEST_F(ClipperPercolationTest, GridSizeScaling) {
   place_assemblers(grid_small, 25);
   place_assemblers(grid_large, 25);
 
-  Clipper clipper_small(grid_small, {unclip_protocol}, -1.0f, 0.0f, 0.1f, rng);
-  Clipper clipper_large(grid_large, {unclip_protocol}, -1.0f, 0.0f, 0.1f, rng);
+  Clipper clipper_small(grid_small, {unclip_protocol}, -1.0f, 0.0f, 10, rng);
+  Clipper clipper_large(grid_large, {unclip_protocol}, -1.0f, 0.0f, 10, rng);
 
   // Ratio should be 100/25 = 4x
   float ratio = clipper_large.length_scale / clipper_small.length_scale;
@@ -365,8 +365,8 @@ TEST_F(ClipperPercolationTest, BuildingDensityScaling) {
   place_assemblers(grid_sparse, 25);
   place_assemblers(grid_dense, 100);
 
-  Clipper clipper_sparse(grid_sparse, {unclip_protocol}, -1.0f, 0.0f, 0.1f, rng);
-  Clipper clipper_dense(grid_dense, {unclip_protocol}, -1.0f, 0.0f, 0.1f, rng);
+  Clipper clipper_sparse(grid_sparse, {unclip_protocol}, -1.0f, 0.0f, 10, rng);
+  Clipper clipper_dense(grid_dense, {unclip_protocol}, -1.0f, 0.0f, 10, rng);
 
   // Ratio should be sqrt(100/25) = 2x (sparse should be larger)
   float ratio = clipper_sparse.length_scale / clipper_dense.length_scale;
@@ -381,8 +381,8 @@ TEST_F(ClipperPercolationTest, NonSquareGrid) {
   place_assemblers(grid_horizontal, 25);
   place_assemblers(grid_vertical, 25);
 
-  Clipper clipper_horizontal(grid_horizontal, {unclip_protocol}, -1.0f, 0.0f, 0.1f, rng);
-  Clipper clipper_vertical(grid_vertical, {unclip_protocol}, -1.0f, 0.0f, 0.1f, rng);
+  Clipper clipper_horizontal(grid_horizontal, {unclip_protocol}, -1.0f, 0.0f, 10, rng);
+  Clipper clipper_vertical(grid_vertical, {unclip_protocol}, -1.0f, 0.0f, 10, rng);
 
   // Both should use max(width, height) = 60, so should have same length_scale
   EXPECT_FLOAT_EQ(clipper_horizontal.length_scale, clipper_vertical.length_scale);
@@ -400,7 +400,7 @@ TEST_F(ClipperPercolationTest, AutoCutoffDistance) {
   Grid grid(50, 50);
   place_assemblers(grid, 25);
 
-  Clipper clipper(grid, {unclip_protocol}, -1.0f, 0.0f, 0.1f, rng);
+  Clipper clipper(grid, {unclip_protocol}, -1.0f, 0.0f, 10, rng);
 
   // Expected cutoff: 3 * 5.991 ≈ 17.973
   EXPECT_NEAR(clipper.cutoff_distance, 3.0f * clipper.length_scale, 0.001f);
@@ -412,7 +412,7 @@ TEST_F(ClipperPercolationTest, ManualCutoffDistance) {
   Grid grid(50, 50);
   place_assemblers(grid, 25);
 
-  Clipper clipper(grid, {unclip_protocol}, -1.0f, 20.0f, 0.1f, rng);
+  Clipper clipper(grid, {unclip_protocol}, -1.0f, 20.0f, 10, rng);
 
   // Should keep the provided cutoff_distance
   EXPECT_FLOAT_EQ(clipper.cutoff_distance, 20.0f);
@@ -423,7 +423,7 @@ TEST_F(ClipperPercolationTest, AutoCutoffWithManualLength) {
   Grid grid(50, 50);
   place_assemblers(grid, 25);
 
-  Clipper clipper(grid, {unclip_protocol}, 5.0f, 0.0f, 0.1f, rng);
+  Clipper clipper(grid, {unclip_protocol}, 5.0f, 0.0f, 10, rng);
 
   // Should auto-calculate cutoff as 3 * 5.0
   EXPECT_FLOAT_EQ(clipper.cutoff_distance, 15.0f);

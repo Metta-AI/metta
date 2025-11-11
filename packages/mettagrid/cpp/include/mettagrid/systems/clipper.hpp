@@ -30,20 +30,20 @@ public:
   float length_scale;
   float cutoff_distance;
   Grid& grid;
-  float clip_rate;
+  uint32_t clip_period;
   std::mt19937 rng;
 
   Clipper(Grid& grid,
           std::vector<std::shared_ptr<Protocol>> protocol_ptrs,
           float length_scale,
           float cutoff_distance,
-          float clip_rate,
+          uint32_t clip_period,
           std::mt19937 rng_init)
       : unclipping_protocols(std::move(protocol_ptrs)),
         length_scale(length_scale),
         cutoff_distance(cutoff_distance),
         grid(grid),
-        clip_rate(clip_rate),
+        clip_period(clip_period),
         rng(std::move(rng_init)) {
     std::vector<Assembler*> starting_clipped_assemblers;
     for (size_t obj_id = 1; obj_id < grid.objects.size(); obj_id++) {
@@ -92,7 +92,7 @@ public:
 
     // This can be expensive, so only do it if the clipper is active. Note that having a Clipper with
     // a zero clip rate is value, since we can still clip assemblers that start clipped.
-    if (clip_rate > 0.0f) {
+    if (clip_period > 0) {
       compute_adjacencies();
     }
 
@@ -219,7 +219,7 @@ public:
   }
 
   void maybe_clip_new_assembler() {
-    if (std::generate_canonical<float, 10>(rng) < clip_rate) {
+    if (std::uniform_int_distribution<uint32_t>(1, clip_period)(rng) == 1) {
       Assembler* assembler = pick_assembler_to_clip();
       if (assembler) {
         clip_assembler(*assembler);
