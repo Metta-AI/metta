@@ -451,7 +451,7 @@ def display_results(
 def main(
     skip_training: bool = typer.Option(False, "--skip-training", help="Skip training, use existing checkpoints"),
     run: str = typer.Option(
-        "relh.main.1110.2",
+        "msb_tournament",
         "--run",
         help="Run name for training checkpoint directory",
     ),
