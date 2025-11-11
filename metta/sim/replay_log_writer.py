@@ -135,10 +135,10 @@ class EpisodeReplay:
         for grid_object in self.objects:
             for key, changes in list(grid_object.items()):
                 if (
-                  isinstance(changes, list)
-                  and len(changes) == 1
-                  and isinstance(changes[0], (list, tuple))
-                  and len(changes[0]) == 2
+                    isinstance(changes, list)
+                    and len(changes) == 1
+                    and isinstance(changes[0], (list, tuple))
+                    and len(changes[0]) == 2
                 ):
                     grid_object[key] = changes[0][1]
 
