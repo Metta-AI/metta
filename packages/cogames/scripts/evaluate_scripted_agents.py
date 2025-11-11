@@ -20,6 +20,7 @@ Usage:
 """
 
 import argparse
+import importlib
 import json
 import logging
 from collections import defaultdict
@@ -31,8 +32,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_VARIANTS, get_difficulty
-from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
-from cogames.cogs_vs_clips.mission import NumCogsVariant
+from cogames.cogs_vs_clips.mission import Mission, NumCogsVariant
 from cogames.policy.scripted_agent.baseline_agent import (
     BASELINE_HYPERPARAMETER_PRESETS,
     BaselinePolicy,
@@ -96,8 +96,17 @@ AGENT_CONFIGS: Dict[str, AgentConfig] = {
     ),
 }
 
-# All evaluation missions
-EXPERIMENT_MAP = {mission.name: mission for mission in EVAL_MISSIONS}
+# All evaluation missions (populated at runtime via --eval-module)
+EXPERIMENT_MAP: Dict[str, Mission] = {}
+
+
+def load_eval_missions(module_path: str):
+    """Dynamically import a module and return its EVAL_MISSIONS list."""
+    module = importlib.import_module(module_path)
+    missions = getattr(module, "EVAL_MISSIONS", None)
+    if missions is None:
+        raise AttributeError(f"Module '{module_path}' does not define EVAL_MISSIONS")
+    return missions
 
 
 def run_evaluation(
@@ -108,6 +117,7 @@ def run_evaluation(
     max_steps: int = 1000,
     seed: int = 42,
     preset: str = "default",
+    no_difficulty: bool = False,
 ) -> List[EvalResult]:
     """Run evaluation for an agent configuration."""
     results = []
@@ -137,26 +147,38 @@ def run_evaluation(
         base_mission = EXPERIMENT_MAP[exp_name]
 
         for difficulty_name in difficulties:
-            try:
-                difficulty = get_difficulty(difficulty_name)
-            except Exception:
-                logger.error(f"Unknown difficulty: {difficulty_name}")
-                continue
+            difficulty = None
+            difficulty_label = difficulty_name
+            if not no_difficulty:
+                try:
+                    difficulty = get_difficulty(difficulty_name)
+                except Exception:
+                    logger.error(f"Unknown difficulty: {difficulty_name}")
+                    continue
 
             for num_cogs in cogs_list:
                 completed += 1
-                logger.info(f"[{completed}/{total_tests}] {exp_name} | {difficulty_name} | {num_cogs} agent(s)")
-
-                # Create mission and apply difficulty (always from base_mission)
-                mission = base_mission.with_variants([difficulty, NumCogsVariant(num_cogs=num_cogs)])
-
-                # Get clip rate for metadata
-                clip_rate = getattr(difficulty, "extractor_clip_rate", 0.0)
+                label = "none" if no_difficulty else difficulty_label
+                logger.info(f"[{completed}/{total_tests}] {exp_name} | {label} | {num_cogs} agent(s)")
 
                 try:
+                    # Create mission and apply difficulty if enabled
+                    if difficulty is None:
+                        mission = base_mission.with_variants([NumCogsVariant(num_cogs=num_cogs)])
+                        clip_rate = 0.0
+                    else:
+                        mission = base_mission.with_variants([difficulty, NumCogsVariant(num_cogs=num_cogs)])
+                        # Get clip rate for metadata
+                        clip_rate = getattr(difficulty, "clip_rate", 0.0)
+
                     env_config = mission.make_env()
                     # Only override max_steps if difficulty doesn't specify it
-                    if not hasattr(difficulty, "max_steps_override") or difficulty.max_steps_override is None:
+                    has_override = (
+                        (difficulty is not None)
+                        and hasattr(difficulty, "max_steps_override")
+                        and (difficulty.max_steps_override is not None)
+                    )
+                    if not has_override:
                         env_config.game.max_steps = max_steps
 
                     # Get the actual max_steps from env_config (after all modifications)
@@ -186,7 +208,7 @@ def run_evaluation(
                         agent=agent_config.label,
                         experiment=exp_name,
                         num_cogs=num_cogs,
-                        difficulty=difficulty_name,
+                        difficulty=("none" if no_difficulty else difficulty_label),
                         preset=preset,
                         clip_rate=clip_rate,
                         total_reward=total_reward,
@@ -207,7 +229,7 @@ def run_evaluation(
                         agent=agent_config.label,
                         experiment=exp_name,
                         num_cogs=num_cogs,
-                        difficulty=difficulty_name,
+                        difficulty=("none" if no_difficulty else difficulty_label),
                         preset=preset,
                         clip_rate=0.0,
                         total_reward=0.0,
@@ -654,6 +676,16 @@ def main():
         help="Agent to evaluate (default: all)",
     )
     parser.add_argument(
+        "--eval-module",
+        type=str,
+        default="cogames.cogs_vs_clips.evals.eval_missions",
+        help=(
+            "Module to load EVAL_MISSIONS from "
+            "(default: cogames.cogs_vs_clips.evals.eval_missions). "
+            "For integrated evals use cogames.cogs_vs_clips.evals.integrated_eval"
+        ),
+    )
+    parser.add_argument(
         "--experiments",
         nargs="*",
         default=None,
@@ -664,6 +696,11 @@ def main():
         nargs="*",
         default=None,
         help="Difficulties to test (default: agent-specific)",
+    )
+    parser.add_argument(
+        "--no-difficulty",
+        action="store_true",
+        help="Skip applying difficulty variants (use missions as-defined)",
     )
     parser.add_argument(
         "--cogs",
@@ -700,6 +737,11 @@ def main():
 
     args = parser.parse_args()
 
+    # Load evaluation missions from the requested module and populate the experiment map
+    eval_missions = load_eval_missions(args.eval_module)
+    global EXPERIMENT_MAP
+    EXPERIMENT_MAP = {mission.name: mission for mission in eval_missions}
+
     # Determine which agents to test
     if args.agent == "all":
         configs = list(AGENT_CONFIGS.values())
@@ -723,7 +765,10 @@ def main():
     for preset in presets:
         for config in configs:
             # Use specified difficulties or agent-specific defaults
-            difficulties = args.difficulties if args.difficulties else config.difficulties
+            if args.no_difficulty:
+                difficulties = ["base"]
+            else:
+                difficulties = args.difficulties if args.difficulties else config.difficulties
 
             # Use specified cogs or agent-specific defaults
             cogs_list = args.cogs if args.cogs else config.cogs_list
@@ -736,6 +781,7 @@ def main():
                 max_steps=args.steps,
                 seed=args.seed,
                 preset=preset,
+                no_difficulty=args.no_difficulty,
             )
             all_results.extend(results)
 

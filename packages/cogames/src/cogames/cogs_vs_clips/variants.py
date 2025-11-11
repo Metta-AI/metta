@@ -10,7 +10,7 @@ from mettagrid.mapgen.scenes.building_distributions import DistributionConfig, D
 
 class MinedOutVariant(MissionVariant):
     name: str = "mined_out"
-    description: str = "Some resources are depleted. You must be efficient to survive."
+    description: str = "All resources are depleted. You must be efficient to survive."
 
     @override
     def modify_mission(self, mission):
@@ -392,8 +392,8 @@ class CyclicalUnclipVariant(MissionVariant):
             ]
 
 
-class ClipStationsVariant(MissionVariant):
-    name: str = "clip_stations"
+class ClipHubStationsVariant(MissionVariant):
+    name: str = "clip_hub_stations"
     description: str = "Clip the specified base stations (by name)."
     # Valid names: "carbon_extractor", "oxygen_extractor", "germanium_extractor", "silicon_extractor", "charger"
     clip: list[str] = ["carbon_extractor", "oxygen_extractor", "germanium_extractor", "silicon_extractor", "charger"]
@@ -467,16 +467,15 @@ class DistantResourcesVariant(MachinaArenaVariant):
 
     @override
     def modify_node(self, node):
-        node.building_names = self.building_names
         # Bias buildings toward the map edges using bimodal clusters centered at
-        node.building_coverage = 0.05
+        node.building_coverage = 0.01
 
         vertical_edges = DistributionConfig(
             type=DistributionType.BIMODAL,
-            center1_x=0.1,  # top right corner
+            center1_x=0.92,  # top right corner
             center1_y=0.08,
-            center2_x=0.92,  # bottom left corner
-            center2_y=0.08,
+            center2_x=0.08,  # bottom left corner
+            center2_y=0.92,
             cluster_std=0.18,
         )
         horizontal_edges = DistributionConfig(
@@ -488,7 +487,8 @@ class DistantResourcesVariant(MachinaArenaVariant):
             cluster_std=0.18,
         )
 
-        names = list(node.building_names or self.building_names)
+        # Apply edge-biased distributions to extractors; other buildings follow the global distribution
+        names = list(self.building_names)
         node.building_distributions = {
             name: (vertical_edges if i % 2 == 0 else horizontal_edges) for i, name in enumerate(names)
         }
@@ -584,7 +584,6 @@ class EmptyBaseVariant(BaseHubVariant):
         node.corner_bundle = "custom"
 
 
-
 # TODO - validate that all variant names are unique
 VARIANTS: list[MissionVariant] = [
     MinedOutVariant(),
@@ -613,7 +612,7 @@ VARIANTS: list[MissionVariant] = [
     ChestHeartTuneVariant(),
     ExtractorHeartTuneVariant(),
     QuadrantBuildingsVariant(),
-    ClipStationsVariant(),
+    ClipHubStationsVariant(),
     CyclicalUnclipVariant(),
     ClipRateOnVariant(),
     *DIFFICULTY_VARIANTS,
