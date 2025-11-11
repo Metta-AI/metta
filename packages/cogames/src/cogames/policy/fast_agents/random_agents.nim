@@ -24,6 +24,20 @@ proc reset*(agent: RandomAgent) =
   echo "Resetting RandomAgent ", agent.agentId
   agent.random = initRand(agent.agentId)
 
+proc stepBatch*(
+  agent: RandomAgent,
+  numAgents: int,
+  numTokens: int,
+  sizeToken: int,
+  rawObservations: pointer,
+  numActions: int,
+  rawActions: pointer
+) {.raises: [].} =
+  let actions = cast[ptr UncheckedArray[int32]](rawActions)
+  let action = agent.random.rand(1 .. 4).int32
+  actions[agent.agentId] = action
+  echo "  RandomAgent taking action: ", action
+
 proc step*(
   agent: RandomAgent,
   numTokens: int,
@@ -35,21 +49,3 @@ proc step*(
   discard rawObservation
   result = agent.random.rand(1 .. 4).int32
   echo "  RandomAgent taking action: ", result
-
-proc stepBatch*(
-  agent: RandomAgent,
-  numAgents: int,
-  numTokens: int,
-  sizeToken: int,
-  rawObservations: pointer,
-  numActions: int,
-  rawActions: pointer
-) {.raises: [].} =
-  discard numAgents
-  discard numActions
-  let observations = cast[ptr UncheckedArray[uint8]](rawObservations)
-  let actions = cast[ptr UncheckedArray[int32]](rawActions)
-  let agentOffset = agent.agentId * numTokens * sizeToken
-  let agentObservation = cast[pointer](observations[agentOffset].addr)
-  let action = step(agent, numTokens, sizeToken, agentObservation)
-  actions[agent.agentId] = action

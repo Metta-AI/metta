@@ -165,11 +165,59 @@ proc stepBatch*(
   numActions: int,
   rawActions: pointer
 ) {.raises: [].} =
-  discard numAgents
-  discard numActions
-  let observations = cast[ptr UncheckedArray[uint8]](rawObservations)
-  let actions = cast[ptr UncheckedArray[int32]](rawActions)
-  let agentOffset = agent.agentId * numTokens * sizeToken
-  let agentObservation = cast[pointer](observations[agentOffset].addr)
-  let action = step(agent, numTokens, sizeToken, agentObservation)
-  actions[agent.agentId] = action
+  try:
+    echo "Driving race car agent ", agent.agentId
+    # echo "  numAgents", numAgents
+    # echo "  numTokens", numTokens
+    # echo "  sizeToken", sizeToken
+    # echo "  numActions", numActions
+    let observations = cast[ptr UncheckedArray[uint8]](rawObservations)
+
+    var map: Table[Location, seq[FeatureValue]]
+    for token in 0 ..< numTokens:
+      let locationPacked = observations[token * sizeToken + agent.agentId * numTokens * sizeToken]
+      let featureId = observations[token * sizeToken + agent.agentId * numTokens * sizeToken + 1]
+      let value = observations[token * sizeToken + agent.agentId * numTokens * sizeToken + 2]
+      if locationPacked == 255 and featureId == 255 and value == 255:
+        break
+      var location: Location
+      if locationPacked != 0xFF:
+        location.y = (locationPacked shr 4).int - 5
+        location.x = (locationPacked and 0x0F).int - 5
+      #echo "  token ", token, " loc ", location.x, ", ", location.y, " featureId ", featureId, " value ", value
+      if location notin map:
+        map[location] = @[]
+      map[location].add(FeatureValue(featureId: featureId.int, value: value.int))
+
+    echo "current location: ", agent.location.x, ", ", agent.location.y
+    echo "visible map:"
+    agent.cfg.drawMap(map, initHashSet[Location]())
+    updateMap(agent, map)
+    echo "updated map:"
+    agent.cfg.drawMap(agent.map, agent.seen)
+
+    let vibe = agent.cfg.getVibe(map)
+    echo "vibe: ", vibe
+
+    let invEnergy = agent.cfg.getInventory(map, agent.cfg.features.invEnergy)
+    let invCarbon = agent.cfg.getInventory(map, agent.cfg.features.invCarbon)
+    let invOxygen = agent.cfg.getInventory(map, agent.cfg.features.invOxygen)
+    let invGermanium = agent.cfg.getInventory(map, agent.cfg.features.invGermanium)
+    let invSilicon = agent.cfg.getInventory(map, agent.cfg.features.invSilicon)
+    let invHeart = agent.cfg.getInventory(map, agent.cfg.features.invHeart)
+    let invDecoder = agent.cfg.getInventory(map, agent.cfg.features.invDecoder)
+    let invModulator = agent.cfg.getInventory(map, agent.cfg.features.invModulator)
+    let invResonator = agent.cfg.getInventory(map, agent.cfg.features.invResonator)
+    let invScrambler = agent.cfg.getInventory(map, agent.cfg.features.invScrambler)
+
+    echo &"H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
+
+    let actions = cast[ptr UncheckedArray[int32]](rawActions)
+    let action = agent.random.rand(1 .. 4).int32
+    actions[agent.agentId] = action
+    echo "taking action ", action
+
+  except:
+    echo getCurrentException().getStackTrace()
+    echo getCurrentExceptionMsg()
+    quit()
