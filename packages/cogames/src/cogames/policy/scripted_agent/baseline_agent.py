@@ -651,20 +651,15 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             area_height = max_row - min_row + 1
             area_width = max_col - min_col + 1
 
-            if (
-                area_height <= 7
-                and area_width <= 7
-                and s.stations["assembler"] is not None
-            ):
+            if area_height <= 7 and area_width <= 7 and s.stations["assembler"] is not None:
                 assembler_pos = s.stations["assembler"]
                 if assembler_pos is not None:
                     dist = abs(s.row - assembler_pos[0]) + abs(s.col - assembler_pos[1])
-                    if dist > 10:
+                    # Only trigger escape if far from assembler and not already in escape mode
+                    # Also prevent triggering too frequently (wait at least 25 steps since last escape ended)
+                    if dist > 10 and s.exploration_escape_until_step == 0:
                         # Stuck in small area and far from assembler! Enter escape mode for 10 steps
                         s.exploration_escape_until_step = s.step_count + 10
-                        print(
-                            f"Stuck in small area! Entering escape mode for 10 steps. {s.step_count} -> {s.exploration_escape_until_step}"
-                        )
                         return self._move_towards(s, assembler_pos, reach_adjacent=True)
         # Check if we should keep current exploration direction
         if s.exploration_target_step is not None:
@@ -730,6 +725,11 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         if condition():
             # Condition met, stop exploring
             return None
+
+        # For goal-directed exploration, disable escape mode
+        # so we can focus on finding the target object (extractor, assembler, etc.)
+        # Escape mode will resume during pure exploration if needed
+        s.exploration_escape_until_step = 0
 
         return self._explore(s)
 
