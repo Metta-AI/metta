@@ -30,8 +30,19 @@ class LogRenderer(Renderer):
         assert self._sim is not None
 
         current_step = self._sim.current_step
+        raw_actions = self._sim.raw_actions()
+        action_names = self._sim.action_names
+        named_actions = []
+        for action_idx in raw_actions:
+            idx = int(action_idx)
+            if 0 <= idx < len(action_names):
+                named_actions.append(action_names[idx])
+            else:
+                named_actions.append(f"invalid:{idx}")
         logger.info("--------------------------------")
         logger.info(f"Step {current_step}")
+        logger.info(f"Actions (idx): {raw_actions.tolist()}")
+        logger.info(f"Actions (name): {named_actions}")
         logger.info(f"Episode rewards: {self._sim.episode_rewards}")
         logger.info(f"Done: {self._sim.is_done()}")
 

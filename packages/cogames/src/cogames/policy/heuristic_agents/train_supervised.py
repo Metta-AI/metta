@@ -4,11 +4,13 @@ import time
 from pathlib import Path
 from typing import Optional
 
+import numpy as np
 import torch
 import torch.nn as nn
 
 from cogames.cli.mission import get_mission
 from cogames.policy.heuristic_agents.simple_nim_agents import HeuristicAgentsPolicy
+from mettagrid.mettagrid_c import PackedCoordinate
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.stateless import StatelessPolicyNet
 from mettagrid.simulator import Simulation
@@ -25,6 +27,26 @@ CHECKPOINT_DIR = Path("./test_train_dir")
 SEED = 42
 LOG_INTERVAL = 10
 NIM_DEBUG = False
+
+
+def convert_raw_obs_to_policy_tokens(raw_obs: np.ndarray, expected_num_tokens: int) -> np.ndarray:
+    """Convert simulator raw observations into the token layout used by StatelessPolicyNet."""
+
+    tokens = []
+    for packed_coord, feature_id, value in raw_obs:
+        if feature_id == 0xFF:
+            break
+
+        location = PackedCoordinate.unpack(int(packed_coord)) or (0, 0)
+        row, col = location
+        # StatelessPolicyImpl encodes coords with row in the high nibble and col in the low nibble
+        coords_byte = ((row & 0x0F) << 4) | (col & 0x0F)
+        tokens.append([coords_byte, int(feature_id), int(value)])
+
+    if len(tokens) < expected_num_tokens:
+        tokens.extend([[255, 0, 0]] * (expected_num_tokens - len(tokens)))
+
+    return np.array(tokens, dtype=np.uint8)
 
 
 def train_supervised(
@@ -67,14 +89,17 @@ def train_supervised(
 
     # Initialize model using StatelessPolicyNet for compatibility with cogames play
     obs_shape = policy_env_info.observation_space.shape
+    expected_num_tokens = obs_shape[0]
     model = StatelessPolicyNet(policy_env_info.actions, obs_shape)
     model = model.to(torch_device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     loss_fn = nn.CrossEntropyLoss()
 
-    # load model weights
-    model.load_state_dict(torch.load(checkpoint_dir / "policy.pt"))
-    model = model.to(torch_device)
+    # load model weights if available
+    checkpoint_path = checkpoint_dir / "policy.pt"
+    if checkpoint_path.exists():
+        model.load_state_dict(torch.load(checkpoint_path, map_location=torch_device))
+        model = model.to(torch_device)
 
     # Create multiple simulations for batching
     simulations = []
@@ -127,7 +152,7 @@ def train_supervised(
             teacher_action = int(raw_action[0])
 
             # Get observation in shape expected by StatelessPolicyNet: (num_tokens, token_dim)
-            obs_tokens = raw_obs[0]  # Shape: (num_tokens, 3)
+            obs_tokens = convert_raw_obs_to_policy_tokens(raw_obs[0], expected_num_tokens)
 
             obs_batch.append(obs_tokens)
             action_batch.append(teacher_action)
