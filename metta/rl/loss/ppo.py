@@ -11,6 +11,7 @@ from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext, TrainingEnvironment
+from metta.rl.utils import prepare_policy_forward_td
 from metta.utils.batch import calculate_prioritized_sampling_params
 from mettagrid.base_config import Config
 
@@ -173,11 +174,7 @@ class PPO(Loss):
         shared_loss_data["indices"] = NonTensorData(indices)  # av this breaks compile
 
         # Then forward the policy using the sampled minibatch
-        policy_td = minibatch.select(*self.policy_experience_spec.keys(include_nested=True))
-        B, TT = policy_td.batch_size
-        policy_td = policy_td.reshape(B * TT)
-        policy_td.set("bptt", torch.full((B * TT,), TT, device=policy_td.device, dtype=torch.long))
-        policy_td.set("batch", torch.full((B * TT,), B, device=policy_td.device, dtype=torch.long))
+        policy_td, B, TT = prepare_policy_forward_td(minibatch, self.policy_experience_spec, clone=False)
 
         flat_actions = minibatch["actions"].reshape(B * TT, -1)
 

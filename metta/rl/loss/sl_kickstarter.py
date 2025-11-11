@@ -10,6 +10,7 @@ from torchrl.data import Composite
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext
+from metta.rl.utils import prepare_policy_forward_td
 
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
@@ -17,7 +18,7 @@ if TYPE_CHECKING:
 
 class SLKickstarterConfig(LossConfig):
     teacher_uri: str = Field(default="")
-    action_loss_coef: float = Field(default=0.995, ge=0, le=1.0)
+    action_loss_coef: float = Field(default=0.6, ge=0, le=1.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
     temperature: float = Field(default=2.0, gt=0)
     student_forward: bool = Field(default=False)
@@ -39,8 +40,6 @@ class SLKickstarter(Loss):
     __slots__ = (
         "teacher_policy",
         "teacher_policy_spec",
-        "action_loss_coef",
-        "value_loss_coef",
         "temperature",
         "teacher_policy_spec",
         "student_forward",
@@ -59,8 +58,6 @@ class SLKickstarter(Loss):
         if loss_config is None:
             loss_config = getattr(trainer_cfg.losses, instance_name, None)
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
-        self.action_loss_coef = self.cfg.action_loss_coef
-        self.value_loss_coef = self.cfg.value_loss_coef
         self.temperature = self.cfg.temperature
         self.student_forward = self.cfg.student_forward
 
@@ -91,20 +88,14 @@ class SLKickstarter(Loss):
         minibatch = shared_loss_data["sampled_mb"]
 
         # Teacher forward pass
-        teacher_td = minibatch.select(*self.teacher_policy_spec.keys(include_nested=True)).clone()
-        B, TT = teacher_td.batch_size
-        teacher_td = teacher_td.reshape(B * TT)
-        teacher_td.set("bptt", torch.full((B * TT,), TT, device=teacher_td.device, dtype=torch.long))
-        teacher_td.set("batch", torch.full((B * TT,), B, device=teacher_td.device, dtype=torch.long))
+        teacher_td, B, TT = prepare_policy_forward_td(minibatch, self.teacher_policy_spec, clone=True)
         teacher_td = self.teacher_policy(teacher_td, action=None)
 
         # Student forward pass
         if self.student_forward:
-            student_td = minibatch.select(*self.policy.get_agent_experience_spec().keys(include_nested=True)).clone()
-            B, TT = student_td.batch_size
-            student_td = student_td.reshape(B * TT)
-            student_td.set("bptt", torch.full((B * TT,), TT, device=student_td.device, dtype=torch.long))
-            student_td.set("batch", torch.full((B * TT,), B, device=student_td.device, dtype=torch.long))
+            student_td, B, TT = prepare_policy_forward_td(
+                minibatch, self.policy.get_agent_experience_spec(), clone=True
+            )
             student_td = self.policy(student_td, action=None)
         else:
             student_td = shared_loss_data["policy_td"].reshape(B * TT)
@@ -126,9 +117,11 @@ class SLKickstarter(Loss):
         teacher_value = teacher_td["values"].to(dtype=torch.float32).detach()
         ks_value_loss = ((teacher_value.detach() - student_value) ** 2).mean()
 
-        loss = ks_action_loss * self.action_loss_coef + ks_value_loss * self.value_loss_coef
+        loss = ks_action_loss * self.cfg.action_loss_coef + ks_value_loss * self.cfg.value_loss_coef
 
         self.loss_tracker["sl_ks_action_loss"].append(float(ks_action_loss.item()))
         self.loss_tracker["sl_ks_value_loss"].append(float(ks_value_loss.item()))
+        self.loss_tracker["sl_action_loss_coef"].append(float(self.cfg.action_loss_coef))
+        self.loss_tracker["sl_value_loss_coef"].append(float(self.cfg.value_loss_coef))
 
         return loss, shared_loss_data, False

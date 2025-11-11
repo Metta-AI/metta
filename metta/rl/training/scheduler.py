@@ -270,12 +270,17 @@ class LossScheduler(TrainerComponent):
     def apply(self, *, phase: Literal["rollout", "train"]) -> None:
         epoch = self.context.epoch
         agent_step = self.context.agent_step
-
         # 1) Apply run gates for the requested phase
         gates = getattr(self.context, "loss_run_gates", None)
         if gates is None:
             gates = {}
             self.context.loss_run_gates = gates
+
+        # OR-combine semantics across gates for the same loss/phase.
+        # Re-initialize per apply call to False iff there exists at least one gate
+        # for this (loss, phase) in the current pass; otherwise leave unset so
+        # downstream defaults (True) still apply when no gates exist for a phase.
+        seen_loss_phase: set[tuple[str, str]] = set()
 
         for gate in self.config.run_gates:
             if gate.phase != phase:
@@ -286,7 +291,12 @@ class LossScheduler(TrainerComponent):
             if entry is None:
                 entry = {}
                 gates[loss_name] = entry
-            entry[phase] = bool(allowed)
+            key = (loss_name, phase)
+            if key not in seen_loss_phase:
+                # Initialize to False for this apply pass; subsequent gates OR into it
+                entry[phase] = False
+                seen_loss_phase.add(key)
+            entry[phase] = bool(entry[phase]) or bool(allowed)
 
         # 2) Apply unified rules
         for rule in self.config.rules:
@@ -294,7 +304,8 @@ class LossScheduler(TrainerComponent):
             if loss is None:
                 # Skip silently to allow optional losses
                 continue
-            rule.apply(obj=loss.loss_cfg, ctx=self.context)
+            # Apply updates to the loss config object
+            rule.apply(obj=loss.cfg, ctx=self.context)
 
     # ----------------- Trainer callbacks -----------------
     def on_rollout_end(self) -> None:
