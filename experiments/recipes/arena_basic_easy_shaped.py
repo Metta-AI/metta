@@ -173,7 +173,7 @@ def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
 def sweep(sweep_name: str) -> SweepTool:
     """
     Prototypical sweep function.
-    In your own recipe, you likely only every need this. You can override other SweepTool parameters in the CLI.
+    In your own recipe, you likely only ever need this. You can override other SweepTool parameters in the CLI.
 
     Example usage:
         `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.baes.10081528" -- gpus=4 nodes=2`
@@ -185,7 +185,7 @@ def sweep(sweep_name: str) -> SweepTool:
 
     Running on the remote:
         1 - Start a sweep controller sandbox: `./devops/skypilot/sandbox.py --sweep-controller`, and ssh into it.
-        2 - Clean git pollution: `git clean -df && git stash`
+        2 - Clean git pollution: `git clean -fd && git stash`
         3 - Ensure your sky credentials are present: `sky status` -- if not, follow the instructions on screen.
         4 - Install tmux on the sandbox `apt install tmux`
         5 - Launch tmux session: `tmux new -s sweep`
