@@ -154,5 +154,31 @@
       "python": "${workspaceFolder}/.venv/bin/python",
       "preLaunchTask": "${defaultBuildTask}",
     },
+    {
+      "name": "Python: PettingZoo Demo",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/packages/mettagrid/demos/demo_train_pettingzoo.py",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python"
+    },
+    {
+      "name": "C++ Debug: PettingZoo",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/.venv/bin/python",
+      "args": ["${workspaceFolder}/packages/mettagrid/demos/demo_train_pettingzoo.py"],
+      "cwd": "${workspaceFolder}",
+      "initCommands": [
+        "settings set target.source-map /private/var/tmp/_bazel_luskira/8eca0eb41085dfeaddf9ecc625bcd8c7/execroot/_main ${workspaceFolder}/packages/mettagrid"
+      ],
+      "postRunCommands": [
+        "breakpoint set --name PyInit_mettagrid_c --one-shot true --auto-continue true --command 'breakpoint set --name MettaGrid::MettaGrid'",
+        "continue"
+      ],
+      "stopOnEntry": false
+    }
   ],
 }

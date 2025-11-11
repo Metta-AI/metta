@@ -135,6 +135,31 @@ def _run_bazel_build() -> None:
                 dest.unlink()
             shutil.copy2(extension_file, dest)
             print(f"Copied {extension_file} to {dest}")
+            
+            # For debug builds, also copy or generate dSYM bundle (macOS only)
+            if config == "dbg" and sys.platform == "darwin":
+                dsym_src = extension_file.parent / f"{extension_file.name}.dSYM"
+                dsym_dest = src_dir / f"{extension_file.name}.dSYM"
+                
+                # Remove existing dSYM if present
+                if dsym_dest.exists():
+                    shutil.rmtree(dsym_dest)
+                
+                # Try to copy existing dSYM, or generate one
+                if dsym_src.exists() and (dsym_src / "Contents" / "Resources" / "DWARF").exists():
+                    shutil.copytree(dsym_src, dsym_dest)
+                    print(f"Copied dSYM bundle to {dsym_dest}")
+                else:
+                    # Generate dSYM using dsymutil
+                    result = subprocess.run(
+                        ["dsymutil", str(extension_file), "-o", str(dsym_dest)],
+                        capture_output=True,
+                        text=True
+                    )
+                    if result.returncode == 0:
+                        print(f"Generated dSYM bundle at {dsym_dest}")
+                    else:
+                        print(f"Warning: Failed to generate dSYM: {result.stderr}", file=sys.stderr)
 
 
 def _nim_artifacts_up_to_date() -> bool:
