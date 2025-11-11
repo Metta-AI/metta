@@ -28,7 +28,8 @@ public:
   std::set<Assembler*> unclipped_assemblers;
 
   float length_scale;
-  float cutoff_distance;
+  // This is the cutoff distance in units of length_scale. Assemblers further from this will be considered disconnected.
+  uint32_t scaled_cutoff_distance;
   Grid& grid;
   uint32_t clip_period;
   std::mt19937 rng;
@@ -36,12 +37,12 @@ public:
   Clipper(Grid& grid,
           std::vector<std::shared_ptr<Protocol>> protocol_ptrs,
           float length_scale,
-          float cutoff_distance,
+          uint32_t scaled_cutoff_distance,
           uint32_t clip_period,
           std::mt19937 rng_init)
       : unclipping_protocols(std::move(protocol_ptrs)),
         length_scale(length_scale),
-        cutoff_distance(cutoff_distance),
+        scaled_cutoff_distance(scaled_cutoff_distance),
         grid(grid),
         clip_period(clip_period),
         rng(std::move(rng_init)) {
@@ -78,17 +79,12 @@ public:
       // Note: Wikipedia provides a value of ~1.127 when defined in terms of radius,
       // We use diameter basis which becomes 4.51
 
+      // length scale is on the order of 5-6 for machina_1
       constexpr float PERCOLATION_CONSTANT = 4.51f;
       this->length_scale = (grid_size / std::sqrt(static_cast<float>(assembler_infection_weight.size()))) *
                            std::sqrt(PERCOLATION_CONSTANT / (4.0f * std::numbers::pi_v<float>));
     }
     // else: use the provided positive length_scale value as-is
-
-    // Auto-calculate cutoff_distance if not provided (cutoff_distance <= 0)
-    // At 3*length_scale, exp(-3) ≈ 0.05, so weights beyond this are negligible
-    if (cutoff_distance <= 0.0f) {
-      this->cutoff_distance = 3.0f * this->length_scale;
-    }
 
     // This can be expensive, so only do it if the clipper is active. Note that having a Clipper with
     // a zero clip rate is value, since we can still clip assemblers that start clipped.
@@ -103,11 +99,12 @@ public:
   }
 
   uint32_t infection_weight(Assembler& from, Assembler& to) const {
-    float distance = this->distance(from, to);
-    if (cutoff_distance > 0.0f && distance > cutoff_distance) return 0;
-    // The * 1000000.0f is a hack to get us from float to uint32_t, as we move to get rid of floats. We only care
-    // about relative weights, so scaling them linearly (like this) doesn't matter.
-    return static_cast<uint32_t>(std::exp(-distance / length_scale) * 1000000.0f);
+    uint32_t scaled_distance = static_cast<uint32_t>(this->distance(from, to)) / length_scale;
+    if (scaled_distance > scaled_cutoff_distance) return 0;
+    // A cheap rendition of c * exp(-scaled_distance). Note that the value of c doesn't matter, since we only care
+    // about relative weights. So we set c to 2**scaled_cutoff_distance, since that lets us distinguish between
+    // values of scaled_distance up to scaled_cutoff_distance.
+    return 1 << (scaled_cutoff_distance - scaled_distance);
   }
 
   // it's a little funky to use L2 distance here, since everywhere else we use L1 or Linf.
@@ -133,7 +130,7 @@ public:
       return a->location.c < b->location.c;
     });
 
-    // For each assembler, find adjacent assemblers within cutoff_distance
+    // For each assembler, find adjacent assemblers within scaled_cutoff_distance of each other.
     for (size_t i = 0; i < sorted_assemblers.size(); ++i) {
       Assembler* assembler_a = sorted_assemblers[i];
       GridCoord a_x = assembler_a->location.c;
@@ -144,7 +141,7 @@ public:
         GridCoord b_x = assembler_b->location.c;
 
         // If x difference exceeds cutoff_distance, no need to check further
-        if (b_x - a_x > cutoff_distance) {
+        if (b_x - a_x > scaled_cutoff_distance * length_scale) {
           break;
         }
 
@@ -152,7 +149,7 @@ public:
         float dist = distance(*assembler_a, *assembler_b);
 
         // If within cutoff_distance, they are adjacent
-        if (dist <= cutoff_distance) {
+        if (dist <= scaled_cutoff_distance * length_scale) {
           // Add both directions of connection
           adjacent_assemblers[assembler_a].push_back(assembler_b);
           adjacent_assemblers[assembler_b].push_back(assembler_a);
