@@ -1,9 +1,25 @@
 import
   std/[json, random, strformat, math],
   zippy,
-  mettascope/replays, test_replay
+  boxy, windy, opengl,
+  fidget2/[loader, hybridrender],
+  mettascope/[replays, worldmap], test_replay
 
 randomize()
+
+proc initHeadlessFidget2*() =
+  ## Initialize fidget2 in headless mode for testing.
+  ## Sets up minimal state without windows or rendering.
+
+  # Create an invisible fidget2 window
+  let window = newWindow("Headless", ivec2(1, 1), visible = false)
+  makeContextCurrent(window)
+  loadExtensions()
+
+  # Initialize boxy with the atlas, so we can fully test that assets are found for replays.
+  bxy = newBoxy()
+  buildAtlas()
+
 
 const iterations = 1000
 
@@ -125,6 +141,9 @@ proc fuzzReplay(replay: JsonNode): JsonNode =
 
 echo "Starting replay fuzzing with field-level mutations..."
 
+# Initialize fidget2 in headless mode for testing
+initHeadlessFidget2()
+
 # Generate one valid replay to use as base for all fuzzing
 let baseReplay = makeValidReplay("fuzz_test_replay.json.z")
 
@@ -154,9 +173,6 @@ for i in 0 ..< iterations:
     echo &"Iteration {i}: Loading failed: {e.msg}"
     failedCount += 1
 
-  # Progress reporting every 100 iterations
-  if (i + 1) mod 100 == 0:
-    echo &"Progress: {i + 1}/{iterations} iterations completed (passed: {passedCount}, failed: {failedCount})"
 
 echo &"Replay field-level fuzzing completed successfully"
 echo &"Results: {passedCount} passed, {failedCount} failed out of {iterations} iterations"
