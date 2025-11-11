@@ -1,3 +1,4 @@
+import ctypes
 import os
 import sys
 
@@ -11,11 +12,20 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(current_dir, "bindings/generated"))
 
 
+def _import_fast_agents():
+    pointer_backup = ctypes.pointer
+    ctypes.pointer = ctypes.c_void_p
+    try:
+        import fast_agents as fa  # type: ignore import error handled by sys.path above
+    finally:
+        ctypes.pointer = pointer_backup
+    return fa
+
+
 class RandomAgentPolicy(AgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info)
-        import fast_agents as fa  # isort: skip
-
+        fa = _import_fast_agents()
         self._agent = fa.RandomAgent(agent_id, policy_env_info.to_json())
         self._action_names = [action.name for action in policy_env_info.actions.actions()]
 
@@ -55,8 +65,7 @@ class RandomAgentsMultiPolicy(MultiAgentPolicy):
 class ThinkyAgentPolicy(AgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info)
-        import fast_agents as fa  # isort: skip
-
+        fa = _import_fast_agents()
         self._agent = fa.ThinkyAgent(agent_id, policy_env_info.to_json())
         self._action_names = [action.name for action in policy_env_info.actions.actions()]
 
@@ -96,8 +105,7 @@ class ThinkyAgentsMultiPolicy(MultiAgentPolicy):
 class RaceCarAgentPolicy(AgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info)
-        import fast_agents as fa  # isort: skip
-
+        fa = _import_fast_agents()
         self._agent = fa.RaceCarAgent(agent_id, policy_env_info.to_json())
         self._action_names = [action.name for action in policy_env_info.actions.actions()]
 
