@@ -337,7 +337,7 @@ class ClipperConfig(Config):
         description="Maximum distance for infection weight calculations. "
         "If <= 0, automatically set to 3 * length_scale at runtime.",
     )
-    clip_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    clip_period: int = Field(default=0, ge=0)
 
 
 AnyGridObjectConfig = SerializeAsAny[

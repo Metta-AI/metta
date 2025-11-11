@@ -104,7 +104,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
                                          clipper_cfg.unclipping_protocols,
                                          clipper_cfg.length_scale,
                                          clipper_cfg.cutoff_distance,
-                                         clipper_cfg.clip_rate,
+                                         clipper_cfg.clip_period,
                                          _rng);
   }
 }
