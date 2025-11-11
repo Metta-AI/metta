@@ -109,12 +109,6 @@ class Simulation:
     def observations(self) -> list[AgentObservation]:
         return [self.agent(agent_id).observation for agent_id in range(self.num_agents)]
 
-    def raw_observations(self) -> np.ndarray:
-        return self.__c_sim.observations()
-
-    def raw_actions(self) -> np.ndarray:
-        return self.__c_sim.actions()
-
     def is_done(self) -> bool:
         return bool(self.__c_sim.truncations().all() or self.__c_sim.terminals().all())
 
@@ -331,8 +325,8 @@ class SimulationAgent:
     @property
     def observation(self) -> AgentObservation:
         tokens = []
-        agent_obs = self._sim._c_sim.observations()[self._agent_id]
-        for o in agent_obs:
+        raw_obs = self._sim._c_sim.observations()[self._agent_id]
+        for o in raw_obs:
             (location, feature_id, value) = o
             if feature_id == 0xFF:
                 break
@@ -344,7 +338,7 @@ class SimulationAgent:
                     raw_token=o,
                 )
             )
-        return AgentObservation(agent_id=self._agent_id, tokens=tokens)
+        return AgentObservation(agent_id=self._agent_id, tokens=tokens, raw_observation=raw_obs)
 
     @property
     def step_reward(self) -> float:

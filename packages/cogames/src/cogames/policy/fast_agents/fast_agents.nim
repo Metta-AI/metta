@@ -13,7 +13,8 @@ exportRefObject RandomAgent:
     agentId
   procs:
     reset(RandomAgent)
-    step(RandomAgent, int, int, int, pointer, int, pointer)
+    stepBatch(RandomAgent, int, int, int, pointer, int, pointer)
+    step(RandomAgent, int, int, pointer)
 
 exportRefObject ThinkyAgent:
   constructor:
@@ -22,7 +23,8 @@ exportRefObject ThinkyAgent:
     agentId
   procs:
     reset(ThinkyAgent)
-    step(ThinkyAgent, int, int, int, pointer, int, pointer)
+    stepBatch(ThinkyAgent, int, int, int, pointer, int, pointer)
+    step(ThinkyAgent, int, int, pointer)
 
 exportRefObject RaceCarAgent:
   constructor:
@@ -31,7 +33,8 @@ exportRefObject RaceCarAgent:
     agentId
   procs:
     reset(RaceCarAgent)
-    step(RaceCarAgent, int, int, int, pointer, int, pointer)
+    stepBatch(RaceCarAgent, int, int, int, pointer, int, pointer)
+    step(RaceCarAgent, int, int, pointer)
 
 writeFiles("bindings/generated", "FastAgents")
 

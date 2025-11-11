@@ -6,7 +6,7 @@ import numpy as np
 
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator import Simulation
+from mettagrid.simulator import Action, AgentObservation, Simulation
 
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -17,13 +17,12 @@ class RandomAgentPolicy(AgentPolicy):
 
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info)
-        self.uses_raw_numpy = True
         import fast_agents as fa # Lint wants it here...
         self._agent = fa.RandomAgent(agent_id, policy_env_info.to_json())
+        self._action_names = [action.name for action in policy_env_info.actions.actions()]
 
-    def step(self, raw_observations: np.ndarray, raw_actions: np.ndarray):
-        # Pass everything to the Nim agent.
-        self._agent.step(
+    def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
+        self._agent.step_batch(
             num_agents=raw_observations.shape[0],
             num_tokens=raw_observations.shape[1],
             size_token=raw_observations.shape[2],
@@ -31,6 +30,17 @@ class RandomAgentPolicy(AgentPolicy):
             num_actions=raw_actions.shape[0],
             raw_actions=raw_actions.ctypes.data,
         )
+
+    def step(self, obs: AgentObservation) -> Action:
+        if obs.raw_observation is None:
+            raise ValueError("Nim agents require raw observation buffers.")
+        raw = obs.raw_observation
+        action_index = self._agent.step(
+            num_tokens=raw.shape[0],
+            size_token=raw.shape[1],
+            raw_observation=raw.ctypes.data,
+        )
+        return Action(name=self._action_names[action_index])
 
     def reset(self, simulation: Simulation = None) -> None:
         self._agent.reset()
@@ -47,13 +57,12 @@ class RandomAgentsMultiPolicy(MultiAgentPolicy):
 class ThinkyAgentPolicy(AgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info)
-        self.uses_raw_numpy = True
         import fast_agents as fa # Lint wants it here...
         self._agent = fa.ThinkyAgent(agent_id, policy_env_info.to_json())
+        self._action_names = [action.name for action in policy_env_info.actions.actions()]
 
-    def step(self, raw_observations: np.ndarray, raw_actions: np.ndarray):
-        # Pass everything to the Nim agent.
-        self._agent.step(
+    def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
+        self._agent.step_batch(
             num_agents=raw_observations.shape[0],
             num_tokens=raw_observations.shape[1],
             size_token=raw_observations.shape[2],
@@ -61,6 +70,17 @@ class ThinkyAgentPolicy(AgentPolicy):
             num_actions=raw_actions.shape[0],
             raw_actions=raw_actions.ctypes.data,
         )
+
+    def step(self, obs: AgentObservation) -> Action:
+        if obs.raw_observation is None:
+            raise ValueError("Nim agents require raw observation buffers.")
+        raw = obs.raw_observation
+        action_index = self._agent.step(
+            num_tokens=raw.shape[0],
+            size_token=raw.shape[1],
+            raw_observation=raw.ctypes.data,
+        )
+        return Action(name=self._action_names[action_index])
 
     def reset(self, simulation: Simulation = None) -> None:
         self._agent.reset()
@@ -77,13 +97,12 @@ class ThinkyAgentsMultiPolicy(MultiAgentPolicy):
 class RaceCarAgentPolicy(AgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info)
-        self.uses_raw_numpy = True
         import fast_agents as fa # Lint wants it here...
         self._agent = fa.RaceCarAgent(agent_id, policy_env_info.to_json())
+        self._action_names = [action.name for action in policy_env_info.actions.actions()]
 
-    def step(self, raw_observations: np.ndarray, raw_actions: np.ndarray):
-        # Pass everything to the Nim agent.
-        self._agent.step(
+    def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
+        self._agent.step_batch(
             num_agents=raw_observations.shape[0],
             num_tokens=raw_observations.shape[1],
             size_token=raw_observations.shape[2],
@@ -91,6 +110,17 @@ class RaceCarAgentPolicy(AgentPolicy):
             num_actions=raw_actions.shape[0],
             raw_actions=raw_actions.ctypes.data,
         )
+
+    def step(self, obs: AgentObservation) -> Action:
+        if obs.raw_observation is None:
+            raise ValueError("Nim agents require raw observation buffers.")
+        raw = obs.raw_observation
+        action_index = self._agent.step(
+            num_tokens=raw.shape[0],
+            size_token=raw.shape[1],
+            raw_observation=raw.ctypes.data,
+        )
+        return Action(name=self._action_names[action_index])
 
     def reset(self, simulation: Simulation = None) -> None:
         self._agent.reset()
