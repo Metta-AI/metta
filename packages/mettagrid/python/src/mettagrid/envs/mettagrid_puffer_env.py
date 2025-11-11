@@ -173,16 +173,20 @@ class MettaGridPufferEnv(PufferEnv):
         )
 
     def _compute_supervisor_actions(self) -> None:
-        teacher_actions = np.array(
-            [
-                self._sim.action_names.index(
-                    self._env_supervisor_agent_policies[agent_id].step(self._sim.agents()[agent_id].observation).name
-                )
-                for agent_id in range(self._current_cfg.game.num_agents)
-            ],
-            dtype=dtype_actions,
-        )
-        self._buffers.teacher_actions[:] = np.array(teacher_actions, dtype=dtype_actions)
+        action_ids = self._sim.action_ids
+        raw_observations = self._sim.raw_observations()
+        teacher_actions = self._buffers.teacher_actions
+        teacher_actions.fill(0)
+
+        for agent_id, agent_policy in enumerate(self._env_supervisor_agent_policies):
+            action = agent_policy.step_batch(
+                agent_id=agent_id,
+                simulation=self._sim,
+                raw_observations=raw_observations,
+                raw_actions=teacher_actions,
+            )
+            if action is not None:
+                teacher_actions[agent_id] = action_ids[action.name]
 
     @property
     def observations(self) -> np.ndarray:
