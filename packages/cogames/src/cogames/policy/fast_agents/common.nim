@@ -4,11 +4,11 @@ import
   jsony
 
 when defined(fast_agents_verbose):
-  template agentLog*(args: varargs[string, `$`]) =
+  template echo*(args: varargs[string, `$`]) =
     ## Emit verbose logs when fast_agents_verbose is enabled.
-    echo args
+    system.echo args
 else:
-  template agentLog*(args: varargs[string, `$`]) =
+  template echo*(args: varargs[string, `$`]) =
     ## Suppress fast agent logs by default.
     discard
 
@@ -153,12 +153,12 @@ const spiral* = generateSpiral(1000)
 
 proc ctrlCHandler*() {.noconv.} =
   ## Handle ctrl-c signal to exit cleanly.
-  agentLog "\nNim DLL caught ctrl-c, exiting..."
+  echo "\nNim DLL caught ctrl-c, exiting..."
   quit(0)
 
 proc initCHook*() =
   setControlCHook(ctrlCHandler)
-  agentLog "FastAgents initialized"
+  echo "FastAgents initialized"
 
 proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
   try:
@@ -220,7 +220,7 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
       of "inv:scrambler":
         result.features.invScrambler = feature.id
       else:
-        agentLog "Unknown feature: ", feature.name
+        echo "Unknown feature: ", feature.name
 
     for id, name in config.actions:
       case name:
@@ -283,7 +283,7 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
         discard
 
   except JsonError, ValueError:
-    agentLog "Error parsing environment config: ", getCurrentExceptionMsg()
+    echo "Error parsing environment config: ", getCurrentExceptionMsg()
 
 proc computeMapBounds*(map: Table[Location, seq[FeatureValue]]): MapBounds =
   ## Compute the bounds of the map.
@@ -308,7 +308,7 @@ proc drawMap*(cfg: Config, map: Table[Location, seq[FeatureValue]], seen: HashSe
   for x in bounds.minX .. bounds.maxX:
     line.add "--"
   line.add "+"
-  agentLog line
+  echo line
   for y in bounds.minY .. bounds.maxY:
     line = "|"
     for x in bounds.minX .. bounds.maxX:
@@ -353,12 +353,12 @@ proc drawMap*(cfg: Config, map: Table[Location, seq[FeatureValue]], seen: HashSe
               cell = &"{featureValue.value:2d}"
       line.add cell
     line.add "|"
-    agentLog line
+    echo line
   line = "+"
   for x in bounds.minX .. bounds.maxX:
     line.add "--"
   line.add "+"
-  agentLog line
+  echo line
 
 proc getTag*(cfg: Config, map: Table[Location, seq[FeatureValue]], location: Location): int =
   ## Get the type id of the location in the map.
@@ -440,22 +440,22 @@ proc getNearbyUnseen*(
 
 proc simpleGoTo*(cfg: Config, currentLocation: Location, targetLocation: Location): int =
   ## Navigate to the given location.
-  agentLog "currentLocation: ", currentLocation.x, ", ", currentLocation.y
-  agentLog "targetLocation: ", targetLocation.x, ", ", targetLocation.y
+  echo "currentLocation: ", currentLocation.x, ", ", currentLocation.y
+  echo "targetLocation: ", targetLocation.x, ", ", targetLocation.y
   if currentLocation.x < targetLocation.x:
-    agentLog "moving east"
+    echo "moving east"
     return cfg.actions.moveEast
   elif currentLocation.x > targetLocation.x:
-    agentLog "moving west"
+    echo "moving west"
     return cfg.actions.moveWest
   elif currentLocation.y < targetLocation.y:
-    agentLog "moving south"
+    echo "moving south"
     return cfg.actions.moveSouth
   elif currentLocation.y > targetLocation.y:
-    agentLog "moving north"
+    echo "moving north"
     return cfg.actions.moveNorth
   else:
-    agentLog "no action"
+    echo "no action"
     return cfg.actions.noop
 
 proc isWalkable*(cfg: Config, map: Table[Location, seq[FeatureValue]], loc: Location): bool =

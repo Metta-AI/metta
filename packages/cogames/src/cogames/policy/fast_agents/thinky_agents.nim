@@ -259,8 +259,8 @@ proc thinkyStepInternal(
     #echo "taking random action ", action
 
   except:
-    agentLog getCurrentException().getStackTrace()
-    agentLog getCurrentExceptionMsg()
+    echo getCurrentException().getStackTrace()
+    echo getCurrentExceptionMsg()
     quit()
 
 proc stepBatch*(
