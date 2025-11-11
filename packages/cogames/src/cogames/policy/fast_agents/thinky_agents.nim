@@ -114,9 +114,10 @@ proc thinkyStepInternal(
 
     var map: Table[Location, seq[FeatureValue]]
     for token in 0 ..< numTokens:
-      let locationPacked = observations[token * sizeToken + agent.agentId * numTokens * sizeToken]
-      let featureId = observations[token * sizeToken + agent.agentId * numTokens * sizeToken + 1]
-      let value = observations[token * sizeToken + agent.agentId * numTokens * sizeToken + 2]
+      let baseIdx = token * sizeToken
+      let locationPacked = observations[baseIdx]
+      let featureId = observations[baseIdx + 1]
+      let value = observations[baseIdx + 2]
       if locationPacked == 255 and featureId == 255 and value == 255:
         break
       var location: Location
@@ -151,11 +152,9 @@ proc thinkyStepInternal(
 
     #echo &"H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
 
-    let actions = cast[ptr UncheckedArray[int32]](rawActions)
-
     # If not vibing here at heart then vibe heart.
     if vibe != agent.cfg.vibes.heart:
-      actions[agent.agentId] = agent.cfg.actions.vibeHeart.int32
+      actions[actionIndex] = agent.cfg.actions.vibeHeart.int32
       #echo "vibing heart"
       return
 
@@ -164,7 +163,7 @@ proc thinkyStepInternal(
     if invEnergy < 100 and chargerNearby.isSome():
       let action = agent.cfg.aStar(agent.location, chargerNearby.get(), agent.map)
       if action.isSome():
-        actions[agent.agentId] = action.get().int32
+        actions[actionIndex] = action.get().int32
         #echo "going to charger"
         return
 
@@ -182,7 +181,7 @@ proc thinkyStepInternal(
         if location notin agent.seen:
           let action = agent.cfg.aStar(agent.location, location, agent.map)
           if action.isSome():
-            actions[agent.agentId] = action.get().int32
+            actions[actionIndex] = action.get().int32
             #echo "going to key location to explore"
             return
 
@@ -191,7 +190,7 @@ proc thinkyStepInternal(
     if invCarbon == 0 and carbonNearby.isSome():
       let action = agent.cfg.aStar(agent.location, carbonNearby.get(), agent.map)
       if action.isSome():
-        actions[agent.agentId] = action.get().int32
+        actions[actionIndex] = action.get().int32
         #echo "going to carbon"
         return
 
@@ -200,7 +199,7 @@ proc thinkyStepInternal(
     if invOxygen == 0 and oxygenNearby.isSome():
       let action = agent.cfg.aStar(agent.location, oxygenNearby.get(), agent.map)
       if action.isSome():
-        actions[agent.agentId] = action.get().int32
+        actions[actionIndex] = action.get().int32
         #echo "going to oxygen"
         return
 
@@ -209,7 +208,7 @@ proc thinkyStepInternal(
     if invGermanium == 0 and germaniumNearby.isSome():
       let action = agent.cfg.aStar(agent.location, germaniumNearby.get(), agent.map)
       if action.isSome():
-        actions[agent.agentId] = action.get().int32
+        actions[actionIndex] = action.get().int32
         #echo "going to germanium"
         return
 
@@ -218,7 +217,7 @@ proc thinkyStepInternal(
     if invSilicon == 0 and siliconNearby.isSome():
       let action = agent.cfg.aStar(agent.location, siliconNearby.get(), agent.map)
       if action.isSome():
-        actions[agent.agentId] = action.get().int32
+        actions[actionIndex] = action.get().int32
         #echo "going to silicon"
         return
 
@@ -228,7 +227,7 @@ proc thinkyStepInternal(
       if assemblerNearby.isSome():
         let action = agent.cfg.aStar(agent.location, assemblerNearby.get(), agent.map)
         if action.isSome():
-          actions[agent.agentId] = action.get().int32
+          actions[actionIndex] = action.get().int32
           #echo "going to assembler to build heart"
           return
 
@@ -237,7 +236,7 @@ proc thinkyStepInternal(
     if unseenNearby.isSome():
       let action = agent.cfg.aStar(agent.location, unseenNearby.get(), agent.map)
       if action.isSome():
-        actions[agent.agentId] = action.get().int32
+        actions[actionIndex] = action.get().int32
         #echo "going to unseen location nearest to agent"
         return
 
@@ -250,16 +249,49 @@ proc thinkyStepInternal(
     #     echo "unseen nearby"
     #     let action = agent.cfg.aStar(agent.location, unseenNearby.get(), agent.map)
     #     if action.isSome():
-    #       actions[agent.agentId] = action.get().int32
+    #       actions[actionIndex] = action.get().int32
     #       echo "going to unseen location"
     #       return
 
     # If all else fails, take a random move to explore the map or get unstuck.
     let action = agent.random.rand(1 .. 4).int32
-    actions[agent.agentId] = action
+    actions[actionIndex] = action
     #echo "taking random action ", action
 
   except:
     echo getCurrentException().getStackTrace()
     echo getCurrentExceptionMsg()
     quit()
+
+proc stepBatch*(
+  agent: ThinkyAgent,
+  numAgents: int,
+  numTokens: int,
+  sizeToken: int,
+  rawObservations: pointer,
+  numActions: int,
+  rawActions: pointer
+) {.raises: [].} =
+  discard numAgents
+  discard numActions
+  let observations = cast[ptr UncheckedArray[uint8]](rawObservations)
+  let actions = cast[ptr UncheckedArray[int32]](rawActions)
+  let agentObservation = cast[pointer](observations[agent.agentId * numTokens * sizeToken].addr)
+  thinkyStepInternal(agent, numTokens, sizeToken, agentObservation, actions, agent.agentId)
+
+proc step*(
+  agent: ThinkyAgent,
+  numTokens: int,
+  sizeToken: int,
+  rawObservation: pointer
+): int32 {.raises: [].} =
+  var singleAction: array[1, int32]
+  thinkyStepInternal(
+    agent,
+    numTokens,
+    sizeToken,
+    rawObservation,
+    cast[ptr UncheckedArray[int32]](singleAction[0].addr),
+    0,
+  )
+  return singleAction[0]

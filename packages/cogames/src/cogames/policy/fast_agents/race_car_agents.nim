@@ -99,14 +99,13 @@ proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]])
           agent.map[location] = @[]
         agent.seen.incl(location)
 
-proc step*(
+proc raceCarStepInternal(
   agent: RaceCarAgent,
-  numAgents: int,
   numTokens: int,
   sizeToken: int,
-  rawObservations: pointer,
-  numActions: int,
-  rawActions: pointer
+  rawObservation: pointer,
+  actions: ptr UncheckedArray[int32],
+  actionIndex: int
 ) {.raises: [].} =
   try:
     echo "Driving race car agent ", agent.agentId
@@ -114,13 +113,13 @@ proc step*(
     # echo "  numTokens", numTokens
     # echo "  sizeToken", sizeToken
     # echo "  numActions", numActions
-    let observations = cast[ptr UncheckedArray[uint8]](rawObservations)
+    let observations = cast[ptr UncheckedArray[uint8]](rawObservation)
 
     var map: Table[Location, seq[FeatureValue]]
     for token in 0 ..< numTokens:
-      let locationPacked = observations[token * sizeToken + agent.agentId * numTokens * sizeToken]
-      let featureId = observations[token * sizeToken + agent.agentId * numTokens * sizeToken + 1]
-      let value = observations[token * sizeToken + agent.agentId * numTokens * sizeToken + 2]
+      let locationPacked = observations[token * sizeToken]
+      let featureId = observations[token * sizeToken + 1]
+      let value = observations[token * sizeToken + 2]
       if locationPacked == 255 and featureId == 255 and value == 255:
         break
       var location: Location
@@ -155,12 +154,44 @@ proc step*(
 
     echo &"H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
 
-    let actions = cast[ptr UncheckedArray[int32]](rawActions)
     let action = agent.random.rand(1 .. 4).int32
-    actions[agent.agentId] = action
+    actions[actionIndex] = action
     echo "taking action ", action
 
   except:
     echo getCurrentException().getStackTrace()
     echo getCurrentExceptionMsg()
     quit()
+
+proc stepBatch*(
+  agent: RaceCarAgent,
+  numAgents: int,
+  numTokens: int,
+  sizeToken: int,
+  rawObservations: pointer,
+  numActions: int,
+  rawActions: pointer
+) {.raises: [].} =
+  discard numAgents
+  discard numActions
+  let observations = cast[ptr UncheckedArray[uint8]](rawObservations)
+  let actions = cast[ptr UncheckedArray[int32]](rawActions)
+  let agentObservation = cast[pointer](observations[agent.agentId * numTokens * sizeToken].addr)
+  raceCarStepInternal(agent, numTokens, sizeToken, agentObservation, actions, agent.agentId)
+
+proc step*(
+  agent: RaceCarAgent,
+  numTokens: int,
+  sizeToken: int,
+  rawObservation: pointer
+): int32 {.raises: [].} =
+  var singleAction: array[1, int32]
+  raceCarStepInternal(
+    agent,
+    numTokens,
+    sizeToken,
+    rawObservation,
+    cast[ptr UncheckedArray[int32]](singleAction[0].addr),
+    0,
+  )
+  return singleAction[0]
