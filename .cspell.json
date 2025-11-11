@@ -138,6 +138,7 @@
     "iosfwd",
     "ipcs",
     "isinstance",
+    "ispkg",
     "issubdtype",
     "jmespath",
     "keepalive",
