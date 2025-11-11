@@ -331,8 +331,8 @@ class SimulationAgent:
     @property
     def observation(self) -> AgentObservation:
         tokens = []
-        raw_obs = self._sim._c_sim.observations()[self._agent_id]
-        for o in raw_obs:
+        agent_obs = self._sim._c_sim.observations()[self._agent_id]
+        for o in agent_obs:
             (location, feature_id, value) = o
             if feature_id == 0xFF:
                 break

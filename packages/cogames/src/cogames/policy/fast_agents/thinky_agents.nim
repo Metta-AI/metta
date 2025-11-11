@@ -100,22 +100,17 @@ proc updateMap(agent: ThinkyAgent, visible: Table[Location, seq[FeatureValue]]) 
           agent.map[location] = @[]
         agent.seen.incl(location)
 
-proc step*(
+proc thinkyStepInternal(
   agent: ThinkyAgent,
-  numAgents: int,
   numTokens: int,
   sizeToken: int,
-  rawObservations: pointer,
-  numActions: int,
-  rawActions: pointer
+  rawObservation: pointer,
+  actions: ptr UncheckedArray[int32],
+  actionIndex: int
 ) {.raises: [].} =
   try:
     # echo "Thinking heuristic agent ", agent.agentId
-    # echo "  numAgents", numAgents
-    # echo "  numTokens", numTokens
-    # echo "  sizeToken", sizeToken
-    # echo "  numActions", numActions
-    let observations = cast[ptr UncheckedArray[uint8]](rawObservations)
+    let observations = cast[ptr UncheckedArray[uint8]](rawObservation)
 
     var map: Table[Location, seq[FeatureValue]]
     for token in 0 ..< numTokens:
