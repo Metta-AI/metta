@@ -1,4 +1,3 @@
-import ctypes
 import os
 import sys
 
@@ -21,26 +20,23 @@ class RandomAgentPolicy(AgentPolicy):
         self._action_names = [action.name for action in policy_env_info.actions.actions()]
 
     def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
-        obs_ptr = raw_observations.ctypes.data_as(ctypes.c_void_p)
-        action_ptr = raw_actions.ctypes.data_as(ctypes.c_void_p)
         self._agent.step_batch(
             num_agents=raw_observations.shape[0],
             num_tokens=raw_observations.shape[1],
             size_token=raw_observations.shape[2],
-            raw_observations=obs_ptr,
+            raw_observations=raw_observations.ctypes.data,
             num_actions=raw_actions.shape[0],
-            raw_actions=action_ptr,
+            raw_actions=raw_actions.ctypes.data,
         )
 
     def step(self, obs: AgentObservation) -> Action:
         if obs.raw_observation is None:
             raise ValueError("Nim agents require raw observation buffers.")
         raw = obs.raw_observation
-        obs_ptr = raw.ctypes.data_as(ctypes.c_void_p)
         action_index = self._agent.step(
             num_tokens=raw.shape[0],
             size_token=raw.shape[1],
-            raw_observation=obs_ptr,
+            raw_observation=raw.ctypes.data,
         )
         return Action(name=self._action_names[action_index])
 
@@ -65,26 +61,23 @@ class ThinkyAgentPolicy(AgentPolicy):
         self._action_names = [action.name for action in policy_env_info.actions.actions()]
 
     def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
-        obs_ptr = raw_observations.ctypes.data_as(ctypes.c_void_p)
-        action_ptr = raw_actions.ctypes.data_as(ctypes.c_void_p)
         self._agent.step_batch(
             num_agents=raw_observations.shape[0],
             num_tokens=raw_observations.shape[1],
             size_token=raw_observations.shape[2],
-            raw_observations=obs_ptr,
+            raw_observations=raw_observations.ctypes.data,
             num_actions=raw_actions.shape[0],
-            raw_actions=action_ptr,
+            raw_actions=raw_actions.ctypes.data,
         )
 
     def step(self, obs: AgentObservation) -> Action:
         if obs.raw_observation is None:
             raise ValueError("Nim agents require raw observation buffers.")
         raw = obs.raw_observation
-        obs_ptr = raw.ctypes.data_as(ctypes.c_void_p)
         action_index = self._agent.step(
             num_tokens=raw.shape[0],
             size_token=raw.shape[1],
-            raw_observation=obs_ptr,
+            raw_observation=raw.ctypes.data,
         )
         return Action(name=self._action_names[action_index])
 
@@ -109,26 +102,23 @@ class RaceCarAgentPolicy(AgentPolicy):
         self._action_names = [action.name for action in policy_env_info.actions.actions()]
 
     def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
-        obs_ptr = raw_observations.ctypes.data_as(ctypes.c_void_p)
-        action_ptr = raw_actions.ctypes.data_as(ctypes.c_void_p)
         self._agent.step_batch(
             num_agents=raw_observations.shape[0],
             num_tokens=raw_observations.shape[1],
             size_token=raw_observations.shape[2],
-            raw_observations=obs_ptr,
+            raw_observations=raw_observations.ctypes.data,
             num_actions=raw_actions.shape[0],
-            raw_actions=action_ptr,
+            raw_actions=raw_actions.ctypes.data,
         )
 
     def step(self, obs: AgentObservation) -> Action:
         if obs.raw_observation is None:
             raise ValueError("Nim agents require raw observation buffers.")
         raw = obs.raw_observation
-        obs_ptr = raw.ctypes.data_as(ctypes.c_void_p)
         action_index = self._agent.step(
             num_tokens=raw.shape[0],
             size_token=raw.shape[1],
-            raw_observation=obs_ptr,
+            raw_observation=raw.ctypes.data,
         )
         return Action(name=self._action_names[action_index])
 
