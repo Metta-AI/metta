@@ -13,40 +13,34 @@
 
 class ObservationEncoder {
 public:
-  explicit ObservationEncoder(size_t resource_count,
-                              bool protocol_details_obs = false,
-                              const std::vector<std::string>* resource_names = nullptr,
-                              const std::unordered_map<std::string, ObservationType>* feature_ids = nullptr)
-      : protocol_details_obs(protocol_details_obs), resource_count(resource_count) {
+  explicit ObservationEncoder(bool protocol_details_obs,
+                              const std::vector<std::string>& resource_names,
+                              const std::unordered_map<std::string, ObservationType>& feature_ids)
+      : protocol_details_obs(protocol_details_obs), resource_count(resource_names.size()) {
     // Build feature ID maps for protocol details if enabled
     if (protocol_details_obs) {
-      if (resource_names && feature_ids && !resource_names->empty()) {
-        // Build maps from resource_id -> feature_id for both input and output
-        _input_feature_ids.resize(resource_names->size());
-        _output_feature_ids.resize(resource_names->size());
+      // Build maps from resource_id -> feature_id for both input and output
+      _input_feature_ids.resize(resource_names.size());
+      _output_feature_ids.resize(resource_names.size());
 
-        for (size_t i = 0; i < resource_names->size(); ++i) {
-          const std::string& resource_name = (*resource_names)[i];
+      for (size_t i = 0; i < resource_names.size(); ++i) {
+        const std::string& resource_name = resource_names[i];
 
-          // Look up input feature ID
-          auto input_it = feature_ids->find("input:" + resource_name);
-          if (input_it != feature_ids->end()) {
-            _input_feature_ids[i] = input_it->second;
-          } else {
-            throw std::runtime_error("Protocol input feature 'input:" + resource_name + "' not found in feature_ids");
-          }
-
-          // Look up output feature ID
-          auto output_it = feature_ids->find("output:" + resource_name);
-          if (output_it != feature_ids->end()) {
-            _output_feature_ids[i] = output_it->second;
-          } else {
-            throw std::runtime_error("Protocol output feature 'output:" + resource_name + "' not found in feature_ids");
-          }
+        // Look up input feature ID
+        auto input_it = feature_ids.find("input:" + resource_name);
+        if (input_it != feature_ids.end()) {
+          _input_feature_ids[i] = input_it->second;
+        } else {
+          throw std::runtime_error("Protocol input feature 'input:" + resource_name + "' not found in feature_ids");
         }
-      } else {
-        throw std::runtime_error(
-            "ObservationEncoder with protocol_details_obs requires resource_names and feature_ids");
+
+        // Look up output feature ID
+        auto output_it = feature_ids.find("output:" + resource_name);
+        if (output_it != feature_ids.end()) {
+          _output_feature_ids[i] = output_it->second;
+        } else {
+          throw std::runtime_error("Protocol output feature 'output:" + resource_name + "' not found in feature_ids");
+        }
       }
     }
   }
