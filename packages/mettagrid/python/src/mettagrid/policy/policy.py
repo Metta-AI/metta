@@ -25,15 +25,10 @@ class AgentPolicy:
 
     def __init__(self, policy_env_info: PolicyEnvInterface):
         self._policy_env_info = policy_env_info
-        self._uses_raw_numpy = False
 
     @property
     def policy_env_info(self) -> PolicyEnvInterface:
         return self._policy_env_info
-
-    @property
-    def uses_raw_numpy(self) -> bool:
-        return self._uses_raw_numpy
 
     def step(self, obs: AgentObservation) -> Action:
         """Get action given an observation.

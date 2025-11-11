@@ -27,7 +27,6 @@ def _import_fast_agents():
 class _FastAgentPolicyBase(AgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface):
         super().__init__(policy_env_info)
-        self._uses_raw_numpy = True
         obs_shape = policy_env_info.observation_space.shape
         self._num_tokens = obs_shape[0]
         self._token_dim = obs_shape[1]
@@ -108,12 +107,17 @@ class ThinkyAgentPolicy(_FastAgentPolicyBase):
         )
 
     def step(self, obs: AgentObservation) -> Action:
-        raw = np.ascontiguousarray(self._pack_raw_observation(obs))
-        action_index = self._agent.step(
-            num_tokens=raw.shape[0],
-            size_token=raw.shape[1],
-            raw_observation=raw.ctypes.data,
+        raw_batch = np.ascontiguousarray(self._pack_raw_observation(obs))
+        self._single_actions.fill(0)
+        self._agent.step_batch(
+            num_agents=1,
+            num_tokens=self._num_tokens,
+            size_token=self._token_dim,
+            raw_observations=raw_batch.ctypes.data,
+            num_actions=1,
+            raw_actions=self._single_actions.ctypes.data,
         )
+        action_index = int(self._single_actions[0])
         return Action(name=self._action_names[action_index])
 
     def reset(self, simulation: Simulation = None) -> None:
@@ -148,12 +152,17 @@ class RaceCarAgentPolicy(_FastAgentPolicyBase):
         )
 
     def step(self, obs: AgentObservation) -> Action:
-        raw = np.ascontiguousarray(self._pack_raw_observation(obs))
-        action_index = self._agent.step(
-            num_tokens=raw.shape[0],
-            size_token=raw.shape[1],
-            raw_observation=raw.ctypes.data,
+        raw_batch = np.ascontiguousarray(self._pack_raw_observation(obs))
+        self._single_actions.fill(0)
+        self._agent.step_batch(
+            num_agents=1,
+            num_tokens=self._num_tokens,
+            size_token=self._token_dim,
+            raw_observations=raw_batch.ctypes.data,
+            num_actions=1,
+            raw_actions=self._single_actions.ctypes.data,
         )
+        action_index = int(self._single_actions[0])
         return Action(name=self._action_names[action_index])
 
     def reset(self, simulation: Simulation = None) -> None:
