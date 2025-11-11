@@ -265,6 +265,10 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_assembler_config.exhaustion = object_config.exhaustion
             cpp_assembler_config.clip_immune = object_config.clip_immune
             cpp_assembler_config.start_clipped = object_config.start_clipped
+            # Older compiled extensions may not expose protocol_details_obs on AssemblerConfig.
+            # Guard to maintain compatibility across versions.
+            if hasattr(cpp_assembler_config, "protocol_details_obs"):
+                cpp_assembler_config.protocol_details_obs = game_config.protocol_details_obs
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_assembler_config
         elif isinstance(object_config, ChestConfig):
@@ -447,9 +451,12 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             }
             cpp_protocol.cooldown = protocol_config.cooldown
             clipper_protocols.append(cpp_protocol)
-        game_cpp_params["clipper"] = CppClipperConfig(
-            clipper_protocols, clipper.length_scale, clipper.cutoff_distance, clipper.clip_period
-        )
+        clipper_config = CppClipperConfig()
+        clipper_config.unclipping_protocols = clipper_protocols
+        clipper_config.length_scale = clipper.length_scale
+        clipper_config.scaled_cutoff_distance = clipper.scaled_cutoff_distance
+        clipper_config.clip_period = clipper.clip_period
+        game_cpp_params["clipper"] = clipper_config
 
     # Add tag mappings for C++ debugging/display
     game_cpp_params["tag_id_map"] = tag_id_to_name

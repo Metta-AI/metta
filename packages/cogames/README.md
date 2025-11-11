@@ -61,7 +61,7 @@ To specify a `MISSION`, you can:
 To specify a `POLICY`, provide an argument with up to three parts `CLASS[:DATA][:PROPORTION]`:
 
 - `CLASS`: Policy shorthand (`noop`, `random`, `lstm`, `stateless`) or fully qualified class path like
-  `cogames.policy.random.RandomPolicy`.
+  `cogames.policy.random.RandomPolicy`. Use `cogames policies` to see a full list of default policies.
 - `DATA`: Optional path to a weights file or directory. When omitted, defaults to the policy's built-in weights.
 - `PROPORTION`: Optional positive float specifying the relative share of agents that use this policy (default: 1.0).
 
@@ -231,6 +231,10 @@ You will be able to provide your specified `--output` path as the `MISSION` argu
 ### `cogames version`
 
 Show version info for mettagrid, pufferlib-core, and cogames.
+
+### `cogames policies`
+
+Shows a list of default policies available to you, and the shorthands with which you can use them.
 
 ## Citation
 
