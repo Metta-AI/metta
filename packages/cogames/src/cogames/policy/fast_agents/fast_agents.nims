@@ -1,11 +1,11 @@
 switch("app", "lib")
 switch("tlsEmulation", "off")
 when defined(windows):
-  switch("out", "heuristic_agents.dll")
+  switch("out", "fast_agents.dll")
 elif defined(macosx):
-  switch("out", "libheuristic_agents.dylib")
+  switch("out", "libfast_agents.dylib")
 else:
-  switch("out", "libheuristic_agents.so")
+  switch("out", "libfast_agents.so")
 switch("outdir", "bindings/generated")
 
 --define:gennyPython

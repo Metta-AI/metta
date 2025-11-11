@@ -19,9 +19,9 @@ from setuptools.command.install import install
 
 def _build_nim() -> None:
     # Run the Nim build script
-    # > nim c heuristic_agents.nim
-    path = Path(__file__).parent / "src" / "cogames" / "policy" / "heuristic_agents"
-    result = subprocess.run(["nim", "c", "heuristic_agents.nim"], cwd=path, capture_output=True, text=True)
+    # > nim c fast_agents.nim
+    path = Path(__file__).parent / "src" / "cogames" / "policy" / "fast_agents"
+    result = subprocess.run(["nim", "c", "fast_agents.nim"], cwd=path, capture_output=True, text=True)
     if result.returncode != 0:
         print(result.stderr, file=sys.stderr)
         print(result.stdout, file=sys.stderr)
