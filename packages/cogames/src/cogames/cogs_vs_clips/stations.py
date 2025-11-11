@@ -174,7 +174,9 @@ class CvCChestConfig(CvCStationConfig):
 
 
 class CvCAssemblerConfig(CvCStationConfig):
-    heart_cost: int = Field(default=10)
+    # These could be "fixed_cost" and "variable_cost" instead, but we're more likely to want to read them like this.
+    first_heart_cost: int = Field(default=10)
+    additional_heart_cost: int = Field(default=5)
 
     def station_cfg(self) -> AssemblerConfig:
         gear = [("oxygen", "modulator"), ("germanium", "scrambler"), ("silicon", "resonator"), ("carbon", "decoder")]
@@ -187,13 +189,13 @@ class CvCAssemblerConfig(CvCStationConfig):
                 ProtocolConfig(
                     vibes=["heart"] * (i + 1),
                     input_resources={
-                        "carbon": self.heart_cost * 2,
-                        "oxygen": self.heart_cost * 2,
-                        "germanium": max(self.heart_cost // 2 - i, 1),
-                        "silicon": self.heart_cost * 5,
-                        "energy": self.heart_cost * 2,
+                        "carbon": 2 * (self.first_heart_cost + self.additional_heart_cost * i),
+                        "oxygen": 2 * (self.first_heart_cost + self.additional_heart_cost * i),
+                        "germanium": max(1, (self.first_heart_cost + self.additional_heart_cost * i) // 2),
+                        "silicon": 5 * (self.first_heart_cost + self.additional_heart_cost * i),
+                        "energy": 2 * (self.first_heart_cost + self.additional_heart_cost * i),
                     },
-                    output_resources={"heart": 1},
+                    output_resources={"heart": i + 1},
                 )
                 for i in range(4)
             ]

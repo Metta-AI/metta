@@ -58,7 +58,7 @@ class EvalVariant(MissionVariant):
         env.game.max_steps = 1000
         # Make HEART crafting feasible with a single agent using the heart glyph
         assembler_obj = env.game.objects.get("assembler")
-        if assembler_obj is not None and hasattr(assembler_obj, "heart_cost"):
+        if assembler_obj is not None and hasattr(assembler_obj, "first_heart_cost"):
             # Set small single-agent recipe and prepend explicit heart/red-heart entries
             if hasattr(assembler_obj, "recipes"):
                 tiny = ProtocolConfig(
