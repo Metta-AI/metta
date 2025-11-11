@@ -44,7 +44,6 @@ struct GameConfig {
   std::unordered_map<int, std::string> tag_id_map;
 
   // FEATURE FLAGS
-  bool track_movement_metrics = false;
   bool protocol_details_obs = false;
   std::unordered_map<std::string, float> reward_estimates = {};
 
@@ -92,7 +91,6 @@ inline void bind_game_config(py::module& m) {
 
                     // FEATURE FLAGS
                     bool,
-                    bool,
                     const std::unordered_map<std::string, float>&,
 
                     // Inventory regeneration
@@ -116,7 +114,6 @@ inline void bind_game_config(py::module& m) {
            py::arg("tag_id_map") = std::unordered_map<int, std::string>(),
 
            // FEATURE FLAGS
-           py::arg("track_movement_metrics"),
            py::arg("protocol_details_obs") = false,
            py::arg("reward_estimates") = std::unordered_map<std::string, float>(),
 
@@ -146,7 +143,6 @@ inline void bind_game_config(py::module& m) {
       .def_readwrite("tag_id_map", &GameConfig::tag_id_map)
 
       // FEATURE FLAGS
-      .def_readwrite("track_movement_metrics", &GameConfig::track_movement_metrics)
       .def_readwrite("protocol_details_obs", &GameConfig::protocol_details_obs)
       .def_readwrite("reward_estimates", &GameConfig::reward_estimates)
 

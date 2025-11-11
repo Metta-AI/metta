@@ -190,7 +190,6 @@ class GameConfig:
         objects: dict[str, GridObjectConfig],
         resource_loss_prob: float = 0.0,
         tag_id_map: dict[int, str] | None = None,
-        track_movement_metrics: bool = False,
         protocol_details_obs: bool = False,
         allow_diagonals: bool = False,
         reward_estimates: Optional[dict[str, float]] = None,
@@ -209,7 +208,6 @@ class GameConfig:
     global_obs: GlobalObsConfig
     resource_loss_prob: float
     # FEATURE FLAGS
-    track_movement_metrics: bool
     protocol_details_obs: bool
     allow_diagonals: bool
     reward_estimates: Optional[dict[str, float]]
