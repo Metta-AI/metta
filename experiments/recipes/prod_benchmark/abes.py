@@ -63,7 +63,7 @@ def make_curriculum(
 
     # enable or disable attacks. we use cost instead of 'enabled'
     # to maintain action space consistency.
-    arena_tasks.add_bucket("game.actions.attack.consumed_resources.laser", [1, 100])
+
     arena_tasks.add_bucket("game.agent.initial_inventory.ore_red", [0, 1, 3])
     arena_tasks.add_bucket("game.agent.initial_inventory.battery_red", [0, 3])
 
