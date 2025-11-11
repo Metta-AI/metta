@@ -38,7 +38,7 @@ class ToolRegistry:
         from metta.tools.play import PlayTool
         from metta.tools.replay import ReplayTool
         from metta.tools.request_remote_eval import RequestRemoteEvalTool
-        from metta.tools.sweep import SweepTool
+        from metta.sweep.tools import SweepTool, WorkerTool
         from metta.tools.train import TrainTool
 
         self.register(TrainTool)
@@ -47,6 +47,7 @@ class ToolRegistry:
         self.register(PlayTool)
         self.register(ReplayTool)
         self.register(SweepTool)
+        self.register(WorkerTool)
 
     def register(self, tool_class: type[Tool]) -> None:
         """Register a tool class, using its tool_type_name() as the key."""

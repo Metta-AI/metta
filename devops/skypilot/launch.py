@@ -166,6 +166,7 @@ Examples:
         help="Dump task configuration in specified format and exit",
     )
     parser.add_argument("--no-spot", action="store_true", help="Disable spot instances")
+    parser.add_argument("--no-torch", action="store_true", help="Skip torchrun wrapper (run tool directly)")
     parser.add_argument("--copies", type=int, default=1, help="Number of identical job copies to launch")
     parser.add_argument(
         "-hb",
@@ -275,6 +276,7 @@ Examples:
         DISCORD_WEBHOOK_URL=args.discord_webhook_url,
         TEST_JOB_RESTART="true" if args.run_ci_tests else "false",
         TEST_NCCL="true" if args.run_ci_tests else "false",
+        NO_TORCH="1" if args.no_torch else None,
     )
 
     env_updates = {k: v for k, v in env_updates.items() if v is not None}

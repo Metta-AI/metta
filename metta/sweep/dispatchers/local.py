@@ -106,6 +106,7 @@ class LocalDispatcher:
             if self._torchrun:
                 # Clear NO_TORCH to ensure run.sh uses torchrun
                 env.pop("NO_TORCH", None)
+                env.pop('NO_TORCH', None)
 
             # Configure subprocess output handling
             if self._capture_output:

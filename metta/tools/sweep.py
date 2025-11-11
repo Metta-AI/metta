@@ -1,4 +1,3 @@
-"""SweepTool for Bayesian hyperparameter optimization using adaptive experiments."""
 
 import logging
 import os
@@ -18,9 +17,6 @@ from metta.sweep.protein_config import ProteinConfig
 from metta.sweep.protein_sweep import ProteinSweep
 from metta.sweep.stores import WandbStore
 from metta.tools.utils.auto_config import auto_wandb_config
-
-logger = logging.getLogger(__name__)
-
 
 class SweepTool(Tool):
     """Tool for Bayesian hyperparameter optimization using adaptive experiments.

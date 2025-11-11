@@ -24,18 +24,27 @@ export DATA_DIR=${DATA_DIR:-./train_dir}
 
 echo "[INFO] Starting training..."
 
-# run torchrun; preserve exit code and print a friendly line
-set +e
-uv run torchrun \
-  --nnodes=$NUM_NODES \
-  --nproc-per-node=$NUM_GPUS \
-  --master-addr=$MASTER_ADDR \
-  --master-port=$MASTER_PORT \
-  --node-rank=$NODE_INDEX \
-  tools/run.py \
-  "$@"
-EXIT_CODE=$?
-set -e
+# Check if we should skip torchrun
+if [ "${NO_TORCH:-0}" = "1" ]; then
+  echo "[INFO] Running without torchrun (NO_TORCH=1)"
+  set +e
+  uv run tools/run.py "$@"
+  EXIT_CODE=$?
+  set -e
+else
+  # run torchrun; preserve exit code and print a friendly line
+  set +e
+  uv run torchrun \
+    --nnodes=$NUM_NODES \
+    --nproc-per-node=$NUM_GPUS \
+    --master-addr=$MASTER_ADDR \
+    --master-port=$MASTER_PORT \
+    --node-rank=$NODE_INDEX \
+    tools/run.py \
+    "$@"
+  EXIT_CODE=$?
+  set -e
+fi
 
 if [[ $EXIT_CODE -eq 0 ]]; then
   echo "[SUCCESS] Training completed successfully"
