@@ -196,6 +196,9 @@ class SimpleAgentState:
     exploration_target: Optional[str] = None  # Current direction ("north", "south", "east", "west")
     exploration_target_step: int = 0  # When we set the direction
 
+    # Agent positions (for collision detection)
+    agent_occupancy: set[tuple[int, int]] = field(default_factory=set)
+
     # Stuck detection
     position_history: list[tuple[int, int]] = field(default_factory=list)  # Last 10 positions
     stuck_loop_detected: bool = False
