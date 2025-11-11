@@ -73,7 +73,8 @@ class RandomAgentPolicy(AgentPolicy):
         return Action(name=self._action_names[action_index])
 
     def reset(self, simulation: Simulation = None) -> None:
-        self._agent.reset()
+        with _suppress_fast_agent_output():
+            self._agent.reset()
 
 
 class RandomAgentsMultiPolicy(MultiAgentPolicy):
@@ -116,7 +117,8 @@ class ThinkyAgentPolicy(AgentPolicy):
         return Action(name=self._action_names[action_index])
 
     def reset(self, simulation: Simulation = None) -> None:
-        self._agent.reset()
+        with _suppress_fast_agent_output():
+            self._agent.reset()
 
 
 class ThinkyAgentsMultiPolicy(MultiAgentPolicy):
@@ -159,7 +161,8 @@ class RaceCarAgentPolicy(AgentPolicy):
         return Action(name=self._action_names[action_index])
 
     def reset(self, simulation: Simulation = None) -> None:
-        self._agent.reset()
+        with _suppress_fast_agent_output():
+            self._agent.reset()
 
 
 class RaceCarAgentsMultiPolicy(MultiAgentPolicy):
