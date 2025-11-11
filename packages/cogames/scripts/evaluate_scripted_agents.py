@@ -35,7 +35,10 @@ from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import NumCogsVariant
 from cogames.policy.scripted_agent.baseline_agent import BaselinePolicy
 from cogames.policy.scripted_agent.types import BASELINE_HYPERPARAMETER_PRESETS
-from cogames.policy.scripted_agent.unclipping_agent import UnclippingPolicy
+from cogames.policy.scripted_agent.unclipping_agent import (
+    UnclippingHyperparameters,
+    UnclippingPolicy,
+)
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
 
@@ -111,11 +114,28 @@ def run_evaluation(
     results = []
 
     # Get hyperparameters for the preset
-    hyperparams = BASELINE_HYPERPARAMETER_PRESETS.get(preset)
-    if hyperparams is None:
+    base_hyperparams = BASELINE_HYPERPARAMETER_PRESETS.get(preset)
+    if base_hyperparams is None:
         logger.error(f"Unknown preset: {preset}. Using 'default'.")
-        hyperparams = BASELINE_HYPERPARAMETER_PRESETS["default"]
+        base_hyperparams = BASELINE_HYPERPARAMETER_PRESETS["default"]
         preset = "default"
+
+    # Convert to UnclippingHyperparameters if using unclipping agent
+    if agent_config.policy_class == UnclippingPolicy:
+        hyperparams = UnclippingHyperparameters(
+            recharge_threshold_low=base_hyperparams.recharge_threshold_low,
+            recharge_threshold_high=base_hyperparams.recharge_threshold_high,
+            stuck_detection_enabled=base_hyperparams.stuck_detection_enabled,
+            stuck_escape_distance=base_hyperparams.stuck_escape_distance,
+            position_history_size=base_hyperparams.position_history_size,
+            exploration_area_check_window=base_hyperparams.exploration_area_check_window,
+            exploration_area_size_threshold=base_hyperparams.exploration_area_size_threshold,
+            exploration_escape_duration=base_hyperparams.exploration_escape_duration,
+            exploration_direction_persistence=base_hyperparams.exploration_direction_persistence,
+            exploration_assembler_distance_threshold=base_hyperparams.exploration_assembler_distance_threshold,
+        )
+    else:
+        hyperparams = base_hyperparams
 
     logger.info(f"\n{'=' * 80}")
     logger.info(f"Evaluating: {agent_config.label} (preset: {preset})")
