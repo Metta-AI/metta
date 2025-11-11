@@ -390,7 +390,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         # Update position history and detect loops
         current_pos = (s.row, s.col)
         s.position_history.append(current_pos)
-        if len(s.position_history) > 10:
+        if len(s.position_history) > 30:
             s.position_history.pop(0)
 
         # Detect if agent is stuck in a back-and-forth loop
@@ -615,10 +615,57 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         Simple directional exploration: pick a random direction and stick to it for ~15 steps.
         Changes direction when blocked or after persistence expires.
         Uses move_towards for actual movement to benefit from collision detection and pathfinding checks.
+
+        Anti-stuck mechanism: If stuck in a 10x10 area for 30 steps, navigates to assembler
+        for 10 steps to escape, then continues exploring.
         """
         if s.row < 0:
             return self._actions.noop.Noop()
 
+        # Check if we're in escape mode (navigating to assembler)
+        if s.exploration_escape_until_step > 0:
+            if s.step_count >= s.exploration_escape_until_step:
+                # Done escaping, continue normal exploration
+                s.exploration_escape_until_step = 0
+            else:
+                # Still in escape mode - navigate to assembler
+                if s.stations["assembler"] is not None:
+                    # Check if we've reached the assembler (adjacent)
+                    if is_adjacent((s.row, s.col), s.stations["assembler"]):
+                        # Reached assembler! Exit escape mode
+                        s.exploration_escape_until_step = 0
+                    else:
+                        return self._move_towards(s, s.stations["assembler"], reach_adjacent=True)
+                else:
+                    # Don't know where assembler is yet, just continue exploring
+                    s.exploration_escape_until_step = 0
+
+        # Check if stuck in small area using last 30 positions from history
+        if len(s.position_history) >= 30:
+            recent_positions = s.position_history[-30:]
+            min_row = min(pos[0] for pos in recent_positions)
+            max_row = max(pos[0] for pos in recent_positions)
+            min_col = min(pos[1] for pos in recent_positions)
+            max_col = max(pos[1] for pos in recent_positions)
+
+            area_height = max_row - min_row + 1
+            area_width = max_col - min_col + 1
+
+            if (
+                area_height <= 7
+                and area_width <= 7
+                and s.stations["assembler"] is not None
+            ):
+                assembler_pos = s.stations["assembler"]
+                if assembler_pos is not None:
+                    dist = abs(s.row - assembler_pos[0]) + abs(s.col - assembler_pos[1])
+                    if dist > 10:
+                        # Stuck in small area and far from assembler! Enter escape mode for 10 steps
+                        s.exploration_escape_until_step = s.step_count + 10
+                        print(
+                            f"Stuck in small area! Entering escape mode for 10 steps. {s.step_count} -> {s.exploration_escape_until_step}"
+                        )
+                        return self._move_towards(s, assembler_pos, reach_adjacent=True)
         # Check if we should keep current exploration direction
         if s.exploration_target_step is not None:
             steps_in_direction = s.step_count - s.exploration_target_step
@@ -724,7 +771,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
     def _handle_waiting_for_extractor(self, s: SimpleAgentState) -> Optional[Action]:
         """Handle waiting for activated extractor. Returns Noop if still waiting, None if done."""
-        if s.pending_use_resource is None:
+        if s.pending_use_resource is None or s.waiting_at_extractor is None:
             return None
 
         # Check if we received resources (inventory increased)
@@ -1070,12 +1117,22 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         return False
 
     def _move_into_cell(self, s: SimpleAgentState, target: tuple[int, int]) -> Action:
-        """Return the action that attempts to step into the target cell."""
+        """Return the action that attempts to step into the target cell.
+
+        Checks for agent occupancy before moving to avoid collisions.
+        """
         tr, tc = target
         if s.row == tr and s.col == tc:
             return self._actions.noop.Noop()
         dr = tr - s.row
         dc = tc - s.col
+
+        # Check if another agent is at the target position
+        if (tr, tc) in s.agent_occupancy:
+            # Another agent is blocking the target, wait or try alternative
+            random_action = self._try_random_direction(s)
+            return random_action if random_action else self._actions.noop.Noop()
+
         if dr == -1:
             return self._actions.move.Move("north")
         if dr == 1:
