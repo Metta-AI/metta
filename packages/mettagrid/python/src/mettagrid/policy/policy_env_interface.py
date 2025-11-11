@@ -26,6 +26,8 @@ class PolicyEnvInterface:
     action_space: gym.spaces.Discrete
     obs_width: int
     obs_height: int
+    assembler_protocols: list  # Assembler protocols for recipe initialization
+    tag_id_to_name: dict[int, str]  # Tag ID to name mapping for observation parsing
 
     @property
     def action_names(self) -> list[str]:
@@ -42,9 +44,21 @@ class PolicyEnvInterface:
         Returns:
             A PolicyEnvInterface instance with environment information
         """
+        # Extract assembler protocols if available
+        assembler_protocols = []
+        assembler_config = mg_cfg.game.objects.get("assembler")
+        if assembler_config and hasattr(assembler_config, "protocols"):
+            assembler_protocols = assembler_config.protocols
+
+        # Get tag ID to name mapping from id_map
+        id_map = mg_cfg.game.id_map()
+        tag_names_list = id_map.tag_names()
+        # Tag IDs are assigned based on alphabetical order (index in sorted list)
+        tag_id_to_name = {i: name for i, name in enumerate(tag_names_list)}
+
         return PolicyEnvInterface(
-            obs_features=mg_cfg.game.id_map().features(),
-            tags=mg_cfg.game.id_map().tag_names(),
+            obs_features=id_map.features(),
+            tags=tag_names_list,
             actions=mg_cfg.game.actions,
             num_agents=mg_cfg.game.num_agents,
             observation_space=gym.spaces.Box(
@@ -53,4 +67,6 @@ class PolicyEnvInterface:
             action_space=gym.spaces.Discrete(len(mg_cfg.game.actions.actions())),
             obs_width=mg_cfg.game.obs.width,
             obs_height=mg_cfg.game.obs.height,
+            assembler_protocols=assembler_protocols,
+            tag_id_to_name=tag_id_to_name,
         )

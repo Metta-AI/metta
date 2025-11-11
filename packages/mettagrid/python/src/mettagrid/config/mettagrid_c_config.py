@@ -451,9 +451,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             clipper_protocols, clipper.length_scale, clipper.cutoff_distance, clipper.clip_period
         )
 
-    # Set feature flags
-    game_cpp_params["protocol_details_obs"] = game_config.protocol_details_obs
-
     # Add tag mappings for C++ debugging/display
     game_cpp_params["tag_id_map"] = tag_id_to_name
 
