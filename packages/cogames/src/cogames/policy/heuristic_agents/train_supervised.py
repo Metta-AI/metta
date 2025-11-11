@@ -19,13 +19,13 @@ from mettagrid.simulator import Simulation
 MISSION_NAME = "evals.extractor_hub_30"
 VARIANT = "lonely_heart"
 NUM_AGENTS = 1
-NUM_STEPS = 10000
-BATCH_SIZE = 1
+BATCH_SIZE = 256
+NUM_STEPS = 10000 * BATCH_SIZE
 LEARNING_RATE = 1e-4
 DEVICE = "cpu"
 CHECKPOINT_DIR = Path("./test_train_dir")
 SEED = 42
-LOG_INTERVAL = 10
+LOG_INTERVAL = 1000
 NIM_DEBUG = False
 
 
