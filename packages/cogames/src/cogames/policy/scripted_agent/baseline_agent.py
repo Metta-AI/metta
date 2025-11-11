@@ -294,10 +294,8 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             if not (path_is_within_bounds(s, nr, nc) and s.occupancy[nr][nc] == CellType.FREE.value):
                 continue
 
-            # Check for agent collision
-            target_obs_r = self._obs_hr + dr
-            target_obs_c = self._obs_wr + dc
-            if self._is_agent_at_obs_location(s, target_obs_r, target_obs_c):
+            # Check for agent collision at target world coordinates
+            if (nr, nc) in s.agent_occupancy:
                 continue
 
             return self._actions.move.Move(direction)

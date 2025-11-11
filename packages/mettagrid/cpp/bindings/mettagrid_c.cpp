@@ -190,6 +190,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
         _stats->incr("objects." + cell);
         assembler->set_grid(_grid.get());
         assembler->set_current_timestep_ptr(&current_step);
+        assembler->set_obs_encoder(_obs_encoder.get());
         continue;
       }
 
