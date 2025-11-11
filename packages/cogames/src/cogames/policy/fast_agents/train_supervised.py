@@ -1,5 +1,6 @@
 """Supervised learning training loop for imitating Nim scripted agent."""
 
+import sys
 import time
 from pathlib import Path
 from typing import Optional
@@ -29,6 +30,27 @@ SEED = 42
 LOG_INTERVAL = 1000
 NIM_DEBUG = False
 TEACHER_POLICY_CLASS = RandomAgentsMultiPolicy
+
+
+def _ensure_fast_agents_loaded() -> None:
+    """Import fast_agents with patched ctypes so outdated bindings still load."""
+
+    if "fast_agents" in sys.modules:
+        return
+
+    import ctypes
+
+    original_pointer = ctypes.pointer
+    ctypes.pointer = ctypes.c_void_p  # type: ignore[assignment]
+    try:
+        __import__("fast_agents")
+    except Exception as exc:
+        raise RuntimeError(
+            "Failed to import fast_agents bindings. Regenerate Nim bindings or update "
+            "train_supervised.py to avoid the dependency."
+        ) from exc
+    finally:
+        ctypes.pointer = original_pointer
 
 
 def convert_raw_obs_to_policy_tokens(raw_obs: np.ndarray, expected_num_tokens: int) -> np.ndarray:
@@ -110,6 +132,7 @@ def train_supervised(
     policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
 
     # Create scripted agent policy (teacher)
+    _ensure_fast_agents_loaded()
     teacher_policy = teacher_policy_class(policy_env_info)
 
     # Initialize model using StatelessPolicyNet for compatibility with cogames play
