@@ -19,8 +19,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Callable, Optional, Tuple
 
-import numpy as np
-
 from cogames.policy import StatefulPolicyImpl
 from mettagrid.config.mettagrid_config import CardinalDirections
 from mettagrid.config.vibes import VIBE_BY_NAME
@@ -1433,6 +1431,8 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
 
 class BaselinePolicy(MultiAgentPolicy):
+    short_names = ["cvc_simple", "scripted_baseline", "baseline", "simple_baseline"]
+
     def __init__(self, policy_env_info: PolicyEnvInterface, hyperparams: Optional[BaselineHyperparameters] = None):
         super().__init__(policy_env_info)
         self._shared_state = SharedAgentState()
@@ -1446,50 +1446,3 @@ class BaselinePolicy(MultiAgentPolicy):
                 self._policy_env_info,
             )
         return self._agent_policies[agent_id]
-
-    def step_batch(
-        self,
-        simulation: "Simulation",
-        out_actions: Optional[np.ndarray] = None,
-        observations: Optional[np.ndarray] = None,
-    ) -> np.ndarray:
-        """Return per-agent action indices, writing into ``out_actions`` when provided."""
-
-        del observations  # Future implementations may leverage raw observation batches.
-
-        num_agents = simulation.num_agents
-        if out_actions is None:
-            out_actions = np.empty(num_agents, dtype=np.int32)
-
-        agents = simulation.agents()
-        action_ids = simulation.action_ids
-
-        for agent_id in range(num_agents):
-            action = self.agent_policy(agent_id).step(agents[agent_id].observation)
-            out_actions[agent_id] = action_ids[action.name]
-
-        return out_actions
-
-
-class NoopBaselinePolicy(BaselinePolicy):
-    def __init__(self, policy_env_info: PolicyEnvInterface, noop_value: int = 1):
-        super().__init__(policy_env_info)
-        self._noop_value = noop_value
-
-    def step_batch(
-        self,
-        simulation: "Simulation",
-        out_actions: Optional[np.ndarray] = None,
-        observations: Optional[np.ndarray] = None,
-    ) -> np.ndarray:
-        del observations
-
-        if out_actions is None:
-            out_actions = np.empty(self._policy_env_info.num_agents, dtype=np.int32)
-        noop_idx = self._noop_value
-        try:
-            noop_idx = simulation.action_ids["noop"]
-        except (AttributeError, KeyError):
-            noop_idx = self._noop_value
-        out_actions.fill(noop_idx)
-        return out_actions
