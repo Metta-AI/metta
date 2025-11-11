@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 def evaluate_policy(
     *,
-    checkpoint_uri: str,
+    policy_uris: dict[str, float],
     simulations: list[SimulationConfig],
     replay_dir: str | None,
     stats_dir: str = "/tmp/stats",
@@ -24,16 +24,18 @@ def evaluate_policy(
     stats_epoch_id: uuid.UUID | None = None,
     eval_task_id: uuid.UUID | None = None,
     stats_client: StatsClient | None,
-) -> EvalResults:
+) -> dict[str, EvalResults]:
     """Evaluate one policy URI, merging all simulations into a single StatsDB."""
-    logger.info(f"Evaluating checkpoint {checkpoint_uri}")
+    logger.info(f"Evaluating checkpoints {policy_uris}")
     if not is_unique([sim.full_name for sim in simulations]):
         raise ValueError("Simulation names must be unique")
+
+    first_policy_uri = next(iter(policy_uris.keys()))
 
     sims = [
         Simulation(
             cfg=sim,
-            policy_uri=checkpoint_uri,
+            policy_uris=policy_uris,
             stats_dir=stats_dir,
             replay_dir=replay_dir,
             stats_client=stats_client,
@@ -53,7 +55,7 @@ def evaluate_policy(
             record_heartbeat()
             if replay_dir is not None:
                 sim_replay_urls = sim_result.stats_db.get_replay_urls(
-                    policy_uri=checkpoint_uri, sim_suite=sim._config.suite, env=sim._config.name
+                    policy_uri=first_policy_uri, sim_suite=sim._config.suite, env=sim._config.name
                 )
                 if sim_replay_urls:
                     replay_urls[sim.full_name] = sim_replay_urls
@@ -78,19 +80,19 @@ def evaluate_policy(
     logger.info("Completed %d/%d simulations successfully", successful_simulations, len(simulations))
 
     eval_stats_db = EvalStatsDB(merged_db.path)
-    logger.info("Evaluation complete for checkpoint %s", checkpoint_uri)
-    scores = extract_scores(checkpoint_uri, simulations, eval_stats_db)
+    logger.info("Evaluation complete for checkpoints %s", ", ".join(policy_uris.keys()))
 
     if export_stats_db_uri is not None:
         logger.info("Exporting merged stats DB → %s", export_stats_db_uri)
         merged_db.export(export_stats_db_uri)
 
-    results = EvalResults(
-        scores=scores,
-        replay_urls=replay_urls,
-    )
-
-    return results
+    return {
+        p: EvalResults(
+            scores=extract_scores(p, simulations, eval_stats_db),
+            replay_urls=replay_urls,
+        )
+        for p in policy_uris.keys()
+    }
 
 
 def extract_scores(

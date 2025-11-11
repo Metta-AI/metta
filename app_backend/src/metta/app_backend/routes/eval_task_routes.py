@@ -89,6 +89,12 @@ class EvalTaskResponse(BaseModel):
     def workers_spawned(self) -> int:
         return self._attribute_property("workers_spawned") or 0
 
+    @property
+    def policy_proportions(self) -> dict[uuid.UUID, float] | None:
+        if (attr := self._attribute_property("policy_proportions")) is not None:
+            return {uuid.UUID(k): v for k, v in attr.items()}
+        return None
+
     @classmethod
     def from_db(cls, row: EvalTaskWithPolicyName) -> "EvalTaskResponse":
         return cls(

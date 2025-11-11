@@ -107,20 +107,26 @@ class EvaluateTool(Tool):
                 except Exception as e2:
                     logger.error("Fallback WandB logging failed: %s", e2, exc_info=True)
 
-    def eval_policy(self, normalized_uri: str, stats_client: StatsClient | None) -> EvalResults:
+    def eval_policy(self, policies: dict[str, float], stats_client: StatsClient | None) -> EvalResults:
         policy_env_info = PolicyEnvInterface.from_mg_cfg(self.simulations[0].env)
 
         # Verify the checkpoint exists (always use CPU for simulations)
         device = torch.device("cpu")
-        try:
-            agent = CheckpointManager.load_from_uri(normalized_uri, policy_env_info, device)
-            metadata = CheckpointManager.get_policy_metadata(normalized_uri)
-            del agent
-        except Exception as e:
-            logger.warning(f"Failed to load policy from {normalized_uri}: {e}")
-            raise
+        normalized_uri_policies = {
+            CheckpointManager.normalize_uri(policy_uri): proportion for policy_uri, proportion in policies.items()
+        }
+        if not normalized_uri_policies:
+            raise ValueError("No policies to evaluate")
 
-        eval_run_name = _determine_run_name(normalized_uri)
+        for normalized_uri in normalized_uri_policies.keys():
+            try:
+                CheckpointManager.load_from_uri(normalized_uri, policy_env_info, device)
+            except Exception as e:
+                logger.warning(f"Failed to load policy from {normalized_uri}: {e}")
+                raise
+
+        first_policy_uri = next(iter(normalized_uri_policies.keys()))
+        metadata = CheckpointManager.get_policy_metadata(first_policy_uri)
 
         # Get eval_task_id from config if provided
         eval_task_id = None
@@ -131,7 +137,7 @@ class EvaluateTool(Tool):
             checkpoint_uri=normalized_uri,
             simulations=list(self.simulations),
             replay_dir=(
-                f"{self.replay_dir}/{eval_run_name}/{metadata.get('run_name', 'unknown')}"
+                f"{self.replay_dir}/{_determine_run_name(first_policy_uri)}/{metadata.get('run_name', 'unknown')}"
                 if self.enable_replays
                 else None
             ),

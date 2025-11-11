@@ -42,7 +42,7 @@ class Simulation:
     def __init__(
         self,
         cfg: SimulationConfig,
-        policy_uri: str | None,
+        policy_uris: dict[str, float],
         replay_dir: str | None,
         stats_dir: str = "/tmp/stats",
         stats_client: StatsClient | None = None,

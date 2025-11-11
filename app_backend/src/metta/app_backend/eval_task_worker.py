@@ -36,9 +36,16 @@ from metta.common.tool.tool import ToolResult
 from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import SOFTMAX_S3_BASE, SOFTMAX_S3_BUCKET
 from metta.common.util.git_repo import REPO_URL
-from metta.rl.checkpoint_manager import CheckpointManager
 
 logger = logging.getLogger(__name__)
+
+
+def _write_b64_encoded_json_to_file(data: object, file_path: str) -> str:
+    data_json = json.dumps(data)
+    data_base64 = base64.b64encode(data_json.encode()).decode()
+    with open(file_path, "w") as f:
+        f.write(data_base64)
+    return os.path.abspath(file_path)
 
 
 @dataclass
@@ -166,29 +173,44 @@ class SimTaskExecutor(AbstractTaskExecutor):
 
         # Convert simulations list to a base64-encoded JSON string to avoid parsing issues
         simulations = task.attributes.get("simulations", [])
-        simulations_json = json.dumps(simulations)
-        simulations_base64 = base64.b64encode(simulations_json.encode()).decode()
+        simulations_file_path = _write_b64_encoded_json_to_file(simulations, f"simulations_json_base64_{task.id}.json")
 
-        # write simulations_json_base64 to a file
-        file_path = f"simulations_json_base64_{task.id}.json"
-        with open(file_path, "w") as f:
-            f.write(simulations_base64)
-
-        normalized = CheckpointManager.normalize_uri(task.policy_uri)
+        policies_file_path: str | None = None
+        if task.policy_proportions is not None:
+            policies_file_path = _write_b64_encoded_json_to_file(
+                task.policy_proportions, f"policies_json_base64_{task.id}.json"
+            )
 
         job_result_file_path = f"job_result_file_path_{task.id}.json"
 
+        if task.policy_proportions is not None:
+            policy_proportions_json = json.dumps(task.policy_proportions)
+            policy_proportions_base64 = base64.b64encode(policy_proportions_json.encode()).decode()
+            policy_proportions_file_path = f"policy_proportions_file_path_{task.id}.json"
+            with open(policy_proportions_file_path, "w") as f:
+                f.write(policy_proportions_base64)
+
+        cmd_path = (
+            "experiments.remote_evals.run.eval_multi"
+            if policies_file_path is not None
+            else "experiments.remote_evals.run.eval_single"
+        )
         cmd = [
             "uv",
             "run",
             "tools/run.py",
-            "experiments.remote_evals.run.eval",
-            f"policy_uri={normalized}",
-            f"simulations_json_base64_path={os.path.abspath(file_path)}",
+            cmd_path,
+            f"simulations_json_base64_path={simulations_file_path}",
             f"eval_task_id={str(task.id)}",
             f"stats_server_uri={self._backend_url}",
             f"result_file_path={os.path.abspath(job_result_file_path)}",
         ]
+        if policies_file_path is not None:
+            cmd.append(f"policies_json_base64_path={policies_file_path}")
+        else:
+            # the tool will handle normalizing
+            cmd.append(f"policy_uri={task.policy_uri}")
+
         # exclude simulation_json_base64 from logging, since it's too large and nondescriptive
         logged_cmd = [arg for arg in cmd if not arg.startswith("simulations_json_base64")]
         logger.info(f"Running command: {' '.join(logged_cmd)}")

@@ -255,12 +255,12 @@ class Evaluator(TrainerComponent):
     ) -> EvalResults:
         logger.info(f"Evaluating policy locally from {policy_uri}")
         return evaluate_policy(
-            checkpoint_uri=policy_uri,
+            checkpoint_uri={policy_uri: 1.0},
             simulations=simulations,
             replay_dir=self._config.replay_dir,
             stats_epoch_id=stats_epoch_id,
             stats_client=self._stats_client,
-        )
+        )[policy_uri]
 
     def get_latest_scores(self) -> EvalRewardSummary:
         return self._latest_scores
