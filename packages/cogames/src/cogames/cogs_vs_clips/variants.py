@@ -220,7 +220,7 @@ class InventoryHeartTuneVariant(MissionVariant):
         if hearts == 0 and self.heart_capacity is None:
             return
 
-        heart_cost = mission.assembler.heart_cost
+        heart_cost = mission.assembler.first_heart_cost
         per_heart = {
             "carbon": heart_cost * 2,
             "oxygen": heart_cost * 2,
@@ -265,7 +265,7 @@ class ChestHeartTuneVariant(MissionVariant):
         hearts = max(0, int(self.hearts))
         if hearts == 0:
             return
-        heart_cost = mission.assembler.heart_cost
+        heart_cost = mission.assembler.first_heart_cost
         per_heart = {
             "carbon": heart_cost * 2,
             "oxygen": heart_cost * 2,
@@ -291,7 +291,7 @@ class ExtractorHeartTuneVariant(MissionVariant):
         hearts = max(0, int(self.hearts))
         if hearts == 0:
             return
-        heart_cost = mission.assembler.heart_cost
+        heart_cost = mission.assembler.first_heart_cost
         one_heart = {
             "carbon": heart_cost * 2,
             "oxygen": heart_cost * 2,
@@ -344,13 +344,13 @@ class ClipHubStationsVariant(MissionVariant):
         mission.charger.start_clipped = True
 
 
-class ClipRateOnVariant(MissionVariant):
-    name: str = "clip_rate_on"
-    description: str = "Enable global clipping with a small non-zero clip rate."
+class ClipPeriodOnVariant(MissionVariant):
+    name: str = "clip_period_on"
+    description: str = "Enable global clipping with a small non-zero clip period."
 
     @override
     def modify_mission(self, mission):
-        mission.clip_rate = 0.02
+        mission.clip_period = 50
 
 
 # Biome variants (weather) for procedural maps
@@ -456,6 +456,6 @@ VARIANTS: list[MissionVariant] = [
     ClipBaseExceptCarbonVariant(),
     ClipHubStationsVariant(),
     CyclicalUnclipVariant(),
-    ClipRateOnVariant(),
+    ClipPeriodOnVariant(),
     *DIFFICULTY_VARIANTS,
 ]

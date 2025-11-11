@@ -55,14 +55,10 @@ class Rollout:
     def step(self) -> None:
         """Execute one step of the rollout."""
         for i in range(len(self._policies)):
-            if (
-                getattr(self._policies[i], "uses_raw_numpy", False)
-                or type(self._policies[i]).__name__ == "HeuristicAgentPolicy"
-            ):
-                # These policies operate on the raw buffers directly.
-                raw_observations = self._sim.raw_observations()
-                raw_actions = self._sim.raw_actions()
-                self._policies[i].step(raw_observations, raw_actions)
+            if self._policies[i].uses_raw_numpy:
+                # David I need to know how you want this architecture to work.
+                # This policy needs the raw observations and raw actions to step.
+                self._policies[i].step(raw_observations=self._sim.raw_observations(), raw_actions=self._sim.raw_actions())
             else:
                 start_time = time.time()
                 action = self._policies[i].step(self._agents[i].observation)

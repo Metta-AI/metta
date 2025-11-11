@@ -17,14 +17,14 @@ from mettagrid import MettaGridConfig, PufferMettaGridEnv
 from mettagrid.config.mettagrid_config import EnvSupervisorConfig
 from mettagrid.envs.early_reset_handler import EarlyResetHandler
 from mettagrid.envs.stats_tracker import StatsTracker
-from mettagrid.policy.policy import TrainablePolicy
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.policy.utils import (
+from mettagrid.policy.loader import (
     find_policy_checkpoints,
     get_policy_class_shorthand,
     initialize_or_load_policy,
     resolve_policy_data_path,
 )
+from mettagrid.policy.policy import TrainablePolicy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Simulator
 from mettagrid.util.stats_writer import NoopStatsWriter
 from pufferlib import pufferl
