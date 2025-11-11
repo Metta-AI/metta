@@ -340,6 +340,7 @@ def _evaluate_single_mission(
                 max_action_time_ms=action_timeout_ms,
                 render_mode=None,
                 seed=seed + episode_idx,
+                max_steps=max_steps,
             )
 
             rollout.run_until_done()
