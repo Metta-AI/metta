@@ -116,11 +116,11 @@ def train(
         ppo=PPOConfig(enabled=True),  # PPO is enabled by default, but explicit here
         tl_kickstarter=TLKickstarterConfig(
             enabled=True,
-            teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v1032.mpt",
+            teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v10008.mpt",
         ),
         sl_kickstarter=SLKickstarterConfig(
             enabled=True,
-            teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v1032.mpt",
+            teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v10008.mpt",
         ),
     )
 
