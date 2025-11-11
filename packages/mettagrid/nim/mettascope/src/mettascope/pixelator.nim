@@ -176,7 +176,6 @@ proc drawSprite*(
 ) =
   ## Draws a sprite at the given position.
   if name notin px.atlas.entries:
-    echo "[Warning] Sprite not found in atlas: " & name
     return
   let uv = px.atlas.entries[name]
   px.instanceData.add(x.uint16)

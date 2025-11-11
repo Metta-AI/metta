@@ -25,6 +25,7 @@ public:
     _episode_completion_pct = get("episode_completion_pct");
     _last_action = get("last_action");
     _last_action_arg = get("last_action_arg");
+    _last_action_success = get("last_action_success");
     _last_reward = get("last_reward");
     _vibe = get("vibe");
     _visitation_counts = get("agent:visitation_counts");
@@ -44,6 +45,7 @@ public:
     EpisodeCompletionPct = _episode_completion_pct;
     LastAction = _last_action;
     LastActionArg = _last_action_arg;
+    LastActionSuccess = _last_action_success;
     LastReward = _last_reward;
     Vibe = _vibe;
     VisitationCounts = _visitation_counts;
@@ -78,6 +80,7 @@ public:
   ObservationType EpisodeCompletionPct;
   ObservationType LastAction;
   ObservationType LastActionArg;
+  ObservationType LastActionSuccess;
   ObservationType LastReward;
   ObservationType Vibe;
   ObservationType VisitationCounts;
@@ -100,6 +103,7 @@ private:
   ObservationType _episode_completion_pct;
   ObservationType _last_action;
   ObservationType _last_action_arg;
+  ObservationType _last_action_success;
   ObservationType _last_reward;
   ObservationType _vibe;
   ObservationType _visitation_counts;
@@ -129,6 +133,7 @@ extern ObservationType Swappable;
 extern ObservationType EpisodeCompletionPct;
 extern ObservationType LastAction;
 extern ObservationType LastActionArg;
+extern ObservationType LastActionSuccess;
 extern ObservationType LastReward;
 extern ObservationType Vibe;
 extern ObservationType VisitationCounts;

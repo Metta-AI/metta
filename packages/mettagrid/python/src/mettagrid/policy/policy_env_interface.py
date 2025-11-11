@@ -19,6 +19,7 @@ class PolicyEnvInterface:
     """
 
     obs_features: list[ObservationFeatureSpec]
+    tags: list[str]
     actions: ActionsConfig
     num_agents: int
     observation_space: gym.spaces.Box
@@ -50,11 +51,14 @@ class PolicyEnvInterface:
             assembler_protocols = assembler_config.protocols
 
         # Get tag ID to name mapping from id_map
-        id_map = mg_cfg.id_map()
-        tag_id_to_name = id_map.tag_names()
+        id_map = mg_cfg.game.id_map()
+        tag_names_list = id_map.tag_names()
+        # Tag IDs are assigned based on alphabetical order (index in sorted list)
+        tag_id_to_name = {i: name for i, name in enumerate(tag_names_list)}
 
         return PolicyEnvInterface(
             obs_features=id_map.features(),
+            tags=tag_names_list,
             actions=mg_cfg.game.actions,
             num_agents=mg_cfg.game.num_agents,
             observation_space=gym.spaces.Box(

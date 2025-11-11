@@ -14,6 +14,7 @@ ObservationType Swappable;
 ObservationType EpisodeCompletionPct;
 ObservationType LastAction;
 ObservationType LastActionArg;
+ObservationType LastActionSuccess;
 ObservationType LastReward;
 ObservationType Vibe;
 ObservationType VisitationCounts;
@@ -36,6 +37,7 @@ void Initialize(const std::unordered_map<std::string, ObservationType>& feature_
   EpisodeCompletionPct = _instance->EpisodeCompletionPct;
   LastAction = _instance->LastAction;
   LastActionArg = _instance->LastActionArg;
+  LastActionSuccess = _instance->LastActionSuccess;
   LastReward = _instance->LastReward;
   Vibe = _instance->Vibe;
   VisitationCounts = _instance->VisitationCounts;

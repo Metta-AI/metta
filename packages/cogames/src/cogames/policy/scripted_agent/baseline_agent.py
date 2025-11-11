@@ -15,8 +15,6 @@ from __future__ import annotations
 
 import random
 from collections import deque
-from dataclasses import dataclass, field
-from enum import Enum
 from typing import TYPE_CHECKING, Callable, Optional, Tuple, Union
 
 from cogames.policy import StatefulPolicyImpl
@@ -27,238 +25,21 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action
 from mettagrid.simulator.interface import AgentObservation
 
+from .types import (
+    BaselineHyperparameters,
+    CellType,
+    ExtractorInfo,
+    ObjectState,
+    ParsedObservation,
+    Phase,
+    SimpleAgentState,
+)
+
 if TYPE_CHECKING:
     pass
 
-# Debug flag - set to True to enable detailed logging
-DEBUG = False
-
 # Sentinel for agent-centric features
 AGENT_SENTINEL = 0x55
-
-
-@dataclass
-class BaselineHyperparameters:
-    """Hyperparameters controlling baseline agent behavior."""
-
-    # Energy management (recharge timing)
-    recharge_threshold_low: int = 35  # Enter RECHARGE phase when energy < this
-    recharge_threshold_high: int = 85  # Exit RECHARGE phase when energy >= this
-
-    # Exploration strategy
-    exploration_visit_weight: float = 15.0  # Multiplier for visit_score (higher = prefer unexplored)
-    exploration_distance_penalty: float = 0.7  # Multiplier for distance (lower = willing to travel far)
-    exploration_quadrant_bonus: float = 40.0  # Bonus for exploring opposite quadrant
-    exploration_target_persistence: int = 12  # Steps to commit to exploration target
-
-    # Stuck detection and escape
-    stuck_detection_enabled: bool = True  # Enable loop detection
-    stuck_escape_distance: int = 12  # Minimum distance for escape target
-
-
-# Hyperparameter Presets for Ensemble Creation
-BASELINE_HYPERPARAMETER_PRESETS = {
-    "default": BaselineHyperparameters(
-        recharge_threshold_low=35,  # Moderate energy management
-        recharge_threshold_high=85,
-        exploration_visit_weight=15.0,  # Moderate exploration preference
-        exploration_distance_penalty=0.7,  # Moderate willingness to travel
-        exploration_quadrant_bonus=40.0,  # Moderate cross-map exploration
-        exploration_target_persistence=12,  # Moderate target persistence
-        stuck_detection_enabled=True,
-        stuck_escape_distance=12,
-    ),
-    "conservative": BaselineHyperparameters(
-        recharge_threshold_low=50,  # Recharge early
-        recharge_threshold_high=95,  # Stay charged
-        exploration_visit_weight=10.0,  # Less willing to travel far for exploration
-        exploration_distance_penalty=1.0,  # Higher penalty = prefer nearby
-        exploration_quadrant_bonus=30.0,  # Lower cross-map bonus
-        exploration_target_persistence=8,  # Switch targets more frequently
-        stuck_detection_enabled=True,
-        stuck_escape_distance=8,  # Shorter escape distance
-    ),
-    "aggressive": BaselineHyperparameters(
-        recharge_threshold_low=20,  # Low energy tolerance
-        recharge_threshold_high=80,  # Don't wait for full charge
-        exploration_visit_weight=30.0,  # Strongly prefer unexplored areas
-        exploration_distance_penalty=0.3,  # Very willing to travel far
-        exploration_quadrant_bonus=70.0,  # Strong cross-map exploration
-        exploration_target_persistence=15,  # Commit longer to distant targets
-        stuck_detection_enabled=True,
-        stuck_escape_distance=15,  # Longer escape distance
-    ),
-}
-
-
-class CellType(Enum):
-    """Occupancy map cell states."""
-
-    FREE = 1  # Passable (can walk through)
-    OBSTACLE = 2  # Impassable (walls, stations, extractors)
-
-
-class Phase(Enum):
-    """Goal-driven phases for the baseline agent."""
-
-    GATHER = "gather"  # Collect resources (explore if needed)
-    ASSEMBLE = "assemble"  # Make hearts at assembler
-    DELIVER = "deliver"  # Deposit hearts to chest
-    RECHARGE = "recharge"  # Recharge energy at charger
-    CRAFT_UNCLIP = "craft_unclip"  # Craft unclip items at assembler
-    UNCLIP = "unclip"  # Unclip extractors
-
-
-@dataclass
-class ExtractorInfo:
-    """Tracks a discovered extractor with full state."""
-
-    position: tuple[int, int]
-    resource_type: str  # "carbon", "oxygen", "germanium", "silicon"
-    last_seen_step: int
-    times_used: int = 0
-
-    # Extractor state from observations
-    converting: bool = False  # Is it currently converting?
-    cooldown_remaining: int = 0  # Steps until ready
-    clipped: bool = False  # Is it depleted?
-    remaining_uses: int = 999  # How many uses left
-
-
-@dataclass
-class ObjectState:
-    """State of a single object at a position."""
-
-    name: str
-
-    # Extractor/station features
-    converting: int = 0
-    cooldown_remaining: int = 0
-    clipped: int = 0
-    remaining_uses: int = 999
-
-    # Protocol details (recipes for assemblers/extractors)
-    protocol_inputs: dict[str, int] = field(default_factory=dict)
-    protocol_outputs: dict[str, int] = field(default_factory=dict)
-
-    # Agent features (when object is another agent)
-    agent_id: int = -1  # Which agent (-1 if not an agent) - NOT in observations, kept for API
-    agent_group: int = -1  # Team/group
-    agent_frozen: int = 0  # Is frozen?
-    agent_orientation: int = 0  # Direction facing (0=N, 1=E, 2=S, 3=W)
-    agent_visitation_counts: int = 0  # How many times visited (for tracking)
-
-
-@dataclass
-class ParsedObservation:
-    """Parsed observation data in a clean format."""
-
-    # Agent state
-    row: int
-    col: int
-    energy: int
-
-    # Inventory
-    carbon: int
-    oxygen: int
-    germanium: int
-    silicon: int
-    hearts: int
-    decoder: int
-    modulator: int
-    resonator: int
-    scrambler: int
-
-    # Nearby objects with full state (position -> ObjectState)
-    nearby_objects: dict[tuple[int, int], ObjectState]
-
-
-@dataclass
-class SimpleAgentState:
-    """State for a single agent."""
-
-    agent_id: int
-
-    phase: Phase = Phase.GATHER  # Start gathering immediately
-    step_count: int = 0
-
-    # Current position (origin-relative, starting at (0, 0))
-    row: int = 0
-    col: int = 0
-    energy: int = 100
-
-    # Per-agent discovered extractors and stations (no shared state, each agent tracks independently)
-    extractors: dict[str, list[ExtractorInfo]] = field(
-        default_factory=lambda: {"carbon": [], "oxygen": [], "germanium": [], "silicon": []}
-    )
-    stations: dict[str, tuple[int, int] | None] = field(
-        default_factory=lambda: {"assembler": None, "chest": None, "charger": None}
-    )
-
-    # Inventory
-    carbon: int = 0
-    oxygen: int = 0
-    germanium: int = 0
-    silicon: int = 0
-    hearts: int = 0
-    decoder: int = 0
-    modulator: int = 0
-    resonator: int = 0
-    scrambler: int = 0
-
-    # Current target
-    target_position: Optional[tuple[int, int]] = None
-    target_resource: Optional[str] = None
-
-    # Map knowledge
-    map_height: int = 0
-    map_width: int = 0
-    occupancy: list[list[int]] = field(default_factory=list)  # 1=free, 2=obstacle (initialized in reset)
-
-    # Track last action for position updates
-    last_action: Action = field(default_factory=lambda: Action(name="noop"))
-
-    # Current glyph (vibe) for interacting with assembler
-    current_glyph: str = "default"
-
-    # Discovered assembler recipe (dynamically discovered from observations)
-    heart_recipe: Optional[dict[str, int]] = None
-
-    # Extractor activation state
-    waiting_at_extractor: Optional[tuple[int, int]] = None
-    wait_steps: int = 0
-    pending_use_resource: Optional[str] = None
-    pending_use_amount: int = 0
-
-    # Random walk state (for exploration within GATHER phase)
-    explore_direction: int = -1
-
-    # Frontier exploration state (tracking visited cells)
-    visited_map: Optional[list[list[int]]] = None
-    exploration_target: Optional[tuple[int, int]] = None  # Commit to exploration target
-    exploration_target_step: int = 0  # When we set the target
-
-    # Track unreachable extractors (position -> consecutive failed pathfind attempts)
-    unreachable_extractors: dict[tuple[int, int], int] = field(default_factory=dict)
-
-    # Agent positions (cleared and refreshed every step)
-    agent_occupancy: set[tuple[int, int]] = field(default_factory=set)
-
-    # Stuck detection
-    last_position: Optional[tuple[int, int]] = None
-    stuck_counter: int = 0
-    position_history: list[tuple[int, int]] = field(default_factory=list)  # Last 10 positions
-    stuck_loop_detected: bool = False
-    stuck_escape_target: Optional[tuple[int, int]] = None
-    stuck_escape_step: int = 0
-
-    # Agent position update frequency (to avoid constant re-planning)
-    agent_positions_last_updated: int = 0
-
-    # Path caching for efficient navigation (per-agent)
-    cached_path: Optional[list[tuple[int, int]]] = None
-    cached_path_target: Optional[tuple[int, int]] = None
-    cached_path_reach_adjacent: bool = False
 
 
 class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
@@ -273,7 +54,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         self._policy_env_info = policy_env_info
 
         # Debug logging (can be enabled externally)
-        self._debug = True
+        self._debug = False
         self._debug_file = None
 
         # Observation grid half-ranges from config
@@ -308,6 +89,38 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         # Protocol feature prefixes (for dynamic recipe discovery)
         self._protocol_input_prefix = "protocol_input:"
         self._protocol_output_prefix = "protocol_output:"
+
+    def _log_debug(self, msg: str) -> None:
+        """Log debug message to file or console if debug mode is enabled."""
+        if not self._debug:
+            return
+        if hasattr(self, "_debug_file") and self._debug_file:
+            self._debug_file.write(msg)
+            self._debug_file.flush()
+        else:
+            print(msg, end="")
+
+    def _read_inventory_from_obs(self, s: SimpleAgentState, obs: AgentObservation) -> None:
+        """Read inventory from observation tokens at center cell and update state."""
+        inv = {}
+        center_r, center_c = self._obs_hr, self._obs_wr
+        for tok in obs.tokens:
+            if tok.location == (center_r, center_c):
+                feature_name = tok.feature.name
+                if feature_name.startswith("inv:"):
+                    resource_name = feature_name[4:]  # Remove "inv:" prefix
+                    inv[resource_name] = tok.value
+
+        s.energy = inv.get("energy", 0)
+        s.carbon = inv.get("carbon", 0)
+        s.oxygen = inv.get("oxygen", 0)
+        s.germanium = inv.get("germanium", 0)
+        s.silicon = inv.get("silicon", 0)
+        s.hearts = inv.get("heart", 0)
+        s.decoder = inv.get("decoder", 0)
+        s.modulator = inv.get("modulator", 0)
+        s.resonator = inv.get("resonator", 0)
+        s.scrambler = inv.get("scrambler", 0)
 
     def initial_agent_state(self) -> SimpleAgentState:
         """Get initial state for an agent."""
@@ -483,16 +296,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             nearby_objects=nearby_objects,
         )
 
-    def _try_find_escape_target(self, s: SimpleAgentState) -> Optional[tuple[int, int]]:
-        """Try to find a distant free cell for escape. Returns None if not found."""
-        for _ in range(50):  # Try 50 random locations
-            rand_r = random.randint(0, s.map_height - 1)
-            rand_c = random.randint(0, s.map_width - 1)
-            dist = abs(rand_r - s.row) + abs(rand_c - s.col)
-            if dist >= self._hyperparams.stuck_escape_distance and s.occupancy[rand_r][rand_c] == CellType.FREE.value:
-                return (rand_r, rand_c)
-        return None
-
     def _try_random_direction(self, s: SimpleAgentState) -> Optional[Action]:
         """Try to move in any free adjacent direction. Returns None if all blocked."""
         directions: list[CardinalDirection] = ["north", "south", "east", "west"]
@@ -507,177 +310,35 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
     def _clear_stuck_state(self, s: SimpleAgentState) -> None:
         """Clear all stuck detection state."""
         s.stuck_loop_detected = False
-        s.stuck_escape_target = None
 
     def _check_stuck_and_escape(self, s: SimpleAgentState) -> Optional[Action]:
         """Check if agent is stuck in a loop and return escape action if needed."""
         if not self._hyperparams.stuck_detection_enabled or not s.stuck_loop_detected:
             return None
 
-        # Timeout: give up after 10 steps and resume normal behavior
-        if s.step_count - s.stuck_escape_step > 10:
-            self._clear_stuck_state(s)
-            return None
-
-        # If no escape target yet, try to find one
-        if s.stuck_escape_target is None:
-            s.stuck_escape_target = self._try_find_escape_target(s)
-            if s.stuck_escape_target is not None:
-                # Clear cached path to force new pathfinding
-                s.cached_path = None
-                s.cached_path_target = None
-            else:
-                # Couldn't find distant target, try any adjacent move
-                action = self._try_random_direction(s)
-                self._clear_stuck_state(s)
-                return action if action else self._actions.noop.Noop()
-
-        # Have escape target: move toward it
-        if (s.row, s.col) == s.stuck_escape_target:
-            # Reached target, resume normal behavior
-            self._clear_stuck_state(s)
-            return None
-
-        return self._move_towards(s, s.stuck_escape_target)
-
-    def _last_action_moved_agent(self, state: SimpleAgentState) -> bool:
-        """
-        Determine if the last action actually moved the agent's position.
-
-        CRITICAL INSIGHT: When using objects (extractors, assemblers, chargers, chests),
-        the agent issues a "move" action to activate them, but the agent DOESN'T actually move!
-        The move action is just the mechanism for using the object.
-
-        The agent should NEVER try to move into obstacles (walls). The pathfinding should
-        prevent that. So if a move action was issued, it was either:
-        1. A move to an empty cell (agent moves) - return True
-        2. A move to use an object (agent doesn't move) - return False
-
-        We can distinguish these by checking if the destination is an obstacle in the occupancy map.
-        """
-        # If no last action or not a move action, no position change
-        if state.last_action is None or not state.last_action.name.startswith("move_"):
-            return False
-
-        # If occupancy map not initialized yet, assume move succeeded
-        if not state.occupancy or state.row < 0:
-            return True
-
-        # Extract direction from last action
-        direction = state.last_action.name[5:]  # Remove "move_" prefix
-        if direction not in self._move_deltas:
-            return False
-
-        # Calculate the destination cell (where the move action was directed)
-        dr, dc = self._move_deltas[direction]
-        dest_row = state.row + dr
-        dest_col = state.col + dc
-
-        # Check if destination is out of bounds - agent didn't move
-        if not (0 <= dest_row < state.map_height and 0 <= dest_col < state.map_width):
-            if self._debug:
-                msg = f"[Agent {state.agent_id}] Move out of bounds - no position change\n"
-                if hasattr(self, "_debug_file") and self._debug_file:
-                    self._debug_file.write(msg)
-                    self._debug_file.flush()
-            return False
-
-        # Check if the destination is an obstacle (extractor, assembler, wall, etc.)
-        if state.occupancy[dest_row][dest_col] == CellType.OBSTACLE.value:
-            # Destination is an obstacle - this was a "move to use object" action
-            # Agent didn't actually move
-            if self._debug:
-                msg = f"[Agent {state.agent_id}] Move to use object at ({dest_row},{dest_col}) - no position change\n"
-                if hasattr(self, "_debug_file") and self._debug_file:
-                    self._debug_file.write(msg)
-                    self._debug_file.flush()
-            return False
-
-        # Check if destination has another agent - agent didn't move (blocked)
-        if (dest_row, dest_col) in state.agent_occupancy:
-            if self._debug:
-                msg = (
-                    f"[Agent {state.agent_id}] Move blocked by another agent at "
-                    f"({dest_row},{dest_col}) - no position change\n"
-                )
-                if hasattr(self, "_debug_file") and self._debug_file:
-                    self._debug_file.write(msg)
-                    self._debug_file.flush()
-            return False
-
-        # Destination was free - agent actually moved!
-        return True
+        action = self._try_random_direction(s)
+        self._clear_stuck_state(s)
+        return action if action else self._actions.noop.Noop()
 
     def step_with_state(self, obs: AgentObservation, state: SimpleAgentState) -> Tuple[Action, SimpleAgentState]:
         """Compute action for one agent (returns action index)."""
         state.step_count += 1
 
+        # Store observation for collision detection
+        state.current_obs = obs
         state.agent_occupancy.clear()
 
-        # CRITICAL FIX: Parse observation FIRST to update occupancy map with CURRENT data
-        # The old code used stale occupancy data from the previous step, causing position drift!
-        # Now we:
-        # 1. Parse current observation to get current occupancy map
-        # 2. Use current occupancy to determine if last action moved us
-        # 3. Update position based on that determination
-
-        # Parse observation and update occupancy map (but don't update position yet)
-        parsed = self.parse_observation(state, obs)
-
         # Read inventory from observation tokens at center cell
-        inv = {}
-        center_r, center_c = self._obs_hr, self._obs_wr
-        for tok in obs.tokens:
-            if tok.location == (center_r, center_c):
-                feature_name = tok.feature.name
-                if feature_name.startswith("inv:"):
-                    resource_name = feature_name[4:]  # Remove "inv:" prefix
-                    inv[resource_name] = tok.value
-
-        state.energy = inv.get("energy", 0)
-        state.carbon = inv.get("carbon", 0)
-        state.oxygen = inv.get("oxygen", 0)
-        state.germanium = inv.get("germanium", 0)
-        state.silicon = inv.get("silicon", 0)
-        state.hearts = inv.get("heart", 0)
-        state.decoder = inv.get("decoder", 0)
-        state.modulator = inv.get("modulator", 0)
-        state.resonator = inv.get("resonator", 0)
-        state.scrambler = inv.get("scrambler", 0)
-
+        self._read_inventory_from_obs(state, obs)
+        self._update_agent_position(state)
+        parsed = self.parse_observation(state, obs)
         self._update_occupancy_and_discover(state, parsed)
 
-        # NOW check if last action moved us, using CURRENT occupancy map
-        action_moved_agent = self._last_action_moved_agent(state)
-
-        # Update position based on whether last action actually moved us
-        self._update_agent_position(state, action_moved_agent)
-
-        # Check if we received resources from pending extractor use
-        self._check_pending_extractor_use(state)
-
         self._update_phase(state)
-
-        # Debug: Log phase and energy
-        if self._debug:
-            msg = f"[Agent {state.agent_id}] Step {state.step_count}: Phase={state.phase.name}, Energy={state.energy}\n"
-            if hasattr(self, "_debug_file") and self._debug_file:
-                self._debug_file.write(msg)
-                self._debug_file.flush()
-            else:
-                print(msg, end="")
 
         # Update vibe to match phase
         desired_vibe = self._get_vibe_for_phase(state.phase, state)
         if state.current_glyph != desired_vibe:
-            if self._debug:
-                msg = (
-                    f"[Agent {state.agent_id}] Changing vibe: {state.current_glyph} -> {desired_vibe} "
-                    f"(target_resource={state.target_resource})\n"
-                )
-                if hasattr(self, "_debug_file") and self._debug_file:
-                    self._debug_file.write(msg)
-                    self._debug_file.flush()
             state.current_glyph = desired_vibe
             # Return vibe change action this step
             action = self._actions.change_vibe.ChangeVibe(VIBE_BY_NAME[desired_vibe])
@@ -695,74 +356,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         # Save action for next step's position update
         state.last_action = action
 
-        if self._debug:
-            # Comprehensive debug output
-            msg = f"\n{'=' * 80}\n"
-            msg += f"[Agent {state.agent_id}] Step {state.step_count}\n"
-            msg += f"  Phase: {state.phase.name}\n"
-            msg += f"  Agent believed position: ({state.row}, {state.col})\n"
-            msg += f"  Energy: {state.energy}\n"
-            msg += (
-                f"  Inventory: carbon={state.carbon}, oxygen={state.oxygen}, "
-                f"germanium={state.germanium}, silicon={state.silicon}, hearts={state.hearts}\n"
-            )
-            msg += f"  Target resource: {state.target_resource}\n"
-            msg += f"  Pending use: {state.pending_use_resource}\n"
-            msg += f"  Heart recipe: {state.heart_recipe}\n"
-
-            # Show discovered extractors and distances
-            if state.extractors:
-                msg += "  Discovered extractors:\n"
-                for res_type, extractors in state.extractors.items():
-                    for ext in extractors:
-                        dist = abs(ext.position[0] - state.row) + abs(ext.position[1] - state.col)
-                        msg += (
-                            f"    {res_type} at {ext.position}: dist={dist}, uses={ext.remaining_uses}, "
-                            f"cooldown={ext.cooldown_remaining}, clipped={ext.clipped}\n"
-                        )
-
-            # Show discovered stations and distances
-            if any(state.stations.values()):
-                msg += "  Discovered stations:\n"
-                for station_type, pos in state.stations.items():
-                    if pos:
-                        dist = abs(pos[0] - state.row) + abs(pos[1] - state.col)
-                        msg += f"    {station_type} at {pos}: dist={dist}\n"
-
-            msg += f"  Chosen action: {action.name}\n"
-            msg += f"{'=' * 80}\n"
-
-            if hasattr(self, "_debug_file") and self._debug_file:
-                self._debug_file.write(msg)
-                self._debug_file.flush()
-            else:
-                print(msg, end="")
-
         return action, state
-
-    def _update_inventory_from_parsed(self, s: SimpleAgentState, parsed: ParsedObservation) -> None:
-        """Update inventory from parsed observation."""
-        s.energy = parsed.energy
-        s.carbon = parsed.carbon
-        s.oxygen = parsed.oxygen
-        s.germanium = parsed.germanium
-        s.silicon = parsed.silicon
-        s.hearts = parsed.hearts
-        s.decoder = parsed.decoder
-        s.modulator = parsed.modulator
-        s.resonator = parsed.resonator
-        s.scrambler = parsed.scrambler
-
-    def _check_pending_extractor_use(self, s: SimpleAgentState) -> None:
-        """Check if we received resources from a pending extractor use."""
-        if s.pending_use_resource is not None:
-            current_amount = getattr(s, s.pending_use_resource, 0)
-            if current_amount > s.pending_use_amount:
-                # Extractor gave us the resource!
-                s.pending_use_resource = None
-                s.pending_use_amount = 0
-                s.waiting_at_extractor = None
-                s.wait_steps = 0
 
     def _update_occupancy_and_discover(self, s: SimpleAgentState, parsed: ParsedObservation) -> None:
         """Update occupancy map and discover objects from parsed observation."""
@@ -773,36 +367,35 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
                     # Check if this is the heart recipe (outputs "heart")
                     if obj_state.protocol_outputs.get("heart", 0) > 0:
                         s.heart_recipe = dict(obj_state.protocol_inputs)
-                        if DEBUG:
-                            print(f"[Agent {s.agent_id}] Discovered heart recipe: {s.heart_recipe}")
                         break
 
         # Update occupancy map and discover extractors/stations
         self._discover_objects(s, parsed)
 
-    def _update_agent_position(self, s: SimpleAgentState, action_success: bool) -> None:
-        """Update agent position based on last action and whether it succeeded.
+    def _update_agent_position(self, s: SimpleAgentState) -> None:
+        """Update agent position based on last action.
 
         Position is tracked relative to origin (starting position), using only movement deltas.
         No dependency on simulation.grid_objects().
+
+        IMPORTANT: When using objects (extractors, stations), the agent "moves into" them but doesn't
+        actually change position. We detect this by checking the using_object_this_step flag.
         """
-        # If last action was a move and it succeeded, update position
-        if action_success and s.last_action.name.startswith("move_"):
+        # If last action was a move and we're not using an object, update position
+        # We assume the move succeeded unless we were using an object
+        if s.last_action and s.last_action.name.startswith("move_") and not s.using_object_this_step:
             # Extract direction from action name (e.g., "move_north" -> "north")
             direction = s.last_action.name[5:]  # Remove "move_" prefix
             if direction in self._move_deltas:
                 dr, dc = self._move_deltas[direction]
-                old_pos = (s.row, s.col)
                 s.row += dr
                 s.col += dc
 
-                if self._debug:
-                    msg = f"[Agent {s.agent_id}] Position update: {old_pos} -> ({s.row},{s.col}) via {direction}\n"
-                    if hasattr(self, "_debug_file") and self._debug_file:
-                        self._debug_file.write(msg)
-                        self._debug_file.flush()
-                    else:
-                        print(msg, end="")
+        elif s.last_action and s.last_action.name.startswith("move_") and s.using_object_this_step:
+            self._log_debug(f"[Agent {s.agent_id}] Move action to use object, NOT updating position\n")
+
+        # Clear the flag for next step
+        s.using_object_this_step = False
 
         # Update position history and detect loops
         current_pos = (s.row, s.col)
@@ -830,66 +423,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
                 ):
                     s.stuck_loop_detected = True
                     s.stuck_escape_step = s.step_count
-
-    def _update_state_from_obs(self, s: SimpleAgentState, obs: AgentObservation, action_success: bool = True) -> None:
-        """Update agent state from observation."""
-
-        # STEP 1: Update agent position based on last action (origin-relative positioning)
-        self._update_agent_position(s, action_success)
-
-        inv = {}
-        center_r, center_c = self._obs_hr, self._obs_wr  # Center of egocentric observation
-
-        for tok in obs.tokens:
-            # Only read inventory from the center cell (where this agent is)
-            if tok.location == (center_r, center_c):
-                feature_spec = tok.feature
-                feature_name = feature_spec.name
-                if feature_name.startswith("inv:"):
-                    resource_name = feature_name[4:]  # Remove "inv:" prefix
-                    inv[resource_name] = tok.value
-
-        s.energy = inv.get("energy", 0)
-        s.carbon = inv.get("carbon", 0)
-        s.oxygen = inv.get("oxygen", 0)
-        s.germanium = inv.get("germanium", 0)
-        s.silicon = inv.get("silicon", 0)
-        s.hearts = inv.get("heart", 0)
-        s.decoder = inv.get("decoder", 0)
-        s.modulator = inv.get("modulator", 0)
-        s.resonator = inv.get("resonator", 0)
-        s.scrambler = inv.get("scrambler", 0)
-
-        # STEP 3: Parse spatial observation with known position
-        debug = s.step_count <= 2
-        parsed = self.parse_observation(s, obs, debug=debug)
-
-        # STEP 3.5: Discover heart recipe from assembler protocol (if not yet discovered)
-        if s.heart_recipe is None:
-            for _pos, obj_state in parsed.nearby_objects.items():
-                if obj_state.name == "assembler" and obj_state.protocol_inputs:
-                    # Check if this is the heart recipe (outputs "heart")
-                    if obj_state.protocol_outputs.get("heart", 0) > 0:
-                        s.heart_recipe = dict(obj_state.protocol_inputs)
-                        if DEBUG:
-                            print(f"[Agent {s.agent_id}] Discovered heart recipe: {s.heart_recipe}")
-                        break
-
-        # Check if we received the resource from an extractor activation
-        if s.pending_use_resource is not None:
-            current_amount = getattr(s, s.pending_use_resource, 0)
-            # Extractor gave us the resource!
-            if current_amount > s.pending_use_amount:
-                s.pending_use_resource = None
-                s.pending_use_amount = 0
-                s.waiting_at_extractor = None
-                s.wait_steps = 0
-            # Still waiting for extractor to finish converting - this is normal
-            else:
-                pass  # Keep waiting
-
-        # STEP 4: Discover objects (updates occupancy map)
-        self._discover_objects(s, parsed)
 
     def _discover_objects(self, s: SimpleAgentState, parsed: ParsedObservation) -> None:
         """Discover extractors and stations from parsed observation."""
@@ -935,16 +468,20 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
                         self._discover_extractor(s, pos, resource_type, obj_state)
 
     def _is_wall(self, obj_name: str) -> bool:
+        """Check if an object name represents a wall or obstacle."""
         return "wall" in obj_name or "#" in obj_name or obj_name in {"wall", "obstacle"}
 
     def _is_floor(self, obj_name: str) -> bool:
+        """Check if an object name represents floor (passable empty space)."""
         # environment returns empty string for empty cells
         return obj_name in {"floor", ""}
 
     def _is_station(self, obj_name: str, station: str) -> bool:
+        """Check if an object name contains a specific station type."""
         return station in obj_name
 
     def _discover_station(self, s: SimpleAgentState, pos: tuple[int, int], station_key: str) -> None:
+        """Record a discovered station location if not already known."""
         if s.stations.get(station_key) is None:
             s.stations[station_key] = pos
 
@@ -969,21 +506,15 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             )
             s.extractors[resource_type].append(extractor)
 
-            if self._debug:
-                # Calculate what observation coordinate this came from
-                obs_r = pos[0] - s.row + self._obs_hr
-                obs_c = pos[1] - s.col + self._obs_wr
-                msg = (
-                    f"[Agent {s.agent_id}] NEW {resource_type} at world_pos={pos}, "
-                    f"agent_pos=({s.row},{s.col}), obs_coord=({obs_r},{obs_c})\n"
-                    f"  uses={extractor.remaining_uses}, clipped={extractor.clipped}, "
-                    f"cooldown={extractor.cooldown_remaining}\n"
-                )
-                if hasattr(self, "_debug_file") and self._debug_file:
-                    self._debug_file.write(msg)
-                    self._debug_file.flush()
-                else:
-                    print(msg, end="")
+            # Calculate what observation coordinate this came from for debug logging
+            obs_r = pos[0] - s.row + self._obs_hr
+            obs_c = pos[1] - s.col + self._obs_wr
+            self._log_debug(
+                f"[Agent {s.agent_id}] NEW {resource_type} at world_pos={pos}, "
+                f"agent_pos=({s.row},{s.col}), obs_coord=({obs_r},{obs_c})\n"
+                f"  uses={extractor.remaining_uses}, clipped={extractor.clipped}, "
+                f"cooldown={extractor.cooldown_remaining}\n"
+            )
 
         extractor.last_seen_step = s.step_count
         extractor.converting = obj_state.converting > 0
@@ -1017,25 +548,17 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         # Stay in RECHARGE until energy is fully restored
         if s.phase == Phase.RECHARGE:
             if s.energy >= self._hyperparams.recharge_threshold_high:
-                if self._debug:
-                    msg = (
-                        f"[Agent {s.agent_id}] Exiting RECHARGE: energy={s.energy} >= "
-                        f"threshold={self._hyperparams.recharge_threshold_high}\n"
-                    )
-                    if hasattr(self, "_debug_file") and self._debug_file:
-                        self._debug_file.write(msg)
-                        self._debug_file.flush()
+                self._log_debug(
+                    f"[Agent {s.agent_id}] Exiting RECHARGE: energy={s.energy} >= "
+                    f"threshold={self._hyperparams.recharge_threshold_high}\n"
+                )
                 s.phase = Phase.GATHER
                 s.target_position = None
             else:
-                if self._debug:
-                    msg = (
-                        f"[Agent {s.agent_id}] Staying in RECHARGE: energy={s.energy} < "
-                        f"threshold={self._hyperparams.recharge_threshold_high}\n"
-                    )
-                    if hasattr(self, "_debug_file") and self._debug_file:
-                        self._debug_file.write(msg)
-                        self._debug_file.flush()
+                self._log_debug(
+                    f"[Agent {s.agent_id}] Staying in RECHARGE: energy={s.energy} < "
+                    f"threshold={self._hyperparams.recharge_threshold_high}\n"
+                )
             # Still recharging, stay in this phase
             return
 
@@ -1069,7 +592,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
                 s.waiting_at_extractor = None
             return
 
-        # Priority 5: Default to GATHER
+        # Priority 4: Default to GATHER
         # GATHER will explore internally when it can't find needed extractors
         if s.phase != Phase.GATHER:
             s.phase = Phase.GATHER
@@ -1129,124 +652,49 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             return self._do_unclip(s)
         return self._actions.noop.Noop()
 
-    def _explore_frontier(self, s: SimpleAgentState) -> Action:
+    def _explore_directional(self, s: SimpleAgentState) -> Action:
         """
-        Frontier-based exploration: move toward areas we haven't visited recently.
-        Uses a 'visited' tracking system to encourage exploring new areas.
-        More efficient than random walk for systematic map coverage.
-
-        Includes occasional random moves to break out of repetitive patterns.
+        Simple directional exploration: pick a random direction and stick to it for ~15 steps.
+        Changes direction when blocked or after persistence expires.
         """
         if s.row < 0:
             return self._actions.noop.Noop()
 
-        # Initialize visited map if not exists
-        if s.visited_map is None:
-            s.visited_map = [[0 for _ in range(s.map_width)] for _ in range(s.map_height)]
+        # Check if we should keep current exploration direction
+        if s.exploration_target_step is not None:
+            steps_in_direction = s.step_count - s.exploration_target_step
+            if steps_in_direction < 10:
+                # Still committed to current direction, try to move that way
+                if s.exploration_target is not None and isinstance(s.exploration_target, str):
+                    # exploration_target stores the direction as a string
+                    direction = s.exploration_target
+                    # Try to move in that direction
+                    dr, dc = {"north": (-1, 0), "south": (1, 0), "east": (0, 1), "west": (0, -1)}.get(direction, (0, 0))
+                    next_r, next_c = s.row + dr, s.col + dc
 
-        # Mark current cell as visited
-        s.visited_map[s.row][s.col] = s.step_count
+                    # Check if we can move in that direction
+                    if self._is_traversable(s, next_r, next_c):
+                        return self._actions.move.Move(direction)
+                    # Blocked, pick a new direction
 
-        # 10% chance to take a random move to break patterns
-        if random.random() < 0.1:
+        # Need to pick a new direction
+        # Try all directions and pick a random valid one
+        valid_directions = []
+        for direction in CardinalDirections:
+            dr, dc = {"north": (-1, 0), "south": (1, 0), "east": (0, 1), "west": (0, -1)}.get(direction, (0, 0))
+            next_r, next_c = s.row + dr, s.col + dc
+            if self._is_traversable(s, next_r, next_c):
+                valid_directions.append(direction)
+
+        if valid_directions:
             # Pick a random valid direction
-            valid_moves = []
-            for action, (dr, dc) in [
-                (self._actions.move.Move("north"), (-1, 0)),
-                (self._actions.move.Move("south"), (1, 0)),
-                (self._actions.move.Move("east"), (0, 1)),
-                (self._actions.move.Move("west"), (0, -1)),
-            ]:
-                nr, nc = s.row + dr, s.col + dc
-                if self._is_within_bounds(s, nr, nc) and s.occupancy[nr][nc] == CellType.FREE.value:
-                    valid_moves.append(action)
-
-            if valid_moves:
-                # Clear exploration target when taking random move
-                s.exploration_target = None
-                return random.choice(valid_moves)
-
-        # Check if we should keep current exploration target
-        if s.exploration_target is not None:
-            tr, tc = s.exploration_target
-            # Keep target if: we set it recently AND haven't reached it yet
-            if (
-                s.step_count - s.exploration_target_step < self._hyperparams.exploration_target_persistence
-                and (s.row, s.col) != s.exploration_target
-            ):
-                # Check if target is still valid (FREE and in bounds)
-                if self._is_within_bounds(s, tr, tc) and s.occupancy[tr][tc] == CellType.FREE.value:
-                    return self._move_towards(s, s.exploration_target)
-            # Target reached or expired, clear it
-            s.exploration_target = None
-
-        # Calculate which quadrants are least explored
-        # This helps bias exploration toward neglected areas of the map
-        map_center_r, map_center_c = s.map_height // 2, s.map_width // 2
-
-        # Determine which quadrant we're in and which is opposite
-        in_top = s.row < map_center_r
-        in_left = s.col < map_center_c
-
-        # Bonus for exploring opposite quadrant (helps break out of local exploration)
-        def get_quadrant_bonus(r, c):
-            target_top = r < map_center_r
-            target_left = c < map_center_c
-            # Give bonus if target is in opposite quadrant
-            if in_top != target_top or in_left != target_left:
-                return self._hyperparams.exploration_quadrant_bonus
-            return 0
-
-        # Find nearest least-recently-visited cell
-        best_target = None
-        best_score = -float("inf")
-
-        # Sample cells in expanding radius - search much further to find unexplored regions
-        max_radius = max(s.map_height, s.map_width) // 2 + 5
-        for radius in range(5, max_radius, 2):  # Step by 2 for efficiency
-            for dr in range(-radius, radius + 1):
-                for dc in range(-radius, radius + 1):
-                    if abs(dr) != radius and abs(dc) != radius:
-                        continue  # Only check perimeter of current radius
-
-                    r, c = s.row + dr, s.col + dc
-                    if not self._is_within_bounds(s, r, c):
-                        continue
-
-                    if s.occupancy[r][c] != CellType.FREE.value:
-                        continue
-
-                    # Score based on how long ago we visited (higher = less recently visited)
-                    last_visited = s.visited_map[r][c]
-                    visit_score = s.step_count - last_visited
-                    distance = abs(dr) + abs(dc)
-
-                    # Visit weight and distance penalty control exploration behavior
-                    # This helps agents balance between exploring far regions vs nearby cells
-                    quadrant_bonus = get_quadrant_bonus(r, c)
-                    score = (
-                        visit_score * self._hyperparams.exploration_visit_weight
-                        - (distance * self._hyperparams.exploration_distance_penalty)
-                        + quadrant_bonus
-                    )
-
-                    if score > best_score:
-                        best_score = score
-                        best_target = (r, c)
-
-            # Only break early if we found an excellent target (very high threshold)
-            # This ensures we search wide enough to find truly unexplored areas
-            if best_target and best_score > 800:
-                break
-
-        if best_target:
-            # Commit to this target for multiple steps
-            s.exploration_target = best_target
+            new_direction = random.choice(valid_directions)
+            s.exploration_target = new_direction  # Store direction as string
             s.exploration_target_step = s.step_count
-            return self._move_towards(s, best_target)
+            return self._actions.move.Move(new_direction)
 
-        # No good target found, pick a random direction
-        return self._actions.move.Move(random.choice(CardinalDirections))
+        # No valid moves, just noop
+        return random.choice(CardinalDirections)
 
     def _explore_until(
         self, s: SimpleAgentState, condition: Callable[[], bool], reason: str = "Exploring"
@@ -1268,8 +716,8 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         return self._explore(s)
 
     def _explore(self, s: SimpleAgentState) -> Action:
-        """Execute exploration using frontier-based strategy."""
-        return self._explore_frontier(s)
+        """Execute exploration using directional strategy."""
+        return self._explore_directional(s)
 
     def _find_any_needed_extractor(self, s: SimpleAgentState) -> tuple[ExtractorInfo, str] | None:
         """
@@ -1308,14 +756,21 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         if s.pending_use_resource is None:
             return None
 
-        if self._debug:
-            msg = (
-                f"[Agent {s.agent_id}] _handle_waiting_for_extractor: waiting for {s.pending_use_resource}\n"
-                f"  wait_steps={s.wait_steps}, waiting_at={s.waiting_at_extractor}\n"
-            )
-            if hasattr(self, "_debug_file") and self._debug_file:
-                self._debug_file.write(msg)
-                self._debug_file.flush()
+        self._log_debug(
+            f"[Agent {s.agent_id}] _handle_waiting_for_extractor: waiting for {s.pending_use_resource}\n"
+            f"  wait_steps={s.wait_steps}, waiting_at={s.waiting_at_extractor}\n"
+            f"  pending_amount={s.pending_use_amount}, current_amount={getattr(s, s.pending_use_resource, 0)}\n"
+        )
+
+        # Check if we received resources (inventory increased)
+        current_amount = getattr(s, s.pending_use_resource, 0)
+        if current_amount > s.pending_use_amount:
+            self._log_debug(f"  → Success! Received {current_amount - s.pending_use_amount} {s.pending_use_resource}\n")
+            # Success - clear pending state and continue gathering
+            s.pending_use_resource = None
+            s.pending_use_amount = 0
+            self._clear_waiting_state(s)
+            return None  # Continue with next resource
 
         # Look up the extractor we're waiting for
         extractor = self._find_extractor_at_position(s, s.waiting_at_extractor)
@@ -1325,112 +780,97 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
         s.wait_steps += 1
         if s.wait_steps > max_wait:
-            if self._debug:
-                msg = "  → Timeout! Clearing pending_use state\n"
-                if hasattr(self, "_debug_file") and self._debug_file:
-                    self._debug_file.write(msg)
-                    self._debug_file.flush()
+            self._log_debug("  → Timeout! Clearing pending_use state and trying again\n")
             # Timeout - reset and try again
             s.pending_use_resource = None
             s.pending_use_amount = 0
             self._clear_waiting_state(s)
+            return None  # Let _do_gather try again immediately
 
-        if self._debug:
-            msg = "  → Returning noop (still waiting)\n"
-            if hasattr(self, "_debug_file") and self._debug_file:
-                self._debug_file.write(msg)
-                self._debug_file.flush()
+        self._log_debug("  → Still waiting (noop)\n")
 
         return self._actions.noop.Noop()
 
-    def _navigate_to_extractor(
-        self, s: SimpleAgentState, extractor: ExtractorInfo, resource_type: str
-    ) -> Optional[Action]:
-        """Navigate to extractor. Returns action if navigating, None if already adjacent."""
-        er, ec = extractor.position
-        dr = abs(s.row - er)
-        dc = abs(s.col - ec)
-        is_adjacent = (dr == 1 and dc == 0) or (dr == 0 and dc == 1)
+    def _is_adjacent(self, s: SimpleAgentState, target_pos: tuple[int, int]) -> bool:
+        """Check if agent is adjacent to target position."""
+        dr = abs(s.row - target_pos[0])
+        dc = abs(s.col - target_pos[1])
+        return (dr == 1 and dc == 0) or (dr == 0 and dc == 1)
 
-        if self._debug:
-            msg = (
-                f"[Agent {s.agent_id}] _navigate_to_extractor: {resource_type} at {extractor.position}\n"
-                f"  Agent at ({s.row},{s.col}), extractor at ({er},{ec})\n"
-                f"  Distance: dr={dr}, dc={dc}, is_adjacent={is_adjacent}\n"
-            )
-            if hasattr(self, "_debug_file") and self._debug_file:
-                self._debug_file.write(msg)
-                self._debug_file.flush()
+    def _navigate_to_adjacent(
+        self, s: SimpleAgentState, target_pos: tuple[int, int], target_name: str = "target"
+    ) -> Optional[Action]:
+        """Navigate to adjacent cell of target. Returns action if navigating, None if already adjacent.
+
+        This is a generic helper used for both extractors and stations.
+        """
+        is_adjacent = self._is_adjacent(s, target_pos)
+
+        dr = abs(s.row - target_pos[0])
+        dc = abs(s.col - target_pos[1])
+        self._log_debug(
+            f"[Agent {s.agent_id}] _navigate_to_adjacent: {target_name} at {target_pos}\n"
+            f"  Agent at ({s.row},{s.col}), distance: dr={dr}, dc={dc}, is_adjacent={is_adjacent}\n"
+        )
 
         if is_adjacent:
-            if self._debug:
-                msg = "  → Already adjacent, proceeding to use\n"
-                if hasattr(self, "_debug_file") and self._debug_file:
-                    self._debug_file.write(msg)
-                    self._debug_file.flush()
+            self._log_debug("  → Already adjacent\n")
             return None  # Already adjacent
 
-        # Move towards extractor
-        if self._debug:
-            msg = "  → Not adjacent, navigating towards extractor\n"
-            if hasattr(self, "_debug_file") and self._debug_file:
-                self._debug_file.write(msg)
-                self._debug_file.flush()
-        self._clear_waiting_state(s)
-        action = self._move_towards(s, extractor.position, reach_adjacent=True)
+        # Move towards target
+        self._log_debug("  → Not adjacent, navigating\n")
+        action = self._move_towards(s, target_pos, reach_adjacent=True)
         if action == self._actions.noop.Noop():
             return self._explore(s)
         return action
 
+    def _use_object_at(self, s: SimpleAgentState, target_pos: tuple[int, int], using_for: str = "") -> Action:
+        """Use an object by moving into its cell. Sets a flag so position tracking knows not to update.
+
+        This is the generic "move into to use" action for extractors, assemblers, chests, chargers, etc.
+        The 'using_for' parameter is used for tracking what we're using (e.g., 'extractor', 'assembler').
+        """
+        action = self._move_into_cell(s, target_pos)
+
+        # Mark that we're using an object so position tracking doesn't update
+        s.using_object_this_step = True
+
+        self._log_debug(f"[Agent {s.agent_id}] Using object at {target_pos} ({using_for}), action: {action.name}\n")
+
+        return action
+
     def _use_extractor_if_ready(self, s: SimpleAgentState, extractor: ExtractorInfo, resource_type: str) -> Action:
         """Try to use extractor if ready. Returns appropriate action."""
-        if self._debug:
-            msg = (
-                f"[Agent {s.agent_id}] _use_extractor_if_ready: {resource_type} at {extractor.position}\n"
-                f"  Agent at ({s.row},{s.col}), cooldown={extractor.cooldown_remaining}, "
-                f"uses={extractor.remaining_uses}, clipped={extractor.clipped}\n"
-            )
-            if hasattr(self, "_debug_file") and self._debug_file:
-                self._debug_file.write(msg)
-                self._debug_file.flush()
+        self._log_debug(
+            f"[Agent {s.agent_id}] _use_extractor_if_ready: {resource_type} at {extractor.position}\n"
+            f"  Agent at ({s.row},{s.col}), cooldown={extractor.cooldown_remaining}, "
+            f"uses={extractor.remaining_uses}, clipped={extractor.clipped}\n"
+        )
 
         # Wait if on cooldown
         if extractor.cooldown_remaining > 0 or extractor.converting:
             s.waiting_at_extractor = extractor.position
             s.wait_steps += 1
-            if self._debug:
-                msg = "  → Waiting for cooldown/conversion (noop)\n"
-                if hasattr(self, "_debug_file") and self._debug_file:
-                    self._debug_file.write(msg)
-                    self._debug_file.flush()
+            self._log_debug("  → Waiting for cooldown/conversion (noop)\n")
             return self._actions.noop.Noop()
 
         # Skip if depleted/clipped
         if extractor.remaining_uses == 0 or extractor.clipped:
             self._clear_waiting_state(s)
-            if self._debug:
-                msg = "  → Extractor depleted/clipped (noop)\n"
-                if hasattr(self, "_debug_file") and self._debug_file:
-                    self._debug_file.write(msg)
-                    self._debug_file.flush()
+            self._log_debug("  → Extractor depleted/clipped (noop)\n")
             return self._actions.noop.Noop()
 
         # Use it! Track pre-use inventory and activate
         old_amount = getattr(s, resource_type, 0)
-        action = self._move_into_cell(s, extractor.position)
 
         # Set waiting state to detect when resource is received
         s.pending_use_resource = resource_type
         s.pending_use_amount = old_amount
         s.waiting_at_extractor = extractor.position
 
-        if self._debug:
-            msg = f"  → Using extractor! Action: {action.name}\n"
-            if hasattr(self, "_debug_file") and self._debug_file:
-                self._debug_file.write(msg)
-                self._debug_file.flush()
+        self._log_debug("  → Using extractor!\n")
 
-        return action
+        return self._use_object_at(s, extractor.position, using_for=f"{resource_type}_extractor")
 
     def _do_gather(self, s: SimpleAgentState) -> Action:
         """
@@ -1443,45 +883,25 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             for res_type, exts in s.extractors.items():
                 if exts:
                     msg += f"    {res_type}: {[e.position for e in exts]}\n"
-            if hasattr(self, "_debug_file") and self._debug_file:
-                self._debug_file.write(msg)
-                self._debug_file.flush()
-            else:
-                print(msg, end="")
+            self._log_debug(msg)
 
         # Handle waiting for activated extractor
         wait_action = self._handle_waiting_for_extractor(s)
         if wait_action is not None:
-            if self._debug:
-                msg = f"[Agent {s.agent_id}] Waiting for extractor, returning wait action\n"
-                if hasattr(self, "_debug_file") and self._debug_file:
-                    self._debug_file.write(msg)
-                    self._debug_file.flush()
+            self._log_debug(f"[Agent {s.agent_id}] Waiting for extractor, returning wait action\n")
             return wait_action
 
         # Check resource deficits
         deficits = self._calculate_deficits(s)
-        if self._debug:
-            msg = f"[Agent {s.agent_id}] Deficits: {deficits}\n"
-            if hasattr(self, "_debug_file") and self._debug_file:
-                self._debug_file.write(msg)
-                self._debug_file.flush()
+        self._log_debug(f"[Agent {s.agent_id}] Deficits: {deficits}\n")
 
         if all(d <= 0 for d in deficits.values()):
             self._clear_waiting_state(s)
-            if self._debug:
-                msg = f"[Agent {s.agent_id}] No deficits, returning noop\n"
-                if hasattr(self, "_debug_file") and self._debug_file:
-                    self._debug_file.write(msg)
-                    self._debug_file.flush()
+            self._log_debug(f"[Agent {s.agent_id}] No deficits, returning noop\n")
             return self._actions.noop.Noop()
 
         # Explore until we find an extractor for a needed resource
-        if self._debug:
-            msg = f"[Agent {s.agent_id}] Checking if we need to explore for extractors...\n"
-            if hasattr(self, "_debug_file") and self._debug_file:
-                self._debug_file.write(msg)
-                self._debug_file.flush()
+        self._log_debug(f"[Agent {s.agent_id}] Checking if we need to explore for extractors...\n")
 
         explore_action = self._explore_until(
             s,
@@ -1489,27 +909,15 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             reason=f"Need extractors for: {', '.join(k for k, v in deficits.items() if v > 0)}",
         )
         if explore_action is not None:
-            if self._debug:
-                msg = f"[Agent {s.agent_id}] Still exploring, action: {explore_action.name}\n"
-                if hasattr(self, "_debug_file") and self._debug_file:
-                    self._debug_file.write(msg)
-                    self._debug_file.flush()
+            self._log_debug(f"[Agent {s.agent_id}] Still exploring, action: {explore_action.name}\n")
             return explore_action
 
         # Found an extractor - navigate and use it
-        if self._debug:
-            msg = f"[Agent {s.agent_id}] Exploration complete, finding extractor to use...\n"
-            if hasattr(self, "_debug_file") and self._debug_file:
-                self._debug_file.write(msg)
-                self._debug_file.flush()
+        self._log_debug(f"[Agent {s.agent_id}] Exploration complete, finding extractor to use...\n")
 
         result = self._find_any_needed_extractor(s)
         if result is None:
-            if self._debug:
-                msg = f"[Agent {s.agent_id}] No extractor found despite condition passing\n"
-                if hasattr(self, "_debug_file") and self._debug_file:
-                    self._debug_file.write(msg)
-                    self._debug_file.flush()
+            self._log_debug(f"[Agent {s.agent_id}] No extractor found despite condition passing\n")
             return self._explore(s)  # Shouldn't happen, but be safe
 
         extractor, resource_type = result
@@ -1517,8 +925,9 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         s.target_resource = resource_type
 
         # Navigate to extractor if not adjacent
-        nav_action = self._navigate_to_extractor(s, extractor, resource_type)
+        nav_action = self._navigate_to_adjacent(s, extractor.position, target_name=f"{resource_type}_extractor")
         if nav_action is not None:
+            self._clear_waiting_state(s)
             return nav_action
 
         # Adjacent - try to use it
@@ -1539,39 +948,17 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             s.current_glyph = "heart"
             return vibe_action
 
-        # Assembler is known, move adjacent to it then use it
+        # Assembler is known, navigate to it and use it
         assembler = s.stations["assembler"]
         assert assembler is not None  # Guaranteed by _explore_until above
-        ar, ac = assembler
-        dr = abs(s.row - ar)
-        dc = abs(s.col - ac)
-        is_adjacent = (dr == 1 and dc == 0) or (dr == 0 and dc == 1)
 
-        if self._debug:
-            msg = (
-                f"[Agent {s.agent_id}] _do_assemble: assembler at {assembler}\n"
-                f"  Agent at ({s.row},{s.col}), distance: dr={dr}, dc={dc}, adjacent={is_adjacent}\n"
-            )
-            if hasattr(self, "_debug_file") and self._debug_file:
-                self._debug_file.write(msg)
-                self._debug_file.flush()
+        # Navigate to adjacent cell
+        nav_action = self._navigate_to_adjacent(s, assembler, target_name="assembler")
+        if nav_action is not None:
+            return nav_action
 
-        if is_adjacent:
-            # Adjacent - move into it to use it (assembler will consume resources and give heart)
-            if self._debug:
-                msg = "  → Using assembler (move into it)\n"
-                if hasattr(self, "_debug_file") and self._debug_file:
-                    self._debug_file.write(msg)
-                    self._debug_file.flush()
-            return self._move_into_cell(s, assembler)
-
-        # Not adjacent yet, move towards it
-        if self._debug:
-            msg = "  → Navigating to assembler\n"
-            if hasattr(self, "_debug_file") and self._debug_file:
-                self._debug_file.write(msg)
-                self._debug_file.flush()
-        return self._move_towards(s, assembler, reach_adjacent=True)
+        # Adjacent - use it
+        return self._use_object_at(s, assembler, using_for="assembler")
 
     def _do_deliver(self, s: SimpleAgentState) -> Action:
         """Deliver hearts to chest."""
@@ -1588,20 +975,17 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             s.current_glyph = "default"
             return vibe_action
 
-        # Chest is known, move adjacent to it then use it
+        # Chest is known, navigate to it and use it
         chest = s.stations["chest"]
         assert chest is not None  # Guaranteed by _explore_until above
-        cr, cc = chest
-        dr = abs(s.row - cr)
-        dc = abs(s.col - cc)
-        is_adjacent = (dr == 1 and dc == 0) or (dr == 0 and dc == 1)
 
-        if is_adjacent:
-            # Adjacent - move into it to deliver
-            return self._move_into_cell(s, chest)
+        # Navigate to adjacent cell
+        nav_action = self._navigate_to_adjacent(s, chest, target_name="chest")
+        if nav_action is not None:
+            return nav_action
 
-        # Not adjacent yet, move towards it
-        return self._move_towards(s, chest, reach_adjacent=True)
+        # Adjacent - use it
+        return self._use_object_at(s, chest, using_for="chest")
 
     def _do_recharge(self, s: SimpleAgentState) -> Action:
         """Recharge at charger."""
@@ -1612,39 +996,17 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         if explore_action is not None:
             return explore_action
 
-        # Charger is known, move adjacent to it then use it (same as extractors/chest)
+        # Charger is known, navigate to it and use it
         charger = s.stations["charger"]
         assert charger is not None  # Guaranteed by _explore_until above
-        chr, chc = charger
-        dr = abs(s.row - chr)
-        dc = abs(s.col - chc)
-        is_adjacent = (dr == 1 and dc == 0) or (dr == 0 and dc == 1)
 
-        if self._debug:
-            msg = (
-                f"[Agent {s.agent_id}] _do_recharge: charger at {charger}\n"
-                f"  Agent at ({s.row},{s.col}), distance: dr={dr}, dc={dc}, adjacent={is_adjacent}\n"
-            )
-            if hasattr(self, "_debug_file") and self._debug_file:
-                self._debug_file.write(msg)
-                self._debug_file.flush()
+        # Navigate to adjacent cell
+        nav_action = self._navigate_to_adjacent(s, charger, target_name="charger")
+        if nav_action is not None:
+            return nav_action
 
-        if is_adjacent:
-            # Adjacent - move into it to recharge
-            if self._debug:
-                msg = "  → Using charger (move into it)\n"
-                if hasattr(self, "_debug_file") and self._debug_file:
-                    self._debug_file.write(msg)
-                    self._debug_file.flush()
-            return self._move_into_cell(s, charger)
-
-        # Not adjacent yet, move towards it
-        if self._debug:
-            msg = "  → Navigating to charger\n"
-            if hasattr(self, "_debug_file") and self._debug_file:
-                self._debug_file.write(msg)
-                self._debug_file.flush()
-        return self._move_towards(s, charger, reach_adjacent=True)
+        # Adjacent - use it
+        return self._use_object_at(s, charger, using_for="charger")
 
     def _do_unclip(self, s: SimpleAgentState) -> Action:
         """Unclip extractors - this is implemented in the UnclippingAgent."""
@@ -1659,19 +1021,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
         # Filter out clipped or depleted extractors
         available = [e for e in extractors if not e.clipped and e.remaining_uses > 0]
-
-        if self._debug:
-            msg = (
-                f"[Agent {s.agent_id}] _find_nearest_extractor({resource_type}): "
-                f"{len(extractors)} total, {len(available)} available\n"
-            )
-            for e in extractors:
-                msg += (
-                    f"  {e.position}: uses={e.remaining_uses}, clipped={e.clipped}, cooldown={e.cooldown_remaining}\n"
-                )
-            if hasattr(self, "_debug_file") and self._debug_file:
-                self._debug_file.write(msg)
-                self._debug_file.flush()
 
         if not available:
             return None
@@ -1748,16 +1097,29 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         dr = next_pos[0] - s.row
         dc = next_pos[1] - s.col
 
-        if dr == -1 and dc == 0:
-            return self._actions.move.Move("north")
-        if dr == 1 and dc == 0:
-            return self._actions.move.Move("south")
-        if dr == 0 and dc == 1:
-            return self._actions.move.Move("east")
-        if dr == 0 and dc == -1:
-            return self._actions.move.Move("west")
+        # Check if there's an agent at the target location in observations
+        # Calculate observation coordinates for the target cell
+        target_obs_r = self._obs_hr + dr
+        target_obs_c = self._obs_wr + dc
 
-        return self._actions.noop.Noop()
+        if dr == -1 and dc == 0:
+            action = "north"
+        elif dr == 1 and dc == 0:
+            action = "south"
+        elif dr == 0 and dc == 1:
+            action = "east"
+        elif dr == 0 and dc == -1:
+            action = "west"
+        else:
+            return self._actions.noop.Noop()
+
+        # Check for agent collision and try alternative direction if blocked
+        if self._is_agent_at_obs_location(s, target_obs_r, target_obs_c):
+            # Agent collision detected! Try a random direction instead
+            action = random.choice([s for s in ["north", "south", "east", "west"] if s != action])
+            s.cached_path = None
+            s.cached_path_target = None
+        return self._actions.move.Move(action)
 
     def _compute_goal_cells(
         self, s: SimpleAgentState, target: tuple[int, int], reach_adjacent: bool
@@ -1822,11 +1184,13 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         return path
 
     def _neighbors(self, s: SimpleAgentState, pos: tuple[int, int]) -> list[tuple[int, int]]:
+        """Get valid neighboring cells (4-way cardinal directions) within bounds."""
         r, c = pos
         candidates = [(r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1)]
         return [(nr, nc) for nr, nc in candidates if self._is_within_bounds(s, nr, nc)]
 
     def _is_within_bounds(self, s: SimpleAgentState, r: int, c: int) -> bool:
+        """Check if a position is within the agent's known map bounds."""
         return 0 <= r < s.map_height and 0 <= c < s.map_width
 
     def _is_passable(self, s: SimpleAgentState, r: int, c: int) -> bool:
@@ -1845,6 +1209,27 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         cell = s.occupancy[r][c]
         # Only traverse cells we KNOW are free, not unknown cells
         return cell == CellType.FREE.value
+
+    def _is_agent_at_obs_location(self, s: SimpleAgentState, obs_r: int, obs_c: int) -> bool:
+        """Check if there's an agent at the given observation coordinates.
+
+        Args:
+            s: Agent state
+            obs_r: Row in observation space (relative to agent's view)
+            obs_c: Column in observation space (relative to agent's view)
+
+        Returns:
+            True if an agent is detected at that location
+        """
+        if s.current_obs is None:
+            return False
+
+        for tok in s.current_obs.tokens:
+            if tok.location == (obs_r, obs_c):
+                # Check for agent:group feature which indicates another agent
+                if tok.feature.name == "agent:group":
+                    return True
+        return False
 
     def _trace_log(self, s: SimpleAgentState) -> None:
         """Detailed trace logging."""

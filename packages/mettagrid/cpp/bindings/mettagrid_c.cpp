@@ -47,7 +47,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       _global_obs_config(game_config.global_obs),
       _game_config(game_config),
       _num_observation_tokens(game_config.num_observation_tokens),
-      _track_movement_metrics(game_config.track_movement_metrics),
       _resource_loss_prob(game_config.resource_loss_prob),
       _inventory_regen_interval(game_config.inventory_regen_interval) {
   _seed = seed;
@@ -374,6 +373,8 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
 
   if (_global_obs_config.last_action) {
     global_tokens.push_back({ObservationFeature::LastAction, static_cast<ObservationType>(action)});
+    // Also emit last_action_success (always emit if last_action is enabled)
+    global_tokens.push_back({ObservationFeature::LastActionSuccess, static_cast<ObservationType>(_action_success[agent_idx] ? 1 : 0)});
   }
 
   if (_global_obs_config.last_reward) {
