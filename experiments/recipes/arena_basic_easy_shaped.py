@@ -134,18 +134,12 @@ def train(
     # Configure scheduler with run gates
     scheduler = SchedulerConfig(
         run_gates=[
-            # -------------------------
-            # 0 .. 500M agent steps:
-            # Cycle length 25 epochs
-            # - First 5 epochs: tl_kickstarter rollout/train ON; ppo rollout OFF; ppo train ON; sl_kickstarter rollout/train OFF
-            # - Next 20 epochs: tl_kickstarter rollout/train OFF; ppo rollout ON; ppo train ON; sl_kickstarter rollout/train ON
-            # tl_kickstarter: ON in epochs 1..5 of each cycle
             LossRunGate(
                 loss_instance_name="tl_kickstarter",
                 phase="rollout",
                 begin_at_step=0,
                 end_at_step=500_000_000,
-                cycle_length=75,
+                cycle_length=100,
                 active_in_cycle=list(range(1, 21)),
             ),
             LossRunGate(
@@ -153,34 +147,24 @@ def train(
                 phase="train",
                 begin_at_step=0,
                 end_at_step=500_000_000,
-                cycle_length=75,
+                cycle_length=100,
                 active_in_cycle=list(range(1, 21)),
             ),
-            # PPO rollout: ON in epochs 6..25 of each cycle (implicit OFF in 1..5)
             LossRunGate(
                 loss_instance_name="ppo",
                 phase="rollout",
                 begin_at_step=0,
                 end_at_step=500_000_000,
-                cycle_length=75,
-                active_in_cycle=list(range(21, 76)),
-            ),
-            # sl_kickstarter: ON in epochs 6..25 of each cycle (implicit OFF in 1..5)
-            LossRunGate(
-                loss_instance_name="sl_kickstarter",
-                phase="rollout",
-                begin_at_step=0,
-                end_at_step=500_000_000,
-                cycle_length=75,
-                active_in_cycle=list(range(21, 76)),
+                cycle_length=100,
+                active_in_cycle=list(range(21, 101)),
             ),
             LossRunGate(
                 loss_instance_name="sl_kickstarter",
                 phase="train",
                 begin_at_step=0,
                 end_at_step=500_000_000,
-                cycle_length=75,
-                active_in_cycle=list(range(21, 76)),
+                cycle_length=100,
+                active_in_cycle=list(range(21, 101)),
             ),
             # -------------------------
             # 500M .. 1B agent steps:
@@ -204,10 +188,6 @@ def train(
                 begin_at_step=500_000_000,
                 end_at_step=1_000_000_000,
             ),
-            # -------------------------
-            # 1B+ agent steps:
-            # tl_kickstarter and sl_kickstarter fully OFF (no active gates)
-            # ppo fully ON
             LossRunGate(
                 loss_instance_name="ppo",
                 phase="rollout",
