@@ -1,11 +1,7 @@
-import datetime
-import uuid
-
 import pytest
 from fastapi.testclient import TestClient
 
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.app_backend.metta_repo import MettaRepo
 
 
 @pytest.mark.slow

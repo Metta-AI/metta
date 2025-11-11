@@ -4,10 +4,10 @@ import secrets
 import uuid
 from collections import defaultdict
 from contextlib import asynccontextmanager
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Any, Literal
 
-from psycopg import AsyncConnection, Connection
+from psycopg import Connection
 from psycopg.rows import class_row
 from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool, PoolTimeout
