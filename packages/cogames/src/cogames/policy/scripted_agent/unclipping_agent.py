@@ -23,7 +23,7 @@ from .baseline_agent import (
 )
 
 if TYPE_CHECKING:
-    from mettagrid.simulator import Simulation
+    pass
 
 
 @dataclass
@@ -67,16 +67,22 @@ class UnclippingAgentPolicyImpl(BaselineAgentPolicyImpl):
         super().__init__(policy_env_info, agent_id, hyperparams)
         self._unclip_recipes = self._load_unclip_recipes()
 
-    def initial_agent_state(self, simulation: Optional["Simulation"]) -> UnclippingAgentState:
+    def initial_agent_state(self) -> UnclippingAgentState:
         """Create initial state for unclipping agent."""
-        assert simulation is not None
-
         # Cache tag name mapping for efficient tag -> object name lookup
-        self._tag_names = simulation.id_map.tag_names()
+        self._tag_names = self._policy_env_info.tag_id_to_name
 
-        # Create a large enough map to handle origin-relative positioning
-        map_size = max(simulation.map_height, simulation.map_width) * 2
+        # Use a reasonable default size for origin-relative positioning
+        map_size = 200  # Large enough for most missions
         center = map_size // 2
+
+        # Initialize heart recipe from protocols passed via PolicyEnvInterface
+        heart_recipe = None
+        for protocol in self._policy_env_info.assembler_protocols:
+            if protocol.output_resources.get("heart", 0) > 0:
+                heart_recipe = dict(protocol.input_resources)
+                heart_recipe.pop("energy", None)
+                break
 
         return UnclippingAgentState(
             agent_id=self._agent_id,
@@ -86,6 +92,7 @@ class UnclippingAgentPolicyImpl(BaselineAgentPolicyImpl):
             row=center,
             col=center,
             agent_occupancy=set(),
+            heart_recipe=heart_recipe,
         )
 
     def _load_unclip_recipes(self) -> dict[str, str]:
@@ -380,14 +387,13 @@ class UnclippingPolicy(MultiAgentPolicy):
 
     def __init__(self, policy_env_info: PolicyEnvInterface, hyperparams: Optional[UnclippingHyperparameters] = None):
         super().__init__(policy_env_info)
-        self._shared_state = SharedAgentState()
         self._agent_policies: dict[int, StatefulAgentPolicy[UnclippingAgentState]] = {}
         self._hyperparams = hyperparams or UnclippingHyperparameters()
 
     def agent_policy(self, agent_id: int) -> StatefulAgentPolicy[UnclippingAgentState]:
         if agent_id not in self._agent_policies:
             self._agent_policies[agent_id] = StatefulAgentPolicy(
-                UnclippingAgentPolicyImpl(self._policy_env_info, self._shared_state, agent_id, self._hyperparams),
+                UnclippingAgentPolicyImpl(self._policy_env_info, agent_id, self._hyperparams),
                 self._policy_env_info,
             )
         return self._agent_policies[agent_id]
