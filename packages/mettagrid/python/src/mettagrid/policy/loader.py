@@ -179,6 +179,6 @@ def _walk_and_import_package(package_name: str) -> None:
 
 # Discover and import policy modules from all policy packages
 # This allows policies to register themselves without creating hard dependencies
-def discover_and_import_policies(*packages: str) -> None:
+def discover_and_register_policies(*packages: str) -> None:
     for package_name in ["mettagrid.policy", "metta.agent.policy", *packages]:
         _walk_and_import_package(package_name)

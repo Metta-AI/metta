@@ -26,7 +26,7 @@ from cogames.cli.policy import get_policy_spec, get_policy_specs, policy_arg_exa
 from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, submit_command
 from cogames.curricula import make_rotation
 from cogames.device import resolve_training_device
-from mettagrid.policy.loader import discover_and_import_policies
+from mettagrid.policy.loader import discover_and_register_policies
 from mettagrid.policy.policy_registry import get_policy_registry
 from mettagrid.renderer.renderer import RenderMode
 from mettagrid.simulator import Simulator
@@ -46,7 +46,7 @@ app = typer.Typer(
     no_args_is_help=True,
     rich_markup_mode="rich",
     pretty_exceptions_show_locals=False,
-    callback=lambda: discover_and_import_policies("cogames.policy"),
+    callback=lambda: discover_and_register_policies("cogames.policy"),
 )
 
 
