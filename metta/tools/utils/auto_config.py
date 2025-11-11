@@ -168,7 +168,7 @@ def auto_policy_storage_decision(run: str | None = None) -> PolicyStorageDecisio
     if not aws_setup_module.is_enabled():
         return PolicyStorageDecision(base_prefix=None, remote_prefix=None, reason="aws_not_enabled")
 
-    aws_settings: AwsConfigSettings = supported_aws_env_overrides.to_config_settings()  # type: ignore
+    aws_settings: AwsConfigSettings = aws_setup_module.to_config_settings()  # type: ignore
     base_prefix = aws_settings["policy_remote_prefix"]
     if not isinstance(base_prefix, str) or not base_prefix:
         return PolicyStorageDecision(base_prefix=None, remote_prefix=None, reason="no_base_prefix")
