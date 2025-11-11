@@ -163,7 +163,7 @@ proc raceCarStepInternal(
     echo getCurrentExceptionMsg()
     quit()
 
-proc stepBatch*(
+proc step*(
   agent: RaceCarAgent,
   numAgents: int,
   numTokens: int,

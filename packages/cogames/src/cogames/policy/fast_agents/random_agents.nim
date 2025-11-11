@@ -24,7 +24,7 @@ proc reset*(agent: RandomAgent) =
   echo "Resetting RandomAgent ", agent.agentId
   agent.random = initRand(agent.agentId)
 
-proc stepBatch*(
+proc step*(
   agent: RandomAgent,
   numAgents: int,
   numTokens: int,

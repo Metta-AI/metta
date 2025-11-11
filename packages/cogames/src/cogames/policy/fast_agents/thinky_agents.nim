@@ -263,7 +263,7 @@ proc thinkyStepInternal(
     echo getCurrentExceptionMsg()
     quit()
 
-proc stepBatch*(
+proc step*(
   agent: ThinkyAgent,
   numAgents: int,
   numTokens: int,

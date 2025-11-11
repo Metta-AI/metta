@@ -52,7 +52,7 @@ class RandomAgentPolicy(_FastAgentPolicyBase):
         self._action_names = [action.name for action in policy_env_info.actions.actions()]
 
     def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
-        self._agent.step_batch(
+        self._agent.step(
             num_agents=raw_observations.shape[0],
             num_tokens=raw_observations.shape[1],
             size_token=raw_observations.shape[2],
@@ -64,7 +64,7 @@ class RandomAgentPolicy(_FastAgentPolicyBase):
     def step(self, obs: AgentObservation) -> Action:
         raw_batch = np.ascontiguousarray(self._pack_raw_observation(obs))
         self._single_actions.fill(0)
-        self._agent.step_batch(
+        self._agent.step(
             num_agents=1,
             num_tokens=self._num_tokens,
             size_token=self._token_dim,
@@ -97,7 +97,7 @@ class ThinkyAgentPolicy(_FastAgentPolicyBase):
         self._action_names = [action.name for action in policy_env_info.actions.actions()]
 
     def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
-        self._agent.step_batch(
+        self._agent.step(
             num_agents=raw_observations.shape[0],
             num_tokens=raw_observations.shape[1],
             size_token=raw_observations.shape[2],
@@ -109,7 +109,7 @@ class ThinkyAgentPolicy(_FastAgentPolicyBase):
     def step(self, obs: AgentObservation) -> Action:
         raw_batch = np.ascontiguousarray(self._pack_raw_observation(obs))
         self._single_actions.fill(0)
-        self._agent.step_batch(
+        self._agent.step(
             num_agents=1,
             num_tokens=self._num_tokens,
             size_token=self._token_dim,
@@ -142,7 +142,7 @@ class RaceCarAgentPolicy(_FastAgentPolicyBase):
         self._action_names = [action.name for action in policy_env_info.actions.actions()]
 
     def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
-        self._agent.step_batch(
+        self._agent.step(
             num_agents=raw_observations.shape[0],
             num_tokens=raw_observations.shape[1],
             size_token=raw_observations.shape[2],
@@ -154,7 +154,7 @@ class RaceCarAgentPolicy(_FastAgentPolicyBase):
     def step(self, obs: AgentObservation) -> Action:
         raw_batch = np.ascontiguousarray(self._pack_raw_observation(obs))
         self._single_actions.fill(0)
-        self._agent.step_batch(
+        self._agent.step(
             num_agents=1,
             num_tokens=self._num_tokens,
             size_token=self._token_dim,
