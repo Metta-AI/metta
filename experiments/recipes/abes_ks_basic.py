@@ -19,7 +19,7 @@ from metta.rl.training import (
     EvaluatorConfig,
     TrainingEnvironmentConfig,
 )
-from metta.rl.training.scheduler import LossRunGate, SchedulerConfig
+from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
@@ -134,18 +134,43 @@ def train(
     # Configure scheduler with run gates
     scheduler = SchedulerConfig(
         run_gates=[
-            LossRunGate(loss_instance_name="ppo", phase="rollout", begin_at_epoch=50),
+            LossRunGate(loss_instance_name="ppo", phase="rollout", begin_at_step=50_000_000),
             LossRunGate(
-                loss_instance_name="tl_kickstarter", phase="rollout", end_at_epoch=50
+                loss_instance_name="tl_kickstarter", phase="rollout", end_at_step=50_000_000
             ),
             LossRunGate(
-                loss_instance_name="sl_kickstarter", phase="rollout", begin_at_epoch=50
+                loss_instance_name="sl_kickstarter",
+                phase="rollout",
+                begin_at_step=50_000_000,
+                end_at_step=1_000_000_000
             ),
             LossRunGate(
                 loss_instance_name="sl_kickstarter",
                 phase="train",
-                begin_at_epoch=50,
-                end_at_epoch=1000,
+                begin_at_step=50_000_000,
+                end_at_step=1_000_000_000,
+            ),
+        ],
+        rules=[
+            HyperUpdateRule(
+                loss_instance_name="sl_kickstarter",
+                attr_path="action_loss_coef",
+                mode="progress",
+                style="linear",
+                start_value=0.6,
+                end_value=0.0,
+                start_agent_step=500_000_000,
+                end_agent_step=1_000_000_000,
+            ),
+            HyperUpdateRule(
+                loss_instance_name="sl_kickstarter",
+                attr_path="value_loss_coef",
+                mode="progress",
+                style="linear",
+                start_value=1.0,
+                end_value=0.0,
+                start_agent_step=500_000_000,
+                end_agent_step=1_000_000_000,
             ),
         ],
     )
