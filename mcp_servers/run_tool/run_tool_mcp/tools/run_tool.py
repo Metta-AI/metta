@@ -5,16 +5,12 @@ import logging
 from typing import Any
 
 from metta.common.tool.recipe_registry import recipe_registry
-<<<<<<< Updated upstream
 from metta.common.tool.tool_path import parse_two_token_syntax, resolve_and_load_tool_maker
-=======
->>>>>>> Stashed changes
 from metta.common.tool.tool_registry import tool_registry
 
 logger = logging.getLogger(__name__)
 
 
-<<<<<<< Updated upstream
 def _normalize_tool_path(tool_path: str) -> str:
     """Normalize tool path to handle two-token syntax like 'train arena'.
 
@@ -44,8 +40,6 @@ def _normalize_tool_path(tool_path: str) -> str:
     return tool_path
 
 
-=======
->>>>>>> Stashed changes
 async def list_recipes() -> str:
     """List all available recipes.
 
@@ -160,27 +154,17 @@ async def get_tool_arguments(tool_path: str) -> str:
         JSON string with tool arguments information
     """
     try:
-<<<<<<< Updated upstream
         # Normalize tool path to handle two-token syntax
         normalized_path = _normalize_tool_path(tool_path)
 
         # Try to resolve the tool maker to get type information
         tool_maker = resolve_and_load_tool_maker(normalized_path)
-=======
-        # Try to resolve the tool maker to get type information
-        from metta.common.tool.tool_path import resolve_and_load_tool_maker
-
-        tool_maker = resolve_and_load_tool_maker(tool_path)
->>>>>>> Stashed changes
         if not tool_maker:
             return json.dumps(
                 {
                     "status": "error",
                     "message": f"Tool '{tool_path}' not found",
-<<<<<<< Updated upstream
                     "normalized_path": normalized_path,
-=======
->>>>>>> Stashed changes
                 }
             )
 
@@ -189,12 +173,8 @@ async def get_tool_arguments(tool_path: str) -> str:
         from metta.common.tool import Tool
 
         result: dict[str, Any] = {
-<<<<<<< Updated upstream
-            "tool_path": normalized_path,  # Return normalized path
-            "original_path": tool_path,  # Keep original for reference
-=======
-            "tool_path": tool_path,
->>>>>>> Stashed changes
+            "tool_path": normalized_path,
+            "original_path": tool_path,
             "module": tool_maker.__module__,
             "name": tool_maker.__name__,
         }
@@ -258,27 +238,17 @@ async def validate_command(tool_path: str, arguments: dict[str, Any] | None = No
     """Validate a command without executing it.
 
     Args:
-<<<<<<< Updated upstream
         tool_path: Tool path (e.g., 'train arena', 'arena.train')
-=======
-        tool_path: Tool path (e.g., 'train arena')
->>>>>>> Stashed changes
         arguments: Dictionary of arguments
 
     Returns:
         JSON string with validation result
     """
     try:
-<<<<<<< Updated upstream
         # Normalize tool path to handle two-token syntax
         normalized_path = _normalize_tool_path(tool_path)
 
         tool_maker = resolve_and_load_tool_maker(normalized_path)
-=======
-        from metta.common.tool.tool_path import resolve_and_load_tool_maker
-
-        tool_maker = resolve_and_load_tool_maker(tool_path)
->>>>>>> Stashed changes
         if not tool_maker:
             # Try to find similar recipes
             recipes = recipe_registry.get_all()
@@ -292,10 +262,7 @@ async def validate_command(tool_path: str, arguments: dict[str, Any] | None = No
                 {
                     "valid": False,
                     "error": f"Tool '{tool_path}' not found",
-<<<<<<< Updated upstream
                     "normalized_path": normalized_path,
-=======
->>>>>>> Stashed changes
                     "suggestions": suggestions,
                 }
             )
@@ -303,12 +270,8 @@ async def validate_command(tool_path: str, arguments: dict[str, Any] | None = No
         # Basic validation - check if tool maker can be loaded
         result = {
             "valid": True,
-<<<<<<< Updated upstream
-            "tool_path": normalized_path,  # Return normalized path
-            "original_path": tool_path,  # Keep original for reference
-=======
-            "tool_path": tool_path,
->>>>>>> Stashed changes
+            "tool_path": normalized_path,
+            "original_path": tool_path,
             "module": tool_maker.__module__,
             "name": tool_maker.__name__,
         }
@@ -354,7 +317,6 @@ async def execute_run_tool(
         timeout: Override default timeout
 
     Returns:
-<<<<<<< Updated upstream
         JSON string with execution result including command summary
     """
     # Build preview command for display
@@ -375,10 +337,6 @@ async def execute_run_tool(
     if preview_args:
         preview_command += " " + " ".join(preview_args)
 
-=======
-        JSON string with execution result
-    """
->>>>>>> Stashed changes
     result = await executor.execute(
         tool_path=tool_path,
         arguments=arguments,
@@ -387,7 +345,6 @@ async def execute_run_tool(
         timeout=timeout,
     )
 
-<<<<<<< Updated upstream
     # Add summary fields for command visibility
     command = result.get("command", preview_command)
     result["command"] = command
@@ -400,7 +357,3 @@ async def execute_run_tool(
         result["command_executed"] = command
 
     return json.dumps(result, indent=2)
-=======
-    return json.dumps(result, indent=2)
-
->>>>>>> Stashed changes
