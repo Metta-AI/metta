@@ -1,1 +1,1 @@
-nim c heuristic_agents.nim
+nim c fast_agents.nim
