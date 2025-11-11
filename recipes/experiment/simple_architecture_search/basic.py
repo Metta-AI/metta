@@ -2,6 +2,12 @@ from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
+from metta.agent.policies.agalite import AGaLiTeConfig
+from metta.agent.policies.fast import FastConfig
+from metta.agent.policies.fast_dynamics import FastDynamicsConfig
+from metta.agent.policies.memory_free import MemoryFreeConfig
+from metta.agent.policies.puffer import PufferPolicyConfig
+from metta.agent.policies.trxl import TRXLConfig
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
@@ -12,20 +18,15 @@ from metta.rl.trainer_config import TorchProfilerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import (
-    grid_search,
     SweepParameters as SP,
+)
+from metta.sweep.core import (
+    grid_search,
 )
 from metta.tools.eval import EvaluateTool
 from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
-
-from metta.agent.policies.agalite import AGaLiTeConfig
-from metta.agent.policies.fast import FastConfig
-from metta.agent.policies.fast_dynamics import FastDynamicsConfig
-from metta.agent.policies.memory_free import MemoryFreeConfig
-from metta.agent.policies.puffer import PufferPolicyConfig
-from metta.agent.policies.trxl import TRXLConfig
 
 # Architecture configurations for benchmark testing
 ARCHITECTURES = {
