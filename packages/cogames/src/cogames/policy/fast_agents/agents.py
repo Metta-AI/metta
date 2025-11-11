@@ -1,4 +1,3 @@
-import json
 import os
 import sys
 
@@ -8,16 +7,15 @@ from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action, AgentObservation, Simulation
 
-
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(current_dir, "bindings/generated"))
 
 
 class RandomAgentPolicy(AgentPolicy):
-
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info)
-        import fast_agents as fa # Lint wants it here...
+        import fast_agents as fa  # isort: skip
+
         self._agent = fa.RandomAgent(agent_id, policy_env_info.to_json())
         self._action_names = [action.name for action in policy_env_info.actions.actions()]
 
@@ -57,7 +55,8 @@ class RandomAgentsMultiPolicy(MultiAgentPolicy):
 class ThinkyAgentPolicy(AgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info)
-        import fast_agents as fa # Lint wants it here...
+        import fast_agents as fa  # isort: skip
+
         self._agent = fa.ThinkyAgent(agent_id, policy_env_info.to_json())
         self._action_names = [action.name for action in policy_env_info.actions.actions()]
 
@@ -97,7 +96,8 @@ class ThinkyAgentsMultiPolicy(MultiAgentPolicy):
 class RaceCarAgentPolicy(AgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info)
-        import fast_agents as fa # Lint wants it here...
+        import fast_agents as fa  # isort: skip
+
         self._agent = fa.RaceCarAgent(agent_id, policy_env_info.to_json())
         self._action_names = [action.name for action in policy_env_info.actions.actions()]
 
