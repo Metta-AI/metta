@@ -138,7 +138,7 @@ dll.fast_agents_random_agent_set_agent_id.restype = None
 dll.fast_agents_random_agent_reset.argtypes = [RandomAgent]
 dll.fast_agents_random_agent_reset.restype = None
 
-dll.fast_agents_random_agent_step.argtypes = [RandomAgent, c_longlong, c_longlong, c_longlong, pointer, c_longlong, pointer]
+dll.fast_agents_random_agent_step.argtypes = [RandomAgent, c_longlong, c_longlong, c_longlong, c_void_p, c_longlong, c_void_p]
 dll.fast_agents_random_agent_step.restype = None
 
 dll.fast_agents_thinky_agent_unref.argtypes = [ThinkyAgent]
@@ -156,7 +156,7 @@ dll.fast_agents_thinky_agent_set_agent_id.restype = None
 dll.fast_agents_thinky_agent_reset.argtypes = [ThinkyAgent]
 dll.fast_agents_thinky_agent_reset.restype = None
 
-dll.fast_agents_thinky_agent_step.argtypes = [ThinkyAgent, c_longlong, c_longlong, c_longlong, pointer, c_longlong, pointer]
+dll.fast_agents_thinky_agent_step.argtypes = [ThinkyAgent, c_longlong, c_longlong, c_longlong, c_void_p, c_longlong, c_void_p]
 dll.fast_agents_thinky_agent_step.restype = None
 
 dll.fast_agents_race_car_agent_unref.argtypes = [RaceCarAgent]
@@ -174,6 +174,6 @@ dll.fast_agents_race_car_agent_set_agent_id.restype = None
 dll.fast_agents_race_car_agent_reset.argtypes = [RaceCarAgent]
 dll.fast_agents_race_car_agent_reset.restype = None
 
-dll.fast_agents_race_car_agent_step.argtypes = [RaceCarAgent, c_longlong, c_longlong, c_longlong, pointer, c_longlong, pointer]
+dll.fast_agents_race_car_agent_step.argtypes = [RaceCarAgent, c_longlong, c_longlong, c_longlong, c_void_p, c_longlong, c_void_p]
 dll.fast_agents_race_car_agent_step.restype = None
 

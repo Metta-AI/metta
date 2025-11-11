@@ -1453,16 +1453,7 @@ class BaselinePolicy(MultiAgentPolicy):
         out_actions: Optional[np.ndarray] = None,
         observations: Optional[np.ndarray] = None,
     ) -> np.ndarray:
-        """Compute discrete action indices for every agent in the simulation.
-
-        Args:
-            simulation: Active simulation providing per-agent observations.
-            out_actions: Optional preallocated buffer to write action indices into.
-            observations: Optional shared observation buffer (unused for now, kept for API parity).
-
-        Returns:
-            Array of shape (num_agents,) with dtype compatible with the simulator's action buffer.
-        """
+        """Return per-agent action indices, writing into ``out_actions`` when provided."""
 
         del observations  # Future implementations may leverage raw observation batches.
 
