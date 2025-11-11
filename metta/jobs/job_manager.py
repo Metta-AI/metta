@@ -224,13 +224,14 @@ class JobManager:
     @staticmethod
     def _map_skypilot_status_to_exit_code(status: str) -> int:
         """Map SkyPilot job status to exit code."""
+        _logger = logging.getLogger(__name__)
         if status == "SUCCEEDED":
             exit_code = 0
         elif status == "CANCELLED":
             exit_code = 130  # Standard exit code for SIGINT
         else:
             exit_code = 1  # Generic failure
-            logger.debug(f"[EXIT_CODE_MAPPING] Mapping status={status} to exit_code={exit_code}")
+            _logger.debug(f"[EXIT_CODE_MAPPING] Mapping status={status} to exit_code={exit_code}")
 
         return exit_code
 
