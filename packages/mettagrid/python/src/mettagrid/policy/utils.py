@@ -26,7 +26,6 @@ _POLICY_CLASS_SHORTHAND: dict[str, str] = {
     "baseline": "cogames.policy.scripted_agent.baseline_agent.BaselinePolicy",
     "simple_baseline": "cogames.policy.scripted_agent.baseline_agent.BaselinePolicy",
     "unclipping": "cogames.policy.scripted_agent.unclipping_agent.UnclippingPolicy",
-    "baseline_noop": "cogames.policy.scripted_agent.baseline_agent.NoopBaselinePolicy",
     "noop_baseline": "cogames.policy.scripted_agent.baseline_agent.NoopBaselinePolicy",
     "heuristic": "cogames.policy.heuristic_agents.simple_nim_agents.HeuristicAgentsPolicy",
     "heuristic_nim": "cogames.policy.heuristic_agents.simple_nim_agents.HeuristicAgentsPolicy",

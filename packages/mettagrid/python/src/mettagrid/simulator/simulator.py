@@ -11,9 +11,7 @@ import mettagrid.config.mettagrid_c_config as mettagrid_c_config
 import mettagrid.config.mettagrid_config as mettagrid_config
 from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.map_builder.map_builder import GameMap
-from mettagrid.mettagrid_c import (
-    MettaGrid as MettaGridCpp,
-)
+from mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
 from mettagrid.mettagrid_c import PackedCoordinate
 from mettagrid.profiling.stopwatch import Stopwatch, with_instance_timer
 from mettagrid.simulator.interface import Action, AgentObservation, ObservationToken, SimulatorEventHandler
@@ -84,7 +82,6 @@ class Simulation:
             action.name: idx for idx, action in enumerate(self._config.game.actions.actions())
         }
 
-        self._buffers = buffers
         if buffers is not None:
             self._c_sim.set_buffers(
                 buffers.observations,
@@ -111,12 +108,6 @@ class Simulation:
 
     def observations(self) -> list[AgentObservation]:
         return [self.agent(agent_id).observation for agent_id in range(self.num_agents)]
-
-    def raw_observations(self) -> np.ndarray:
-        return self.__c_sim.observations()
-
-    def raw_actions(self) -> np.ndarray:
-        return self.__c_sim.actions()
 
     def is_done(self) -> bool:
         return bool(self.__c_sim.truncations().all() or self.__c_sim.terminals().all())
@@ -192,10 +183,6 @@ class Simulation:
     @property
     def num_agents(self) -> int:
         return self._config.game.num_agents
-
-    @property
-    def buffers(self) -> Optional[Buffers]:
-        return self._buffers
 
     @property
     def action_ids(self) -> dict[str, int]:
