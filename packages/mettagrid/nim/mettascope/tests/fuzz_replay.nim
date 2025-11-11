@@ -116,7 +116,7 @@ proc fuzzJsonField(obj: JsonNode, fieldPath: seq[string], depth: int = 0, baseRe
     discard  # Leave other types unchanged
 
 proc fuzzReplay(replay: JsonNode): JsonNode =
-  ## Apply random fuzzing mutations to replay JSON, only fuzzing object properties
+  ## Apply random fuzzing mutations to replay JSON.
   result = replay.copy()
 
   # Only fuzz the objects array, and only specific properties within objects
@@ -139,40 +139,36 @@ proc fuzzReplay(replay: JsonNode): JsonNode =
         newObjects.add(obj)
     result["objects"] = newObjects
 
-echo "Starting replay fuzzing with field-level mutations..."
-
-# Initialize fidget2 in headless mode for testing
 initHeadlessFidget2()
-
-# Generate one valid replay to use as base for all fuzzing
 let baseReplay = makeValidReplay("fuzz_test_replay.json.z")
 
-var failedCount = 0
-var passedCount = 0
+var
+  passedCount = 0
+  loadingFailedCount = 0
+  validationFailedCount = 0
 
 for i in 0 ..< iterations:
-  # Make a copy and fuzz it
   let fuzzedReplay = fuzzReplay(baseReplay)
-
-  # Test BOTH validation and loading - show all failures
   let jsonStr = $fuzzedReplay
+  var passed = true
 
   try:
-    # Step 1: Validate the schema
     validateReplaySchema(fuzzedReplay)
+  except Exception as e:
+    validationFailedCount += 1
+    passed = false
 
-    # Step 2: If validation passed, test loading
+  try:
     let replay = loadReplayString(jsonStr, "fuzz_test.json.z")
     doAssert replay != nil
 
-    # Both validation and loading succeeded
-    passedCount += 1
-
   except Exception as e:
-    # Loading failed or crashed - this is a real bug
-    echo &"Iteration {i}: Loading failed: {e.msg}"
-    failedCount += 1
+    loadingFailedCount += 1
+    passed = false
+
+  if passed:
+    passedCount += 1
 
 
 echo &"Replay field-level fuzzing completed successfully"
-echo &"Results: {passedCount} passed, {failedCount} failed out of {iterations} iterations"
+echo &"Results: {passedCount} passed, {validationFailedCount} validation failed, {loadingFailedCount} loading failed out of {iterations} iterations"
