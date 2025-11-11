@@ -314,24 +314,24 @@ class ClipperConfig(Config):
 
     The clipper system uses a spatial diffusion process where clipping spreads
     based on distance from already-clipped buildings. The length_scale parameter
-    controls the exponential decay: weight = exp(-distance / length_scale).
-
-    If length_scale is <= 0 (default 0.0), it will be automatically calculated
-    at runtime in C++ using percolation based on the actual grid size and
-    number of buildings placed. Set length_scale > 0 to use a manual value instead.
+    controls the exponential decay: weight ~= exp(-distance / length_scale).
     """
 
     unclipping_protocols: list[ProtocolConfig] = Field(default_factory=list)
-    length_scale: float = Field(
-        default=0.0,
-        description="Controls spatial spread rate: weight = exp(-distance / length_scale). "
-        "If <= 0, automatically calculated using percolation at runtime.",
+    length_scale: int = Field(
+        default=0,
+        ge=0,
+        description="Controls spatial spread rate: weight ~= exp(-distance / length_scale). "
+        "If <= 0, automatically calculated at runtime based on the sparsity of the grid.",
     )
     scaled_cutoff_distance: int = Field(
         default=3,
+        ge=1,
         description="Maximum distance in units of length_scale for infection weight calculations.",
     )
-    clip_period: int = Field(default=0, ge=0)
+    clip_period: int = Field(
+        default=0, ge=0, description="Approximate timesteps between clipping events (0 = disabled)"
+    )
 
 
 AnyGridObjectConfig = SerializeAsAny[
