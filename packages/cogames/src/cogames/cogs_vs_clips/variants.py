@@ -32,6 +32,11 @@ class LonelyHeartVariant(MissionVariant):
     description: str = "Making hearts for one agent is easy."
 
     @override
+    def modify_mission(self, mission):
+        mission.assembler.heart_cost = 1
+        mission.heart_capacity = max(mission.heart_capacity, 255)
+
+    @override
     def modify_env(self, mission, env):
         simplified_inputs = {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1, "energy": 1}
 
