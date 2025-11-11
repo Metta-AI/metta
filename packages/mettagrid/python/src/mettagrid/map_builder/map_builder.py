@@ -16,6 +16,64 @@ from mettagrid.util.module import load_symbol
 
 logger = logging.getLogger(__name__)
 
+# Registry to cache clones and prevent duplicates (handles module reload)
+_clone_registry: dict[tuple[type, type], type[MapBuilderConfig[Any]]] = {}
+
+
+def _create_clone_config(
+    base_config_class: type[MapBuilderConfig[Any]],
+    builder_class: type[MapBuilder],
+) -> type[MapBuilderConfig[Any]]:
+    """Create a cloned config class at module level for pickling compatibility.
+
+    When a MapBuilderConfig is already bound to another MapBuilder, we need to clone it
+    for the new builder. This function creates the clone at module level (not inside a method)
+    so it can be pickled for multiprocessing.
+
+    The clone name follows the system's pattern: {BaseConfigName}_For_{BuilderClassName}
+    This is deterministic and matches how _type_str() works.
+
+    Args:
+        base_config_class: The config class to clone
+        builder_class: The builder class that needs the clone
+
+    Returns:
+        A new config class that inherits from base_config_class, with a unique name
+    """
+    # Check registry first (handles module reload - returns existing clone if present)
+    registry_key = (base_config_class, builder_class)
+    if registry_key in _clone_registry:
+        return _clone_registry[registry_key]
+
+    # Create deterministic name based on builder class (follows _type_str() pattern)
+    base_name = base_config_class.__name__
+    builder_name = builder_class.__name__
+    clone_name = f"{base_name}_For_{builder_name}"
+
+    # Handle name conflicts (unlikely, but safe)
+    original_clone_name = clone_name
+    counter = 1
+    while clone_name in globals():
+        clone_name = f"{original_clone_name}_{counter}"
+        counter += 1
+
+    # Create the class at module level using type()
+    # This ensures it has a proper __module__ and __qualname__ for pickling
+    clone_class = type(
+        clone_name,
+        (base_config_class,),
+        {
+            "__module__": __name__,
+            "__qualname__": clone_name,
+        },
+    )
+
+    # Register in globals and cache in registry
+    globals()[clone_name] = clone_class
+    _clone_registry[registry_key] = clone_class
+
+    return clone_class
+
 
 class GameMap:
     """
@@ -182,10 +240,9 @@ class MapBuilder(ABC, Generic[ConfigT]):
 
         if Config._builder_cls:
             # Already bound to another MapBuilder class, so we need to clone it
-            class CloneConfig(Config):
-                pass
-
-            Config = CloneConfig
+            # Use module-level function to create clone (required for pickling compatibility)
+            # Pass builder class for deterministic naming
+            Config = _create_clone_config(Config, cls)
 
         Config._builder_cls = cls
         cls.Config = Config  # pyright: ignore[reportAttributeAccessIssue]

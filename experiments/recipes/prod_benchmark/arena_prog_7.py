@@ -84,6 +84,45 @@ def mettagrid(num_agents: int = 24) -> MettaGridConfig:
     return arena_env
 
 
+def _config_path_exists(config: MettaGridConfig, path: str) -> bool:
+    """Check if a config path exists without raising an error.
+
+    Args:
+        config: The MettaGridConfig to check
+        path: Dot-separated path (e.g., "game.objects.mine_red.initial_resource_count")
+
+    Returns:
+        True if the path exists and can be set, False otherwise
+    """
+    key_parts = path.split(".")
+    current = config
+
+    try:
+        for key_part in key_parts[:-1]:
+            if isinstance(current, dict):
+                if key_part not in current:
+                    return False
+                current = current[key_part]
+            elif hasattr(current, key_part):
+                current = getattr(current, key_part)
+                if current is None:
+                    return False
+            else:
+                return False
+
+        # Check the final key
+        final_key = key_parts[-1]
+        if isinstance(current, dict):
+            return True  # Dicts can have new keys
+        elif hasattr(current, final_key):
+            # Check if it's a valid field
+            cls = type(current)
+            return final_key in cls.model_fields
+        return False
+    except (AttributeError, KeyError, TypeError):
+        return False
+
+
 def make_curriculum(
     arena_env: Optional[MettaGridConfig] = None,
     enable_detailed_slice_logging: bool = False,
@@ -103,9 +142,12 @@ def make_curriculum(
     # to maintain action space consistency.
     arena_tasks.add_bucket("game.actions.attack.consumed_resources.laser", [1, 100])
 
-    # sometimes add initial_items to the buildings
+    # Add initial resources to buildings if they support it
+    # Note: Assemblers don't have initial_resource_count, only ChestConfig has initial_inventory
     for obj in ["mine_red", "generator_red", "altar", "lasery", "armory"]:
-        arena_tasks.add_bucket(f"game.objects.{obj}.initial_resource_count", [0, 1])
+        path = f"game.objects.{obj}.initial_resource_count"
+        if _config_path_exists(arena_env, path):
+            arena_tasks.add_bucket(path, [0, 1])
 
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
@@ -142,13 +184,17 @@ def train(
     """Train with curriculum-enabled arena benchmarks."""
 
     effective_seed = _resolve_seed(seed)
-    curriculum = make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
+    curriculum = make_curriculum(
+        enable_detailed_slice_logging=enable_detailed_slice_logging
+    )
     eval_simulations = simulations()
 
     return TrainTool(
         system=_build_system(effective_seed),
         trainer=_build_trainer(),
-        training_env=TrainingEnvironmentConfig(curriculum=curriculum, seed=effective_seed),
+        training_env=TrainingEnvironmentConfig(
+            curriculum=curriculum, seed=effective_seed
+        ),
         evaluator=EvaluatorConfig(simulations=eval_simulations),
         policy_architecture=_resolve_policy_architecture(architecture),
         torch_profiler=TorchProfilerConfig(),
