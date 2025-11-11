@@ -28,7 +28,7 @@ class CvCStationConfig(Config):
 
 class CvCWallConfig(CvCStationConfig):
     def station_cfg(self) -> WallConfig:
-        return WallConfig(name="wall", map_char="#", render_symbol=vibes.VIBE_BY_NAME["wall"].symbol, tags=["wall"])
+        return WallConfig(name="wall", map_char="#", render_symbol=vibes.VIBE_BY_NAME["wall"].symbol)
 
 
 class ExtractorConfig(CvCStationConfig):
@@ -44,7 +44,6 @@ class ChargerConfig(ExtractorConfig):
             name="charger",
             map_char="+",
             render_symbol=vibes.VIBE_BY_NAME["charger"].symbol,
-            tags=["charger"],
             # Protocols
             allow_partial_usage=True,  # can use it while its on cooldown
             max_uses=0,  # unlimited uses
@@ -67,7 +66,6 @@ class CarbonExtractorConfig(ExtractorConfig):
             name="carbon_extractor",
             map_char="C",
             render_symbol=vibes.VIBE_BY_NAME["carbon"].symbol,
-            tags=["carbon_extractor"],
             # Protocols
             max_uses=self.max_uses,
             protocols=[
@@ -90,7 +88,6 @@ class OxygenExtractorConfig(ExtractorConfig):
             name="oxygen_extractor",
             map_char="O",
             render_symbol=vibes.VIBE_BY_NAME["oxygen"].symbol,
-            tags=["oxygen_extractor"],
             # Protocols
             max_uses=self.max_uses,
             allow_partial_usage=True,  # can use it while its on cooldown
@@ -116,7 +113,6 @@ class GermaniumExtractorConfig(ExtractorConfig):
             name="germanium_extractor",
             map_char="G",
             render_symbol=vibes.VIBE_BY_NAME["germanium"].symbol,
-            tags=["germanium_extractor"],
             # Protocols
             max_uses=self.max_uses,
             protocols=[
@@ -142,7 +138,6 @@ class SiliconExtractorConfig(ExtractorConfig):
             name="silicon_extractor",
             map_char="S",
             render_symbol=vibes.VIBE_BY_NAME["silicon"].symbol,
-            tags=["silicon_extractor"],
             # Protocols
             max_uses=self.max_uses,  # Use direct value, no division
             protocols=[
@@ -166,7 +161,6 @@ class CvCChestConfig(CvCStationConfig):
         return ChestConfig(
             map_char="C",
             render_symbol=vibes.VIBE_BY_NAME["chest"].symbol,
-            tags=["chest"],
             vibe_transfers={
                 "default": {"heart": 255, "carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255},
                 "heart": {"heart": -1},
@@ -188,7 +182,6 @@ class CvCAssemblerConfig(CvCStationConfig):
             name="assembler",
             map_char="&",
             render_symbol=vibes.VIBE_BY_NAME["assembler"].symbol,
-            tags=["assembler"],
             clip_immune=True,
             protocols=[
                 ProtocolConfig(
