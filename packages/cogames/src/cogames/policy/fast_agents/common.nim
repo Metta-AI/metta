@@ -107,15 +107,8 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
   try:
     var config = environmentConfig.fromJson(PolicyConfig)
     result = Config(config: config)
-    echo "  numAgents", config.numAgents
-    echo "  obsWidth", config.obsWidth
-    echo "  obsHeight", config.obsHeight
-    echo "  actions", config.actions
-    echo "  tags", config.tags
-    echo "  obsFeatures", config.obsFeatures
 
     for feature in config.obsFeatures:
-      echo "    feature ", feature.id, " ", feature.name, " ", feature.normalization
       case feature.name:
       of "agent:group":
         result.features.group = feature.id
@@ -208,9 +201,8 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
         result.actions.vibeWall = id
       else:
         discard
-    echo "  actions", result.actions
+
     for id, name in config.tags:
-      echo "    tag name ", name, " id ", id
       case name:
       of "agent":
         result.tags.agent = id
@@ -232,7 +224,7 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
         result.tags.wall = id
       else:
         discard
-    echo "  types_names", result.tags
+
   except JsonError, ValueError:
     echo "Error parsing environment config: ", getCurrentExceptionMsg()
 
