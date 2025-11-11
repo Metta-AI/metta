@@ -21,7 +21,7 @@ NUM_STEPS = 10000
 BATCH_SIZE = 1
 LEARNING_RATE = 1e-4
 DEVICE = "cpu"
-CHECKPOINT_DIR = Path("./train_dir")
+CHECKPOINT_DIR = Path("./test_train_dir")
 SEED = 42
 LOG_INTERVAL = 10
 NIM_DEBUG = False
@@ -72,6 +72,10 @@ def train_supervised(
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     loss_fn = nn.CrossEntropyLoss()
 
+    # load model weights
+    model.load_state_dict(torch.load(checkpoint_dir / "policy.pt"))
+    model = model.to(torch_device)
+
     # Create multiple simulations for batching
     simulations = []
     scripted_agent_policies_list = []
@@ -90,6 +94,8 @@ def train_supervised(
     start_time = time.perf_counter()
     last_log_time = start_time
     last_log_steps = 0
+    log_interval_correct = 0
+    log_interval_total = 0
 
     print(f"Starting supervised training on {mission_name}")
     if variant:
@@ -142,6 +148,9 @@ def train_supervised(
 
         # Compute loss
         loss = loss_fn(logits, action_batch_tensor)
+        predictions = torch.argmax(logits, dim=1)
+        log_interval_correct += int((predictions == action_batch_tensor).sum().item())
+        log_interval_total += len(valid_indices)
 
         # Backward pass
         optimizer.zero_grad()
@@ -166,13 +175,16 @@ def train_supervised(
                 steps_per_second = 0.0
 
             avg_episode = sum(episode_counts) / len(episode_counts) if episode_counts else 0
+            accuracy = (log_interval_correct / log_interval_total) if log_interval_total else 0.0
             print(
                 f"Step {step_count}/{num_steps}, Loss: {loss.item():.4f}, "
-                f"Avg Episode: {avg_episode:.1f}, Steps/s: {steps_per_second:.1f}"
+                f"Accuracy: {accuracy:.3f}, Avg Episode: {avg_episode:.1f}, Steps/s: {steps_per_second:.1f}"
             )
 
             last_log_time = current_time
             last_log_steps = step_count
+            log_interval_correct = 0
+            log_interval_total = 0
 
     # Final checkpoint - save as policy.pt for compatibility with cogames play
     final_checkpoint = checkpoint_dir / "policy.pt"
