@@ -319,10 +319,6 @@ class ClipperConfig(Config):
     If length_scale is <= 0 (default 0.0), it will be automatically calculated
     at runtime in C++ using percolation based on the actual grid size and
     number of buildings placed. Set length_scale > 0 to use a manual value instead.
-
-    If cutoff_distance is <= 0 (default 0.0), it will be automatically set to
-    3 * length_scale at runtime. At this distance, exp(-3) ≈ 0.05, making weights
-    negligible. Set cutoff_distance > 0 to use a manual cutoff.
     """
 
     unclipping_protocols: list[ProtocolConfig] = Field(default_factory=list)
@@ -331,13 +327,11 @@ class ClipperConfig(Config):
         description="Controls spatial spread rate: weight = exp(-distance / length_scale). "
         "If <= 0, automatically calculated using percolation at runtime.",
     )
-    cutoff_distance: float = Field(
-        default=0.0,
-        ge=0.0,
-        description="Maximum distance for infection weight calculations. "
-        "If <= 0, automatically set to 3 * length_scale at runtime.",
+    scaled_cutoff_distance: int = Field(
+        default=3,
+        description="Maximum distance in units of length_scale for infection weight calculations.",
     )
-    clip_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    clip_period: int = Field(default=0, ge=0)
 
 
 AnyGridObjectConfig = SerializeAsAny[
@@ -408,12 +402,9 @@ class GameConfig(Config):
     # Map builder configuration - accepts any MapBuilder config
     map_builder: AnyMapBuilderConfig = Field(default_factory=lambda: RandomMapBuilder.Config(agents=24))
 
-    # Feature Flags
-    track_movement_metrics: bool = Field(
-        default=True, description="Enable movement metrics tracking (sequential rotations)"
-    )
+    # Note that if this is False, agents won't be able to see how to unclip assemblers.
     protocol_details_obs: bool = Field(
-        default=False, description="Objects show their protocol inputs and outputs when observed"
+        default=True, description="Objects show their protocol inputs and outputs when observed"
     )
 
     reward_estimates: Optional[dict[str, float]] = Field(default=None)
@@ -435,16 +426,14 @@ class GameConfig(Config):
 
     def id_map(self) -> "IdMap":
         """Get the observation feature ID map for this configuration."""
-        # Create a minimal MettaGridConfig wrapper
-        wrapper = MettaGridConfig(game=self)
-        return IdMap(wrapper)
+        return IdMap(self)
 
 
 class EnvSupervisorConfig(Config):
     """Environment supervisor configuration."""
 
-    enabled: bool = Field(default=False)
-    policy: str = Field(default="baseline")
+    policy: Optional[str] = Field(default=None)
+    policy_data_path: Optional[str] = Field(default=None)
 
 
 class MettaGridConfig(Config):
@@ -453,10 +442,6 @@ class MettaGridConfig(Config):
     label: str = Field(default="mettagrid")
     game: GameConfig = Field(default_factory=GameConfig)
     desync_episodes: bool = Field(default=True)
-
-    def id_map(self) -> "IdMap":
-        """Get the observation feature ID map for this configuration."""
-        return IdMap(self)
 
     def with_ascii_map(self, map_data: list[list[str]]) -> "MettaGridConfig":
         self.game.map_builder = AsciiMapBuilder.Config(

@@ -161,7 +161,7 @@ def test_compass_toggle():
     enabled_sim = create_test_sim(
         {"episode_completion_pct": False, "last_action": False, "last_reward": False, "compass": True}
     )
-    compass_feature_id = enabled_sim.config.id_map().feature_id("agent:compass")
+    compass_feature_id = enabled_sim.config.game.id_map().feature_id("agent:compass")
 
     enabled_obs = enabled_sim._c_sim.observations()
     compass_counts = [
