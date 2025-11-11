@@ -9,8 +9,9 @@ import torch
 import torch.nn as nn
 
 from cogames.cli.mission import get_mission
-from cogames.policy.heuristic_agents.simple_nim_agents import HeuristicAgentsPolicy
+from cogames.policy.fast_agents.agents import RandomAgentsMultiPolicy
 from mettagrid.mettagrid_c import PackedCoordinate
+from mettagrid.policy.policy import MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.stateless import StatelessPolicyNet
 from mettagrid.simulator import Simulation
@@ -27,6 +28,7 @@ CHECKPOINT_DIR = Path("./test_train_dir")
 SEED = 42
 LOG_INTERVAL = 1000
 NIM_DEBUG = False
+TEACHER_POLICY_CLASS = RandomAgentsMultiPolicy
 
 
 def convert_raw_obs_to_policy_tokens(raw_obs: np.ndarray, expected_num_tokens: int) -> np.ndarray:
@@ -71,6 +73,7 @@ def convert_raw_obs_to_policy_tokens(raw_obs: np.ndarray, expected_num_tokens: i
 
 
 def train_supervised(
+    teacher_policy_class: type[MultiAgentPolicy],
     mission_name: str = MISSION_NAME,
     variant: Optional[str] = VARIANT,
     num_agents: int = NUM_AGENTS,
@@ -83,7 +86,6 @@ def train_supervised(
     nim_debug: bool = NIM_DEBUG,
     train_from_scratch: bool = False,
 ):
-    # TODO: Only training on agent with id 0 so far
     """Train a policy to imitate the Nim scripted agent using supervised learning.
 
     Args:
@@ -108,7 +110,7 @@ def train_supervised(
     policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
 
     # Create scripted agent policy (teacher)
-    scripted_policy = HeuristicAgentsPolicy(policy_env_info, debug=nim_debug)
+    teacher_policy = teacher_policy_class(policy_env_info)
 
     # Initialize model using StatelessPolicyNet for compatibility with cogames play
     obs_shape = policy_env_info.observation_space.shape
@@ -127,14 +129,16 @@ def train_supervised(
 
     # Create multiple simulations for batching
     simulations = []
-    scripted_agent_policies_list = []
+    teacher_agent_policies_list = []
     episode_counts = []
 
     for i in range(batch_size):
         sim = Simulation(env_cfg, seed=seed + i)
         simulations.append(sim)
-        policies = [scripted_policy.agent_policy(agent_id) for agent_id in range(num_agents)]
-        scripted_agent_policies_list.append(policies)
+        policies = [teacher_policy.agent_policy(agent_id) for agent_id in range(num_agents)]
+        for policy in policies:
+            policy.reset(simulation=sim)
+        teacher_agent_policies_list.append(policies)
         episode_counts.append(0)
 
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
@@ -153,9 +157,9 @@ def train_supervised(
 
     while step_count < num_steps:
         # Collect observations and actions from all environments
-        obs_batch = []
-        action_batch = []
-        valid_indices = []
+        obs_batch: list[np.ndarray] = []
+        action_batch: list[int] = []
+        valid_env_indices: list[int] = []
 
         for env_idx, sim in enumerate(simulations):
             # Reset if episode is done
@@ -163,7 +167,7 @@ def train_supervised(
                 episode_counts[env_idx] += 1
                 sim.close()
                 simulations[env_idx] = Simulation(env_cfg, seed=seed + env_idx + episode_counts[env_idx] * batch_size)
-                for policy in scripted_agent_policies_list[env_idx]:
+                for policy in teacher_agent_policies_list[env_idx]:
                     policy.reset(simulation=simulations[env_idx])
                 sim = simulations[env_idx]
 
@@ -171,19 +175,24 @@ def train_supervised(
             raw_obs = sim.raw_observations()  # Shape: (num_agents, num_tokens, 3)
             raw_action = sim.raw_actions()  # Shape: (num_agents,)
 
-            # Get scripted agent's action (teacher)
-            scripted_agent_policies_list[env_idx][0].step(raw_obs, raw_action)
-            teacher_action = int(raw_action[0])
+            env_collected = False
 
-            # Get observation in shape expected by StatelessPolicyNet: (num_tokens, token_dim)
-            obs_tokens = convert_raw_obs_to_policy_tokens(raw_obs[0], expected_num_tokens)
+            for agent_id, agent_policy in enumerate(teacher_agent_policies_list[env_idx]):
+                agent_policy.step(raw_obs, raw_action)
+                teacher_action = int(raw_action[agent_id])
 
-            obs_batch.append(obs_tokens)
-            action_batch.append(teacher_action)
-            valid_indices.append(env_idx)
+                # Get observation in shape expected by StatelessPolicyNet: (num_tokens, token_dim)
+                obs_tokens = convert_raw_obs_to_policy_tokens(raw_obs[agent_id], expected_num_tokens)
 
-        # Skip if no valid environments (all done)
-        if not valid_indices:
+                obs_batch.append(obs_tokens)
+                action_batch.append(teacher_action)
+                env_collected = True
+
+            if env_collected:
+                valid_env_indices.append(env_idx)
+
+        # Skip if no valid samples (all done)
+        if not action_batch:
             continue
 
         # Convert to batched tensors
@@ -199,7 +208,7 @@ def train_supervised(
         loss = loss_fn(logits, action_batch_tensor)
         predictions = torch.argmax(logits, dim=1)
         log_interval_correct += int((predictions == action_batch_tensor).sum().item())
-        log_interval_total += len(valid_indices)
+        log_interval_total += len(action_batch)
 
         # Backward pass
         optimizer.zero_grad()
@@ -207,10 +216,10 @@ def train_supervised(
         optimizer.step()
 
         # Step all environments
-        for env_idx in valid_indices:
+        for env_idx in valid_env_indices:
             simulations[env_idx].step()
 
-        step_count += len(valid_indices)
+        step_count += len(action_batch)
 
         # Logging
         if step_count % LOG_INTERVAL == 0:
@@ -275,6 +284,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     train_supervised(
+        teacher_policy_class=TEACHER_POLICY_CLASS,
         mission_name=args.mission,
         variant=args.variant,
         num_agents=args.agents,
