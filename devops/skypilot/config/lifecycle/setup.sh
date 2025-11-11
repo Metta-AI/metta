@@ -11,7 +11,7 @@ git checkout "$METTA_GIT_REF"
 echo "[SETUP] Checked out: $(git rev-parse HEAD)"
 
 echo "[SETUP] Installing system dependencies..."
-bash ./devops/tools/install-system.sh
+bash ./install.sh --profile softmax-docker --non-interactive
 
 echo "[SETUP] Installing Datadog agent..."
 uv run metta install datadog-agent --non-interactive || echo "[SETUP] Datadog agent installation failed or skipped"
