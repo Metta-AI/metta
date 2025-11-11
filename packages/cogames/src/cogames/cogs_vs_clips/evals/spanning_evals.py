@@ -9,10 +9,13 @@ from cogames.cogs_vs_clips.mission import Mission, Site
 from cogames.cogs_vs_clips.procedural import MachinaArena
 from cogames.cogs_vs_clips.sites import HELLO_WORLD, TRAINING_FACILITY
 from cogames.cogs_vs_clips.variants import (
+    ClipHubStationsVariant,
+    ClipPeriodOnVariant,
     DarkSideVariant,
     DistantResourcesVariant,
     EmptyBaseVariant,
     ExtractorHeartTuneVariant,
+    InventoryHeartTuneVariant,
     LonelyHeartVariant,
     NeutralFacedVariant,
     PackRatVariant,
@@ -62,6 +65,20 @@ OxygenBottleneck = Mission(
         NeutralFacedVariant(),
         PackRatVariant(),
         #
+    ],
+)
+
+ClippedEasyHearts = Mission(
+    name="clipped_easy_hearts",
+    description="Easy hearts with clipping.",
+    site=HELLO_WORLD,
+    variants=[
+        ClipPeriodOnVariant(),
+        ClipHubStationsVariant(),
+        InventoryHeartTuneVariant(hearts=1),
+        LonelyHeartVariant(),
+        PackRatVariant(),
+        NeutralFacedVariant(),
     ],
 )
 

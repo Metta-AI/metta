@@ -59,7 +59,6 @@ OxygenBottleneck = Mission(
         SingleResourceUniformVariant(building_name="oxygen_extractor"),
         #        NeutralFacedVariant(),
         PackRatVariant(),
-        #        HeartChorusVariant(),
     ],
 )
 
@@ -73,7 +72,6 @@ EnergyStarved = Mission(
         ResourceBottleneckVariant(resource="energy"),
         DarkSideVariant(),
         #        NeutralFacedVariant(),
-        #       HeartChorusVariant(),
     ],
 )
 
@@ -87,7 +85,6 @@ DistantResources = Mission(
         EmptyBaseVariant(),
         DistantResourcesVariant(),
         #        NeutralFacedVariant(),
-        #        HeartChorusVariant(),
     ],
 )
 
@@ -101,7 +98,6 @@ QuadrantBuildings = Mission(
         EmptyBaseVariant(),
         QuadrantBuildingsVariant(),
         #        NeutralFacedVariant(),
-        #        HeartChorusVariant(),
     ],
 )
 
@@ -116,7 +112,6 @@ SingleUseSwarm = Mission(
         SingleUseSwarmVariant(),
         #        NeutralFacedVariant(),
         PackRatVariant(),
-        #        HeartChorusVariant(),
     ],
 )
 
