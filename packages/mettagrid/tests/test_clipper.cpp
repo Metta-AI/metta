@@ -75,14 +75,15 @@ TEST_F(ClipperTest, InfectionWeightCalculation) {
 
   // Test infection weight calculation
   float weight_close = clipper.infection_weight(*a1, *a2_close);
-  EXPECT_FLOAT_EQ(weight_close, std::exp(-2.0f / 2.0f));  // exp(-1)
+  EXPECT_EQ(weight_close, static_cast<uint32_t>(std::exp(-1) * 1000000.0f));  // exp(-1)
 
   float weight_medium = clipper.infection_weight(*a1, *a3_medium);
-  EXPECT_FLOAT_EQ(weight_medium, std::exp(-5.0f / 2.0f));  // exp(-2.5)
+  // We use floating point in the middle, so this isn't exact
+  EXPECT_LE(std::abs(weight_medium - static_cast<uint32_t>(std::exp(-2.5) * 1000000.0f)), 10);
 
   // Beyond cutoff should be 0
   float weight_far = clipper.infection_weight(*a1, *a4_far);
-  EXPECT_FLOAT_EQ(weight_far, 0.0f);
+  EXPECT_EQ(weight_far, 0);
 }
 
 // Test: infection weights are properly adjusted during clipping
@@ -101,9 +102,9 @@ TEST_F(ClipperTest, WeightAdjustmentDuringClipping) {
   Clipper clipper(*grid, unclip_protocols, length_scale, cutoff_distance, clip_rate, rng);
 
   // Initially all assemblers should have weight 0
-  EXPECT_FLOAT_EQ(clipper.assembler_infection_weight[a1], 0.0f);
-  EXPECT_FLOAT_EQ(clipper.assembler_infection_weight[a2], 0.0f);
-  EXPECT_FLOAT_EQ(clipper.assembler_infection_weight[a3], 0.0f);
+  EXPECT_EQ(clipper.assembler_infection_weight[a1], 0);
+  EXPECT_EQ(clipper.assembler_infection_weight[a2], 0);
+  EXPECT_EQ(clipper.assembler_infection_weight[a3], 0);
 
   // All should be in unclipped set
   EXPECT_EQ(clipper.unclipped_assemblers.count(a1), 1);
@@ -118,14 +119,14 @@ TEST_F(ClipperTest, WeightAdjustmentDuringClipping) {
   EXPECT_EQ(clipper.unclipped_assemblers.count(a2), 0);
 
   // Other assemblers should have increased weights
-  float expected_weight_a1 = clipper.infection_weight(*a2, *a1);  // exp(-2/2) = exp(-1)
-  float expected_weight_a3 = clipper.infection_weight(*a2, *a3);  // exp(-2/2) = exp(-1)
+  uint32_t expected_weight_a1 = clipper.infection_weight(*a2, *a1);  // exp(-2/2) = exp(-1)
+  uint32_t expected_weight_a3 = clipper.infection_weight(*a2, *a3);  // exp(-2/2) = exp(-1)
 
-  EXPECT_FLOAT_EQ(clipper.assembler_infection_weight[a1], expected_weight_a1);
-  EXPECT_FLOAT_EQ(clipper.assembler_infection_weight[a3], expected_weight_a3);
+  EXPECT_EQ(clipper.assembler_infection_weight[a1], expected_weight_a1);
+  EXPECT_EQ(clipper.assembler_infection_weight[a3], expected_weight_a3);
 
   // a2's weight should remain 0 (it's clipped)
-  EXPECT_FLOAT_EQ(clipper.assembler_infection_weight[a2], 0.0f);
+  EXPECT_EQ(clipper.assembler_infection_weight[a2], 0);
 }
 
 // Test: infection weights are properly adjusted during unclipping
@@ -146,11 +147,11 @@ TEST_F(ClipperTest, WeightAdjustmentDuringUnclipping) {
   // Clip a2
   clipper.clip_assembler(*a2);
 
-  float weight_a1_after_clip = clipper.assembler_infection_weight[a1];
-  float weight_a3_after_clip = clipper.assembler_infection_weight[a3];
+  uint32_t weight_a1_after_clip = clipper.assembler_infection_weight[a1];
+  uint32_t weight_a3_after_clip = clipper.assembler_infection_weight[a3];
 
-  EXPECT_GT(weight_a1_after_clip, 0.0f);
-  EXPECT_GT(weight_a3_after_clip, 0.0f);
+  EXPECT_GT(weight_a1_after_clip, 0);
+  EXPECT_GT(weight_a3_after_clip, 0);
 
   // Now unclip a2
   clipper.on_unclip_assembler(*a2);
@@ -159,11 +160,11 @@ TEST_F(ClipperTest, WeightAdjustmentDuringUnclipping) {
   EXPECT_EQ(clipper.unclipped_assemblers.count(a2), 1);
 
   // Weights of a1 and a3 should have decreased back to 0
-  EXPECT_FLOAT_EQ(clipper.assembler_infection_weight[a1], 0.0f);
-  EXPECT_FLOAT_EQ(clipper.assembler_infection_weight[a3], 0.0f);
+  EXPECT_EQ(clipper.assembler_infection_weight[a1], 0);
+  EXPECT_EQ(clipper.assembler_infection_weight[a3], 0);
 
   // a2's weight should still be 0
-  EXPECT_FLOAT_EQ(clipper.assembler_infection_weight[a2], 0.0f);
+  EXPECT_EQ(clipper.assembler_infection_weight[a2], 0);
 }
 
 // Test: multiple clipped assemblers accumulate infection weights correctly
@@ -187,11 +188,11 @@ TEST_F(ClipperTest, MultipleClippedAssemblersAccumulateWeights) {
   clipper.clip_assembler(*a2);
 
   // a4 should have accumulated weight from both a1 and a2
-  float weight_from_a1 = clipper.infection_weight(*a1, *a4);
-  float weight_from_a2 = clipper.infection_weight(*a2, *a4);
+  uint32_t weight_from_a1 = clipper.infection_weight(*a1, *a4);
+  uint32_t weight_from_a2 = clipper.infection_weight(*a2, *a4);
   float expected_total_weight = weight_from_a1 + weight_from_a2;
 
-  EXPECT_FLOAT_EQ(clipper.assembler_infection_weight[a4], expected_total_weight);
+  EXPECT_EQ(clipper.assembler_infection_weight[a4], expected_total_weight);
 
   // a3 should only have weight from a1 (a2 is further away)
   float weight_from_a1_to_a3 = clipper.infection_weight(*a1, *a3);
@@ -215,9 +216,9 @@ TEST_F(ClipperTest, PickAssemblerRespectsWeights) {
   Clipper clipper(*grid, unclip_protocols, length_scale, cutoff_distance, clip_rate, rng);
 
   // Give a_high_weight artificial high weight
-  clipper.assembler_infection_weight[a_high_weight] = 100.0f;
+  clipper.assembler_infection_weight[a_high_weight] = static_cast<uint32_t>(100.0f * 1000000.0f);
   clipper.border_assemblers.insert(a_high_weight);
-  clipper.assembler_infection_weight[a_low_weight] = 0.1f;
+  clipper.assembler_infection_weight[a_low_weight] = static_cast<uint32_t>(0.1f * 1000000.0f);
   clipper.border_assemblers.insert(a_low_weight);
 
   // Pick many times and verify high-weight assembler is picked more often
