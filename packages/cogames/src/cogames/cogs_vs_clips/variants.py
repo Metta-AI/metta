@@ -4,11 +4,13 @@ from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_VARIANTS
 from cogames.cogs_vs_clips.mission import MissionVariant
 from cogames.cogs_vs_clips.procedural import BaseHubVariant, MachinaArenaVariant
 from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, ProtocolConfig
+from mettagrid.mapgen.scenes.base_hub import DEFAULT_EXTRACTORS as HUB_EXTRACTORS
+from mettagrid.mapgen.scenes.building_distributions import DistributionConfig, DistributionType
 
 
 class MinedOutVariant(MissionVariant):
     name: str = "mined_out"
-    description: str = "Some resources are depleted. You must be efficient to survive."
+    description: str = "All resources are depleted. You must be efficient to survive."
 
     @override
     def modify_mission(self, mission):
@@ -111,18 +113,46 @@ class EnergizedVariant(MissionVariant):
         mission.energy_regen_amount = mission.energy_capacity
 
 
+class ResourceBottleneckVariant(MissionVariant):
+    name: str = "resource_bottleneck"
+    description: str = "A resource is the limiting factor. Agents must prioritize it over other resources."
+    resource: str = "oxygen"
+
+    @override
+    def modify_mission(self, mission):
+        # Map the chosen resource to the corresponding extractor on the mission
+        if self.resource in {"carbon", "oxygen", "germanium", "silicon"}:
+            extractor_attr = f"{self.resource}_extractor"
+        elif self.resource == "energy":
+            extractor_attr = "charger"
+        else:
+            raise ValueError(f"Unsupported resource for bottleneck: {self.resource}")
+
+        extractor = getattr(mission, extractor_attr, None)
+        if extractor is None:
+            raise AttributeError(f"Mission has no extractor attribute '{extractor_attr}'")
+
+        # Reduce efficiency to create the bottleneck; keep it at least 1 to avoid divide-by-zero or negatives
+        extractor.efficiency = max(1, int(extractor.efficiency) - 50)
+
+
 class NeutralFacedVariant(MissionVariant):
     name: str = "neutral_faced"
     description: str = "Disable vibe swapping; keep neutral face."
 
     @override
     def modify_env(self, mission, env):
+        # Keep change_vibe enabled so scripted agents that attempt to switch vibes don't error.
+        # Restrict gameplay effects to a neutral vibe by adjusting objects instead.
         change_vibe = env.game.actions.change_vibe
-        change_vibe.enabled = False
-        change_vibe.number_of_vibes = 1
+        change_vibe.enabled = True
+        # Ensure standard vibe actions (carbon/heart/default/charger/gear, etc.) exist.
+        # This avoids missing action names like 'change_vibe_carbon' used by scripted agents.
+        change_vibe.number_of_vibes = max(change_vibe.number_of_vibes, 32)
 
         neutral_vibe_name = "default"
-        env.game.vibe_names = [neutral_vibe_name]
+        # Do not override global vibe_names; keep them consistent with configured actions.
+        # Instead, make assembler/chest behavior neutral-only.
         for name, obj in env.game.objects.items():
             if isinstance(obj, AssemblerConfig) and obj.protocols:
                 primary_protocol = obj.protocols[0].model_copy(deep=True)
@@ -130,6 +160,38 @@ class NeutralFacedVariant(MissionVariant):
                 obj.protocols = [primary_protocol]
             elif isinstance(obj, ChestConfig) and name == "chest":
                 obj.vibe_transfers = {neutral_vibe_name: {"heart": 255}}
+
+
+class BinaryFaceVariant(MissionVariant):
+    name: str = "binary_face"
+    description: str = "Only two vibes are available: one for gear (tools) and one for hearts."
+
+    @override
+    def modify_env(self, mission, env):
+        change_vibe = env.game.actions.change_vibe
+        change_vibe.number_of_vibes = 2
+
+        tool_vibe_name = "gear"
+        heart_vibe_name = "heart"
+        # Restrict the game to just these two vibes
+        env.game.vibe_names = [tool_vibe_name, heart_vibe_name]
+
+        # Update assembler: tools require only 'gear' vibe; hearts require 'heart' vibes
+        assembler = env.game.objects.get("assembler")
+        if isinstance(assembler, AssemblerConfig) and assembler.protocols:
+            gear_outputs = {"decoder", "modulator", "scrambler", "resonator"}
+            for proto in assembler.protocols:
+                if any(k in proto.output_resources for k in gear_outputs):
+                    proto.vibes = [tool_vibe_name]
+                elif proto.output_resources.get("heart", 0) > 0:
+                    # Preserve the original heart-vibe multiplicity if present, otherwise require one 'heart'
+                    required = max(1, sum(1 for v in proto.vibes if v == heart_vibe_name))
+                    proto.vibes = [heart_vibe_name] * required
+
+        # Update chest: only allow heart deposits on the heart vibe to avoid invalid vibe keys
+        chest = env.game.objects.get("chest")
+        if isinstance(chest, ChestConfig):
+            chest.vibe_transfers = {heart_vibe_name: {"heart": 255}}
 
 
 class CompassVariant(MissionVariant):
@@ -161,6 +223,7 @@ class HeartChorusVariant(MissionVariant):
 class VibeCheckMin2Variant(MissionVariant):
     name: str = "vibe_check_min_2"
     description: str = "Require at least 2 heart vibes to craft a heart."
+    min_vibes: int = 2
 
     @override
     def modify_env(self, mission, env):
@@ -175,7 +238,7 @@ class VibeCheckMin2Variant(MissionVariant):
                 filtered.append(proto)
                 continue
             # Keep only heart protocols that require >= 2 'heart' vibes
-            if len(proto.vibes) >= 2 and all(v == "heart" for v in proto.vibes):
+            if len(proto.vibes) >= self.min_vibes and all(v == "heart" for v in proto.vibes):
                 filtered.append(proto)
         assembler.protocols = filtered
 
@@ -314,29 +377,34 @@ class ExtractorHeartTuneVariant(MissionVariant):
         mission.germanium_extractor.efficiency = int(one_heart["germanium"] * hearts)
 
 
-class ClipBaseExceptCarbonVariant(MissionVariant):
-    name: str = "clip_base_except_carbon"
-    description: str = "Start base extractors clipped except carbon."
+class CyclicalUnclipVariant(MissionVariant):
+    name: str = "cyclical_unclip"
+    description: str = "Required resources for unclipping recipes are cyclical. \
+                        So Germanium extractors require silicon-based unclipping recipes."
 
     @override
-    def modify_mission(self, mission):
-        mission.carbon_extractor.start_clipped = False
-        mission.oxygen_extractor.start_clipped = True
-        mission.germanium_extractor.start_clipped = True
-        mission.silicon_extractor.start_clipped = True
+    def modify_env(self, mission, env):
+        if env.game.clipper is not None:
+            env.game.clipper.unclipping_protocols = [
+                ProtocolConfig(input_resources={"scrambler": 1}, cooldown=1),
+                ProtocolConfig(input_resources={"resonator": 1}, cooldown=1),
+                ProtocolConfig(input_resources={"modulator": 1}, cooldown=1),
+                ProtocolConfig(input_resources={"decoder": 1}, cooldown=1),
+            ]
 
 
 class ClipHubStationsVariant(MissionVariant):
     name: str = "clip_hub_stations"
-    description: str = "Start base extractors and charger clipped."
+    description: str = "Clip the specified base stations (by name)."
+    # Valid names: "carbon_extractor", "oxygen_extractor", "germanium_extractor", "silicon_extractor", "charger"
+    clip: list[str] = ["carbon_extractor", "oxygen_extractor", "germanium_extractor", "silicon_extractor", "charger"]
 
     @override
     def modify_mission(self, mission):
-        mission.carbon_extractor.start_clipped = True
-        mission.oxygen_extractor.start_clipped = True
-        mission.germanium_extractor.start_clipped = True
-        mission.silicon_extractor.start_clipped = True
-        mission.charger.start_clipped = True
+        for station_name in self.clip:
+            station = getattr(mission, station_name, None)
+            if station is not None:
+                station.start_clipped = True
 
 
 class ClipPeriodOnVariant(MissionVariant):
@@ -393,35 +461,128 @@ class CavesVariant(MachinaArenaVariant):
         node.base_biome = "caves"
 
 
-class EmptyBaseVariant(BaseHubVariant):
-    name: str = "empty_base"
-    description: str = "Empty base with no extractors or chests."
+class DistantResourcesVariant(MachinaArenaVariant):
+    name: str = "distant_resources"
+    description: str = "Resources scattered far from base; heavy routing coordination."
+    building_names: list[str] = ["carbon_extractor", "oxygen_extractor", "germanium_extractor", "silicon_extractor"]
 
     @override
     def modify_node(self, node):
-        # Explicit objects/generators take precedence over bundles in BaseHub.
-        # Clear them so the 'none' bundles are respected.
-        node.corner_objects = None
-        node.corner_generator = None
-        node.cross_objects = None
-        node.corner_bundle = "none"
-        node.cross_bundle = "none"
+        # Bias buildings toward the map edges using bimodal clusters centered at
+        node.building_coverage = 0.01
+
+        vertical_edges = DistributionConfig(
+            type=DistributionType.BIMODAL,
+            center1_x=0.92,  # top right corner
+            center1_y=0.08,
+            center2_x=0.08,  # bottom left corner
+            center2_y=0.92,
+            cluster_std=0.18,
+        )
+        horizontal_edges = DistributionConfig(
+            type=DistributionType.BIMODAL,
+            center1_x=0.08,  # top left corner
+            center1_y=0.08,
+            center2_x=0.92,  # bottom right corner
+            center2_y=0.92,
+            cluster_std=0.18,
+        )
+
+        # Apply edge-biased distributions to extractors; other buildings follow the global distribution
+        names = list(self.building_names)
+        node.building_distributions = {
+            name: (vertical_edges if i % 2 == 0 else horizontal_edges) for i, name in enumerate(names)
+        }
+        # Fallback for any unspecified building types
+        node.distribution = DistributionConfig(type=DistributionType.UNIFORM)
 
 
-class CyclicalUnclipVariant(MissionVariant):
-    name: str = "cyclical_unclip"
-    description: str = "Required resources for unclipping recipes are cyclical. \
-                        So Germanium extractors require silicon-based unclipping recipes."
+class SingleUseSwarmVariant(MissionVariant):
+    name: str = "single_use_swarm"
+    description: str = "Everything is single use; agents must fan out and reconverge."
+    building_coverage: float = 0.03
+
+    @override
+    def modify_mission(self, mission):
+        # Make each extractor single-use
+        for res in ("carbon", "oxygen", "germanium", "silicon"):
+            extractor = getattr(mission, f"{res}_extractor", None)
+            if extractor is not None:
+                extractor.max_uses = 1
 
     @override
     def modify_env(self, mission, env):
-        if env.game.clipper is not None:
-            env.game.clipper.unclipping_protocols = [
-                ProtocolConfig(input_resources={"scrambler": 1}, cooldown=1),
-                ProtocolConfig(input_resources={"resonator": 1}, cooldown=1),
-                ProtocolConfig(input_resources={"modulator": 1}, cooldown=1),
-                ProtocolConfig(input_resources={"decoder": 1}, cooldown=1),
-            ]
+        # Ensure charger is also single-use (its Config defaults to unlimited)
+        charger = env.game.objects.get("charger")
+        if isinstance(charger, AssemblerConfig):
+            charger.max_uses = 1
+
+        # Increase building coverage a bit to create many single-use points
+        map_builder = getattr(env.game, "map_builder", None)
+        instance = getattr(map_builder, "instance", None)
+        if instance is not None and hasattr(instance, "building_coverage"):
+            current = float(getattr(instance, "building_coverage", 0.01))
+            instance.building_coverage = max(current, float(self.building_coverage))
+
+
+class QuadrantBuildingsVariant(MachinaArenaVariant):
+    name: str = "quadrant_buildings"
+    description: str = "Place buildings in the four quadrants of the map."
+    building_names: list[str] = ["carbon_extractor", "oxygen_extractor", "germanium_extractor", "silicon_extractor"]
+
+    @override
+    def modify_node(self, node):
+        node.building_names = self.building_names
+
+        names = list(node.building_names or self.building_names)
+        centers = [
+            (0.25, 0.25),  # top-left
+            (0.75, 0.25),  # top-right
+            (0.25, 0.75),  # bottom-left
+            (0.75, 0.75),  # bottom-right
+        ]
+        dists: dict[str, DistributionConfig] = {}
+        for i, name in enumerate(names):
+            cx, cy = centers[i % len(centers)]
+            dists[name] = DistributionConfig(
+                type=DistributionType.NORMAL,
+                mean_x=cx,
+                mean_y=cy,
+                std_x=0.18,
+                std_y=0.18,
+            )
+        node.building_distributions = dists
+        node.distribution = DistributionConfig(type=DistributionType.UNIFORM)
+
+
+class SingleResourceUniformVariant(MachinaArenaVariant):
+    name: str = "single_resource_uniform"
+    description: str = "Place only a single building via uniform distribution across the map."
+    building_name: str = "oxygen_extractor"
+
+    @override
+    def modify_node(self, node):
+        # Resolve resource to a concrete building name
+        # Restrict building set to only the chosen building and enforce uniform distribution
+        node.building_names = [self.building_name]
+        node.building_weights = {self.building_name: 1.0}
+        node.building_distributions = None
+        node.distribution = DistributionConfig(type=DistributionType.UNIFORM)
+
+
+class EmptyBaseVariant(BaseHubVariant):
+    name: str = "empty_base"
+    description: str = "Base hub with extractors removed from the four corners."
+    # Extractor object names to remove, e.g., ["oxygen_extractor"]
+    missing: list[str] = list(HUB_EXTRACTORS)
+
+    @override
+    def modify_node(self, node):
+        # Use the default extractor order and blank out any that are missing
+        missing_set = set(self.missing or [])
+        corner_objects = [name if name not in missing_set else "" for name in HUB_EXTRACTORS]
+        node.corner_objects = corner_objects
+        node.corner_bundle = "custom"
 
 
 # TODO - validate that all variant names are unique
@@ -437,18 +598,21 @@ VARIANTS: list[MissionVariant] = [
     ForestVariant(),
     CityVariant(),
     CavesVariant(),
+    SingleResourceUniformVariant(),
     EmptyBaseVariant(),
     LonelyHeartVariant(),
     PackRatVariant(),
     EnergizedVariant(),
     NeutralFacedVariant(),
+    BinaryFaceVariant(),
+    ResourceBottleneckVariant(),
     CompassVariant(),
     Small50Variant(),
     CogToolsOnlyVariant(),
     InventoryHeartTuneVariant(),
     ChestHeartTuneVariant(),
     ExtractorHeartTuneVariant(),
-    ClipBaseExceptCarbonVariant(),
+    QuadrantBuildingsVariant(),
     ClipHubStationsVariant(),
     CyclicalUnclipVariant(),
     ClipPeriodOnVariant(),

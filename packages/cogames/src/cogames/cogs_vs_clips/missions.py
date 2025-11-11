@@ -124,6 +124,7 @@ HelloWorldUnclipMission = Mission(
     variants=[ClipPeriodOnVariant(), ChestHeartTuneVariant(hearts=2)],
 )
 
+
 MISSIONS: list[Mission] = [
     HarvestMission,
     AssembleMission,
