@@ -9,6 +9,7 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -97,6 +98,7 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
     policy_architecture: Optional[PolicyArchitecture] = None,
+    seed: int | None = None,
 ) -> TrainTool:
     curriculum = curriculum or make_curriculum(
         enable_detailed_slice_logging=enable_detailed_slice_logging
@@ -104,13 +106,18 @@ def train(
 
     eval_simulations = simulations()
     trainer_cfg = TrainerConfig()
+    seed_kwargs = {"seed": seed} if seed is not None else {}
+    training_env_cfg = TrainingEnvironmentConfig(curriculum=curriculum, **seed_kwargs)
 
     if policy_architecture is None:
         policy_architecture = ViTDefaultConfig()
 
+    system_cfg = SystemConfig(seed=seed) if seed is not None else SystemConfig()
+
     return TrainTool(
+        system=system_cfg,
         trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
+        training_env=training_env_cfg,
         evaluator=EvaluatorConfig(simulations=eval_simulations),
         policy_architecture=policy_architecture,
         torch_profiler=TorchProfilerConfig(),
