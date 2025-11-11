@@ -111,14 +111,6 @@ class ScorecardData(BaseModel):
     evalMaxScores: Dict[str, float]
 
 
-class LeaderboardScorecardRequest(BaseModel):
-    """Request body for generating leaderboard scorecard."""
-
-    leaderboard_id: uuid.UUID
-    selector: Literal["latest", "best"]
-    num_policies: int
-
-
 @dataclass
 class PolicyEvaluationResult:
     """Represents a single policy evaluation result for the new system."""
@@ -462,74 +454,6 @@ def build_policy_scorecard(
     )
 
 
-@dataclass
-class LeaderboardTrainingRunScore:
-    """Represents a training run score for a leaderboard."""
-
-    policy_id: uuid.UUID
-    score: float
-    selector_score: float
-
-
-async def get_leaderboard_training_run_scores(
-    con: AsyncConnection, leaderboard_id: uuid.UUID, selector: Literal["latest", "best"]
-) -> dict[uuid.UUID, LeaderboardTrainingRunScore]:
-    """Get the training run scores for a leaderboard."""
-
-    query = """
-      SELECT lps.policy_id, lps.score, e.run_id as training_run_id, e.end_training_epoch
-      FROM leaderboard_policy_scores lps
-      JOIN policies p ON p.id = lps.policy_id
-      JOIN epochs e ON p.epoch_id = e.id
-      WHERE lps.leaderboard_id = %s
-    """
-
-    @dataclass
-    class LeaderboardPolicyTrainingRunScore:
-        """Represents a policy score and its associated training run info"""
-
-        policy_id: uuid.UUID
-        score: float
-        training_run_id: uuid.UUID
-        end_training_epoch: int
-
-    async with con.cursor(row_factory=class_row(LeaderboardPolicyTrainingRunScore)) as cursor:
-        await cursor.execute(query, (leaderboard_id,))
-        rows = await cursor.fetchall()
-        rows_by_training_run_id: dict[uuid.UUID, LeaderboardTrainingRunScore] = {}
-        for row in rows:
-            selector_score = row.score if selector == "best" else row.end_training_epoch
-            cur_training_run_best = rows_by_training_run_id.get(row.training_run_id)
-            best_selector_score = cur_training_run_best.selector_score if cur_training_run_best else -1
-            if selector_score > best_selector_score:
-                rows_by_training_run_id[row.training_run_id] = LeaderboardTrainingRunScore(
-                    policy_id=row.policy_id, score=row.score, selector_score=selector_score
-                )
-
-        return rows_by_training_run_id
-
-
-async def get_leaderboard_free_policy_scores(con: AsyncConnection, leaderboard_id: uuid.UUID) -> dict[uuid.UUID, float]:
-    """Get the free policy scores for a leaderboard."""
-
-    query = """
-      SELECT lps.policy_id, lps.score
-      FROM leaderboard_policy_scores lps
-      JOIN policies p ON p.id = lps.policy_id
-      WHERE lps.leaderboard_id = %s AND p.epoch_id IS NULL
-    """
-
-    @dataclass
-    class QueryRow:
-        policy_id: uuid.UUID
-        score: float
-
-    async with con.cursor(row_factory=class_row(QueryRow)) as cursor:
-        await cursor.execute(query, (leaderboard_id,))
-        rows = await cursor.fetchall()
-        return {row.policy_id: row.score for row in rows}
-
-
 # ============================================================================
 # API Routes
 # ============================================================================
@@ -635,57 +559,5 @@ def create_policy_scorecard_router(metta_repo: MettaRepo) -> APIRouter:
                     evalAverageScores={},
                     evalMaxScores={},
                 )
-
-    @router.post("/leaderboard")
-    @timed_route("generate_leaderboard_scorecard")
-    async def generate_leaderboard_scorecard_route(request: LeaderboardScorecardRequest) -> ScorecardData:
-        """Generate scorecard data for a leaderboard in the following way:
-
-        1. Use the leaderboard_policy_scores table to get either the 'latest' or 'best' policy_id for each training run
-        2. Use the leaderboard_policy_scores table to get the score for each policy that doesn't have a training run
-        3. Combine the lists from 1 and 2 and take the top {leaderboard.num_policies} policies by score
-        4. Now that we have top N policies, get the eval scores and replay urls and build the scorecard
-
-        """
-        async with metta_repo.connect() as con:
-            # Get leaderboard configuration
-            leaderboard = await metta_repo.get_leaderboard(request.leaderboard_id)
-            if not leaderboard:
-                raise HTTPException(status_code=404, detail="Leaderboard not found")
-
-            training_run_scores = await get_leaderboard_training_run_scores(
-                con, request.leaderboard_id, request.selector
-            )
-            free_policy_scores = await get_leaderboard_free_policy_scores(con, request.leaderboard_id)
-
-            @dataclass
-            class UnifiedScore:
-                id: uuid.UUID
-                score: float
-                type: Literal["training_run", "policy"]
-                policy_id: uuid.UUID
-
-            unified_scores: list[UnifiedScore] = []
-            for training_run_id, training_run_score in training_run_scores.items():
-                unified_scores.append(
-                    UnifiedScore(
-                        id=training_run_id,
-                        score=training_run_score.score,
-                        type="training_run",
-                        policy_id=training_run_score.policy_id,
-                    )
-                )
-            for policy_id, score in free_policy_scores.items():
-                unified_scores.append(UnifiedScore(id=policy_id, score=score, type="policy", policy_id=policy_id))
-            unified_scores.sort(key=lambda x: x.score, reverse=True)
-            top_n_scores = unified_scores[: request.num_policies]
-            top_n_policy_ids = [score.policy_id for score in top_n_scores]
-
-            # Fetch evaluation data for top policies
-            evaluations = await fetch_policy_scorecard_data(
-                con, [], top_n_policy_ids, leaderboard.evals, leaderboard.metric
-            )
-
-            return build_policy_scorecard(evaluations, leaderboard.evals)
 
     return router

@@ -10,14 +10,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic.main import BaseModel
 
 from metta.app_backend.auth import user_from_header_or_token
-from metta.app_backend.leaderboard_updater import LeaderboardUpdater
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.routes import (
     cogames_routes,
     dashboard_routes,
     entity_routes,
     eval_task_routes,
-    leaderboard_routes,
     score_routes,
     scorecard_routes,
     sql_routes,
@@ -77,10 +75,6 @@ def setup_logging():
     scorecard_routes_logger = logging.getLogger("policy_scorecard_routes")
     scorecard_routes_logger.setLevel(logging.INFO)
 
-    # Configure leaderboard updater logger
-    leaderboard_updater_logger = logging.getLogger("leaderboard_updater")
-    leaderboard_updater_logger.setLevel(logging.INFO)
-
     # Configure metta repo logger
     metta_repo_logger = logging.getLogger("metta_repo")
     metta_repo_logger.setLevel(logging.INFO)
@@ -125,7 +119,6 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     cogames_router = cogames_routes.create_cogames_router(stats_repo)
     dashboard_router = dashboard_routes.create_dashboard_router(stats_repo)
     eval_task_router = eval_task_routes.create_eval_task_router(stats_repo)
-    leaderboard_router = leaderboard_routes.create_leaderboard_router(stats_repo)
     sql_router = sql_routes.create_sql_router(stats_repo)
     stats_router = stats_routes.create_stats_router(stats_repo)
     token_router = token_routes.create_token_router(stats_repo)
@@ -137,7 +130,6 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     app.include_router(cogames_router)
     app.include_router(dashboard_router)
     app.include_router(eval_task_router)
-    app.include_router(leaderboard_router)
     app.include_router(sql_router)
     app.include_router(stats_router)
     app.include_router(token_router)
@@ -157,16 +149,13 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
 
 
 if __name__ == "__main__":
-    from metta.app_backend.config import host, port, run_leaderboard_updater, stats_db_uri
+    from metta.app_backend.config import host, port, stats_db_uri
 
     stats_repo = MettaRepo(stats_db_uri)
     app = create_app(stats_repo)
-    leaderboard_updater = LeaderboardUpdater(stats_repo)
 
     # Start the updater in an async context
     async def main():
-        if run_leaderboard_updater:
-            await leaderboard_updater.start()
         # Run uvicorn in a way that doesn't block
         config = uvicorn.Config(app, host=host, port=port)
         server = uvicorn.Server(config)

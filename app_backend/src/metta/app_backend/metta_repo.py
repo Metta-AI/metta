@@ -110,27 +110,9 @@ class PolicyRow(BaseModel):
     url: str | None
 
 
-class LeaderboardRow(BaseModel):
-    id: uuid.UUID
-    name: str
-    user_id: str
-    evals: list[str]
-    metric: str
-    start_date: date
-    latest_episode: int
-    created_at: datetime
-    updated_at: datetime
-
-
 class PolicyEval(BaseModel):
     num_agents: int
     total_score: float
-
-
-class LeaderboardPolicyScore(BaseModel):
-    leaderboard_id: uuid.UUID
-    policy_id: uuid.UUID
-    score: float
 
 
 class CoGamesSubmissionRow(BaseModel):
@@ -706,6 +688,14 @@ MIGRATIONS = [
             )""",
             """CREATE INDEX idx_cogames_submissions_user_id ON cogames_policy_submissions(user_id)""",
             """CREATE INDEX idx_cogames_submissions_created_at ON cogames_policy_submissions(created_at)""",
+        ],
+    ),
+    SqlMigration(
+        version=28,
+        description="Drop leaderboard-related tables",
+        sql_statements=[
+            """DROP TABLE IF EXISTS leaderboard_policy_scores""",
+            """DROP TABLE IF EXISTS leaderboards""",
         ],
     ),
 ]
@@ -1738,141 +1728,6 @@ class MettaRepo:
                 if row[1]:  # Only add non-null git hashes
                     res[row[0]].append(row[1])
             return res
-
-    async def create_leaderboard(
-        self,
-        name: str,
-        user_id: str,
-        evals: list[str],
-        metric: str,
-        start_date: str,
-    ) -> uuid.UUID:
-        """Create a new leaderboard."""
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                INSERT INTO leaderboards (
-                    name, user_id, evals, metric, start_date
-                ) VALUES (%s, %s, %s, %s, %s)
-                RETURNING id
-                """,
-                (
-                    name,
-                    user_id,
-                    evals,
-                    metric,
-                    start_date,
-                ),
-            )
-            row = await result.fetchone()
-            if row is None:
-                raise RuntimeError("Failed to create leaderboard")
-            return row[0]
-
-    async def update_leaderboard(
-        self,
-        leaderboard_id: uuid.UUID,
-        user_id: str,
-        name: str,
-        evals: list[str],
-        metric: str,
-        start_date: str,
-    ) -> LeaderboardRow:
-        """Update a leaderboard."""
-
-        async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(LeaderboardRow)) as cur:
-                cur_leaderboard_cursor = await cur.execute(
-                    "SELECT * FROM leaderboards WHERE id = %s AND user_id = %s",
-                    (leaderboard_id, user_id),
-                )
-                cur_leaderboard = await cur_leaderboard_cursor.fetchone()
-                if not cur_leaderboard:
-                    raise RuntimeError(f"Leaderboard {leaderboard_id} not found or not owned by user {user_id}")
-
-            if (
-                cur_leaderboard.name != name
-                or cur_leaderboard.evals != evals
-                or cur_leaderboard.metric != metric
-                or cur_leaderboard.start_date != start_date
-            ):
-                async with con.cursor(row_factory=class_row(LeaderboardRow)) as update_cur:
-                    query = """
-                    UPDATE leaderboards
-                    SET name = %s, evals = %s, metric = %s, start_date = %s, latest_episode = 0, updated_at = NOW()
-                    WHERE id = %s AND user_id = %s
-                    RETURNING *
-                  """
-                    params = (name, evals, metric, start_date, leaderboard_id, user_id)
-
-                    await update_cur.execute(query, params)
-                    updated_leaderboard = await update_cur.fetchone()
-                    if not updated_leaderboard:
-                        raise RuntimeError(f"Leaderboard {leaderboard_id} not found or not owned by user {user_id}")
-
-                    if (
-                        cur_leaderboard.evals != evals
-                        or cur_leaderboard.metric != metric
-                        or cur_leaderboard.start_date != start_date
-                    ):
-                        # TODO: Technically we shouldn't need to delete the scores if only start_date changes
-                        await con.execute(
-                            "DELETE FROM leaderboard_policy_scores WHERE leaderboard_id = %s",
-                            (leaderboard_id,),
-                        )
-                    return updated_leaderboard
-            else:
-                return cur_leaderboard
-
-    async def list_leaderboards(self) -> list[LeaderboardRow]:
-        """List all leaderboards for a user."""
-        async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(LeaderboardRow)) as cur:
-                await cur.execute(
-                    """
-                    SELECT id, name, user_id, evals, metric, start_date, latest_episode, created_at, updated_at
-                    FROM leaderboards
-                    ORDER BY updated_at DESC
-                    """,
-                )
-                rows = await cur.fetchall()
-                return rows
-
-    async def get_leaderboard(self, leaderboard_id: uuid.UUID) -> LeaderboardRow | None:
-        """Get a specific leaderboard by ID."""
-        async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(LeaderboardRow)) as cur:
-                await cur.execute("SELECT * FROM leaderboards WHERE id = %s", (leaderboard_id,))
-                row = await cur.fetchone()
-                return row
-
-    async def delete_leaderboard(self, leaderboard_id: str, user_id: str) -> bool:
-        """Delete a leaderboard."""
-        try:
-            leaderboard_uuid = uuid.UUID(leaderboard_id)
-        except ValueError:
-            return False
-
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                DELETE FROM leaderboards
-                WHERE id = %s AND user_id = %s
-                """,
-                (leaderboard_uuid, user_id),
-            )
-            return result.rowcount > 0
-
-    async def update_leaderboard_latest_episode(
-        self, con: AsyncConnection, leaderboard_id: uuid.UUID, latest_episode: int
-    ) -> None:
-        """Update the latest episode for a leaderboard."""
-        await con.execute(
-            """
-            UPDATE leaderboards SET latest_episode = %s WHERE id = %s
-            """,
-            (latest_episode, leaderboard_id),
-        )
 
     async def create_cogames_submission(
         self, submission_id: uuid.UUID, user_id: str, s3_path: str, name: str | None = None
