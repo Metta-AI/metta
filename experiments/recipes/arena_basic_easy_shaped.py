@@ -139,7 +139,7 @@ def train(
                 phase="rollout",
                 begin_at_step=0,
                 end_at_step=500_000_000,
-                cycle_length=10,
+                cycle_length=15,
                 active_in_cycle=list(range(1, 6)),
             ),
             LossRunGate(
@@ -147,7 +147,7 @@ def train(
                 phase="train",
                 begin_at_step=0,
                 end_at_step=500_000_000,
-                cycle_length=10,
+                cycle_length=15,
                 active_in_cycle=list(range(1, 6)),
             ),
             LossRunGate(
@@ -155,16 +155,16 @@ def train(
                 phase="rollout",
                 begin_at_step=0,
                 end_at_step=500_000_000,
-                cycle_length=10,
-                active_in_cycle=list(range(6, 11)),
+                cycle_length=15,
+                active_in_cycle=list(range(6, 16)),
             ),
             LossRunGate(
                 loss_instance_name="sl_kickstarter",
                 phase="train",
                 begin_at_step=0,
                 end_at_step=500_000_000,
-                cycle_length=10,
-                active_in_cycle=list(range(6, 11)),
+                cycle_length=15,
+                active_in_cycle=list(range(6, 16)),
             ),
             # -------------------------
             # 500M .. 1B agent steps:
