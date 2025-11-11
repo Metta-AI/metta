@@ -33,10 +33,8 @@ import numpy as np
 from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_VARIANTS, get_difficulty
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import NumCogsVariant
-from cogames.policy.scripted_agent.baseline_agent import (
-    BASELINE_HYPERPARAMETER_PRESETS,
-    BaselinePolicy,
-)
+from cogames.policy.scripted_agent.baseline_agent import BaselinePolicy
+from cogames.policy.scripted_agent.types import BASELINE_HYPERPARAMETER_PRESETS
 from cogames.policy.scripted_agent.unclipping_agent import UnclippingPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
