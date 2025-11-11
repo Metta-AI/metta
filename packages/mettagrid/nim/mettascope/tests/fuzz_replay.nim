@@ -151,7 +151,7 @@ type
   TestResult = object
     iteration: int
     failureType: FailureType
-    errorMsg: string
+    err: ref Exception
 
 var
   passedCount = 0
@@ -169,7 +169,7 @@ for i in 0 ..< iterations:
     let failure = TestResult(
       iteration: i,
       failureType: ValidationFailure,
-      errorMsg: e.msg,
+      err: e,
     )
     failures.add(failure)
     validationPassed = false
@@ -185,7 +185,7 @@ for i in 0 ..< iterations:
     let failure = TestResult(
       iteration: i,
       failureType: LoadingFailure,
-      errorMsg: e.msg,
+      err: e,
     )
     failures.add(failure)
 
@@ -207,10 +207,10 @@ if failures.len > 0:
 
   for failure in failures:
     # Check if this failure is actually a segfault, regardless of original classification
-    let isSegfault = strutils.contains(failure.errorMsg, "SIGSEGV") or
-                    strutils.contains(failure.errorMsg, "Illegal storage access") or
-                    strutils.contains(failure.errorMsg, "Access violation") or
-                    strutils.contains(failure.errorMsg, "Segmentation fault")
+    let isSegfault = strutils.contains(failure.err.msg, "SIGSEGV") or
+                    strutils.contains(failure.err.msg, "Illegal storage access") or
+                    strutils.contains(failure.err.msg, "Access violation") or
+                    strutils.contains(failure.err.msg, "Segmentation fault")
 
     if isSegfault:
       segfaultFailures.add(failure)
@@ -224,26 +224,24 @@ if failures.len > 0:
     echo ""
     echo &"🚨 CRITICAL: {segfaultFailures.len} SEGMENTATION FAULTS DETECTED!"
     for failure in segfaultFailures:
-      echo &"  Iteration {failure.iteration}: {failure.errorMsg}"
+      echo &"  Iteration {failure.iteration}: {failure.err.msg}"
       echo ""
 
   # Report validation failures
   if validationFailures.len > 0:
     echo ""
     echo &"⚠️  VALIDATION FAILURES: {validationFailures.len}"
-    for failure in validationFailures[0..min(9, validationFailures.high)]:  # Show first 10
-      echo &"  Iteration {failure.iteration}: {failure.errorMsg}"
-    if validationFailures.len > 10:
-      echo &"  ... and {validationFailures.len - 10} more validation failures"
+    for failure in validationFailures:
+      echo &"  Iteration {failure.iteration}: {failure.err.msg}"
+      echo &"  Stack trace: {failure.err.getStackTrace()}"
 
   # Report loading failures
   if loadingFailures.len > 0:
     echo ""
     echo &"⚠️  LOADING FAILURES: {loadingFailures.len}"
-    for failure in loadingFailures[0..min(9, loadingFailures.high)]:  # Show first 10
-      echo &"  Iteration {failure.iteration}: {failure.errorMsg}"
-    if loadingFailures.len > 10:
-      echo &"  ... and {loadingFailures.len - 10} more loading failures"
+    for failure in loadingFailures:
+      echo &"  Iteration {failure.iteration}: {failure.err.msg}"
+      echo &"  Stack trace: {failure.err.getStackTrace()}"
 
   echo ""
   echo "=== SUMMARY ==="
