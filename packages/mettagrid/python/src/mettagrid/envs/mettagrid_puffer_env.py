@@ -30,7 +30,6 @@ import numpy as np
 from gymnasium.spaces import Box, Discrete
 from typing_extensions import override
 
-from cogames.policy.scripted_agent.baseline_agent import BaselinePolicy
 from mettagrid.config.mettagrid_config import EnvSupervisorConfig, MettaGridConfig
 from mettagrid.mettagrid_c import (
     dtype_actions,
@@ -41,6 +40,7 @@ from mettagrid.mettagrid_c import (
     dtype_truncations,
 )
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.policy.utils import initialize_or_load_policy, resolve_policy_class_path
 from mettagrid.simulator import Simulation, Simulator
 from mettagrid.simulator.simulator import Buffers
 from pufferlib.pufferlib import PufferEnv
@@ -76,7 +76,7 @@ class MettaGridPufferEnv(PufferEnv):
         self._simulator = simulator
         self._current_cfg = cfg
         self._current_seed = seed
-        self._env_supervisor_cfg = env_supervisor_cfg or EnvSupervisorConfig(enabled=False)
+        self._env_supervisor_cfg = env_supervisor_cfg or EnvSupervisorConfig()
 
         # Initialize shared buffers FIRST (before super().__init__)
         # because PufferLib may access them during initialization
@@ -128,15 +128,18 @@ class MettaGridPufferEnv(PufferEnv):
 
         self._sim = self._simulator.new_simulation(self._current_cfg, self._current_seed, buffers=self._buffers)
 
-        if self._env_supervisor_cfg.enabled:
-            if self._env_supervisor_cfg.policy == "baseline":
-                self._env_supervisor_policy = BaselinePolicy(PolicyEnvInterface.from_mg_cfg(self._current_cfg))
-                self._env_supervisor_agent_policies = [
-                    self._env_supervisor_policy.agent_policy(agent_id)
-                    for agent_id in range(self._current_cfg.game.num_agents)
-                ]
-                for agent_policy in self._env_supervisor_agent_policies:
-                    agent_policy.reset(self._sim)
+        if self._env_supervisor_cfg.policy is not None:
+            self._env_supervisor_policy = initialize_or_load_policy(
+                PolicyEnvInterface.from_mg_cfg(self._current_cfg),
+                resolve_policy_class_path(self._env_supervisor_cfg.policy),
+                self._env_supervisor_cfg.policy_data_path,
+            )
+            self._env_supervisor_agent_policies = [
+                self._env_supervisor_policy.agent_policy(agent_id)
+                for agent_id in range(self._current_cfg.game.num_agents)
+            ]
+            for agent_policy in self._env_supervisor_agent_policies:
+                agent_policy.reset(self._sim)
 
             self._compute_supervisor_actions()
 
@@ -158,7 +161,7 @@ class MettaGridPufferEnv(PufferEnv):
         self._sim.step()
 
         # Do this after step() so that the trainer can use it if needed
-        if self._env_supervisor_cfg.enabled:
+        if self._env_supervisor_cfg.policy is not None:
             self._compute_supervisor_actions()
 
         return (
@@ -170,22 +173,16 @@ class MettaGridPufferEnv(PufferEnv):
         )
 
     def _compute_supervisor_actions(self) -> None:
-        assert self._env_supervisor_cfg.enabled
-        if self._env_supervisor_cfg.policy == "noop":
-            self._buffers.teacher_actions[:] = np.ones(self._current_cfg.game.num_agents, dtype=dtype_actions)
-        else:
-            teacher_actions = np.array(
-                [
-                    self._sim.action_names.index(
-                        self._env_supervisor_agent_policies[agent_id]
-                        .step(self._sim.agents()[agent_id].observation)
-                        .name
-                    )
-                    for agent_id in range(self._current_cfg.game.num_agents)
-                ],
-                dtype=dtype_actions,
-            )
-            self._buffers.teacher_actions[:] = np.array(teacher_actions, dtype=dtype_actions)
+        teacher_actions = np.array(
+            [
+                self._sim.action_names.index(
+                    self._env_supervisor_agent_policies[agent_id].step(self._sim.agents()[agent_id].observation).name
+                )
+                for agent_id in range(self._current_cfg.game.num_agents)
+            ],
+            dtype=dtype_actions,
+        )
+        self._buffers.teacher_actions[:] = np.array(teacher_actions, dtype=dtype_actions)
 
     @property
     def observations(self) -> np.ndarray:
