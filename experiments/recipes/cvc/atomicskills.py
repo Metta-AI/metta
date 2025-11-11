@@ -15,17 +15,13 @@ Skill Progression:
 
 from __future__ import annotations
 
-from typing import ClassVar, Optional
+from typing import ClassVar, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
-from cogames.cogs_vs_clips.evals import (
-    CANONICAL_DIFFICULTY_ORDER,
-    DIFFICULTY_LEVELS,
-    apply_difficulty,
-)
+from cogames.cli.mission import parse_variants
+from cogames.cogs_vs_clips.evals import DIFFICULTY_VARIANTS
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
-from cogames.cogs_vs_clips.mission import Mission, MissionVariant
-from cogames.cogs_vs_clips.mission_utils import get_map
+from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVariant
 from cogames.cogs_vs_clips.sites import EVALS, Site
 from cogames.cogs_vs_clips.stations import (
     CarbonExtractorConfig,
@@ -37,7 +33,7 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss import LossConfig
+from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import (
     CheckpointerConfig,
@@ -698,7 +694,8 @@ ATOMIC_SKILL_MISSIONS = [
 def make_standard_cvc_eval_suite(
     num_cogs: int = 4,
     subset: Optional[list[str]] = None,
-    difficulties: Optional[list[str]] = None,
+    difficulties: Optional[Sequence[str]] = None,
+    variants: Optional[Sequence[str]] = None,
 ) -> list[SimulationConfig]:
     """Create standard CVC evaluation suite (same as scripted agent).
 
@@ -708,8 +705,9 @@ def make_standard_cvc_eval_suite(
     Args:
         num_cogs: Number of agents per mission (1, 2, 4, or 8)
         subset: Optional list of mission names to include (defaults to all)
-        difficulties: List of difficulty names to test (defaults to standard only).
-                     For full sweep, pass CANONICAL_DIFFICULTY_ORDER.
+        difficulties: List of difficulty variant names to test (defaults to ["standard"]).
+                     Pass all difficulty names from DIFFICULTY_VARIANTS for full sweep.
+        variants: Additional mission variants to apply (lonely_heart, heart_chorus, etc.)
 
     Returns:
         List of SimulationConfig objects for evaluation
@@ -726,38 +724,32 @@ def make_standard_cvc_eval_suite(
 
     simulations = []
     for difficulty_name in difficulties:
-        if difficulty_name not in DIFFICULTY_LEVELS:
-            raise ValueError(
-                f"Unknown difficulty: {difficulty_name}. Valid: {list(DIFFICULTY_LEVELS.keys())}"
-            )
-
-        difficulty_level = DIFFICULTY_LEVELS[difficulty_name]
+        # Build variant list with difficulty first, then any additional variants
+        variant_names = [difficulty_name]
+        if variants:
+            variant_names.extend(variants)
 
         for mission_cls in missions:
             mission_template = mission_cls()  # type: ignore[call-arg]
 
             # Skip missions that don't make sense for single agent
-            if num_cogs == 1 and mission_template.name in [
+            if num_cogs == 1 and mission_template.name in {
                 "go_together",
                 "single_use_swarm",
-            ]:
+            }:
                 continue
 
-            # Get default map for this mission
-            map_builder = get_map(mission_template.map_name)
+            # Apply variants (including difficulty)
+            mission = mission_template
+            variant_objects = parse_variants(variant_names)
+            if variant_objects:
+                mission = mission.with_variants(variant_objects)
 
-            # Instantiate mission with specified agent count
-            instantiated = mission_template.instantiate(
-                map_builder=map_builder,
-                num_cogs=num_cogs,
-                variant=None,
-            )
-
-            # Apply difficulty modifiers
-            apply_difficulty(instantiated, difficulty_level)
+            # Apply num_cogs variant
+            mission = mission.with_variants([NumCogsVariant(num_cogs=num_cogs)])
 
             # Create env config
-            env_cfg = instantiated.make_env()
+            env_cfg = mission.make_env()
 
             # Create simulation with difficulty in name
             sim = SimulationConfig(
@@ -781,6 +773,7 @@ def make_atomic_skill_env(
     map_width: int = 15,
     map_height: int = 15,
     variant: Optional[MissionVariant] = None,
+    variants: Optional[Sequence[str]] = None,
 ) -> MettaGridConfig:
     """Create a single atomic skill training environment.
 
@@ -789,7 +782,8 @@ def make_atomic_skill_env(
         num_cogs: Number of agents
         map_width: Width of the map (ignored if variant is provided)
         map_height: Height of the map (ignored if variant is provided)
-        variant: Optional mission variant to apply (e.g., map size variant)
+        variant: Optional single mission variant to apply (e.g., map size variant)
+        variants: Optional list of variant names to parse and apply (e.g., ["lonely_heart", "pack_rat"])
 
     Returns:
         MettaGridConfig ready for training
@@ -797,12 +791,18 @@ def make_atomic_skill_env(
     mission = mission_cls()  # type: ignore[call-arg]
     mission.configure()
 
-    # Apply variant if provided (e.g., to change map size)
+    # Apply single variant if provided (e.g., to change map size)
     if variant:
         mission = variant.apply(mission)
         # Use the variant-modified dimensions
         map_width = mission.default_map_width
         map_height = mission.default_map_height
+
+    # Apply named variants if provided
+    if variants:
+        variant_objects = parse_variants(list(variants))
+        for variant_obj in variant_objects:
+            mission = variant_obj.apply(mission)
 
     # Create simple empty room map
     map_builder = RandomMapBuilder.Config(
@@ -826,6 +826,7 @@ def make_curriculum(
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
     use_map_variants: bool = False,
     map_variants: Optional[list[MissionVariant]] = None,
+    variants: Optional[Sequence[str]] = None,
 ) -> CurriculumConfig:
     """Create atomic skills curriculum.
 
@@ -840,6 +841,7 @@ def make_curriculum(
         algorithm_config: Curriculum algorithm config (defaults to Learning Progress)
         use_map_variants: If True, use MissionVariant system for map sizes instead of bucketing
         map_variants: List of map size variants to use (defaults to MAP_SIZE_VARIANTS)
+        variants: Additional mission variants to apply (lonely_heart, heart_chorus, pack_rat, etc.)
 
     Returns:
         CurriculumConfig for atomic skills training
@@ -857,7 +859,10 @@ def make_curriculum(
             # Create separate task for each map size variant
             for variant in map_variants:
                 variant_env = make_atomic_skill_env(
-                    mission_cls=mission_cls, num_cogs=num_cogs, variant=variant
+                    mission_cls=mission_cls,
+                    num_cogs=num_cogs,
+                    variant=variant,
+                    variants=variants,
                 )
                 # Create bucketed tasks for other dimensions
                 skill_tasks = cc.bucketed(variant_env)
@@ -894,7 +899,9 @@ def make_curriculum(
                 all_skill_tasks.append(skill_tasks)
         else:
             # Original bucketing approach - vary everything including map size
-            base_env = make_atomic_skill_env(mission_cls=mission_cls, num_cogs=num_cogs)
+            base_env = make_atomic_skill_env(
+                mission_cls=mission_cls, num_cogs=num_cogs, variants=variants
+            )
             skill_tasks = cc.bucketed(base_env)
 
             # Map size variation (spatial complexity)
@@ -959,6 +966,7 @@ def train(
     eval_difficulties: Optional[list[str]] = None,
     use_map_variants: bool = False,
     map_variants: Optional[list[MissionVariant]] = None,
+    variants: Optional[Sequence[str]] = None,
 ) -> TrainTool:
     """Create a training tool for atomic skills.
 
@@ -970,11 +978,12 @@ def train(
         use_standard_cvc_evals: If True, use standard CVC eval missions (same as scripted agent).
                                 If False, use atomic skill missions for eval.
         eval_difficulties: List of difficulties to evaluate on (e.g., ["standard", "hard"]).
-                          For full sweep, pass CANONICAL_DIFFICULTY_ORDER.
+                          For full sweep, pass [d.name for d in DIFFICULTY_VARIANTS].
                           Defaults to ["standard"] for faster evals.
         use_map_variants: If True, use MissionVariant system for map sizes (very_small, small, medium).
                          If False, use bucketed map size variations (10, 15, 20, 30).
         map_variants: List of map size variants to use (defaults to MAP_SIZE_VARIANTS)
+        variants: Additional mission variants to apply (lonely_heart, heart_chorus, pack_rat, etc.)
 
     Returns:
         TrainTool configured for atomic skills training
@@ -987,11 +996,12 @@ def train(
             enable_detailed_slice_logging=enable_detailed_slice_logging,
             use_map_variants=use_map_variants,
             map_variants=map_variants,
+            variants=variants,
         )
 
     # Configure trainer
     trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
+        losses=LossesConfig(),
     )
 
     # Create evaluation suite
@@ -1000,6 +1010,7 @@ def train(
         eval_suite = make_standard_cvc_eval_suite(
             num_cogs=num_cogs,
             difficulties=eval_difficulties,
+            variants=variants,
         )
     else:
         # Use atomic skill missions for eval
@@ -1040,6 +1051,7 @@ def train_basic_skills(
     num_cogs: int = 1,
     use_standard_cvc_evals: bool = True,
     eval_difficulties: Optional[list[str]] = None,
+    variants: Optional[Sequence[str]] = None,
 ) -> TrainTool:
     """Train on basic awareness and interaction skills.
 
@@ -1047,6 +1059,7 @@ def train_basic_skills(
         num_cogs: Number of agents
         use_standard_cvc_evals: Use standard CVC evals (True) or atomic skill evals (False)
         eval_difficulties: Difficulties to evaluate on (defaults to ["standard"])
+        variants: Additional mission variants to apply (lonely_heart, heart_chorus, pack_rat, etc.)
     """
     return train(
         num_cogs=num_cogs,
@@ -1057,6 +1070,7 @@ def train_basic_skills(
         ],
         use_standard_cvc_evals=use_standard_cvc_evals,
         eval_difficulties=eval_difficulties,
+        variants=variants,
     )
 
 
@@ -1064,6 +1078,7 @@ def train_resource_skills(
     num_cogs: int = 1,
     use_standard_cvc_evals: bool = True,
     eval_difficulties: Optional[list[str]] = None,
+    variants: Optional[Sequence[str]] = None,
 ) -> TrainTool:
     """Train on resource management skills.
 
@@ -1071,6 +1086,7 @@ def train_resource_skills(
         num_cogs: Number of agents
         use_standard_cvc_evals: Use standard CVC evals (True) or atomic skill evals (False)
         eval_difficulties: Difficulties to evaluate on (defaults to ["standard"])
+        variants: Additional mission variants to apply (lonely_heart, heart_chorus, pack_rat, etc.)
     """
     return train(
         num_cogs=num_cogs,
@@ -1081,6 +1097,7 @@ def train_resource_skills(
         ],
         use_standard_cvc_evals=use_standard_cvc_evals,
         eval_difficulties=eval_difficulties,
+        variants=variants,
     )
 
 
@@ -1088,6 +1105,7 @@ def train_extraction_skills(
     num_cogs: int = 1,
     use_standard_cvc_evals: bool = True,
     eval_difficulties: Optional[list[str]] = None,
+    variants: Optional[Sequence[str]] = None,
 ) -> TrainTool:
     """Train on extractor usage skills.
 
@@ -1095,6 +1113,7 @@ def train_extraction_skills(
         num_cogs: Number of agents
         use_standard_cvc_evals: Use standard CVC evals (True) or atomic skill evals (False)
         eval_difficulties: Difficulties to evaluate on (defaults to ["standard"])
+        variants: Additional mission variants to apply (lonely_heart, heart_chorus, pack_rat, etc.)
     """
     return train(
         num_cogs=num_cogs,
@@ -1104,6 +1123,7 @@ def train_extraction_skills(
         ],
         use_standard_cvc_evals=use_standard_cvc_evals,
         eval_difficulties=eval_difficulties,
+        variants=variants,
     )
 
 
@@ -1113,6 +1133,7 @@ def train_all_atomic_skills(
     eval_difficulties: Optional[list[str]] = None,
     use_map_variants: bool = True,
     map_variants: Optional[list[MissionVariant]] = None,
+    variants: Optional[Sequence[str]] = None,
 ) -> TrainTool:
     """Train on all atomic skills with standard CVC evaluations.
 
@@ -1120,10 +1141,11 @@ def train_all_atomic_skills(
         num_cogs: Number of agents
         use_standard_cvc_evals: Use standard CVC evals (True) or atomic skill evals (False)
         eval_difficulties: Difficulties to evaluate on (defaults to ["standard"]).
-                          For full difficulty sweep (like scripted agent), pass CANONICAL_DIFFICULTY_ORDER.
+                          For full difficulty sweep (like scripted agent), pass [d.name for d in DIFFICULTY_VARIANTS].
         use_map_variants: If True (default), use structured map size variants (very_small, small, medium).
                          If False, use continuous bucketed map sizes (10, 15, 20, 30).
         map_variants: List of map size variants (defaults to very_small, small, medium)
+        variants: Additional mission variants to apply (lonely_heart, heart_chorus, pack_rat, etc.)
     """
     return train(
         num_cogs=num_cogs,
@@ -1132,23 +1154,63 @@ def train_all_atomic_skills(
         eval_difficulties=eval_difficulties,
         use_map_variants=use_map_variants,
         map_variants=map_variants,
+        variants=variants,
     )
 
 
-def train_full_difficulty_sweep(num_cogs: int = 4) -> TrainTool:
+def train_full_difficulty_sweep(
+    num_cogs: int = 4, variants: Optional[Sequence[str]] = None
+) -> TrainTool:
     """Train on all atomic skills with full difficulty sweep (same as scripted agent eval).
 
     This creates the exact same evaluation suite as used for scripted baseline agents,
-    enabling direct performance comparison across all 13 difficulties.
+    enabling direct performance comparison across all difficulties.
 
     Args:
         num_cogs: Number of agents (default 4, the optimal number for scripted agents)
+        variants: Additional mission variants to apply (lonely_heart, heart_chorus, pack_rat, etc.)
+    """
+    # Get all difficulty variant names for full sweep
+    all_difficulties = [d.name for d in DIFFICULTY_VARIANTS]
+
+    return train(
+        num_cogs=num_cogs,
+        skill_missions=ATOMIC_SKILL_MISSIONS,
+        use_standard_cvc_evals=True,
+        eval_difficulties=all_difficulties,
+        variants=variants,
+    )
+
+
+def train_small_maps(
+    num_cogs: int = 4,
+    variants: Optional[Sequence[str]] = None,
+    eval_difficulties: Optional[list[str]] = None,
+) -> TrainTool:
+    """Train on atomic skills with small map focus.
+
+    This mimics the small_maps recipe pattern but applies it to atomic skills.
+    Uses very_small_map and small_map variants for focused training.
+
+    Args:
+        num_cogs: Number of agents (default 4)
+        variants: Additional mission variants to apply (lonely_heart, heart_chorus, pack_rat, etc.)
+        eval_difficulties: Difficulties to evaluate on (defaults to ["standard"])
+
+    Example:
+        uv run ./tools/run.py experiments.recipes.cvc.atomicskills.train_small_maps \\
+            run=my_small_maps_run \\
+            num_cogs=4 \\
+            variants='["lonely_heart","heart_chorus","pack_rat","neutral_faced"]'
     """
     return train(
         num_cogs=num_cogs,
         skill_missions=ATOMIC_SKILL_MISSIONS,
         use_standard_cvc_evals=True,
-        eval_difficulties=CANONICAL_DIFFICULTY_ORDER,
+        eval_difficulties=eval_difficulties,
+        use_map_variants=True,
+        map_variants=[VerySmallMapVariant(), SmallMapVariant()],
+        variants=variants,
     )
 
 
@@ -1178,7 +1240,7 @@ def train_single_skill(
     curriculum = cc.env_curriculum(env)
 
     trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
+        losses=LossesConfig(),
     )
 
     # Evaluate on the same skill
