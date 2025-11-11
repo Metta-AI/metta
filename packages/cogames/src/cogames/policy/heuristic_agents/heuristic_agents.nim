@@ -2,6 +2,13 @@ import
   std/[strformat, strutils, tables, random, sets],
   genny, jsony
 
+const enableHeuristicLogs = defined(heuristic_logging)
+
+when enableHeuristicLogs:
+  template debugLog(args: varargs[untyped]) = echo args
+else:
+  template debugLog(args: varargs[untyped]) = discard
+
 type
 
   ConfigFeature* = object
@@ -102,27 +109,27 @@ type
 
 proc ctrlCHandler() {.noconv.} =
   ## Handle ctrl-c signal to exit cleanly.
-  echo "\nNim DLL caught ctrl-c, exiting..."
+  debugLog "\nNim DLL caught ctrl-c, exiting..."
   quit(0)
 
 proc initCHook() =
   setControlCHook(ctrlCHandler)
-  echo "HeuristicAgents initialized"
+  debugLog "HeuristicAgents initialized"
 
 proc newHeuristicAgent(agentId: int, environmentConfig: string): HeuristicAgent {.raises: [].} =
-  echo "Creating new heuristic agent ", agentId
+  debugLog "Creating new heuristic agent ", agentId
   try:
     var config = environmentConfig.fromJson(Config)
     result = HeuristicAgent(agentId: agentId, config: config)
-    echo "  numAgents", config.numAgents
-    echo "  obsWidth", config.obsWidth
-    echo "  obsHeight", config.obsHeight
-    echo "  actions", config.actions
-    echo "  tags", config.tags
-    echo "  obsFeatures", config.obsFeatures
+    debugLog "  numAgents", config.numAgents
+    debugLog "  obsWidth", config.obsWidth
+    debugLog "  obsHeight", config.obsHeight
+    debugLog "  actions", config.actions
+    debugLog "  tags", config.tags
+    debugLog "  obsFeatures", config.obsFeatures
 
     for feature in config.obsFeatures:
-      echo "    feature ", feature.id, " ", feature.name, " ", feature.normalization
+      debugLog "    feature ", feature.id, " ", feature.name, " ", feature.normalization
       case feature.name:
       of "agent:group":
         result.features.group = feature.id
@@ -177,7 +184,7 @@ proc newHeuristicAgent(agentId: int, environmentConfig: string): HeuristicAgent 
       of "inv:scrambler":
         result.features.invScrambler = feature.id
       else:
-        echo "Unknown feature: ", feature.name
+        debugLog "Unknown feature: ", feature.name
 
     for id, name in config.actions:
       case name:
@@ -215,9 +222,9 @@ proc newHeuristicAgent(agentId: int, environmentConfig: string): HeuristicAgent 
         result.actions.vibeWall = id
       else:
         discard
-    echo "  actions", result.actions
+    debugLog "  actions", result.actions
     for id, name in config.tags:
-      echo "    tag name ", name, " id ", id
+      debugLog "    tag name ", name, " id ", id
       case name:
       of "agent":
         result.tags.agent = id
@@ -239,13 +246,13 @@ proc newHeuristicAgent(agentId: int, environmentConfig: string): HeuristicAgent 
         result.tags.wall = id
       else:
         discard
-    echo "  types_names", result.tags
+    debugLog "  types_names", result.tags
     result.random = initRand(agentId)
   except JsonError, ValueError:
-    echo "Error parsing environment config: ", getCurrentExceptionMsg()
+    debugLog "Error parsing environment config: ", getCurrentExceptionMsg()
 
 proc reset(agent: HeuristicAgent) =
-  echo "Resetting heuristic agent ", agent.agentId
+  debugLog "Resetting heuristic agent ", agent.agentId
 
 proc computeMapBounds(map: Table[Location, seq[FeatureValue]]): MapBounds =
   ## Compute the bounds of the map.
@@ -270,7 +277,7 @@ proc drawMap(agent: HeuristicAgent, map: Table[Location, seq[FeatureValue]], see
   for x in bounds.minX .. bounds.maxX:
     line.add "--"
   line.add "+"
-  echo line
+  debugLog line
   for y in bounds.minY .. bounds.maxY:
     line = "|"
     for x in bounds.minX .. bounds.maxX:
@@ -303,12 +310,12 @@ proc drawMap(agent: HeuristicAgent, map: Table[Location, seq[FeatureValue]], see
               cell = &"{featureValue.value:2d}"
       line.add cell
     line.add "|"
-    echo line
+    debugLog line
   line = "+"
   for x in bounds.minX .. bounds.maxX:
     line.add "--"
   line.add "+"
-  echo line
+  debugLog line
 
 proc getTag(agent: HeuristicAgent, map: Table[Location, seq[FeatureValue]], location: Location): int =
   ## Get the type id of the location in the map.
@@ -399,9 +406,9 @@ proc updateMap(agent: HeuristicAgent, visible: Table[Location, seq[FeatureValue]
 
   # Update the big map with the small visible map.
   if bestScore < 2:
-    echo "Looks like we are lost?"
-    echo "  current location: ", agent.location.x, ", ", agent.location.y
-    echo "  best location: ", bestLocation.x, ", ", bestLocation.y
+    debugLog "Looks like we are lost?"
+    debugLog "  current location: ", agent.location.x, ", ", agent.location.y
+    debugLog "  best location: ", bestLocation.x, ", ", bestLocation.y
   else:
     agent.location =  bestLocation
     for x in -5 .. 5:
@@ -424,7 +431,7 @@ proc step(
   rawActions: pointer
 ) {.raises: [].} =
   try:
-    echo "Thinking heuristic agent ", agent.agentId
+    debugLog "Thinking heuristic agent ", agent.agentId
     # echo "  numAgents", numAgents
     # echo "  numTokens", numTokens
     # echo "  sizeToken", sizeToken
@@ -447,15 +454,15 @@ proc step(
         map[location] = @[]
       map[location].add(FeatureValue(featureId: featureId.int, value: value.int))
 
-    echo "current location: ", agent.location.x, ", ", agent.location.y
-    echo "visible map:"
+    debugLog "current location: ", agent.location.x, ", ", agent.location.y
+    debugLog "visible map:"
     agent.drawMap(map, initHashSet[Location]())
     updateMap(agent, map)
-    echo "updated map:"
+    debugLog "updated map:"
     agent.drawMap(agent.map, agent.seen)
 
     let vibe = agent.getVibe(map)
-    echo "vibe: ", vibe
+    debugLog "vibe: ", vibe
 
     let invEnergy = agent.getInventory(map, agent.features.invEnergy)
     let invCarbon = agent.getInventory(map, agent.features.invCarbon)
@@ -468,16 +475,16 @@ proc step(
     let invResonator = agent.getInventory(map, agent.features.invResonator)
     let invScrambler = agent.getInventory(map, agent.features.invScrambler)
 
-    echo &"H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
+    debugLog &"H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
 
     let actions = cast[ptr UncheckedArray[int32]](rawActions)
     let action = agent.random.rand(1 .. 4).int32
     actions[agent.agentId] = action
-    echo "taking action ", action
+    debugLog "taking action ", action
 
   except:
-    echo getCurrentException().getStackTrace()
-    echo getCurrentExceptionMsg()
+    debugLog getCurrentException().getStackTrace()
+    debugLog getCurrentExceptionMsg()
     quit()
 
 exportRefObject HeuristicAgent:
