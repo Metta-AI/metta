@@ -1,9 +1,12 @@
 import
-  std/[json, random, strformat, math],
+  std/[json, random, strformat, math, strutils],
   zippy,
   boxy, windy, opengl,
   fidget2/[loader, hybridrender],
   mettascope/[replays, worldmap], test_replay
+
+const
+  iterations = 1000
 
 randomize()
 
@@ -20,8 +23,6 @@ proc initHeadlessFidget2*() =
   bxy = newBoxy()
   buildAtlas()
 
-
-const iterations = 1000
 
 proc fuzzJsonField(obj: JsonNode, fieldPath: seq[string], depth: int = 0, baseReplay: JsonNode): JsonNode =
   ## Spec-aware fuzzing - respects replay format constraints
@@ -142,33 +143,119 @@ proc fuzzReplay(replay: JsonNode): JsonNode =
 initHeadlessFidget2()
 let baseReplay = makeValidReplay("fuzz_test_replay.json.z")
 
+type
+  FailureType = enum
+    ValidationFailure
+    LoadingFailure
+
+  TestResult = object
+    iteration: int
+    failureType: FailureType
+    errorMsg: string
+
 var
   passedCount = 0
-  loadingFailedCount = 0
-  validationFailedCount = 0
+  failures: seq[TestResult]
 
 for i in 0 ..< iterations:
   let fuzzedReplay = fuzzReplay(baseReplay)
   let jsonStr = $fuzzedReplay
-  var passed = true
 
+  # Test validation (collect failures but don't stop)
+  var validationPassed = true
   try:
     validateReplaySchema(fuzzedReplay)
   except Exception as e:
-    validationFailedCount += 1
-    passed = false
+    let failure = TestResult(
+      iteration: i,
+      failureType: ValidationFailure,
+      errorMsg: e.msg,
+    )
+    failures.add(failure)
+    validationPassed = false
 
+  # Test loading regardless of validation result
   try:
     let replay = loadReplayString(jsonStr, "fuzz_test.json.z")
     doAssert replay != nil
-
+    # Only count as passed if both validation AND loading succeeded
+    if validationPassed:
+      passedCount += 1
   except Exception as e:
-    loadingFailedCount += 1
-    passed = false
+    let failure = TestResult(
+      iteration: i,
+      failureType: LoadingFailure,
+      errorMsg: e.msg,
+    )
+    failures.add(failure)
 
-  if passed:
-    passedCount += 1
+# Report results
+echo ""
+echo "=== FUZZING RESULTS ==="
+echo &"Total iterations: {iterations}"
+echo &"Passed: {passedCount} ({passedCount.float32 / iterations.float32 * 100:.1f}%) - both validation and loading succeeded"
+echo &"Issues found: {failures.len} ({failures.len.float32 / iterations.float32 * 100:.1f}%) - validation or loading problems"
 
+if failures.len > 0:
+  echo ""
+  echo "=== FAILURE DETAILS ==="
 
-echo &"Replay field-level fuzzing completed successfully"
-echo &"Results: {passedCount} passed, {validationFailedCount} validation failed, {loadingFailedCount} loading failed out of {iterations} iterations"
+  # Group failures by type and check for segfaults
+  var validationFailures: seq[TestResult]
+  var loadingFailures: seq[TestResult]
+  var segfaultFailures: seq[TestResult]
+
+  for failure in failures:
+    # Check if this failure is actually a segfault, regardless of original classification
+    let isSegfault = strutils.contains(failure.errorMsg, "SIGSEGV") or
+                    strutils.contains(failure.errorMsg, "Illegal storage access") or
+                    strutils.contains(failure.errorMsg, "Access violation") or
+                    strutils.contains(failure.errorMsg, "Segmentation fault")
+
+    if isSegfault:
+      segfaultFailures.add(failure)
+    else:
+      case failure.failureType
+      of ValidationFailure: validationFailures.add(failure)
+      of LoadingFailure: loadingFailures.add(failure)
+
+  # Report segfaults first (most critical)
+  if segfaultFailures.len > 0:
+    echo ""
+    echo &"🚨 CRITICAL: {segfaultFailures.len} SEGMENTATION FAULTS DETECTED!"
+    for failure in segfaultFailures:
+      echo &"  Iteration {failure.iteration}: {failure.errorMsg}"
+      echo ""
+
+  # Report validation failures
+  if validationFailures.len > 0:
+    echo ""
+    echo &"⚠️  VALIDATION FAILURES: {validationFailures.len}"
+    for failure in validationFailures[0..min(9, validationFailures.high)]:  # Show first 10
+      echo &"  Iteration {failure.iteration}: {failure.errorMsg}"
+    if validationFailures.len > 10:
+      echo &"  ... and {validationFailures.len - 10} more validation failures"
+
+  # Report loading failures
+  if loadingFailures.len > 0:
+    echo ""
+    echo &"⚠️  LOADING FAILURES: {loadingFailures.len}"
+    for failure in loadingFailures[0..min(9, loadingFailures.high)]:  # Show first 10
+      echo &"  Iteration {failure.iteration}: {failure.errorMsg}"
+    if loadingFailures.len > 10:
+      echo &"  ... and {loadingFailures.len - 10} more loading failures"
+
+  echo ""
+  echo "=== SUMMARY ==="
+  if segfaultFailures.len > 0:
+    echo &"🚨 {segfaultFailures.len} critical segfaults"
+  if validationFailures.len > 0:
+    echo &"⚠️  {validationFailures.len} validation failures"
+  if loadingFailures.len > 0:
+    echo &"⚠️  {loadingFailures.len} loading failures - potential bugs in replay parsing"
+else:
+  echo ""
+  echo "🎉 No failures detected - all tests passed!"
+
+echo ""
+echo "Fuzzing completed successfully"
