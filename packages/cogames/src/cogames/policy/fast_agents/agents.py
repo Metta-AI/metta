@@ -1,7 +1,7 @@
+import importlib
 import os
 import sys
 
-import fast_agents as fa
 import numpy as np
 
 from mettagrid.mettagrid_c import dtype_observations
@@ -10,7 +10,11 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action, AgentObservation, Simulation
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.join(current_dir, "bindings/generated"))
+bindings_dir = os.path.join(current_dir, "bindings/generated")
+if bindings_dir not in sys.path:
+    sys.path.append(bindings_dir)
+
+fa = importlib.import_module("fast_agents")
 
 
 class _FastAgentPolicyBase(AgentPolicy):
