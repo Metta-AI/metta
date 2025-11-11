@@ -56,9 +56,8 @@ class Rollout:
         """Execute one step of the rollout."""
         for i in range(len(self._policies)):
             if self._policies[i].uses_raw_numpy:
-                # David I need to know how you want this architecture to work.
-                # This policy needs the raw observations and raw actions to step.
-                self._policies[i].step(
+                # Policy consumes raw buffers directly via step_batch
+                self._policies[i].step_batch(
                     raw_observations=self._sim.raw_observations(),
                     raw_actions=self._sim.raw_actions(),
                 )
