@@ -15,8 +15,3 @@ include = ["run_tool_mcp"]
 [build-system]
 requires = ["setuptools==80.9.0", "wheel==0.45.1"]
 build-backend = "setuptools.build_meta"
-<<<<<<< Updated upstream
-=======
-
-
->>>>>>> Stashed changes

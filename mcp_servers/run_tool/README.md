@@ -5,10 +5,7 @@ Model Context Protocol server for executing and discovering Metta `run.py` comma
 ## Overview
 
 This MCP server provides AI assistants (Claude Desktop, Cursor, etc.) with the ability to:
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 - **Discover** available recipes and tools
 - **Execute** training, evaluation, play, and replay commands
 - **Validate** commands before execution
@@ -108,26 +105,8 @@ await mcp_client.call_tool("run_tool", {
 ## How It Works
 
 1. **Discovery**: Uses `metta.common.tool.recipe_registry` to discover recipes and tools
-<<<<<<< Updated upstream
 2. **Execution**: Executes tools programmatically using `metta.common.tool.run_tool` utilities
 3. **Validation**: Validates tool paths and arguments before execution
 4. **Error Handling**: Provides helpful error messages and suggestions
 
 See `CURSOR_SETUP.md` or `CLAUDE_DESKTOP_SETUP.md` for client-specific setup instructions.
-=======
-2. **Execution**: Runs `./tools/run.py` via subprocess with proper argument formatting
-3. **Validation**: Validates tool paths and arguments before execution
-4. **Error Handling**: Provides helpful error messages and suggestions
-
-## Benefits for AI Assistants
-
-- **Proactive Discovery**: AI can explore available commands before suggesting them
-- **Accurate Suggestions**: Uses real schemas, not guesses
-- **Error Prevention**: Validates commands before execution
-- **Context-Aware Help**: Knows what's available in each recipe
-- **Intelligent Alternatives**: Suggests similar commands when user makes mistakes
-
-See `CURSOR_SETUP.md` or `CLAUDE_DESKTOP_SETUP.md` for client-specific setup instructions.
-
-
->>>>>>> Stashed changes

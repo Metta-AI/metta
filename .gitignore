@@ -85,6 +85,7 @@ cpplint_output*
 **/requirements_to_remove.txt
 /devops/charts/**/charts/
 .claude/settings.local.json
+.codex/settings.local.json
 
 # External tools
 /Miniconda3-Linux.sh  # created by skypilot

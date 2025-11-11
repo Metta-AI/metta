@@ -1,4 +1,3 @@
-<<<<<<< Updated upstream
 """Executor for running tools programmatically using existing utilities."""
 
 import copy
@@ -29,42 +28,22 @@ from metta.rl.system_config import seed_everything
 
 from .tools.run_tool import get_tool_arguments
 
-=======
-"""Executor for running run.py commands via subprocess."""
-
-import asyncio
-import json
-import logging
-from pathlib import Path
-from typing import Any, Optional
-
->>>>>>> Stashed changes
 logger = logging.getLogger(__name__)
 
 
 class RunToolExecutor:
-<<<<<<< Updated upstream
     """Executes tools programmatically using existing run_tool utilities.
 
     Uses the same logic as run_tool.main() but executes directly without subprocesses.
     """
-=======
-    """Executes run.py commands and returns structured results."""
->>>>>>> Stashed changes
 
     def __init__(self, run_script_path: Path, repo_root: Path, timeout: int = 3600):
         """Initialize the executor.
 
         Args:
-<<<<<<< Updated upstream
             run_script_path: Path to the run.py script (kept for compatibility, not used)
             repo_root: Root of the Metta repository
             timeout: Default timeout in seconds (for future async support)
-=======
-            run_script_path: Path to the run.py script
-            repo_root: Root of the Metta repository
-            timeout: Default timeout in seconds for command execution
->>>>>>> Stashed changes
         """
         self.run_script_path = run_script_path
         self.repo_root = repo_root
@@ -78,13 +57,9 @@ class RunToolExecutor:
         verbose: bool = False,
         timeout: Optional[int] = None,
     ) -> dict[str, Any]:
-<<<<<<< Updated upstream
         """Execute a tool programmatically.
 
         Replicates run_tool.main() logic but executes directly without subprocess.
-=======
-        """Execute a run.py command.
->>>>>>> Stashed changes
 
         Args:
             tool_path: Tool path (e.g., 'train arena', 'arena.train')
@@ -94,7 +69,6 @@ class RunToolExecutor:
             timeout: Override default timeout
 
         Returns:
-<<<<<<< Updated upstream
             Dictionary with success, exit_code, stdout, stderr, error, command
         """
         # Capture stdout/stderr to collect tool output
@@ -353,73 +327,10 @@ class RunToolExecutor:
                     "error": "invocation_error",
                     "command": equivalent_command,
                 }
-=======
-            Dictionary with:
-            - success: bool
-            - exit_code: int
-            - stdout: str
-            - stderr: str
-            - command: str (the actual command executed)
-        """
-        # Build command
-        cmd = ["uv", "run", str(self.run_script_path), tool_path]
-
-        # Add flags
-        if dry_run:
-            cmd.append("--dry-run")
-        if verbose:
-            cmd.append("--verbose")
-
-        # Add arguments in key=value format
-        if arguments:
-            for key, value in arguments.items():
-                if value is None:
-                    continue
-                # Convert value to string, handling special cases
-                if isinstance(value, bool):
-                    value_str = str(value).lower()
-                elif isinstance(value, (list, dict)):
-                    value_str = json.dumps(value)
-                else:
-                    value_str = str(value)
-                cmd.append(f"{key}={value_str}")
-
-        command_str = " ".join(cmd)
-        logger.info(f"Executing: {command_str}")
-
-        try:
-            # Run subprocess
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                cwd=str(self.repo_root),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-
-            timeout_seconds = timeout or self.timeout
-            try:
-                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout_seconds)
-            except asyncio.TimeoutError:
-                process.kill()
-                await process.wait()
-                return {
-                    "success": False,
-                    "exit_code": -1,
-                    "stdout": "",
-                    "stderr": f"Command timed out after {timeout_seconds} seconds",
-                    "command": command_str,
-                    "error": "timeout",
-                }
-
-            stdout_str = stdout.decode("utf-8", errors="replace")
-            stderr_str = stderr.decode("utf-8", errors="replace")
-            exit_code = process.returncode
->>>>>>> Stashed changes
 
             return {
                 "success": exit_code == 0,
                 "exit_code": exit_code,
-<<<<<<< Updated upstream
                 "stdout": stdout_capture.getvalue(),
                 "stderr": stderr_capture.getvalue(),
                 "command": equivalent_command,  # Equivalent CLI command
@@ -429,32 +340,11 @@ class RunToolExecutor:
             # Restore stdout/stderr
             sys.stdout = original_stdout
             sys.stderr = original_stderr
-=======
-                "stdout": stdout_str,
-                "stderr": stderr_str,
-                "command": command_str,
-            }
-
-        except Exception as e:
-            logger.error(f"Error executing command: {e}", exc_info=True)
-            return {
-                "success": False,
-                "exit_code": -1,
-                "stdout": "",
-                "stderr": str(e),
-                "command": command_str,
-                "error": "execution_error",
-            }
->>>>>>> Stashed changes
 
     async def execute_list_command(
         self, recipe: Optional[str] = None, tool_type: Optional[str] = None
     ) -> dict[str, Any]:
-<<<<<<< Updated upstream
         """Execute a --list command to discover tools using recipe_registry.
-=======
-        """Execute a --list command to discover tools.
->>>>>>> Stashed changes
 
         Args:
             recipe: Recipe name to list tools for (e.g., 'arena')
@@ -464,7 +354,6 @@ class RunToolExecutor:
             Dictionary with discovery results
         """
         if recipe:
-<<<<<<< Updated upstream
             recipe_obj = recipe_registry.get(recipe)
             if recipe_obj:
                 tools = sorted(recipe_obj.get_all_tool_maker_names())
@@ -522,46 +411,6 @@ class RunToolExecutor:
 
     async def execute_help_command(self, tool_path: str) -> dict[str, Any]:
         """Get tool arguments using get_tool_arguments.
-=======
-            cmd = ["uv", "run", str(self.run_script_path), recipe, "--list"]
-        elif tool_type:
-            cmd = ["uv", "run", str(self.run_script_path), tool_type, "--list"]
-        else:
-            return {
-                "success": False,
-                "error": "Either recipe or tool_type must be provided",
-            }
-
-        try:
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                cwd=str(self.repo_root),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-
-            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
-            stdout_str = stdout.decode("utf-8", errors="replace")
-            stderr_str = stderr.decode("utf-8", errors="replace")
-
-            return {
-                "success": process.returncode == 0,
-                "exit_code": process.returncode,
-                "stdout": stdout_str,
-                "stderr": stderr_str,
-                "command": " ".join(cmd),
-            }
-
-        except Exception as e:
-            logger.error(f"Error executing list command: {e}", exc_info=True)
-            return {
-                "success": False,
-                "error": str(e),
-            }
-
-    async def execute_help_command(self, tool_path: str) -> dict[str, Any]:
-        """Execute a --help command to get tool arguments.
->>>>>>> Stashed changes
 
         Args:
             tool_path: Tool path (e.g., 'train arena')
@@ -569,7 +418,6 @@ class RunToolExecutor:
         Returns:
             Dictionary with help output
         """
-<<<<<<< Updated upstream
         try:
             result_json = await get_tool_arguments(tool_path)
             result = json.loads(result_json)
@@ -594,34 +442,3 @@ class RunToolExecutor:
                 "stdout": "",
                 "stderr": str(e),
             }
-=======
-        cmd = ["uv", "run", str(self.run_script_path), tool_path, "--help"]
-
-        try:
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                cwd=str(self.repo_root),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-
-            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
-            stdout_str = stdout.decode("utf-8", errors="replace")
-            stderr_str = stderr.decode("utf-8", errors="replace")
-
-            return {
-                "success": process.returncode == 0,
-                "exit_code": process.returncode,
-                "stdout": stdout_str,
-                "stderr": stderr_str,
-                "command": " ".join(cmd),
-            }
-
-        except Exception as e:
-            logger.error(f"Error executing help command: {e}", exc_info=True)
-            return {
-                "success": False,
-                "error": str(e),
-            }
-
->>>>>>> Stashed changes
