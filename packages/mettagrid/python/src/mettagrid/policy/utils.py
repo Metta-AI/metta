@@ -22,6 +22,9 @@ _POLICY_CLASS_SHORTHAND: dict[str, str] = {
     "lstm": "mettagrid.policy.lstm.LSTMPolicy",
     "scripted_baseline": "cogames.policy.scripted_agent.baseline_agent.BaselinePolicy",
     "scripted_unclipping": "cogames.policy.scripted_agent.unclipping_agent.UnclippingPolicy",
+    "fast_random": "cogames.policy.fast_agents.agents.RandomAgentsMultiPolicy",
+    "fast_thinky": "cogames.policy.fast_agents.agents.ThinkyAgentsMultiPolicy",
+    "fast_race_car": "cogames.policy.fast_agents.agents.RaceCarAgentsMultiPolicy",
     # Backwards compatibility aliases
     "baseline": "cogames.policy.scripted_agent.baseline_agent.BaselinePolicy",
     "simple_baseline": "cogames.policy.scripted_agent.baseline_agent.BaselinePolicy",
