@@ -14,14 +14,14 @@ type
     location: Location
 
 proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent {.raises: [].} =
-  echo "Creating new heuristic agent ", agentId
+  agentLog "Creating new heuristic agent ", agentId
 
   var config = parseConfig(environmentConfig)
   result = RaceCarAgent(agentId: agentId, cfg: config)
   result.random = initRand(agentId)
 
 proc reset*(agent: RaceCarAgent) =
-  echo "Resetting heuristic agent ", agent.agentId
+  agentLog "Resetting heuristic agent ", agent.agentId
   agent.map.clear()
   agent.seen.clear()
   agent.location = Location(x: 0, y: 0)
@@ -84,9 +84,9 @@ proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]])
 
   # Update the big map with the small visible map.
   if bestScore < 2:
-    echo "Looks like we are lost?"
-    echo "  current location: ", agent.location.x, ", ", agent.location.y
-    echo "  best location: ", bestLocation.x, ", ", bestLocation.y
+    agentLog "Looks like we are lost?"
+    agentLog "  current location: ", agent.location.x, ", ", agent.location.y
+    agentLog "  best location: ", bestLocation.x, ", ", bestLocation.y
   else:
     agent.location =  bestLocation
     for x in -5 .. 5:
@@ -108,7 +108,7 @@ proc raceCarStepInternal(
   actionIndex: int
 ) {.raises: [].} =
   try:
-    echo "Driving race car agent ", agent.agentId
+    agentLog "Driving race car agent ", agent.agentId
     # echo "  numAgents", numAgents
     # echo "  numTokens", numTokens
     # echo "  sizeToken", sizeToken
@@ -131,15 +131,15 @@ proc raceCarStepInternal(
         map[location] = @[]
       map[location].add(FeatureValue(featureId: featureId.int, value: value.int))
 
-    echo "current location: ", agent.location.x, ", ", agent.location.y
-    echo "visible map:"
+    agentLog "current location: ", agent.location.x, ", ", agent.location.y
+    agentLog "visible map:"
     agent.cfg.drawMap(map, initHashSet[Location]())
     updateMap(agent, map)
-    echo "updated map:"
+    agentLog "updated map:"
     agent.cfg.drawMap(agent.map, agent.seen)
 
     let vibe = agent.cfg.getVibe(map)
-    echo "vibe: ", vibe
+    agentLog "vibe: ", vibe
 
     let invEnergy = agent.cfg.getInventory(map, agent.cfg.features.invEnergy)
     let invCarbon = agent.cfg.getInventory(map, agent.cfg.features.invCarbon)
@@ -152,15 +152,15 @@ proc raceCarStepInternal(
     let invResonator = agent.cfg.getInventory(map, agent.cfg.features.invResonator)
     let invScrambler = agent.cfg.getInventory(map, agent.cfg.features.invScrambler)
 
-    echo &"H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
+    agentLog &"H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
 
     let action = agent.random.rand(1 .. 4).int32
     actions[actionIndex] = action
-    echo "taking action ", action
+    agentLog "taking action ", action
 
   except:
-    echo getCurrentException().getStackTrace()
-    echo getCurrentExceptionMsg()
+    agentLog getCurrentException().getStackTrace()
+    agentLog getCurrentExceptionMsg()
     quit()
 
 proc stepBatch*(
