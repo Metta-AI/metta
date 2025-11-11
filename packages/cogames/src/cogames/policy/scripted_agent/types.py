@@ -29,6 +29,14 @@ class BaselineHyperparameters:
     stuck_detection_enabled: bool = True  # Enable loop detection
     stuck_escape_distance: int = 12  # Minimum distance for escape target
 
+    # Exploration parameters
+    position_history_size: int = 30  # Size of position history buffer
+    exploration_area_check_window: int = 30  # Steps to check for stuck area
+    exploration_area_size_threshold: int = 7  # Max area size (height/width) to trigger escape
+    exploration_escape_duration: int = 10  # Steps to navigate to assembler when stuck
+    exploration_direction_persistence: int = 10  # Steps to persist in one direction
+    exploration_assembler_distance_threshold: int = 10  # Min distance from assembler to trigger escape
+
 
 # Hyperparameter Presets for Ensemble Creation
 BASELINE_HYPERPARAMETER_PRESETS = {
@@ -37,18 +45,36 @@ BASELINE_HYPERPARAMETER_PRESETS = {
         recharge_threshold_high=85,
         stuck_detection_enabled=True,
         stuck_escape_distance=12,
+        position_history_size=40,  # Thorough exploration: longer history
+        exploration_area_check_window=35,  # Thorough exploration: longer check window
+        exploration_area_size_threshold=9,  # Thorough exploration: larger area tolerance
+        exploration_escape_duration=8,  # Thorough exploration: shorter escape duration
+        exploration_direction_persistence=18,  # Thorough exploration: longer persistence
+        exploration_assembler_distance_threshold=12,  # Thorough exploration: larger distance threshold
     ),
     "conservative": BaselineHyperparameters(
         recharge_threshold_low=50,  # Recharge early
         recharge_threshold_high=95,  # Stay charged
         stuck_detection_enabled=True,
         stuck_escape_distance=8,  # Shorter escape distance
+        position_history_size=30,
+        exploration_area_check_window=30,
+        exploration_area_size_threshold=7,
+        exploration_escape_duration=10,
+        exploration_direction_persistence=10,
+        exploration_assembler_distance_threshold=10,
     ),
     "aggressive": BaselineHyperparameters(
         recharge_threshold_low=20,  # Low energy tolerance
         recharge_threshold_high=80,  # Don't wait for full charge
         stuck_detection_enabled=True,
         stuck_escape_distance=15,  # Longer escape distance
+        position_history_size=30,
+        exploration_area_check_window=30,
+        exploration_area_size_threshold=7,
+        exploration_escape_duration=10,
+        exploration_direction_persistence=10,
+        exploration_assembler_distance_threshold=10,
     ),
 }
 

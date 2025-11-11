@@ -1,23 +1,22 @@
 import base64
 import json
-import uuid
 from typing import Sequence
 
 from pydantic import Field
 
 from metta.app_backend.clients.stats_client import HttpStatsClient
 from metta.common.tool.tool import ToolResult, ToolWithResult
-from metta.common.util.constants import SOFTMAX_S3_BASE
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
+from metta.tools.utils.auto_config import auto_replay_dir
 
 
 class ExecuteRemoteEvalTool(ToolWithResult):
     simulations: Sequence[SimulationConfig]  # list of simulations to run
     policy_uri: str  # policy uri to evaluate
     eval_task_id: str
-    replay_dir: str = Field(default=f"{SOFTMAX_S3_BASE}/replays/{str(uuid.uuid4())}")
+    replay_dir: str = Field(default_factory=auto_replay_dir)
     enable_replays: bool = True
     result_file_path: str  # path to the file where the results will be written
 
