@@ -142,17 +142,13 @@ class NeutralFacedVariant(MissionVariant):
 
     @override
     def modify_env(self, mission, env):
-        # Keep change_vibe enabled so scripted agents that attempt to switch vibes don't error.
-        # Restrict gameplay effects to a neutral vibe by adjusting objects instead.
         change_vibe = env.game.actions.change_vibe
-        change_vibe.enabled = True
-        # Ensure standard vibe actions (carbon/heart/default/charger/gear, etc.) exist.
-        # This avoids missing action names like 'change_vibe_carbon' used by scripted agents.
-        change_vibe.number_of_vibes = max(change_vibe.number_of_vibes, 32)
+        # Fully neutralize the vibe mechanic
+        change_vibe.enabled = False
+        change_vibe.number_of_vibes = 1
 
         neutral_vibe_name = "default"
-        # Do not override global vibe_names; keep them consistent with configured actions.
-        # Instead, make assembler/chest behavior neutral-only.
+        # Make assembler/chest behavior neutral-only.
         for name, obj in env.game.objects.items():
             if isinstance(obj, AssemblerConfig) and obj.protocols:
                 primary_protocol = obj.protocols[0].model_copy(deep=True)
