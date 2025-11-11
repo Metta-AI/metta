@@ -46,6 +46,10 @@ class RunToolMCPConfig:
                 log_format=os.getenv("LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"),
             )
 
+<<<<<<< Updated upstream
+=======
+        # Third priority: try current working directory
+>>>>>>> Stashed changes
         cwd = Path.cwd().resolve()
         if (cwd / "tools" / "run.py").exists():
             repo_root = cwd

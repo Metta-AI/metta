@@ -3,7 +3,10 @@
 ## Installation
 
 1. Install the MCP server:
+<<<<<<< Updated upstream
 
+=======
+>>>>>>> Stashed changes
 ```bash
 cd /path/to/metta
 uv pip install -e mcp_servers/run_tool
@@ -16,7 +19,16 @@ uv pip install -e mcp_servers/run_tool
   "mcpServers": {
     "run-tool-mcp": {
       "command": "uv",
+<<<<<<< Updated upstream
       "args": ["run", "--directory", "/path/to/metta", "run-tool-mcp"],
+=======
+      "args": [
+        "run",
+        "--directory",
+        "/path/to/metta",
+        "run-tool-mcp"
+      ],
+>>>>>>> Stashed changes
       "env": {
         "METTA_REPO_ROOT": "/path/to/metta"
       }
@@ -28,6 +40,7 @@ uv pip install -e mcp_servers/run_tool
 Replace `/path/to/metta` with the actual path to your Metta repository.
 
 **Note**: On macOS, the config file location is:
+<<<<<<< Updated upstream
 
 - `~/Library/Application Support/Claude/claude_desktop_config.json`
 
@@ -37,6 +50,14 @@ On Windows:
 
 On Linux:
 
+=======
+- `~/Library/Application Support/Claude/claude_desktop_config.json`
+
+On Windows:
+- `%APPDATA%\Claude\claude_desktop_config.json`
+
+On Linux:
+>>>>>>> Stashed changes
 - `~/.config/Claude/claude_desktop_config.json`
 
 ## Restart Claude Desktop
@@ -57,3 +78,7 @@ You can verify the server is working by asking Claude:
 - **Command not found**: Ensure `uv` is in your PATH, or use the full path to `uv`
 - **Repository not found**: Set `METTA_REPO_ROOT` environment variable to the correct path
 - **Permission errors**: Make sure the repository path is accessible and the run.py script is executable
+<<<<<<< Updated upstream
+=======
+
+>>>>>>> Stashed changes

@@ -30,10 +30,16 @@
       }
     },
     "run-tool-mcp": {
+<<<<<<< Updated upstream
       "command": "uv",
       "args": ["run", "--project", "/Users/sovitnayak/Documents/GitHub/metta", "run-tool-mcp"],
       "env": {
         "METTA_REPO_ROOT": "/Users/sovitnayak/Documents/GitHub/metta",
+=======
+      "command": "run-tool-mcp",
+      "env": {
+        "METTA_REPO_ROOT": "$(pwd)",
+>>>>>>> Stashed changes
         "LOG_LEVEL": "INFO"
       }
     }
