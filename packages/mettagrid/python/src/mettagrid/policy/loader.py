@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import importlib
 import os
 import pkgutil
@@ -53,6 +54,7 @@ def resolve_policy_class_path(policy: str) -> str:
     Returns:
         Full class path to the policy.
     """
+    discover_and_register_policies()
     registry = get_policy_registry()
     full_path = registry.get(policy, policy)
 
@@ -127,6 +129,7 @@ def resolve_policy_data_path(
     raise FileNotFoundError(f"Checkpoint path not found: {path}")
 
 
+@functools.cache
 def _walk_and_import_package(package_name: str) -> None:
     """Discover and import all modules in a policy package to trigger registration.
 
