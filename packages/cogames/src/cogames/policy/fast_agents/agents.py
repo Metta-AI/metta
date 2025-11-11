@@ -1,6 +1,7 @@
 import importlib
 import os
 import sys
+from typing import Optional
 
 import numpy as np
 
@@ -68,7 +69,7 @@ class RandomAgentPolicy(_FastAgentPolicyBase):
         action_index = int(self._batch_actions[self._agent_id])
         return Action(name=self._action_names[action_index])
 
-    def reset(self, simulation: Simulation = None) -> None:
+    def reset(self, simulation: Optional[Simulation] = None) -> None:
         self._agent.reset()
 
 
@@ -113,7 +114,7 @@ class ThinkyAgentPolicy(_FastAgentPolicyBase):
         action_index = int(self._batch_actions[self._agent_id])
         return Action(name=self._action_names[action_index])
 
-    def reset(self, simulation: Simulation = None) -> None:
+    def reset(self, simulation: Optional[Simulation] = None) -> None:
         self._agent.reset()
 
 
@@ -158,7 +159,7 @@ class RaceCarAgentPolicy(_FastAgentPolicyBase):
         action_index = int(self._batch_actions[self._agent_id])
         return Action(name=self._action_names[action_index])
 
-    def reset(self, simulation: Simulation = None) -> None:
+    def reset(self, simulation: Optional[Simulation] = None) -> None:
         self._agent.reset()
 
 
