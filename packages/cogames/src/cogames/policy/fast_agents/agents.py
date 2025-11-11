@@ -4,6 +4,7 @@ import sys
 
 import numpy as np
 
+import fast_agents as fa
 from mettagrid.mettagrid_c import dtype_observations
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
@@ -11,17 +12,6 @@ from mettagrid.simulator import Action, AgentObservation, Simulation
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(current_dir, "bindings/generated"))
-
-
-def _import_fast_agents():
-    """Import the generated bindings while forcing genny's `pointer` type to act like c_void_p."""
-    pointer_backup = ctypes.pointer
-    ctypes.pointer = ctypes.c_void_p
-    try:
-        import fast_agents as fa  # type: ignore import error handled by sys.path above
-    finally:
-        ctypes.pointer = pointer_backup
-    return fa
 
 
 class _FastAgentPolicyBase(AgentPolicy):
@@ -47,7 +37,6 @@ class _FastAgentPolicyBase(AgentPolicy):
 class RandomAgentPolicy(_FastAgentPolicyBase):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info, agent_id)
-        fa = _import_fast_agents()
         self._agent = fa.RandomAgent(agent_id, policy_env_info.to_json())
         self._action_names = [action.name for action in policy_env_info.actions.actions()]
 
@@ -93,7 +82,6 @@ class RandomAgentsMultiPolicy(MultiAgentPolicy):
 class ThinkyAgentPolicy(_FastAgentPolicyBase):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info, agent_id)
-        fa = _import_fast_agents()
         self._agent = fa.ThinkyAgent(agent_id, policy_env_info.to_json())
         self._action_names = [action.name for action in policy_env_info.actions.actions()]
 
@@ -139,7 +127,6 @@ class ThinkyAgentsMultiPolicy(MultiAgentPolicy):
 class RaceCarAgentPolicy(_FastAgentPolicyBase):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info, agent_id)
-        fa = _import_fast_agents()
         self._agent = fa.RaceCarAgent(agent_id, policy_env_info.to_json())
         self._action_names = [action.name for action in policy_env_info.actions.actions()]
 
