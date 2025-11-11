@@ -8,7 +8,6 @@ import gymnasium as gym
 from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.config.mettagrid_config import ActionsConfig, MettaGridConfig
 from mettagrid.mettagrid_c import dtype_observations
-from mettagrid.base_config import Config
 
 
 @dataclass

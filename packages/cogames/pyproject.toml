@@ -57,6 +57,6 @@ mettagrid = { workspace = true }
 
 [tool.uv]
 cache-keys = [
-  { file = "src/cogames/policy/heuristic_agents/heuristic_agents.nim" },
-  { file = "src/cogames/policy/heuristic_agents/heuristic_agents.nims" },
+  { file = "src/cogames/policy/fast_agents/fast_agents.nim" },
+  { file = "src/cogames/policy/fast_agents/fast_agents.nims" },
 ]

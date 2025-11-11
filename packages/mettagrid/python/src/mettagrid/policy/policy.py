@@ -45,6 +45,14 @@ class AgentPolicy:
         """Reset the policy state. Default implementation does nothing."""
         pass
 
+    @property
+    def uses_raw_numpy(self) -> bool:
+        return self._uses_raw_numpy
+
+    @uses_raw_numpy.setter
+    def uses_raw_numpy(self, value: bool) -> None:
+        self._uses_raw_numpy = value
+
 
 class MultiAgentPolicy:
     """Abstract base class for multi-agent policies.

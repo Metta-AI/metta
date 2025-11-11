@@ -27,8 +27,11 @@ _POLICY_CLASS_SHORTHAND: dict[str, str] = {
     "simple_baseline": "cogames.policy.scripted_agent.baseline_agent.BaselinePolicy",
     "unclipping": "cogames.policy.scripted_agent.unclipping_agent.UnclippingPolicy",
     "noop_baseline": "cogames.policy.scripted_agent.baseline_agent.NoopBaselinePolicy",
-    "heuristic": "cogames.policy.heuristic_agents.simple_nim_agents.HeuristicAgentsPolicy",
-    "heuristic_nim": "cogames.policy.heuristic_agents.simple_nim_agents.HeuristicAgentsPolicy",
+    "fast_thinky": "cogames.policy.fast_agents.agents.ThinkyAgentsMultiPolicy",
+    "fast_random": "cogames.policy.fast_agents.agents.RandomAgentsMultiPolicy",
+    "fast_racecar": "cogames.policy.fast_agents.agents.RaceCarAgentsMultiPolicy",
+    "heuristic": "cogames.policy.fast_agents.agents.ThinkyAgentsMultiPolicy",
+    "heuristic_nim": "cogames.policy.fast_agents.agents.ThinkyAgentsMultiPolicy",
 }
 
 

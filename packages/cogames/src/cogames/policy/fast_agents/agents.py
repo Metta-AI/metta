@@ -1,4 +1,5 @@
-import json
+from __future__ import annotations
+
 import os
 import sys
 
@@ -8,17 +9,15 @@ from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Simulation
 
-
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(current_dir, "bindings/generated"))
+import fast_agents as fa  # noqa: E402
 
 
 class RandomAgentPolicy(AgentPolicy):
-
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info)
         self.uses_raw_numpy = True
-        import fast_agents as fa # Lint wants it here...
         self._agent = fa.RandomAgent(agent_id, policy_env_info.to_json())
 
     def step(self, raw_observations: np.ndarray, raw_actions: np.ndarray):
@@ -48,7 +47,6 @@ class ThinkyAgentPolicy(AgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info)
         self.uses_raw_numpy = True
-        import fast_agents as fa # Lint wants it here...
         self._agent = fa.ThinkyAgent(agent_id, policy_env_info.to_json())
 
     def step(self, raw_observations: np.ndarray, raw_actions: np.ndarray):
@@ -78,7 +76,6 @@ class RaceCarAgentPolicy(AgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info)
         self.uses_raw_numpy = True
-        import fast_agents as fa # Lint wants it here...
         self._agent = fa.RaceCarAgent(agent_id, policy_env_info.to_json())
 
     def step(self, raw_observations: np.ndarray, raw_actions: np.ndarray):
