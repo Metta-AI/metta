@@ -134,6 +134,7 @@ mettascope.out
 packages/mettagrid/nim/mettascope/src/tmp
 packages/mettagrid/python/src/mettagrid/nim/mettascope/
 packages/mettagrid/nim/mettascope/nim.cfg
+packages/cogames/src/cogames/policy/fast_agents/nim.cfg
 
 # Nim Agents
 packages/cogames/src/cogames/policy/fast_agents/bindings/generated
