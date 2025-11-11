@@ -3,6 +3,15 @@ import
   std/[strformat, strutils, tables, sets, options, algorithm],
   jsony
 
+when defined(fast_agents_verbose):
+  template echo*(args: varargs[string, `$`]) =
+    ## Emit verbose logs when fast_agents_verbose is enabled.
+    system.echo args
+else:
+  template echo*(args: varargs[string, `$`]) =
+    ## Suppress fast agent logs by default.
+    discard
+
 type
   ConfigFeature* = object
     id*: int
