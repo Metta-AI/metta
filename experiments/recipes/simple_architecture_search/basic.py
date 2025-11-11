@@ -85,12 +85,19 @@ def make_curriculum(
 
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
-            use_bidirectional=True,  # Enable bidirectional learning progress by default
+            use_bidirectional=True,  # Default: bidirectional learning progress
             ema_timescale=0.001,
+            num_active_tasks=256,
+            slow_timescale_factor=0.2,
+            rand_task_rate=0.01,
             exploration_bonus=0.1,
-            z_score_amplification=10.0,  # Amplification after z-score (only when temp=0)
-            max_slice_axes=5,  # More slices for arena complexity
+            min_samples_for_lp=10,  # Use exploration bonus for first 10 samples
             enable_detailed_slice_logging=enable_detailed_slice_logging,
+            lp_score_temperature=0.0,  # Z-score normalization for relative LP comparison
+            z_score_amplification=10.0,  # Amplification after z-score (only when temp=0)
+            show_curriculum_troubleshooting_logging=True,  # Enable per-task metrics for debugging
+            early_progress_amplification=0.5,  # 0.5 = OFF, low values (0.05) amplify unsolved tasks
+            max_slice_axes=5,  # More slices for arena complexity
         )
 
     return arena_tasks.to_curriculum(algorithm_config=algorithm_config)
