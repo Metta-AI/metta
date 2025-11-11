@@ -33,7 +33,6 @@ export type TokenListResponse = {
   tokens: TokenInfo[]
 }
 
-
 export type TrainingRun = {
   id: string
   name: string

@@ -1,9 +1,5 @@
 import { useState, useEffect } from 'react'
-import {
-  PolicyScorecardData,
-  Repo,
-  UnifiedPolicyInfo,
-} from './repo'
+import { PolicyScorecardData, Repo, UnifiedPolicyInfo } from './repo'
 import { PolicySelector } from './components/PolicySelector'
 import { EvalSelector } from './components/EvalSelector'
 import { TrainingRunPolicySelector } from './components/TrainingRunPolicySelector'
