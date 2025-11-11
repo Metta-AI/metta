@@ -102,6 +102,8 @@ class MettaGridPufferEnv(PufferEnv):
 
         self._env_supervisor_policy = None
         self._env_supervisor_agent_policies = []
+        # Track object types from last simulation to detect curriculum task switches
+        self._last_sim_object_types: Optional[frozenset[str]] = None
         self._new_sim()
         self.num_agents: int = self._sim.num_agents
 
@@ -113,6 +115,11 @@ class MettaGridPufferEnv(PufferEnv):
         return self._current_cfg
 
     def set_mg_config(self, config: MettaGridConfig) -> None:
+        """Set a new environment configuration (e.g., when curriculum switches tasks).
+
+        This updates the current config. When _new_sim() is called next, it will detect
+        if object types have changed and allow invariant reset if needed.
+        """
         self._current_cfg = config
 
     def get_episode_rewards(self) -> np.ndarray:
@@ -126,7 +133,21 @@ class MettaGridPufferEnv(PufferEnv):
         if hasattr(self, "_sim") and self._sim is not None:
             self._sim.close()
 
-        self._sim = self._simulator.new_simulation(self._current_cfg, self._current_seed, buffers=self._buffers)
+        # Detect if object types changed (curriculum learning scenario)
+        # This allows the simulator to reset invariants when switching between tasks
+        # with different object types (e.g., generator_green -> generator_blue)
+        current_object_types = frozenset(self._current_cfg.game.objects.keys())
+        allow_reset = (
+            self._last_sim_object_types is not None
+            and current_object_types != self._last_sim_object_types
+        )
+
+        self._sim = self._simulator.new_simulation(
+            self._current_cfg, self._current_seed, buffers=self._buffers, allow_invariant_reset=allow_reset
+        )
+
+        # Store object types for next comparison
+        self._last_sim_object_types = current_object_types
 
         if self._env_supervisor_cfg.enabled:
             if self._env_supervisor_cfg.policy == "baseline":

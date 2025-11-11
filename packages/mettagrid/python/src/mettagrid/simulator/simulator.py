@@ -273,7 +273,11 @@ class Simulator:
         self._event_handlers.append(handler)
 
     def new_simulation(
-        self, config: mettagrid_config.MettaGridConfig, seed: int = 0, buffers: Optional[Buffers] = None
+        self,
+        config: mettagrid_config.MettaGridConfig,
+        seed: int = 0,
+        buffers: Optional[Buffers] = None,
+        allow_invariant_reset: bool = False,
     ) -> Simulation:
         assert self._current_simulation is None, "A simulation is already running"
         if self._config_invariants is None:
@@ -281,10 +285,15 @@ class Simulator:
 
         config_invariants = self._compute_config_invariants(config)
         if self._config_invariants != config_invariants:
-            logger.error("Config invariants have changed")
-            logger.error(f"Old invariants: {self._config_invariants}")
-            logger.error(f"New invariants: {config_invariants}")
-            raise ValueError("Config invariants have changed")
+            if allow_invariant_reset:
+                # Allow resetting invariants for curriculum learning where task configs may change
+                logger.info("Config invariants changed - resetting invariants (curriculum learning)")
+                self._config_invariants = config_invariants
+            else:
+                logger.error("Config invariants have changed")
+                logger.error(f"Old invariants: {self._config_invariants}")
+                logger.error(f"New invariants: {config_invariants}")
+                raise ValueError("Config invariants have changed")
 
         self._current_simulation = Simulation(
             config=config, seed=seed, event_handlers=self._event_handlers, simulator=self, buffers=buffers
