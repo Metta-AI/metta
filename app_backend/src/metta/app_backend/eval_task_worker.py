@@ -182,15 +182,14 @@ class SimTaskExecutor(AbstractTaskExecutor):
             "uv",
             "run",
             "tools/run.py",
-            "experiments.evals.run.eval",
+            "experiments.remote_evals.run.eval",
             f"policy_uri={normalized}",
             f"simulations_json_base64_path={os.path.abspath(file_path)}",
             f"eval_task_id={str(task.id)}",
             f"stats_server_uri={self._backend_url}",
-            f"job_result_file_path={os.path.abspath(job_result_file_path)}",
-            "push_metrics_to_wandb=true",
+            f"result_file_path={os.path.abspath(job_result_file_path)}",
         ]
-        # exclude simulation_json_base64 from logging, since it's too large and undescriptive
+        # exclude simulation_json_base64 from logging, since it's too large and nondescriptive
         logged_cmd = [arg for arg in cmd if not arg.startswith("simulations_json_base64")]
         logger.info(f"Running command: {' '.join(logged_cmd)}")
 
