@@ -37,15 +37,3 @@ proc stepBatch*(
   let action = agent.random.rand(1 .. 4).int32
   actions[agent.agentId] = action
   echo "  RandomAgent taking action: ", action
-
-proc step*(
-  agent: RandomAgent,
-  numTokens: int,
-  sizeToken: int,
-  rawObservation: pointer
-): int32 {.raises: [].} =
-  discard numTokens
-  discard sizeToken
-  discard rawObservation
-  result = agent.random.rand(1 .. 4).int32
-  echo "  RandomAgent taking action: ", result

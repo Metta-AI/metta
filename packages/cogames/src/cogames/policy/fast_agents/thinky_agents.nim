@@ -278,20 +278,3 @@ proc stepBatch*(
   let actions = cast[ptr UncheckedArray[int32]](rawActions)
   let agentObservation = cast[pointer](observations[agent.agentId * numTokens * sizeToken].addr)
   thinkyStepInternal(agent, numTokens, sizeToken, agentObservation, actions, agent.agentId)
-
-proc step*(
-  agent: ThinkyAgent,
-  numTokens: int,
-  sizeToken: int,
-  rawObservation: pointer
-): int32 {.raises: [].} =
-  var singleAction: array[1, int32]
-  thinkyStepInternal(
-    agent,
-    numTokens,
-    sizeToken,
-    rawObservation,
-    cast[ptr UncheckedArray[int32]](singleAction[0].addr),
-    0,
-  )
-  return singleAction[0]
