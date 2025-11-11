@@ -24,16 +24,9 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action
 from mettagrid.simulator.interface import AgentObservation
 
-from .pathfinding import (
-    compute_goal_cells,
-    shortest_path,
-)
-from .pathfinding import (
-    is_traversable as path_is_traversable,
-)
-from .pathfinding import (
-    is_within_bounds as path_is_within_bounds,
-)
+from .pathfinding import compute_goal_cells, shortest_path
+from .pathfinding import is_traversable as path_is_traversable
+from .pathfinding import is_within_bounds as path_is_within_bounds
 from .types import (
     BaselineHyperparameters,
     CellType,
@@ -43,6 +36,7 @@ from .types import (
     Phase,
     SimpleAgentState,
 )
+from .utils import is_adjacent, is_station, is_wall
 
 if TYPE_CHECKING:
     pass
@@ -453,7 +447,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             obj_name = obj_state.name.lower()
 
             # Walls are obstacles
-            if self._is_wall(obj_name):
+            if is_wall(obj_name):
                 s.occupancy[r][c] = CellType.OBSTACLE.value
                 continue
 
@@ -464,7 +458,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
             # Discover stations (all stations are obstacles - can't walk through them)
             for station_name in ("assembler", "chest", "charger"):
-                if self._is_station(obj_name, station_name):
+                if is_station(obj_name, station_name):
                     s.occupancy[r][c] = CellType.OBSTACLE.value
                     self._discover_station(s, pos, station_name)
                     break
@@ -475,19 +469,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
                     resource_type = obj_name.replace("_extractor", "").replace("clipped_", "")
                     if resource_type:
                         self._discover_extractor(s, pos, resource_type, obj_state)
-
-    def _is_wall(self, obj_name: str) -> bool:
-        """Check if an object name represents a wall or obstacle."""
-        return "wall" in obj_name or "#" in obj_name or obj_name in {"wall", "obstacle"}
-
-    def _is_floor(self, obj_name: str) -> bool:
-        """Check if an object name represents floor (passable empty space)."""
-        # environment returns empty string for empty cells
-        return obj_name in {"floor", ""}
-
-    def _is_station(self, obj_name: str, station: str) -> bool:
-        """Check if an object name contains a specific station type."""
-        return station in obj_name
 
     def _discover_station(self, s: SimpleAgentState, pos: tuple[int, int], station_key: str) -> None:
         """Record a discovered station location if not already known."""
@@ -800,12 +781,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
         return self._actions.noop.Noop()
 
-    def _is_adjacent(self, s: SimpleAgentState, target_pos: tuple[int, int]) -> bool:
-        """Check if agent is adjacent to target position."""
-        dr = abs(s.row - target_pos[0])
-        dc = abs(s.col - target_pos[1])
-        return (dr == 1 and dc == 0) or (dr == 0 and dc == 1)
-
     def _navigate_to_adjacent(
         self, s: SimpleAgentState, target_pos: tuple[int, int], target_name: str = "target"
     ) -> Optional[Action]:
@@ -813,16 +788,16 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
         This is a generic helper used for both extractors and stations.
         """
-        is_adjacent = self._is_adjacent(s, target_pos)
+        is_adjacent_to_target = is_adjacent((s.row, s.col), target_pos)
 
         dr = abs(s.row - target_pos[0])
         dc = abs(s.col - target_pos[1])
         self._log_debug(
             f"[Agent {s.agent_id}] _navigate_to_adjacent: {target_name} at {target_pos}\n"
-            f"  Agent at ({s.row},{s.col}), distance: dr={dr}, dc={dc}, is_adjacent={is_adjacent}\n"
+            f"  Agent at ({s.row},{s.col}), distance: dr={dr}, dc={dc}, is_adjacent={is_adjacent_to_target}\n"
         )
 
-        if is_adjacent:
+        if is_adjacent_to_target:
             self._log_debug("  → Already adjacent\n")
             return None  # Already adjacent
 
