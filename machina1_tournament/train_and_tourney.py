@@ -119,7 +119,7 @@ def train_with_checkpoints(
         f"run={checkpoint_dir.name}",
         f"num_cogs={num_cogs}",
         f"mission={mission}",  # Train on specific mission
-        'variants=["lonely_heart","heart_chorus","neutral_faced","pack_rat"]',
+        'variants=["lonely_heart","heart_chorus","pack_rat","neutral_faced"]',
         f"trainer.total_timesteps={total_timesteps}",
         f"checkpointer.epoch_interval={checkpoint_interval}",
         "evaluator.evaluate_local=true",  # Enable local evaluation
