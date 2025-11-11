@@ -81,7 +81,9 @@ def train_supervised(
     checkpoint_dir: Path = CHECKPOINT_DIR,
     seed: int = SEED,
     nim_debug: bool = NIM_DEBUG,
+    train_from_scratch: bool = False,
 ):
+    # TODO: Only training on agent with id 0 so far
     """Train a policy to imitate the Nim scripted agent using supervised learning.
 
     Args:
@@ -117,10 +119,11 @@ def train_supervised(
     loss_fn = nn.CrossEntropyLoss()
 
     # load model weights if available
-    checkpoint_path = checkpoint_dir / "policy.pt"
-    if checkpoint_path.exists():
-        model.load_state_dict(torch.load(checkpoint_path, map_location=torch_device))
-        model = model.to(torch_device)
+    if not train_from_scratch:
+        checkpoint_path = checkpoint_dir / "policy.pt"
+        if checkpoint_path.exists():
+            model.load_state_dict(torch.load(checkpoint_path, map_location=torch_device))
+            model = model.to(torch_device)
 
     # Create multiple simulations for batching
     simulations = []
@@ -261,6 +264,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--nim-debug", action="store_true", default=NIM_DEBUG, help="Enable debug prints from Nim heuristic agent"
     )
+    parser.add_argument(
+        "-n",
+        "--train-from-scratch",
+        action="store_true",
+        default=False,
+        help="Train a new model from scratch without loading checkpoint",
+    )
 
     args = parser.parse_args()
 
@@ -275,4 +285,5 @@ if __name__ == "__main__":
         checkpoint_dir=Path(args.checkpoint_dir),
         seed=args.seed,
         nim_debug=args.nim_debug,
+        train_from_scratch=args.train_from_scratch,
     )
