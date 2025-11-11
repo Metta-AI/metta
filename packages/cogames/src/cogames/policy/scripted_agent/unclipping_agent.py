@@ -438,6 +438,8 @@ class UnclippingPolicy(MultiAgentPolicy):
     It handles multiple agents, each with their own UnclippingAgent instance.
     """
 
+    short_names = ["scripted_unclipping", "unclipping"]
+
     def __init__(self, policy_env_info: PolicyEnvInterface, hyperparams: Optional[UnclippingHyperparameters] = None):
         super().__init__(policy_env_info)
         self._agent_policies: dict[int, StatefulAgentPolicy[UnclippingAgentState]] = {}
