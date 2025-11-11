@@ -190,7 +190,7 @@ class GameConfig:
         objects: dict[str, GridObjectConfig],
         resource_loss_prob: float = 0.0,
         tag_id_map: dict[int, str] | None = None,
-        protocol_details_obs: bool = False,
+        protocol_details_obs: bool = True,
         allow_diagonals: bool = False,
         reward_estimates: Optional[dict[str, float]] = None,
         inventory_regen_amounts: dict[int, int] | None = None,

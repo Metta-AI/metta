@@ -177,8 +177,6 @@ public:
   // Pointer to current timestep from environment
   unsigned int* current_timestep_ptr;
 
-  // Protocol observation configuration
-  bool protocol_details_obs;
   const class ObservationEncoder* obs_encoder;
 
   // Allow partial usage during cooldown
@@ -198,7 +196,6 @@ public:
         cooldown_multiplier(1.0f),
         grid(nullptr),
         current_timestep_ptr(nullptr),
-        protocol_details_obs(cfg.protocol_details_obs),
         obs_encoder(nullptr),
         allow_partial_usage(cfg.allow_partial_usage),
         clipper_ptr(nullptr) {
@@ -427,7 +424,7 @@ public:
     }
 
     // Add protocol details if configured to do so
-    if (this->protocol_details_obs && this->obs_encoder) {
+    if (this->obs_encoder && this->obs_encoder->protocol_details_obs) {
       const Protocol* current_protocol = get_current_protocol();
       if (current_protocol) {
         // Add protocol inputs (input:resource) - only non-zero values

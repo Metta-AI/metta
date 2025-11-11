@@ -44,7 +44,7 @@ struct GameConfig {
   std::unordered_map<int, std::string> tag_id_map;
 
   // FEATURE FLAGS
-  bool protocol_details_obs = false;
+  bool protocol_details_obs = true;
   std::unordered_map<std::string, float> reward_estimates = {};
 
   // Inventory regeneration interval (global check timing)
@@ -114,7 +114,7 @@ inline void bind_game_config(py::module& m) {
            py::arg("tag_id_map") = std::unordered_map<int, std::string>(),
 
            // FEATURE FLAGS
-           py::arg("protocol_details_obs") = false,
+           py::arg("protocol_details_obs") = true,
            py::arg("reward_estimates") = std::unordered_map<std::string, float>(),
 
            // Inventory regeneration

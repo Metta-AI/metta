@@ -27,19 +27,21 @@ public:
         const std::string& resource_name = resource_names[i];
 
         // Look up input feature ID
-        auto input_it = feature_ids.find("input:" + resource_name);
+        auto input_it = feature_ids.find("protocol_input:" + resource_name);
         if (input_it != feature_ids.end()) {
           _input_feature_ids[i] = input_it->second;
         } else {
-          throw std::runtime_error("Protocol input feature 'input:" + resource_name + "' not found in feature_ids");
+          throw std::runtime_error("Protocol input feature 'protocol_input:" + resource_name +
+                                   "' not found in feature_ids");
         }
 
         // Look up output feature ID
-        auto output_it = feature_ids.find("output:" + resource_name);
+        auto output_it = feature_ids.find("protocol_output:" + resource_name);
         if (output_it != feature_ids.end()) {
           _output_feature_ids[i] = output_it->second;
         } else {
-          throw std::runtime_error("Protocol output feature 'output:" + resource_name + "' not found in feature_ids");
+          throw std::runtime_error("Protocol output feature 'protocol_output:" + resource_name +
+                                   "' not found in feature_ids");
         }
       }
     }
