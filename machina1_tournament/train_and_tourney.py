@@ -123,8 +123,6 @@ def train_with_checkpoints(
         f"trainer.total_timesteps={total_timesteps}",
         f"checkpointer.epoch_interval={checkpoint_interval}",
         "evaluator.evaluate_local=true",  # Enable local evaluation
-        "system.device=cpu",
-        "system.vectorization=serial",
     ]
 
     console.print(f"\n[yellow]Running: {' '.join(cmd)}[/yellow]\n")
