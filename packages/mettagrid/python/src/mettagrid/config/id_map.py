@@ -93,8 +93,6 @@ class IdMap:
         feature_id += 1
         features.append(ObservationFeatureSpec(id=feature_id, normalization=10.0, name="last_action_arg"))
         feature_id += 1
-        features.append(ObservationFeatureSpec(id=feature_id, normalization=1.0, name="last_action_success"))
-        feature_id += 1
 
         features.append(ObservationFeatureSpec(id=feature_id, normalization=100.0, name="last_reward"))
         feature_id += 1

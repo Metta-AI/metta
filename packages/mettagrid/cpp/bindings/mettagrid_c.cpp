@@ -190,7 +190,6 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
         _stats->incr("objects." + cell);
         assembler->set_grid(_grid.get());
         assembler->set_current_timestep_ptr(&current_step);
-        assembler->set_obs_encoder(_obs_encoder.get());
         continue;
       }
 
@@ -373,8 +372,6 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
 
   if (_global_obs_config.last_action) {
     global_tokens.push_back({ObservationFeature::LastAction, static_cast<ObservationType>(action)});
-    // Also emit last_action_success (always emit if last_action is enabled)
-    global_tokens.push_back({ObservationFeature::LastActionSuccess, static_cast<ObservationType>(_action_success[agent_idx] ? 1 : 0)});
   }
 
   if (_global_obs_config.last_reward) {
