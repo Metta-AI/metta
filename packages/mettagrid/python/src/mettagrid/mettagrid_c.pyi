@@ -115,15 +115,10 @@ class Protocol:
 
 class ClipperConfig:
     def __init__(
-        self,
-        unclipping_protocols: list[Protocol],
-        length_scale: float,
-        cutoff_distance: float,
-        clip_period: int,
-    ) -> None: ...
+        self) -> None: ...
     unclipping_protocols: list[Protocol]
     length_scale: float
-    cutoff_distance: float
+    scaled_cutoff_distance: int
     clip_period: int
 
 class AttackActionConfig(ActionConfig):

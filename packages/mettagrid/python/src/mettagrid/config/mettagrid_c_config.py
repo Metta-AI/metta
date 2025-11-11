@@ -447,9 +447,12 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             }
             cpp_protocol.cooldown = protocol_config.cooldown
             clipper_protocols.append(cpp_protocol)
-        game_cpp_params["clipper"] = CppClipperConfig(
-            clipper_protocols, clipper.length_scale, clipper.cutoff_distance, clipper.clip_period
-        )
+        clipper_config = CppClipperConfig()
+        clipper_config.unclipping_protocols = clipper_protocols
+        clipper_config.length_scale = clipper.length_scale
+        clipper_config.scaled_cutoff_distance = clipper.scaled_cutoff_distance
+        clipper_config.clip_period = clipper.clip_period
+        game_cpp_params["clipper"] = clipper_config
 
     # Add tag mappings for C++ debugging/display
     game_cpp_params["tag_id_map"] = tag_id_to_name

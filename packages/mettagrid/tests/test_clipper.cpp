@@ -50,22 +50,22 @@ protected:
 // Test: infection_weight calculation based on distance
 TEST_F(ClipperTest, InfectionWeightCalculation) {
   float length_scale = 2.0f;
-  float cutoff_distance = 5.0f;
+  uint32_t scaled_cutoff_distance = 2;
   uint32_t clip_period = 10;
 
   // Create two assemblers at different distances
   Assembler* a1 = create_assembler(0, 0);
-  Assembler* a2_close = create_assembler(0, 2);   // Distance = 2
-  Assembler* a3_medium = create_assembler(3, 4);  // Distance = 5
-  Assembler* a4_far = create_assembler(5, 5);     // Distance ~7.07
+  Assembler* a2_close = create_assembler(0, 1);   // Distance = 1 (zero length_scales)
+  Assembler* a3_medium = create_assembler(3, 4);  // Distance = 5 (two length_scales)
+  Assembler* a4_far = create_assembler(5, 5);     // Distance ~7.07 (three length_scales)
 
   std::vector<std::shared_ptr<Protocol>> unclip_protocols = {unclip_protocol};
   std::mt19937 rng(42);
-  Clipper clipper(*grid, unclip_protocols, length_scale, cutoff_distance, clip_period, rng);
+  Clipper clipper(*grid, unclip_protocols, length_scale, scaled_cutoff_distance, clip_period, rng);
 
   // Test distance calculation
   float dist_close = clipper.distance(*a1, *a2_close);
-  EXPECT_FLOAT_EQ(dist_close, 2.0f);
+  EXPECT_FLOAT_EQ(dist_close, 1.0f);
 
   float dist_medium = clipper.distance(*a1, *a3_medium);
   EXPECT_FLOAT_EQ(dist_medium, 5.0f);
@@ -75,11 +75,10 @@ TEST_F(ClipperTest, InfectionWeightCalculation) {
 
   // Test infection weight calculation
   float weight_close = clipper.infection_weight(*a1, *a2_close);
-  EXPECT_EQ(weight_close, static_cast<uint32_t>(std::exp(-1) * 1000000.0f));  // exp(-1)
+  EXPECT_EQ(weight_close, 4);  // 2^2
 
   float weight_medium = clipper.infection_weight(*a1, *a3_medium);
-  // We use floating point in the middle, so this isn't exact
-  EXPECT_LE(std::abs(weight_medium - static_cast<uint32_t>(std::exp(-2.5) * 1000000.0f)), 10);
+  EXPECT_EQ(weight_medium, 1);  // 2^0
 
   // Beyond cutoff should be 0
   float weight_far = clipper.infection_weight(*a1, *a4_far);
@@ -89,7 +88,7 @@ TEST_F(ClipperTest, InfectionWeightCalculation) {
 // Test: infection weights are properly adjusted during clipping
 TEST_F(ClipperTest, WeightAdjustmentDuringClipping) {
   float length_scale = 2.0f;
-  float cutoff_distance = 10.0f;
+  uint32_t scaled_cutoff_distance = 5;
   uint32_t clip_period = 10;
 
   // Create three assemblers in a line
@@ -99,7 +98,7 @@ TEST_F(ClipperTest, WeightAdjustmentDuringClipping) {
 
   std::vector<std::shared_ptr<Protocol>> unclip_protocols = {unclip_protocol};
   std::mt19937 rng(42);
-  Clipper clipper(*grid, unclip_protocols, length_scale, cutoff_distance, clip_period, rng);
+  Clipper clipper(*grid, unclip_protocols, length_scale, scaled_cutoff_distance, clip_period, rng);
 
   // Initially all assemblers should have weight 0
   EXPECT_EQ(clipper.assembler_infection_weight[a1], 0);
@@ -119,8 +118,8 @@ TEST_F(ClipperTest, WeightAdjustmentDuringClipping) {
   EXPECT_EQ(clipper.unclipped_assemblers.count(a2), 0);
 
   // Other assemblers should have increased weights
-  uint32_t expected_weight_a1 = clipper.infection_weight(*a2, *a1);  // exp(-2/2) = exp(-1)
-  uint32_t expected_weight_a3 = clipper.infection_weight(*a2, *a3);  // exp(-2/2) = exp(-1)
+  uint32_t expected_weight_a1 = clipper.infection_weight(*a2, *a1);
+  uint32_t expected_weight_a3 = clipper.infection_weight(*a2, *a3);
 
   EXPECT_EQ(clipper.assembler_infection_weight[a1], expected_weight_a1);
   EXPECT_EQ(clipper.assembler_infection_weight[a3], expected_weight_a3);
@@ -132,7 +131,7 @@ TEST_F(ClipperTest, WeightAdjustmentDuringClipping) {
 // Test: infection weights are properly adjusted during unclipping
 TEST_F(ClipperTest, WeightAdjustmentDuringUnclipping) {
   float length_scale = 2.0f;
-  float cutoff_distance = 10.0f;
+  uint32_t scaled_cutoff_distance = 5;
   uint32_t clip_period = 10;
 
   // Create three assemblers
@@ -142,7 +141,7 @@ TEST_F(ClipperTest, WeightAdjustmentDuringUnclipping) {
 
   std::vector<std::shared_ptr<Protocol>> unclip_protocols = {unclip_protocol};
   std::mt19937 rng(42);
-  Clipper clipper(*grid, unclip_protocols, length_scale, cutoff_distance, clip_period, rng);
+  Clipper clipper(*grid, unclip_protocols, length_scale, scaled_cutoff_distance, clip_period, rng);
 
   // Clip a2
   clipper.clip_assembler(*a2);
@@ -170,7 +169,7 @@ TEST_F(ClipperTest, WeightAdjustmentDuringUnclipping) {
 // Test: multiple clipped assemblers accumulate infection weights correctly
 TEST_F(ClipperTest, MultipleClippedAssemblersAccumulateWeights) {
   float length_scale = 2.0f;
-  float cutoff_distance = 10.0f;
+  uint32_t scaled_cutoff_distance = 5;
   uint32_t clip_period = 10;
 
   // Create four assemblers in a square
@@ -181,7 +180,7 @@ TEST_F(ClipperTest, MultipleClippedAssemblersAccumulateWeights) {
 
   std::vector<std::shared_ptr<Protocol>> unclip_protocols = {unclip_protocol};
   std::mt19937 rng(42);
-  Clipper clipper(*grid, unclip_protocols, length_scale, cutoff_distance, clip_period, rng);
+  Clipper clipper(*grid, unclip_protocols, length_scale, scaled_cutoff_distance, clip_period, rng);
 
   // Clip a1 and a2
   clipper.clip_assembler(*a1);
@@ -204,7 +203,7 @@ TEST_F(ClipperTest, MultipleClippedAssemblersAccumulateWeights) {
 // Test: pick_assembler_to_clip respects weights
 TEST_F(ClipperTest, PickAssemblerRespectsWeights) {
   float length_scale = 2.0f;
-  float cutoff_distance = 10.0f;
+  uint32_t scaled_cutoff_distance = 5;
   uint32_t clip_period = 1;  // Always clip
 
   // Create assemblers with one having much higher weight
@@ -213,12 +212,12 @@ TEST_F(ClipperTest, PickAssemblerRespectsWeights) {
 
   std::vector<std::shared_ptr<Protocol>> unclip_protocols = {unclip_protocol};
   std::mt19937 rng(42);
-  Clipper clipper(*grid, unclip_protocols, length_scale, cutoff_distance, clip_period, rng);
+  Clipper clipper(*grid, unclip_protocols, length_scale, scaled_cutoff_distance, clip_period, rng);
 
   // Give a_high_weight artificial high weight
-  clipper.assembler_infection_weight[a_high_weight] = static_cast<uint32_t>(100.0f * 1000000.0f);
+  clipper.assembler_infection_weight[a_high_weight] = 1000;
   clipper.border_assemblers.insert(a_high_weight);
-  clipper.assembler_infection_weight[a_low_weight] = static_cast<uint32_t>(0.1f * 1000000.0f);
+  clipper.assembler_infection_weight[a_low_weight] = 1;
   clipper.border_assemblers.insert(a_low_weight);
 
   // Pick many times and verify high-weight assembler is picked more often
@@ -389,42 +388,4 @@ TEST_F(ClipperPercolationTest, NonSquareGrid) {
 
   // Expected: (60 / sqrt(25)) * sqrt(4.51 / (4*π)) ≈ 7.189
   EXPECT_NEAR(clipper_horizontal.length_scale, 7.189f, 0.01f);
-}
-
-// ================================================================================================
-// CUTOFF DISTANCE AUTO-CALCULATION TESTS
-// ================================================================================================
-
-// Test 8: Auto-calculate cutoff_distance = 3 * length_scale
-TEST_F(ClipperPercolationTest, AutoCutoffDistance) {
-  Grid grid(50, 50);
-  place_assemblers(grid, 25);
-
-  Clipper clipper(grid, {unclip_protocol}, -1.0f, 0.0f, 10, rng);
-
-  // Expected cutoff: 3 * 5.991 ≈ 17.973
-  EXPECT_NEAR(clipper.cutoff_distance, 3.0f * clipper.length_scale, 0.001f);
-  EXPECT_NEAR(clipper.cutoff_distance, 17.973f, 0.03f);
-}
-
-// Test 9: Manual cutoff_distance is preserved
-TEST_F(ClipperPercolationTest, ManualCutoffDistance) {
-  Grid grid(50, 50);
-  place_assemblers(grid, 25);
-
-  Clipper clipper(grid, {unclip_protocol}, -1.0f, 20.0f, 10, rng);
-
-  // Should keep the provided cutoff_distance
-  EXPECT_FLOAT_EQ(clipper.cutoff_distance, 20.0f);
-}
-
-// Test 10: Auto-cutoff with manual length_scale
-TEST_F(ClipperPercolationTest, AutoCutoffWithManualLength) {
-  Grid grid(50, 50);
-  place_assemblers(grid, 25);
-
-  Clipper clipper(grid, {unclip_protocol}, 5.0f, 0.0f, 10, rng);
-
-  // Should auto-calculate cutoff as 3 * 5.0
-  EXPECT_FLOAT_EQ(clipper.cutoff_distance, 15.0f);
 }
