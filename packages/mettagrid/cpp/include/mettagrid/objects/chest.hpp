@@ -65,9 +65,10 @@ private:
         transfer_amount = std::min(transfer_amount, available_space);
 
         if (transfer_amount == 0) {
-          // Chest is full, destroy the resource from agent
-          agent.update_inventory(resource_type, -delta);
-          stats_tracker->add("chest." + stats_tracker->resource_name(resource_type) + ".destroyed", delta);
+          // Chest is full, destroy the resource from agent (only what agent actually has)
+          int destroy_amount = std::min(delta, agent_amount);
+          agent.update_inventory(resource_type, -destroy_amount);
+          stats_tracker->add("chest." + stats_tracker->resource_name(resource_type) + ".destroyed", destroy_amount);
           return true;
         }
       }
@@ -81,8 +82,10 @@ private:
       // If this is a heart chest, stamp ground-truth belief on the depositing agent
       if (stats_tracker->resource_name(resource_type) == std::string("heart")) {
         agent.belief_group_reward = static_cast<float>(inventory.amount(resource_type));
-        agent.last_ground_truth_timestamp = *grid->current_timestep_ptr;
-        agent.last_belief_update_timestamp = *grid->current_timestep_ptr;
+        if (current_timestep_ptr) {
+          agent.last_ground_truth_timestamp = *current_timestep_ptr;
+          agent.last_belief_update_timestamp = *current_timestep_ptr;
+        }
         agent.stats.set("belief.group_reward", agent.belief_group_reward);
       }
 
@@ -111,8 +114,10 @@ private:
         // If this is a heart chest, update ground-truth belief on the withdrawing agent
         if (stats_tracker->resource_name(resource_type) == std::string("heart")) {
           agent.belief_group_reward = static_cast<float>(inventory.amount(resource_type));
-          agent.last_ground_truth_timestamp = *grid->current_timestep_ptr;
-          agent.last_belief_update_timestamp = *grid->current_timestep_ptr;
+          if (current_timestep_ptr) {
+            agent.last_ground_truth_timestamp = *current_timestep_ptr;
+            agent.last_belief_update_timestamp = *current_timestep_ptr;
+          }
           agent.stats.set("belief.group_reward", agent.belief_group_reward);
         }
         return true;
@@ -131,6 +136,9 @@ public:
   // Grid access for finding agent positions
   class Grid* grid;
 
+  // Pointer to current timestep from environment
+  unsigned int* current_timestep_ptr;
+
   Chest(GridCoord r, GridCoord c, const ChestConfig& cfg, StatsTracker* stats_tracker)
       : GridObject(),
         HasInventory(InventoryConfig()),  // Chests have nothing to configure in their inventory. Yet.
@@ -138,7 +146,8 @@ public:
         position_deltas(cfg.position_deltas),
         max_inventory(cfg.max_inventory),
         stats_tracker(stats_tracker),
-        grid(nullptr) {
+        grid(nullptr),
+        current_timestep_ptr(nullptr) {
     GridObject::init(
         cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids, cfg.initial_vibe);
     // Set initial inventory
@@ -152,6 +161,11 @@ public:
   // Set grid access
   void set_grid(class Grid* grid_ptr) {
     this->grid = grid_ptr;
+  }
+
+  // Set current timestep pointer
+  void set_current_timestep_ptr(unsigned int* timestep_ptr) {
+    this->current_timestep_ptr = timestep_ptr;
   }
 
   // Implement pure virtual method from Usable

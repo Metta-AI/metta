@@ -209,6 +209,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         _grid->add_object(chest);
         _stats->incr("objects." + cell);
         chest->set_grid(_grid.get());
+        chest->set_current_timestep_ptr(&current_step);
         continue;
       }
 
@@ -670,7 +671,6 @@ void MettaGrid::_apply_belief_propagation() {
   for (size_t i = 0; i < _agents.size(); ++i) {
     Agent* observer = _agents[i];
     float candidate_max = -1.0f;
-    unsigned int candidate_gt_ts = 0;
 
     for (size_t j = 0; j < _agents.size(); ++j) {
       if (i == j) continue;
@@ -683,7 +683,6 @@ void MettaGrid::_apply_belief_propagation() {
       if (std::abs(dr) <= radius_h && std::abs(dc) <= radius_w) {
         if (target->belief_group_reward > candidate_max) {
           candidate_max = target->belief_group_reward;
-          candidate_gt_ts = target->last_ground_truth_timestamp;
         }
       }
     }

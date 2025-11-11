@@ -1045,6 +1045,9 @@ class MachinaProceduralExploreMission(ProceduralMissionBase):
         if not isinstance(chest_cfg, ChestConfig):
             raise TypeError("Expected 'chest' to be ChestConfig")
         chest_cfg.initial_inventory = 1
+        # Ensure heart chests have unlimited capacity to prevent destruction
+        if chest_cfg.resource_type == "heart":
+            chest_cfg.max_inventory = -1  # Unlimited
         return env
 
 

@@ -167,6 +167,7 @@ class SiliconExtractorConfig(ExtractorConfig):
 class CvCChestConfig(CvCStationConfig):
     type: Literal["communal_chest"] = Field(default="communal_chest")
     default_resource: str = Field(default="heart")
+    max_inventory: int = Field(default=-1, ge=-1, description="Maximum inventory capacity (-1 = unlimited)")
 
     def station_cfg(self) -> ChestConfig:
         return ChestConfig(
@@ -175,10 +176,11 @@ class CvCChestConfig(CvCStationConfig):
             render_symbol=vibes.VIBE_BY_NAME["chest"].symbol,
             resource_type=self.default_resource,
             position_deltas=[("E", 1), ("W", -1), ("N", 5), ("S", -5)],
+            max_inventory=self.max_inventory,
         )
 
 
-def _resource_chest(resource: str, type_id: int) -> ChestConfig:
+def _resource_chest(resource: str, type_id: int, max_inventory: int = 255) -> ChestConfig:
     return ChestConfig(
         name=f"chest_{resource}",
         type_id=type_id,
@@ -186,6 +188,7 @@ def _resource_chest(resource: str, type_id: int) -> ChestConfig:
         render_symbol=vibes.VIBE_BY_NAME[resource].symbol,
         resource_type=resource,
         position_deltas=[("E", 1), ("W", -1)],
+        max_inventory=max_inventory,
     )
 
 
@@ -194,7 +197,7 @@ RESOURCE_CHESTS: dict[str, ChestConfig] = {
     "chest_oxygen": _resource_chest("oxygen", 119),
     "chest_germanium": _resource_chest("germanium", 120),
     "chest_silicon": _resource_chest("silicon", 121),
-    "chest_heart": _resource_chest("heart", 122),
+    "chest_heart": _resource_chest("heart", 122, max_inventory=-1),  # Unlimited for heart chests
 }
 
 
