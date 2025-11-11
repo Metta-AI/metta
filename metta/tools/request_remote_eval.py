@@ -21,10 +21,7 @@ class RequestRemoteEvalTool(Tool):
     simulations: Sequence[SimulationConfig]
 
     def invoke(self, args: dict[str, str]) -> int | None:
-        if self.stats_server_uri is None:
-            logger.error("No stats server URI provided")
-            return 1
-
+        # Errors if stats_server_uri is not set or authentication fails
         stats_client = HttpStatsClient.create(self.stats_server_uri)
         normalized_uri = CheckpointManager.normalize_uri(self.policy_uri)
         policy_id = get_or_create_policy_ids(stats_client, [(normalized_uri, "")])[normalized_uri]

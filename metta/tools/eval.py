@@ -10,14 +10,13 @@ from pydantic import Field
 
 from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
 from metta.common.tool import Tool
-from metta.common.util.constants import SOFTMAX_S3_BASE
 from metta.common.wandb.context import WandbContext
 from metta.eval.eval_request_config import EvalResults
 from metta.eval.eval_service import evaluate_policy
 from metta.rl import stats as rl_stats
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.utils.auto_config import auto_wandb_config
+from metta.tools.utils.auto_config import auto_replay_dir, auto_wandb_config
 from metta.utils.uri import ParsedURI
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
@@ -35,7 +34,7 @@ class EvaluateTool(Tool):
     # required params:
     simulations: Sequence[SimulationConfig]  # list of simulations to run
     policy_uris: str | Sequence[str] | None = None  # list of policy uris to evaluate
-    replay_dir: str = Field(default=f"{SOFTMAX_S3_BASE}/replays/{str(uuid.uuid4())}")
+    replay_dir: str = Field(default_factory=auto_replay_dir)
     enable_replays: bool = True
 
     group: str | None = None  # Separate group parameter like in train.py
