@@ -25,28 +25,28 @@ def _import_fast_agents():
 
 
 class _FastAgentPolicyBase(AgentPolicy):
-    def __init__(self, policy_env_info: PolicyEnvInterface):
+    def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info)
         obs_shape = policy_env_info.observation_space.shape
+        self._agent_id = agent_id
+        self._num_agents = policy_env_info.num_agents
         self._num_tokens = obs_shape[0]
         self._token_dim = obs_shape[1]
-        self._single_obs = np.empty((1, *obs_shape), dtype=dtype_observations)
-        self._single_actions = np.zeros(1, dtype=np.int32)
+        self._batch_obs = np.empty((self._num_agents, *obs_shape), dtype=dtype_observations)
+        self._batch_actions = np.zeros(self._num_agents, dtype=np.int32)
 
-    def _pack_raw_observation(self, obs: AgentObservation) -> np.ndarray:
-        raw = self._single_obs[0]
-        raw.fill(255)
+    def _pack_raw_observation(self, target: np.ndarray, obs: AgentObservation) -> None:
+        target.fill(255)
         for idx, token in enumerate(obs.tokens):
             if idx >= self._num_tokens:
                 break
             token_values = token.raw_token
-            raw[idx, : len(token_values)] = token_values
-        return self._single_obs
+            target[idx, : len(token_values)] = token_values
 
 
 class RandomAgentPolicy(_FastAgentPolicyBase):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
-        super().__init__(policy_env_info)
+        super().__init__(policy_env_info, agent_id)
         fa = _import_fast_agents()
         self._agent = fa.RandomAgent(agent_id, policy_env_info.to_json())
         self._action_names = [action.name for action in policy_env_info.actions.actions()]
@@ -62,17 +62,18 @@ class RandomAgentPolicy(_FastAgentPolicyBase):
         )
 
     def step(self, obs: AgentObservation) -> Action:
-        raw_batch = np.ascontiguousarray(self._pack_raw_observation(obs))
-        self._single_actions.fill(0)
+        self._batch_obs.fill(255)
+        self._pack_raw_observation(self._batch_obs[self._agent_id], obs)
+        self._batch_actions.fill(0)
         self._agent.step(
-            num_agents=1,
+            num_agents=self._num_agents,
             num_tokens=self._num_tokens,
             size_token=self._token_dim,
-            raw_observations=raw_batch.ctypes.data,
-            num_actions=1,
-            raw_actions=self._single_actions.ctypes.data,
+            raw_observations=self._batch_obs.ctypes.data,
+            num_actions=self._num_agents,
+            raw_actions=self._batch_actions.ctypes.data,
         )
-        action_index = int(self._single_actions[0])
+        action_index = int(self._batch_actions[self._agent_id])
         return Action(name=self._action_names[action_index])
 
     def reset(self, simulation: Simulation = None) -> None:
@@ -91,7 +92,7 @@ class RandomAgentsMultiPolicy(MultiAgentPolicy):
 
 class ThinkyAgentPolicy(_FastAgentPolicyBase):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
-        super().__init__(policy_env_info)
+        super().__init__(policy_env_info, agent_id)
         fa = _import_fast_agents()
         self._agent = fa.ThinkyAgent(agent_id, policy_env_info.to_json())
         self._action_names = [action.name for action in policy_env_info.actions.actions()]
@@ -107,17 +108,18 @@ class ThinkyAgentPolicy(_FastAgentPolicyBase):
         )
 
     def step(self, obs: AgentObservation) -> Action:
-        raw_batch = np.ascontiguousarray(self._pack_raw_observation(obs))
-        self._single_actions.fill(0)
+        self._batch_obs.fill(255)
+        self._pack_raw_observation(self._batch_obs[self._agent_id], obs)
+        self._batch_actions.fill(0)
         self._agent.step(
-            num_agents=1,
+            num_agents=self._num_agents,
             num_tokens=self._num_tokens,
             size_token=self._token_dim,
-            raw_observations=raw_batch.ctypes.data,
-            num_actions=1,
-            raw_actions=self._single_actions.ctypes.data,
+            raw_observations=self._batch_obs.ctypes.data,
+            num_actions=self._num_agents,
+            raw_actions=self._batch_actions.ctypes.data,
         )
-        action_index = int(self._single_actions[0])
+        action_index = int(self._batch_actions[self._agent_id])
         return Action(name=self._action_names[action_index])
 
     def reset(self, simulation: Simulation = None) -> None:
@@ -136,7 +138,7 @@ class ThinkyAgentsMultiPolicy(MultiAgentPolicy):
 
 class RaceCarAgentPolicy(_FastAgentPolicyBase):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
-        super().__init__(policy_env_info)
+        super().__init__(policy_env_info, agent_id)
         fa = _import_fast_agents()
         self._agent = fa.RaceCarAgent(agent_id, policy_env_info.to_json())
         self._action_names = [action.name for action in policy_env_info.actions.actions()]
@@ -152,17 +154,18 @@ class RaceCarAgentPolicy(_FastAgentPolicyBase):
         )
 
     def step(self, obs: AgentObservation) -> Action:
-        raw_batch = np.ascontiguousarray(self._pack_raw_observation(obs))
-        self._single_actions.fill(0)
+        self._batch_obs.fill(255)
+        self._pack_raw_observation(self._batch_obs[self._agent_id], obs)
+        self._batch_actions.fill(0)
         self._agent.step(
-            num_agents=1,
+            num_agents=self._num_agents,
             num_tokens=self._num_tokens,
             size_token=self._token_dim,
-            raw_observations=raw_batch.ctypes.data,
-            num_actions=1,
-            raw_actions=self._single_actions.ctypes.data,
+            raw_observations=self._batch_obs.ctypes.data,
+            num_actions=self._num_agents,
+            raw_actions=self._batch_actions.ctypes.data,
         )
-        action_index = int(self._single_actions[0])
+        action_index = int(self._batch_actions[self._agent_id])
         return Action(name=self._action_names[action_index])
 
     def reset(self, simulation: Simulation = None) -> None:
