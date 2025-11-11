@@ -1,10 +1,9 @@
-import ctypes
 import os
 import sys
 
+import fast_agents as fa
 import numpy as np
 
-import fast_agents as fa
 from mettagrid.mettagrid_c import dtype_observations
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
