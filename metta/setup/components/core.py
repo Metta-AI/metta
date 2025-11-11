@@ -37,5 +37,5 @@ class CoreSetup(SetupModule):
         cmd.extend(["--force-reinstall", "--no-cache"] if force else [])
         env = os.environ.copy()
         env["METTAGRID_FORCE_NIM_BUILD"] = "1"
-        self.run_command(cmd, non_interactive=non_interactive, env=env)
+        self.run_command(cmd, non_interactive=non_interactive, env=env, capture_output=False)
         success("Core dependencies installed")
