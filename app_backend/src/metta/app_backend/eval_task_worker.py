@@ -32,11 +32,11 @@ from metta.app_backend.routes.eval_task_routes import (
 )
 from metta.common.auth.auth_config_reader_writer import observatory_auth_config
 from metta.common.datadog.tracing import init_tracing, trace
+from metta.common.tool.tool import ToolResult
 from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import SOFTMAX_S3_BASE, SOFTMAX_S3_BUCKET
 from metta.common.util.git_repo import REPO_URL
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.tools.remote_job import JobResult
 
 logger = logging.getLogger(__name__)
 
@@ -205,7 +205,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
             if os.path.exists(job_result_file_path):
                 with open(job_result_file_path, "r") as f:
                     output = json.load(f)
-                result = JobResult.model_validate(output)
+                result = ToolResult.model_validate(output)
                 return TaskResult(
                     success=result.result == "success",
                     warnings=result.warnings,
