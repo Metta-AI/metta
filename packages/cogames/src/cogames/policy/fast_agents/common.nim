@@ -4,6 +4,9 @@ import
   jsony
 
 type
+  c_void_p* = pointer
+
+type
   ConfigFeature* = object
     id*: int
     name*: string
