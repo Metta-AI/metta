@@ -25,6 +25,7 @@ class Rollout:
         pass_sim_to_policies: bool = False,
         event_handlers: Optional[List[SimulatorEventHandler]] = None,
         stats_writer: Optional[StatsWriter] = None,
+        max_steps: Optional[int] = None,
     ):
         self._config = config
         self._policies = policies
@@ -44,9 +45,8 @@ class Rollout:
         if event_handlers:
             for handler in event_handlers:
                 self._simulator.add_event_handler(handler)
-        self._sim = self._simulator.new_simulation(config, seed)
+        self._sim = self._simulator.new_simulation(config, seed, max_steps=max_steps)
         self._agents = self._sim.agents()
-
         sim = self._sim if self._pass_sim_to_policies else None
         # Reset policies and create agent policies if needed
         for policy in self._policies:

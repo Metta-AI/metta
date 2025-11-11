@@ -49,13 +49,14 @@ class Simulation:
         event_handlers: Optional[Sequence[SimulatorEventHandler]] | None = None,
         simulator: Optional[Simulator] | None = None,
         buffers: Optional[Buffers] = None,
+        max_steps: Optional[int] = None,
     ):
         self._config = config
         self._seed = seed
         self._event_handlers = event_handlers or []
         self._simulator = simulator
         self._context: Dict[str, Any] = {}
-
+        self._max_steps = max_steps
         for handler in self._event_handlers:
             handler.set_simulation(self)
 
@@ -140,6 +141,9 @@ class Simulation:
         for handler in self._event_handlers:
             with self._timer(f"sim.on_step.{handler.__class__.__name__}"):
                 handler.on_step()
+
+        if self._max_steps is not None and self.current_step >= self._max_steps:
+            self.end_episode()
 
         if self.is_done():
             self._timer.start("episode_end")
@@ -269,7 +273,11 @@ class Simulator:
         self._event_handlers.append(handler)
 
     def new_simulation(
-        self, config: mettagrid_config.MettaGridConfig, seed: int = 0, buffers: Optional[Buffers] = None
+        self,
+        config: mettagrid_config.MettaGridConfig,
+        seed: int = 0,
+        buffers: Optional[Buffers] = None,
+        max_steps: Optional[int] = None,
     ) -> Simulation:
         assert self._current_simulation is None, "A simulation is already running"
         if self._config_invariants is None:
@@ -283,7 +291,12 @@ class Simulator:
             raise ValueError("Config invariants have changed")
 
         self._current_simulation = Simulation(
-            config=config, seed=seed, event_handlers=self._event_handlers, simulator=self, buffers=buffers
+            config=config,
+            seed=seed,
+            event_handlers=self._event_handlers,
+            simulator=self,
+            buffers=buffers,
+            max_steps=max_steps,
         )
         return self._current_simulation
 
