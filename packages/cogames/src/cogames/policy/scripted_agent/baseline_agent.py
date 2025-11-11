@@ -14,7 +14,7 @@ Just simple, clean, correct behavior.
 from __future__ import annotations
 
 import random
-from typing import TYPE_CHECKING, Callable, Optional, Tuple, Union
+from typing import Callable, Optional, Tuple, Union
 
 from cogames.policy import StatefulPolicyImpl
 from mettagrid.config.mettagrid_config import CardinalDirection, CardinalDirections
@@ -38,9 +38,6 @@ from .types import (
 )
 from .utils import is_adjacent, is_station, is_wall
 
-if TYPE_CHECKING:
-    pass
-
 # Sentinel for agent-centric features
 AGENT_SENTINEL = 0x55
 
@@ -55,10 +52,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         self._agent_id = agent_id
         self._hyperparams = hyperparams
         self._policy_env_info = policy_env_info
-
-        # Debug logging (can be enabled externally)
-        self._debug = False
-        self._debug_file = None
 
         # Observation grid half-ranges from config
         self._obs_hr = policy_env_info.obs_height // 2  # Egocentric observation half-radius (rows)
@@ -92,16 +85,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         # Protocol feature prefixes (for dynamic recipe discovery)
         self._protocol_input_prefix = "protocol_input:"
         self._protocol_output_prefix = "protocol_output:"
-
-    def _log_debug(self, msg: str) -> None:
-        """Log debug message to file or console if debug mode is enabled."""
-        if not self._debug:
-            return
-        if hasattr(self, "_debug_file") and self._debug_file:
-            self._debug_file.write(msg)
-            self._debug_file.flush()
-        else:
-            print(msg, end="")
 
     def _read_inventory_from_obs(self, s: SimpleAgentState, obs: AgentObservation) -> None:
         """Read inventory from observation tokens at center cell and update state."""
@@ -403,10 +386,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
                 dr, dc = self._move_deltas[direction]
                 s.row += dr
                 s.col += dc
-
-        elif s.last_action and s.last_action.name.startswith("move_") and s.using_object_this_step:
-            self._log_debug(f"[Agent {s.agent_id}] Move action to use object, NOT updating position\n")
-
         # Clear the flag for next step
         s.using_object_this_step = False
 
@@ -506,16 +485,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             )
             s.extractors[resource_type].append(extractor)
 
-            # Calculate what observation coordinate this came from for debug logging
-            obs_r = pos[0] - s.row + self._obs_hr
-            obs_c = pos[1] - s.col + self._obs_wr
-            self._log_debug(
-                f"[Agent {s.agent_id}] NEW {resource_type} at world_pos={pos}, "
-                f"agent_pos=({s.row},{s.col}), obs_coord=({obs_r},{obs_c})\n"
-                f"  uses={extractor.remaining_uses}, clipped={extractor.clipped}, "
-                f"cooldown={extractor.cooldown_remaining}\n"
-            )
-
         extractor.last_seen_step = s.step_count
         extractor.converting = obj_state.converting > 0
         extractor.cooldown_remaining = obj_state.cooldown_remaining
@@ -548,17 +517,8 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         # Stay in RECHARGE until energy is fully restored
         if s.phase == Phase.RECHARGE:
             if s.energy >= self._hyperparams.recharge_threshold_high:
-                self._log_debug(
-                    f"[Agent {s.agent_id}] Exiting RECHARGE: energy={s.energy} >= "
-                    f"threshold={self._hyperparams.recharge_threshold_high}\n"
-                )
                 s.phase = Phase.GATHER
                 s.target_position = None
-            else:
-                self._log_debug(
-                    f"[Agent {s.agent_id}] Staying in RECHARGE: energy={s.energy} < "
-                    f"threshold={self._hyperparams.recharge_threshold_high}\n"
-                )
             # Still recharging, stay in this phase
             return
 
@@ -756,16 +716,9 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         if s.pending_use_resource is None:
             return None
 
-        self._log_debug(
-            f"[Agent {s.agent_id}] _handle_waiting_for_extractor: waiting for {s.pending_use_resource}\n"
-            f"  wait_steps={s.wait_steps}, waiting_at={s.waiting_at_extractor}\n"
-            f"  pending_amount={s.pending_use_amount}, current_amount={getattr(s, s.pending_use_resource, 0)}\n"
-        )
-
         # Check if we received resources (inventory increased)
         current_amount = getattr(s, s.pending_use_resource, 0)
         if current_amount > s.pending_use_amount:
-            self._log_debug(f"  → Success! Received {current_amount - s.pending_use_amount} {s.pending_use_resource}\n")
             # Success - clear pending state and continue gathering
             s.pending_use_resource = None
             s.pending_use_amount = 0
@@ -780,14 +733,11 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
         s.wait_steps += 1
         if s.wait_steps > max_wait:
-            self._log_debug("  → Timeout! Clearing pending_use state and trying again\n")
             # Timeout - reset and try again
             s.pending_use_resource = None
             s.pending_use_amount = 0
             self._clear_waiting_state(s)
             return None  # Let _do_gather try again immediately
-
-        self._log_debug("  → Still waiting (noop)\n")
 
         return self._actions.noop.Noop()
 
@@ -800,19 +750,10 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         """
         is_adjacent_to_target = is_adjacent((s.row, s.col), target_pos)
 
-        dr = abs(s.row - target_pos[0])
-        dc = abs(s.col - target_pos[1])
-        self._log_debug(
-            f"[Agent {s.agent_id}] _navigate_to_adjacent: {target_name} at {target_pos}\n"
-            f"  Agent at ({s.row},{s.col}), distance: dr={dr}, dc={dc}, is_adjacent={is_adjacent_to_target}\n"
-        )
-
         if is_adjacent_to_target:
-            self._log_debug("  → Already adjacent\n")
             return None  # Already adjacent
 
         # Move towards target
-        self._log_debug("  → Not adjacent, navigating\n")
         action = self._move_towards(s, target_pos, reach_adjacent=True)
         if action == self._actions.noop.Noop():
             return self._explore(s)
@@ -829,29 +770,20 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         # Mark that we're using an object so position tracking doesn't update
         s.using_object_this_step = True
 
-        self._log_debug(f"[Agent {s.agent_id}] Using object at {target_pos} ({using_for}), action: {action.name}\n")
-
         return action
 
     def _use_extractor_if_ready(self, s: SimpleAgentState, extractor: ExtractorInfo, resource_type: str) -> Action:
         """Try to use extractor if ready. Returns appropriate action."""
-        self._log_debug(
-            f"[Agent {s.agent_id}] _use_extractor_if_ready: {resource_type} at {extractor.position}\n"
-            f"  Agent at ({s.row},{s.col}), cooldown={extractor.cooldown_remaining}, "
-            f"uses={extractor.remaining_uses}, clipped={extractor.clipped}\n"
-        )
 
         # Wait if on cooldown
         if extractor.cooldown_remaining > 0 or extractor.converting:
             s.waiting_at_extractor = extractor.position
             s.wait_steps += 1
-            self._log_debug("  → Waiting for cooldown/conversion (noop)\n")
             return self._actions.noop.Noop()
 
         # Skip if depleted/clipped
         if extractor.remaining_uses == 0 or extractor.clipped:
             self._clear_waiting_state(s)
-            self._log_debug("  → Extractor depleted/clipped (noop)\n")
             return self._actions.noop.Noop()
 
         # Use it! Track pre-use inventory and activate
@@ -862,8 +794,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         s.pending_use_amount = old_amount
         s.waiting_at_extractor = extractor.position
 
-        self._log_debug("  → Using extractor!\n")
-
         return self._use_object_at(s, extractor.position, using_for=f"{resource_type}_extractor")
 
     def _do_gather(self, s: SimpleAgentState) -> Action:
@@ -871,31 +801,19 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         Gather resources from nearest extractors.
         Opportunistically uses ANY extractor for ANY needed resource.
         """
-        if self._debug:
-            msg = f"[Agent {s.agent_id}] _do_gather called: pos=({s.row},{s.col})\n"
-            msg += f"  Extractors discovered: {sum(len(exts) for exts in s.extractors.values())}\n"
-            for res_type, exts in s.extractors.items():
-                if exts:
-                    msg += f"    {res_type}: {[e.position for e in exts]}\n"
-            self._log_debug(msg)
-
         # Handle waiting for activated extractor
         wait_action = self._handle_waiting_for_extractor(s)
         if wait_action is not None:
-            self._log_debug(f"[Agent {s.agent_id}] Waiting for extractor, returning wait action\n")
             return wait_action
 
         # Check resource deficits
         deficits = self._calculate_deficits(s)
-        self._log_debug(f"[Agent {s.agent_id}] Deficits: {deficits}\n")
 
         if all(d <= 0 for d in deficits.values()):
             self._clear_waiting_state(s)
-            self._log_debug(f"[Agent {s.agent_id}] No deficits, returning noop\n")
             return self._actions.noop.Noop()
 
         # Explore until we find an extractor for a needed resource
-        self._log_debug(f"[Agent {s.agent_id}] Checking if we need to explore for extractors...\n")
 
         explore_action = self._explore_until(
             s,
@@ -903,15 +821,12 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             reason=f"Need extractors for: {', '.join(k for k, v in deficits.items() if v > 0)}",
         )
         if explore_action is not None:
-            self._log_debug(f"[Agent {s.agent_id}] Still exploring, action: {explore_action.name}\n")
             return explore_action
 
         # Found an extractor - navigate and use it
-        self._log_debug(f"[Agent {s.agent_id}] Exploration complete, finding extractor to use...\n")
 
         result = self._find_any_needed_extractor(s)
         if result is None:
-            self._log_debug(f"[Agent {s.agent_id}] No extractor found despite condition passing\n")
             return self._explore(s)  # Shouldn't happen, but be safe
 
         extractor, resource_type = result
@@ -1142,25 +1057,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
                 if tok.feature.name == "agent:group":
                     return True
         return False
-
-    def _trace_log(self, s: SimpleAgentState) -> None:
-        """Detailed trace logging."""
-        extractors_known = {r: len(s.extractors[r]) for r in ["carbon", "oxygen", "germanium", "silicon"]}
-        print(f"[TRACE Step {s.step_count}] Agent {s.agent_id} @ ({s.row},{s.col})")
-        print(f"  Phase: {s.phase.name}, Energy: {s.energy}")
-        print(f"  Inventory: C={s.carbon} O={s.oxygen} G={s.germanium} S={s.silicon} Hearts={s.hearts}")
-        print(f"  Extractors known: {extractors_known}")
-        # Debug: show first few extractors if any
-        if s.step_count == 100 and s.heart_recipe:
-            for rtype in s.heart_recipe:
-                if len(s.extractors[rtype]) > 0:
-                    first_3 = s.extractors[rtype][:3]
-                    print(f"    {rtype}: {[(e.position, e.last_seen_step) for e in first_3]}")
-        stations = f"assembler={s.stations['assembler'] is not None}"
-        stations += f" chest={s.stations['chest'] is not None}"
-        stations += f" charger={s.stations['charger'] is not None}"
-        print(f"  Stations: {stations}")
-        print(f"  Target: {s.target_position}, Target resource: {s.target_resource}")
 
     def _move_into_cell(self, s: SimpleAgentState, target: tuple[int, int]) -> Action:
         """Return the action that attempts to step into the target cell."""
