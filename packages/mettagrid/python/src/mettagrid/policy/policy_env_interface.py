@@ -1,5 +1,6 @@
 """Policy environment interface for providing environment information to policies."""
 
+import json
 from dataclasses import dataclass
 
 import gymnasium as gym
@@ -7,6 +8,7 @@ import gymnasium as gym
 from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.config.mettagrid_config import ActionsConfig, MettaGridConfig
 from mettagrid.mettagrid_c import dtype_observations
+from mettagrid.base_config import Config
 
 
 @dataclass
@@ -70,3 +72,23 @@ class PolicyEnvInterface:
             assembler_protocols=assembler_protocols,
             tag_id_to_name=tag_id_to_name,
         )
+
+    def to_json(self) -> str:
+        """Convert PolicyEnvInterface to JSON."""
+        config = {
+            "num_agents": self.num_agents,
+            "obs_width": self.obs_width,
+            "obs_height": self.obs_height,
+            "actions": [action.name for action in self.actions.actions()],
+            "tags": self.tags,
+            "obs_features": [],
+        }
+        for feature in self.obs_features:
+            config["obs_features"].append(
+                {
+                    "id": feature.id,
+                    "name": feature.name,
+                    "normalization": feature.normalization,
+                }
+            )
+        return json.dumps(config)
