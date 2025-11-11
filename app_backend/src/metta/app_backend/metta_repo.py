@@ -959,48 +959,6 @@ class MettaRepo:
 
             return episode_id
 
-    async def get_suites(self) -> list[str]:
-        async with self.connect() as con:
-            result = await con.execute("""
-                SELECT DISTINCT eval_category
-                FROM episodes
-                WHERE eval_category IS NOT NULL AND env_name IS NOT NULL
-                ORDER BY eval_category
-            """)
-            rows = await result.fetchall()
-            return [row[0] for row in rows]
-
-    async def get_metrics(self, suite: str) -> list[str]:
-        """Get all available metrics for a given suite."""
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                SELECT DISTINCT eam.metric
-                FROM episodes e
-                JOIN episode_agent_metrics eam ON e.internal_id = eam.episode_internal_id
-                WHERE e.eval_category = %s
-                ORDER BY eam.metric
-            """,
-                (suite,),
-            )
-            rows = await result.fetchall()
-            return [row[0] for row in rows]
-
-    async def get_group_ids(self, suite: str) -> list[str]:
-        """Get all available group IDs for a given suite."""
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                SELECT DISTINCT jsonb_object_keys(e.attributes->'agent_groups') as group_id
-                FROM episodes e
-                WHERE e.eval_category = %s
-                ORDER BY group_id
-            """,
-                (suite,),
-            )
-            rows = await result.fetchall()
-            return [row[0] for row in rows]
-
     async def get_training_runs(self) -> list[TrainingRunRow]:
         """Get all training runs."""
         async with self.connect() as con:
