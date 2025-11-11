@@ -3,7 +3,6 @@ import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom'
 import { ServerRepo, Repo } from './repo'
 import { Dashboard } from './Dashboard'
 import { TokenManager } from './TokenManager'
-import { SavedDashboards } from './SavedDashboards'
 import { SQLQuery } from './SQLQuery'
 import { TrainingRuns } from './TrainingRuns'
 import { TrainingRunDetail } from './TrainingRunDetail'
@@ -205,9 +204,6 @@ function App() {
               >
                 Evaluate Policies
               </Link>
-              <Link to="/saved" className={`nav-tab ${location.pathname === '/saved' ? 'active' : ''}`}>
-                Saved Dashboards
-              </Link>
               <Link to="/tokens" className={`nav-tab ${location.pathname === '/tokens' ? 'active' : ''}`}>
                 Token Management
               </Link>
@@ -224,7 +220,6 @@ function App() {
             <Route path="/training-runs" element={<TrainingRuns repo={state.repo} />} />
             <Route path="/training-run/:runId" element={<TrainingRunDetail repo={state.repo} />} />
             <Route path="/eval-tasks" element={<EvalTasks repo={state.repo} />} />
-            <Route path="/saved" element={<SavedDashboards repo={state.repo} currentUser={state.currentUser} />} />
             <Route path="/tokens" element={<TokenManager repo={state.repo} />} />
             <Route path="/sql-query" element={<SQLQuery repo={state.repo} />} />
             <Route path="/" element={<Dashboard repo={state.repo} />} />
