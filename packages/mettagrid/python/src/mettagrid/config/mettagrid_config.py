@@ -408,8 +408,9 @@ class GameConfig(Config):
     # Map builder configuration - accepts any MapBuilder config
     map_builder: AnyMapBuilderConfig = Field(default_factory=lambda: RandomMapBuilder.Config(agents=24))
 
+    # Note that if this is False, agents won't be able to see how to unclip assemblers.
     protocol_details_obs: bool = Field(
-        default=False, description="Objects show their protocol inputs and outputs when observed"
+        default=True, description="Objects show their protocol inputs and outputs when observed"
     )
 
     reward_estimates: Optional[dict[str, float]] = Field(default=None)
