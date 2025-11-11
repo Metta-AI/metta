@@ -27,7 +27,10 @@ class SeqIterator(object):
             self.idx = 0
             raise StopIteration
 
-class FastAgents(Structure):
+def init_chook():
+    dll.fast_agents_init_chook()
+
+class RandomAgent(Structure):
     _fields_ = [("ref", c_ulonglong)]
 
     def __bool__(self):
@@ -37,47 +40,140 @@ class FastAgents(Structure):
         return self.ref == obj.ref
 
     def __del__(self):
-        dll.fast_agents_fast_agents_unref(self)
+        dll.fast_agents_random_agent_unref(self)
 
     def __init__(self, agent_id, environment_config):
-        result = dll.fast_agents_new_fast_agents(agent_id, environment_config.encode("utf8"))
+        result = dll.fast_agents_new_random_agent(agent_id, environment_config.encode("utf8"))
         self.ref = result
 
     @property
     def agent_id(self):
-        return dll.fast_agents_fast_agents_get_agent_id(self)
+        return dll.fast_agents_random_agent_get_agent_id(self)
 
     @agent_id.setter
     def agent_id(self, agent_id):
-        dll.fast_agents_fast_agents_set_agent_id(self, agent_id)
+        dll.fast_agents_random_agent_set_agent_id(self, agent_id)
 
     def reset(self):
-        dll.fast_agents_fast_agents_reset(self)
+        dll.fast_agents_random_agent_reset(self)
 
     def step(self, num_agents, num_tokens, size_token, raw_observations, num_actions, raw_actions):
-        dll.fast_agents_fast_agents_step(self, num_agents, num_tokens, size_token, raw_observations, num_actions, raw_actions)
+        dll.fast_agents_random_agent_step(self, num_agents, num_tokens, size_token, raw_observations, num_actions, raw_actions)
 
-def init_chook():
-    dll.fast_agents_init_chook()
+class ThinkyAgent(Structure):
+    _fields_ = [("ref", c_ulonglong)]
 
-dll.fast_agents_fast_agents_unref.argtypes = [FastAgents]
-dll.fast_agents_fast_agents_unref.restype = None
+    def __bool__(self):
+        return self.ref != None
 
-dll.fast_agents_new_fast_agents.argtypes = [c_longlong, c_char_p]
-dll.fast_agents_new_fast_agents.restype = c_ulonglong
+    def __eq__(self, obj):
+        return self.ref == obj.ref
 
-dll.fast_agents_fast_agents_get_agent_id.argtypes = [FastAgents]
-dll.fast_agents_fast_agents_get_agent_id.restype = c_longlong
+    def __del__(self):
+        dll.fast_agents_thinky_agent_unref(self)
 
-dll.fast_agents_fast_agents_set_agent_id.argtypes = [FastAgents, c_longlong]
-dll.fast_agents_fast_agents_set_agent_id.restype = None
+    def __init__(self, agent_id, environment_config):
+        result = dll.fast_agents_new_thinky_agent(agent_id, environment_config.encode("utf8"))
+        self.ref = result
 
-dll.fast_agents_fast_agents_reset.argtypes = [FastAgents]
-dll.fast_agents_fast_agents_reset.restype = None
+    @property
+    def agent_id(self):
+        return dll.fast_agents_thinky_agent_get_agent_id(self)
 
-dll.fast_agents_fast_agents_step.argtypes = [FastAgents, c_longlong, c_longlong, c_longlong, c_void_p, c_longlong, c_void_p]
-dll.fast_agents_fast_agents_step.restype = None
+    @agent_id.setter
+    def agent_id(self, agent_id):
+        dll.fast_agents_thinky_agent_set_agent_id(self, agent_id)
+
+    def reset(self):
+        dll.fast_agents_thinky_agent_reset(self)
+
+    def step(self, num_agents, num_tokens, size_token, raw_observations, num_actions, raw_actions):
+        dll.fast_agents_thinky_agent_step(self, num_agents, num_tokens, size_token, raw_observations, num_actions, raw_actions)
+
+class RaceCarAgent(Structure):
+    _fields_ = [("ref", c_ulonglong)]
+
+    def __bool__(self):
+        return self.ref != None
+
+    def __eq__(self, obj):
+        return self.ref == obj.ref
+
+    def __del__(self):
+        dll.fast_agents_race_car_agent_unref(self)
+
+    def __init__(self, agent_id, environment_config):
+        result = dll.fast_agents_new_race_car_agent(agent_id, environment_config.encode("utf8"))
+        self.ref = result
+
+    @property
+    def agent_id(self):
+        return dll.fast_agents_race_car_agent_get_agent_id(self)
+
+    @agent_id.setter
+    def agent_id(self, agent_id):
+        dll.fast_agents_race_car_agent_set_agent_id(self, agent_id)
+
+    def reset(self):
+        dll.fast_agents_race_car_agent_reset(self)
+
+    def step(self, num_agents, num_tokens, size_token, raw_observations, num_actions, raw_actions):
+        dll.fast_agents_race_car_agent_step(self, num_agents, num_tokens, size_token, raw_observations, num_actions, raw_actions)
 
 dll.fast_agents_init_chook.argtypes = []
 dll.fast_agents_init_chook.restype = None
+
+dll.fast_agents_random_agent_unref.argtypes = [RandomAgent]
+dll.fast_agents_random_agent_unref.restype = None
+
+dll.fast_agents_new_random_agent.argtypes = [c_longlong, c_char_p]
+dll.fast_agents_new_random_agent.restype = c_ulonglong
+
+dll.fast_agents_random_agent_get_agent_id.argtypes = [RandomAgent]
+dll.fast_agents_random_agent_get_agent_id.restype = c_longlong
+
+dll.fast_agents_random_agent_set_agent_id.argtypes = [RandomAgent, c_longlong]
+dll.fast_agents_random_agent_set_agent_id.restype = None
+
+dll.fast_agents_random_agent_reset.argtypes = [RandomAgent]
+dll.fast_agents_random_agent_reset.restype = None
+
+dll.fast_agents_random_agent_step.argtypes = [RandomAgent, c_longlong, c_longlong, c_longlong, c_void_p, c_longlong, c_void_p]
+dll.fast_agents_random_agent_step.restype = None
+
+dll.fast_agents_thinky_agent_unref.argtypes = [ThinkyAgent]
+dll.fast_agents_thinky_agent_unref.restype = None
+
+dll.fast_agents_new_thinky_agent.argtypes = [c_longlong, c_char_p]
+dll.fast_agents_new_thinky_agent.restype = c_ulonglong
+
+dll.fast_agents_thinky_agent_get_agent_id.argtypes = [ThinkyAgent]
+dll.fast_agents_thinky_agent_get_agent_id.restype = c_longlong
+
+dll.fast_agents_thinky_agent_set_agent_id.argtypes = [ThinkyAgent, c_longlong]
+dll.fast_agents_thinky_agent_set_agent_id.restype = None
+
+dll.fast_agents_thinky_agent_reset.argtypes = [ThinkyAgent]
+dll.fast_agents_thinky_agent_reset.restype = None
+
+dll.fast_agents_thinky_agent_step.argtypes = [ThinkyAgent, c_longlong, c_longlong, c_longlong, c_void_p, c_longlong, c_void_p]
+dll.fast_agents_thinky_agent_step.restype = None
+
+dll.fast_agents_race_car_agent_unref.argtypes = [RaceCarAgent]
+dll.fast_agents_race_car_agent_unref.restype = None
+
+dll.fast_agents_new_race_car_agent.argtypes = [c_longlong, c_char_p]
+dll.fast_agents_new_race_car_agent.restype = c_ulonglong
+
+dll.fast_agents_race_car_agent_get_agent_id.argtypes = [RaceCarAgent]
+dll.fast_agents_race_car_agent_get_agent_id.restype = c_longlong
+
+dll.fast_agents_race_car_agent_set_agent_id.argtypes = [RaceCarAgent, c_longlong]
+dll.fast_agents_race_car_agent_set_agent_id.restype = None
+
+dll.fast_agents_race_car_agent_reset.argtypes = [RaceCarAgent]
+dll.fast_agents_race_car_agent_reset.restype = None
+
+dll.fast_agents_race_car_agent_step.argtypes = [RaceCarAgent, c_longlong, c_longlong, c_longlong, c_void_p, c_longlong, c_void_p]
+dll.fast_agents_race_car_agent_step.restype = None
 
