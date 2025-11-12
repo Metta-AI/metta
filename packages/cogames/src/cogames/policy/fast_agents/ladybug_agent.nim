@@ -103,7 +103,9 @@ proc initState(agent: LadybugAgent) =
   agent.state.lastAction = agent.cfg.actions.noop
   agent.state.explorationDirection = ""
   agent.state.explorationExpiresAt = 0
+  agent.state.waitSteps = 0
   agent.state.waitingAtExtractor = none(Location)
+  agent.state.usingObjectThisStep = false
 
 proc newLadybugAgent*(agentId: int, environmentConfig: string): LadybugAgent {.raises: [].} =
   var config = parseConfig(environmentConfig)
@@ -526,7 +528,7 @@ proc navigateToAdjacent(
 
 proc moveIntoCell(agent: LadybugAgent, targetRow: int, targetCol: int): int =
   agent.state.usingObjectThisStep = true
-  agent.moveTowards(targetRow, targetCol, allowGoalBlock = true)
+  return agent.moveTowards(targetRow, targetCol, allowGoalBlock = true)
 
 proc useExtractor(agent: LadybugAgent, extractor: ExtractorInfo): int =
   if extractor.cooldownRemaining > 0 or extractor.converting:
@@ -540,7 +542,7 @@ proc useExtractor(agent: LadybugAgent, extractor: ExtractorInfo): int =
   agent.state.pendingUseAmount = agent.getInventoryValue(extractor.resource)
   agent.state.waitingAtExtractor = some(extractor.position)
   agent.state.waitSteps = 0
-  agent.moveIntoCell(extractor.position.y, extractor.position.x)
+  return agent.moveIntoCell(extractor.position.y, extractor.position.x)
 
 proc updatePhase(agent: LadybugAgent) =
   if agent.state.energy < rechargeThresholdLow:
