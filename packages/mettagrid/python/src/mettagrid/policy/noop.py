@@ -13,10 +13,7 @@ class NoopAgentPolicy(AgentPolicy):
 
     def __init__(self, policy_env_info: PolicyEnvInterface):
         super().__init__(policy_env_info)
-        action_names = policy_env_info.action_names
-        if "noop" not in action_names:
-            raise ValueError("Noop action is not available in this environment configuration.")
-        self._noop_index = action_names.index("noop")
+        self._noop_index = policy_env_info.action_names.index("noop")
 
     def step(self, obs: AgentObservation) -> Action:
         """Return the noop action for the agent."""
