@@ -143,6 +143,8 @@ def make_curriculum(
     merged_tasks = cc.merge(all_task_generators)
 
     # Default LP algorithm config
+    # Note: With duplicate tasks (many task_ids mapping to same config via merge),
+    # we need fewer samples per task_id for LP calculation since tasks get evicted frequently
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
             use_bidirectional=True,
@@ -151,7 +153,7 @@ def make_curriculum(
             slow_timescale_factor=0.2,
             rand_task_rate=0.01,
             exploration_bonus=0.1,
-            min_samples_for_lp=10,
+            min_samples_for_lp=2,  # Reduced from 10 to work with duplicate tasks
             enable_detailed_slice_logging=enable_detailed_slice_logging,
             lp_score_temperature=0.0,
             z_score_amplification=50.0,
@@ -160,10 +162,16 @@ def make_curriculum(
             max_slice_axes=4,
         )
 
-    return merged_tasks.to_curriculum(
+    curriculum_config = merged_tasks.to_curriculum(
         num_active_tasks=256,
         algorithm_config=algorithm_config,
     )
+
+    # Allow tasks to be evicted after fewer presentations to enable faster LP updates
+    # With duplicate tasks, we want rapid turnover to accumulate label-level statistics
+    curriculum_config.min_presentations_for_eviction = 2
+
+    return curriculum_config
 
 
 def train(
