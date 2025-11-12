@@ -36,6 +36,7 @@ class BaselineHyperparameters:
     exploration_escape_duration: int = 10  # Steps to navigate to assembler when stuck
     exploration_direction_persistence: int = 10  # Steps to persist in one direction
     exploration_assembler_distance_threshold: int = 10  # Min distance from assembler to trigger escape
+    exploration_strategy: str = "frontier"  # Exploration strategy: "frontier", "stc", "wall", "directional"
 
 
 # Hyperparameter Presets for Ensemble Creation
@@ -51,6 +52,7 @@ BASELINE_HYPERPARAMETER_PRESETS = {
         exploration_escape_duration=8,  # Thorough exploration: shorter escape duration
         exploration_direction_persistence=18,  # Thorough exploration: longer persistence
         exploration_assembler_distance_threshold=12,  # Thorough exploration: larger distance threshold
+        exploration_strategy="frontier",  # Use frontier exploration
     ),
     "conservative": BaselineHyperparameters(
         recharge_threshold_low=50,  # Recharge early
@@ -63,6 +65,7 @@ BASELINE_HYPERPARAMETER_PRESETS = {
         exploration_escape_duration=10,
         exploration_direction_persistence=10,
         exploration_assembler_distance_threshold=10,
+        exploration_strategy="frontier",
     ),
     "aggressive": BaselineHyperparameters(
         recharge_threshold_low=20,  # Low energy tolerance
@@ -75,6 +78,60 @@ BASELINE_HYPERPARAMETER_PRESETS = {
         exploration_escape_duration=10,
         exploration_direction_persistence=10,
         exploration_assembler_distance_threshold=10,
+        exploration_strategy="frontier",
+    ),
+    # Exploration strategy variants
+    "frontier_explorer": BaselineHyperparameters(
+        recharge_threshold_low=35,
+        recharge_threshold_high=85,
+        stuck_detection_enabled=True,
+        stuck_escape_distance=12,
+        position_history_size=40,
+        exploration_area_check_window=35,
+        exploration_area_size_threshold=9,
+        exploration_escape_duration=8,
+        exploration_direction_persistence=18,
+        exploration_assembler_distance_threshold=12,
+        exploration_strategy="frontier",
+    ),
+    "stc_explorer": BaselineHyperparameters(
+        recharge_threshold_low=35,
+        recharge_threshold_high=85,
+        stuck_detection_enabled=True,
+        stuck_escape_distance=12,
+        position_history_size=40,
+        exploration_area_check_window=35,
+        exploration_area_size_threshold=9,
+        exploration_escape_duration=8,
+        exploration_direction_persistence=18,
+        exploration_assembler_distance_threshold=12,
+        exploration_strategy="stc",
+    ),
+    "wall_follower": BaselineHyperparameters(
+        recharge_threshold_low=35,
+        recharge_threshold_high=85,
+        stuck_detection_enabled=True,
+        stuck_escape_distance=12,
+        position_history_size=40,
+        exploration_area_check_window=35,
+        exploration_area_size_threshold=9,
+        exploration_escape_duration=8,
+        exploration_direction_persistence=18,
+        exploration_assembler_distance_threshold=12,
+        exploration_strategy="wall",
+    ),
+    "directional_explorer": BaselineHyperparameters(
+        recharge_threshold_low=35,
+        recharge_threshold_high=85,
+        stuck_detection_enabled=True,
+        stuck_escape_distance=12,
+        position_history_size=40,
+        exploration_area_check_window=35,
+        exploration_area_size_threshold=9,
+        exploration_escape_duration=8,
+        exploration_direction_persistence=18,
+        exploration_assembler_distance_threshold=12,
+        exploration_strategy="directional",
     ),
 }
 
@@ -202,6 +259,7 @@ class SimpleAgentState:
     map_height: int = 0
     map_width: int = 0
     occupancy: list[list[int]] = field(default_factory=list)  # 1=free, 2=obstacle (initialized in reset)
+    seen: list[list[bool]] = field(default_factory=list)  # Tracks what cells have been observed
 
     # Track last action for position updates
     last_action: Action = field(default_factory=lambda: Action(name="noop"))

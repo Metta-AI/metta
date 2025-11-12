@@ -68,7 +68,6 @@ TEST_DIFFICULTIES = [
     "standard",
     "hard",
     "clipped_oxygen",
-    "clipped_carbon",
     "clipped_germanium",
     "clipped_silicon",
 ]

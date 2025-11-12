@@ -24,6 +24,7 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action
 from mettagrid.simulator.interface import AgentObservation
 
+from .exploration import Explorer, ExplorerOps, get_explorer
 from .pathfinding import compute_goal_cells, shortest_path
 from .pathfinding import is_traversable as path_is_traversable
 from .pathfinding import is_within_bounds as path_is_within_bounds
@@ -86,6 +87,19 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         self._protocol_input_prefix = "protocol_input:"
         self._protocol_output_prefix = "protocol_output:"
 
+        # Setup exploration strategy
+        ops = ExplorerOps(
+            actions=self._actions,
+            obs_hr=self._obs_hr,
+            obs_wr=self._obs_wr,
+            move_towards=self._move_towards,
+            move_towards_adj=lambda s, pos: self._move_towards(s, pos, reach_adjacent=True),
+            try_random_direction=self._try_random_direction,
+            is_traversable=lambda s, r, c, ct: path_is_traversable(s, r, c, ct),
+            CellType=CellType,
+        )
+        self._explorer: Explorer = get_explorer(hyperparams.exploration_strategy, ops)
+
     def _change_vibe_action(self, vibe_name: str) -> Action:
         """
         Return a safe vibe-change action.
@@ -140,15 +154,19 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
                 heart_recipe.pop("energy", None)
                 break
 
-        return SimpleAgentState(
+        s = SimpleAgentState(
             agent_id=self._agent_id,
             map_height=map_size,
             map_width=map_size,
             occupancy=[[CellType.FREE.value] * map_size for _ in range(map_size)],
+            seen=[[False] * map_size for _ in range(map_size)],
             row=center,
             col=center,
             heart_recipe=heart_recipe,
         )
+        # Mark starting position as seen
+        s.seen[center][center] = True
+        return s
 
     def _process_feature_at_position(
         self,
@@ -439,6 +457,8 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
                 r, c = obs_r - self._obs_hr + s.row, obs_c - self._obs_wr + s.col
                 if 0 <= r < s.map_height and 0 <= c < s.map_width:
                     s.occupancy[r][c] = CellType.FREE.value
+                    # Mark as seen for exploration strategies
+                    s.seen[r][c] = True
 
         # Second pass: mark obstacles and discover objects
         for pos, obj_state in parsed.nearby_objects.items():
@@ -754,8 +774,8 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         return self._explore(s)
 
     def _explore(self, s: SimpleAgentState) -> Action:
-        """Execute exploration using directional strategy."""
-        return self._explore_directional(s)
+        """Execute exploration using configured strategy."""
+        return self._explorer.choose_action(s)
 
     def _find_any_needed_extractor(self, s: SimpleAgentState) -> tuple[ExtractorInfo, str] | None:
         """

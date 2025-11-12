@@ -351,25 +351,6 @@ HARD = DifficultyLevel(
     allow_agent_scaling=False,
 )
 
-BRUTAL = DifficultyLevel(
-    name="brutal",
-    description="Extreme scarcity, reduced inventories, perfection required",
-    carbon_max_uses_override=2,
-    oxygen_max_uses_override=2,
-    germanium_max_uses_override=3,
-    silicon_max_uses_override=2,
-    carbon_eff_override=55,
-    oxygen_eff_override=45,
-    germanium_eff_override=50,
-    silicon_eff_override=50,
-    charger_eff_override=60,
-    energy_regen_override=1,  # Minimal regen prevents deadlock
-    move_energy_cost_override=3,
-    energy_capacity_override=70,
-    cargo_capacity_override=80,
-    allow_agent_scaling=False,
-)
-
 SINGLE_USE = DifficultyLevel(
     name="single_use",
     description="Every extractor can be used exactly once - no second chances",
@@ -418,15 +399,6 @@ CLIPPED_OXYGEN = DifficultyLevel(
     clip_period=0,
     clip_target="oxygen",
     clip_immune_extractor="carbon_extractor",
-    allow_agent_scaling=False,
-)
-
-CLIPPED_CARBON = DifficultyLevel(
-    name="clipped_carbon",
-    description="Carbon extractor starts clipped - craft modulator from oxygen to unclip",
-    clip_period=0,
-    clip_target="carbon",
-    clip_immune_extractor="oxygen_extractor",
     allow_agent_scaling=False,
 )
 
@@ -482,12 +454,10 @@ DIFFICULTY_VARIANTS: list[DifficultyLevel] = [
     STORY_MODE,
     STANDARD,
     HARD,
-    BRUTAL,
     SINGLE_USE,
     SPEED_RUN,
     ENERGY_CRISIS,
     CLIPPED_OXYGEN,
-    CLIPPED_CARBON,
     CLIPPED_GERMANIUM,
     CLIPPED_SILICON,
     CLIPPING_CHAOS,

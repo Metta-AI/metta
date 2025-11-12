@@ -1,4 +1,6 @@
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
+from cogames.cogs_vs_clips.evals.integrated_eval import EVAL_MISSIONS as INTEGRATED_EVAL_MISSIONS
+from cogames.cogs_vs_clips.evals.spanning_evals import EVAL_MISSIONS as SPANNING_EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import Mission
 from cogames.cogs_vs_clips.mission_utils import get_map
 from cogames.cogs_vs_clips.sites import HELLO_WORLD, MACHINA_1, TRAINING_FACILITY
@@ -139,6 +141,8 @@ MISSIONS: list[Mission] = [
     HelloWorldOpenWorldMission,
     Machina1OpenWorldMission,
     *EVAL_MISSIONS,
+    *INTEGRATED_EVAL_MISSIONS,
+    *SPANNING_EVAL_MISSIONS,
 ]
 
 

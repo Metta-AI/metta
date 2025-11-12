@@ -330,26 +330,6 @@ All difficulty variants are defined in `difficulty_variants.py`.
 
 ---
 
-#### brutal
-
-**Description:** Extreme scarcity, reduced inventories, perfection required
-
-**Agent Scaling:** Disabled
-
-**Parameters:**
-
-- Max uses: Carbon 2, Oxygen 2, Germanium 3, Silicon 2 (minimal!)
-- Efficiency: Carbon 55, Oxygen 45, Germanium 50, Silicon 50, Charger 60 (very low)
-- Energy regen: 0/step
-- Move energy cost: 3
-- Energy capacity: 70 (reduced from default)
-- Cargo capacity: 80 (reduced from default)
-- **Use case:** Extreme challenge; near-perfect play required
-
-**Best for:** Stress-testing optimal strategies, finding edge cases
-
----
-
 ### Specialized Difficulty Variants
 
 #### single_use
@@ -438,18 +418,6 @@ Each variant clips a specific resource and provides one immune extractor for cra
 
 ---
 
-#### clipped_carbon
-
-**Description:** Carbon extractor starts clipped - craft modulator from oxygen to unclip
-
-**Immune Extractor:** oxygen_extractor
-
-**Challenge:** Must gather oxygen → craft modulator → unclip carbon → assemble hearts
-
-**Skills tested:** Unclipping logic, oxygen-first strategy
-
----
-
 #### clipped_germanium
 
 **Description:** Germanium extractor starts clipped - craft resonator from silicon to unclip
@@ -522,9 +490,9 @@ Each variant clips a specific resource and provides one immune extractor for cra
 
 | Category                 | Difficulties                                                                 | Key Challenge                  |
 | ------------------------ | ---------------------------------------------------------------------------- | ------------------------------ |
-| **Standard Progression** | story_mode, standard, hard, brutal                                           | Increasing scarcity/difficulty |
+| **Standard Progression** | story_mode, standard, hard                                                    | Increasing scarcity/difficulty |
 | **Specialized**          | single_use, speed_run, energy_crisis                                         | Unique constraints             |
-| **Clipping**             | clipped_oxygen/carbon/germanium/silicon, clipping_chaos, hard_clipped_oxygen | Unclipping mechanics           |
+| **Clipping**             | clipped_oxygen/germanium/silicon, clipping_chaos, hard_clipped_oxygen        | Unclipping mechanics           |
 
 ### Agent Count Recommendations
 
@@ -591,7 +559,7 @@ uv run cogames play --mission evals.collect_resources_classic -p unclipping --co
 uv run cogames play --mission evals.go_together -p coordinating --cogs 4 --difficulty standard
 
 # Test extreme scarcity
-uv run cogames play --mission evals.oxygen_bottleneck -p scripted_baseline --cogs 1 --difficulty brutal
+uv run cogames play --mission evals.oxygen_bottleneck -p scripted_baseline --cogs 1 --difficulty hard
 
 # Test large-scale exploration
 uv run cogames play --mission evals.extractor_hub_100 -p coordinating --cogs 8 --difficulty standard
@@ -615,7 +583,7 @@ uv run cogames play --mission evals.energy_starved -p scripted_baseline --cogs 2
 
 1. **Composable**: Any difficulty can be applied to any mission
 2. **Skill-specific**: Each variant tests specific capabilities (scarcity, speed, unclipping)
-3. **Progressive**: Clear difficulty progression from story_mode → standard → hard → brutal
+3. **Progressive**: Clear difficulty progression from story_mode → standard → hard
 4. **Specialized challenges**: Unique constraints (single_use, clipping) test specific algorithms
 
 ### Evaluation Philosophy
@@ -632,7 +600,7 @@ uv run cogames play --mission evals.energy_starved -p scripted_baseline --cogs 2
 | Failure Mode            | Likely Cause                     | Test With                                 |
 | ----------------------- | -------------------------------- | ----------------------------------------- |
 | Timeout (0 hearts)      | Exploration inefficiency         | ExtractorHub100, CollectFar               |
-| Low hearts (< expected) | Resource scarcity, poor routing  | hard, brutal difficulties                 |
+| Low hearts (< expected) | Resource scarcity, poor routing  | hard difficulty                            |
 | Zero hearts (energy)    | Energy management failure        | energy_crisis, EnergyStarved              |
 | Zero hearts (clipping)  | Unclipping logic failure         | Any clipped\_\* difficulty                |
 | Coordination failure    | Multi-agent collision/contention | GoTogether, SingleUseSwarm with 4+ agents |
