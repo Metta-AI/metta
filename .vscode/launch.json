@@ -1,17 +1,6 @@
 {
   "version": "0.2.0",
   // for more information on the VS Code debugger, visit https://go.microsoft.com/fwlink/?linkid=830387
-  // "compounds": [
-  //   {
-  //     "name": "MettaGrid Debug (Python + C++)",
-  //     "configurations": [
-  //       "MettaGrid Debug (Python for compound)",
-  //       "MettaGrid Debug (C++ attach auto)"
-  //     ],
-  //     "stopAll": true,
-  //     "preLaunchTask": "${defaultBuildTask}"
-  //   }
-  // ],
   "configurations": [
     {
       "name": "Train Metta",
@@ -166,18 +155,15 @@
       "preLaunchTask": "${defaultBuildTask}",
     },
     {
-      "name": "MettaGrid Debug (Python for compound)",
-      "type": "debugpy",
+      "name": "MettaGrid Debug",
+      "type": "pythoncpp",
       "request": "launch",
-      "program": "${workspaceFolder}/packages/mettagrid/demos/demo_train_pettingzoo.py",
-      "console": "integratedTerminal",
-      "justMyCode": false,
-      "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "stopOnEntry": true
+      "pythonLaunchName": "_MettaGrid Python Config",
+      "cppAttachName": "_MettaGrid C++ Config",
+      "preLaunchTask": "${defaultBuildTask}"
     },
     {
-      "name": "MettaGrid Debug (C++ attach)",
+      "name": "MettaGrid Debug Attach C++",
       "type": "lldb",
       "request": "attach",
       "pid": "${command:pickProcess}",
@@ -186,16 +172,30 @@
       },
       "waitFor": true
     },
-    // {
-    //   "name": "MettaGrid Debug (C++ attach auto)",
-    //   "type": "lldb",
-    //   "request": "attach",
-    //   "pid": "${command:extension.commandvariable.pickStringRemember}",
-    //   "sourceMap": {
-    //     ".": "${workspaceFolder}/packages/mettagrid"
-    //   },
-    //   "waitFor": true,
-    //   "preLaunchTask": "Get Python PID"
-    // }
-  ],
+    {
+      "name": "_MettaGrid Python Config",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/packages/mettagrid/demos/demo_train_pettingzoo.py",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "stopOnEntry": true,
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+      }
+    },
+    {
+      "name": "_MettaGrid C++ Config",
+      "type": "lldb",
+      "request": "attach",
+      "pid": "",
+      "sourceMap": {
+        ".": "${workspaceFolder}/packages/mettagrid"
+      },
+      "waitFor": true
+    },
+  ]
 }
