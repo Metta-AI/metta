@@ -185,6 +185,9 @@
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
         "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+      },
+      "presentation": {
+        "hidden": true
       }
     },
     {
@@ -195,7 +198,10 @@
       "sourceMap": {
         ".": "${workspaceFolder}/packages/mettagrid"
       },
-      "waitFor": true
+      "waitFor": true,
+      "presentation": {
+        "hidden": true
+      }
     },
   ]
 }
