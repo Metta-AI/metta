@@ -1,6 +1,17 @@
 {
   "version": "0.2.0",
   // for more information on the VS Code debugger, visit https://go.microsoft.com/fwlink/?linkid=830387
+  // "compounds": [
+  //   {
+  //     "name": "MettaGrid Debug (Python + C++)",
+  //     "configurations": [
+  //       "MettaGrid Debug (Python for compound)",
+  //       "MettaGrid Debug (C++ attach auto)"
+  //     ],
+  //     "stopAll": true,
+  //     "preLaunchTask": "${defaultBuildTask}"
+  //   }
+  // ],
   "configurations": [
     {
       "name": "Train Metta",
@@ -155,29 +166,36 @@
       "preLaunchTask": "${defaultBuildTask}",
     },
     {
-      "name": "Python: PettingZoo Demo",
+      "name": "MettaGrid Debug (Python for compound)",
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/packages/mettagrid/demos/demo_train_pettingzoo.py",
       "console": "integratedTerminal",
       "justMyCode": false,
       "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python"
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "stopOnEntry": true
     },
     {
-      "name": "C++ Debug: PettingZoo",
+      "name": "MettaGrid Debug (C++ attach)",
       "type": "lldb",
-      "request": "launch",
-      "program": "${workspaceFolder}/.venv/bin/python",
-      "args": ["${workspaceFolder}/packages/mettagrid/demos/demo_train_pettingzoo.py"],
-      "cwd": "${workspaceFolder}",
+      "request": "attach",
+      "pid": "${command:pickProcess}",
       "sourceMap": {
         ".": "${workspaceFolder}/packages/mettagrid"
       },
-      "postRunCommands": [
-        "breakpoint set --name PyInit_mettagrid_c --one-shot true --auto-continue true --command 'breakpoint set --name MettaGrid::MettaGrid'",
-        "continue"
-      ],
-    }
+      "waitFor": true
+    },
+    // {
+    //   "name": "MettaGrid Debug (C++ attach auto)",
+    //   "type": "lldb",
+    //   "request": "attach",
+    //   "pid": "${command:extension.commandvariable.pickStringRemember}",
+    //   "sourceMap": {
+    //     ".": "${workspaceFolder}/packages/mettagrid"
+    //   },
+    //   "waitFor": true,
+    //   "preLaunchTask": "Get Python PID"
+    // }
   ],
 }
