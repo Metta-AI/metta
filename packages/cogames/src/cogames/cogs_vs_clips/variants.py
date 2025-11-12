@@ -159,36 +159,22 @@ class NeutralFacedVariant(MissionVariant):
                 obj.vibe_transfers = {neutral_vibe_name: {"heart": 255}}
 
 
-class BinaryFaceVariant(MissionVariant):
-    name: str = "binary_face"
-    description: str = "Only two vibes are available: one for gear (tools) and one for hearts."
+class SingleToolUnclipVariant(MissionVariant):
+    name: str = "single_tool_unclip"
+    description: str = "Only one tool is available: the decoder."
+    resource: str = "carbon"
 
     @override
     def modify_env(self, mission, env):
         change_vibe = env.game.actions.change_vibe
-        change_vibe.number_of_vibes = 2
-
-        tool_vibe_name = "gear"
-        heart_vibe_name = "heart"
-        # Restrict the game to just these two vibes
-        env.game.vibe_names = [tool_vibe_name, heart_vibe_name]
-
-        # Update assembler: tools require only 'gear' vibe; hearts require 'heart' vibes
+        change_vibe.number_of_vibes = 1
+        env.game.vibe_names = ["gear"]
+        # Restrict assembler to a single generic gear recipe: carbon -> decoder
         assembler = env.game.objects.get("assembler")
-        if isinstance(assembler, AssemblerConfig) and assembler.protocols:
-            gear_outputs = {"decoder", "modulator", "scrambler", "resonator"}
-            for proto in assembler.protocols:
-                if any(k in proto.output_resources for k in gear_outputs):
-                    proto.vibes = [tool_vibe_name]
-                elif proto.output_resources.get("heart", 0) > 0:
-                    # Preserve the original heart-vibe multiplicity if present, otherwise require one 'heart'
-                    required = max(1, sum(1 for v in proto.vibes if v == heart_vibe_name))
-                    proto.vibes = [heart_vibe_name] * required
-
-        # Update chest: only allow heart deposits on the heart vibe to avoid invalid vibe keys
-        chest = env.game.objects.get("chest")
-        if isinstance(chest, ChestConfig):
-            chest.vibe_transfers = {heart_vibe_name: {"heart": 255}}
+        if isinstance(assembler, AssemblerConfig):
+            assembler.protocols = [
+                ProtocolConfig(vibes=["gear"], input_resources={self.resource: 1}, output_resources={"decoder": 1})
+            ]
 
 
 class CompassVariant(MissionVariant):
@@ -339,7 +325,7 @@ class ChestHeartTuneVariant(MissionVariant):
 class ExtractorHeartTuneVariant(MissionVariant):
     name: str = "extractor_heart_tune"
     description: str = "Tune extractors for N hearts production capability."
-    hearts: int = 5
+    hearts: int = 1
 
     @override
     def modify_mission(self, mission):
@@ -407,10 +393,11 @@ class ClipHubStationsVariant(MissionVariant):
 class ClipPeriodOnVariant(MissionVariant):
     name: str = "clip_period_on"
     description: str = "Enable global clipping with a small non-zero clip period."
+    clip_period: int = 50
 
     @override
     def modify_mission(self, mission):
-        mission.clip_period = 50
+        mission.clip_period = self.clip_period
 
 
 # Biome variants (weather) for procedural maps
@@ -601,7 +588,7 @@ VARIANTS: list[MissionVariant] = [
     PackRatVariant(),
     EnergizedVariant(),
     NeutralFacedVariant(),
-    BinaryFaceVariant(),
+    SingleToolUnclipVariant(),
     ResourceBottleneckVariant(),
     CompassVariant(),
     Small50Variant(),

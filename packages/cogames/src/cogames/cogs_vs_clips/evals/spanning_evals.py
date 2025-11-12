@@ -11,6 +11,7 @@ from cogames.cogs_vs_clips.sites import HELLO_WORLD, TRAINING_FACILITY
 from cogames.cogs_vs_clips.variants import (
     ClipHubStationsVariant,
     ClipPeriodOnVariant,
+    CyclicalUnclipVariant,
     DarkSideVariant,
     DistantResourcesVariant,
     EmptyBaseVariant,
@@ -22,6 +23,7 @@ from cogames.cogs_vs_clips.variants import (
     QuadrantBuildingsVariant,
     ResourceBottleneckVariant,
     SingleResourceUniformVariant,
+    SingleToolUnclipVariant,
     SingleUseSwarmVariant,
     VibeCheckMin2Variant,
 )
@@ -52,6 +54,7 @@ LARGE_HELLO_WORLD = Site(
     min_cogs=1,
     max_cogs=20,
 )
+
 # Resource Bottleneck evals (Different resources are the limiting reagents; agents must prioritize correct resource.)
 OxygenBottleneck = Mission(
     name="oxygen_bottleneck",
@@ -65,6 +68,32 @@ OxygenBottleneck = Mission(
         NeutralFacedVariant(),
         PackRatVariant(),
         #
+    ],
+)
+
+# Unclipping missions (agents must craft gear to unclip oxygen and proceed)
+UnclippingEasy = Mission(
+    name="unclipping_easy",
+    description="World grows increasingly clipped over time; agents must craft gear to unclip and proceed.",
+    site=HELLO_WORLD,
+    variants=[
+        ClipPeriodOnVariant(clip_period=50),
+        PackRatVariant(),
+        SingleToolUnclipVariant(),
+        ClipHubStationsVariant(clip=["oxygen_extractor", "germanium_extractor", "silicon_extractor"]),
+        CyclicalUnclipVariant(),
+    ],
+)
+
+UnclippingHard = Mission(
+    name="unclipping_hard",
+    description="Hard unclipping; oxygen starts clipped with tight extractor budgets.",
+    site=HELLO_WORLD,
+    variants=[
+        ClipPeriodOnVariant(clip_period=10),
+        PackRatVariant(),
+        ClipHubStationsVariant(clip=["oxygen_extractor", "germanium_extractor", "silicon_extractor"]),
+        CyclicalUnclipVariant(),
     ],
 )
 
@@ -198,6 +227,8 @@ EasyHeartsLargeWorld = Mission(
 EVAL_MISSIONS: list[Mission] = [
     OxygenBottleneck,
     EnergyStarved,
+    UnclippingEasy,
+    UnclippingHard,
     DistantResources,
     QuadrantBuildings,
     SingleUseSwarm,
