@@ -222,7 +222,12 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
       of "inv:scrambler":
         result.features.invScrambler = feature.id
       else:
-        echo "Unknown feature: ", feature.name
+        if feature.name.startsWith("protocol_input:") or
+           feature.name.startsWith("protocol_output:") or
+           feature.name == "agent:compass":
+          discard
+        else:
+          echo "Unknown feature: ", feature.name
 
     for id, name in config.actions:
       case name:
@@ -237,7 +242,6 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
       of "move_east":
         result.actions.moveEast = id
       of "change_vibe_default":
-        echo "change_vibe_default: ", id
         result.actions.vibeDefault = id
       of "change_vibe_charger":
         result.actions.vibeCharger = id
