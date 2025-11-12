@@ -18,7 +18,7 @@ if bindings_dir not in sys.path:
 fa = importlib.import_module("fast_agents")
 
 
-class _FastAgentPolicyBase(AgentPolicy):
+class _NimAgentPolicyBase(AgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info)
         obs_shape = policy_env_info.observation_space.shape
@@ -76,22 +76,22 @@ class _FastAgentPolicyBase(AgentPolicy):
         agent.reset()
 
 
-class RandomAgentPolicy(_FastAgentPolicyBase):
+class RandomAgentPolicy(_NimAgentPolicyBase):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info, agent_id)
         self._agent = fa.RandomAgent(agent_id, policy_env_info.to_json())
 
 
-class _FastAgentsMultiPolicyBase(MultiAgentPolicy):
-    def __init__(self, policy_env_info: PolicyEnvInterface, policy_type: type[_FastAgentPolicyBase]):
+class _NimAgentsMultiPolicyBase(MultiAgentPolicy):
+    def __init__(self, policy_env_info: PolicyEnvInterface, policy_type: type[_NimAgentPolicyBase]):
         super().__init__(policy_env_info)
         self._policy_type = policy_type
-        self._batch_agent: _FastAgentPolicyBase | None = None
+        self._batch_agent: _NimAgentPolicyBase | None = None
 
-    def agent_policy(self, agent_id: int) -> _FastAgentPolicyBase:
+    def agent_policy(self, agent_id: int) -> _NimAgentPolicyBase:
         return self._policy_type(self._policy_env_info, agent_id)
 
-    def _require_batch_agent(self) -> _FastAgentPolicyBase:
+    def _require_batch_agent(self) -> _NimAgentPolicyBase:
         if self._batch_agent is None:
             self._batch_agent = self._policy_type(self._policy_env_info, agent_id=0)
         return self._batch_agent
@@ -100,38 +100,34 @@ class _FastAgentsMultiPolicyBase(MultiAgentPolicy):
         batch_agent = self._require_batch_agent()
         batch_agent.step_batch(raw_observations, raw_actions)
 
-    def reset(self, simulation: Optional[Simulation] = None) -> None:
-        if self._batch_agent is not None:
-            self._batch_agent.reset(simulation)
 
-
-class RandomAgentsMultiPolicy(_FastAgentsMultiPolicyBase):
+class RandomAgentsMultiPolicy(_NimAgentsMultiPolicyBase):
     def __init__(self, policy_env_info: PolicyEnvInterface):
         super().__init__(policy_env_info, RandomAgentPolicy)
 
     short_names = ["fast_random"]
 
 
-class ThinkyAgentPolicy(_FastAgentPolicyBase):
+class ThinkyAgentPolicy(_NimAgentPolicyBase):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info, agent_id)
         self._agent = fa.ThinkyAgent(agent_id, policy_env_info.to_json())
 
 
-class ThinkyAgentsMultiPolicy(_FastAgentsMultiPolicyBase):
+class ThinkyAgentsMultiPolicy(_NimAgentsMultiPolicyBase):
     def __init__(self, policy_env_info: PolicyEnvInterface):
         super().__init__(policy_env_info, ThinkyAgentPolicy)
 
     short_names = ["fast_thinky"]
 
 
-class RaceCarAgentPolicy(_FastAgentPolicyBase):
+class RaceCarAgentPolicy(_NimAgentPolicyBase):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info, agent_id)
         self._agent = fa.RaceCarAgent(agent_id, policy_env_info.to_json())
 
 
-class RaceCarAgentsMultiPolicy(_FastAgentsMultiPolicyBase):
+class RaceCarAgentsMultiPolicy(_NimAgentsMultiPolicyBase):
     def __init__(self, policy_env_info: PolicyEnvInterface):
         super().__init__(policy_env_info, RaceCarAgentPolicy)
 
