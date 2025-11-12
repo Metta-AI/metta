@@ -93,6 +93,10 @@ proc randomPolicyStepBatch*(
     random_agents.step
   )
 
+proc randomPolicyReset*(policy: RandomPolicy) {.raises: [].} =
+  for agent in policy.agents:
+    random_agents.reset(agent)
+
 proc thinkyPolicyStepBatch*(
     policy: ThinkyPolicy,
     agentIds: pointer,
@@ -116,6 +120,10 @@ proc thinkyPolicyStepBatch*(
     rawActions,
     thinky_agents.step
   )
+
+proc thinkyPolicyReset*(policy: ThinkyPolicy) {.raises: [].} =
+  for agent in policy.agents:
+    thinky_agents.reset(agent)
 
 proc raceCarPolicyStepBatch*(
     policy: RaceCarPolicy,
@@ -141,6 +149,10 @@ proc raceCarPolicyStepBatch*(
     race_car_agents.step
   )
 
+proc raceCarPolicyReset*(policy: RaceCarPolicy) {.raises: [].} =
+  for agent in policy.agents:
+    race_car_agents.reset(agent)
+
 exportProcs:
   nim_agents_init_chook
 
@@ -149,18 +161,21 @@ exportRefObject RandomPolicy:
     newRandomPolicy(string)
   procs:
     randomPolicyStepBatch(RandomPolicy, pointer, int, int, int, int, pointer, int, pointer)
+    randomPolicyReset(RandomPolicy)
 
 exportRefObject ThinkyPolicy:
   constructor:
     newThinkyPolicy(string)
   procs:
     thinkyPolicyStepBatch(ThinkyPolicy, pointer, int, int, int, int, pointer, int, pointer)
+    thinkyPolicyReset(ThinkyPolicy)
 
 exportRefObject RaceCarPolicy:
   constructor:
     newRaceCarPolicy(string)
   procs:
     raceCarPolicyStepBatch(RaceCarPolicy, pointer, int, int, int, int, pointer, int, pointer)
+    raceCarPolicyReset(RaceCarPolicy)
 
 writeFiles("bindings/generated", "NimAgents")
 

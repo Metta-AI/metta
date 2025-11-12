@@ -19,6 +19,15 @@ proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent {.r
   var config = parseConfig(environmentConfig)
   result = RaceCarAgent(agentId: agentId, cfg: config)
   result.random = initRand(agentId)
+  result.map = initTable[Location, seq[FeatureValue]]()
+  result.seen = initHashSet[Location]()
+  result.location = Location(x: 0, y: 0)
+
+proc reset*(agent: RaceCarAgent) =
+  agent.map.clear()
+  agent.seen.clear()
+  agent.location = Location(x: 0, y: 0)
+  agent.random = initRand(agent.agentId)
 
 proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]]) =
   ## Update the big map with the small visible map.

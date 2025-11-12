@@ -1,13 +1,15 @@
 """Base policy classes and interfaces."""
 
+import ctypes
 from abc import abstractmethod
 from pathlib import Path
-from typing import Generic, Optional, Tuple, TypeVar
+from typing import Generic, Optional, Sequence, Tuple, TypeVar
 
 import numpy as np
 import torch.nn as nn
 from pydantic import BaseModel
 
+from mettagrid.mettagrid_c import dtype_observations
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import PolicyRegistryMeta
 from mettagrid.simulator import Action, AgentObservation, Simulation
@@ -109,6 +111,107 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
         policy without batch support is used in a context that requires it."""
 
         raise NotImplementedError(f"{self.__class__.__name__} does not implement step_batch.")
+
+
+class NimMultiAgentPolicy(MultiAgentPolicy):
+    """Base class for Nim-backed multi-agent policies."""
+
+    def __init__(
+        self,
+        policy_env_info: PolicyEnvInterface,
+        handle_ctor,
+        step_batch_name: str,
+        agent_policy_cls: type["NimAgentPolicyBase"],
+        agent_ids: Sequence[int] | None = None,
+        reset_name: str | None = None,
+    ) -> None:
+        super().__init__(policy_env_info)
+        self._handle = handle_ctor(policy_env_info.to_json())
+        self._step_batch = getattr(self._handle, step_batch_name)
+        self._handle_reset = getattr(self._handle, reset_name) if reset_name else None
+        self._agent_policy_cls = agent_policy_cls
+        self._num_agents = policy_env_info.num_agents
+        obs_shape = policy_env_info.observation_space.shape
+        self._obs_shape = obs_shape
+        self._num_tokens = obs_shape[0]
+        self._token_dim = obs_shape[1]
+        ids = list(agent_ids) if agent_ids is not None else list(range(self._num_agents))
+        if not ids:
+            raise ValueError("agent_ids must not be empty")
+        self._agent_ids = set(ids)
+        subset = np.array(ids, dtype=np.int32)
+        self._default_subset = subset
+        self._default_subset_ptr = subset.ctypes.data_as(ctypes.POINTER(ctypes.c_int32)) if subset.size > 0 else None
+        self._default_subset_len = subset.size
+
+    @property
+    def agent_ids(self) -> set[int]:
+        return self._agent_ids
+
+    def _subset_ptr(self, subset: np.ndarray | None) -> tuple[ctypes.POINTER(ctypes.c_int32) | None, int]:
+        if subset is None:
+            return self._default_subset_ptr, self._default_subset_len
+        if subset.size == 0:
+            return None, 0
+        return subset.ctypes.data_as(ctypes.POINTER(ctypes.c_int32)), int(subset.size)
+
+    def _invoke_step(self, raw_observations: np.ndarray, raw_actions: np.ndarray, subset: np.ndarray | None) -> None:
+        subset_ptr, subset_len = self._subset_ptr(subset)
+        self._step_batch(
+            subset_ptr,
+            subset_len,
+            self._num_agents,
+            self._num_tokens,
+            self._token_dim,
+            raw_observations.ctypes.data,
+            self._num_agents,
+            raw_actions.ctypes.data,
+        )
+
+    def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
+        self._invoke_step(raw_observations, raw_actions, subset=None)
+
+    def agent_policy(self, agent_id: int) -> "NimAgentPolicyBase":
+        if agent_id not in self._agent_ids:
+            raise ValueError(f"Agent id {agent_id} not handled by {self.__class__.__name__}")
+        return self._agent_policy_cls(self, agent_id)
+
+    def reset(self, simulation: Optional[Simulation] = None) -> None:
+        if self._handle_reset is not None:
+            self._handle_reset()
+
+
+class NimAgentPolicyBase(AgentPolicy):
+    """AgentPolicy backed by a NimMultiAgentPolicy."""
+
+    def __init__(self, parent: NimMultiAgentPolicy, agent_id: int):
+        super().__init__(parent.policy_env_info)
+        self._parent = parent
+        self._agent_id = agent_id
+        self._num_agents = parent._num_agents
+        self._num_tokens = parent._num_tokens
+        self._token_dim = parent._token_dim
+        obs_shape = parent._obs_shape
+        self._batch_obs = np.empty((self._num_agents, *obs_shape), dtype=dtype_observations)
+        self._batch_actions = np.zeros(self._num_agents, dtype=np.int32)
+        self._action_names = parent.policy_env_info.action_names
+        self._single_subset = np.array([agent_id], dtype=np.int32)
+
+    def _pack_observation(self, target: np.ndarray, obs: AgentObservation) -> None:
+        target.fill(255)
+        for idx, token in enumerate(obs.tokens):
+            if idx >= self._num_tokens:
+                break
+            token_values = token.raw_token
+            target[idx, : len(token_values)] = token_values
+
+    def step(self, obs: AgentObservation) -> Action:
+        self._batch_obs.fill(255)
+        self._pack_observation(self._batch_obs[self._agent_id], obs)
+        self._batch_actions.fill(0)
+        self._parent._invoke_step(self._batch_obs, self._batch_actions, subset=self._single_subset)
+        action_index = int(self._batch_actions[self._agent_id])
+        return Action(name=self._action_names[action_index])
 
 
 class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):

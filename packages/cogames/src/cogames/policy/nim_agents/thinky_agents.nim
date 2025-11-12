@@ -20,6 +20,17 @@ proc newThinkyAgent*(agentId: int, environmentConfig: string): ThinkyAgent {.rai
   var config = parseConfig(environmentConfig)
   result = ThinkyAgent(agentId: agentId, cfg: config)
   result.random = initRand(agentId)
+  result.map = initTable[Location, seq[FeatureValue]]()
+  result.seen = initHashSet[Location]()
+  result.location = Location(x: 0, y: 0)
+  result.lastActions = @[]
+
+proc reset*(agent: ThinkyAgent) =
+  agent.map.clear()
+  agent.seen.clear()
+  agent.location = Location(x: 0, y: 0)
+  agent.lastActions.setLen(0)
+  agent.random = initRand(agent.agentId)
 
 proc updateMap(agent: ThinkyAgent, visible: Table[Location, seq[FeatureValue]]) =
   ## Update the big map with the small visible map.

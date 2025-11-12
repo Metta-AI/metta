@@ -20,6 +20,9 @@ proc newRandomAgent*(
   result = RandomAgent(agentId: agentId, cfg: config)
   result.random = initRand(agentId)
 
+proc reset*(agent: RandomAgent) =
+  agent.random = initRand(agent.agentId)
+
 proc step*(
   agent: RandomAgent,
   numAgents: int,
