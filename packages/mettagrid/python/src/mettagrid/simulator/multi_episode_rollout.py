@@ -8,9 +8,8 @@ from typing import TYPE_CHECKING, Callable
 import numpy as np
 from pydantic import BaseModel, ConfigDict
 
-from cogames.policy import AgentPolicy
 from mettagrid import MettaGridConfig
-from mettagrid.policy.policy import MultiAgentPolicy
+from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.simulator.rollout import Rollout
 
 if TYPE_CHECKING:
