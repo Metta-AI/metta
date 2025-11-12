@@ -155,13 +155,15 @@ def train(
                 loss_instance_name="sl_checkpointed_kickstarter",
                 phase="rollout",
                 # begin_at_step=50_000_000,
-                end_at_step=1_000_000_000,
+                # end_at_step=1_000_000_000,
+                end_at_epoch=1002,
             ),
             LossRunGate(
                 loss_instance_name="sl_checkpointed_kickstarter",
                 phase="train",
                 # begin_at_step=50_000_000,
-                end_at_step=1_000_000_000,
+                # end_at_step=1_000_000_000,
+                end_at_epoch=1002,
             ),
         ],
         rules=[
