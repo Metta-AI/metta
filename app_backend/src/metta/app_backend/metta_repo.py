@@ -4,10 +4,10 @@ import secrets
 import uuid
 from collections import defaultdict
 from contextlib import asynccontextmanager
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Any, Literal
 
-from psycopg import AsyncConnection, Connection
+from psycopg import Connection
 from psycopg.rows import class_row
 from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool, PoolTimeout
@@ -110,27 +110,9 @@ class PolicyRow(BaseModel):
     url: str | None
 
 
-class LeaderboardRow(BaseModel):
-    id: uuid.UUID
-    name: str
-    user_id: str
-    evals: list[str]
-    metric: str
-    start_date: date
-    latest_episode: int
-    created_at: datetime
-    updated_at: datetime
-
-
 class PolicyEval(BaseModel):
     num_agents: int
     total_score: float
-
-
-class LeaderboardPolicyScore(BaseModel):
-    leaderboard_id: uuid.UUID
-    policy_id: uuid.UUID
-    score: float
 
 
 class CoGamesSubmissionRow(BaseModel):
@@ -708,6 +690,14 @@ MIGRATIONS = [
             """CREATE INDEX idx_cogames_submissions_created_at ON cogames_policy_submissions(created_at)""",
         ],
     ),
+    SqlMigration(
+        version=28,
+        description="Drop leaderboard-related tables",
+        sql_statements=[
+            """DROP TABLE IF EXISTS leaderboard_policy_scores""",
+            """DROP TABLE IF EXISTS leaderboards""",
+        ],
+    ),
 ]
 
 logger = logging.getLogger(name="metta_repo")
@@ -969,48 +959,6 @@ class MettaRepo:
 
             return episode_id
 
-    async def get_suites(self) -> list[str]:
-        async with self.connect() as con:
-            result = await con.execute("""
-                SELECT DISTINCT eval_category
-                FROM episodes
-                WHERE eval_category IS NOT NULL AND env_name IS NOT NULL
-                ORDER BY eval_category
-            """)
-            rows = await result.fetchall()
-            return [row[0] for row in rows]
-
-    async def get_metrics(self, suite: str) -> list[str]:
-        """Get all available metrics for a given suite."""
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                SELECT DISTINCT eam.metric
-                FROM episodes e
-                JOIN episode_agent_metrics eam ON e.internal_id = eam.episode_internal_id
-                WHERE e.eval_category = %s
-                ORDER BY eam.metric
-            """,
-                (suite,),
-            )
-            rows = await result.fetchall()
-            return [row[0] for row in rows]
-
-    async def get_group_ids(self, suite: str) -> list[str]:
-        """Get all available group IDs for a given suite."""
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                SELECT DISTINCT jsonb_object_keys(e.attributes->'agent_groups') as group_id
-                FROM episodes e
-                WHERE e.eval_category = %s
-                ORDER BY group_id
-            """,
-                (suite,),
-            )
-            rows = await result.fetchall()
-            return [row[0] for row in rows]
-
     async def get_training_runs(self) -> list[TrainingRunRow]:
         """Get all training runs."""
         async with self.connect() as con:
@@ -1118,102 +1066,6 @@ class MettaRepo:
             if result:
                 return result[0]
             return None
-
-    async def create_saved_dashboard(
-        self,
-        user_id: str,
-        name: str,
-        description: str | None,
-        dashboard_type: str,
-        dashboard_state: dict[str, Any],
-    ) -> uuid.UUID:
-        """Create a new saved dashboard (no upsert, always insert)."""
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                INSERT INTO saved_dashboards (
-                    user_id, name, description, type, dashboard_state
-                ) VALUES (%s, %s, %s, %s, %s)
-                RETURNING id
-                """,
-                (user_id, name, description, dashboard_type, Jsonb(dashboard_state)),
-            )
-            row = await result.fetchone()
-            if row is None:
-                raise RuntimeError("Failed to create saved dashboard")
-            return row[0]
-
-    async def list_saved_dashboards(self) -> list[SavedDashboardRow]:
-        """List all saved dashboards."""
-        async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(SavedDashboardRow)) as cur:
-                await cur.execute(
-                    """
-                    SELECT id, name, description, type, dashboard_state, created_at, updated_at, user_id
-                    FROM saved_dashboards
-                    ORDER BY updated_at DESC
-                    """
-                )
-                return await cur.fetchall()
-
-    async def get_saved_dashboard(self, dashboard_id: str) -> SavedDashboardRow | None:
-        """Get a specific saved dashboard by ID."""
-        try:
-            dashboard_uuid = uuid.UUID(dashboard_id)
-        except ValueError:
-            return None
-
-        async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(SavedDashboardRow)) as cur:
-                await cur.execute(
-                    """
-                    SELECT id, name, description, type, dashboard_state, created_at, updated_at, user_id
-                    FROM saved_dashboards
-                    WHERE id = %s
-                    """,
-                    (dashboard_uuid,),
-                )
-                return await cur.fetchone()
-
-    async def delete_saved_dashboard(self, user_id: str, dashboard_id: str) -> bool:
-        """Delete a saved dashboard."""
-        try:
-            dashboard_uuid = uuid.UUID(dashboard_id)
-        except ValueError:
-            return False
-
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                DELETE FROM saved_dashboards
-                WHERE id = %s AND user_id = %s
-                """,
-                (dashboard_uuid, user_id),
-            )
-            return result.rowcount > 0
-
-    async def update_dashboard_state(
-        self,
-        user_id: str,
-        dashboard_id: str,
-        dashboard_state: dict[str, Any],
-    ) -> bool:
-        """Update an existing saved dashboard."""
-        try:
-            dashboard_uuid = uuid.UUID(dashboard_id)
-        except ValueError:
-            return False
-
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                UPDATE saved_dashboards
-                SET dashboard_state = %s, updated_at = CURRENT_TIMESTAMP
-                WHERE id = %s AND user_id = %s
-                """,
-                (Jsonb(dashboard_state), dashboard_uuid, user_id),
-            )
-            return result.rowcount > 0
 
     async def update_training_run_description(self, user_id: str, run_id: str, description: str) -> bool:
         """Update the description of a training run."""
@@ -1738,141 +1590,6 @@ class MettaRepo:
                 if row[1]:  # Only add non-null git hashes
                     res[row[0]].append(row[1])
             return res
-
-    async def create_leaderboard(
-        self,
-        name: str,
-        user_id: str,
-        evals: list[str],
-        metric: str,
-        start_date: str,
-    ) -> uuid.UUID:
-        """Create a new leaderboard."""
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                INSERT INTO leaderboards (
-                    name, user_id, evals, metric, start_date
-                ) VALUES (%s, %s, %s, %s, %s)
-                RETURNING id
-                """,
-                (
-                    name,
-                    user_id,
-                    evals,
-                    metric,
-                    start_date,
-                ),
-            )
-            row = await result.fetchone()
-            if row is None:
-                raise RuntimeError("Failed to create leaderboard")
-            return row[0]
-
-    async def update_leaderboard(
-        self,
-        leaderboard_id: uuid.UUID,
-        user_id: str,
-        name: str,
-        evals: list[str],
-        metric: str,
-        start_date: str,
-    ) -> LeaderboardRow:
-        """Update a leaderboard."""
-
-        async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(LeaderboardRow)) as cur:
-                cur_leaderboard_cursor = await cur.execute(
-                    "SELECT * FROM leaderboards WHERE id = %s AND user_id = %s",
-                    (leaderboard_id, user_id),
-                )
-                cur_leaderboard = await cur_leaderboard_cursor.fetchone()
-                if not cur_leaderboard:
-                    raise RuntimeError(f"Leaderboard {leaderboard_id} not found or not owned by user {user_id}")
-
-            if (
-                cur_leaderboard.name != name
-                or cur_leaderboard.evals != evals
-                or cur_leaderboard.metric != metric
-                or cur_leaderboard.start_date != start_date
-            ):
-                async with con.cursor(row_factory=class_row(LeaderboardRow)) as update_cur:
-                    query = """
-                    UPDATE leaderboards
-                    SET name = %s, evals = %s, metric = %s, start_date = %s, latest_episode = 0, updated_at = NOW()
-                    WHERE id = %s AND user_id = %s
-                    RETURNING *
-                  """
-                    params = (name, evals, metric, start_date, leaderboard_id, user_id)
-
-                    await update_cur.execute(query, params)
-                    updated_leaderboard = await update_cur.fetchone()
-                    if not updated_leaderboard:
-                        raise RuntimeError(f"Leaderboard {leaderboard_id} not found or not owned by user {user_id}")
-
-                    if (
-                        cur_leaderboard.evals != evals
-                        or cur_leaderboard.metric != metric
-                        or cur_leaderboard.start_date != start_date
-                    ):
-                        # TODO: Technically we shouldn't need to delete the scores if only start_date changes
-                        await con.execute(
-                            "DELETE FROM leaderboard_policy_scores WHERE leaderboard_id = %s",
-                            (leaderboard_id,),
-                        )
-                    return updated_leaderboard
-            else:
-                return cur_leaderboard
-
-    async def list_leaderboards(self) -> list[LeaderboardRow]:
-        """List all leaderboards for a user."""
-        async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(LeaderboardRow)) as cur:
-                await cur.execute(
-                    """
-                    SELECT id, name, user_id, evals, metric, start_date, latest_episode, created_at, updated_at
-                    FROM leaderboards
-                    ORDER BY updated_at DESC
-                    """,
-                )
-                rows = await cur.fetchall()
-                return rows
-
-    async def get_leaderboard(self, leaderboard_id: uuid.UUID) -> LeaderboardRow | None:
-        """Get a specific leaderboard by ID."""
-        async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(LeaderboardRow)) as cur:
-                await cur.execute("SELECT * FROM leaderboards WHERE id = %s", (leaderboard_id,))
-                row = await cur.fetchone()
-                return row
-
-    async def delete_leaderboard(self, leaderboard_id: str, user_id: str) -> bool:
-        """Delete a leaderboard."""
-        try:
-            leaderboard_uuid = uuid.UUID(leaderboard_id)
-        except ValueError:
-            return False
-
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                DELETE FROM leaderboards
-                WHERE id = %s AND user_id = %s
-                """,
-                (leaderboard_uuid, user_id),
-            )
-            return result.rowcount > 0
-
-    async def update_leaderboard_latest_episode(
-        self, con: AsyncConnection, leaderboard_id: uuid.UUID, latest_episode: int
-    ) -> None:
-        """Update the latest episode for a leaderboard."""
-        await con.execute(
-            """
-            UPDATE leaderboards SET latest_episode = %s WHERE id = %s
-            """,
-            (latest_episode, leaderboard_id),
-        )
 
     async def create_cogames_submission(
         self, submission_id: uuid.UUID, user_id: str, s3_path: str, name: str | None = None
