@@ -1,9 +1,46 @@
 # CoGs vs Clips Training Recipes
 
 Training recipes for the Cogs vs Clips eval missions, supporting curriculum learning across multiple missions and
-difficulty variants.
+difficulty variants. Includes comprehensive variant support for systematic exploration of 4 core behavioral variants.
 
 ## Quick Start
+
+### Variant-Map Curriculum Training
+
+Train on comprehensive curriculum covering all combinations of map sizes and behavioral variants:
+
+```bash
+# Train on small + medium maps with all 4 variants (24 tasks: 6 missions × 4 variants)
+uv run ./tools/run.py experiments.recipes.cvc.variant_maps.train \\
+    run=variant_maps num_cogs=4
+
+# Train on ALL maps including large (72 tasks: 9 missions × 4 variants × 3 sizes)
+uv run ./tools/run.py experiments.recipes.cvc.variant_maps.train_all_variants_all_sizes \\
+    run=all_variants_all_sizes num_cogs=8
+
+# Train with specific variants only
+uv run ./tools/run.py experiments.recipes.cvc.variant_maps.train \\
+    run=custom 'variants=["lonely_heart","heart_chorus"]'
+
+# Play specific mission-variant combination
+uv run ./tools/run.py experiments.recipes.cvc.variant_maps.play \\
+    policy_uri=file://./checkpoints/variant_maps/latest \\
+    mission=extractor_hub_30 \\
+    variant=lonely_heart
+```
+
+**The 4 Core Variants:**
+
+- **lonely_heart**: Solo-focused behavior
+- **heart_chorus**: Cooperative behavior
+- **pack_rat**: Resource hoarding
+- **neutral_faced**: Baseline/neutral behavior
+
+**Task Labels:** Each task is labeled for curriculum tracking:
+
+- `small_extractor_hub_30_lonely_heart`
+- `medium_collect_resources_spread_pack_rat`
+- `large_divide_and_conquer_heart_chorus`
 
 ### Batch Experiments (Skypilot)
 
@@ -96,29 +133,36 @@ uv run ./tools/run.py experiments.recipes.cvc.curriculum.play
 
 ### Training Functions
 
-- **`train(num_cogs, curriculum, base_missions)`** - Main training with curriculum
+- **`train(num_cogs, curriculum, base_missions, variants)`** - Main training with curriculum
   - Creates curriculum across multiple missions and difficulty parameters
   - Default: 4 agents, 6 diverse missions
   - Evaluates on full eval suite
+  - Optional: Specify variants to modify agent behavior
 
-- **`train_single_mission(mission, num_cogs)`** - Train on single mission
+- **`train_single_mission(mission, num_cogs, variants)`** - Train on single mission
   - No curriculum variation
   - Fast for debugging
   - Still evaluates on full suite
 
-- **`train_small_maps(num_cogs)`** - Train on 30x30 maps
+- **`train_small_maps(num_cogs, variants)`** - Train on 30x30 maps
   - Missions: extractor_hub_30, collect_resources_classic, oxygen_bottleneck
   - Good for quick iterations
 
-- **`train_medium_maps(num_cogs)`** - Train on 50x50 maps
+- **`train_medium_maps(num_cogs, variants)`** - Train on 50x50 maps
   - Missions: extractor_hub_50, collect_resources_spread, energy_starved
   - Balanced training
 
-- **`train_large_maps(num_cogs)`** - Train on 70x70+ maps
+- **`train_large_maps(num_cogs, variants)`** - Train on 70x70+ maps
   - Missions: extractor_hub_70, collect_far, divide_and_conquer
   - Requires more agents (default: 8)
 
-- **`train_coordination(num_cogs)`** - Multi-agent coordination focus
+- **`variant_maps.train(num_cogs, variants, include_*_maps)`** - Comprehensive variant-map curriculum
+  - Creates individual tasks for each (map, mission, variant) combination
+  - Each task labeled for curriculum tracking (e.g., "small_extractor_hub_30_lonely_heart")
+  - Default: small + medium maps × 4 variants = 24 tasks
+  - Recommended for systematic variant exploration
+
+- **`train_coordination(num_cogs, variants)`** - Multi-agent coordination focus
   - Missions: go_together, divide_and_conquer, collect_resources_spread
   - Emphasizes cooperation
 
@@ -180,6 +224,58 @@ uv run ./tools/run.py experiments.recipes.cvc.curriculum.play
 - `go_together` - Favors collective glyphing (min 2 agents)
 - `single_use_swarm` - Single-use stations, team must coordinate (min 2 agents)
 
+## Variant System
+
+The variant system allows systematic exploration of different agent behaviors. All recipes support the `variants`
+parameter.
+
+### Available Variants
+
+The 4 core variants modify agent behavior and reward structure:
+
+- **`lonely_heart`**: Solo-focused behavior
+  - Encourages independent action
+  - Tests single-agent efficiency
+- **`heart_chorus`**: Cooperative behavior
+  - Rewards coordination and teamwork
+  - Tests multi-agent synergy
+- **`pack_rat`**: Resource hoarding
+  - Encourages resource accumulation
+  - Tests inventory management
+- **`neutral_faced`**: Baseline/neutral behavior
+  - Standard reward structure
+  - Control condition for comparisons
+
+### Using Variants
+
+```bash
+# Single variant
+uv run ./tools/run.py experiments.recipes.cvc.small_maps.train 'variants=["lonely_heart"]'
+
+# Multiple variants (curriculum will sample from all)
+uv run ./tools/run.py experiments.recipes.cvc.medium_maps.train \\
+    'variants=["lonely_heart","heart_chorus","pack_rat","neutral_faced"]'
+
+# Use convenience functions
+uv run ./tools/run.py experiments.recipes.cvc.large_maps.train_all_variants
+```
+
+### Variant Combinations
+
+For systematic exploration, the `variants` module provides helpers:
+
+```python
+from experiments.recipes.cvc.variants import (
+    get_single_variants,      # 4 singles: [("lonely_heart",), ...]
+    get_variant_pairs,        # 6 pairs: [("lonely_heart", "heart_chorus"), ...]
+    get_variant_triples,      # 4 triples
+    get_all_variants,         # All 4 combined
+    get_all_combinations,     # All 15 non-empty combinations
+)
+```
+
+This enables systematic sweeps across all variant combinations (15 total).
+
 ## Curriculum Parameters
 
 The curriculum varies:
@@ -195,6 +291,11 @@ The curriculum varies:
 3. **Reward Weights** (0.1-1.0 per heart)
    - Affects learning signal strength
    - Lower weights = more exploration, higher weights = more exploitation
+
+4. **Behavioral Variants** (4 core variants)
+   - Modifies agent behavior and reward structure
+   - Enables systematic exploration of cooperation vs. independence
+   - Can combine multiple variants in single curriculum
 
 The missions themselves provide variation in:
 
