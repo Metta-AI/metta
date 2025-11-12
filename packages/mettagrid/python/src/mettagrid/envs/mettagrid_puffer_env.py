@@ -138,7 +138,7 @@ class MettaGridPufferEnv(PufferEnv):
 
             reset_fn = getattr(self._env_supervisor, "reset", None)
             if callable(reset_fn):
-                reset_fn(self._sim)
+                reset_fn()
 
             self._compute_supervisor_actions()
 
