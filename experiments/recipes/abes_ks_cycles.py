@@ -126,6 +126,7 @@ def train(
 
     trainer_cfg = TrainerConfig(
         losses=loss_config,
+        total_timesteps=7_000_000_000,
     )
 
     if policy_architecture is None:
