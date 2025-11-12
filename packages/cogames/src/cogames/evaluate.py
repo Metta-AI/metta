@@ -16,7 +16,9 @@ from rich.console import Console
 from rich.table import Table
 
 from mettagrid import MettaGridConfig
-from mettagrid.policy.policy import PolicySpec
+from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.multi_episode_rollout import MultiEpisodeRolloutResult, multi_episode_rollout
 
 _SKIP_STATS = [r"^action\.invalid_arg\..+$"]
@@ -203,6 +205,16 @@ def evaluate(
 
     mission_results: list[MultiEpisodeRolloutResult] = []
     for mission_name, env_cfg in missions:
+        policy_instances: list[MultiAgentPolicy] = [
+            initialize_or_load_policy(
+                PolicyEnvInterface.from_mg_cfg(env_cfg),
+                spec.policy_class_path,
+                spec.policy_data_path,
+            )
+            for spec in policy_specs
+        ]
+        proportions = [spec.proportion for spec in policy_specs]
+
         progress_label = f"Simulating ({mission_name})"
         progress_iterable = range(episodes)
         with typer.progressbar(progress_iterable, label=progress_label) as progress:
@@ -216,7 +228,8 @@ def evaluate(
 
             rollout_payload = multi_episode_rollout(
                 env_cfg=env_cfg,
-                policy_specs=policy_specs,
+                policies=policy_instances,
+                proportions=proportions,
                 episodes=episodes,
                 max_action_time_ms=action_timeout_ms,
                 seed=seed,
