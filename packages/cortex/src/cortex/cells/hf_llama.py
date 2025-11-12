@@ -25,7 +25,6 @@ class HFLlamaLayerConfig(CellConfig):
     # Interface
     hidden_size: int | None = None
     mem_len: int = 0
-    detach_on_trim: bool = True
 
 
 @register_cell(HFLlamaLayerConfig)
@@ -51,7 +50,6 @@ class HFLlamaLayerCell(MemoryCell):
         self.hf_config = hf_config
 
         self.mem_len = int(cfg.mem_len)
-        self.detach_on_trim = bool(cfg.detach_on_trim)
 
         self._CacheCls = DynamicCache
 

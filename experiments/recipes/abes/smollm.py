@@ -44,20 +44,15 @@ def train(
     *,
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
-    freeze_llm: bool = True,
     model_name: Optional[str] = None,
-    attn_implementation: Optional[str] = None,
+    mem_len: Optional[int] = None,
     policy_architecture: Optional[PolicyArchitecture] = None,
 ):
     if policy_architecture is None:
-        config_kwargs = {
-            "freeze_llm": freeze_llm,
-            "attn_implementation": _select_attn_implementation(attn_implementation),
-            "token_stride": 2,
-            "actor_head_rank": 64,
-            "value_head_rank": 8,
-        }
+        config_kwargs = {}
         config_kwargs["model_name"] = model_name or "HuggingFaceTB/SmolLM2-135M"
+        if mem_len is not None:
+            config_kwargs["mem_len"] = int(mem_len)
         policy_architecture = SmolLLMConfig(**config_kwargs)
 
     resolved_curriculum = curriculum or make_curriculum(

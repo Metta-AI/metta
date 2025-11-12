@@ -19,7 +19,6 @@ def build_llama_stack_from_model(
     model: PreTrainedModel,
     *,
     mem_len: int = 0,
-    detach_on_trim: bool = True,
     compile_blocks: bool = False,
 ) -> CortexStack:
     """Build a CortexStack wrapping LLaMA decoder layers; expects float hidden_states and leaves embed/head in HF."""
@@ -34,7 +33,6 @@ def build_llama_stack_from_model(
         cell_cfg = HFLlamaLayerConfig(
             hidden_size=hidden_size,
             mem_len=int(mem_len),
-            detach_on_trim=bool(detach_on_trim),
         )
         # attach runtime objects on the config (CellConfig allows extra fields)
         setattr(cell_cfg, "hf_layer", layer)
@@ -59,7 +57,6 @@ def build_hf_stack(
     device: Optional[str | torch.device] = None,
     num_layers: Optional[int] = None,
     mem_len: int = 0,
-    detach_on_trim: bool = True,
     compile_blocks: bool = False,
 ) -> CortexStack:
     """Load a HF CausalLM (LLaMA) by name and return a CortexStack wrapping its layers."""
@@ -81,7 +78,6 @@ def build_hf_stack(
     return build_llama_stack_from_model(
         model,
         mem_len=mem_len,
-        detach_on_trim=detach_on_trim,
         compile_blocks=compile_blocks,
     )
 
