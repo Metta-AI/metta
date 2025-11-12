@@ -243,6 +243,30 @@ proc step*(
             #echo "going to key location to explore"
             return
 
+    # See if there is a chest nearby and it has resources we need.
+    # TODO: Waiting for chest features to be fixed.
+    # let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
+    # if chestNearby.isSome():
+    #   echo "chest features: ", agent.map[chestNearby.get()]
+    #   let
+    #     chestCarbon = agent.cfg.getOtherInventory(agent.map, chestNearby.get(), agent.cfg.features.invCarbon)
+    #     chestOxygen = agent.cfg.getOtherInventory(agent.map, chestNearby.get(), agent.cfg.features.invOxygen)
+    #     chestGermanium = agent.cfg.getOtherInventory(agent.map, chestNearby.get(), agent.cfg.features.invGermanium)
+    #     chestSilicon = agent.cfg.getOtherInventory(agent.map, chestNearby.get(), agent.cfg.features.invSilicon)
+    #     chestHeart = agent.cfg.getOtherInventory(agent.map, chestNearby.get(), agent.cfg.features.invHeart)
+    #   echo "chest nearby C ", chestCarbon, " O2 ", chestOxygen, " Ge ", chestGermanium, " Si ", chestSilicon, " H ", chestHeart
+    #   if invCarbon == 0 and chestCarbon > 0:
+    #     echo "carbon in chest, i want it"
+    #     if vibe != agent.cfg.vibes.carbon:
+    #       doAction(agent.cfg.actions.vibeCarbon.int32)
+    #       echo "vibing carbon"
+    #       return
+    #     let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
+    #     if action.isSome():
+    #       doAction(action.get().int32)
+    #       echo "going to chest to get carbon"
+    #       return
+
     # Is there carbon nearby?
     if invCarbon == 0:
       let carbonNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.carbonExtractor)
@@ -308,19 +332,6 @@ proc step*(
         doAction(action.get().int32)
         #echo "going to unseen location nearest to agent"
         return
-
-    # # Find the nearest unexplored location to the assembler.
-    # let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
-    # if assemblerNearby.isSome():
-    #   echo "assembler nearby"
-    #   let unseenNearby = agent.cfg.getNearbyUnseen(assemblerNearby.get(), agent.map, agent.seen)
-    #   if unseenNearby.isSome():
-    #     echo "unseen nearby"
-    #     let action = agent.cfg.aStar(agent.location, unseenNearby.get(), agent.map)
-    #     if action.isSome():
-    #       actions[agent.agentId] = action.get().int32
-    #       echo "going to unseen location"
-    #       return
 
     # If all else fails, take a random move to explore the map or get unstuck.
     let action = agent.random.rand(1 .. 4).int32
