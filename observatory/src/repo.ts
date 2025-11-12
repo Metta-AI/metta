@@ -1,4 +1,3 @@
-
 export type TokenInfo = {
   id: string
   name: string
@@ -403,5 +402,4 @@ export class ServerRepo implements Repo {
     const response = await this.apiCall<{ policy_ids: Record<string, string> }>(`/stats/policies/ids?${params}`)
     return response.policy_ids
   }
-
 }
