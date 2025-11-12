@@ -237,6 +237,8 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
           if sep >= 0 and sep + 1 < feature.name.len:
             let resource = feature.name[sep + 1 .. ^1]
             result.features.protocolOutputs[resource] = feature.id
+        elif feature.name == "agent:compass":
+          discard
         else:
           echo "Unknown feature: ", feature.name
 
@@ -253,7 +255,6 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
       of "move_east":
         result.actions.moveEast = id
       of "change_vibe_default":
-        echo "change_vibe_default: ", id
         result.actions.vibeDefault = id
       of "change_vibe_charger":
         result.actions.vibeCharger = id

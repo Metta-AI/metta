@@ -5,8 +5,9 @@ from datetime import datetime
 import numpy as np
 import pytest
 
-from cogames.evaluate import MissionEvaluationResult, _build_results_summary
+from cogames.evaluate import _build_results_summary
 from mettagrid.policy.policy import PolicySpec
+from mettagrid.simulator.multi_episode_rollout import MultiEpisodeRolloutResult
 
 
 def test_build_results_summary_multi_mission_policy_episode() -> None:
@@ -15,52 +16,66 @@ def test_build_results_summary_multi_mission_policy_episode() -> None:
         PolicySpec(policy_class_path="cogames.policy.MockPolicy", policy_data_path=None, proportion=1.0),
     ]
 
-    mission_one = MissionEvaluationResult(
-        mission_name="mission_one",
-        policy_counts=[2, 1],
-        policy_names=["MockPolicy", "MockPolicy"],
-        summed_policy_stats=[
-            {"stat_a": 10.0, "stat_b": 6.0},
-            {"stat_a": 9.0},
+    mission_one = MultiEpisodeRolloutResult(
+        assignments=[
+            np.array([0, 0, 1], dtype=int),
+            np.array([0, 0, 1], dtype=int),
         ],
-        avg_game_stats={"game_metric": 4.0, "failures": 1.0},
-        per_episode_rewards=[
+        rewards=[
             np.array([2.0, 4.0, 3.0], dtype=float),
             np.array([1.0, 5.0, 6.0], dtype=float),
         ],
-        per_episode_assignments=[
-            np.array([0, 0, 1], dtype=int),
-            np.array([0, 0, 1], dtype=int),
+        action_timeouts=[
+            np.array([1.0, 0.0, 1.0], dtype=float),
+            np.array([0.0, 0.0, 1.0], dtype=float),
         ],
-        per_policy_timeouts=np.array([1, 2], dtype=int),
-        episodes=2,
+        stats=[
+            {
+                "game": {"game_metric": 4.0, "failures": 1.0},
+                "agent": [{"stat_a": 2.0, "stat_b": 1.0}, {"stat_a": 2.0, "stat_b": 1.0}, {"stat_a": 4.0}],
+            },
+            {
+                "game": {"game_metric": 4.0, "failures": 1.0},
+                "agent": [{"stat_a": 3.0, "stat_b": 2.0}, {"stat_a": 3.0, "stat_b": 2.0}, {"stat_a": 5.0}],
+            },
+        ],
     )
 
-    mission_two = MissionEvaluationResult(
-        mission_name="mission_two",
-        policy_counts=[1, 2],
-        policy_names=["MockPolicy", "MockPolicy"],
-        summed_policy_stats=[
-            {"stat_a": 12.0},
-            {"stat_a": 18.0, "stat_b": 9.0},
-        ],
-        avg_game_stats={"game_metric": 6.0},
-        per_episode_rewards=[
-            np.array([10.0, 2.0, 4.0], dtype=float),
-            np.array([8.0, 6.0, 2.0], dtype=float),
-            np.array([3.0, 12.0, 6.0], dtype=float),
-        ],
-        per_episode_assignments=[
+    mission_two = MultiEpisodeRolloutResult(
+        assignments=[
             np.array([0, 1, 1], dtype=int),
             np.array([1, 0, 1], dtype=int),
             np.array([1, 1, 0], dtype=int),
         ],
-        per_policy_timeouts=np.array([0, 5], dtype=int),
-        episodes=3,
+        rewards=[
+            np.array([10.0, 2.0, 4.0], dtype=float),
+            np.array([8.0, 6.0, 2.0], dtype=float),
+            np.array([3.0, 12.0, 6.0], dtype=float),
+        ],
+        action_timeouts=[
+            np.array([0.0, 2.0, 1.0], dtype=float),
+            np.array([2.0, 0.0, 0.0], dtype=float),
+            np.array([0.0, 0.0, 0.0], dtype=float),
+        ],
+        stats=[
+            {
+                "game": {"game_metric": 6.0},
+                "agent": [{"stat_a": 3.0}, {"stat_a": 2.0, "stat_b": 1.0}, {"stat_a": 4.0, "stat_b": 2.0}],
+            },
+            {
+                "game": {"game_metric": 6.0},
+                "agent": [{"stat_a": 3.0, "stat_b": 1.0}, {"stat_a": 4.0}, {"stat_a": 4.0, "stat_b": 2.0}],
+            },
+            {
+                "game": {"game_metric": 6.0},
+                "agent": [{"stat_a": 2.0, "stat_b": 1.0}, {"stat_a": 3.0, "stat_b": 2.0}, {"stat_a": 5.0}],
+            },
+        ],
     )
 
     summary = _build_results_summary(
         mission_results=[mission_one, mission_two],
+        mission_names=["mission_one", "mission_two"],
         policy_specs=policy_specs,
     )
 

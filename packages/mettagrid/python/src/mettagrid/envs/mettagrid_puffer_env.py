@@ -40,6 +40,7 @@ from mettagrid.mettagrid_c import (
     dtype_truncations,
 )
 from mettagrid.policy.loader import initialize_or_load_policy, resolve_policy_class_path
+from mettagrid.policy.policy import AgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Simulation, Simulator
 from mettagrid.simulator.simulator import Buffers
@@ -101,7 +102,7 @@ class MettaGridPufferEnv(PufferEnv):
         self.single_action_space: Discrete = policy_env_info.action_space
 
         self._env_supervisor_policy = None
-        self._env_supervisor_agent_policies = []
+        self._env_supervisor: AgentPolicy | None = None
         self._new_sim()
         self.num_agents: int = self._sim.num_agents
 
@@ -128,18 +129,16 @@ class MettaGridPufferEnv(PufferEnv):
 
         self._sim = self._simulator.new_simulation(self._current_cfg, self._current_seed, buffers=self._buffers)
 
+        self._env_supervisor = None
+
         if self._env_supervisor_cfg.policy is not None:
             self._env_supervisor_policy = initialize_or_load_policy(
                 PolicyEnvInterface.from_mg_cfg(self._current_cfg),
                 resolve_policy_class_path(self._env_supervisor_cfg.policy),
                 self._env_supervisor_cfg.policy_data_path,
             )
-            self._env_supervisor_agent_policies = [
-                self._env_supervisor_policy.agent_policy(agent_id)
-                for agent_id in range(self._current_cfg.game.num_agents)
-            ]
-            for agent_policy in self._env_supervisor_agent_policies:
-                agent_policy.reset(self._sim)
+            self._env_supervisor = self._env_supervisor_policy.agent_policy(agent_id=0)
+            self._env_supervisor.reset(self._sim)
 
             self._compute_supervisor_actions()
 
@@ -173,15 +172,12 @@ class MettaGridPufferEnv(PufferEnv):
         )
 
     def _compute_supervisor_actions(self) -> None:
-        if not self._env_supervisor_agent_policies:
+        if self._env_supervisor is None:
             return
 
-        teacher_actions = np.zeros(self._current_cfg.game.num_agents, dtype=dtype_actions)
+        teacher_actions = self._buffers.teacher_actions
         raw_observations = self._buffers.observations
-        for agent_policy in self._env_supervisor_agent_policies:
-            agent_policy.step_batch(raw_observations, teacher_actions)
-
-        self._buffers.teacher_actions[:] = teacher_actions
+        self._env_supervisor.step_batch(raw_observations, teacher_actions)
 
     @property
     def observations(self) -> np.ndarray:
