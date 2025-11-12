@@ -59,6 +59,27 @@ type
     lastSnapshot: Option[AgentSnapshot]
     randomizer: Rand
 
+  SignalActionKind = enum
+    sakVibeCarbon,
+    sakVibeOxygen,
+    sakVibeGermanium,
+    sakVibeSilicon,
+    sakVibeWall,
+    sakVibeAssembler,
+    sakVibeChest,
+    sakVibeGear
+
+  InitSignalKind = enum
+    iskResource,
+    iskDirection
+
+  InitSignal = object
+    name: string
+    kind: InitSignalKind
+    actionKind: SignalActionKind
+    resource: Option[ResourceKind]
+    heading: Option[Location]
+
   RaceCarAgent* = ref object
     agentId*: int
     map: Table[Location, seq[FeatureValue]]
@@ -76,12 +97,82 @@ type
     lastInventorySample: Table[ResourceKind, int]
     lastHeartInventory: int
     lastActions: seq[int]
+    initSignalName: string
+    initHeading: Option[Location]
+    headingObjective: Option[Location]
+    initResourceFocus: Option[ResourceKind]
+    initPhaseTicks: int
+    initPhaseDone: bool
+    lastActions: seq[int]
 
 const
   defaultInventoryCapacity = 100
   maxStackSizePerResource = 50
   defaultChestTarget = 100
   HeartResources = [rkCarbon, rkOxygen, rkGermanium, rkSilicon]
+  InitPhaseDuration = 6
+
+const InitSignals: array[0 .. 7, InitSignal] = [
+  InitSignal(
+    name: "resource_carbon",
+    kind: iskResource,
+    actionKind: sakVibeCarbon,
+    resource: some(rkCarbon),
+    heading: none(Location)
+  ),
+  InitSignal(
+    name: "resource_oxygen",
+    kind: iskResource,
+    actionKind: sakVibeOxygen,
+    resource: some(rkOxygen),
+    heading: none(Location)
+  ),
+  InitSignal(
+    name: "resource_germanium",
+    kind: iskResource,
+    actionKind: sakVibeGermanium,
+    resource: some(rkGermanium),
+    heading: none(Location)
+  ),
+  InitSignal(
+    name: "resource_silicon",
+    kind: iskResource,
+    actionKind: sakVibeSilicon,
+    resource: some(rkSilicon),
+    heading: none(Location)
+  ),
+  InitSignal(
+    name: "direction_north",
+    kind: iskDirection,
+    actionKind: sakVibeWall,
+    resource: none(ResourceKind),
+    heading: some(Location(x: 0, y: -1))
+  ),
+  InitSignal(
+    name: "direction_south",
+    kind: iskDirection,
+    actionKind: sakVibeAssembler,
+    resource: none(ResourceKind),
+    heading: some(Location(x: 0, y: 1))
+  ),
+  InitSignal(
+    name: "direction_east",
+    kind: iskDirection,
+    actionKind: sakVibeChest,
+    resource: none(ResourceKind),
+    heading: some(Location(x: 1, y: 0))
+  ),
+  InitSignal(
+    name: "direction_west",
+    kind: iskDirection,
+    actionKind: sakVibeGear,
+    resource: none(ResourceKind),
+    heading: some(Location(x: -1, y: 0))
+  )
+]
+
+var initSignalOwners = initTable[string, int]()
+var initSignalAssignments = initTable[int, string]()
 
 proc resourceQuota(resource: ResourceKind): int =
   case resource
@@ -238,6 +329,65 @@ proc cloneResourceTable(source: Table[ResourceKind, int]): Table[ResourceKind, i
 proc chebyshevDistance(a, b: Location): int =
   max(abs(a.x - b.x), abs(a.y - b.y))
 
+proc signalInfo(name: string): InitSignal =
+  for signal in InitSignals:
+    if signal.name == name:
+      return signal
+  InitSignals[0]
+
+proc resolveSignalAction(cfg: Config, actionKind: SignalActionKind): int =
+  case actionKind
+  of sakVibeCarbon:
+    cfg.actions.vibeCarbon
+  of sakVibeOxygen:
+    cfg.actions.vibeOxygen
+  of sakVibeGermanium:
+    cfg.actions.vibeGermanium
+  of sakVibeSilicon:
+    cfg.actions.vibeSilicon
+  of sakVibeWall:
+    cfg.actions.vibeWall
+  of sakVibeAssembler:
+    cfg.actions.vibeAssembler
+  of sakVibeChest:
+    cfg.actions.vibeChest
+  of sakVibeGear:
+    cfg.actions.vibeGear
+
+proc releaseInitSignal(agent: RaceCarAgent) =
+  if agent.initSignalName.len > 0:
+    if initSignalOwners.getOrDefault(agent.initSignalName, agent.agentId) == agent.agentId:
+      initSignalOwners.del(agent.initSignalName)
+    initSignalAssignments.del(agent.agentId)
+    agent.initSignalName = ""
+
+proc assignInitSignal(agent: RaceCarAgent) =
+  var available: seq[InitSignal]
+  for signal in InitSignals:
+    if not initSignalOwners.hasKey(signal.name):
+      available.add(signal)
+  if available.len == 0:
+    available = @InitSignals
+  let idx = agent.random.rand(0 ..< available.len)
+  let choice = available[idx]
+  initSignalAssignments[agent.agentId] = choice.name
+  initSignalOwners[choice.name] = agent.agentId
+  agent.initSignalName = choice.name
+  agent.initHeading = choice.heading
+  if choice.kind == iskResource:
+    agent.initResourceFocus = choice.resource
+  else:
+    agent.initResourceFocus = none(ResourceKind)
+  agent.headingObjective = none(Location)
+
+proc ensureUniqueSignal(agent: RaceCarAgent) =
+  if agent.initSignalName.len == 0 or not initSignalAssignments.hasKey(agent.agentId):
+    assignInitSignal(agent)
+    return
+  let owner = initSignalOwners.getOrDefault(agent.initSignalName, agent.agentId)
+  if owner != agent.agentId:
+    assignInitSignal(agent)
+
 proc initPriorityFields(agent: RaceCarAgent) =
   agent.planner = newPriorityAgent(agent.agentId)
   agent.chestInventory = initTable[ResourceKind, int]()
@@ -250,6 +400,11 @@ proc initPriorityFields(agent: RaceCarAgent) =
   agent.chestHearts = 0
   agent.lastInventorySample = initTable[ResourceKind, int]()
   agent.lastHeartInventory = 0
+  agent.initPhaseTicks = 0
+  agent.initPhaseDone = false
+  agent.headingObjective = none(Location)
+  agent.initHeading = none(Location)
+  agent.initResourceFocus = none(ResourceKind)
 
 proc recordInventorySnapshot(agent: RaceCarAgent, snapshot: var AgentSnapshot) =
   if agent.lastInventorySample.len == 0:
@@ -479,6 +634,33 @@ proc interactWithChest(agent: RaceCarAgent, target: Option[Location]): int32 =
     return agent.moveTowards(coord)
   agent.exploreAction()
 
+proc finalizeInitHeading(agent: RaceCarAgent) =
+  if agent.initHeading.isSome and agent.headingObjective.isNone:
+    let heading = agent.initHeading.get()
+    let objective = Location(x: agent.location.x + heading.x * 4, y: agent.location.y + heading.y * 4)
+    agent.headingObjective = some(objective)
+
+proc handleInitPhase(
+  agent: RaceCarAgent,
+  actions: ptr UncheckedArray[int32],
+  actionIndex: int
+): bool =
+  if agent.initPhaseDone:
+    return false
+
+  ensureUniqueSignal(agent)
+  let signal = signalInfo(agent.initSignalName)
+  let vibeAction = resolveSignalAction(agent.cfg, signal.actionKind)
+  let stabilized = agent.stabilizeAction(vibeAction.int32)
+  actions[actionIndex] = stabilized
+  inc agent.initPhaseTicks
+
+  let owner = initSignalOwners.getOrDefault(agent.initSignalName, agent.agentId)
+  if agent.initPhaseTicks >= InitPhaseDuration and owner == agent.agentId:
+    agent.initPhaseDone = true
+    finalizeInitHeading(agent)
+  return true
+
 proc chooseAction(agent: RaceCarAgent, taskOpt: Option[PriorityTask]): int32 =
   if taskOpt.isNone:
     return agent.exploreAction()
@@ -536,6 +718,7 @@ proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent {.r
 
 proc reset*(agent: RaceCarAgent) =
   echo "Resetting race car agent ", agent.agentId
+  releaseInitSignal(agent)
   agent.map.clear()
   agent.seen.clear()
   agent.location = Location(x: 0, y: 0)
@@ -633,6 +816,9 @@ proc raceCarStepInternal(
     updateMap(agent, map)
     echo "updated map:"
     agent.cfg.drawMap(agent.map, agent.seen)
+
+    if handleInitPhase(agent, actions, actionIndex):
+      return
 
     let vibe = agent.cfg.getVibe(map)
     echo "vibe: ", vibe
