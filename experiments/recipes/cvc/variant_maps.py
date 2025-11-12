@@ -167,9 +167,11 @@ def make_curriculum(
         algorithm_config=algorithm_config,
     )
 
-    # Allow tasks to be evicted after fewer presentations to enable faster LP updates
-    # With duplicate tasks, we want rapid turnover to accumulate label-level statistics
-    curriculum_config.min_presentations_for_eviction = 2
+    # Set eviction threshold to allow LP scores to stabilize before eviction
+    # With min_samples_for_lp=2, tasks start calculating LP after 2 completions
+    # We need additional completions for LP to influence sampling distribution
+    # Setting to 5 gives 3 completions where LP actively guides task selection
+    curriculum_config.min_presentations_for_eviction = 5
 
     return curriculum_config
 
