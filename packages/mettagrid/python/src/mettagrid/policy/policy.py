@@ -143,6 +143,11 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
         self._default_subset = subset
         self._default_subset_ptr = subset.ctypes.data_as(ctypes.POINTER(ctypes.c_int32)) if subset.size > 0 else None
         self._default_subset_len = subset.size
+        self._subset_arrays: dict[int, np.ndarray] = {
+            agent_id: np.array([agent_id], dtype=np.int32) for agent_id in self._agent_ids
+        }
+        self._scratch_obs = np.empty((self._num_agents, *obs_shape), dtype=dtype_observations)
+        self._scratch_actions = np.zeros(self._num_agents, dtype=np.int32)
 
     @property
     def agent_ids(self) -> set[int]:
@@ -171,6 +176,24 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
     def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
         self._invoke_step(raw_observations, raw_actions, subset=None)
 
+    def _pack_observation(self, target: np.ndarray, obs: AgentObservation) -> None:
+        target.fill(255)
+        for idx, token in enumerate(obs.tokens):
+            if idx >= self._num_tokens:
+                break
+            token_values = token.raw_token
+            target[idx, : len(token_values)] = token_values
+
+    def step_single(self, agent_id: int, obs: AgentObservation) -> int:
+        if agent_id not in self._agent_ids:
+            raise ValueError(f"Agent id {agent_id} not handled by {self.__class__.__name__}")
+        target = self._scratch_obs[agent_id]
+        self._pack_observation(target, obs)
+        self._scratch_actions.fill(0)
+        subset_array = self._subset_arrays[agent_id]
+        self._invoke_step(self._scratch_obs, self._scratch_actions, subset=subset_array)
+        return int(self._scratch_actions[agent_id])
+
     def agent_policy(self, agent_id: int) -> "NimAgentPolicyBase":
         if agent_id not in self._agent_ids:
             raise ValueError(f"Agent id {agent_id} not handled by {self.__class__.__name__}")
@@ -188,29 +211,10 @@ class NimAgentPolicyBase(AgentPolicy):
         super().__init__(parent.policy_env_info)
         self._parent = parent
         self._agent_id = agent_id
-        self._num_agents = parent._num_agents
-        self._num_tokens = parent._num_tokens
-        self._token_dim = parent._token_dim
-        obs_shape = parent._obs_shape
-        self._batch_obs = np.empty((self._num_agents, *obs_shape), dtype=dtype_observations)
-        self._batch_actions = np.zeros(self._num_agents, dtype=np.int32)
         self._action_names = parent.policy_env_info.action_names
-        self._single_subset = np.array([agent_id], dtype=np.int32)
-
-    def _pack_observation(self, target: np.ndarray, obs: AgentObservation) -> None:
-        target.fill(255)
-        for idx, token in enumerate(obs.tokens):
-            if idx >= self._num_tokens:
-                break
-            token_values = token.raw_token
-            target[idx, : len(token_values)] = token_values
 
     def step(self, obs: AgentObservation) -> Action:
-        self._batch_obs.fill(255)
-        self._pack_observation(self._batch_obs[self._agent_id], obs)
-        self._batch_actions.fill(0)
-        self._parent._invoke_step(self._batch_obs, self._batch_actions, subset=self._single_subset)
-        action_index = int(self._batch_actions[self._agent_id])
+        action_index = self._parent.step_single(self._agent_id, obs)
         return Action(name=self._action_names[action_index])
 
     def reset(self) -> None:
