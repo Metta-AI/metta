@@ -147,10 +147,15 @@ def _walk_and_import_package(package_name: str) -> None:
     if package_path is None:
         return
 
+    def _should_skip(module_name: str) -> bool:
+        return ".bindings" in module_name
+
     # Check all paths (packages can have multiple paths)
     for path in package_path:
         # Use iter_modules to find modules and packages
         for _finder, name, ispkg in pkgutil.iter_modules([path], package_name + "."):
+            if _should_skip(name):
+                continue
             try:
                 importlib.import_module(name)
                 # If it's a package, recursively discover its submodules
@@ -167,6 +172,8 @@ def _walk_and_import_package(package_name: str) -> None:
                 item_path = os.path.join(path, item)
                 if os.path.isdir(item_path) and not item.startswith("__") and not item.startswith("."):
                     namespace_name = f"{package_name}.{item}"
+                    if _should_skip(namespace_name):
+                        continue
                     # Try to import as a namespace package
                     try:
                         importlib.import_module(namespace_name)
@@ -183,5 +190,5 @@ def _walk_and_import_package(package_name: str) -> None:
 # Discover and import policy modules from all policy packages
 # This allows policies to register themselves without creating hard dependencies
 def discover_and_register_policies(*packages: str) -> None:
-    for package_name in ["mettagrid.policy", "metta.agent.policy", *packages]:
+    for package_name in ["mettagrid.policy", "metta.agent.policy", "cogames.policy", *packages]:
         _walk_and_import_package(package_name)

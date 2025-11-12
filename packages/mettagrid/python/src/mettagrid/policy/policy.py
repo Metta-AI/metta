@@ -45,6 +45,15 @@ class AgentPolicy:
         """Reset the policy state. Default implementation does nothing."""
         pass
 
+    def step_batch(self, raw_observations, raw_actions) -> None:
+        """Optional fast-path for policies that consume raw buffers.
+
+        Policies that support raw NumPy pointers should override this method.
+        The default implementation raises so callers get a clear error if a
+        policy without batch support is used in a context that requires it."""
+
+        raise NotImplementedError(f"{self.__class__.__name__} does not implement step_batch.")
+
 
 class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
     """Abstract base class for multi-agent policies.
