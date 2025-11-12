@@ -4,7 +4,6 @@ import { ServerRepo, Repo } from './repo'
 import { TokenManager } from './TokenManager'
 import { SQLQuery } from './SQLQuery'
 import { TrainingRuns } from './TrainingRuns'
-import { TrainingRunDetail } from './TrainingRunDetail'
 import { EvalTasks } from './EvalTasks'
 import { config } from './config'
 
@@ -202,7 +201,6 @@ function App() {
         <div className="page-container">
           <Routes>
             <Route path="/training-runs" element={<TrainingRuns repo={state.repo} />} />
-            <Route path="/training-run/:runId" element={<TrainingRunDetail repo={state.repo} />} />
             <Route path="/eval-tasks" element={<EvalTasks repo={state.repo} />} />
             <Route path="/tokens" element={<TokenManager repo={state.repo} />} />
             <Route path="/sql-query" element={<SQLQuery repo={state.repo} />} />
