@@ -71,10 +71,6 @@ class _NimAgentPolicyBase(AgentPolicy):
         action_index = int(self._batch_actions[self._agent_id])
         return Action(name=self._action_names[action_index])
 
-    def reset(self, simulation: Optional[Simulation] = None) -> None:
-        agent = self._require_agent()
-        agent.reset()
-
 
 class RandomAgentPolicy(_NimAgentPolicyBase):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):

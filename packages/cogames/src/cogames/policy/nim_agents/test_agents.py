@@ -25,7 +25,6 @@ def main() -> None:
     print(actions)
     single_action = agent.step(num_tokens, size_token, observations[0].ctypes.data)
     print(single_action)
-    agent.reset()
 
 
 if __name__ == "__main__":

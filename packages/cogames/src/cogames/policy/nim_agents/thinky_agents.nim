@@ -21,12 +21,6 @@ proc newThinkyAgent*(agentId: int, environmentConfig: string): ThinkyAgent {.rai
   result = ThinkyAgent(agentId: agentId, cfg: config)
   result.random = initRand(agentId)
 
-proc reset*(agent: ThinkyAgent) =
-  #echo "Resetting heuristic agent ", agent.agentId
-  agent.map.clear()
-  agent.seen.clear()
-  agent.location = Location(x: 0, y: 0)
-
 proc updateMap(agent: ThinkyAgent, visible: Table[Location, seq[FeatureValue]]) =
   ## Update the big map with the small visible map.
 
