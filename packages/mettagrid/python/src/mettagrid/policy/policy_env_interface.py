@@ -1,5 +1,6 @@
 """Policy environment interface for providing environment information to policies."""
 
+import json
 from typing import ClassVar
 
 import gymnasium as gym
@@ -75,4 +76,7 @@ class PolicyEnvInterface(BaseModel):
 
     def to_json(self) -> str:
         """Convert PolicyEnvInterface to JSON."""
-        return self.model_dump_json(mode="json")
+        payload = self.model_dump(mode="json", include={"num_agents", "obs_width", "obs_height", "tags"})
+        payload["actions"] = self.action_names
+        payload["obs_features"] = [feature.model_dump(mode="json") for feature in self.obs_features]
+        return json.dumps(payload)
