@@ -1,5 +1,5 @@
 import
-  std/[tables, random, sets],
+  std/[strformat, tables, random, sets],
   common
 
 type
