@@ -85,7 +85,6 @@ type
   Features* = object
     group*: int
     frozen*: int
-    orientation*: int
     reservedForFutureUse*: int
     converting*: int
     episodeCompletionPct*: int
@@ -190,8 +189,6 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
         result.features.group = feature.id
       of "agent:frozen":
         result.features.frozen = feature.id
-      of "agent:orientation":
-        result.features.orientation = feature.id
       of "agent:reserved_for_future_use":
         result.features.reservedForFutureUse = feature.id
       of "converting":
@@ -344,15 +341,6 @@ proc drawMap*(cfg: Config, map: Table[Location, seq[FeatureValue]], seen: HashSe
         cell = "~~"
       if location in map:
         for featureValue in map[location]:
-          if featureValue.featureId == cfg.features.orientation:
-            if featureValue.value == 0:
-              cell = "@N"
-            elif featureValue.value == 1:
-              cell = "@E"
-            elif featureValue.value == 2:
-              cell = "@S"
-            elif featureValue.value == 3:
-              cell = "@W"
           if featureValue.featureId == cfg.features.group:
             if featureValue.value == 0:
               cell = "@" & ($featureValue.value)[0]

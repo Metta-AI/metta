@@ -18,7 +18,6 @@ public:
     // Cache commonly used feature IDs (all are always present now)
     _group = get("agent:group");
     _frozen = get("agent:frozen");
-    _orientation = get("agent:orientation");
     _reserved_for_future_use = get("agent:reserved_for_future_use");
     _converting = get("converting");
     _episode_completion_pct = get("episode_completion_pct");
@@ -36,8 +35,6 @@ public:
     // Initialize public members (must be done AFTER private members are set above)
     Group = _group;
     Frozen = _frozen;
-    Orientation = _orientation;
-    ReservedForFutureUse = _reserved_for_future_use;
     ConvertingOrCoolingDown = _converting;
     EpisodeCompletionPct = _episode_completion_pct;
     LastAction = _last_action;
@@ -69,8 +66,6 @@ public:
   // Commonly used feature IDs (cached for performance)
   ObservationType Group;
   ObservationType Frozen;
-  ObservationType Orientation;
-  ObservationType ReservedForFutureUse;
   ObservationType ConvertingOrCoolingDown;
   ObservationType EpisodeCompletionPct;
   ObservationType LastAction;
@@ -90,7 +85,6 @@ private:
   // Cached feature IDs
   ObservationType _group;
   ObservationType _frozen;
-  ObservationType _orientation;
   ObservationType _reserved_for_future_use;
   ObservationType _converting;
   ObservationType _episode_completion_pct;
@@ -118,8 +112,6 @@ void Initialize(const std::unordered_map<std::string, ObservationType>& feature_
 // These are extern variables defined in observation_features.cpp
 extern ObservationType Group;
 extern ObservationType Frozen;
-extern ObservationType Orientation;
-extern ObservationType ReservedForFutureUse;
 extern ObservationType ConvertingOrCoolingDown;
 extern ObservationType EpisodeCompletionPct;
 extern ObservationType LastAction;
