@@ -156,6 +156,19 @@ proc generateSpiral*(count: int): seq[Location] =
 
 const spiral* = generateSpiral(1000)
 
+proc registerProtocolFeature(feature: ConfigFeature; prefix: string;
+    dest: var Table[string, int]): bool =
+  ## Store protocol input/output features keyed by their resource suffix.
+  if not feature.name.startsWith(prefix):
+    return false
+  if feature.name.len <= prefix.len:
+    echo "Protocol feature missing resource suffix: ", feature.name
+    return true
+
+  let resource = feature.name[prefix.len .. ^1]
+  dest[resource] = feature.id
+  return true
+
 proc ctrlCHandler*() {.noconv.} =
   ## Handle ctrl-c signal to exit cleanly.
   echo "\nNim DLL caught ctrl-c, exiting..."
@@ -229,16 +242,12 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
       of "inv:scrambler":
         result.features.invScrambler = feature.id
       else:
-        if feature.name.startsWith("protocol_input:"):
-          let sep = feature.name.find(':')
-          if sep >= 0 and sep + 1 < feature.name.len:
-            let resource = feature.name[sep + 1 .. ^1]
-            result.features.protocolInputs[resource] = feature.id
-        elif feature.name.startsWith("protocol_output:"):
-          let sep = feature.name.find(':')
-          if sep >= 0 and sep + 1 < feature.name.len:
-            let resource = feature.name[sep + 1 .. ^1]
-            result.features.protocolOutputs[resource] = feature.id
+        if registerProtocolFeature(feature, "protocol_input:",
+            result.features.protocolInputs):
+          discard
+        elif registerProtocolFeature(feature, "protocol_output:",
+            result.features.protocolOutputs):
+          discard
         else:
           echo "Unknown feature: ", feature.name
 

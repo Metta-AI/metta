@@ -19,23 +19,23 @@ type
   RaceCarPolicy* = ref object
     agents*: seq[RaceCarAgent]
 
-proc newRandomPolicy*(environmentConfig: string): RandomPolicy {.raises: [].} =
+proc buildAgents[T](
+    environmentConfig: string,
+    factory: proc (id: int, config: string): T {.raises: [].}
+): seq[T] {.raises: [].} =
   let cfg = parseConfig(environmentConfig)
-  result = RandomPolicy(agents: @[])
+  result = @[]
   for id in 0 ..< cfg.config.numAgents:
-    result.agents.add(newRandomAgent(id, environmentConfig))
+    result.add(factory(id, environmentConfig))
+
+proc newRandomPolicy*(environmentConfig: string): RandomPolicy {.raises: [].} =
+  RandomPolicy(agents: buildAgents(environmentConfig, newRandomAgent))
 
 proc newThinkyPolicy*(environmentConfig: string): ThinkyPolicy {.raises: [].} =
-  let cfg = parseConfig(environmentConfig)
-  result = ThinkyPolicy(agents: @[])
-  for id in 0 ..< cfg.config.numAgents:
-    result.agents.add(newThinkyAgent(id, environmentConfig))
+  ThinkyPolicy(agents: buildAgents(environmentConfig, newThinkyAgent))
 
 proc newRaceCarPolicy*(environmentConfig: string): RaceCarPolicy {.raises: [].} =
-  let cfg = parseConfig(environmentConfig)
-  result = RaceCarPolicy(agents: @[])
-  for id in 0 ..< cfg.config.numAgents:
-    result.agents.add(newRaceCarAgent(id, environmentConfig))
+  RaceCarPolicy(agents: buildAgents(environmentConfig, newRaceCarAgent))
 
 proc stepPolicyBatch[T](
     agents: seq[T],
