@@ -582,6 +582,6 @@ MIGRATIONS = [
             """DROP TABLE IF EXISTS saved_dashboards""",
             """DROP VIEW IF EXISTS wide_episodes""",
             """DROP VIEW IF EXISTS unified_training_runs""",
-        ]
-    )
+        ],
+    ),
 ]
