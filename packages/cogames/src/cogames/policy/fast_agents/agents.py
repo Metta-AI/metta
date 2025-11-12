@@ -150,8 +150,5 @@ class LadybugAgentsMultiPolicy(_FastAgentsMultiPolicyBase):
 
     short_names = [
         "ladybug",
-        "ladybug_fast",
-        "ladybug_nim",
-        "scripted_baseline_fast",
-        "scripted_baseline_nim",
+        "scripted_baseline",
     ]
