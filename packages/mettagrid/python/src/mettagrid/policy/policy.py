@@ -44,7 +44,7 @@ class AgentPolicy:
         """
         raise NotImplementedError("Subclasses must implement step()")
 
-    def reset(self, simulation: Optional[Simulation] = None) -> None:
+    def reset(self) -> None:
         """Reset the policy state. Default implementation does nothing."""
         pass
 
@@ -176,7 +176,7 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
             raise ValueError(f"Agent id {agent_id} not handled by {self.__class__.__name__}")
         return self._agent_policy_cls(self, agent_id)
 
-    def reset(self, simulation: Optional[Simulation] = None) -> None:
+    def reset(self) -> None:
         if self._handle_reset is not None:
             self._handle_reset()
 
@@ -213,8 +213,8 @@ class NimAgentPolicyBase(AgentPolicy):
         action_index = int(self._batch_actions[self._agent_id])
         return Action(name=self._action_names[action_index])
 
-    def reset(self, simulation: Optional[Simulation] = None) -> None:
-        self._parent.reset(simulation)
+    def reset(self) -> None:
+        self._parent.reset()
 
 
 class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
@@ -244,9 +244,9 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
         action, self._state = self._base_policy.step_with_state(obs, self._state)
         return action
 
-    def reset(self, simulation: Optional[Simulation] = None) -> None:
+    def reset(self) -> None:
         """Reset the hidden state to initial state."""
-        self._base_policy.reset(simulation)
+        self._base_policy.reset()
         self._state = self._base_policy.initial_agent_state()
 
 
@@ -258,7 +258,7 @@ class StatefulPolicyImpl(Generic[StateType]):
     and initial_agent_state() which returns the initial state for a new agent.
     """
 
-    def reset(self, simulation: Optional[Simulation]) -> None:
+    def reset(self) -> None:
         """Reset the policy."""
         pass
 
