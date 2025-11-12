@@ -9,6 +9,7 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -18,9 +19,9 @@ from metta.sweep.core import make_sweep
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
+from metta.tools.stub import StubTool
 from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
-from metta.tools.stub import StubTool
 from mettagrid import MettaGridConfig
 
 
@@ -64,7 +65,9 @@ def make_curriculum(
 
     # enable or disable attacks. we use cost instead of 'enabled'
     # to maintain action space consistency.
-    arena_tasks.add_bucket("game.actions.attack.consumed_resources.laser", [1, 100])
+
+    arena_tasks.add_bucket("game.agent.initial_inventory.ore_red", [0, 1, 3])
+    arena_tasks.add_bucket("game.agent.initial_inventory.battery_red", [0, 3])
 
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
@@ -96,6 +99,7 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
     policy_architecture: Optional[PolicyArchitecture] = None,
+    seed: int | None = None,
 ) -> TrainTool:
     curriculum = curriculum or make_curriculum(
         enable_detailed_slice_logging=enable_detailed_slice_logging
@@ -103,13 +107,18 @@ def train(
 
     eval_simulations = simulations()
     trainer_cfg = TrainerConfig()
+    seed_kwargs = {"seed": seed} if seed is not None else {}
+    training_env_cfg = TrainingEnvironmentConfig(curriculum=curriculum, **seed_kwargs)
 
     if policy_architecture is None:
         policy_architecture = ViTDefaultConfig()
 
+    system_cfg = SystemConfig(seed=seed) if seed is not None else SystemConfig()
+
     return TrainTool(
+        system=system_cfg,
         trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
+        training_env=training_env_cfg,
         evaluator=EvaluatorConfig(simulations=eval_simulations),
         policy_architecture=policy_architecture,
         torch_profiler=TorchProfilerConfig(),
@@ -170,29 +179,30 @@ def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
         policy_uris=[policy_uri],
     )
 
-def evaluate_stub(*args, **kwargs) -> StubTool: 
-    return StubTool() 
+def evaluate_stub(*args, **kwargs) -> StubTool:
+    return StubTool()
+
 
 def sweep(sweep_name: str) -> SweepTool:
     """
     Prototypical sweep function.
-    In your own recipe, you likely only ever need this. You can override other SweepTool parameters in the CLI.
+    In your own recipe, you likely only every need this. You can override other SweepTool parameters in the CLI.
 
     Example usage:
-        `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.baes.10081528" -- gpus=4 nodes=2`
+        `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.abes.10081528" -- gpus=4 nodes=2`
 
     We recommend running using local_test=True before running the sweep on the remote:
-        `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.baes.10081528.local_test" -- local_test=True`
+        `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.abes.10081528.local_test" -- local_test=True`
     This will run a quick local sweep and allow you to catch configuration bugs (NB: Unless those bugs are related to batch_size, minibatch_size, or hardware configuration).
     If this runs smoothly, you must launch the sweep on a remote sandbox (otherwise sweep progress will halt when you close your computer).
 
     Running on the remote:
         1 - Start a sweep controller sandbox: `./devops/skypilot/sandbox.py --sweep-controller`, and ssh into it.
-        2 - Clean git pollution: `git clean -fd && git stash`
+        2 - Clean git pollution: `git clean -df && git stash`
         3 - Ensure your sky credentials are present: `sky status` -- if not, follow the instructions on screen.
         4 - Install tmux on the sandbox `apt install tmux`
         5 - Launch tmux session: `tmux new -s sweep`
-        6 - Launch the sweep: `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.baes.10081528" -- gpus=4 nodes=2`
+        6 - Launch the sweep: `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.abes.10081528" --gpus=4 nodes=2`
         7 - Detach when you want: CTRL+B then d
         8 - Attach to look at status/output: `tmux attach -t sweep_configs`
 

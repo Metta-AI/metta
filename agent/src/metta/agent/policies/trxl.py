@@ -79,4 +79,9 @@ class TRXLConfig(PolicyArchitecture):
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
 
 
-__all__ = ["TRXLConfig"]
+def trxl_policy_config() -> PolicyArchitecture:
+    """Backward-compatible factory used by legacy recipes."""
+    return TRXLConfig()
+
+
+__all__ = ["TRXLConfig", "trxl_policy_config"]

@@ -92,7 +92,7 @@ def get_run(
     project: str = METTA_WANDB_PROJECT,
 ) -> Run | None:
     try:
-        api = wandb.Api(timeout=20)
+        api = wandb.Api(timeout=60)
     except Exception as e:  # noqa: BLE001
         print(f"Error connecting to W&B: {str(e)}")
         print("Make sure you are connected to W&B: `metta status`")

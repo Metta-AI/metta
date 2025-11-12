@@ -56,6 +56,18 @@ def _validate_sky_cluster_name(run_name: str) -> bool:
     return valid
 
 
+_PROD_BENCHMARK_PREFIX = "experiments.recipes.prod_benchmark."
+
+
+def _resolve_prod_benchmark_alias(module_path: str) -> tuple[str, bool]:
+    """Allow prod_benchmark recipes to reference their source recipes transparently."""
+    if module_path.startswith(_PROD_BENCHMARK_PREFIX):
+        fallback_path = module_path.replace(_PROD_BENCHMARK_PREFIX, "experiments.recipes.", 1)
+        if validate_module_path(fallback_path):
+            return fallback_path, True
+    return module_path, False
+
+
 def _validate_run_tool(module_path: str, run_id: str, filtered_args: list) -> bool:
     """Validate that run.py can successfully create a tool config with the given arguments.
 
@@ -244,6 +256,14 @@ Examples:
                 print(error_message, flush=True)
                 print("  - Skip check: add --skip-git-check flag", flush=True)
                 return 1
+
+    original_module_path = module_path
+    module_path, used_prod_alias = _resolve_prod_benchmark_alias(module_path)
+    if used_prod_alias:
+        print(
+            f"[INFO] Resolving prod_benchmark recipe '{original_module_path}' to '{module_path}'",
+            flush=True,
+        )
 
     # Validate module path (supports shorthand like 'arena.train' or two-token 'train arena')
     if not validate_module_path(module_path):
