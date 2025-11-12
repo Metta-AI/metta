@@ -102,7 +102,7 @@ class MettaGridPufferEnv(PufferEnv):
         self.single_observation_space: Box = policy_env_info.observation_space
         self.single_action_space: Discrete = policy_env_info.action_space
 
-        self._env_supervisor_policy: MultiAgentPolicy | None = None
+        self._env_supervisor: MultiAgentPolicy | None = None
         self._new_sim()
         self.num_agents: int = self._sim.num_agents
 
@@ -130,12 +130,12 @@ class MettaGridPufferEnv(PufferEnv):
         self._sim = self._simulator.new_simulation(self._current_cfg, self._current_seed, buffers=self._buffers)
 
         if self._env_supervisor_cfg.policy is not None:
-            self._env_supervisor_policy = initialize_or_load_policy(
+            self._env_supervisor = initialize_or_load_policy(
                 PolicyEnvInterface.from_mg_cfg(self._current_cfg),
                 resolve_policy_class_path(self._env_supervisor_cfg.policy),
                 self._env_supervisor_cfg.policy_data_path,
             )
-            self._env_supervisor_policy.reset(self._sim)
+            self._env_supervisor.reset(self._sim)
 
             self._compute_supervisor_actions()
 
@@ -168,12 +168,12 @@ class MettaGridPufferEnv(PufferEnv):
         )
 
     def _compute_supervisor_actions(self) -> None:
-        if self._env_supervisor_policy is None:
+        if self._env_supervisor is None:
             return
 
         teacher_actions = self._buffers.teacher_actions
         raw_observations = self._buffers.observations
-        self._env_supervisor_policy.step_batch(raw_observations, teacher_actions)
+        self._env_supervisor.step_batch(raw_observations, teacher_actions)
 
     @property
     def observations(self) -> np.ndarray:
