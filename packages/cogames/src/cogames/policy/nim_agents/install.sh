@@ -1,1 +1,1 @@
-nim c fast_agents.nim
+nim c nim_agents.nim

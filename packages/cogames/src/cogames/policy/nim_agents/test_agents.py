@@ -8,7 +8,7 @@ def main() -> None:
     current_dir = os.path.dirname(os.path.abspath(__file__))
     sys.path.append(os.path.join(current_dir, "bindings/generated"))
 
-    import fast_agents as fa
+    import nim_agents as fa
 
     # Initialize the DLL (sets control-c handler).
     fa.init()

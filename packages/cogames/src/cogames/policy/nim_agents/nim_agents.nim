@@ -33,6 +33,6 @@ exportRefObject RaceCarAgent:
     reset(RaceCarAgent)
     step(RaceCarAgent, int, int, int, pointer, int, pointer)
 
-writeFiles("bindings/generated", "FastAgents")
+writeFiles("bindings/generated", "NimAgents")
 
 include bindings/generated/internal

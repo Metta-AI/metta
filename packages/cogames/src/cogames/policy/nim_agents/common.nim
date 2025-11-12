@@ -163,7 +163,7 @@ proc ctrlCHandler*() {.noconv.} =
 
 proc initCHook*() =
   setControlCHook(ctrlCHandler)
-  echo "FastAgents initialized"
+  echo "NimAgents initialized"
 
 proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
   try:

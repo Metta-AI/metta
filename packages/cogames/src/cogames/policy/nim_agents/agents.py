@@ -15,7 +15,7 @@ bindings_dir = os.path.join(current_dir, "bindings/generated")
 if bindings_dir not in sys.path:
     sys.path.append(bindings_dir)
 
-fa = importlib.import_module("fast_agents")
+na = importlib.import_module("nim_agents")
 
 
 class _NimAgentPolicyBase(AgentPolicy):
@@ -79,7 +79,7 @@ class _NimAgentPolicyBase(AgentPolicy):
 class RandomAgentPolicy(_NimAgentPolicyBase):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info, agent_id)
-        self._agent = fa.RandomAgent(agent_id, policy_env_info.to_json())
+        self._agent = na.RandomAgent(agent_id, policy_env_info.to_json())
 
 
 class _NimAgentsMultiPolicyBase(MultiAgentPolicy):
@@ -111,7 +111,7 @@ class RandomAgentsMultiPolicy(_NimAgentsMultiPolicyBase):
 class ThinkyAgentPolicy(_NimAgentPolicyBase):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info, agent_id)
-        self._agent = fa.ThinkyAgent(agent_id, policy_env_info.to_json())
+        self._agent = na.ThinkyAgent(agent_id, policy_env_info.to_json())
 
 
 class ThinkyAgentsMultiPolicy(_NimAgentsMultiPolicyBase):
@@ -124,7 +124,7 @@ class ThinkyAgentsMultiPolicy(_NimAgentsMultiPolicyBase):
 class RaceCarAgentPolicy(_NimAgentPolicyBase):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info, agent_id)
-        self._agent = fa.RaceCarAgent(agent_id, policy_env_info.to_json())
+        self._agent = na.RaceCarAgent(agent_id, policy_env_info.to_json())
 
 
 class RaceCarAgentsMultiPolicy(_NimAgentsMultiPolicyBase):
