@@ -27,6 +27,7 @@ class ThinkyAgentsMultiPolicy(NimMultiAgentPolicy):
             reset_name="thinky_policy_reset",
         )
 
+
 class RandomAgentsMultiPolicy(NimMultiAgentPolicy):
     short_names = ["nim_random"]
 
@@ -39,6 +40,7 @@ class RandomAgentsMultiPolicy(NimMultiAgentPolicy):
             agent_ids=agent_ids,
             reset_name="random_policy_reset",
         )
+
 
 class RaceCarAgentsMultiPolicy(NimMultiAgentPolicy):
     short_names = ["nim_race_car"]
