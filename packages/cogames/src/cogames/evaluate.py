@@ -7,7 +7,7 @@ import math
 import re
 from collections import defaultdict
 from datetime import datetime
-from typing import TYPE_CHECKING, Literal, Optional
+from typing import TYPE_CHECKING, Callable, Literal, Optional
 
 import numpy as np
 import typer
@@ -30,6 +30,15 @@ else:
 EpisodeStats = EpisodeStatsType  # type: ignore[assignment]
 
 _SKIP_STATS = [r"^action\.invalid_arg\..+$"]
+
+ProgressCallback = Callable[[int], None]
+
+
+class MultiEpisodeRolloutResult(BaseModel):
+    assignments: list[np.ndarray]
+    rewards: list[np.ndarray]
+    action_timeouts: list[np.ndarray]
+    stats: list["EpisodeStats"]
 
 
 class RawMissionEvaluationResult(BaseModel):
@@ -80,7 +89,8 @@ class MissionResultsSummary(BaseModel):
 
 
 def _build_results_summary(
-    mission_results: list[RawMissionEvaluationResult],
+    mission_results: list[MultiEpisodeRolloutResult],
+    mission_names: list[str],
     policy_specs: list[PolicySpec],
 ) -> MissionResultsSummary:
     if not mission_results:
@@ -90,8 +100,8 @@ def _build_results_summary(
     num_policies = len(policy_specs)
     summaries: list[MissionSummary] = []
 
-    for mission_result in mission_results:
-        per_episode_assignments = mission_result.per_episode_assignments
+    for mission_idx, mission_result in enumerate(mission_results):
+        per_episode_assignments = mission_result.assignments
         policy_counts = (
             np.bincount(np.asarray(per_episode_assignments[0], dtype=int), minlength=num_policies)
             if per_episode_assignments
@@ -102,7 +112,7 @@ def _build_results_summary(
         summed_policy_stats: list[defaultdict[str, float]] = [defaultdict(float) for _ in range(num_policies)]
 
         for stats, episode_assignments in zip(
-            mission_result.per_episode_stats,
+            mission_result.stats,
             per_episode_assignments,
             strict=False,
         ):
@@ -120,7 +130,7 @@ def _build_results_summary(
                         continue
                     summed_policy_stats[policy_idx][key] += float(value)
 
-        transpired_episodes = len(mission_result.per_episode_stats)
+        transpired_episodes = len(mission_result.stats)
         if transpired_episodes:
             avg_game_stats = {key: value / transpired_episodes for key, value in summed_game_stats.items()}
         else:
@@ -130,7 +140,7 @@ def _build_results_summary(
 
         per_episode_per_policy_avg_rewards: dict[int, list[float | None]] = {}
         for episode_idx, (rewards, episode_assignments) in enumerate(
-            zip(mission_result.per_episode_rewards, per_episode_assignments, strict=False)
+            zip(mission_result.rewards, per_episode_assignments, strict=False)
         ):
             per_policy_totals = np.zeros(num_policies, dtype=float)
             per_policy_counts = np.zeros(num_policies, dtype=int)
@@ -156,7 +166,7 @@ def _build_results_summary(
             action_timeouts = 0
             for episode_assignments, episode_timeouts in zip(
                 per_episode_assignments,
-                mission_result.per_episode_timeouts,
+                mission_result.action_timeouts,
                 strict=False,
             ):
                 for agent_index, timeout_count in enumerate(episode_timeouts):
@@ -176,7 +186,7 @@ def _build_results_summary(
 
         summaries.append(
             MissionSummary(
-                mission_name=mission_result.mission_name,
+                mission_name=mission_names[mission_idx],
                 episodes=transpired_episodes,
                 policy_summaries=policy_summaries,
                 avg_game_stats=avg_game_stats,
@@ -230,19 +240,30 @@ def evaluate(
         for mission_name in mission_names:
             console.print(f"- {mission_name}")
 
-    mission_results: list[RawMissionEvaluationResult] = []
+    mission_results: list[MultiEpisodeRolloutResult] = []
     for mission_name, env_cfg in missions:
-        results = multi_episode_rollout(
-            mission_name=mission_name,
-            env_cfg=env_cfg,
-            policy_specs=policy_specs,
-            episodes=episodes,
-            action_timeout_ms=action_timeout_ms,
-            seed=seed,
-        )
-        mission_results.append(results)
+        progress_label = f"Simulating ({mission_name})"
+        progress_iterable = range(episodes)
+        with typer.progressbar(progress_iterable, label=progress_label) as progress:
+            iterator = iter(progress)
 
-    summary = _build_results_summary(mission_results, policy_specs)
+            def _progress_callback(_: int, progress_iter=iterator) -> None:
+                try:
+                    next(progress_iter)
+                except StopIteration:
+                    pass
+
+            rollout_payload = multi_episode_rollout(
+                env_cfg=env_cfg,
+                policy_specs=policy_specs,
+                episodes=episodes,
+                action_timeout_ms=action_timeout_ms,
+                seed=seed,
+                progress_callback=_progress_callback,
+            )
+        mission_results.append(rollout_payload)
+
+    summary = _build_results_summary(mission_results, [mission_name for mission_name, _ in missions], policy_specs)
     _output_results(console, policy_specs, summary, output_format)
     return summary
 
@@ -342,13 +363,13 @@ def _output_results(
 
 
 def multi_episode_rollout(
-    mission_name: str,
     env_cfg: MettaGridConfig,
     policy_specs: list[PolicySpec],
     episodes: int,
     action_timeout_ms: int,
     seed: int,
-) -> RawMissionEvaluationResult:
+    progress_callback: ProgressCallback | None = None,
+) -> MultiEpisodeRolloutResult:
     policy_instances = [
         initialize_or_load_policy(
             PolicyEnvInterface.from_mg_cfg(env_cfg),
@@ -368,33 +389,34 @@ def multi_episode_rollout(
     per_episode_assignments: list[np.ndarray] = []
     per_episode_timeouts: list[np.ndarray] = []
     rng = np.random.default_rng(seed)
-    with typer.progressbar(range(episodes), label=f"Simulating ({mission_name})") as progress:
-        for episode_idx in progress:
-            rng.shuffle(assignments)
-            agent_policies = [
-                policy_instances[assignments[agent_id]].agent_policy(agent_id)
-                for agent_id in range(env_cfg.game.num_agents)
-            ]
+    for episode_idx in range(episodes):
+        rng.shuffle(assignments)
+        agent_policies = [
+            policy_instances[assignments[agent_id]].agent_policy(agent_id)
+            for agent_id in range(env_cfg.game.num_agents)
+        ]
 
-            rollout = Rollout(
-                env_cfg,
-                agent_policies,
-                max_action_time_ms=action_timeout_ms,
-                render_mode=None,
-                seed=seed + episode_idx,
-            )
+        rollout = Rollout(
+            env_cfg,
+            agent_policies,
+            max_action_time_ms=action_timeout_ms,
+            render_mode=None,
+            seed=seed + episode_idx,
+        )
 
-            rollout.run_until_done()
+        rollout.run_until_done()
 
-            per_episode_rewards.append(np.array(rollout._sim.episode_rewards, dtype=float))
-            per_episode_stats.append(rollout._sim.episode_stats)
-            per_episode_timeouts.append(np.array(rollout.timeout_counts, dtype=float))
-            per_episode_assignments.append(assignments.copy())
+        per_episode_rewards.append(np.array(rollout._sim.episode_rewards, dtype=float))
+        per_episode_stats.append(rollout._sim.episode_stats)
+        per_episode_timeouts.append(np.array(rollout.timeout_counts, dtype=float))
+        per_episode_assignments.append(assignments.copy())
 
-    return RawMissionEvaluationResult(
-        mission_name=mission_name,
-        per_episode_rewards=per_episode_rewards,
-        per_episode_stats=per_episode_stats,
-        per_episode_timeouts=per_episode_timeouts,
-        per_episode_assignments=per_episode_assignments,
+        if progress_callback is not None:
+            progress_callback(episode_idx)
+
+    return MultiEpisodeRolloutResult(
+        rewards=per_episode_rewards,
+        stats=per_episode_stats,
+        action_timeouts=per_episode_timeouts,
+        assignments=per_episode_assignments,
     )
