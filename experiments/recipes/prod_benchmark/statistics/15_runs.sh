@@ -113,8 +113,11 @@ echo "Starting benchmark runs..."
 echo ""
 
 run_idx=1
+RUN_NAMES=()
 for seed in "${SEEDS[@]}"; do
-    run_name="${BASE_RUN_NAME}.seed${seed}"
+    run_suffix="run$(printf '%02d' "$run_idx")"
+    run_name="${BASE_RUN_NAME}.seed${seed}.${run_suffix}"
+    RUN_NAMES+=("$run_name")
 
     echo "[${run_idx}/${#SEEDS[@]}] Launching run: $run_name (seed=$seed)"
 
@@ -139,7 +142,7 @@ echo "All ${#SEEDS[@]} runs have been submitted to SkyPilot"
 echo "Monitor progress with: sky queue"
 echo ""
 echo "Run names:"
-for seed in "${SEEDS[@]}"; do
-    echo "  ${BASE_RUN_NAME}.seed${seed}"
+for run_name in "${RUN_NAMES[@]}"; do
+    echo "  $run_name"
 done
 echo "================================================================================"
