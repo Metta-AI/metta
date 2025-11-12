@@ -219,32 +219,13 @@ class HFLlamaLayerCell(MemoryCell):
         return y_out, out_state
 
     def reset_state(self, state: MaybeState, mask: ResetMask) -> MaybeState:
-        # Full-batch reset if any True; per-batch masked reset is not supported by HF Cache
+        """Reset the entire state for the current batch; ignore mask and mirror init_state."""
         if state is None:
             return None
-        mask_tensor = mask
-        if mask_tensor.dtype != torch.bool:
-            mask_tensor = mask_tensor != 0
-        if mask_tensor.dim() > 1:
-            mask_tensor = mask_tensor.any(dim=-1)
-        if not bool(mask_tensor.any()):
-            return state
-        B = state.batch_size[0] if state.batch_size else mask_tensor.shape[0]
+        B = state.batch_size[0] if state.batch_size else 1
         device = state["pos"].device if "pos" in state.keys() else torch.device("cpu")
-        dtype = state["pos"].dtype if "pos" in state.keys() else torch.long
-        # Reinitialize cache and pos/seg_pos for batches where mask is True
-        new_state = state.clone()
-        to_reset = mask_tensor.view(B)
-        if bool(to_reset.any()):
-            reset_idx = torch.where(to_reset)[0]
-            # Full reset for selected batch elements
-            fresh = self.init_state(batch=reset_idx.numel(), device=device, dtype=torch.float32 if dtype == torch.long else dtype)
-            for i, bi in enumerate(reset_idx.tolist()):
-                new_state["cache"] = new_state.get("cache")  # keep object reference stable
-                new_state["pos"][bi] = fresh["pos"][i]
-                new_state["seg_pos"][bi] = fresh["seg_pos"][i]
-        update_parent_state(new_state, state)
-        return new_state
-
+        new = self.init_state(batch=B, device=device, dtype=torch.float32)
+        update_parent_state(new, state)
+        return new
 
 __all__ = ["HFLlamaLayerConfig", "HFLlamaLayerCell"]
