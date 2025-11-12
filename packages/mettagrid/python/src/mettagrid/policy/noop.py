@@ -1,5 +1,7 @@
 """Noop policy implementation."""
 
+import numpy as np
+
 from mettagrid.mettagrid_c import dtype_actions
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
