@@ -44,7 +44,7 @@ from mettagrid.policy.policy import MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Simulation, Simulator
 from mettagrid.simulator.simulator import Buffers
-from pufferlib.pufferlib import PufferEnv
+from pufferlib.pufferlib import PufferEnv  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +78,7 @@ class MettaGridPufferEnv(PufferEnv):
         self._current_cfg = cfg
         self._current_seed = seed
         self._env_supervisor_cfg = env_supervisor_cfg or EnvSupervisorConfig()
+        self._sim: Simulation | None = None
 
         # Initialize shared buffers FIRST (before super().__init__)
         # because PufferLib may access them during initialization
@@ -117,10 +118,12 @@ class MettaGridPufferEnv(PufferEnv):
         self._current_cfg = config
 
     def get_episode_rewards(self) -> np.ndarray:
+        assert self._sim is not None
         return self._sim.episode_rewards
 
     @property
     def current_simulation(self) -> Simulation:
+        assert self._sim is not None
         return self._sim
 
     def _new_sim(self) -> None:
