@@ -198,6 +198,8 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
         result.features.vibe = feature.id
       of "agent:visitation_counts":
         result.features.visitationCounts = feature.id
+      of "agent:compass":
+        result.features.compass = feature.id
       of "tag":
         result.features.tag = feature.id
       of "cooldown_remaining":

@@ -15,13 +15,13 @@ proc newRandomAgent*(
   agentId: int,
   environmentConfig: string
 ): RandomAgent =
-  echo "Creating new RandomAgent ", agentId
+  # echo "Creating new RandomAgent ", agentId
   var config = parseConfig(environmentConfig)
   result = RandomAgent(agentId: agentId, cfg: config)
   result.random = initRand(agentId)
 
 proc reset*(agent: RandomAgent) =
-  echo "Resetting RandomAgent ", agent.agentId
+  # echo "Resetting RandomAgent ", agent.agentId
   agent.random = initRand(agent.agentId)
 
 proc step*(
@@ -36,4 +36,4 @@ proc step*(
   let actions = cast[ptr UncheckedArray[int32]](rawActions)
   let action = agent.random.rand(1 .. 4).int32
   actions[agent.agentId] = action
-  echo "  RandomAgent taking action: ", action
+  # echo "  RandomAgent taking action: ", action

@@ -4,6 +4,7 @@ from abc import abstractmethod
 from pathlib import Path
 from typing import Generic, Optional, Tuple, TypeVar
 
+import numpy as np
 import torch.nn as nn
 from pydantic import BaseModel
 
@@ -44,15 +45,6 @@ class AgentPolicy:
     def reset(self, simulation: Optional[Simulation] = None) -> None:
         """Reset the policy state. Default implementation does nothing."""
         pass
-
-    def step_batch(self, raw_observations, raw_actions) -> None:
-        """Optional fast-path for policies that consume raw buffers.
-
-        Policies that support raw NumPy pointers should override this method.
-        The default implementation raises so callers get a clear error if a
-        policy without batch support is used in a context that requires it."""
-
-        raise NotImplementedError(f"{self.__class__.__name__} does not implement step_batch.")
 
 
 class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
@@ -108,6 +100,19 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
     @property
     def policy_env_info(self) -> PolicyEnvInterface:
         return self._policy_env_info
+
+    def reset(self, simulation: Optional[Simulation] = None) -> None:
+        """Reset any shared state across agents."""
+        pass
+
+    def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
+        """Optional fast-path for policies that consume raw buffers.
+
+        Policies that support raw NumPy pointers should override this method.
+        The default implementation raises so callers get a clear error if a
+        policy without batch support is used in a context that requires it."""
+
+        raise NotImplementedError(f"{self.__class__.__name__} does not implement step_batch.")
 
 
 class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
