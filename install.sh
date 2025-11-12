@@ -56,6 +56,24 @@ check_cmd() {
   return $?
 }
 
+ensure_site_packages_visible() {
+  if [ "$(uname -s)" != "Darwin" ]; then
+    return
+  fi
+  if ! check_cmd chflags; then
+    return
+  fi
+  if [ ! -d "$SCRIPT_DIR/.venv" ]; then
+    return
+  fi
+  for site_dir in "$SCRIPT_DIR/.venv"/lib/python*/site-packages; do
+    if [ -d "$site_dir" ]; then
+      # macOS marks hidden directories with UF_HIDDEN; clear it so Python processes *.pth files.
+      chflags -R nohidden "$site_dir" 2>/dev/null || true
+    fi
+  done
+}
+
 echo "Welcome to Metta!"
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
@@ -69,6 +87,7 @@ for cmd in uv bazel git g++ nimby nim; do
 done
 
 uv sync
+ensure_site_packages_visible
 uv run python -m metta.setup.metta_cli symlink-setup setup --quiet
 uv run python -m metta.setup.metta_cli install $PROFILE_ADDITION $NON_INTERACTIVE_ADDITION
 if [ "$INSTALL_CUDA_EXTRAS" = "1" ]; then

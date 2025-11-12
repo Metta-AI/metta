@@ -10,6 +10,30 @@
 
 set -euo pipefail
 
+ensure_site_packages_visible() {
+    if [[ "$(uname -s)" != "Darwin" ]]; then
+        return
+    fi
+    if ! command -v chflags >/dev/null 2>&1; then
+        return
+    fi
+    local repo_root
+    repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../../.." && pwd -P)"
+    if [[ ! -d "$repo_root/.venv" ]]; then
+        return
+    fi
+    shopt -s nullglob
+    for site_dir in "$repo_root"/.venv/lib/python*/site-packages; do
+        if [[ -d "$site_dir" ]]; then
+            chflags -R nohidden "$site_dir" 2>/dev/null || true
+        fi
+    done
+    shopt -u nullglob
+}
+
+# Ensure editable packages like gitta stay importable when macOS hides site-packages
+ensure_site_packages_visible
+
 # Parse arguments
 RECIPE=""
 UNIFORM_SEED=""
@@ -46,8 +70,10 @@ fi
 
 # Include recipe identifier in the run name so runs are easy to group in W&B
 # Replace dots with underscores for readability, then drop the literal word 'recipes'
+# Build a slug without double underscores since checkpoint filenames treat '__' as special
 RECIPE_SLUG="${RECIPE//./_}"
 RECIPE_SLUG="${RECIPE_SLUG//recipes/}"
+RECIPE_SLUG="$(printf '%s' "$RECIPE_SLUG" | tr -s '_')"
 BASE_RUN_NAME="benchmark_${RECIPE_SLUG}_$(date +%Y%m%d_%H%M%S)"
 NUM_GPUS=4
 
