@@ -6,7 +6,7 @@ import
   mettascope/[replays, worldmap], test_replay
 
 const
-  iterations = 100
+  iterations = 1000
 
 randomize()
 
@@ -46,7 +46,7 @@ proc fuzzJsonField(obj: JsonNode, fieldPath: seq[string], depth: int = 0, baseRe
       of "action_id":
         # action_id must be valid index into action_names
         if numActions > 0:
-          result = %rand(numActions)
+          result = %rand(numActions - 1)
       of "group_id":
         # group_id should be non-negative
         result = %max(0, obj.getInt() + rand(3) - 1)
@@ -236,6 +236,7 @@ if failures.len > 0:
     echo &"🚨 CRITICAL: {segfaultFailures.len} SEGMENTATION FAULTS DETECTED!"
     for failure in segfaultFailures:
       echo &"  Iteration {failure.iteration}: {failure.err.msg}"
+      echo &"  Stack trace: {failure.err.getStackTrace()}"
       if failure.changeLog.len > 0:
         echo &"  Fuzzing applied:"
         for change in failure.changeLog:
@@ -249,13 +250,13 @@ if failures.len > 0:
     echo ""
     echo &"⚠️  VALIDATION FAILURES: {validationFailures.len}"
     for failure in validationFailures:
-      echo &"  Iteration {failure.iteration}: {failure.err.msg}"
       if failure.changeLog.len > 0:
         echo &"  Fuzzing applied:"
         for change in failure.changeLog:
           echo &"    {change}"
       else:
         echo &"  Fuzzing applied: none (no changes made)"
+      echo &"  Iteration {failure.iteration}: {failure.err.msg}"
       echo &"  Stack trace: {failure.err.getStackTrace()}"
 
   # Report loading failures
@@ -263,13 +264,13 @@ if failures.len > 0:
     echo ""
     echo &"⚠️  LOADING FAILURES: {loadingFailures.len}"
     for failure in loadingFailures:
-      echo &"  Iteration {failure.iteration}: {failure.err.msg}"
       if failure.changeLog.len > 0:
         echo &"  Fuzzing applied:"
         for change in failure.changeLog:
           echo &"    {change}"
       else:
         echo &"  Fuzzing applied: none (no changes made)"
+      echo &"  Iteration {failure.iteration}: {failure.err.msg}"
       echo &"  Stack trace: {failure.err.getStackTrace()}"
 
   echo ""

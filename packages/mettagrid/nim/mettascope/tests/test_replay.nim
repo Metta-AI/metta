@@ -233,7 +233,7 @@ proc validateActionIdRange(actionIds: JsonNode, objName: string, actionNames: se
   if actionIds.kind == JInt:
     let actionId = actionIds.getInt()
     if actionId < 0 or actionId >= actionNames.len:
-      raise newException(ValueError, &"{objName}.action_id {actionId} out of range")
+      raise newException(ValueError, &"{objName}.action_id {actionId} out of range [0..{actionNames.len-1}]")
     return
 
   # Handle time series case
@@ -242,7 +242,7 @@ proc validateActionIdRange(actionIds: JsonNode, objName: string, actionNames: se
       if stepData.kind == JArray and stepData.len == 2:
         let actionId = stepData[1].getInt()
         if actionId < 0 or actionId >= actionNames.len:
-          raise newException(ValueError, &"{objName}.action_id {actionId} out of range")
+          raise newException(ValueError, &"{objName}.action_id {actionId} out of range [0..{actionNames.len-1}]")
 
 proc validateAgentFields(obj: JsonNode, objName: string, replayData: JsonNode) =
   ## Validate all agent-specific fields.
@@ -502,7 +502,7 @@ proc generateReplayForTesting*(): JsonNode =
 proc makeValidReplay*(fileName: string = "sample.json.z"): JsonNode =
   ## Create a minimal valid replay dict per the spec.
   ## This should only be used to test our validator functions.
-  ## real tests should generate a real replay with `generateReplayForTesting()`
+  ## tests should generate a real replay with `generateReplayForTesting()`
   result = %*{
     "version": 2,
     "num_agents": 2,
