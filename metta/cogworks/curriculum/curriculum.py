@@ -32,6 +32,8 @@ class CurriculumTask:
         self._total_score = 0.0
         self._mean_score = 0.0
         self._num_scheduled = 0
+        # Extract label from env config for per-label logging
+        self._label = getattr(env_cfg, "label", "unknown")
 
     def complete(self, score: float):
         """Complete the task with a score."""
@@ -50,6 +52,10 @@ class CurriculumTask:
     def get_bucket_values(self):
         """Get the slice values (backward compatibility alias)."""
         return self._slice_values
+
+    def get_label(self):
+        """Get the task label for per-label metrics."""
+        return self._label
 
 
 class CurriculumAlgorithmConfig(Config, ABC):
@@ -134,7 +140,7 @@ class CurriculumAlgorithm(StatsLogger, ABC):
         """Set reference to curriculum for stats updates. Override if needed."""
         pass
 
-    def should_evict_task(self, task_id: int, min_presentations: int = 5) -> bool:
+    def should_evict_task(self, task_id: int, min_presentations: int) -> bool:
         """Check if a task should be evicted based on algorithm-specific criteria.
 
         Default implementation returns False (no eviction). Subclasses should override
@@ -143,6 +149,7 @@ class CurriculumAlgorithm(StatsLogger, ABC):
         Args:
             task_id: The task to check
             min_presentations: Minimum number of task presentations before eviction
+                              (should be passed from CurriculumConfig.min_presentations_for_eviction)
 
         Returns:
             True if task should be evicted
@@ -219,10 +226,11 @@ class CurriculumConfig(Config):
     """Base configuration for Curriculum."""
 
     task_generator: AnyTaskGeneratorConfig = Field(description="TaskGenerator configuration")
-    max_task_id: int = Field(default=1000000, gt=0, description="Maximum task ID to generate")
-    num_active_tasks: int = Field(default=10000, gt=0, description="Number of active tasks to maintain")
+    num_active_tasks: int = Field(default=1000, gt=0, description="Number of active tasks to maintain")
 
     # Curriculum behavior options
+    seed: int = Field(default=0, description="Random seed for curriculum task generation")
+    defer_init: bool = Field(default=False, description="Defer task pool initialization (used for checkpoint loading)")
     min_presentations_for_eviction: int = Field(
         default=5, gt=0, description="Minimum task presentations before eviction"
     )
@@ -248,10 +256,9 @@ class CurriculumConfig(Config):
         """Validate configuration after initialization."""
         super().model_post_init(__context)
 
-        if self.num_active_tasks > self.max_task_id:
-            raise ValueError(
-                f"num_active_tasks ({self.num_active_tasks}) cannot exceed max_task_id ({self.max_task_id})"
-            )
+        # Sync num_active_tasks from algorithm_config if available
+        if self.algorithm_config and hasattr(self.algorithm_config, "num_active_tasks"):
+            self.num_active_tasks = self.algorithm_config.num_active_tasks
 
     def make(self) -> "Curriculum":
         """Create a Curriculum from this configuration."""
@@ -268,13 +275,13 @@ class Curriculum(StatsLogger):
     Inherits from StatsLogger to provide unified statistics interface.
     """
 
-    def __init__(self, config: CurriculumConfig, seed: int = 0):
+    def __init__(self, config: CurriculumConfig):
         # Initialize StatsLogger (algorithm handles detailed stats)
         StatsLogger.__init__(self, enable_detailed_logging=False)
 
         self._config = config
         self._task_generator = config.task_generator.create()
-        self._rng = random.Random(seed)
+        self._rng = random.Random(config.seed)
         self._tasks: dict[int, CurriculumTask] = {}
         self._task_ids: set[int] = set()
         self._num_created = 0
@@ -282,18 +289,52 @@ class Curriculum(StatsLogger):
 
         self._algorithm: Optional[CurriculumAlgorithm] = None
         if config.algorithm_config is not None:
-            self._algorithm = config.algorithm_config.create(config.num_active_tasks)
+            # Always use algorithm_config.num_active_tasks if available (source of truth for algorithm-based curricula)
+            num_tasks = (
+                config.algorithm_config.num_active_tasks
+                if hasattr(config.algorithm_config, "num_active_tasks")
+                else config.num_active_tasks
+            )
+            self._algorithm = config.algorithm_config.create(num_tasks)
             # Pass curriculum reference to algorithm for stats updates
             if hasattr(self._algorithm, "set_curriculum_reference"):
                 self._algorithm.set_curriculum_reference(self)
 
-        # Always initialize task pool at capacity
-        self._initialize_at_capacity()
+        # Initialize task pool at capacity unless deferred (e.g., for checkpoint loading)
+        if not config.defer_init:
+            self._initialize_at_capacity()
+
+    @property
+    def _num_active_tasks(self) -> int:
+        """Get the effective number of active tasks.
+
+        Handles three scenarios:
+        1. No algorithm_config: use config.num_active_tasks
+        2. Algorithm_config present and in sync with config: use algorithm_config (allows CLI overrides)
+        3. Algorithm_config present but out of sync: use config (manual override after creation)
+        """
+        if self._config.algorithm_config is None or not hasattr(self._config.algorithm_config, "num_active_tasks"):
+            return self._config.num_active_tasks
+
+        # If they match, they're in sync - use algorithm_config (allows CLI overrides to work)
+        if self._config.algorithm_config.num_active_tasks == self._config.num_active_tasks:
+            return self._config.algorithm_config.num_active_tasks
+
+        # If they differ, config was manually overridden - prefer config
+        return self._config.num_active_tasks
 
     def get_task(self) -> CurriculumTask:
-        """Sample a task from the population."""
+        """Sample a task from the population with replacement.
+
+        Tasks are sampled with replacement - multiple environments can receive
+        the same task_id simultaneously. The task remains in the pool after
+        selection and is only removed via eviction.
+
+        Returns:
+            CurriculumTask: A task sampled from the pool based on learning progress scores
+        """
         # Curriculum always manages the task pool - no delegation
-        if len(self._tasks) < self._config.num_active_tasks:
+        if len(self._tasks) < self._num_active_tasks:
             task = self._create_task()
         else:
             # At capacity - check if any task meets eviction criteria first
@@ -316,11 +357,16 @@ class Curriculum(StatsLogger):
                 task = self._choose_task()
 
         task._num_scheduled += 1
+
+        # Notify algorithm that this task was sampled (for sampling statistics)
+        if self._algorithm is not None and hasattr(self._algorithm, "on_task_sampled"):
+            self._algorithm.on_task_sampled(task._task_id)
+
         return task
 
     def _initialize_at_capacity(self) -> None:
         """Initialize the task pool to full capacity."""
-        while len(self._tasks) < self._config.num_active_tasks:
+        while len(self._tasks) < self._num_active_tasks:
             self._create_task()
 
     def _evict_specific_task(self, task_id: int) -> None:
@@ -337,7 +383,12 @@ class Curriculum(StatsLogger):
         self._num_evicted += 1
 
     def _choose_task(self) -> CurriculumTask:
-        """Choose a task from the population using algorithm guidance."""
+        """Choose a task from the population using algorithm guidance.
+
+        Samples with replacement - the same task can be selected multiple times
+        across different environments. Tasks are weighted by their learning
+        progress scores (high LP = higher probability).
+        """
         if self._algorithm is not None:
             # Get algorithm's task selection preferences
             task_scores = self._algorithm.score_tasks(list(self._tasks.keys()))
@@ -355,10 +406,12 @@ class Curriculum(StatsLogger):
         return self._tasks[self._rng.choice(list(self._tasks.keys()))]
 
     def _create_task(self) -> CurriculumTask:
-        """Create a new task."""
-        task_id = self._rng.randint(0, self._config.max_task_id)
+        """Create a new task with a unique ID from Python's unlimited integer space."""
+        # Use Python's full 64-bit integer space (2^63 - 1)
+        # With ~1000 active tasks, collision probability is negligible (~10^-16)
+        task_id = self._rng.randint(0, 2**63 - 1)
         while task_id in self._task_ids:
-            task_id = self._rng.randint(0, self._config.max_task_id)
+            task_id = self._rng.randint(0, 2**63 - 1)
         self._task_ids.add(task_id)
         env_cfg = self._task_generator.get_task(task_id)
 
@@ -385,12 +438,79 @@ class Curriculum(StatsLogger):
         # Invalidate stats cache since task performance affects curriculum stats
         self.invalidate_cache()
 
+    def get_task_lp_score(self, task_id: int) -> float:
+        """Get the learning progress score for a specific task.
+
+        Args:
+            task_id: The task ID to get the score for
+
+        Returns:
+            The learning progress score, or 0.0 if not available
+        """
+        if self._algorithm is not None and hasattr(self._algorithm, "get_task_lp_score"):
+            return self._algorithm.get_task_lp_score(task_id)
+        return 0.0
+
+    def get_task_raw_lp_score(self, task_id: int) -> float:
+        """Get the raw learning progress score for a specific task (before z-score normalization).
+
+        Args:
+            task_id: The task ID to get the raw score for
+
+        Returns:
+            The raw learning progress score, or 0.0 if not available
+        """
+        if self._algorithm is not None and hasattr(self._algorithm, "get_task_raw_lp_score"):
+            return self._algorithm.get_task_raw_lp_score(task_id)
+        return 0.0
+
+    def get_task_postzscored_lp_score(self, task_id: int) -> float:
+        """Get the post-z-score learning progress score for a specific task (after z-score, before sigmoid).
+
+        Args:
+            task_id: The task ID to get the post-z-score score for
+
+        Returns:
+            The post-z-score learning progress score, or 0.0 if not available
+        """
+        if self._algorithm is not None and hasattr(self._algorithm, "get_task_postzscored_lp_score"):
+            return self._algorithm.get_task_postzscored_lp_score(task_id)
+        return 0.0
+
+    def get_and_reset_evictions_this_epoch(self) -> Dict[str, int]:
+        """Get per-epoch evictions and reset the counter.
+
+        Returns:
+            Dictionary mapping label -> eviction count this epoch
+        """
+        if self._algorithm is not None and hasattr(self._algorithm, "get_and_reset_evictions_this_epoch"):
+            return self._algorithm.get_and_reset_evictions_this_epoch()
+        return {}
+
+    def reset_epoch_counters(self) -> None:
+        """Reset per-epoch counters in the curriculum algorithm.
+
+        This is called by the training infrastructure at epoch boundaries
+        to ensure per-epoch metrics start fresh each epoch.
+        """
+        if self._algorithm is not None and hasattr(self._algorithm, "reset_epoch_counters"):
+            self._algorithm.reset_epoch_counters()
+
     def get_base_stats(self) -> Dict[str, float]:
         """Get basic curriculum statistics."""
+        # Get global completion count from algorithm's task tracker if available
+        # This tracks ALL completions across all tasks ever created (even evicted ones)
+        if self._algorithm is not None and hasattr(self._algorithm, "task_tracker"):
+            num_completed = float(self._algorithm.task_tracker._total_completions)
+        else:
+            # Fallback: sum completions for currently active tasks only
+            # NOTE: This undercounts if tasks have been evicted!
+            num_completed = float(sum(task._num_completions for task in self._tasks.values()))
+
         base_stats: Dict[str, float] = {
             "num_created": float(self._num_created),
             "num_evicted": float(self._num_evicted),
-            "num_completed": float(sum(task._num_completions for task in self._tasks.values())),
+            "num_completed": num_completed,
             "num_scheduled": float(sum(task._num_scheduled for task in self._tasks.values())),
             "num_active_tasks": float(len(self._tasks)),
         }
@@ -439,16 +559,21 @@ class Curriculum(StatsLogger):
         if state["config"] != self._config.model_dump():
             logger.warning("Curriculum config mismatch during restore")
 
-        # Restore counters
+        # Restore counters first
         self._num_created = state["num_created"]
         self._num_evicted = state["num_evicted"]
 
-        # Restore random state
+        # Restore random state before any RNG operations
         self._rng.setstate(state["seed"])
 
-        # Clear existing tasks
+        # Clear existing tasks (no need to notify algorithm - we're doing full restore)
         self._tasks.clear()
         self._task_ids.clear()
+
+        # Restore algorithm state BEFORE recreating tasks
+        # Algorithm's load_state will handle clearing and restoring its internal state atomically
+        if self._algorithm is not None and "algorithm_state" in state:
+            self._algorithm.load_state(state["algorithm_state"])
 
         # Restore tasks
         for task_id_str, task_data in state["tasks"].items():
@@ -464,9 +589,10 @@ class Curriculum(StatsLogger):
             self._tasks[task_id] = task
             self._task_ids.add(task_id)
 
-        # Restore algorithm state
-        if self._algorithm is not None and "algorithm_state" in state:
-            self._algorithm.load_state(state["algorithm_state"])
+        # NOTE: We don't call on_task_created() here because:
+        # 1. Algorithm state (including task_tracker) is already restored above via load_state()
+        # 2. Calling it would re-initialize tracking with default values
+        # 3. slice_analyzer state is not checkpointed, so it will rebuild naturally
 
 
 # Import concrete config classes at the end to avoid circular imports

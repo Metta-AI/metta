@@ -45,6 +45,7 @@ def _to_scalar(value: Any) -> Optional[float]:
 
 def build_wandb_payload(
     processed_stats: dict[str, Any],
+    curriculum_stats: dict[str, Any],
     timing_info: dict[str, Any],
     weight_stats: dict[str, Any],
     grad_stats: dict[str, float],
@@ -108,6 +109,9 @@ def build_wandb_payload(
     _update(weight_stats)
     _update(grad_stats)
     _update(timing_info.get("timing_stats", {}))
+
+    # Add curriculum stats (already has proper prefixes)
+    _update(curriculum_stats)
 
     return payload
 
@@ -421,6 +425,9 @@ class StatsReporter(TrainerComponent):
             trainer_config=trainer_cfg,
         )
 
+        # Collect curriculum stats at epoch level (centralized)
+        curriculum_stats = self._collect_curriculum_stats()
+
         timing_info = compute_timing_stats(timer=timer, agent_step=agent_step)
         self._normalize_steps_per_second(timing_info, agent_step)
 
@@ -439,6 +446,7 @@ class StatsReporter(TrainerComponent):
 
         return build_wandb_payload(
             processed_stats=processed,
+            curriculum_stats=curriculum_stats,
             timing_info=timing_info,
             weight_stats=weight_stats,
             grad_stats=self._state.grad_stats,
@@ -601,3 +609,301 @@ class StatsReporter(TrainerComponent):
                     continue
                 hyperparameters[f"ppo_{attr}"] = value
         return hyperparameters
+
+    def _collect_curriculum_stats(self) -> dict[str, float]:
+        """Collect curriculum statistics directly at epoch boundary.
+
+        This replaces the batched per-environment logging approach with
+        centralized collection, providing smooth and consistent logging.
+        """
+        if not self.context or not hasattr(self.context, "curriculum") or not self.context.curriculum:
+            logger.info("No curriculum found in context, skipping curriculum stats collection")
+            return {}
+
+        curriculum = self.context.curriculum
+        logger.info(f"Collecting curriculum stats from curriculum: {type(curriculum).__name__}")
+        stats = {}
+
+        # Get base curriculum stats
+        curriculum_stats = curriculum.stats()
+        logger.info(f"Got {len(curriculum_stats)} base curriculum stats")
+
+        # Debug: Log sample of stat keys to see what we're getting
+        sample_keys = list(curriculum_stats.keys())[:10]
+        logger.info(f"Sample curriculum stat keys: {sample_keys}")
+
+        # ===== GROUP A: Global Curriculum Stats =====
+        if "num_completed" in curriculum_stats:
+            stats["curriculum_stats/total_completions"] = float(curriculum_stats["num_completed"])
+
+        if "num_evicted" in curriculum_stats:
+            stats["curriculum_stats/num_evicted"] = float(curriculum_stats["num_evicted"])
+
+        if "algorithm/mean_lp_score" in curriculum_stats:
+            stats["curriculum_stats/mean_pool_lp_score"] = float(curriculum_stats["algorithm/mean_lp_score"])
+
+        # Pool composition fractions
+        total_pool_size = curriculum_stats.get("num_active_tasks", 0)
+        if total_pool_size > 0:
+            for key, value in curriculum_stats.items():
+                if key.startswith("algorithm/pool_composition/"):
+                    label = key.replace("algorithm/pool_composition/", "")
+                    stats[f"curriculum_stats/pool_composition_fraction/{label}"] = float(value / total_pool_size)
+
+        # Per-label aggregate evictions
+        for key, value in curriculum_stats.items():
+            if key.startswith("algorithm/eviction_counts/"):
+                label = key.replace("algorithm/eviction_counts/", "")
+                stats[f"curriculum_stats/per_label_aggregate_evictions/{label}"] = float(value)
+
+        # ===== GROUP B: Gini Coefficients =====
+        # There are two types: per-label (terrain type distribution) and per-task (individual task inequality)
+
+        # === PER-LABEL GINI COEFFICIENTS (Label-Aggregated Metrics) ===
+
+        # 1. Pool composition gini - inequality in which terrain types are represented in task pool
+        # Uses the fractions that were computed above (lines 628-634)
+        pool_comp_fraction_keys = [
+            k for k in stats.keys() if k.startswith("curriculum_stats/pool_composition_fraction/")
+        ]
+        pool_comp_fractions = [stats[k] for k in pool_comp_fraction_keys]
+        if pool_comp_fractions:
+            stats["curriculum_stats/pool_composition_gini"] = self._calculate_gini_coefficient(pool_comp_fractions)
+            logger.info(
+                f"Pool composition gini: {stats['curriculum_stats/pool_composition_gini']:.3f} "
+                f"({len(pool_comp_fractions)} labels, fractions={pool_comp_fractions[:5]})"
+            )
+
+        # 2. Sampling gini - inequality in LP-based sampling probabilities by terrain type
+        # Uses per_label_lp_probs which are the actual sampling probabilities aggregated by label
+        sampling_prob_keys = [k for k in stats.keys() if k.startswith("curriculum_stats/per_label_lp_probs/")]
+        sampling_probs = [stats[k] for k in sampling_prob_keys]
+        if sampling_probs:
+            stats["curriculum_stats/sampling_gini"] = self._calculate_gini_coefficient(sampling_probs)
+            logger.info(
+                f"Sampling gini: {stats['curriculum_stats/sampling_gini']:.3f} "
+                f"({len(sampling_probs)} labels, probs={sampling_probs[:5]})"
+            )
+
+        # 3. Eviction gini - inequality in which terrain types are evicted THIS EPOCH
+        # Uses per-epoch eviction tracking (if available)
+        eviction_epoch_key = "env_curriculum_stats/per_label_evictions_this_epoch"
+        if eviction_epoch_key in self._state.rollout_stats:
+            per_label_evictions = self._state.rollout_stats[eviction_epoch_key]
+            if isinstance(per_label_evictions, dict) and per_label_evictions:
+                epoch_eviction_counts = list(per_label_evictions.values())
+                stats["curriculum_stats/eviction_gini"] = self._calculate_gini_coefficient(epoch_eviction_counts)
+                logger.info(
+                    f"Eviction gini: {stats['curriculum_stats/eviction_gini']:.3f} "
+                    f"({len(epoch_eviction_counts)} labels, counts={epoch_eviction_counts[:5]})"
+                )
+
+        # 4. Per-epoch samples gini - inequality in this epoch's episode completions by terrain type
+        per_label_samples_key = "env_curriculum_stats/per_label_samples_this_epoch"
+        if per_label_samples_key in self._state.rollout_stats:
+            per_label_samples = self._state.rollout_stats[per_label_samples_key]
+            if isinstance(per_label_samples, dict) and per_label_samples:
+                epoch_sample_counts = list(per_label_samples.values())
+                stats["curriculum_stats/per_epoch_samples_gini"] = self._calculate_gini_coefficient(epoch_sample_counts)
+                logger.info(
+                    f"Per-epoch samples gini: {stats['curriculum_stats/per_epoch_samples_gini']:.3f} "
+                    f"({len(epoch_sample_counts)} labels, counts={epoch_sample_counts[:5]})"
+                )
+
+        # === PER-TASK GINI COEFFICIENTS (Individual Task Inequality) ===
+        # These are calculated by the algorithm and measure inequality across individual tasks
+
+        # 5. Task sampling gini - inequality in how often individual tasks are sampled
+        # Uses completion counts (empirical sampling distribution)
+        if "algorithm/curriculum_gini/pool_occupancy" in curriculum_stats:
+            gini_value = float(curriculum_stats["algorithm/curriculum_gini/pool_occupancy"])
+            stats["curriculum_stats/task_sampling_gini"] = gini_value
+            logger.info(f"Task sampling gini: {gini_value:.3f} (from algorithm/curriculum_gini/pool_occupancy)")
+        else:
+            logger.warning("algorithm/curriculum_gini/pool_occupancy not found in curriculum_stats")
+
+        # 6. Task LP gini - inequality in learning progress scores across all individual tasks
+        # Uses raw LP scores (before z-score normalization)
+        if "algorithm/curriculum_gini/raw_lp_scores" in curriculum_stats:
+            gini_value = float(curriculum_stats["algorithm/curriculum_gini/raw_lp_scores"])
+            stats["curriculum_stats/task_lp_gini"] = gini_value
+            logger.info(f"Task LP gini: {gini_value:.3f} (from algorithm/curriculum_gini/raw_lp_scores)")
+
+            # Log debug stats if available
+            if "algorithm/debug/raw_lp_unique_count" in curriculum_stats:
+                unique_count = curriculum_stats["algorithm/debug/raw_lp_unique_count"]
+                total_count = curriculum_stats.get("algorithm/debug/raw_lp_total_count", 0)
+                logger.info(
+                    f"  Raw LP: {unique_count:.0f} unique values out of {total_count:.0f} tasks "
+                    f"(mean={curriculum_stats.get('algorithm/debug/raw_lp_mean', 0):.4f}, "
+                    f"std={curriculum_stats.get('algorithm/debug/raw_lp_std', 0):.4f})"
+                )
+        else:
+            logger.warning("algorithm/curriculum_gini/raw_lp_scores not found in curriculum_stats")
+
+        # 7. Pass through all curriculum gini coefficients from the algorithm
+        # These are comprehensive gini stats calculated at different pipeline stages:
+        # - algorithm/curriculum_gini/pool_occupancy: task completion count inequality
+        # - algorithm/curriculum_gini/raw_lp_scores: raw LP score inequality (task-level)
+        # - algorithm/curriculum_gini/raw_lp_by_label: raw LP inequality aggregated by label
+        # - algorithm/curriculum_gini/sampling_probs_by_label: final probability inequality by label
+        # - algorithm/curriculum_gini/sampling_by_label: actual sampling inequality by label
+        # - algorithm/curriculum_gini/zscored_lp_scores: z-scored LP inequality
+        # - algorithm/curriculum_gini/evictions_by_label: eviction inequality by label
+        # - algorithm/curriculum_gini/pool_composition_by_label: pool composition inequality
+        gini_keys_found = []
+        for key, value in curriculum_stats.items():
+            if key.startswith("algorithm/curriculum_gini/"):
+                # Pass through with the full key name (maintains alignment with task_dependency_simulator)
+                stats[key] = float(value)
+                gini_type = key.replace("algorithm/curriculum_gini/", "")
+                gini_keys_found.append(gini_type)
+
+        if gini_keys_found:
+            logger.info(f"Passed through {len(gini_keys_found)} gini stats: {gini_keys_found[:5]}")
+
+        # 8. Pass through all debug stats
+        for key, value in curriculum_stats.items():
+            if key.startswith("algorithm/debug/"):
+                stats[key] = float(value)
+
+        # ===== GROUP C & D: Troubleshooting Stats (if enabled) =====
+        if self._should_enable_curriculum_troubleshooting():
+            troubleshooting_stats = self._collect_curriculum_troubleshooting_stats(curriculum, curriculum_stats)
+            logger.info(f"Collected {len(troubleshooting_stats)} troubleshooting stats")
+            stats.update(troubleshooting_stats)
+
+        logger.info(f"Total curriculum stats collected: {len(stats)}")
+        return stats
+
+    def _should_enable_curriculum_troubleshooting(self) -> bool:
+        """Check if curriculum troubleshooting logging is enabled.
+
+        Checks the curriculum algorithm's hyperparameters for the
+        show_curriculum_troubleshooting_logging flag.
+
+        Context Access: self.context.curriculum is set in trainer from env._curriculum
+        Flag Location: LearningProgressAlgorithmHypers.show_curriculum_troubleshooting_logging
+        """
+        if not self.context or not hasattr(self.context, "curriculum"):
+            logger.info("Troubleshooting disabled: No context or curriculum")
+            return False
+
+        curriculum = self.context.curriculum
+        if not curriculum or not hasattr(curriculum, "_algorithm"):
+            logger.info("Troubleshooting disabled: No curriculum or algorithm")
+            return False
+
+        algorithm = curriculum._algorithm
+        if not algorithm or not hasattr(algorithm, "hypers"):
+            logger.info("Troubleshooting disabled: No algorithm or hypers")
+            return False
+
+        flag_value = getattr(algorithm.hypers, "show_curriculum_troubleshooting_logging", False)
+        logger.info(f"Troubleshooting flag value: {flag_value}")
+        return flag_value
+
+    def _collect_curriculum_troubleshooting_stats(self, curriculum: Any, curriculum_stats: dict) -> dict[str, float]:
+        """Collect detailed troubleshooting stats for curriculum debugging.
+
+        Includes:
+        - Tracked task dynamics (first 3 tasks)
+        - Per-label LP scores at different stages
+        """
+        stats = {}
+
+        # GROUP C: Tracked task dynamics
+        # Get first 3 task IDs from the curriculum's task pool
+        tracked_task_ids = self._get_tracked_task_ids(curriculum)
+        logger.info(f"Tracked task IDs: {tracked_task_ids}")
+
+        if tracked_task_ids:
+            for i, task_id in enumerate(tracked_task_ids):
+                lp_score = curriculum.get_task_lp_score(task_id)
+                stats[f"curriculum_stats/tracked_task_lp_scores/task_{i}"] = float(lp_score)
+
+                # Completion counts this epoch from accumulated info dicts
+                completion_key = f"curriculum_stats/tracked_task_completions_this_epoch/task_{i}"
+                if completion_key in self._state.rollout_stats:
+                    stats[completion_key] = float(np.sum(self._state.rollout_stats[completion_key]))
+
+        # GROUP D: Per-label LP scores
+        # Collect from curriculum algorithm's per-label tracking
+        per_label_stats = self._get_per_label_lp_stats(curriculum)
+        logger.info(f"Per-label stats collected: {len(per_label_stats)} stats")
+        stats.update(per_label_stats)
+
+        return stats
+
+    def _get_tracked_task_ids(self, curriculum: Any) -> list[int]:
+        """Get first 3 task IDs for detailed tracking."""
+        # Get active tasks from curriculum (stored in _tasks dict)
+        if not hasattr(curriculum, "_tasks"):
+            logger.warning("Curriculum has no _tasks attribute")
+            return []
+
+        tasks = curriculum._tasks
+        if not tasks:
+            logger.info("Curriculum task pool is empty (early in training)")
+            return []
+
+        # Return first 3 task IDs (or fewer if pool is smaller)
+        task_ids = list(tasks.keys())[:3]
+        logger.info(f"Found {len(tasks)} total tasks, tracking first 3: {task_ids}")
+        return task_ids
+
+    def _get_per_label_lp_stats(self, curriculum: Any) -> dict[str, float]:
+        """Get per-label LP scores from curriculum algorithm.
+
+        Requires: Step 5 implementation (get_per_label_lp_scores method on algorithm)
+        """
+        stats = {}
+
+        algorithm = getattr(curriculum, "_algorithm", None)
+        if not algorithm:
+            logger.info("No algorithm found in curriculum")
+            return stats
+
+        # Get task pool from curriculum (stored in _tasks dict)
+        tasks = getattr(curriculum, "_tasks", None)
+        if not tasks:
+            logger.info("No tasks found in curriculum for per-label stats")
+            return stats
+
+        # Get per-label aggregated scores from algorithm (Step 5 provides this)
+        if hasattr(algorithm, "get_per_label_lp_scores"):
+            per_label_scores = algorithm.get_per_label_lp_scores(tasks)
+            logger.info(f"Algorithm returned per-label scores for {len(per_label_scores)} labels")
+            for label, score_dict in per_label_scores.items():
+                stats[f"curriculum_stats/per_label_lp_scores/{label}"] = float(score_dict.get("raw", 0.0))
+                stats[f"curriculum_stats/per_label_postzscored_lp_scores/{label}"] = float(
+                    score_dict.get("postzscored", 0.0)
+                )
+                stats[f"curriculum_stats/per_label_lp_probs/{label}"] = float(score_dict.get("prob", 0.0))
+        else:
+            logger.warning("Algorithm does not have get_per_label_lp_scores method")
+
+        return stats
+
+    @staticmethod
+    def _calculate_gini_coefficient(values: list[float]) -> float:
+        """Calculate Gini coefficient for a distribution.
+
+        Measures inequality in sampling across labels:
+        - 0 = perfect equality (all labels sampled equally)
+        - 1 = perfect inequality (all samples from one label)
+        """
+        if not values or len(values) == 0:
+            return 0.0
+
+        if sum(values) == 0:
+            return 0.0
+
+        sorted_values = sorted(values)
+        n = len(sorted_values)
+
+        cumsum = sum((i + 1) * v for i, v in enumerate(sorted_values))
+        total = sum(sorted_values)
+        gini = (2.0 * cumsum) / (n * total) - (n + 1.0) / n
+
+        return float(gini)

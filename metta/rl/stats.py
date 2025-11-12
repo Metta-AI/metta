@@ -112,11 +112,17 @@ def process_training_stats(
         - environment_stats: Environment-specific stats
         - overview: High-level metrics like average reward
     """
-    # Convert lists to means
+    # Convert lists to means or sums depending on the metric type
     mean_stats = {}
     for k, v in raw_stats.items():
         try:
-            mean_stats[k] = np.mean(v)
+            # Metrics that should be summed across vectorized environments (not averaged)
+            # Per-label completion counts and tracked task completions are count-based
+            if "per_label_samples_this_epoch" in k or "tracked_task_completions_this_epoch" in k:
+                mean_stats[k] = np.sum(v)
+            else:
+                # All other metrics (including LP scores) should be averaged
+                mean_stats[k] = np.mean(v)
         except (TypeError, ValueError):
             mean_stats[k] = v
 

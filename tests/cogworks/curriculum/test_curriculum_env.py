@@ -18,8 +18,8 @@ class TestCurriculumEnv:
     def create_test_curriculum(self):
         """Helper to create a test curriculum."""
         task_gen_config = SingleTaskGenerator.Config(env=MettaGridConfig())
-        config = CurriculumConfig(task_generator=task_gen_config, num_active_tasks=5)
-        return Curriculum(config, seed=0)
+        config = CurriculumConfig(task_generator=task_gen_config, num_active_tasks=5, seed=0)
+        return Curriculum(config)
 
     def create_mock_env(self):
         """Helper to create a mock environment."""
@@ -52,7 +52,7 @@ class TestCurriculumEnv:
         [
             ("no_termination", "same_task"),
             ("full_termination", "new_task"),
-            ("partial_termination", "same_task"),
+            ("partial_termination", "new_task"),  # Now correctly handles partial completions!
             ("truncation", "new_task"),
         ],
     )
@@ -112,11 +112,7 @@ class TestCurriculumEnv:
         # Verify task completion behavior
         if expected_behavior == "same_task":
             assert wrapper._current_task is initial_task
-            if termination_type == "no_termination":
-                assert initial_task._num_completions == 0
-            else:
-                # Partial termination/truncation should NOT complete task since not all agents terminated
-                assert initial_task._num_completions == 0
+            assert initial_task._num_completions == 0  # No environments completed
         else:  # new_task
             assert wrapper._current_task is not initial_task
             assert initial_task._num_completions > 0
@@ -148,10 +144,12 @@ class TestCurriculumEnv:
         else:
             wrapper.step([0] * len(rewards))
 
-        # Check that task was completed with correct mean reward
-        expected_mean = np.mean(rewards)  # 0.5
-        assert initial_task._num_completions == 1
-        assert abs(initial_task._total_score - expected_mean) < 1e-6
+        # Check that task was completed with correct total and count (2 envs)
+        expected_sum = np.sum(rewards)  # 1.0 (0.6 + 0.4)
+        assert initial_task._num_completions == 2  # 2 environments completed
+        assert abs(initial_task._total_score - expected_sum) < 1e-6
+        # Mean should still be 0.5
+        assert abs(initial_task._total_score / initial_task._num_completions - 0.5) < 1e-6
 
     def test_curriculum_env_getattr_delegation(self):
         """Test that attribute access is delegated to the wrapped environment."""
@@ -209,9 +207,9 @@ class TestCurriculumEnv:
         # Should have seen 3 different tasks (one per episode)
         assert len(set(tasks_seen)) == 3
 
-        # Each task should have been completed
+        # Each task should have been completed once per vectorized environment (2 envs)
         for task in tasks_seen:
-            assert task._num_completions == 1
+            assert task._num_completions == 2  # 2 environments completed each time
 
     def test_curriculum_env_wrapper_zero_rewards(self):
         """Test wrapper behavior with zero rewards."""
@@ -229,8 +227,8 @@ class TestCurriculumEnv:
         mock_env.set_mg_config = Mock()
 
         task_gen_config = SingleTaskGenerator.Config(env=MettaGridConfig())
-        config = CurriculumConfig(task_generator=task_gen_config)
-        curriculum = Curriculum(config, seed=0)
+        config = CurriculumConfig(task_generator=task_gen_config, seed=0)
+        curriculum = Curriculum(config)
 
         wrapper = CurriculumEnv(mock_env, curriculum)
         initial_task = wrapper._current_task
@@ -257,8 +255,8 @@ class TestCurriculumEnv:
         mock_env.set_mg_config = Mock()
 
         task_gen_config = SingleTaskGenerator.Config(env=MettaGridConfig())
-        config = CurriculumConfig(task_generator=task_gen_config)
-        curriculum = Curriculum(config, seed=0)
+        config = CurriculumConfig(task_generator=task_gen_config, seed=0)
+        curriculum = Curriculum(config)
 
         wrapper = CurriculumEnv(mock_env, curriculum)
 
@@ -284,8 +282,8 @@ class TestCurriculumEnv:
         mock_env.set_mg_config = Mock()
 
         task_gen_config = SingleTaskGenerator.Config(env=MettaGridConfig())
-        config = CurriculumConfig(task_generator=task_gen_config, num_active_tasks=2)
-        curriculum = Curriculum(config, seed=0)
+        config = CurriculumConfig(task_generator=task_gen_config, num_active_tasks=2, seed=0)
+        curriculum = Curriculum(config)
         wrapper = CurriculumEnv(mock_env, curriculum)
 
         # Initial curriculum stats
@@ -296,7 +294,7 @@ class TestCurriculumEnv:
         # Complete an episode
         wrapper.step([1, 0])
 
-        # Check updated stats
+        # Check updated stats (2 completions because 2 vectorized envs completed)
         updated_stats = curriculum.stats()
-        assert updated_stats["num_completed"] == 1
+        assert updated_stats["num_completed"] == 2  # 2 environments completed
         assert updated_stats["num_scheduled"] == 2  # Original + new task

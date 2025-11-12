@@ -10,8 +10,11 @@ from .curriculum import Curriculum
 class CurriculumEnv(PufferEnv):
     """Environment wrapper that integrates with a curriculum system.
 
-    This wrapper passes all function calls to the wrapped environment, with special
-    handling for reset() and step() methods to integrate with curriculum task management.
+    This wrapper:
+    - Handles task selection and completion through the curriculum
+    - ALWAYS emits per-label episode counts (needed for basic curriculum monitoring)
+    - Optionally tracks first 3 tasks for debugging (if show_curriculum_troubleshooting_logging=True)
+    - All other curriculum stats are collected centrally at epoch boundaries by StatsReporter
     """
 
     def __init__(self, env: Any, curriculum: Curriculum):
@@ -31,96 +34,144 @@ class CurriculumEnv(PufferEnv):
         self._curriculum = curriculum
         self._current_task = self._curriculum.get_task()
 
-        # Stats batching configuration - updating stats too frequently is an SPS hit
-        self._stats_update_counter = 0
-        self._stats_update_frequency = 50  # Batch stats updates to reduce overhead
+        # Check if troubleshooting logging is enabled
+        self._enable_per_label_tracking = False
+        if hasattr(curriculum, "_algorithm") and curriculum._algorithm is not None:
+            if hasattr(curriculum._algorithm, "hypers"):
+                self._enable_per_label_tracking = curriculum._algorithm.hypers.show_curriculum_troubleshooting_logging
 
-        # Pre-compute string prefix for performance
-        self._CURRICULUM_STAT_PREFIX = "env_curriculum/"
-
-        # Track first reset to avoid hasattr checks
-        self._first_reset_done = False
-
-        # Cache for curriculum stats to avoid recomputation
-        self._cached_stats = {}
-        self._stats_cache_valid = False
-
-    def _add_curriculum_stats_to_info(self, info_dict: dict) -> None:
-        """Add curriculum statistics to info dictionary for logging.
-
-        This method consolidates the curriculum stats logging logic to avoid duplication
-        and enables batching of expensive stats calculations.
-        """
-        # Only update curriculum stats periodically to reduce overhead
-        if self._stats_update_counter >= self._stats_update_frequency:
-            if not self._stats_cache_valid:
-                self._cached_stats = self._curriculum.stats()
-                self._stats_cache_valid = True
-
-            # Use pre-computed prefix for better performance
-            for key, value in self._cached_stats.items():
-                info_dict[self._CURRICULUM_STAT_PREFIX + key] = value
-            self._stats_update_counter = 0
+        # Tracked task attributes (only if troubleshooting enabled)
+        if self._enable_per_label_tracking:
+            self._tracked_task_ids = []
+            self._tracked_task_completions_this_epoch = {}
+            self._tracked_task_completions_baseline = {}
+        else:
+            self._tracked_task_ids = None
+            self._tracked_task_completions_this_epoch = None
+            self._tracked_task_completions_baseline = None
 
     def reset(self, *args, **kwargs):
         """Reset the environment and get a new task from curriculum."""
+        # Get a new task from curriculum, with retry logic for invalid configurations
+        max_retries = 10
+        for attempt in range(max_retries):
+            try:
+                self._current_task = self._curriculum.get_task()
+                self._env.set_mg_config(self._current_task.get_env_cfg())
+                break  # Success - exit retry loop
+            except (AssertionError, ValueError) as e:
+                # Handle configuration errors (e.g., agent count mismatch, map too small)
+                if attempt < max_retries - 1:
+                    # Log warning and try a new task
+                    import logging
 
-        # Get a new task from curriculum
-        self._current_task = self._curriculum.get_task()
-        self._env.set_mg_config(self._current_task.get_env_cfg())
+                    logger = logging.getLogger(__name__)
+                    logger.warning(
+                        f"Task configuration error (attempt {attempt + 1}/{max_retries}): {e}. Resampling new task..."
+                    )
+                    # Mark the task as invalid so it can be evicted
+                    if hasattr(self._current_task, "_task_id"):
+                        self._current_task.complete(-1.0)  # Mark as failed
+                    continue
+                else:
+                    # All retries exhausted - re-raise the error
+                    import logging
+
+                    logger = logging.getLogger(__name__)
+                    logger.error(
+                        f"Failed to find valid task configuration after {max_retries} attempts. Last error: {e}"
+                    )
+                    raise
+
         obs, info = self._env.reset(*args, **kwargs)
-
-        # Invalidate stats cache on reset
-        self._stats_cache_valid = False
-
-        # Only log curriculum stats on reset if cache is invalid or this is first reset
-        if not self._first_reset_done:
-            curriculum_stats = self._curriculum.stats()
-            for key, value in curriculum_stats.items():
-                info[self._CURRICULUM_STAT_PREFIX + key] = value
-            self._first_reset_done = True
-
         return obs, info
 
     def step(self, *args, **kwargs):
         """Step the environment and handle task completion.
 
-        Calls the environment's step method, then checks if the episode is done
-        and completes the current task with the curriculum if so. Then gives the
-        environment a new env config.
+        Calls the environment's step method, then checks if ANY episode is done
+        and completes the current task with the curriculum for each completion.
         """
         obs, rewards, terminals, truncations, infos = self._env.step(*args, **kwargs)
 
-        if terminals.all() or truncations.all():
-            mean_reward = self._env.get_episode_rewards().mean()
-            self._current_task.complete(mean_reward)
-            # Update the curriculum algorithm with task performance for learning progress
-            self._curriculum.update_task_performance(self._current_task._task_id, mean_reward)
-            self._current_task = self._curriculum.get_task()
-            self._env.set_mg_config(self._current_task.get_env_cfg())
+        # Handle completion for ANY environment that finished (not all)
+        if terminals.any() or truncations.any():
+            # Get per-environment rewards for completed episodes
+            episode_rewards = self._env.get_episode_rewards()
 
-            # Invalidate stats cache when task changes
-            self._stats_cache_valid = False
+            # Get per-epoch evictions and add to info dict (for gini calculation)
+            # This is called once per step when any environment completes
+            evictions_this_epoch = self._curriculum.get_and_reset_evictions_this_epoch()
+            if evictions_this_epoch:
+                if "env_curriculum_stats/per_label_evictions_this_epoch" not in infos:
+                    infos["env_curriculum_stats/per_label_evictions_this_epoch"] = {}
+                for label, count in evictions_this_epoch.items():
+                    infos["env_curriculum_stats/per_label_evictions_this_epoch"][label] = (
+                        infos["env_curriculum_stats/per_label_evictions_this_epoch"].get(label, 0) + count
+                    )
 
-        # Add curriculum stats to info for logging (batched)
-        self._stats_update_counter += 1
-        self._add_curriculum_stats_to_info(infos)
+            # Update curriculum for each completed environment
+            for env_idx, (term, trunc) in enumerate(zip(terminals, truncations, strict=True)):
+                if term or trunc:
+                    reward = float(episode_rewards[env_idx])
+                    self._current_task.complete(reward)
+                    # Update the curriculum algorithm with task performance for learning progress
+                    self._curriculum.update_task_performance(self._current_task._task_id, reward)
+
+                    # ALWAYS emit per-label sample count (needed for basic curriculum monitoring)
+                    label = self._current_task.get_label()
+                    if label is not None and isinstance(label, str):
+                        if "env_curriculum_stats/per_label_samples_this_epoch" not in infos:
+                            infos["env_curriculum_stats/per_label_samples_this_epoch"] = {}
+                        infos["env_curriculum_stats/per_label_samples_this_epoch"][label] = (
+                            infos["env_curriculum_stats/per_label_samples_this_epoch"].get(label, 0) + 1
+                        )
+
+                    # Track task completions for troubleshooting (ONLY if flag enabled)
+                    if self._enable_per_label_tracking:
+                        task_id = self._current_task._task_id
+                        if task_id not in self._tracked_task_ids and len(self._tracked_task_ids) < 3:
+                            self._tracked_task_ids.append(task_id)
+
+                        if task_id in self._tracked_task_ids:
+                            self._tracked_task_completions_this_epoch[task_id] = (
+                                self._tracked_task_completions_this_epoch.get(task_id, 0) + 1
+                            )
+
+            # Get new task with retry logic for invalid configurations
+            max_retries = 10
+            for attempt in range(max_retries):
+                try:
+                    self._current_task = self._curriculum.get_task()
+                    self._env.set_mg_config(self._current_task.get_env_cfg())
+                    break  # Success - exit retry loop
+                except (AssertionError, ValueError) as e:
+                    # Handle configuration errors (e.g., agent count mismatch, map too small)
+                    if attempt < max_retries - 1:
+                        # Log warning and try a new task
+                        import logging
+
+                        logger = logging.getLogger(__name__)
+                        logger.warning(
+                            f"Task configuration error on episode completion "
+                            f"(attempt {attempt + 1}/{max_retries}): {e}. Resampling new task..."
+                        )
+                        # Mark the task as invalid so it can be evicted
+                        if hasattr(self._current_task, "_task_id"):
+                            self._current_task.complete(-1.0)  # Mark as failed
+                        continue
+                    else:
+                        # All retries exhausted - re-raise the error
+                        import logging
+
+                        logger = logging.getLogger(__name__)
+                        logger.error(
+                            f"Failed to find valid task configuration after {max_retries} attempts "
+                            f"on episode completion. Last error: {e}"
+                        )
+                        raise
 
         return obs, rewards, terminals, truncations, infos
-
-    def set_stats_update_frequency(self, frequency: int) -> None:
-        """Set the frequency of curriculum stats updates during steps.
-
-        Args:
-            frequency: Number of steps between stats updates (default: 50)
-        """
-        self._stats_update_frequency = max(1, frequency)
-        self._stats_update_counter = 0  # Reset counter
-
-    def force_stats_update(self) -> None:
-        """Force an immediate update of curriculum stats."""
-        self._stats_update_counter = self._stats_update_frequency
-        self._stats_cache_valid = False
 
     def __getattribute__(self, name: str):
         """Intercept all attribute access and delegate to wrapped environment when appropriate.
@@ -132,15 +183,12 @@ class CurriculumEnv(PufferEnv):
             "_env",
             "_curriculum",
             "_current_task",
+            "_enable_per_label_tracking",
+            "_tracked_task_ids",
+            "_tracked_task_completions_this_epoch",
+            "_tracked_task_completions_baseline",
             "step",
-            "_add_curriculum_stats_to_info",
-            "_stats_update_counter",
-            "_stats_update_frequency",
-            "set_stats_update_frequency",
-            "force_stats_update",
-            "_cached_stats",
-            "_stats_cache_valid",
-            "_first_reset_done",
+            "reset",
         ):
             return object.__getattribute__(self, name)
 

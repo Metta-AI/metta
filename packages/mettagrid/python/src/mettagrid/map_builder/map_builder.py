@@ -182,10 +182,15 @@ class MapBuilder(ABC, Generic[ConfigT]):
 
         if Config._builder_cls:
             # Already bound to another MapBuilder class, so we need to clone it
-            class CloneConfig(Config):
-                pass
-
-            Config = CloneConfig
+            # Use type() to create a picklable class with proper __module__ and __qualname__
+            Config = type(
+                f"{cls.__name__}Config",
+                (Config,),
+                {
+                    "__module__": cls.__module__,
+                    "__qualname__": f"{cls.__qualname__}.Config",
+                },
+            )
 
         Config._builder_cls = cls
         cls.Config = Config  # pyright: ignore[reportAttributeAccessIssue]
