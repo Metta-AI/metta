@@ -139,9 +139,6 @@ packages/cogames/src/cogames/policy/fast_agents/nim.cfg
 # Nim Agents
 packages/cogames/src/cogames/policy/fast_agents/bindings/generated
 
-# Nim Agents
-packages/cogames/src/cogames/policy/heuristic_agents/bindings/generated/
-
 # Uncategorized
 .terraform*
 terraform.tfstate
