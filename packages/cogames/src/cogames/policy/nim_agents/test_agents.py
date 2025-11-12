@@ -1,3 +1,4 @@
+import ctypes
 import os
 import sys
 
@@ -10,21 +11,42 @@ def main() -> None:
 
     import nim_agents as fa
 
-    # Initialize the DLL (sets control-c handler).
-    fa.init()
+    fa.nim_agents_init_chook()
 
-    # Test single agent policy
-    num_agents = 1
-    num_tokens = 200
+    num_agents = 2
+    num_tokens = 50
     size_token = 3
-    num_actions = 1
-    agent = fa.RandomAgent(0, "{}")
     observations = np.zeros((num_agents, num_tokens, size_token), dtype=np.uint8)
-    actions = np.zeros((num_agents), dtype=np.int32)
-    agent.step_batch(num_agents, num_tokens, size_token, observations.ctypes.data, num_actions, actions.ctypes.data)
+    actions = np.zeros(num_agents, dtype=np.int32)
+
+    policy = fa.RandomPolicy("{}")
+    subset = np.array([0, 1], dtype=np.int32)
+    subset_ptr = subset.ctypes.data_as(ctypes.POINTER(ctypes.c_int32))
+    policy.random_policy_step_batch(
+        subset_ptr,
+        subset.size,
+        num_agents,
+        num_tokens,
+        size_token,
+        observations.ctypes.data,
+        num_agents,
+        actions.ctypes.data,
+    )
     print(actions)
-    single_action = agent.step(num_tokens, size_token, observations[0].ctypes.data)
-    print(single_action)
+
+    single_subset = np.array([0], dtype=np.int32)
+    single_ptr = single_subset.ctypes.data_as(ctypes.POINTER(ctypes.c_int32))
+    policy.random_policy_step_batch(
+        single_ptr,
+        single_subset.size,
+        num_agents,
+        num_tokens,
+        size_token,
+        observations.ctypes.data,
+        num_agents,
+        actions.ctypes.data,
+    )
+    print(actions[0])
 
 
 if __name__ == "__main__":
