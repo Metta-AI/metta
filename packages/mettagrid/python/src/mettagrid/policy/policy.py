@@ -147,22 +147,10 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
         self._single_obs = np.empty(obs_shape, dtype=dtype_observations)
         self._single_action = np.zeros(1, dtype=np.int32)
 
-    @property
-    def agent_ids(self) -> set[int]:
-        return self._agent_ids
-
-    def _subset_ptr(self, subset: np.ndarray | None) -> tuple[ctypes.POINTER(ctypes.c_int32) | None, int]:
-        if subset is None:
-            return self._default_subset_ptr, self._default_subset_len
-        if subset.size == 0:
-            return None, 0
-        return subset.ctypes.data_as(ctypes.POINTER(ctypes.c_int32)), int(subset.size)
-
-    def _invoke_step(self, raw_observations: np.ndarray, raw_actions: np.ndarray, subset: np.ndarray | None) -> None:
-        subset_ptr, subset_len = self._subset_ptr(subset)
+    def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
         self._step_batch(
-            subset_ptr,
-            subset_len,
+            self._default_subset_ptr,
+            self._default_subset_len,
             self._num_agents,
             self._num_tokens,
             self._token_dim,
@@ -171,38 +159,27 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
             raw_actions.ctypes.data,
         )
 
-    def _step_single_native(self, agent_id: int, obs: AgentObservation) -> int:
-        self._pack_observation(self._single_obs, obs)
-        self._single_action.fill(0)
-        self._step_single(
-            agent_id,
-            self._num_agents,
-            self._num_tokens,
-            self._token_dim,
-            self._single_obs.ctypes.data,
-            self._num_actions,
-            self._single_action.ctypes.data,
-        )
-        return int(self._single_action[0])
-
-    def _action_from_index(self, action_index: int) -> Action:
-        return Action(name=self._action_names[action_index])
-
-    def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
-        self._invoke_step(raw_observations, raw_actions, subset=None)
-
-    def _pack_observation(self, target: np.ndarray, obs: AgentObservation) -> None:
+    def step_single(self, agent_id: int, obs: AgentObservation) -> int:
+        if agent_id not in self._agent_ids:
+            raise ValueError(f"Agent id {agent_id} not handled by {self.__class__.__name__}")
+        target = self._single_obs
         target.fill(255)
         for idx, token in enumerate(obs.tokens):
             if idx >= self._num_tokens:
                 break
             token_values = token.raw_token
             target[idx, : len(token_values)] = token_values
-
-    def step_single(self, agent_id: int, obs: AgentObservation) -> int:
-        if agent_id not in self._agent_ids:
-            raise ValueError(f"Agent id {agent_id} not handled by {self.__class__.__name__}")
-        return self._step_single_native(agent_id, obs)
+        self._single_action.fill(0)
+        self._step_single(
+            agent_id,
+            self._num_agents,
+            self._num_tokens,
+            self._token_dim,
+            target.ctypes.data,
+            self._num_actions,
+            self._single_action.ctypes.data,
+        )
+        return int(self._single_action[0])
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         if agent_id not in self._agent_ids:
@@ -224,7 +201,7 @@ class _NimAgentPolicy(AgentPolicy):
 
     def step(self, obs: AgentObservation) -> Action:
         action_index = self._parent.step_single(self._agent_id, obs)
-        return self._parent._action_from_index(action_index)
+        return Action(name=self._parent._action_names[action_index])
 
     def reset(self) -> None:
         self._parent.reset()
