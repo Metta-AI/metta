@@ -53,6 +53,7 @@ map_data: |-
 char_to_name_map:
   "#": wall
   ".": empty
+  "+": charger
   "G": germanium_extractor
   "C": carbon_extractor
   "S": silicon_extractor
