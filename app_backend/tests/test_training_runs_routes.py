@@ -8,7 +8,6 @@ from metta.app_backend.clients.stats_client import StatsClient
 
 
 # Example flaky run: https://github.com/Metta-AI/metta/actions/runs/18573440362/job/52952874069
-@pytest.mark.skip(reason="flaky")
 class TestTrainingRunsRoutes:
     """Tests for the training runs API routes."""
 
