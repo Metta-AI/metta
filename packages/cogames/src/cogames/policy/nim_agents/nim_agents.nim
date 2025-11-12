@@ -90,32 +90,6 @@ proc stepPolicyBatch[T](
     for idx in 0 ..< agents.len:
       runAgent(idx)
 
-proc stepPolicySingle[T](
-    agents: seq[T],
-    agentId: int,
-    numAgents: int,
-    numTokens: int,
-    sizeToken: int,
-    rawObservation: pointer,
-    numActions: int,
-    rawAction: pointer,
-    stepProc: proc (
-      agent: T,
-      numAgents: int,
-      numTokens: int,
-      sizeToken: int,
-      rawObservation: pointer,
-      numActions: int,
-      agentAction: ptr int32
-    ) {.raises: [].}
-) {.raises: [].} =
-  if agentId < 0 or agentId >= agents.len:
-    return
-  var actionPtrValue: ptr int32 = nil
-  if rawAction != nil:
-    actionPtrValue = cast[ptr int32](rawAction)
-  stepProc(agents[agentId], numAgents, numTokens, sizeToken, rawObservation, numActions, actionPtrValue)
-
 proc randomPolicyStepBatch*(
     policy: RandomPolicy,
     agentIds: pointer,
@@ -150,17 +124,12 @@ proc randomPolicyStepSingle*(
     numActions: int,
     rawAction: pointer
 ) {.raises: [].} =
-  stepPolicySingle(
-    policy.agents,
-    agentId,
-    numAgents,
-    numTokens,
-    sizeToken,
-    rawObservation,
-    numActions,
-    rawAction,
-    random_agents.step
-  )
+  if agentId < 0 or agentId >= policy.agents.len:
+    return
+  var actionPtrValue: ptr int32 = nil
+  if rawAction != nil:
+    actionPtrValue = cast[ptr int32](rawAction)
+  random_agents.step(policy.agents[agentId], numAgents, numTokens, sizeToken, rawObservation, numActions, actionPtrValue)
 
 proc randomPolicyReset*(policy: RandomPolicy) {.raises: [].} =
   for agent in policy.agents:
@@ -200,17 +169,12 @@ proc thinkyPolicyStepSingle*(
     numActions: int,
     rawAction: pointer
 ) {.raises: [].} =
-  stepPolicySingle(
-    policy.agents,
-    agentId,
-    numAgents,
-    numTokens,
-    sizeToken,
-    rawObservation,
-    numActions,
-    rawAction,
-    thinky_agents.step
-  )
+  if agentId < 0 or agentId >= policy.agents.len:
+    return
+  var actionPtrValue: ptr int32 = nil
+  if rawAction != nil:
+    actionPtrValue = cast[ptr int32](rawAction)
+  thinky_agents.step(policy.agents[agentId], numAgents, numTokens, sizeToken, rawObservation, numActions, actionPtrValue)
 
 proc thinkyPolicyReset*(policy: ThinkyPolicy) {.raises: [].} =
   for agent in policy.agents:
@@ -250,16 +214,19 @@ proc raceCarPolicyStepSingle*(
     numActions: int,
     rawAction: pointer
 ) {.raises: [].} =
-  stepPolicySingle(
-    policy.agents,
-    agentId,
+  if agentId < 0 or agentId >= policy.agents.len:
+    return
+  var actionPtrValue: ptr int32 = nil
+  if rawAction != nil:
+    actionPtrValue = cast[ptr int32](rawAction)
+  race_car_agents.step(
+    policy.agents[agentId],
     numAgents,
     numTokens,
     sizeToken,
     rawObservation,
     numActions,
-    rawAction,
-    race_car_agents.step
+    actionPtrValue
   )
 
 proc raceCarPolicyReset*(policy: RaceCarPolicy) {.raises: [].} =
