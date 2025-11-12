@@ -167,7 +167,7 @@ class RaceCarAgentsMultiPolicy(MultiAgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface):
         super().__init__(policy_env_info)
 
-    short_names = ["fast_race_car"]
+    short_names = ["fast_race_car", "heuristic_agents"]
 
     def agent_policy(self, agent_id: int) -> RaceCarAgentPolicy:
         return RaceCarAgentPolicy(self._policy_env_info, agent_id)

@@ -17,7 +17,6 @@ from setuptools.command.develop import develop
 from setuptools.command.install import install
 
 FAST_AGENTS_DIR = Path(__file__).parent / "src" / "cogames" / "policy" / "fast_agents"
-HEURISTIC_AGENTS_DIR = Path(__file__).parent / "src" / "cogames" / "policy" / "heuristic_agents"
 NIMBY_LOCK = FAST_AGENTS_DIR / "nimby.lock"
 REQUIRED_NIM_VERSION = os.environ.get("COGAMES_NIM_VERSION", "2.2.6")
 NIMBY_VERSION = os.environ.get("COGAMES_NIMBY_VERSION", "0.1.6")
@@ -59,15 +58,6 @@ def _build_nim() -> None:
             print(result.stderr, file=sys.stderr)
             print(result.stdout, file=sys.stderr)
             raise RuntimeError(f"Failed to build Nim fast agents: {result.returncode}")
-
-    if HEURISTIC_AGENTS_DIR.exists():
-        result = subprocess.run(
-            ["nim", "c", "heuristic_agents.nim"], cwd=HEURISTIC_AGENTS_DIR, capture_output=True, text=True
-        )
-        if result.returncode != 0:
-            print(result.stderr, file=sys.stderr)
-            print(result.stdout, file=sys.stderr)
-            raise RuntimeError(f"Failed to build heuristic Nim agents: {result.returncode}")
 
 
 class _EnsureNimMixin:

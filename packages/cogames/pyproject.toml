@@ -63,6 +63,4 @@ cache-keys = [
   { file = "src/cogames/policy/fast_agents/random_agents.nim" },
   { file = "src/cogames/policy/fast_agents/thinky_agents.nim" },
   { file = "src/cogames/policy/fast_agents/race_car_agents.nim" },
-  { file = "src/cogames/policy/heuristic_agents/heuristic_agents.nim" },
-  { file = "src/cogames/policy/heuristic_agents/heuristic_agents.nims" },
 ]
