@@ -306,7 +306,6 @@ class TestMettaGridPufferEnvSupervisorPolicy:
 
         # Verify supervisor policy was initialized
         assert env._env_supervisor_policy is not None
-        assert env._env_supervisor is not None
 
         # Reset environment
         obs, info = env.reset()
