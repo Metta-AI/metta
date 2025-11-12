@@ -327,6 +327,25 @@ uv run sky logs <sandbox-name>
 uv run sky launch -c <sandbox-name> --no-setup
 ```
 
+### Launching H100 (p5) Sandboxes
+
+You can now request H100-backed instances directly via flags (no YAML edits):
+
+```bash
+# Launch a single-node H100 sandbox on p5.4xlarge (1× H100)
+./devops/skypilot/sandbox.py --new --gpu-type H100 --gpus 1 --instance-type p5.4xlarge --retry-until-up --wait-timeout 900
+
+# Examples for larger nodes
+# 2× H100: p5.12xlarge | 4× H100: p5.24xlarge | 8× H100: p5.48xlarge
+./devops/skypilot/sandbox.py --new --gpu-type H100 --gpus 2 --instance-type p5.12xlarge
+./devops/skypilot/sandbox.py --new --gpu-type H100 --gpus 4 --instance-type p5.24xlarge
+./devops/skypilot/sandbox.py --new --gpu-type H100 --gpus 8 --instance-type p5.48xlarge
+```
+
+Notes
+- Omit `--instance-type` to let the tool auto-map H100 to the closest p5 size when possible.
+- Ensure your AWS account has p5 quota in the target region (see `resources.region` in `devops/skypilot/config/sandbox.yaml`).
+
 ### Cost Management
 
 - Sandboxes automatically stop after **48 hours** to prevent runaway costs
