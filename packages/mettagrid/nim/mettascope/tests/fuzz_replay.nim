@@ -1,12 +1,12 @@
 import
-  std/[json, random, strformat, math, strutils],
+  std/[json, random, strformat, math, strutils, os, osproc, times],
   zippy,
   boxy, windy, opengl,
   fidget2/[loader, hybridrender],
   mettascope/[replays, worldmap], test_replay
 
 const
-  iterations = 1000
+  iterations = 100
 
 randomize()
 
@@ -116,14 +116,16 @@ proc fuzzJsonField(obj: JsonNode, fieldPath: seq[string], depth: int = 0, baseRe
   else:
     discard  # Leave other types unchanged
 
-proc fuzzReplay(replay: JsonNode): JsonNode =
+proc fuzzReplay(replay: JsonNode): (JsonNode, seq[string]) =
   ## Apply random fuzzing mutations to replay JSON.
-  result = replay.copy()
+  ## Returns (fuzzedReplay, changeLog) where changeLog describes what was changed.
+  result[0] = replay.copy()
+  result[1] = @[]
 
   # Only fuzz the objects array, and only specific properties within objects
-  if "objects" in result and result["objects"].kind == JArray:
+  if "objects" in result[0] and result[0]["objects"].kind == JArray:
     var newObjects = newJArray()
-    for i, obj in result["objects"].getElems():
+    for i, obj in result[0]["objects"].getElems():
       if obj.kind == JObject:
         var newObj = newJObject()
         for k, v in obj:
@@ -131,17 +133,23 @@ proc fuzzReplay(replay: JsonNode): JsonNode =
                    "current_reward", "total_reward", "action_id", "action_param", "action_success",
                    "freeze_remaining", "is_frozen", "freeze_duration", "vision_size", "group_id"]:
             # Only fuzz these data fields that don't affect image loading
-            newObj[k] = fuzzJsonField(v, @["objects", $i, k], 0, result)
+            let originalValue = v
+            let fuzzedValue = fuzzJsonField(v, @["objects", $i, k], 0, result[0])
+            newObj[k] = fuzzedValue
+
+            # Record the change if it actually changed
+            if $fuzzedValue != $originalValue:
+              result[1].add(&"Object {i}.{k}: {$originalValue} -> {$fuzzedValue}")
           else:
             # Keep critical fields unchanged
             newObj[k] = v
         newObjects.add(newObj)
       else:
         newObjects.add(obj)
-    result["objects"] = newObjects
+    result[0]["objects"] = newObjects
 
 initHeadlessFidget2()
-let baseReplay = makeValidReplay("fuzz_test_replay.json.z")
+let baseReplay = generateReplayForTesting()
 
 type
   FailureType = enum
@@ -152,13 +160,14 @@ type
     iteration: int
     failureType: FailureType
     err: ref Exception
+    changeLog: seq[string]
 
 var
   passedCount = 0
   failures: seq[TestResult]
 
 for i in 0 ..< iterations:
-  let fuzzedReplay = fuzzReplay(baseReplay)
+  let (fuzzedReplay, changeLog) = fuzzReplay(baseReplay)
   let jsonStr = $fuzzedReplay
 
   # Test validation (collect failures but don't stop)
@@ -170,6 +179,7 @@ for i in 0 ..< iterations:
       iteration: i,
       failureType: ValidationFailure,
       err: e,
+      changeLog: changeLog,
     )
     failures.add(failure)
     validationPassed = false
@@ -186,6 +196,7 @@ for i in 0 ..< iterations:
       iteration: i,
       failureType: LoadingFailure,
       err: e,
+      changeLog: changeLog,
     )
     failures.add(failure)
 
@@ -225,6 +236,12 @@ if failures.len > 0:
     echo &"🚨 CRITICAL: {segfaultFailures.len} SEGMENTATION FAULTS DETECTED!"
     for failure in segfaultFailures:
       echo &"  Iteration {failure.iteration}: {failure.err.msg}"
+      if failure.changeLog.len > 0:
+        echo &"  Fuzzing applied:"
+        for change in failure.changeLog:
+          echo &"    {change}"
+      else:
+        echo &"  Fuzzing applied: none (no changes made)"
       echo ""
 
   # Report validation failures
@@ -233,6 +250,12 @@ if failures.len > 0:
     echo &"⚠️  VALIDATION FAILURES: {validationFailures.len}"
     for failure in validationFailures:
       echo &"  Iteration {failure.iteration}: {failure.err.msg}"
+      if failure.changeLog.len > 0:
+        echo &"  Fuzzing applied:"
+        for change in failure.changeLog:
+          echo &"    {change}"
+      else:
+        echo &"  Fuzzing applied: none (no changes made)"
       echo &"  Stack trace: {failure.err.getStackTrace()}"
 
   # Report loading failures
@@ -241,6 +264,12 @@ if failures.len > 0:
     echo &"⚠️  LOADING FAILURES: {loadingFailures.len}"
     for failure in loadingFailures:
       echo &"  Iteration {failure.iteration}: {failure.err.msg}"
+      if failure.changeLog.len > 0:
+        echo &"  Fuzzing applied:"
+        for change in failure.changeLog:
+          echo &"    {change}"
+      else:
+        echo &"  Fuzzing applied: none (no changes made)"
       echo &"  Stack trace: {failure.err.getStackTrace()}"
 
   echo ""

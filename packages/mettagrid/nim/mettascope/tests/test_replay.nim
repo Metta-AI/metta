@@ -452,8 +452,57 @@ proc loadReplay(path: string): JsonNode =
   except:
     raise newException(ValueError, "Invalid JSON in replay file")
 
+proc generateReplayForTesting*(): JsonNode =
+  ## Generate a fresh replay using the actual metta system for testing.
+
+  # Create temporary directory
+  let tmpDir = getTempDir() / "metta_test_replay_" & $getTime().toUnix()
+  createDir(tmpDir)
+
+  # Generate a replay using the CI setup
+  let projectRoot = parentDir(parentDir(parentDir(parentDir(parentDir(parentDir(currentSourcePath()))))))
+  let cmd = &"cd {projectRoot} && uv run --no-sync tools/run.py ci.replay_null replay_dir={tmpDir} stats_dir={tmpDir}"
+
+  echo &"Generating replay data for testing..."
+  let exitCode = execCmd(cmd)
+
+  if exitCode != 0:
+    raise newException(AssertionError, &"Replay generation failed with exit code {exitCode}")
+
+  # Find generated replay files
+  var replayFiles: seq[string]
+  for file in walkDirRec(tmpDir):
+    if file.endsWith(".json.z"):
+      replayFiles.add(file)
+
+  if replayFiles.len == 0:
+    raise newException(AssertionError, &"No replay files were generated in {tmpDir}")
+
+  if replayFiles.len != 1:
+    raise newException(AssertionError, &"Expected exactly 1 replay file, found {replayFiles.len}: {replayFiles}")
+
+  # Load the generated replay
+  let replayPath = replayFiles[0]
+  let filename = extractFilename(replayPath)
+  echo &"Loading generated replay: {filename}"
+
+  let compressedData = readFile(replayPath)
+  let jsonData = zippy.uncompress(compressedData)
+  let replayJson = parseJson(jsonData)
+
+  let numAgents = replayJson["num_agents"].getInt()
+  let maxSteps = replayJson["max_steps"].getInt()
+  echo &"Generated replay with {numAgents} agents and {maxSteps} max steps"
+
+  # Clean up temp directory
+  removeDir(tmpDir)
+
+  return replayJson
+
 proc makeValidReplay*(fileName: string = "sample.json.z"): JsonNode =
   ## Create a minimal valid replay dict per the spec.
+  ## This should only be used to test our validator functions.
+  ## real tests should generate a real replay with `generateReplayForTesting()`
   result = %*{
     "version": 2,
     "num_agents": 2,
@@ -555,38 +604,8 @@ when isMainModule:
       echo "✓ Invalid map_size properly rejected"
 
   block generated_replay_test:
-    # Generate a replay using the CI setup and validate it against the strict schema.
-
-    # Create temporary directory
-    let tmpDir = getTempDir() / "metta_replay_test_" & $getTime().toUnix()
-    createDir(tmpDir)
-    defer: removeDir(tmpDir)
-
-    # Generate a replay using the CI configuration
-    let projectRoot = parentDir(parentDir(parentDir(parentDir(parentDir(parentDir(currentSourcePath()))))))
-    let cmd = &"cd {projectRoot} && uv run --no-sync tools/run.py ci.replay_null replay_dir={tmpDir} stats_dir={tmpDir}"
-    echo &"Running replay generation: {cmd}"
-
-    let exitCode = execCmd(cmd)
-    if exitCode != 0:
-      raise newException(AssertionError, &"Replay generation failed with exit code {exitCode}")
-
-    # Find generated replay files
-    var replayFiles: seq[string]
-    for file in walkDirRec(tmpDir):
-      if file.endsWith(".json.z"):
-        replayFiles.add(file)
-
-    if replayFiles.len == 0:
-      raise newException(AssertionError, &"No replay files were generated in {tmpDir}")
-
-    # Should have exactly one replay file
-    if replayFiles.len != 1:
-      raise newException(AssertionError, &"Expected exactly 1 replay file, found {replayFiles.len}: {replayFiles}")
-
-    # Validate the replay file
-    let replayPath = replayFiles[0]
-    let loadedReplay = loadReplay(replayPath)
+    # Generate a real replay and validate it against the strict schema.
+    let loadedReplay = generateReplayForTesting()
     validateReplaySchema(loadedReplay)
 
-    echo &"✓ Successfully generated and validated replay: {extractFilename(replayPath)}"
+    echo &"✓ Successfully generated and validated replay"
