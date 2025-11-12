@@ -78,13 +78,11 @@ class TokenPolicyNet(torch.nn.Module):
 
         valid_mask = coords_byte != 0xFF
 
-        row_coords = torch.clamp((coords_byte >> 4) & 0x0F, min=0, max=255)
-        col_coords = torch.clamp(coords_byte & 0x0F, min=0, max=255)
+        y_coords = torch.clamp((coords_byte >> 4) & 0x0F, min=0, max=255)
+        x_coords = torch.clamp(coords_byte & 0x0F, min=0, max=255)
         feature_ids_clamped = torch.clamp(feature_ids, min=0, max=self.feature_embed.num_embeddings - 1)
 
-        token_embed = (
-            self.pos_x_embed(col_coords) + self.pos_y_embed(row_coords) + self.feature_embed(feature_ids_clamped)
-        )
+        token_embed = self.pos_x_embed(x_coords) + self.pos_y_embed(y_coords) + self.feature_embed(feature_ids_clamped)
 
         scale = self._feature_scale[feature_ids_clamped]
         scaled_values = (values / (scale + 1e-6)).unsqueeze(-1)

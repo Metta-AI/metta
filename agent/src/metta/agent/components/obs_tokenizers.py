@@ -130,31 +130,31 @@ class ObsAttrEmbedFourier(nn.Module):
         )
         feat_vectors[..., : self._attr_embed_dim] = attr_embeds
 
-        # coords_byte packs row/col into the high/low nibble respectively
+        # coords_byte packs coords as row<<4 | col (row lives in the high nibble)
         coords_byte = observations[..., 0].to(torch.uint8)
-        row_coord_indices = ((coords_byte >> 4) & 0x0F).float()
-        col_coord_indices = (coords_byte & 0x0F).float()
+        y_coord_indices = ((coords_byte >> 4) & 0x0F).float()
+        x_coord_indices = (coords_byte & 0x0F).float()
 
         # Normalize to [-1, 1] using known grid range (0-10)
-        col_coords_norm = col_coord_indices / (self._mu - 1.0) * 2.0 - 1.0
-        row_coords_norm = row_coord_indices / (self._mu - 1.0) * 2.0 - 1.0
+        x_coords_norm = x_coord_indices / (self._mu - 1.0) * 2.0 - 1.0
+        y_coords_norm = y_coord_indices / (self._mu - 1.0) * 2.0 - 1.0
 
         # Broadcast with frequency tensor
-        col_coords_norm = einops.rearrange(col_coords_norm, "... -> ... 1")
-        row_coords_norm = einops.rearrange(row_coords_norm, "... -> ... 1")
+        x_coords_norm = einops.rearrange(x_coords_norm, "... -> ... 1")
+        y_coords_norm = einops.rearrange(y_coords_norm, "... -> ... 1")
         frequencies = self.get_buffer("frequencies").view(1, 1, -1)
-        col_scaled = col_coords_norm * frequencies
-        row_scaled = row_coords_norm * frequencies
+        x_scaled = x_coords_norm * frequencies
+        y_scaled = y_coords_norm * frequencies
 
-        # Populate Fourier blocks: [cos(col), sin(col), cos(row), sin(row)]
+        # Populate Fourier blocks: [cos(x), sin(x), cos(y), sin(y)]
         offset = self._attr_embed_dim
-        feat_vectors[..., offset : offset + self._num_freqs] = torch.cos(col_scaled)
+        feat_vectors[..., offset : offset + self._num_freqs] = torch.cos(x_scaled)
         offset += self._num_freqs
-        feat_vectors[..., offset : offset + self._num_freqs] = torch.sin(col_scaled)
+        feat_vectors[..., offset : offset + self._num_freqs] = torch.sin(x_scaled)
         offset += self._num_freqs
-        feat_vectors[..., offset : offset + self._num_freqs] = torch.cos(row_scaled)
+        feat_vectors[..., offset : offset + self._num_freqs] = torch.cos(y_scaled)
         offset += self._num_freqs
-        feat_vectors[..., offset : offset + self._num_freqs] = torch.sin(row_scaled)
+        feat_vectors[..., offset : offset + self._num_freqs] = torch.sin(y_scaled)
 
         # Append scalar attribute value
         feat_vectors[..., self._attr_embed_dim + self._coord_rep_dim :] = einops.rearrange(

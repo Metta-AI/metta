@@ -106,9 +106,9 @@ class PufferPolicy(Policy):
         observations[observations == 255] = 0
         coords_byte = observations[..., 0].to(torch.uint8)
 
-        # Extract row/column coordinate indices (0-15 range, but we need to make them long for indexing)
-        row_coords = ((coords_byte >> 4) & 0x0F).long()  # Shape: [B_TT, M]
-        col_coords = (coords_byte & 0x0F).long()  # Shape: [B_TT, M]
+        # Extract x/y coordinate indices (low nibble -> x/col, high nibble -> y/row)
+        y_coords = ((coords_byte >> 4) & 0x0F).long()  # Shape: [B_TT, M]
+        x_coords = (coords_byte & 0x0F).long()  # Shape: [B_TT, M]
         atr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
         atr_values = observations[..., 2].float()  # Shape: [B_TT, M]
 
@@ -120,8 +120,8 @@ class PufferPolicy(Policy):
 
         valid_tokens = (
             (coords_byte != 0xFF)
-            & (col_coords < self.out_width)
-            & (row_coords < self.out_height)
+            & (x_coords < self.out_width)
+            & (y_coords < self.out_height)
             & (atr_indices < self.num_layers)
         )
 
@@ -129,8 +129,8 @@ class PufferPolicy(Policy):
         box_obs[
             batch_idx[valid_tokens],
             atr_indices[valid_tokens],
-            col_coords[valid_tokens],
-            row_coords[valid_tokens],
+            x_coords[valid_tokens],
+            y_coords[valid_tokens],
         ] = atr_values[valid_tokens]
 
         # Normalize features with epsilon for numerical stability

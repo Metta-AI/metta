@@ -326,11 +326,11 @@ class ObsSwinEncoder(nn.Module):
         projected = self.input_proj(normed_features)
 
         coords_byte = tokens[..., 0].to(torch.int64)
-        row_coords = (coords_byte >> 4) & 0x0F
-        col_coords = coords_byte & 0x0F
+        y_coords = (coords_byte >> 4) & 0x0F
+        x_coords = coords_byte & 0x0F
 
-        patch_x = torch.div(col_coords, self.config.patch_size, rounding_mode="floor")
-        patch_y = torch.div(row_coords, self.config.patch_size, rounding_mode="floor")
+        patch_x = torch.div(x_coords, self.config.patch_size, rounding_mode="floor")
+        patch_y = torch.div(y_coords, self.config.patch_size, rounding_mode="floor")
         patch_x = patch_x.clamp(max=self.num_patches_x - 1)
         patch_y = patch_y.clamp(max=self.num_patches_y - 1)
         patch_ids = patch_y * self.num_patches_x + patch_x
