@@ -17,7 +17,7 @@ import random
 from typing import Callable, Optional, Tuple, Union
 
 from cogames.policy import StatefulPolicyImpl
-from mettagrid.config.mettagrid_config import CardinalDirection, CardinalDirections
+from mettagrid.config.mettagrid_config import CardinalDirection
 from mettagrid.config.vibes import VIBE_BY_NAME
 from mettagrid.policy.policy import MultiAgentPolicy, StatefulAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
@@ -344,6 +344,54 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         self._clear_stuck_state(s)
         return action if action else self._actions.noop.Noop()
 
+    def _infer_move_cost(self, s: SimpleAgentState) -> None:
+        """Infer the cost of moving by observing energy changes after move actions.
+
+        Tracks energy delta after move actions and uses the most common value as the inferred cost.
+        Requires at least 3 samples before setting an inferred cost.
+        """
+        # Check if last action was a move and we weren't using an object
+        if s.last_action and s.last_action.name.startswith("move_") and not s.using_object_this_step:
+            # Calculate energy delta (should be negative for moves)
+            energy_delta = s.energy - s.previous_energy
+
+            # Only track if this looks like a move cost (negative and reasonable)
+            if energy_delta < 0 and energy_delta >= -50:  # Sanity check: moves shouldn't cost more than 50
+                s.move_energy_samples.append(abs(energy_delta))
+
+                # Keep only recent samples (last 10)
+                if len(s.move_energy_samples) > 10:
+                    s.move_energy_samples.pop(0)
+
+                # Infer cost once we have enough samples
+                if len(s.move_energy_samples) >= 3 and s.inferred_move_cost is None:
+                    # Use the most common value (mode)
+                    from collections import Counter
+
+                    counter = Counter(s.move_energy_samples)
+                    s.inferred_move_cost = counter.most_common(1)[0][0]
+
+    def _check_energy_before_move(self, s: SimpleAgentState, action: Action) -> Action:
+        """Check if we have enough energy to execute a move action.
+
+        If the action is a move and we don't have enough energy (based on inferred cost),
+        return a noop instead to avoid negative energy.
+        """
+        # Only check move actions
+        if not action.name.startswith("move_"):
+            return action
+
+        # If we haven't inferred the cost yet, allow the move (we're still learning)
+        if s.inferred_move_cost is None:
+            return action
+
+        # Check if we have enough energy
+        if s.energy < s.inferred_move_cost:
+            # Not enough energy, return noop instead
+            return self._actions.noop.Noop()
+
+        return action
+
     def step_with_state(self, obs: AgentObservation, state: SimpleAgentState) -> Tuple[Action, SimpleAgentState]:
         """Compute action for one agent (returns action index)."""
         state.step_count += 1
@@ -354,6 +402,10 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
         # Read inventory from observation tokens at center cell
         self._read_inventory_from_obs(state, obs)
+
+        # Infer move cost by observing energy changes after moves
+        self._infer_move_cost(state)
+
         self._update_agent_position(state)
         parsed = self.parse_observation(state, obs)
         self._update_occupancy_and_discover(state, parsed)
@@ -377,8 +429,14 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
         action = self._execute_phase(state)
 
+        # Check energy before move actions (prevent negative energy moves)
+        action = self._check_energy_before_move(state, action)
+
         # Save action for next step's position update
         state.last_action = action
+
+        # Update previous energy for next step's inference
+        state.previous_energy = state.energy
 
         return action, state
 
@@ -404,16 +462,30 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
         IMPORTANT: When using objects (extractors, stations), the agent "moves into" them but doesn't
         actually change position. We detect this by checking the using_object_this_step flag.
+
+        We also verify the move actually succeeded by checking if energy decreased by the expected amount.
         """
         # If last action was a move and we're not using an object, update position
-        # We assume the move succeeded unless we were using an object
         if s.last_action and s.last_action.name.startswith("move_") and not s.using_object_this_step:
             # Extract direction from action name (e.g., "move_north" -> "north")
             direction = s.last_action.name[5:]  # Remove "move_" prefix
             if direction in self._move_deltas:
                 dr, dc = self._move_deltas[direction]
-                s.row += dr
-                s.col += dc
+                target_r, target_c = s.row + dr, s.col + dc
+
+                # Check if target cell is a known obstacle
+                # If so, don't update position (move into wall/station failed)
+                move_blocked = False
+                if 0 <= target_r < s.map_height and 0 <= target_c < s.map_width:
+                    if s.occupancy[target_r][target_c] == CellType.OBSTACLE.value:
+                        move_blocked = True
+
+                # Update position unless blocked by obstacle
+                # Note: This assumes moves into free cells succeed even if blocked by agents
+                # (agent collisions are temporary and pathfinding will route around)
+                if not move_blocked:
+                    s.row = target_r
+                    s.col = target_c
         # Clear the flag for next step
         s.using_object_this_step = False
 
@@ -603,7 +675,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             return state.target_resource
 
         phase_to_vibe = {
-            Phase.GATHER: "carbon",  # Default fallback if no target resource
+            Phase.GATHER: "default",  # Use default during pure exploration (target_resource is None)
             Phase.ASSEMBLE: "heart",  # Red for assembly
             Phase.DELIVER: "default",  # Must be "default" to deposit hearts into chest
             Phase.RECHARGE: "charger",  # Blue/electric for recharging
@@ -641,113 +713,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         elif s.phase == Phase.UNCLIP:
             return self._do_unclip(s)
         return self._actions.noop.Noop()
-
-    def _explore_directional(self, s: SimpleAgentState) -> Action:
-        """
-        Simple directional exploration: pick a random direction and stick to it for ~15 steps.
-        Changes direction when blocked or after persistence expires.
-        Uses move_towards for actual movement to benefit from collision detection and pathfinding checks.
-
-        Anti-stuck mechanism: If stuck in a small area (configurable via hyperparameters) for
-        a configurable number of steps, navigates to assembler for a configurable duration
-        to escape, then continues exploring.
-        """
-        if s.row < 0:
-            return self._actions.noop.Noop()
-
-        # Check if we're in escape mode (navigating to assembler)
-        if s.exploration_escape_until_step > 0:
-            if s.step_count >= s.exploration_escape_until_step:
-                # Done escaping, continue normal exploration
-                s.exploration_escape_until_step = 0
-            else:
-                # Still in escape mode - navigate to assembler
-                if s.stations["assembler"] is not None:
-                    # Check if we've reached the assembler (adjacent)
-                    if is_adjacent((s.row, s.col), s.stations["assembler"]):
-                        # Reached assembler! Exit escape mode
-                        s.exploration_escape_until_step = 0
-                    else:
-                        return self._move_towards(s, s.stations["assembler"], reach_adjacent=True)
-                else:
-                    # Don't know where assembler is yet, just continue exploring
-                    s.exploration_escape_until_step = 0
-
-        # Check if stuck in small area using last N positions from history
-        if len(s.position_history) >= self._hyperparams.exploration_area_check_window:
-            recent_positions = s.position_history[-self._hyperparams.exploration_area_check_window :]
-            min_row = min(pos[0] for pos in recent_positions)
-            max_row = max(pos[0] for pos in recent_positions)
-            min_col = min(pos[1] for pos in recent_positions)
-            max_col = max(pos[1] for pos in recent_positions)
-
-            area_height = max_row - min_row + 1
-            area_width = max_col - min_col + 1
-
-            if (
-                area_height <= self._hyperparams.exploration_area_size_threshold
-                and area_width <= self._hyperparams.exploration_area_size_threshold
-                and s.stations["assembler"] is not None
-            ):
-                assembler_pos = s.stations["assembler"]
-                if assembler_pos is not None:
-                    dist = abs(s.row - assembler_pos[0]) + abs(s.col - assembler_pos[1])
-                    # Only trigger escape if far from assembler and not already in escape mode
-                    # Also prevent triggering too frequently (wait at least 25 steps since last escape ended)
-                    if (
-                        dist > self._hyperparams.exploration_assembler_distance_threshold
-                        and s.exploration_escape_until_step == 0
-                    ):
-                        # Stuck in small area and far from assembler! Enter escape mode
-                        s.exploration_escape_until_step = s.step_count + self._hyperparams.exploration_escape_duration
-                        return self._move_towards(s, assembler_pos, reach_adjacent=True)
-        # Check if we should keep current exploration direction
-        if s.exploration_target_step is not None:
-            steps_in_direction = s.step_count - s.exploration_target_step
-            if steps_in_direction < self._hyperparams.exploration_direction_persistence:
-                # Still committed to current direction, try to move that way
-                if s.exploration_target is not None and isinstance(s.exploration_target, str):
-                    # exploration_target stores the direction as a string
-                    direction = s.exploration_target
-                    # Calculate target position in that direction
-                    dr, dc = {"north": (-1, 0), "south": (1, 0), "east": (0, 1), "west": (0, -1)}.get(direction, (0, 0))
-                    next_r, next_c = s.row + dr, s.col + dc
-
-                    # Use move_towards to handle the movement (includes all checks)
-                    action = self._move_towards(s, (next_r, next_c))
-
-                    # If move_towards returned noop (blocked), pick a new direction
-                    if action == self._actions.noop.Noop():
-                        # Fall through to pick new direction
-                        pass
-                    else:
-                        return action
-
-        # Need to pick a new direction
-        # Try all directions and pick a random valid one
-        valid_directions = []
-        for direction in CardinalDirections:
-            dr, dc = {"north": (-1, 0), "south": (1, 0), "east": (0, 1), "west": (0, -1)}.get(direction, (0, 0))
-            next_r, next_c = s.row + dr, s.col + dc
-            if path_is_traversable(s, next_r, next_c, CellType):
-                valid_directions.append(direction)
-
-        if valid_directions:
-            # Pick a random valid direction
-            new_direction = random.choice(valid_directions)
-            s.exploration_target = new_direction  # Store direction as string
-            s.exploration_target_step = s.step_count
-
-            # Calculate target position for the new direction
-            dr, dc = {"north": (-1, 0), "south": (1, 0), "east": (0, 1), "west": (0, -1)}.get(new_direction, (0, 0))
-            next_r, next_c = s.row + dr, s.col + dc
-
-            # Use move_towards for actual movement
-            return self._move_towards(s, (next_r, next_c))
-
-        # No valid moves, use try_random_direction (which also checks agent collisions)
-        random_action = self._try_random_direction(s)
-        return random_action if random_action else self._actions.noop.Noop()
 
     def _explore_until(
         self, s: SimpleAgentState, condition: Callable[[], bool], reason: str = "Exploring"
@@ -909,7 +874,12 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
         if all(d <= 0 for d in deficits.values()):
             self._clear_waiting_state(s)
+            s.target_resource = None  # Clear target when all resources collected
             return self._actions.noop.Noop()
+
+        # Clear target_resource if we've collected enough of it (so we vibe correctly for next resource)
+        if s.target_resource is not None and deficits.get(s.target_resource, 0) <= 0:
+            s.target_resource = None
 
         # Explore until we find an extractor for a needed resource
 
@@ -941,7 +911,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         return self._use_extractor_if_ready(s, extractor, resource_type)
 
     def _do_assemble(self, s: SimpleAgentState) -> Action:
-        """Assemble hearts at assembler."""
+        """Assemble hearts at assembler - multiple agents can use from different adjacent positions."""
         # Explore until we find assembler
         explore_action = self._explore_until(
             s, condition=lambda: s.stations["assembler"] is not None, reason="Need assembler"
@@ -955,20 +925,40 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             s.current_glyph = "heart"
             return vibe_action
 
-        # Assembler is known, navigate to it and use it
+        # Assembler is known
         assembler = s.stations["assembler"]
         assert assembler is not None  # Guaranteed by _explore_until above
 
-        # Navigate to adjacent cell
-        nav_action = self._navigate_to_adjacent(s, assembler, target_name="assembler")
-        if nav_action is not None:
-            return nav_action
+        # Check if we're already adjacent to assembler
+        if is_adjacent((s.row, s.col), assembler):
+            # Adjacent - use it from current position
+            return self._use_object_at(s, assembler, using_for="assembler")
 
-        # Adjacent - use it
-        return self._use_object_at(s, assembler, using_for="assembler")
+        # Not adjacent - find an unoccupied adjacent cell to approach
+        adjacent_cells = [
+            (assembler[0] - 1, assembler[1]),  # north
+            (assembler[0] + 1, assembler[1]),  # south
+            (assembler[0], assembler[1] - 1),  # west
+            (assembler[0], assembler[1] + 1),  # east
+        ]
+
+        # Filter for traversable and unoccupied cells
+        available_cells = [
+            pos
+            for pos in adjacent_cells
+            if path_is_traversable(s, pos[0], pos[1], CellType) and pos not in s.agent_occupancy
+        ]
+
+        if not available_cells:
+            # All adjacent cells are blocked - wait
+            return self._actions.noop.Noop()
+
+        # Navigate to the nearest available adjacent cell
+        target_cell = min(available_cells, key=lambda pos: abs(pos[0] - s.row) + abs(pos[1] - s.col))
+        return self._move_towards(s, target_cell)
 
     def _do_deliver(self, s: SimpleAgentState) -> Action:
-        """Deliver hearts to chest."""
+        """Deliver hearts to chest - multiple agents can use from different adjacent positions."""
         # Explore until we find chest
         explore_action = self._explore_until(s, condition=lambda: s.stations["chest"] is not None, reason="Need chest")
         if explore_action is not None:
@@ -982,20 +972,40 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             s.current_glyph = "default"
             return vibe_action
 
-        # Chest is known, navigate to it and use it
+        # Chest is known
         chest = s.stations["chest"]
         assert chest is not None  # Guaranteed by _explore_until above
 
-        # Navigate to adjacent cell
-        nav_action = self._navigate_to_adjacent(s, chest, target_name="chest")
-        if nav_action is not None:
-            return nav_action
+        # Check if we're already adjacent to chest
+        if is_adjacent((s.row, s.col), chest):
+            # Adjacent - use it from current position
+            return self._use_object_at(s, chest, using_for="chest")
 
-        # Adjacent - use it
-        return self._use_object_at(s, chest, using_for="chest")
+        # Not adjacent - find an unoccupied adjacent cell to approach
+        adjacent_cells = [
+            (chest[0] - 1, chest[1]),  # north
+            (chest[0] + 1, chest[1]),  # south
+            (chest[0], chest[1] - 1),  # west
+            (chest[0], chest[1] + 1),  # east
+        ]
+
+        # Filter for traversable and unoccupied cells
+        available_cells = [
+            pos
+            for pos in adjacent_cells
+            if path_is_traversable(s, pos[0], pos[1], CellType) and pos not in s.agent_occupancy
+        ]
+
+        if not available_cells:
+            # All adjacent cells are blocked - wait
+            return self._actions.noop.Noop()
+
+        # Navigate to the nearest available adjacent cell
+        target_cell = min(available_cells, key=lambda pos: abs(pos[0] - s.row) + abs(pos[1] - s.col))
+        return self._move_towards(s, target_cell)
 
     def _do_recharge(self, s: SimpleAgentState) -> Action:
-        """Recharge at charger."""
+        """Recharge at charger - multiple agents can use from different adjacent positions."""
         # Explore until we find charger
         explore_action = self._explore_until(
             s, condition=lambda: s.stations["charger"] is not None, reason="Need charger"
@@ -1003,17 +1013,38 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         if explore_action is not None:
             return explore_action
 
-        # Charger is known, navigate to it and use it
+        # Charger is known
         charger = s.stations["charger"]
         assert charger is not None  # Guaranteed by _explore_until above
 
-        # Navigate to adjacent cell
-        nav_action = self._navigate_to_adjacent(s, charger, target_name="charger")
-        if nav_action is not None:
-            return nav_action
+        # Check if we're already adjacent to charger
+        if is_adjacent((s.row, s.col), charger):
+            # Adjacent - use it from current position
+            return self._use_object_at(s, charger, using_for="charger")
 
-        # Adjacent - use it
-        return self._use_object_at(s, charger, using_for="charger")
+        # Not adjacent - find an unoccupied adjacent cell to approach
+        # Multiple agents can use charger simultaneously from different adjacent cells
+        adjacent_cells = [
+            (charger[0] - 1, charger[1]),  # north
+            (charger[0] + 1, charger[1]),  # south
+            (charger[0], charger[1] - 1),  # west
+            (charger[0], charger[1] + 1),  # east
+        ]
+
+        # Filter for traversable and unoccupied cells
+        available_cells = [
+            pos
+            for pos in adjacent_cells
+            if path_is_traversable(s, pos[0], pos[1], CellType) and pos not in s.agent_occupancy
+        ]
+
+        if not available_cells:
+            # All adjacent cells are blocked by other agents - wait
+            return self._actions.noop.Noop()
+
+        # Navigate to the nearest available adjacent cell
+        target_cell = min(available_cells, key=lambda pos: abs(pos[0] - s.row) + abs(pos[1] - s.col))
+        return self._move_towards(s, target_cell)
 
     def _do_unclip(self, s: SimpleAgentState) -> Action:
         """Unclip extractors - this is implemented in the UnclippingAgent."""

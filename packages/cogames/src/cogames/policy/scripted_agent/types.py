@@ -52,7 +52,7 @@ BASELINE_HYPERPARAMETER_PRESETS = {
         exploration_escape_duration=8,  # Thorough exploration: shorter escape duration
         exploration_direction_persistence=18,  # Thorough exploration: longer persistence
         exploration_assembler_distance_threshold=12,  # Thorough exploration: larger distance threshold
-        exploration_strategy="frontier",  # Use frontier exploration
+        exploration_strategy="stc",  # Use stc exploration
     ),
     "conservative": BaselineHyperparameters(
         recharge_threshold_low=50,  # Recharge early
@@ -65,7 +65,7 @@ BASELINE_HYPERPARAMETER_PRESETS = {
         exploration_escape_duration=10,
         exploration_direction_persistence=10,
         exploration_assembler_distance_threshold=10,
-        exploration_strategy="frontier",
+        exploration_strategy="stc",
     ),
     "aggressive": BaselineHyperparameters(
         recharge_threshold_low=20,  # Low energy tolerance
@@ -78,21 +78,7 @@ BASELINE_HYPERPARAMETER_PRESETS = {
         exploration_escape_duration=10,
         exploration_direction_persistence=10,
         exploration_assembler_distance_threshold=10,
-        exploration_strategy="frontier",
-    ),
-    # Exploration strategy variants
-    "frontier_explorer": BaselineHyperparameters(
-        recharge_threshold_low=35,
-        recharge_threshold_high=85,
-        stuck_detection_enabled=True,
-        stuck_escape_distance=12,
-        position_history_size=40,
-        exploration_area_check_window=35,
-        exploration_area_size_threshold=9,
-        exploration_escape_duration=8,
-        exploration_direction_persistence=18,
-        exploration_assembler_distance_threshold=12,
-        exploration_strategy="frontier",
+        exploration_strategy="stc",
     ),
     "stc_explorer": BaselineHyperparameters(
         recharge_threshold_low=35,
@@ -106,19 +92,6 @@ BASELINE_HYPERPARAMETER_PRESETS = {
         exploration_direction_persistence=18,
         exploration_assembler_distance_threshold=12,
         exploration_strategy="stc",
-    ),
-    "wall_follower": BaselineHyperparameters(
-        recharge_threshold_low=35,
-        recharge_threshold_high=85,
-        stuck_detection_enabled=True,
-        stuck_escape_distance=12,
-        position_history_size=40,
-        exploration_area_check_window=35,
-        exploration_area_size_threshold=9,
-        exploration_escape_duration=8,
-        exploration_direction_persistence=18,
-        exploration_assembler_distance_threshold=12,
-        exploration_strategy="wall",
     ),
     "directional_explorer": BaselineHyperparameters(
         recharge_threshold_low=35,
@@ -231,6 +204,11 @@ class SimpleAgentState:
     row: int = 0
     col: int = 0
     energy: int = 100
+    previous_energy: int = 100  # Track previous energy to infer costs
+
+    # Energy cost inference
+    inferred_move_cost: Optional[int] = None  # Learned cost of moving
+    move_energy_samples: list[int] = field(default_factory=list)  # Energy deltas from moves
 
     # Per-agent discovered extractors and stations (no shared state, each agent tracks independently)
     extractors: dict[str, list[ExtractorInfo]] = field(
