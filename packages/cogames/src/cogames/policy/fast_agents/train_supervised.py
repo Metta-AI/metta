@@ -1,0 +1,324 @@
+"""Supervised learning training loop for imitating Nim scripted agent."""
+
+import sys
+import time
+from pathlib import Path
+from typing import Optional
+
+import numpy as np
+import torch
+import torch.nn as nn
+
+from cogames.cli.mission import get_mission
+from cogames.policy.fast_agents.agents import ThinkyAgentsMultiPolicy
+from mettagrid.mettagrid_c import PackedCoordinate
+from mettagrid.policy.policy import MultiAgentPolicy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.policy.stateless import StatelessPolicyNet
+from mettagrid.simulator import Simulation
+
+# CONSTANTS
+MISSION_NAME = "evals.extractor_hub_30"
+VARIANT = "lonely_heart"
+NUM_AGENTS = 1
+BATCH_SIZE = 256
+NUM_STEPS = 10000 * BATCH_SIZE
+LEARNING_RATE = 1e-4
+DEVICE = "cpu"
+CHECKPOINT_DIR = Path("./test_train_dir")
+SEED = 42
+LOG_INTERVAL = 1000
+NIM_DEBUG = False
+TEACHER_POLICY_CLASS = ThinkyAgentsMultiPolicy
+
+
+def _ensure_fast_agents_loaded() -> None:
+    """Import fast_agents with patched ctypes so outdated bindings still load."""
+
+    if "fast_agents" in sys.modules:
+        return
+
+    import ctypes
+
+    original_pointer = ctypes.pointer
+    ctypes.pointer = ctypes.c_void_p  # type: ignore[assignment]
+    try:
+        __import__("fast_agents")
+    except Exception as exc:
+        raise RuntimeError(
+            "Failed to import fast_agents bindings. Regenerate Nim bindings or update "
+            "train_supervised.py to avoid the dependency."
+        ) from exc
+    finally:
+        ctypes.pointer = original_pointer
+
+
+def convert_raw_obs_to_policy_tokens(raw_obs: np.ndarray, expected_num_tokens: int) -> np.ndarray:
+    """Convert simulator raw observations into the token layout used by StatelessPolicyNet.
+
+    Input format (raw_obs from simulator):
+        Shape: (num_tokens, 3) where each row is [packed_coord, feature_id, value]
+        - packed_coord: Packed coordinate byte from PackedCoordinate encoding (row, col) coordinates.
+          Can be unpacked using PackedCoordinate.unpack() to get (row, col) tuple.
+        - feature_id: Feature/attribute identifier (0xFF indicates end of sequence, stops processing)
+        - value: Feature value
+        - Variable length: Sequence terminates when feature_id == 0xFF
+
+    Output format (policy tokens for StatelessPolicyNet):
+        Shape: (expected_num_tokens, 3) where each row is [coords_byte, feature_id, value]
+        - coords_byte: Single byte encoding coordinates with col in high nibble (bits 4-7) and
+          row in low nibble (bits 0-3). Formula: ((col & 0x0F) << 4) | (row & 0x0F)
+        - feature_id: Same as input (feature/attribute identifier)
+        - value: Same as input (feature value)
+        - Fixed length: Padded to expected_num_tokens with [255, 0, 0] padding tokens
+          (coords_byte=255 indicates padding/invalid token)
+
+    The conversion unpacks the PackedCoordinate format and re-encodes coordinates into the
+    format expected by StatelessPolicyNet (matching StatelessAgentPolicyImpl.step()), while
+    preserving feature_id and value.
+    """
+
+    tokens = []
+    for packed_coord, feature_id, value in raw_obs:
+        if feature_id == 0xFF:
+            break
+
+        location = PackedCoordinate.unpack(int(packed_coord)) or (0, 0)
+        col, row = location
+        coords_byte = ((col & 0x0F) << 4) | (row & 0x0F)
+        tokens.append([coords_byte, int(feature_id), int(value)])
+
+    if len(tokens) < expected_num_tokens:
+        tokens.extend([[255, 0, 0]] * (expected_num_tokens - len(tokens)))
+
+    return np.array(tokens, dtype=np.uint8)
+
+
+def train_supervised(
+    teacher_policy_class: type[MultiAgentPolicy],
+    mission_name: str = MISSION_NAME,
+    variant: Optional[str] = VARIANT,
+    num_agents: int = NUM_AGENTS,
+    num_steps: int = NUM_STEPS,
+    batch_size: int = BATCH_SIZE,
+    learning_rate: float = LEARNING_RATE,
+    device: str = DEVICE,
+    checkpoint_dir: Path = CHECKPOINT_DIR,
+    seed: int = SEED,
+    nim_debug: bool = NIM_DEBUG,
+    train_from_scratch: bool = False,
+):
+    """Train a policy to imitate the Nim scripted agent using supervised learning.
+
+    Args:
+        mission_name: Name of the mission to train on
+        variant: Mission variant (e.g., "lonely_heart")
+        num_agents: Number of agents in the environment
+        num_steps: Number of training steps
+        batch_size: Number of parallel environments to collect observations from
+        learning_rate: Learning rate for optimizer
+        device: Device to train on ('cpu' or 'cuda')
+        checkpoint_dir: Directory to save checkpoints
+        seed: Random seed
+        nim_debug: Enable debug prints from Nim heuristic agent
+    """
+    torch_device = torch.device(device)
+
+    # Initialize environment
+    variants_arg = [variant] if variant else None
+    _, env_cfg, _ = get_mission(mission_name, variants_arg=variants_arg, cogs=num_agents)
+
+    # Create PolicyEnvInterface from config
+    policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
+
+    # Create scripted agent policy (teacher)
+    _ensure_fast_agents_loaded()
+    teacher_policy = teacher_policy_class(policy_env_info)
+
+    # Initialize model using StatelessPolicyNet for compatibility with cogames play
+    obs_shape = policy_env_info.observation_space.shape
+    expected_num_tokens = obs_shape[0]
+    model = StatelessPolicyNet(policy_env_info.actions, obs_shape)
+    model = model.to(torch_device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    loss_fn = nn.CrossEntropyLoss()
+
+    # load model weights if available
+    if not train_from_scratch:
+        checkpoint_path = checkpoint_dir / "policy.pt"
+        if checkpoint_path.exists():
+            model.load_state_dict(torch.load(checkpoint_path, map_location=torch_device))
+            model = model.to(torch_device)
+
+    # Create multiple simulations for batching
+    simulations = []
+    teacher_agent_policies_list = []
+    episode_counts = []
+
+    for i in range(batch_size):
+        sim = Simulation(env_cfg, seed=seed + i)
+        simulations.append(sim)
+        policies = [teacher_policy.agent_policy(agent_id) for agent_id in range(num_agents)]
+        for policy in policies:
+            policy.reset(simulation=sim)
+        teacher_agent_policies_list.append(policies)
+        episode_counts.append(0)
+
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
+    step_count = 0
+    start_time = time.perf_counter()
+    last_log_time = start_time
+    last_log_steps = 0
+    log_interval_correct = 0
+    log_interval_total = 0
+
+    print(f"Starting supervised training on {mission_name}")
+    if variant:
+        print(f"Variant: {variant}")
+    print(f"Device: {device}, Agents: {num_agents}, Batch size: {batch_size}")
+
+    while step_count < num_steps:
+        # Collect observations and actions from all environments
+        obs_batch: list[np.ndarray] = []
+        action_batch: list[int] = []
+        valid_env_indices: list[int] = []
+
+        for env_idx, sim in enumerate(simulations):
+            # Reset if episode is done
+            if sim.is_done():
+                episode_counts[env_idx] += 1
+                sim.close()
+                simulations[env_idx] = Simulation(env_cfg, seed=seed + env_idx + episode_counts[env_idx] * batch_size)
+                for policy in teacher_agent_policies_list[env_idx]:
+                    policy.reset(simulation=simulations[env_idx])
+                sim = simulations[env_idx]
+
+            # Get observations from environment
+            raw_obs = sim._c_sim.observations()  # Shape: (num_agents, num_tokens, 3)
+            raw_action = sim._c_sim.actions()  # Shape: (num_agents,)
+
+            # Call step_batch on first agent policy to compute actions for all agents
+            # step_batch modifies raw_action in place
+            teacher_agent_policies_list[env_idx][0].step_batch(raw_obs, raw_action)
+            env_collected = False
+
+            for agent_id in range(num_agents):
+                teacher_action = int(raw_action[agent_id])
+
+                # Get observation in shape expected by StatelessPolicyNet: (num_tokens, token_dim)
+                obs_tokens = convert_raw_obs_to_policy_tokens(raw_obs[agent_id], expected_num_tokens)
+
+                obs_batch.append(obs_tokens)
+                action_batch.append(teacher_action)
+                env_collected = True
+
+            if env_collected:
+                valid_env_indices.append(env_idx)
+
+        # Skip if no valid samples (all done)
+        if not action_batch:
+            continue
+
+        # Convert to batched tensors
+        # Shape: (batch_size, num_tokens, token_dim)
+        obs_batch_tensor = torch.stack([torch.from_numpy(obs).float() for obs in obs_batch]).to(torch_device)
+        # Shape: (batch_size,)
+        action_batch_tensor = torch.tensor(action_batch, dtype=torch.long).to(torch_device)
+
+        # Forward pass through model (StatelessPolicyNet divides by 255.0 internally)
+        logits, _ = model.forward_eval(obs_batch_tensor)  # Shape: (batch_size, num_actions)
+
+        # Compute loss
+        loss = loss_fn(logits, action_batch_tensor)
+        predictions = torch.argmax(logits, dim=1)
+        log_interval_correct += int((predictions == action_batch_tensor).sum().item())
+        log_interval_total += len(action_batch)
+
+        # Backward pass
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        # Step all environments
+        for env_idx in valid_env_indices:
+            simulations[env_idx].step()
+
+        step_count += len(action_batch)
+
+        # Logging
+        if step_count % LOG_INTERVAL == 0:
+            current_time = time.perf_counter()
+            elapsed_since_last_log = current_time - last_log_time
+            steps_since_last_log = step_count - last_log_steps
+
+            if elapsed_since_last_log > 0:
+                steps_per_second = steps_since_last_log / elapsed_since_last_log
+            else:
+                steps_per_second = 0.0
+
+            avg_episode = sum(episode_counts) / len(episode_counts) if episode_counts else 0
+            accuracy = (log_interval_correct / log_interval_total) if log_interval_total else 0.0
+            print(
+                f"Step {step_count}/{num_steps}, Loss: {loss.item():.4f}, "
+                f"Accuracy: {accuracy:.3f}, Avg Episode: {avg_episode:.1f}, Steps/s: {steps_per_second:.1f}"
+            )
+
+            last_log_time = current_time
+            last_log_steps = step_count
+            log_interval_correct = 0
+            log_interval_total = 0
+
+    # Final checkpoint - save as policy.pt for compatibility with cogames play
+    final_checkpoint = checkpoint_dir / "policy.pt"
+    torch.save(model.state_dict(), final_checkpoint)
+    print(f"Training complete! Final checkpoint saved to {final_checkpoint}")
+    print(f"Load with: uv run cogames play -m {mission_name} -p stateless:{final_checkpoint}")
+
+    # Close all simulations
+    for sim in simulations:
+        sim.close()
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Supervised training to imitate Nim scripted agent")
+    parser.add_argument("--mission", type=str, default=MISSION_NAME, help="Mission name")
+    parser.add_argument("--variant", type=str, default=VARIANT, help="Mission variant")
+    parser.add_argument("--agents", type=int, default=NUM_AGENTS, help="Number of agents")
+    parser.add_argument("--steps", type=int, default=NUM_STEPS, help="Number of training steps")
+    parser.add_argument(
+        "--batch-size", type=int, default=BATCH_SIZE, help="Batch size (number of parallel environments)"
+    )
+    parser.add_argument("--lr", type=float, default=LEARNING_RATE, help="Learning rate")
+    parser.add_argument("--device", type=str, default=DEVICE, help="Device (cpu/cuda)")
+    parser.add_argument("--checkpoint-dir", type=str, default=str(CHECKPOINT_DIR), help="Checkpoint directory")
+    parser.add_argument("--seed", type=int, default=SEED, help="Random seed")
+    parser.add_argument(
+        "--nim-debug", action="store_true", default=NIM_DEBUG, help="Enable debug prints from Nim heuristic agent"
+    )
+    parser.add_argument(
+        "-n",
+        "--train-from-scratch",
+        action="store_true",
+        default=False,
+        help="Train a new model from scratch without loading checkpoint",
+    )
+
+    args = parser.parse_args()
+
+    train_supervised(
+        teacher_policy_class=TEACHER_POLICY_CLASS,
+        mission_name=args.mission,
+        variant=args.variant,
+        num_agents=args.agents,
+        num_steps=args.steps,
+        batch_size=args.batch_size,
+        learning_rate=args.lr,
+        device=args.device,
+        checkpoint_dir=Path(args.checkpoint_dir),
+        seed=args.seed,
+        nim_debug=args.nim_debug,
+        train_from_scratch=args.train_from_scratch,
+    )
