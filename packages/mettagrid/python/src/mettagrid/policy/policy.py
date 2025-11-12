@@ -103,6 +103,10 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
     def policy_env_info(self) -> PolicyEnvInterface:
         return self._policy_env_info
 
+    def reset(self) -> None:
+        """Reset any policy state; default no-op."""
+        pass
+
     def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
         """Optional fast-path for policies that consume raw buffers.
 
