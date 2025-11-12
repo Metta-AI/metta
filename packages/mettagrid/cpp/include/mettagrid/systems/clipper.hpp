@@ -3,9 +3,7 @@
 
 #include <algorithm>
 #include <cmath>
-#include <iostream>
 #include <memory>
-#include <numbers>
 #include <random>
 #include <vector>
 
@@ -27,21 +25,22 @@ public:
   // A set of all unclipped assemblers. Any assembler that is not in this set will be clipped.
   std::set<Assembler*> unclipped_assemblers;
 
-  float length_scale;
-  float cutoff_distance;
+  GridCoord length_scale;
+  // This is the cutoff distance in units of length_scale. Assemblers further from this will be considered disconnected.
+  uint32_t scaled_cutoff_distance;
   Grid& grid;
   uint32_t clip_period;
   std::mt19937 rng;
 
   Clipper(Grid& grid,
           std::vector<std::shared_ptr<Protocol>> protocol_ptrs,
-          float length_scale,
-          float cutoff_distance,
+          GridCoord length_scale,
+          uint32_t scaled_cutoff_distance,
           uint32_t clip_period,
           std::mt19937 rng_init)
       : unclipping_protocols(std::move(protocol_ptrs)),
         length_scale(length_scale),
-        cutoff_distance(cutoff_distance),
+        scaled_cutoff_distance(scaled_cutoff_distance),
         grid(grid),
         clip_period(clip_period),
         rng(std::move(rng_init)) {
@@ -64,31 +63,40 @@ public:
     }
 
     // Auto-calculate length_scale based on percolation theory if length_scale <= 0
-    if (length_scale <= 0.0f && !assembler_infection_weight.empty()) {
+    if (length_scale <= 0u && !assembler_infection_weight.empty()) {
       // Get grid dimensions
       GridCoord grid_width = grid.width;
       GridCoord grid_height = grid.height;
-      float grid_size = static_cast<float>(std::max(grid_width, grid_height));
+      // 1 / density. The sparser the grid, the larger the length_scale.
+      uint32_t sparsity = (grid_width * grid_height) / assembler_infection_weight.size();
+      // Take an approximate square root to get a linearized sparsity.
+      int32_t root_sparsity = 1;
+      // This is a guess for something close to the root for most maps we have.
+      int32_t root_sparsity_next = 10;
+      // We use a for loop because it makes it very clear that this loop terminates. I _think_ that the
+      // Newton's method method will always converge, but I haven't proven it.
+      for (int32_t i = 0; i < 10; i++) {
+        if (root_sparsity_next == root_sparsity || root_sparsity == 0) {
+          break;
+        }
+        root_sparsity = root_sparsity_next;
+        // Do a step of Newton's method. The +(2 * root_sparsity - 2) is to help with convergence. This causes us to
+        // converge to the ceiling of the root.
+        root_sparsity_next = (sparsity + root_sparsity * root_sparsity + (2 * root_sparsity - 2)) / (2 * root_sparsity);
+      }
+      // A more disciplined approach would be use percolation theory to calculate the length_scale.
+      // E.g., using the L_inf norm for distance, we should use an n_c of 1.0988 (since L_inf means that the shapes
+      // we're using are aligned squares). In particular, this would let us pick a length_scale that's just at
+      // the critical threshold for percolation. But in practice, we're then using a scaled_cutoff_distance of
+      // something like 3, which would mean that we're well into the supercritical regime. So we don't worry about it.
+      // Instead, we really just want to make sure that we're doing something reasonable with scaling as the
+      // sparsity changes.
 
-      // Calculate percolation-based length scale
-      // The constant 4.51 is the critical percolation density λ_c for 2D continuum percolation,
-      // empirically determined through Monte Carlo simulations (not analytically derivable).
-      // Reference:
-      // https://en.wikipedia.org/wiki/Percolation_threshold#Thresholds_for_2D_continuum_models
-      // Note: Wikipedia provides a value of ~1.127 when defined in terms of radius,
-      // We use diameter basis which becomes 4.51
-
-      constexpr float PERCOLATION_CONSTANT = 4.51f;
-      this->length_scale = (grid_size / std::sqrt(static_cast<float>(assembler_infection_weight.size()))) *
-                           std::sqrt(PERCOLATION_CONSTANT / (4.0f * std::numbers::pi_v<float>));
+      // The division by 2 basically to move us from diameter to radius. Or to move us from "linear sparsity" to
+      // "average distance".
+      this->length_scale = static_cast<GridCoord>(std::max(root_sparsity / 2, 1));
     }
     // else: use the provided positive length_scale value as-is
-
-    // Auto-calculate cutoff_distance if not provided (cutoff_distance <= 0)
-    // At 3*length_scale, exp(-3) ≈ 0.05, so weights beyond this are negligible
-    if (cutoff_distance <= 0.0f) {
-      this->cutoff_distance = 3.0f * this->length_scale;
-    }
 
     // This can be expensive, so only do it if the clipper is active. Note that having a Clipper with
     // a zero clip rate is value, since we can still clip assemblers that start clipped.
@@ -103,18 +111,20 @@ public:
   }
 
   uint32_t infection_weight(Assembler& from, Assembler& to) const {
-    float distance = this->distance(from, to);
-    if (cutoff_distance > 0.0f && distance > cutoff_distance) return 0;
-    // The * 1000000.0f is a hack to get us from float to uint32_t, as we move to get rid of floats. We only care
-    // about relative weights, so scaling them linearly (like this) doesn't matter.
-    return static_cast<uint32_t>(std::exp(-distance / length_scale) * 1000000.0f);
+    uint32_t scaled_distance = static_cast<uint32_t>(this->distance(from, to)) / length_scale;
+    if (scaled_distance > scaled_cutoff_distance) return 0;
+    // A cheap rendition of c * exp(-scaled_distance). Note that the value of c doesn't matter, since we only care
+    // about relative weights. So we set c to 2**scaled_cutoff_distance, since that lets us distinguish between
+    // values of scaled_distance up to scaled_cutoff_distance.
+    return 1 << (scaled_cutoff_distance - scaled_distance);
   }
 
-  // it's a little funky to use L2 distance here, since everywhere else we use L1 or Linf.
-  float distance(Assembler& assembler_a, Assembler& assembler_b) const {
+  // Use L_inf distance here, since it's more natural for our grid world that L_2. L_1 could also be a reasonable
+  // contender.
+  GridCoord distance(Assembler& assembler_a, Assembler& assembler_b) const {
     GridLocation location_a = assembler_a.location;
     GridLocation location_b = assembler_b.location;
-    return std::sqrt(std::pow(location_a.r - location_b.r, 2) + std::pow(location_a.c - location_b.c, 2));
+    return std::max(std::abs(location_a.r - location_b.r), std::abs(location_a.c - location_b.c));
   }
 
   void compute_adjacencies() {
@@ -133,7 +143,7 @@ public:
       return a->location.c < b->location.c;
     });
 
-    // For each assembler, find adjacent assemblers within cutoff_distance
+    // For each assembler, find adjacent assemblers within scaled_cutoff_distance of each other.
     for (size_t i = 0; i < sorted_assemblers.size(); ++i) {
       Assembler* assembler_a = sorted_assemblers[i];
       GridCoord a_x = assembler_a->location.c;
@@ -144,15 +154,15 @@ public:
         GridCoord b_x = assembler_b->location.c;
 
         // If x difference exceeds cutoff_distance, no need to check further
-        if (b_x - a_x > cutoff_distance) {
+        if (b_x - a_x > scaled_cutoff_distance * length_scale) {
           break;
         }
 
         // Calculate actual distance
-        float dist = distance(*assembler_a, *assembler_b);
+        GridCoord dist = distance(*assembler_a, *assembler_b);
 
         // If within cutoff_distance, they are adjacent
-        if (dist <= cutoff_distance) {
+        if (dist <= scaled_cutoff_distance * length_scale) {
           // Add both directions of connection
           adjacent_assemblers[assembler_a].push_back(assembler_b);
           adjacent_assemblers[assembler_b].push_back(assembler_a);

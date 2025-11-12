@@ -56,6 +56,8 @@ class EvalVariant(MissionVariant):
         )
         # Set episode length for all evals
         env.game.max_steps = 1000
+        # Enable protocol observation for observation-based agents
+        env.game.protocol_details_obs = True
         # Make HEART crafting feasible with a single agent using the heart glyph
         assembler_obj = env.game.objects.get("assembler")
         if assembler_obj is not None and hasattr(assembler_obj, "first_heart_cost"):

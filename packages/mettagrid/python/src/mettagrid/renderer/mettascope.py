@@ -85,7 +85,12 @@ class MettascopeRenderer(Renderer):
         placeholder_actions = np.zeros((self._sim.num_agents, 2), dtype=np.int32)
         placeholder_rewards = np.zeros(self._sim.num_agents)
 
-        for grid_object in self._sim.grid_objects().values():
+        # To optimize, we only send walls on the first step because they don't change.
+        ignore_types = []
+        if self._sim.current_step > 0:
+            ignore_types = ["wall"]
+
+        for grid_object in self._sim.grid_objects(ignore_types=ignore_types).values():
             grid_objects.append(
                 format_grid_object(
                     grid_object,

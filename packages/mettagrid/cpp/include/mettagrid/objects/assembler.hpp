@@ -185,7 +185,7 @@ public:
   Assembler(GridCoord r, GridCoord c, const AssemblerConfig& cfg)
       : protocols(build_protocol_map(cfg.protocols)),
         unclip_protocols(),
-        is_clipped(false),
+        is_clipped(cfg.start_clipped),
         clip_immune(cfg.clip_immune),
         start_clipped(cfg.start_clipped),
         cooldown_end_timestep(0),

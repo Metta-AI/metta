@@ -103,7 +103,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
     _clipper = std::make_unique<Clipper>(*_grid,
                                          clipper_cfg.unclipping_protocols,
                                          clipper_cfg.length_scale,
-                                         clipper_cfg.cutoff_distance,
+                                         clipper_cfg.scaled_cutoff_distance,
                                          clipper_cfg.clip_period,
                                          _rng);
   }
@@ -190,6 +190,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
         _stats->incr("objects." + cell);
         assembler->set_grid(_grid.get());
         assembler->set_current_timestep_ptr(&current_step);
+        assembler->set_obs_encoder(_obs_encoder.get());
         continue;
       }
 
