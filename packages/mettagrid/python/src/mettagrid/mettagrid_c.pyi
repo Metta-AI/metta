@@ -59,7 +59,6 @@ class WallConfig(GridObjectConfig):
     def __init__(self, type_id: int, type_name: str): ...
     type_id: int
     type_name: str
-    swappable: bool
 
 class AgentConfig(GridObjectConfig):
     def __init__(

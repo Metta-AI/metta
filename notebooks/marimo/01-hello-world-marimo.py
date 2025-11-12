@@ -477,7 +477,6 @@ def _(
     mg_config.game.actions.noop.enabled = True  # Training had noop enabled!
     mg_config.game.actions.attack.enabled = True  # Training had attack enabled
     mg_config.game.actions.change_vibe.enabled = False
-    mg_config.game.actions.swap.enabled = False
 
     # IMPORTANT: Match the exact training reward structure from config.json
     mg_config.game.agent.rewards = AgentRewards(
@@ -1219,7 +1218,6 @@ def _(
     mg_config2.game.actions.noop.enabled = False  # Disable no-op to force action
     mg_config2.game.actions.attack.enabled = False
     mg_config2.game.actions.change_vibe.enabled = False
-    mg_config2.game.actions.swap.enabled = False
 
     # CONVERSION INCENTIVE: Make conversion much more profitable than resource limit camping
     mg_config2.game.agent.rewards = AgentRewards(
