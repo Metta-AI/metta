@@ -11,8 +11,9 @@ from metta.cogworks.curriculum.curriculum import (
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.loss.ppo import PPOConfig
-from metta.rl.loss.sl_kickstarter import SLKickstarterConfig
-from metta.rl.loss.tl_kickstarter import TLKickstarterConfig
+from metta.rl.loss.sl_checkpointed_kickstarter import SLCheckpointedKickstarterConfig
+
+# from metta.rl.loss.tl_kickstarter import TLKickstarterConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import (
     CheckpointerConfig,
@@ -111,16 +112,19 @@ def train(
 
     eval_simulations = simulations()
 
-    # Configure losses with PPO and tl_kickstarter
     loss_config = LossesConfig(
         ppo=PPOConfig(enabled=True),  # PPO is enabled by default, but explicit here
-        tl_kickstarter=TLKickstarterConfig(
+        # tl_kickstarter=TLKickstarterConfig(
+        #     enabled=True,
+        #     teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v10008.mpt",
+        # ),
+        sl_checkpointed_kickstarter=SLCheckpointedKickstarterConfig(
             enabled=True,
             teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v10008.mpt",
-        ),
-        sl_kickstarter=SLKickstarterConfig(
-            enabled=True,
-            teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v10008.mpt",
+            checkpointed_interval=24,
+            epochs_per_checkpoint=5,
+            terminating_epoch=700,
+            final_checkpoint=10008,
         ),
     )
 
@@ -134,35 +138,35 @@ def train(
     # Configure scheduler with run gates
     scheduler = SchedulerConfig(
         run_gates=[
+            # LossRunGate(
+            #     loss_instance_name="ppo", phase="rollout", begin_at_step=50_000_000
+            # ),
+            # LossRunGate(
+            #     loss_instance_name="tl_kickstarter",
+            #     phase="rollout",
+            #     end_at_step=50_000_000,
+            # ),
+            # LossRunGate(
+            #     loss_instance_name="tl_kickstarter",
+            #     phase="train",
+            #     end_at_step=50_000_000,
+            # ),
             LossRunGate(
-                loss_instance_name="ppo", phase="rollout", begin_at_step=50_000_000
-            ),
-            LossRunGate(
-                loss_instance_name="tl_kickstarter",
+                loss_instance_name="sl_checkpointed_kickstarter",
                 phase="rollout",
-                end_at_step=50_000_000,
-            ),
-            LossRunGate(
-                loss_instance_name="tl_kickstarter",
-                phase="train",
-                end_at_step=50_000_000,
-            ),
-            LossRunGate(
-                loss_instance_name="sl_kickstarter",
-                phase="rollout",
-                begin_at_step=50_000_000,
+                # begin_at_step=50_000_000,
                 end_at_step=1_000_000_000,
             ),
             LossRunGate(
-                loss_instance_name="sl_kickstarter",
+                loss_instance_name="sl_checkpointed_kickstarter",
                 phase="train",
-                begin_at_step=50_000_000,
+                # begin_at_step=50_000_000,
                 end_at_step=1_000_000_000,
             ),
         ],
         rules=[
             HyperUpdateRule(
-                loss_instance_name="sl_kickstarter",
+                loss_instance_name="sl_checkpointed_kickstarter",
                 attr_path="action_loss_coef",
                 mode="progress",
                 style="linear",
@@ -172,7 +176,7 @@ def train(
                 end_agent_step=1_000_000_000,
             ),
             HyperUpdateRule(
-                loss_instance_name="sl_kickstarter",
+                loss_instance_name="sl_checkpointed_kickstarter",
                 attr_path="value_loss_coef",
                 mode="progress",
                 style="linear",

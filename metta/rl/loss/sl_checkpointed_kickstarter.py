@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
 
 
-class SLKickstarterConfig(LossConfig):
+class SLCheckpointedKickstarterConfig(LossConfig):
     teacher_uri: str = Field(default="")
     action_loss_coef: float = Field(default=0.6, ge=0, le=1.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
@@ -30,7 +30,7 @@ class SLKickstarterConfig(LossConfig):
     epochs_per_checkpoint: Optional[int] = Field(
         default=None, gt=0, description="Number of epochs to train with each checkpoint"
     )
-    terminating_checkpoint: Optional[int] = Field(
+    terminating_epoch: Optional[int] = Field(
         default=None, ge=0, description="Stop reloading checkpoints before this epoch"
     )
     final_checkpoint: Optional[int] = Field(
@@ -45,21 +45,24 @@ class SLKickstarterConfig(LossConfig):
         device: torch.device,
         instance_name: str,
         loss_config: Any,
-    ) -> "SLKickstarter":
-        """Create SLKickstarter loss instance."""
-        return SLKickstarter(policy, trainer_cfg, vec_env, device, instance_name=instance_name, loss_config=loss_config)
+    ) -> "SLCheckpointedKickstarter":
+        """Create SLCheckpointedKickstarter loss instance."""
+        return SLCheckpointedKickstarter(
+            policy, trainer_cfg, vec_env, device, instance_name=instance_name, loss_config=loss_config
+        )
 
 
-class SLKickstarter(Loss):
+class SLCheckpointedKickstarter(Loss):
     __slots__ = (
         "teacher_policy",
         "teacher_policy_spec",
         "temperature",
         "student_forward",
         "teacher_uri",
+        "_base_teacher_uri",
         "_checkpointed_interval",
         "_epochs_per_checkpoint",
-        "_terminating_checkpoint",
+        "_terminating_epoch",
         "_final_checkpoint",
     )
 
@@ -79,9 +82,10 @@ class SLKickstarter(Loss):
         self.temperature = self.cfg.temperature
         self.student_forward = self.cfg.student_forward
         self.teacher_uri = self.cfg.teacher_uri
+        self._base_teacher_uri = self.cfg.teacher_uri  # Store original URI for checkpoint reloading
         self._checkpointed_interval = self.cfg.checkpointed_interval
         self._epochs_per_checkpoint = self.cfg.epochs_per_checkpoint
-        self._terminating_checkpoint = self.cfg.terminating_checkpoint
+        self._terminating_epoch = self.cfg.terminating_epoch
         self._final_checkpoint = self.cfg.final_checkpoint
 
         game_rules = getattr(self.env, "policy_env_info", None)
@@ -111,7 +115,7 @@ class SLKickstarter(Loss):
         if context.epoch % self._epochs_per_checkpoint == 0:
             epoch = (context.epoch // self._epochs_per_checkpoint + 1) * self._checkpointed_interval
             self.load_teacher_policy(epoch)
-        elif context.epoch == self._terminating_checkpoint:
+        elif context.epoch == self._terminating_epoch:
             self.load_teacher_policy(self._final_checkpoint)
 
         minibatch = shared_loss_data["sampled_mb"]
