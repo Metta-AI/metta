@@ -554,7 +554,6 @@ class TestStopwatch:
 
         # Sleep 0.1s - A and C running
         time.sleep(0.1)
-        checkpoint4_time = time.time()
 
         # Stop A and C using timestamps taken at the actual stop calls
         stopwatch.stop("A")
