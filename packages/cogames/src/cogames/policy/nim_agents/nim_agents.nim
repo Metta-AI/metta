@@ -60,7 +60,9 @@ proc stepPolicyBatch[T](
   var ids: ptr UncheckedArray[int32] = nil
   if agentIds != nil:
     ids = cast[ptr UncheckedArray[int32]](agentIds)
-  if agentIds != nil and numAgentIds > 0:
+  if numAgentIds == 0:
+    return  # Don't step any agents
+  elif agentIds != nil and numAgentIds > 0:
     for i in 0 ..< numAgentIds:
       let idx = ids[i]
       if idx >= 0 and idx < agents.len:
