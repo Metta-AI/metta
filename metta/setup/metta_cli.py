@@ -284,7 +284,7 @@ def cmd_install(
         force_install = force and (components is None) or (components is not None and module.name in components)
         info(f"[{module.name}] {module.description}" + (" (force install)" if force_install else ""))
 
-        if module.install_once and module.check_installed() and not force:
+        if module.install_once and module.check_installed() and not force_install:
             debug("  -> Already installed, skipping (use --force to reinstall)\n")
             continue
 
