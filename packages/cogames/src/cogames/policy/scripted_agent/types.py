@@ -239,7 +239,3 @@ class SimpleAgentState:
 
     # Current observation (for collision detection and state updates)
     current_obs: Optional[AgentObservation] = None
-
-    # Energy tracking for movement verification
-    prev_energy: int = 0  # Energy from previous step
-    movement_energy_cost: Optional[int] = None  # Discovered energy cost per move (negative)

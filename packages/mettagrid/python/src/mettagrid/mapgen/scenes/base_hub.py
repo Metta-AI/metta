@@ -223,6 +223,8 @@ class BaseHub(Scene[BaseHubConfig]):
         ]
 
         for (x, y), name in zip(corner_positions, self._resolve_corner_names(), strict=False):
+            if not name:
+                continue
             if 1 <= x < w - 1 and 1 <= y < h - 1:
                 grid[y, x] = name
 
@@ -278,6 +280,8 @@ class BaseHub(Scene[BaseHubConfig]):
         ]
 
         for (x, y), name in zip(corner_positions, self._resolve_corner_names(), strict=False):
+            if not name:
+                continue
             place_building(x, y, name)
 
         cross_names = self._resolve_cross_names()
