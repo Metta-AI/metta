@@ -143,6 +143,11 @@ def train(
                 end_at_step=50_000_000,
             ),
             LossRunGate(
+                loss_instance_name="tl_kickstarter",
+                phase="train",
+                end_at_step=50_000_000,
+            ),
+            LossRunGate(
                 loss_instance_name="sl_kickstarter",
                 phase="rollout",
                 begin_at_step=50_000_000,
