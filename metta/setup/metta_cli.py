@@ -281,14 +281,15 @@ def cmd_install(
     info(f"\nInstalling {len(modules)} components...\n")
 
     for module in modules:
-        info(f"[{module.name}] {module.description}")
+        force_install = force and (components is None) or (components is not None and module.name in components)
+        info(f"[{module.name}] {module.description}" + (" (force install)" if force_install else ""))
 
         if module.install_once and module.check_installed() and not force:
             debug("  -> Already installed, skipping (use --force to reinstall)\n")
             continue
 
         try:
-            module.install(non_interactive=non_interactive, force=force)
+            module.install(non_interactive=non_interactive, force=force_install)
             print()
         except Exception as e:
             error(f"  Error: {e}\n")
