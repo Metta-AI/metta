@@ -19,6 +19,7 @@ from metta.sweep.core import make_sweep
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
+from metta.tools.stub import StubTool
 from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
@@ -178,6 +179,9 @@ def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
         policy_uris=[policy_uri],
     )
 
+def evaluate_stub(*args, **kwargs) -> StubTool:
+    return StubTool()
+
 
 def sweep(sweep_name: str) -> SweepTool:
     """
@@ -185,10 +189,10 @@ def sweep(sweep_name: str) -> SweepTool:
     In your own recipe, you likely only every need this. You can override other SweepTool parameters in the CLI.
 
     Example usage:
-        `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.baes.10081528" -- gpus=4 nodes=2`
+        `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.abes.10081528" -- gpus=4 nodes=2`
 
     We recommend running using local_test=True before running the sweep on the remote:
-        `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.baes.10081528.local_test" -- local_test=True`
+        `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.abes.10081528.local_test" -- local_test=True`
     This will run a quick local sweep and allow you to catch configuration bugs (NB: Unless those bugs are related to batch_size, minibatch_size, or hardware configuration).
     If this runs smoothly, you must launch the sweep on a remote sandbox (otherwise sweep progress will halt when you close your computer).
 
@@ -198,7 +202,7 @@ def sweep(sweep_name: str) -> SweepTool:
         3 - Ensure your sky credentials are present: `sky status` -- if not, follow the instructions on screen.
         4 - Install tmux on the sandbox `apt install tmux`
         5 - Launch tmux session: `tmux new -s sweep`
-        6 - Launch the sweep: `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.baes.10081528" --gpus=4 nodes=2`
+        6 - Launch the sweep: `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.abes.10081528" --gpus=4 nodes=2`
         7 - Detach when you want: CTRL+B then d
         8 - Attach to look at status/output: `tmux attach -t sweep_configs`
 
@@ -228,9 +232,9 @@ def sweep(sweep_name: str) -> SweepTool:
         # NB: You MUST use a specific sweep eval suite, different than those in training.
         # Besides this being a recommended practice, using the same eval suite in both
         # training and scoring will lead to key conflicts that will lock the sweep.
-        eval_entrypoint="evaluate_in_sweep",
+        eval_entrypoint="evaluate_stub",
         # Typically, "evaluator/eval_{suite}/score"
-        objective="evaluator/eval_sweep/score",
+        objective="experience/rewards",
         parameters=parameters,
         max_trials=80,
         # Default value is 1. We don't recommend going higher than 4.
