@@ -1,22 +1,25 @@
 """Policy environment interface for providing environment information to policies."""
 
-from dataclasses import dataclass
+import json
+from typing import ClassVar
 
 import gymnasium as gym
+from pydantic import BaseModel, ConfigDict
 
 from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.config.mettagrid_config import ActionsConfig, MettaGridConfig
 from mettagrid.mettagrid_c import dtype_observations
 
 
-@dataclass
-class PolicyEnvInterface:
+class PolicyEnvInterface(BaseModel):
     """Interface providing environment information needed by policies.
 
     This class encapsulates the environment configuration details that policies
     need to initialize their networks, such as observation dimensions, action spaces,
     and agent counts.
     """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(arbitrary_types_allowed=True)
 
     obs_features: list[ObservationFeatureSpec]
     tags: list[str]
@@ -70,3 +73,10 @@ class PolicyEnvInterface:
             assembler_protocols=assembler_protocols,
             tag_id_to_name=tag_id_to_name,
         )
+
+    def to_json(self) -> str:
+        """Convert PolicyEnvInterface to JSON."""
+        payload = self.model_dump(mode="json", include={"num_agents", "obs_width", "obs_height", "tags"})
+        payload["actions"] = self.action_names
+        payload["obs_features"] = [feature.model_dump(mode="json") for feature in self.obs_features]
+        return json.dumps(payload)
