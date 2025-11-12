@@ -116,11 +116,11 @@ def train(
         ppo=PPOConfig(enabled=True),  # PPO is enabled by default, but explicit here
         tl_kickstarter=TLKickstarterConfig(
             enabled=True,
-            teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v1032.mpt",
+            teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v10008.mpt",
         ),
         sl_kickstarter=SLKickstarterConfig(
             enabled=True,
-            teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v1032.mpt",
+            teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v10008.mpt",
         ),
     )
 
@@ -134,15 +134,19 @@ def train(
     # Configure scheduler with run gates
     scheduler = SchedulerConfig(
         run_gates=[
-            LossRunGate(loss_instance_name="ppo", phase="rollout", begin_at_step=50_000_000),
             LossRunGate(
-                loss_instance_name="tl_kickstarter", phase="rollout", end_at_step=50_000_000
+                loss_instance_name="ppo", phase="rollout", begin_at_step=50_000_000
+            ),
+            LossRunGate(
+                loss_instance_name="tl_kickstarter",
+                phase="rollout",
+                end_at_step=50_000_000,
             ),
             LossRunGate(
                 loss_instance_name="sl_kickstarter",
                 phase="rollout",
                 begin_at_step=50_000_000,
-                end_at_step=1_000_000_000
+                end_at_step=1_000_000_000,
             ),
             LossRunGate(
                 loss_instance_name="sl_kickstarter",
