@@ -193,6 +193,8 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
         result.features.vibe = feature.id
       of "agent:visitation_counts":
         result.features.visitationCounts = feature.id
+      of "agent:compass":
+        result.features.compass = feature.id
       of "tag":
         result.features.tag = feature.id
       of "cooldown_remaining":
@@ -222,10 +224,16 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
       of "inv:scrambler":
         result.features.invScrambler = feature.id
       else:
-        if feature.name.startsWith("protocol_input:") or
-           feature.name.startsWith("protocol_output:") or
-           feature.name == "agent:compass":
-          discard
+        if feature.name.startsWith("protocol_input:"):
+          let sep = feature.name.find(':')
+          if sep >= 0 and sep + 1 < feature.name.len:
+            let resource = feature.name[sep + 1 .. ^1]
+            result.features.protocolInputs[resource] = feature.id
+        elif feature.name.startsWith("protocol_output:"):
+          let sep = feature.name.find(':')
+          if sep >= 0 and sep + 1 < feature.name.len:
+            let resource = feature.name[sep + 1 .. ^1]
+            result.features.protocolOutputs[resource] = feature.id
         else:
           echo "Unknown feature: ", feature.name
 
