@@ -313,7 +313,7 @@ proc step*(
       # If not vibing here at heart then vibe heart.
       if vibe != agent.cfg.vibes.heart:
         doAction(agent.cfg.actions.vibeHeart.int32)
-        echo "vibing heart"
+        # echo "vibing heart"
         return
 
       let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
