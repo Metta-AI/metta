@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from mettagrid.mettagrid_c import dtype_observations
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import PolicyRegistryMeta
-from mettagrid.simulator import Action, AgentObservation, Simulation
+from mettagrid.simulator import Action, AgentObservation
 
 # Type variable for agent state - can be any type
 StateType = TypeVar("StateType")
