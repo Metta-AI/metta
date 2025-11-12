@@ -122,8 +122,8 @@ def train(
             enabled=True,
             teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v8016.mpt",
             checkpointed_interval=24,
-            epochs_per_checkpoint=3,
-            terminating_epoch=1002,
+            epochs_per_checkpoint=2,
+            terminating_epoch=668,
             final_checkpoint=8016,
         ),
     )
@@ -156,14 +156,14 @@ def train(
                 phase="rollout",
                 # begin_at_step=50_000_000,
                 # end_at_step=1_000_000_000,
-                end_at_epoch=1002,
+                end_at_epoch=668,
             ),
             LossRunGate(
                 loss_instance_name="sl_checkpointed_kickstarter",
                 phase="train",
                 # begin_at_step=50_000_000,
                 # end_at_step=1_000_000_000,
-                end_at_epoch=1002,
+                end_at_epoch=668,
             ),
         ],
         rules=[
