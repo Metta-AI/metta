@@ -122,8 +122,8 @@ def train(
             enabled=True,
             teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v10008.mpt",
             checkpointed_interval=24,
-            epochs_per_checkpoint=5,
-            terminating_epoch=700,
+            epochs_per_checkpoint=10,
+            terminating_epoch=1400,
             final_checkpoint=10008,
         ),
     )
