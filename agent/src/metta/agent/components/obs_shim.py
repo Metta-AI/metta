@@ -283,12 +283,12 @@ class ObsTokenToBoxShim(nn.Module):
         token_observations = td[self.in_key]
         B_TT = td.batch_size.numel()
 
-        # coords_byte contains x and y coordinates in a single byte (first 4 bits are x, last 4 bits are y)
+        # coords_byte contains row and column encoded in a single byte (row/high nibble, col/low nibble)
         coords_byte = token_observations[..., 0].to(torch.uint8)
 
-        # Extract x and y coordinate indices (0-15 range, but we need to make them long for indexing)
-        x_coord_indices = ((coords_byte >> 4) & 0x0F).long()  # Shape: [B_TT, M]
-        y_coord_indices = (coords_byte & 0x0F).long()  # Shape: [B_TT, M]
+        # Extract row/column coordinate indices (0-15 range, but we need to make them long for indexing)
+        row_coord_indices = ((coords_byte >> 4) & 0x0F).long()  # Shape: [B_TT, M]
+        col_coord_indices = (coords_byte & 0x0F).long()  # Shape: [B_TT, M]
         atr_indices = token_observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
         atr_values = token_observations[..., 2].float()  # Shape: [B_TT, M]
 
@@ -320,8 +320,8 @@ class ObsTokenToBoxShim(nn.Module):
             )
 
         # Use scatter-based write to avoid multi-dim advanced indexing that triggers index_put_
-        # Compute flattened spatial index and a combined index that encodes (layer, x, y)
-        flat_spatial_index = x_coord_indices * self.out_height + y_coord_indices  # [B_TT, M]
+        # Compute flattened spatial index and a combined index that encodes (layer, col, row)
+        flat_spatial_index = col_coord_indices * self.out_height + row_coord_indices  # [B_TT, M]
         dim_per_layer = self.out_width * self.out_height
         combined_index = atr_indices * dim_per_layer + flat_spatial_index  # [B_TT, M]
 
