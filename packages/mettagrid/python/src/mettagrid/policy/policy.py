@@ -213,6 +213,9 @@ class NimAgentPolicyBase(AgentPolicy):
         action_index = int(self._batch_actions[self._agent_id])
         return Action(name=self._action_names[action_index])
 
+    def reset(self, simulation: Optional[Simulation] = None) -> None:
+        self._parent.reset(simulation)
+
 
 class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
     """AgentPolicy wrapper that manages internal state (e.g., for RNNs).
