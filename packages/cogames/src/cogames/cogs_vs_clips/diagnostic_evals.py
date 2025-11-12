@@ -1,16 +1,50 @@
 from __future__ import annotations
 
-from typing import Dict
+from pathlib import Path
+from typing import Callable, Dict
 
 from pydantic import Field
 
-from cogames.cogs_vs_clips.mission import Mission, MissionVariant
-from cogames.cogs_vs_clips.mission_utils import _add_make_env_modifier, get_map
-from cogames.cogs_vs_clips.sites import EVALS, Site
+from cogames.cogs_vs_clips.mission import Mission, MissionVariant, Site
 from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, MettaGridConfig, ProtocolConfig
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 
 RESOURCE_NAMES: tuple[str, ...] = ("carbon", "oxygen", "germanium", "silicon")
+
+MAPS_DIR = Path(__file__).resolve().parent.parent / "maps"
+
+
+def get_map(map_name: str) -> MapBuilderConfig:
+    """Load a map builder configuration from the local diagnostics directory."""
+    normalized = map_name
+    if normalized.startswith("evals/"):
+        normalized = f"diagnostic_evals/{normalized.split('/', 1)[1]}"
+    map_path = MAPS_DIR / normalized
+    if not map_path.exists():
+        raise FileNotFoundError(f"Diagnostic map not found: {map_path}")
+    return MapBuilderConfig.from_uri(str(map_path))
+
+
+def _add_make_env_modifier(mission: Mission, modifier: Callable[[MettaGridConfig], None]) -> Mission:
+    """Attach a post-make_env modifier to an instantiated mission."""
+    original_make_env = mission.make_env
+
+    def wrapped_make_env() -> MettaGridConfig:
+        env_cfg = original_make_env()
+        modifier(env_cfg)
+        return env_cfg
+
+    object.__setattr__(mission, "make_env", wrapped_make_env)
+    return mission
+
+
+EVALS = Site(
+    name="evals",
+    description="Diagnostic evaluation arenas.",
+    map_builder=get_map("evals/diagnostic_radial.map"),
+    min_cogs=1,
+    max_cogs=4,
+)
 
 
 class _DiagnosticMissionBase(Mission):
@@ -125,32 +159,33 @@ class _DiagnosticMissionBase(Mission):
         if self.assembler_heart_chorus <= 1:
             return
         chorus = ["heart"] * self.assembler_heart_chorus
-        updated: list[ProtocolConfig] = []
+        updated: list[tuple[list[str], ProtocolConfig]] = []
         heart_protocol_applied = False
-        for proto in assembler.protocols:
+        for vibes, proto in assembler.recipes:
             if proto.output_resources.get("heart", 0) > 0:
                 if heart_protocol_applied:
                     # Drop duplicate heart protocols to avoid vibe collisions.
                     continue
-                proto = proto.model_copy(update={"vibes": chorus})
+                updated.append((chorus, proto))
                 heart_protocol_applied = True
-            updated.append(proto)
-        assembler.protocols = updated
+            else:
+                updated.append((vibes, proto))
+        assembler.recipes = updated
 
     def _zero_all_protocol_cooldowns(self, cfg: MettaGridConfig) -> None:
         # Zero cooldowns on assembler/extractor protocols and unclipping protocols
         for _name, obj in list(cfg.game.objects.items()):
             if not isinstance(obj, AssemblerConfig):
                 continue
-            updated: list[ProtocolConfig] = []
-            for proto in obj.protocols:
-                updated.append(proto.model_copy(update={"cooldown": 0}))
-            obj.protocols = updated
+            updated: list[tuple[list[str], ProtocolConfig]] = []
+            for vibes, proto in obj.recipes:
+                updated.append((vibes, proto.model_copy(update={"cooldown": 0})))
+            obj.recipes = updated
         if cfg.game.clipper is not None:
             new_up: list[ProtocolConfig] = []
-            for proto in cfg.game.clipper.unclipping_protocols:
+            for proto in cfg.game.clipper.unclipping_recipes:
                 new_up.append(proto.model_copy(update={"cooldown": 0}))
-            cfg.game.clipper.unclipping_protocols = new_up
+            cfg.game.clipper.unclipping_recipes = new_up
 
     def _ensure_minimal_heart_recipe(self, assembler: AssemblerConfig) -> None:
         minimal_inputs = {
@@ -161,27 +196,40 @@ class _DiagnosticMissionBase(Mission):
             "energy": 2,
         }
 
-        for idx, proto in enumerate(assembler.protocols):
+        updated_recipes: list[tuple[list[str], ProtocolConfig]] = []
+        heart_recipe_applied = False
+
+        for vibes, proto in assembler.recipes:
             if proto.output_resources.get("heart", 0) > 0:
-                assembler.protocols[idx] = proto.model_copy(
+                if heart_recipe_applied:
+                    # Drop duplicate heart recipes to avoid conflicting requirements.
+                    continue
+                updated_proto = proto.model_copy(
                     update={
                         "input_resources": minimal_inputs,
                         "cooldown": 0,
-                        "vibes": ["heart"],
                         "output_resources": {"heart": 1},
                     }
                 )
-                return
+                updated_recipes.append((["heart"], updated_proto))
+                heart_recipe_applied = True
+            else:
+                updated_recipes.append((vibes, proto))
 
-        assembler.protocols = [
-            ProtocolConfig(
-                vibes=["heart"],
-                input_resources=minimal_inputs,
-                output_resources={"heart": 1},
-                cooldown=0,
-            ),
-            *assembler.protocols,
-        ]
+        if not heart_recipe_applied:
+            updated_recipes.insert(
+                0,
+                (
+                    ["heart"],
+                    ProtocolConfig(
+                        input_resources=minimal_inputs,
+                        output_resources={"heart": 1},
+                        cooldown=0,
+                    ),
+                ),
+            )
+
+        assembler.recipes = updated_recipes
 
 
 # ----------------------------------------------------------------------
@@ -314,19 +362,21 @@ class _UnclipBase(_DiagnosticMissionBase):
             others = {r: 1 for r in resources if r != res}
             unclipping_protos.append(ProtocolConfig(input_resources=others, cooldown=0))
         if cfg.game.clipper is not None:
-            cfg.game.clipper.unclipping_protocols = unclipping_protos
+            cfg.game.clipper.unclipping_recipes = unclipping_protos
 
         non_clipped = [res for res in resources if res not in to_clip]
 
         assembler = cfg.game.objects.get("assembler")
         if isinstance(assembler, AssemblerConfig):
-            updated_protocols: list[ProtocolConfig] = []
-            for proto in assembler.protocols:
+            updated_recipes: list[tuple[list[str], ProtocolConfig]] = []
+            for vibes, proto in assembler.recipes:
                 if proto.output_resources.get("decoder", 0) > 0:
                     inputs = {res: 1 for res in non_clipped}
-                    proto = proto.model_copy(update={"input_resources": inputs, "vibes": ["gear"]})
-                updated_protocols.append(proto)
-            assembler.protocols = updated_protocols
+                    updated_proto = proto.model_copy(update={"input_resources": inputs})
+                    updated_recipes.append((["gear"], updated_proto))
+                else:
+                    updated_recipes.append((vibes, proto))
+            assembler.recipes = updated_recipes
 
         agent_cfg = cfg.game.agent
         inventory = dict(agent_cfg.initial_inventory)
@@ -397,14 +447,14 @@ class DiagnosticAgile(_DiagnosticMissionBase):
             station = cfg.game.objects.get(f"{resource}_extractor")
             if isinstance(station, AssemblerConfig):
                 station.max_uses = 1
-                updated: list[ProtocolConfig] = []
-                for proto in station.protocols:
+                updated: list[tuple[list[str], ProtocolConfig]] = []
+                for vibes, proto in station.recipes:
                     outputs = dict(proto.output_resources)
                     if resource in outputs:
                         outputs = {resource: needed}
                         proto = proto.model_copy(update={"output_resources": outputs})
-                    updated.append(proto)
-                station.protocols = updated
+                    updated.append((vibes, proto))
+                station.recipes = updated
 
 
 class DiagnosticMemory(_DiagnosticMissionBase):
