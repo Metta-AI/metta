@@ -1,6 +1,6 @@
 """Supervised learning training loop for imitating Nim scripted agent."""
 
-import sys
+import random
 import time
 from pathlib import Path
 from typing import Optional
@@ -17,19 +17,21 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.stateless import StatelessPolicyNet
 from mettagrid.simulator import Simulation
 
-# CONSTANTS
+# ENV CONFIG
 MISSION_NAME = "evals.extractor_hub_30"
 VARIANT = "lonely_heart"
+
+# TRAINING CONFIG
 NUM_AGENTS = 1
 BATCH_SIZE = 256
+NUM_ENVS = 8
 NUM_STEPS = 10000 * BATCH_SIZE
 LEARNING_RATE = 1e-4
 DEVICE = "cpu"
 CHECKPOINT_DIR = Path("./test_train_dir")
-SEED = 42
 LOG_INTERVAL = 1000
-NIM_DEBUG = False
 TEACHER_POLICY_CLASS = ThinkyAgentsMultiPolicy
+
 
 def convert_raw_obs_to_policy_tokens(raw_obs: np.ndarray, expected_num_tokens: int) -> np.ndarray:
     """Convert simulator raw observations into the token layout used by StatelessPolicyNet.
@@ -79,11 +81,10 @@ def train_supervised(
     num_agents: int = NUM_AGENTS,
     num_steps: int = NUM_STEPS,
     batch_size: int = BATCH_SIZE,
+    num_envs: int = NUM_ENVS,
     learning_rate: float = LEARNING_RATE,
     device: str = DEVICE,
     checkpoint_dir: Path = CHECKPOINT_DIR,
-    seed: int = SEED,
-    nim_debug: bool = NIM_DEBUG,
     train_from_scratch: bool = False,
 ):
     """Train a policy to imitate the Nim scripted agent using supervised learning.
@@ -94,11 +95,10 @@ def train_supervised(
         num_agents: Number of agents in the environment
         num_steps: Number of training steps
         batch_size: Number of parallel environments to collect observations from
+        num_envs: Number of environments to train on
         learning_rate: Learning rate for optimizer
         device: Device to train on ('cpu' or 'cuda')
         checkpoint_dir: Directory to save checkpoints
-        seed: Random seed
-        nim_debug: Enable debug prints from Nim heuristic agent
     """
     torch_device = torch.device(device)
 
@@ -128,20 +128,33 @@ def train_supervised(
             model = model.to(torch_device)
 
     # Create multiple simulations for batching
-    simulations = []
-    teacher_agent_policies_list = []
-    episode_counts = []
+    simulations = []  # list of environments
+    teacher_agent_policies_list = []  # list of nim teacher policies per environment as these have state
 
-    for i in range(batch_size):
-        sim = Simulation(env_cfg, seed=seed + i)
+    for _ in range(NUM_ENVS):
+        sim = Simulation(env_cfg, seed=random.randint(0, 2**31 - 1))
         simulations.append(sim)
         policies = [teacher_policy.agent_policy(agent_id) for agent_id in range(num_agents)]
         for policy in policies:
             policy.reset(simulation=sim)
         teacher_agent_policies_list.append(policies)
-        episode_counts.append(0)
 
-    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    """
+    We now should have a nested list of teacher agent policies for each environment.
+    [
+        [policy_agent_1_env1, policy_agent_2_env1, policy_agent_3_env1],
+        [policy_agent_1_env2, policy_agent_2_env2, policy_agent_3_env2],
+        [policy_agent_1_env3, policy_agent_2_env3, policy_agent_3_env3],
+        [policy_agent_1_env4, policy_agent_2_env4, policy_agent_3_env4],
+        [policy_agent_1_env5, policy_agent_2_env5, policy_agent_3_env5],
+        [policy_agent_1_env6, policy_agent_2_env6, policy_agent_3_env6],
+        [policy_agent_1_env7, policy_agent_2_env7, policy_agent_3_env7],
+        [policy_agent_1_env8, policy_agent_2_env8, policy_agent_3_env8],
+        ...
+    ]
+    """
+    assert len(teacher_agent_policies_list) == NUM_ENVS
+    assert all(len(policies) == num_agents for policies in teacher_agent_policies_list)
 
     step_count = 0
     start_time = time.perf_counter()
@@ -155,56 +168,85 @@ def train_supervised(
         print(f"Variant: {variant}")
     print(f"Device: {device}, Agents: {num_agents}, Batch size: {batch_size}")
 
+    #########################################################
+    # Collect (obs, action) pairs
+    #########################################################
     while step_count < num_steps:
         # Collect observations and actions from all environments
         obs_batch: list[np.ndarray] = []
         action_batch: list[int] = []
-        valid_env_indices: list[int] = []
 
-        for env_idx, sim in enumerate(simulations):
-            # Reset if episode is done
-            if sim.is_done():
-                episode_counts[env_idx] += 1
-                sim.close()
-                simulations[env_idx] = Simulation(env_cfg, seed=seed + env_idx + episode_counts[env_idx] * batch_size)
-                for policy in teacher_agent_policies_list[env_idx]:
-                    policy.reset(simulation=simulations[env_idx])
+        for _ in range(batch_size):
+            # Iterate over all environments
+            for env_idx, _ in enumerate(simulations):
+                # Reset both the simulation and the nim policy if episode has ended
+                if simulations[env_idx].is_done():
+                    # Reset simulation (no reset() method, so close and recreate)
+                    simulations[env_idx].close()
+                    simulations[env_idx] = Simulation(env_cfg, seed=random.randint(0, 2**31 - 1))
+
+                    # Reset nim policy
+                    for policy in teacher_agent_policies_list[env_idx]:
+                        policy.reset(simulation=simulations[env_idx])
+
+                # Get the current simulation
                 sim = simulations[env_idx]
 
-            # Get observations from environment
-            raw_obs = sim._c_sim.observations()  # Shape: (num_agents, num_tokens, 3)
-            raw_action = sim._c_sim.actions()  # Shape: (num_agents,)
+                # Get observations from environment (these tokens are now in the C++ y high packing)
+                sim_raw_observations = sim._c_sim.observations()  # Shape: (num_agents, num_tokens, 3)
 
-            # Call step_batch on first agent policy to compute actions for all agents
-            # step_batch modifies raw_action in place
-            teacher_agent_policies_list[env_idx][0].step_batch(raw_obs, raw_action)
-            env_collected = False
+                # "forward pass" of the nim policy for all agents
+                for agent_idx in range(num_agents):
+                    # Get the current agent policy
+                    agent_policy = teacher_agent_policies_list[env_idx][agent_idx]
 
-            for agent_id in range(num_agents):
-                teacher_action = int(raw_action[agent_id])
+                    # Get the observation for the current agent
+                    raw_obs = sim_raw_observations[agent_idx]  # Shape: (num_tokens, 3)
 
-                # Get observation in shape expected by StatelessPolicyNet: (num_tokens, token_dim)
-                obs_tokens = convert_raw_obs_to_policy_tokens(raw_obs[agent_id], expected_num_tokens)
+                    # Get the action for the current agent
+                    teacher_action = agent_policy.step(
+                        raw_obs
+                    )  # the returned action is some damn string, so we have to now figure out
+                    # what the actual action id is
 
-                obs_batch.append(obs_tokens)
-                action_batch.append(teacher_action)
-                env_collected = True
+                    # Get the action id for the current action
+                    action_id = policy_env_info.actions.action_names.index(teacher_action)
 
-            if env_collected:
-                valid_env_indices.append(env_idx)
+                    # Get observation in shape expected by StatelessPolicyNet: (num_tokens, token_dim)
+                    obs_tokens = convert_raw_obs_to_policy_tokens(raw_obs[agent_idx], expected_num_tokens)
 
-        # Skip if no valid samples (all done)
-        if not action_batch:
-            continue
+                    # put intended action into buffer so we can step later
+                    sim._c_sim.actions()[agent_idx] = action_id
 
+                    obs_batch.append(obs_tokens)
+                    action_batch.append(action_id)
+
+                # step environment
+                sim.step()
+
+        """
+        At this point we should have a two lists:
+        - obs_batch: list of (num_tokens, token_dim) tensors
+        - action_batch: list of action ids
+
+        Both of these lists should have length batch_size * num_agents * num_envs.
+        """
+        assert len(obs_batch) == batch_size * num_agents * num_envs
+        assert len(action_batch) == batch_size * num_agents * num_envs
+
+        #########################################################
+        # Train student
+        #########################################################
         # Convert to batched tensors
-        # Shape: (batch_size, num_tokens, token_dim)
+        # Shape: (batch_size * num_agents * num_envs, num_tokens, token_dim)
         obs_batch_tensor = torch.stack([torch.from_numpy(obs).float() for obs in obs_batch]).to(torch_device)
-        # Shape: (batch_size,)
+        # Shape: (batch_size * num_agents * num_envs,)
         action_batch_tensor = torch.tensor(action_batch, dtype=torch.long).to(torch_device)
 
-        # Forward pass through model (StatelessPolicyNet divides by 255.0 internally)
-        logits, _ = model.forward_eval(obs_batch_tensor)  # Shape: (batch_size, num_actions)
+        # Forward pass through student model
+        logits, _ = model.forward_eval(obs_batch_tensor)  # Shape: (batch_size * num_agents * num_envs, num_actions)
+
+        assert logits.shape == (batch_size * num_agents * num_envs, len(policy_env_info.actions.actions()))
 
         # Compute loss
         loss = loss_fn(logits, action_batch_tensor)
@@ -216,10 +258,6 @@ def train_supervised(
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-
-        # Step all environments
-        for env_idx in valid_env_indices:
-            simulations[env_idx].step()
 
         step_count += len(action_batch)
 
@@ -270,12 +308,8 @@ if __name__ == "__main__":
     parser.add_argument("--lr", type=float, default=LEARNING_RATE, help="Learning rate")
     parser.add_argument("--device", type=str, default=DEVICE, help="Device (cpu/cuda)")
     parser.add_argument("--checkpoint-dir", type=str, default=str(CHECKPOINT_DIR), help="Checkpoint directory")
-    parser.add_argument("--seed", type=int, default=SEED, help="Random seed")
+    parser.add_argument("--num-envs", type=int, default=NUM_ENVS, help="Number of environments to train on", min=1)
     parser.add_argument(
-        "--nim-debug", action="store_true", default=NIM_DEBUG, help="Enable debug prints from Nim heuristic agent"
-    )
-    parser.add_argument(
-        "-n",
         "--train-from-scratch",
         action="store_true",
         default=False,
@@ -291,10 +325,9 @@ if __name__ == "__main__":
         num_agents=args.agents,
         num_steps=args.steps,
         batch_size=args.batch_size,
+        num_envs=args.num_envs,
         learning_rate=args.lr,
         device=args.device,
         checkpoint_dir=Path(args.checkpoint_dir),
-        seed=args.seed,
-        nim_debug=args.nim_debug,
         train_from_scratch=args.train_from_scratch,
     )
