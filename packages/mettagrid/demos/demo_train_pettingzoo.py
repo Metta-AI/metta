@@ -32,10 +32,6 @@ from mettagrid.builder.envs import make_arena
 from mettagrid.envs.pettingzoo_env import MettaGridPettingZooEnv
 from mettagrid.simulator import Simulator
 
-print("=" * 80)
-print("PYTHON SCRIPT STARTED!")
-print("=" * 80)
-
 
 def demo_pettingzoo_api():
     """Demonstrate PettingZoo API compliance and basic usage."""
@@ -44,13 +40,6 @@ def demo_pettingzoo_api():
 
     # Create simulator and config
     simulator = Simulator()
-
-
-    import time
-    print("About to load C++ module...")
-    simulator = Simulator()  # <-- Set your C++ breakpoint for the constructor
-    print("C++ module loaded! Sleeping to keep process alive...")
-    time.sleep(2)  # Give time for debugging
 
     config = make_arena(num_agents=24)
 
