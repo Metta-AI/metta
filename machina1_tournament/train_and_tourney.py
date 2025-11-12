@@ -79,6 +79,17 @@ class PolicyStats:
     agent_positions: list[int]
 
 
+@dataclass
+class SelfPlayStats:
+    """Self-play statistics for a single policy."""
+
+    policy_idx: int
+    policy_name: str
+    mean_reward: float
+    std_reward: float
+    episodes_played: int
+
+
 def train_with_checkpoints(
     checkpoint_dir: Path,
     max_epochs: int,
@@ -255,7 +266,7 @@ def run_tournament(
     console: Console,
     max_steps: int = 1000,
     variants: Optional[list[str]] = None,
-) -> tuple[list[GameResult], list[PolicyStats]]:
+) -> tuple[list[GameResult], list[PolicyStats], list]:
     """Run tournament on CoGs vs Clips missions."""
     # Default to CoGs vs Clips variants if none provided
     if variants is None:
@@ -397,15 +408,95 @@ def run_tournament(
 
     policy_stats.sort(key=lambda x: x.value_of_replacement, reverse=True)
 
-    return game_results, policy_stats
+    return game_results, policy_stats, policy_instances
+
+
+def run_self_play(
+    mission: str,
+    policy_pool: list[PolicyConfig],
+    policy_instances: list,
+    team_size: int,
+    seed: int,
+    console: Console,
+    num_self_play_episodes: int = 5,
+    max_steps: int = 1000,
+    variants: Optional[list[str]] = None,
+) -> list[SelfPlayStats]:
+    """Run self-play episodes for each policy.
+
+    Each policy plays against copies of itself to measure pure self-play performance.
+    """
+    if variants is None:
+        variants = ["lonely_heart", "heart_chorus", "pack_rat", "neutral_faced"]
+
+    console.print("\n[bold cyan]Self-Play Evaluation[/bold cyan]")
+    console.print(f"Mission: {mission}")
+    console.print(f"Episodes per policy: {num_self_play_episodes}")
+
+    _, env_cfg, _ = get_mission(mission, variants_arg=variants)
+
+    if env_cfg.game.num_agents != team_size:
+        env_cfg.game.num_agents = team_size
+
+    self_play_stats = []
+
+    for policy_idx, (policy_cfg, policy) in enumerate(zip(policy_pool, policy_instances, strict=True)):
+        console.print(f"\n[cyan]Self-play for {policy_cfg.name}...[/cyan]")
+        episode_rewards = []
+
+        for episode_id in range(num_self_play_episodes):
+            # All agents use the same policy
+            agent_policies = [policy.agent_policy(agent_id) for agent_id in range(team_size)]
+
+            rollout = Rollout(
+                env_cfg,
+                agent_policies,
+                max_action_time_ms=10000,
+                render_mode=None,
+                seed=seed + policy_idx * 1000 + episode_id,
+                pass_sim_to_policies=True,
+            )
+
+            step_count = 0
+            while not rollout.is_done() and step_count < max_steps:
+                rollout.step()
+                step_count += 1
+
+            episode_stats = rollout._sim.episode_stats
+            game_stats = episode_stats.get("game", {})
+            total_hearts = float(game_stats.get("chest.heart.amount", 0.0))
+            episode_rewards.append(total_hearts)
+
+        mean_reward = float(np.mean(episode_rewards))
+        std_reward = float(np.std(episode_rewards))
+
+        self_play_stats.append(
+            SelfPlayStats(
+                policy_idx=policy_idx,
+                policy_name=policy_cfg.name,
+                mean_reward=mean_reward,
+                std_reward=std_reward,
+                episodes_played=num_self_play_episodes,
+            )
+        )
+
+        console.print(
+            f"  ✓ {policy_cfg.name}: mean={mean_reward:.2f}, std={std_reward:.2f} (n={num_self_play_episodes})"
+        )
+
+    # Sort by mean reward
+    self_play_stats.sort(key=lambda x: x.mean_reward, reverse=True)
+
+    return self_play_stats
 
 
 def display_results(
     game_results: list[GameResult],
     policy_stats: list[PolicyStats],
+    self_play_stats: list[SelfPlayStats],
     console: Console,
 ) -> None:
-    """Display tournament results."""
+    """Display tournament and self-play results."""
     console.print("\n[bold green]Tournament Results[/bold green]")
 
     total_hearts = sum(r.total_hearts for r in game_results)
@@ -444,6 +535,26 @@ def display_results(
         )
 
     console.print(table)
+
+    # Display self-play results
+    console.print("\n[bold cyan]Self-Play Performance[/bold cyan]")
+    sp_table = Table(show_header=True, header_style="bold magenta")
+    sp_table.add_column("Rank", justify="right", style="cyan")
+    sp_table.add_column("Policy Name", style="white")
+    sp_table.add_column("Mean Reward", justify="right")
+    sp_table.add_column("Std Dev", justify="right")
+    sp_table.add_column("Episodes", justify="right")
+
+    for rank, stats in enumerate(self_play_stats, 1):
+        sp_table.add_row(
+            str(rank),
+            stats.policy_name,
+            f"{stats.mean_reward:.2f}",
+            f"{stats.std_reward:.2f}",
+            str(stats.episodes_played),
+        )
+
+    console.print(sp_table)
 
 
 def main(
@@ -513,7 +624,7 @@ def main(
     policy_pool = build_policy_pool(checkpoint_paths, console)
 
     # Step 3: Run tournament
-    game_results, policy_stats = run_tournament(
+    game_results, policy_stats, policy_instances = run_tournament(
         mission=mission,
         policy_pool=policy_pool,
         num_episodes=num_episodes,
@@ -522,10 +633,21 @@ def main(
         console=console,
     )
 
-    # Step 4: Display results
-    display_results(game_results, policy_stats, console)
+    # Step 4: Run self-play evaluation
+    self_play_stats = run_self_play(
+        mission=mission,
+        policy_pool=policy_pool,
+        policy_instances=policy_instances,
+        team_size=num_cogs,
+        seed=seed,
+        console=console,
+        num_self_play_episodes=5,
+    )
 
-    # Step 5: Save results if requested
+    # Step 5: Display results
+    display_results(game_results, policy_stats, self_play_stats, console)
+
+    # Step 6: Save results if requested
     if output:
         results = {
             "tournament_summary": {
@@ -543,6 +665,17 @@ def main(
                     "value_of_replacement": stats.value_of_replacement,
                 }
                 for i, stats in enumerate(policy_stats)
+            ],
+            "self_play_rankings": [
+                {
+                    "rank": i + 1,
+                    "policy_idx": stats.policy_idx,
+                    "policy_name": stats.policy_name,
+                    "mean_reward": stats.mean_reward,
+                    "std_reward": stats.std_reward,
+                    "episodes_played": stats.episodes_played,
+                }
+                for i, stats in enumerate(self_play_stats)
             ],
         }
 
