@@ -1,8 +1,7 @@
 # This file has an example of random agents that just take random actions.
 
 import
-  std/[strformat, strutils, tables, sets, random],
-  genny, jsony,
+  std/random,
   common
 
 type

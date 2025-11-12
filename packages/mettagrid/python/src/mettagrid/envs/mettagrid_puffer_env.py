@@ -136,6 +136,10 @@ class MettaGridPufferEnv(PufferEnv):
                 self._env_supervisor_cfg.policy_data_path,
             )
 
+            reset_fn = getattr(self._env_supervisor, "reset", None)
+            if callable(reset_fn):
+                reset_fn(self._sim)
+
             self._compute_supervisor_actions()
 
     @override

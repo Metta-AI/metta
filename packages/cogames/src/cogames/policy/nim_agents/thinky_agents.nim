@@ -1,6 +1,5 @@
 import
-  std/[strformat, strutils, tables, random, sets, options],
-  genny, jsony,
+  std/[tables, random, sets, options],
   common
 
 type
