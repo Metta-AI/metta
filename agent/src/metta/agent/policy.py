@@ -25,6 +25,7 @@ from mettagrid.base_config import Config
 from mettagrid.policy.lstm import obs_to_obs_tensor
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, TrainablePolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.policy.policy_registry import PolicyRegistryABCMeta
 from mettagrid.simulator import Action, AgentObservation, Simulation
 from mettagrid.util.module import load_symbol
 
@@ -139,7 +140,7 @@ class _SingleAgentAdapter(AgentPolicy):
         return td
 
 
-class DistributedPolicy(TrainablePolicy, DistributedDataParallel):
+class DistributedPolicy(TrainablePolicy, DistributedDataParallel, metaclass=PolicyRegistryABCMeta):
     """Thin wrapper around DistributedDataParallel that preserves Policy interface."""
 
     def __init__(self, policy: MultiAgentPolicy, device: torch.device):

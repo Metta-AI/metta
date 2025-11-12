@@ -198,7 +198,7 @@ def sweep(sweep_name: str) -> SweepTool:
         3 - Ensure your sky credentials are present: `sky status` -- if not, follow the instructions on screen.
         4 - Install tmux on the sandbox `apt install tmux`
         5 - Launch tmux session: `tmux new -s sweep`
-        6 - Launch the sweep: `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.baes.10081528" -- gpus=4 nodes=2`
+        6 - Launch the sweep: `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.baes.10081528" --gpus=4 nodes=2`
         7 - Detach when you want: CTRL+B then d
         8 - Attach to look at status/output: `tmux attach -t sweep_configs`
 
