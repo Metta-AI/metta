@@ -6,7 +6,7 @@ import json
 import re
 from collections import defaultdict
 from datetime import datetime
-from typing import TYPE_CHECKING, Literal, Optional
+from typing import Literal, Optional
 
 import numpy as np
 import typer
@@ -18,13 +18,6 @@ from rich.table import Table
 from mettagrid import MettaGridConfig
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.simulator.multi_episode_rollout import MultiEpisodeRolloutResult, multi_episode_rollout
-
-if TYPE_CHECKING:
-    from mettagrid.mettagrid_c import EpisodeStats as EpisodeStatsType
-else:
-    EpisodeStatsType = dict
-
-EpisodeStats = EpisodeStatsType  # type: ignore[assignment]
 
 _SKIP_STATS = [r"^action\.invalid_arg\..+$"]
 
@@ -42,8 +35,6 @@ class RawMissionEvaluationResult(BaseModel):
     # List of action timeouts per episode for each policy
     # per_episode_timeouts[episode_idx][policy_idx] = number of timeouts for policy_idx in episode episode_idx.
     per_episode_timeouts: list[np.ndarray]
-    # Game metrics for each episode
-    per_episode_stats: list["EpisodeStats"]
 
 
 class MissionPolicySummary(BaseModel):
@@ -227,7 +218,7 @@ def evaluate(
                 env_cfg=env_cfg,
                 policy_specs=policy_specs,
                 episodes=episodes,
-                action_timeout_ms=action_timeout_ms,
+                max_action_time_ms=action_timeout_ms,
                 seed=seed,
                 progress_callback=_progress_callback,
             )

@@ -6,7 +6,7 @@ import math
 from typing import TYPE_CHECKING, Callable
 
 import numpy as np
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from mettagrid import MettaGridConfig
 from mettagrid.policy.loader import initialize_or_load_policy
@@ -15,11 +15,11 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
 
 if TYPE_CHECKING:
-    from mettagrid.mettagrid_c import EpisodeStats as EpisodeStatsType
-else:
-    EpisodeStatsType = dict
+    from mettagrid.mettagrid_c import EpisodeStats
 
-EpisodeStats = EpisodeStatsType  # type: ignore[assignment]
+    EpisodeStatsT = EpisodeStats
+else:
+    EpisodeStatsT = dict
 
 _SKIP_STATS = [r"^action\.invalid_arg\..+$"]
 
@@ -27,10 +27,11 @@ ProgressCallback = Callable[[int], None]
 
 
 class MultiEpisodeRolloutResult(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     assignments: list[np.ndarray]
     rewards: list[np.ndarray]
     action_timeouts: list[np.ndarray]
-    stats: list["EpisodeStats"]
+    stats: list[EpisodeStatsT]
 
 
 def _compute_policy_agent_counts(num_agents: int, policy_specs: list[PolicySpec]) -> list[int]:
@@ -55,9 +56,9 @@ def multi_episode_rollout(
     env_cfg: MettaGridConfig,
     policy_specs: list[PolicySpec],
     episodes: int,
-    action_timeout_ms: int,
-    seed: int,
+    seed: int = 0,
     progress_callback: ProgressCallback | None = None,
+    **kwargs,
 ) -> MultiEpisodeRolloutResult:
     """
     Runs rollout for multiple episodes, randomizing agent assignments for each episode in proportions
@@ -80,7 +81,7 @@ def multi_episode_rollout(
     assert len(assignments) == env_cfg.game.num_agents
 
     per_episode_rewards: list[np.ndarray] = []
-    per_episode_stats: list["EpisodeStats"] = []
+    per_episode_stats: list[EpisodeStatsT] = []
     per_episode_assignments: list[np.ndarray] = []
     per_episode_timeouts: list[np.ndarray] = []
     rng = np.random.default_rng(seed)
@@ -91,13 +92,7 @@ def multi_episode_rollout(
             for agent_id in range(env_cfg.game.num_agents)
         ]
 
-        rollout = Rollout(
-            env_cfg,
-            agent_policies,
-            max_action_time_ms=action_timeout_ms,
-            render_mode=None,
-            seed=seed + episode_idx,
-        )
+        rollout = Rollout(env_cfg, agent_policies, **kwargs)
 
         rollout.run_until_done()
 
