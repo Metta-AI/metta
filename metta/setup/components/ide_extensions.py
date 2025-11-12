@@ -29,7 +29,7 @@ class IdeExtensions(SetupModule):
             "vscode": ["code", "cursor"],
         }
         term_program = os.getenv("TERM_PROGRAM", "").lower()
-        for cmd in term_program_to_command.get(term_program, []):
+        for cmd in term_program_to_command.get(term_program, ["cursor", "code"]):
             if shutil.which(cmd):
                 return cmd
         return None
