@@ -1,14 +1,14 @@
 import importlib
 import os
 import sys
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 
 from mettagrid.mettagrid_c import dtype_observations
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator import Action, AgentObservation, Simulation
+from mettagrid.simulator import Action, AgentObservation
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 bindings_dir = os.path.join(current_dir, "bindings/generated")
@@ -82,19 +82,21 @@ class _NimAgentsMultiPolicyBase(MultiAgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface, policy_type: type[_NimAgentPolicyBase]):
         super().__init__(policy_env_info)
         self._policy_type = policy_type
-        self._batch_agent: _NimAgentPolicyBase | None = None
+        self._batch_agents: list[_NimAgentPolicyBase] | None = None
 
     def agent_policy(self, agent_id: int) -> _NimAgentPolicyBase:
         return self._policy_type(self._policy_env_info, agent_id)
 
-    def _require_batch_agent(self) -> _NimAgentPolicyBase:
-        if self._batch_agent is None:
-            self._batch_agent = self._policy_type(self._policy_env_info, agent_id=0)
-        return self._batch_agent
+    def _require_batch_agents(self) -> list[_NimAgentPolicyBase]:
+        if self._batch_agents is None:
+            self._batch_agents = [
+                self._policy_type(self._policy_env_info, agent_id=i) for i in range(self._policy_env_info.num_agents)
+            ]
+        return self._batch_agents
 
     def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
-        batch_agent = self._require_batch_agent()
-        batch_agent.step_batch(raw_observations, raw_actions)
+        for agent in self._require_batch_agents():
+            agent.step_batch(raw_observations, raw_actions)
 
 
 class RandomAgentsMultiPolicy(_NimAgentsMultiPolicyBase):
