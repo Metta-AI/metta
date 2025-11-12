@@ -33,37 +33,6 @@ export type TokenListResponse = {
   tokens: TokenInfo[]
 }
 
-// Dashboard state interface for saving/loading
-export interface DashboardState {
-  selectedTrainingRunIds: string[]
-  selectedRunFreePolicyIds: string[]
-  selectedEvalNames: string[]
-  trainingRunPolicySelector: 'latest' | 'best'
-  selectedMetric: string
-}
-
-export type SavedDashboard = {
-  id: string
-  name: string
-  description: string | null
-  type: string
-  dashboard_state: DashboardState
-  created_at: string
-  updated_at: string
-  user_id: string
-}
-
-export type SavedDashboardCreate = {
-  name: string
-  description?: string
-  type: string
-  dashboard_state: Record<string, any>
-}
-
-export type SavedDashboardListResponse = {
-  dashboards: SavedDashboard[]
-}
-
 export type TrainingRun = {
   id: string
   name: string
@@ -215,35 +184,6 @@ export type PolicyScorecardData = {
   evalMaxScores: Record<string, number>
 }
 
-// Leaderboard types
-export type Leaderboard = {
-  id: string
-  name: string
-  user_id: string
-  evals: string[]
-  metric: string
-  start_date: string
-  latest_episode: number
-  created_at: string
-  updated_at: string
-}
-
-export type LeaderboardCreateOrUpdate = {
-  name: string
-  evals: string[]
-  metric: string
-  start_date: string
-}
-
-export type LeaderboardListResponse = {
-  leaderboards: Leaderboard[]
-}
-
-export type LeaderboardScorecardRequest = {
-  selector: 'latest' | 'best'
-  num_policies: number
-}
-
 import { config } from './config'
 
 export type TableInfo = {
@@ -293,13 +233,6 @@ export interface Repo {
   listTokens(): Promise<TokenListResponse>
   deleteToken(tokenId: string): Promise<void>
 
-  // Saved dashboard methods
-  listSavedDashboards(): Promise<SavedDashboardListResponse>
-  getSavedDashboard(dashboardId: string): Promise<SavedDashboard>
-  createSavedDashboard(dashboardData: SavedDashboardCreate): Promise<SavedDashboard>
-  updateDashboardState(dashboardId: string, dashboardState: DashboardState): Promise<SavedDashboard>
-  deleteSavedDashboard(dashboardId: string): Promise<void>
-
   // User methods
   whoami(): Promise<{ user_email: string }>
 
@@ -333,14 +266,6 @@ export interface Repo {
   getEvalNames(request: EvalNamesRequest): Promise<Set<string>>
   getAvailableMetrics(request: MetricsRequest): Promise<string[]>
   generatePolicyScorecard(request: PolicyScorecardRequest): Promise<PolicyScorecardData>
-
-  // Leaderboard methods
-  listLeaderboards(): Promise<LeaderboardListResponse>
-  getLeaderboard(leaderboardId: string): Promise<Leaderboard>
-  createLeaderboard(leaderboardData: LeaderboardCreateOrUpdate): Promise<Leaderboard>
-  updateLeaderboard(leaderboardId: string, leaderboardData: LeaderboardCreateOrUpdate): Promise<Leaderboard>
-  deleteLeaderboard(leaderboardId: string): Promise<void>
-  generateLeaderboardScorecard(leaderboardId: string, request: LeaderboardScorecardRequest): Promise<ScorecardData>
 }
 
 export class ServerRepo implements Repo {
@@ -415,30 +340,6 @@ export class ServerRepo implements Repo {
 
   async deleteToken(tokenId: string): Promise<void> {
     return this.apiCallDelete(`/tokens/${tokenId}`)
-  }
-
-  // Saved dashboard methods
-  async listSavedDashboards(): Promise<SavedDashboardListResponse> {
-    return this.apiCall<SavedDashboardListResponse>('/dashboard/saved')
-  }
-
-  async getSavedDashboard(dashboardId: string): Promise<SavedDashboard> {
-    return this.apiCall<SavedDashboard>(`/dashboard/saved/${encodeURIComponent(dashboardId)}`)
-  }
-
-  async createSavedDashboard(dashboardData: SavedDashboardCreate): Promise<SavedDashboard> {
-    return this.apiCallWithBody<SavedDashboard>('/dashboard/saved', dashboardData)
-  }
-
-  async updateDashboardState(dashboardId: string, dashboardState: DashboardState): Promise<SavedDashboard> {
-    return this.apiCallWithBodyPut<SavedDashboard>(
-      `/dashboard/saved/${encodeURIComponent(dashboardId)}`,
-      dashboardState
-    )
-  }
-
-  async deleteSavedDashboard(dashboardId: string): Promise<void> {
-    return this.apiCallDelete(`/dashboard/saved/${encodeURIComponent(dashboardId)}`)
   }
 
   // User methods
@@ -571,37 +472,5 @@ export class ServerRepo implements Repo {
 
   async generatePolicyScorecard(request: PolicyScorecardRequest): Promise<PolicyScorecardData> {
     return this.apiCallWithBody<PolicyScorecardData>('/scorecard/scorecard', request)
-  }
-
-  // Leaderboard methods
-  async listLeaderboards(): Promise<LeaderboardListResponse> {
-    return this.apiCall<LeaderboardListResponse>('/leaderboards')
-  }
-
-  async getLeaderboard(leaderboardId: string): Promise<Leaderboard> {
-    return this.apiCall<Leaderboard>(`/leaderboards/${encodeURIComponent(leaderboardId)}`)
-  }
-
-  async createLeaderboard(leaderboardData: LeaderboardCreateOrUpdate): Promise<Leaderboard> {
-    return this.apiCallWithBody<Leaderboard>('/leaderboards', leaderboardData)
-  }
-
-  async updateLeaderboard(leaderboardId: string, leaderboardData: LeaderboardCreateOrUpdate): Promise<Leaderboard> {
-    return this.apiCallWithBodyPut<Leaderboard>(`/leaderboards/${encodeURIComponent(leaderboardId)}`, leaderboardData)
-  }
-
-  async deleteLeaderboard(leaderboardId: string): Promise<void> {
-    return this.apiCallDelete(`/leaderboards/${encodeURIComponent(leaderboardId)}`)
-  }
-
-  async generateLeaderboardScorecard(
-    leaderboardId: string,
-    request: LeaderboardScorecardRequest
-  ): Promise<ScorecardData> {
-    return this.apiCallWithBody<ScorecardData>('/scorecard/leaderboard', {
-      leaderboard_id: leaderboardId,
-      selector: request.selector,
-      num_policies: request.num_policies,
-    })
   }
 }

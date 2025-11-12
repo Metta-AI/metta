@@ -1,13 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import {
-  DashboardState,
-  PolicyScorecardData,
-  Repo,
-  SavedDashboard,
-  SavedDashboardCreate,
-  UnifiedPolicyInfo,
-} from './repo'
+import { PolicyScorecardData, Repo, UnifiedPolicyInfo } from './repo'
 import { PolicySelector } from './components/PolicySelector'
 import { EvalSelector } from './components/EvalSelector'
 import { TrainingRunPolicySelector } from './components/TrainingRunPolicySelector'
@@ -15,16 +7,13 @@ import { MetricSelector } from './components/MetricSelector'
 import { Scorecard } from './Scorecard'
 import styles from './Dashboard.module.css'
 import { MapViewer } from './MapViewer'
-import { SaveDashboardModal } from './SaveDashboardModal'
 import { METTASCOPE_REPLAY_URL_PREFIX } from './constants'
-import { filterValidEvalNames } from './utils/validationUtils'
 
 interface DashboardProps {
   repo: Repo
 }
 
 export function Dashboard({ repo }: DashboardProps) {
-  const [searchParams, setSearchParams] = useSearchParams()
   // Data state
   const [policies, setPolicies] = useState<UnifiedPolicyInfo[]>([])
   const [evalNames, setEvalNames] = useState<Set<string>>(new Set())
@@ -52,12 +41,6 @@ export function Dashboard({ repo }: DashboardProps) {
     evalName: string
   } | null>(null)
   const [controlsExpanded, setControlsExpanded] = useState<boolean>(true)
-
-  // Save dashboard modal state
-  const [showSaveModal, setShowSaveModal] = useState(false)
-
-  // Dashboard metadata state
-  const [savedDashboard, setSavedDashboard] = useState<SavedDashboard | null>(null)
 
   // Load policies on mount
   useEffect(() => {
@@ -222,123 +205,7 @@ export function Dashboard({ repo }: DashboardProps) {
   const selectedReplayUrl = selectedCellData?.replayUrl ?? null
   const selectedThumbnailUrl = selectedCellData?.thumbnailUrl ?? null
 
-  // Dashboard state management functions
-  const getDashboardState = () => {
-    return {
-      selectedTrainingRunIds,
-      selectedRunFreePolicyIds,
-      selectedEvalNames: Array.from(selectedEvalNames),
-      trainingRunPolicySelector,
-      selectedMetric,
-    }
-  }
-
-  // Helper function to compare dashboard states
-  const isDashboardStateChanged = () => {
-    if (!savedDashboard) return true
-
-    const currentState = getDashboardState()
-    const originalDashboardState = savedDashboard.dashboard_state
-    return (
-      JSON.stringify(currentState.selectedTrainingRunIds) !==
-        JSON.stringify(originalDashboardState.selectedTrainingRunIds) ||
-      JSON.stringify(currentState.selectedRunFreePolicyIds) !==
-        JSON.stringify(originalDashboardState.selectedRunFreePolicyIds) ||
-      JSON.stringify(currentState.selectedEvalNames) !== JSON.stringify(originalDashboardState.selectedEvalNames) ||
-      currentState.trainingRunPolicySelector !== originalDashboardState.trainingRunPolicySelector ||
-      currentState.selectedMetric !== originalDashboardState.selectedMetric
-    )
-  }
-
-  const restoreDashboardState = async (state: DashboardState) => {
-    // Restore basic state
-    setSelectedTrainingRunIds(state.selectedTrainingRunIds || [])
-    setSelectedRunFreePolicyIds(state.selectedRunFreePolicyIds || [])
-    setTrainingRunPolicySelector(state.trainingRunPolicySelector || 'latest')
-    setSelectedMetric(state.selectedMetric || '')
-
-    // Validate eval names against currently available ones
-    try {
-      const availableEvalNames = await repo.getEvalNames({
-        training_run_ids: state.selectedTrainingRunIds || [],
-        run_free_policy_ids: state.selectedRunFreePolicyIds || [],
-      })
-
-      const { valid, invalid } = filterValidEvalNames(state.selectedEvalNames || [], Array.from(availableEvalNames))
-
-      if (invalid.length > 0) {
-        console.warn('Dashboard restore: Removed unavailable eval names:', invalid)
-      }
-
-      // Only restore valid eval names
-      setSelectedEvalNames(new Set(valid))
-
-      // Generate scorecard with validated data
-      await generateScorecard(
-        state.selectedTrainingRunIds,
-        state.selectedRunFreePolicyIds,
-        new Set(valid),
-        state.selectedMetric
-      )
-    } catch (error) {
-      console.error('Failed to validate eval names during dashboard restore:', error)
-      // Fallback: don't restore eval names, let user reselect
-      setSelectedEvalNames(new Set())
-    }
-  }
-
-  const handleCreateDashboard = async (dashboardData: SavedDashboardCreate) => {
-    try {
-      const dashboardState = getDashboardState()
-      const saveData = {
-        ...dashboardData,
-        dashboard_state: dashboardState,
-      }
-
-      const savedDashboard = await repo.createSavedDashboard(saveData)
-
-      // Update URL to include the saved dashboard ID
-      const newSearchParams = new URLSearchParams(searchParams)
-      newSearchParams.set('saved_id', savedDashboard.id)
-      setSearchParams(newSearchParams)
-
-      setShowSaveModal(false)
-    } catch (error) {
-      console.error('Failed to save dashboard:', error)
-      throw error
-    }
-  }
-
-  const loadSavedDashboard = async (savedId: string) => {
-    try {
-      const savedDashboard = await repo.getSavedDashboard(savedId)
-      if (savedDashboard.dashboard_state) {
-        setSavedDashboard(savedDashboard)
-        await restoreDashboardState(savedDashboard.dashboard_state)
-      }
-    } catch (error) {
-      console.error('Failed to load saved dashboard:', error)
-    }
-  }
-
-  const savedId = searchParams.get('saved_id')
-  const dashboardName = savedDashboard?.name ?? 'Policy Scorecard'
-
-  const handleDashboardButtonClick = async () => {
-    if (savedId) {
-      await repo.updateDashboardState(savedId, getDashboardState())
-      await loadSavedDashboard(savedId)
-    } else {
-      setShowSaveModal(true)
-    }
-  }
-
-  // Load saved dashboard on mount if saved_id parameter is present
-  useEffect(() => {
-    if (savedId) {
-      loadSavedDashboard(savedId)
-    }
-  }, [savedId])
+  const dashboardName = 'Policy Scorecard'
 
   return (
     <div className={styles.dashboardContainer}>
@@ -455,13 +322,6 @@ export function Dashboard({ repo }: DashboardProps) {
                   'Generate Scorecard'
                 )}
               </button>
-              <button
-                onClick={handleDashboardButtonClick}
-                disabled={!isDashboardStateChanged()}
-                className={styles.saveDashboardButton}
-              >
-                {savedId ? 'Update Dashboard' : 'Save Dashboard'}
-              </button>
             </div>
             <div className={styles.buttonHelpText}>
               {selectedTrainingRunIds.length + selectedRunFreePolicyIds.length} policies, {selectedEvalNames.size}{' '}
@@ -507,13 +367,6 @@ export function Dashboard({ repo }: DashboardProps) {
             />
           </div>
         )}
-
-        {/* Save Dashboard Modal */}
-        <SaveDashboardModal
-          isOpen={showSaveModal}
-          onClose={() => setShowSaveModal(false)}
-          onSave={handleCreateDashboard}
-        />
       </div>
     </div>
   )
