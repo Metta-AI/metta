@@ -154,5 +154,19 @@
       "python": "${workspaceFolder}/.venv/bin/python",
       "preLaunchTask": "${defaultBuildTask}",
     },
+    {
+      "name": "Train Supervised (Nim)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "cogames.policy.fast_agents.train_supervised",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
+      // "preLaunchTask": "${defaultBuildTask}",
+    },
   ],
 }
