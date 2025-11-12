@@ -82,14 +82,34 @@ class RandomAgentPolicy(_FastAgentPolicyBase):
         self._agent = fa.RandomAgent(agent_id, policy_env_info.to_json())
 
 
-class RandomAgentsMultiPolicy(MultiAgentPolicy):
-    def __init__(self, policy_env_info: PolicyEnvInterface):
+class _FastAgentsMultiPolicyBase(MultiAgentPolicy):
+    def __init__(self, policy_env_info: PolicyEnvInterface, policy_type: type[_FastAgentPolicyBase]):
         super().__init__(policy_env_info)
+        self._policy_type = policy_type
+        self._batch_agent: _FastAgentPolicyBase | None = None
+
+    def agent_policy(self, agent_id: int) -> _FastAgentPolicyBase:
+        return self._policy_type(self._policy_env_info, agent_id)
+
+    def _require_batch_agent(self) -> _FastAgentPolicyBase:
+        if self._batch_agent is None:
+            self._batch_agent = self._policy_type(self._policy_env_info, agent_id=0)
+        return self._batch_agent
+
+    def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
+        batch_agent = self._require_batch_agent()
+        batch_agent.step_batch(raw_observations, raw_actions)
+
+    def reset(self, simulation: Optional[Simulation] = None) -> None:
+        if self._batch_agent is not None:
+            self._batch_agent.reset(simulation)
+
+
+class RandomAgentsMultiPolicy(_FastAgentsMultiPolicyBase):
+    def __init__(self, policy_env_info: PolicyEnvInterface):
+        super().__init__(policy_env_info, RandomAgentPolicy)
 
     short_names = ["fast_random"]
-
-    def agent_policy(self, agent_id: int) -> RandomAgentPolicy:
-        return RandomAgentPolicy(self._policy_env_info, agent_id)
 
 
 class ThinkyAgentPolicy(_FastAgentPolicyBase):
@@ -98,14 +118,11 @@ class ThinkyAgentPolicy(_FastAgentPolicyBase):
         self._agent = fa.ThinkyAgent(agent_id, policy_env_info.to_json())
 
 
-class ThinkyAgentsMultiPolicy(MultiAgentPolicy):
+class ThinkyAgentsMultiPolicy(_FastAgentsMultiPolicyBase):
     def __init__(self, policy_env_info: PolicyEnvInterface):
-        super().__init__(policy_env_info)
+        super().__init__(policy_env_info, ThinkyAgentPolicy)
 
     short_names = ["fast_thinky"]
-
-    def agent_policy(self, agent_id: int) -> ThinkyAgentPolicy:
-        return ThinkyAgentPolicy(self._policy_env_info, agent_id)
 
 
 class RaceCarAgentPolicy(_FastAgentPolicyBase):
@@ -114,11 +131,8 @@ class RaceCarAgentPolicy(_FastAgentPolicyBase):
         self._agent = fa.RaceCarAgent(agent_id, policy_env_info.to_json())
 
 
-class RaceCarAgentsMultiPolicy(MultiAgentPolicy):
+class RaceCarAgentsMultiPolicy(_FastAgentsMultiPolicyBase):
     def __init__(self, policy_env_info: PolicyEnvInterface):
-        super().__init__(policy_env_info)
+        super().__init__(policy_env_info, RaceCarAgentPolicy)
 
     short_names = ["fast_race_car"]
-
-    def agent_policy(self, agent_id: int) -> RaceCarAgentPolicy:
-        return RaceCarAgentPolicy(self._policy_env_info, agent_id)

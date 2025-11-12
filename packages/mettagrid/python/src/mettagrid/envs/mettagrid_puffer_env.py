@@ -40,7 +40,7 @@ from mettagrid.mettagrid_c import (
     dtype_truncations,
 )
 from mettagrid.policy.loader import initialize_or_load_policy, resolve_policy_class_path
-from mettagrid.policy.policy import AgentPolicy
+from mettagrid.policy.policy import MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Simulation, Simulator
 from mettagrid.simulator.simulator import Buffers
@@ -101,8 +101,8 @@ class MettaGridPufferEnv(PufferEnv):
         self.single_observation_space: Box = policy_env_info.observation_space
         self.single_action_space: Discrete = policy_env_info.action_space
 
-        self._env_supervisor_policy = None
-        self._env_supervisor: AgentPolicy | None = None
+        self._env_supervisor_policy: MultiAgentPolicy | None = None
+        self._env_supervisor_batch_supported = True
         self._new_sim()
         self.num_agents: int = self._sim.num_agents
 
@@ -129,16 +129,14 @@ class MettaGridPufferEnv(PufferEnv):
 
         self._sim = self._simulator.new_simulation(self._current_cfg, self._current_seed, buffers=self._buffers)
 
-        self._env_supervisor = None
-
         if self._env_supervisor_cfg.policy is not None:
             self._env_supervisor_policy = initialize_or_load_policy(
                 PolicyEnvInterface.from_mg_cfg(self._current_cfg),
                 resolve_policy_class_path(self._env_supervisor_cfg.policy),
                 self._env_supervisor_cfg.policy_data_path,
             )
-            self._env_supervisor = self._env_supervisor_policy.agent_policy(agent_id=0)
-            self._env_supervisor.reset(self._sim)
+            self._env_supervisor_policy.reset(self._sim)
+            self._env_supervisor_batch_supported = True
 
             self._compute_supervisor_actions()
 
@@ -172,12 +170,19 @@ class MettaGridPufferEnv(PufferEnv):
         )
 
     def _compute_supervisor_actions(self) -> None:
-        if self._env_supervisor is None:
+        if self._env_supervisor_policy is None or not self._env_supervisor_batch_supported:
             return
 
         teacher_actions = self._buffers.teacher_actions
         raw_observations = self._buffers.observations
-        self._env_supervisor.step_batch(raw_observations, teacher_actions)
+        try:
+            self._env_supervisor_policy.step_batch(raw_observations, teacher_actions)
+        except NotImplementedError:
+            logger.warning(
+                "Env supervisor policy %s does not implement step_batch; disabling teacher actions",
+                self._env_supervisor_policy.__class__.__name__,
+            )
+            self._env_supervisor_batch_supported = False
 
     @property
     def observations(self) -> np.ndarray:
