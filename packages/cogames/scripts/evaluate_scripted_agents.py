@@ -30,7 +30,10 @@ from typing import Dict, List
 import matplotlib.pyplot as plt
 import numpy as np
 
+<<<<<<< HEAD
 from cogames.cogs_vs_clips.diagnostic_evals import DIAGNOSTIC_EVALS
+=======
+>>>>>>> 4cffbeebf5f2ac9713ba548087d482d550186c45
 from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_VARIANTS, get_difficulty
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS as EVAL_MISSIONS_MAIN
 from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS as EVAL_MISSIONS_INTEGRATED
@@ -340,7 +343,7 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots"):
 
     for r in results:
         key = (r.agent, r.experiment, r.difficulty, r.num_cogs, r.preset)
-        data[key]["total_rewards"].append(r.total_reward)
+      s  data[key]["total_rewards"].append(r.total_reward)
         data[key]["avg_rewards"].append(r.avg_reward_per_agent)
         data[key]["successes"].append(r.success)
 
