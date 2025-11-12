@@ -31,28 +31,6 @@ LOG_INTERVAL = 1000
 NIM_DEBUG = False
 TEACHER_POLICY_CLASS = ThinkyAgentsMultiPolicy
 
-
-def _ensure_fast_agents_loaded() -> None:
-    """Import fast_agents with patched ctypes so outdated bindings still load."""
-
-    if "fast_agents" in sys.modules:
-        return
-
-    import ctypes
-
-    original_pointer = ctypes.pointer
-    ctypes.pointer = ctypes.c_void_p  # type: ignore[assignment]
-    try:
-        __import__("fast_agents")
-    except Exception as exc:
-        raise RuntimeError(
-            "Failed to import fast_agents bindings. Regenerate Nim bindings or update "
-            "train_supervised.py to avoid the dependency."
-        ) from exc
-    finally:
-        ctypes.pointer = original_pointer
-
-
 def convert_raw_obs_to_policy_tokens(raw_obs: np.ndarray, expected_num_tokens: int) -> np.ndarray:
     """Convert simulator raw observations into the token layout used by StatelessPolicyNet.
 
@@ -132,7 +110,6 @@ def train_supervised(
     policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
 
     # Create scripted agent policy (teacher)
-    _ensure_fast_agents_loaded()
     teacher_policy = teacher_policy_class(policy_env_info)
 
     # Initialize model using StatelessPolicyNet for compatibility with cogames play
@@ -257,11 +234,10 @@ def train_supervised(
             else:
                 steps_per_second = 0.0
 
-            avg_episode = sum(episode_counts) / len(episode_counts) if episode_counts else 0
             accuracy = (log_interval_correct / log_interval_total) if log_interval_total else 0.0
             print(
                 f"Step {step_count}/{num_steps}, Loss: {loss.item():.4f}, "
-                f"Accuracy: {accuracy:.3f}, Avg Episode: {avg_episode:.1f}, Steps/s: {steps_per_second:.1f}"
+                f"Accuracy: {accuracy:.3f}, Steps/s: {steps_per_second:.1f}"
             )
 
             last_log_time = current_time
