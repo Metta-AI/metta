@@ -8,7 +8,11 @@ from metta.agent.policies.vit import ViTDefaultConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.training import (
+    CheckpointerConfig,
+    EvaluatorConfig,
+    TrainingEnvironmentConfig,
+)
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
@@ -346,6 +350,7 @@ def train(
         policy_architecture=policy_config,
         evaluator=EvaluatorConfig(simulations=make_assembly_line_eval_suite()),
         stats_server_uri="https://api.observatory.softmax-research.net",
+        checkpointer=CheckpointerConfig(epoch_interval=5),
     )
 
 
