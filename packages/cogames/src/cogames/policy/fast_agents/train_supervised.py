@@ -308,7 +308,7 @@ if __name__ == "__main__":
     parser.add_argument("--lr", type=float, default=LEARNING_RATE, help="Learning rate")
     parser.add_argument("--device", type=str, default=DEVICE, help="Device (cpu/cuda)")
     parser.add_argument("--checkpoint-dir", type=str, default=str(CHECKPOINT_DIR), help="Checkpoint directory")
-    parser.add_argument("--num-envs", type=int, default=NUM_ENVS, help="Number of environments to train on", min=1)
+    parser.add_argument("--num-envs", type=int, default=NUM_ENVS, help="Number of environments to train on")
     parser.add_argument(
         "--train-from-scratch",
         action="store_true",
