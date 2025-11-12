@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+import sys
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, ClassVar, Generic, Self, TypeVar, cast, get_args, get_origin
@@ -15,6 +16,97 @@ from mettagrid.mapgen.types import MapGrid
 from mettagrid.util.module import load_symbol
 
 logger = logging.getLogger(__name__)
+
+# Registry to cache clones and prevent duplicates
+_clone_registry: dict[tuple[type, type], type[MapBuilderConfig[Any]]] = {}
+
+
+def __getattr__(name: str) -> Any:
+    """Handle missing clone classes during unpickling in worker processes."""
+    if "_For_" not in name:
+        raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
+    try:
+        base_name, builder_name = name.rsplit("_For_", 1)
+
+        search_modules = [
+            "metta.map.terrain_from_numpy",
+            "mettagrid.map_builder.random",
+            "mettagrid.map_builder.ascii",
+            "mettagrid.map_builder.maze",
+            "mettagrid.map_builder.assembler_map_builder",
+            "mettagrid.map_builder.perimeter_incontext",
+        ]
+
+        base_config_class = None
+        builder_class = None
+
+        for module_path in search_modules:
+            try:
+                full_path = f"{module_path}.{base_name}"
+                candidate = load_symbol(full_path)
+                if candidate and inspect.isclass(candidate) and issubclass(candidate, MapBuilderConfig):
+                    base_config_class = candidate
+                    break
+            except (ImportError, AttributeError, TypeError, ValueError):
+                continue
+
+        for module_path in search_modules:
+            try:
+                full_path = f"{module_path}.{builder_name}"
+                candidate = load_symbol(full_path)
+                if candidate and inspect.isclass(candidate) and issubclass(candidate, MapBuilder):
+                    builder_class = candidate
+                    break
+            except (ImportError, AttributeError, TypeError, ValueError):
+                continue
+
+        if base_config_class is None or builder_class is None:
+            raise AttributeError(
+                f"module '{__name__}' has no attribute '{name}' "
+                f"(could not find base config '{base_name}' or builder '{builder_name}')"
+            )
+
+        return _create_clone_config(base_config_class, builder_class)
+
+    except (ValueError, AttributeError) as e:
+        raise AttributeError(f"module '{__name__}' has no attribute '{name}'") from e
+
+
+def _create_clone_config(
+    base_config_class: type[MapBuilderConfig[Any]],
+    builder_class: type[MapBuilder],
+) -> type[MapBuilderConfig[Any]]:
+    """Create a cloned config class at module level for pickling compatibility."""
+    registry_key = (base_config_class, builder_class)
+    if registry_key in _clone_registry:
+        return _clone_registry[registry_key]
+
+    base_name = base_config_class.__name__
+    builder_name = builder_class.__name__
+    clone_name = f"{base_name}_For_{builder_name}"
+
+    original_clone_name = clone_name
+    counter = 1
+    while clone_name in globals():
+        clone_name = f"{original_clone_name}_{counter}"
+        counter += 1
+
+    clone_class = type(
+        clone_name,
+        (base_config_class,),
+        {
+            "__module__": __name__,
+            "__qualname__": clone_name,
+        },
+    )
+
+    module = sys.modules[__name__]
+    setattr(module, clone_name, clone_class)
+    globals()[clone_name] = clone_class
+    _clone_registry[registry_key] = clone_class
+
+    return clone_class
 
 
 class GameMap:
@@ -182,10 +274,9 @@ class MapBuilder(ABC, Generic[ConfigT]):
 
         if Config._builder_cls:
             # Already bound to another MapBuilder class, so we need to clone it
-            class CloneConfig(Config):
-                pass
-
-            Config = CloneConfig
+            # Use module-level function to create clone (required for pickling compatibility)
+            # Pass builder class for deterministic naming
+            Config = _create_clone_config(Config, cls)
 
         Config._builder_cls = cls
         cls.Config = Config  # pyright: ignore[reportAttributeAccessIssue]
