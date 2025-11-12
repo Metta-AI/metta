@@ -1224,6 +1224,7 @@ TEST_F(MettaGridCppTest, AssemblerProtocolObservationsEnabled) {
   for (size_t i = 0; i < resource_names.size(); ++i) {
     proto_feature_ids[std::string("protocol_input:") + resource_names[i]] = static_cast<ObservationType>(100 + i);
     proto_feature_ids[std::string("protocol_output:") + resource_names[i]] = static_cast<ObservationType>(120 + i);
+    proto_feature_ids[std::string("inv:") + resource_names[i]] = static_cast<ObservationType>(140 + i);
   }
   ObservationEncoder encoder(true, resource_names, proto_feature_ids);
   assembler->set_obs_encoder(&encoder);
