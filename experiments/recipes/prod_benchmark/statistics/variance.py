@@ -8,6 +8,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import re
 import sys
@@ -165,6 +166,33 @@ def compute_variance_curve(
     return sample_sizes, mean_cv_values, ci_bounds, included_runs
 
 
+def _find_band_stabilization(
+    ci_bounds: list[tuple[float, float]], threshold: float
+) -> tuple[int | None, float | None]:
+    """Return the sample size where CI band width change stabilizes."""
+
+    for idx in range(1, len(ci_bounds)):
+        prev_lower, prev_upper = ci_bounds[idx - 1]
+        curr_lower, curr_upper = ci_bounds[idx]
+
+        if not all(
+            math.isfinite(value)
+            for value in (prev_lower, prev_upper, curr_lower, curr_upper)
+        ):
+            continue
+
+        prev_width = prev_upper - prev_lower
+        curr_width = curr_upper - curr_lower
+        if prev_width <= 0:
+            continue
+
+        pct_change = abs(curr_width - prev_width) / prev_width
+        if pct_change < threshold:
+            return idx + 1, pct_change
+
+    return None, None
+
+
 def plot_variance(
     sample_sizes: list[int],
     mean_cv_values: list[float],
@@ -188,18 +216,8 @@ def plot_variance(
             lower_vals.append(bounds[0] * 100)
             upper_vals.append(bounds[1] * 100)
 
-    # Find threshold crossing
-    threshold_n = None
-    for i in range(1, len(mean_cv_values)):
-        prev_cv = mean_cv_values[i - 1]
-        curr_cv = mean_cv_values[i]
-        if prev_cv != float("inf") and curr_cv != float("inf"):
-            pct_change = abs(curr_cv - prev_cv) / abs(prev_cv)
-            if pct_change < threshold:
-                threshold_n = (
-                    i + 1
-                )  # +1 because index starts at 0 but sample sizes start at 1
-                break
+    # Find threshold crossing based on CI band width change
+    threshold_n, stabilization_change = _find_band_stabilization(ci_bounds, threshold)
 
     # Create plot
     plt.figure(figsize=(12, 7))
@@ -214,13 +232,16 @@ def plot_variance(
             label=f"{ci_level * 100:.0f}% bootstrap CI",
         )
 
-    if threshold_n:
+    if threshold_n and stabilization_change is not None:
         plt.axvline(
             x=threshold_n,
             color="green",
             linestyle=":",
             linewidth=2,
-            label=f"Stabilized at N={threshold_n}\n(CV change < {threshold * 100:.0f}%)",
+            label=(
+                f"Stabilized at N={threshold_n}\n"
+                f"(CI band width change < {threshold * 100:.0f}%)"
+            ),
         )
         plt.scatter(
             [threshold_n],
@@ -238,7 +259,8 @@ def plot_variance(
     title_lines = [
         run_label,
         f"Variance Analysis: Last {percent * 100:.0f}% of Training",
-        f"Stabilizes when CV change between consecutive points < {threshold * 100:.0f}%",
+        "Stabilizes when CI band width change",
+        f"between consecutive points < {threshold * 100:.0f}%",
     ]
     plt.title(
         "\n".join(line for line in title_lines if line),
@@ -343,8 +365,10 @@ def main():
     if run_label:
         print(f"Run label for plots: {run_label}\n")
 
-    output_path = Path(args.output) if args.output else Path(__file__).parent / (
-        f"{_slugify(run_label)}_variance.png"
+    output_path = (
+        Path(args.output)
+        if args.output
+        else Path(__file__).parent / (f"{_slugify(run_label)}_variance.png")
     )
     print(f"Output path: {output_path}\n")
 
@@ -372,28 +396,22 @@ def main():
     print(f"Included runs: {len(included_runs)} out of {len(args.run_ids)} total")
     print(f"Final CV (N={len(sample_sizes)}): {mean_cv_values[-1] * 100:.2f}%")
     print(
-        f"\nLooking for when CV change between consecutive samples < {args.threshold * 100:.0f}%..."
+        "\nLooking for when bootstrapped CI band width change"
+        f" between consecutive samples < {args.threshold * 100:.0f}%..."
     )
 
-    # Find threshold crossing
-    threshold_n = None
-    stabilization_change = None
-    for i in range(1, len(mean_cv_values)):
-        prev_cv = mean_cv_values[i - 1]
-        curr_cv = mean_cv_values[i]
-        if prev_cv != float("inf") and curr_cv != float("inf"):
-            pct_change = abs(curr_cv - prev_cv) / abs(prev_cv)
-            if pct_change < args.threshold:
-                threshold_n = i + 1
-                stabilization_change = pct_change
-                break
+    threshold_n, stabilization_change = _find_band_stabilization(
+        ci_bounds, args.threshold
+    )
 
     if threshold_n:
         print(
-            f"✓ STABILIZED at N = {threshold_n} runs (CV change: {stabilization_change * 100:.2f}%)"
+            f"✓ STABILIZED at N = {threshold_n} runs "
+            f"(CI band width change: {stabilization_change * 100:.2f}%)"
         )
         print(
-            f"  → Adding more runs beyond {threshold_n} changes CV by < {args.threshold * 100:.0f}%"
+            f"  → Adding more runs beyond {threshold_n} changes the CI band width "
+            f"by < {args.threshold * 100:.0f}%"
         )
     else:
         print("✗ NOT YET STABLE (need more runs)")
