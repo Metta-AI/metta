@@ -135,7 +135,6 @@ class MettaGridPufferEnv(PufferEnv):
                 resolve_policy_class_path(self._env_supervisor_cfg.policy),
                 self._env_supervisor_cfg.policy_data_path,
             )
-            self._env_supervisor.reset(self._sim)
 
             self._compute_supervisor_actions()
 
