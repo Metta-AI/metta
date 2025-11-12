@@ -103,8 +103,8 @@ class MettaGridPufferEnv(PufferEnv):
         self.single_action_space: Discrete = policy_env_info.action_space
 
         self._env_supervisor_policy: MultiAgentPolicy | None = None
-        self._env_supervisor_batch_supported = True
         self._new_sim()
+        assert self._sim is not None
         self.num_agents: int = self._sim.num_agents
 
         super().__init__(buf=buf)
@@ -139,7 +139,6 @@ class MettaGridPufferEnv(PufferEnv):
                 self._env_supervisor_cfg.policy_data_path,
             )
             self._env_supervisor_policy.reset(self._sim)
-            self._env_supervisor_batch_supported = True
 
             self._compute_supervisor_actions()
 
@@ -173,19 +172,12 @@ class MettaGridPufferEnv(PufferEnv):
         )
 
     def _compute_supervisor_actions(self) -> None:
-        if self._env_supervisor_policy is None or not self._env_supervisor_batch_supported:
+        if self._env_supervisor_policy is None:
             return
 
         teacher_actions = self._buffers.teacher_actions
         raw_observations = self._buffers.observations
-        try:
-            self._env_supervisor_policy.step_batch(raw_observations, teacher_actions)
-        except NotImplementedError:
-            logger.warning(
-                "Env supervisor policy %s does not implement step_batch; disabling teacher actions",
-                self._env_supervisor_policy.__class__.__name__,
-            )
-            self._env_supervisor_batch_supported = False
+        self._env_supervisor_policy.step_batch(raw_observations, teacher_actions)
 
     @property
     def observations(self) -> np.ndarray:
