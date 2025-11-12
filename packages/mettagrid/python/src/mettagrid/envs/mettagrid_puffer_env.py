@@ -24,7 +24,7 @@ This avoids double-wrapping while maintaining full PufferLib compatibility.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import numpy as np
 from gymnasium.spaces import Box, Discrete
@@ -78,7 +78,7 @@ class MettaGridPufferEnv(PufferEnv):
         self._current_cfg = cfg
         self._current_seed = seed
         self._env_supervisor_cfg = env_supervisor_cfg or EnvSupervisorConfig()
-        self._sim: Simulation | None = None
+        self._sim: Simulation = cast(Simulation, None)
 
         # Initialize shared buffers FIRST (before super().__init__)
         # because PufferLib may access them during initialization
@@ -104,7 +104,6 @@ class MettaGridPufferEnv(PufferEnv):
 
         self._env_supervisor_policy: MultiAgentPolicy | None = None
         self._new_sim()
-        assert self._sim is not None
         self.num_agents: int = self._sim.num_agents
 
         super().__init__(buf=buf)
@@ -118,16 +117,14 @@ class MettaGridPufferEnv(PufferEnv):
         self._current_cfg = config
 
     def get_episode_rewards(self) -> np.ndarray:
-        assert self._sim is not None
         return self._sim.episode_rewards
 
     @property
     def current_simulation(self) -> Simulation:
-        assert self._sim is not None
         return self._sim
 
     def _new_sim(self) -> None:
-        if hasattr(self, "_sim") and self._sim is not None:
+        if getattr(self, "_sim", None) is not None:
             self._sim.close()
 
         self._sim = self._simulator.new_simulation(self._current_cfg, self._current_seed, buffers=self._buffers)
@@ -153,7 +150,6 @@ class MettaGridPufferEnv(PufferEnv):
 
     @override
     def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, List[Dict[str, Any]]]:
-        assert self._sim is not None
         if self._sim._c_sim.terminals().all() or self._sim._c_sim.truncations().all():
             self._new_sim()
 
