@@ -69,6 +69,8 @@ class HeuristicAgentPolicy(AgentPolicy):
 
 
 class HeuristicAgentsPolicy(MultiAgentPolicy):
+    short_names = ["heuristic_agents"]
+
     def __init__(self, policy_env_info: PolicyEnvInterface):
         super().__init__(policy_env_info)
 

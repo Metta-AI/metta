@@ -33,11 +33,12 @@ import numpy as np
 from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_VARIANTS, get_difficulty
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import NumCogsVariant
-from cogames.policy.scripted_agent.baseline_agent import (
-    BASELINE_HYPERPARAMETER_PRESETS,
-    BaselinePolicy,
+from cogames.policy.scripted_agent.baseline_agent import BaselinePolicy
+from cogames.policy.scripted_agent.types import BASELINE_HYPERPARAMETER_PRESETS
+from cogames.policy.scripted_agent.unclipping_agent import (
+    UnclippingHyperparameters,
+    UnclippingPolicy,
 )
-from cogames.policy.scripted_agent.unclipping_agent import UnclippingPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
 
@@ -54,7 +55,7 @@ class EvalResult:
     num_cogs: int
     difficulty: str
     preset: str
-    clip_rate: float
+    clip_period: int
     total_reward: float  # Average reward per agent
     hearts_assembled: int
     steps_taken: int
@@ -113,11 +114,28 @@ def run_evaluation(
     results = []
 
     # Get hyperparameters for the preset
-    hyperparams = BASELINE_HYPERPARAMETER_PRESETS.get(preset)
-    if hyperparams is None:
+    base_hyperparams = BASELINE_HYPERPARAMETER_PRESETS.get(preset)
+    if base_hyperparams is None:
         logger.error(f"Unknown preset: {preset}. Using 'default'.")
-        hyperparams = BASELINE_HYPERPARAMETER_PRESETS["default"]
+        base_hyperparams = BASELINE_HYPERPARAMETER_PRESETS["default"]
         preset = "default"
+
+    # Convert to UnclippingHyperparameters if using unclipping agent
+    if agent_config.policy_class == UnclippingPolicy:
+        hyperparams = UnclippingHyperparameters(
+            recharge_threshold_low=base_hyperparams.recharge_threshold_low,
+            recharge_threshold_high=base_hyperparams.recharge_threshold_high,
+            stuck_detection_enabled=base_hyperparams.stuck_detection_enabled,
+            stuck_escape_distance=base_hyperparams.stuck_escape_distance,
+            position_history_size=base_hyperparams.position_history_size,
+            exploration_area_check_window=base_hyperparams.exploration_area_check_window,
+            exploration_area_size_threshold=base_hyperparams.exploration_area_size_threshold,
+            exploration_escape_duration=base_hyperparams.exploration_escape_duration,
+            exploration_direction_persistence=base_hyperparams.exploration_direction_persistence,
+            exploration_assembler_distance_threshold=base_hyperparams.exploration_assembler_distance_threshold,
+        )
+    else:
+        hyperparams = base_hyperparams
 
     logger.info(f"\n{'=' * 80}")
     logger.info(f"Evaluating: {agent_config.label} (preset: {preset})")
@@ -150,8 +168,8 @@ def run_evaluation(
                 # Create mission and apply difficulty (always from base_mission)
                 mission = base_mission.with_variants([difficulty, NumCogsVariant(num_cogs=num_cogs)])
 
-                # Get clip rate for metadata
-                clip_rate = getattr(difficulty, "extractor_clip_rate", 0.0)
+                # Get clip period for metadata
+                clip_period = getattr(difficulty, "extractor_clip_period", 0)
 
                 try:
                     env_config = mission.make_env()
@@ -188,7 +206,7 @@ def run_evaluation(
                         num_cogs=num_cogs,
                         difficulty=difficulty_name,
                         preset=preset,
-                        clip_rate=clip_rate,
+                        clip_period=clip_period,
                         total_reward=total_reward,
                         hearts_assembled=int(total_reward),
                         steps_taken=final_step + 1,
@@ -209,7 +227,7 @@ def run_evaluation(
                         num_cogs=num_cogs,
                         difficulty=difficulty_name,
                         preset=preset,
-                        clip_rate=0.0,
+                        clip_period=0,
                         total_reward=0.0,
                         hearts_assembled=0,
                         steps_taken=0,

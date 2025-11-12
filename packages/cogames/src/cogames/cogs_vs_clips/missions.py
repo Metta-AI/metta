@@ -5,7 +5,7 @@ from cogames.cogs_vs_clips.sites import HELLO_WORLD, MACHINA_1, TRAINING_FACILIT
 from cogames.cogs_vs_clips.variants import (
     ChestHeartTuneVariant,
     ClipHubStationsVariant,
-    ClipRateOnVariant,
+    ClipPeriodOnVariant,
     HeartChorusVariant,
     InventoryHeartTuneVariant,
     LonelyHeartVariant,
@@ -48,7 +48,7 @@ RepairMission = Mission(
     description="Repair disabled stations to restore their functionality.",
     site=TRAINING_FACILITY,
     num_cogs=2,
-    variants=[InventoryHeartTuneVariant(hearts=1), ClipRateOnVariant(), ClipHubStationsVariant()],
+    variants=[InventoryHeartTuneVariant(hearts=1), ClipPeriodOnVariant(), ClipHubStationsVariant()],
 )
 
 
@@ -56,7 +56,7 @@ UnclipDrillsMission = Mission(
     name="unclip_drills",
     description="Practice unclipping hub facilities after a grid outage.",
     site=TRAINING_FACILITY,
-    variants=[ClipRateOnVariant(), InventoryHeartTuneVariant(hearts=1), ClipHubStationsVariant()],
+    variants=[ClipPeriodOnVariant(), InventoryHeartTuneVariant(hearts=1), ClipHubStationsVariant()],
 )
 
 
@@ -97,7 +97,7 @@ TreasureHuntMission = Mission(
     ),
     site=HELLO_WORLD,
     num_cogs=4,
-    variants=[ClipRateOnVariant()],
+    variants=[ClipPeriodOnVariant()],
 )
 
 
@@ -121,7 +121,7 @@ HelloWorldUnclipMission = Mission(
     description="Stabilize clipped extractors scattered across the hello_world sector.",
     site=HELLO_WORLD,
     num_cogs=4,
-    variants=[ClipRateOnVariant(), ChestHeartTuneVariant(hearts=2)],
+    variants=[ClipPeriodOnVariant(), ChestHeartTuneVariant(hearts=2)],
 )
 
 MISSIONS: list[Mission] = [

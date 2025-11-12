@@ -47,7 +47,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       _global_obs_config(game_config.global_obs),
       _game_config(game_config),
       _num_observation_tokens(game_config.num_observation_tokens),
-      _track_movement_metrics(game_config.track_movement_metrics),
       _resource_loss_prob(game_config.resource_loss_prob),
       _inventory_regen_interval(game_config.inventory_regen_interval) {
   _seed = seed;
@@ -71,7 +70,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   _grid = std::make_unique<Grid>(height, width);
   _obs_encoder = std::make_unique<ObservationEncoder>(
-      resource_names.size(), game_config.protocol_details_obs, &resource_names, &game_config.feature_ids);
+      game_config.protocol_details_obs, resource_names, game_config.feature_ids);
 
   // Initialize ObservationFeature namespace with feature IDs
   ObservationFeature::Initialize(game_config.feature_ids);
@@ -104,8 +103,8 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
     _clipper = std::make_unique<Clipper>(*_grid,
                                          clipper_cfg.unclipping_protocols,
                                          clipper_cfg.length_scale,
-                                         clipper_cfg.cutoff_distance,
-                                         clipper_cfg.clip_rate,
+                                         clipper_cfg.scaled_cutoff_distance,
+                                         clipper_cfg.clip_period,
                                          _rng);
   }
 }
@@ -191,6 +190,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
         _stats->incr("objects." + cell);
         assembler->set_grid(_grid.get());
         assembler->set_current_timestep_ptr(&current_step);
+        assembler->set_obs_encoder(_obs_encoder.get());
         continue;
       }
 
