@@ -1,19 +1,9 @@
 """Nim-backed policy implementations."""
 
-from .agents import (
-    RaceCarAgentPolicy,
-    RaceCarAgentsMultiPolicy,
-    RandomAgentPolicy,
-    RandomAgentsMultiPolicy,
-    ThinkyAgentPolicy,
-    ThinkyAgentsMultiPolicy,
-)
+from .agents import RaceCarAgentsMultiPolicy, RandomAgentsMultiPolicy, ThinkyAgentsMultiPolicy
 
 __all__ = [
-    "RandomAgentPolicy",
     "RandomAgentsMultiPolicy",
-    "RaceCarAgentPolicy",
     "RaceCarAgentsMultiPolicy",
-    "ThinkyAgentPolicy",
     "ThinkyAgentsMultiPolicy",
 ]

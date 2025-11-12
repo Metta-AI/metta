@@ -27,11 +27,17 @@ proc step*(
   numAgents: int,
   numTokens: int,
   sizeToken: int,
-  rawObservations: pointer,
+  rawObservation: pointer,
   numActions: int,
-  rawActions: pointer
+  agentAction: ptr int32
 ) {.raises: [].} =
-  let actions = cast[ptr UncheckedArray[int32]](rawActions)
+  discard numAgents
+  discard numTokens
+  discard sizeToken
+  discard rawObservation
+  discard numActions
+  if agentAction.isNil:
+    return
   let action = agent.random.rand(1 .. 4).int32
-  actions[agent.agentId] = action
+  agentAction[] = action
   # echo "  RandomAgent taking action: ", action

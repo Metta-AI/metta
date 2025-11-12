@@ -110,17 +110,19 @@ proc step*(
   numAgents: int,
   numTokens: int,
   sizeToken: int,
-  rawObservations: pointer,
+  rawObservation: pointer,
   numActions: int,
-  rawActions: pointer
+  agentAction: ptr int32
 ) {.raises: [].} =
   try:
-    # echo "Thinking heuristic agent ", agent.agentId
-    # echo "  numAgents", numAgents
+    discard numAgents
+    discard numActions
     # echo "  numTokens", numTokens
     # echo "  sizeToken", sizeToken
     # echo "  numActions", numActions
-    let observations = cast[ptr UncheckedArray[uint8]](rawObservations)
+    if agentAction.isNil or rawObservation.isNil:
+      return
+    let observations = cast[ptr UncheckedArray[uint8]](rawObservation)
 
     proc doAction(action: int) =
 
@@ -163,14 +165,13 @@ proc step*(
           return
 
       agent.lastActions.add(action)
-      let actions = cast[ptr UncheckedArray[int32]](rawActions)
-      actions[agent.agentId] = action.int32
+      agentAction[] = action.int32
 
     var map: Table[Location, seq[FeatureValue]]
     for token in 0 ..< numTokens:
-      let locationPacked = observations[token * sizeToken + agent.agentId * numTokens * sizeToken]
-      let featureId = observations[token * sizeToken + agent.agentId * numTokens * sizeToken + 1]
-      let value = observations[token * sizeToken + agent.agentId * numTokens * sizeToken + 2]
+      let locationPacked = observations[token * sizeToken]
+      let featureId = observations[token * sizeToken + 1]
+      let value = observations[token * sizeToken + 2]
       if locationPacked == 255 and featureId == 255 and value == 255:
         break
       var location: Location

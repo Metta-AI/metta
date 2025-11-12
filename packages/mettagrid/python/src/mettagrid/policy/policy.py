@@ -121,7 +121,7 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
         policy_env_info: PolicyEnvInterface,
         handle_ctor,
         step_batch_name: str,
-        agent_policy_cls: type["NimAgentPolicyBase"],
+        step_single_name: str | None = None,
         agent_ids: Sequence[int] | None = None,
         reset_name: str | None = None,
     ) -> None:
@@ -129,8 +129,9 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
         self._handle = handle_ctor(policy_env_info.to_json())
         self._step_batch = getattr(self._handle, step_batch_name)
         self._handle_reset = getattr(self._handle, reset_name) if reset_name else None
-        self._agent_policy_cls = agent_policy_cls
         self._num_agents = policy_env_info.num_agents
+        self._action_names = policy_env_info.action_names
+        self._num_actions = len(self._action_names)
         obs_shape = policy_env_info.observation_space.shape
         self._obs_shape = obs_shape
         self._num_tokens = obs_shape[0]
@@ -143,11 +144,17 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
         self._default_subset = subset
         self._default_subset_ptr = subset.ctypes.data_as(ctypes.POINTER(ctypes.c_int32)) if subset.size > 0 else None
         self._default_subset_len = subset.size
-        self._subset_arrays: dict[int, np.ndarray] = {
-            agent_id: np.array([agent_id], dtype=np.int32) for agent_id in self._agent_ids
-        }
-        self._scratch_obs = np.empty((self._num_agents, *obs_shape), dtype=dtype_observations)
-        self._scratch_actions = np.zeros(self._num_agents, dtype=np.int32)
+        self._subset_arrays: dict[int, np.ndarray] | None = None
+        self._scratch_obs: np.ndarray | None = None
+        self._scratch_actions: np.ndarray | None = None
+        self._step_single = getattr(self._handle, step_single_name) if step_single_name else None
+        if self._step_single is not None:
+            self._single_obs = np.empty(obs_shape, dtype=dtype_observations)
+            self._single_action = np.zeros(1, dtype=np.int32)
+        else:
+            self._single_obs = None
+            self._single_action = None
+            self._init_single_fallback_buffers()
 
     @property
     def agent_ids(self) -> set[int]:
@@ -169,9 +176,45 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
             self._num_tokens,
             self._token_dim,
             raw_observations.ctypes.data,
-            self._num_agents,
+            self._num_actions,
             raw_actions.ctypes.data,
         )
+
+    def _init_single_fallback_buffers(self) -> None:
+        if self._scratch_obs is not None and self._scratch_actions is not None and self._subset_arrays is not None:
+            return
+        self._subset_arrays = {agent_id: np.array([agent_id], dtype=np.int32) for agent_id in self._agent_ids}
+        self._scratch_obs = np.empty((self._num_agents, *self._obs_shape), dtype=dtype_observations)
+        self._scratch_actions = np.zeros(self._num_agents, dtype=np.int32)
+
+    def _step_single_native(self, agent_id: int, obs: AgentObservation) -> int:
+        if self._step_single is None or self._single_obs is None or self._single_action is None:
+            raise RuntimeError("Native single-step path is not available")
+        self._pack_observation(self._single_obs, obs)
+        self._single_action.fill(0)
+        self._step_single(
+            agent_id,
+            self._num_agents,
+            self._num_tokens,
+            self._token_dim,
+            self._single_obs.ctypes.data,
+            self._num_actions,
+            self._single_action.ctypes.data,
+        )
+        return int(self._single_action[0])
+
+    def _step_single_via_batch(self, agent_id: int, obs: AgentObservation) -> int:
+        self._init_single_fallback_buffers()
+        assert self._scratch_obs is not None and self._scratch_actions is not None and self._subset_arrays is not None
+        target = self._scratch_obs[agent_id]
+        self._pack_observation(target, obs)
+        self._scratch_actions.fill(0)
+        subset_array = self._subset_arrays[agent_id]
+        self._invoke_step(self._scratch_obs, self._scratch_actions, subset=subset_array)
+        return int(self._scratch_actions[agent_id])
+
+    def _action_from_index(self, action_index: int) -> Action:
+        return Action(name=self._action_names[action_index])
 
     def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
         self._invoke_step(raw_observations, raw_actions, subset=None)
@@ -187,35 +230,31 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
     def step_single(self, agent_id: int, obs: AgentObservation) -> int:
         if agent_id not in self._agent_ids:
             raise ValueError(f"Agent id {agent_id} not handled by {self.__class__.__name__}")
-        target = self._scratch_obs[agent_id]
-        self._pack_observation(target, obs)
-        self._scratch_actions.fill(0)
-        subset_array = self._subset_arrays[agent_id]
-        self._invoke_step(self._scratch_obs, self._scratch_actions, subset=subset_array)
-        return int(self._scratch_actions[agent_id])
+        if self._step_single is not None:
+            return self._step_single_native(agent_id, obs)
+        return self._step_single_via_batch(agent_id, obs)
 
-    def agent_policy(self, agent_id: int) -> "NimAgentPolicyBase":
+    def agent_policy(self, agent_id: int) -> AgentPolicy:
         if agent_id not in self._agent_ids:
             raise ValueError(f"Agent id {agent_id} not handled by {self.__class__.__name__}")
-        return self._agent_policy_cls(self, agent_id)
+        return _NimAgentPolicy(self, agent_id)
 
     def reset(self) -> None:
         if self._handle_reset is not None:
             self._handle_reset()
 
 
-class NimAgentPolicyBase(AgentPolicy):
-    """AgentPolicy backed by a NimMultiAgentPolicy."""
+class _NimAgentPolicy(AgentPolicy):
+    """Lightweight proxy that delegates to the shared Nim multi-policy."""
 
     def __init__(self, parent: NimMultiAgentPolicy, agent_id: int):
         super().__init__(parent.policy_env_info)
         self._parent = parent
         self._agent_id = agent_id
-        self._action_names = parent.policy_env_info.action_names
 
     def step(self, obs: AgentObservation) -> Action:
         action_index = self._parent.step_single(self._agent_id, obs)
-        return Action(name=self._action_names[action_index])
+        return self._parent._action_from_index(action_index)
 
     def reset(self) -> None:
         self._parent.reset()

@@ -37,6 +37,22 @@ proc newThinkyPolicy*(environmentConfig: string): ThinkyPolicy {.raises: [].} =
 proc newRaceCarPolicy*(environmentConfig: string): RaceCarPolicy {.raises: [].} =
   RaceCarPolicy(agents: buildAgents(environmentConfig, newRaceCarAgent))
 
+proc observationPtr(
+    obs: ptr UncheckedArray[uint8],
+    agentIdx: int,
+    numTokens: int,
+    sizeToken: int
+): pointer =
+  if obs.isNil:
+    return nil
+  let stride = numTokens * sizeToken
+  cast[pointer](obs[agentIdx * stride].addr)
+
+proc actionPtr(actions: ptr UncheckedArray[int32], agentIdx: int): ptr int32 =
+  if actions.isNil:
+    return nil
+  cast[ptr int32](actions[agentIdx].addr)
+
 proc stepPolicyBatch[T](
     agents: seq[T],
     agentIds: pointer,
@@ -52,24 +68,64 @@ proc stepPolicyBatch[T](
       numAgents: int,
       numTokens: int,
       sizeToken: int,
-      rawObservations: pointer,
+      rawObservation: pointer,
       numActions: int,
-      rawActions: pointer
+      agentAction: ptr int32
     ) {.raises: [].}
 ) {.raises: [].} =
   var ids: ptr UncheckedArray[int32] = nil
   if agentIds != nil:
     ids = cast[ptr UncheckedArray[int32]](agentIds)
+
+  var obsArray: ptr UncheckedArray[uint8] = nil
+  if rawObservations != nil:
+    obsArray = cast[ptr UncheckedArray[uint8]](rawObservations)
+
+  var actionArray: ptr UncheckedArray[int32] = nil
+  if rawActions != nil:
+    actionArray = cast[ptr UncheckedArray[int32]](rawActions)
+
+  proc runAgent(idx: int) =
+    if idx < 0 or idx >= agents.len:
+      return
+    let obsPtr = observationPtr(obsArray, idx, numTokens, sizeToken)
+    let actPtr = actionPtr(actionArray, idx)
+    stepProc(agents[idx], numAgents, numTokens, sizeToken, obsPtr, numActions, actPtr)
+
   if numAgentIds == 0:
     return  # Don't step any agents
   elif agentIds != nil and numAgentIds > 0:
     for i in 0 ..< numAgentIds:
-      let idx = ids[i]
-      if idx >= 0 and idx < agents.len:
-        stepProc(agents[idx], numAgents, numTokens, sizeToken, rawObservations, numActions, rawActions)
+      runAgent(ids[i])
   else:
-    for agent in agents:
-      stepProc(agent, numAgents, numTokens, sizeToken, rawObservations, numActions, rawActions)
+    for idx in 0 ..< agents.len:
+      runAgent(idx)
+
+proc stepPolicySingle[T](
+    agents: seq[T],
+    agentId: int,
+    numAgents: int,
+    numTokens: int,
+    sizeToken: int,
+    rawObservation: pointer,
+    numActions: int,
+    rawAction: pointer,
+    stepProc: proc (
+      agent: T,
+      numAgents: int,
+      numTokens: int,
+      sizeToken: int,
+      rawObservation: pointer,
+      numActions: int,
+      agentAction: ptr int32
+    ) {.raises: [].}
+) {.raises: [].} =
+  if agentId < 0 or agentId >= agents.len:
+    return
+  var actionPtrValue: ptr int32 = nil
+  if rawAction != nil:
+    actionPtrValue = cast[ptr int32](rawAction)
+  stepProc(agents[agentId], numAgents, numTokens, sizeToken, rawObservation, numActions, actionPtrValue)
 
 proc randomPolicyStepBatch*(
     policy: RandomPolicy,
@@ -92,6 +148,28 @@ proc randomPolicyStepBatch*(
     rawObservations,
     numActions,
     rawActions,
+    random_agents.step
+  )
+
+proc randomPolicyStepSingle*(
+    policy: RandomPolicy,
+    agentId: int,
+    numAgents: int,
+    numTokens: int,
+    sizeToken: int,
+    rawObservation: pointer,
+    numActions: int,
+    rawAction: pointer
+) {.raises: [].} =
+  stepPolicySingle(
+    policy.agents,
+    agentId,
+    numAgents,
+    numTokens,
+    sizeToken,
+    rawObservation,
+    numActions,
+    rawAction,
     random_agents.step
   )
 
@@ -123,6 +201,28 @@ proc thinkyPolicyStepBatch*(
     thinky_agents.step
   )
 
+proc thinkyPolicyStepSingle*(
+    policy: ThinkyPolicy,
+    agentId: int,
+    numAgents: int,
+    numTokens: int,
+    sizeToken: int,
+    rawObservation: pointer,
+    numActions: int,
+    rawAction: pointer
+) {.raises: [].} =
+  stepPolicySingle(
+    policy.agents,
+    agentId,
+    numAgents,
+    numTokens,
+    sizeToken,
+    rawObservation,
+    numActions,
+    rawAction,
+    thinky_agents.step
+  )
+
 proc thinkyPolicyReset*(policy: ThinkyPolicy) {.raises: [].} =
   for agent in policy.agents:
     thinky_agents.reset(agent)
@@ -151,6 +251,28 @@ proc raceCarPolicyStepBatch*(
     race_car_agents.step
   )
 
+proc raceCarPolicyStepSingle*(
+    policy: RaceCarPolicy,
+    agentId: int,
+    numAgents: int,
+    numTokens: int,
+    sizeToken: int,
+    rawObservation: pointer,
+    numActions: int,
+    rawAction: pointer
+) {.raises: [].} =
+  stepPolicySingle(
+    policy.agents,
+    agentId,
+    numAgents,
+    numTokens,
+    sizeToken,
+    rawObservation,
+    numActions,
+    rawAction,
+    race_car_agents.step
+  )
+
 proc raceCarPolicyReset*(policy: RaceCarPolicy) {.raises: [].} =
   for agent in policy.agents:
     race_car_agents.reset(agent)
@@ -163,6 +285,7 @@ exportRefObject RandomPolicy:
     newRandomPolicy(string)
   procs:
     randomPolicyStepBatch(RandomPolicy, pointer, int, int, int, int, pointer, int, pointer)
+    randomPolicyStepSingle(RandomPolicy, int, int, int, int, pointer, int, pointer)
     randomPolicyReset(RandomPolicy)
 
 exportRefObject ThinkyPolicy:
@@ -170,6 +293,7 @@ exportRefObject ThinkyPolicy:
     newThinkyPolicy(string)
   procs:
     thinkyPolicyStepBatch(ThinkyPolicy, pointer, int, int, int, int, pointer, int, pointer)
+    thinkyPolicyStepSingle(ThinkyPolicy, int, int, int, int, pointer, int, pointer)
     thinkyPolicyReset(ThinkyPolicy)
 
 exportRefObject RaceCarPolicy:
@@ -177,6 +301,7 @@ exportRefObject RaceCarPolicy:
     newRaceCarPolicy(string)
   procs:
     raceCarPolicyStepBatch(RaceCarPolicy, pointer, int, int, int, int, pointer, int, pointer)
+    raceCarPolicyStepSingle(RaceCarPolicy, int, int, int, int, pointer, int, pointer)
     raceCarPolicyReset(RaceCarPolicy)
 
 writeFiles("bindings/generated", "NimAgents")

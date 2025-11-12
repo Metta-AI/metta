@@ -106,8 +106,7 @@ proc raceCarStepInternal(
   numTokens: int,
   sizeToken: int,
   rawObservation: pointer,
-  actions: ptr UncheckedArray[int32],
-  actionIndex: int
+  agentAction: ptr int32
 ) {.raises: [].} =
   try:
     echo "Driving race car agent ", agent.agentId
@@ -156,8 +155,10 @@ proc raceCarStepInternal(
 
     echo &"H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
 
+    if agentAction.isNil:
+      return
     let action = agent.random.rand(1 .. 4).int32
-    actions[actionIndex] = action
+    agentAction[] = action
     echo "taking action ", action
 
   except:
@@ -170,13 +171,10 @@ proc step*(
   numAgents: int,
   numTokens: int,
   sizeToken: int,
-  rawObservations: pointer,
+  rawObservation: pointer,
   numActions: int,
-  rawActions: pointer
+  agentAction: ptr int32
 ) {.raises: [].} =
   discard numAgents
   discard numActions
-  let observations = cast[ptr UncheckedArray[uint8]](rawObservations)
-  let actions = cast[ptr UncheckedArray[int32]](rawActions)
-  let agentObservation = cast[pointer](observations[agent.agentId * numTokens * sizeToken].addr)
-  raceCarStepInternal(agent, numTokens, sizeToken, agentObservation, actions, agent.agentId)
+  raceCarStepInternal(agent, numTokens, sizeToken, rawObservation, agentAction)
