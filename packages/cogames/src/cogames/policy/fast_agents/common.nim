@@ -95,6 +95,7 @@ type
     lastReward*: int
     vibe*: int
     visitationCounts*: int
+    compass*: int
     tag*: int
     cooldownRemaining*: int
     clipped*: int
@@ -109,6 +110,8 @@ type
     invModulator*: int
     invResonator*: int
     invScrambler*: int
+    protocolInputs*: Table[string, int]
+    protocolOutputs*: Table[string, int]
 
 proc `+`*(location1: Location, location2: Location): Location =
   ## Add two locations.
@@ -166,6 +169,8 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
   try:
     var config = environmentConfig.fromJson(PolicyConfig)
     result = Config(config: config)
+    result.features.protocolInputs = initTable[string, int]()
+    result.features.protocolOutputs = initTable[string, int]()
 
     for feature in config.obsFeatures:
       case feature.name:

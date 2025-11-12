@@ -75,6 +75,7 @@ type
     homeLocation: Option[Location]
     lastInventorySample: Table[ResourceKind, int]
     lastHeartInventory: int
+    lastActions: seq[int]
 
 const
   defaultInventoryCapacity = 100
@@ -384,7 +385,7 @@ proc randomMove(agent: RaceCarAgent): int32 =
   else:
     agent.cfg.actions.moveEast.int32
 
-proc moveTowards(agent: RaceCarAgent, target: Location): int32 =
+proc moveGreedy(agent: RaceCarAgent, target: Location): int32 =
   let dx = target.x - agent.location.x
   let dy = target.y - agent.location.y
   if dx == 0 and dy == 0:
@@ -400,7 +401,21 @@ proc moveTowards(agent: RaceCarAgent, target: Location): int32 =
     else:
       return agent.cfg.actions.moveNorth.int32
 
+proc moveTowards(agent: RaceCarAgent, target: Location): int32 =
+  if target == agent.location:
+    return agent.cfg.actions.noop.int32
+  let pathAction = agent.cfg.aStar(agent.location, target, agent.map)
+  if pathAction.isSome:
+    return pathAction.get().int32
+  agent.moveGreedy(target)
+
 proc exploreAction(agent: RaceCarAgent): int32 =
+  let unseen = agent.cfg.getNearbyUnseen(agent.location, agent.map, agent.seen)
+  if unseen.isSome:
+    let action = agent.cfg.aStar(agent.location, unseen.get(), agent.map)
+    if action.isSome:
+      return action.get().int32
+
   var candidates: seq[(Location, int32)]
   let north = Location(x: agent.location.x, y: agent.location.y - 1)
   let south = Location(x: agent.location.x, y: agent.location.y + 1)
@@ -418,6 +433,43 @@ proc exploreAction(agent: RaceCarAgent): int32 =
     return agent.randomMove()
   let idx = agent.random.rand(0 ..< candidates.len)
   candidates[idx][1]
+
+proc stabilizeAction(agent: RaceCarAgent, action: int32): int32 =
+  var candidate = action.int
+  while true:
+    var replaced = false
+    if agent.lastActions.len >= 2:
+      if candidate == agent.cfg.actions.moveWest and
+          agent.lastActions[^1] == agent.cfg.actions.moveEast and
+          agent.lastActions[^2] == agent.cfg.actions.moveWest and
+          agent.random.rand(1 .. 2) == 1:
+        candidate = agent.cfg.actions.noop
+        replaced = true
+      elif candidate == agent.cfg.actions.moveEast and
+          agent.lastActions[^1] == agent.cfg.actions.moveWest and
+          agent.lastActions[^2] == agent.cfg.actions.moveEast and
+          agent.random.rand(1 .. 2) == 1:
+        candidate = agent.cfg.actions.noop
+        replaced = true
+      elif candidate == agent.cfg.actions.moveNorth and
+          agent.lastActions[^1] == agent.cfg.actions.moveSouth and
+          agent.lastActions[^2] == agent.cfg.actions.moveNorth and
+          agent.random.rand(1 .. 2) == 1:
+        candidate = agent.cfg.actions.noop
+        replaced = true
+      elif candidate == agent.cfg.actions.moveSouth and
+          agent.lastActions[^1] == agent.cfg.actions.moveNorth and
+          agent.lastActions[^2] == agent.cfg.actions.moveSouth and
+          agent.random.rand(1 .. 2) == 1:
+        candidate = agent.cfg.actions.noop
+        replaced = true
+    if not replaced:
+      break
+
+  agent.lastActions.add(candidate)
+  if agent.lastActions.len > 16:
+    agent.lastActions.delete(0)
+  candidate.int32
 
 proc interactWithChest(agent: RaceCarAgent, target: Option[Location]): int32 =
   if target.isSome:
@@ -480,6 +532,7 @@ proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent {.r
   result = RaceCarAgent(agentId: agentId, cfg: config)
   result.random = initRand(agentId)
   result.initPriorityFields()
+  result.lastActions = @[]
 
 proc reset*(agent: RaceCarAgent) =
   echo "Resetting race car agent ", agent.agentId
@@ -487,6 +540,7 @@ proc reset*(agent: RaceCarAgent) =
   agent.seen.clear()
   agent.location = Location(x: 0, y: 0)
   agent.initPriorityFields()
+  agent.lastActions.setLen(0)
 
 proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]]) =
   if agent.map.len == 0:
@@ -588,8 +642,9 @@ proc raceCarStepInternal(
       let task = plannedTask.get()
       echo &"selected task {task.kind} priority {task.priority} note: {task.note}"
 
-    actions[actionIndex] = chosenAction
-    echo "taking action ", chosenAction
+    let stabilized = agent.stabilizeAction(chosenAction)
+    actions[actionIndex] = stabilized
+    echo "taking action ", stabilized
 
   except:
     echo getCurrentException().getStackTrace()
