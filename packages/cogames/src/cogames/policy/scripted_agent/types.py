@@ -36,7 +36,7 @@ class BaselineHyperparameters:
     exploration_escape_duration: int = 10  # Steps to navigate to assembler when stuck
     exploration_direction_persistence: int = 10  # Steps to persist in one direction
     exploration_assembler_distance_threshold: int = 10  # Min distance from assembler to trigger escape
-    exploration_strategy: str = "frontier"  # Exploration strategy: "frontier", "stc", "wall", "directional"
+    exploration_strategy: str = "stc"  # Exploration strategy: "frontier", "stc", "wall", "directional"
 
 
 # Hyperparameter Presets for Ensemble Creation

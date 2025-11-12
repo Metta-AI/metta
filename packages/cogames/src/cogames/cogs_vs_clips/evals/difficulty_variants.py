@@ -21,6 +21,7 @@ from typing import override
 from pydantic import Field
 
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant
+from cogames.cogs_vs_clips.vibes import VIBES
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
 logger = logging.getLogger(__name__)
@@ -273,6 +274,23 @@ class DifficultyLevel(MissionVariant):
             # Check if ['gear'] protocol already exists
             if any(p.vibes == ["gear"] for p in asm.protocols):
                 return  # Already added
+
+            # Ensure 'gear' and other essential vibes are available for protocols
+            # 'gear' is at index 7 in VIBES, so we need at least 8 vibes
+            # This includes: default, charger, carbon, oxygen, germanium, silicon, heart, gear
+            change_vibe = getattr(cfg.game.actions, "change_vibe", None)
+            if change_vibe is None or not hasattr(change_vibe, "number_of_vibes"):
+                raise ValueError("change_vibe action not found or missing number_of_vibes")
+
+            # Always ensure we have at least 8 vibes (includes all essential resource vibes + gear)
+            if change_vibe.number_of_vibes < 8:
+                change_vibe.number_of_vibes = 8
+
+            # Ensure vibe_names matches VIBES[:number_of_vibes]
+            # This ensures vibe_name_to_id will have all needed vibes when converting protocols
+            expected_vibe_names = [vibe.name for vibe in VIBES[: change_vibe.number_of_vibes]]
+            if cfg.game.vibe_names != expected_vibe_names:
+                cfg.game.vibe_names = expected_vibe_names
 
             # Add the ONE generic gear protocol for this variant
             protocol = ProtocolConfig(

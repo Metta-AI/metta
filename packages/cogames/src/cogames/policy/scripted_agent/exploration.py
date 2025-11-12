@@ -7,6 +7,7 @@ via hyperparameters to control how agents explore unknown areas of the map.
 
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Optional, Protocol
 
@@ -49,8 +50,6 @@ class ExplorerOps:
 # ---- Shared helpers ---------------------------------------------------------
 
 _DIRS = {"north": (-1, 0), "south": (1, 0), "west": (0, -1), "east": (0, 1)}
-_RIGHT_OF = {"north": "east", "east": "south", "south": "west", "west": "north"}
-_LEFT_OF = {"north": "west", "west": "south", "south": "east", "east": "north"}
 
 
 def _neighbors4(r: int, c: int):
@@ -80,102 +79,39 @@ def _is_free(s, ops: ExplorerOps, r, c) -> bool:
 
 class DirectionalExplorer(Explorer):
     """
-    Simple directional exploration that mirrors the original behavior.
-    Keeps logic minimal: try continuing in a direction; else pick a random free step.
+    Simple directional exploration that picks a random direction and persists in it.
+    Tries to continue in current direction; if blocked, picks a new random direction.
     """
 
     def __init__(self, ops: ExplorerOps):
         self.ops = ops
 
     def choose_action(self, s: SimpleAgentState) -> Action:
+        # Try to continue in current direction
         if s.exploration_target and isinstance(s.exploration_target, str):
             dr, dc = _DIRS.get(s.exploration_target, (0, 0))
             if dr or dc:
                 act = self.ops.move_towards(s, (s.row + dr, s.col + dc))
                 if act != self.ops.actions.noop.Noop():
                     return act
+                # Blocked - clear current direction and pick new random one
                 s.cached_path = None
                 s.cached_path_target = None
                 s.exploration_target = None
 
-        rnd = self.ops.try_random_direction(s)
-        return rnd if rnd else self.ops.actions.noop.Noop()
+        # Pick a random valid direction and set exploration_target so it persists
+        directions = ["north", "south", "east", "west"]
+        random.shuffle(directions)
+        for direction in directions:
+            dr, dc = _DIRS[direction]
+            nr, nc = s.row + dr, s.col + dc
+            if _is_free(s, self.ops, nr, nc):
+                # Set exploration_target so direction persists
+                s.exploration_target = direction
+                return self.ops.move_towards(s, (nr, nc))
 
-
-# ---- Frontier Explorer (uses seen[] if present) ----------------------------
-
-
-class FrontierExplorer(Explorer):
-    """
-    Utility-guided frontier exploration:
-    - A frontier is any UNSEEN cell with a FREE neighbor.
-    - Score = 10 * (unseen_neighbor_count) - 1 * distance - 2 * crowd_penalty
-    - Caches a target_position := the FREE neighbor adjacent to the frontier.
-    """
-
-    def __init__(self, ops: ExplorerOps):
-        self.ops = ops
-
-    def _collect_frontiers(self, s: SimpleAgentState) -> list[tuple[int, int, int, int]]:
-        """
-        Returns a list of tuples (fr_r, fr_c, adj_r, adj_c) where (fr_r,fr_c) is UNSEEN
-        and (adj_r,adj_c) is an adjacent FREE cell we can aim for.
-        Scans a local window around the agent for speed.
-        """
-        H, W = s.map_height, s.map_width
-        pad = 4
-        r0 = max(0, s.row - self.ops.obs_hr - pad)
-        r1 = min(H, s.row + self.ops.obs_hr + pad + 1)
-        c0 = max(0, s.col - self.ops.obs_wr - pad)
-        c1 = min(W, s.col + self.ops.obs_wr + pad + 1)
-
-        frontiers: list[tuple[int, int, int, int]] = []
-        # Unknown means "not seen" if seen[][] exists; otherwise we gracefully skip
-        uses_seen = hasattr(s, "seen")
-        if not uses_seen:
-            return frontiers  # no unknown notion: let factory default to other strategies
-
-        for r in range(r0, r1):
-            for c in range(c0, c1):
-                if s.seen[r][c]:
-                    continue  # already known
-                # needs at least one FREE approach cell
-                for ar, ac in _neighbors4(r, c):
-                    if _is_free(s, self.ops, ar, ac):
-                        frontiers.append((r, c, ar, ac))
-                        break
-        return frontiers
-
-    def _score_frontier(self, s: SimpleAgentState, fr: tuple[int, int, int, int]) -> float:
-        fr_r, fr_c, ar, ac = fr
-        dist = _manhattan((s.row, s.col), (ar, ac))
-        info = 0
-        H, W = s.map_height, s.map_width
-        for nr, nc in _neighbors4(fr_r, fr_c):
-            if 0 <= nr < H and 0 <= nc < W and not _has_seen(s, nr, nc):
-                info += 1
-        crowd_pen = 5 if (ar, ac) in getattr(s, "agent_occupancy", set()) else 0
-        return 10 * info - 1.0 * dist - 2.0 * crowd_pen
-
-    def choose_action(self, s: SimpleAgentState) -> Action:
-        if s.target_position:
-            act = self.ops.move_towards(s, s.target_position)
-            if act != self.ops.actions.noop.Noop():
-                return act
-            s.cached_path = None
-            s.cached_path_target = None
-            s.exploration_target = None
-            s.target_position = None
-
-        frontiers = self._collect_frontiers(s)
-        if not frontiers:
-            rnd = self.ops.try_random_direction(s)
-            return rnd if rnd else self.ops.actions.noop.Noop()
-
-        best = max(frontiers, key=lambda fr: self._score_frontier(s, fr))
-        _, _, ar, ac = best
-        s.target_position = (ar, ac)
-        return self.ops.move_towards(s, s.target_position)
+        # No valid direction found
+        return self.ops.actions.noop.Noop()
 
 
 # ---- STC Explorer (Spanning-Tree Coverage) ---------------------------------
@@ -267,51 +203,6 @@ class STCExplorer(Explorer):
         return self.ops.move_towards(s, target)
 
 
-# ---- Right-Hand Wall Follower ----------------------------------------------
-
-
-class RightHandWallFollower(Explorer):
-    """
-    Right-hand rule using a lightweight heading.
-    - Maintains s._wf_heading in {"north","east","south","west"} (lazy init to "east")
-    - Chooses next move by checking (right, forward, left, back) for FREE cells
-    - Uses move_towards to respect collisions and your cached BFS checks
-    """
-
-    def __init__(self, ops: ExplorerOps):
-        self.ops = ops
-
-    def _ensure_heading(self, s: SimpleAgentState):
-        if not hasattr(s, "_wf_heading") or s._wf_heading not in _DIRS:
-            s._wf_heading = "east"
-
-    def _step_towards_dir(self, s: SimpleAgentState, dir_name: str) -> Action:
-        dr, dc = _DIRS[dir_name]
-        return self.ops.move_towards(s, (s.row + dr, s.col + dc))
-
-    def choose_action(self, s: SimpleAgentState) -> Action:
-        self._ensure_heading(s)
-        h = s._wf_heading
-        right = _RIGHT_OF[h]
-        left = _LEFT_OF[h]
-        forward = h
-        back = _RIGHT_OF[right]  # opposite
-
-        # preference: right -> forward -> left -> back
-        for choice in (right, forward, left, back):
-            dr, dc = _DIRS[choice]
-            nr, nc = s.row + dr, s.col + dc
-            if _is_free(s, self.ops, nr, nc):
-                s._wf_heading = choice
-                act = self._step_towards_dir(s, choice)
-                if act != self.ops.actions.noop.Noop():
-                    return act
-                # if blocked by dynamic agent, try next choice
-        # fallback
-        rnd = self.ops.try_random_direction(s)
-        return rnd if rnd else self.ops.actions.noop.Noop()
-
-
 # ---- Factory ----------------------------------------------------------------
 
 
@@ -321,23 +212,17 @@ def get_explorer(name: str, ops: ExplorerOps) -> Explorer:
 
     Args:
         name: Strategy name - one of:
-            - "frontier" or "frontier_explorer": Utility-guided frontier exploration (default)
-            - "stc", "spanning_tree", "coverage": Spanning-tree coverage
-            - "wall", "right_hand", "wall_follower": Right-hand wall following
-            - "directional", "random": Simple directional exploration
+            - "stc", "spanning_tree", "coverage", "stc_explorer": Spanning-tree coverage
+            - "directional", "random", "directional_explorer": Simple directional exploration (default)
         ops: ExplorerOps adapter providing movement primitives
 
     Returns:
         Explorer instance for the requested strategy
     """
     key = (name or "").lower()
-    if key in ("frontier", "frontier_explorer"):
-        return FrontierExplorer(ops)
-    if key in ("stc", "spanning_tree", "coverage", "stc_explorer"):
+    if key == "stc":
         return STCExplorer(ops)
-    if key in ("wall", "right_hand", "wall_follower"):
-        return RightHandWallFollower(ops)
-    if key in ("directional", "random", "directional_explorer"):
+    if key == "directional":
         return DirectionalExplorer(ops)
-    # default
-    return FrontierExplorer(ops)
+    # default to directional
+    return DirectionalExplorer(ops)

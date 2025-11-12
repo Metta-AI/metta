@@ -224,7 +224,8 @@ def run_evaluation(
                         rollout.run_until_done()
 
                         # Get results - average reward per agent
-                        total_reward = float(sum(rollout._sim.episode_rewards)) / num_cogs
+                        total_episode_reward = float(sum(rollout._sim.episode_rewards))
+                        total_reward = total_episode_reward / num_cogs
                         final_step = rollout._sim.current_step
 
                         # Record result
@@ -236,7 +237,7 @@ def run_evaluation(
                             preset=preset,
                             clip_period=clip_period,
                             total_reward=total_reward,
-                            hearts_assembled=int(total_reward),
+                            hearts_assembled=int(total_episode_reward),  # Use total, not average
                             steps_taken=final_step + 1,
                             max_steps=actual_max_steps,
                             success=total_reward > 0,
