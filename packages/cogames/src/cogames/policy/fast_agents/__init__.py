@@ -5,6 +5,8 @@ from .agents import (
     RaceCarAgentsMultiPolicy,
     RandomAgentPolicy,
     RandomAgentsMultiPolicy,
+    ScriptedBaselineAgentPolicy,
+    ScriptedBaselineMultiPolicy,
     ThinkyAgentPolicy,
     ThinkyAgentsMultiPolicy,
 )
@@ -16,4 +18,6 @@ __all__ = [
     "ThinkyAgentsMultiPolicy",
     "RaceCarAgentPolicy",
     "RaceCarAgentsMultiPolicy",
+    "ScriptedBaselineAgentPolicy",
+    "ScriptedBaselineMultiPolicy",
 ]

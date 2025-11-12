@@ -9,6 +9,10 @@ This package provides two progressively capable scripted agents:
 1. **BaselineAgent** - Core functionality: exploration, resource gathering, heart assembly (single/multi-agent)
 2. **UnclippingAgent** - Extends BaselineAgent with extractor unclipping capability
 
+> **New:** A Nim-powered port of the BaselineAgent is now available via the
+> `scripted_baseline_fast`/`scripted_baseline_nim` policy handles for scenarios that need the lowest possible Python
+> overhead while retaining the same behavior.
+
 ## Architecture
 
 ### File Structure

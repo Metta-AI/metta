@@ -107,6 +107,8 @@ type
     invModulator*: int
     invResonator*: int
     invScrambler*: int
+    protocolInputs*: Table[string, int]
+    protocolOutputs*: Table[string, int]
 
 proc `+`*(location1: Location, location2: Location): Location =
   ## Add two locations.
@@ -165,6 +167,9 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
     var config = environmentConfig.fromJson(PolicyConfig)
     result = Config(config: config)
 
+    result.features.protocolInputs = initTable[string, int]()
+    result.features.protocolOutputs = initTable[string, int]()
+
     for feature in config.obsFeatures:
       case feature.name:
       of "agent:group":
@@ -220,7 +225,18 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
       of "inv:scrambler":
         result.features.invScrambler = feature.id
       else:
-        echo "Unknown feature: ", feature.name
+        if feature.name.startsWith("protocol_input:"):
+          let sep = feature.name.find(':')
+          if sep >= 0 and sep + 1 < feature.name.len:
+            let resource = feature.name[sep + 1 .. ^1]
+            result.features.protocolInputs[resource] = feature.id
+        elif feature.name.startsWith("protocol_output:"):
+          let sep = feature.name.find(':')
+          if sep >= 0 and sep + 1 < feature.name.len:
+            let resource = feature.name[sep + 1 .. ^1]
+            result.features.protocolOutputs[resource] = feature.id
+        else:
+          echo "Unknown feature: ", feature.name
 
     for id, name in config.actions:
       case name:
@@ -367,6 +383,12 @@ proc getTag*(cfg: Config, map: Table[Location, seq[FeatureValue]], location: Loc
       if featureValue.featureId == cfg.features.tag:
         return featureValue.value
   return -1
+
+proc tagName*(cfg: Config, tagId: int): string =
+  ## Convert a tag id to its configured name.
+  if tagId >= 0 and tagId < cfg.config.tags.len:
+    return cfg.config.tags[tagId]
+  return ""
 
 proc getFeature*(cfg: Config, visible: Table[Location, seq[FeatureValue]], featureId: int): int =
   ## Get the feature of the visible map.
