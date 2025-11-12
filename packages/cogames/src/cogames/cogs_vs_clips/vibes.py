@@ -11,7 +11,7 @@ VIBES = [
     Vibe("🟣", "germanium", category="resource"),  # G — Germanium
     Vibe("🟠", "silicon", category="resource"),  # S — Silicon
     Vibe("❤️", "heart", category="resource"),  # reward / health
-    # Gear
+    # GearGear
     Vibe("⚙️", "gear", category="gear"),
     # Stations
     Vibe("⭐", "assembler", category="station"),
