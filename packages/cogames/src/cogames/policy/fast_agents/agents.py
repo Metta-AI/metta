@@ -148,7 +148,4 @@ class LadybugAgentsMultiPolicy(_FastAgentsMultiPolicyBase):
     def __init__(self, policy_env_info: PolicyEnvInterface):
         super().__init__(policy_env_info, LadybugAgentPolicy)
 
-    short_names = [
-        "ladybug",
-        "scripted_baseline",
-    ]
+    short_names = ["ladybug"]
