@@ -1,5 +1,6 @@
 #!/usr/bin/env -S uv run
 import argparse
+from typing import Any, Dict, List, Optional, Tuple
 import shlex
 import logging
 import os
@@ -71,13 +72,13 @@ def get_existing_clusters():
     return cluster_records
 
 
-def get_user_sandboxes(clusters):
+def get_user_sandboxes(clusters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Filter clusters to only show user's sandboxes."""
     username = os.environ.get("USER", "unknown")
     return [c for c in clusters if c["name"].startswith(f"{username}-sandbox-")]
 
 
-def get_next_sandbox_name(cluster_records):
+def get_next_sandbox_name(cluster_records: List[Dict[str, Any]]) -> str:
     """Get the next available sandbox name for the current user."""
     names = [record["name"] for record in cluster_records]
     username = os.environ["USER"]
@@ -88,7 +89,7 @@ def get_next_sandbox_name(cluster_records):
     raise ValueError("No available sandbox name found")
 
 
-def load_sandbox_config(config_path: str):
+def load_sandbox_config(config_path: str) -> Dict[str, Any]:
     """Load the sandbox YAML configuration file."""
     with open(config_path, "r") as f:
         return yaml.safe_load(f)
@@ -102,7 +103,7 @@ def get_current_git_ref():
         return "main"  # Fallback to main
 
 
-def format_cluster_info(cluster):
+def format_cluster_info(cluster: Dict[str, Any]):
     """Format cluster information for display."""
     status = cluster["status"].name
 
@@ -124,7 +125,7 @@ def format_cluster_info(cluster):
     return color_func, status_msg, gpu_info
 
 
-def print_cluster_status(clusters, title=None):
+def print_cluster_status(clusters: List[Dict[str, Any]], title: Optional[str] = None) -> None:
     """Print cluster status in a consistent format."""
     if title:
         print(title)
@@ -142,7 +143,7 @@ def print_cluster_status(clusters, title=None):
             print(f"    📊 Check logs: {green(f'uv run sky logs {cluster_name}')}")
 
 
-def print_management_commands(clusters):
+def print_management_commands(clusters: List[Dict[str, Any]]) -> None:
     """Print helpful management commands."""
     if not clusters:
         return
@@ -159,7 +160,12 @@ def print_management_commands(clusters):
     print(f"  Delete:         {red(f'uv run sky down {first_cluster_name}')}")
 
 
-def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us-east-1", cloud: str = "aws"):
+def get_gpu_instance_info(
+    num_gpus: int,
+    gpu_type: str = "L4",
+    region: str = "us-east-1",
+    cloud: str = "aws",
+) -> Tuple[Optional[str], str, Optional[float]]:
     """
     Determine the instance type and cost for GPU instances.
 
@@ -177,7 +183,9 @@ def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us
         return None, region, None
 
     # Map GPU configurations to typical AWS instance types
-    gpu_instance_map = {
+    gpu_type_norm = gpu_type.upper()
+
+    gpu_instance_map: Dict[Tuple[str, int], str] = {
         ("L4", 1): "g6.xlarge",
         ("L4", 2): "g6.2xlarge",
         ("L4", 4): "g6.4xlarge",
@@ -185,9 +193,9 @@ def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us
     }
 
     # Get the instance type based on GPU configuration
-    instance_type = gpu_instance_map.get((gpu_type, num_gpus))
+    instance_type = gpu_instance_map.get((gpu_type_norm, num_gpus))
     if not instance_type:
-        print(f"Warning: No instance mapping for {num_gpus} {gpu_type} GPU(s), using g6.xlarge as estimate")
+        print(f"Warning: No instance mapping for {num_gpus} {gpu_type_norm} GPU(s), using g6.xlarge as estimate")
         instance_type = "g6.xlarge"
         estimated_multiplier = num_gpus
     else:
@@ -209,7 +217,7 @@ def get_gpu_instance_info(num_gpus: int, gpu_type: str = "L4", region: str = "us
     return instance_type, region, hourly_cost
 
 
-def print_cost_info(hourly_cost, num_gpus):
+def print_cost_info(hourly_cost: Optional[float], num_gpus: int) -> None:
     """Print cost information in a consistent format."""
     if hourly_cost is not None:
         print(f"Approximate cost: {green(f'~${hourly_cost:.2f}/hour')} (on-demand pricing)")
@@ -225,7 +233,7 @@ def print_cost_info(hourly_cost, num_gpus):
         print(f"Approximate cost: {yellow(estimate)} (estimated for {num_gpus} L4 GPU{'s' if num_gpus > 1 else ''})")
 
 
-def check_cluster_status(cluster_name: str) -> str:
+def check_cluster_status(cluster_name: str) -> Optional[str]:
     """Check the status of a specific cluster.
 
     Returns:
@@ -359,6 +367,17 @@ Common management commands:
     parser.add_argument("--name", type=str, default=None, help="Custom sandbox cluster name (e.g., my-sandbox)")
     parser.add_argument("--check", action="store_true", help="Check for existing sandboxes and exit")
     parser.add_argument("--gpus", type=int, default=1, help="GPUs per node (default: 1)")
+    parser.add_argument(
+        "--gpu-type",
+        type=str,
+        choices=["L4", "A10G", "A100", "H100"],
+        help="GPU type to use (overrides config accelerators)",
+    )
+    parser.add_argument(
+        "--instance-type",
+        type=str,
+        help="Explicit cloud instance type (e.g., p5.4xlarge). Overrides automatic mapping.",
+    )
     parser.add_argument("--nodes", type=int, default=1, help="Number of nodes (default: 1)")
     parser.add_argument(
         "--retry-until-up", action="store_true", help="Keep retrying until cluster is successfully launched"
@@ -421,8 +440,8 @@ Common management commands:
         config_path = "./devops/skypilot/config/sandbox_cheap.yaml"
     else:
         nodes_msg = f"{args.nodes} node{'s' if args.nodes != 1 else ''}"
-        gpus_msg = f"{args.gpus} L4 GPU{'s' if args.gpus != 1 else ''} per node"
-        print(f"\n🚀 Launching {blue(cluster_name)} with {bold(nodes_msg)} × {bold(gpus_msg)}")
+        # GPU type placeholder; will finalize after reading config and args
+        print(f"\n🚀 Launching {blue(cluster_name)} with {bold(nodes_msg)} × GPUs per node: {bold(str(args.gpus))}")
         config_path = "./devops/skypilot/config/sandbox.yaml"
 
     print(f"🔌 Git ref: {cyan(git_ref)}")
@@ -457,12 +476,23 @@ Common management commands:
             else:
                 print("Approximate cost: (unavailable) – check AWS pricing for your region.")
     else:
-        # Parse GPU type from the config (e.g., "L4:1" -> "L4")
+        # Determine GPU type: CLI overrides config
         accelerators_str = resources.get("accelerators", "L4:1")
-        gpu_type = accelerators_str.split(":")[0]
+        default_gpu_type = accelerators_str.split(":")[0]
+        gpu_type = (args.gpu_type or default_gpu_type).upper()
+
+        print(
+            f"GPU configuration: {bold(str(args.gpus))} {bold(gpu_type)} GPU"
+            f"{'s' if args.gpus != 1 else ''} per node"
+        )
 
         # Get instance type and calculate per-node cost
-        instance_type, region, hourly_cost = get_gpu_instance_info(args.gpus, gpu_type, region, cloud)
+        instance_type, region, hourly_cost = get_gpu_instance_info(
+            args.gpus,
+            gpu_type,
+            region,
+            cloud,
+        )
 
         if instance_type:
             print(f"Instance type (per node): {bold(instance_type)} in {bold(region)}")
@@ -497,7 +527,13 @@ Common management commands:
 
         if not args.sweep_controller:
             # Only override GPU resources for non-cheap mode
-            task.set_resources_override({"accelerators": f"{gpu_type}:{args.gpus}"})
+            # Use computed gpu_type (from CLI or config)
+            accelerators_override = f"{gpu_type}:{args.gpus}"
+            overrides: Dict[str, Any] = {"accelerators": accelerators_override}
+            if args.instance_type:
+                overrides["instance_type"] = args.instance_type
+            task.set_resources_override(overrides)
+
             # Multi-node support
             if args.nodes and args.nodes > 1:
                 task.num_nodes = int(args.nodes)
