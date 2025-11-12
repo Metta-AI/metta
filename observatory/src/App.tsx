@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom'
 import { ServerRepo, Repo } from './repo'
-import { Dashboard } from './Dashboard'
 import { TokenManager } from './TokenManager'
 import { SQLQuery } from './SQLQuery'
 import { TrainingRuns } from './TrainingRuns'
@@ -103,10 +102,6 @@ function App() {
     initializeRepo()
   }, [navigate])
 
-  const handleDashboardPageChange = () => {
-    navigate('/dashboard')
-  }
-
   if (state.type === 'error') {
     return (
       <div
@@ -181,17 +176,7 @@ function App() {
         <style>{NAV_CSS}</style>
         <nav className="nav-container">
           <div className="nav-content">
-            <Link to="/dashboard" className="nav-brand" onClick={handleDashboardPageChange}>
-              Policy Evaluation Dashboard
-            </Link>
             <div className="nav-tabs">
-              <Link
-                to="/dashboard"
-                className={`nav-tab ${location.pathname === '/dashboard' ? 'active' : ''}`}
-                onClick={handleDashboardPageChange}
-              >
-                Dashboard
-              </Link>
               <Link
                 to="/training-runs"
                 className={`nav-tab ${location.pathname.startsWith('/training-run') ? 'active' : ''}`}
@@ -216,13 +201,12 @@ function App() {
 
         <div className="page-container">
           <Routes>
-            <Route path="/dashboard" element={<Dashboard repo={state.repo} />} />
             <Route path="/training-runs" element={<TrainingRuns repo={state.repo} />} />
             <Route path="/training-run/:runId" element={<TrainingRunDetail repo={state.repo} />} />
             <Route path="/eval-tasks" element={<EvalTasks repo={state.repo} />} />
             <Route path="/tokens" element={<TokenManager repo={state.repo} />} />
             <Route path="/sql-query" element={<SQLQuery repo={state.repo} />} />
-            <Route path="/" element={<Dashboard repo={state.repo} />} />
+            <Route path="/" element={<TrainingRuns repo={state.repo} />} />
           </Routes>
         </div>
       </div>

@@ -13,8 +13,8 @@ from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool, PoolTimeout
 from pydantic import BaseModel, Field
 
-from metta.app_backend.query_logger import execute_single_row_query_and_log
 from metta.app_backend.migrations import MIGRATIONS
+from metta.app_backend.query_logger import execute_single_row_query_and_log
 from metta.app_backend.schema_manager import run_migrations
 
 TaskStatus = Literal["unprocessed", "canceled", "done", "error"]
