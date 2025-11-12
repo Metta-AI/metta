@@ -10,8 +10,7 @@ import re
 from pathlib import Path
 from typing import Optional
 
-from mettagrid.policy.policy import MultiAgentPolicy as Policy
-from mettagrid.policy.policy import TrainablePolicy
+from mettagrid.policy.policy import MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import get_policy_registry
 from mettagrid.util.module import load_symbol
@@ -21,7 +20,7 @@ def initialize_or_load_policy(
     policy_env_info: PolicyEnvInterface,
     policy_class_path: str,
     policy_data_path: Optional[str] = None,
-) -> Policy:
+) -> MultiAgentPolicy:
     """Initialize a policy from its class path and optionally load weights.
 
     Args:
@@ -38,7 +37,7 @@ def initialize_or_load_policy(
     policy = policy_class(policy_env_info)  # type: ignore[misc]
 
     if policy_data_path:
-        if not isinstance(policy, TrainablePolicy):
+        if not isinstance(policy, MultiAgentPolicy):
             raise TypeError("Policy data provided, but the selected policy does not support loading checkpoints.")
 
         policy.load_policy_data(policy_data_path)
