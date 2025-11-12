@@ -151,9 +151,6 @@ def play_cmd(
     ):
         env_cfg.game.max_steps = steps
 
-    if cogs is not None:
-        env_cfg.game.num_agents = cogs
-
     play_module.play(
         console,
         env_cfg=env_cfg,
@@ -340,11 +337,6 @@ def evaluate_cmd(
     ),
 ) -> None:
     selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs, steps=steps)
-
-    # Override num_agents if --cogs was explicitly provided
-    if cogs is not None:
-        for _, env_cfg in selected_missions:
-            env_cfg.game.num_agents = cogs
 
     policy_specs = get_policy_specs(ctx, policies)
 
