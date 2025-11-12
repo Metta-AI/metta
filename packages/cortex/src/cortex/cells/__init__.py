@@ -1,5 +1,6 @@
 """Memory cell implementations for stateful neural computation."""
 
+from cortex.cells.agalite import AGaLiTeCell
 from cortex.cells.base import MemoryCell
 
 # Import cells to register them
@@ -20,6 +21,7 @@ __all__ = [
     "AxonLayer",
     "sLSTMCell",
     "XLCell",
+    "AGaLiTeCell",
     "register_cell",
     "build_cell",
     "get_cell_class",

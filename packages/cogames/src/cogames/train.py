@@ -17,14 +17,14 @@ from mettagrid import MettaGridConfig, PufferMettaGridEnv
 from mettagrid.config.mettagrid_config import EnvSupervisorConfig
 from mettagrid.envs.early_reset_handler import EarlyResetHandler
 from mettagrid.envs.stats_tracker import StatsTracker
-from mettagrid.policy.policy import TrainablePolicy
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.policy.utils import (
+from mettagrid.policy.loader import (
     find_policy_checkpoints,
     get_policy_class_shorthand,
     initialize_or_load_policy,
     resolve_policy_data_path,
 )
+from mettagrid.policy.policy import TrainablePolicy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Simulator
 from mettagrid.util.stats_writer import NoopStatsWriter
 from pufferlib import pufferl
@@ -90,6 +90,7 @@ def train(
     batch_size: int,
     minibatch_size: int,
     missions_arg: Optional[list[str]] = None,
+    variants_arg: Optional[list[str]] = None,
     vector_num_envs: Optional[int] = None,
     vector_batch_size: Optional[int] = None,
     vector_num_workers: Optional[int] = None,
@@ -200,7 +201,7 @@ def train(
         simulator = Simulator()
         simulator.add_event_handler(StatsTracker(NoopStatsWriter()))
         simulator.add_event_handler(EarlyResetHandler())
-        env_supervisor_cfg = EnvSupervisorConfig(enabled=False)
+        env_supervisor_cfg = EnvSupervisorConfig()
         env = PufferMettaGridEnv(simulator, target_cfg, env_supervisor_cfg, buf, seed if seed is not None else 0)
         set_buffers(env, buf)
         return env
@@ -230,6 +231,7 @@ def train(
     assert isinstance(policy, TrainablePolicy), (
         f"Policy class {policy_class_path} must implement TrainablePolicy interface"
     )
+    policy.network().to(device)
 
     use_rnn = getattr(policy, "is_recurrent", lambda: False)()
     if not use_rnn:
@@ -406,16 +408,19 @@ def train(
 
             first_mission = missions_arg[0] if missions_arg else "training_facility_1"
             all_missions = " ".join(f"-m {m}" for m in (missions_arg or ["training_facility_1"]))
+            variant_args = " ".join(f"--variant {variant}" for variant in (variants_arg or []))
+            mission_and_variant_args = " ".join(filter(None, [all_missions, variant_args]))
+            first_mission_with_variants = " ".join(filter(None, [f"-m {first_mission}", variant_args]))
 
             console.print()
             console.print("To continue training this policy:", style="bold")
-            console.print(f"  [yellow]cogames train {all_missions} -p {policy_arg}[/yellow]")
+            console.print(f"  [yellow]cogames train {mission_and_variant_args} -p {policy_arg}[/yellow]")
             console.print()
             console.print("To play with this policy:", style="bold")
-            console.print(f"  [yellow]cogames play -m {first_mission} -p {policy_arg}[/yellow]")
+            console.print(f"  [yellow]cogames play {first_mission_with_variants} -p {policy_arg}[/yellow]")
             console.print()
             console.print("To evaluate this policy:", style="bold")
-            console.print(f"  [yellow]cogames eval -m {first_mission} -p {policy_arg}[/yellow]")
+            console.print(f"  [yellow]cogames eval {first_mission_with_variants} -p {policy_arg}[/yellow]")
         elif checkpoints and training_diverged:
             console.print()
             console.print(f"[yellow]Found {len(checkpoints)} checkpoint(s). The most recent may be corrupted.[/yellow]")

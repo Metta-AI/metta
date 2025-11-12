@@ -132,21 +132,17 @@ class TaskTracker:
         }
 
     def _cleanup_old_tasks(self) -> None:
-        """Remove oldest tasks when memory limit is exceeded."""
-        cleanup_count = min(100, len(self._task_memory) - self.max_memory_tasks + 100)
-
-        # Remove oldest tasks
-        removed_count = 0
-        while self._task_creation_order and removed_count < cleanup_count:
+        """Remove oldest tasks until we are back under the memory cap."""
+        while self._task_creation_order and len(self._task_memory) > self.max_memory_tasks:
             _, task_id = self._task_creation_order.popleft()
-            if task_id in self._task_memory:
-                # Update cached total before removal
-                if self._cache_valid:
-                    _, completion_count, _, _ = self._task_memory[task_id]
-                    self._cached_total_completions -= completion_count
+            if task_id not in self._task_memory:
+                continue
 
-                del self._task_memory[task_id]
-                removed_count += 1
+            if self._cache_valid:
+                _, completion_count, _, _ = self._task_memory[task_id]
+                self._cached_total_completions -= completion_count
+
+            del self._task_memory[task_id]
 
         # Cache may still be valid after cleanup if we tracked changes
 

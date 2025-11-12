@@ -65,10 +65,11 @@ protected:
         {"vibe", 11},
         {"agent:vibe", 12},
         {"agent:visitation_counts", 13},
-        {"tag", 14},
-        {"cooldown_remaining", 15},
-        {"clipped", 16},
-        {"remaining_uses", 17},
+        {"agent:compass", 14},
+        {"tag", 15},
+        {"cooldown_remaining", 16},
+        {"clipped", 17},
+        {"remaining_uses", 18},
     };
     ObservationFeature::Initialize(feature_ids);
   }
@@ -441,7 +442,7 @@ TEST_F(MettaGridCppTest, GridObjectManagement) {
   EXPECT_EQ(retrieved_agent, agent);
 
   // Verify it's at the expected location
-  auto agent_at_location = grid.object_at(GridLocation(2, 3, GridLayer::AgentLayer));
+  auto agent_at_location = grid.object_at(GridLocation(2, 3));
   EXPECT_EQ(agent_at_location, agent);
 }
 
@@ -1019,19 +1020,14 @@ TEST_F(MettaGridCppTest, AssemblerBasicObservationFeatures) {
 
   auto features = assembler.obs_features();
 
-  // Should have at least TypeId and Tag features
-  EXPECT_GE(features.size(), 3);  // TypeId + 2 tags
+  // Should have at least Tag features
+  EXPECT_GE(features.size(), 2);
 
-  // Find TypeId feature
-  bool found_type_id = false;
   bool found_tag1 = false;
   bool found_tag2 = false;
 
   for (const auto& feature : features) {
-    if (feature.feature_id == ObservationFeature::TypeId) {
-      EXPECT_EQ(feature.value, 1);  // Our test assembler type_id
-      found_type_id = true;
-    } else if (feature.feature_id == ObservationFeature::Tag) {
+    if (feature.feature_id == ObservationFeature::Tag) {
       if (feature.value == 1) {
         found_tag1 = true;
       } else if (feature.value == 2) {
@@ -1040,7 +1036,6 @@ TEST_F(MettaGridCppTest, AssemblerBasicObservationFeatures) {
     }
   }
 
-  EXPECT_TRUE(found_type_id) << "TypeId feature not found";
   EXPECT_TRUE(found_tag1) << "Tag 1 not found";
   EXPECT_TRUE(found_tag2) << "Tag 2 not found";
 }
@@ -1199,7 +1194,6 @@ TEST_F(MettaGridCppTest, AssemblerProtocolObservationsEnabled) {
   Grid grid(10, 10);
 
   AssemblerConfig config(1, "test_assembler");
-  config.protocol_details_obs = true;
 
   // Create test protocols - one for pattern 0 (no agents), one for pattern 1 (some agents)
   auto protocol0 = std::make_shared<Protocol>();  // Default protocol (vibe 0)
@@ -1222,6 +1216,17 @@ TEST_F(MettaGridCppTest, AssemblerProtocolObservationsEnabled) {
 
   // Add assembler to grid
   grid.add_object(assembler);
+
+  // Provide an ObservationEncoder so protocol details can be emitted
+  auto resource_names = create_test_resource_names();
+  std::unordered_map<std::string, ObservationType> proto_feature_ids;
+  // Assign arbitrary, unique feature ids for protocol input/output per resource
+  for (size_t i = 0; i < resource_names.size(); ++i) {
+    proto_feature_ids[std::string("protocol_input:") + resource_names[i]] = static_cast<ObservationType>(100 + i);
+    proto_feature_ids[std::string("protocol_output:") + resource_names[i]] = static_cast<ObservationType>(120 + i);
+  }
+  ObservationEncoder encoder(true, resource_names, proto_feature_ids);
+  assembler->set_obs_encoder(&encoder);
 
   // Test with pattern 0 (no agents around) - should get protocol0
   auto features = assembler->obs_features();

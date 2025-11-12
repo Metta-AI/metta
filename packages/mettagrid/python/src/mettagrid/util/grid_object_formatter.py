@@ -108,8 +108,8 @@ def format_grid_object(
     assert isinstance(grid_object["type_name"], str), (
         f"Expected grid_object['type_name'] to be a string, got {type(grid_object['type_name'])}"
     )
-    assert isinstance(grid_object["location"], (tuple, list)) and len(grid_object["location"]) == 3, (
-        f"Expected location to be tuple/list of 3 elements, got {type(grid_object['location'])}"
+    assert isinstance(grid_object["location"], (tuple, list)) and len(grid_object["location"]) == 2, (
+        f"Expected location to be tuple/list of 2 elements, got {type(grid_object['location'])}"
     )
     assert all(isinstance(coord, (int, float)) for coord in grid_object["location"]), (
         "Expected all location coordinates to be numbers"

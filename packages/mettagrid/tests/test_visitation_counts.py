@@ -33,7 +33,7 @@ def env_with_visitation():
             actions=ActionsConfig(
                 move=MoveActionConfig(),  # Enable 8-way movement
             ),
-            objects={"wall": WallConfig(type_id=1)},
+            objects={"wall": WallConfig()},
             global_obs=GlobalObsConfig(
                 episode_completion_pct=True,
                 last_action=True,
@@ -50,7 +50,7 @@ def env_with_visitation():
                     [".", ".", ".", ".", ".", ".", "."],
                     [".", ".", ".", ".", ".", ".", "."],
                 ],
-                char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                char_to_map_name=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
@@ -71,7 +71,7 @@ def env_without_visitation():
             actions=ActionsConfig(
                 move=MoveActionConfig(),  # Enable 8-way movement
             ),
-            objects={"wall": WallConfig(type_id=1)},
+            objects={"wall": WallConfig()},
             global_obs=GlobalObsConfig(
                 episode_completion_pct=True,
                 last_action=True,
@@ -88,7 +88,7 @@ def env_without_visitation():
                     [".", ".", ".", ".", ".", ".", "."],
                     [".", ".", ".", ".", ".", ".", "."],
                 ],
-                char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                char_to_map_name=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
@@ -109,7 +109,7 @@ def env_default():
             actions=ActionsConfig(
                 move=MoveActionConfig(),  # Enable 8-way movement
             ),
-            objects={"wall": WallConfig(type_id=1)},
+            objects={"wall": WallConfig()},
             # No explicit visitation_counts setting - uses default (False)
             map_builder=AsciiMapBuilder.Config(
                 map_data=[
@@ -121,7 +121,7 @@ def env_default():
                     [".", ".", ".", ".", ".", ".", "."],
                     [".", ".", ".", ".", ".", ".", "."],
                 ],
-                char_to_name_map=DEFAULT_CHAR_TO_NAME,
+                char_to_map_name=DEFAULT_CHAR_TO_NAME,
             ),
         )
     )
@@ -142,7 +142,7 @@ def extract_visitation_features(visitation_feature_id: int, obs: np.ndarray, age
 def test_visitation_counts_enabled(env_with_visitation):
     """Test that visitation counts work correctly when enabled."""
     obs = env_with_visitation._c_sim.observations()
-    visitation_feature_id = env_with_visitation.config.id_map().feature_id("agent:visitation_counts")
+    visitation_feature_id = env_with_visitation.config.game.id_map().feature_id("agent:visitation_counts")
 
     # Check initial visitation counts
     initial_features = extract_visitation_features(visitation_feature_id, obs)
@@ -167,7 +167,7 @@ def test_visitation_counts_enabled(env_with_visitation):
 def test_visitation_counts_disabled(env_without_visitation):
     """Test that visitation counts are not present when disabled."""
     obs = env_without_visitation._c_sim.observations()
-    visitation_feature_id = env_without_visitation.config.id_map().feature_id("agent:visitation_counts")
+    visitation_feature_id = env_without_visitation.config.game.id_map().feature_id("agent:visitation_counts")
 
     features = extract_visitation_features(visitation_feature_id, obs)
     assert len(features) == 0, f"Expected no visitation features when disabled, got {len(features)}"
@@ -183,7 +183,7 @@ def test_visitation_counts_disabled(env_without_visitation):
 def test_visitation_counts_default_disabled(env_default):
     """Test that visitation counts are disabled by default."""
     obs = env_default._c_sim.observations()
-    visitation_feature_id = env_default.config.id_map().feature_id("agent:visitation_counts")
+    visitation_feature_id = env_default.config.game.id_map().feature_id("agent:visitation_counts")
 
     features = extract_visitation_features(visitation_feature_id, obs)
     assert len(features) == 0, "Visitation counts should be disabled by default"
@@ -210,8 +210,8 @@ def performance_config():
             max_steps=1000,
             resource_names=["wood", "stone"],
             actions=ActionsConfig(move=MoveActionConfig()),
-            objects={"wall": WallConfig(type_id=1)},
-            map_builder=AsciiMapBuilder.Config(map_data=simple_map, char_to_name_map=DEFAULT_CHAR_TO_NAME),
+            objects={"wall": WallConfig()},
+            map_builder=AsciiMapBuilder.Config(map_data=simple_map, char_to_map_name=DEFAULT_CHAR_TO_NAME),
         )
     )
     return config
@@ -259,7 +259,7 @@ def test_visitation_performance_impact(performance_config):
 def test_observation_structure(env_with_visitation):
     """Test the structure of observations with visitation counts."""
     obs = env_with_visitation._c_sim.observations()
-    visitation_feature_id = env_with_visitation.config.id_map().feature_id("agent:visitation_counts")
+    visitation_feature_id = env_with_visitation.config.game.id_map().feature_id("agent:visitation_counts")
 
     # Check observation shape
     assert len(obs.shape) == 3, f"Expected 3D observation array, got shape {obs.shape}"

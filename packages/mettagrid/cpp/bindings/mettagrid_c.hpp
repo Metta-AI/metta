@@ -94,8 +94,6 @@ public:
   py::dict get_episode_stats();
   py::list action_success_py();
 
-  uint64_t initial_grid_hash;
-
   using Actions = py::array_t<ActionType, py::array::c_style>;
   using ActionSuccess = std::vector<bool>;
 
@@ -152,8 +150,6 @@ private:
   std::mt19937 _rng;
   unsigned int _seed;
 
-  // Movement tracking
-  bool _track_movement_metrics;
   float _resource_loss_prob;
 
   // Inventory regeneration

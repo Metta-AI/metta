@@ -11,6 +11,7 @@ from cogames.cogs_vs_clips.stations import (
     ChargerConfig,
     CvCAssemblerConfig,
     CvCChestConfig,
+    CvCStationConfig,
     CvCWallConfig,
     GermaniumExtractorConfig,
     OxygenExtractorConfig,
@@ -25,6 +26,7 @@ from mettagrid.config.mettagrid_config import (
     ChangeVibeActionConfig,
     ClipperConfig,
     GameConfig,
+    GlobalObsConfig,
     MettaGridConfig,
     MoveActionConfig,
     NoopActionConfig,
@@ -110,7 +112,7 @@ class Mission(Config):
     wall: CvCWallConfig = Field(default_factory=CvCWallConfig)
     assembler: CvCAssemblerConfig = Field(default_factory=CvCAssemblerConfig)
 
-    clip_rate: float = Field(default=0.0)
+    clip_period: int = Field(default=0)
     cargo_capacity: int = Field(default=255)
     energy_capacity: int = Field(default=100)
     energy_regen_amount: int = Field(default=1)
@@ -121,6 +123,7 @@ class Mission(Config):
     # Control vibe swapping in variants
     enable_vibe_change: bool = Field(default=True)
     vibe_count: int | None = Field(default=None)
+    compass_enabled: bool = Field(default=False)
 
     # Variants are applied to the mission immediately, and to its env when make_env is called
     variants: list[MissionVariant] = Field(default_factory=list)
@@ -151,11 +154,20 @@ class Mission(Config):
         map_builder = self.site.map_builder
         num_cogs = self.num_cogs if self.num_cogs is not None else self.site.min_cogs
 
+        def _clipped_station_cfg(config: CvCStationConfig, clipped_name: str):
+            """Clone a station config with unique names for clipped variants."""
+            clipped_cfg = config.model_copy(update={"start_clipped": True})
+            station = clipped_cfg.station_cfg()
+            station.name = clipped_name
+            station.map_name = clipped_name
+            return station
+
         game = GameConfig(
             map_builder=map_builder,
             num_agents=num_cogs,
             resource_names=resources,
             vibe_names=[vibe.name for vibe in vibes.VIBES],
+            global_obs=GlobalObsConfig(compass=self.compass_enabled),
             actions=ActionsConfig(
                 move=MoveActionConfig(consumed_resources={"energy": self.move_energy_cost}),
                 noop=NoopActionConfig(),
@@ -204,7 +216,7 @@ class Mission(Config):
                         cooldown=1,
                     ),
                 ],
-                clip_rate=self.clip_rate,
+                clip_period=self.clip_period,
             ),
             objects={
                 "wall": self.wall.station_cfg(),
@@ -216,18 +228,12 @@ class Mission(Config):
                 "germanium_extractor": self.germanium_extractor.station_cfg(),
                 "silicon_extractor": self.silicon_extractor.station_cfg(),
                 # Clipped variants
-                "clipped_carbon_extractor": self.carbon_extractor.model_copy(
-                    update={"start_clipped": True}
-                ).station_cfg(),
-                "clipped_oxygen_extractor": self.oxygen_extractor.model_copy(
-                    update={"start_clipped": True}
-                ).station_cfg(),
-                "clipped_germanium_extractor": self.germanium_extractor.model_copy(
-                    update={"start_clipped": True}
-                ).station_cfg(),
-                "clipped_silicon_extractor": self.silicon_extractor.model_copy(
-                    update={"start_clipped": True}
-                ).station_cfg(),
+                "clipped_carbon_extractor": _clipped_station_cfg(self.carbon_extractor, "clipped_carbon_extractor"),
+                "clipped_oxygen_extractor": _clipped_station_cfg(self.oxygen_extractor, "clipped_oxygen_extractor"),
+                "clipped_germanium_extractor": _clipped_station_cfg(
+                    self.germanium_extractor, "clipped_germanium_extractor"
+                ),
+                "clipped_silicon_extractor": _clipped_station_cfg(self.silicon_extractor, "clipped_silicon_extractor"),
             },
         )
 

@@ -15,7 +15,7 @@ def make_yaml_map(map_lines: list[str], legend: dict[str, str]) -> str:
     map_block = "\n".join(f"  {line}" for line in map_lines)
     return (
         "type: mettagrid.map_builder.ascii.AsciiMapBuilder.Config\n"
-        f"map_data: |-\n{map_block}\nchar_to_name_map:\n{legend_block}\n"
+        f"map_data: |-\n{map_block}\nchar_to_map_name:\n{legend_block}\n"
     )
 
 
@@ -134,23 +134,23 @@ class TestAsciiMapBuilder:
     def test_config_accepts_string_map_data(self):
         config = AsciiMapBuilder.Config(
             map_data=[list(v) for v in ["#@", "##"]],
-            char_to_name_map={"#": "wall", "@": "agent.agent"},
+            char_to_map_name={"#": "wall", "@": "agent.agent"},
         )
         assert config.map_data == [["#", "@"], ["#", "#"]]
 
     def test_config_accepts_list_of_strings(self):
         config = AsciiMapBuilder.Config(
             map_data=[list(v) for v in ["##", "@#"]],
-            char_to_name_map={"#": "wall", "@": "agent.agent"},
+            char_to_map_name={"#": "wall", "@": "agent.agent"},
         )
         assert config.map_data == [["#", "#"], ["@", "#"]]
 
     def test_config_accepts_legend_as_pairs(self):
         config = AsciiMapBuilder.Config(
             map_data=[list(v) for v in ["##"]],
-            char_to_name_map={"#": "wall"},
+            char_to_map_name={"#": "wall"},
         )
-        assert config.char_to_name_map["#"] == "wall"
+        assert config.char_to_map_name["#"] == "wall"
 
     def test_build_empty_map(self):
         yaml_content = make_yaml_map(
@@ -174,11 +174,11 @@ class TestAsciiMapBuilder:
     def test_empty_legend_allowed(self):
         config = AsciiMapBuilder.Config(
             map_data=[list(v) for v in ["#@."]],
-            char_to_name_map={},
+            char_to_map_name={},
         )
-        assert config.char_to_name_map["#"] == "wall"
-        assert config.char_to_name_map["@"] == "agent.agent"
-        assert config.char_to_name_map["."] == "empty"
+        assert config.char_to_map_name["#"] == "wall"
+        assert config.char_to_map_name["@"] == "agent.agent"
+        assert config.char_to_map_name["."] == "empty"
 
     def test_file_not_found(self):
         with pytest.raises(FileNotFoundError):
@@ -196,7 +196,7 @@ class TestAsciiMapBuilder:
         temp_file = write_temp_map(yaml_content)
         try:
             config = AsciiMapBuilder.Config.from_uri(temp_file)
-            assert config.char_to_name_map["A"] == "legend_name"
+            assert config.char_to_map_name["A"] == "legend_name"
         finally:
             os.unlink(temp_file)
 
@@ -209,10 +209,10 @@ class TestAsciiMapBuilder:
         )
 
         config = AsciiMapBuilder.Config.from_str(yaml_content)
-        assert config.char_to_name_map["#"] == "wall"
-        assert config.char_to_name_map["."] == "empty"
-        assert config.char_to_name_map["@"] == "agent.agent"
-        assert config.char_to_name_map["X"] == "custom_tile"
+        assert config.char_to_map_name["#"] == "wall"
+        assert config.char_to_map_name["."] == "empty"
+        assert config.char_to_map_name["@"] == "agent.agent"
+        assert config.char_to_map_name["X"] == "custom_tile"
 
     def test_global_defaults_cannot_be_overridden(self):
         yaml_content = make_yaml_map(
@@ -235,7 +235,7 @@ class TestAsciiMapBuilder:
         )
         config = AsciiMapBuilder.Config.from_str(ascii_yaml)
         assert config.map_data == [["#", "@"], [".", "#"]]
-        assert config.char_to_name_map["#"] == "wall"
+        assert config.char_to_map_name["#"] == "wall"
 
     def test_with_spaces_raises_error(self):
         yaml_content = make_yaml_map(

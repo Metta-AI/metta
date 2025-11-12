@@ -46,7 +46,7 @@ def launch_task(task: sky.Task) -> str:
 def check_git_state(commit_hash: str) -> str | None:
     error_lines = []
 
-    has_changes, status_output = git.has_unstaged_changes()
+    has_changes, status_output = git.has_uncommitted_changes()
     if has_changes:
         error_lines.append(red("❌ You have uncommitted changes that won't be reflected in the cloud job."))
         error_lines.append("Options:")

@@ -39,17 +39,13 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             config_dict["obs"].pop("features", None)
         game_config = GameConfig(**config_dict)
 
-    # Ensure type IDs are assigned even if objects were added/modified after construction
-    # This mirrors the behavior documented in GameConfig._resolve_object_type_ids.
-    try:
-        game_config._resolve_object_type_ids()
-    except Exception:
-        # Best-effort; if this fails for any reason, let downstream code surface errors
-        pass
-
     # Set up resource mappings
     resource_names = list(game_config.resource_names)
     resource_name_to_id = {name: i for i, name in enumerate(resource_names)}
+
+    # Compute deterministic type_id mapping for C++ (Python never exposes these)
+    type_names_sorted = sorted(game_config.objects.keys())
+    type_id_by_type_name = {name: (i + 1) for i, name in enumerate(type_names_sorted)}  # 0 reserved for agents
 
     # Set up vibe mappings from the change_vibe action config.
     # The C++ bindings expect dense uint8 identifiers, so keep a name->id lookup.
@@ -178,19 +174,19 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         for key, limit_value in agent_props["resource_limits"].items():
             if isinstance(key, str):
                 # Single resource limit
-                limits_list.append([[resource_name_to_id[key]], limit_value])
+                limits_list.append(([resource_name_to_id[key]], limit_value))
                 configured_resources.add(key)
             elif isinstance(key, tuple):
                 # Grouped resources with shared limit
                 resource_ids = [resource_name_to_id[name] for name in key]
                 if resource_ids:
-                    limits_list.append([resource_ids, limit_value])
+                    limits_list.append((resource_ids, limit_value))
                     configured_resources.update(key)
 
         # Add default limits for unconfigured resources
         for resource_name in resource_names:
             if resource_name not in configured_resources:
-                limits_list.append([[resource_name_to_id[resource_name]], default_resource_limit])
+                limits_list.append(([resource_name_to_id[resource_name]], default_resource_limit))
 
         inventory_config = CppInventoryConfig(limits=limits_list)
 
@@ -230,11 +226,12 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
 
             cpp_wall_config = CppWallConfig(
-                type_id=object_config.type_id, type_name=object_type, initial_vibe=object_config.vibe
+                type_id=type_id_by_type_name[object_type], type_name=object_type, initial_vibe=object_config.vibe
             )
             cpp_wall_config.swappable = object_config.swappable
             cpp_wall_config.tag_ids = tag_ids
-            objects_cpp_params[object_type] = cpp_wall_config
+            # Key by map_name so map grid (which uses map_name) resolves directly.
+            objects_cpp_params[object_config.map_name or object_type] = cpp_wall_config
         elif isinstance(object_config, AssemblerConfig):
             protocols = []
             seen_vibes = []
@@ -259,7 +256,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
 
             cpp_assembler_config = CppAssemblerConfig(
-                type_id=object_config.type_id, type_name=object_type, initial_vibe=object_config.vibe
+                type_id=type_id_by_type_name[object_type], type_name=object_type, initial_vibe=object_config.vibe
             )
             cpp_assembler_config.tag_ids = tag_ids
             cpp_assembler_config.protocols = protocols
@@ -268,7 +265,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_assembler_config.exhaustion = object_config.exhaustion
             cpp_assembler_config.clip_immune = object_config.clip_immune
             cpp_assembler_config.start_clipped = object_config.start_clipped
-            objects_cpp_params[object_type] = cpp_assembler_config
+            # Key by map_name so map grid (which uses map_name) resolves directly.
+            objects_cpp_params[object_config.map_name or object_type] = cpp_assembler_config
         elif isinstance(object_config, ChestConfig):
             # Convert tag names to IDs
             tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
@@ -297,13 +295,14 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             inventory_config = CppInventoryConfig(limits=limits_list)
 
             cpp_chest_config = CppChestConfig(
-                type_id=object_config.type_id, type_name=object_type, initial_vibe=object_config.vibe
+                type_id=type_id_by_type_name[object_type], type_name=object_type, initial_vibe=object_config.vibe
             )
             cpp_chest_config.vibe_transfers = vibe_transfers_map
             cpp_chest_config.initial_inventory = initial_inventory_cpp
             cpp_chest_config.inventory_config = inventory_config
             cpp_chest_config.tag_ids = tag_ids
-            objects_cpp_params[object_type] = cpp_chest_config
+            # Key by map_name so map grid (which uses map_name) resolves directly.
+            objects_cpp_params[object_config.map_name or object_type] = cpp_chest_config
         else:
             raise ValueError(f"Unknown object type: {object_type}")
 
@@ -336,6 +335,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         last_action=global_obs_config.last_action,
         last_reward=global_obs_config.last_reward,
         visitation_counts=global_obs_config.visitation_counts,
+        compass=global_obs_config.compass,
     )
     game_cpp_params["global_obs"] = global_obs_cpp
 
@@ -447,13 +447,12 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             }
             cpp_protocol.cooldown = protocol_config.cooldown
             clipper_protocols.append(cpp_protocol)
-        game_cpp_params["clipper"] = CppClipperConfig(
-            clipper_protocols, clipper.length_scale, clipper.cutoff_distance, clipper.clip_rate
-        )
-
-    # Set feature flags
-    game_cpp_params["protocol_details_obs"] = game_config.protocol_details_obs
-    game_cpp_params["track_movement_metrics"] = game_config.track_movement_metrics
+        clipper_config = CppClipperConfig()
+        clipper_config.unclipping_protocols = clipper_protocols
+        clipper_config.length_scale = clipper.length_scale
+        clipper_config.scaled_cutoff_distance = clipper.scaled_cutoff_distance
+        clipper_config.clip_period = clipper.clip_period
+        game_cpp_params["clipper"] = clipper_config
 
     # Add tag mappings for C++ debugging/display
     game_cpp_params["tag_id_map"] = tag_id_to_name

@@ -107,7 +107,7 @@ def train(
     _ensure_cuda_extras_installed()
 
     try:
-        from metta.agent.components.mamba import MambaBackboneConfig
+        import metta.agent.components.mamba.config as mamba_config
         from metta.agent.policies.mamba_sliding import MambaSlidingConfig
     except ModuleNotFoundError as exc:
         if exc.name == "mamba_ssm":
@@ -131,7 +131,7 @@ def train(
         )
 
     for component in policy.components:
-        if isinstance(component, MambaBackboneConfig):
+        if isinstance(component, mamba_config.MambaBackboneConfig):
             component.ssm_cfg = {**component.ssm_cfg, "layer": ssm_layer}
             component.use_mem_eff_path = bool(
                 mem_eff_supported and component.use_mem_eff_path
