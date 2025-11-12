@@ -133,7 +133,7 @@ proc step*(
         agent.lastActions[^2] == agent.cfg.actions.moveWest:
         # Noop 50% of the time.
         if agent.random.rand(1 .. 2) == 1:
-          echo "Stuck prevention: left, right, left"
+          # echo "Stuck prevention: left, right, left"
           doAction(agent.cfg.actions.noop.int32)
           return
       if agent.lastActions.len >= 2 and
@@ -142,7 +142,7 @@ proc step*(
         agent.lastActions[^2] == agent.cfg.actions.moveEast:
         # Noop 50% of the time.
         if agent.random.rand(1 .. 2) == 1:
-          echo "Stuck prevention: right, left, right"
+          # echo "Stuck prevention: right, left, right"
           doAction(agent.cfg.actions.noop.int32)
           return
       if agent.lastActions.len >= 2 and
@@ -151,7 +151,7 @@ proc step*(
         agent.lastActions[^2] == agent.cfg.actions.moveNorth:
         # Noop 50% of the time.
         if agent.random.rand(1 .. 2) == 1:
-          echo "Stuck prevention: north, south, north"
+          # echo "Stuck prevention: north, south, north"
           doAction(agent.cfg.actions.noop.int32)
           return
       if agent.lastActions.len >= 2 and
@@ -160,7 +160,7 @@ proc step*(
         agent.lastActions[^2] == agent.cfg.actions.moveSouth:
         # Noop 50% of the time.
         if agent.random.rand(1 .. 2) == 1:
-          echo "Stuck prevention: south, north, south"
+          # echo "Stuck prevention: south, north, south"
           doAction(agent.cfg.actions.noop.int32)
           return
 
