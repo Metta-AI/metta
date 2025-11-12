@@ -1,5 +1,4 @@
 import
-  std/[tables],
   genny,
   common, random_agents, thinky_agents, race_car_agents
 
@@ -37,22 +36,6 @@ proc newThinkyPolicy*(environmentConfig: string): ThinkyPolicy {.raises: [].} =
 proc newRaceCarPolicy*(environmentConfig: string): RaceCarPolicy {.raises: [].} =
   RaceCarPolicy(agents: buildAgents(environmentConfig, newRaceCarAgent))
 
-proc observationPtr(
-    obs: ptr UncheckedArray[uint8],
-    agentIdx: int,
-    numTokens: int,
-    sizeToken: int
-): pointer =
-  if obs.isNil:
-    return nil
-  let stride = numTokens * sizeToken
-  cast[pointer](obs[agentIdx * stride].addr)
-
-proc actionPtr(actions: ptr UncheckedArray[int32], agentIdx: int): ptr int32 =
-  if actions.isNil:
-    return nil
-  cast[ptr int32](actions[agentIdx].addr)
-
 proc stepPolicyBatch[T](
     agents: seq[T],
     agentIds: pointer,
@@ -85,11 +68,17 @@ proc stepPolicyBatch[T](
   if rawActions != nil:
     actionArray = cast[ptr UncheckedArray[int32]](rawActions)
 
+  let obsStride = numTokens * sizeToken
+
   proc runAgent(idx: int) =
     if idx < 0 or idx >= agents.len:
       return
-    let obsPtr = observationPtr(obsArray, idx, numTokens, sizeToken)
-    let actPtr = actionPtr(actionArray, idx)
+    var obsPtr: pointer = nil
+    if not obsArray.isNil:
+      obsPtr = cast[pointer](obsArray[idx * obsStride].addr)
+    var actPtr: ptr int32 = nil
+    if not actionArray.isNil:
+      actPtr = cast[ptr int32](actionArray[idx].addr)
     stepProc(agents[idx], numAgents, numTokens, sizeToken, obsPtr, numActions, actPtr)
 
   if numAgentIds == 0:
