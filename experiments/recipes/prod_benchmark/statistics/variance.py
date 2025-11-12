@@ -341,9 +341,9 @@ def main():
         help="Random seed for reproducible bootstrapping (default: None)",
     )
     parser.add_argument(
-        "--run-label",
+        "--title",
         default=None,
-        help="Optional label to display in the plot title (default: inferred from run IDs)",
+        help="Optional graph title (default: inferred from run IDs)",
     )
 
     args = parser.parse_args()
@@ -358,17 +358,17 @@ def main():
     print(f"Window: Last {args.percent * 100:.0f}% of training")
     if args.min_timesteps:
         print(f"Minimum timesteps required: {args.min_timesteps:,.0f}")
-    run_label = args.run_label or _infer_run_label(args.run_ids)
+    graph_title = args.title or _infer_run_label(args.run_ids)
     print(f"Samples per run: {args.samples}")
     print(f"Bootstrap iterations per point: {args.bootstrap_iterations}")
     print(f"Variance threshold: {args.threshold * 100}%\n")
-    if run_label:
-        print(f"Run label for plots: {run_label}\n")
+    if graph_title:
+        print(f"Graph title: {graph_title}\n")
 
     output_path = (
         Path(args.output)
         if args.output
-        else Path(__file__).parent / (f"{_slugify(run_label)}_variance.png")
+        else Path(__file__).parent / (f"{_slugify(graph_title)}_variance.png")
     )
     print(f"Output path: {output_path}\n")
 
@@ -426,7 +426,7 @@ def main():
         str(output_path),
         args.percent,
         args.ci_level,
-        run_label,
+        graph_title,
     )
 
 
