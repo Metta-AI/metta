@@ -109,7 +109,7 @@ class SLKickstarter(Loss):
         mb_idx: int,
     ) -> tuple[Tensor, TensorDict, bool]:
         if context.epoch % self._epochs_per_checkpoint == 0:
-            epoch = context.epoch // self._checkpointed_interval
+            epoch = (context.epoch // self._epochs_per_checkpoint + 1) * self._checkpointed_interval
             self.load_teacher_policy(epoch)
         elif context.epoch == self._terminating_checkpoint:
             self.load_teacher_policy(self._final_checkpoint)

@@ -157,10 +157,14 @@ class LossRunGate(Config):
     active_in_cycle: Optional[list[int]] = None
 
     def is_active(self, *, epoch: int, agent_step: int) -> bool:
-        if self.begin_at_step is not None and self.end_at_step is not None:
-            if not (int(self.begin_at_step) <= int(agent_step) < int(self.end_at_step)):
+        # Use step-based logic if either step field is set
+        if self.begin_at_step is not None or self.end_at_step is not None:
+            begin = 0 if self.begin_at_step is None else int(self.begin_at_step)
+            end = float("inf") if self.end_at_step is None else int(self.end_at_step)
+            if not (begin <= int(agent_step) < end):
                 return False
         else:
+            # Use epoch-based logic when no step fields are set
             begin = 0 if self.begin_at_epoch is None else int(self.begin_at_epoch)
             end = float("inf") if self.end_at_epoch is None else int(self.end_at_epoch)
             if not (begin <= int(epoch) < end):
