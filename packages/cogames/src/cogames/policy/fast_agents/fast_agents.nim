@@ -1,7 +1,7 @@
 import
   std/[strformat, strutils, tables, random, sets],
   genny, jsony,
-  common, random_agents, thinky_agents, race_car_agents, scripted_agents
+  common, random_agents, thinky_agents, race_car_agents, ladybug_agent
 
 exportProcs:
   initCHook
@@ -33,14 +33,14 @@ exportRefObject RaceCarAgent:
     reset(RaceCarAgent)
     step(RaceCarAgent, int, int, int, pointer, int, pointer)
 
-exportRefObject ScriptedBaselineAgent:
+exportRefObject LadybugAgent:
   constructor:
-    newScriptedBaselineAgent(int, string)
+    newLadybugAgent(int, string)
   fields:
     agentId
   procs:
-    reset(ScriptedBaselineAgent)
-    step(ScriptedBaselineAgent, int, int, int, pointer, int, pointer)
+    reset(LadybugAgent)
+    step(LadybugAgent, int, int, int, pointer, int, pointer)
 
 writeFiles("bindings/generated", "FastAgents")
 

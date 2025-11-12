@@ -173,10 +173,10 @@ class RaceCarAgentsMultiPolicy(MultiAgentPolicy):
         return RaceCarAgentPolicy(self._policy_env_info, agent_id)
 
 
-class ScriptedBaselineAgentPolicy(_FastAgentPolicyBase):
+class LadybugAgentPolicy(_FastAgentPolicyBase):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int):
         super().__init__(policy_env_info, agent_id)
-        self._agent = fa.ScriptedBaselineAgent(agent_id, policy_env_info.to_json())
+        self._agent = fa.LadybugAgent(agent_id, policy_env_info.to_json())
         self._action_names = [action.name for action in policy_env_info.actions.actions()]
 
     def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
@@ -208,11 +208,17 @@ class ScriptedBaselineAgentPolicy(_FastAgentPolicyBase):
         self._agent.reset()
 
 
-class ScriptedBaselineMultiPolicy(MultiAgentPolicy):
+class LadybugAgentsMultiPolicy(MultiAgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface):
         super().__init__(policy_env_info)
 
-    short_names = ["scripted_baseline_fast", "scripted_baseline_nim"]
+    short_names = [
+        "ladybug",
+        "ladybug_fast",
+        "ladybug_nim",
+        "scripted_baseline_fast",
+        "scripted_baseline_nim",
+    ]
 
-    def agent_policy(self, agent_id: int) -> ScriptedBaselineAgentPolicy:
-        return ScriptedBaselineAgentPolicy(self._policy_env_info, agent_id)
+    def agent_policy(self, agent_id: int) -> LadybugAgentPolicy:
+        return LadybugAgentPolicy(self._policy_env_info, agent_id)

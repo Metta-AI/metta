@@ -28,7 +28,7 @@ type
     clipped: bool
     remainingUses: int
 
-  ScriptedState = object
+  LadybugState = object
     row: int
     col: int
     mapHeight: int
@@ -63,11 +63,11 @@ type
     explorationDirection: string
     explorationExpiresAt: int
 
-  ScriptedBaselineAgent* = ref object
+  LadybugAgent* = ref object
     agentId*: int
     cfg*: Config
     random*: Rand
-    state*: ScriptedState
+    state*: LadybugState
 
 const
   defaultMapSize = 200
@@ -77,8 +77,8 @@ const
   cellObstacle = 2
   parentSentinel = (-9999, -9999)
 
-proc initState(agent: ScriptedBaselineAgent) =
-  agent.state = ScriptedState()
+proc initState(agent: LadybugAgent) =
+  agent.state = LadybugState()
   agent.state.mapHeight = defaultMapSize
   agent.state.mapWidth = defaultMapSize
   agent.state.obsHalfWidth = agent.cfg.config.obsWidth div 2
@@ -105,17 +105,17 @@ proc initState(agent: ScriptedBaselineAgent) =
   agent.state.explorationExpiresAt = 0
   agent.state.waitingAtExtractor = none(Location)
 
-proc newScriptedBaselineAgent*(agentId: int, environmentConfig: string): ScriptedBaselineAgent {.raises: [].} =
+proc newLadybugAgent*(agentId: int, environmentConfig: string): LadybugAgent {.raises: [].} =
   var config = parseConfig(environmentConfig)
-  result = ScriptedBaselineAgent(agentId: agentId, cfg: config)
+  result = LadybugAgent(agentId: agentId, cfg: config)
   result.random = initRand(agentId)
   initState(result)
 
-proc reset*(agent: ScriptedBaselineAgent) =
+proc reset*(agent: LadybugAgent) =
   initState(agent)
 
 proc decodeObservation(
-  agent: ScriptedBaselineAgent,
+  agent: LadybugAgent,
   numTokens: int,
   sizeToken: int,
   rawObservation: pointer
@@ -136,7 +136,7 @@ proc decodeObservation(
       result[location] = @[]
     result[location].add(FeatureValue(featureId: featureId.int, value: value.int))
 
-proc worldLocation(agent: ScriptedBaselineAgent, local: Location): Option[Location] =
+proc worldLocation(agent: LadybugAgent, local: Location): Option[Location] =
   let worldRow = agent.state.row + local.y
   let worldCol = agent.state.col + local.x
   if worldRow < 0 or worldRow >= agent.state.mapHeight:
@@ -145,7 +145,7 @@ proc worldLocation(agent: ScriptedBaselineAgent, local: Location): Option[Locati
     return none(Location)
   some(Location(x: worldCol, y: worldRow))
 
-proc updateInventory(agent: ScriptedBaselineAgent, visible: Table[Location, seq[FeatureValue]]) =
+proc updateInventory(agent: LadybugAgent, visible: Table[Location, seq[FeatureValue]]) =
   agent.state.energy = agent.cfg.getInventory(visible, agent.cfg.features.invEnergy)
   agent.state.carbon = agent.cfg.getInventory(visible, agent.cfg.features.invCarbon)
   agent.state.oxygen = agent.cfg.getInventory(visible, agent.cfg.features.invOxygen)
@@ -157,7 +157,7 @@ proc updateInventory(agent: ScriptedBaselineAgent, visible: Table[Location, seq[
   agent.state.resonator = agent.cfg.getInventory(visible, agent.cfg.features.invResonator)
   agent.state.scrambler = agent.cfg.getInventory(visible, agent.cfg.features.invScrambler)
 
-proc buildObservedObject(agent: ScriptedBaselineAgent, features: seq[FeatureValue]): ObservedObject =
+proc buildObservedObject(agent: LadybugAgent, features: seq[FeatureValue]): ObservedObject =
   result.protocolInputs = initTable[string, int]()
   result.protocolOutputs = initTable[string, int]()
   for fv in features:
@@ -179,7 +179,7 @@ proc buildObservedObject(agent: ScriptedBaselineAgent, features: seq[FeatureValu
         if fv.featureId == id:
           result.protocolOutputs[resource] = fv.value
 
-proc discoverStation(agent: ScriptedBaselineAgent, key: string, loc: Location) =
+proc discoverStation(agent: LadybugAgent, key: string, loc: Location) =
   if key notin agent.state.stations:
     agent.state.stations[key] = some(loc)
     return
@@ -187,7 +187,7 @@ proc discoverStation(agent: ScriptedBaselineAgent, key: string, loc: Location) =
     agent.state.stations[key] = some(loc)
 
 proc discoverExtractor(
-  agent: ScriptedBaselineAgent,
+  agent: LadybugAgent,
   resource: string,
   loc: Location,
   obj: ObservedObject
@@ -217,7 +217,7 @@ proc discoverExtractor(
     items.add(info)
   agent.state.extractors[resource] = items
 
-proc discoverObjects(agent: ScriptedBaselineAgent, visible: Table[Location, seq[FeatureValue]]) =
+proc discoverObjects(agent: LadybugAgent, visible: Table[Location, seq[FeatureValue]]) =
   agent.state.agentOccupancy.clear()
   for dy in -agent.state.obsHalfHeight .. agent.state.obsHalfHeight:
     for dx in -agent.state.obsHalfWidth .. agent.state.obsHalfWidth:
@@ -275,7 +275,7 @@ proc discoverObjects(agent: ScriptedBaselineAgent, visible: Table[Location, seq[
         resource = resource[0 ..< resource.len - "_extractor".len]
       discoverExtractor(agent, resource, world, obj)
 
-proc updatePosition(agent: ScriptedBaselineAgent) =
+proc updatePosition(agent: LadybugAgent) =
   if agent.state.usingObjectThisStep:
     agent.state.usingObjectThisStep = false
     return
@@ -288,13 +288,13 @@ proc updatePosition(agent: ScriptedBaselineAgent) =
   elif agent.state.lastAction == agent.cfg.actions.moveWest:
     dec agent.state.col
 
-proc clearWaiting(agent: ScriptedBaselineAgent) =
+proc clearWaiting(agent: LadybugAgent) =
   agent.state.waitingAtExtractor = none(Location)
   agent.state.pendingUseResource = ""
   agent.state.pendingUseAmount = 0
   agent.state.waitSteps = 0
 
-proc getInventoryValue(agent: ScriptedBaselineAgent, resource: string): int =
+proc getInventoryValue(agent: LadybugAgent, resource: string): int =
   case resource
   of "carbon": result = agent.state.carbon
   of "oxygen": result = agent.state.oxygen
@@ -304,7 +304,7 @@ proc getInventoryValue(agent: ScriptedBaselineAgent, resource: string): int =
   else: result = 0
 
 proc findExtractor(
-  agent: ScriptedBaselineAgent,
+  agent: LadybugAgent,
   resource: string,
   loc: Location
 ): Option[ExtractorInfo] =
@@ -315,7 +315,7 @@ proc findExtractor(
       return some(info)
   none(ExtractorInfo)
 
-proc handleWaiting(agent: ScriptedBaselineAgent): Option[int] =
+proc handleWaiting(agent: LadybugAgent): Option[int] =
   if agent.state.pendingUseResource.len == 0 or agent.state.waitingAtExtractor.isNone:
     return none(int)
 
@@ -337,14 +337,14 @@ proc handleWaiting(agent: ScriptedBaselineAgent): Option[int] =
 
   some(agent.cfg.actions.noop)
 
-proc calculateDeficits(agent: ScriptedBaselineAgent): Table[string, int] =
+proc calculateDeficits(agent: LadybugAgent): Table[string, int] =
   result = initTable[string, int]()
   for resource in ["carbon", "oxygen", "germanium", "silicon"]:
     let required = agent.state.heartRecipe.getOrDefault(resource, 0)
     let deficit = required - agent.getInventoryValue(resource)
     result[resource] = (if deficit > 0: deficit else: 0)
 
-proc findNearestExtractor(agent: ScriptedBaselineAgent, resource: string): Option[ExtractorInfo] =
+proc findNearestExtractor(agent: LadybugAgent, resource: string): Option[ExtractorInfo] =
   if resource notin agent.state.extractors:
     return none(ExtractorInfo)
   var bestDist = high(int)
@@ -360,14 +360,14 @@ proc findNearestExtractor(agent: ScriptedBaselineAgent, resource: string): Optio
     return none(ExtractorInfo)
   some(best)
 
-proc isWithinBounds(agent: ScriptedBaselineAgent, row: int, col: int): bool =
+proc isWithinBounds(agent: LadybugAgent, row: int, col: int): bool =
   row >= 0 and row < agent.state.mapHeight and col >= 0 and col < agent.state.mapWidth
 
-proc isAgentBlocking(agent: ScriptedBaselineAgent, row: int, col: int): bool =
+proc isAgentBlocking(agent: LadybugAgent, row: int, col: int): bool =
   let loc = Location(x: col, y: row)
   loc in agent.state.agentOccupancy
 
-proc isTraversable(agent: ScriptedBaselineAgent, row: int, col: int): bool =
+proc isTraversable(agent: LadybugAgent, row: int, col: int): bool =
   if not agent.isWithinBounds(row, col):
     return false
   if agent.isAgentBlocking(row, col):
@@ -380,7 +380,7 @@ proc isAdjacent(row1: int, col1: int, row2: int, col2: int): bool =
   (dr == 1 and dc == 0) or (dr == 0 and dc == 1)
 
 proc computeGoalCells(
-  agent: ScriptedBaselineAgent,
+  agent: LadybugAgent,
   targetRow: int,
   targetCol: int,
   reachAdjacent: bool
@@ -413,7 +413,7 @@ proc reconstructPath(
   result.reverse()
 
 proc moveTowards(
-  agent: ScriptedBaselineAgent,
+  agent: LadybugAgent,
   targetRow: int,
   targetCol: int,
   reachAdjacent: bool = false,
@@ -470,7 +470,7 @@ proc directionDelta(direction: string): (int, int) =
   of "west": (0, -1)
   else: (0, 0)
 
-proc directionAction(agent: ScriptedBaselineAgent, direction: string): int =
+proc directionAction(agent: LadybugAgent, direction: string): int =
   case direction
   of "north": agent.cfg.actions.moveNorth
   of "south": agent.cfg.actions.moveSouth
@@ -478,7 +478,7 @@ proc directionAction(agent: ScriptedBaselineAgent, direction: string): int =
   of "west": agent.cfg.actions.moveWest
   else: agent.cfg.actions.noop
 
-proc tryRandomDirection(agent: ScriptedBaselineAgent): int =
+proc tryRandomDirection(agent: LadybugAgent): int =
   var dirs = @["north", "south", "east", "west"]
   agent.random.shuffle(dirs)
   for dir in dirs:
@@ -489,7 +489,7 @@ proc tryRandomDirection(agent: ScriptedBaselineAgent): int =
       return agent.directionAction(dir)
   agent.cfg.actions.noop
 
-proc explore(agent: ScriptedBaselineAgent): int =
+proc explore(agent: LadybugAgent): int =
   let persist = 8
   if agent.state.explorationDirection.len == 0 or agent.state.stepCount >= agent.state.explorationExpiresAt:
     agent.state.explorationDirection = ""
@@ -513,7 +513,7 @@ proc explore(agent: ScriptedBaselineAgent): int =
   return agent.tryRandomDirection()
 
 proc navigateToAdjacent(
-  agent: ScriptedBaselineAgent,
+  agent: LadybugAgent,
   targetRow: int,
   targetCol: int
 ): Option[int] =
@@ -524,11 +524,11 @@ proc navigateToAdjacent(
     return some(agent.explore())
   some(action)
 
-proc moveIntoCell(agent: ScriptedBaselineAgent, targetRow: int, targetCol: int): int =
+proc moveIntoCell(agent: LadybugAgent, targetRow: int, targetCol: int): int =
   agent.state.usingObjectThisStep = true
   agent.moveTowards(targetRow, targetCol, allowGoalBlock = true)
 
-proc useExtractor(agent: ScriptedBaselineAgent, extractor: ExtractorInfo): int =
+proc useExtractor(agent: LadybugAgent, extractor: ExtractorInfo): int =
   if extractor.cooldownRemaining > 0 or extractor.converting:
     agent.state.waitingAtExtractor = some(extractor.position)
     inc agent.state.waitSteps
@@ -542,7 +542,7 @@ proc useExtractor(agent: ScriptedBaselineAgent, extractor: ExtractorInfo): int =
   agent.state.waitSteps = 0
   agent.moveIntoCell(extractor.position.y, extractor.position.x)
 
-proc updatePhase(agent: ScriptedBaselineAgent) =
+proc updatePhase(agent: LadybugAgent) =
   if agent.state.energy < rechargeThresholdLow:
     agent.state.phase = rechargePhase
     clearWaiting(agent)
@@ -565,7 +565,7 @@ proc updatePhase(agent: ScriptedBaselineAgent) =
       return
   agent.state.phase = gatherPhase
 
-proc desiredVibe(agent: ScriptedBaselineAgent): string =
+proc desiredVibe(agent: LadybugAgent): string =
   case agent.state.phase
   of gatherPhase:
     if agent.state.targetResource.len > 0:
@@ -578,7 +578,7 @@ proc desiredVibe(agent: ScriptedBaselineAgent): string =
   of rechargePhase:
     return "charger"
 
-proc vibeAction(agent: ScriptedBaselineAgent, vibe: string): int =
+proc vibeAction(agent: LadybugAgent, vibe: string): int =
   case vibe
   of "carbon": agent.cfg.actions.vibeCarbon
   of "oxygen": agent.cfg.actions.vibeOxygen
@@ -589,7 +589,7 @@ proc vibeAction(agent: ScriptedBaselineAgent, vibe: string): int =
   of "default": agent.cfg.actions.vibeDefault
   else: agent.cfg.actions.vibeDefault
 
-proc doGather(agent: ScriptedBaselineAgent): int =
+proc doGather(agent: LadybugAgent): int =
   let waitAction = agent.handleWaiting()
   if waitAction.isSome():
     return waitAction.get()
@@ -617,7 +617,7 @@ proc doGather(agent: ScriptedBaselineAgent): int =
   agent.state.targetResource = needed[0][0]
   return agent.explore()
 
-proc doAssemble(agent: ScriptedBaselineAgent): int =
+proc doAssemble(agent: LadybugAgent): int =
   agent.state.targetResource = ""
   if agent.state.stations["assembler"].isNone:
     return agent.explore()
@@ -630,7 +630,7 @@ proc doAssemble(agent: ScriptedBaselineAgent): int =
     return nav.get()
   return agent.moveIntoCell(loc.y, loc.x)
 
-proc doDeliver(agent: ScriptedBaselineAgent): int =
+proc doDeliver(agent: LadybugAgent): int =
   agent.state.targetResource = ""
   if agent.state.stations["chest"].isNone:
     return agent.explore()
@@ -643,7 +643,7 @@ proc doDeliver(agent: ScriptedBaselineAgent): int =
     return nav.get()
   return agent.moveIntoCell(loc.y, loc.x)
 
-proc doRecharge(agent: ScriptedBaselineAgent): int =
+proc doRecharge(agent: LadybugAgent): int =
   agent.state.targetResource = ""
   if agent.state.stations["charger"].isNone:
     return agent.explore()
@@ -653,7 +653,7 @@ proc doRecharge(agent: ScriptedBaselineAgent): int =
     return nav.get()
   return agent.moveIntoCell(loc.y, loc.x)
 
-proc executePhase(agent: ScriptedBaselineAgent): int =
+proc executePhase(agent: LadybugAgent): int =
   case agent.state.phase
   of gatherPhase:
     doGather(agent)
@@ -665,7 +665,7 @@ proc executePhase(agent: ScriptedBaselineAgent): int =
     doRecharge(agent)
 
 proc step*(
-  agent: ScriptedBaselineAgent,
+  agent: LadybugAgent,
   numAgents: int,
   numTokens: int,
   sizeToken: int,
