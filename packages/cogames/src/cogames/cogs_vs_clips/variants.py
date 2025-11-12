@@ -122,17 +122,18 @@ class EnergizedVariant(MissionVariant):
 class ResourceBottleneckVariant(MissionVariant):
     name: str = "resource_bottleneck"
     description: str = "A resource is the limiting factor. Agents must prioritize it over other resources."
-    resource: str = "oxygen"
+    resource: list[str] = ["oxygen", "germanium", "silicon", "carbon"]
 
     @override
     def modify_mission(self, mission):
         # Map the chosen resource to the corresponding extractor on the mission
-        if self.resource in {"carbon", "oxygen", "germanium", "silicon"}:
-            extractor_attr = f"{self.resource}_extractor"
-        elif self.resource == "energy":
-            extractor_attr = "charger"
-        else:
-            raise ValueError(f"Unsupported resource for bottleneck: {self.resource}")
+        for resource in self.resource:
+            if resource in {"carbon", "oxygen", "germanium", "silicon"}:
+                extractor_attr = f"{resource}_extractor"
+            elif resource == "energy":
+                extractor_attr = "charger"
+            else:
+                raise ValueError(f"Unsupported resource for bottleneck: {resource}")
 
         extractor = getattr(mission, extractor_attr, None)
         if extractor is None:
@@ -172,9 +173,6 @@ class SingleToolUnclipVariant(MissionVariant):
 
     @override
     def modify_env(self, mission, env):
-        change_vibe = env.game.actions.change_vibe
-        change_vibe.number_of_vibes = 1
-        env.game.vibe_names = ["gear"]
         # Restrict assembler to a single generic gear recipe: carbon -> decoder
         assembler = env.game.objects.get("assembler")
         if isinstance(assembler, AssemblerConfig):

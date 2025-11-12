@@ -11,10 +11,12 @@ from cogames.cogs_vs_clips.sites import HELLO_WORLD, TRAINING_FACILITY
 from cogames.cogs_vs_clips.variants import (
     ClipHubStationsVariant,
     ClipPeriodOnVariant,
+    CompassVariant,
     CyclicalUnclipVariant,
     DarkSideVariant,
     DistantResourcesVariant,
     EmptyBaseVariant,
+    EnergizedVariant,
     ExtractorHeartTuneVariant,
     InventoryHeartTuneVariant,
     LonelyHeartVariant,
@@ -22,9 +24,12 @@ from cogames.cogs_vs_clips.variants import (
     PackRatVariant,
     QuadrantBuildingsVariant,
     ResourceBottleneckVariant,
+    RoughTerrainVariant,
     SingleResourceUniformVariant,
     SingleToolUnclipVariant,
     SingleUseSwarmVariant,
+    Small50Variant,
+    SuperChargedVariant,
     VibeCheckMin2Variant,
 )
 from mettagrid.mapgen.mapgen import MapGen
@@ -63,7 +68,7 @@ OxygenBottleneck = Mission(
     variants=[
         EmptyBaseVariant(missing=["oxygen_extractor"]),
         ExtractorHeartTuneVariant(hearts=10),
-        ResourceBottleneckVariant(resource="oxygen"),
+        ResourceBottleneckVariant(resource=["oxygen"]),
         SingleResourceUniformVariant(building_name="oxygen_extractor"),
         NeutralFacedVariant(),
         PackRatVariant(),
@@ -80,6 +85,16 @@ UnclippingEasy = Mission(
         ClipPeriodOnVariant(clip_period=50),
         PackRatVariant(),
         SingleToolUnclipVariant(),
+        ClipHubStationsVariant(clip=["oxygen_extractor", "germanium_extractor", "silicon_extractor"]),
+    ],
+)
+
+UnclippingStandard = Mission(
+    name="unclipping_standard",
+    description="Standard unclipping; periodic clips and multiple stations clipped at start.",
+    site=HELLO_WORLD,
+    variants=[
+        ClipPeriodOnVariant(clip_period=25),
         ClipHubStationsVariant(clip=["oxygen_extractor", "germanium_extractor", "silicon_extractor"]),
         CyclicalUnclipVariant(),
     ],
@@ -99,7 +114,7 @@ UnclippingHard = Mission(
 
 ClippedEasyHearts = Mission(
     name="clipped_easy_hearts",
-    description="Easy hearts with clipping.",
+    description="Easy hearts with clipping and tool making.",
     site=HELLO_WORLD,
     variants=[
         ClipPeriodOnVariant(),
@@ -107,7 +122,6 @@ ClippedEasyHearts = Mission(
         InventoryHeartTuneVariant(hearts=1),
         LonelyHeartVariant(),
         PackRatVariant(),
-        NeutralFacedVariant(),
     ],
 )
 
@@ -118,10 +132,79 @@ EnergyStarved = Mission(
     site=HELLO_WORLD,
     variants=[
         EmptyBaseVariant(),
-        ResourceBottleneckVariant(resource="energy"),
+        ResourceBottleneckVariant(resource=["energy"]),
         DarkSideVariant(),
         NeutralFacedVariant(),
         #
+    ],
+)
+
+# Curated difficulty tiers per mission
+# ------------------------------------------------------------
+# Oxygen Bottleneck
+OxygenBottleneckEasy = Mission(
+    name="oxygen_bottleneck_easy",
+    description="Easy: tuned oxygen focus with simple layout and generous capacities.",
+    site=HELLO_WORLD,
+    variants=[
+        SingleResourceUniformVariant(building_name="oxygen_extractor"),
+        ExtractorHeartTuneVariant(hearts=10),
+        NeutralFacedVariant(),
+        PackRatVariant(),
+    ],
+)
+
+OxygenBottleneckStandard = Mission(
+    name="oxygen_bottleneck_standard",
+    description="Standard: oxygen is the bottleneck; extractor missing at base.",
+    site=HELLO_WORLD,
+    variants=[
+        EmptyBaseVariant(missing=["oxygen_extractor"]),
+        ResourceBottleneckVariant(resource=["oxygen"]),
+    ],
+)
+
+OxygenBottleneckHard = Mission(
+    name="oxygen_bottleneck_hard",
+    description="Hard: oxygen bottleneck plus distant layout and rough terrain.",
+    site=HELLO_WORLD,
+    variants=[
+        EmptyBaseVariant(missing=["oxygen_extractor"]),
+        ResourceBottleneckVariant(resource=["oxygen"]),
+        DistantResourcesVariant(),
+        RoughTerrainVariant(),
+    ],
+)
+
+# Energy Starved
+EnergyStarvedEasy = Mission(
+    name="energy_starved_easy",
+    description="Easy: abundant energy regen and capacity.",
+    site=HELLO_WORLD,
+    variants=[
+        SuperChargedVariant(),
+        EnergizedVariant(),
+        NeutralFacedVariant(),
+    ],
+)
+
+EnergyStarvedStandard = Mission(
+    name="energy_starved_standard",
+    description="Standard: energy is the limiting resource with dark-side regen.",
+    site=HELLO_WORLD,
+    variants=[
+        DarkSideVariant(),
+    ],
+)
+
+EnergyStarvedHard = Mission(
+    name="energy_starved_hard",
+    description="Hard: energy bottleneck with solar flare damage and rough terrain.",
+    site=HELLO_WORLD,
+    variants=[
+        ResourceBottleneckVariant(resource=["energy"]),
+        DarkSideVariant(),
+        RoughTerrainVariant(),
     ],
 )
 
@@ -135,7 +218,39 @@ DistantResources = Mission(
         EmptyBaseVariant(),
         DistantResourcesVariant(),
         NeutralFacedVariant(),
-        #
+    ],
+)
+
+# Distant Resources tiers
+DistantResourcesEasy = Mission(
+    name="distant_resources_easy",
+    description="Easy: simplified distribution and navigation aids.",
+    site=HELLO_WORLD,
+    variants=[
+        CompassVariant(),
+        Small50Variant(),
+        PackRatVariant(),
+    ],
+)
+
+DistantResourcesStandard = Mission(
+    name="distant_resources_standard",
+    description="Standard: resources scattered far from base.",
+    site=HELLO_WORLD,
+    variants=[
+        CompassVariant(),
+        DistantResourcesVariant(),
+    ],
+)
+
+DistantResourcesHard = Mission(
+    name="distant_resources_hard",
+    description="Hard: distant resources with rough terrain, single-use constraints, and dim lighting.",
+    site=HELLO_WORLD,
+    variants=[
+        DistantResourcesVariant(),
+        RoughTerrainVariant(),
+        SingleUseSwarmVariant(),
     ],
 )
 
@@ -150,6 +265,41 @@ QuadrantBuildings = Mission(
         QuadrantBuildingsVariant(),
         NeutralFacedVariant(),
         #
+    ],
+)
+
+# Quadrant Buildings tiers
+QuadrantBuildingsEasy = Mission(
+    name="quadrant_buildings_easy",
+    description="Easy: single resource uniformly distributed with navigation aid and light inventory boost.",
+    site=HELLO_WORLD,
+    variants=[
+        QuadrantBuildingsVariant(),
+        CompassVariant(),
+        PackRatVariant(),
+        NeutralFacedVariant(),
+    ],
+)
+
+QuadrantBuildingsStandard = Mission(
+    name="quadrant_buildings_standard",
+    description="Standard: buildings placed in quadrants.",
+    site=HELLO_WORLD,
+    variants=[
+        QuadrantBuildingsVariant(),
+        NeutralFacedVariant(),
+        EmptyBaseVariant(),
+    ],
+)
+
+QuadrantBuildingsHard = Mission(
+    name="quadrant_buildings_hard",
+    description="Hard: quadrant distribution with empty base, rough terrain and dim lighting.",
+    site=HELLO_WORLD,
+    variants=[
+        QuadrantBuildingsVariant(),
+        EmptyBaseVariant(),
+        RoughTerrainVariant(),
     ],
 )
 
@@ -168,6 +318,41 @@ SingleUseSwarm = Mission(
     ],
 )
 
+# Single Use Swarm tiers
+SingleUseSwarmEasy = Mission(
+    name="single_use_swarm_easy",
+    description="Easy: single-use but with small map, compass, and better energy.",
+    site=HELLO_WORLD,
+    variants=[
+        SingleUseSwarmVariant(),
+        CompassVariant(),
+        Small50Variant(),
+        SuperChargedVariant(),
+    ],
+)
+
+SingleUseSwarmStandard = Mission(
+    name="single_use_swarm_standard",
+    description="Standard: single-use with distant resources.",
+    site=HELLO_WORLD,
+    variants=[
+        SingleUseSwarmVariant(),
+        DistantResourcesVariant(),
+    ],
+)
+
+SingleUseSwarmHard = Mission(
+    name="single_use_swarm_hard",
+    description="Hard: single-use with distance, rough terrain, and poor lighting.",
+    site=HELLO_WORLD,
+    variants=[
+        SingleUseSwarmVariant(),
+        DistantResourcesVariant(),
+        RoughTerrainVariant(),
+        DarkSideVariant(),
+    ],
+)
+
 # Vibe Check evals (Agents must check their vibe, either binary or full, and then coordinate others for assembly.)
 
 VibeCheck = Mission(
@@ -177,6 +362,38 @@ VibeCheck = Mission(
     variants=[
         EmptyBaseVariant(),
         VibeCheckMin2Variant(),
+    ],
+)
+
+VibeCheckEasy = Mission(
+    name="vibe_check_easy",
+    description="Easy: neutralized vibes and generous hearts; reward shaping for hearts.",
+    site=HELLO_WORLD,
+    variants=[
+        VibeCheckMin2Variant(),
+        LonelyHeartVariant(),
+        PackRatVariant(),
+    ],
+)
+
+VibeCheckStandard = Mission(
+    name="vibe_check_standard",
+    description="Standard: vanilla vibe requirements without extra constraints.",
+    site=HELLO_WORLD,
+    variants=[
+        EmptyBaseVariant(),
+        VibeCheckMin2Variant(),
+    ],
+)
+
+VibeCheckHard = Mission(
+    name="vibe_check_hard",
+    description="Hard: minimum heart vibes plus energy pressure.",
+    site=HELLO_WORLD,
+    variants=[
+        EmptyBaseVariant(),
+        VibeCheckMin2Variant(),
+        ResourceBottleneckVariant(),
     ],
 )
 
@@ -225,14 +442,35 @@ EasyHeartsLargeWorld = Mission(
 )
 
 EVAL_MISSIONS: list[Mission] = [
-    OxygenBottleneck,
-    EnergyStarved,
+    # Oxygen bottleneck tiers
+    OxygenBottleneckEasy,
+    OxygenBottleneckStandard,
+    OxygenBottleneckHard,
+    # Energy starved tiers
+    EnergyStarvedEasy,
+    EnergyStarvedStandard,
+    EnergyStarvedHard,
+    # Unclipping tiers
     UnclippingEasy,
+    UnclippingStandard,
     UnclippingHard,
-    DistantResources,
-    QuadrantBuildings,
-    SingleUseSwarm,
-    VibeCheck,
+    # Distant resources tiers
+    DistantResourcesEasy,
+    DistantResourcesStandard,
+    DistantResourcesHard,
+    # Quadrant buildings tiers
+    QuadrantBuildingsEasy,
+    QuadrantBuildingsStandard,
+    QuadrantBuildingsHard,
+    # Single use swarm tiers
+    SingleUseSwarmEasy,
+    SingleUseSwarmStandard,
+    SingleUseSwarmHard,
+    # Vibe check tiers
+    VibeCheckEasy,
+    VibeCheckStandard,
+    VibeCheckHard,
+    # Hearts missions (easy only by design)
     EasyHeartsTraining,
     EasyHeartsSmallWorld,
     EasyHeartsMediumWorld,

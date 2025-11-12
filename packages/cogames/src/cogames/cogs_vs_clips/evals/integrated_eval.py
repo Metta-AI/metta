@@ -55,7 +55,7 @@ OxygenBottleneck = Mission(
     variants=[
         EmptyBaseVariant(missing=["oxygen_extractor"]),
         ExtractorHeartTuneVariant(hearts=10),
-        ResourceBottleneckVariant(resource="oxygen"),
+        ResourceBottleneckVariant(resource=["oxygen"]),
         SingleResourceUniformVariant(building_name="oxygen_extractor"),
         #        NeutralFacedVariant(),
         PackRatVariant(),
@@ -69,7 +69,7 @@ EnergyStarved = Mission(
     site=HELLO_WORLD,
     variants=[
         EmptyBaseVariant(),
-        ResourceBottleneckVariant(resource="energy"),
+        ResourceBottleneckVariant(resource=["energy"]),
         DarkSideVariant(),
         #        NeutralFacedVariant(),
     ],
