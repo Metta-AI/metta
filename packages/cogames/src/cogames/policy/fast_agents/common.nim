@@ -3,15 +3,6 @@ import
   std/[strformat, strutils, tables, sets, options, algorithm],
   jsony
 
-when defined(fast_agents_verbose):
-  template echo*(args: varargs[string, `$`]) =
-    ## Emit verbose logs when fast_agents_verbose is enabled.
-    system.echo args
-else:
-  template echo*(args: varargs[string, `$`]) =
-    ## Suppress fast agent logs by default.
-    discard
-
 type
   ConfigFeature* = object
     id*: int
@@ -78,7 +69,18 @@ type
 
   Vibes* = object
     # TODO: Pass with vibes from config.
+    default*: int = 0
+    charger*: int = 1
+    carbon*: int = 2
+    oxygen*: int = 3
+    germanium*: int = 4
+    silicon*: int = 5
     heart*: int = 6
+    gear*: int = 7
+    assembler*: int = 8
+    chest*: int = 9
+    wall*: int = 10
+    paperclip*: int = 11
 
   Features* = object
     group*: int
@@ -235,6 +237,7 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
       of "move_east":
         result.actions.moveEast = id
       of "change_vibe_default":
+        echo "change_vibe_default: ", id
         result.actions.vibeDefault = id
       of "change_vibe_charger":
         result.actions.vibeCharger = id
@@ -387,9 +390,24 @@ proc getInventory*(cfg: Config, visible: Table[Location, seq[FeatureValue]], inv
   if result == -1:
     result = 0
 
+proc getOtherInventory*(
+  cfg: Config,
+  map: Table[Location, seq[FeatureValue]],
+  location: Location,
+  inventoryId: int
+): int =
+  ## Get the other inventory of the visible map.
+  if location in map:
+    for featureValue in map[location]:
+      if featureValue.featureId == inventoryId:
+        return featureValue.value
+  return 0
+
 proc getVibe*(cfg: Config, visible: Table[Location, seq[FeatureValue]]): int =
   ## Get the vibe of the visible map.
-  cfg.getFeature(visible, cfg.features.vibe)
+  result = cfg.getFeature(visible, cfg.features.vibe)
+  if result == -1:
+    result = cfg.vibes.default
 
 proc getNearby*(
   cfg: Config,
