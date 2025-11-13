@@ -91,11 +91,10 @@ jobs:
             MODULE_NAME="${{ env.DEFAULT_MODULE_NAME }}"
           fi
 
-          # Extract everything between and ".train"
+          # Extract everything before the final '.train' (removes only the last occurrence)
           # e.g., "arena.train" -> "arena"
           # e.g., "a.b.c.train" -> "a.b.c"
-          ENV_NAME=$MODULE_NAME
-
+          ENV_NAME="${MODULE_NAME%\.train}"
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             # Manual dispatch: run name is github.sky.<short_hash>.<env_name>.<timestamp>
             # The github.event.inputs.pr_number is not used for the run name itself here.
