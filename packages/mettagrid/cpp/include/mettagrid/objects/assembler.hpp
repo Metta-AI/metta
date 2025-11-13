@@ -198,10 +198,6 @@ public:
   unsigned int uses_count;  // Current number of times used
   unsigned int max_uses;    // Maximum number of uses (0 = unlimited)
 
-  // Exhaustion tracking
-  float exhaustion;           // Exhaustion rate (0 = no exhaustion)
-  float cooldown_multiplier;  // Current cooldown multiplier from exhaustion
-
   // Grid access for finding surrounding agents
   class Grid* grid;
 
@@ -226,8 +222,6 @@ public:
         cooldown_duration(0),
         uses_count(0),
         max_uses(cfg.max_uses),
-        exhaustion(cfg.exhaustion),
-        cooldown_multiplier(1.0f),
         grid(nullptr),
         current_timestep_ptr(nullptr),
         obs_encoder(nullptr),
@@ -425,7 +419,7 @@ public:
     consume_resources_for_protocol(protocol_to_use, surrounding_agents);
     give_output_for_protocol(protocol_to_use, surrounding_agents);
 
-    cooldown_duration = static_cast<unsigned int>(protocol_to_use.cooldown * cooldown_multiplier);
+    cooldown_duration = static_cast<unsigned int>(protocol_to_use.cooldown);
     cooldown_end_timestep = *current_timestep_ptr + cooldown_duration;
 
     // If we were clipped and successfully used an unclip protocol, become unclipped. Also, don't count this as a use.
@@ -433,11 +427,6 @@ public:
       become_unclipped();
     } else {
       uses_count++;
-
-      // Apply exhaustion (increase cooldown multiplier exponentially)
-      if (exhaustion > 0.0f) {
-        cooldown_multiplier *= (1.0f + exhaustion);
-      }
     }
     return true;
   }
