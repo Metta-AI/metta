@@ -337,7 +337,7 @@ proc step*(
   #echo "taking random action ", action
 
 
-proc newThinkyPolicy*(environmentConfig: string): ThinkyPolicy {.raises: [CatchableError].} =
+proc newThinkyPolicy*(environmentConfig: string): ThinkyPolicy =
   let cfg = parseConfig(environmentConfig)
   var agents: seq[ThinkyAgent] = @[]
   for id in 0 ..< cfg.config.numAgents:

@@ -38,11 +38,7 @@ proc step*(
   agentAction[] = agent.random.rand(1 .. 4).int32
 
 proc newRandomPolicy*(environmentConfig: string): RandomPolicy =
-  var cfg: Config
-  try:
-    cfg = parseConfig(environmentConfig)
-  except CatchableError as err:
-    raiseAssert("Invalid policy config: " & err.msg)
+  let cfg = parseConfig(environmentConfig)
 
   var agents: seq[RandomAgent] = @[]
   for id in 0 ..< cfg.config.numAgents:
