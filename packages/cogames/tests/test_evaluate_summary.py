@@ -12,8 +12,8 @@ from mettagrid.simulator.multi_episode_rollout import MultiEpisodeRolloutResult
 
 def test_build_results_summary_multi_mission_policy_episode() -> None:
     policy_specs = [
-        PolicySpec(policy_class_path="cogames.policy.MockPolicy", policy_data_path=None, proportion=1.0),
-        PolicySpec(policy_class_path="cogames.policy.MockPolicy", policy_data_path=None, proportion=1.0),
+        PolicySpec(class_path="cogames.policy.MockPolicy", data_path=None),
+        PolicySpec(class_path="cogames.policy.MockPolicy", data_path=None),
     ]
 
     mission_one = MultiEpisodeRolloutResult(
