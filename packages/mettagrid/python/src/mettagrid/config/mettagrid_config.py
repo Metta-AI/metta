@@ -262,13 +262,6 @@ class AssemblerConfig(GridObjectConfig):
         ),
     )
     max_uses: int = Field(default=0, ge=0, description="Maximum number of uses (0 = unlimited)")
-    exhaustion: float = Field(
-        default=0.0,
-        ge=0.0,
-        description=(
-            "Exhaustion rate - cooldown multiplier grows by (1 + exhaustion) after each use (0 = no exhaustion)"
-        ),
-    )
     clip_immune: bool = Field(
         default=False, description="If true, this assembler cannot be clipped by the Clipper system"
     )

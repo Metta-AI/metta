@@ -824,8 +824,6 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       obj_dict["uses_count"] = assembler->uses_count;
       obj_dict["max_uses"] = assembler->max_uses;
       obj_dict["allow_partial_usage"] = assembler->allow_partial_usage;
-      obj_dict["exhaustion"] = assembler->exhaustion;
-      obj_dict["cooldown_multiplier"] = assembler->cooldown_multiplier;
 
       // Add current protocol ID (pattern byte)
       obj_dict["current_protocol_id"] = static_cast<int>(assembler->get_local_vibe());
