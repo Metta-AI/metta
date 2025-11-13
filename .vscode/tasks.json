@@ -9,6 +9,17 @@
     },
     {
       "type": "shell",
+      "command": "DEBUG=1 uv sync --reinstall-package mettagrid",
+      "label": "uv sync debug",
+      "group": "build",
+      "options": {
+        "env": {
+          "DEBUG": "1"
+        }
+      }
+    },
+    {
+      "type": "shell",
       "command": "bash ./mettascope/install.sh",
       "label": "build frontend",
       "group": "build",

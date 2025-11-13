@@ -160,7 +160,7 @@
       "request": "launch",
       "pythonLaunchName": "_MettaGrid Python Config",
       "cppAttachName": "_MettaGrid C++ Config",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "uv sync debug"
     },
     {
       "name": "MettaGrid Debug Attach C++",
