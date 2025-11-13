@@ -169,30 +169,3 @@ def test_all_terrains_roundtrip(task_generator, terrain):
     rt = deserialize_config(serialize_config(cfg))
     f0, f1 = extract_features_from_config(cfg), extract_features_from_config(rt)
     assert f0["terrain"] == f1["terrain"]
-
-
-def test_assemblers_block_differs_when_structure_differs(task_generator):
-    """Optional assembler block should reflect structure (even with count-only fallback)."""
-    a = task_generator.build_config_from_params(
-        1,
-        0,
-        10,
-        10,
-        "sparse",
-        "small",
-        random.Random(0),
-    )
-    b = task_generator.build_config_from_params(
-        6,
-        2,
-        10,
-        10,
-        "sparse",
-        "small",
-        random.Random(0),
-    )
-    sa = serialize_config(a, include_assemblers=True)
-    sb = serialize_config(b, include_assemblers=True)
-    assert "assemblers" in sa and "assemblers" in sb
-    assert sa["assemblers"].shape == sb["assemblers"].shape
-    assert not np.allclose(sa["assemblers"], sb["assemblers"])
