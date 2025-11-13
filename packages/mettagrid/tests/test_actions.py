@@ -45,7 +45,7 @@ def base_config():
             attack=AttackActionConfig(enabled=True, consumed_resources={"laser": 1}, defense_resources={"armor": 1}),
         ),
         objects={
-            "wall": WallConfig(swappable=False),
+            "wall": WallConfig(),
         },
         agent=AgentConfig(rewards=AgentRewards()),
     )

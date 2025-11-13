@@ -57,7 +57,6 @@ protected:
         {"agent:orientation", 3},
         {"agent:reserved_for_future_use", 4},
         {"converting", 5},
-        {"swappable", 6},
         {"episode_completion_pct", 7},
         {"last_action", 8},
         {"last_action_arg", 9},

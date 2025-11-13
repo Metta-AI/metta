@@ -88,7 +88,6 @@ type
     orientation*: int
     reservedForFutureUse*: int
     converting*: int
-    swappable*: int
     episodeCompletionPct*: int
     lastAction*: int
     lastActionArg*: int
@@ -179,8 +178,6 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
         result.features.reservedForFutureUse = feature.id
       of "converting":
         result.features.converting = feature.id
-      of "swappable":
-        result.features.swappable = feature.id
       of "episode_completion_pct":
         result.features.episodeCompletionPct = feature.id
       of "last_action":

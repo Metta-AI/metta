@@ -233,7 +233,6 @@ class WallConfig(GridObjectConfig):
     # Please don't use this for anything game related.
     pydantic_type: Literal["wall"] = "wall"
     name: str = Field(default="wall")
-    swappable: bool = Field(default=False)
 
 
 class ProtocolConfig(Config):
@@ -461,7 +460,7 @@ class MettaGridConfig(Config):
         )
         objects = {}
         if border_width > 0 or with_walls:
-            objects["wall"] = WallConfig(map_char="#", render_symbol="⬛", swappable=False)
+            objects["wall"] = WallConfig(map_char="#", render_symbol="⬛")
         return MettaGridConfig(
             game=GameConfig(map_builder=map_builder, actions=actions, num_agents=num_agents, objects=objects)
         )
