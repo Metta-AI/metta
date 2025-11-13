@@ -3,7 +3,7 @@ name: "Test and Benchmark"
 # This workflow uses metta ci as the single source of truth for CI checks.
 # Each job calls metta ci with a specific stage:
 #   --stage lint, --stage python-tests-and-benchmarks,
-#   --stage cpp-tests, --stage cpp-benchmarks
+#   --stage cpp-tests, --stage cpp-benchmarks, --stage nim-tests
 # Local development can run all stages with: metta ci
 
 on:
@@ -259,7 +259,7 @@ jobs:
           uv run python .github/scripts/run_ci_stage.py python-tests-and-benchmarks -- "${ARGS[@]}"
 
   cpp-tests:
-    name: "Tests - C++"
+    name: "Tests - C++ and Nim"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
@@ -315,6 +315,10 @@ jobs:
       - name: Run C++ benchmarks
         id: mettagrid-cpp-benchmarks
         run: uv run python .github/scripts/run_ci_stage.py cpp-benchmarks
+
+      - name: Run Nim tests
+        id: mettagrid-nim-tests
+        run: uv run python .github/scripts/run_ci_stage.py nim-tests
 
   tests-summary:
     name: "Tests"
