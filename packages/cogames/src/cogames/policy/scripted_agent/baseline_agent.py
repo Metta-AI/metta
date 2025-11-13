@@ -110,7 +110,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         # Look up the vibe safely; fall back to noop if it doesn't exist.
         vibe = VIBE_BY_NAME.get(vibe_name)
         if vibe is None:
-            return self._actions.noop.Noop()
+            raise Exception(f"No valid vibes called {vibe_name}") 
         return self._actions.change_vibe.ChangeVibe(vibe)
 
     def _read_inventory_from_obs(self, s: SimpleAgentState, obs: AgentObservation) -> None:
