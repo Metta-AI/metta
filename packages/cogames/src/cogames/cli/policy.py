@@ -156,6 +156,7 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
         if fraction <= 0:
             raise ValueError("Policy proportion must be a positive number.")
 
+    # It isn't strictly necessary to resolve these here, but doing so enables nicer error messages
     resolved_class_path = resolve_policy_class_path(raw_class_path)
     resolved_policy_data = resolve_policy_data_path(raw_policy_data or None)
 

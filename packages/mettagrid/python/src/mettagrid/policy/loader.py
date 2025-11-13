@@ -28,7 +28,7 @@ def initialize_or_load_policy(
         Initialized policy instance
     """
 
-    policy_class = load_symbol(policy_spec.class_path)
+    policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
 
     try:
         policy = policy_class(policy_env_info, **(policy_spec.init_kwargs or {}))  # type: ignore[call-arg]
