@@ -183,8 +183,19 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
     ) -> None:
         subset_len = agent_ids.shape[0]
 
-        obs_buffer = self._prepare_observation_buffer(agent_ids, raw_observations)
-        action_buffer, needs_scatter = self._prepare_action_buffer(agent_ids, raw_actions)
+        if raw_observations.shape[0] == self._num_agents:
+            obs_buffer = raw_observations
+        else:
+            obs_buffer = self._full_obs_buffer
+            obs_buffer[agent_ids] = raw_observations
+
+        if raw_actions.shape[0] == self._num_agents:
+            action_buffer = raw_actions
+            needs_scatter = False
+        else:
+            action_buffer = self._full_action_buffer
+            action_buffer[agent_ids] = 0
+            needs_scatter = True
 
         agent_ids_ptr = (
             self._default_subset_ptr
@@ -204,24 +215,6 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
 
         if needs_scatter:
             raw_actions[...] = action_buffer[agent_ids]
-
-    def _prepare_observation_buffer(self, agent_ids: np.ndarray, raw_observations: np.ndarray) -> np.ndarray:
-        if raw_observations.shape[0] == self._num_agents:
-            return raw_observations
-        buffer = self._full_obs_buffer
-        buffer[agent_ids] = raw_observations
-        return buffer
-
-    def _prepare_action_buffer(
-        self,
-        agent_ids: np.ndarray,
-        raw_actions: np.ndarray,
-    ) -> tuple[np.ndarray, bool]:
-        if raw_actions.shape[0] == self._num_agents:
-            return raw_actions, False
-        buffer = self._full_action_buffer
-        buffer[agent_ids] = 0
-        return buffer, True
 
 
 class _NimAgentPolicy(AgentPolicy):
