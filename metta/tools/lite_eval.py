@@ -93,9 +93,9 @@ class LiteEvalTool(Tool):
                 if policy_reward is not None:
                     policy_rewards.append(float(policy_reward))
 
-            mission_score = sum(policy_rewards) / len(policy_rewards) if policy_rewards else 0.0
-            simulation_scores[(category, sim_name)] = mission_score
-            category_scores_accum[category].append(mission_score)
+            avg_reward = sum(policy_rewards) / len(policy_rewards) if policy_rewards else 0.0
+            simulation_scores[(category, sim_name)] = avg_reward
+            category_scores_accum[category].append(avg_reward)
 
             if result.replay_urls:
                 replay_urls[f"{category}.{sim_name}"] = list(result.replay_urls.values())
