@@ -16,24 +16,13 @@ from mettagrid.simulator import AgentObservation as MettaGridObservation
 logger = logging.getLogger("mettagrid.policy.token_policy")
 
 
-def coordinates(
-    observations: torch.Tensor, dtype: torch.dtype = torch.long
-) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Split packed observation bytes into (x, y) nibble indices in ``dtype``.
-
-    MettaGrid encodes each token's spatial location as (row << 4) | col, so the
-    high nibble stores the row (y) index and the low nibble stores the column (x)
-    index. This helper keeps the convention consistent across all policy-side
-    consumers while letting callers request the exact dtype they need.
-    """
+def coordinates(observations: torch.Tensor, dtype: torch.dtype) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Split packed observation bytes into (x, y) nibble indices as ``dtype`` tensors."""
 
     coords_byte = observations[..., 0].to(torch.long)
     y_coords = (coords_byte >> 4) & 0x0F
     x_coords = coords_byte & 0x0F
-    if dtype is not torch.long:
-        y_coords = y_coords.to(dtype)
-        x_coords = x_coords.to(dtype)
-    return x_coords, y_coords
+    return x_coords.to(dtype), y_coords.to(dtype)
 
 
 class TokenPolicyNet(torch.nn.Module):
@@ -93,7 +82,7 @@ class TokenPolicyNet(torch.nn.Module):
         tokens = self._flatten_tokens(observations)
 
         coords_byte = tokens[..., 0].to(torch.long)
-        x_coords, y_coords = coordinates(tokens)
+        x_coords, y_coords = coordinates(tokens, torch.long)
         feature_ids = tokens[..., 1].to(torch.long)
         values = tokens[..., 2].to(torch.float32)
 
