@@ -195,7 +195,12 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
                 raise ValueError(
                     f"raw_observations has length {raw_observations.shape[0]}, expected at least {subset_len}"
                 )
-            obs_buffer = self._ensure_subset_obs_buffer(subset_len)
+            if self._subset_obs_buffer is None or self._subset_obs_buffer.shape[0] != subset_len:
+                self._subset_obs_buffer = np.empty(
+                    (subset_len, self._num_tokens, self._token_dim),
+                    dtype=dtype_observations,
+                )
+            obs_buffer = self._subset_obs_buffer
             np.take(raw_observations, agent_ids, axis=0, out=obs_buffer)
 
         action_buffer = raw_actions
@@ -203,7 +208,9 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
         if needs_scatter:
             if raw_actions.shape[0] < subset_len:
                 raise ValueError(f"raw_actions has length {raw_actions.shape[0]}, expected {subset_len} or num_agents")
-            action_buffer = self._ensure_subset_action_buffer(subset_len)
+            if self._subset_action_buffer is None or self._subset_action_buffer.shape[0] != subset_len:
+                self._subset_action_buffer = np.empty(subset_len, dtype=np.int32)
+            action_buffer = self._subset_action_buffer
 
         agent_ids_ptr = (
             self._default_subset_ptr
@@ -223,19 +230,6 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
 
         if needs_scatter:
             raw_actions[agent_ids] = action_buffer
-
-    def _ensure_subset_obs_buffer(self, subset_len: int) -> np.ndarray:
-        if self._subset_obs_buffer is None or self._subset_obs_buffer.shape[0] != subset_len:
-            self._subset_obs_buffer = np.empty(
-                (subset_len, self._num_tokens, self._token_dim),
-                dtype=dtype_observations,
-            )
-        return self._subset_obs_buffer
-
-    def _ensure_subset_action_buffer(self, subset_len: int) -> np.ndarray:
-        if self._subset_action_buffer is None or self._subset_action_buffer.shape[0] != subset_len:
-            self._subset_action_buffer = np.empty(subset_len, dtype=np.int32)
-        return self._subset_action_buffer
 
 
 class _NimAgentPolicy(AgentPolicy):
