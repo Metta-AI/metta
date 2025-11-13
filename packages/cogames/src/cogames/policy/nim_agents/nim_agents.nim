@@ -18,19 +18,19 @@ exportRefObject RandomPolicy:
   constructor:
     newRandomPolicy(string)
   procs:
-    randomPolicyStepBatch(RandomPolicy, pointer, int, int, int, int, pointer, int, pointer)
+    stepBatch(RandomPolicy, pointer, int, int, int, int, pointer, int, pointer)
 
 exportRefObject ThinkyPolicy:
   constructor:
     newThinkyPolicy(string)
   procs:
-    thinkyPolicyStepBatch(ThinkyPolicy, pointer, int, int, int, int, pointer, int, pointer)
+    stepBatch(ThinkyPolicy, pointer, int, int, int, int, pointer, int, pointer)
 
 exportRefObject RaceCarPolicy:
   constructor:
     newRaceCarPolicy(string)
   procs:
-    raceCarPolicyStepBatch(RaceCarPolicy, pointer, int, int, int, int, pointer, int, pointer)
+    stepBatch(RaceCarPolicy, pointer, int, int, int, int, pointer, int, pointer)
 
 writeFiles("bindings/generated", "NimAgents")
 

@@ -21,7 +21,6 @@ class ThinkyAgentsMultiPolicy(NimMultiAgentPolicy):
         super().__init__(
             policy_env_info,
             handle_constructor=na.ThinkyPolicy,
-            step_batch_name="thinky_policy_step_batch",
             agent_ids=agent_ids,
         )
 
@@ -33,7 +32,6 @@ class RandomAgentsMultiPolicy(NimMultiAgentPolicy):
         super().__init__(
             policy_env_info,
             handle_constructor=na.RandomPolicy,
-            step_batch_name="random_policy_step_batch",
             agent_ids=agent_ids,
         )
 
@@ -45,6 +43,5 @@ class RaceCarAgentsMultiPolicy(NimMultiAgentPolicy):
         super().__init__(
             policy_env_info,
             handle_constructor=na.RaceCarPolicy,
-            step_batch_name="race_car_policy_step_batch",
             agent_ids=agent_ids,
         )

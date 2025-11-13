@@ -22,7 +22,7 @@ def main() -> None:
     policy = fa.RandomPolicy("{}")
     subset = np.array([0, 1], dtype=np.int32)
     subset_ptr = subset.ctypes.data_as(ctypes.POINTER(ctypes.c_int32))
-    policy.random_policy_step_batch(
+    policy.step_batch(
         subset_ptr,
         subset.size,
         num_agents,
@@ -36,7 +36,7 @@ def main() -> None:
 
     single_subset = np.array([0], dtype=np.int32)
     single_ptr = single_subset.ctypes.data_as(ctypes.POINTER(ctypes.c_int32))
-    policy.random_policy_step_batch(
+    policy.step_batch(
         single_ptr,
         single_subset.size,
         num_agents,
