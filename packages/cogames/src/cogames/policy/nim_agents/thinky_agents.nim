@@ -26,6 +26,19 @@ proc getAssemblerRequirements(agent: ThinkyAgent): Table[string, int] =
   if location notin agent.map:
     return
   let features = agent.map[location]
+
+  var heartProtocolSeen = false
+  for featureValue in features:
+    for resource, featureId in agent.cfg.features.protocolOutputs.pairs:
+      if resource == "heart" and featureValue.featureId == featureId and featureValue.value > 0:
+        heartProtocolSeen = true
+        break
+    if heartProtocolSeen:
+      break
+
+  if not heartProtocolSeen:
+    return
+
   for resource, featureId in agent.cfg.features.protocolInputs.pairs:
     for featureValue in features:
       if featureValue.featureId == featureId and featureValue.value > 0:
@@ -383,6 +396,9 @@ proc step*(
       if assembleAction == 0:
         assembleAction = agent.cfg.actions.vibeHeartB
         assembleVibe = agent.cfg.vibes.heartB
+        if assembleAction == 0:
+          assembleAction = agent.cfg.actions.vibeDefault
+          assembleVibe = agent.cfg.vibes.default
       if assembleAction != 0 and vibe != assembleVibe:
         doAction(assembleAction.int32)
         # echo "vibing heart for assembler"
