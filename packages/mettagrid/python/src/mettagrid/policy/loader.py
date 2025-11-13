@@ -41,10 +41,11 @@ def initialize_or_load_policy(
         ) from e
 
     if policy_spec.data_path:
-        if not isinstance(policy, MultiAgentPolicy):
-            raise TypeError("Policy data provided, but the selected policy does not support loading checkpoints.")
-
         policy.load_policy_data(policy_spec.data_path)
+
+    if not isinstance(policy, MultiAgentPolicy):
+        raise TypeError(f"Policy {policy_spec.class_path} is not a MultiAgentPolicy")
+
     return policy
 
 
