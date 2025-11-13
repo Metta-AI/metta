@@ -132,12 +132,11 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
     def __init__(
         self,
         policy_env_info: PolicyEnvInterface,
-        constructor,
+        nim_policy_factory,
         agent_ids: Sequence[int] | None = None,
     ) -> None:
         super().__init__(policy_env_info)
-        self._handle = constructor(policy_env_info.to_json())
-        self._step_batch = self._handle.step_batch
+        self._nim_policy = nim_policy_factory(policy_env_info.to_json())
         self._num_agents = policy_env_info.num_agents
         self._action_names = policy_env_info.action_names
         self._num_actions = len(self._action_names)
@@ -202,7 +201,7 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
             if agent_ids is self._default_subset
             else agent_ids.ctypes.data_as(ctypes.POINTER(ctypes.c_int32))
         )
-        self._step_batch(
+        self._nim_policy.step_batch(
             agent_ids_ptr,
             subset_len,
             self._num_agents,
