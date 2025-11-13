@@ -17,6 +17,8 @@ class SimulationConfig(Config):
 
     # Core simulation config
     num_episodes: int = Field(default=1, description="Number of episodes to run", ge=1)
+
+    # Not supported in NewEvalTool yet
     max_time_s: int = Field(default=120, description="Maximum time in seconds to run the simulation", ge=0)
     max_action_time_ms: int | None = Field(
         default=10000, description="Maximum time (in ms) a policy is given to take an action"

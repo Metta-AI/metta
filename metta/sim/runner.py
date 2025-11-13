@@ -48,7 +48,8 @@ def run_simulations(
             episodes=simulation.num_episodes,
             seed=seed,
             proportions=proportions,
-            max_time_s=simulation.max_time_s,
+            # TODO: support this if and only if we also reflect that it happened in results
+            # max_time_s=simulation.max_time_s,
             max_action_time_ms=simulation.max_action_time_ms,
             event_handlers=[replay_writer] if replay_writer else None,
         )
