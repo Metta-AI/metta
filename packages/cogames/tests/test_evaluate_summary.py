@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from cogames.evaluate import build_mission_policy_summaries
+from cogames.evaluate import build_multi_episode_rollout_summaries
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult
 
@@ -71,8 +71,8 @@ def test_build_results_summary_multi_mission_policy_episode() -> None:
         ],
     )
 
-    summary = build_mission_policy_summaries(
-        mission_results=[mission_one, mission_two],
+    summary = build_multi_episode_rollout_summaries(
+        rollout_results=[mission_one, mission_two],
         mission_names=["mission_one", "mission_two"],
         policy_specs=policy_specs,
     )
