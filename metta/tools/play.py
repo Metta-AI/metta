@@ -75,6 +75,7 @@ class PlayTool(Tool):
 
         # Get environment config
         env_cfg = self.sim.env
+        policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
 
         # Set max_steps in config if specified
         if self.max_steps is not None:
@@ -82,14 +83,11 @@ class PlayTool(Tool):
 
         # Load or create policies
         if self.policy_uri:
-            # Create policy environment interface from config
-            policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
-
             agent_policies = self._load_policy_from_uri(self.policy_uri, policy_env_info, device)
         else:
             # Use random policies if no policy specified
             logger.info("No policy specified, using random actions")
-            agent_policies = [RandomAgentPolicy(env_cfg.game.actions) for _ in range(env_cfg.game.num_agents)]
+            agent_policies = [RandomAgentPolicy(policy_env_info) for _ in range(policy_env_info.num_agents)]
 
         # Create rollout with renderer
         rollout = Rollout(

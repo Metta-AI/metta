@@ -122,16 +122,16 @@ The runner supports flexible syntax for invoking tools:
 
 - Example: `train arena` → `arena.train`
 
-**Short recipe names**: Omit the `experiments.recipes.` prefix
+**Short recipe names**: Omit the `recipes.experiment.` or `recipes.prod.` prefix
 
-- Example: `arena` → `experiments.recipes.arena`
+- Example: `arena` → `recipes.experiment.arena` (or `recipes.prod.arena` for prod recipes)
 
 **Equivalent invocations**:
 
 ```bash
 ./tools/run.py train arena run=test
 ./tools/run.py arena.train run=test
-./tools/run.py experiments.recipes.arena.train run=test
+./tools/run.py recipes.experiment.arena.train run=test
 ```
 
 ## Discovering Tools

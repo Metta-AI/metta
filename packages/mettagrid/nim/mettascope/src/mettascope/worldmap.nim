@@ -792,6 +792,12 @@ proc fitFullMap*(panel: Panel) =
 
 proc drawWorldMap*(panel: Panel) =
   ## Draw the world map.
+
+  if replay == nil or replay.mapSize[0] == 0 or replay.mapSize[1] == 0:
+    # Replay has not been loaded yet.
+    return
+
+  ## Draw the world map.
   if settings.lockFocus:
     centerAt(panel, selection)
 

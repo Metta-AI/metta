@@ -35,7 +35,6 @@ class PufferPolicy(Policy):
 
         self.policy = torch.nn.Module()
         self.config = config or PufferPolicyConfig()
-        self.policy_env_info = policy_env_info
         self.is_continuous = False
         self.action_space = policy_env_info.action_space
 

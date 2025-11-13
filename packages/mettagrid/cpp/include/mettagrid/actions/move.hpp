@@ -74,18 +74,7 @@ protected:
     // In the future, we may want to split 'Move' and 'MoveOrUse', if we want to allow agents to run into usable
     // objects without using them.
     if (!_grid->is_empty(target_location.r, target_location.c)) {
-      // Check the AgentLayer first for other agents
-      GridLocation agent_location = {target_location.r, target_location.c, GridLayer::AgentLayer};
-      GridObject* target_agent = _grid->object_at(agent_location);
-      if (target_agent) {
-        Usable* usable_agent = dynamic_cast<Usable*>(target_agent);
-        if (usable_agent) {
-          return usable_agent->onUse(actor, arg);
-        }
-      }
-
-      // Then check the ObjectLayer for other usable objects
-      GridLocation object_location = {target_location.r, target_location.c, GridLayer::ObjectLayer};
+      GridLocation object_location = {target_location.r, target_location.c};
       GridObject* target_object = _grid->object_at(object_location);
       if (target_object) {
         Usable* usable_object = dynamic_cast<Usable*>(target_object);

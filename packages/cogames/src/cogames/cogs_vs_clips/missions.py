@@ -4,7 +4,9 @@ from cogames.cogs_vs_clips.mission_utils import get_map
 from cogames.cogs_vs_clips.sites import HELLO_WORLD, MACHINA_1, TRAINING_FACILITY
 from cogames.cogs_vs_clips.variants import (
     ChestHeartTuneVariant,
-    ClipRateOnVariant,
+    ClipHubStationsVariant,
+    ClipPeriodOnVariant,
+    ExtractorHeartTuneVariant,
     HeartChorusVariant,
     InventoryHeartTuneVariant,
     LonelyHeartVariant,
@@ -16,15 +18,6 @@ from mettagrid.config.mettagrid_config import MettaGridConfig
 
 # Training Facility Missions
 
-
-# Recreated with existing variant(s)
-HarvestMission = Mission(
-    name="harvest",
-    description="Collect resources, assemble hearts, and deposit them in the chest. Make sure to stay charged!",
-    site=TRAINING_FACILITY,
-)
-
-
 AssembleMission = Mission(
     name="assemble",
     description="Make HEARTs by using the assembler. Coordinate your team to maximize efficiency.",
@@ -32,6 +25,12 @@ AssembleMission = Mission(
     variants=[InventoryHeartTuneVariant(hearts=5), PackRatVariant()],
 )
 
+HarvestMission = Mission(
+    name="harvest",
+    description="Collect resources, assemble hearts, and deposit them in the chest. Make sure to stay charged!",
+    site=TRAINING_FACILITY,
+    variants=[ExtractorHeartTuneVariant(hearts=5), PackRatVariant()],
+)
 
 VibeCheckMission = Mission(
     name="vibe_check",
@@ -47,23 +46,9 @@ RepairMission = Mission(
     description="Repair disabled stations to restore their functionality.",
     site=TRAINING_FACILITY,
     num_cogs=2,
-    variants=[InventoryHeartTuneVariant(hearts=1), ClipRateOnVariant()],
+    variants=[InventoryHeartTuneVariant(hearts=1), ClipPeriodOnVariant(), ClipHubStationsVariant()],
 )
 
-
-UnclipDrillsMission = Mission(
-    name="unclip_drills",
-    description="Practice unclipping hub facilities after a grid outage.",
-    site=TRAINING_FACILITY,
-    variants=[ClipRateOnVariant(), InventoryHeartTuneVariant(hearts=1)],
-)
-
-
-SignsAndPortentsMission = Mission(
-    name="signs_and_portents",
-    description="Interpret the signs and portents to discover new assembler protocols.",
-    site=TRAINING_FACILITY,
-)
 
 # Easy Hearts: simplified heart crafting and generous limits with extractor hub
 EasyHeartsMission = Mission(
@@ -80,30 +65,19 @@ EasyHeartsMission = Mission(
 
 
 # Hello World Missions
-ExploreMission = Mission(
-    name="explore",
-    description="There are HEART chests scattered around the map. Put your HEARTs in them.",
-    site=HELLO_WORLD,
-    variants=[InventoryHeartTuneVariant(hearts=1, heart_capacity=10), PackRatVariant()],
-)
-
-
-TreasureHuntMission = Mission(
-    name="treasure_hunt",
-    description=(
-        "The solar flare is making the germanium extractors really fiddly. "
-        "A team of 4 is required to harvest germanium."
-    ),
-    site=HELLO_WORLD,
-    num_cogs=4,
-    variants=[ClipRateOnVariant()],
-)
-
 
 HelloWorldOpenWorldMission = Mission(
     name="open_world",
     description="Collect resources and assemble HEARTs.",
     site=HELLO_WORLD,
+)
+
+TreasureHuntMission = Mission(
+    name="clipping",
+    description=("Extractors are getting clipped, and we need to unclip them to continue."),
+    site=HELLO_WORLD,
+    num_cogs=4,
+    variants=[ClipPeriodOnVariant()],
 )
 
 
@@ -120,17 +94,15 @@ HelloWorldUnclipMission = Mission(
     description="Stabilize clipped extractors scattered across the hello_world sector.",
     site=HELLO_WORLD,
     num_cogs=4,
-    variants=[ClipRateOnVariant(), ChestHeartTuneVariant(hearts=2)],
+    variants=[ClipPeriodOnVariant(), ChestHeartTuneVariant(hearts=1), ClipHubStationsVariant()],
 )
+
 
 MISSIONS: list[Mission] = [
     HarvestMission,
     AssembleMission,
     VibeCheckMission,
     RepairMission,
-    UnclipDrillsMission,
-    SignsAndPortentsMission,
-    ExploreMission,
     TreasureHuntMission,
     EasyHeartsMission,
     HelloWorldUnclipMission,

@@ -51,7 +51,12 @@ class Recipe:
 
     @property
     def short_name(self) -> str:
-        return self.module_name.replace("experiments.recipes.", "")
+        """Get short name by removing recipes.prod. or recipes.experiment. prefix."""
+        name = self.module_name
+        for prefix in ["recipes.prod.", "recipes.experiment."]:
+            if name.startswith(prefix):
+                return name[len(prefix) :]
+        return name
 
     def _build_tool_maps(self) -> None:
         """Build maker_name->tool_maker and tool_class_name->makers maps."""
@@ -88,7 +93,6 @@ class Recipe:
             return None
 
         return cls(module)
-        return None
 
     def get_explicit_tool_makers(self) -> dict[str, ToolMaker]:
         """Returns only tool makers explicitly defined in this recipe."""

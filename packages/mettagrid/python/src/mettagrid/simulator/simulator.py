@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from functools import cached_property
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 import numpy as np
@@ -10,7 +9,7 @@ import numpy as np
 # Don't use `from ... import ...` here because it will cause a circular import.
 import mettagrid.config.mettagrid_c_config as mettagrid_c_config
 import mettagrid.config.mettagrid_config as mettagrid_config
-from mettagrid.config.id_map import IdMap, ObservationFeatureSpec
+from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.map_builder.map_builder import GameMap
 from mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
 from mettagrid.mettagrid_c import PackedCoordinate
@@ -93,16 +92,13 @@ class Simulation:
             )
 
         # Build feature dict from id_map
-        self._features: dict[int, ObservationFeatureSpec] = {feature.id: feature for feature in self.id_map.features()}
+        self._features: dict[int, ObservationFeatureSpec] = {
+            feature.id: feature for feature in self._config.game.id_map().features()
+        }
 
         self._start_episode()
 
         self._timer.start("thread_idle")
-
-    @cached_property
-    def id_map(self) -> IdMap:
-        """Get the observation feature ID map for this simulation."""
-        return self._config.id_map()
 
     def agents(self) -> list[SimulationAgent]:
         return [self.agent(agent_id) for agent_id in range(self.num_agents)]
@@ -211,10 +207,6 @@ class Simulation:
     def get_feature(self, feature_id: int) -> ObservationFeatureSpec:
         """Get a feature by its ID."""
         return self._features[feature_id]
-
-    @property
-    def initial_grid_hash(self) -> int:
-        return self.__c_sim.initial_grid_hash
 
     @property
     def action_success(self) -> list[bool]:
@@ -343,6 +335,7 @@ class SimulationAgent:
                     feature=self._sim.get_feature(feature_id),
                     location=PackedCoordinate.unpack(location) or (0, 0),
                     value=int(value),
+                    raw_token=o,
                 )
             )
         return AgentObservation(agent_id=self._agent_id, tokens=tokens)

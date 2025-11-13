@@ -209,11 +209,16 @@ def _():
                 action_names: List[str] = list(self.env.action_names)
                 lookup = {name: idx for idx, name in enumerate(action_names)}
                 self.rotate_variants = {
-                    orient: lookup.get(f"rotate_{self.ORIENT_NAMES[orient]}") for orient in self.ORIENT_TO_DELTA
+                    orient: lookup.get(f"rotate_{self.ORIENT_NAMES[orient]}")
+                    for orient in self.ORIENT_TO_DELTA
                 }
                 self.rotate_idx = lookup.get("rotate")
                 self.pickup_idx = next(
-                    (lookup[name] for name in ("get_items", "pickup") if name in lookup),
+                    (
+                        lookup[name]
+                        for name in ("get_items", "pickup")
+                        if name in lookup
+                    ),
                     None,
                 )
                 self.noop_idx = lookup.get("noop", 0)
@@ -227,7 +232,9 @@ def _():
         def predict(self, obs: np.ndarray) -> np.ndarray:
             """Wander randomly and get ore if next to a mine."""
             grid_objects = self.env.grid_objects
-            agent = next((o for o in grid_objects.values() if o.get("agent_id") == 0), None)
+            agent = next(
+                (o for o in grid_objects.values() if o.get("agent_id") == 0), None
+            )
             if agent is None:
                 return generate_valid_random_actions(self.env, self.num_agents)
 
@@ -245,11 +252,15 @@ def _():
                 for obj in grid_objects.values():
                     if obj.get("r") == tr and obj.get("c") == tc:
                         obj_type_id = obj.get("type")
-                        if obj_type_id is not None and obj_type_id < len(self.env.object_type_names):
+                        if obj_type_id is not None and obj_type_id < len(
+                            self.env.object_type_names
+                        ):
                             obj_type_name = self.env.object_type_names[obj_type_id]
                             if "mine" in obj_type_name:
                                 inv = obj.get("inventory", {})
-                                total = sum(inv.values()) if isinstance(inv, dict) else 0
+                                total = (
+                                    sum(inv.values()) if isinstance(inv, dict) else 0
+                                )
                                 if total > 0:
                                     # If at max ore capacity, move randomly instead of getting stuck
                                     if agent_ore_count >= max_ore_limit:
@@ -259,7 +270,9 @@ def _():
                                     if orient == agent_ori:
                                         action_idx = self.pickup_idx
                                     else:
-                                        action_idx = self.rotate_variants.get(orient, self.rotate_idx)
+                                        action_idx = self.rotate_variants.get(
+                                            orient, self.rotate_idx
+                                        )
                                         if action_idx is None:
                                             action_idx = self.noop_idx
                                     if action_idx is None:
@@ -477,7 +490,6 @@ def _(
     mg_config.game.actions.noop.enabled = True  # Training had noop enabled!
     mg_config.game.actions.attack.enabled = True  # Training had attack enabled
     mg_config.game.actions.change_vibe.enabled = False
-    mg_config.game.actions.swap.enabled = False
 
     # IMPORTANT: Match the exact training reward structure from config.json
     mg_config.game.agent.rewards = AgentRewards(
@@ -511,8 +523,6 @@ def _(
 
     # Global configuration flags from old mettagrid.yaml
     mg_config.desync_episodes = True  # Changes max_steps for first episode only
-    mg_config.game.track_movement_metrics = True
-    mg_config.game.protocol_details_obs = False
 
     # Global observation tokens from old config
     mg_config.game.global_obs.episode_completion_pct = True
@@ -591,8 +601,13 @@ def _(
             for _step in range(steps):
                 _actions = policy.predict(_obs)
                 _obs, rewards, terminals, truncations, info = env.step(_actions)
-                _agent_obj = next((o for o in env.grid_objects.values() if o.get("agent_id") == 0))
-                _inv = {env.resource_names[idx]: count for idx, count in _agent_obj.get("inventory", {}).items()}
+                _agent_obj = next(
+                    (o for o in env.grid_objects.values() if o.get("agent_id") == 0)
+                )
+                _inv = {
+                    env.resource_names[idx]: count
+                    for idx, count in _agent_obj.get("inventory", {}).items()
+                }
                 header.value = f"<b>Step:</b> {_step + 1}/{steps} <br/> <b>Inventory:</b> {_inv.get('ore_red', 0)}"
                 with contextlib.redirect_stdout(io.StringIO()) as buffer:
                     buffer_str = env.render()
@@ -710,8 +725,13 @@ def _(
         for _step in range(renderer_config.num_steps):
             _actions = eval_policy.predict(_obs)
             _obs, _, _, _, _ = eval_env.step(_actions)
-        _agent_obj = next((o for o in eval_env.grid_objects.values() if o.get("agent_id") == 0))
-        _inv = {eval_env.resource_names[idx]: cnt for idx, cnt in _agent_obj.get("inventory", {}).items()}
+        _agent_obj = next(
+            (o for o in eval_env.grid_objects.values() if o.get("agent_id") == 0)
+        )
+        _inv = {
+            eval_env.resource_names[idx]: cnt
+            for idx, cnt in _agent_obj.get("inventory", {}).items()
+        }
         inv_count = int(_inv.get("ore_red", 0))
         scores.append(inv_count)
 
@@ -729,7 +749,9 @@ def _(
         )
     )
     eval_env.close()
-    print(f"Opportunistic agent baseline: {mean_score:.2f} ± {std_score:.2f} ore collected")
+    print(
+        f"Opportunistic agent baseline: {mean_score:.2f} ± {std_score:.2f} ore collected"
+    )
     return (EVAL_EPISODES,)
 
 
@@ -804,7 +826,9 @@ def _(
             total_timesteps=2200000,  # Train to 2.2M to reach peak performance (~12-13 ore)
             batch_size=32768,  # Reduced batch size for more stable learning
             minibatch_size=256,  # Smaller minibatches for better gradient estimates
-            rollout_workers=min(4, multiprocessing.cpu_count()),  # Cap workers to prevent resource contention
+            rollout_workers=min(
+                4, multiprocessing.cpu_count()
+            ),  # Cap workers to prevent resource contention
             forward_pass_minibatch_target_size=256,
             # Use lower learning rate from the start to prevent aggressive updates
             optimizer={
@@ -822,7 +846,9 @@ def _(
             ),
         )
 
-        training_env_cfg = TrainingEnvironmentConfig(curriculum=env_curriculum(mg_config))
+        training_env_cfg = TrainingEnvironmentConfig(
+            curriculum=env_curriculum(mg_config)
+        )
 
         evaluator_cfg = EvaluatorConfig(
             epoch_interval=20,  # Frequent evaluation to monitor for unlearning
@@ -941,21 +967,33 @@ def _(
             print(f"Directory exists: {ckpt_dir.exists()}")
             if ckpt_dir.exists():
                 checkpoints = list(ckpt_dir.glob("*.pt"))
-                print(f"Found {len(checkpoints)} checkpoint files: {[c.name for c in checkpoints]}")
+                print(
+                    f"Found {len(checkpoints)} checkpoint files: {[c.name for c in checkpoints]}"
+                )
             if not ckpt_dir.exists() or not list(ckpt_dir.glob("*.pt")):
                 raise Exception(f"No checkpoints found in {ckpt_dir.absolute()}")
 
             # Get all checkpoints sorted by epoch number (extract epoch from filename)
             checkpoints = list(ckpt_dir.glob("*.pt"))
-            if len(checkpoints) > 10:  # If we have many checkpoints, try one from the peak learning phase
+            if (
+                len(checkpoints) > 10
+            ):  # If we have many checkpoints, try one from the peak learning phase
                 # Sort by epoch number and take one from around 60-80% through training
                 checkpoints.sort(
-                    key=lambda p: int("".join(filter(str.isdigit, p.stem))) if any(c.isdigit() for c in p.stem) else 0
+                    key=lambda p: int("".join(filter(str.isdigit, p.stem)))
+                    if any(c.isdigit() for c in p.stem)
+                    else 0
                 )
-                peak_idx = int(len(checkpoints) * 0.7)  # Use checkpoint from 70% through training
+                peak_idx = int(
+                    len(checkpoints) * 0.7
+                )  # Use checkpoint from 70% through training
                 latest_ckpt = checkpoints[peak_idx]
-                print(f"Using peak performance checkpoint: {latest_ckpt.name} (index {peak_idx}/{len(checkpoints)})")
-                print(f"   📊 This avoids the unlearning phase seen in later checkpoints")
+                print(
+                    f"Using peak performance checkpoint: {latest_ckpt.name} (index {peak_idx}/{len(checkpoints)})"
+                )
+                print(
+                    f"   📊 This avoids the unlearning phase seen in later checkpoints"
+                )
             else:
                 latest_ckpt = max(checkpoints, key=lambda p: p.stat().st_mtime)
                 print(f"Using latest checkpoint: {latest_ckpt.name}")
@@ -969,11 +1007,17 @@ def _(
             with contextlib.redirect_stdout(io.StringIO()):
                 eval_env = MettaGridEnv(mg_config, render_mode="human")
 
-            trained_artifact = CheckpointManager.load_artifact_from_uri(str(latest_ckpt))
+            trained_artifact = CheckpointManager.load_artifact_from_uri(
+                str(latest_ckpt)
+            )
 
-            trained_policy = trained_artifact.instantiate(policy_env_interface, torch.device("cpu"))
+            trained_policy = trained_artifact.instantiate(
+                policy_env_interface, torch.device("cpu")
+            )
             if trained_policy is None:
-                raise RuntimeError("Expected serialized policy in artifact for evaluation demo")
+                raise RuntimeError(
+                    "Expected serialized policy in artifact for evaluation demo"
+                )
 
             # Create evaluation environment
             with contextlib.redirect_stdout(io.StringIO()):
@@ -1000,8 +1044,12 @@ def _(
 
                     _obs, _ = eval_env.reset()
 
-                    steps = mg_config.game.max_steps  # Use same steps as training (5000)
-                    print(f"Episode {ep}: Running evaluation for {steps} steps (matching training configuration)")
+                    steps = (
+                        mg_config.game.max_steps
+                    )  # Use same steps as training (5000)
+                    print(
+                        f"Episode {ep}: Running evaluation for {steps} steps (matching training configuration)"
+                    )
                     for _step in range(steps):
                         # Use proper observation processing pipeline that matches training
                         td = obs_to_td(_obs, torch.device("cpu"))
@@ -1014,9 +1062,16 @@ def _(
                         _obs, _, _, _, _ = eval_env.step(_actions)
 
                         # Update display every few steps to show animation
-                        _agent_obj = next((o for o in eval_env.grid_objects.values() if o.get("agent_id") == 0))
+                        _agent_obj = next(
+                            (
+                                o
+                                for o in eval_env.grid_objects.values()
+                                if o.get("agent_id") == 0
+                            )
+                        )
                         _inv = {
-                            eval_env.resource_names[idx]: cnt for idx, cnt in _agent_obj.get("inventory", {}).items()
+                            eval_env.resource_names[idx]: cnt
+                            for idx, cnt in _agent_obj.get("inventory", {}).items()
                         }
                         ore_count = _inv.get("ore_red", 0)
                         battery_count = _inv.get("battery_red", 0)
@@ -1031,12 +1086,25 @@ def _(
                             buffer_str = eval_env.render()
                         map_box.value = f"<pre>{buffer_str}</pre>"
                         if _step % 500 == 0:  # Print progress every 500 steps
-                            print(f"  Episode {ep}, Step {_step}: Ore={ore_count}, Total Reward={total_reward:.1f}")
-                        time.sleep(renderer_config.sleep_time / 50)  # Small delay for animation
+                            print(
+                                f"  Episode {ep}, Step {_step}: Ore={ore_count}, Total Reward={total_reward:.1f}"
+                            )
+                        time.sleep(
+                            renderer_config.sleep_time / 50
+                        )  # Small delay for animation
 
                     # Final inventory count for this episode - use total reward, not just ore
-                    _agent_obj = next((o for o in eval_env.grid_objects.values() if o.get("agent_id") == 0))
-                    _inv = {eval_env.resource_names[idx]: cnt for idx, cnt in _agent_obj.get("inventory", {}).items()}
+                    _agent_obj = next(
+                        (
+                            o
+                            for o in eval_env.grid_objects.values()
+                            if o.get("agent_id") == 0
+                        )
+                    )
+                    _inv = {
+                        eval_env.resource_names[idx]: cnt
+                        for idx, cnt in _agent_obj.get("inventory", {}).items()
+                    }
                     ore_count = int(_inv.get("ore_red", 0))
                     battery_count = int(_inv.get("battery_red", 0))
                     # Calculate total reward based on training reward structure
@@ -1073,21 +1141,33 @@ def _(
                         "total_reward": trained_scores,
                         "running_avg": running_avg,
                         "ore": trained_ore_scores,
-                        "running_avg_ore": pd.Series(trained_ore_scores).expanding().mean(),
+                        "running_avg_ore": pd.Series(trained_ore_scores)
+                        .expanding()
+                        .mean(),
                     },
                 )
             )
 
-            print(f"\n🎯 Trained agent performance: {mean_score:.2f} ± {std_score:.2f} total reward")
-            print(f"    (Reward = ore_count * 0.1 + battery_count * 0.8, matching training config)")
+            print(
+                f"\n🎯 Trained agent performance: {mean_score:.2f} ± {std_score:.2f} total reward"
+            )
+            print(
+                f"    (Reward = ore_count * 0.1 + battery_count * 0.8, matching training config)"
+            )
             print(f"📊 Compare with opportunistic baseline from earlier evaluation!")
             print(f"\n📋 TRAINING vs EVALUATION COMPARISON:")
             print(f"   - Training WandB shows: ~40+ ore per episode")
-            print(f"   - Evaluation shows: {mean_score:.2f} total reward ({mean_score / 0.1:.1f} ore equivalent)")
+            print(
+                f"   - Evaluation shows: {mean_score:.2f} total reward ({mean_score / 0.1:.1f} ore equivalent)"
+            )
             print(f"   - Episode length: {steps} steps (matching training max_steps)")
             if mean_score < 2.0:  # Less than 20 ore equivalent
-                print(f"   ⚠️  MISMATCH: Evaluation performance much lower than training metrics!")
-                print(f"   🔍 Possible issues: checkpoint selection, environment differences, or step count")
+                print(
+                    f"   ⚠️  MISMATCH: Evaluation performance much lower than training metrics!"
+                )
+                print(
+                    f"   🔍 Possible issues: checkpoint selection, environment differences, or step count"
+                )
             else:
                 print(f"   ✅ Performance matches training expectations!")
 
@@ -1151,7 +1231,9 @@ def _(mo, wandb):
             return mo.md(obj.to_html(height=height))
         except wandb.Error:
             traceback.print_exc()
-            return mo.md(f"Path {path!r} does not refer to a W&B object you can access.")
+            return mo.md(
+                f"Path {path!r} does not refer to a W&B object you can access."
+            )
 
     return (display_by_wandb_path,)
 
@@ -1221,7 +1303,6 @@ def _(
     mg_config2.game.actions.noop.enabled = False  # Disable no-op to force action
     mg_config2.game.actions.attack.enabled = False
     mg_config2.game.actions.change_vibe.enabled = False
-    mg_config2.game.actions.swap.enabled = False
 
     # CONVERSION INCENTIVE: Make conversion much more profitable than resource limit camping
     mg_config2.game.agent.rewards = AgentRewards(
@@ -1290,8 +1371,13 @@ def _(
             for _step in range(steps):
                 _actions = policy.predict(_obs)
                 _obs, rewards, terminals, truncations, info = env.step(_actions)
-                _agent_obj = next((o for o in env.grid_objects.values() if o.get("agent_id") == 0))
-                _inv = {env.resource_names[idx]: count for idx, count in _agent_obj.get("inventory", {}).items()}
+                _agent_obj = next(
+                    (o for o in env.grid_objects.values() if o.get("agent_id") == 0)
+                )
+                _inv = {
+                    env.resource_names[idx]: count
+                    for idx, count in _agent_obj.get("inventory", {}).items()
+                }
                 header.value = "<br />".join(
                     [
                         f"<b>Step:</b> {_step + 1}/{steps}",
@@ -1347,8 +1433,13 @@ def _(
             for _step in range(renderer_config2.num_steps):
                 _actions = eval_policy.predict(_obs)
                 _obs, _, _, _, _ = eval_env.step(_actions)
-            _agent_obj = next((o for o in eval_env.grid_objects.values() if o.get("agent_id") == 0))
-            _inv = {eval_env.resource_names[idx]: cnt for idx, cnt in _agent_obj.get("inventory", {}).items()}
+            _agent_obj = next(
+                (o for o in eval_env.grid_objects.values() if o.get("agent_id") == 0)
+            )
+            _inv = {
+                eval_env.resource_names[idx]: cnt
+                for idx, cnt in _agent_obj.get("inventory", {}).items()
+            }
             inv_count_ore = int(_inv.get("ore_red", 0))
             inv_count_batteries = int(_inv.get("battery_red", 0))
             scores_ore.append(inv_count_ore)
@@ -1420,7 +1511,9 @@ def _(
             total_timesteps=3500000,  # Extended training to master conversion cycles
             batch_size=65536,  # Larger batches for stable learning of clear signal
             minibatch_size=512,  # Bigger minibatches with clean reward structure
-            rollout_workers=min(6, multiprocessing.cpu_count()),  # More workers for route exploration
+            rollout_workers=min(
+                6, multiprocessing.cpu_count()
+            ),  # More workers for route exploration
             forward_pass_minibatch_target_size=512,
             # Learning rate with decay to prevent unlearning
             optimizer={
@@ -1538,20 +1631,30 @@ def _(
         print(f"Directory exists: {ckpt_dir.exists()}")
         if ckpt_dir.exists():
             checkpoints = list(ckpt_dir.glob("*.pt"))
-            print(f"Found {len(checkpoints)} checkpoint files: {[c.name for c in checkpoints]}")
+            print(
+                f"Found {len(checkpoints)} checkpoint files: {[c.name for c in checkpoints]}"
+            )
         if not ckpt_dir.exists() or not list(ckpt_dir.glob("*.pt")):
             raise Exception(f"No checkpoints found in {ckpt_dir.absolute()}")
 
         # Get all checkpoints sorted by epoch number (extract epoch from filename)
         checkpoints = list(ckpt_dir.glob("*.pt"))
-        if len(checkpoints) > 10:  # If we have many checkpoints, try one from the peak learning phase
+        if (
+            len(checkpoints) > 10
+        ):  # If we have many checkpoints, try one from the peak learning phase
             # Sort by epoch number and take one from around 60-80% through training
             checkpoints.sort(
-                key=lambda p: int("".join(filter(str.isdigit, p.stem))) if any(c.isdigit() for c in p.stem) else 0
+                key=lambda p: int("".join(filter(str.isdigit, p.stem)))
+                if any(c.isdigit() for c in p.stem)
+                else 0
             )
-            peak_idx = int(len(checkpoints) * 0.7)  # Use checkpoint from 70% through training
+            peak_idx = int(
+                len(checkpoints) * 0.7
+            )  # Use checkpoint from 70% through training
             latest_ckpt = checkpoints[peak_idx]
-            print(f"Using peak performance checkpoint: {latest_ckpt.name} (index {peak_idx}/{len(checkpoints)})")
+            print(
+                f"Using peak performance checkpoint: {latest_ckpt.name} (index {peak_idx}/{len(checkpoints)})"
+            )
             print(f"   📊 This avoids the unlearning phase seen in later checkpoints")
         else:
             latest_ckpt = max(checkpoints, key=lambda p: p.stat().st_mtime)
@@ -1564,10 +1667,14 @@ def _(
         metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
         run_name_from_ckpt = metadata["run_name"]
 
-        trained_artifact = CheckpointManager.load_from_uri(str(latest_ckpt), game_rules, device)
+        trained_artifact = CheckpointManager.load_from_uri(
+            str(latest_ckpt), game_rules, device
+        )
         trained_policy = trained_artifact.policy
         if trained_policy is None:
-            raise RuntimeError("Expected serialized policy in artifact for evaluation demo")
+            raise RuntimeError(
+                "Expected serialized policy in artifact for evaluation demo"
+            )
 
         # Create evaluation environment
         with contextlib.redirect_stdout(io.StringIO()):
@@ -1593,7 +1700,9 @@ def _(
         with simulation_context(eval_env):
             print(f"🎯 Running {EVAL_EPISODES} episodes with animated evaluation...")
             for ep in range(1, EVAL_EPISODES + 1):
-                header.value = f"<b>Episode {ep}/{EVAL_EPISODES}</b> - Evaluating trained agent..."
+                header.value = (
+                    f"<b>Episode {ep}/{EVAL_EPISODES}</b> - Evaluating trained agent..."
+                )
 
                 _obs, _ = eval_env.reset()
                 # Convert obs to tensor format for policy
@@ -1602,7 +1711,9 @@ def _(
                 steps = mg_config2.game.max_steps  # Use same steps as training (5000)
                 for _step in range(steps):  # Same number of steps as opportunistic
                     # Use TensorDict format for trained policy (same as simulation.py:272-275)
-                    td = TensorDict({"env_obs": obs_tensor}, batch_size=obs_tensor.shape[0])
+                    td = TensorDict(
+                        {"env_obs": obs_tensor}, batch_size=obs_tensor.shape[0]
+                    )
                     trained_policy(td)
                     _actions = td["actions"].cpu().numpy()
 
@@ -1610,8 +1721,17 @@ def _(
                     obs_tensor = torch.as_tensor(_obs, device=torch.device("cpu"))
 
                     # Update display every few steps to show animation
-                    _agent_obj = next((o for o in eval_env.grid_objects.values() if o.get("agent_id") == 0))
-                    _inv = {eval_env.resource_names[idx]: cnt for idx, cnt in _agent_obj.get("inventory", {}).items()}
+                    _agent_obj = next(
+                        (
+                            o
+                            for o in eval_env.grid_objects.values()
+                            if o.get("agent_id") == 0
+                        )
+                    )
+                    _inv = {
+                        eval_env.resource_names[idx]: cnt
+                        for idx, cnt in _agent_obj.get("inventory", {}).items()
+                    }
                     header.value = (
                         f"<b>Episode {ep}/{EVAL_EPISODES}</b> - Step {_step + 1}/{steps} - "
                         f"<br />"
@@ -1622,16 +1742,30 @@ def _(
                     with contextlib.redirect_stdout(io.StringIO()) as buffer:
                         buffer_str = eval_env.render()
                     map_box.value = f"<pre>{buffer_str}</pre>"
-                    time.sleep(renderer_config2.sleep_time / 100)  # Small delay for animation
+                    time.sleep(
+                        renderer_config2.sleep_time / 100
+                    )  # Small delay for animation
 
                 # Final inventory count for this episode
-                _agent_obj = next((o for o in eval_env.grid_objects.values() if o.get("agent_id") == 0))
-                _inv = {eval_env.resource_names[idx]: cnt for idx, cnt in _agent_obj.get("inventory", {}).items()}
+                _agent_obj = next(
+                    (
+                        o
+                        for o in eval_env.grid_objects.values()
+                        if o.get("agent_id") == 0
+                    )
+                )
+                _inv = {
+                    eval_env.resource_names[idx]: cnt
+                    for idx, cnt in _agent_obj.get("inventory", {}).items()
+                }
                 inv_count_ore = int(_inv.get("ore_red", 0))
                 inv_count_batteries = int(_inv.get("battery_red", 0))
-                reward_ore = inv_count_ore * mg_config2.game.agent.rewards.inventory.ore_red  # Will be 0.0
+                reward_ore = (
+                    inv_count_ore * mg_config2.game.agent.rewards.inventory.ore_red
+                )  # Will be 0.0
                 reward_batteries = (
-                    inv_count_batteries * mg_config2.game.agent.rewards.inventory.battery_red
+                    inv_count_batteries
+                    * mg_config2.game.agent.rewards.inventory.battery_red
                 )  # Only source of reward
                 reward = reward_ore + reward_batteries  # Pure battery reward
                 trained_scores.append(reward)
@@ -1690,11 +1824,19 @@ def _(
         print(f"\n🎯 Trained agent performance:")
         print(f"   Total Reward: {mean_score:.2f} ± {std_score:.2f}")
         print(f"   Ore Collected: {mean_score_ore:.2f} ± {std_score_ore:.2f}")
-        print(f"   Batteries Collected: {mean_score_batteries:.2f} ± {std_score_batteries:.2f}")
+        print(
+            f"   Batteries Collected: {mean_score_batteries:.2f} ± {std_score_batteries:.2f}"
+        )
         print(f"\n💰 Reward Breakdown:")
-        print(f"   Ore reward rate: {mg_config2.game.agent.rewards.inventory.ore_red} per ore")
-        print(f"   Battery reward rate: {mg_config2.game.agent.rewards.inventory.battery_red} per battery")
-        print(f"   Average ore reward: {mean_score_ore * mg_config2.game.agent.rewards.inventory.ore_red:.2f}")
+        print(
+            f"   Ore reward rate: {mg_config2.game.agent.rewards.inventory.ore_red} per ore"
+        )
+        print(
+            f"   Battery reward rate: {mg_config2.game.agent.rewards.inventory.battery_red} per battery"
+        )
+        print(
+            f"   Average ore reward: {mean_score_ore * mg_config2.game.agent.rewards.inventory.ore_red:.2f}"
+        )
         print(
             f"   Average battery reward: {mean_score_batteries * mg_config2.game.agent.rewards.inventory.battery_red:.2f}"
         )
@@ -1717,7 +1859,9 @@ def _(mo, run_name2, show_replay):
         print("- Training hasn't generated replays yet (evaluation incomplete)")
         print("- Run not found in W&B (check run name)")
         print("- Network connectivity issues")
-        print(f"\nReplays are stored on S3 at: s3://softmax-public/replays/{run_name2}/")
+        print(
+            f"\nReplays are stored on S3 at: s3://softmax-public/replays/{run_name2}/"
+        )
     return
 
 

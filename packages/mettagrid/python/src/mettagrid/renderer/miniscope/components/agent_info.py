@@ -1,13 +1,15 @@
 """Agent info panel component for miniscope renderer."""
 
-from typing import Dict, Optional
+from typing import TYPE_CHECKING, Dict, Optional
 
 import numpy as np
 
 from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
 from mettagrid.renderer.miniscope.symbol import get_symbol_for_object
-from mettagrid.simulator import BoundingBox, Simulation
+
+if TYPE_CHECKING:
+    from mettagrid.simulator import Simulation
 
 from .base import MiniscopeComponent
 
@@ -17,7 +19,7 @@ class AgentInfoComponent(MiniscopeComponent):
 
     def __init__(
         self,
-        sim: Simulation,
+        sim: "Simulation",
         state: MiniscopeState,
         panels: PanelLayout,
     ):
@@ -60,13 +62,7 @@ class AgentInfoComponent(MiniscopeComponent):
             self._panel.set_content(["Agent info unavailable"])
             return
 
-        bbox = BoundingBox(
-            min_row=0,
-            max_row=self._sim.map_height,
-            min_col=0,
-            max_col=self._sim.map_width,
-        )
-        grid_objects = self._sim.grid_objects(bbox)
+        grid_objects = self._sim.grid_objects()
 
         lines = self._build_lines(
             grid_objects,
