@@ -669,7 +669,13 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
 
 proc loadReplay*(data: string, fileName: string): Replay =
   ## Load a replay from a string.
-  let jsonData = zippy.uncompress(data)
+  let jsonData =
+    try:
+      zippy.uncompress(data)
+    except ZippyError:
+      # TODO: Show error to user.
+      echo "Error uncompressing replay: ", getCurrentExceptionMsg()
+      return Replay()
   return loadReplayString(jsonData, fileName)
 
 proc loadReplay*(fileName: string): Replay =
