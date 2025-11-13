@@ -167,10 +167,10 @@ def train(
                 attr_path="teacher_lead_prob",
                 mode="progress",
                 style="linear",
-                start_value=1.0,
+                start_value=0.5,
                 end_value=0.0,
                 start_epoch=0,
-                end_epoch=800,
+                end_epoch=500,
             ),
         ],
     )
