@@ -10,20 +10,26 @@ from __future__ import annotations
 import io
 from dataclasses import dataclass
 from functools import cache
-from typing import Iterable
+import sys
+from pathlib import Path
 
 import numpy as np
 import pytest
 from rich.console import Console
 
 from cogames.play import play as play_episode
-from experiments.recipes.cogs_v_clips import make_training_env
 from metta.common.tool.run_tool import init_mettagrid_system_environment
 from mettagrid.config.mettagrid_config import EnvSupervisorConfig
 from mettagrid.envs.mettagrid_puffer_env import MettaGridPufferEnv
 from mettagrid.policy.loader import discover_and_register_policies, resolve_policy_class_path
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.simulator import Simulator
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from experiments.recipes.cogs_v_clips import make_training_env  # noqa: E402
 
 init_mettagrid_system_environment()
 discover_and_register_policies("cogames.policy")
@@ -62,6 +68,18 @@ POLICIES_UNDER_TEST: tuple[PolicyUnderTest, ...] = (
 SUPERVISOR_POLICIES: tuple[PolicyUnderTest, ...] = tuple(p for p in POLICIES_UNDER_TEST if p.supports_supervisor)
 
 
+def _policy_param(policy: PolicyUnderTest) -> pytest.ParameterSet:
+    marks = ()
+    if policy.requires_nim and not _nim_bindings_available():
+        marks = pytest.mark.skip("Nim bindings missing. Run `nim c nim_agents.nim` to build them.")
+    policy_id = policy.reference.replace("cogames.policy.", "").replace(".", "_")
+    return pytest.param(policy, id=policy_id, marks=marks)
+
+
+POLICY_PARAMS = tuple(_policy_param(policy) for policy in POLICIES_UNDER_TEST)
+SUPERVISOR_PARAMS = tuple(_policy_param(policy) for policy in SUPERVISOR_POLICIES)
+
+
 @pytest.fixture(scope="module")
 def simulator() -> Simulator:
     return Simulator()
@@ -74,16 +92,9 @@ def env_config():
     return env_cfg
 
 
-def _policy_ids(policies: Iterable[PolicyUnderTest]) -> list[str]:
-    return [policy.reference.replace("cogames.policy.", "").replace(".", "_") for policy in policies]
-
-
-@pytest.mark.parametrize("policy", SUPERVISOR_POLICIES, ids=_policy_ids(SUPERVISOR_POLICIES))
+@pytest.mark.parametrize("policy", SUPERVISOR_PARAMS)
 def test_scripted_policies_work_as_supervisors(policy: PolicyUnderTest, simulator: Simulator, env_config) -> None:
     """Supervisor policies must load and generate teacher actions for training."""
-
-    if policy.requires_nim and not _nim_bindings_available():
-        pytest.skip("Nim bindings are missing. Run nim c nim_agents.nim to build them.")
 
     env = MettaGridPufferEnv(simulator, env_config, EnvSupervisorConfig(policy=policy.reference))
     try:
@@ -105,12 +116,9 @@ def test_scripted_policies_work_as_supervisors(policy: PolicyUnderTest, simulato
         env.close()
 
 
-@pytest.mark.parametrize("policy", POLICIES_UNDER_TEST, ids=_policy_ids(POLICIES_UNDER_TEST))
+@pytest.mark.parametrize("policy", POLICY_PARAMS)
 def test_scripted_policies_can_play_short_episode(policy: PolicyUnderTest, env_config) -> None:
     """Policies should run through a short cogames.play session."""
-
-    if policy.requires_nim and not _nim_bindings_available():
-        pytest.skip("Nim bindings are missing. Run nim c nim_agents.nim to build them.")
 
     console = Console(file=io.StringIO(), force_terminal=False, soft_wrap=True, width=80)
     policy_class_path = resolve_policy_class_path(policy.reference)
