@@ -8,10 +8,10 @@ prevents regressions like missing bindings or policy registration mistakes.
 from __future__ import annotations
 
 import io
+import sys
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
-import sys
 
 import numpy as np
 import pytest
