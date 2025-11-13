@@ -5,17 +5,15 @@ from __future__ import annotations
 from typing import List, Literal, Optional
 
 import torch
-
 from cortex.stacks import build_hf_stack_config
 
-from metta.agent.components.actor import ActionProbsConfig
+from metta.agent.components.actor import ActionProbsConfig, ActorHeadConfig
 from metta.agent.components.component_config import ComponentConfig
-from metta.agent.components.obs_shim import ObsShimTokensConfig
-from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourierConfig
-from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
 from metta.agent.components.cortex import CortexTDConfig
 from metta.agent.components.misc import MLPConfig
-from metta.agent.components.actor import ActorHeadConfig
+from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
+from metta.agent.components.obs_shim import ObsShimTokensConfig
+from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourierConfig
 from metta.agent.policy import PolicyArchitecture
 
 

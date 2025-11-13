@@ -7,13 +7,13 @@ from typing import Optional, Tuple
 import torch
 import torch.nn as nn
 from tensordict import TensorDict
+from transformers.cache_utils import StaticCache
 
 from cortex.cells.base import MemoryCell
 from cortex.cells.core import update_parent_state
 from cortex.cells.registry import register_cell
 from cortex.config import CellConfig
 from cortex.types import MaybeState, ResetMask, Tensor
-from transformers.cache_utils import StaticCache
 
 
 class HFLlamaLayerConfig(CellConfig):
@@ -62,7 +62,14 @@ class HFLlamaLayerCell(MemoryCell):
 
         # Infer KV shapes from config (robust across implementations)
         n_kv = int(getattr(self.hf_config, "num_key_value_heads", getattr(self.hf_config, "num_attention_heads", 1)))
-        head_dim = int(getattr(self.hf_layer.self_attn, "head_dim", self.hidden_size // int(getattr(self.hf_config, "num_attention_heads", 1))))
+        head_dim = int(
+            getattr(
+                self.hf_layer.self_attn,
+                "head_dim",
+                self.hidden_size
+                // int(getattr(self.hf_config, "num_attention_heads", 1)),
+            )
+        )
 
         k = torch.zeros(batch, n_kv, self.mem_len, head_dim, dtype=dtype, device=device)
         v = torch.zeros_like(k)
@@ -105,8 +112,21 @@ class HFLlamaLayerCell(MemoryCell):
             n_kv = int(st_k.shape[1])
             head_dim = int(st_k.shape[-1])
         else:
-            n_kv = int(getattr(self.hf_config, "num_key_value_heads", getattr(self.hf_config, "num_attention_heads", 1)))
-            head_dim = int(getattr(self.hf_layer.self_attn, "head_dim", self.hidden_size // int(getattr(self.hf_config, "num_attention_heads", 1))))
+            n_kv = int(
+                getattr(
+                    self.hf_config,
+                    "num_key_value_heads",
+                    getattr(self.hf_config, "num_attention_heads", 1),
+                )
+            )
+            head_dim = int(
+                getattr(
+                    self.hf_layer.self_attn,
+                    "head_dim",
+                    self.hidden_size
+                    // int(getattr(self.hf_config, "num_attention_heads", 1)),
+                )
+            )
 
         cache = StaticCache(config=self.hf_config, max_cache_len=self.mem_len)
         cache.early_initialization(batch_size=B, num_heads=n_kv, head_dim=head_dim, dtype=dtype, device=device)
@@ -313,7 +333,14 @@ class HFLlamaLayerCell(MemoryCell):
                 "seg_pos": new_seg_pos,
             }, batch_size=[B])
         else:
-            out_state = TensorDict({"pos": new_pos, "seg_pos": new_seg_pos, "kv_len": torch.zeros(B, dtype=torch.long, device=device)}, batch_size=[B])
+            out_state = TensorDict(
+                {
+                    "pos": new_pos,
+                    "seg_pos": new_seg_pos,
+                    "kv_len": torch.zeros(B, dtype=torch.long, device=device),
+                },
+                batch_size=[B],
+            )
         update_parent_state(out_state, state)
 
         y_out: Tensor = y.squeeze(1) if is_step else y
@@ -324,7 +351,11 @@ class HFLlamaLayerCell(MemoryCell):
         if state is None:
             return None
         B = state.batch_size[0] if isinstance(state, TensorDict) and state.batch_size else 1
-        device = state.get("pos").device if isinstance(state, TensorDict) and "pos" in state.keys() else torch.device("cpu")
+        device = (
+            state.get("pos").device
+            if isinstance(state, TensorDict) and "pos" in state.keys()
+            else torch.device("cpu")
+        )
         new = self.init_state(batch=B, device=device, dtype=torch.float32)
         update_parent_state(new, state)
         return new

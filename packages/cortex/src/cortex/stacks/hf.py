@@ -7,12 +7,10 @@ from typing import Optional
 import torch
 from transformers import AutoModelForCausalLM, PreTrainedModel
 
-from cortex.blocks import PassThroughBlock
-from cortex.config import CortexStackConfig, PassThroughBlockConfig
-from cortex.stacks.base import CortexStack
-
 # Local cell config
 from cortex.cells.hf_llama import HFLlamaLayerConfig  # noqa: F401
+from cortex.config import CortexStackConfig, PassThroughBlockConfig
+from cortex.stacks.base import CortexStack
 
 
 def build_llama_stack_config_from_model(
@@ -33,9 +31,9 @@ def build_llama_stack_config_from_model(
             hidden_size=hidden_size,
             mem_len=int(mem_len),
         )
-        setattr(cell_cfg, "hf_layer", layer)
-        setattr(cell_cfg, "hf_submodel", hf_submodel)
-        setattr(cell_cfg, "hf_config", model.config)
+        cell_cfg.hf_layer = layer
+        cell_cfg.hf_submodel = hf_submodel
+        cell_cfg.hf_config = model.config
         blocks.append(PassThroughBlockConfig(cell=cell_cfg))
 
     return CortexStackConfig(

@@ -1,12 +1,10 @@
 import os
-import torch
-import pytest
 
+import pytest
+import torch
+from cortex.stacks.hf import build_llama_stack_from_model
 from transformers import AutoModelForCausalLM, LlamaConfig, LlamaForCausalLM
 from transformers.cache_utils import DynamicCache
-
-from cortex.stacks.hf import build_llama_stack_from_model
-
 
 # ---------------------------- Kernel-level tests ----------------------------
 # Skip this module entirely by default (slow).
@@ -118,9 +116,6 @@ def test_smollm_llama_parity_and_streaming() -> None:
     torch.manual_seed(0)
     input_ids = torch.randint(0, vocab, (B, T), device=device)
     embeds = hf.model.embed_tokens(input_ids)
-
-    with torch.no_grad():
-        ref_full = hf.model(inputs_embeds=embeds, use_cache=True).last_hidden_state
 
     # streaming (chunk=8)
     chunk = 8

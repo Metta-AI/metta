@@ -180,8 +180,7 @@ class CortexTD(nn.Module):
         return s1
 
     def _adopt_template_from_state(self, state: TensorDictBase) -> None:
-        """Adopt treedef and shapes from a representative state; ignore non‑tensor leaves."""
-        state = self._sanitize_state_for_template(state)
+        """Adopt treedef and shapes from a representative state."""
         leaves, treedef = optree.tree_flatten(state, namespace="torch")
         self._state_treedef = treedef
         self._leaf_shapes = []
@@ -194,35 +193,11 @@ class CortexTD(nn.Module):
 
     def _maybe_refresh_template(self, state: TensorDictBase) -> None:
         """Refresh template if current state's structure diverges."""
-        state = self._sanitize_state_for_template(state)
         leaves, _ = optree.tree_flatten(state, namespace="torch")
         if self._state_treedef is None or len(leaves) != len(self._leaf_shapes):
             self._adopt_template_from_state(state)
 
-    @staticmethod
-    def _is_nontensor_leaf(obj: Any) -> bool:
-        return hasattr(obj, "__class__") and "NonTensor" in obj.__class__.__name__
-
-    def _sanitize_state_for_template(self, state: TensorDictBase) -> TensorDict:
-        """Return a copy of state where non‑tensor leaves are replaced with None."""
-        data: Dict[str, Any] = {}
-        for k in state.keys():
-            v = state.get(k)
-            if isinstance(v, TensorDictBase):
-                data[k] = self._sanitize_state_for_template(v)
-            elif isinstance(v, torch.Tensor):
-                data[k] = v
-            elif self._is_nontensor_leaf(v) or v is None:
-                # Strip non‑tensor leaves (e.g., caches) down to None so the template
-                # remembers the key but not the runtime object.
-                data[k] = None
-            else:
-                # Fallback: keep as‑is if it behaves like a tensor, else drop
-                try:
-                    data[k] = v.to(device=state.device) if hasattr(v, "to") else None
-                except Exception:
-                    data[k] = None
-        return TensorDict(data, batch_size=list(state.batch_size) if state.batch_size else [])
+    
 
     @torch._dynamo.disable
     def forward(self, td: TensorDict) -> TensorDict:  # type: ignore[override]
@@ -439,7 +414,6 @@ class CortexTD(nn.Module):
         """Return state with each tensor leaf indexed by given rows."""
         if idx.dim() != 1:
             idx = idx.reshape(-1)
-        state = self._sanitize_state_for_template(state)
         leaves, _ = optree.tree_flatten(state, namespace="torch")
         sel_leaves: List[torch.Tensor] = [leaf.index_select(0, idx) for leaf in leaves]
         return optree.tree_unflatten(self._state_treedef, sel_leaves)
