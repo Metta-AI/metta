@@ -143,26 +143,30 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
         self._default_subset_len = subset.size
         self._default_subset_ptr = subset.ctypes.data_as(ctypes.POINTER(ctypes.c_int32)) if subset.size > 0 else None
         self._single_agent_id = np.zeros(1, dtype=np.int32)
-        self._single_obs_batch = np.empty((1, self._num_tokens, self._token_dim), dtype=dtype_observations)
-        self._single_action_batch = np.zeros(1, dtype=np.int32)
-        self._subset_obs_buffer: np.ndarray | None = None
-        self._subset_action_buffer: np.ndarray | None = None
+        self._single_obs_full = np.full(
+            (self._num_agents, self._num_tokens, self._token_dim),
+            fill_value=255,
+            dtype=dtype_observations,
+        )
+        self._single_action_full = np.zeros(self._num_agents, dtype=np.int32)
+        self._full_obs_buffer: np.ndarray | None = None
+        self._full_action_buffer: np.ndarray | None = None
 
     def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
         self._invoke_step_batch(self._default_subset, raw_observations, raw_actions)
 
     def step_single(self, agent_id: int, obs: AgentObservation) -> int:
         self._single_agent_id[0] = agent_id
-        target = self._single_obs_batch[0]
-        target.fill(255)
+        row = self._single_obs_full[agent_id]
+        row.fill(255)
         for idx, token in enumerate(obs.tokens):
             if idx >= self._num_tokens:
                 break
             token_values = token.raw_token
-            target[idx, : len(token_values)] = token_values
-        self._single_action_batch.fill(0)
-        self._invoke_step_batch(self._single_agent_id, self._single_obs_batch, self._single_action_batch)
-        return int(self._single_action_batch[0])
+            row[idx, : len(token_values)] = token_values
+        self._single_action_full[agent_id] = 0
+        self._invoke_step_batch(self._single_agent_id, self._single_obs_full, self._single_action_full)
+        return int(self._single_action_full[agent_id])
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         return _NimAgentPolicy(self, agent_id)
@@ -179,22 +183,8 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
     ) -> None:
         subset_len = agent_ids.shape[0]
 
-        obs_buffer = raw_observations
-        if raw_observations.shape[0] != subset_len:
-            if self._subset_obs_buffer is None or self._subset_obs_buffer.shape[0] != subset_len:
-                self._subset_obs_buffer = np.empty(
-                    (subset_len, self._num_tokens, self._token_dim),
-                    dtype=dtype_observations,
-                )
-            obs_buffer = self._subset_obs_buffer
-            np.take(raw_observations, agent_ids, axis=0, out=obs_buffer)
-
-        action_buffer = raw_actions
-        needs_scatter = raw_actions.shape[0] != subset_len
-        if needs_scatter:
-            if self._subset_action_buffer is None or self._subset_action_buffer.shape[0] != subset_len:
-                self._subset_action_buffer = np.empty(subset_len, dtype=np.int32)
-            action_buffer = self._subset_action_buffer
+        obs_buffer = self._prepare_observation_buffer(agent_ids, raw_observations)
+        action_buffer, needs_scatter = self._prepare_action_buffer(agent_ids, raw_actions)
 
         agent_ids_ptr = (
             self._default_subset_ptr
@@ -213,7 +203,39 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
         )
 
         if needs_scatter:
-            raw_actions[agent_ids] = action_buffer
+            raw_actions[...] = action_buffer[agent_ids]
+
+    def _prepare_observation_buffer(self, agent_ids: np.ndarray, raw_observations: np.ndarray) -> np.ndarray:
+        if raw_observations.shape[0] == self._num_agents:
+            return raw_observations
+        buffer = self._ensure_full_obs_buffer()
+        buffer[agent_ids] = raw_observations
+        return buffer
+
+    def _prepare_action_buffer(
+        self,
+        agent_ids: np.ndarray,
+        raw_actions: np.ndarray,
+    ) -> tuple[np.ndarray, bool]:
+        if raw_actions.shape[0] == self._num_agents:
+            return raw_actions, False
+        buffer = self._ensure_full_action_buffer()
+        buffer[agent_ids] = 0
+        return buffer, True
+
+    def _ensure_full_obs_buffer(self) -> np.ndarray:
+        if self._full_obs_buffer is None:
+            self._full_obs_buffer = np.full(
+                (self._num_agents, self._num_tokens, self._token_dim),
+                fill_value=255,
+                dtype=dtype_observations,
+            )
+        return self._full_obs_buffer
+
+    def _ensure_full_action_buffer(self) -> np.ndarray:
+        if self._full_action_buffer is None:
+            self._full_action_buffer = np.zeros(self._num_agents, dtype=np.int32)
+        return self._full_action_buffer
 
 
 class _NimAgentPolicy(AgentPolicy):
