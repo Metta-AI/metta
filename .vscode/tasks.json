@@ -16,7 +16,7 @@
     {
       "label": "build all",
       "dependsOrder": "sequence",
-      "dependsOn": ["uv sync", "build frontend"],
+      "dependsOn": ["uv sync"],
       "group": {
         "kind": "build",
         "isDefault": true,

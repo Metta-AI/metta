@@ -15,7 +15,6 @@ def format_grid_object_base(grid_object: dict) -> dict:
     update_object["inventory"] = list(grid_object.get("inventory", {}).items())
     update_object["inventory_max"] = grid_object.get("inventory_max", 0)
     update_object["color"] = grid_object.get("color", 0)
-    update_object["is_swappable"] = grid_object.get("is_swappable", False)
     return update_object
 
 

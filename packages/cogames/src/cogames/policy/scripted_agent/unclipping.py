@@ -9,7 +9,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 
-from mettagrid.config.vibes import VIBE_BY_NAME
 from mettagrid.policy.policy import MultiAgentPolicy, StatefulAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action
@@ -316,7 +315,7 @@ class UnclippingAgentPolicyImpl(BaselineAgentPolicyImpl):
 
         # Change glyph to "gear" for crafting unclip items
         if s.current_glyph != "gear":
-            vibe_action = self._actions.change_vibe.ChangeVibe(VIBE_BY_NAME["gear"])
+            vibe_action = self._change_vibe_action("gear")
             s.current_glyph = "gear"
             return vibe_action
 
@@ -383,5 +382,6 @@ class UnclippingPolicy(MultiAgentPolicy):
             self._agent_policies[agent_id] = StatefulAgentPolicy(
                 UnclippingAgentPolicyImpl(self._policy_env_info, self._shared_state, agent_id, self._hyperparams),
                 self._policy_env_info,
+                agent_id=agent_id,
             )
         return self._agent_policies[agent_id]

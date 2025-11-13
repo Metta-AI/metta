@@ -41,17 +41,13 @@ class ExecuteRemoteEvalTool(ToolWithResult):
         )
         normalized_uri = CheckpointManager.normalize_uri(self.policy_uri)
 
-        eval_results = eval_tool.eval_policy(
-            normalized_uri=normalized_uri, stats_client=stats_client
-        )
+        eval_results = eval_tool.eval_policy(normalized_uri=normalized_uri, stats_client=stats_client)
         if len(eval_results.scores.simulation_scores) == 0:
             return ToolResult(result="failure", error="No simulations were run")
         elif len(eval_results.scores.simulation_scores) != len(self.simulations):
             # Find missing simulations
             missing_simulations = [
-                sim
-                for sim in self.simulations
-                if sim.full_name not in eval_results.scores.simulation_scores
+                sim for sim in self.simulations if sim.full_name not in eval_results.scores.simulation_scores
             ]
             return ToolResult(
                 result="success",
@@ -72,9 +68,7 @@ def eval(
     with open(simulations_json_base64_path, "rb") as f:
         simulations_json_base64 = f.read()
     simulations_json = base64.b64decode(simulations_json_base64).decode()
-    simulations = [
-        SimulationConfig.model_validate(sim) for sim in json.loads(simulations_json)
-    ]
+    simulations = [SimulationConfig.model_validate(sim) for sim in json.loads(simulations_json)]
 
     return ExecuteRemoteEvalTool(
         simulations=simulations,

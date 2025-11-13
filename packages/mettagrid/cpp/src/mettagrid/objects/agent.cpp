@@ -4,6 +4,7 @@
 #include <cassert>
 
 #include "config/observation_features.hpp"
+#include "systems/observation_encoder.hpp"
 
 Agent::Agent(GridCoord r,
              GridCoord c,
@@ -157,10 +158,6 @@ void Agent::compute_stat_rewards(StatsTracker* game_stats_tracker) {
   }
 }
 
-bool Agent::swappable() const {
-  return this->frozen;
-}
-
 bool Agent::onUse(Agent& actor, ActionArg arg) {
   // Share half of shareable resources from actor to this agent
   for (InventoryItem resource : actor.shareable_resources) {
@@ -178,6 +175,9 @@ bool Agent::onUse(Agent& actor, ActionArg arg) {
 }
 
 std::vector<PartialObservationToken> Agent::obs_features() const {
+  if (!this->obs_encoder) {
+    throw std::runtime_error("Observation encoder not set for agent");
+  }
   const size_t num_tokens = this->inventory.get().size() + 3 + (vibe > 0 ? 1 : 0) + this->tag_ids.size();
 
   std::vector<PartialObservationToken> features;
@@ -190,7 +190,7 @@ std::vector<PartialObservationToken> Agent::obs_features() const {
   for (const auto& [item, amount] : this->inventory.get()) {
     // inventory should only contain non-zero amounts
     assert(amount > 0);
-    auto item_observation_feature = this->inventory.get_feature_id(item);
+    ObservationType item_observation_feature = this->obs_encoder->get_inventory_feature_id(item);
     features.push_back({item_observation_feature, static_cast<ObservationType>(amount)});
   }
 
