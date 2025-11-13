@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import logging
 import math
-import time
 from typing import TYPE_CHECKING, Callable, Sequence
 
 import numpy as np
@@ -20,8 +18,6 @@ if TYPE_CHECKING:
     EpisodeStatsT = EpisodeStats
 else:
     EpisodeStatsT = dict
-
-logger = logging.getLogger(__name__)
 
 _SKIP_STATS = [r"^action\.invalid_arg\..+$"]
 
@@ -61,7 +57,6 @@ def multi_episode_rollout(
     seed: int = 0,
     proportions: Sequence[float] | None = None,
     progress_callback: ProgressCallback | None = None,
-    max_time_s: int | None = None,
     **kwargs,
 ) -> MultiEpisodeRolloutResult:
     """
@@ -82,11 +77,7 @@ def multi_episode_rollout(
     per_episode_assignments: list[np.ndarray] = []
     per_episode_timeouts: list[np.ndarray] = []
     rng = np.random.default_rng(seed)
-    start_time = time.time()
     for episode_idx in range(episodes):
-        if max_time_s is not None and time.time() - start_time > max_time_s:
-            logger.warning("Max time %ds reached, stopping rollout.", max_time_s)
-            break
         rng.shuffle(assignments)
         agent_policies: list[AgentPolicy] = [
             policies[assignments[agent_id]].agent_policy(agent_id) for agent_id in range(env_cfg.game.num_agents)

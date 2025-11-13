@@ -22,10 +22,7 @@ def initialize_or_load_policy(
 ) -> MultiAgentPolicy:
     """Initialize a policy from its class path and optionally load weights.
 
-    Args:
-        policy_env_info: PolicyEnvInterface (created from env if not provided)
-        policy_class_path: Full class path to the policy
-        policy_data_path: Optional path to policy checkpoint
+    Expects PolicySpec to have fully resolved, local paths.
 
     Returns:
         Initialized policy instance
