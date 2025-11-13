@@ -6,7 +6,7 @@ from typing import List, Literal, Optional
 
 import torch
 
-from cortex.stacks import build_hf_stack
+from cortex.stacks import build_hf_stack_config
 
 from metta.agent.components.actor import ActionProbsConfig
 from metta.agent.components.component_config import ComponentConfig
@@ -28,6 +28,7 @@ class SmolLLMConfig(PolicyArchitecture):
     max_sequence_length: int = 32
     # HF loading/runtime
     torch_dtype: Literal["auto", "float32", "float16", "bfloat16"] = "auto"
+    attn_implementation: Optional[str] = None  # e.g., "flash_attention_2"
     mem_len: int = 0  # rolling KV cache length; 0 = unbounded
 
     tokens_key: str = "smollm_tokens"
@@ -62,15 +63,16 @@ class SmolLLMConfig(PolicyArchitecture):
         return mapping[self.torch_dtype]
 
     def build_components(self) -> List[ComponentConfig]:
-        # Build HF-backed Cortex stack and use its embedding dim for both input and output of the core.
-        hf_stack = build_hf_stack(
+        # Build HF-backed Cortex stack config and use its embedding dim for both input and output of the core.
+        stack_cfg = build_hf_stack_config(
             self.model_name,
             trust_remote_code=True,
             torch_dtype=self._resolve_dtype(),
+            attn_implementation=self.attn_implementation,
             mem_len=int(self.mem_len),
             compile_blocks=False,
         )
-        hf_hidden = int(hf_stack.cfg.d_hidden)
+        hf_hidden = int(stack_cfg.d_hidden)
 
         # Feature tokenizer mirrors cortex policy
         feat_dim = self._token_embed_dim + (4 * self._fourier_freqs) + 1
@@ -101,7 +103,7 @@ class SmolLLMConfig(PolicyArchitecture):
                 out_key="core",
                 d_hidden=hf_hidden,            # input dim to stack = LLM embed dim
                 out_features=hf_hidden,        # out_features = LLM embed dim
-                stack_cfg=hf_stack.cfg,
+                stack_cfg=stack_cfg,
                 key_prefix="cortex_state",
             ),
             MLPConfig(

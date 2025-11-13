@@ -19,7 +19,7 @@ from metta.agent.components.component_config import ComponentConfig
 logger = logging.getLogger(__name__)
 
 FlatKey = str
-LeafPath = Tuple[str, str, str]  # (block_key, cell_key, leaf_key)
+# Removed unused LeafPath alias
 
 
 # --- optree registration for TensorDictBase ---
@@ -161,13 +161,16 @@ class CortexTD(nn.Module):
         self._rollout_current_state: Optional[TensorDict] = None
         self._rollout_current_env_ids: Optional[torch.Tensor] = None  # Long[Br]
 
-        # Prime leaves by a zero step for complete templates
-        self._prime_state_template()
 
-    def _prime_state_template(self) -> None:
-        """Initialize state template by running zero-step to materialize all leaves."""
-        s1 = self._zero_step_init_state(batch=1, device=torch.device("cpu"), dtype=torch.float32)
-        self._adopt_template_from_state(s1)
+
+    # Hook called by PolicyAutoBuilder after moving the module to the runtime device.
+    def initialize_to_environment(self, _policy_env_info: Any, device: torch.device) -> Optional[str]:
+        return None
+
+    def _ensure_template_primed(self, *, B: int, device: torch.device, dtype: torch.dtype) -> None:
+        if self._state_treedef is None:
+            s1 = self._zero_step_init_state(batch=B, device=device, dtype=dtype)
+            self._adopt_template_from_state(s1)
 
     def _zero_step_init_state(self, *, batch: int, device: torch.device, dtype: torch.dtype) -> TensorDict:
         """Create initial state with zero-input forward pass to materialize all leaves."""
@@ -177,22 +180,49 @@ class CortexTD(nn.Module):
         return s1
 
     def _adopt_template_from_state(self, state: TensorDictBase) -> None:
-        """Adopt treedef and per-leaf shapes from a representative state."""
+        """Adopt treedef and shapes from a representative state; ignore non‑tensor leaves."""
+        state = self._sanitize_state_for_template(state)
         leaves, treedef = optree.tree_flatten(state, namespace="torch")
         self._state_treedef = treedef
         self._leaf_shapes = []
         for leaf in leaves:
-            assert isinstance(leaf, torch.Tensor), "Cortex state leaves must be Tensors"
-            self._leaf_shapes.append(tuple(leaf.shape[1:]))
+            if isinstance(leaf, torch.Tensor):
+                self._leaf_shapes.append(tuple(leaf.shape[1:]))
         # Reset stores to empty; capacity will be allocated on demand
         self._rollout_store_leaves = []
         self._row_store_leaves = []
 
     def _maybe_refresh_template(self, state: TensorDictBase) -> None:
-        """Refresh the template if the current state's structure diverges."""
+        """Refresh template if current state's structure diverges."""
+        state = self._sanitize_state_for_template(state)
         leaves, _ = optree.tree_flatten(state, namespace="torch")
         if self._state_treedef is None or len(leaves) != len(self._leaf_shapes):
             self._adopt_template_from_state(state)
+
+    @staticmethod
+    def _is_nontensor_leaf(obj: Any) -> bool:
+        return hasattr(obj, "__class__") and "NonTensor" in obj.__class__.__name__
+
+    def _sanitize_state_for_template(self, state: TensorDictBase) -> TensorDict:
+        """Return a copy of state where non‑tensor leaves are replaced with None."""
+        data: Dict[str, Any] = {}
+        for k in state.keys():
+            v = state.get(k)
+            if isinstance(v, TensorDictBase):
+                data[k] = self._sanitize_state_for_template(v)
+            elif isinstance(v, torch.Tensor):
+                data[k] = v
+            elif self._is_nontensor_leaf(v) or v is None:
+                # Strip non‑tensor leaves (e.g., caches) down to None so the template
+                # remembers the key but not the runtime object.
+                data[k] = None
+            else:
+                # Fallback: keep as‑is if it behaves like a tensor, else drop
+                try:
+                    data[k] = v.to(device=state.device) if hasattr(v, "to") else None
+                except Exception:
+                    data[k] = None
+        return TensorDict(data, batch_size=list(state.batch_size) if state.batch_size else [])
 
     @torch._dynamo.disable
     def forward(self, td: TensorDict) -> TensorDict:  # type: ignore[override]
@@ -203,6 +233,8 @@ class CortexTD(nn.Module):
 
         TT = int(td["bptt"][0].item())
         B = int(td["batch"][0].item())
+
+        self._ensure_template_primed(B=B, device=device, dtype=dtype)
 
         if TT <= 0 or B <= 0:
             raise ValueError("'bptt' and 'batch' must be positive integers")
@@ -226,7 +258,7 @@ class CortexTD(nn.Module):
 
             state_prev = self._ensure_rollout_current_state(env_ids_long, B=B, device=device, dtype=dtype)
 
-            self._maybe_refresh_template(state_prev)
+            # self._maybe_refresh_template(state_prev)
             # Cache pre-state at row starts into row store (TensorDict)
             if "row_id" not in td.keys() or "t_in_row" not in td.keys():
                 logger.debug(
@@ -404,13 +436,10 @@ class CortexTD(nn.Module):
             dest.index_copy_(0, slot_ids, leaf.to(dtype=dest.dtype).detach())
 
     def _select_state_rows(self, state: TensorDictBase, idx: torch.Tensor) -> TensorDict:
-        """Return a state where each tensor leaf is indexed by the given rows.
-
-        Uses optree to flatten state into tensor leaves, applies index_select on
-        the batch dimension, and reconstructs the TensorDict via the saved treedef.
-        """
+        """Return state with each tensor leaf indexed by given rows."""
         if idx.dim() != 1:
             idx = idx.reshape(-1)
+        state = self._sanitize_state_for_template(state)
         leaves, _ = optree.tree_flatten(state, namespace="torch")
         sel_leaves: List[torch.Tensor] = [leaf.index_select(0, idx) for leaf in leaves]
         return optree.tree_unflatten(self._state_treedef, sel_leaves)
@@ -474,8 +503,7 @@ class CortexTD(nn.Module):
                 out.append(mapping.get(int(eid), -1))
         return torch.tensor(out, device=ids_long.device, dtype=torch.long)
 
-    def _flat_key(self, block_key: str, cell_key: str, leaf_key: str) -> FlatKey:
-        return f"{self.key_prefix}__{block_key}__{cell_key}__{leaf_key}"
+    # Removed unused _flat_key helper
 
     @staticmethod
     def _make_activation(name: str) -> nn.Module:
