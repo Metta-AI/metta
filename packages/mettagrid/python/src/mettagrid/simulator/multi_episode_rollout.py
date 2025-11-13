@@ -9,9 +9,7 @@ import numpy as np
 from pydantic import BaseModel, ConfigDict
 
 from mettagrid import MettaGridConfig
-from mettagrid.policy.loader import initialize_or_load_policy
-from mettagrid.policy.policy import PolicySpec
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.simulator.rollout import Rollout
 
 if TYPE_CHECKING:
@@ -34,11 +32,11 @@ class MultiEpisodeRolloutResult(BaseModel):
     stats: list[EpisodeStatsT]
 
 
-def _compute_policy_agent_counts(num_agents: int, policy_specs: list[PolicySpec]) -> list[int]:
-    total = sum(spec.proportion for spec in policy_specs)
+def _compute_policy_agent_counts(num_agents: int, proportions: list[float]) -> list[int]:
+    total = sum(proportions)
     if total <= 0:
         raise ValueError("Total policy proportion must be positive.")
-    fractions = [spec.proportion / total for spec in policy_specs]
+    fractions = [proportion / total for proportion in proportions]
 
     ideals = [num_agents * f for f in fractions]
     counts = [math.floor(x) for x in ideals]
@@ -54,31 +52,25 @@ def _compute_policy_agent_counts(num_agents: int, policy_specs: list[PolicySpec]
 
 def multi_episode_rollout(
     env_cfg: MettaGridConfig,
-    policy_specs: list[PolicySpec],
+    policies: list[MultiAgentPolicy],
     episodes: int,
     seed: int = 0,
+    proportions: list[float] | None = None,
     progress_callback: ProgressCallback | None = None,
     **kwargs,
 ) -> MultiEpisodeRolloutResult:
     """
     Runs rollout for multiple episodes, randomizing agent assignments for each episode in proportions
-    specified by the input policy specs.
+    specified by the input policy specs (default uniform).
 
     Returns per-episode rewards, stats, assignments, and action timeouts.
     """
-    policy_instances = [
-        initialize_or_load_policy(
-            PolicyEnvInterface.from_mg_cfg(env_cfg),
-            spec.policy_class_path,
-            spec.policy_data_path,
-        )
-        for spec in policy_specs
-    ]
-    policy_counts = _compute_policy_agent_counts(env_cfg.game.num_agents, policy_specs)
-
-    assignments = np.repeat(np.arange(len(policy_specs)), policy_counts)
-
-    assert len(assignments) == env_cfg.game.num_agents
+    if proportions is not None and len(proportions) != len(policies):
+        raise ValueError("Number of proportions must match number of policies.")
+    policy_counts = _compute_policy_agent_counts(
+        env_cfg.game.num_agents, proportions if proportions is not None else [1.0] * len(policies)
+    )
+    assignments = np.repeat(np.arange(len(policies)), policy_counts)
 
     per_episode_rewards: list[np.ndarray] = []
     per_episode_stats: list[EpisodeStatsT] = []
@@ -87,9 +79,8 @@ def multi_episode_rollout(
     rng = np.random.default_rng(seed)
     for episode_idx in range(episodes):
         rng.shuffle(assignments)
-        agent_policies = [
-            policy_instances[assignments[agent_id]].agent_policy(agent_id)
-            for agent_id in range(env_cfg.game.num_agents)
+        agent_policies: list[AgentPolicy] = [
+            policies[assignments[agent_id]].agent_policy(agent_id) for agent_id in range(env_cfg.game.num_agents)
         ]
 
         rollout = Rollout(env_cfg, agent_policies, **kwargs)

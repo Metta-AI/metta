@@ -178,6 +178,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
         if (_global_obs_config.visitation_counts) {
           agent->init_visitation_grid(height, width);
         }
+        agent->set_obs_encoder(_obs_encoder.get());
         add_agent(agent);
         _group_sizes[agent->group] += 1;
         continue;
@@ -200,6 +201,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
         _grid->add_object(chest);
         _stats->incr("objects." + cell);
         chest->set_grid(_grid.get());
+        chest->set_obs_encoder(_obs_encoder.get());
         continue;
       }
 
@@ -769,7 +771,6 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
     // We define that for location: x is column, y is row. Currently, no z for grid objects.
     // Note: it might be different for matrix computations.
     obj_dict["location"] = py::make_tuple(obj->location.c, obj->location.r);
-    obj_dict["is_swappable"] = obj->swappable();
 
     obj_dict["r"] = obj->location.r;          // To remove
     obj_dict["c"] = obj->location.c;          // To remove

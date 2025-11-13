@@ -18,8 +18,7 @@ class WandbConfig(Config):
     project: str
     entity: str
     group: str | None = None
-    name: str | None = None
-    run_id: str | None = None
+    run_id: str | None = None  # Used for both WandB id and display name
     data_dir: str | None = None
     job_type: str | None = None
     tags: list[str] = []
@@ -122,6 +121,7 @@ class WandbContext:
 
             self.run = wandb.init(
                 id=self.wandb_config.run_id,
+                name=self.wandb_config.run_id,  # Use run_id as display name
                 job_type=self.wandb_config.job_type,
                 project=self.wandb_config.project,
                 entity=self.wandb_config.entity,
