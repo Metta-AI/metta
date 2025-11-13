@@ -1,6 +1,6 @@
 """Display and formatting utilities for release validation.
 
-Extracted from TaskRunner and stable.py to separate display concerns
+Extracted from TaskRunner and release_stable.py to separate display concerns
 from orchestration logic.
 """
 
@@ -10,7 +10,7 @@ import logging
 
 from metta.common.util.text_styles import blue, cyan, green, magenta, red
 from metta.jobs.job_config import JobConfig
-from metta.jobs.job_display import format_artifact_link
+from metta.jobs.job_display import format_artifact_link, format_job_status_line
 from metta.jobs.job_state import JobState
 
 logger = logging.getLogger("metta.jobs")
@@ -137,3 +137,5 @@ def format_training_job_section(job_name: str, job_state: JobState) -> str:
             lines.append(f"- Training throughput: {sps:.0f} SPS")
 
     return "\n".join(lines)
+
+

@@ -148,9 +148,22 @@ Examples:
     # We'll parse known args only, allowing unknown ones to be passed as tool args
     parser.add_argument(
         "module_path",
+        nargs="?",
         help="Module path to run (e.g., arena.train or recipes.experiment.arena.train, "
-        "or two-token syntax like 'train arena'). "
+        "or two-token syntax like 'train arena'). Can also be arbitrary command if --cmd flag is used. "
         "Any arguments following the module path will be passed to the tool.",
+    )
+
+    parser.add_argument(
+        "--tool",
+        action="store_true",
+        help="Treat module_path as a tool module (wraps with devops/run.sh for torchrun)",
+    )
+
+    parser.add_argument(
+        "--cmd",
+        action="store_true",
+        help="Treat module_path and args as arbitrary command (runs directly without torchrun wrapper)",
     )
 
     # Launch-specific flags
@@ -198,12 +211,23 @@ Examples:
     # Use parse_known_args to handle both launch flags and tool args
     args, tool_args = parser.parse_known_args()
 
-    # Handle two-token syntax (e.g., 'train arena' → 'arena.train')
+    # Validate flag usage - require explicit --tool or --cmd
+    if args.tool and args.cmd:
+        parser.error("Cannot specify both --tool and --cmd")
+    if not args.tool and not args.cmd:
+        parser.error("Must specify either --tool or --cmd")
+    if not args.module_path:
+        parser.error("module_path is required")
+
+    use_torchrun = args.tool
+
+    # Handle two-token syntax (e.g., 'train arena' → 'arena.train') - only for tool mode
     module_path = args.module_path
-    second_token = tool_args[0] if tool_args else None
-    resolved_path, args_consumed = parse_two_token_syntax(module_path, second_token)
-    module_path = resolved_path
-    tool_args = tool_args[args_consumed:]  # Skip consumed args
+    if use_torchrun:
+        second_token = tool_args[0] if tool_args else None
+        resolved_path, args_consumed = parse_two_token_syntax(module_path, second_token)
+        module_path = resolved_path
+        tool_args = tool_args[args_consumed:]  # Skip consumed args
 
     # Handle run ID extraction
     run_id = args.run
@@ -245,17 +269,18 @@ Examples:
                 print("  - Skip check: add --skip-git-check flag", flush=True)
                 return 1
 
-    # Validate module path (supports shorthand like 'arena.train' or two-token 'train arena')
-    if not validate_module_path(module_path):
-        print(f"❌ Invalid module path: '{module_path}'", flush=True)
-        print("Module path should be like 'arena.train' or 'recipes.experiment.arena.train'", flush=True)
-        return 1
-
     assert commit_hash
 
-    # Validate the run.py tool configuration early to catch errors before setting up the task
-    if not _validate_run_tool(module_path, run_id, filtered_args):
-        return 1
+    # Validate module path and tool configuration - only for tool mode
+    if use_torchrun:
+        if not validate_module_path(module_path):
+            print(f"❌ Invalid module path: '{module_path}'", flush=True)
+            print("Module path should be like 'arena.train' or 'recipes.experiment.arena.train'", flush=True)
+            return 1
+
+        # Validate the run.py tool configuration early to catch errors before setting up the task
+        if not _validate_run_tool(module_path, run_id, filtered_args):
+            return 1
 
     # Validate the provided run name
     if not _validate_sky_cluster_name(run_id):
@@ -263,11 +288,19 @@ Examples:
 
     task = sky.Task.from_yaml("./devops/skypilot/config/skypilot_run.yaml")
 
+    # Build command based on mode
+    if use_torchrun:
+        # Tool mode: pass module and args separately (for devops/run.sh)
+        command = f"{module_path} {' '.join(filtered_args)}"
+    else:
+        # Command mode: pass full command as-is
+        command = f"{module_path} {' '.join(tool_args)}"
+
     # Prepare environment variables including status parameters
     env_updates = dict(
         METTA_RUN_ID=run_id,
-        METTA_MODULE_PATH=module_path,
-        METTA_ARGS=" ".join(filtered_args),
+        METTA_CMD=command,
+        METTA_USE_TORCHRUN="true" if use_torchrun else "false",
         METTA_GIT_REF=commit_hash,
         HEARTBEAT_TIMEOUT=args.heartbeat_timeout_seconds,
         GITHUB_PAT=args.github_pat,
@@ -289,6 +322,7 @@ Examples:
         nodes=args.nodes,
         no_spot=args.no_spot,
     )
+    set_task_secrets(task)
 
     # Handle --dump-config option
     if args.dump_config:
@@ -319,8 +353,8 @@ Examples:
 
     display_job_summary(
         job_name=run_id,
-        cmd=f"{module_path} (args: {filtered_args})",
-        task_args=[],  # We're showing args differently now
+        cmd=command,
+        task_args=[],
         commit_hash=commit_hash,
         git_ref=args.git_ref,
         timeout_hours=args.max_runtime_hours,

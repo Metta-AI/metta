@@ -99,7 +99,8 @@ def train(
 ) -> None:
     import pufferlib.pytorch  # noqa: F401 - ensure modules register with torch
 
-    console = Console()
+    # Configure console based on log_outputs flag
+    console = Console()  # Rich console for user-facing output
 
     if env_cfg is None and env_cfg_supplier is None:
         raise ValueError("Either env_cfg or env_cfg_supplier must be provided")
@@ -301,10 +302,12 @@ def train(
     )
 
     trainer = pufferl.PuffeRL(train_args, vecenv, policy.network())
+
     if log_outputs:
-        console.clear()
-        console.print("[dim]Evaluation stats will stream below; disabling Rich dashboard.[/dim]")
+        # Disable dashboard and clear any initialization output
         trainer.print_dashboard = lambda *_, **__: None  # type: ignore[assignment]
+        console.clear()
+        console.print("Training stats will stream below (--log-outputs enabled)")
 
     training_diverged = False
 
@@ -313,12 +316,12 @@ def train(
             while trainer.global_step < num_steps:
                 eval_stats = trainer.evaluate()
                 if log_outputs and eval_stats:
-                    console.log(f"Evaluation: {datetime.now(UTC)}")
-                    console.log(dict(eval_stats))
+                    # Write directly to stdout to avoid Rich formatting/wrapping
+                    print(f"Evaluation: {datetime.now(UTC)} {repr(dict(eval_stats))}", flush=True)
                 trainer_stats = trainer.train()
                 if log_outputs and trainer_stats:
-                    console.log(f"Training: {datetime.now(UTC)}")
-                    console.log(dict(trainer_stats))
+                    # Write directly to stdout to avoid Rich formatting/wrapping
+                    print(f"Training: {datetime.now(UTC)} {repr(dict(trainer_stats))}", flush=True)
                 # Check for NaN in network parameters after each training step
                 network = policy.network()
                 has_nan = False
