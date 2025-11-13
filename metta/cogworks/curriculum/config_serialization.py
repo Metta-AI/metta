@@ -15,7 +15,6 @@ class FeatureSpec:
 
     For continuous/discrete types, values are normalized to [0, 1] with
     out-of-range values clipped before conversion.
-
     """
 
     name: str
@@ -103,7 +102,7 @@ def extract_features_from_config(config: MettaGridConfig) -> Dict[str, Any]:
         raise ValueError("map_builder.width/height missing (builder may be incomplete).")
 
     objs = getattr(getattr(config, "game", None), "objects", None) or {}
-    num_assemblers = sum(1 for o in objs.values() if getattr(o, "type", "") == "assembler")
+    num_assemblers = sum(1 for o in objs.values() if getattr(o, "pydantic_type", "") == "assembler")
 
     return {
         "width": int(width),
@@ -250,16 +249,12 @@ def deserialize_config(features: Mapping[str, np.ndarray], *, rng: random.Random
         rng=rng,
     )
 
-    try:
-        cfg.label = f"{raw['room_size']}_{raw['chain_length']}chain_{raw['num_sinks']}sinks_{raw['terrain']}"
-    except Exception:
-        pass
     return cfg
 
 
 def _objects(cfg: MettaGridConfig) -> dict[str, Any]:
-    """Return game objects mapping, handling both config- and game-scoped layouts."""
-    return getattr(cfg, "game_objects", None) or getattr(getattr(cfg, "game", None), "objects", None) or {}
+    """Return game objects mapping"""
+    return getattr(getattr(cfg, "game", None), "objects", None) or {}
 
 
 def _summary_vector(
@@ -299,14 +294,14 @@ def _summary_vector(
     """
     objs = _objects(cfg)
 
-    num_assemblers = sum(1 for o in objs.values() if getattr(o, "type", None) == "assembler")
+    num_assemblers = sum(1 for o in objs.values() if getattr(o, "pydantic_type", "") == "assembler")
     num_assemblers_norm = float(min(max_assemblers, max(0, num_assemblers))) / float(max_assemblers)
 
     start, goal = sentinels
 
     next_of: dict[str, str] = {}
     for o in objs.values():
-        if getattr(o, "type", None) != "assembler":
+        if getattr(o, "pydantic_type", None) != "assembler":
             continue
 
         protos = getattr(o, "protocols", []) or []
