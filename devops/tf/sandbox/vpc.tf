@@ -1,5 +1,6 @@
 locals {
-  azs = slice(data.aws_availability_zones.available.names, 0, 3)
+  # Single AZ - no need for multi-AZ since each researcher gets one instance
+  azs = [data.aws_availability_zones.available.names[0]]
 
   tags = {
     Terraform   = "true"
