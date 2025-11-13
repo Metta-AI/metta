@@ -16,8 +16,8 @@ from metta.rl.training import ComponentContext
 
 
 class ActionSupervisedConfig(LossConfig):
-    action_loss_coef: float = Field(default=0.75, ge=0)
-    value_loss_coef: float = Field(default=1.5, ge=0)
+    action_loss_coef: float = Field(default=0.6, ge=0)
+    value_loss_coef: float = Field(default=1.0, ge=0)
     gae_gamma: float = Field(default=0.977, ge=0, le=1.0)  # pulling from our PPO config
     gae_lambda: float = Field(default=0.891477, ge=0, le=1.0)  # pulling from our PPO config
     vf_clip_coef: float = Field(default=0.1, ge=0)  # pulling from our PPO config

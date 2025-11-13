@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Callable, Literal, Optional
+from typing import Any, Callable, Iterable, Literal, Optional
 
 import numpy as np
 from pydantic import Field
@@ -311,6 +311,11 @@ class LossScheduler(TrainerComponent):
             # Apply updates to the loss config object
             rule.apply(obj=loss.cfg, ctx=self.context)
 
+        # 3) For the upcoming rollout phase, restrict which experience keys
+        #    must be present based on which losses are active for rollout.
+        if phase == "rollout":
+            self._update_experience_store_keys_for_rollout()
+
     # ----------------- Trainer callbacks -----------------
     def on_rollout_end(self) -> None:
         """Prepare gates and hypers for the upcoming train phase."""
@@ -319,6 +324,45 @@ class LossScheduler(TrainerComponent):
     def on_epoch_end(self, epoch: int) -> None:
         """Prepare gates and hypers for the next epoch's rollout."""
         self.apply(phase="rollout")
+
+    # ----------------- Experience key management -----------------
+    def _active_rollout_loss_names(self) -> Iterable[str]:
+        """Return loss instance names that are active for rollout in the current epoch."""
+        gates = getattr(self.context, "loss_run_gates", None) or {}
+        for loss_name in self.context.losses.keys():
+            entry = gates.get(loss_name)
+            if not entry:
+                # No gates configured for this loss; default to active.
+                yield loss_name
+                continue
+            if bool(entry.get("rollout", True)):
+                yield loss_name
+
+    def _update_experience_store_keys_for_rollout(self) -> None:
+        """Update experience buffer to only require keys for active rollout losses."""
+        context = self.context
+        experience = getattr(context, "experience", None)
+        if experience is None:
+            return
+
+        # Always include policy experience spec keys.
+        policy_spec = context.policy.get_agent_experience_spec()
+        active_keys: set[Any] = set(policy_spec.keys(include_nested=True, leaves_only=True))
+
+        # Include spec keys from losses that are active for rollout this epoch.
+        for loss_name in self._active_rollout_loss_names():
+            loss = context.losses.get(loss_name)
+            if loss is None:
+                continue
+            spec = loss.get_experience_spec()
+            active_keys.update(spec.keys(include_nested=True, leaves_only=True))
+
+        # If for some reason no keys were found, fall back to writing all keys.
+        if not active_keys:
+            experience.reset_store_keys()
+            return
+
+        experience.set_store_keys(active_keys)
 
 
 def _set_attr_path(obj: object, path: str, value: Any) -> None:

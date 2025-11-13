@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, Iterable, List
 
 import torch
 from tensordict import TensorDict
@@ -76,44 +76,15 @@ class Experience:
 
         self._range_tensor = torch.arange(total_agents, device=self.device, dtype=torch.int32)
 
+        # Keys to use when writing into the buffer; defaults to all spec keys.
+        # This can be dynamically restricted by the scheduler based on active losses.
+        self._store_keys: List[Any] = list(self.buffer.keys(include_nested=True, leaves_only=True))
+
     def _check_for_duplicate_keys(self, experience_spec: Composite) -> None:
         """Check for duplicate keys in the experience spec."""
         all_keys = list(experience_spec.keys(include_nested=True, leaves_only=True))
         if duplicate_keys := duplicates(all_keys):
             raise ValueError(f"Duplicate keys found in experience_spec: {[str(d) for d in duplicate_keys]}")
-
-    def _create_placeholder_tensor(self, key: str, batch_shape: tuple, device: torch.device) -> Tensor:
-        """Create a placeholder tensor for a missing key with sentinel values.
-
-        Args:
-            key: The key name in the buffer
-            batch_shape: The batch shape to match (from data_td.batch_size)
-            device: The device for the tensor
-
-        Returns:
-            A tensor filled with sentinel values (NaN for floats, -1 for integers)
-        """
-        # Get the reference tensor from buffer to extract shape and dtype
-        # The buffer has shape (segments, bptt_horizon, *tensor_shape)
-        # We need to extract just the tensor_shape (excluding the first 2 dims)
-        ref_tensor = self.buffer[key]
-        tensor_shape = ref_tensor.shape[2:]  # Skip (segments, bptt_horizon)
-        dtype = ref_tensor.dtype
-
-        # Create tensor with batch_shape + tensor_shape
-        full_shape = batch_shape + tensor_shape
-        placeholder = torch.empty(full_shape, dtype=dtype, device=device)
-
-        # Fill with sentinel values based on dtype
-        if dtype.is_floating_point:
-            placeholder.fill_(float("nan"))
-        elif dtype.is_signed:
-            placeholder.fill_(-1)
-        else:
-            # For unsigned integers, use max value as sentinel
-            placeholder.fill_(torch.iinfo(dtype).max)
-
-        return placeholder
 
     @property
     def ready_for_training(self) -> bool:
@@ -128,28 +99,10 @@ class Experience:
         t_in_row_val = self.t_in_row[env_id.start].item()
         row_ids = self.row_slot_ids[env_id]
 
-        # Get required keys from buffer and present keys from data_td
-        # Motivation: do not fail if a loss spec comes from a loss that is temporarily disabled. Instead, let the
-        # failure happen at the loss or the policy by filling the key with nan or -1.
-        required_keys = list(self.buffer.keys(include_nested=True))
-        present_keys = list(data_td.keys(include_nested=True))
-        missing_keys = [key for key in required_keys if key not in present_keys]
-
-        # Create merged TensorDict with existing data and placeholders for missing keys
-        if missing_keys:
-            # Create placeholders for missing keys
-            placeholder_dict = {}
-            batch_shape = data_td.batch_size
-            for key in missing_keys:
-                placeholder_dict[key] = self._create_placeholder_tensor(key, batch_shape, data_td.device)
-
-            # Create TensorDict with placeholders and merge with existing data
-            placeholder_td = TensorDict(placeholder_dict, batch_size=batch_shape, device=data_td.device)
-            merged_td = data_td.update(placeholder_td)
-        else:
-            merged_td = data_td
-
-        self.buffer.update_at_(merged_td.select(*required_keys), (row_ids, t_in_row_val))
+        # Only write the currently active keys; this allows the scheduler to
+        # disable losses without requiring their experience fields each epoch.
+        if self._store_keys:
+            self.buffer.update_at_(data_td.select(*self._store_keys), (row_ids, t_in_row_val))
 
         self.t_in_row[env_id] += 1
 
@@ -215,6 +168,32 @@ class Experience:
                 stats["actions_std"] = actions.std().item()
 
         return stats
+
+    # ----------------- Dynamic store key management -----------------
+    @property
+    def store_keys(self) -> List[Any]:
+        """Return the list of keys that will be written on the next store call."""
+        return list(self._store_keys)
+
+    def set_store_keys(self, keys: Iterable[Any]) -> None:
+        """Restrict which keys are written when storing experience.
+
+        Args:
+            keys: Iterable of keys (matching the Composite spec) that should
+                be written into the buffer on subsequent `store` calls.
+
+        Raises:
+            KeyError: If any provided key does not exist in the buffer spec.
+        """
+        all_keys = set(self.buffer.keys(include_nested=True, leaves_only=True))
+        missing = [k for k in keys if k not in all_keys]
+        if missing:
+            raise KeyError(f"Attempted to set unknown experience keys: {missing}")
+        self._store_keys = list(keys)
+
+    def reset_store_keys(self) -> None:
+        """Reset store keys so that all spec keys are written on store."""
+        self._store_keys = list(self.buffer.keys(include_nested=True, leaves_only=True))
 
     def give_me_empty_md_td(self) -> TensorDict:
         return TensorDict(
