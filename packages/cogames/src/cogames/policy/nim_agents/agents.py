@@ -23,7 +23,6 @@ class ThinkyAgentsMultiPolicy(NimMultiAgentPolicy):
             handle_constructor=na.ThinkyPolicy,
             step_batch_name="thinky_policy_step_batch",
             agent_ids=agent_ids,
-            reset_name="thinky_policy_reset",
         )
 
 
@@ -36,7 +35,6 @@ class RandomAgentsMultiPolicy(NimMultiAgentPolicy):
             handle_constructor=na.RandomPolicy,
             step_batch_name="random_policy_step_batch",
             agent_ids=agent_ids,
-            reset_name="random_policy_reset",
         )
 
 
@@ -49,5 +47,4 @@ class RaceCarAgentsMultiPolicy(NimMultiAgentPolicy):
             handle_constructor=na.RaceCarPolicy,
             step_batch_name="race_car_policy_step_batch",
             agent_ids=agent_ids,
-            reset_name="race_car_policy_reset",
         )

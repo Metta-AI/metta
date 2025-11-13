@@ -25,12 +25,6 @@ proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
   result.seen = initHashSet[Location]()
   result.location = Location(x: 0, y: 0)
 
-proc reset*(agent: RaceCarAgent) =
-  agent.map.clear()
-  agent.seen.clear()
-  agent.location = Location(x: 0, y: 0)
-  agent.random = initRand(agent.agentId)
-
 proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]]) =
   ## Update the big map with the small visible map.
 
@@ -203,7 +197,3 @@ proc raceCarPolicyStepBatch*(
     let obsPtr = cast[pointer](obsArray[idx * obsStride].addr)
     let actPtr = cast[ptr int32](actionArray[idx].addr)
     step(policy.agents[idx], numAgents, numTokens, sizeToken, obsPtr, numActions, actPtr)
-
-proc raceCarPolicyReset*(policy: RaceCarPolicy) =
-  for agent in policy.agents:
-    reset(agent)

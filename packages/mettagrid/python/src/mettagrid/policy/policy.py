@@ -126,12 +126,10 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
         handle_constructor,
         step_batch_name: str,
         agent_ids: Sequence[int] | None = None,
-        reset_name: str | None = None,
     ) -> None:
         super().__init__(policy_env_info)
         self._handle = handle_constructor(policy_env_info.to_json())
         self._step_batch = getattr(self._handle, step_batch_name)
-        self._handle_reset = getattr(self._handle, reset_name) if reset_name else None
         self._num_agents = policy_env_info.num_agents
         self._action_names = policy_env_info.action_names
         self._num_actions = len(self._action_names)
@@ -170,8 +168,7 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
         return _NimAgentPolicy(self, agent_id)
 
     def reset(self) -> None:
-        if self._handle_reset is not None:
-            self._handle_reset()
+        pass
 
     def _invoke_step_batch(
         self,
@@ -235,7 +232,7 @@ class _NimAgentPolicy(AgentPolicy):
         return Action(name=self._parent._action_names[action_index])
 
     def reset(self) -> None:
-        self._parent.reset()
+        pass
 
 
 class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):

@@ -27,13 +27,6 @@ proc newThinkyAgent*(agentId: int, environmentConfig: string): ThinkyAgent =
   result.location = Location(x: 0, y: 0)
   result.lastActions = @[]
 
-proc reset*(agent: ThinkyAgent) =
-  agent.map.clear()
-  agent.seen.clear()
-  agent.location = Location(x: 0, y: 0)
-  agent.lastActions.setLen(0)
-  agent.random = initRand(agent.agentId)
-
 proc updateMap(agent: ThinkyAgent, visible: Table[Location, seq[FeatureValue]]) =
   ## Update the big map with the small visible map.
 
@@ -372,7 +365,3 @@ proc thinkyPolicyStepBatch*(
     let obsPtr = cast[pointer](obsArray[idx * obsStride].addr)
     let actPtr = cast[ptr int32](actionArray[idx].addr)
     step(policy.agents[idx], numAgents, numTokens, sizeToken, obsPtr, numActions, actPtr)
-
-proc thinkyPolicyReset*(policy: ThinkyPolicy) =
-  for agent in policy.agents:
-    reset(agent)

@@ -22,9 +22,6 @@ proc newRandomAgent*(
   result = RandomAgent(agentId: agentId, cfg: config)
   result.random = initRand(agentId)
 
-proc reset*(agent: RandomAgent) =
-  agent.random = initRand(agent.agentId)
-
 proc step*(
   agent: RandomAgent,
   numAgents: int,
@@ -71,7 +68,3 @@ proc randomPolicyStepBatch*(
     let obsPtr = cast[pointer](obsArray[idx * obsStride].addr)
     let actPtr = cast[ptr int32](actionArray[idx].addr)
     step(policy.agents[idx], numAgents, numTokens, sizeToken, obsPtr, numActions, actPtr)
-
-proc randomPolicyReset*(policy: RandomPolicy) =
-  for agent in policy.agents:
-    reset(agent)
