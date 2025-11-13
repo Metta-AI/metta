@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import List, Optional
+from typing import Optional
 
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.envs.stats_tracker import StatsTracker
@@ -23,7 +23,7 @@ class Rollout:
         render_mode: Optional[RenderMode] = None,
         seed: int = 0,
         pass_sim_to_policies: bool = False,
-        event_handlers: Optional[List[SimulatorEventHandler]] = None,
+        event_handlers: Optional[list[SimulatorEventHandler]] = None,
         stats_writer: Optional[StatsWriter] = None,
     ):
         self._config = config
@@ -41,9 +41,8 @@ class Rollout:
         if stats_writer is not None:
             self._simulator.add_event_handler(StatsTracker(stats_writer))
         # Attach additional event handlers
-        if event_handlers:
-            for handler in event_handlers:
-                self._simulator.add_event_handler(handler)
+        for handler in event_handlers or []:
+            self._simulator.add_event_handler(handler)
         self._sim = self._simulator.new_simulation(config, seed)
         self._agents = self._sim.agents()
 

@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
-from typing import Literal, Optional
+from pathlib import Path
+from typing import Literal, Optional, TypeAlias
 
 import numpy as np
 import typer
@@ -19,6 +20,8 @@ from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult, multi_episode_rollout
 from mettagrid.simulator.multi_episode.summary import MultiEpisodeRolloutSummary, build_multi_episode_rollout_summaries
+
+MissionResultsSummary: TypeAlias = list[MultiEpisodeRolloutSummary]
 
 
 class RawMissionEvaluationResult(BaseModel):
@@ -45,7 +48,8 @@ def evaluate(
     action_timeout_ms: int,
     seed: int = 42,
     output_format: Optional[Literal["yaml", "json"]] = None,
-) -> list[MultiEpisodeRolloutSummary]:
+    save_replay: Optional[Path] = None,
+) -> MissionResultsSummary:
     if not missions:
         raise ValueError("At least one mission must be provided for evaluation.")
     if not policy_specs:
@@ -88,6 +92,7 @@ def evaluate(
                 max_action_time_ms=action_timeout_ms,
                 seed=seed,
                 progress_callback=_progress_callback,
+                save_replay=save_replay,
             )
         mission_results.append(rollout_payload)
 
