@@ -125,7 +125,6 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
         policy_env_info: PolicyEnvInterface,
         handle_ctor,
         step_batch_name: str,
-        step_single_name: str,
         agent_ids: Sequence[int] | None = None,
         reset_name: str | None = None,
     ) -> None:
@@ -145,45 +144,31 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
         self._agent_ids = set(ids)
         subset = np.array(ids, dtype=np.int32)
         self._default_subset = subset
-        self._default_subset_ptr = subset.ctypes.data_as(ctypes.POINTER(ctypes.c_int32)) if subset.size > 0 else None
         self._default_subset_len = subset.size
-        self._step_single = getattr(self._handle, step_single_name)
-        self._single_obs = np.empty(obs_shape, dtype=dtype_observations)
-        self._single_action = np.zeros(1, dtype=np.int32)
+        self._default_subset_ptr = subset.ctypes.data_as(ctypes.POINTER(ctypes.c_int32)) if subset.size > 0 else None
+        self._single_agent_id = np.zeros(1, dtype=np.int32)
+        self._single_obs_batch = np.empty((1, self._num_tokens, self._token_dim), dtype=dtype_observations)
+        self._single_action_batch = np.zeros(1, dtype=np.int32)
+        self._subset_obs_buffer: np.ndarray | None = None
+        self._subset_action_buffer: np.ndarray | None = None
 
     def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
-        self._step_batch(
-            self._default_subset_ptr,
-            self._default_subset_len,
-            self._num_agents,
-            self._num_tokens,
-            self._token_dim,
-            raw_observations.ctypes.data,
-            self._num_actions,
-            raw_actions.ctypes.data,
-        )
+        self._invoke_step_batch(self._default_subset, raw_observations, raw_actions)
 
     def step_single(self, agent_id: int, obs: AgentObservation) -> int:
         if agent_id not in self._agent_ids:
             raise ValueError(f"Agent id {agent_id} not handled by {self.__class__.__name__}")
-        target = self._single_obs
+        self._single_agent_id[0] = agent_id
+        target = self._single_obs_batch[0]
         target.fill(255)
         for idx, token in enumerate(obs.tokens):
             if idx >= self._num_tokens:
                 break
             token_values = token.raw_token
             target[idx, : len(token_values)] = token_values
-        self._single_action.fill(0)
-        self._step_single(
-            agent_id,
-            self._num_agents,
-            self._num_tokens,
-            self._token_dim,
-            target.ctypes.data,
-            self._num_actions,
-            self._single_action.ctypes.data,
-        )
-        return int(self._single_action[0])
+        self._single_action_batch.fill(0)
+        self._invoke_step_batch(self._single_agent_id, self._single_obs_batch, self._single_action_batch)
+        return int(self._single_action_batch[0])
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         if agent_id not in self._agent_ids:
@@ -193,6 +178,64 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
     def reset(self) -> None:
         if self._handle_reset is not None:
             self._handle_reset()
+
+    def _invoke_step_batch(
+        self,
+        agent_ids: np.ndarray,
+        raw_observations: np.ndarray,
+        raw_actions: np.ndarray,
+    ) -> None:
+        subset_len = agent_ids.shape[0]
+        if subset_len == 0:
+            raise ValueError("agent_ids must not be empty")
+
+        obs_buffer = raw_observations
+        if raw_observations.shape[0] != subset_len:
+            if raw_observations.shape[0] < subset_len:
+                raise ValueError(
+                    f"raw_observations has length {raw_observations.shape[0]}, expected at least {subset_len}"
+                )
+            obs_buffer = self._ensure_subset_obs_buffer(subset_len)
+            np.take(raw_observations, agent_ids, axis=0, out=obs_buffer)
+
+        action_buffer = raw_actions
+        needs_scatter = raw_actions.shape[0] != subset_len
+        if needs_scatter:
+            if raw_actions.shape[0] < subset_len:
+                raise ValueError(f"raw_actions has length {raw_actions.shape[0]}, expected {subset_len} or num_agents")
+            action_buffer = self._ensure_subset_action_buffer(subset_len)
+
+        agent_ids_ptr = (
+            self._default_subset_ptr
+            if agent_ids is self._default_subset
+            else agent_ids.ctypes.data_as(ctypes.POINTER(ctypes.c_int32))
+        )
+        self._step_batch(
+            agent_ids_ptr,
+            subset_len,
+            self._num_agents,
+            self._num_tokens,
+            self._token_dim,
+            obs_buffer.ctypes.data,
+            self._num_actions,
+            action_buffer.ctypes.data,
+        )
+
+        if needs_scatter:
+            raw_actions[agent_ids] = action_buffer
+
+    def _ensure_subset_obs_buffer(self, subset_len: int) -> np.ndarray:
+        if self._subset_obs_buffer is None or self._subset_obs_buffer.shape[0] != subset_len:
+            self._subset_obs_buffer = np.empty(
+                (subset_len, self._num_tokens, self._token_dim),
+                dtype=dtype_observations,
+            )
+        return self._subset_obs_buffer
+
+    def _ensure_subset_action_buffer(self, subset_len: int) -> np.ndarray:
+        if self._subset_action_buffer is None or self._subset_action_buffer.shape[0] != subset_len:
+            self._subset_action_buffer = np.empty(subset_len, dtype=np.int32)
+        return self._subset_action_buffer
 
 
 class _NimAgentPolicy(AgentPolicy):
