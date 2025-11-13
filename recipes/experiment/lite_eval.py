@@ -16,11 +16,11 @@ def run_lite_eval() -> LiteEvalTool:
         ),
     ]
     return LiteEvalTool(
+        policy_specs=policy_specs,
         simulations=[
             SimulationRunConfig(
                 env=arena.mettagrid(),
                 num_episodes=1,
-                policy_specs=policy_specs,
                 proportions=[1.0, 2.0],
             )
         ],
