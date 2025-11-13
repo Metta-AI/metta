@@ -170,7 +170,7 @@ def train(
                 start_value=1.0,
                 end_value=0.0,
                 start_epoch=0,
-                end_epoch=500,
+                end_epoch=250,
             ),
         ],
     )
