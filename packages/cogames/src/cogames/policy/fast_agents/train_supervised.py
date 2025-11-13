@@ -33,11 +33,13 @@ VARIANT = "lonely_heart"
 NUM_AGENTS = 1
 BATCH_SIZE = 256
 NUM_ENVS = 8
-NUM_STEPS = 10000 * BATCH_SIZE
+NUM_STEPS = 100000 * BATCH_SIZE
 LEARNING_RATE = 1e-4
 DEVICE = "cpu"
 CHECKPOINT_DIR = Path("./test_train_dir")
-LOG_INTERVAL = 1000
+EXPERIENCE_PER_GRAD_STEP = BATCH_SIZE * NUM_AGENTS * NUM_ENVS
+print(f"Experience per gradient step: {EXPERIENCE_PER_GRAD_STEP}")
+LOG_INTERVAL = EXPERIENCE_PER_GRAD_STEP
 
 
 def convert_raw_obs_to_policy_tokens(raw_obs: np.ndarray, expected_num_tokens: int) -> np.ndarray:
@@ -196,6 +198,7 @@ def train_supervised(
                 sim_raw_observations = sim._c_sim.observations()  # Shape: (num_agents, num_tokens, 3)
 
                 # "forward pass" of the nim policy for all agents
+                action_array = sim._c_sim.actions()
                 for agent_idx in range(num_agents):
                     # Get the current agent policy
                     agent_policy = teacher_agent_policies_list[env_idx][agent_idx]
@@ -204,25 +207,20 @@ def train_supervised(
                     raw_obs = sim_raw_observations[agent_idx]  # Shape: (num_tokens, 3)
 
                     # Get the action for the current agent
-                    return_actions = np.zeros(1, dtype=np.int32)
                     agent_policy.step(
                         num_agents=num_agents,
                         num_tokens=200,
                         size_token=3,
                         raw_observations=raw_obs.ctypes.data,
                         num_actions=num_agents,
-                        raw_actions=return_actions.ctypes.data,
+                        raw_actions=action_array.ctypes.data,
                     )
-                    teacher_action_id = int(return_actions[0])
 
                     # Get observation in shape expected by StatelessPolicyNet: (num_tokens, token_dim)
                     obs_tokens = convert_raw_obs_to_policy_tokens(raw_obs, 200)
 
-                    # put intended action into buffer so we can step later
-                    sim._c_sim.actions()[agent_idx] = teacher_action_id
-
                     obs_batch.append(obs_tokens)
-                    action_batch.append(teacher_action_id)
+                    action_batch.append(action_array[agent_idx])
 
                 # step environment
                 sim.step()
