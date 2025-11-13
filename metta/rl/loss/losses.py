@@ -6,6 +6,7 @@ from pydantic import Field
 from metta.agent.policy import Policy
 from metta.rl.loss import contrastive_config
 from metta.rl.loss.action_supervised import ActionSupervisedConfig
+from metta.rl.loss.alternating_kickstarter import AlternatingKickstarterConfig
 from metta.rl.loss.grpo import GRPOConfig
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.loss.ppo import PPOConfig
@@ -33,6 +34,9 @@ class LossesConfig(Config):
     sl_checkpointed_kickstarter: SLCheckpointedKickstarterConfig = Field(
         default_factory=lambda: SLCheckpointedKickstarterConfig(enabled=False)
     )
+    alternating_kickstarter: AlternatingKickstarterConfig = Field(
+        default_factory=lambda: AlternatingKickstarterConfig(enabled=False)
+    )
 
     def _configs(self) -> dict[str, LossConfig]:
         loss_configs: dict[str, LossConfig] = {}
@@ -50,6 +54,8 @@ class LossesConfig(Config):
             loss_configs["sl_kickstarter"] = self.sl_kickstarter
         if self.sl_checkpointed_kickstarter.enabled:
             loss_configs["sl_checkpointed_kickstarter"] = self.sl_checkpointed_kickstarter
+        if self.alternating_kickstarter.enabled:
+            loss_configs["alternating_kickstarter"] = self.alternating_kickstarter
         return loss_configs
 
     def init_losses(

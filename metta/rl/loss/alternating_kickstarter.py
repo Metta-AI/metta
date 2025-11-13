@@ -15,12 +15,13 @@ if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
 
 
-class TLKickstarterConfig(LossConfig):
+class AlternatingKickstarterConfig(LossConfig):
     teacher_uri: str = Field(default="")
     action_loss_coef: float = Field(default=0.6, ge=0, le=1.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
     temperature: float = Field(default=2.0, gt=0)
     student_forward: bool = Field(default=False)
+    teacher_lead_prob: float = Field(default=0.5, ge=0, le=1.0)
 
     def create(
         self,
@@ -30,12 +31,19 @@ class TLKickstarterConfig(LossConfig):
         device: torch.device,
         instance_name: str,
         loss_config: Any,
-    ) -> "TLKickstarter":
+    ) -> "AlternatingKickstarter":
         """Create TLKickstarter loss instance."""
-        return TLKickstarter(policy, trainer_cfg, vec_env, device, instance_name=instance_name, loss_config=loss_config)
+        return AlternatingKickstarter(
+            policy,
+            trainer_cfg,
+            vec_env,
+            device,
+            instance_name=instance_name,
+            loss_config=loss_config,
+        )
 
 
-class TLKickstarter(Loss):
+class AlternatingKickstarter(Loss):
     __slots__ = (
         "teacher_policy",
         "teacher_policy_spec",
@@ -78,13 +86,22 @@ class TLKickstarter(Loss):
 
     def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
         with torch.no_grad():
-            self.teacher_policy.forward(td)
+            teacher_td = td.clone()
+            self.teacher_policy.forward(teacher_td)
+            teacher_actions = teacher_td["actions"]
+            td["teacher_logits"] = teacher_td["logits"]
+            td["teacher_values"] = teacher_td["values"]
+            self.policy.forward(td)
 
         # Store experience
         env_slice = context.training_env_id
         if env_slice is None:
             raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
         self.replay.store(data_td=td, env_id=env_slice)
+
+        if torch.rand(1) < self.cfg.teacher_lead_prob:
+            # overwrite student actions w teacher actions. anneal this.
+            td["actions"] = teacher_actions
 
     def run_train(
         self,
@@ -96,16 +113,17 @@ class TLKickstarter(Loss):
         B, TT = minibatch.batch_size
 
         # Student forward pass
-        if self.student_forward:
-            student_td, _, _ = prepare_policy_forward_td(minibatch, self.policy.get_agent_experience_spec(), clone=True)
+        if self.student_forward:  # leave to false if also running PPO
+            student_td, B, TT = prepare_policy_forward_td(
+                minibatch, self.policy.get_agent_experience_spec(), clone=True
+            )
             student_td = self.policy(student_td, action=None)
         else:
             student_td = shared_loss_data["policy_td"].reshape(B * TT)
 
         # action loss
         temperature = self.temperature
-        # Use teacher outputs stored during rollout
-        teacher_logits = minibatch["logits"].to(dtype=torch.float32).reshape(B * TT, -1).detach()
+        teacher_logits = minibatch["teacher_logits"].to(dtype=torch.float32)
         student_logits = student_td["logits"].to(dtype=torch.float32)
         teacher_log_probs = F.log_softmax(teacher_logits / temperature, dim=-1).detach()
         student_log_probs = F.log_softmax(student_logits / temperature, dim=-1)
@@ -115,8 +133,8 @@ class TLKickstarter(Loss):
         )
 
         # value loss
-        teacher_value = minibatch["values"].to(dtype=torch.float32).reshape(B * TT, -1).detach()
-        student_value = student_td["values"].to(dtype=torch.float32).reshape(B * TT, -1)
+        teacher_value = minibatch["teacher_values"].to(dtype=torch.float32).detach()
+        student_value = student_td["values"].to(dtype=torch.float32)
         ks_value_loss = ((teacher_value.detach() - student_value) ** 2).mean()
 
         loss = ks_action_loss * self.cfg.action_loss_coef + ks_value_loss * self.cfg.value_loss_coef
