@@ -1,6 +1,6 @@
 import
   genny,
-  random_agents, thinky_agents, race_car_agents
+  random_agents, thinky_agents, racecar_agents
 
 proc ctrlCHandler() {.noconv.} =
   echo "\nNim DLL caught ctrl-c, exiting..."
