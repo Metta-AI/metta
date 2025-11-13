@@ -123,13 +123,13 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
     def __init__(
         self,
         policy_env_info: PolicyEnvInterface,
-        handle_ctor,
+        handle_constructor,
         step_batch_name: str,
         agent_ids: Sequence[int] | None = None,
         reset_name: str | None = None,
     ) -> None:
         super().__init__(policy_env_info)
-        self._handle = handle_ctor(policy_env_info.to_json())
+        self._handle = handle_constructor(policy_env_info.to_json())
         self._step_batch = getattr(self._handle, step_batch_name)
         self._handle_reset = getattr(self._handle, reset_name) if reset_name else None
         self._num_agents = policy_env_info.num_agents

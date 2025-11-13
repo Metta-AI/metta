@@ -20,7 +20,7 @@ class ThinkyAgentsMultiPolicy(NimMultiAgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_ids: Sequence[int] | None = None):
         super().__init__(
             policy_env_info,
-            handle_ctor=na.ThinkyPolicy,
+            handle_constructor=na.ThinkyPolicy,
             step_batch_name="thinky_policy_step_batch",
             agent_ids=agent_ids,
             reset_name="thinky_policy_reset",
@@ -33,7 +33,7 @@ class RandomAgentsMultiPolicy(NimMultiAgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_ids: Sequence[int] | None = None):
         super().__init__(
             policy_env_info,
-            handle_ctor=na.RandomPolicy,
+            handle_constructor=na.RandomPolicy,
             step_batch_name="random_policy_step_batch",
             agent_ids=agent_ids,
             reset_name="random_policy_reset",
@@ -46,7 +46,7 @@ class RaceCarAgentsMultiPolicy(NimMultiAgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_ids: Sequence[int] | None = None):
         super().__init__(
             policy_env_info,
-            handle_ctor=na.RaceCarPolicy,
+            handle_constructor=na.RaceCarPolicy,
             step_batch_name="race_car_policy_step_batch",
             agent_ids=agent_ids,
             reset_name="race_car_policy_reset",
