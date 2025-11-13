@@ -94,7 +94,7 @@ def _format_rerun_command(targets: Sequence[str]) -> str:
         return "metta pytest"
     if len(targets) == 1:
         return f"metta pytest {targets[0]}"
-    lines = ["metta pytest \\"]
+    lines = ["metta pytest "]
     for target in targets[:-1]:
         lines.append(f"  {target} \\")
     lines.append(f"  {targets[-1]}")
