@@ -21,7 +21,6 @@ public:
     _orientation = get("agent:orientation");
     _reserved_for_future_use = get("agent:reserved_for_future_use");
     _converting = get("converting");
-    _swappable = get("swappable");
     _episode_completion_pct = get("episode_completion_pct");
     _last_action = get("last_action");
     _last_action_arg = get("last_action_arg");
@@ -40,7 +39,6 @@ public:
     Orientation = _orientation;
     ReservedForFutureUse = _reserved_for_future_use;
     ConvertingOrCoolingDown = _converting;
-    Swappable = _swappable;
     EpisodeCompletionPct = _episode_completion_pct;
     LastAction = _last_action;
     LastActionArg = _last_action_arg;
@@ -74,7 +72,6 @@ public:
   ObservationType Orientation;
   ObservationType ReservedForFutureUse;
   ObservationType ConvertingOrCoolingDown;
-  ObservationType Swappable;
   ObservationType EpisodeCompletionPct;
   ObservationType LastAction;
   ObservationType LastActionArg;
@@ -96,7 +93,6 @@ private:
   ObservationType _orientation;
   ObservationType _reserved_for_future_use;
   ObservationType _converting;
-  ObservationType _swappable;
   ObservationType _episode_completion_pct;
   ObservationType _last_action;
   ObservationType _last_action_arg;
@@ -125,7 +121,6 @@ extern ObservationType Frozen;
 extern ObservationType Orientation;
 extern ObservationType ReservedForFutureUse;
 extern ObservationType ConvertingOrCoolingDown;
-extern ObservationType Swappable;
 extern ObservationType EpisodeCompletionPct;
 extern ObservationType LastAction;
 extern ObservationType LastActionArg;

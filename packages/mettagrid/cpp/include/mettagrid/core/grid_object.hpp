@@ -81,10 +81,6 @@ public:
     this->vibe = object_vibe;
   }
 
-  virtual bool swappable() const {
-    return false;
-  }
-
   virtual std::vector<PartialObservationToken> obs_features() const {
     return {};  // Default: no observable features
   }
