@@ -243,7 +243,9 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
             result.features.protocolOutputs):
           discard
         else:
-          echo "Unknown feature: ", feature.name
+          # Disabled noisy logging for missing features; most of these tokens are not
+          # present in the current observation schema but the agent still functions.
+          discard
 
     for id, name in config.actions:
       case name:
@@ -493,9 +495,6 @@ proc isWalkable*(cfg: Config, map: Table[Location, seq[FeatureValue]], loc: Loca
     for featureValue in map[loc]:
       if featureValue.featureId == cfg.features.tag:
         # Its something that blocks movement.
-        return false
-      if featureValue.featureId == cfg.features.orientation:
-        # Its the agent's orientation, so an agent can't move through it.
         return false
       if featureValue.featureId == cfg.features.group:
         # If the group there, then its an agent.

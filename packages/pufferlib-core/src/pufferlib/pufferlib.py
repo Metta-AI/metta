@@ -22,7 +22,21 @@ def set_buffers(env, buf=None):
         env.rewards = np.zeros(env.num_agents, dtype=np.float32)
         env.terminals = np.zeros(env.num_agents, dtype=bool)
         env.truncations = np.zeros(env.num_agents, dtype=bool)
-        env.teacher_actions = np.zeros(env.num_agents, dtype=env.single_action_space.dtype)
+        action_space = env.single_action_space
+        if isinstance(
+            action_space,
+            (
+                pufferlib.spaces.Discrete,
+                pufferlib.spaces.MultiDiscrete,
+                gymnasium.spaces.Discrete,
+                gymnasium.spaces.MultiDiscrete,
+            ),
+        ):
+            teacher_dtype = np.int32
+        else:
+            teacher_dtype = action_space.dtype
+
+        env.teacher_actions = np.zeros(env.num_agents, dtype=teacher_dtype)
         env.masks = np.ones(env.num_agents, dtype=bool)
 
         # TODO: Major kerfuffle on inferring action space dtype. This needs some asserts?
