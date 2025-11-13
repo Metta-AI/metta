@@ -77,7 +77,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         agent_feature_pairs = {
             "agent:group": "agent_group",
             "agent:frozen": "agent_frozen",
-            "agent:orientation": "agent_orientation",
             "agent:visitation_counts": "agent_visitation_counts",
         }
         self._agent_feature_key_by_name: dict[str, str] = agent_feature_pairs
@@ -224,7 +223,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             protocol_outputs=get_dict("protocol_outputs"),
             agent_group=get_int("agent_group", -1),
             agent_frozen=get_int("agent_frozen", 0),
-            agent_orientation=get_int("agent_orientation", 0),
         )
 
     def parse_observation(

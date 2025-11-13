@@ -445,73 +445,6 @@ TEST_F(MettaGridCppTest, GridObjectManagement) {
   EXPECT_EQ(agent_at_location, agent);
 }
 
-// ==================== Action Tests ====================
-
-TEST_F(MettaGridCppTest, AttackAction) {
-  Grid grid(10, 10);
-
-  // Create a minimal GameConfig for testing
-  GameConfig game_config;
-
-  // Create attacker and target
-  AgentConfig attacker_cfg = create_test_agent_config();
-  attacker_cfg.group_name = "red";
-  AgentConfig target_cfg = create_test_agent_config();
-  target_cfg.group_name = "blue";
-  target_cfg.group_id = 2;
-  auto resource_names = create_test_resource_names();
-  Agent* attacker = new Agent(2, 0, attacker_cfg, &resource_names);
-  Agent* target = new Agent(0, 0, target_cfg, &resource_names);
-
-  float attacker_reward = 0.0f;
-  float target_reward = 0.0f;
-  attacker->init(&attacker_reward);
-  target->init(&target_reward);
-
-  grid.add_object(attacker);
-  grid.add_object(target);
-
-  // Give attacker a laser
-  attacker->update_inventory(TestItems::LASER, 2);
-  EXPECT_EQ(attacker->inventory.amount(TestItems::LASER), 2);
-
-  // Give target some items and armor
-  target->update_inventory(TestItems::ARMOR, 5);
-  target->update_inventory(TestItems::HEART, 3);
-  EXPECT_EQ(target->inventory.amount(TestItems::ARMOR), 5);
-  EXPECT_EQ(target->inventory.amount(TestItems::HEART), 3);
-
-  // Create attack action handler
-  AttackActionConfig attack_cfg({{TestItems::LASER, 1}}, {{TestItems::LASER, 1}}, {{TestItems::ARMOR, 3}});
-  Attack attack(attack_cfg, &game_config);
-  std::mt19937 rng(42);
-  attack.init(&grid, &rng);
-
-  // Perform attack (arg 5 targets directly in front)
-  bool success = attack.handle_action(*attacker, 5);
-  // Hitting a target with armor counts as success
-  EXPECT_TRUE(success);
-
-  // Verify that the combat material was consumed
-  EXPECT_EQ(attacker->inventory.amount(TestItems::LASER), 1);
-  EXPECT_EQ(target->inventory.amount(TestItems::ARMOR), 2);
-
-  // Verify target was not frozen or robbed
-  EXPECT_EQ(target->frozen, 0);
-  EXPECT_EQ(target->inventory.amount(TestItems::HEART), 3);
-
-  // Attack again, now that armor is gone
-  success = attack.handle_action(*attacker, 5);
-  EXPECT_TRUE(success);
-
-  // Verify target's inventory was stolen
-  EXPECT_EQ(target->inventory.amount(TestItems::HEART), 0);
-  EXPECT_EQ(attacker->inventory.amount(TestItems::HEART), 3);
-  // Humorously, the defender's armor was also stolen!
-  EXPECT_EQ(target->inventory.amount(TestItems::ARMOR), 0);
-  EXPECT_EQ(attacker->inventory.amount(TestItems::ARMOR), 2);
-}
-
 // ==================== Action Tracking ====================
 
 TEST_F(MettaGridCppTest, ActionTracking) {
@@ -831,64 +764,6 @@ TEST_F(MettaGridCppTest, FractionalConsumptionMultipleResources) {
   EXPECT_EQ(laser_left, 48);  // on average expect 47.5
 
   EXPECT_EQ(armor_left, 21);  // on average expect 22.5
-}
-
-TEST_F(MettaGridCppTest, FractionalConsumptionAttackAction) {
-  // This test verifies that fractional consumption works with attack actions
-  // We'll do a simple test with a few attacks rather than a complex loop
-
-  Grid grid(10, 10);
-  GameConfig game_config;
-
-  // Create attacker with lasers
-  AgentConfig attacker_cfg = create_test_agent_config();
-  attacker_cfg.group_name = "red";
-
-  // Create target
-  AgentConfig target_cfg = create_test_agent_config();
-  target_cfg.group_name = "blue";
-  target_cfg.group_id = 2;
-
-  auto resource_names = create_test_resource_names();
-  Agent* attacker = new Agent(2, 0, attacker_cfg, &resource_names);
-  Agent* target = new Agent(0, 0, target_cfg, &resource_names);
-
-  float attacker_reward = 0.0f;
-  float target_reward = 0.0f;
-  attacker->init(&attacker_reward);
-  target->init(&target_reward);
-
-  grid.add_object(attacker);
-  grid.add_object(target);
-
-  // Give attacker 10 lasers
-  attacker->update_inventory(TestItems::LASER, 10);
-  // Give target some hearts to rob
-  target->update_inventory(TestItems::HEART, 5);
-
-  // Create attack action with fractional laser consumption (0.5 per attack)
-  AttackActionConfig attack_cfg({{TestItems::LASER, 1}}, {{TestItems::LASER, 0.5f}}, {});
-  Attack attack(attack_cfg, &game_config);
-  std::mt19937 rng(42);
-  attack.init(&grid, &rng);
-
-  // Track consumption over multiple attacks
-  int total_consumed = 0;
-  int successful_attacks = 0;
-
-  // Do 10 attacks
-  for (int i = 0; i < 10; i++) {
-    int before = attacker->inventory.amount(TestItems::LASER);
-    bool success = attack.handle_action(*attacker, 5);  // Attack directly in front
-    if (success) {
-      successful_attacks++;
-      int after = attacker->inventory.amount(TestItems::LASER);
-      total_consumed += (before - after);
-    }
-  }
-
-  EXPECT_EQ(successful_attacks, 10);  // All 10 attacks succeed with initial 10 lasers
-  EXPECT_EQ(total_consumed, 4);       // Exactly 4 lasers consumed from 10 attacks
 }
 
 TEST_F(MettaGridCppTest, FractionalConsumptionChangeVibeAction) {

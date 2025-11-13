@@ -5,7 +5,6 @@
 #include <memory>
 #include <vector>
 
-#include "actions/orientation.hpp"
 #include "core/grid_object.hpp"
 #include "objects/constants.hpp"
 
@@ -93,51 +92,6 @@ public:
       return nullptr;
     }
     return grid[loc.r][loc.c];
-  }
-
-  inline const GridLocation relative_location(const GridLocation& loc,
-                                              Orientation facing,
-                                              short forward_distance,
-                                              short lateral_offset) {
-    const int r = static_cast<int>(loc.r);
-    const int c = static_cast<int>(loc.c);
-    int new_r = r;
-    int new_c = c;
-
-    // Get the forward direction deltas
-    int forward_dr, forward_dc;
-    getOrientationDelta(facing, forward_dc, forward_dr);
-
-    // Apply forward/backward movement
-    new_r += forward_dr * forward_distance;
-    new_c += forward_dc * forward_distance;
-
-    // Apply lateral movement (right/left)
-    if (lateral_offset != 0) {
-      // Right is 90 degrees clockwise from facing direction
-      Orientation right_facing = getClockwise(facing);
-
-      // Get the right direction deltas
-      int right_dr, right_dc;
-      getOrientationDelta(right_facing, right_dc, right_dr);
-
-      // Apply lateral movement
-      new_r += right_dr * lateral_offset;
-      new_c += right_dc * lateral_offset;
-    }
-
-    // Clamp to grid bounds
-    new_r = std::clamp(new_r, 0, static_cast<int>(this->height - 1));
-    new_c = std::clamp(new_c, 0, static_cast<int>(this->width - 1));
-
-    return GridLocation(static_cast<GridCoord>(new_r), static_cast<GridCoord>(new_c));
-  }
-
-  /**
-   * Get the location one step forward in the given orientation.
-   */
-  inline const GridLocation relative_location(const GridLocation& loc, Orientation orientation) {
-    return this->relative_location(loc, orientation, 1, 0);
   }
 
   inline bool is_empty(GridCoord row, GridCoord col) const {
