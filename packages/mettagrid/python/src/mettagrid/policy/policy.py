@@ -167,9 +167,6 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         return _NimAgentPolicy(self, agent_id)
 
-    def reset(self) -> None:
-        pass
-
     def _invoke_step_batch(
         self,
         agent_ids: np.ndarray,
@@ -230,9 +227,6 @@ class _NimAgentPolicy(AgentPolicy):
     def step(self, obs: AgentObservation) -> Action:
         action_index = self._parent.step_single(self._agent_id, obs)
         return Action(name=self._parent._action_names[action_index])
-
-    def reset(self) -> None:
-        pass
 
 
 class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
