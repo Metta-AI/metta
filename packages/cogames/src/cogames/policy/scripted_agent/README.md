@@ -9,10 +9,6 @@ This package provides two progressively capable scripted agents:
 1. **BaselineAgent** - Core functionality: exploration, resource gathering, heart assembly (single/multi-agent)
 2. **UnclippingAgent** - Extends BaselineAgent with extractor unclipping capability
 
-> **New:** A Nim-powered port of the BaselineAgent—**LadybugAgent**—is available via the `ladybug`, `ladybug_fast`, or
-> `ladybug_nim` policy handles (legacy aliases `scripted_baseline_fast/_nim` remain). Use it when you need the lowest
-> possible Python overhead while retaining identical scripted behavior.
-
 ## Architecture
 
 ### File Structure
