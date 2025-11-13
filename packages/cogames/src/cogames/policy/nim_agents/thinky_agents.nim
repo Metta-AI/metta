@@ -212,16 +212,16 @@ proc step*(
     # Deposit heart into the chest.
     if invHeart > 0:
       if vibe != agent.cfg.vibes.default:
-        echo "my current vibe is", vibe
+        # echo "my current vibe is", vibe
         doAction(agent.cfg.actions.vibeDefault.int32)
-        echo "vibing default"
+        # echo "vibing default"
         return
       let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
       if chestNearby.isSome():
         let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
         if action.isSome():
           doAction(action.get().int32)
-          echo "going to chest"
+          # echo "going to chest"
           return
 
     # Explore locations around the assembler.
