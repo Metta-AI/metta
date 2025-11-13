@@ -1,6 +1,9 @@
 """Supervised learning training loop for imitating Nim scripted agent."""
 
+import importlib
+import os
 import random
+import sys
 import time
 from pathlib import Path
 from typing import Optional
@@ -10,12 +13,17 @@ import torch
 import torch.nn as nn
 
 from cogames.cli.mission import get_mission
-from cogames.policy.fast_agents.agents import ThinkyAgentsMultiPolicy
 from mettagrid.mettagrid_c import PackedCoordinate
-from mettagrid.policy.policy import MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.stateless import StatelessPolicyNet
 from mettagrid.simulator import Simulation
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+bindings_dir = os.path.join(current_dir, "bindings/generated")
+if bindings_dir not in sys.path:
+    sys.path.append(bindings_dir)
+
+fa = importlib.import_module("fast_agents")
 
 # ENV CONFIG
 MISSION_NAME = "evals.extractor_hub_30"
@@ -30,7 +38,6 @@ LEARNING_RATE = 1e-4
 DEVICE = "cpu"
 CHECKPOINT_DIR = Path("./test_train_dir")
 LOG_INTERVAL = 1000
-TEACHER_POLICY_CLASS = ThinkyAgentsMultiPolicy
 
 
 def convert_raw_obs_to_policy_tokens(raw_obs: np.ndarray, expected_num_tokens: int) -> np.ndarray:
@@ -75,7 +82,6 @@ def convert_raw_obs_to_policy_tokens(raw_obs: np.ndarray, expected_num_tokens: i
 
 
 def train_supervised(
-    teacher_policy_class: type[MultiAgentPolicy],
     mission_name: str = MISSION_NAME,
     variant: Optional[str] = VARIANT,
     num_agents: int = NUM_AGENTS,
@@ -109,12 +115,8 @@ def train_supervised(
     # Create PolicyEnvInterface from config
     policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
 
-    # Create scripted agent policy (teacher)
-    teacher_policy = teacher_policy_class(policy_env_info)
-
     # Initialize model using StatelessPolicyNet for compatibility with cogames play
     obs_shape = policy_env_info.observation_space.shape
-    expected_num_tokens = obs_shape[0]
     model = StatelessPolicyNet(policy_env_info.actions, obs_shape)
     model = model.to(torch_device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
@@ -134,9 +136,7 @@ def train_supervised(
     for _ in range(NUM_ENVS):
         sim = Simulation(env_cfg, seed=random.randint(0, 2**31 - 1))
         simulations.append(sim)
-        policies = [teacher_policy.agent_policy(agent_id) for agent_id in range(num_agents)]
-        for policy in policies:
-            policy.reset(simulation=sim)
+        policies = [fa.ThinkyAgent(agent_id, policy_env_info.to_json()) for agent_id in range(num_agents)]
         teacher_agent_policies_list.append(policies)
 
     """
@@ -185,9 +185,9 @@ def train_supervised(
                     simulations[env_idx].close()
                     simulations[env_idx] = Simulation(env_cfg, seed=random.randint(0, 2**31 - 1))
 
-                    # Reset nim policy
+                    # Reset nim policy (might not be necessary)
                     for policy in teacher_agent_policies_list[env_idx]:
-                        policy.reset(simulation=simulations[env_idx])
+                        policy.reset()
 
                 # Get the current simulation
                 sim = simulations[env_idx]
@@ -204,22 +204,25 @@ def train_supervised(
                     raw_obs = sim_raw_observations[agent_idx]  # Shape: (num_tokens, 3)
 
                     # Get the action for the current agent
-                    teacher_action = agent_policy.step(
-                        raw_obs
-                    )  # the returned action is some damn string, so we have to now figure out
-                    # what the actual action id is
-
-                    # Get the action id for the current action
-                    action_id = policy_env_info.actions.action_names.index(teacher_action)
+                    return_actions = np.zeros(1, dtype=np.int32)
+                    agent_policy.step(
+                        num_agents=num_agents,
+                        num_tokens=200,
+                        size_token=3,
+                        raw_observations=raw_obs.ctypes.data,
+                        num_actions=num_agents,
+                        raw_actions=return_actions.ctypes.data,
+                    )
+                    teacher_action_id = int(return_actions[0])
 
                     # Get observation in shape expected by StatelessPolicyNet: (num_tokens, token_dim)
-                    obs_tokens = convert_raw_obs_to_policy_tokens(raw_obs[agent_idx], expected_num_tokens)
+                    obs_tokens = convert_raw_obs_to_policy_tokens(raw_obs, 200)
 
                     # put intended action into buffer so we can step later
-                    sim._c_sim.actions()[agent_idx] = action_id
+                    sim._c_sim.actions()[agent_idx] = teacher_action_id
 
                     obs_batch.append(obs_tokens)
-                    action_batch.append(action_id)
+                    action_batch.append(teacher_action_id)
 
                 # step environment
                 sim.step()
@@ -319,7 +322,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     train_supervised(
-        teacher_policy_class=TEACHER_POLICY_CLASS,
         mission_name=args.mission,
         variant=args.variant,
         num_agents=args.agents,
