@@ -13,6 +13,9 @@
 #include "objects/has_inventory.hpp"
 #include "objects/usable.hpp"
 #include "systems/stats_tracker.hpp"
+
+class ObservationEncoder;
+
 class Agent : public GridObject, public HasInventory, public Usable {
 public:
   ObservationType group;
@@ -75,7 +78,13 @@ public:
 
   std::vector<PartialObservationToken> obs_features() const override;
 
+  // Set observation encoder for inventory feature ID lookup
+  void set_obs_encoder(const ObservationEncoder* encoder) {
+    this->obs_encoder = encoder;
+  }
+
 private:
+  const ObservationEncoder* obs_encoder = nullptr;
   unsigned int get_visitation_count(GridCoord r, GridCoord c) const;
   void update_inventory_diversity_stats(InventoryItem item, InventoryQuantity amount);
   std::vector<char> diversity_tracked_mask_;
