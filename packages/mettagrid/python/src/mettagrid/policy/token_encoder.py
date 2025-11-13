@@ -16,7 +16,9 @@ from mettagrid.simulator import AgentObservation as MettaGridObservation
 logger = logging.getLogger("mettagrid.policy.token_policy")
 
 
-def coordinates(observations: torch.Tensor, dtype: torch.dtype) -> Tuple[torch.Tensor, torch.Tensor]:
+def coordinates(
+    observations: torch.Tensor, dtype: torch.dtype = torch.uint8
+) -> Tuple[torch.Tensor, torch.Tensor]:
     """Split packed observation bytes into (x, y) nibble indices as ``dtype`` tensors."""
 
     coords_byte = observations[..., 0].to(torch.long)
