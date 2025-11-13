@@ -106,10 +106,12 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         num_vibes = int(getattr(change_vibe_cfg, "number_of_vibes", 0))
         if num_vibes <= 1:
             return self._actions.noop.Noop()
-        # If the requested vibe is not defined in the current environment, fall back to noop.
-        if vibe_name not in VIBE_BY_NAME:
+
+        # Look up the vibe safely; fall back to noop if it doesn't exist.
+        vibe = VIBE_BY_NAME.get(vibe_name)
+        if vibe is None:
             return self._actions.noop.Noop()
-        return self._actions.change_vibe.ChangeVibe(VIBE_BY_NAME[vibe_name])
+        return self._actions.change_vibe.ChangeVibe(vibe)
 
     def _read_inventory_from_obs(self, s: SimpleAgentState, obs: AgentObservation) -> None:
         """Read inventory from observation tokens at center cell and update state."""
