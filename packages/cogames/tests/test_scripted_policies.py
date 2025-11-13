@@ -8,15 +8,14 @@ prevents regressions like missing bindings or policy registration mistakes.
 from __future__ import annotations
 
 import io
-import sys
 from dataclasses import dataclass
 from functools import cache
-from pathlib import Path
 
 import numpy as np
 import pytest
 from rich.console import Console
 
+from cogames.cli.mission import get_mission
 from cogames.play import play as play_episode
 from metta.common.tool.run_tool import init_mettagrid_system_environment
 from mettagrid.config.mettagrid_config import EnvSupervisorConfig
@@ -24,12 +23,6 @@ from mettagrid.envs.mettagrid_puffer_env import MettaGridPufferEnv
 from mettagrid.policy.loader import discover_and_register_policies, resolve_policy_class_path
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.simulator import Simulator
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
-
-from experiments.recipes.cogs_v_clips import make_training_env  # noqa: E402
 
 init_mettagrid_system_environment()
 discover_and_register_policies("cogames.policy")
@@ -87,7 +80,7 @@ def simulator() -> Simulator:
 
 @pytest.fixture
 def env_config():
-    env_cfg = make_training_env(num_cogs=2, mission="extractor_hub_30", variants=("lonely_heart",))
+    _, env_cfg, _ = get_mission("evals.extractor_hub_30", variants_arg=["lonely_heart"], cogs=2)
     env_cfg.game.max_steps = 8
     return env_cfg
 
