@@ -1201,3 +1201,16 @@ class BaselinePolicy(MultiAgentPolicy):
                 agent_id=agent_id,
             )
         return self._agent_policies[agent_id]
+
+
+RESOURCE_VIBE_ALIASES: dict[str, str] = {
+    "carbon": "carbon_a",
+    "oxygen": "oxygen_a",
+    "germanium": "germanium_a",
+    "silicon": "silicon_a",
+    # Crafting resources (appear when crafting unclipping items)
+    "decoder": "gear",
+    "modulator": "gear",
+    "resonator": "gear",
+    "scrambler": "gear",
+}
