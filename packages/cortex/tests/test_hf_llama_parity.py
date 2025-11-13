@@ -151,3 +151,124 @@ def test_smollm_llama_parity_and_streaming() -> None:
     # Compare Cortex streaming to HF streaming (HF streaming may diverge slightly from full in fp16)
     max_diff = (out_stream - ref_stream).abs().max().item()
     assert max_diff < 2e-2, f"Cortex vs HF streaming max diff {max_diff}"
+
+
+def test_llama_static_cache_updates_inplace() -> None:
+    torch.manual_seed(0)
+
+    B, T, H = 2, 5, 32
+    mem_len = 8
+    cfg = LlamaConfig(
+        hidden_size=H,
+        intermediate_size=H * 2,
+        num_attention_heads=4,
+        num_key_value_heads=4,
+        num_hidden_layers=2,
+        vocab_size=128,
+    )
+    hf = LlamaForCausalLM(cfg).eval()
+    stack = build_llama_stack_from_model(hf, mem_len=mem_len, compile_blocks=False).eval()
+
+    input_ids = torch.randint(0, cfg.vocab_size, (B, T))
+    embeds = hf.model.embed_tokens(input_ids)
+
+    st = None
+    k_ptr = None
+    v_ptr = None
+    last_k = None
+    last_kv_len = None
+
+    for t in range(T):
+        e = embeds[:, t : t + 1]
+        _, st = stack(e, st)
+
+        # First layer state
+        block0 = st.get("PassThroughBlock_0")
+        cell = block0.get("HFLlamaLayerCell")
+        assert all(k in cell.keys() for k in ("k", "v", "kv_len")), "Missing KV tensors in state"
+
+        k = cell.get("k")
+        v = cell.get("v")
+        kv_len = cell.get("kv_len")
+
+        n_kv = k.shape[1]
+        head_dim = k.shape[-1]
+        assert k.shape == (B, n_kv, mem_len, head_dim)
+        assert v.shape == (B, n_kv, mem_len, head_dim)
+        assert kv_len.shape == (B,)
+
+        if t == 0:
+            k_ptr = k.data_ptr()
+            v_ptr = v.data_ptr()
+        else:
+            assert k.data_ptr() == k_ptr
+            assert v.data_ptr() == v_ptr
+
+        if last_kv_len is not None:
+            expected = torch.clamp(last_kv_len + 1, max=mem_len)
+            assert torch.equal(kv_len, expected)
+        last_kv_len = kv_len.clone()
+
+        if last_k is not None:
+            assert (k - last_k).abs().sum() > 0
+        last_k = k.clone()
+
+
+def _run_hf_stream_with_resets(
+    hf: LlamaForCausalLM, embeds: torch.Tensor, resets_bt: torch.Tensor
+) -> torch.Tensor:
+    """Reference streaming by running each sequence independently and resetting its cache on resets."""
+    B, T, _ = embeds.shape
+    outs = []
+    for b in range(B):
+        cache = DynamicCache(config=hf.config)
+        o_chunks = []
+        for t in range(T):
+            if resets_bt[b, t].item() != 0:
+                cache = DynamicCache(config=hf.config)
+            e = embeds[b : b + 1, t : t + 1]
+            o = hf.model(inputs_embeds=e, use_cache=True, past_key_values=cache)
+            o_chunks.append(o.last_hidden_state)
+        outs.append(torch.cat(o_chunks, dim=1))
+    return torch.cat(outs, dim=0)
+
+
+def test_llama_per_timestep_resets_parity() -> None:
+    torch.manual_seed(42)
+    B, T, H = 2, 11, 32
+    cfg = LlamaConfig(
+        hidden_size=H,
+        intermediate_size=H * 2,
+        num_attention_heads=4,
+        num_key_value_heads=4,
+        num_hidden_layers=2,
+        vocab_size=128,
+    )
+    hf = LlamaForCausalLM(cfg).eval()
+    mem_len = T  # keep window large enough to avoid trimming
+    stack = build_llama_stack_from_model(hf, mem_len=mem_len, compile_blocks=False).eval()
+
+    input_ids = torch.randint(0, cfg.vocab_size, (B, T))
+    embeds = hf.model.embed_tokens(input_ids)
+
+    # Per‑timestep reset mask with different reset times per batch member
+    resets_bt = torch.zeros(B, T, dtype=torch.long)
+    resets_bt[0, 3] = 1
+    resets_bt[1, 7] = 1
+
+    # HF reference: run each sequence independently and reset cache on resets
+    with torch.no_grad():
+        ref = _run_hf_stream_with_resets(hf, embeds, resets_bt)
+
+    # Cortex: run batch with per‑timestep reset mask
+    out_chunks = []
+    st = None
+    with torch.no_grad():
+        for t in range(T):
+            e = embeds[:, t : t + 1]
+            y, st = stack(e, st, resets=resets_bt[:, t : t + 1])
+            y = hf.model.norm(y)
+            out_chunks.append(y)
+        out = torch.cat(out_chunks, dim=1)
+
+    assert torch.allclose(out, ref, atol=1e-5, rtol=1e-5)

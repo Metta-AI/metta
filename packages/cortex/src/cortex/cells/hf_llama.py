@@ -1,4 +1,4 @@
-"""LLaMA decoder-layer wrapper that calls the HF layer and manages Cache/positions."""
+"""LLaMA decoder-layer wrapper that calls the HF layer and manages Static KV cache via TensorDict."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from cortex.cells.core import update_parent_state
 from cortex.cells.registry import register_cell
 from cortex.config import CellConfig
 from cortex.types import MaybeState, ResetMask, Tensor
-from transformers.cache_utils import DynamicCache
+from transformers.cache_utils import StaticCache
 
 
 class HFLlamaLayerConfig(CellConfig):
@@ -51,14 +51,25 @@ class HFLlamaLayerCell(MemoryCell):
 
         self.mem_len = int(cfg.mem_len)
 
-        self._CacheCls = DynamicCache
-
     # ---- state helpers ----
     def init_state(self, batch: int, *, device: torch.device | str, dtype: torch.dtype) -> TensorDict:
-        cache = self._CacheCls(config=self.hf_config) if self.hf_config is not None else self._CacheCls()
+        if self.mem_len <= 0:
+            # No KV cache; keep only positions and segment positions
+            pos = torch.zeros(batch, dtype=torch.long, device=device)
+            seg_pos = torch.zeros(batch, dtype=torch.long, device=device)
+            kv_len = torch.zeros(batch, dtype=torch.long, device=device)
+            return TensorDict({"pos": pos, "seg_pos": seg_pos, "kv_len": kv_len}, batch_size=[batch])
+
+        # Infer KV shapes from config (robust across implementations)
+        n_kv = int(getattr(self.hf_config, "num_key_value_heads", getattr(self.hf_config, "num_attention_heads", 1)))
+        head_dim = int(getattr(self.hf_layer.self_attn, "head_dim", self.hidden_size // int(getattr(self.hf_config, "num_attention_heads", 1))))
+
+        k = torch.zeros(batch, n_kv, self.mem_len, head_dim, dtype=dtype, device=device)
+        v = torch.zeros_like(k)
+        kv_len = torch.zeros(batch, dtype=torch.long, device=device)
         pos = torch.zeros(batch, dtype=torch.long, device=device)
         seg_pos = torch.zeros(batch, dtype=torch.long, device=device)
-        return TensorDict({"cache": cache, "pos": pos, "seg_pos": seg_pos}, batch_size=[batch])
+        return TensorDict({"k": k, "v": v, "kv_len": kv_len, "pos": pos, "seg_pos": seg_pos}, batch_size=[batch])
 
     def _normalize_resets(self, resets: Optional[ResetMask], B: int, T: int, device: torch.device) -> torch.Tensor:
         if resets is None:
@@ -76,33 +87,44 @@ class HFLlamaLayerCell(MemoryCell):
             raise ValueError(f"resets must have shape {(B, T)}; got {r.shape}")
         return r
 
-    @staticmethod
-    def _unwrap_cache(cache_obj: object) -> object:
-        """Return underlying HF cache if wrapped by TensorDict NonTensorData."""
-        if cache_obj is not None and hasattr(cache_obj, "data") and "NonTensor" in cache_obj.__class__.__name__:
-            return getattr(cache_obj, "data", cache_obj)
-        return cache_obj
+    # No dynamic cache helpers needed with tensor-backed KV state
 
-    def _layer_past_len(self, cache: DynamicCache, layer_idx: int) -> int:
-        """Return past length for this layer from the HF cache."""
-        if hasattr(cache, "layers") and layer_idx < len(cache.layers):
+    def _prepare_static_cache(
+        self,
+        state: TensorDict,
+        *,
+        B: int,
+        T: int,
+        dtype: torch.dtype,
+        device: torch.device,
+    ) -> tuple[StaticCache, int, torch.Tensor, torch.Tensor]:
+        """Create StaticCache bound to TensorDict KV tensors. Returns (cache, layer_idx, kv_len, cache_position)."""
+        have_kv = ("k" in state.keys()) and ("v" in state.keys())
+        if have_kv:
+            st_k = state.get("k")
+            n_kv = int(st_k.shape[1])
+            head_dim = int(st_k.shape[-1])
+        else:
+            n_kv = int(getattr(self.hf_config, "num_key_value_heads", getattr(self.hf_config, "num_attention_heads", 1)))
+            head_dim = int(getattr(self.hf_layer.self_attn, "head_dim", self.hidden_size // int(getattr(self.hf_config, "num_attention_heads", 1))))
+
+        cache = StaticCache(config=self.hf_config, max_cache_len=self.mem_len)
+        cache.early_initialization(batch_size=B, num_heads=n_kv, head_dim=head_dim, dtype=dtype, device=device)
+        layer_idx = int(getattr(self.hf_layer.self_attn, "layer_idx", 0))
+
+        if have_kv:
             layer = cache.layers[layer_idx]
-            if getattr(layer, "is_initialized", False):
-                return int(layer.get_seq_length())
-        return 0
+            layer.keys = state.get("k")
+            layer.values = state.get("v")
 
-    def _maybe_reset_cache_device(self, cache: DynamicCache, device: torch.device, layer_idx: int) -> DynamicCache:
-        """Recreate empty cache if current layer's cache is initialized on a different device."""
-        if cache is None or not hasattr(cache, "layers"):
-            return cache
-        if layer_idx < 0 or layer_idx >= len(cache.layers):
-            return cache
-        layer = cache.layers[layer_idx]
-        if getattr(layer, "is_initialized", False):
-            k = getattr(layer, "keys", None)
-            if isinstance(k, torch.Tensor) and k.device != device:
-                return self._CacheCls(config=self.hf_config) if self.hf_config is not None else self._CacheCls()
-        return cache
+        kv_len = state.get("kv_len") if "kv_len" in state.keys() else torch.zeros(B, dtype=torch.long, device=device)
+        # Use a uniform insertion start across the batch and keep it in-bounds.
+        # This avoids out-of-range writes when kv_len reaches mem_len and ensures static positions are valid.
+        start = int(kv_len.min().item())
+        if self.mem_len > 0:
+            start = max(0, min(start, self.mem_len - T))
+        cache_position = torch.arange(start, start + T, device=device)
+        return cache, layer_idx, kv_len, cache_position
 
     @staticmethod
     def _build_last_reset_indices(resets_bt: torch.Tensor) -> torch.Tensor:
@@ -126,7 +148,7 @@ class HFLlamaLayerCell(MemoryCell):
         dtype: torch.dtype,
         device: torch.device,
     ) -> torch.Tensor:
-        """Return a 4D additive attention mask [B,1,T,P+T] with per-timestep resets."""
+        """Return additive mask [B,1,T,(P+T)] for dynamic semantics."""
         # Past keys absolute start index currently in cache for this layer
         abs_past_start = pos - past_len  # [B]
         # Past tokens to mask due to prior segment start across calls
@@ -144,6 +166,43 @@ class HFLlamaLayerCell(MemoryCell):
 
         # Latest allowed key index per (b,t) from causal structure
         latest_allowed = past_len + q_idx.expand(B, T)
+
+        allowed = (k_idx >= earliest_allowed.unsqueeze(-1)) & (k_idx <= latest_allowed.unsqueeze(-1))
+        neg_inf = torch.tensor(float("-inf"), device=device, dtype=dtype)
+        mask = torch.where(allowed, torch.zeros((), device=device, dtype=dtype), neg_inf)
+        return mask.unsqueeze(1)  # [B,1,T,K]
+
+    def _build_additive_mask_static(
+        self,
+        *,
+        B: int,
+        T: int,
+        mem_len: int,
+        kv_len: torch.Tensor,  # [B]
+        pos: torch.Tensor,  # [B]
+        seg_pos: torch.Tensor,  # [B]
+        last_reset_idx: torch.Tensor,  # [B,T] with -1 for no reset
+        dtype: torch.dtype,
+        device: torch.device,
+    ) -> torch.Tensor:
+        """Return additive mask [B,1,T,mem_len] implementing per‑timestep resets for static cache."""
+        kv_len = kv_len.to(device=device)
+        abs_past_start = pos - kv_len  # [B]
+        n_invalid = torch.clamp(seg_pos - abs_past_start, min=0)
+        n_invalid = torch.clamp(n_invalid, max=kv_len)
+
+        K = int(mem_len)
+        k_idx = torch.arange(K, device=device).view(1, 1, -1).expand(B, T, -1)
+        q_idx = torch.arange(T, device=device).view(1, -1).expand(B, T)
+
+        kv_len_bt = kv_len.view(B, 1).expand(B, T)
+        earliest_past = n_invalid.view(B, 1).expand(B, T)
+        earliest_from_resets = kv_len_bt + last_reset_idx
+        earliest_allowed = torch.where(last_reset_idx >= 0, earliest_from_resets, earliest_past)
+
+        latest_allowed = kv_len_bt + q_idx
+        latest_allowed = torch.clamp(latest_allowed, max=K - 1)
+        earliest_allowed = torch.clamp(earliest_allowed, min=0)
 
         allowed = (k_idx >= earliest_allowed.unsqueeze(-1)) & (k_idx <= latest_allowed.unsqueeze(-1))
         neg_inf = torch.tensor(float("-inf"), device=device, dtype=dtype)
@@ -173,69 +232,99 @@ class HFLlamaLayerCell(MemoryCell):
         # Normalize resets to [B,T]
         resets_bt = self._normalize_resets(resets, B, T, device)
 
-        cache = state.get("cache")
-        cache = self._unwrap_cache(cache)
-
         # Positions and per-batch segment starts
         pos = state.get("pos") if "pos" in state.keys() else torch.zeros(B, dtype=torch.long, device=device)
         seg_pos = state.get("seg_pos") if "seg_pos" in state.keys() else pos.clone()
 
-        # Past length for this specific layer from cache
-        layer_idx = int(getattr(self.hf_layer.self_attn, "layer_idx", 0))
-        cache = self._maybe_reset_cache_device(cache, device, layer_idx)
-        past_len = self._layer_past_len(cache, layer_idx)
-
         # Per-timestep last reset indices and additive mask implementing resets and causality
         last_reset_idx = self._build_last_reset_indices(resets_bt)
-        attention_mask = self._build_additive_mask(
-            B=B,
-            T=T,
-            past_len=past_len,
-            pos=pos,
-            seg_pos=seg_pos,
-            last_reset_idx=last_reset_idx,
-            dtype=dtype,
-            device=device,
-        )
 
         # Position ids account for segment resets: continue counting since last segment start
         base_since_seg = (pos - seg_pos).view(B, 1).expand(B, T)
         ar = torch.arange(T, device=device).view(1, T).expand(B, T)
         position_ids = torch.where(last_reset_idx >= 0, ar - last_reset_idx, base_since_seg + ar)
-        cache_position = torch.arange(int(pos.min().item()), int(pos.min().item()) + T, device=device)
         position_embeddings = self.hf_submodel.rotary_emb(x_seq, position_ids)
 
-        # Call the HF layer directly
-        y = self.hf_layer(
-            hidden_states=x_seq,
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            past_key_values=cache,
-            cache_position=cache_position,
-            position_embeddings=position_embeddings,
-            use_cache=True,
-        )
-
-        # Maintain rolling window if requested
+        # Build a StaticCache for the model and populate this layer from TD state
         if self.mem_len > 0:
-            cache.crop(self.mem_len)
+            cache, layer_idx, kv_len, cache_position = self._prepare_static_cache(
+                state, B=B, T=T, dtype=dtype, device=device
+            )
+            # Build additive mask over the static window
+            attention_mask = self._build_additive_mask_static(
+                B=B,
+                T=T,
+                mem_len=self.mem_len,
+                kv_len=kv_len,
+                pos=pos,
+                seg_pos=seg_pos,
+                last_reset_idx=last_reset_idx,
+                dtype=dtype,
+                device=device,
+            )
+            y = self.hf_layer(
+                hidden_states=x_seq,
+                attention_mask=attention_mask,
+                position_ids=position_ids,
+                past_key_values=cache,
+                cache_position=cache_position,
+                position_embeddings=position_embeddings,
+                use_cache=True,
+            )
+            # KV updated in place via bound references; ensure state keeps aliases
+            state.set("k", cache.layers[layer_idx].keys)
+            state.set("v", cache.layers[layer_idx].values)
+            # Update kv_len with clamp to mem_len
+            new_kv_len = torch.clamp(kv_len + T, max=self.mem_len)
+            state.set("kv_len", new_kv_len)
+        else:
+            # No KV cache
+            attention_mask = self._build_additive_mask(
+                B=B,
+                T=T,
+                past_len=0,
+                pos=pos,
+                seg_pos=seg_pos,
+                last_reset_idx=last_reset_idx,
+                dtype=dtype,
+                device=device,
+            )
+            y = self.hf_layer(
+                hidden_states=x_seq,
+                attention_mask=attention_mask,
+                position_ids=position_ids,
+                position_embeddings=position_embeddings,
+                use_cache=False,
+            )
+
+        # No explicit crop needed for StaticCache (fixed capacity)
 
         new_pos = pos + T
         # Persist last segment start across calls (absolute index of the last reset within this chunk, if any)
         last_reset_in_chunk = last_reset_idx[:, -1]
         new_seg_pos = torch.where(last_reset_in_chunk >= 0, pos + last_reset_in_chunk, seg_pos)
-        out_state = TensorDict({"cache": cache, "pos": new_pos, "seg_pos": new_seg_pos}, batch_size=[B])
+        # Compose output state
+        if self.mem_len > 0:
+            out_state = TensorDict({
+                "k": state.get("k"),
+                "v": state.get("v"),
+                "kv_len": state.get("kv_len"),
+                "pos": new_pos,
+                "seg_pos": new_seg_pos,
+            }, batch_size=[B])
+        else:
+            out_state = TensorDict({"pos": new_pos, "seg_pos": new_seg_pos, "kv_len": torch.zeros(B, dtype=torch.long, device=device)}, batch_size=[B])
         update_parent_state(out_state, state)
 
         y_out: Tensor = y.squeeze(1) if is_step else y
         return y_out, out_state
 
     def reset_state(self, state: MaybeState, mask: ResetMask) -> MaybeState:
-        """Reset the entire state for the current batch; ignore mask and mirror init_state."""
+        """Mirror init_state behavior; ignore mask and reinitialize."""
         if state is None:
             return None
-        B = state.batch_size[0] if state.batch_size else 1
-        device = state["pos"].device if "pos" in state.keys() else torch.device("cpu")
+        B = state.batch_size[0] if isinstance(state, TensorDict) and state.batch_size else 1
+        device = state.get("pos").device if isinstance(state, TensorDict) and "pos" in state.keys() else torch.device("cpu")
         new = self.init_state(batch=B, device=device, dtype=torch.float32)
         update_parent_state(new, state)
         return new
