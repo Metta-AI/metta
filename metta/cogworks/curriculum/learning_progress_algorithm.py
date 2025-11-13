@@ -52,6 +52,9 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     memory: int = 25
     eviction_threshold_percentile: float = 0.4  # Bottom percentile for task eviction
 
+    # Memory management for label tracking
+    max_inactive_labels_retained: int = 100  # Max inactive labels to keep for historical stats (prevents memory leak)
+
     # Basic EMA mode parameters (when use_bidirectional=False)
     basic_ema_initial_alpha: float = 0.3  # Initial learning rate for basic EMA
     basic_ema_alpha_decay: float = 0.2  # Decay factor for basic EMA alpha
@@ -151,6 +154,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         # Track which labels are currently active (have tasks in pool)
         self._active_labels: set[str] = set()
+
+        # Track recently inactive labels to manage memory
+        self._inactive_labels_fifo: list[str] = []  # FIFO queue of inactive labels for cleanup
 
     @property
     def lp_scorer(self):
@@ -258,17 +264,42 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
             # Check if this label still has any active tasks
             if evicted_label not in self._task_labels.values():
-                # No more tasks with this label - remove from active set
+                # No more tasks with this label - remove from active set and track as inactive
                 self._active_labels.discard(evicted_label)
-                # DO NOT clean up sampling/completion counts - these are cumulative stats that should persist!
-                # We keep these counts for historical accuracy, just like eviction counts
-                # Note: We keep eviction counts even for inactive labels to maintain historical data (when enabled)
+                self._inactive_labels_fifo.append(evicted_label)
+
+                # Clean up old inactive labels to prevent memory leak
+                self._cleanup_old_inactive_labels()
 
         # Remove from slice analyzer to prevent memory leak
         self.slice_analyzer.remove_task(task_id)
 
         # Invalidate stats cache when task state changes
         self.cache_coordinator.invalidate_stats_cache()
+
+    def _cleanup_old_inactive_labels(self) -> None:
+        """Clean up old inactive labels to prevent unbounded memory growth.
+
+        Keeps only the most recent N inactive labels as specified by
+        max_inactive_labels_retained config parameter.
+        """
+        max_retained = self.hypers.max_inactive_labels_retained
+
+        # Remove old labels if we exceed the limit
+        while len(self._inactive_labels_fifo) > max_retained:
+            old_label = self._inactive_labels_fifo.pop(0)
+
+            # Only clean up if this label is still inactive (not reactivated)
+            if old_label not in self._active_labels:
+                # Clean up cumulative stats for this label
+                self._label_completion_counts.pop(old_label, None)
+                self._label_sampling_counts.pop(old_label, None)
+
+                # Clean up eviction counts if tracking them
+                if self._label_eviction_counts is not None:
+                    self._label_eviction_counts.pop(old_label, None)
+
+                # Note: We don't clean up per-epoch counters here as they're reset each epoch anyway
 
     def _remove_task_from_scoring(self, task_id: int) -> None:
         """Remove task from scoring system."""
@@ -406,6 +437,11 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             label = task.get_label()
             if label:
                 self._task_labels[task._task_id] = label
+
+                # If label was inactive, remove it from the inactive queue (reactivating it)
+                if label in self._inactive_labels_fifo:
+                    self._inactive_labels_fifo.remove(label)
+
                 self._active_labels.add(label)
 
         # Extract and update slice values if available
@@ -704,6 +740,14 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             "hypers": self.hypers.model_dump(),
             "task_tracker": self.task_tracker.get_state(),
             "scorer": self.scorer.get_state(),
+            "label_tracking": {
+                "task_labels": self._task_labels,
+                "label_completion_counts": self._label_completion_counts,
+                "label_sampling_counts": self._label_sampling_counts,
+                "label_eviction_counts": self._label_eviction_counts,
+                "active_labels": list(self._active_labels),
+                "inactive_labels_fifo": self._inactive_labels_fifo,
+            },
         }
 
     def load_state(self, state: Dict[str, Any]) -> None:
@@ -714,6 +758,21 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Restore scorer state
         if "scorer" in state:
             self.scorer.load_state(state["scorer"])
+
+        # Restore label tracking state (if available, for backward compatibility)
+        if "label_tracking" in state:
+            label_data = state["label_tracking"]
+            self._task_labels = label_data.get("task_labels", {})
+            self._label_completion_counts = label_data.get("label_completion_counts", {})
+            self._label_sampling_counts = label_data.get("label_sampling_counts", {})
+
+            # Handle eviction counts (may be None if troubleshooting disabled)
+            eviction_counts = label_data.get("label_eviction_counts")
+            if self._label_eviction_counts is not None and eviction_counts is not None:
+                self._label_eviction_counts = eviction_counts
+
+            self._active_labels = set(label_data.get("active_labels", []))
+            self._inactive_labels_fifo = label_data.get("inactive_labels_fifo", [])
 
     def get_per_label_lp_scores(self, task_pool: dict) -> dict[str, dict[str, float]]:
         """Get per-label LP scores for troubleshooting.
