@@ -178,6 +178,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
         if (_global_obs_config.visitation_counts) {
           agent->init_visitation_grid(height, width);
         }
+        agent->set_obs_encoder(_obs_encoder.get());
         add_agent(agent);
         _group_sizes[agent->group] += 1;
         continue;
@@ -200,6 +201,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
         _grid->add_object(chest);
         _stats->incr("objects." + cell);
         chest->set_grid(_grid.get());
+        chest->set_obs_encoder(_obs_encoder.get());
         continue;
       }
 

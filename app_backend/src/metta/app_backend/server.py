@@ -15,8 +15,6 @@ from metta.app_backend.routes import (
     cogames_routes,
     entity_routes,
     eval_task_routes,
-    score_routes,
-    scorecard_routes,
     sql_routes,
     stats_routes,
     sweep_routes,
@@ -120,8 +118,6 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     sql_router = sql_routes.create_sql_router(stats_repo)
     stats_router = stats_routes.create_stats_router(stats_repo)
     token_router = token_routes.create_token_router(stats_repo)
-    policy_scorecard_router = scorecard_routes.create_policy_scorecard_router(stats_repo)
-    score_router = score_routes.create_score_router(stats_repo)
     sweep_router = sweep_routes.create_sweep_router(stats_repo)
     entity_router = entity_routes.create_entity_router(stats_repo)
 
@@ -130,10 +126,6 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     app.include_router(sql_router)
     app.include_router(stats_router)
     app.include_router(token_router)
-    app.include_router(policy_scorecard_router, prefix="/scorecard")
-    app.include_router(score_router)
-    # TODO: remove this once we're confident we've migrated all clients to use the /scorecard prefix
-    app.include_router(policy_scorecard_router, prefix="/heatmap")
     app.include_router(sweep_router)
     app.include_router(entity_router)
 
