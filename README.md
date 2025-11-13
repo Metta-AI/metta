@@ -242,7 +242,7 @@ Examples:
 
 Shorthands are supported:
 
-- Omit `experiments.recipes.`: `arena.train` == `experiments.recipes.arena.train`
+- Omit `recipes.experiment.` or `recipes.prod.`: `arena.train` == `recipes.experiment.arena.train`
 - Two‑token form: `train arena` == `arena.train`
 
 Tips:

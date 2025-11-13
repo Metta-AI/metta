@@ -9,11 +9,9 @@ from typing import cast
 import sky
 import sky.exceptions
 import sky.jobs
-import wandb
 from sky.server.common import RequestId, get_server_url
 
 import gitta as git
-from metta.app_backend.clients.base_client import get_machine_token
 from metta.common.util.git_repo import REPO_SLUG
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
 
@@ -175,11 +173,21 @@ def set_task_secrets(task: sky.Task) -> None:
     # Note: we can't mount these with `file_mounts` because of skypilot bug with service accounts.
     # Also, copying the entire `.netrc` is too much (it could contain other credentials).
 
+    # Lazy import to avoid loading wandb at CLI startup
+    import wandb
+
     wandb_password = netrc.netrc(os.path.expanduser("~/.netrc")).hosts["api.wandb.ai"][2]
     if not wandb_password:
         raise ValueError("Failed to get wandb password, run 'metta install' to fix")
 
-    observatory_token = get_machine_token("https://api.observatory.softmax-research.net")
+    # Lazy import - app_backend is optional and not available in CI
+    try:
+        from metta.app_backend.clients.base_client import get_machine_token
+
+        observatory_token = get_machine_token("https://api.observatory.softmax-research.net")
+    except ImportError:
+        observatory_token = None
+
     if not observatory_token:
         observatory_token = ""  # we don't have a token in CI
 
