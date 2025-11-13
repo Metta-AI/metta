@@ -42,11 +42,7 @@ def play(
     logger.debug("Starting play session", extra={"game_name": game_name})
 
     policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
-    policy = initialize_or_load_policy(
-        policy_env_info,
-        policy_spec.policy_class_path,
-        policy_spec.policy_data_path,
-    )
+    policy = initialize_or_load_policy(policy_env_info, policy_spec)
     agent_policies = [policy.agent_policy(agent_id) for agent_id in range(env_cfg.game.num_agents)]
 
     # Create simulator and renderer

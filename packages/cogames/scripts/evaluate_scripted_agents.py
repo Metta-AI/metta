@@ -20,6 +20,7 @@ Usage:
 """
 
 import argparse
+import importlib
 import json
 import logging
 from collections import defaultdict
@@ -32,9 +33,7 @@ import numpy as np
 
 from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
 from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_VARIANTS, get_difficulty
-from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS as EVAL_MISSIONS_MAIN
-from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS as EVAL_MISSIONS_INTEGRATED
-from cogames.cogs_vs_clips.mission import NumCogsVariant
+from cogames.cogs_vs_clips.mission import Mission, NumCogsVariant
 from cogames.policy.scripted_agent.baseline_agent import BaselinePolicy
 from cogames.policy.scripted_agent.types import BASELINE_HYPERPARAMETER_PRESETS
 from cogames.policy.scripted_agent.unclipping_agent import (
@@ -43,9 +42,6 @@ from cogames.policy.scripted_agent.unclipping_agent import (
 )
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
-
-# Combine both mission lists with prefixes to avoid name conflicts
-EVAL_MISSIONS = EVAL_MISSIONS_MAIN
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -67,6 +63,8 @@ class EvalResult:
     steps_taken: int
     max_steps: int
     success: bool
+    run_index: int
+    seed_used: int
 
 
 @dataclass
@@ -103,8 +101,17 @@ AGENT_CONFIGS: Dict[str, AgentConfig] = {
     ),
 }
 
-# All evaluation missions
-EXPERIMENT_MAP = {mission.name: mission for mission in EVAL_MISSIONS}
+# All evaluation missions (populated at runtime via --eval-module)
+EXPERIMENT_MAP: Dict[str, Mission] = {}
+
+
+def load_eval_missions(module_path: str):
+    """Dynamically import a module and return its EVAL_MISSIONS list."""
+    module = importlib.import_module(module_path)
+    missions = getattr(module, "EVAL_MISSIONS", None)
+    if missions is None:
+        raise AttributeError(f"Module '{module_path}' does not define EVAL_MISSIONS")
+    return missions
 
 
 def run_evaluation(
@@ -112,13 +119,16 @@ def run_evaluation(
     experiments: List[str],
     difficulties: List[str],
     cogs_list: List[int],
-    experiment_map: Dict[str, any],
     max_steps: int = 1000,
     seed: int = 42,
+    repeats: int = 3,
     preset: str = "default",
+    no_difficulty: bool = False,
+    experiment_map: Dict[str, Mission] | None = None,
 ) -> List[EvalResult]:
     """Run evaluation for an agent configuration."""
     results = []
+    experiment_lookup = experiment_map if experiment_map is not None else EXPERIMENT_MAP
 
     # Get hyperparameters for the preset
     base_hyperparams = BASELINE_HYPERPARAMETER_PRESETS.get(preset)
@@ -151,37 +161,52 @@ def run_evaluation(
     logger.info(f"Agent counts: {cogs_list}")
     logger.info(f"{'=' * 80}\n")
 
-    total_tests = len(experiments) * len(difficulties) * len(cogs_list)
-    completed = 0
+    runs_per_case = max(1, int(repeats))
+    total_cases = len(experiments) * len(difficulties) * len(cogs_list)
+    total_tests = total_cases * runs_per_case
+    case_counter = 0
+    completed_runs = 0
 
     for exp_name in experiments:
-        if exp_name not in experiment_map:
+        if exp_name not in experiment_lookup:
             logger.error(f"Unknown experiment: {exp_name}")
             continue
 
-        base_mission = experiment_map[exp_name]
+        base_mission = experiment_lookup[exp_name]
 
         for difficulty_name in difficulties:
-            try:
-                difficulty = get_difficulty(difficulty_name)
-            except Exception:
-                logger.error(f"Unknown difficulty: {difficulty_name}")
-                continue
+            difficulty = None
+            difficulty_label = difficulty_name
+            if not no_difficulty:
+                try:
+                    difficulty = get_difficulty(difficulty_name)
+                except Exception:
+                    logger.error(f"Unknown difficulty: {difficulty_name}")
+                    continue
 
             for num_cogs in cogs_list:
-                completed += 1
-                logger.info(f"[{completed}/{total_tests}] {exp_name} | {difficulty_name} | {num_cogs} agent(s)")
-
-                # Create mission and apply difficulty (always from base_mission)
-                mission = base_mission.with_variants([difficulty, NumCogsVariant(num_cogs=num_cogs)])
+                case_counter += 1
+                label = "none" if no_difficulty else difficulty_label
+                logger.info(f"[{case_counter}/{total_cases}] {exp_name} | {label} | {num_cogs} agent(s)")
 
                 # Get clip period for metadata
                 clip_period = getattr(difficulty, "extractor_clip_period", 0)
 
                 try:
+                    # Create mission and apply difficulty if enabled
+                    if difficulty is None:
+                        mission = base_mission.with_variants([NumCogsVariant(num_cogs=num_cogs)])
+                    else:
+                        mission = base_mission.with_variants([difficulty, NumCogsVariant(num_cogs=num_cogs)])
+
                     env_config = mission.make_env()
                     # Only override max_steps if difficulty doesn't specify it
-                    if not hasattr(difficulty, "max_steps_override") or difficulty.max_steps_override is None:
+                    has_override = (
+                        (difficulty is not None)
+                        and hasattr(difficulty, "max_steps_override")
+                        and (difficulty.max_steps_override is not None)
+                    )
+                    if not has_override:
                         env_config.game.max_steps = max_steps
 
                     # Get the actual max_steps from env_config (after all modifications)
@@ -192,62 +217,71 @@ def run_evaluation(
                     policy = agent_config.policy_class(policy_env_info, hyperparams)
                     agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
 
-                    # Create rollout and run episode
-                    rollout = Rollout(
-                        env_config,
-                        agent_policies,
-                        render_mode="none",
-                        seed=seed,
-                        pass_sim_to_policies=True,
-                    )
-                    rollout.run_until_done()
+                    # Run repeated trials with seed offsets
+                    for run_idx in range(runs_per_case):
+                        run_seed = seed + run_idx
+                        # Create rollout with run-specific seed
+                        rollout = Rollout(
+                            env_config,
+                            agent_policies,
+                            render_mode="none",
+                            seed=run_seed,
+                            pass_sim_to_policies=True,
+                        )
+                        rollout.run_until_done()
 
-                    # Get results - total reward and average per agent
-                    total_reward = float(sum(rollout._sim.episode_rewards))
-                    avg_reward_per_agent = total_reward / num_cogs
-                    final_step = rollout._sim.current_step
+                        total_reward = float(sum(rollout._sim.episode_rewards))
+                        avg_reward_per_agent = total_reward / max(1, num_cogs)
+                        final_step = rollout._sim.current_step
 
-                    # Record result
-                    result = EvalResult(
-                        agent=agent_config.label,
-                        experiment=exp_name,
-                        num_cogs=num_cogs,
-                        difficulty=difficulty_name,
-                        preset=preset,
-                        clip_period=clip_period,
-                        total_reward=total_reward,
-                        avg_reward_per_agent=avg_reward_per_agent,
-                        hearts_assembled=int(total_reward),
-                        steps_taken=final_step + 1,
-                        max_steps=actual_max_steps,
-                        success=total_reward > 0,
-                    )
-                    results.append(result)
+                        result = EvalResult(
+                            agent=agent_config.label,
+                            experiment=exp_name,
+                            num_cogs=num_cogs,
+                            difficulty=("none" if no_difficulty else difficulty_label),
+                            preset=preset,
+                            clip_period=clip_period,
+                            total_reward=total_reward,
+                            avg_reward_per_agent=avg_reward_per_agent,
+                            hearts_assembled=int(total_reward),
+                            steps_taken=final_step + 1,
+                            max_steps=actual_max_steps,
+                            success=total_reward > 0,
+                            seed_used=run_seed,
+                            run_index=run_idx + 1,
+                        )
+                        results.append(result)
 
-                    status = "✓" if result.success else "✗"
-                    logger.info(
-                        f"  {status} Total Reward: {total_reward:.1f}, "
-                        f"Avg/Agent: {avg_reward_per_agent:.1f}, Steps: {final_step + 1}/{actual_max_steps}"
-                    )
+                        completed_runs += 1
+                        status = "✓" if result.success else "✗"
+                        logger.info(
+                            f"  [run {run_idx + 1}/{runs_per_case}] {status} Total: {total_reward:.1f}, "
+                            f"Avg/Agent: {avg_reward_per_agent:.1f}, Steps: {final_step + 1}/{actual_max_steps} "
+                            f"(seed={run_seed}, progress {completed_runs}/{total_tests})"
+                        )
 
                 except Exception as e:
                     logger.error(f"  ✗ Error: {e}")
                     # Record failure
-                    result = EvalResult(
-                        agent=agent_config.label,
-                        experiment=exp_name,
-                        num_cogs=num_cogs,
-                        difficulty=difficulty_name,
-                        preset=preset,
-                        clip_period=0,
-                        total_reward=0.0,
-                        avg_reward_per_agent=0.0,
-                        hearts_assembled=0,
-                        steps_taken=0,
-                        max_steps=max_steps,
-                        success=False,
-                    )
-                    results.append(result)
+                    for run_idx in range(runs_per_case):
+                        result = EvalResult(
+                            agent=agent_config.label,
+                            experiment=exp_name,
+                            num_cogs=num_cogs,
+                            difficulty=("none" if no_difficulty else difficulty_label),
+                            preset=preset,
+                            clip_period=clip_period,
+                            total_reward=0.0,
+                            avg_reward_per_agent=0.0,
+                            hearts_assembled=0,
+                            steps_taken=0,
+                            max_steps=max_steps,
+                            success=False,
+                            run_index=run_idx + 1,
+                            seed_used=seed + run_idx,
+                        )
+                        results.append(result)
+                        completed_runs += 1
 
     return results
 
@@ -421,7 +455,7 @@ def _plot_by_agent(aggregated, agents, output_path):
         agent_rewards[vals["agent"]].append(vals["avg_reward_per_agent"])
 
     avg_rewards = [np.mean(agent_rewards[agent]) for agent in agents]
-    colors = plt.cm.Set2(range(len(agents)))
+    colors = plt.get_cmap("Set2")(range(len(agents)))
 
     bars = ax.bar(agents, avg_rewards, color=colors, alpha=0.8, edgecolor="black")
     ax.set_ylabel("Average Reward Per Agent", fontsize=12, fontweight="bold")
@@ -913,7 +947,7 @@ def _plot_by_preset(aggregated, presets, agents, experiments, difficulties, outp
     ax = axes[1]
     top_envs = sorted(
         experiments,
-        key=lambda e: np.mean([v["avg_reward"] for k, v in aggregated.items() if v["experiment"] == e]),
+        key=lambda e: float(np.mean([v["avg_reward"] for k, v in aggregated.items() if v["experiment"] == e])),
         reverse=True,
     )[:3]  # type: ignore
 
@@ -941,7 +975,7 @@ def _plot_by_preset(aggregated, presets, agents, experiments, difficulties, outp
     ax = axes[2]
     top_diffs = sorted(
         difficulties,
-        key=lambda d: np.mean([v["avg_reward"] for k, v in aggregated.items() if v["difficulty"] == d]),  # type: ignore
+        key=lambda d: float(np.mean([v["avg_reward"] for k, v in aggregated.items() if v["difficulty"] == d])),  # type: ignore
         reverse=True,
     )[:3]
 
@@ -979,6 +1013,16 @@ def main():
         help="Agent to evaluate (default: all)",
     )
     parser.add_argument(
+        "--eval-module",
+        type=str,
+        default="cogames.cogs_vs_clips.evals.eval_missions",
+        help=(
+            "Module to load EVAL_MISSIONS from "
+            "(default: cogames.cogs_vs_clips.evals.eval_missions). "
+            "For integrated evals use cogames.cogs_vs_clips.evals.integrated_eval"
+        ),
+    )
+    parser.add_argument(
         "--experiments",
         nargs="*",
         default=None,
@@ -989,6 +1033,11 @@ def main():
         nargs="*",
         default=None,
         help="Difficulties to test (default: agent-specific)",
+    )
+    parser.add_argument(
+        "--no-difficulty",
+        action="store_true",
+        help="Skip applying difficulty variants (use missions as-defined)",
     )
     parser.add_argument(
         "--cogs",
@@ -1024,22 +1073,39 @@ def main():
     )
     parser.add_argument(
         "--mission-set",
-        choices=["eval_missions", "integrated_evals", "diagnostic_evals"],
-        default="eval_missions",
-        help="Which mission set to use (default: eval_missions)",
+        choices=["auto", "eval_missions", "integrated_evals", "diagnostic_evals"],
+        default="auto",
+        help=(
+            "Convenience selector for built-in mission groups. "
+            "'auto' uses --eval-module as provided; "
+            "'eval_missions' and 'integrated_evals' load the bundled modules; "
+            "'diagnostic_evals' runs the curated diagnostic suite."
+        ),
+    )
+    parser.add_argument(
+        "--repeats",
+        type=int,
+        default=3,
+        help="Number of runs per case with different seeds (default: 3)",
     )
 
     args = parser.parse_args()
 
     # Select mission set based on argument
-    if args.mission_set == "integrated_evals":
-        missions_list = EVAL_MISSIONS_INTEGRATED
-    elif args.mission_set == "diagnostic_evals":
-        # Diagnostic evals are classes, need to instantiate them
+    mission_set = args.mission_set
+    eval_module = args.eval_module
+    if mission_set == "diagnostic_evals":
         missions_list = [mission_cls() for mission_cls in DIAGNOSTIC_EVALS]
     else:
-        missions_list = EVAL_MISSIONS_MAIN
+        if mission_set == "eval_missions":
+            eval_module = "cogames.cogs_vs_clips.evals.eval_missions"
+        elif mission_set == "integrated_evals":
+            eval_module = "cogames.cogs_vs_clips.evals.integrated_evals"
+        missions_list = load_eval_missions(eval_module)
+
     experiment_map = {mission.name: mission for mission in missions_list}
+    global EXPERIMENT_MAP
+    EXPERIMENT_MAP = experiment_map
 
     # Determine which agents to test
     if args.agent == "all":
@@ -1064,7 +1130,10 @@ def main():
     for preset in presets:
         for config in configs:
             # Use specified difficulties or agent-specific defaults
-            difficulties = args.difficulties if args.difficulties else config.difficulties
+            if args.no_difficulty:
+                difficulties = ["base"]
+            else:
+                difficulties = args.difficulties if args.difficulties else config.difficulties
 
             # Use specified cogs or agent-specific defaults
             cogs_list = args.cogs if args.cogs else config.cogs_list
@@ -1077,7 +1146,9 @@ def main():
                 experiment_map=experiment_map,
                 max_steps=args.steps,
                 seed=args.seed,
+                repeats=args.repeats,
                 preset=preset,
+                no_difficulty=args.no_difficulty,
             )
             all_results.extend(results)
 

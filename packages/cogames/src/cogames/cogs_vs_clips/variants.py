@@ -1,4 +1,4 @@
-from typing import override
+from typing import Iterable, override
 
 from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_VARIANTS
 from cogames.cogs_vs_clips.mission import MissionVariant
@@ -122,24 +122,29 @@ class EnergizedVariant(MissionVariant):
 class ResourceBottleneckVariant(MissionVariant):
     name: str = "resource_bottleneck"
     description: str = "A resource is the limiting factor. Agents must prioritize it over other resources."
-    resource: str = "oxygen"
+    resource: Iterable[str] | str = ("oxygen", "germanium", "silicon", "carbon")
 
     @override
     def modify_mission(self, mission):
-        # Map the chosen resource to the corresponding extractor on the mission
-        if self.resource in {"carbon", "oxygen", "germanium", "silicon"}:
-            extractor_attr = f"{self.resource}_extractor"
-        elif self.resource == "energy":
-            extractor_attr = "charger"
+        # Accept either a single resource or an iterable of resources to bottleneck
+        if isinstance(self.resource, str):
+            resources: Iterable[str] = [self.resource]
         else:
-            raise ValueError(f"Unsupported resource for bottleneck: {self.resource}")
+            resources = list(self.resource)
 
-        extractor = getattr(mission, extractor_attr, None)
-        if extractor is None:
-            raise AttributeError(f"Mission has no extractor attribute '{extractor_attr}'")
+        for resource in resources:
+            if resource in {"carbon", "oxygen", "germanium", "silicon"}:
+                extractor_attr = f"{resource}_extractor"
+            elif resource == "energy":
+                extractor_attr = "charger"
+            else:
+                raise ValueError(f"Unsupported resource for bottleneck: {resource}")
 
-        # Reduce efficiency to create the bottleneck; keep it at least 1 to avoid divide-by-zero or negatives
-        extractor.efficiency = max(1, int(extractor.efficiency) - 50)
+            extractor = getattr(mission, extractor_attr, None)
+            if extractor is None:
+                raise AttributeError(f"Mission has no extractor attribute '{extractor_attr}'")
+
+            extractor.efficiency = max(1, int(extractor.efficiency) - 50)
 
 
 class NeutralFacedVariant(MissionVariant):
@@ -172,8 +177,9 @@ class SingleToolUnclipVariant(MissionVariant):
 
     @override
     def modify_env(self, mission, env):
-        change_vibe = env.game.actions.change_vibe
-        change_vibe.number_of_vibes = 1
+        change_vibe = getattr(env.game.actions, "change_vibe", None)
+        if change_vibe is not None:
+            change_vibe.number_of_vibes = 1
         env.game.vibe_names = ["gear"]
         # Restrict assembler to a single generic gear recipe: carbon -> decoder
         assembler = env.game.objects.get("assembler")

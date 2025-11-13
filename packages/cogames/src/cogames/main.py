@@ -22,7 +22,12 @@ from cogames import train as train_module
 from cogames.cli.base import console
 from cogames.cli.login import DEFAULT_COGAMES_SERVER, perform_login
 from cogames.cli.mission import describe_mission, get_mission_name_and_config, get_mission_names_and_configs
-from cogames.cli.policy import get_policy_spec, get_policy_specs, policy_arg_example, policy_arg_w_proportion_example
+from cogames.cli.policy import (
+    get_policy_spec,
+    get_policy_specs_with_proportions,
+    policy_arg_example,
+    policy_arg_w_proportion_example,
+)
 from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, submit_command
 from cogames.curricula import make_rotation
 from cogames.device import resolve_training_device
@@ -272,8 +277,8 @@ def train_cmd(
     try:
         train_module.train(
             env_cfg=env_cfg,
-            policy_class_path=policy_spec.policy_class_path,
-            initial_weights_path=policy_spec.policy_data_path,
+            policy_class_path=policy_spec.class_path,
+            initial_weights_path=policy_spec.data_path,
             device=torch_device,
             num_steps=steps,
             checkpoints_path=Path(checkpoints_path),
@@ -337,7 +342,7 @@ def evaluate_cmd(
 ) -> None:
     selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs, steps=steps)
 
-    policy_specs = get_policy_specs(ctx, policies)
+    policy_specs = get_policy_specs_with_proportions(ctx, policies)
 
     console.print(
         f"[cyan]Preparing evaluation for {len(policy_specs)} policies across {len(selected_missions)} mission(s)[/cyan]"
@@ -346,7 +351,8 @@ def evaluate_cmd(
     evaluate_module.evaluate(
         console,
         missions=selected_missions,
-        policy_specs=policy_specs,
+        policy_specs=[spec.to_policy_spec() for spec in policy_specs],
+        proportions=[spec.proportion for spec in policy_specs],
         action_timeout_ms=action_timeout_ms,
         episodes=episodes,
         output_format=format_,

@@ -1,8 +1,8 @@
 from cogames.cogs_vs_clips.missions import (
     HarvestMission,
+    HelloWorldUnclipMission,
     Mission,
     RepairMission,
-    UnclipDrillsMission,
     make_game,
 )
 from cogames.cogs_vs_clips.stations import CvCStationConfig
@@ -92,5 +92,5 @@ def test_repair_mission_starts_with_clipped_stations():
 
 
 def test_unclip_drills_mission_starts_with_clipped_stations():
-    mission = UnclipDrillsMission.model_copy(deep=True)
+    mission = HelloWorldUnclipMission.model_copy(deep=True)
     assert all(station.start_clipped for station in _station_configs(mission))
