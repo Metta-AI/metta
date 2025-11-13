@@ -14,7 +14,7 @@ class CurriculumEnv(PufferEnv):
     handling for reset() and step() methods to integrate with curriculum task management.
     """
 
-    def __init__(self, env: Any, curriculum: Curriculum, *, log_stats: bool = False):
+    def __init__(self, env: Any, curriculum: Curriculum):
         """Initialize the curriculum environment wrapper.
 
         Args:
@@ -30,7 +30,6 @@ class CurriculumEnv(PufferEnv):
         self._env = env
         self._curriculum = curriculum
         self._current_task = self._curriculum.get_task()
-        self._log_stats = log_stats
 
         # Stats batching configuration - updating stats too frequently is an SPS hit
         self._stats_update_counter = 0
@@ -52,8 +51,6 @@ class CurriculumEnv(PufferEnv):
         This method consolidates the curriculum stats logging logic to avoid duplication
         and enables batching of expensive stats calculations.
         """
-        if not self._log_stats:
-            return
         # Only update curriculum stats periodically to reduce overhead
         if self._stats_update_counter >= self._stats_update_frequency:
             if not self._stats_cache_valid:
@@ -73,11 +70,10 @@ class CurriculumEnv(PufferEnv):
         self._env.set_mg_config(self._current_task.get_env_cfg())
         obs, info = self._env.reset(*args, **kwargs)
 
-        if self._log_stats:
-            self._stats_cache_valid = False
+        self._stats_cache_valid = False
 
         # Only log curriculum stats on reset if cache is invalid or this is first reset
-        if self._log_stats and not self._first_reset_done:
+        if not self._first_reset_done:
             curriculum_stats = self._curriculum.stats()
             for key, value in curriculum_stats.items():
                 info[self._CURRICULUM_STAT_PREFIX + key] = value
@@ -102,12 +98,10 @@ class CurriculumEnv(PufferEnv):
             self._current_task = self._curriculum.get_task()
             self._env.set_mg_config(self._current_task.get_env_cfg())
 
-            if self._log_stats:
-                self._stats_cache_valid = False
+            self._stats_cache_valid = False
 
-        if self._log_stats:
-            self._stats_update_counter += 1
-            self._add_curriculum_stats_to_info(infos)
+        self._stats_update_counter += 1
+        self._add_curriculum_stats_to_info(infos)
 
         return obs, rewards, terminals, truncations, infos
 
@@ -117,15 +111,11 @@ class CurriculumEnv(PufferEnv):
         Args:
             frequency: Number of steps between stats updates (default: 50)
         """
-        if not self._log_stats:
-            return
         self._stats_update_frequency = max(1, frequency)
         self._stats_update_counter = 0  # Reset counter
 
     def force_stats_update(self) -> None:
         """Force an immediate update of curriculum stats."""
-        if not self._log_stats:
-            return
         self._stats_update_counter = self._stats_update_frequency
         self._stats_cache_valid = False
 
@@ -148,7 +138,6 @@ class CurriculumEnv(PufferEnv):
             "_cached_stats",
             "_stats_cache_valid",
             "_first_reset_done",
-            "_log_stats",
         ):
             return object.__getattribute__(self, name)
 
