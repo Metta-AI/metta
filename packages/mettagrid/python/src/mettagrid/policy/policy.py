@@ -138,8 +138,6 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
         super().__init__(policy_env_info)
         self._nim_policy = nim_policy_factory(policy_env_info.to_json())
         self._num_agents = policy_env_info.num_agents
-        self._action_names = policy_env_info.action_names
-        self._num_actions = len(self._action_names)
         obs_shape = policy_env_info.observation_space.shape
         self._num_tokens = obs_shape[0]
         self._token_dim = obs_shape[1]
@@ -208,7 +206,7 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
             self._num_tokens,
             self._token_dim,
             obs_buffer.ctypes.data,
-            self._num_actions,
+            len(self.policy_env_info.action_names),
             action_buffer.ctypes.data,
         )
 
@@ -226,7 +224,7 @@ class _NimAgentPolicy(AgentPolicy):
 
     def step(self, obs: AgentObservation) -> Action:
         action_index = self._parent.step_single(self._agent_id, obs)
-        return Action(name=self._parent._action_names[action_index])
+        return Action(name=self.policy_env_info.action_names[action_index])
 
 
 class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
