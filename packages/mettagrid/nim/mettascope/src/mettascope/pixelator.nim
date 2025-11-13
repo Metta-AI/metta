@@ -1,6 +1,7 @@
 import
   std/[os, json, strutils, tables],
-  pixie, opengl, boxy/[shaders, allocator], jsony, shady, vmath
+  pixie, opengl, boxy/[shaders], jsony, shady, vmath,
+  allocator
 
 # This file specifically deals with the pixel atlas texture.
 # It supports pixel art style drawing with pixel perfect AA sampling.
