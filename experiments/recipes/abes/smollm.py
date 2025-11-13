@@ -5,6 +5,8 @@ from __future__ import annotations
 import importlib.util
 from typing import Optional
 
+import torch
+
 import metta.cogworks.curriculum as cc
 from experiments.recipes.arena_basic_easy_shaped import (
     evaluate,
@@ -51,6 +53,11 @@ def train(
     if policy_architecture is None:
         config_kwargs = {}
         config_kwargs["model_name"] = model_name or "HuggingFaceTB/SmolLM2-135M"
+        # Prefer FlashAttention2 with a half-precision dtype by default when available.
+        # FA2 supports only float16/bfloat16; pick bfloat16 (generally stable on recent NVIDIA GPUs).
+        if _FLASH_ATTENTION_AVAILABLE and torch.cuda.is_available():
+            config_kwargs["attn_implementation"] = "flash_attention_2"
+            config_kwargs["torch_dtype"] = "bfloat16"
         if mem_len is not None:
             config_kwargs["mem_len"] = int(mem_len)
         policy_architecture = SmolLLMConfig(**config_kwargs)
@@ -81,19 +88,19 @@ def _apply_smollm_defaults(tool: TrainTool) -> TrainTool:
         trainer_updates["compile"] = False
 
     if trainer.batch_size > 131_072:
-        trainer_updates["batch_size"] = 131_072
+        trainer_updates["batch_size"] = 32768
 
     if trainer.minibatch_size > 4_096:
-        trainer_updates["minibatch_size"] = 4_096
+        trainer_updates["minibatch_size"] = 512
 
     if trainer.bptt_horizon > 4:
-        trainer_updates["bptt_horizon"] = 4
+        trainer_updates["bptt_horizon"] = 64
 
     if trainer_updates:
         tool.trainer = trainer.model_copy(update=trainer_updates)
 
     if env.forward_pass_minibatch_target_size > 2_048:
-        env_updates["forward_pass_minibatch_target_size"] = 2_048
+        env_updates["forward_pass_minibatch_target_size"] = 512
     if env.auto_workers:
         env_updates["auto_workers"] = False
     if env.num_workers != 1:

@@ -25,9 +25,9 @@ class SmolLLMConfig(PolicyArchitecture):
     model_name: str = "HuggingFaceTB/SmolLM2-135M"
     max_sequence_length: int = 32
     # HF loading/runtime
-    torch_dtype: Literal["auto", "float32", "float16", "bfloat16"] = "auto"
-    attn_implementation: Optional[str] = None  # e.g., "flash_attention_2"
-    mem_len: int = 0  # rolling KV cache length; 0 = unbounded
+    torch_dtype: Literal["float32", "float16", "bfloat16"] = "bfloat16"
+    attn_implementation: Optional[str] = 'flash_attention_2'  # e.g., "flash_attention_2"
+    mem_len: int = 128  # rolling KV cache length; 0 = unbounded
 
     tokens_key: str = "smollm_tokens"
     logits_key: str = "smollm_logits"
@@ -103,6 +103,7 @@ class SmolLLMConfig(PolicyArchitecture):
                 out_features=hf_hidden,        # out_features = LLM embed dim
                 stack_cfg=stack_cfg,
                 key_prefix="cortex_state",
+                dtype=self.torch_dtype,
             ),
             MLPConfig(
                 in_key="core",
