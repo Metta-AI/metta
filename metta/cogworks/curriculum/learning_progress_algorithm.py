@@ -5,7 +5,7 @@ Provides intelligent task selection based on bidirectional learning progress ana
 using fast and slow exponential moving averages to detect learning opportunities.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -76,6 +76,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Cache for expensive statistics computation
         self._stats_cache: Dict[str, Any] = {}
         self._stats_cache_valid = False
+        self._pending_updates: list[tuple[int, float]] = []
+        self._flush_threshold = 128
+        self._progress_dirty = True
+        self._task_index_cache: dict[int, int] = {}
 
     def get_base_stats(self) -> Dict[str, float]:
         """Get basic statistics that all algorithms must provide."""
@@ -130,6 +134,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._stale_dist = True
         self._score_cache: Dict[int, float] = {}
         self._cache_valid_tasks: set[int] = set()
+        self._progress_dirty = True
 
     def _init_basic_scoring(self):
         """Initialize basic EMA tracking (fallback method)."""
@@ -150,6 +155,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def _score_tasks_bidirectional(self, task_ids: List[int]) -> Dict[int, float]:
         """Score tasks using bidirectional learning progress."""
+        self._flush_pending_updates()
+        self._ensure_progress_ready()
         scores = {}
         for task_id in task_ids:
             scores[task_id] = self._get_bidirectional_learning_progress_score(task_id)
@@ -157,10 +164,35 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def _score_tasks_basic(self, task_ids: List[int]) -> Dict[int, float]:
         """Score tasks using basic EMA variance method."""
+        self._flush_pending_updates()
         scores = {}
         for task_id in task_ids:
             scores[task_id] = self._get_basic_learning_progress_score(task_id)
         return scores
+
+    def _flush_pending_updates(self) -> None:
+        if not self._pending_updates:
+            return
+
+        if self.hypers.use_bidirectional:
+            for task_id, score in self._pending_updates:
+                self._update_bidirectional_ema(task_id, score)
+        else:
+            for task_id, score in self._pending_updates:
+                self._update_basic_ema(task_id, score)
+
+        self._pending_updates.clear()
+        self._progress_dirty = True
+        self._cache_valid_tasks.clear()
+
+    def _ensure_progress_ready(self) -> None:
+        if not self.hypers.use_bidirectional:
+            return
+        if self._progress_dirty:
+            self._update_bidirectional_progress()
+            if self._task_dist is None or self._stale_dist:
+                self._calculate_task_distribution()
+            self._progress_dirty = False
 
     def _get_bidirectional_learning_progress_score(self, task_id: int) -> float:
         """Calculate bidirectional learning progress score for a task."""
@@ -176,22 +208,14 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             # Tasks without sufficient data get exploration bonus
             score = self.hypers.exploration_bonus
         else:
-            # Calculate bidirectional learning progress
-            self._update_bidirectional_progress()
-
-            # Get task distribution if needed
-            if self._task_dist is None or self._stale_dist:
-                self._calculate_task_distribution()
-
-            # Find task index in our tracking
-            task_indices = list(self._outcomes.keys())
-            if task_id in task_indices and self._task_dist is not None:
-                task_idx = task_indices.index(task_id)
-                if task_idx < len(self._task_dist):
-                    # Use the bidirectional learning progress as score
-                    score = float(self._task_dist[task_idx])
-                else:
-                    score = self.hypers.exploration_bonus
+            self._ensure_progress_ready()
+            idx = self._task_index_cache.get(task_id)
+            if (
+                idx is not None
+                and self._task_dist is not None
+                and 0 <= idx < len(self._task_dist)
+            ):
+                score = float(self._task_dist[idx])
             else:
                 score = self.hypers.exploration_bonus
 
@@ -288,6 +312,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             self._score_cache.pop(task_id, None)
             self._cache_valid_tasks.discard(task_id)
             self._stale_dist = True
+            self._progress_dirty = True
         else:
             self._task_emas.pop(task_id, None)
             self._score_cache.pop(task_id, None)
@@ -298,9 +323,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Update task tracker
         self.task_tracker.update_task_performance(task_id, score)
 
-        # Update scoring method
         if self.hypers.use_bidirectional:
-            self._update_bidirectional_ema(task_id, score)
+            self._pending_updates.append((task_id, score))
+            if len(self._pending_updates) >= self._flush_threshold:
+                self._flush_pending_updates()
         else:
             self._update_basic_ema(task_id, score)
 
@@ -340,11 +366,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             self._counter[task_id] = 0
         self._counter[task_id] += 1
 
-        # Update bidirectional progress to ensure EMAs are updated
-        self._update_bidirectional_progress()
-
-        # Mark distribution as stale
         self._stale_dist = True
+        self._progress_dirty = True
         self._cache_valid_tasks.discard(task_id)
 
     def _update_basic_ema(self, task_id: int, score: float) -> None:
@@ -468,6 +491,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Get all tracked task IDs
         task_ids = sorted(self._outcomes.keys())
         num_tasks = len(task_ids)
+        self._task_index_cache = {task_id: idx for idx, task_id in enumerate(task_ids)}
 
         if num_tasks == 0:
             return

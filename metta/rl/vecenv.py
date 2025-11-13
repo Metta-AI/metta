@@ -27,6 +27,7 @@ def make_env_func(
     replay_writer: Optional[ReplayLogWriter] = None,
     run_dir: str | None = None,
     buf: Optional[Any] = None,
+    log_curriculum_stats: bool = False,
     **kwargs,
 ):
     if run_dir is not None:
@@ -43,7 +44,7 @@ def make_env_func(
     sim.add_event_handler(EarlyResetHandler())
 
     env = MettaGridPufferEnv(sim, curriculum.get_task().get_env_cfg(), env_supervisor_cfg=env_supervisor_cfg, buf=buf)
-    env = CurriculumEnv(env, curriculum)
+    env = CurriculumEnv(env, curriculum, log_stats=log_curriculum_stats)
 
     return env
 
@@ -75,12 +76,15 @@ def make_vecenv(
     if num_envs < 1:
         raise ValueError(f"num_envs must be at least 1, got {num_envs}")
 
+    log_curriculum_stats = kwargs.pop("log_curriculum_stats", False)
+
     env_kwargs = {
         "curriculum": curriculum,
         "stats_writer": stats_writer,
         "replay_writer": replay_writer,
         "run_dir": run_dir,
         "env_supervisor_cfg": env_supervisor_cfg,
+        "log_curriculum_stats": log_curriculum_stats,
     }
 
     # Note: PufferLib's vector.make accepts Serial, Multiprocessing, and Ray as valid backends,

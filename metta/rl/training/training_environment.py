@@ -70,6 +70,7 @@ class TrainingEnvironmentConfig(Config):
     )
 
     supervisor: EnvSupervisorConfig = Field(default_factory=EnvSupervisorConfig)
+    log_curriculum_stats: bool = Field(default=False)
 
 
 @dataclass
@@ -178,6 +179,7 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
             num_workers=num_workers,
             zero_copy=cfg.zero_copy,
             replay_writer=replay_writer,
+            log_curriculum_stats=cfg.log_curriculum_stats,
         )
 
         # NOTE: Downstream rollout code currently assumes that PufferLib returns
