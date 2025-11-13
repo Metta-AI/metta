@@ -285,7 +285,6 @@ def train_cmd(
             vector_batch_size=vector_batch_size,
             env_cfg_supplier=supplier,
             missions_arg=missions,
-            variants_arg=variant,
             log_outputs=log_outputs,
         )
 

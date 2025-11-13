@@ -228,7 +228,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_wall_config = CppWallConfig(
                 type_id=type_id_by_type_name[object_type], type_name=object_type, initial_vibe=object_config.vibe
             )
-            cpp_wall_config.swappable = object_config.swappable
             cpp_wall_config.tag_ids = tag_ids
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_wall_config
