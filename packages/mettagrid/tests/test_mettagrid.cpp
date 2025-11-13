@@ -57,7 +57,6 @@ protected:
         {"agent:orientation", 3},
         {"agent:reserved_for_future_use", 4},
         {"converting", 5},
-        {"swappable", 6},
         {"episode_completion_pct", 7},
         {"last_action", 8},
         {"last_action_arg", 9},
@@ -65,10 +64,11 @@ protected:
         {"vibe", 11},
         {"agent:vibe", 12},
         {"agent:visitation_counts", 13},
-        {"tag", 14},
-        {"cooldown_remaining", 15},
-        {"clipped", 16},
-        {"remaining_uses", 17},
+        {"agent:compass", 14},
+        {"tag", 15},
+        {"cooldown_remaining", 16},
+        {"clipped", 17},
+        {"remaining_uses", 18},
     };
     ObservationFeature::Initialize(feature_ids);
   }
@@ -441,75 +441,8 @@ TEST_F(MettaGridCppTest, GridObjectManagement) {
   EXPECT_EQ(retrieved_agent, agent);
 
   // Verify it's at the expected location
-  auto agent_at_location = grid.object_at(GridLocation(2, 3, GridLayer::AgentLayer));
+  auto agent_at_location = grid.object_at(GridLocation(2, 3));
   EXPECT_EQ(agent_at_location, agent);
-}
-
-// ==================== Action Tests ====================
-
-TEST_F(MettaGridCppTest, AttackAction) {
-  Grid grid(10, 10);
-
-  // Create a minimal GameConfig for testing
-  GameConfig game_config;
-
-  // Create attacker and target
-  AgentConfig attacker_cfg = create_test_agent_config();
-  attacker_cfg.group_name = "red";
-  AgentConfig target_cfg = create_test_agent_config();
-  target_cfg.group_name = "blue";
-  target_cfg.group_id = 2;
-  auto resource_names = create_test_resource_names();
-  Agent* attacker = new Agent(2, 0, attacker_cfg, &resource_names);
-  Agent* target = new Agent(0, 0, target_cfg, &resource_names);
-
-  float attacker_reward = 0.0f;
-  float target_reward = 0.0f;
-  attacker->init(&attacker_reward);
-  target->init(&target_reward);
-
-  grid.add_object(attacker);
-  grid.add_object(target);
-
-  // Give attacker a laser
-  attacker->update_inventory(TestItems::LASER, 2);
-  EXPECT_EQ(attacker->inventory.amount(TestItems::LASER), 2);
-
-  // Give target some items and armor
-  target->update_inventory(TestItems::ARMOR, 5);
-  target->update_inventory(TestItems::HEART, 3);
-  EXPECT_EQ(target->inventory.amount(TestItems::ARMOR), 5);
-  EXPECT_EQ(target->inventory.amount(TestItems::HEART), 3);
-
-  // Create attack action handler
-  AttackActionConfig attack_cfg({{TestItems::LASER, 1}}, {{TestItems::LASER, 1}}, {{TestItems::ARMOR, 3}});
-  Attack attack(attack_cfg, &game_config);
-  std::mt19937 rng(42);
-  attack.init(&grid, &rng);
-
-  // Perform attack (arg 5 targets directly in front)
-  bool success = attack.handle_action(*attacker, 5);
-  // Hitting a target with armor counts as success
-  EXPECT_TRUE(success);
-
-  // Verify that the combat material was consumed
-  EXPECT_EQ(attacker->inventory.amount(TestItems::LASER), 1);
-  EXPECT_EQ(target->inventory.amount(TestItems::ARMOR), 2);
-
-  // Verify target was not frozen or robbed
-  EXPECT_EQ(target->frozen, 0);
-  EXPECT_EQ(target->inventory.amount(TestItems::HEART), 3);
-
-  // Attack again, now that armor is gone
-  success = attack.handle_action(*attacker, 5);
-  EXPECT_TRUE(success);
-
-  // Verify target's inventory was stolen
-  EXPECT_EQ(target->inventory.amount(TestItems::HEART), 0);
-  EXPECT_EQ(attacker->inventory.amount(TestItems::HEART), 3);
-  // Humorously, the defender's armor was also stolen!
-  EXPECT_EQ(target->inventory.amount(TestItems::ARMOR), 0);
-  EXPECT_EQ(attacker->inventory.amount(TestItems::ARMOR), 2);
 }
 
 // ==================== Action Tracking ====================
@@ -833,64 +766,6 @@ TEST_F(MettaGridCppTest, FractionalConsumptionMultipleResources) {
   EXPECT_EQ(armor_left, 21);  // on average expect 22.5
 }
 
-TEST_F(MettaGridCppTest, FractionalConsumptionAttackAction) {
-  // This test verifies that fractional consumption works with attack actions
-  // We'll do a simple test with a few attacks rather than a complex loop
-
-  Grid grid(10, 10);
-  GameConfig game_config;
-
-  // Create attacker with lasers
-  AgentConfig attacker_cfg = create_test_agent_config();
-  attacker_cfg.group_name = "red";
-
-  // Create target
-  AgentConfig target_cfg = create_test_agent_config();
-  target_cfg.group_name = "blue";
-  target_cfg.group_id = 2;
-
-  auto resource_names = create_test_resource_names();
-  Agent* attacker = new Agent(2, 0, attacker_cfg, &resource_names);
-  Agent* target = new Agent(0, 0, target_cfg, &resource_names);
-
-  float attacker_reward = 0.0f;
-  float target_reward = 0.0f;
-  attacker->init(&attacker_reward);
-  target->init(&target_reward);
-
-  grid.add_object(attacker);
-  grid.add_object(target);
-
-  // Give attacker 10 lasers
-  attacker->update_inventory(TestItems::LASER, 10);
-  // Give target some hearts to rob
-  target->update_inventory(TestItems::HEART, 5);
-
-  // Create attack action with fractional laser consumption (0.5 per attack)
-  AttackActionConfig attack_cfg({{TestItems::LASER, 1}}, {{TestItems::LASER, 0.5f}}, {});
-  Attack attack(attack_cfg, &game_config);
-  std::mt19937 rng(42);
-  attack.init(&grid, &rng);
-
-  // Track consumption over multiple attacks
-  int total_consumed = 0;
-  int successful_attacks = 0;
-
-  // Do 10 attacks
-  for (int i = 0; i < 10; i++) {
-    int before = attacker->inventory.amount(TestItems::LASER);
-    bool success = attack.handle_action(*attacker, 5);  // Attack directly in front
-    if (success) {
-      successful_attacks++;
-      int after = attacker->inventory.amount(TestItems::LASER);
-      total_consumed += (before - after);
-    }
-  }
-
-  EXPECT_EQ(successful_attacks, 10);  // All 10 attacks succeed with initial 10 lasers
-  EXPECT_EQ(total_consumed, 4);       // Exactly 4 lasers consumed from 10 attacks
-}
-
 TEST_F(MettaGridCppTest, FractionalConsumptionChangeVibeAction) {
   Grid grid(3, 3);
 
@@ -1019,19 +894,14 @@ TEST_F(MettaGridCppTest, AssemblerBasicObservationFeatures) {
 
   auto features = assembler.obs_features();
 
-  // Should have at least TypeId and Tag features
-  EXPECT_GE(features.size(), 3);  // TypeId + 2 tags
+  // Should have at least Tag features
+  EXPECT_GE(features.size(), 2);
 
-  // Find TypeId feature
-  bool found_type_id = false;
   bool found_tag1 = false;
   bool found_tag2 = false;
 
   for (const auto& feature : features) {
-    if (feature.feature_id == ObservationFeature::TypeId) {
-      EXPECT_EQ(feature.value, 1);  // Our test assembler type_id
-      found_type_id = true;
-    } else if (feature.feature_id == ObservationFeature::Tag) {
+    if (feature.feature_id == ObservationFeature::Tag) {
       if (feature.value == 1) {
         found_tag1 = true;
       } else if (feature.value == 2) {
@@ -1040,7 +910,6 @@ TEST_F(MettaGridCppTest, AssemblerBasicObservationFeatures) {
     }
   }
 
-  EXPECT_TRUE(found_type_id) << "TypeId feature not found";
   EXPECT_TRUE(found_tag1) << "Tag 1 not found";
   EXPECT_TRUE(found_tag2) << "Tag 2 not found";
 }
@@ -1199,7 +1068,6 @@ TEST_F(MettaGridCppTest, AssemblerProtocolObservationsEnabled) {
   Grid grid(10, 10);
 
   AssemblerConfig config(1, "test_assembler");
-  config.protocol_details_obs = true;
 
   // Create test protocols - one for pattern 0 (no agents), one for pattern 1 (some agents)
   auto protocol0 = std::make_shared<Protocol>();  // Default protocol (vibe 0)
@@ -1222,6 +1090,18 @@ TEST_F(MettaGridCppTest, AssemblerProtocolObservationsEnabled) {
 
   // Add assembler to grid
   grid.add_object(assembler);
+
+  // Provide an ObservationEncoder so protocol details can be emitted
+  auto resource_names = create_test_resource_names();
+  std::unordered_map<std::string, ObservationType> proto_feature_ids;
+  // Assign arbitrary, unique feature ids for protocol input/output per resource
+  for (size_t i = 0; i < resource_names.size(); ++i) {
+    proto_feature_ids[std::string("protocol_input:") + resource_names[i]] = static_cast<ObservationType>(100 + i);
+    proto_feature_ids[std::string("protocol_output:") + resource_names[i]] = static_cast<ObservationType>(120 + i);
+    proto_feature_ids[std::string("inv:") + resource_names[i]] = static_cast<ObservationType>(140 + i);
+  }
+  ObservationEncoder encoder(true, resource_names, proto_feature_ids);
+  assembler->set_obs_encoder(&encoder);
 
   // Test with pattern 0 (no agents around) - should get protocol0
   auto features = assembler->obs_features();

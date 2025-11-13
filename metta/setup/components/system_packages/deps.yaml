@@ -16,6 +16,7 @@ packages:
     brew:
       name: node
       version: "24"
+      installed_name: node@24
     apt:
       name: nodejs
 
@@ -31,13 +32,6 @@ packages:
     apt:
       name: jq
 
-  # Build tools
-  bazelisk:
-    brew:
-      name: bazelisk
-    apt:
-      name: bazelisk
-
   clang-format:
     brew:
       name: clang-format
@@ -49,12 +43,6 @@ packages:
       name: ninja
     apt:
       name: ninja-build
-
-  # Python package manager
-  uv:
-    brew:
-      name: uv
-    # No apt support - installed via curl script on Linux
 
   # Testing libraries
   googletest:
@@ -100,12 +88,6 @@ packages:
       name: gitleaks
     apt:
       name: gitleaks
-
-  # Special language support
-  nim:
-    brew:
-      name: nim
-    # Linux installs Nim via choosenim (see metta/setup/components/system.py)
 
   # Homebrew packages with custom taps
   graphite:

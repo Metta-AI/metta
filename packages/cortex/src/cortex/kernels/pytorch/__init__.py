@@ -1,5 +1,6 @@
 """PyTorch kernel implementations for Cortex cells."""
 
+from cortex.kernels.pytorch.agalite import discounted_sum_pytorch
 from cortex.kernels.pytorch.conv1d import causal_conv1d_pytorch
 from cortex.kernels.pytorch.lstm import lstm_sequence_pytorch
 from cortex.kernels.pytorch.mlstm import (
@@ -18,4 +19,5 @@ __all__ = [
     "rtu_stream_diag_pytorch",
     "rtu_stream_full_pytorch",
     "slstm_sequence_pytorch",
+    "discounted_sum_pytorch",
 ]

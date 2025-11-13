@@ -8,6 +8,7 @@ from typing import Dict
 
 import numpy as np
 
+from metta.common.util.constants import METTASCOPE_REPLAY_URL_PREFIX
 from metta.utils.file import http_url, write_data
 from mettagrid.simulator import SimulatorEventHandler
 from mettagrid.simulator.simulator import Simulation
@@ -60,6 +61,7 @@ class ReplayLogWriter(SimulatorEventHandler):
         url = http_url(replay_path)
         self._sim._context["replay_url"] = url
         logger.info("Wrote replay for episode %s to %s", self._episode_id, url)
+        logger.info("Watch replay at %s", METTASCOPE_REPLAY_URL_PREFIX + url)
 
 
 class EpisodeReplay:
@@ -134,7 +136,12 @@ class EpisodeReplay:
         # Trim value changes to make them more compact.
         for grid_object in self.objects:
             for key, changes in list(grid_object.items()):
-                if isinstance(changes, list) and len(changes) == 1:
+                if (
+                    isinstance(changes, list)
+                    and len(changes) == 1
+                    and isinstance(changes[0], (list, tuple))
+                    and len(changes[0]) == 2
+                ):
                     grid_object[key] = changes[0][1]
 
         return self.replay_data

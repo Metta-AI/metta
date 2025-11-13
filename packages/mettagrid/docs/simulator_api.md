@@ -82,7 +82,6 @@ rewards, and environment state.
 
 - **`map_width: int`**: Width of the game map
 - **`map_height: int`**: Height of the game map
-- **`initial_grid_hash: int`**: Hash of the initial grid state
 
 ##### Action Space
 

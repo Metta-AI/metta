@@ -655,10 +655,7 @@ To add a new difficulty variant:
 
 1. Create a new `DifficultyLevel` in `difficulty_variants.py`
 2. Define overrides/multipliers for extractors, energy, and special mechanics
-3. Add to `DIFFICULTY_LEVELS` dict and `CANONICAL_DIFFICULTY_ORDER` list
-4. Create variant class using `create_difficulty_variant()`
-5. Add to `DIFFICULTY_VARIANTS` list for CLI exposure
-6. Document in this README with challenge description and use cases
+3. Document in this README with challenge description and use cases
 
 ---
 

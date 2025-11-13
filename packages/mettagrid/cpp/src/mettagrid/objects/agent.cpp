@@ -4,6 +4,7 @@
 #include <cassert>
 
 #include "config/observation_features.hpp"
+#include "systems/observation_encoder.hpp"
 
 Agent::Agent(GridCoord r,
              GridCoord c,
@@ -25,7 +26,7 @@ Agent::Agent(GridCoord r,
       stats(resource_names),
       current_stat_reward(0),
       reward(nullptr),
-      prev_location(r, c, GridLayer::AgentLayer),
+      prev_location(r, c),
       prev_action_name(""),
       steps_without_motion(0),
       inventory_regen_amounts(config.inventory_regen_amounts),
@@ -40,8 +41,7 @@ Agent::Agent(GridCoord r,
   }
 
   populate_initial_inventory(config.initial_inventory);
-  GridObject::init(
-      config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer), config.tag_ids, config.initial_vibe);
+  GridObject::init(config.type_id, config.type_name, GridLocation(r, c), config.tag_ids, config.initial_vibe);
 }
 
 void Agent::init(RewardType* reward_ptr) {
@@ -158,10 +158,6 @@ void Agent::compute_stat_rewards(StatsTracker* game_stats_tracker) {
   }
 }
 
-bool Agent::swappable() const {
-  return this->frozen;
-}
-
 bool Agent::onUse(Agent& actor, ActionArg arg) {
   // Share half of shareable resources from actor to this agent
   for (InventoryItem resource : actor.shareable_resources) {
@@ -179,12 +175,14 @@ bool Agent::onUse(Agent& actor, ActionArg arg) {
 }
 
 std::vector<PartialObservationToken> Agent::obs_features() const {
-  const size_t num_tokens = this->inventory.get().size() + 4 + (vibe > 0 ? 1 : 0) + this->tag_ids.size();
+  if (!this->obs_encoder) {
+    throw std::runtime_error("Observation encoder not set for agent");
+  }
+  const size_t num_tokens = this->inventory.get().size() + 3 + (vibe > 0 ? 1 : 0) + this->tag_ids.size();
 
   std::vector<PartialObservationToken> features;
   features.reserve(num_tokens);
 
-  features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(type_id)});
   features.push_back({ObservationFeature::Group, static_cast<ObservationType>(group)});
   features.push_back({ObservationFeature::Frozen, static_cast<ObservationType>(frozen != 0 ? 1 : 0)});
   if (vibe != 0) features.push_back({ObservationFeature::Vibe, static_cast<ObservationType>(vibe)});
@@ -192,7 +190,7 @@ std::vector<PartialObservationToken> Agent::obs_features() const {
   for (const auto& [item, amount] : this->inventory.get()) {
     // inventory should only contain non-zero amounts
     assert(amount > 0);
-    auto item_observation_feature = this->inventory.get_feature_id(item);
+    ObservationType item_observation_feature = this->obs_encoder->get_inventory_feature_id(item);
     features.push_back({item_observation_feature, static_cast<ObservationType>(amount)});
   }
 

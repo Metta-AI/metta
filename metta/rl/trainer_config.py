@@ -2,7 +2,7 @@ from typing import Any, ClassVar, Literal, Optional
 
 from pydantic import ConfigDict, Field, model_validator
 
-from metta.rl.loss import LossConfig
+from metta.rl.loss.losses import LossesConfig
 from metta.rl.training import HeartbeatConfig, HyperparameterSchedulerConfig
 from mettagrid.base_config import Config
 
@@ -47,9 +47,15 @@ class TorchProfilerConfig(Config):
         return self
 
 
+class BehaviorCloningConfig(Config):
+    policy_uri: Optional[str] = Field(default=None)
+    policy_data_uri: Optional[str] = Field(default=None)
+    student_led: bool = Field(default=False)
+
+
 class TrainerConfig(Config):
     total_timesteps: int = Field(default=50_000_000_000, gt=0)
-    losses: LossConfig = Field(default_factory=LossConfig)
+    losses: LossesConfig = Field(default_factory=LossesConfig)
     optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig)
 
     require_contiguous_env_ids: bool = False
@@ -76,6 +82,7 @@ class TrainerConfig(Config):
         validate_assignment=True,
         populate_by_name=True,
     )
+    behavior_cloning: BehaviorCloningConfig = Field(default_factory=BehaviorCloningConfig)
 
     @model_validator(mode="after")
     def validate_fields(self) -> "TrainerConfig":

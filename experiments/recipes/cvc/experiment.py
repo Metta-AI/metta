@@ -15,7 +15,7 @@ from experiments.recipes.cvc.curriculum import (
 )
 from experiments.recipes.cvc.evaluation import evaluate, make_eval_suite
 from experiments.recipes.cvc.medium_maps import train as train_medium_maps
-from experiments.recipes.cvc.core import play
+from experiments.recipes.cogs_v_clips import play
 from experiments.recipes.cvc.single_mission import train as train_single_mission
 from experiments.recipes.cvc.small_maps import train as train_small_maps
 from metta.sim.simulation_config import SimulationConfig
@@ -51,7 +51,7 @@ class SkypilotExperiment:
     num_cogs: int
     gpus: int
     timesteps: int
-    mission_name: str | None = None
+    mission: str | None = None
 
     @property
     def tool_path(self) -> str:
@@ -74,8 +74,8 @@ class SkypilotExperiment:
             f"--gpus={self.gpus}",
             f"--heartbeat-timeout={heartbeat_timeout}",
         ]
-        if self.mission_name:
-            cmd.insert(3, f"mission_name={self.mission_name}")
+        if self.mission:
+            cmd.insert(3, f"mission={self.mission}")
         if skip_git_check:
             cmd.append("--skip-git-check")
         return cmd
@@ -84,7 +84,7 @@ class SkypilotExperiment:
 EXPERIMENTS: dict[str, SkypilotExperiment] = {
     "debug_single": SkypilotExperiment(
         tool_suffix="single_mission.train",
-        mission_name="extractor_hub_30",
+        mission="extractor_hub_30",
         num_cogs=2,
         gpus=1,
         timesteps=5_000_000,
@@ -166,7 +166,7 @@ def custom_curriculum() -> TrainTool:
 
 def single_mission_debug() -> TrainTool:
     """Create a debugging tool for a single mission."""
-    return train_single_mission(mission_name="extractor_hub_30", num_cogs=2)
+    return train_single_mission(mission="extractor_hub_30", num_cogs=2)
 
 
 def evaluation() -> EvaluateTool:
@@ -200,14 +200,14 @@ def play_trained_policy() -> PlayTool:
     """Play a trained policy interactively."""
     return play(
         policy_uri="file://./checkpoints/cvc_default/latest",
-        mission_name="extractor_hub_30",
+        mission="extractor_hub_30",
         num_cogs=4,
     )
 
 
 def inspect_training_env() -> MettaGridConfig:
     """Inspect the configuration of a training environment."""
-    env = make_training_env(num_cogs=4, mission_name="extractor_hub_30")
+    env = make_training_env(num_cogs=4, mission="extractor_hub_30")
 
     print("Environment Configuration:")
     print(f"  Num agents: {env.game.num_agents}")
