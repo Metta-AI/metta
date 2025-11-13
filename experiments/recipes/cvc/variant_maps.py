@@ -25,8 +25,6 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
-from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
-from cogames.cogs_vs_clips.mission import Mission
 from experiments.recipes.cogs_v_clips import (
     LARGE_MAP_MISSIONS,
     MEDIUM_MAP_MISSIONS,
@@ -34,6 +32,10 @@ from experiments.recipes.cogs_v_clips import (
     make_eval_suite,
     make_training_env,
 )
+
+import metta.cogworks.curriculum as cc
+from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
+from cogames.cogs_vs_clips.mission import Mission
 from experiments.recipes.cvc.variants import (
     CORE_VARIANTS,
     format_variant_name,
@@ -41,22 +43,18 @@ from experiments.recipes.cvc.variants import (
     get_variant_pairs,
     get_variant_triples,
 )
-import metta.cogworks.curriculum as cc
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
-from metta.sim.simulation_config import SimulationConfig
-
 
 # Mission registry
-_MISSION_BY_NAME: dict[str, Mission] = {
-    mission.name: mission for mission in EVAL_MISSIONS
-}
+_MISSION_BY_NAME: dict[str, Mission] = {mission.name: mission for mission in EVAL_MISSIONS}
 
 
 def make_curriculum(
@@ -92,8 +90,7 @@ def make_curriculum(
     # Validate large map configuration
     if include_large_maps and num_cogs < 8:
         raise ValueError(
-            f"Large maps require at least 8 agents, got {num_cogs}. "
-            "Set num_cogs=8 or include_large_maps=False"
+            f"Large maps require at least 8 agents, got {num_cogs}. Set num_cogs=8 or include_large_maps=False"
         )
 
     # Use all core variants by default

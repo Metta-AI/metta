@@ -17,8 +17,8 @@ import torch
 from pydantic import BaseModel
 
 from metta.cogworks.curriculum import Curriculum, CurriculumConfig, CurriculumEnv
-from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from metta.common.tool import Tool
 from metta.rl.stats import accumulate_rollout_stats
 from mettagrid.config.mettagrid_config import MettaGridConfig
@@ -36,9 +36,7 @@ class SimulatorConfig(BaseModel):
     performance_threshold: float = 0.9
     task_seed: Optional[int] = None
     dt: float = 0.1  # Time step scaling for dynamics updates
-    task_noise_std: float = (
-        0.1  # Standard deviation of task-specific bias (fixed per task)
-    )
+    task_noise_std: float = 0.1  # Standard deviation of task-specific bias (fixed per task)
     sample_noise_std: float = 1e-2  # Standard deviation of per-sample noise
 
 
@@ -78,9 +76,7 @@ class SimulationConfig(BaseModel):
     curriculum: CurriculumLPConfig = CurriculumLPConfig()
 
 
-def _format_metrics_for_logging(
-    metrics: Dict[str, Any], epoch: int, samples_per_epoch: int
-) -> Dict[str, float]:
+def _format_metrics_for_logging(metrics: Dict[str, Any], epoch: int, samples_per_epoch: int) -> Dict[str, float]:
     """Format metrics to match real training infrastructure conventions.
 
     This ensures the task dependency simulator logs match the format of real training,
@@ -263,9 +259,7 @@ class TaskDependencySimulator:
 
         # Track reward history for plotting
         self.task_reward_history[task_id].append(reward)
-        self.task_sample_numbers[task_id].append(
-            int(self.total_sample_counts[task_id].item())
-        )
+        self.task_sample_numbers[task_id].append(int(self.total_sample_counts[task_id].item()))
 
         return reward
 
@@ -294,19 +288,13 @@ class TaskDependencySimulator:
 
         for i in range(self.num_tasks):
             # Parent contribution
-            parent_contribution = sum(
-                self.epoch_sample_counts[p] for p in self.parents[i]
-            )
-            total_stimulus = (
-                self.epoch_sample_counts[i] + self.gamma * parent_contribution
-            )
+            parent_contribution = sum(self.epoch_sample_counts[p] for p in self.parents[i])
+            total_stimulus = self.epoch_sample_counts[i] + self.gamma * parent_contribution
 
             # Children gate: performance gated by children performance
             children_gate = 1.0
             if self.adj[i]:  # If task i has children
-                children_gate = torch.prod(
-                    torch.tensor([current_P[c] for c in self.adj[i]])
-                )
+                children_gate = torch.prod(torch.tensor([current_P[c] for c in self.adj[i]]))
 
             # Growth and forgetting
             growth = total_stimulus * children_gate * (1 - current_P[i])
@@ -327,11 +315,7 @@ class TaskDependencySimulator:
             "task_dependency/max_performance": self.P.max().item(),
             "task_dependency/min_performance": self.P.min().item(),
             "task_dependency/performance_std": self.P.std().item(),
-            "task_dependency/tasks_above_threshold": (
-                self.P >= self.performance_threshold
-            )
-            .sum()
-            .item(),
+            "task_dependency/tasks_above_threshold": (self.P >= self.performance_threshold).sum().item(),
             "task_dependency/total_samples": self.epoch_sample_counts.sum().item(),
         }
 
@@ -357,9 +341,7 @@ class TaskDependencySimulator:
             and curriculum._algorithm is not None
         ):
             # Get the actual completion count for the curriculum task 0
-            task_stats = curriculum._algorithm.task_tracker.get_task_stats(
-                self._current_task_0_curriculum_id
-            )
+            task_stats = curriculum._algorithm.task_tracker.get_task_stats(self._current_task_0_curriculum_id)
             if task_stats:
                 curriculum_samples = task_stats["completion_count"]
                 simulator_samples = int(self.total_sample_counts[0].item())
@@ -369,33 +351,27 @@ class TaskDependencySimulator:
                 if self.current_epoch % 500 == 0:
                     task_class = self._current_task_0_curriculum_id % self.num_tasks
                     print(
-                        f"Epoch {self.current_epoch}: Curriculum task 0 ID {self._current_task_0_curriculum_id} (task class: {task_class}) samples: {curriculum_samples}, Simulator task 0 samples: {simulator_samples}"
+                        f"Epoch {self.current_epoch}: Curriculum task 0 ID {self._current_task_0_curriculum_id} "
+                        f"(task class: {task_class}) samples: {curriculum_samples}, "
+                        f"Simulator task 0 samples: {simulator_samples}"
                     )
             else:
                 metrics["task_0_tracking/cumulative_samples"] = 0
         else:
             # Fallback to simulator task 0 samples if curriculum task not identified yet
-            metrics["task_0_tracking/cumulative_samples"] = int(
-                self.total_sample_counts[0].item()
-            )
+            metrics["task_0_tracking/cumulative_samples"] = int(self.total_sample_counts[0].item())
 
         # Add current task 0 LP percentile and score if available
         if len(self.task_0_lp_percentiles) > 0:
-            metrics["task_0_tracking/current_lp_percentile"] = (
-                self.task_0_lp_percentiles[-1]
-            )
+            metrics["task_0_tracking/current_lp_percentile"] = self.task_0_lp_percentiles[-1]
         if len(self.task_0_lp_scores) > 0:
             metrics["task_0_tracking/current_lp_score"] = self.task_0_lp_scores[-1]
 
         # Add individual task metrics for all tasks
         for i in range(self.num_tasks):
             metrics[f"task_dependency/task_{i}_performance"] = self.P[i].item()
-            metrics[f"task_dependency/task_{i}_completion_prob"] = (
-                task_completion_probs[i].item()
-            )
-            metrics[f"task_dependency/task_{i}_samples"] = self.epoch_sample_counts[
-                i
-            ].item()
+            metrics[f"task_dependency/task_{i}_completion_prob"] = task_completion_probs[i].item()
+            metrics[f"task_dependency/task_{i}_samples"] = self.epoch_sample_counts[i].item()
 
         # Calculate sampling imbalance metrics
         sampling_imbalance = self._calculate_sampling_imbalance()
@@ -432,9 +408,7 @@ class TaskDependencySimulator:
         # Higher entropy = more balanced (1.0 = perfectly uniform, 0 = maximally imbalanced)
         epsilon = 1e-10  # Avoid log(0)
         entropy = -np.sum(proportions * np.log(proportions + epsilon))
-        max_entropy = np.log(
-            self.num_tasks
-        )  # Maximum possible entropy (uniform distribution)
+        max_entropy = np.log(self.num_tasks)  # Maximum possible entropy (uniform distribution)
         normalized_entropy = entropy / max_entropy if max_entropy > 0 else 0.0
 
         # 3. Max/Min Ratio - ratio of most sampled to least sampled task
@@ -451,9 +425,7 @@ class TaskDependencySimulator:
             gini = 0.0
         else:
             cumsum = np.cumsum(sorted_samples)
-            gini = (
-                (n + 1 - 2 * np.sum(cumsum) / cumsum[-1]) / n if cumsum[-1] > 0 else 0.0
-            )
+            gini = (n + 1 - 2 * np.sum(cumsum) / cumsum[-1]) / n if cumsum[-1] > 0 else 0.0
 
         return {
             "sampling/coefficient_of_variation": float(cv),
@@ -500,9 +472,7 @@ class TaskDependencySimulator:
                     # Add percentiles
                     percentiles = [25, 50, 75, 90, 95]
                     for p in percentiles:
-                        distributions[f"learning_progress/pool_score_p{p}"] = (
-                            np.percentile(scores, p)
-                        )
+                        distributions[f"learning_progress/pool_score_p{p}"] = np.percentile(scores, p)
 
                 # Group by task dependency position (task position in chain)
                 position_scores = {}
@@ -517,9 +487,7 @@ class TaskDependencySimulator:
                     # Group by task label (from curriculum task)
                     if task_id in curriculum._tasks:
                         task = curriculum._tasks[task_id]
-                        label = getattr(
-                            task._env_cfg, "label", f"task_dependency_{task_id}"
-                        )
+                        label = getattr(task._env_cfg, "label", f"task_dependency_{task_id}")
                         # Extract just the position part for consistent labeling
                         if "task_dependency_" in label:
                             label_key = f"task_dep_pos_{position}"
@@ -535,15 +503,9 @@ class TaskDependencySimulator:
                     if pos_scores:
                         distributions.update(
                             {
-                                f"learning_progress/position_{position}_mean_score": np.mean(
-                                    pos_scores
-                                ),
-                                f"learning_progress/position_{position}_std_score": np.std(
-                                    pos_scores
-                                ),
-                                f"learning_progress/position_{position}_count": len(
-                                    pos_scores
-                                ),
+                                f"learning_progress/position_{position}_mean_score": np.mean(pos_scores),
+                                f"learning_progress/position_{position}_std_score": np.std(pos_scores),
+                                f"learning_progress/position_{position}_count": len(pos_scores),
                             }
                         )
 
@@ -552,23 +514,15 @@ class TaskDependencySimulator:
                     if label_scores_list:
                         distributions.update(
                             {
-                                f"learning_progress/label_{label}_mean_score": np.mean(
-                                    label_scores_list
-                                ),
-                                f"learning_progress/label_{label}_std_score": np.std(
-                                    label_scores_list
-                                ),
-                                f"learning_progress/label_{label}_count": len(
-                                    label_scores_list
-                                ),
+                                f"learning_progress/label_{label}_mean_score": np.mean(label_scores_list),
+                                f"learning_progress/label_{label}_std_score": np.std(label_scores_list),
+                                f"learning_progress/label_{label}_count": len(label_scores_list),
                             }
                         )
 
                 # Score distribution bins (histogram-like)
                 if scores:
-                    score_bins = np.linspace(
-                        0, max(scores) if max(scores) > 0 else 1, 10
-                    )
+                    score_bins = np.linspace(0, max(scores) if max(scores) > 0 else 1, 10)
                     hist, _ = np.histogram(scores, bins=score_bins)
                     for i, count in enumerate(hist):
                         distributions[f"learning_progress/pool_score_bin_{i}"] = count
@@ -581,9 +535,7 @@ class TaskDependencySimulator:
 
         return distributions
 
-    def _track_task_0_percentile(
-        self, task_scores: Dict[int, float], curriculum=None
-    ) -> None:
+    def _track_task_0_percentile(self, task_scores: Dict[int, float], curriculum=None) -> None:
         """Track task 0's percentile ranking in learning progress scores."""
         if not task_scores:
             return
@@ -603,9 +555,7 @@ class TaskDependencySimulator:
 
         # Calculate percentile (what percentage of tasks have lower scores)
         lower_scores = sum(1 for score in all_scores if score < task_0_score)
-        percentile = (
-            (lower_scores / len(all_scores)) * 100 if len(all_scores) > 0 else 0
-        )
+        percentile = (lower_scores / len(all_scores)) * 100 if len(all_scores) > 0 else 0
 
         # Get curriculum task 0 sample count
         curriculum_samples = 0
@@ -636,9 +586,7 @@ class TaskDependencySimulator:
             "total_samples": self.total_sample_counts.tolist(),
             "num_epochs_completed": self.current_epoch,
             "final_mean_performance": self.P.mean().item(),
-            "tasks_above_threshold": (self.P >= self.performance_threshold)
-            .sum()
-            .item(),
+            "tasks_above_threshold": (self.P >= self.performance_threshold).sum().item(),
         }
 
 
@@ -649,9 +597,7 @@ class TaskDependencyEnv(PufferEnv):
     by CurriculumEnv, matching the exact setup used in real training.
     """
 
-    def __init__(
-        self, simulator: "TaskDependencySimulator", task_config: MettaGridConfig
-    ):
+    def __init__(self, simulator: "TaskDependencySimulator", task_config: MettaGridConfig):
         """Initialize the task dependency environment.
 
         Args:
@@ -824,8 +770,7 @@ def simulate_task_dependencies(config: SimulationConfig) -> Dict[str, Any]:
     simulator = TaskDependencySimulator(
         config=config.simulator,
         num_epochs=config.num_epochs,
-        samples_per_epoch=config.samples_per_epoch
-        * config.num_envs,  # Total samples across all envs
+        samples_per_epoch=config.samples_per_epoch * config.num_envs,  # Total samples across all envs
     )
 
     # Create curriculum (shared across all environments)
@@ -836,11 +781,9 @@ def simulate_task_dependencies(config: SimulationConfig) -> Dict[str, Any]:
     curriculum = Curriculum(curriculum_config)
 
     # Create vectorized environments wrapped with CurriculumEnv (matches real training!)
-    logger.info(
-        f"Creating {config.num_envs} vectorized environments with CurriculumEnv wrapper"
-    )
+    logger.info(f"Creating {config.num_envs} vectorized environments with CurriculumEnv wrapper")
     envs = []
-    for i in range(config.num_envs):
+    for _i in range(config.num_envs):
         # Create base environment
         initial_task = curriculum.get_task()
         base_env = TaskDependencyEnv(simulator, initial_task.get_env_cfg())
@@ -855,9 +798,7 @@ def simulate_task_dependencies(config: SimulationConfig) -> Dict[str, Any]:
         env.reset()
 
     # Run simulation with vectorized environments
-    logger.info(
-        f"Starting vectorized task dependency simulation for {config.num_epochs} epochs"
-    )
+    logger.info(f"Starting vectorized task dependency simulation for {config.num_epochs} epochs")
     simulator.reset()
     metrics_history = []
 
@@ -907,10 +848,7 @@ def simulate_task_dependencies(config: SimulationConfig) -> Dict[str, Any]:
                 continue
 
             # Per-label samples and tracked task completions should be summed (exact match)
-            if (
-                "per_label_samples_this_epoch" in key
-                or "tracked_task_completions_this_epoch" in key
-            ):
+            if "per_label_samples_this_epoch" in key or "tracked_task_completions_this_epoch" in key:
                 epoch_metrics[key] = np.sum(values)
             else:
                 # All other metrics (including LP scores) should be averaged
@@ -922,24 +860,18 @@ def simulate_task_dependencies(config: SimulationConfig) -> Dict[str, Any]:
         if epoch % 10 == 0:
             # Get Gini coefficients for logging (from curriculum.stats())
             gini_lp = epoch_metrics.get("algorithm/curriculum_gini/raw_lp_scores", 0.0)
-            gini_label_lp = epoch_metrics.get(
-                "algorithm/curriculum_gini/raw_lp_by_label", 0.0
-            )
-            gini_occupancy = epoch_metrics.get(
-                "algorithm/curriculum_gini/pool_occupancy", 0.0
-            )
-            gini_probs = epoch_metrics.get(
-                "algorithm/curriculum_gini/sampling_probs_by_label", 0.0
-            )
-            gini_sampling = epoch_metrics.get(
-                "algorithm/curriculum_gini/sampling_by_label", 0.0
-            )
+            gini_label_lp = epoch_metrics.get("algorithm/curriculum_gini/raw_lp_by_label", 0.0)
+            gini_occupancy = epoch_metrics.get("algorithm/curriculum_gini/pool_occupancy", 0.0)
+            gini_probs = epoch_metrics.get("algorithm/curriculum_gini/sampling_probs_by_label", 0.0)
+            gini_sampling = epoch_metrics.get("algorithm/curriculum_gini/sampling_by_label", 0.0)
 
             # Debug diagnostics for LP scores
 
             logger.info(
                 f"Epoch {epoch}: Mean perf = {epoch_metrics['task_dependency/mean_performance']:.3f}, "
-                f"Gini LP = {gini_lp:.3f}, Gini_label LP = {gini_label_lp:.3f}, Gini_occupancy_label = {gini_occupancy:.3f}, Gini_probs_label = {gini_probs:.3f}, Gini sampling = {gini_sampling:.3f}"
+                f"Gini LP = {gini_lp:.3f}, Gini_label LP = {gini_label_lp:.3f}, "
+                f"Gini_occupancy_label = {gini_occupancy:.3f}, Gini_probs_label = {gini_probs:.3f}, "
+                f"Gini sampling = {gini_sampling:.3f}"
             )
 
         # Reset per-epoch counters after stats have been collected
@@ -981,9 +913,7 @@ def simulate_task_dependencies(config: SimulationConfig) -> Dict[str, Any]:
                 epoch_metrics.pop(key, None)
 
             # Reformat metrics to match real training infrastructure
-            formatted_metrics = _format_metrics_for_logging(
-                epoch_metrics, epoch, config.samples_per_epoch
-            )
+            formatted_metrics = _format_metrics_for_logging(epoch_metrics, epoch, config.samples_per_epoch)
 
             wandb.log(formatted_metrics, step=epoch * config.samples_per_epoch)
 
@@ -1011,9 +941,7 @@ def simulate_task_dependencies(config: SimulationConfig) -> Dict[str, Any]:
     except Exception as e:
         logger.warning(f"⚠️ wandb logging failed: {e}")
 
-    logger.info(
-        f"Simulation complete. Final mean performance: {results['final_mean_performance']:.3f}"
-    )
+    logger.info(f"Simulation complete. Final mean performance: {results['final_mean_performance']:.3f}")
     return results
 
 
@@ -1035,9 +963,7 @@ class TaskDependencySimulationTool(Tool):
             results = simulate_task_dependencies(self.config)
 
             logger.info("✅ Simulation completed successfully!")
-            logger.info(
-                f"Final mean performance: {results['final_mean_performance']:.3f}"
-            )
+            logger.info(f"Final mean performance: {results['final_mean_performance']:.3f}")
             logger.info(f"Tasks above threshold: {results['tasks_above_threshold']}")
 
             return 0
@@ -1181,18 +1107,19 @@ class ZScoreSweepTool(Tool):
     def invoke(self, args: dict[str, str]) -> int | None:
         """Run all sweep experiments sequentially."""
         # Generate logarithmically spaced sweep values for better coverage
-        sweep_values = np.logspace(
-            np.log10(self.min_zscore), np.log10(self.max_zscore), self.num_sweep_points
-        )
+        sweep_values = np.logspace(np.log10(self.min_zscore), np.log10(self.max_zscore), self.num_sweep_points)
 
         logger.info(
-            f"Starting z_score_amplification sweep with {self.num_sweep_points} points from {self.min_zscore} to {self.max_zscore}"
+            f"Starting z_score_amplification sweep with {self.num_sweep_points} points "
+            f"from {self.min_zscore} to {self.max_zscore}"
         )
 
         all_results = []
         for i, zscore_amp in enumerate(sweep_values):
             logger.info(
-                f"\n{'=' * 80}\nSweep point {i + 1}/{self.num_sweep_points}: z_score_amplification={zscore_amp:.2f}\n{'=' * 80}"
+                f"\n{'=' * 80}\n"
+                f"Sweep point {i + 1}/{self.num_sweep_points}: z_score_amplification={zscore_amp:.2f}\n"
+                f"{'=' * 80}"
             )
 
             # Create unique run name for this sweep point
@@ -1251,21 +1178,15 @@ class ZScoreSweepTool(Tool):
                     f"Final mean performance: {results['final_mean_performance']:.3f}"
                 )
             except Exception as e:
-                logger.error(
-                    f"❌ Sweep point {i + 1}/{self.num_sweep_points} failed: {e}"
-                )
+                logger.error(f"❌ Sweep point {i + 1}/{self.num_sweep_points} failed: {e}")
                 # Continue with next sweep point
-                all_results.append(
-                    {"zscore_amp": zscore_amp, "error": str(e), "failed": True}
-                )
+                all_results.append({"zscore_amp": zscore_amp, "error": str(e), "failed": True})
 
         # Log summary of all sweep results
         logger.info(f"\n{'=' * 80}\nSweep Summary\n{'=' * 80}")
         for i, result in enumerate(all_results):
             if result.get("failed"):
-                logger.info(
-                    f"Point {i + 1}: zscore={result['zscore_amp']:.2f} - FAILED"
-                )
+                logger.info(f"Point {i + 1}: zscore={result['zscore_amp']:.2f} - FAILED")
             else:
                 logger.info(
                     f"Point {i + 1}: zscore={result['zscore_amp']:.2f} - "
@@ -1315,11 +1236,13 @@ def sweep_zscore_amplification(
         uv run ./tools/run.py experiments.recipes.curriculum_test.task_dependency_simulator.sweep_zscore_amplification
 
         # Custom sweep range
-        uv run ./tools/run.py experiments.recipes.curriculum_test.task_dependency_simulator.sweep_zscore_amplification \\
+        uv run ./tools/run.py \\
+            experiments.recipes.curriculum_test.task_dependency_simulator.sweep_zscore_amplification \\
             num_sweep_points=20 min_zscore=0.1 max_zscore=1000.0 run_prefix=wide_sweep
 
         # Quick test with fewer epochs
-        uv run ./tools/run.py experiments.recipes.curriculum_test.task_dependency_simulator.sweep_zscore_amplification \\
+        uv run ./tools/run.py \\
+            experiments.recipes.curriculum_test.task_dependency_simulator.sweep_zscore_amplification \\
             num_epochs=100 num_sweep_points=5
     """
     return ZScoreSweepTool(
@@ -1348,9 +1271,7 @@ class NumTasksSweepTool(Tool):
     def invoke(self, args: dict[str, str]) -> int | None:
         """Run all sweep experiments sequentially."""
         # Generate linearly spaced task counts (must be integers)
-        sweep_values = np.linspace(
-            self.min_tasks, self.max_tasks, self.num_sweep_points, dtype=int
-        )
+        sweep_values = np.linspace(self.min_tasks, self.max_tasks, self.num_sweep_points, dtype=int)
         # Remove duplicates that may arise from rounding
         sweep_values = sorted(set(sweep_values))
 
@@ -1360,9 +1281,7 @@ class NumTasksSweepTool(Tool):
 
         all_results = []
         for i, num_tasks in enumerate(sweep_values):
-            logger.info(
-                f"\n{'=' * 80}\nSweep point {i + 1}/{len(sweep_values)}: num_tasks={num_tasks}\n{'=' * 80}"
-            )
+            logger.info(f"\n{'=' * 80}\nSweep point {i + 1}/{len(sweep_values)}: num_tasks={num_tasks}\n{'=' * 80}")
 
             # Create unique run name for this sweep point
             if self.run_prefix:
@@ -1422,9 +1341,7 @@ class NumTasksSweepTool(Tool):
             except Exception as e:
                 logger.error(f"❌ Sweep point {i + 1}/{len(sweep_values)} failed: {e}")
                 # Continue with next sweep point
-                all_results.append(
-                    {"num_tasks": int(num_tasks), "error": str(e), "failed": True}
-                )
+                all_results.append({"num_tasks": int(num_tasks), "error": str(e), "failed": True})
 
         # Log summary of all sweep results
         logger.info(f"\n{'=' * 80}\nSweep Summary\n{'=' * 80}")
@@ -1522,7 +1439,8 @@ class NumActiveTasksSweepTool(Tool):
         sweep_values = sorted(set(sweep_values))
 
         logger.info(
-            f"Starting num_active_tasks sweep with {len(sweep_values)} points from {self.min_active_tasks} to {self.max_active_tasks}"
+            f"Starting num_active_tasks sweep with {len(sweep_values)} points "
+            f"from {self.min_active_tasks} to {self.max_active_tasks}"
         )
 
         all_results = []
@@ -1601,9 +1519,7 @@ class NumActiveTasksSweepTool(Tool):
         logger.info(f"\n{'=' * 80}\nSweep Summary\n{'=' * 80}")
         for i, result in enumerate(all_results):
             if result.get("failed"):
-                logger.info(
-                    f"Point {i + 1}: num_active_tasks={result['num_active_tasks']} - FAILED"
-                )
+                logger.info(f"Point {i + 1}: num_active_tasks={result['num_active_tasks']} - FAILED")
             else:
                 logger.info(
                     f"Point {i + 1}: num_active_tasks={result['num_active_tasks']} - "

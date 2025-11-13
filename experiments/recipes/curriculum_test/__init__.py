@@ -1,8 +1,8 @@
 """Curriculum testing recipes for task dependency simulation."""
 
 from .task_dependency_simulator import (
-    TaskDependencySimulator,
     TaskDependencySimulationTool,
+    TaskDependencySimulator,
     simulate_large_chain,
     simulate_large_chain_focused,
     simulate_task_dependencies,

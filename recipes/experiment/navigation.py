@@ -81,8 +81,7 @@ class NavigationTaskGenerator(TaskGenerator):
             altar_count = rng.randint(*self._sparse_altar_range)
 
             env_cfg.game.map_builder = RandomMapBuilder.Config(
-                agents=self._config.num_instances
-                * self._config.num_agents_per_instance,
+                agents=self._config.num_instances * self._config.num_agents_per_instance,
                 width=width,
                 height=height,
                 objects={"altar": altar_count},
@@ -120,9 +119,7 @@ def make_curriculum(
     num_instances: int = 4,
     num_agents_per_instance: int = 1,
 ) -> CurriculumConfig:
-    nav_env = nav_env or mettagrid(
-        num_agents=num_agents_per_instance, num_instances=num_instances
-    )
+    nav_env = nav_env or mettagrid(num_agents=num_agents_per_instance, num_instances=num_instances)
 
     # Use custom task generator that creates map_builder configs directly
     nav_tasks_config = NavigationTaskGenerator.Config(

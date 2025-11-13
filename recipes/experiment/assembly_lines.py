@@ -347,9 +347,7 @@ def train(
         early_progress_amplification=0.5,  # 0.5 = OFF, low values (0.05) amplify unsolved tasks
     )
 
-    curriculum = CurriculumConfig(
-        task_generator=task_generator_cfg, algorithm_config=algorithm_config
-    )
+    curriculum = CurriculumConfig(task_generator=task_generator_cfg, algorithm_config=algorithm_config)
 
     policy_config = ViTDefaultConfig()
 
