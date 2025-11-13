@@ -289,11 +289,8 @@ proc step*(
 
     # Deposit heart into the chest.
     if invHeart > 0:
-      var depositAction = agent.cfg.actions.vibeHeartB
-      var depositVibe = agent.cfg.vibes.heartB
-      if depositAction == 0:
-        depositAction = agent.cfg.actions.vibeDefault
-        depositVibe = agent.cfg.vibes.default
+      let depositAction = agent.cfg.actions.vibeHeartB
+      let depositVibe = agent.cfg.vibes.heartB
       if depositAction != 0 and vibe != depositVibe:
         doAction(depositAction.int32)
         # echo "adjusting vibe for heart deposit"
@@ -396,9 +393,6 @@ proc step*(
       if assembleAction == 0:
         assembleAction = agent.cfg.actions.vibeHeartB
         assembleVibe = agent.cfg.vibes.heartB
-        if assembleAction == 0:
-          assembleAction = agent.cfg.actions.vibeDefault
-          assembleVibe = agent.cfg.vibes.default
       if assembleAction != 0 and vibe != assembleVibe:
         doAction(assembleAction.int32)
         # echo "vibing heart for assembler"
