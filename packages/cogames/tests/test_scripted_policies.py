@@ -8,6 +8,8 @@ prevents regressions like missing bindings or policy registration mistakes.
 from __future__ import annotations
 
 import io
+from dataclasses import dataclass
+from functools import cache
 from typing import Iterable
 
 import numpy as np
@@ -27,15 +29,37 @@ init_mettagrid_system_environment()
 discover_and_register_policies("cogames.policy")
 
 
-SCRIPTED_POLICY_REFS: tuple[str, ...] = (
-    "nim_thinky",
-    "nim_random",
-    "nim_race_car",
-    "scripted_baseline",
-    "scripted_unclipping",
-    "cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy",
-    "cogames.policy.scripted_agent.baseline_agent.BaselinePolicy",
+@dataclass(frozen=True)
+class PolicyUnderTest:
+    reference: str
+    requires_nim: bool = False
+    supports_supervisor: bool = False
+
+
+@cache
+def _nim_bindings_available() -> bool:
+    try:
+        import cogames.policy.nim_agents.agents as _  # noqa: F401
+    except ModuleNotFoundError:
+        return False
+    return True
+
+
+POLICIES_UNDER_TEST: tuple[PolicyUnderTest, ...] = (
+    PolicyUnderTest("nim_thinky", requires_nim=True, supports_supervisor=True),
+    PolicyUnderTest("nim_random", requires_nim=True, supports_supervisor=True),
+    PolicyUnderTest("nim_race_car", requires_nim=True, supports_supervisor=True),
+    PolicyUnderTest("scripted_baseline"),
+    PolicyUnderTest("scripted_unclipping"),
+    PolicyUnderTest(
+        "cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy",
+        requires_nim=True,
+        supports_supervisor=True,
+    ),
+    PolicyUnderTest("cogames.policy.scripted_agent.baseline_agent.BaselinePolicy"),
 )
+
+SUPERVISOR_POLICIES: tuple[PolicyUnderTest, ...] = tuple(p for p in POLICIES_UNDER_TEST if p.supports_supervisor)
 
 
 @pytest.fixture(scope="module")
@@ -43,28 +67,25 @@ def simulator() -> Simulator:
     return Simulator()
 
 
-@pytest.fixture(scope="module")
-def base_env_config():
+@pytest.fixture
+def env_config():
     env_cfg = make_training_env(num_cogs=2, mission="extractor_hub_30", variants=("lonely_heart",))
     env_cfg.game.max_steps = 8
     return env_cfg
 
 
-@pytest.fixture
-def env_config(base_env_config):
-    # Provide an isolated copy so tests can adjust fields safely.
-    return base_env_config.model_copy(deep=True)
+def _policy_ids(policies: Iterable[PolicyUnderTest]) -> list[str]:
+    return [policy.reference.replace("cogames.policy.", "").replace(".", "_") for policy in policies]
 
 
-def _policy_ids(policies: Iterable[str]) -> list[str]:
-    return [policy.replace("cogames.policy.", "").replace(".", "_") for policy in policies]
-
-
-@pytest.mark.parametrize("policy_ref", SCRIPTED_POLICY_REFS, ids=_policy_ids(SCRIPTED_POLICY_REFS))
-def test_scripted_policies_work_as_supervisors(policy_ref: str, simulator: Simulator, env_config) -> None:
+@pytest.mark.parametrize("policy", SUPERVISOR_POLICIES, ids=_policy_ids(SUPERVISOR_POLICIES))
+def test_scripted_policies_work_as_supervisors(policy: PolicyUnderTest, simulator: Simulator, env_config) -> None:
     """Supervisor policies must load and generate teacher actions for training."""
 
-    env = MettaGridPufferEnv(simulator, env_config, EnvSupervisorConfig(policy=policy_ref))
+    if policy.requires_nim and not _nim_bindings_available():
+        pytest.skip("Nim bindings are missing. Run nim c nim_agents.nim to build them.")
+
+    env = MettaGridPufferEnv(simulator, env_config, EnvSupervisorConfig(policy=policy.reference))
     try:
         observations, _ = env.reset(seed=123)
         assert observations.shape[0] == env_config.game.num_agents
@@ -84,12 +105,15 @@ def test_scripted_policies_work_as_supervisors(policy_ref: str, simulator: Simul
         env.close()
 
 
-@pytest.mark.parametrize("policy_ref", SCRIPTED_POLICY_REFS, ids=_policy_ids(SCRIPTED_POLICY_REFS))
-def test_scripted_policies_can_play_short_episode(policy_ref: str, env_config) -> None:
+@pytest.mark.parametrize("policy", POLICIES_UNDER_TEST, ids=_policy_ids(POLICIES_UNDER_TEST))
+def test_scripted_policies_can_play_short_episode(policy: PolicyUnderTest, env_config) -> None:
     """Policies should run through a short cogames.play session."""
 
+    if policy.requires_nim and not _nim_bindings_available():
+        pytest.skip("Nim bindings are missing. Run nim c nim_agents.nim to build them.")
+
     console = Console(file=io.StringIO(), force_terminal=False, soft_wrap=True, width=80)
-    policy_class_path = resolve_policy_class_path(policy_ref)
+    policy_class_path = resolve_policy_class_path(policy.reference)
     policy_spec = PolicySpec(policy_class_path=policy_class_path, policy_data_path=None)
 
     play_episode(
