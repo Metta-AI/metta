@@ -158,13 +158,11 @@ class GlobalObsConfig:
         episode_completion_pct: bool = True,
         last_action: bool = True,
         last_reward: bool = True,
-        visitation_counts: bool = False,
         compass: bool = False,
     ) -> None: ...
     episode_completion_pct: bool
     last_action: bool
     last_reward: bool
-    visitation_counts: bool
     compass: bool
 
 class GameConfig:

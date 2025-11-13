@@ -63,7 +63,6 @@ protected:
         {"last_reward", 10},
         {"vibe", 11},
         {"agent:vibe", 12},
-        {"agent:visitation_counts", 13},
         {"agent:compass", 14},
         {"tag", 15},
         {"cooldown_remaining", 16},

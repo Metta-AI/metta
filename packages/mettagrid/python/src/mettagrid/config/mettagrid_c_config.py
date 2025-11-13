@@ -332,7 +332,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         episode_completion_pct=global_obs_config.episode_completion_pct,
         last_action=global_obs_config.last_action,
         last_reward=global_obs_config.last_reward,
-        visitation_counts=global_obs_config.visitation_counts,
         compass=global_obs_config.compass,
     )
     game_cpp_params["global_obs"] = global_obs_cpp
