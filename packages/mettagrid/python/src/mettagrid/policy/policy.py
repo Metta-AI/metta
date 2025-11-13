@@ -275,10 +275,9 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
             self._agent_states[self._agent_id] = self._state
         return action
 
-    def reset(self, simulation: Optional[Simulation] = None) -> None:
+    def reset(self) -> None:
         """Reset the hidden state to initial state."""
-        self._base_policy.reset(simulation)
-        self._simulation = simulation
+        self._base_policy.reset()
         self._state = self._base_policy.initial_agent_state()
         self._agent_states.clear()
         if self._agent_id is not None:
@@ -307,7 +306,7 @@ class StatefulPolicyImpl(Generic[StateType]):
     and initial_agent_state() which returns the initial state for a new agent.
     """
 
-    def reset(self, simulation: Optional[Simulation] = None) -> None:
+    def reset(self) -> None:
         """Reset the policy."""
         pass
 

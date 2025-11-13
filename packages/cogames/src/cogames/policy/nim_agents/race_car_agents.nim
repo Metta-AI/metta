@@ -1,5 +1,6 @@
 import
-  std/[strformat, tables, random, sets, json],
+  std/[strformat, strutils, tables, random, sets],
+  genny, jsony,
   common
 
 type
@@ -12,18 +13,18 @@ type
     random: Rand
     location: Location
 
-  RaceCarPolicy* = ref object
-    agents*: seq[RaceCarAgent]
-
-proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
+proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent {.raises: [].} =
   echo "Creating new heuristic agent ", agentId
 
   var config = parseConfig(environmentConfig)
   result = RaceCarAgent(agentId: agentId, cfg: config)
   result.random = initRand(agentId)
-  result.map = initTable[Location, seq[FeatureValue]]()
-  result.seen = initHashSet[Location]()
-  result.location = Location(x: 0, y: 0)
+
+proc reset*(agent: RaceCarAgent) =
+  echo "Resetting heuristic agent ", agent.agentId
+  agent.map.clear()
+  agent.seen.clear()
+  agent.location = Location(x: 0, y: 0)
 
 proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]]) =
   ## Update the big map with the small visible map.
@@ -103,97 +104,77 @@ proc raceCarStepInternal(
   numTokens: int,
   sizeToken: int,
   rawObservation: pointer,
-  agentAction: ptr int32
-) =
-  echo "Driving race car agent ", agent.agentId
-  # echo "  numAgents", numAgents
-  # echo "  numTokens", numTokens
-  # echo "  sizeToken", sizeToken
-  # echo "  numActions", numActions
-  let observations = cast[ptr UncheckedArray[uint8]](rawObservation)
+  actions: ptr UncheckedArray[int32],
+  actionIndex: int
+) {.raises: [].} =
+  try:
+    echo "Driving race car agent ", agent.agentId
+    # echo "  numAgents", numAgents
+    # echo "  numTokens", numTokens
+    # echo "  sizeToken", sizeToken
+    # echo "  numActions", numActions
+    let observations = cast[ptr UncheckedArray[uint8]](rawObservation)
 
-  var map: Table[Location, seq[FeatureValue]]
-  for token in 0 ..< numTokens:
-    let locationPacked = observations[token * sizeToken]
-    let featureId = observations[token * sizeToken + 1]
-    let value = observations[token * sizeToken + 2]
-    if locationPacked == 255 and featureId == 255 and value == 255:
-      break
-    var location: Location
-    if locationPacked != 0xFF:
-      location.y = (locationPacked shr 4).int - 5
-      location.x = (locationPacked and 0x0F).int - 5
-    #echo "  token ", token, " loc ", location.x, ", ", location.y, " featureId ", featureId, " value ", value
-    if location notin map:
-      map[location] = @[]
-    map[location].add(FeatureValue(featureId: featureId.int, value: value.int))
+    var map: Table[Location, seq[FeatureValue]]
+    for token in 0 ..< numTokens:
+      let locationPacked = observations[token * sizeToken]
+      let featureId = observations[token * sizeToken + 1]
+      let value = observations[token * sizeToken + 2]
+      if locationPacked == 255 and featureId == 255 and value == 255:
+        break
+      var location: Location
+      if locationPacked != 0xFF:
+        location.y = (locationPacked shr 4).int - 5
+        location.x = (locationPacked and 0x0F).int - 5
+      #echo "  token ", token, " loc ", location.x, ", ", location.y, " featureId ", featureId, " value ", value
+      if location notin map:
+        map[location] = @[]
+      map[location].add(FeatureValue(featureId: featureId.int, value: value.int))
 
-  echo "current location: ", agent.location.x, ", ", agent.location.y
-  echo "visible map:"
-  agent.cfg.drawMap(map, initHashSet[Location]())
-  updateMap(agent, map)
-  echo "updated map:"
-  agent.cfg.drawMap(agent.map, agent.seen)
+    echo "current location: ", agent.location.x, ", ", agent.location.y
+    echo "visible map:"
+    agent.cfg.drawMap(map, initHashSet[Location]())
+    updateMap(agent, map)
+    echo "updated map:"
+    agent.cfg.drawMap(agent.map, agent.seen)
 
-  let vibe = agent.cfg.getVibe(map)
-  echo "vibe: ", vibe
+    let vibe = agent.cfg.getVibe(map)
+    echo "vibe: ", vibe
 
-  let invEnergy = agent.cfg.getInventory(map, agent.cfg.features.invEnergy)
-  let invCarbon = agent.cfg.getInventory(map, agent.cfg.features.invCarbon)
-  let invOxygen = agent.cfg.getInventory(map, agent.cfg.features.invOxygen)
-  let invGermanium = agent.cfg.getInventory(map, agent.cfg.features.invGermanium)
-  let invSilicon = agent.cfg.getInventory(map, agent.cfg.features.invSilicon)
-  let invHeart = agent.cfg.getInventory(map, agent.cfg.features.invHeart)
-  let invDecoder = agent.cfg.getInventory(map, agent.cfg.features.invDecoder)
-  let invModulator = agent.cfg.getInventory(map, agent.cfg.features.invModulator)
-  let invResonator = agent.cfg.getInventory(map, agent.cfg.features.invResonator)
-  let invScrambler = agent.cfg.getInventory(map, agent.cfg.features.invScrambler)
+    let invEnergy = agent.cfg.getInventory(map, agent.cfg.features.invEnergy)
+    let invCarbon = agent.cfg.getInventory(map, agent.cfg.features.invCarbon)
+    let invOxygen = agent.cfg.getInventory(map, agent.cfg.features.invOxygen)
+    let invGermanium = agent.cfg.getInventory(map, agent.cfg.features.invGermanium)
+    let invSilicon = agent.cfg.getInventory(map, agent.cfg.features.invSilicon)
+    let invHeart = agent.cfg.getInventory(map, agent.cfg.features.invHeart)
+    let invDecoder = agent.cfg.getInventory(map, agent.cfg.features.invDecoder)
+    let invModulator = agent.cfg.getInventory(map, agent.cfg.features.invModulator)
+    let invResonator = agent.cfg.getInventory(map, agent.cfg.features.invResonator)
+    let invScrambler = agent.cfg.getInventory(map, agent.cfg.features.invScrambler)
 
-  echo &"H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
+    echo &"H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
 
-  let action = agent.random.rand(1 .. 4).int32
-  agentAction[] = action
-  echo "taking action ", action
+    let action = agent.random.rand(1 .. 4).int32
+    actions[actionIndex] = action
+    echo "taking action ", action
 
+  except:
+    echo getCurrentException().getStackTrace()
+    echo getCurrentExceptionMsg()
+    quit()
 
 proc step*(
   agent: RaceCarAgent,
   numAgents: int,
   numTokens: int,
   sizeToken: int,
-  rawObservation: pointer,
+  rawObservations: pointer,
   numActions: int,
-  agentAction: ptr int32
-) =
+  rawActions: pointer
+) {.raises: [].} =
   discard numAgents
   discard numActions
-  raceCarStepInternal(agent, numTokens, sizeToken, rawObservation, agentAction)
-
-proc newRaceCarPolicy*(environmentConfig: string): RaceCarPolicy {.raises: [CatchableError].} =
-  let cfg = parseConfig(environmentConfig)
-  var agents: seq[RaceCarAgent] = @[]
-  for id in 0 ..< cfg.config.numAgents:
-    agents.add(newRaceCarAgent(id, environmentConfig))
-  RaceCarPolicy(agents: agents)
-
-proc stepBatch*(
-    policy: RaceCarPolicy,
-    agentIds: pointer,
-    numAgentIds: int,
-    numAgents: int,
-    numTokens: int,
-    sizeToken: int,
-    rawObservations: pointer,
-    numActions: int,
-    rawActions: pointer
-) =
-  let ids = cast[ptr UncheckedArray[int32]](agentIds)
-  let obsArray = cast[ptr UncheckedArray[uint8]](rawObservations)
-  let actionArray = cast[ptr UncheckedArray[int32]](rawActions)
-  let obsStride = numTokens * sizeToken
-
-  for i in 0 ..< numAgentIds:
-    let idx = int(ids[i])
-    let obsPtr = cast[pointer](obsArray[idx * obsStride].addr)
-    let actPtr = cast[ptr int32](actionArray[idx].addr)
-    step(policy.agents[idx], numAgents, numTokens, sizeToken, obsPtr, numActions, actPtr)
+  let observations = cast[ptr UncheckedArray[uint8]](rawObservations)
+  let actions = cast[ptr UncheckedArray[int32]](rawActions)
+  let agentObservation = cast[pointer](observations[agent.agentId * numTokens * sizeToken].addr)
+  raceCarStepInternal(agent, numTokens, sizeToken, agentObservation, actions, agent.agentId)
