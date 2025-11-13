@@ -579,7 +579,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         """Map phase to a vibe for visual debugging in replays."""
         # During GATHER, vibe the target resource we're currently collecting
         if phase == Phase.GATHER and state.target_resource is not None:
-            return state.target_resource
+            return RESOURCE_VIBE_ALIASES.get(state.target_resource, state.target_resource)
 
         phase_to_vibe = {
             Phase.GATHER: "carbon_a",  # Default fallback if no target resource
@@ -1185,3 +1185,16 @@ class BaselinePolicy(MultiAgentPolicy):
                 agent_id=agent_id,
             )
         return self._agent_policies[agent_id]
+
+
+RESOURCE_VIBE_ALIASES: dict[str, str] = {
+    "carbon": "carbon_a",
+    "oxygen": "oxygen_a",
+    "germanium": "germanium_a",
+    "silicon": "silicon_a",
+    # Crafting resources (appear when crafting unclipping items)
+    "decoder": "gear",
+    "modulator": "gear",
+    "resonator": "gear",
+    "scrambler": "gear",
+}

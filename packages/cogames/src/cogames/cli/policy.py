@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional, Sequence
 
 import typer
+from pydantic import Field
 from rich.table import Table
 
 from cogames.cli.base import console
@@ -31,6 +32,17 @@ policy_arg_example = POLICY_ARG_DELIMITER.join(
         "[cyan]DATA[/cyan]",
     )
 )
+
+
+class PolicySpecWithProportion(PolicySpec):
+    proportion: float = Field(default=1.0, description="Proportion of total agents to assign to this policy")
+
+    def to_policy_spec(self) -> PolicySpec:
+        return PolicySpec(
+            class_path=self.class_path,
+            data_path=self.data_path,
+            init_kwargs=self.init_kwargs,
+        )
 
 
 def list_checkpoints():
@@ -77,7 +89,7 @@ def get_policy_spec(ctx: typer.Context, policy_arg: Optional[str]) -> PolicySpec
         console.print("[yellow]Missing: --policy / -p[/yellow]\n")
     else:
         try:
-            return _parse_policy_spec(spec=policy_arg)  # type: ignore
+            return _parse_policy_spec(spec=policy_arg).to_policy_spec()
         except (ValueError, ModuleNotFoundError) as e:
             translated = _translate_error(e)
             console.print(f"[yellow]Error parsing policy argument: {translated}[/yellow]\n")
@@ -92,7 +104,9 @@ def get_policy_spec(ctx: typer.Context, policy_arg: Optional[str]) -> PolicySpec
     raise typer.Exit(0)
 
 
-def get_policy_specs(ctx: typer.Context, policy_args: Optional[list[str]]) -> list[PolicySpec]:
+def get_policy_specs_with_proportions(
+    ctx: typer.Context, policy_args: Optional[list[str]]
+) -> list[PolicySpecWithProportion]:
     if not policy_args:
         console.print(ctx.get_help())
         console.print("[yellow]Supply at least one: --policy / -p[/yellow]\n")
@@ -113,7 +127,7 @@ def get_policy_specs(ctx: typer.Context, policy_args: Optional[list[str]]) -> li
     raise typer.Exit(0)
 
 
-def _parse_policy_spec(spec: str) -> PolicySpec:
+def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
     """Parse a policy CLI option into its components."""
 
     raw = spec.strip()
@@ -145,8 +159,8 @@ def _parse_policy_spec(spec: str) -> PolicySpec:
     resolved_class_path = resolve_policy_class_path(raw_class_path)
     resolved_policy_data = resolve_policy_data_path(raw_policy_data or None)
 
-    return PolicySpec(
-        policy_class_path=resolved_class_path,
+    return PolicySpecWithProportion(
+        class_path=resolved_class_path,
+        data_path=resolved_policy_data,
         proportion=fraction,
-        policy_data_path=resolved_policy_data,
     )
