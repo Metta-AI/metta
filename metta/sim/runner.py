@@ -26,9 +26,9 @@ def run_simulations(
     replay_dir: str,
     seed: int,
     enable_replays: bool = True,
+    proportions: Sequence[float] | None = None,
 ) -> list[SimulationRollout]:
     simulation_rollouts: list[SimulationRollout] = []
-    policy_proportions = [spec.proportion for spec in policies]
 
     for simulation in simulations:
         replay_writer: ReplayLogWriter | None = None
@@ -47,7 +47,7 @@ def run_simulations(
             policies=multi_agent_policies,
             episodes=simulation.num_episodes,
             seed=seed,
-            proportions=policy_proportions,
+            proportions=proportions,
             max_time_s=simulation.max_time_s,
             max_action_time_ms=simulation.max_action_time_ms,
             event_handlers=[replay_writer] if replay_writer else None,
