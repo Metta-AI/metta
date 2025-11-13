@@ -18,7 +18,6 @@ class RunToolMCPConfig:
     @classmethod
     def from_env(cls) -> "RunToolMCPConfig":
         """Load configuration from environment variables."""
-        # First priority: use environment variable if set
         env_repo_root = os.getenv("METTA_REPO_ROOT")
         if env_repo_root:
             repo_root = Path(env_repo_root).resolve()
@@ -32,9 +31,6 @@ class RunToolMCPConfig:
                     log_format=os.getenv("LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"),
                 )
 
-        # Second priority: try to find from __file__ location
-        # __file__ is: mcp_servers/run_tool/run_tool_mcp/config.py
-        # So parent.parent.parent.parent should be repo root
         repo_root = Path(__file__).parent.parent.parent.parent.resolve()
         if (repo_root / "tools" / "run.py").exists():
             run_script_path = repo_root / "tools" / "run.py"
@@ -46,7 +42,6 @@ class RunToolMCPConfig:
                 log_format=os.getenv("LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"),
             )
 
-        # Third priority: try current working directory
         cwd = Path.cwd().resolve()
         if (cwd / "tools" / "run.py").exists():
             repo_root = cwd
@@ -59,7 +54,6 @@ class RunToolMCPConfig:
                 log_format=os.getenv("LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"),
             )
 
-        # If all else fails, raise an error
         raise FileNotFoundError(
             f"Could not find Metta repository root. "
             f"Set METTA_REPO_ROOT environment variable to point to the Metta repository root. "

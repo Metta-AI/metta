@@ -1,12 +1,26 @@
 """Tool functions for run.py execution and discovery."""
 
+import inspect
 import json
 import logging
 from typing import Any
 
+from metta.common.tool import Tool
 from metta.common.tool.recipe_registry import recipe_registry
 from metta.common.tool.tool_path import parse_two_token_syntax, resolve_and_load_tool_maker
 from metta.common.tool.tool_registry import tool_registry
+
+from ..models import (
+    ErrorResponse,
+    RecipeForToolInfo,
+    RecipeInfo,
+    RecipeListResponse,
+    RecipesForToolResponse,
+    ToolArgumentInfo,
+    ToolArgumentsResponse,
+    ToolListResponse,
+    ValidationResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,18 +39,14 @@ def _normalize_tool_path(tool_path: str) -> str:
     Returns:
         Normalized tool path (e.g., 'arena.train')
     """
-    # Split by space to check for two-token syntax
     parts = tool_path.strip().split(None, 1)
 
     if len(parts) == 2:
         first_token, second_token = parts
-        # Check if second token looks like an argument (contains = or starts with -)
         if "=" not in second_token and not second_token.startswith("-"):
-            # This looks like two-token syntax (e.g., "train arena")
             resolved_path, _ = parse_two_token_syntax(first_token, second_token)
             return resolved_path
 
-    # Already in normalized format or single token
     return tool_path
 
 
@@ -48,20 +58,21 @@ async def list_recipes() -> str:
     """
     try:
         recipes = recipe_registry.get_all()
-        result = {
-            "recipes": [
-                {
-                    "name": recipe.short_name,
-                    "module_name": recipe.module_name,
-                    "tools": sorted(recipe.get_all_tool_maker_names()),
-                }
+        result = RecipeListResponse(
+            recipes=[
+                RecipeInfo(
+                    name=recipe.short_name,
+                    module_name=recipe.module_name,
+                    tools=sorted(recipe.get_all_tool_maker_names()),
+                )
                 for recipe in sorted(recipes, key=lambda r: r.module_name)
             ]
-        }
-        return json.dumps(result, indent=2)
+        )
+        return result.model_dump_json(indent=2)
     except Exception as e:
         logger.error(f"Error listing recipes: {e}", exc_info=True)
-        return json.dumps({"status": "error", "message": str(e)})
+        error = ErrorResponse(message=str(e))
+        return error.model_dump_json(indent=2)
 
 
 async def list_tools_in_recipe(recipe: str) -> str:
@@ -76,27 +87,24 @@ async def list_tools_in_recipe(recipe: str) -> str:
     try:
         recipe_obj = recipe_registry.get(recipe)
         if not recipe_obj:
-            return json.dumps(
-                {
-                    "status": "error",
-                    "message": f"Recipe '{recipe}' not found",
-                    "suggestions": [
-                        r.short_name for r in recipe_registry.get_all() if recipe.lower() in r.short_name.lower()
-                    ][:5],
-                }
-            )
+            suggestions = [
+                r.short_name for r in recipe_registry.get_all() if recipe.lower() in r.short_name.lower()
+            ][:5]
+            error = ErrorResponse(message=f"Recipe '{recipe}' not found", suggestions=suggestions)
+            return error.model_dump_json(indent=2)
 
         tools = sorted(recipe_obj.get_all_tool_maker_names())
-        result = {
-            "recipe": recipe_obj.short_name,
-            "module_name": recipe_obj.module_name,
-            "tools": tools,
-            "tool_paths": [f"{recipe_obj.short_name}.{tool}" for tool in tools],
-        }
-        return json.dumps(result, indent=2)
+        result = ToolListResponse(
+            recipe=recipe_obj.short_name,
+            module_name=recipe_obj.module_name,
+            tools=tools,
+            tool_paths=[f"{recipe_obj.short_name}.{tool}" for tool in tools],
+        )
+        return result.model_dump_json(indent=2)
     except Exception as e:
         logger.error(f"Error listing tools in recipe {recipe}: {e}", exc_info=True)
-        return json.dumps({"status": "error", "message": str(e)})
+        error = ErrorResponse(message=str(e))
+        return error.model_dump_json(indent=2)
 
 
 async def list_recipes_for_tool(tool_type: str) -> str:
@@ -116,32 +124,28 @@ async def list_recipes_for_tool(tool_type: str) -> str:
             makers = recipe.get_makers_for_tool(tool_type)
             if makers:
                 matching_recipes.append(
-                    {
-                        "recipe": recipe.short_name,
-                        "module_name": recipe.module_name,
-                        "tool_makers": [name for name, _ in makers],
-                    }
+                    RecipeForToolInfo(
+                        recipe=recipe.short_name,
+                        module_name=recipe.module_name,
+                        tool_makers=[name for name, _ in makers],
+                    )
                 )
 
         if not matching_recipes:
             # Check if tool type exists
             if tool_type not in tool_registry.name_to_tool:
-                return json.dumps(
-                    {
-                        "status": "error",
-                        "message": f"Tool type '{tool_type}' not found",
-                        "available_tool_types": list(tool_registry.name_to_tool.keys()),
-                    }
+                error = ErrorResponse(
+                    message=f"Tool type '{tool_type}' not found",
+                    available_tool_types=list(tool_registry.name_to_tool.keys()),
                 )
+                return error.model_dump_json(indent=2)
 
-        result = {
-            "tool_type": tool_type,
-            "recipes": matching_recipes,
-        }
-        return json.dumps(result, indent=2)
+        result = RecipesForToolResponse(tool_type=tool_type, recipes=matching_recipes)
+        return result.model_dump_json(indent=2)
     except Exception as e:
         logger.error(f"Error listing recipes for tool {tool_type}: {e}", exc_info=True)
-        return json.dumps({"status": "error", "message": str(e)})
+        error = ErrorResponse(message=str(e))
+        return error.model_dump_json(indent=2)
 
 
 async def get_tool_arguments(tool_path: str) -> str:
@@ -160,42 +164,26 @@ async def get_tool_arguments(tool_path: str) -> str:
         # Try to resolve the tool maker to get type information
         tool_maker = resolve_and_load_tool_maker(normalized_path)
         if not tool_maker:
-            return json.dumps(
-                {
-                    "status": "error",
-                    "message": f"Tool '{tool_path}' not found",
-                    "normalized_path": normalized_path,
-                }
-            )
+            error = ErrorResponse(message=f"Tool '{tool_path}' not found", normalized_path=normalized_path)
+            return error.model_dump_json(indent=2)
 
-        import inspect
-
-        from metta.common.tool import Tool
-
-        result: dict[str, Any] = {
-            "tool_path": normalized_path,
-            "original_path": tool_path,
-            "module": tool_maker.__module__,
-            "name": tool_maker.__name__,
-        }
+        function_parameters: dict[str, ToolArgumentInfo] | None = None
+        tool_config_fields: dict[str, ToolArgumentInfo] | None = None
 
         # Get function parameters if it's a function
         if inspect.isfunction(tool_maker) or inspect.ismethod(tool_maker):
             sig = inspect.signature(tool_maker)
-            result["function_parameters"] = {}
+            function_parameters = {}
             for name, param in sig.parameters.items():
-                param_info: dict[str, Any] = {
-                    "type": str(param.annotation) if param.annotation != inspect._empty else "Any",
-                }
-                if param.default != inspect._empty:
-                    param_info["default"] = str(param.default)
-                else:
-                    param_info["required"] = True
-                result["function_parameters"][name] = param_info
+                param_info = ToolArgumentInfo(
+                    type=str(param.annotation) if param.annotation != inspect._empty else "Any",
+                    default=str(param.default) if param.default != inspect._empty else None,
+                    required=None if param.default != inspect._empty else True,
+                )
+                function_parameters[name] = param_info
 
         # Get tool fields if it returns a Tool
         if inspect.isclass(tool_maker) and issubclass(tool_maker, Tool):
-            # It's a Tool class
             tool_class = tool_maker
         else:
             # Try to call it to get the tool instance
@@ -212,26 +200,31 @@ async def get_tool_arguments(tool_path: str) -> str:
 
         if tool_class and issubclass(tool_class, Tool):
             # Get Pydantic model fields
-            tool_fields: dict[str, Any] = {}
+            tool_config_fields = {}
             for field_name, field in tool_class.model_fields.items():
-                field_info: dict[str, Any] = {
-                    "type": str(field.annotation),
-                }
-                if field.default is not None:
-                    field_info["default"] = str(field.default)
-                elif field.default_factory:
-                    field_info["default_factory"] = True
-                else:
-                    field_info["required"] = True
-                tool_fields[field_name] = field_info
+                field_info = ToolArgumentInfo(
+                    type=str(field.annotation),
+                    default=str(field.default) if field.default is not None else None,
+                    required=None if (field.default is not None or field.default_factory) else True,
+                    default_factory=True if field.default_factory else None,
+                )
+                tool_config_fields[field_name] = field_info
 
-            result["tool_config_fields"] = tool_fields
+        result = ToolArgumentsResponse(
+            tool_path=normalized_path,
+            original_path=tool_path,
+            module=tool_maker.__module__,
+            name=tool_maker.__name__,
+            function_parameters=function_parameters,
+            tool_config_fields=tool_config_fields,
+        )
 
-        return json.dumps(result, indent=2)
+        return result.model_dump_json(indent=2)
 
     except Exception as e:
         logger.error(f"Error getting tool arguments for {tool_path}: {e}", exc_info=True)
-        return json.dumps({"status": "error", "message": str(e)})
+        error = ErrorResponse(message=str(e))
+        return error.model_dump_json(indent=2)
 
 
 async def validate_command(tool_path: str, arguments: dict[str, Any] | None = None) -> str:
@@ -258,28 +251,17 @@ async def validate_command(tool_path: str, arguments: dict[str, Any] | None = No
                 if tool_path.lower() in r.short_name.lower() or r.short_name.lower() in tool_path.lower()
             ][:5]
 
-            return json.dumps(
-                {
-                    "valid": False,
-                    "error": f"Tool '{tool_path}' not found",
-                    "normalized_path": normalized_path,
-                    "suggestions": suggestions,
-                }
+            result = ValidationResponse(
+                valid=False,
+                error=f"Tool '{tool_path}' not found",
+                normalized_path=normalized_path,
+                suggestions=suggestions,
             )
+            return result.model_dump_json(indent=2)
 
-        # Basic validation - check if tool maker can be loaded
-        result = {
-            "valid": True,
-            "tool_path": normalized_path,
-            "original_path": tool_path,
-            "module": tool_maker.__module__,
-            "name": tool_maker.__name__,
-        }
+        warnings: list[str] | None = None
 
-        # If arguments provided, try to validate them
         if arguments:
-            import inspect
-
             if inspect.isfunction(tool_maker) or inspect.ismethod(tool_maker):
                 sig = inspect.signature(tool_maker)
                 param_names = set(sig.parameters.keys())
@@ -288,14 +270,23 @@ async def validate_command(tool_path: str, arguments: dict[str, Any] | None = No
                 # Check for unknown function parameters
                 unknown_params = provided_keys - param_names
                 if unknown_params:
-                    result["warnings"] = result.get("warnings", [])
-                    result["warnings"].append(f"Unknown function parameters: {unknown_params}")
+                    warnings = [f"Unknown function parameters: {unknown_params}"]
 
-        return json.dumps(result, indent=2)
+        result = ValidationResponse(
+            valid=True,
+            tool_path=normalized_path,
+            original_path=tool_path,
+            module=tool_maker.__module__,
+            name=tool_maker.__name__,
+            warnings=warnings,
+        )
+
+        return result.model_dump_json(indent=2)
 
     except Exception as e:
         logger.error(f"Error validating command {tool_path}: {e}", exc_info=True)
-        return json.dumps({"valid": False, "error": str(e)})
+        result = ValidationResponse(valid=False, error=str(e))
+        return result.model_dump_json(indent=2)
 
 
 async def execute_run_tool(
@@ -319,25 +310,31 @@ async def execute_run_tool(
     Returns:
         JSON string with execution result including command summary
     """
-    # Build preview command for display
     resolved_path, _ = parse_two_token_syntax(tool_path, None)
     preview_args = []
     if arguments:
-        for key, value in arguments.items():
-            if value is not None:
-                if isinstance(value, bool):
-                    value_str = str(value).lower()
-                elif isinstance(value, (list, dict)):
-                    value_str = json.dumps(value)
-                else:
-                    value_str = str(value)
-                preview_args.append(f"{key}={value_str}")
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except json.JSONDecodeError:
+                logger.warning(f"Failed to parse arguments as JSON: {arguments}")
+                arguments = None
+        if isinstance(arguments, dict):
+            for key, value in arguments.items():
+                if value is not None:
+                    if isinstance(value, bool):
+                        value_str = str(value).lower()
+                    elif isinstance(value, (list, dict)):
+                        value_str = json.dumps(value)
+                    else:
+                        value_str = str(value)
+                    preview_args.append(f"{key}={value_str}")
 
     preview_command = "./tools/run.py " + resolved_path
     if preview_args:
         preview_command += " " + " ".join(preview_args)
 
-    result = await executor.execute(
+    result_dict = await executor.execute(
         tool_path=tool_path,
         arguments=arguments,
         dry_run=dry_run,
@@ -345,15 +342,7 @@ async def execute_run_tool(
         timeout=timeout,
     )
 
-    # Add summary fields for command visibility
-    command = result.get("command", preview_command)
-    result["command"] = command
+    if "command" not in result_dict or not result_dict["command"]:
+        result_dict["command"] = preview_command
 
-    if dry_run:
-        result["summary"] = f"Would execute: {command} (dry run - validation only)"
-        result["preview"] = command
-    else:
-        result["summary"] = f"Executed: {command}"
-        result["command_executed"] = command
-
-    return json.dumps(result, indent=2)
+    return json.dumps(result_dict, indent=2)
