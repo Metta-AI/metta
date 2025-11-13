@@ -85,6 +85,16 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         self._protocol_input_prefix = "protocol_input:"
         self._protocol_output_prefix = "protocol_output:"
 
+        # Map resource names to their corresponding vibe names for debugging glyphs.
+        # This keeps resource naming (carbon, oxygen, germanium, silicon) separate from
+        # visual glyph naming (carbon_a, oxygen_a, etc.).
+        self._resource_to_vibe: dict[str, str] = {
+            "carbon": "carbon_a",
+            "oxygen": "oxygen_a",
+            "germanium": "germanium_a",
+            "silicon": "silicon_a",
+        }
+
     def _change_vibe_action(self, vibe_name: str) -> Action:
         """
         Return a safe vibe-change action.
@@ -96,7 +106,12 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         num_vibes = int(getattr(change_vibe_cfg, "number_of_vibes", 0))
         if num_vibes <= 1:
             return self._actions.noop.Noop()
-        return self._actions.change_vibe.ChangeVibe(VIBE_BY_NAME[vibe_name])
+
+        # Raise an exception if the vibe doesn't exist
+        vibe = VIBE_BY_NAME.get(vibe_name)
+        if vibe is None:
+            raise Exception(f"No valid vibes called {vibe_name}")
+        return self._actions.change_vibe.ChangeVibe(vibe)
 
     def _read_inventory_from_obs(self, s: SimpleAgentState, obs: AgentObservation) -> None:
         """Read inventory from observation tokens at center cell and update state."""
@@ -579,7 +594,8 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         """Map phase to a vibe for visual debugging in replays."""
         # During GATHER, vibe the target resource we're currently collecting
         if phase == Phase.GATHER and state.target_resource is not None:
-            return RESOURCE_VIBE_ALIASES.get(state.target_resource, state.target_resource)
+            # Map resource name (e.g., "silicon") to a valid vibe name (e.g., "silicon_a").
+            return self._resource_to_vibe.get(state.target_resource, "default")
 
         phase_to_vibe = {
             Phase.GATHER: "carbon_a",  # Default fallback if no target resource
