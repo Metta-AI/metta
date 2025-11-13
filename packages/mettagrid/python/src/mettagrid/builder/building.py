@@ -121,11 +121,11 @@ def make_chest(
         # show that vibe.
         vibe_transfers = {
             "default": {"heart": 255, "carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255},
-            "heart": {"heart": -1},
-            "carbon": {"carbon": -10},
-            "oxygen": {"oxygen": -10},
-            "germanium": {"germanium": -1},
-            "silicon": {"silicon": -25},
+            "heart_a": {"heart": -1},
+            "carbon_a": {"carbon": -10},
+            "oxygen_a": {"oxygen": -10},
+            "germanium_a": {"germanium": -1},
+            "silicon_a": {"silicon": -25},
         }
 
     if initial_inventory is None:
