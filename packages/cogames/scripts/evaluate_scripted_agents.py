@@ -929,7 +929,11 @@ def _plot_by_preset(aggregated, presets, agents, experiments, difficulties, outp
     for i, agent in enumerate(agents):
         rewards = []
         for preset in presets:
-            vals = [v["avg_reward"] for k, v in aggregated.items() if v["agent"] == agent and v["preset"] == preset]
+            vals = [
+                v["avg_reward_per_agent"]
+                for k, v in aggregated.items()
+                if v["agent"] == agent and v["preset"] == preset
+            ]
             rewards.append(np.mean(vals) if vals else 0)
 
         offset = width * (i - len(agents) / 2 + 0.5)
@@ -947,7 +951,9 @@ def _plot_by_preset(aggregated, presets, agents, experiments, difficulties, outp
     ax = axes[1]
     top_envs = sorted(
         experiments,
-        key=lambda e: float(np.mean([v["avg_reward"] for k, v in aggregated.items() if v["experiment"] == e])),
+        key=lambda e: float(
+            np.mean([v["avg_reward_per_agent"] for k, v in aggregated.items() if v["experiment"] == e])
+        ),
         reverse=True,
     )[:3]  # type: ignore
 
@@ -957,7 +963,11 @@ def _plot_by_preset(aggregated, presets, agents, experiments, difficulties, outp
     for i, env in enumerate(top_envs):
         rewards = []
         for preset in presets:
-            vals = [v["avg_reward"] for k, v in aggregated.items() if v["preset"] == preset and v["experiment"] == env]
+            vals = [
+                v["avg_reward_per_agent"]
+                for k, v in aggregated.items()
+                if v["preset"] == preset and v["experiment"] == env
+            ]
             rewards.append(np.mean(vals) if vals else 0)
 
         offset = width * (i - 1)
@@ -975,7 +985,9 @@ def _plot_by_preset(aggregated, presets, agents, experiments, difficulties, outp
     ax = axes[2]
     top_diffs = sorted(
         difficulties,
-        key=lambda d: float(np.mean([v["avg_reward"] for k, v in aggregated.items() if v["difficulty"] == d])),  # type: ignore
+        key=lambda d: float(
+            np.mean([v["avg_reward_per_agent"] for k, v in aggregated.items() if v["difficulty"] == d])
+        ),  # type: ignore
         reverse=True,
     )[:3]
 
@@ -985,7 +997,11 @@ def _plot_by_preset(aggregated, presets, agents, experiments, difficulties, outp
     for i, diff in enumerate(top_diffs):
         rewards = []
         for preset in presets:
-            vals = [v["avg_reward"] for k, v in aggregated.items() if v["preset"] == preset and v["difficulty"] == diff]
+            vals = [
+                v["avg_reward_per_agent"]
+                for k, v in aggregated.items()
+                if v["preset"] == preset and v["difficulty"] == diff
+            ]
             rewards.append(np.mean(vals) if vals else 0)
 
         offset = width * (i - 1)
