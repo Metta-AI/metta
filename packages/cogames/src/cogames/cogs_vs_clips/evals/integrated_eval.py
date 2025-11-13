@@ -6,10 +6,10 @@ from cogames.cogs_vs_clips.mission import Mission, Site
 from cogames.cogs_vs_clips.procedural import MachinaArena
 from cogames.cogs_vs_clips.sites import HELLO_WORLD, TRAINING_FACILITY
 from cogames.cogs_vs_clips.variants import (
+    CompassVariant,
     DarkSideVariant,
     DistantResourcesVariant,
     EmptyBaseVariant,
-    ExtractorHeartTuneVariant,
     HeartChorusVariant,
     LonelyHeartVariant,
     NeutralFacedVariant,
@@ -54,10 +54,9 @@ OxygenBottleneck = Mission(
     site=HELLO_WORLD,
     variants=[
         EmptyBaseVariant(missing=["oxygen_extractor"]),
-        ExtractorHeartTuneVariant(hearts=10),
         ResourceBottleneckVariant(resource=["oxygen"]),
         SingleResourceUniformVariant(building_name="oxygen_extractor"),
-        #        NeutralFacedVariant(),
+        NeutralFacedVariant(),
         PackRatVariant(),
     ],
 )
@@ -69,9 +68,9 @@ EnergyStarved = Mission(
     site=HELLO_WORLD,
     variants=[
         EmptyBaseVariant(),
-        ResourceBottleneckVariant(resource=["energy"]),
         DarkSideVariant(),
-        #        NeutralFacedVariant(),
+        NeutralFacedVariant(),
+        PackRatVariant(),
     ],
 )
 
@@ -83,6 +82,7 @@ DistantResources = Mission(
     site=HELLO_WORLD,
     variants=[
         EmptyBaseVariant(),
+        CompassVariant(),
         DistantResourcesVariant(),
         #        NeutralFacedVariant(),
     ],
@@ -97,7 +97,8 @@ QuadrantBuildings = Mission(
     variants=[
         EmptyBaseVariant(),
         QuadrantBuildingsVariant(),
-        #        NeutralFacedVariant(),
+        CompassVariant(),
+        NeutralFacedVariant(),
     ],
 )
 
@@ -110,7 +111,7 @@ SingleUseSwarm = Mission(
     variants=[
         EmptyBaseVariant(),
         SingleUseSwarmVariant(),
-        #        NeutralFacedVariant(),
+        CompassVariant(),
         PackRatVariant(),
     ],
 )
@@ -122,7 +123,6 @@ VibeCheck = Mission(
     description="Agents must check their vibe, either binary or full, and then coordinate others for assembly.",
     site=HELLO_WORLD,
     variants=[
-        EmptyBaseVariant(),
         HeartChorusVariant(),
         VibeCheckMin2Variant(),
     ],
@@ -134,7 +134,6 @@ EasyHeartsMission = Mission(
     site=TRAINING_FACILITY,
     variants=[
         LonelyHeartVariant(),
-        HeartChorusVariant(),
         PackRatVariant(),
         NeutralFacedVariant(),
     ],
