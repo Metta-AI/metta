@@ -249,7 +249,7 @@ class LSTMPolicy(TrainablePolicy):
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Create a StatefulPolicy wrapper for a specific agent."""
-        return StatefulAgentPolicy(self._agent_policy, self._policy_env_info)
+        return StatefulAgentPolicy(self._agent_policy, self._policy_env_info, agent_id=agent_id)
 
     def is_recurrent(self) -> bool:
         return True

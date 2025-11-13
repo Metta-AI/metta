@@ -78,7 +78,7 @@ class MettaGridPufferEnv(PufferEnv):
         self._current_cfg = cfg
         self._current_seed = seed
         self._env_supervisor_cfg = env_supervisor_cfg or EnvSupervisorConfig()
-        self._sim: Simulation = cast(Simulation, None)
+        self._sim: Simulation | None = None
 
         # Initialize shared buffers FIRST (before super().__init__)
         # because PufferLib may access them during initialization
@@ -104,7 +104,8 @@ class MettaGridPufferEnv(PufferEnv):
 
         self._env_supervisor: MultiAgentPolicy | None = None
         self._new_sim()
-        self.num_agents: int = self._sim.num_agents
+        sim = cast(Simulation, self._sim)
+        self.num_agents = sim.num_agents
 
         super().__init__(buf=buf)
 
@@ -117,14 +118,14 @@ class MettaGridPufferEnv(PufferEnv):
         self._current_cfg = config
 
     def get_episode_rewards(self) -> np.ndarray:
-        return self._sim.episode_rewards
+        return cast(Simulation, self._sim).episode_rewards
 
     @property
     def current_simulation(self) -> Simulation:
-        return self._sim
+        return cast(Simulation, self._sim)
 
     def _new_sim(self) -> None:
-        if getattr(self, "_sim", None) is not None:
+        if self._sim is not None:
             self._sim.close()
 
         self._sim = self._simulator.new_simulation(self._current_cfg, self._current_seed, buffers=self._buffers)
@@ -135,7 +136,6 @@ class MettaGridPufferEnv(PufferEnv):
                 resolve_policy_class_path(self._env_supervisor_cfg.policy),
                 self._env_supervisor_cfg.policy_data_path,
             )
-            self._env_supervisor.reset(self._sim)
 
             self._compute_supervisor_actions()
 
@@ -150,10 +150,13 @@ class MettaGridPufferEnv(PufferEnv):
 
     @override
     def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, List[Dict[str, Any]]]:
-        if self._sim._c_sim.terminals().all() or self._sim._c_sim.truncations().all():
-            self._new_sim()
+        sim = cast(Simulation, self._sim)
 
-        self._sim.step()
+        if sim._c_sim.terminals().all() or sim._c_sim.truncations().all():
+            self._new_sim()
+            sim = cast(Simulation, self._sim)
+
+        sim.step()
 
         # Do this after step() so that the trainer can use it if needed
         if self._env_supervisor_cfg.policy is not None:
@@ -164,7 +167,7 @@ class MettaGridPufferEnv(PufferEnv):
             self._buffers.rewards,
             self._buffers.terminals,
             self._buffers.truncations,
-            self._sim._context.get("infos", {}),
+            sim._context.get("infos", {}),
         )
 
     def _compute_supervisor_actions(self) -> None:
@@ -233,5 +236,8 @@ class MettaGridPufferEnv(PufferEnv):
 
     def close(self) -> None:
         """Close the environment."""
-        if hasattr(self, "_sim") and self._sim is not None:
-            self._sim.close()
+        if self._sim is None:
+            return
+
+        self._sim.close()
+        self._sim = None

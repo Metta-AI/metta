@@ -450,5 +450,6 @@ class UnclippingPolicy(MultiAgentPolicy):
             self._agent_policies[agent_id] = StatefulAgentPolicy(
                 UnclippingAgentPolicyImpl(self._policy_env_info, agent_id, self._hyperparams),
                 self._policy_env_info,
+                agent_id=agent_id,
             )
         return self._agent_policies[agent_id]

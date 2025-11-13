@@ -1,6 +1,5 @@
 import
   std/[heapqueue, options, random, sets, strformat, strutils, tables],
-  genny, jsony,
   common
 
 type
@@ -97,6 +96,15 @@ type
     lastInventorySample: Table[ResourceKind, int]
     lastHeartInventory: int
     lastActions: seq[int]
+    initSignalName: string
+    initHeading: Option[Location]
+    headingObjective: Option[Location]
+    initResourceFocus: Option[ResourceKind]
+    initPhaseTicks: int
+    initPhaseDone: bool
+
+  RaceCarPolicy* = ref object
+    agents*: seq[RaceCarAgent]
     initSignalName: string
     initHeading: Option[Location]
     headingObjective: Option[Location]
@@ -852,3 +860,35 @@ proc step*(
   let actions = cast[ptr UncheckedArray[int32]](rawActions)
   let agentObservation = cast[pointer](observations[agent.agentId * numTokens * sizeToken].addr)
   raceCarStepInternal(agent, numTokens, sizeToken, agentObservation, actions, agent.agentId)
+
+proc newRaceCarPolicy*(environmentConfig: string): RaceCarPolicy =
+  let cfg = parseConfig(environmentConfig)
+  var agents: seq[RaceCarAgent] = @[]
+  for id in 0 ..< cfg.config.numAgents:
+    agents.add(newRaceCarAgent(id, environmentConfig))
+  RaceCarPolicy(agents: agents)
+
+proc stepBatch*(
+    policy: RaceCarPolicy,
+    agentIds: pointer,
+    numAgentIds: int,
+    numAgents: int,
+    numTokens: int,
+    sizeToken: int,
+    rawObservations: pointer,
+    numActions: int,
+    rawActions: pointer
+) =
+  discard numAgents
+  discard numActions
+  let ids = cast[ptr UncheckedArray[int32]](agentIds)
+  let obsArray = cast[ptr UncheckedArray[uint8]](rawObservations)
+  let actions = cast[ptr UncheckedArray[int32]](rawActions)
+  let obsStride = numTokens * sizeToken
+  for idx in 0 ..< numAgentIds:
+    let agentId = ids[idx].int
+    if agentId < 0 or agentId >= policy.agents.len:
+      continue
+    let agent = policy.agents[agentId]
+    let agentObservation = cast[pointer](obsArray[(agentId * obsStride)].addr)
+    raceCarStepInternal(agent, numTokens, sizeToken, agentObservation, actions, agentId)

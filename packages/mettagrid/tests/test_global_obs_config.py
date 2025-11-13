@@ -29,7 +29,7 @@ def create_test_sim(global_obs_config: dict[str, bool]) -> Simulation:
             default_resource_limit=10, freeze_duration=0, rewards=AgentRewards(), action_failure_penalty=0
         ),
         actions=ActionsConfig(noop=NoopActionConfig(enabled=True), move=MoveActionConfig(enabled=True)),
-        objects={"wall": WallConfig(swappable=False)},
+        objects={"wall": WallConfig()},
     )
 
     game_map = [
@@ -131,7 +131,7 @@ def test_global_obs_default_values():
             default_resource_limit=10, freeze_duration=0, rewards=AgentRewards(), action_failure_penalty=0
         ),
         actions=ActionsConfig(noop=NoopActionConfig(enabled=True)),
-        objects={"wall": WallConfig(swappable=False)},
+        objects={"wall": WallConfig()},
     )
 
     game_map = [["agent.agent"]]

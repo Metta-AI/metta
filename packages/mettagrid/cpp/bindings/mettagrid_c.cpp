@@ -771,7 +771,6 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
     // We define that for location: x is column, y is row. Currently, no z for grid objects.
     // Note: it might be different for matrix computations.
     obj_dict["location"] = py::make_tuple(obj->location.c, obj->location.r);
-    obj_dict["is_swappable"] = obj->swappable();
 
     obj_dict["r"] = obj->location.r;          // To remove
     obj_dict["c"] = obj->location.c;          // To remove

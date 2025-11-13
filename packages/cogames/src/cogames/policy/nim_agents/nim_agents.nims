@@ -1,11 +1,11 @@
 switch("app", "lib")
 switch("tlsEmulation", "off")
 when defined(windows):
-  switch("out", "fast_agents.dll")
+  switch("out", "nim_agents.dll")
 elif defined(macosx):
-  switch("out", "libfast_agents.dylib")
+  switch("out", "libnim_agents.dylib")
 else:
-  switch("out", "libfast_agents.so")
+  switch("out", "libnim_agents.so")
 switch("outdir", "bindings/generated")
 
 --define:gennyPython

@@ -37,7 +37,7 @@ def create_basic_config() -> GameConfig:
         max_steps=100,
         agent=AgentConfig(freeze_duration=0, resource_limits={"ore": 10, "wood": 10}),
         actions=ActionsConfig(move=MoveActionConfig(), noop=NoopActionConfig()),
-        objects={"wall": WallConfig(swappable=False)},
+        objects={"wall": WallConfig()},
     )
 
 

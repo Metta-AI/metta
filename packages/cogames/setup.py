@@ -16,8 +16,8 @@ from setuptools.command.build_py import build_py
 from setuptools.command.develop import develop
 from setuptools.command.install import install
 
-FAST_AGENTS_DIR = Path(__file__).parent / "src" / "cogames" / "policy" / "fast_agents"
-NIMBY_LOCK = FAST_AGENTS_DIR / "nimby.lock"
+NIM_AGENTS_DIR = Path(__file__).parent / "src" / "cogames" / "policy" / "nim_agents"
+NIMBY_LOCK = NIM_AGENTS_DIR / "nimby.lock"
 REQUIRED_NIM_VERSION = os.environ.get("COGAMES_NIM_VERSION", "2.2.6")
 NIMBY_VERSION = os.environ.get("COGAMES_NIMBY_VERSION", "0.1.6")
 
@@ -49,15 +49,14 @@ def _build_nim() -> None:
     nim_bin_dir = Path.home() / ".nimby" / "nim" / "bin"
     os.environ["PATH"] = f"{nim_bin_dir}{os.pathsep}" + os.environ.get("PATH", "")
 
-    if FAST_AGENTS_DIR.exists():
-        if NIMBY_LOCK.exists():
-            subprocess.check_call(["nimby", "sync", "-g", str(NIMBY_LOCK)], cwd=FAST_AGENTS_DIR)
+    if NIMBY_LOCK.exists():
+        subprocess.check_call(["nimby", "sync", "-g", str(NIMBY_LOCK)], cwd=NIM_AGENTS_DIR)
 
-        result = subprocess.run(["nim", "c", "fast_agents.nim"], cwd=FAST_AGENTS_DIR, capture_output=True, text=True)
-        if result.returncode != 0:
-            print(result.stderr, file=sys.stderr)
-            print(result.stdout, file=sys.stderr)
-            raise RuntimeError(f"Failed to build Nim fast agents: {result.returncode}")
+    result = subprocess.run(["nim", "c", "nim_agents.nim"], cwd=NIM_AGENTS_DIR, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(result.stderr, file=sys.stderr)
+        print(result.stdout, file=sys.stderr)
+        raise RuntimeError(f"Failed to build Nim agents: {result.returncode}")
 
 
 class _EnsureNimMixin:
