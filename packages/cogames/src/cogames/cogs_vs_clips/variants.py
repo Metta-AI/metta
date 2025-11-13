@@ -181,7 +181,7 @@ class VibeCheckMin2Variant(MissionVariant):
                 filtered.append(proto)
                 continue
             # Keep only heart protocols that require >= 2 'heart' vibes
-            if len(proto.vibes) >= 2 and all(v == "heart" for v in proto.vibes):
+            if len(proto.vibes) >= 2 and all(v == "heart_a" for v in proto.vibes):
                 filtered.append(proto)
         assembler.protocols = filtered
 

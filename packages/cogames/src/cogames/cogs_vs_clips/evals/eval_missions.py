@@ -73,7 +73,7 @@ class EvalVariant(MissionVariant):
                     },
                     output_resources={"heart": 1},
                 )
-                heart_recipes = [(["heart"] * (i + 1), tiny) for i in range(4)]
+                heart_recipes = [(["heart_a"] * (i + 1), tiny) for i in range(4)]
                 redheart_recipes = [(["red-heart"] * (i + 1), tiny) for i in range(4)]
                 assembler_obj.recipes = [*heart_recipes, *redheart_recipes, *assembler_obj.recipes]
 
