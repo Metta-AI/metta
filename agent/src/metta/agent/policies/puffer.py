@@ -10,6 +10,7 @@ import pufferlib.pytorch
 from metta.agent.components.actor import ActionProbs, ActionProbsConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.policy.token import coordinates
 
 
 class PufferPolicyConfig(PolicyArchitecture):
@@ -107,8 +108,9 @@ class PufferPolicy(Policy):
         coords_byte = observations[..., 0].to(torch.uint8)
 
         # Extract x/y coordinate indices (low nibble -> x/col, high nibble -> y/row)
-        y_coords = ((coords_byte >> 4) & 0x0F).long()  # Shape: [B_TT, M]
-        x_coords = (coords_byte & 0x0F).long()  # Shape: [B_TT, M]
+        x_coords, y_coords = coordinates(observations)
+        x_coords = x_coords.long()  # Shape: [B_TT, M]
+        y_coords = y_coords.long()  # Shape: [B_TT, M]
         atr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
         atr_values = observations[..., 2].float()  # Shape: [B_TT, M]
 
