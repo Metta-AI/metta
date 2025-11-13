@@ -1,13 +1,16 @@
 import logging
 from collections import defaultdict
+from datetime import datetime
 from typing import Sequence
 
 from pydantic import Field, model_validator
 
 from metta.common.tool import Tool
+from metta.common.wandb.context import WandbContext
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
+from metta.rl import stats as rl_stats
 from metta.sim.runner import SimulationRunConfig, SimulationRunResult, run_simulations
-from metta.tools.utils.auto_config import auto_replay_dir, auto_stats_server_uri
+from metta.tools.utils.auto_config import auto_replay_dir, auto_stats_server_uri, auto_wandb_config
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.simulator.multi_episode.summary import (
     MultiEpisodeRolloutSummary,
@@ -23,11 +26,15 @@ class LiteEvalTool(Tool):
     replay_dir: str = Field(default_factory=auto_replay_dir)
     stats_server_uri: str | None = Field(default_factory=auto_stats_server_uri)
 
+    log_to_wandb: bool = Field(default=False, description="Whether to log to wandb")
+
     @model_validator(mode="after")
     def validate(self) -> "LiteEvalTool":
         for simulation in self.simulations:
             if simulation.proportions is not None and len(simulation.proportions) != len(self.policy_specs):
                 raise ValueError("Number of proportions must match number of policies.")
+        if not self.policy_specs:
+            raise ValueError("No policy specs provided")
         return self
 
     def invoke(self, args: dict[str, str]) -> int | None:
@@ -46,21 +53,37 @@ class LiteEvalTool(Tool):
         )
         logger.info(f"Summaries: {summaries}")
 
-        eval_results = self._build_eval_results(simulation_results, summaries)
-        if eval_results is not None:
+        if self.log_to_wandb:
+            eval_results = self._build_eval_results(simulation_results, summaries)
             logger.info("EvalResults schema: %s", eval_results)
-
+            self._log_to_wandb(eval_results)
         return 0
+
+    def _log_to_wandb(self, eval_results: EvalResults) -> None:
+        wandb = auto_wandb_config(f"eval_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+        if not wandb.enabled:
+            logger.info("WandB is not enabled, skipping wandb logging")
+            return
+
+        wandb_context = WandbContext(wandb, self)
+        with wandb_context as wandb_run:
+            if not wandb_run:
+                logger.info("Failed to initialize wandb run, skipping wandb logging")
+                return
+            logger.info(f"Initialized wandb run: {wandb_run.id}")
+
+            policy_spec = self.policy_specs[0]
+            target_policy_uri = f"file://{policy_spec.class_path}:{policy_spec.data_path}"
+
+            rl_stats.process_policy_evaluator_stats(
+                target_policy_uri, eval_results, wandb_run, epoch=0, agent_step=0, should_finish_run=True
+            )
 
     def _build_eval_results(
         self,
         simulation_results: Sequence[SimulationRunResult],
         summaries: Sequence[MultiEpisodeRolloutSummary],
-    ) -> EvalResults | None:
-        if not self.policy_specs:
-            logger.info("No policy specs configured; skipping EvalResults conversion.")
-            return None
-
+    ) -> EvalResults:
         target_policy_idx = 0
         target_policy_name = self.policy_specs[target_policy_idx].name
         if len(self.policy_specs) > 1:
@@ -69,14 +92,6 @@ class LiteEvalTool(Tool):
                 len(self.policy_specs),
                 target_policy_name,
             )
-
-        if len(simulation_results) != len(summaries):
-            logger.warning(
-                "Simulation results (%d) and summaries (%d) are misaligned; skipping EvalResults conversion.",
-                len(simulation_results),
-                len(summaries),
-            )
-            return None
 
         simulation_scores: dict[tuple[str, str], float] = {}
         category_scores_accum: defaultdict[str, list[float]] = defaultdict(list)
@@ -99,10 +114,6 @@ class LiteEvalTool(Tool):
 
             if result.replay_urls:
                 replay_urls[f"{category}.{sim_name}"] = list(result.replay_urls.values())
-
-        if not simulation_scores:
-            logger.info("No simulation scores computed; skipping EvalResults conversion.")
-            return None
 
         category_scores = {
             category: sum(values) / len(values) for category, values in category_scores_accum.items() if values
