@@ -90,7 +90,6 @@ def train(
     batch_size: int,
     minibatch_size: int,
     missions_arg: Optional[list[str]] = None,
-    variants_arg: Optional[list[str]] = None,
     vector_num_envs: Optional[int] = None,
     vector_batch_size: Optional[int] = None,
     vector_num_workers: Optional[int] = None,
@@ -181,30 +180,8 @@ def train(
         envs_per_worker,
     )
 
-    def _clone_cfg() -> MettaGridConfig:
-        if env_cfg_supplier is not None:
-            supplied = env_cfg_supplier()
-            if not isinstance(supplied, MettaGridConfig):
-                raise TypeError("env_cfg_supplier must return a MettaGridConfig")
-            return supplied.model_copy(deep=True)
-        assert env_cfg is not None
-        return env_cfg.model_copy(deep=True)
-
-    base_cfg = _clone_cfg()
-
-    def env_creator(
-        cfg: Optional[MettaGridConfig] = None,
-        buf: Optional[Any] = None,
-        seed: Optional[int] = None,
-    ):
-        target_cfg = cfg.model_copy(deep=True) if cfg is not None else _clone_cfg()
-        simulator = Simulator()
-        simulator.add_event_handler(StatsTracker(NoopStatsWriter()))
-        simulator.add_event_handler(EarlyResetHandler())
-        env_supervisor_cfg = EnvSupervisorConfig()
-        env = PufferMettaGridEnv(simulator, target_cfg, env_supervisor_cfg, buf, seed if seed is not None else 0)
-        set_buffers(env, buf)
-        return env
+    env_creator = _EnvCreator(env_cfg, env_cfg_supplier)
+    base_cfg = env_creator.clone_cfg()
 
     vecenv = pvector.make(
         env_creator,
@@ -408,19 +385,16 @@ def train(
 
             first_mission = missions_arg[0] if missions_arg else "training_facility_1"
             all_missions = " ".join(f"-m {m}" for m in (missions_arg or ["training_facility_1"]))
-            variant_args = " ".join(f"--variant {variant}" for variant in (variants_arg or []))
-            mission_and_variant_args = " ".join(filter(None, [all_missions, variant_args]))
-            first_mission_with_variants = " ".join(filter(None, [f"-m {first_mission}", variant_args]))
 
             console.print()
             console.print("To continue training this policy:", style="bold")
-            console.print(f"  [yellow]cogames train {mission_and_variant_args} -p {policy_arg}[/yellow]")
+            console.print(f"  [yellow]cogames train {all_missions} -p {policy_arg}[/yellow]")
             console.print()
             console.print("To play with this policy:", style="bold")
-            console.print(f"  [yellow]cogames play {first_mission_with_variants} -p {policy_arg}[/yellow]")
+            console.print(f"  [yellow]cogames play -m {first_mission} -p {policy_arg}[/yellow]")
             console.print()
             console.print("To evaluate this policy:", style="bold")
-            console.print(f"  [yellow]cogames eval {first_mission_with_variants} -p {policy_arg}[/yellow]")
+            console.print(f"  [yellow]cogames eval -m {first_mission} -p {policy_arg}[/yellow]")
         elif checkpoints and training_diverged:
             console.print()
             console.print(f"[yellow]Found {len(checkpoints)} checkpoint(s). The most recent may be corrupted.[/yellow]")
@@ -431,3 +405,39 @@ def train(
 
         console.print("=" * 80, style="bold green")
         console.print()
+
+
+class _EnvCreator:
+    """Picklable environment factory for vectorized training."""
+
+    def __init__(
+        self,
+        env_cfg: Optional[MettaGridConfig],
+        env_cfg_supplier: Optional[Callable[[], MettaGridConfig]],
+    ) -> None:
+        self._env_cfg = env_cfg
+        self._env_cfg_supplier = env_cfg_supplier
+
+    def clone_cfg(self) -> MettaGridConfig:
+        if self._env_cfg_supplier is not None:
+            supplied = self._env_cfg_supplier()
+            if not isinstance(supplied, MettaGridConfig):  # pragma: no cover - defensive
+                raise TypeError("env_cfg_supplier must return a MettaGridConfig")
+            return supplied.model_copy(deep=True)
+        assert self._env_cfg is not None
+        return self._env_cfg.model_copy(deep=True)
+
+    def __call__(
+        self,
+        cfg: Optional[MettaGridConfig] = None,
+        buf: Optional[Any] = None,
+        seed: Optional[int] = None,
+    ) -> PufferMettaGridEnv:
+        target_cfg = cfg.model_copy(deep=True) if cfg is not None else self.clone_cfg()
+        simulator = Simulator()
+        simulator.add_event_handler(StatsTracker(NoopStatsWriter()))
+        simulator.add_event_handler(EarlyResetHandler())
+        env_supervisor_cfg = EnvSupervisorConfig()
+        env = PufferMettaGridEnv(simulator, target_cfg, env_supervisor_cfg, buf, seed if seed is not None else 0)
+        set_buffers(env, buf)
+        return env

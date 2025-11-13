@@ -10,7 +10,7 @@ from pathlib import Path
 from metta.common.util.fs import cd_repo_root
 
 
-def ensure_recipe_packages(base_dir: Path = Path("experiments/recipes")) -> list[Path]:
+def ensure_recipe_packages(base_dir: Path = Path("recipes")) -> list[Path]:
     """Create __init__.py files in subdirectories missing them.
 
     Returns:
@@ -23,7 +23,7 @@ def ensure_recipe_packages(base_dir: Path = Path("experiments/recipes")) -> list
         if not subdir.is_dir() or subdir.name == "__pycache__":
             continue
 
-        # Skip if it's experiments/recipes itself
+        # Skip if it's recipes itself
         if subdir == base_dir:
             continue
 
