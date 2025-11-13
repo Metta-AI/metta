@@ -104,6 +104,7 @@ type
     vibe*: int
     visitationCounts*: int
     compass*: int
+    orientation*: int
     tag*: int
     cooldownRemaining*: int
     clipped*: int
@@ -217,6 +218,8 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
         result.features.visitationCounts = feature.id
       of "agent:compass":
         result.features.compass = feature.id
+      of "agent:orientation":
+        result.features.orientation = feature.id
       of "tag":
         result.features.tag = feature.id
       of "cooldown_remaining":
