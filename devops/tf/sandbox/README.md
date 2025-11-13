@@ -1,6 +1,7 @@
 # Researcher Sandbox Infrastructure
 
-AWS infrastructure for ALife 2024 researcher sandboxes - isolated environment for external researchers to run training workloads.
+AWS infrastructure for ALife 2024 researcher sandboxes - isolated environment for external researchers to run training
+workloads.
 
 ## What This Creates
 
@@ -14,6 +15,7 @@ AWS infrastructure for ALife 2024 researcher sandboxes - isolated environment fo
 ### 1. Deploy via Spacelift
 
 Create stack in [Spacelift UI](https://metta-ai.app.spacelift.io/):
+
 - Name: `sandbox`
 - Project root: `devops/tf/sandbox`
 - Integration: `softmax-aws`
@@ -28,12 +30,12 @@ cd devops/tf/sandbox
 ```
 
 This takes ~20 minutes and:
+
 - Gets VPC/subnet/security group from Spacelift outputs
 - Launches temp g5.12xlarge instance
 - Installs Docker, NVIDIA drivers, Python 3.12, cogames CLI, mettagrid package
 - Creates AMI
 - Cleans up automatically
-
 
 ## Configuration
 
@@ -46,16 +48,13 @@ vpc_cidr  = "10.100.0.0/16"
 
 ## Key Security Features
 
-Isolated VPC (no connection to production)
-No S3 access (researchers use `cogames submit`)
-Region-scoped to us-east-1
-IMDSv2 enforced
-Instances cannot launch instances or modify IAM
-Pod Identity for FastAPI (no access keys)
+Isolated VPC (no connection to production) No S3 access (researchers use `cogames submit`) Region-scoped to us-east-1
+IMDSv2 enforced Instances cannot launch instances or modify IAM Pod Identity for FastAPI (no access keys)
 
 ## Outputs
 
 Key outputs for FastAPI service:
+
 - `vpc_id`, `public_subnet_ids`, `security_group_id`
 - `instance_profile_name` - for EC2 instance launches
 - `sandbox_manager_role_arn` - for Pod Identity association
@@ -63,6 +62,7 @@ Key outputs for FastAPI service:
 ## Troubleshooting
 
 **GPU not working after AMI build:**
+
 ```bash
 # SSH into instance
 ubuntu-drivers devices
@@ -71,6 +71,7 @@ sudo reboot
 ```
 
 **Docker can't access GPU:**
+
 ```bash
 sudo nvidia-ctk runtime configure --runtime=docker
 sudo systemctl restart docker

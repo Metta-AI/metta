@@ -25,8 +25,8 @@ echo ""
 
 # Ensure running as ubuntu user
 if [ "$USER" != "ubuntu" ]; then
-    echo "Error: This script must be run as 'ubuntu' user"
-    exit 1
+  echo "Error: This script must be run as 'ubuntu' user"
+  exit 1
 fi
 
 # Update system
@@ -37,40 +37,43 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
 # Install Docker
 echo "[2/7] Installing Docker..."
 if ! command -v docker &> /dev/null; then
-    curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
-    sudo sh /tmp/get-docker.sh
-    sudo usermod -aG docker ubuntu
-    rm /tmp/get-docker.sh
-    echo "Docker installed successfully"
+  curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
+  sudo sh /tmp/get-docker.sh
+  sudo usermod -aG docker ubuntu
+  rm /tmp/get-docker.sh
+  echo "Docker installed successfully"
 else
-    echo "Docker already installed"
+  echo "Docker already installed"
 fi
 
 # Install NVIDIA drivers
 echo "[3/7] Installing NVIDIA GPU drivers..."
 if ! command -v nvidia-smi &> /dev/null; then
-    sudo apt-get install -y nvidia-driver-535 nvidia-utils-535
-    echo "NVIDIA drivers installed (will be active after reboot)"
+  sudo apt-get install -y nvidia-driver-535 nvidia-utils-535
+  echo "NVIDIA drivers installed (will be active after reboot)"
 else
-    echo "NVIDIA drivers already installed"
-    nvidia-smi
+  echo "NVIDIA drivers already installed"
+  nvidia-smi
 fi
 
 # Install NVIDIA Container Toolkit
 echo "[4/7] Installing NVIDIA Container Toolkit..."
 if ! dpkg -l | grep -q nvidia-container-toolkit; then
-    distribution=$(. /etc/os-release; echo $ID$VERSION_ID)
-    curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-    curl -s -L https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list | \
-        sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
-        sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
-    sudo apt-get update
-    sudo apt-get install -y nvidia-container-toolkit
-    sudo nvidia-ctk runtime configure --runtime=docker
-    sudo systemctl restart docker
-    echo "NVIDIA Container Toolkit installed"
+  distribution=$(
+    . /etc/os-release
+    echo $ID$VERSION_ID
+  )
+  curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+  curl -s -L https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list \
+    | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
+    | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+  sudo apt-get update
+  sudo apt-get install -y nvidia-container-toolkit
+  sudo nvidia-ctk runtime configure --runtime=docker
+  sudo systemctl restart docker
+  echo "NVIDIA Container Toolkit installed"
 else
-    echo "NVIDIA Container Toolkit already installed"
+  echo "NVIDIA Container Toolkit already installed"
 fi
 
 # Install Python and uv
@@ -80,12 +83,12 @@ sudo add-apt-repository -y ppa:deadsnakes/ppa
 sudo apt-get update
 sudo apt-get install -y python3.12 python3.12-venv python3-pip git
 if ! command -v uv &> /dev/null; then
-    curl -LsSf https://astral.sh/uv/install.sh | sh
-    # Add uv to PATH for current session
-    export PATH="$HOME/.cargo/bin:$PATH"
-    echo "uv installed successfully"
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  # Add uv to PATH for current session
+  export PATH="$HOME/.cargo/bin:$PATH"
+  echo "uv installed successfully"
 else
-    echo "uv already installed"
+  echo "uv already installed"
 fi
 
 # Install cogames and mettagrid packages
@@ -94,18 +97,18 @@ cd /home/ubuntu
 
 # Install cogames CLI and mettagrid environment
 if ! ~/.cargo/bin/uv tool list | grep -q cogames; then
-    echo "Installing cogames CLI..."
-    ~/.cargo/bin/uv tool install cogames
+  echo "Installing cogames CLI..."
+  ~/.cargo/bin/uv tool install cogames
 else
-    echo "cogames already installed"
+  echo "cogames already installed"
 fi
 
 # Install mettagrid Python package for training
-if ! python3.12 -c "import mettagrid" 2>/dev/null; then
-    echo "Installing mettagrid package..."
-    ~/.cargo/bin/uv pip install mettagrid
+if ! python3.12 -c "import mettagrid" 2> /dev/null; then
+  echo "Installing mettagrid package..."
+  ~/.cargo/bin/uv pip install mettagrid
 else
-    echo "mettagrid already installed"
+  echo "mettagrid already installed"
 fi
 
 # Create welcome message
