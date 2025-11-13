@@ -3,11 +3,11 @@
 import ctypes
 from abc import abstractmethod
 from pathlib import Path
-from typing import Generic, Optional, Sequence, Tuple, TypeVar
+from typing import Any, Generic, Optional, Sequence, Tuple, TypeVar
 
 import numpy as np
 import torch.nn as nn
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from mettagrid.mettagrid_c import dtype_actions, dtype_observations
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
@@ -72,7 +72,7 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
 
     short_names: list[str] | None = None
 
-    def __init__(self, policy_env_info: PolicyEnvInterface):
+    def __init__(self, policy_env_info: PolicyEnvInterface, **kwargs: Any):
         self._policy_env_info = policy_env_info
         self._actions = policy_env_info.actions
 
@@ -374,21 +374,17 @@ class TrainablePolicy(MultiAgentPolicy):
 class PolicySpec(BaseModel):
     """Specification for a policy used during evaluation."""
 
-    # Path to policy class, or shorthand
-    policy_class_path: str
+    class_path: str = Field(description="Local path to policy class, or shorthand")
 
-    # Path to policy weights, if applicable
-    policy_data_path: Optional[str]
+    data_path: Optional[str] = Field(default=None, description="Local file path to policy weights, if applicable")
 
-    # Proportion of total agents to assign to this policy
-    proportion: float = 1.0
+    init_kwargs: dict[str, Any] = Field(default_factory=dict)
 
     @property
     def name(self) -> str:
-        """Get the name of the policy."""
         parts = [
-            self.policy_class_path.split(".")[-1],
+            self.class_path.split(".")[-1],
         ]
-        if self.policy_data_path:
-            parts.append(Path(self.policy_data_path).name)
+        if self.data_path:
+            parts.append(Path(self.data_path).name)
         return "-".join(parts)

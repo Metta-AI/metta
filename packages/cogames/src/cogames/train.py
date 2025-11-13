@@ -23,7 +23,7 @@ from mettagrid.policy.loader import (
     initialize_or_load_policy,
     resolve_policy_data_path,
 )
-from mettagrid.policy.policy import TrainablePolicy
+from mettagrid.policy.policy import PolicySpec, TrainablePolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Simulator
 from mettagrid.util.stats_writer import NoopStatsWriter
@@ -202,8 +202,10 @@ def train(
 
     policy = initialize_or_load_policy(
         PolicyEnvInterface.from_mg_cfg(vecenv.driver_env.env_cfg),
-        policy_class_path=policy_class_path,
-        policy_data_path=resolved_initial_weights,
+        PolicySpec(
+            class_path=policy_class_path,
+            data_path=resolved_initial_weights,
+        ),
     )
     assert isinstance(policy, TrainablePolicy), (
         f"Policy class {policy_class_path} must implement TrainablePolicy interface"
