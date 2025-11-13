@@ -507,12 +507,20 @@ class Curriculum(StatsLogger):
             # NOTE: This undercounts if tasks have been evicted!
             num_completed = float(sum(task._num_completions for task in self._tasks.values()))
 
+        # Get num_active_tasks from task tracker if using shared memory, otherwise from local dict
+        # This is critical when using shared memory - self._tasks may be sparse but TaskTracker
+        # has the full set of active tasks across all workers
+        if self._algorithm is not None and hasattr(self._algorithm, "task_tracker"):
+            num_active_tasks = float(len(self._algorithm.task_tracker.get_all_tracked_tasks()))
+        else:
+            num_active_tasks = float(len(self._tasks))
+
         base_stats: Dict[str, float] = {
             "num_created": float(self._num_created),
             "num_evicted": float(self._num_evicted),
             "num_completed": num_completed,
             "num_scheduled": float(sum(task._num_scheduled for task in self._tasks.values())),
-            "num_active_tasks": float(len(self._tasks)),
+            "num_active_tasks": num_active_tasks,
         }
 
         # Include algorithm stats if available
