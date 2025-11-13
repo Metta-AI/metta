@@ -129,12 +129,15 @@ class SharedMemoryBackend(TaskMemoryBackend):
             session_id: Unique identifier for this shared memory session.
                        All processes sharing state must use the same session_id.
                        If None, creates a unique session (not shared across processes).
+                       NOTE: When using LearningProgressConfig with use_shared_memory=True,
+                       session_id is auto-generated at config creation time and shared across
+                       all processes, so this fallback should rarely be used.
             task_struct_size: Size of each task's data structure (default: 13, includes ema_squared)
         """
         self.max_tasks = max_tasks
         self.task_struct_size = task_struct_size
 
-        # Generate session ID if not provided
+        # Generate session ID if not provided (fallback for non-config usage)
         if session_id is None:
             import uuid
 

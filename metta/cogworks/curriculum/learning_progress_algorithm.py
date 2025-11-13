@@ -6,9 +6,11 @@ using fast and slow exponential moving averages to detect learning opportunities
 """
 
 import random
+import uuid
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+from pydantic import model_validator
 
 from .curriculum import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask
 from .lp_scorers import BasicLPScorer, BidirectionalLPScorer, LPScorer
@@ -74,10 +76,24 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     task_struct_size: int = 13  # Size of task data structure in shared memory (includes ema_squared)
     enable_detailed_slice_logging: bool = False  # Updated terminology
     use_shared_memory: bool = True  # Enabled by default for production use
-    session_id: Optional[str] = None  # Session ID for shared memory, None = auto-generate unique
+    session_id: Optional[str] = None  # Session ID for shared memory, None = auto-generate shared ID
 
     # Logging configuration
     show_curriculum_troubleshooting_logging: bool = False  # Show high-cardinality per-task metrics for debugging
+
+    @model_validator(mode="after")
+    def _ensure_session_id(self) -> "LearningProgressConfig":
+        """Generate a shared session_id if not provided.
+
+        This ensures that when use_shared_memory=True and session_id=None,
+        a session_id is generated ONCE in the main process and then shared
+        across all worker processes via pickling.
+        """
+        if self.use_shared_memory and self.session_id is None:
+            # Generate a unique session ID that will be shared across processes
+            # This happens once at config creation time, before pickling
+            self.session_id = f"lp_{uuid.uuid4().hex[:8]}"
+        return self
 
     def algorithm_type(self) -> str:
         return "learning_progress"
