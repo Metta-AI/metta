@@ -169,7 +169,7 @@ proc step*(
   discard numActions
   raceCarStepInternal(agent, numTokens, sizeToken, rawObservation, agentAction)
 
-proc newRaceCarPolicy*(environmentConfig: string): RaceCarPolicy {.raises: [JsonError, ValueError].} =
+proc newRaceCarPolicy*(environmentConfig: string): RaceCarPolicy {.raises: [CatchableError].} =
   let cfg = parseConfig(environmentConfig)
   var agents: seq[RaceCarAgent] = @[]
   for id in 0 ..< cfg.config.numAgents:

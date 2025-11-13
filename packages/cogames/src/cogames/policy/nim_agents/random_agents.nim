@@ -40,7 +40,7 @@ proc step*(
   agentAction[] = action
   # echo "  RandomAgent taking action: ", action
 
-proc newRandomPolicy*(environmentConfig: string): RandomPolicy {.raises: [JsonError, ValueError].} =
+proc newRandomPolicy*(environmentConfig: string): RandomPolicy {.raises: [CatchableError].} =
   let cfg = parseConfig(environmentConfig)
   var agents: seq[RandomAgent] = @[]
   for id in 0 ..< cfg.config.numAgents:
