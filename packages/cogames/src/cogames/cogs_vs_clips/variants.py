@@ -1,4 +1,4 @@
-from typing import Iterable, override
+from typing import Iterable, Sequence, override
 
 from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_VARIANTS
 from cogames.cogs_vs_clips.mission import MissionVariant
@@ -122,7 +122,7 @@ class EnergizedVariant(MissionVariant):
 class ResourceBottleneckVariant(MissionVariant):
     name: str = "resource_bottleneck"
     description: str = "A resource is the limiting factor. Agents must prioritize it over other resources."
-    resource: Iterable[str] | str = ("oxygen", "germanium", "silicon", "carbon")
+    resource: Sequence[str] | str = ("oxygen", "germanium", "silicon", "carbon")
 
     @override
     def modify_mission(self, mission):
