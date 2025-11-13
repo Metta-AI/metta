@@ -4,9 +4,10 @@ Observatory MCP Server Utilities
 Helper functions for error handling, response formatting, and data transformation.
 """
 
-import json
 import logging
 from typing import Any
+
+from observatory_mcp.models import ErrorResponse, SuccessResponse
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ def format_success_response(data: Any) -> str:
     Returns:
         JSON string with success response
     """
-    return json.dumps({"status": "success", "data": data}, indent=2, default=str)
+    return SuccessResponse(data=data).model_dump_json(indent=2, exclude_none=True)
 
 
 def format_error_response(error: Exception, tool_name: str, context: str | None = None) -> str:
@@ -34,12 +35,9 @@ def format_error_response(error: Exception, tool_name: str, context: str | None 
     Returns:
         JSON string with error information
     """
-    error_data = {"status": "error", "tool": tool_name, "message": str(error), "error_type": type(error).__name__}
-
-    if context:
-        error_data["context"] = context
-
-    return json.dumps(error_data, indent=2)
+    return ErrorResponse(
+        tool=tool_name, message=str(error), error_type=type(error).__name__, context=context
+    ).model_dump_json(indent=2, exclude_none=True)
 
 
 def handle_backend_error(error: Exception, tool_name: str) -> str:

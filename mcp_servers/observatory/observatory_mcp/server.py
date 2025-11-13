@@ -26,8 +26,59 @@ except ImportError:
 from metta.adaptive.stores.wandb import WandbStore
 from metta.app_backend.clients.scorecard_client import ScorecardClient
 from metta.utils.s3 import S3Store
+from pydantic import BaseModel, ValidationError
 
 from .config import ObservatoryMCPConfig
+from .descriptions import MCP_TOOL_DESCRIPTIONS
+from metta.app_backend.routes.scorecard_routes import (
+    EvalsRequest,
+    MetricsRequest,
+    PoliciesSearchRequest,
+)
+from metta.app_backend.routes.sql_routes import AIQueryRequest
+from .models import (
+    AnalyzeS3CheckpointProgressionInput,
+    AnalyzeS3CheckpointUsageInput,
+    AnalyzeSkypilotJobFailuresInput,
+    AnalyzeSkypilotJobPerformanceInput,
+    AnalyzeWandbBehavioralPatternsInput,
+    AnalyzeWandbLearningCurvesInput,
+    AnalyzeWandbTrainingProgressionInput,
+    CheckS3ObjectExistsInput,
+    CompareS3CheckpointsAcrossRunsInput,
+    CompareSkypilotJobConfigsInput,
+    CompareWandbRunsInput,
+    CorrelateWandbMetricsInput,
+    DiscoverWandbRunMetricsInput,
+    ErrorResponse,
+    FindBestS3CheckpointInput,
+    GenerateScorecardInput,
+    GenerateWandbTrainingInsightsInput,
+    GetS3CheckpointMetadataInput,
+    GetS3CheckpointStatisticsInput,
+    GetS3CheckpointUrlInput,
+    GetSkypilotJobCostEstimatesInput,
+    GetSkypilotJobLogsInput,
+    GetSkypilotJobStatusInput,
+    GetSkypilotResourceUtilizationInput,
+    GetWandbRunArtifactsInput,
+    GetWandbRunInput,
+    GetWandbRunLogsInput,
+    GetWandbRunMetricsInput,
+    IdentifyWandbCriticalMomentsInput,
+    LinkS3CheckpointToSkypilotJobInput,
+    LinkS3CheckpointToWandbRunInput,
+    LinkSkypilotJobToS3CheckpointsInput,
+    LinkSkypilotJobToWandbRunsInput,
+    LinkWandbRunToS3CheckpointsInput,
+    LinkWandbRunToSkypilotJobInput,
+    ListS3CheckpointsInput,
+    ListS3ReplaysInput,
+    ListSkypilotJobsInput,
+    ListWandbRunsInput,
+    PredictWandbTrainingOutcomeInput,
+    RunSqlQueryInput,
+)
 from .tools import s3, scorecard, skypilot, wandb
 
 logger = logging.getLogger(__name__)
@@ -131,854 +182,136 @@ class ObservatoryMCPServer:
             f"skypilot={'enabled' if self.config.skypilot_url else 'disabled'})"
         )
 
+    def _pydantic_to_mcp_schema(self, model: type[BaseModel]) -> Dict[str, Any]:
+        """Convert Pydantic model to MCP inputSchema format.
+
+        Args:
+            model: Pydantic model class
+
+        Returns:
+            Dictionary representing the MCP inputSchema
+        """
+        schema = model.model_json_schema()
+        properties = schema.get("properties", {})
+        required = schema.get("required", [])
+
+        mcp_schema = {
+            "type": "object",
+            "properties": {},
+            "required": required,
+        }
+
+        for prop_name, prop_info in properties.items():
+            mcp_prop = {"type": prop_info.get("type"), "description": prop_info.get("description", "")}
+
+            if "enum" in prop_info:
+                mcp_prop["enum"] = prop_info["enum"]
+            if "default" in prop_info:
+                mcp_prop["default"] = prop_info["default"]
+            if "minimum" in prop_info:
+                mcp_prop["minimum"] = prop_info["minimum"]
+            if "maximum" in prop_info:
+                mcp_prop["maximum"] = prop_info["maximum"]
+            if prop_info.get("type") == "array":
+                items = prop_info.get("items", {})
+                if isinstance(items, dict):
+                    mcp_prop["items"] = {"type": items.get("type", "string")}
+                else:
+                    mcp_prop["items"] = items
+
+            mcp_schema["properties"][prop_name] = mcp_prop
+
+        return mcp_schema
+
+    def _create_error_response(self, message: str, tool_name: str | None = None) -> str:
+        """Create error response JSON string.
+
+        Args:
+            message: Error message
+            tool_name: Optional tool name
+
+        Returns:
+            JSON string with error response
+        """
+        return ErrorResponse(tool=tool_name, message=message).model_dump_json(indent=2, exclude_none=True)
+
+    def _get_tool_input_models(self) -> Dict[str, type[BaseModel] | None]:
+        """Get mapping of tool names to their input models.
+
+        Returns:
+            Dictionary mapping tool names to input model classes (None for tools with no inputs)
+        """
+        return {
+            "get_training_runs": None,
+            "get_policies": None,
+            "search_policies": PoliciesSearchRequest,
+            "get_eval_names": EvalsRequest,
+            "get_available_metrics": MetricsRequest,
+            "generate_scorecard": GenerateScorecardInput,
+            "run_sql_query": RunSqlQueryInput,
+            "generate_ai_query": AIQueryRequest,
+            "list_wandb_runs": ListWandbRunsInput,
+            "get_wandb_run": GetWandbRunInput,
+            "get_wandb_run_metrics": GetWandbRunMetricsInput,
+            "discover_wandb_run_metrics": DiscoverWandbRunMetricsInput,
+            "get_wandb_run_artifacts": GetWandbRunArtifactsInput,
+            "get_wandb_run_logs": GetWandbRunLogsInput,
+            "analyze_wandb_training_progression": AnalyzeWandbTrainingProgressionInput,
+            "compare_wandb_runs": CompareWandbRunsInput,
+            "analyze_wandb_learning_curves": AnalyzeWandbLearningCurvesInput,
+            "identify_wandb_critical_moments": IdentifyWandbCriticalMomentsInput,
+            "correlate_wandb_metrics": CorrelateWandbMetricsInput,
+            "analyze_wandb_behavioral_patterns": AnalyzeWandbBehavioralPatternsInput,
+            "generate_wandb_training_insights": GenerateWandbTrainingInsightsInput,
+            "predict_wandb_training_outcome": PredictWandbTrainingOutcomeInput,
+            "list_s3_checkpoints": ListS3CheckpointsInput,
+            "get_s3_checkpoint_metadata": GetS3CheckpointMetadataInput,
+            "get_s3_checkpoint_url": GetS3CheckpointUrlInput,
+            "list_s3_replays": ListS3ReplaysInput,
+            "check_s3_object_exists": CheckS3ObjectExistsInput,
+            "list_skypilot_jobs": ListSkypilotJobsInput,
+            "get_skypilot_job_status": GetSkypilotJobStatusInput,
+            "get_skypilot_job_logs": GetSkypilotJobLogsInput,
+            "analyze_s3_checkpoint_progression": AnalyzeS3CheckpointProgressionInput,
+            "find_best_s3_checkpoint": FindBestS3CheckpointInput,
+            "analyze_s3_checkpoint_usage": AnalyzeS3CheckpointUsageInput,
+            "get_s3_checkpoint_statistics": GetS3CheckpointStatisticsInput,
+            "compare_s3_checkpoints_across_runs": CompareS3CheckpointsAcrossRunsInput,
+            "analyze_skypilot_job_performance": AnalyzeSkypilotJobPerformanceInput,
+            "get_skypilot_resource_utilization": GetSkypilotResourceUtilizationInput,
+            "compare_skypilot_job_configs": CompareSkypilotJobConfigsInput,
+            "analyze_skypilot_job_failures": AnalyzeSkypilotJobFailuresInput,
+            "get_skypilot_job_cost_estimates": GetSkypilotJobCostEstimatesInput,
+            "link_wandb_run_to_s3_checkpoints": LinkWandbRunToS3CheckpointsInput,
+            "link_wandb_run_to_skypilot_job": LinkWandbRunToSkypilotJobInput,
+            "link_s3_checkpoint_to_wandb_run": LinkS3CheckpointToWandbRunInput,
+            "link_s3_checkpoint_to_skypilot_job": LinkS3CheckpointToSkypilotJobInput,
+            "link_skypilot_job_to_wandb_runs": LinkSkypilotJobToWandbRunsInput,
+            "link_skypilot_job_to_s3_checkpoints": LinkSkypilotJobToS3CheckpointsInput,
+        }
+
+
     def _setup_tools(self) -> None:
         """Register all MCP tools with the server."""
 
         @self.app.list_tools()
         async def list_tools() -> List[types.Tool]:
-            return [
-                types.Tool(
-                    name="get_training_runs",
-                    description=(
-                        "Get all training runs from the backend. "
-                        "Returns training runs along with their metadata "
-                        "(name, created_at, tags, etc.)."
-                    ),
-                    inputSchema={
-                        "type": "object",
-                        "properties": {},
-                        "required": [],
-                    },
-                ),
-                types.Tool(
-                    name="get_policies",
-                    description=(
-                        "Get all policies and training runs from the backend. "
-                        "Returns both training runs and standalone (run-free) policies."
-                    ),
-                    inputSchema={
-                        "type": "object",
-                        "properties": {},
-                        "required": [],
-                    },
-                ),
-                types.Tool(
-                    name="search_policies",
-                    description=(
-                        "Search policies with filtering and pagination. "
-                        "Supports filtering by name, type, tags, and user ID."
-                    ),
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "search": {
-                                "type": "string",
-                                "description": "Search term for policy names (case-insensitive partial match)",
-                            },
-                            "policy_type": {
-                                "type": "string",
-                                "enum": ["training_run", "policy"],
-                                "description": "Filter by policy type: 'training_run' or 'policy'",
-                            },
-                            "tags": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "Filter by tags (policies must have at least one matching tag)",
-                            },
-                            "user_id": {
-                                "type": "string",
-                                "description": "Filter by user ID",
-                            },
-                            "limit": {
-                                "type": "integer",
-                                "description": "Maximum number of results (1-1000)",
-                                "default": 100,
-                                "minimum": 1,
-                                "maximum": 1000,
-                            },
-                            "offset": {
-                                "type": "integer",
-                                "description": "Number of results to skip",
-                                "default": 0,
-                                "minimum": 0,
-                            },
-                        },
-                        "required": [],
-                    },
-                ),
-                types.Tool(
-                    name="get_eval_names",
-                    description=(
-                        "Get available evaluation names for selected training runs and policies. "
-                        "Returns list of eval names in format 'eval_category/env_name'."
-                    ),
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "training_run_ids": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "List of training run IDs",
-                            },
-                            "run_free_policy_ids": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "List of run-free policy IDs",
-                            },
-                        },
-                        "required": ["training_run_ids", "run_free_policy_ids"],
-                    },
-                ),
-                types.Tool(
-                    name="get_available_metrics",
-                    description=(
-                        "Get available metrics for selected policies and evaluations. "
-                        "Returns list of metric names that can be used for scorecard generation."
-                    ),
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "training_run_ids": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "List of training run IDs",
-                            },
-                            "run_free_policy_ids": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "List of run-free policy IDs",
-                            },
-                            "eval_names": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "List of evaluation names (format: 'eval_category/env_name')",
-                            },
-                        },
-                        "required": ["training_run_ids", "run_free_policy_ids", "eval_names"],
-                    },
-                ),
-                types.Tool(
-                    name="generate_scorecard",
-                    description=(
-                        "Generate scorecard (heatmap) data showing policy performance "
-                        "across evaluations for a specific metric. "
-                        "Creates a 2D grid of policy vs evaluation performance."
-                    ),
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "training_run_ids": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "List of training run IDs",
-                            },
-                            "run_free_policy_ids": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "List of run-free policy IDs",
-                            },
-                            "eval_names": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "List of evaluation names (format: 'eval_category/env_name')",
-                            },
-                            "metric": {
-                                "type": "string",
-                                "description": (
-                                    "Metric to use for scorecard (e.g., 'reward', 'score', 'episode_length')"
-                                ),
-                            },
-                            "policy_selector": {
-                                "type": "string",
-                                "enum": ["best", "latest"],
-                                "description": (
-                                    "Policy selection strategy for training runs: "
-                                    "'best' (best performing) or 'latest' (most recent)"
-                                ),
-                                "default": "best",
-                            },
-                        },
-                        "required": ["training_run_ids", "run_free_policy_ids", "eval_names", "metric"],
-                    },
-                ),
-                types.Tool(
-                    name="run_sql_query",
-                    description=(
-                        "Execute SQL query against the backend database. "
-                        "The query is validated and executed by the backend API. "
-                        "Returns query results with columns and rows."
-                    ),
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "sql": {
-                                "type": "string",
-                                "description": "SQL query string to execute",
-                            },
-                        },
-                        "required": ["sql"],
-                    },
-                ),
-                types.Tool(
-                    name="generate_ai_query",
-                    description=(
-                        "Generate SQL query from natural language description using AI. "
-                        "Converts a natural language description into a SQL query "
-                        "that can be executed against the backend database."
-                    ),
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "description": {
-                                "type": "string",
-                                "description": (
-                                    "Natural language description of desired query "
-                                    "(e.g., 'Get all training runs created in the last week')"
-                                ),
-                            },
-                        },
-                        "required": ["description"],
-                    },
-                ),
-                types.Tool(
-                    name="list_wandb_runs",
-                    description="List WandB runs for entity/project with optional filters (tags, state).",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "entity": {"type": "string", "description": "WandB entity (user/team)"},
-                            "project": {"type": "string", "description": "WandB project name"},
-                            "tags": {"type": "array", "items": {"type": "string"}, "description": "Filter by tags"},
-                            "state": {
-                                "type": "string",
-                                "enum": ["running", "finished", "crashed", "killed"],
-                                "description": "Filter by state",
-                            },
-                            "limit": {
-                                "type": "integer",
-                                "description": "Maximum number of runs to return",
-                                "default": 50,
-                            },
-                        },
-                        "required": ["entity", "project"],
-                    },
-                ),
-                types.Tool(
-                    name="get_wandb_run",
-                    description="Get detailed information about a specific WandB run.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "entity": {"type": "string", "description": "WandB entity (user/team)"},
-                            "project": {"type": "string", "description": "WandB project name"},
-                            "run_id": {"type": "string", "description": "WandB run ID (preferred if available)"},
-                            "run_name": {
-                                "type": "string",
-                                "description": "WandB run name (used if run_id not provided)",
-                            },
-                        },
-                        "required": ["entity", "project"],
-                    },
-                ),
-                types.Tool(
-                    name="get_wandb_run_metrics",
-                    description="Get metric time series data for a WandB run.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "entity": {"type": "string", "description": "WandB entity (user/team)"},
-                            "project": {"type": "string", "description": "WandB project name"},
-                            "run_id": {"type": "string", "description": "WandB run ID"},
-                            "metric_keys": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "List of metric names to fetch",
-                            },
-                            "samples": {"type": "integer", "description": "Optional limit on number of samples"},
-                        },
-                        "required": ["entity", "project", "run_id", "metric_keys"],
-                    },
-                ),
-                types.Tool(
-                    name="discover_wandb_run_metrics",
-                    description=(
-                        "Discover available metrics for a WandB run by sampling its history and summary. "
-                        "Useful when you don't know what metrics are logged in a run."
-                    ),
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "entity": {"type": "string", "description": "WandB entity (user/team)"},
-                            "project": {"type": "string", "description": "WandB project name"},
-                            "run_id": {"type": "string", "description": "WandB run ID"},
-                        },
-                        "required": ["entity", "project", "run_id"],
-                    },
-                ),
-                types.Tool(
-                    name="get_wandb_run_artifacts",
-                    description="Get list of artifacts for a WandB run.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "entity": {"type": "string", "description": "WandB entity (user/team)"},
-                            "project": {"type": "string", "description": "WandB project name"},
-                            "run_id": {"type": "string", "description": "WandB run ID"},
-                        },
-                        "required": ["entity", "project", "run_id"],
-                    },
-                ),
-                types.Tool(
-                    name="get_wandb_run_logs",
-                    description="Get logs for a WandB run.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "entity": {"type": "string", "description": "WandB entity (user/team)"},
-                            "project": {"type": "string", "description": "WandB project name"},
-                            "run_id": {"type": "string", "description": "WandB run ID"},
-                        },
-                        "required": ["entity", "project", "run_id"],
-                    },
-                ),
-                types.Tool(
-                    name="analyze_wandb_training_progression",
-                    description=(
-                        "Analyze training progression for a WandB run with "
-                        "learning velocity, stability, and critical moments."
-                    ),
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "entity": {"type": "string", "description": "WandB entity (user/team)"},
-                            "project": {"type": "string", "description": "WandB project name"},
-                            "run_id": {"type": "string", "description": "WandB run ID"},
-                            "metric_keys": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "List of metric keys to analyze",
-                            },
-                            "context_window_steps": {
-                                "type": "integer",
-                                "description": "Number of steps to analyze around center",
-                                "default": 1000,
-                            },
-                            "center_step": {
-                                "type": "integer",
-                                "description": "Optional center step (defaults to middle of data)",
-                            },
-                        },
-                        "required": ["entity", "project", "run_id", "metric_keys"],
-                    },
-                ),
-                types.Tool(
-                    name="compare_wandb_runs",
-                    description="Compare multiple WandB runs across specified metrics.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "entity": {"type": "string", "description": "WandB entity (user/team)"},
-                            "project": {"type": "string", "description": "WandB project name"},
-                            "run_ids": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "List of WandB run IDs to compare",
-                            },
-                            "metric_keys": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "List of metric keys to compare",
-                            },
-                        },
-                        "required": ["entity", "project", "run_ids", "metric_keys"],
-                    },
-                ),
-                types.Tool(
-                    name="analyze_wandb_learning_curves",
-                    description="Analyze learning curves for trends, convergence, and plateaus.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "entity": {"type": "string", "description": "WandB entity (user/team)"},
-                            "project": {"type": "string", "description": "WandB project name"},
-                            "run_id": {"type": "string", "description": "WandB run ID"},
-                            "metric_keys": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "List of metric keys to analyze",
-                            },
-                            "smoothing_window": {
-                                "type": "integer",
-                                "description": "Window size for smoothing",
-                                "default": 10,
-                            },
-                        },
-                        "required": ["entity", "project", "run_id", "metric_keys"],
-                    },
-                ),
-                types.Tool(
-                    name="identify_wandb_critical_moments",
-                    description="Identify critical moments in training (breakthroughs, drops, plateaus).",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "entity": {"type": "string", "description": "WandB entity (user/team)"},
-                            "project": {"type": "string", "description": "WandB project name"},
-                            "run_id": {"type": "string", "description": "WandB run ID"},
-                            "metric_keys": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "List of metric keys to analyze",
-                            },
-                            "threshold": {
-                                "type": "number",
-                                "description": "Threshold for detecting significant changes",
-                                "default": 0.1,
-                            },
-                        },
-                        "required": ["entity", "project", "run_id", "metric_keys"],
-                    },
-                ),
-                types.Tool(
-                    name="correlate_wandb_metrics",
-                    description="Calculate correlations between metric pairs with statistical significance.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "entity": {"type": "string", "description": "WandB entity (user/team)"},
-                            "project": {"type": "string", "description": "WandB project name"},
-                            "run_id": {"type": "string", "description": "WandB run ID"},
-                            "metric_pairs": {
-                                "type": "array",
-                                "items": {"type": "array", "items": {"type": "string"}},
-                                "description": "List of [metric1, metric2] pairs to correlate",
-                            },
-                        },
-                        "required": ["entity", "project", "run_id", "metric_pairs"],
-                    },
-                ),
-                types.Tool(
-                    name="analyze_wandb_behavioral_patterns",
-                    description=(
-                        "Analyze behavioral patterns including action mastery, "
-                        "resource efficiency, and strategy consistency."
-                    ),
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "entity": {"type": "string", "description": "WandB entity (user/team)"},
-                            "project": {"type": "string", "description": "WandB project name"},
-                            "run_id": {"type": "string", "description": "WandB run ID"},
-                            "behavior_categories": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "Optional list of behavior categories to analyze",
-                            },
-                        },
-                        "required": ["entity", "project", "run_id"],
-                    },
-                ),
-                types.Tool(
-                    name="generate_wandb_training_insights",
-                    description=(
-                        "Generate AI-powered training insights including achievements, "
-                        "concerning patterns, and recommendations."
-                    ),
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "entity": {"type": "string", "description": "WandB entity (user/team)"},
-                            "project": {"type": "string", "description": "WandB project name"},
-                            "run_id": {"type": "string", "description": "WandB run ID"},
-                        },
-                        "required": ["entity", "project", "run_id"],
-                    },
-                ),
-                types.Tool(
-                    name="predict_wandb_training_outcome",
-                    description="Predict training outcome including projected values and convergence estimates.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "entity": {"type": "string", "description": "WandB entity (user/team)"},
-                            "project": {"type": "string", "description": "WandB project name"},
-                            "run_id": {"type": "string", "description": "WandB run ID"},
-                            "target_metric": {
-                                "type": "string",
-                                "description": "Metric to predict (e.g., 'overview/reward')",
-                            },
-                            "projection_steps": {
-                                "type": "integer",
-                                "description": "Number of steps to project forward",
-                                "default": 1000,
-                            },
-                        },
-                        "required": ["entity", "project", "run_id", "target_metric"],
-                    },
-                ),
-                types.Tool(
-                    name="list_s3_checkpoints",
-                    description="List checkpoints in S3 bucket/prefix.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "run_name": {"type": "string", "description": "Optional training run name to filter by"},
-                            "prefix": {
-                                "type": "string",
-                                "description": "Optional S3 prefix (overrides run_name if both provided)",
-                            },
-                            "max_keys": {
-                                "type": "integer",
-                                "description": "Maximum number of objects to return",
-                                "default": 1000,
-                            },
-                        },
-                        "required": [],
-                    },
-                ),
-                types.Tool(
-                    name="get_s3_checkpoint_metadata",
-                    description="Get metadata for a specific S3 checkpoint.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "key": {"type": "string", "description": "S3 object key (full path)"},
-                        },
-                        "required": ["key"],
-                    },
-                ),
-                types.Tool(
-                    name="get_s3_checkpoint_url",
-                    description="Generate presigned URL for downloading a checkpoint.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "key": {"type": "string", "description": "S3 object key (full path)"},
-                            "expires_in": {
-                                "type": "integer",
-                                "description": "URL expiration time in seconds",
-                                "default": 3600,
-                            },
-                        },
-                        "required": ["key"],
-                    },
-                ),
-                types.Tool(
-                    name="list_s3_replays",
-                    description="List replay files in S3 bucket/prefix.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "run_name": {"type": "string", "description": "Optional training run name to filter by"},
-                            "prefix": {
-                                "type": "string",
-                                "description": "Optional S3 prefix (overrides run_name if both provided)",
-                            },
-                            "max_keys": {
-                                "type": "integer",
-                                "description": "Maximum number of objects to return",
-                                "default": 1000,
-                            },
-                        },
-                        "required": [],
-                    },
-                ),
-                types.Tool(
-                    name="check_s3_object_exists",
-                    description="Check if an S3 object exists and return metadata if it does.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "key": {"type": "string", "description": "S3 object key (full path)"},
-                        },
-                        "required": ["key"],
-                    },
-                ),
-                types.Tool(
-                    name="list_skypilot_jobs",
-                    description="List Skypilot jobs with optional status filter.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "status": {
-                                "type": "string",
-                                "enum": ["PENDING", "RUNNING", "SUCCEEDED", "FAILED", "CANCELLED"],
-                                "description": "Optional status filter",
-                            },
-                            "limit": {
-                                "type": "integer",
-                                "description": "Maximum number of jobs to return",
-                                "default": 100,
-                            },
-                        },
-                        "required": [],
-                    },
-                ),
-                types.Tool(
-                    name="get_skypilot_job_status",
-                    description="Get detailed status for a specific Skypilot job.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "job_id": {"type": "string", "description": "Skypilot job ID"},
-                        },
-                        "required": ["job_id"],
-                    },
-                ),
-                types.Tool(
-                    name="get_skypilot_job_logs",
-                    description="Get logs for a Skypilot job.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "job_id": {"type": "string", "description": "Skypilot job ID"},
-                            "tail_lines": {
-                                "type": "integer",
-                                "description": "Number of lines to return",
-                                "default": 100,
-                            },
-                        },
-                        "required": ["job_id"],
-                    },
-                ),
-                types.Tool(
-                    name="analyze_s3_checkpoint_progression",
-                    description="Analyze checkpoint progression over time for a training run.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "run_name": {"type": "string", "description": "Training run name"},
-                            "prefix": {
-                                "type": "string",
-                                "description": "Optional S3 prefix (overrides run_name if provided)",
-                            },
-                        },
-                        "required": ["run_name"],
-                    },
-                ),
-                types.Tool(
-                    name="find_best_s3_checkpoint",
-                    description="Find best checkpoint by criteria (latest, largest, smallest, earliest).",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "run_name": {"type": "string", "description": "Training run name"},
-                            "criteria": {
-                                "type": "string",
-                                "enum": ["latest", "largest", "smallest", "earliest"],
-                                "description": "Criteria to use",
-                                "default": "latest",
-                            },
-                            "prefix": {
-                                "type": "string",
-                                "description": "Optional S3 prefix (overrides run_name if provided)",
-                            },
-                        },
-                        "required": ["run_name"],
-                    },
-                ),
-                types.Tool(
-                    name="analyze_s3_checkpoint_usage",
-                    description="Analyze checkpoint usage patterns over time.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "run_name": {"type": "string", "description": "Optional training run name to filter by"},
-                            "prefix": {
-                                "type": "string",
-                                "description": "Optional S3 prefix (overrides run_name if both provided)",
-                            },
-                            "time_window_days": {
-                                "type": "integer",
-                                "description": "Time window in days to analyze",
-                                "default": 30,
-                            },
-                        },
-                        "required": [],
-                    },
-                ),
-                types.Tool(
-                    name="get_s3_checkpoint_statistics",
-                    description="Get statistics about checkpoints (count, size, epoch ranges).",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "run_name": {"type": "string", "description": "Optional training run name to filter by"},
-                            "prefix": {
-                                "type": "string",
-                                "description": "Optional S3 prefix (overrides run_name if both provided)",
-                            },
-                        },
-                        "required": [],
-                    },
-                ),
-                types.Tool(
-                    name="compare_s3_checkpoints_across_runs",
-                    description="Compare checkpoints across multiple training runs.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "run_names": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "List of training run names to compare",
-                            },
-                        },
-                        "required": ["run_names"],
-                    },
-                ),
-                types.Tool(
-                    name="analyze_skypilot_job_performance",
-                    description="Analyze job performance trends including success rates and health scores.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "limit": {
-                                "type": "integer",
-                                "description": "Maximum number of jobs to analyze",
-                                "default": 100,
-                            },
-                        },
-                        "required": [],
-                    },
-                ),
-                types.Tool(
-                    name="get_skypilot_resource_utilization",
-                    description="Get resource utilization statistics for running and pending jobs.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "limit": {
-                                "type": "integer",
-                                "description": "Maximum number of jobs to analyze",
-                                "default": 100,
-                            },
-                        },
-                        "required": [],
-                    },
-                ),
-                types.Tool(
-                    name="compare_skypilot_job_configs",
-                    description="Compare job configurations across multiple jobs.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "job_ids": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "List of job IDs to compare",
-                            },
-                        },
-                        "required": ["job_ids"],
-                    },
-                ),
-                types.Tool(
-                    name="analyze_skypilot_job_failures",
-                    description="Analyze job failure patterns including failure rates and failed job IDs.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "limit": {
-                                "type": "integer",
-                                "description": "Maximum number of jobs to analyze",
-                                "default": 100,
-                            },
-                        },
-                        "required": [],
-                    },
-                ),
-                types.Tool(
-                    name="get_skypilot_job_cost_estimates",
-                    description="Get job cost estimates for running and total jobs.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "limit": {
-                                "type": "integer",
-                                "description": "Maximum number of jobs to analyze",
-                                "default": 100,
-                            },
-                        },
-                        "required": [],
-                    },
-                ),
-                types.Tool(
-                    name="link_wandb_run_to_s3_checkpoints",
-                    description="Link a WandB run to its S3 checkpoints by matching run names.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "entity": {"type": "string", "description": "WandB entity (user/team)"},
-                            "project": {"type": "string", "description": "WandB project name"},
-                            "run_id": {"type": "string", "description": "WandB run ID"},
-                        },
-                        "required": ["entity", "project", "run_id"],
-                    },
-                ),
-                types.Tool(
-                    name="link_wandb_run_to_skypilot_job",
-                    description="Link a WandB run to its Skypilot job by matching run names.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "entity": {"type": "string", "description": "WandB entity (user/team)"},
-                            "project": {"type": "string", "description": "WandB project name"},
-                            "run_id": {"type": "string", "description": "WandB run ID"},
-                        },
-                        "required": ["entity", "project", "run_id"],
-                    },
-                ),
-                types.Tool(
-                    name="link_s3_checkpoint_to_wandb_run",
-                    description="Link an S3 checkpoint to its WandB run by extracting run name from checkpoint path.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "key": {"type": "string", "description": "S3 checkpoint key"},
-                            "entity": {"type": "string", "description": "WandB entity (user/team)"},
-                            "project": {"type": "string", "description": "WandB project name"},
-                        },
-                        "required": ["key", "entity", "project"],
-                    },
-                ),
-                types.Tool(
-                    name="link_s3_checkpoint_to_skypilot_job",
-                    description=(
-                        "Link an S3 checkpoint to its Skypilot job by extracting run name from checkpoint path."
-                    ),
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "key": {"type": "string", "description": "S3 checkpoint key"},
-                        },
-                        "required": ["key"],
-                    },
-                ),
-                types.Tool(
-                    name="link_skypilot_job_to_wandb_runs",
-                    description="Link a Skypilot job to its WandB runs by matching job names.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "job_id": {"type": "string", "description": "Skypilot job ID"},
-                            "entity": {"type": "string", "description": "WandB entity (user/team)"},
-                            "project": {"type": "string", "description": "WandB project name"},
-                        },
-                        "required": ["job_id", "entity", "project"],
-                    },
-                ),
-                types.Tool(
-                    name="link_skypilot_job_to_s3_checkpoints",
-                    description="Link a Skypilot job to its S3 checkpoints by matching job names.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "job_id": {"type": "string", "description": "Skypilot job ID"},
-                        },
-                        "required": ["job_id"],
-                    },
-                ),
-            ]
+            tool_models = self._get_tool_input_models()
+            tools = []
+            for tool_name, input_model in tool_models.items():
+                description = MCP_TOOL_DESCRIPTIONS.get(tool_name, "")
+                if input_model is None:
+                    input_schema = {"type": "object", "properties": {}, "required": []}
+                else:
+                    input_schema = self._pydantic_to_mcp_schema(input_model)
+                tools.append(
+                    types.Tool(
+                        name=tool_name,
+                        description=description,
+                        inputSchema=input_schema,
+                    )
+                )
+            return tools
 
         @self.app.call_tool()
         async def call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextContent]:
@@ -994,11 +327,18 @@ class ObservatoryMCPServer:
             logger.info(f"Tool called: {name} with arguments: {arguments}")
 
             try:
-                if name == "get_training_runs":
-                    result = await scorecard.get_training_runs(self.scorecard_client)
-                    return [types.TextContent(type="text", text=result)]
+                tool_models = self._get_tool_input_models()
+                input_model = tool_models.get(name)
 
-                elif name == "get_policies":
+                if input_model is not None:
+                    try:
+                        validated_args = input_model.model_validate(arguments)
+                        arguments = validated_args.model_dump(exclude_none=True)
+                    except ValidationError as e:
+                        error_msg = f"Validation error: {e.errors()[0]['msg']}"
+                        return [types.TextContent(type="text", text=self._create_error_response(error_msg, name))]
+
+                if name == "get_policies":
                     result = await scorecard.get_policies(self.scorecard_client)
                     return [types.TextContent(type="text", text=result)]
 
