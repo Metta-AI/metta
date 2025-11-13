@@ -1,54 +1,48 @@
 import uuid
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from metta.sim.replay_log_writer import ReplayLogWriter
 from mettagrid import MettaGridConfig
-from mettagrid.base_config import Config
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator.multi_episode_rollout import MultiEpisodeRolloutResult, multi_episode_rollout
+from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult, multi_episode_rollout
 
 
-class EnvRunConfig(Config):
+class SimulationRunConfig(BaseModel):
     env: MettaGridConfig  # noqa: F821
     num_episodes: int = Field(default=1, description="Number of episodes to run", ge=1)
+    policy_specs: Sequence[PolicySpec]
+    proportions: Sequence[float] | None = None
 
     max_action_time_ms: int | None = Field(
         default=10000, description="Maximum time (in ms) a policy is given to take an action"
     )
-    episode_tags: Optional[list[str]] = Field(default=None, description="Tags to add to each episode")
+    episode_tags: dict[str, str] = Field(default_factory=dict, description="Tags to add to each episode")
 
 
-class FullSimulationConfig(BaseModel):
-    env_run: EnvRunConfig
-    policy_specs: Sequence[PolicySpec]
-    proportions: Sequence[float] | None = None
-
-
-class SimulationRollout(BaseModel):
+class SimulationRunResult(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    env_run: EnvRunConfig
-    rollout: MultiEpisodeRolloutResult
+    run: SimulationRunConfig
+    results: MultiEpisodeRolloutResult
     replay_urls: dict[str, str]
 
 
 def run_simulations(
-    simulations: Sequence[FullSimulationConfig],
+    simulations: Sequence[SimulationRunConfig],
     replay_dir: str,
     seed: int,
     enable_replays: bool = True,
-) -> list[SimulationRollout]:
-    simulation_rollouts: list[SimulationRollout] = []
+) -> list[SimulationRunResult]:
+    simulation_rollouts: list[SimulationRunResult] = []
 
-    for full_simulation in simulations:
-        simulation = full_simulation.env_run
-        policies = full_simulation.policy_specs
-        proportions = full_simulation.proportions
+    for simulation in simulations:
+        policies = simulation.policy_specs
+        proportions = simulation.proportions
         replay_writer: ReplayLogWriter | None = None
         if enable_replays:
             replay_root = Path(replay_dir).expanduser()
@@ -75,9 +69,9 @@ def run_simulations(
         replay_urls = replay_writer.get_written_replay_urls() if replay_writer else {}
 
         simulation_rollouts.append(
-            SimulationRollout(
-                env_run=simulation,
-                rollout=rollout_result,
+            SimulationRunResult(
+                run=simulation,
+                results=rollout_result,
                 replay_urls=replay_urls,
             )
         )
