@@ -378,7 +378,7 @@ def experiment():
         subprocess.run(
             [
                 "./devops/skypilot/launch.py",
-                "experiments.recipes.assembly_lines.train",
+                "recipes.experiment.assembly_lines.train",
                 f"run=assembly_lines_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
                 "--gpus=4",

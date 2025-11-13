@@ -176,7 +176,7 @@ def sweep_architecture(sweep_name: str) -> SweepTool:
     architecture_parameter = SP.categorical("arch_type", list(ARCHITECTURES.keys()))
     return grid_search(
         name=sweep_name,
-        recipe="experiments.recipes.simple_architecture_search.basic",
+        recipe="recipes.experiment.simple_architecture_search.basic",
         train_entrypoint="train",
         eval_entrypoint="evaluate_in_sweep",
         objective="evaluator/eval_sweep/score",
