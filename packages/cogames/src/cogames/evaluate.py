@@ -5,13 +5,12 @@ from __future__ import annotations
 import json
 import re
 from collections import defaultdict
-from datetime import datetime
 from typing import Literal, Optional
 
 import numpy as np
 import typer
 import yaml  # type: ignore[import]
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 from rich.console import Console
 from rich.table import Table
 
@@ -19,7 +18,7 @@ from mettagrid import MettaGridConfig
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator.multi_episode_rollout import MultiEpisodeRolloutResult, multi_episode_rollout
+from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult, multi_episode_rollout
 
 _SKIP_STATS = [r"^action\.invalid_arg\..+$"]
 
@@ -51,8 +50,6 @@ class MissionPolicySummary(BaseModel):
 
 
 class MissionSummary(BaseModel):
-    # Name of the mission
-    mission_name: str
     # Total number of episodes simulated for this mission
     episodes: int
     # Summaries for each policy for this mission
@@ -64,24 +61,18 @@ class MissionSummary(BaseModel):
     per_episode_per_policy_avg_rewards: dict[int, list[float | None]]
 
 
-class MissionResultsSummary(BaseModel):
-    generated_at: datetime = Field(default_factory=datetime.utcnow)
-    missions: list[MissionSummary]
-
-
-def _build_results_summary(
+def build_mission_policy_summaries(
     mission_results: list[MultiEpisodeRolloutResult],
-    mission_names: list[str],
     policy_specs: list[PolicySpec],
-) -> MissionResultsSummary:
+) -> list[MissionSummary]:
     if not mission_results:
-        return MissionResultsSummary(missions=[])
+        return []
 
     policy_names = [spec.name for spec in policy_specs]
     num_policies = len(policy_specs)
     summaries: list[MissionSummary] = []
 
-    for mission_idx, mission_result in enumerate(mission_results):
+    for mission_result in mission_results:
         per_episode_assignments = mission_result.assignments
         policy_counts = (
             np.bincount(np.asarray(per_episode_assignments[0], dtype=int), minlength=num_policies)
@@ -167,7 +158,6 @@ def _build_results_summary(
 
         summaries.append(
             MissionSummary(
-                mission_name=mission_names[mission_idx],
                 episodes=transpired_episodes,
                 policy_summaries=policy_summaries,
                 avg_game_stats=avg_game_stats,
@@ -175,7 +165,7 @@ def _build_results_summary(
             )
         )
 
-    return MissionResultsSummary(missions=summaries)
+    return summaries
 
 
 def evaluate(
@@ -187,7 +177,7 @@ def evaluate(
     action_timeout_ms: int,
     seed: int = 42,
     output_format: Optional[Literal["yaml", "json"]] = None,
-) -> MissionResultsSummary:
+) -> list[MissionSummary]:
     if not missions:
         raise ValueError("At least one mission must be provided for evaluation.")
     if not policy_specs:
@@ -233,22 +223,40 @@ def evaluate(
             )
         mission_results.append(rollout_payload)
 
-    summary = _build_results_summary(mission_results, [mission_name for mission_name, _ in missions], policy_specs)
-    _output_results(console, policy_specs, summary, output_format)
+    summary = build_mission_policy_summaries(mission_results, policy_specs)
+    mission_names = [mission_name for mission_name, _ in missions]
+    _output_results(console, policy_specs, mission_names, summary, output_format)
     return summary
 
 
 def _output_results(
     console: Console,
     policy_specs: list[PolicySpec],
-    summary: MissionResultsSummary,
+    mission_names: list[str],
+    summaries: list[MissionSummary],
     output_format: Optional[Literal["yaml", "json"]],
 ) -> None:
+    mission_summaries = list(zip(mission_names, summaries, strict=True))
     if output_format:
+
+        class _NamedMissionSummary(BaseModel):
+            mission_name: str
+            mission_summary: MissionSummary
+
+        class _ToDump(BaseModel):
+            missions: list[_NamedMissionSummary]
+
+        to_dump = _ToDump(
+            missions=[
+                _NamedMissionSummary(mission_name=mission_name, mission_summary=mission)
+                for mission_name, mission in mission_summaries
+            ]
+        )
+
         if output_format == "json":
-            serialized = json.dumps(summary.model_dump(mode="json"), indent=2)
+            serialized = json.dumps(to_dump.model_dump(mode="json"), indent=2)
         else:
-            serialized = yaml.safe_dump(summary.model_dump(), sort_keys=False)
+            serialized = yaml.safe_dump(to_dump.model_dump(), sort_keys=False)
         console.print(serialized)
         return
 
@@ -266,10 +274,10 @@ def _output_results(
     assignment_table.add_column("Mission")
     assignment_table.add_column("Policy")
     assignment_table.add_column("Num Agents", justify="right")
-    for mission in summary.missions:
+    for mission_name, mission in mission_summaries:
         for policy_summary in mission.policy_summaries:
             assignment_table.add_row(
-                mission.mission_name,
+                mission_name,
                 policy_summary.policy_name,
                 str(policy_summary.agent_count),
             )
@@ -281,13 +289,13 @@ def _output_results(
         policy_table.add_column("Mission")
         policy_table.add_column("Metric")
         policy_table.add_column("Average", justify="right")
-        for mission in summary.missions:
+        for mission_name, mission in mission_summaries:
             metrics = mission.policy_summaries[i].avg_agent_metrics
             if not metrics:
-                policy_table.add_row(mission.mission_name, "-", "0.00")
+                policy_table.add_row(mission_name, "-", "0.00")
                 continue
             for key, value in metrics.items():
-                policy_table.add_row(mission.mission_name, key, f"{value:.2f}")
+                policy_table.add_row(mission_name, key, f"{value:.2f}")
         console.print(policy_table)
 
     console.print("\n[bold cyan]Average Game Stats[/bold cyan]")
@@ -295,9 +303,9 @@ def _output_results(
     game_stats_table.add_column("Mission")
     game_stats_table.add_column("Metric")
     game_stats_table.add_column("Average", justify="right")
-    for mission in summary.missions:
+    for mission_name, mission in mission_summaries:
         for key, value in mission.avg_game_stats.items():
-            game_stats_table.add_row(mission.mission_name, key, f"{value:.2f}")
+            game_stats_table.add_row(mission_name, key, f"{value:.2f}")
     console.print(game_stats_table)
 
     console.print("\n[bold cyan]Average Reward per Agent[/bold cyan]")
@@ -307,25 +315,25 @@ def _output_results(
     for display_name in display_names:
         summary_table.add_column(display_name, justify="right")
 
-    for mission in summary.missions:
+    for mission_name, mission in mission_summaries:
         for episode_idx, avg_rewards in sorted(mission.per_episode_per_policy_avg_rewards.items(), key=lambda x: x[0]):
-            row = [mission.mission_name, str(episode_idx)]
+            row = [mission_name, str(episode_idx)]
             row.extend((f"{value:.2f}" if value is not None else "-" for value in avg_rewards))
             summary_table.add_row(*row)
 
     console.print(summary_table)
 
-    if any(policy.action_timeouts for mission in summary.missions for policy in mission.policy_summaries):
+    if any(policy.action_timeouts for mission in summaries for policy in mission.policy_summaries):
         console.print("\n[bold cyan]Action Generation Timeouts per Policy[/bold cyan]")
         timeouts_table = Table(show_header=True, header_style="bold magenta")
         timeouts_table.add_column("Mission")
         timeouts_table.add_column("Policy")
         timeouts_table.add_column("Timeouts", justify="right")
-        for mission in summary.missions:
+        for mission_name, mission in mission_summaries:
             for i, policy_summary in enumerate(mission.policy_summaries):
                 if policy_summary.action_timeouts > 0:
                     timeouts_table.add_row(
-                        mission.mission_name,
+                        mission_name,
                         display_names[i],
                         str(policy_summary.action_timeouts),
                     )
