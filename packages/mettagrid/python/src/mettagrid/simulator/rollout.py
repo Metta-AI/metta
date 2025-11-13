@@ -19,7 +19,7 @@ class Rollout:
         self,
         config: MettaGridConfig,
         policies: list[AgentPolicy],
-        max_action_time_ms: int = 10000,
+        max_action_time_ms: int | None = 10000,
         render_mode: Optional[RenderMode] = None,
         seed: int = 0,
         pass_sim_to_policies: bool = False,
@@ -29,7 +29,7 @@ class Rollout:
         self._config = config
         self._policies = policies
         self._simulator = Simulator()
-        self._max_action_time_ms = max_action_time_ms
+        self._max_action_time_ms: int = max_action_time_ms or 10000
         self._renderer: Optional[Renderer] = None
         self._timeout_counts: list[int] = [0] * len(policies)
         self._pass_sim_to_policies = pass_sim_to_policies  # Whether to pass the simulation to the policies
