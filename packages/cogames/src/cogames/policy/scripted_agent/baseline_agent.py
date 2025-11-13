@@ -85,6 +85,19 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         self._protocol_input_prefix = "protocol_input:"
         self._protocol_output_prefix = "protocol_output:"
 
+    def _change_vibe_action(self, vibe_name: str) -> Action:
+        """
+        Return a safe vibe-change action.
+        Guard only on configured number_of_vibes (>1) to avoid emitting an invalid action.
+        """
+        change_vibe_cfg = getattr(self._actions, "change_vibe", None)
+        if change_vibe_cfg is None:
+            return self._actions.noop.Noop()
+        num_vibes = int(getattr(change_vibe_cfg, "number_of_vibes", 0))
+        if num_vibes <= 1:
+            return self._actions.noop.Noop()
+        return self._actions.change_vibe.ChangeVibe(VIBE_BY_NAME[vibe_name])
+
     def _read_inventory_from_obs(self, s: SimpleAgentState, obs: AgentObservation) -> None:
         """Read inventory from observation tokens at center cell and update state."""
         inv = {}
@@ -333,7 +346,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         if state.current_glyph != desired_vibe:
             state.current_glyph = desired_vibe
             # Return vibe change action this step
-            action = self._actions.change_vibe.ChangeVibe(VIBE_BY_NAME[desired_vibe])
+            action = self._change_vibe_action(desired_vibe)
             state.last_action = action
             return action, state
 
@@ -566,7 +579,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         """Map phase to a vibe for visual debugging in replays."""
         # During GATHER, vibe the target resource we're currently collecting
         if phase == Phase.GATHER and state.target_resource is not None:
-            return state.target_resource
+            return RESOURCE_VIBE_ALIASES.get(state.target_resource, state.target_resource)
 
         phase_to_vibe = {
             Phase.GATHER: "carbon_a",  # Default fallback if no target resource
@@ -944,7 +957,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         # - "default" vibe: DEPOSIT resources (positive values)
         # - specific resource vibes (e.g., "heart_a"): WITHDRAW resources (negative values)
         if s.current_glyph != "default":
-            vibe_action = self._actions.change_vibe.ChangeVibe(VIBE_BY_NAME["default"])
+            vibe_action = self._change_vibe_action("default")
             s.current_glyph = "default"
             return vibe_action
 
@@ -1172,3 +1185,16 @@ class BaselinePolicy(MultiAgentPolicy):
                 agent_id=agent_id,
             )
         return self._agent_policies[agent_id]
+
+
+RESOURCE_VIBE_ALIASES: dict[str, str] = {
+    "carbon": "carbon_a",
+    "oxygen": "oxygen_a",
+    "germanium": "germanium_a",
+    "silicon": "silicon_a",
+    # Crafting resources (appear when crafting unclipping items)
+    "decoder": "gear",
+    "modulator": "gear",
+    "resonator": "gear",
+    "scrambler": "gear",
+}

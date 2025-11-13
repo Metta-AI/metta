@@ -57,9 +57,15 @@ def test_fetch_metrics_with_mocked_wandb(monkeypatch):
             # Return an iterator with our fake run
             return iter([FakeRun()])
 
-    import metta.jobs.job_metrics as metrics_module
+    # Mock wandb module since it's imported inside the function
+    class FakeWandb:
+        @staticmethod
+        def Api():
+            return FakeApi()
 
-    monkeypatch.setattr(metrics_module.wandb, "Api", FakeApi)
+    import sys
+
+    sys.modules["wandb"] = FakeWandb()
 
     metrics, current_step = fetch_wandb_metrics(
         entity="team",

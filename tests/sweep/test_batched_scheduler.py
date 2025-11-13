@@ -31,7 +31,7 @@ class TestBatchedSyncedOptimizingScheduler:
 
         config = BatchedSyncedSchedulerConfig(
             max_trials=20,
-            recipe_module="experiments.recipes.arena",
+            recipe_module="recipes.experiment.arena",
             train_entrypoint="train",
             eval_entrypoint="evaluate",
             experiment_id="test_exp",
