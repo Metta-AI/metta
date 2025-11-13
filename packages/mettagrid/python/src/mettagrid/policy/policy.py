@@ -1,12 +1,14 @@
 """Base policy classes and interfaces."""
 
 from abc import abstractmethod
+from numbers import Integral
 from pathlib import Path
 from typing import Generic, Optional, Tuple, TypeVar
 
 import torch.nn as nn
 from pydantic import BaseModel
 
+from mettagrid.mettagrid_c import dtype_actions
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import PolicyRegistryMeta
 from mettagrid.simulator import Action, AgentObservation, Simulation
@@ -45,7 +47,7 @@ class AgentPolicy:
         """Reset the policy state. Default implementation does nothing."""
         pass
 
-    def step_batch(self, raw_observations, raw_actions) -> None:
+    def step_batch(self, _raw_observations, raw_actions) -> None:
         """Optional fast-path for policies that consume raw buffers.
 
         Policies that support raw NumPy pointers should override this method.
@@ -120,7 +122,12 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
     For example, Tuple[torch.Tensor, torch.Tensor] for LSTM hidden states.
     """
 
-    def __init__(self, base_policy: "StatefulPolicyImpl[StateType]", policy_env_info: PolicyEnvInterface):
+    def __init__(
+        self,
+        base_policy: "StatefulPolicyImpl[StateType]",
+        policy_env_info: PolicyEnvInterface,
+        agent_id: Optional[int] = None,
+    ):
         """Initialize stateful wrapper.
 
         Args:
@@ -130,17 +137,64 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
         super().__init__(policy_env_info)
         self._base_policy = base_policy
         self._state: Optional[StateType] = None
+        self._agent_id = agent_id
+        self._agent_states: dict[int, Optional[StateType]] = {}
+        self._action_name_to_index = {name: idx for idx, name in enumerate(policy_env_info.action_names)}
+        self._simulation: Simulation | None = None
 
     def step(self, obs: AgentObservation) -> Action:
         """Get action and update hidden state."""
         assert self._state is not None, "reset() must be called before step()"
         action, self._state = self._base_policy.step_with_state(obs, self._state)
+        if self._agent_id is not None:
+            self._agent_states[self._agent_id] = self._state
         return action
 
     def reset(self, simulation: Optional[Simulation] = None) -> None:
         """Reset the hidden state to initial state."""
         self._base_policy.reset(simulation)
+        self._simulation = simulation
         self._state = self._base_policy.initial_agent_state()
+        self._agent_states.clear()
+        if self._agent_id is not None:
+            self._agent_states[self._agent_id] = self._state
+
+    def _encode_action(self, action: Action | str | int) -> int:
+        if isinstance(action, Action):
+            action_name = action.name
+        elif isinstance(action, str):
+            action_name = action
+        elif isinstance(action, Integral):
+            return int(action)
+        else:
+            raise TypeError(f"Unsupported action type: {type(action)}")
+
+        try:
+            return self._action_name_to_index[action_name]
+        except KeyError as exc:
+            raise ValueError(f"Unknown action name '{action_name}' for policy") from exc
+
+    def step_batch(self, _raw_observations, raw_actions) -> None:
+        """Loop over agents using Simulation-backed observations."""
+        if self._simulation is None:
+            raise RuntimeError("StatefulAgentPolicy.reset(simulation) must be called before step_batch().")
+
+        sim_observations = self._simulation.observations()
+        num_agents = len(sim_observations)
+        if raw_actions.shape[0] < num_agents:
+            raise ValueError(f"raw_actions has insufficient capacity ({raw_actions.shape[0]}) for {num_agents} agents")
+
+        for agent_idx in range(num_agents):
+            obs = sim_observations[agent_idx]
+            state = self._agent_states.get(agent_idx)
+            if state is None:
+                state = self._base_policy.initial_agent_state()
+            action, new_state = self._base_policy.step_with_state(obs, state)
+            self._agent_states[agent_idx] = new_state
+            raw_actions[agent_idx] = dtype_actions.type(self._encode_action(action))
+
+        if self._agent_id is not None and self._agent_id in self._agent_states:
+            self._state = self._agent_states[self._agent_id]
 
 
 class StatefulPolicyImpl(Generic[StateType]):
