@@ -373,19 +373,6 @@ proc thinkyPolicyStepBatch*(
     let actPtr = cast[ptr int32](actionArray[i].addr)
     step(policy.agents[idx], numAgents, numTokens, sizeToken, obsPtr, numActions, actPtr)
 
-proc thinkyPolicyStepSingle*(
-    policy: ThinkyPolicy,
-    agentId: int,
-    numAgents: int,
-    numTokens: int,
-    sizeToken: int,
-    rawObservation: pointer,
-    numActions: int,
-    rawAction: pointer
-) =
-  let actionPtrValue = cast[ptr int32](rawAction)
-  step(policy.agents[agentId], numAgents, numTokens, sizeToken, rawObservation, numActions, actionPtrValue)
-
 proc thinkyPolicyReset*(policy: ThinkyPolicy) =
   for agent in policy.agents:
     reset(agent)

@@ -204,19 +204,6 @@ proc raceCarPolicyStepBatch*(
     let actPtr = cast[ptr int32](actionArray[i].addr)
     step(policy.agents[idx], numAgents, numTokens, sizeToken, obsPtr, numActions, actPtr)
 
-proc raceCarPolicyStepSingle*(
-    policy: RaceCarPolicy,
-    agentId: int,
-    numAgents: int,
-    numTokens: int,
-    sizeToken: int,
-    rawObservation: pointer,
-    numActions: int,
-    rawAction: pointer
-) =
-  let actionPtrValue = cast[ptr int32](rawAction)
-  step(policy.agents[agentId], numAgents, numTokens, sizeToken, rawObservation, numActions, actionPtrValue)
-
 proc raceCarPolicyReset*(policy: RaceCarPolicy) =
   for agent in policy.agents:
     reset(agent)

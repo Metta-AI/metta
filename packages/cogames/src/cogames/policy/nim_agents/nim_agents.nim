@@ -19,7 +19,6 @@ exportRefObject RandomPolicy:
     newRandomPolicy(string)
   procs:
     randomPolicyStepBatch(RandomPolicy, pointer, int, int, int, int, pointer, int, pointer)
-    randomPolicyStepSingle(RandomPolicy, int, int, int, int, pointer, int, pointer)
     randomPolicyReset(RandomPolicy)
 
 exportRefObject ThinkyPolicy:
@@ -27,7 +26,6 @@ exportRefObject ThinkyPolicy:
     newThinkyPolicy(string)
   procs:
     thinkyPolicyStepBatch(ThinkyPolicy, pointer, int, int, int, int, pointer, int, pointer)
-    thinkyPolicyStepSingle(ThinkyPolicy, int, int, int, int, pointer, int, pointer)
     thinkyPolicyReset(ThinkyPolicy)
 
 exportRefObject RaceCarPolicy:
@@ -35,7 +33,6 @@ exportRefObject RaceCarPolicy:
     newRaceCarPolicy(string)
   procs:
     raceCarPolicyStepBatch(RaceCarPolicy, pointer, int, int, int, int, pointer, int, pointer)
-    raceCarPolicyStepSingle(RaceCarPolicy, int, int, int, int, pointer, int, pointer)
     raceCarPolicyReset(RaceCarPolicy)
 
 writeFiles("bindings/generated", "NimAgents")
