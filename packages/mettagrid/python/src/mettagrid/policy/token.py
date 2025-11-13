@@ -139,11 +139,16 @@ class TokenPolicy(TrainablePolicy):
 
     short_names = ["token"]
 
-    def __init__(self, policy_env_info: PolicyEnvInterface, device: torch.device | str | None = None):
+    def __init__(
+        self,
+        features: list[ObservationFeatureSpec],
+        actions_cfg: ActionsConfig,
+        device: torch.device,
+        policy_env_info: PolicyEnvInterface,
+    ):
         super().__init__(policy_env_info)
-        actions_cfg = policy_env_info.actions
-        self._device = torch.device(device) if device is not None else torch.device("cpu")
-        self._net = TokenPolicyNet(policy_env_info.obs_features, actions_cfg).to(self._device)
+        self._net = TokenPolicyNet(features, actions_cfg).to(device)
+        self._device = device
         self._num_actions = len(actions_cfg.actions())
 
     def network(self) -> nn.Module:

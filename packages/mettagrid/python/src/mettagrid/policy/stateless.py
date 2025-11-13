@@ -78,8 +78,9 @@ class StatelessPolicy(TrainablePolicy):
         super().__init__(policy_env_info)
         actions_cfg = policy_env_info.actions
         obs_shape = policy_env_info.observation_space.shape
-        self._device = torch.device(device) if device is not None else torch.device("cpu")
-        self._net = StatelessPolicyNet(actions_cfg, obs_shape).to(self._device)
+        self._net = StatelessPolicyNet(actions_cfg, obs_shape)
+        if device is not None:
+            self._net = self._net.to(torch.device(device))
         self.num_actions = len(actions_cfg.actions())
 
     def network(self) -> nn.Module:
@@ -87,15 +88,17 @@ class StatelessPolicy(TrainablePolicy):
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Create a Policy instance for a specific agent."""
-        return StatelessAgentPolicyImpl(self._net, self._device, self.num_actions)
+        current_device = next(self._net.parameters()).device
+        return StatelessAgentPolicyImpl(self._net, current_device, self.num_actions)
 
     def is_recurrent(self) -> bool:
         return False
 
     def load_policy_data(self, checkpoint_path: str) -> None:
-        state_dict = torch.load(checkpoint_path, map_location=self._device)
+        device = next(self._net.parameters()).device
+        state_dict = torch.load(checkpoint_path, map_location=device)
         self._net.load_state_dict(state_dict)
-        self._net = self._net.to(self._device)
+        self._net = self._net.to(device)
 
     def save_policy_data(self, checkpoint_path: str) -> None:
         torch.save(self._net.state_dict(), checkpoint_path)
