@@ -230,11 +230,6 @@ class CurriculumConfig(Config):
     algorithm_config: Optional[Union["DiscreteRandomConfig", "LearningProgressConfig"]] = Field(
         default=None, description="Curriculum algorithm hyperparameters"
     )
-    score_refresh_interval: int = Field(
-        default=32,
-        ge=1,
-        description="Number of task selections to reuse cached scores before recomputing",
-    )
 
     @classmethod
     def from_mg(cls, mg_config: MettaGridConfig) -> "CurriculumConfig":
@@ -292,8 +287,6 @@ class Curriculum(StatsLogger):
             if hasattr(self._algorithm, "set_curriculum_reference"):
                 self._algorithm.set_curriculum_reference(self)
         self._cached_task_scores: dict[int, float] = {}
-        self._score_refresh_interval = config.score_refresh_interval
-        self._score_refresh_budget = 0
 
         # Always initialize task pool at capacity
         self._initialize_at_capacity()
@@ -365,10 +358,7 @@ class Curriculum(StatsLogger):
         if self._algorithm is None:
             return {}
 
-        if not self._cached_task_scores or self._score_refresh_budget <= 0:
-            self._cached_task_scores = self._algorithm.score_tasks(list(self._tasks.keys()))
-            self._score_refresh_budget = self._score_refresh_interval
-        self._score_refresh_budget -= 1
+        self._cached_task_scores = self._algorithm.score_tasks(list(self._tasks.keys()))
         return self._cached_task_scores
 
     def _create_task(self) -> CurriculumTask:

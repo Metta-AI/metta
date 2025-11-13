@@ -257,7 +257,6 @@ def make_curriculum(
         num_active_tasks=num_active_tasks,
         algorithm_config=algorithm_config,
     )
-    curriculum.score_refresh_interval = 32  # type: ignore[attr-defined]
     return curriculum
 
 
