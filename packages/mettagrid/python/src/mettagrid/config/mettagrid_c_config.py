@@ -83,12 +83,15 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
     tag_id_offset = 0  # Start tag IDs at 0
     sorted_tags = sorted(all_tags)
+    print(f"sorted_tags: {sorted_tags}")
+    print(f"all_tags: {all_tags}")
 
     # Validate tag count doesn't exceed uint8 max (255)
     if len(sorted_tags) > 256:
         raise ValueError(f"Too many unique tags ({len(sorted_tags)}). Maximum supported is 256 due to uint8 limit.")
 
     tag_name_to_id = {tag: tag_id_offset + i for i, tag in enumerate(sorted_tags)}
+    print(f"tag_name_to_id: {tag_name_to_id}")
     tag_id_to_name = {id: name for name, id in tag_name_to_id.items()}
 
     # Group agents by team_id to create groups

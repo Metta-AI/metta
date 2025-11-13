@@ -43,6 +43,7 @@ class AgentRewards(Config):
     stats_max: dict[str, float] = Field(default_factory=dict)
 
 
+# TODO: this should probably subclass GridObjectConfig
 class AgentConfig(Config):
     """Python agent configuration."""
 
@@ -56,7 +57,7 @@ class AgentConfig(Config):
     action_failure_penalty: float = Field(default=0, ge=0)
     initial_inventory: dict[str, int] = Field(default_factory=dict)
     team_id: int = Field(default=0, ge=0, description="Team identifier for grouping agents")
-    tags: list[str] = Field(default_factory=list, description="Tags for this agent instance")
+    tags: list[str] = Field(default_factory=lambda: ["agent"], description="Tags for this agent instance")
     soul_bound_resources: list[str] = Field(
         default_factory=list, description="Resources that cannot be stolen during attacks"
     )
