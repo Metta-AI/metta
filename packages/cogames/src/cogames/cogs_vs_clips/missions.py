@@ -1,4 +1,4 @@
-from cogames.cogs_vs_clips.diagnostic_evals import DIAGNOSTIC_EVALS
+from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
 from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS as INTEGRATED_EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import Mission

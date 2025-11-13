@@ -30,10 +30,7 @@ from typing import Dict, List
 import matplotlib.pyplot as plt
 import numpy as np
 
-<<<<<<< HEAD
-from cogames.cogs_vs_clips.diagnostic_evals import DIAGNOSTIC_EVALS
-=======
->>>>>>> 4cffbeebf5f2ac9713ba548087d482d550186c45
+from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
 from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_VARIANTS, get_difficulty
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS as EVAL_MISSIONS_MAIN
 from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS as EVAL_MISSIONS_INTEGRATED
@@ -343,7 +340,7 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots"):
 
     for r in results:
         key = (r.agent, r.experiment, r.difficulty, r.num_cogs, r.preset)
-      s  data[key]["total_rewards"].append(r.total_reward)
+        data[key]["total_rewards"].append(r.total_reward)
         data[key]["avg_rewards"].append(r.avg_reward_per_agent)
         data[key]["successes"].append(r.success)
 
@@ -392,6 +389,9 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots"):
 
     # 8. Total reward by difficulty
     _plot_by_difficulty_total(aggregated, difficulties, agents, output_path)
+
+    # 8.5. Average reward per agent by environment, grouped by agent count
+    _plot_by_environment_by_cogs(aggregated, experiments, num_cogs_list, output_path)
 
     # 9. Heatmap: Environment x Agent (avg per agent)
     _plot_heatmap_env_agent(aggregated, experiments, agents, output_path)
@@ -613,6 +613,39 @@ def _plot_by_environment_total(aggregated, experiments, agents, output_path):
 
     plt.tight_layout()
     plt.savefig(output_path / "total_reward_by_environment.png", dpi=150, bbox_inches="tight")
+    plt.close()
+
+
+def _plot_by_environment_by_cogs(aggregated, experiments, num_cogs_list, output_path):
+    """Plot average reward per agent by eval environment, grouped by agent count."""
+    fig, ax = plt.subplots(figsize=(16, 8))
+
+    width = 0.25
+    x = np.arange(len(experiments))
+
+    for i, num_cogs in enumerate(num_cogs_list):
+        rewards = []
+        for exp in experiments:
+            vals = [
+                v["avg_reward_per_agent"]
+                for k, v in aggregated.items()
+                if v["num_cogs"] == num_cogs and v["experiment"] == exp
+            ]
+            rewards.append(np.mean(vals) if vals else 0)
+
+        offset = width * (i - len(num_cogs_list) / 2 + 0.5)
+        ax.bar(x + offset, rewards, width, label=f"{num_cogs} agent(s)", alpha=0.8, edgecolor="black")
+
+    ax.set_ylabel("Average Reward Per Agent", fontsize=12, fontweight="bold")
+    ax.set_xlabel("Eval Environment", fontsize=12, fontweight="bold")
+    ax.set_title("Average Reward by Eval Environment (Grouped by Agent Count)", fontsize=14, fontweight="bold")
+    ax.set_xticks(x)
+    ax.set_xticklabels(experiments, rotation=45, ha="right")
+    ax.legend(fontsize=11)
+    ax.grid(axis="y", alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(output_path / "reward_by_environment_by_cogs.png", dpi=150, bbox_inches="tight")
     plt.close()
 
 

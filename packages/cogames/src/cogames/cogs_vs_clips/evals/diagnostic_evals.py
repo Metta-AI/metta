@@ -11,7 +11,7 @@ from mettagrid.map_builder.map_builder import MapBuilderConfig
 
 RESOURCE_NAMES: tuple[str, ...] = ("carbon", "oxygen", "germanium", "silicon")
 
-MAPS_DIR = Path(__file__).resolve().parent.parent / "maps"
+MAPS_DIR = Path(__file__).resolve().parent.parent.parent / "maps"
 
 
 def get_map(map_name: str) -> MapBuilderConfig:
