@@ -18,6 +18,7 @@ exclude = [
   "packages/pufferlib-core", # Exclude pufferlib-core from linting
   "*.ipynb",                 # Exclude notebooks from linting
   ".nim_runtime",            # Nim runtime generated files
+  "generated",               # Nim python generated files
 ]
 
 [lint.isort]
@@ -37,13 +38,7 @@ known-first-party = [
   "softmax",
 ]
 
-section-order = [
-  "future",
-  "standard-library",
-  "third-party",
-  "first-party",
-  "local-folder",
-]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
 
 [lint]
 # Rules to enable for linting

@@ -59,7 +59,6 @@ class WallConfig(GridObjectConfig):
     def __init__(self, type_id: int, type_name: str): ...
     type_id: int
     type_name: str
-    swappable: bool
 
 class AgentConfig(GridObjectConfig):
     def __init__(
@@ -114,17 +113,11 @@ class Protocol:
     cooldown: int
 
 class ClipperConfig:
-    def __init__(
-        self,
-        unclipping_protocols: list[Protocol],
-        length_scale: float,
-        cutoff_distance: float,
-        clip_rate: float,
-    ) -> None: ...
+    def __init__(self) -> None: ...
     unclipping_protocols: list[Protocol]
-    length_scale: float
-    cutoff_distance: float
-    clip_rate: float
+    length_scale: int
+    scaled_cutoff_distance: int
+    clip_period: int
 
 class AttackActionConfig(ActionConfig):
     def __init__(
@@ -166,11 +159,13 @@ class GlobalObsConfig:
         last_action: bool = True,
         last_reward: bool = True,
         visitation_counts: bool = False,
+        compass: bool = False,
     ) -> None: ...
     episode_completion_pct: bool
     last_action: bool
     last_reward: bool
     visitation_counts: bool
+    compass: bool
 
 class GameConfig:
     def __init__(
@@ -188,8 +183,7 @@ class GameConfig:
         objects: dict[str, GridObjectConfig],
         resource_loss_prob: float = 0.0,
         tag_id_map: dict[int, str] | None = None,
-        track_movement_metrics: bool = False,
-        protocol_details_obs: bool = False,
+        protocol_details_obs: bool = True,
         allow_diagonals: bool = False,
         reward_estimates: Optional[dict[str, float]] = None,
         inventory_regen_amounts: dict[int, int] | None = None,
@@ -207,7 +201,6 @@ class GameConfig:
     global_obs: GlobalObsConfig
     resource_loss_prob: float
     # FEATURE FLAGS
-    track_movement_metrics: bool
     protocol_details_obs: bool
     allow_diagonals: bool
     reward_estimates: Optional[dict[str, float]]
@@ -224,7 +217,6 @@ class MettaGrid:
     map_width: int
     map_height: int
     num_agents: int
-    initial_grid_hash: int
 
     def __init__(self, env_cfg: GameConfig, map: list, seed: int) -> None: ...
     def step(self) -> None: ...

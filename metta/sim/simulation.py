@@ -69,7 +69,7 @@ class Simulation:
             resolved_policy_uri = CheckpointManager.normalize_uri(policy_uri)
         else:
             policy_artifact = PolicyArtifact(policy=MockAgent())
-            resolved_policy_uri = "mock://"
+            resolved_policy_uri = None
 
         self._num_episodes = cfg.num_episodes
         self._max_time_s = cfg.max_time_s
@@ -200,12 +200,17 @@ class Simulation:
             agent_policies = self._create_agent_policies(seed=episode_idx)
 
             # Create and run rollout
+            event_handlers = []
+            if self._replay_writer is not None:
+                event_handlers.append(self._replay_writer)
             rollout = Rollout(
                 self._env_cfg,
                 agent_policies,
                 max_action_time_ms=10000,
                 render_mode=None,
                 seed=episode_idx,
+                event_handlers=event_handlers if event_handlers else None,
+                stats_writer=self._stats_writer,
             )
 
             rollout.run_until_done()
@@ -226,6 +231,7 @@ class Simulation:
         return self.end_simulation()
 
     def end_simulation(self) -> SimulationResults:
+        self._stats_writer.close()
         db = self._from_shards_and_context()
 
         # Generate thumbnail before writing to database so we can include the URL

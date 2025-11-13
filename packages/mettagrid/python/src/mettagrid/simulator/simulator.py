@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from functools import cached_property
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 import numpy as np
@@ -10,7 +9,7 @@ import numpy as np
 # Don't use `from ... import ...` here because it will cause a circular import.
 import mettagrid.config.mettagrid_c_config as mettagrid_c_config
 import mettagrid.config.mettagrid_config as mettagrid_config
-from mettagrid.config.id_map import IdMap, ObservationFeatureSpec
+from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.map_builder.map_builder import GameMap
 from mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
 from mettagrid.mettagrid_c import PackedCoordinate
@@ -31,6 +30,17 @@ class BoundingBox:
     max_col: int
 
 
+@dataclass
+class Buffers:
+    observations: np.ndarray
+    terminals: np.ndarray
+    truncations: np.ndarray
+    rewards: np.ndarray
+    masks: np.ndarray
+    actions: np.ndarray
+    teacher_actions: np.ndarray
+
+
 class Simulation:
     def __init__(
         self,
@@ -38,6 +48,7 @@ class Simulation:
         seed: int = 0,
         event_handlers: Optional[Sequence[SimulatorEventHandler]] | None = None,
         simulator: Optional[Simulator] | None = None,
+        buffers: Optional[Buffers] = None,
     ):
         self._config = config
         self._seed = seed
@@ -71,17 +82,23 @@ class Simulation:
             action.name: idx for idx, action in enumerate(self._config.game.actions.actions())
         }
 
+        if buffers is not None:
+            self._c_sim.set_buffers(
+                buffers.observations,
+                buffers.terminals,
+                buffers.truncations,
+                buffers.rewards,
+                buffers.actions,
+            )
+
         # Build feature dict from id_map
-        self._features: dict[int, ObservationFeatureSpec] = {feature.id: feature for feature in self.id_map.features()}
+        self._features: dict[int, ObservationFeatureSpec] = {
+            feature.id: feature for feature in self._config.game.id_map().features()
+        }
 
         self._start_episode()
 
         self._timer.start("thread_idle")
-
-    @cached_property
-    def id_map(self) -> IdMap:
-        """Get the observation feature ID map for this simulation."""
-        return self._config.id_map()
 
     def agents(self) -> list[SimulationAgent]:
         return [self.agent(agent_id) for agent_id in range(self.num_agents)]
@@ -99,6 +116,7 @@ class Simulation:
         """Start a new episode (internal use only)."""
         self._episode_started = True
         self._context = {}
+
         for handler in self._event_handlers:
             with self._timer(f"sim.on_episode_start.{handler.__class__.__name__}"):
                 handler.on_episode_start()
@@ -191,10 +209,6 @@ class Simulation:
         return self._features[feature_id]
 
     @property
-    def initial_grid_hash(self) -> int:
-        return self.__c_sim.initial_grid_hash
-
-    @property
     def action_success(self) -> list[bool]:
         return self.__c_sim.action_success()
 
@@ -254,7 +268,9 @@ class Simulator:
     def add_event_handler(self, handler: SimulatorEventHandler) -> None:
         self._event_handlers.append(handler)
 
-    def new_simulation(self, config: mettagrid_config.MettaGridConfig, seed: int = 0) -> Simulation:
+    def new_simulation(
+        self, config: mettagrid_config.MettaGridConfig, seed: int = 0, buffers: Optional[Buffers] = None
+    ) -> Simulation:
         assert self._current_simulation is None, "A simulation is already running"
         if self._config_invariants is None:
             self._config_invariants = self._compute_config_invariants(config)
@@ -267,7 +283,7 @@ class Simulator:
             raise ValueError("Config invariants have changed")
 
         self._current_simulation = Simulation(
-            config=config, seed=seed, event_handlers=self._event_handlers, simulator=self
+            config=config, seed=seed, event_handlers=self._event_handlers, simulator=self, buffers=buffers
         )
         return self._current_simulation
 
@@ -319,6 +335,7 @@ class SimulationAgent:
                     feature=self._sim.get_feature(feature_id),
                     location=PackedCoordinate.unpack(location) or (0, 0),
                     value=int(value),
+                    raw_token=o,
                 )
             )
         return AgentObservation(agent_id=self._agent_id, tokens=tokens)

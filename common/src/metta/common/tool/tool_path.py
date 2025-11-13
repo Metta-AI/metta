@@ -13,7 +13,7 @@ def validate_module_path(module_path: str) -> bool:
     """Validate that a module path can be resolved to a tool maker.
 
     Args:
-        module_path: Module path like 'arena.train' or 'experiments.recipes.arena.train'
+        module_path: Module path like 'arena.train' or 'recipes.experiment.arena.train'
 
     Returns:
         True if the module path can be resolved, False otherwise
@@ -25,7 +25,7 @@ def _load_tool_maker(path: str) -> Optional[Callable[[], Tool]]:
     """Load a tool maker from an import path.
 
     Args:
-        path: Import path like 'experiments.recipes.arena.train'
+        path: Import path like 'recipes.experiment.arena.train'
 
     Returns:
         Callable that creates a Tool, or None if not found
@@ -91,10 +91,10 @@ def resolve_and_load_tool_maker(tool_path: str) -> Callable[[], Tool] | None:
     """Resolve tool path and load the tool maker.
 
     Args:
-        tool_path: Tool path like 'arena.train' or 'experiments.recipes.arena.train'
+        tool_path: Tool path like 'arena.train' or 'recipes.experiment.arena.train'
 
     Resolution strategy:
-    1. Try direct import (e.g., 'experiments.recipes.arena.train')
+    1. Try direct import (e.g., 'recipes.experiment.arena.train')
     2. If not found and path has a dot, split into module_path and tool_maker_name:
        - Look up recipe and get tool maker by name (handles both function names like
          'replay_null', 'train_shaped' and tool class names like 'evaluate', 'train')

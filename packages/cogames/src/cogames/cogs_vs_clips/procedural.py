@@ -31,7 +31,7 @@ from mettagrid.mapgen.scenes.maze import MazeConfig
 from mettagrid.mapgen.scenes.radial_maze import RadialMaze
 from mettagrid.mapgen.scenes.random_scene import RandomScene, RandomSceneCandidate, RandomSceneConfig
 
-HubBundle = Literal["chests", "extractors", "none", "custom"]
+HubBundle = Literal["extractors", "none", "custom"]
 
 
 class MachinaArenaConfig(SceneConfig):
@@ -55,7 +55,7 @@ class MachinaArenaConfig(SceneConfig):
 
     # Hub config. `spawn_count` will be set based on `spawn_count` in this config.
     hub: BaseHubConfig = BaseHubConfig(
-        corner_bundle="chests",
+        corner_bundle="extractors",
         cross_bundle="none",
         cross_distance=7,
     )

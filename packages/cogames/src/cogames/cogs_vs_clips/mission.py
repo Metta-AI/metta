@@ -25,6 +25,7 @@ from mettagrid.config.mettagrid_config import (
     ChangeVibeActionConfig,
     ClipperConfig,
     GameConfig,
+    GlobalObsConfig,
     MettaGridConfig,
     MoveActionConfig,
     NoopActionConfig,
@@ -110,7 +111,7 @@ class Mission(Config):
     wall: CvCWallConfig = Field(default_factory=CvCWallConfig)
     assembler: CvCAssemblerConfig = Field(default_factory=CvCAssemblerConfig)
 
-    clip_rate: float = Field(default=0.0)
+    clip_period: int = Field(default=0)
     cargo_capacity: int = Field(default=255)
     energy_capacity: int = Field(default=100)
     energy_regen_amount: int = Field(default=1)
@@ -121,6 +122,7 @@ class Mission(Config):
     # Control vibe swapping in variants
     enable_vibe_change: bool = Field(default=True)
     vibe_count: int | None = Field(default=None)
+    compass_enabled: bool = Field(default=False)
 
     # Variants are applied to the mission immediately, and to its env when make_env is called
     variants: list[MissionVariant] = Field(default_factory=list)
@@ -156,6 +158,7 @@ class Mission(Config):
             num_agents=num_cogs,
             resource_names=resources,
             vibe_names=[vibe.name for vibe in vibes.VIBES],
+            global_obs=GlobalObsConfig(compass=self.compass_enabled),
             actions=ActionsConfig(
                 move=MoveActionConfig(consumed_resources={"energy": self.move_energy_cost}),
                 noop=NoopActionConfig(),
@@ -204,7 +207,7 @@ class Mission(Config):
                         cooldown=1,
                     ),
                 ],
-                clip_rate=self.clip_rate,
+                clip_period=self.clip_period,
             ),
             objects={
                 "wall": self.wall.station_cfg(),

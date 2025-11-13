@@ -18,6 +18,7 @@ from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from mettagrid import PufferMettaGridEnv, dtype_observations
+from mettagrid.config.mettagrid_config import EnvSupervisorConfig
 from mettagrid.simulator import Simulator
 
 
@@ -33,7 +34,8 @@ class TestBasicPolicyEnvironment:
     def env_with_config(self, simple_env_config):
         """Create PufferMettaGridEnv from config."""
         simulator = Simulator()
-        env = PufferMettaGridEnv(simulator, simple_env_config)
+        env_supervisor_cfg = EnvSupervisorConfig()
+        env = PufferMettaGridEnv(simulator, simple_env_config, env_supervisor_cfg)
         try:
             yield env
         finally:
@@ -95,7 +97,7 @@ class TestBasicPolicyEnvironment:
                 "uv",
                 "run",
                 "./tools/run.py",
-                "experiments.recipes.arena.train",
+                "recipes.experiment.arena.train",
                 f"run={run_name}",
                 "trainer.total_timesteps=100",  # Very minimal training
                 "wandb=off",
@@ -116,7 +118,7 @@ class TestBasicPolicyEnvironment:
 
         assert captured_runs, "Training command was not invoked"
         train_cmd, kwargs = captured_runs[0]
-        assert train_cmd[:4] == ["uv", "run", "./tools/run.py", "experiments.recipes.arena.train"]
+        assert train_cmd[:4] == ["uv", "run", "./tools/run.py", "recipes.experiment.arena.train"]
         assert kwargs["cwd"] == Path.cwd()
         assert kwargs["env"]["AWS_ACCESS_KEY_ID"] == "dummy_for_test"
 

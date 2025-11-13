@@ -75,7 +75,7 @@ private:
       GridCoord check_r = pos.first;
       GridCoord check_c = pos.second;
       if (check_r < grid->height && check_c < grid->width) {
-        GridObject* obj = grid->object_at(GridLocation(check_r, check_c, GridLayer::AgentLayer));
+        GridObject* obj = grid->object_at(GridLocation(check_r, check_c));
         if (obj) {
           Agent* agent = dynamic_cast<Agent*>(obj);
           if (agent) {
@@ -177,8 +177,6 @@ public:
   // Pointer to current timestep from environment
   unsigned int* current_timestep_ptr;
 
-  // Protocol observation configuration
-  bool protocol_details_obs;
   const class ObservationEncoder* obs_encoder;
 
   // Allow partial usage during cooldown
@@ -187,7 +185,7 @@ public:
   Assembler(GridCoord r, GridCoord c, const AssemblerConfig& cfg)
       : protocols(build_protocol_map(cfg.protocols)),
         unclip_protocols(),
-        is_clipped(false),
+        is_clipped(cfg.start_clipped),
         clip_immune(cfg.clip_immune),
         start_clipped(cfg.start_clipped),
         cooldown_end_timestep(0),
@@ -198,11 +196,10 @@ public:
         cooldown_multiplier(1.0f),
         grid(nullptr),
         current_timestep_ptr(nullptr),
-        protocol_details_obs(cfg.protocol_details_obs),
+        obs_encoder(nullptr),
         allow_partial_usage(cfg.allow_partial_usage),
         clipper_ptr(nullptr) {
-    GridObject::init(
-        cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids, cfg.initial_vibe);
+    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c), cfg.tag_ids, cfg.initial_vibe);
   }
   virtual ~Assembler() = default;
 
@@ -277,7 +274,7 @@ public:
       GridCoord check_c = positions[i].second;
 
       if (check_r < grid->height && check_c < grid->width) {
-        GridObject* obj = grid->object_at(GridLocation(check_r, check_c, GridLayer::AgentLayer));
+        GridObject* obj = grid->object_at(GridLocation(check_r, check_c));
         if (obj) {
           Agent* agent = dynamic_cast<Agent*>(obj);
           if (agent && agent->vibe != 0) {
@@ -408,7 +405,6 @@ public:
 
   virtual std::vector<PartialObservationToken> obs_features() const override {
     std::vector<PartialObservationToken> features;
-    features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
 
     unsigned int remaining = std::min(cooldown_remaining(), 255u);
     if (remaining > 0) {
@@ -428,7 +424,7 @@ public:
     }
 
     // Add protocol details if configured to do so
-    if (this->protocol_details_obs && this->obs_encoder) {
+    if (this->obs_encoder && this->obs_encoder->protocol_details_obs) {
       const Protocol* current_protocol = get_current_protocol();
       if (current_protocol) {
         // Add protocol inputs (input:resource) - only non-zero values
@@ -452,7 +448,9 @@ public:
       features.push_back({ObservationFeature::Tag, static_cast<ObservationType>(tag_id)});
     }
 
-    if (this->vibe != 0) features.push_back({ObservationFeature::Vibe, static_cast<ObservationType>(this->vibe)});
+    if (this->vibe != 0) {
+      features.push_back({ObservationFeature::Vibe, static_cast<ObservationType>(this->vibe)});
+    }
 
     return features;
   }
