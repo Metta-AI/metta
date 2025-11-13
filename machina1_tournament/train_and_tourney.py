@@ -41,9 +41,30 @@ from mettagrid.simulator.rollout import Rollout
 
 try:
     from cogames.cli.mission import get_mission
+    from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
 except ImportError:
     sys.path.insert(0, str(Path(__file__).parent.parent / "packages" / "cogames" / "src"))
     from cogames.cli.mission import get_mission
+    from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
+
+
+def get_mission_identifier(mission_name: str) -> str:
+    """Convert mission name to proper identifier for get_mission().
+
+    For eval missions (like 'extractor_hub_30'), prepends 'evals.' site prefix.
+    For other missions, returns as-is (they should already be in site.mission format).
+    """
+    # Check if it's an eval mission
+    eval_mission_names = {m.name for m in EVAL_MISSIONS}
+    if mission_name in eval_mission_names:
+        return f"evals.{mission_name}"
+
+    # If it already contains a dot, assume it's in site.mission format
+    if "." in mission_name:
+        return mission_name
+
+    # Otherwise, assume it's an eval mission
+    return f"evals.{mission_name}"
 
 
 @dataclass
@@ -275,7 +296,8 @@ def run_tournament(
     console.print(f"Number of Episodes: {num_episodes}")
 
     # Get mission config once to initialize policies (don't pass variants_arg - mission has them)
-    _, env_cfg_template, _ = get_mission(mission, variants_arg=None)
+    mission_id = get_mission_identifier(mission)
+    _, env_cfg_template, _ = get_mission(mission_id, variants_arg=None)
 
     if env_cfg_template.game.num_agents != team_size:
         env_cfg_template.game.num_agents = team_size
@@ -321,7 +343,7 @@ def run_tournament(
 
     for episode_id in track(range(num_episodes), description="Running episodes"):
         # Create fresh env_cfg for each episode to avoid state pollution
-        _, env_cfg, _ = get_mission(mission, variants_arg=None)
+        _, env_cfg, _ = get_mission(mission_id, variants_arg=None)
         if env_cfg.game.num_agents != team_size:
             env_cfg.game.num_agents = team_size
 
@@ -428,11 +450,12 @@ def run_self_play(
     Each policy plays against copies of itself to measure pure self-play performance.
     """
     # Don't pass variants_arg if using a mission that already has them
-    # training_facility.easy_hearts already has all the variants baked in
+    # Eval missions already have all the variants baked in
     console.print("\n[bold cyan]Self-Play Evaluation[/bold cyan]")
     console.print(f"Mission: {mission}")
     console.print(f"Episodes per policy: {num_self_play_episodes}")
 
+    mission_id = get_mission_identifier(mission)
     self_play_stats = []
 
     for policy_idx, (policy_cfg, policy) in enumerate(zip(policy_pool, policy_instances, strict=True)):
@@ -442,7 +465,7 @@ def run_self_play(
         for episode_id in range(num_self_play_episodes):
             # Create fresh env_cfg for each episode to avoid state pollution
             # Don't pass variants_arg - the mission already has them
-            _, env_cfg, _ = get_mission(mission, variants_arg=None)
+            _, env_cfg, _ = get_mission(mission_id, variants_arg=None)
 
             if env_cfg.game.num_agents != team_size:
                 env_cfg.game.num_agents = team_size
@@ -578,7 +601,7 @@ def main(
         "extractor_hub_30",
         "--mission",
         "-m",
-        help="CoGs vs Clips eval mission to train/evaluate (e.g., extractor_hub_30, collect_resources_classic)",
+        help="CoGs vs Clips eval mission name (e.g., extractor_hub_30, collect_resources_classic)",
     ),
     num_cogs: int = typer.Option(4, "--num-cogs", help="Number of cogs/agents in the mission"),
 ) -> None:
