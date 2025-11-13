@@ -149,7 +149,7 @@ def train(
                 style="linear",
                 start_value=0.6,
                 end_value=0.0,
-                start_epoch=250,
+                start_epoch=500,
                 end_epoch=750,
             ),
             HyperUpdateRule(
@@ -159,7 +159,7 @@ def train(
                 style="linear",
                 start_value=1.0,
                 end_value=0.0,
-                start_epoch=250,
+                start_epoch=500,
                 end_epoch=750,
             ),
             HyperUpdateRule(
@@ -170,7 +170,7 @@ def train(
                 start_value=1.0,
                 end_value=0.0,
                 start_epoch=0,
-                end_epoch=250,
+                end_epoch=500,
             ),
         ],
     )
