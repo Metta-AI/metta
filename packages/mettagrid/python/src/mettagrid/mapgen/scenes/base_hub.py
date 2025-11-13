@@ -145,8 +145,12 @@ class BaseHub(Scene[BaseHubConfig]):
     def _place_named_objects(self, positions: Sequence[tuple[int, int]], names: Sequence[str]) -> None:
         grid = self.grid
         h, w = self.height, self.width
-
-        for (x, y), name in zip(positions, names, strict=False):
+        pos_list = list(positions)
+        name_list = list(names)
+        # Enforce exact length when names are explicitly provided; allow empty to mean "place nothing"
+        if name_list and len(name_list) != len(pos_list):
+            raise ValueError(f"Expected {len(pos_list)} names, got {len(name_list)}")
+        for (x, y), name in zip(pos_list, name_list, strict=True):
             if not name:
                 continue
             if 0 <= x < w and 0 <= y < h:
@@ -222,9 +226,16 @@ class BaseHub(Scene[BaseHubConfig]):
             (w - 3, h - 3),
         ]
 
-        for (x, y), name in zip(corner_positions, self._resolve_corner_names(), strict=False):
-            if 1 <= x < w - 1 and 1 <= y < h - 1:
-                grid[y, x] = name
+        corner_names = self._resolve_corner_names()
+        # Only place if corners are inside inner wall; enforce name count when provided
+        if corner_names:
+            if len(corner_names) != len(corner_positions):
+                raise ValueError(f"Expected {len(corner_positions)} corner names, got {len(corner_names)}")
+            for (x, y), name in zip(corner_positions, corner_names, strict=True):
+                if not name:
+                    continue
+                if 1 <= x < w - 1 and 1 <= y < h - 1:
+                    grid[y, x] = name
 
         cross_names = self._resolve_cross_names()
         if cross_names:
@@ -277,8 +288,14 @@ class BaseHub(Scene[BaseHubConfig]):
             (cx + 2, cy + 2),
         ]
 
-        for (x, y), name in zip(corner_positions, self._resolve_corner_names(), strict=False):
-            place_building(x, y, name)
+        corner_names = self._resolve_corner_names()
+        if corner_names:
+            if len(corner_names) != len(corner_positions):
+                raise ValueError(f"Expected {len(corner_positions)} corner names, got {len(corner_names)}")
+            for (x, y), name in zip(corner_positions, corner_names, strict=True):
+                if not name:
+                    continue
+                place_building(x, y, name)
 
         cross_names = self._resolve_cross_names()
         if cross_names:
