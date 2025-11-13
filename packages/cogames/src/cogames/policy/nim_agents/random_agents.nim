@@ -1,7 +1,7 @@
 # This file has an example of random agents that just take random actions.
 
 import
-  std/random,
+  std/[random, json],
   common
 
 type
@@ -40,7 +40,7 @@ proc step*(
   agentAction[] = action
   # echo "  RandomAgent taking action: ", action
 
-proc newRandomPolicy*(environmentConfig: string): RandomPolicy =
+proc newRandomPolicy*(environmentConfig: string): RandomPolicy {.raises: [JsonError, ValueError].} =
   let cfg = parseConfig(environmentConfig)
   var agents: seq[RandomAgent] = @[]
   for id in 0 ..< cfg.config.numAgents:

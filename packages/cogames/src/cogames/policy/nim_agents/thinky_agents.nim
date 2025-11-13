@@ -1,5 +1,5 @@
 import
-  std/[strformat, tables, random, sets, options],
+  std/[strformat, tables, random, sets, options, json],
   common
 
 type
@@ -337,7 +337,7 @@ proc step*(
   #echo "taking random action ", action
 
 
-proc newThinkyPolicy*(environmentConfig: string): ThinkyPolicy =
+proc newThinkyPolicy*(environmentConfig: string): ThinkyPolicy {.raises: [JsonError, ValueError].} =
   let cfg = parseConfig(environmentConfig)
   var agents: seq[ThinkyAgent] = @[]
   for id in 0 ..< cfg.config.numAgents:

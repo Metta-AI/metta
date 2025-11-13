@@ -1,5 +1,5 @@
 import
-  std/[strformat, tables, random, sets],
+  std/[strformat, tables, random, sets, json],
   common
 
 type
@@ -169,7 +169,7 @@ proc step*(
   discard numActions
   raceCarStepInternal(agent, numTokens, sizeToken, rawObservation, agentAction)
 
-proc newRaceCarPolicy*(environmentConfig: string): RaceCarPolicy =
+proc newRaceCarPolicy*(environmentConfig: string): RaceCarPolicy {.raises: [JsonError, ValueError].} =
   let cfg = parseConfig(environmentConfig)
   var agents: seq[RaceCarAgent] = @[]
   for id in 0 ..< cfg.config.numAgents:

@@ -1,10 +1,11 @@
 """Random policy implementation for CoGames."""
 
 import random
+from typing import Optional
 
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator import Action, AgentObservation
+from mettagrid.simulator import Action, AgentObservation, Simulation
 
 
 class RandomAgentPolicy(AgentPolicy):
@@ -16,7 +17,7 @@ class RandomAgentPolicy(AgentPolicy):
     def step(self, obs: AgentObservation) -> Action:
         return random.choice(self.policy_env_info.actions.actions())
 
-    def reset(self) -> None:
+    def reset(self, simulation: Optional[Simulation] = None) -> None:
         pass
 
 
