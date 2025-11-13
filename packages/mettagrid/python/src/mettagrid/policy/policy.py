@@ -7,6 +7,7 @@ from typing import Generic, Optional, Tuple, TypeVar
 import torch.nn as nn
 from pydantic import BaseModel
 
+from mettagrid.mettagrid_c import dtype_actions
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import PolicyRegistryMeta
 from mettagrid.simulator import Action, AgentObservation, Simulation
@@ -45,7 +46,7 @@ class AgentPolicy:
         """Reset the policy state. Default implementation does nothing."""
         pass
 
-    def step_batch(self, raw_observations, raw_actions) -> None:
+    def step_batch(self, _raw_observations, raw_actions) -> None:
         """Optional fast-path for policies that consume raw buffers.
 
         Policies that support raw NumPy pointers should override this method.
@@ -120,7 +121,12 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
     For example, Tuple[torch.Tensor, torch.Tensor] for LSTM hidden states.
     """
 
-    def __init__(self, base_policy: "StatefulPolicyImpl[StateType]", policy_env_info: PolicyEnvInterface):
+    def __init__(
+        self,
+        base_policy: "StatefulPolicyImpl[StateType]",
+        policy_env_info: PolicyEnvInterface,
+        agent_id: Optional[int] = None,
+    ):
         """Initialize stateful wrapper.
 
         Args:
@@ -130,17 +136,41 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
         super().__init__(policy_env_info)
         self._base_policy = base_policy
         self._state: Optional[StateType] = None
+        self._agent_id = agent_id
+        self._agent_states: dict[int, StateType] = {}
+        self._action_name_to_index = {name: idx for idx, name in enumerate(policy_env_info.action_names)}
+        self._simulation: Simulation | None = None
 
     def step(self, obs: AgentObservation) -> Action:
         """Get action and update hidden state."""
         assert self._state is not None, "reset() must be called before step()"
         action, self._state = self._base_policy.step_with_state(obs, self._state)
+        if self._agent_id is not None:
+            self._agent_states[self._agent_id] = self._state
         return action
 
     def reset(self, simulation: Optional[Simulation] = None) -> None:
         """Reset the hidden state to initial state."""
         self._base_policy.reset(simulation)
+        self._simulation = simulation
         self._state = self._base_policy.initial_agent_state()
+        self._agent_states.clear()
+        if self._agent_id is not None:
+            self._agent_states[self._agent_id] = self._state
+
+    def step_batch(self, _raw_observations, raw_actions) -> None:
+        sim = self._simulation
+        assert sim is not None, "reset() must be called before step_batch()"
+
+        for agent_idx, obs in enumerate(sim.observations()):
+            state = self._agent_states.get(agent_idx) or self._base_policy.initial_agent_state()
+            action, new_state = self._base_policy.step_with_state(obs, state)
+            self._agent_states[agent_idx] = new_state
+            assert isinstance(action, Action), "Policies must return mettagrid.simulator.Action instances"
+            raw_actions[agent_idx] = dtype_actions.type(self._action_name_to_index[action.name])
+
+        if self._agent_id is not None and self._agent_id in self._agent_states:
+            self._state = self._agent_states[self._agent_id]
 
 
 class StatefulPolicyImpl(Generic[StateType]):

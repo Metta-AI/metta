@@ -1171,5 +1171,6 @@ class BaselinePolicy(MultiAgentPolicy):
             self._agent_policies[agent_id] = StatefulAgentPolicy(
                 BaselineAgentPolicyImpl(self._policy_env_info, agent_id, self._hyperparams),
                 self._policy_env_info,
+                agent_id=agent_id,
             )
         return self._agent_policies[agent_id]
