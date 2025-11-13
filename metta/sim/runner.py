@@ -15,7 +15,6 @@ from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult,
 class SimulationRunConfig(BaseModel):
     env: MettaGridConfig  # noqa: F821
     num_episodes: int = Field(default=1, description="Number of episodes to run", ge=1)
-    policy_specs: Sequence[PolicySpec]
     proportions: Sequence[float] | None = None
 
     max_action_time_ms: int | None = Field(
@@ -33,6 +32,7 @@ class SimulationRunResult(BaseModel):
 
 
 def run_simulations(
+    policy_specs: Sequence[PolicySpec],
     simulations: Sequence[SimulationRunConfig],
     replay_dir: str,
     seed: int,
@@ -41,7 +41,6 @@ def run_simulations(
     simulation_rollouts: list[SimulationRunResult] = []
 
     for simulation in simulations:
-        policies = simulation.policy_specs
         proportions = simulation.proportions
         replay_writer: ReplayLogWriter | None = None
         if enable_replays:
@@ -51,7 +50,7 @@ def run_simulations(
 
         env_interface = PolicyEnvInterface.from_mg_cfg(simulation.env)
         multi_agent_policies: list[MultiAgentPolicy] = [
-            initialize_or_load_policy(env_interface, spec) for spec in policies
+            initialize_or_load_policy(env_interface, spec) for spec in policy_specs
         ]
 
         rollout_result = multi_episode_rollout(
