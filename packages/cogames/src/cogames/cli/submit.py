@@ -124,9 +124,9 @@ def validate_policy_in_isolation(
 
         # Build cogames eval command
         # Policy spec format: CLASS:DATA:PROPORTION
-        policy_arg = policy_spec.policy_class_path
-        if policy_spec.policy_data_path:
-            policy_arg += f":{policy_spec.policy_data_path}"
+        policy_arg = policy_spec.class_path
+        if policy_spec.data_path:
+            policy_arg += f":{policy_spec.data_path}"
 
         console.print(f"[yellow]Running validation with mission '{DEFAULT_VALIDATION_MISSION}'...[/yellow]")
 
@@ -326,8 +326,8 @@ def submit_command(
     files_to_include = []
 
     # Always include policy data file if specified
-    if policy_spec.policy_data_path:
-        files_to_include.append(policy_spec.policy_data_path)
+    if policy_spec.data_path:
+        files_to_include.append(policy_spec.data_path)
 
     # Add user-specified include files
     if include_files:

@@ -146,7 +146,7 @@ def _parse_policy_spec(spec: str) -> PolicySpec:
     resolved_policy_data = resolve_policy_data_path(raw_policy_data or None)
 
     return PolicySpec(
-        policy_class_path=resolved_class_path,
+        class_path=resolved_class_path,
         proportion=fraction,
-        policy_data_path=resolved_policy_data,
+        data_path=resolved_policy_data,
     )

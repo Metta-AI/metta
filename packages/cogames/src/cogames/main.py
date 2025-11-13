@@ -272,8 +272,8 @@ def train_cmd(
     try:
         train_module.train(
             env_cfg=env_cfg,
-            policy_class_path=policy_spec.policy_class_path,
-            initial_weights_path=policy_spec.policy_data_path,
+            policy_class_path=policy_spec.class_path,
+            initial_weights_path=policy_spec.data_path,
             device=torch_device,
             num_steps=steps,
             checkpoints_path=Path(checkpoints_path),
