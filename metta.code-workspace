@@ -14,7 +14,7 @@
         {
           "match": ".*",
           "isAsync": true,
-          "cmd": "uv run metta lint --fix ${file}",
+          "cmd": "uv run --no-sync metta lint --fix ${file}",
         },
       ],
     },
