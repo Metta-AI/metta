@@ -6,7 +6,7 @@ import torch.nn as nn
 from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
-from mettagrid.policy.token import coordinates
+from mettagrid.policy.token_encoder import coordinates
 
 if TYPE_CHECKING:
     from mettagrid.policy.policy_env_interface import PolicyEnvInterface
@@ -288,9 +288,7 @@ class ObsTokenToBoxShim(nn.Module):
         coords_byte = token_observations[..., 0].to(torch.uint8)
 
         # Extract x/y coordinate indices (low nibble -> x/col, high nibble -> y/row)
-        x_coord_indices, y_coord_indices = coordinates(token_observations)
-        x_coord_indices = x_coord_indices.long()
-        y_coord_indices = y_coord_indices.long()
+        x_coord_indices, y_coord_indices = coordinates(token_observations, torch.long)
         atr_indices = token_observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
         atr_values = token_observations[..., 2].float()  # Shape: [B_TT, M]
 

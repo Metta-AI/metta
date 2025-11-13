@@ -11,7 +11,7 @@ import torch.nn.functional as F
 from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
-from mettagrid.policy.token import coordinates
+from mettagrid.policy.token_encoder import coordinates
 
 
 class ObsSwinEncoderConfig(ComponentConfig):
@@ -327,9 +327,7 @@ class ObsSwinEncoder(nn.Module):
         projected = self.input_proj(normed_features)
 
         coords_byte = tokens[..., 0].to(torch.int64)
-        x_coords, y_coords = coordinates(tokens)
-        x_coords = x_coords.long()
-        y_coords = y_coords.long()
+        x_coords, y_coords = coordinates(tokens, torch.long)
 
         patch_x = torch.div(x_coords, self.config.patch_size, rounding_mode="floor")
         patch_y = torch.div(y_coords, self.config.patch_size, rounding_mode="floor")
