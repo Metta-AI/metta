@@ -91,6 +91,19 @@ class HFLlamaLayerCell(MemoryCell):
                 return int(layer.get_seq_length())
         return 0
 
+    def _maybe_reset_cache_device(self, cache: DynamicCache, device: torch.device, layer_idx: int) -> DynamicCache:
+        """Recreate empty cache if current layer's cache is initialized on a different device."""
+        if cache is None or not hasattr(cache, "layers"):
+            return cache
+        if layer_idx < 0 or layer_idx >= len(cache.layers):
+            return cache
+        layer = cache.layers[layer_idx]
+        if getattr(layer, "is_initialized", False):
+            k = getattr(layer, "keys", None)
+            if isinstance(k, torch.Tensor) and k.device != device:
+                return self._CacheCls(config=self.hf_config) if self.hf_config is not None else self._CacheCls()
+        return cache
+
     @staticmethod
     def _build_last_reset_indices(resets_bt: torch.Tensor) -> torch.Tensor:
         """Vectorized last reset index per timestep; -1 if none so far."""
@@ -169,6 +182,7 @@ class HFLlamaLayerCell(MemoryCell):
 
         # Past length for this specific layer from cache
         layer_idx = int(getattr(self.hf_layer.self_attn, "layer_idx", 0))
+        cache = self._maybe_reset_cache_device(cache, device, layer_idx)
         past_len = self._layer_past_len(cache, layer_idx)
 
         # Per-timestep last reset indices and additive mask implementing resets and causality
