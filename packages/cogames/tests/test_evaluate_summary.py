@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime
-
 import numpy as np
 import pytest
 
-from cogames.evaluate import _build_results_summary
+from cogames.evaluate import build_mission_policy_summaries
 from mettagrid.policy.policy import PolicySpec
-from mettagrid.simulator.multi_episode_rollout import MultiEpisodeRolloutResult
+from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult
 
 
 def test_build_results_summary_multi_mission_policy_episode() -> None:
@@ -73,13 +71,12 @@ def test_build_results_summary_multi_mission_policy_episode() -> None:
         ],
     )
 
-    summary = _build_results_summary(
+    summary = build_mission_policy_summaries(
         mission_results=[mission_one, mission_two],
         mission_names=["mission_one", "mission_two"],
         policy_specs=policy_specs,
     )
 
-    assert isinstance(summary.generated_at, datetime)
     assert len(summary.missions) == 2
 
     mission_one_summary = summary.missions[0]
