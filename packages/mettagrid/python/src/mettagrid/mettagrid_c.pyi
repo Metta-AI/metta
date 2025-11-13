@@ -113,8 +113,7 @@ class Protocol:
     cooldown: int
 
 class ClipperConfig:
-    def __init__(
-        self) -> None: ...
+    def __init__(self) -> None: ...
     unclipping_protocols: list[Protocol]
     length_scale: int
     scaled_cutoff_distance: int

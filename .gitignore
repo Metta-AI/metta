@@ -98,10 +98,10 @@ sweep_id
 notebooks/.ipynb_checkpoints
 notebooks/utils/eval_finder_widget/eval_finder_widget/static/index.js
 notebooks/utils/scorecard_widget/scorecard_widget/static/index.js
-experiments/recipes/scratchpad/*.py
-!experiments/recipes/scratchpad/README.md
-!experiments/recipes/scratchpad/template.py
-!experiments/recipes/scratchpad/__init__.py
+recipes/experiment/scratchpad/
+!recipes/experiment/scratchpad/README.md
+!recipes/experiment/scratchpad/template.py
+!recipes/experiment/scratchpad/__init__.py
 packages/cogames/experiments
 
 resources
