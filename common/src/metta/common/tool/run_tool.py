@@ -19,7 +19,8 @@ import signal
 import sys
 import tempfile
 import traceback
-from typing import Any
+import warnings
+from typing import Any, Callable
 
 from pydantic import BaseModel, TypeAdapter
 from rich.console import Console
@@ -418,6 +419,211 @@ def list_module_tools(module_path: str, console: Console) -> bool:
 
 
 # --------------------------------------------------------------------------------------
+# Core tool execution logic (shared by CLI and programmatic callers)
+# --------------------------------------------------------------------------------------
+
+
+def build_and_execute_tool(
+    tool_maker: Any,
+    nested_cli: dict[str, Any],
+    cli_args: dict[str, Any],
+    tool_path: str,
+    dry_run: bool = False,
+    verbose: bool = False,
+    output_info_func: Callable[[str], None] | None = None,
+    output_error_func: Callable[[str], None] | None = None,
+    output_exception_func: Callable[[str], None] | None = None,
+) -> int:
+    """Build tool from maker and execute it. Returns exit code.
+
+    This is the core logic shared by CLI (main()) and programmatic callers (MCP executor).
+
+    Args:
+        tool_maker: Tool maker (class or function)
+        nested_cli: Nested CLI arguments (from nestify)
+        cli_args: Flat CLI arguments
+        tool_path: Original tool path (for error messages)
+        dry_run: If True, validate without executing
+        verbose: If True, show verbose output
+        output_info_func: Function to output info messages (defaults to output_info)
+        output_error_func: Function to output error messages (defaults to output_error)
+        output_exception_func: Function to output exceptions (defaults to output_exception)
+
+    Returns:
+        Exit code (0 for success, non-zero for errors)
+    """
+    # Use default output functions if not provided
+    if output_info_func is None:
+        output_info_func = output_info
+    if output_error_func is None:
+        output_error_func = output_error
+    if output_exception_func is None:
+        output_exception_func = output_exception
+
+    # ----------------------------------------------------------------------------------
+    # Construct the Tool
+    #   - If class subclassing Tool (Pydantic model): validate the entire nested payload
+    #   - If function: bind parameters from nested_cli/cli_args using annotations
+    # ----------------------------------------------------------------------------------
+    func_args_for_invoke: dict[str, str] = {}  # what we pass to tool.invoke (as strings)
+    try:
+        if inspect.isclass(tool_maker) and issubclass(tool_maker, Tool):
+            if verbose and nested_cli:
+                cls_name = tool_maker.__name__
+                output_info_func(f"\n{cyan(f'Creating {cls_name} from nested CLI payload:')}")
+                for k in sorted(nested_cli.keys()):
+                    output_info_func(f"  {k} = {nested_cli[k]}")
+            tool_cfg = tool_maker.model_validate(nested_cli)
+            remaining_args = {}  # all dotted/top-level consumed by model validation
+        else:
+            # Tool maker function that returns a Tool instance
+            sig = inspect.signature(tool_maker)
+            func_kwargs: dict[str, Any] = {}
+            consumed_keys: set[str] = set()
+
+            if verbose and (cli_args or nested_cli):
+                func_name = getattr(tool_maker, "__name__", str(tool_maker))
+                output_info_func(f"\n{cyan(f'Creating {func_name}:')}")
+
+            for name, p in sig.parameters.items():
+                # Prefer nested group if provided (e.g., param 'trainer' and CLI has 'trainer.*')
+                if name in nested_cli:
+                    provided = nested_cli[name]
+
+                    # If the parameter has a default dict or BaseModel, start from it and merge overrides.
+                    base: Any | None = None
+                    if p.default is not inspect._empty:
+                        default_val = p.default
+                        if isinstance(default_val, dict) and isinstance(provided, dict):
+                            base = copy.deepcopy(default_val)
+                            deep_merge(base, provided)
+                        elif isinstance(default_val, BaseModel) and isinstance(provided, dict):
+                            base = default_val.model_copy(update=provided, deep=True)
+
+                    data = base if base is not None else provided
+
+                    # If annotated as a Pydantic model class, validate against it.
+                    ann = p.annotation
+                    try:
+                        if inspect.isclass(ann) and issubclass(ann, BaseModel):
+                            val = ann.model_validate(data)
+                        else:
+                            val = type_parse(data, ann)
+                    except Exception:
+                        # Fall back to raw data; better to surface error downstream than to crash here.
+                        val = data
+
+                    func_kwargs[name] = val
+
+                    # Determine which keys actually contributed to nested_cli[name]
+                    # If name exists as a flat key in cli_args, mark it as consumed
+                    if name in cli_args:
+                        consumed_keys.add(name)
+
+                    # Mark all dotted keys that start with this parameter name as consumed
+                    for k in cli_args.keys():
+                        if k.startswith(name + "."):
+                            consumed_keys.add(k)
+
+                    if verbose:
+                        output_info_func(f"  {name}={val!r}")
+                    continue
+
+                # Check for direct parameter match in flat CLI args
+                if name in cli_args:
+                    val = type_parse(cli_args[name], p.annotation)
+                    func_kwargs[name] = val
+                    consumed_keys.add(name)
+                    if verbose:
+                        output_info_func(f"  {name}={val!r}")
+
+            # Construct via function
+            tool_cfg = tool_maker(**func_kwargs)
+
+            # Remaining args = anything not consumed as function params
+            remaining_args = {k: v for k, v in cli_args.items() if k not in consumed_keys}
+
+            # For invoke(), send just the function args as strings
+            func_args_for_invoke = {k: str(v) for k, v in func_kwargs.items()}
+    except TypeError as e:
+        # Provide a nicer hint when someone passes an unbound method (missing self/cls)
+        msg = str(e)
+        hint = ""
+        if ("missing" in msg and "positional argument" in msg) and (" self" in msg or " cls" in msg):
+            hint = (
+                f"\n{yellow('Hint:')} It looks like an unbound method was passed. "
+                "Pass the Tool subclass itself or a factory function that doesn't require 'self'/'cls'."
+            )
+        output_exception_func(f"{red('Error creating tool configuration:')} {e}{hint}")
+        return 1
+    except Exception as e:
+        output_exception_func(f"{red('Error creating tool configuration:')} {e}")
+        return 1
+
+    if not isinstance(tool_cfg, Tool):
+        output_error_func(f"{red('Error:')} {tool_path} must return a Tool instance, got {type(tool_cfg)}")
+        return 1
+
+    # ----------------------------------------------------------------------------------
+    # Overrides & Unknowns (post-construction)
+    # ----------------------------------------------------------------------------------
+    tool_fields = get_tool_fields(type(tool_cfg))
+    override_args, unknown_args = classify_remaining_args(remaining_args, tool_fields)
+
+    if unknown_args:
+        output_info_func(f"\n{red('Error: Unknown arguments:')} {', '.join(unknown_args)}")
+        # Only show function params list if the entrypoint is a function
+        if not (inspect.isclass(tool_maker) and issubclass(tool_maker, Tool)):
+            output_info_func(f"\n{yellow('Available function parameters:')}")
+            for param in get_function_params(tool_maker):
+                output_info_func(f"  - {param}")
+        output_info_func(f"\n{yellow('Available tool fields for overrides:')}")
+        for field in sorted(tool_fields):
+            output_info_func(f"  - {field}")
+        return 2  # Exit code 2 for usage errors
+
+    if override_args:
+        if verbose:
+            output_info_func(f"\n{cyan('Applying overrides:')}")
+            for key, value in override_args.items():
+                output_info_func(f"  {key}={value}")
+        for key, value in override_args.items():
+            try:
+                tool_cfg = tool_cfg.override(key, value)
+            except Exception as e:
+                output_exception_func(f"{red('Error applying override')} {key}={value}: {e}")
+                return 1
+
+    # ----------------------------------------------------------------------------------
+    # Dry run check - exit here if --dry-run flag is set
+    # ----------------------------------------------------------------------------------
+    if dry_run:
+        output_info_func(f"\n{bold(green('✅ Configuration validation successful'))}")
+        if verbose:
+            output_info_func(f"Tool type: {type(tool_cfg).__name__}")
+            output_info_func(f"Module: {tool_maker.__module__}.{tool_maker.__name__}")
+        return 0
+
+    # ----------------------------------------------------------------------------------
+    # Seed & Run
+    # ----------------------------------------------------------------------------------
+    if hasattr(tool_cfg, "system"):
+        seed_everything(tool_cfg.system)
+
+    output_info_func(f"\n{bold(green('Running tool...'))}\n")
+
+    try:
+        result = tool_cfg.invoke(func_args_for_invoke)
+    except KeyboardInterrupt:
+        return 130  # Interrupted by Ctrl-C
+    except Exception:
+        output_exception_func(red("Tool invocation failed"))
+        return 1
+
+    return result if result is not None else 0
+
+
+# --------------------------------------------------------------------------------------
 # Main
 # --------------------------------------------------------------------------------------
 
@@ -579,167 +785,15 @@ constructor/function vs configuration overrides based on introspection.
         list_tool_arguments(tool_maker, console)
         return 0
 
-    # ----------------------------------------------------------------------------------
-    # Construct the Tool
-    #   - If class subclassing Tool (Pydantic model): validate the entire nested payload
-    #   - If function: bind parameters from nested_cli/cli_args using annotations
-    # ----------------------------------------------------------------------------------
-    func_args_for_invoke: dict[str, str] = {}  # what we pass to tool.invoke (as strings)
-    try:
-        if inspect.isclass(tool_maker) and issubclass(tool_maker, Tool):
-            if known_args.verbose and nested_cli:
-                cls_name = tool_maker.__name__
-                output_info(f"\n{cyan(f'Creating {cls_name} from nested CLI payload:')}")
-                for k in sorted(nested_cli.keys()):
-                    output_info(f"  {k} = {nested_cli[k]}")
-            tool_cfg = tool_maker.model_validate(nested_cli)
-            remaining_args = {}  # all dotted/top-level consumed by model validation
-        else:
-            # Tool maker function that returns a Tool instance
-            sig = inspect.signature(tool_maker)
-            func_kwargs: dict[str, Any] = {}
-            consumed_keys: set[str] = set()
-
-            if known_args.verbose and (cli_args or nested_cli):
-                func_name = getattr(tool_maker, "__name__", str(tool_maker))
-                output_info(f"\n{cyan(f'Creating {func_name}:')}")
-
-            for name, p in sig.parameters.items():
-                # Prefer nested group if provided (e.g., param 'trainer' and CLI has 'trainer.*')
-                if name in nested_cli:
-                    provided = nested_cli[name]
-
-                    # If the parameter has a default dict or BaseModel, start from it and merge overrides.
-                    base: Any | None = None
-                    if p.default is not inspect._empty:
-                        default_val = p.default
-                        if isinstance(default_val, dict) and isinstance(provided, dict):
-                            base = copy.deepcopy(default_val)
-                            deep_merge(base, provided)
-                        elif isinstance(default_val, BaseModel) and isinstance(provided, dict):
-                            base = default_val.model_copy(update=provided, deep=True)
-
-                    data = base if base is not None else provided
-
-                    # If annotated as a Pydantic model class, validate against it.
-                    ann = p.annotation
-                    try:
-                        if inspect.isclass(ann) and issubclass(ann, BaseModel):
-                            val = ann.model_validate(data)
-                        else:
-                            val = type_parse(data, ann)
-                    except Exception:
-                        # Fall back to raw data; better to surface error downstream than to crash here.
-                        val = data
-
-                    func_kwargs[name] = val
-
-                    # Determine which keys actually contributed to nested_cli[name]
-                    # If name exists as a flat key in cli_args, mark it as consumed
-                    if name in cli_args:
-                        consumed_keys.add(name)
-
-                    # Mark all dotted keys that start with this parameter name as consumed
-                    for k in cli_args.keys():
-                        if k.startswith(name + "."):
-                            consumed_keys.add(k)
-
-                    if known_args.verbose:
-                        output_info(f"  {name}={val!r}")
-                    continue
-
-                # Check for direct parameter match in flat CLI args
-                if name in cli_args:
-                    val = type_parse(cli_args[name], p.annotation)
-                    func_kwargs[name] = val
-                    consumed_keys.add(name)
-                    if known_args.verbose:
-                        output_info(f"  {name}={val!r}")
-
-            # Construct via function
-            tool_cfg = tool_maker(**func_kwargs)
-
-            # Remaining args = anything not consumed as function params
-            remaining_args = {k: v for k, v in cli_args.items() if k not in consumed_keys}
-
-            # For invoke(), send just the function args as strings
-            func_args_for_invoke = {k: str(v) for k, v in func_kwargs.items()}
-    except TypeError as e:
-        # Provide a nicer hint when someone passes an unbound method (missing self/cls)
-        msg = str(e)
-        hint = ""
-        if ("missing" in msg and "positional argument" in msg) and (" self" in msg or " cls" in msg):
-            hint = (
-                f"\n{yellow('Hint:')} It looks like an unbound method was passed. "
-                "Pass the Tool subclass itself or a factory function that doesn't require 'self'/'cls'."
-            )
-        output_exception(f"{red('Error creating tool configuration:')} {e}{hint}")
-        return 1
-    except Exception as e:
-        output_exception(f"{red('Error creating tool configuration:')} {e}")
-        return 1
-
-    if not isinstance(tool_cfg, Tool):
-        output_error(f"{red('Error:')} {known_args.tool_path} must return a Tool instance, got {type(tool_cfg)}")
-        return 1
-
-    # ----------------------------------------------------------------------------------
-    # Overrides & Unknowns (post-construction)
-    # ----------------------------------------------------------------------------------
-    tool_fields = get_tool_fields(type(tool_cfg))
-    override_args, unknown_args = classify_remaining_args(remaining_args, tool_fields)
-
-    if unknown_args:
-        output_info(f"\n{red('Error: Unknown arguments:')} {', '.join(unknown_args)}")
-        # Only show function params list if the entrypoint is a function
-        if not (inspect.isclass(tool_maker) and issubclass(tool_maker, Tool)):
-            output_info(f"\n{yellow('Available function parameters:')}")
-            for param in get_function_params(tool_maker):
-                output_info(f"  - {param}")
-        output_info(f"\n{yellow('Available tool fields for overrides:')}")
-        for field in sorted(tool_fields):
-            output_info(f"  - {field}")
-        return 2  # Exit code 2 for usage errors
-
-    if override_args:
-        if known_args.verbose:
-            output_info(f"\n{cyan('Applying overrides:')}")
-            for key, value in override_args.items():
-                output_info(f"  {key}={value}")
-        for key, value in override_args.items():
-            try:
-                tool_cfg = tool_cfg.override(key, value)
-            except Exception as e:
-                output_exception(f"{red('Error applying override')} {key}={value}: {e}")
-                return 1
-
-    # ----------------------------------------------------------------------------------
-    # Dry run check - exit here if --dry-run flag is set
-    # ----------------------------------------------------------------------------------
-    if known_args.dry_run:
-        output_info(f"\n{bold(green('✅ Configuration validation successful'))}")
-        if known_args.verbose:
-            output_info(f"Tool type: {type(tool_cfg).__name__}")
-            output_info(f"Module: {tool_maker.__module__}.{tool_maker.__name__}")
-        return 0
-
-    # ----------------------------------------------------------------------------------
-    # Seed & Run
-    # ----------------------------------------------------------------------------------
-    if hasattr(tool_cfg, "system"):
-        seed_everything(tool_cfg.system)
-
-    output_info(f"\n{bold(green('Running tool...'))}\n")
-
-    try:
-        result = tool_cfg.invoke(func_args_for_invoke)
-    except KeyboardInterrupt:
-        return 130  # Interrupted by Ctrl-C
-    except Exception:
-        output_exception(red("Tool invocation failed"))
-        return 1
-
-    return result if result is not None else 0
+    # Use shared core logic
+    return build_and_execute_tool(
+        tool_maker=tool_maker,
+        nested_cli=nested_cli,
+        cli_args=cli_args,
+        tool_path=tool_path,
+        dry_run=known_args.dry_run,
+        verbose=known_args.verbose,
+    )
 
 
 def cli_entry():
