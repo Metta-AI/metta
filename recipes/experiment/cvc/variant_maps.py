@@ -25,24 +25,9 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
-from experiments.recipes.cogs_v_clips import (
-    LARGE_MAP_MISSIONS,
-    MEDIUM_MAP_MISSIONS,
-    SMALL_MAP_MISSIONS,
-    make_eval_suite,
-    make_training_env,
-)
-
 import metta.cogworks.curriculum as cc
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import Mission
-from experiments.recipes.cvc.variants import (
-    CORE_VARIANTS,
-    format_variant_name,
-    get_all_variants,
-    get_variant_pairs,
-    get_variant_triples,
-)
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -52,6 +37,20 @@ from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
+from recipes.experiment.cogs_v_clips import (
+    LARGE_MAP_MISSIONS,
+    MEDIUM_MAP_MISSIONS,
+    SMALL_MAP_MISSIONS,
+    make_eval_suite,
+    make_training_env,
+)
+from recipes.experiment.cvc.variants import (
+    CORE_VARIANTS,
+    format_variant_name,
+    get_all_variants,
+    get_variant_pairs,
+    get_variant_triples,
+)
 
 # Mission registry
 _MISSION_BY_NAME: dict[str, Mission] = {mission.name: mission for mission in EVAL_MISSIONS}
@@ -261,15 +260,15 @@ def train(
 
     Example:
         # Train on small + medium maps with all combos (57 tasks total)
-        uv run ./tools/run.py experiments.recipes.cvc.variant_maps.train \\
+        uv run ./tools/run.py recipes.experiment.cvc.variant_maps.train \\
             run=variant_maps num_cogs=4
 
         # Train on all maps including large (72 tasks total)
-        uv run ./tools/run.py experiments.recipes.cvc.variant_maps.train \\
+        uv run ./tools/run.py recipes.experiment.cvc.variant_maps.train \\
             run=all_maps num_cogs=8 include_large_maps=True
 
         # Train on small maps with 2 specific variants (singles + 1 pair)
-        uv run ./tools/run.py experiments.recipes.cvc.variant_maps.train \\
+        uv run ./tools/run.py recipes.experiment.cvc.variant_maps.train \\
             run=small_custom 'variants=["lonely_heart","heart_chorus"]'
     """
     resolved_curriculum = curriculum or make_curriculum(

@@ -1051,10 +1051,10 @@ def train(
 
     Usage:
         # Basic usage
-        uv run ./tools/run.py experiments.recipes.curriculum_test.task_dependency_simulator.train
+        uv run ./tools/run.py recipes.experiment.curriculum_test.task_dependency_simulator.train
 
         # With custom parameters
-        uv run ./tools/run.py experiments.recipes.curriculum_test.task_dependency_simulator.train \\
+        uv run ./tools/run.py recipes.experiment.curriculum_test.task_dependency_simulator.train \\
             num_tasks=15 num_epochs=1000 num_envs=8 run=my_experiment
     """
     config = SimulationConfig(
@@ -1233,16 +1233,16 @@ def sweep_zscore_amplification(
 
     Usage:
         # Basic usage (10 experiments from z_score_amplification=1 to 100)
-        uv run ./tools/run.py experiments.recipes.curriculum_test.task_dependency_simulator.sweep_zscore_amplification
+        uv run ./tools/run.py recipes.experiment.curriculum_test.task_dependency_simulator.sweep_zscore_amplification
 
         # Custom sweep range
         uv run ./tools/run.py \\
-            experiments.recipes.curriculum_test.task_dependency_simulator.sweep_zscore_amplification \\
+            recipes.experiment.curriculum_test.task_dependency_simulator.sweep_zscore_amplification \\
             num_sweep_points=20 min_zscore=0.1 max_zscore=1000.0 run_prefix=wide_sweep
 
         # Quick test with fewer epochs
         uv run ./tools/run.py \\
-            experiments.recipes.curriculum_test.task_dependency_simulator.sweep_zscore_amplification \\
+            recipes.experiment.curriculum_test.task_dependency_simulator.sweep_zscore_amplification \\
             num_epochs=100 num_sweep_points=5
     """
     return ZScoreSweepTool(
@@ -1393,14 +1393,14 @@ def sweep_num_tasks(
 
     Usage:
         # Basic usage (10 experiments from 3 to 30 tasks)
-        uv run ./tools/run.py experiments.recipes.curriculum_test.task_dependency_simulator.sweep_num_tasks
+        uv run ./tools/run.py recipes.experiment.curriculum_test.task_dependency_simulator.sweep_num_tasks
 
         # Custom sweep range
-        uv run ./tools/run.py experiments.recipes.curriculum_test.task_dependency_simulator.sweep_num_tasks \\
+        uv run ./tools/run.py recipes.experiment.curriculum_test.task_dependency_simulator.sweep_num_tasks \\
             num_sweep_points=15 min_tasks=5 max_tasks=50 run_prefix=long_chains
 
         # Quick test with fewer epochs
-        uv run ./tools/run.py experiments.recipes.curriculum_test.task_dependency_simulator.sweep_num_tasks \\
+        uv run ./tools/run.py recipes.experiment.curriculum_test.task_dependency_simulator.sweep_num_tasks \\
             num_epochs=100 num_sweep_points=5 max_tasks=15
     """
     return NumTasksSweepTool(
@@ -1570,14 +1570,14 @@ def sweep_num_active_tasks(
 
     Usage:
         # Basic usage (10 experiments from 50 to 1000 active tasks)
-        uv run ./tools/run.py experiments.recipes.curriculum_test.task_dependency_simulator.sweep_num_active_tasks
+        uv run ./tools/run.py recipes.experiment.curriculum_test.task_dependency_simulator.sweep_num_active_tasks
 
         # Wide range sweep
-        uv run ./tools/run.py experiments.recipes.curriculum_test.task_dependency_simulator.sweep_num_active_tasks \\
+        uv run ./tools/run.py recipes.experiment.curriculum_test.task_dependency_simulator.sweep_num_active_tasks \\
             num_sweep_points=15 min_active_tasks=25 max_active_tasks=2000 run_prefix=pool_size
 
         # Quick test with fewer epochs
-        uv run ./tools/run.py experiments.recipes.curriculum_test.task_dependency_simulator.sweep_num_active_tasks \\
+        uv run ./tools/run.py recipes.experiment.curriculum_test.task_dependency_simulator.sweep_num_active_tasks \\
             num_epochs=100 num_sweep_points=5
     """
     return NumActiveTasksSweepTool(

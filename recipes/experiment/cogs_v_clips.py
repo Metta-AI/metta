@@ -2,7 +2,7 @@
 
 This module defines the base tooling for CoGs vs Clips training. Variant-specific
 recipes should import from here and extend via custom defaults, similar to how
-`experiments.recipes.abes` wraps `experiments.recipes.arena`.
+`recipes.experiment.abes` wraps `recipes.experiment.arena`.
 """
 
 from __future__ import annotations
