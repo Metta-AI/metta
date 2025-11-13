@@ -1,38 +1,45 @@
-"""Supervised trainer recipe that uses the Nim scripted agent as a teacher."""
+"""Supervised trainer recipe aligned with the extractor_hub_30 lonely_heart mission."""
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Iterable, Literal, Sequence
 
+from cogames.cli.mission import get_mission
 from metta.cogworks.curriculum import env_curriculum
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.train import TrainTool
-from mettagrid.builder.envs import make_arena
 from mettagrid.config.mettagrid_config import EnvSupervisorConfig, MettaGridConfig
 
 NIM_TEACHER_POLICY = "nim_thinky"
+DEFAULT_MISSION = "evals.extractor_hub_30"
+DEFAULT_VARIANTS: tuple[str, ...] = ("lonely_heart",)
 
 
-def _nim_arena(num_agents: int, max_steps: int) -> MettaGridConfig:
-    env = make_arena(num_agents=num_agents)
-    env.game.max_steps = max_steps
-    return env
+def _load_env_from_mission(
+    mission: str,
+    variants: Sequence[str] | None,
+    cogs: int,
+    max_steps: int,
+) -> MettaGridConfig:
+    variant_list = list(variants) if variants else None
+    _, env_cfg, _ = get_mission(mission, variants_arg=variant_list, cogs=cogs)
+    env_cfg.game.max_steps = max_steps
+    return env_cfg
 
 
 def train(
-    num_agents: int = 6,
-    max_steps: int = 96,
+    *,
+    mission: str = DEFAULT_MISSION,
+    variants: Iterable[str] | None = DEFAULT_VARIANTS,
+    cogs: int = 1,
+    max_steps: int = 1000,
     total_timesteps: int = 262_144,
     vectorization: Literal["serial", "multiprocessing"] = "serial",
 ) -> TrainTool:
     """Train via supervised imitation from the Nim scripted policy."""
 
-    if num_agents % 6 != 0:
-        msg = "MettaGrid curriculum currently expects agent counts divisible by 6"
-        raise ValueError(f"{msg}; received num_agents={num_agents}")
-
-    env_cfg = _nim_arena(num_agents=num_agents, max_steps=max_steps)
+    env_cfg = _load_env_from_mission(mission, tuple(variants) if variants else None, cogs, max_steps)
     curriculum = env_curriculum(env_cfg)
     eval_env = env_cfg.model_copy(deep=True)
 
@@ -45,7 +52,7 @@ def train(
             forward_pass_minibatch_target_size=1024,
             vectorization=vectorization,
         ),
-        evaluator=EvaluatorConfig(simulations=[SimulationConfig(suite="arena", name="nim_supervised", env=eval_env)]),
+        evaluator=EvaluatorConfig(simulations=[SimulationConfig(suite=mission, name="nim_supervised", env=eval_env)]),
     )
 
     tool.trainer.behavior_cloning.policy_uri = NIM_TEACHER_POLICY
