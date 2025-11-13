@@ -129,16 +129,16 @@ def train(
     # Configure scheduler with run gates
     scheduler = SchedulerConfig(
         run_gates=[
-            LossRunGate(loss_instance_name="ppo", phase="rollout", begin_at_epoch=1000),
+            LossRunGate(loss_instance_name="ppo", phase="rollout", begin_at_epoch=750),
             LossRunGate(
                 loss_instance_name="alternating_kickstarter",
                 phase="rollout",
-                end_at_epoch=1000,
+                end_at_epoch=750,
             ),
             LossRunGate(
                 loss_instance_name="alternating_kickstarter",
                 phase="train",
-                end_at_epoch=1000,
+                end_at_epoch=750,
             ),
         ],
         rules=[
@@ -149,8 +149,8 @@ def train(
                 style="linear",
                 start_value=0.6,
                 end_value=0.0,
-                start_epoch=500,
-                end_epoch=1000,
+                start_epoch=250,
+                end_epoch=750,
             ),
             HyperUpdateRule(
                 loss_instance_name="alternating_kickstarter",
@@ -159,18 +159,18 @@ def train(
                 style="linear",
                 start_value=1.0,
                 end_value=0.0,
-                start_epoch=500,
-                end_epoch=1000,
+                start_epoch=250,
+                end_epoch=750,
             ),
             HyperUpdateRule(
                 loss_instance_name="alternating_kickstarter",
                 attr_path="teacher_lead_prob",
                 mode="progress",
                 style="linear",
-                start_value=0.5,
+                start_value=1.0,
                 end_value=0.0,
                 start_epoch=0,
-                end_epoch=500,
+                end_epoch=250,
             ),
         ],
     )
