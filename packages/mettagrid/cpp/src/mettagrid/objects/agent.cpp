@@ -158,10 +158,6 @@ void Agent::compute_stat_rewards(StatsTracker* game_stats_tracker) {
   }
 }
 
-bool Agent::swappable() const {
-  return this->frozen;
-}
-
 bool Agent::onUse(Agent& actor, ActionArg arg) {
   // Share half of shareable resources from actor to this agent
   for (InventoryItem resource : actor.shareable_resources) {

@@ -71,8 +71,6 @@ public:
 
   void compute_stat_rewards(StatsTracker* game_stats_tracker = nullptr);
 
-  bool swappable() const override;
-
   // Implementation of Usable interface
   bool onUse(Agent& actor, ActionArg arg) override;
 

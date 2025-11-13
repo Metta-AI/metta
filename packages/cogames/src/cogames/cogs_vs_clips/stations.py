@@ -65,7 +65,7 @@ class CarbonExtractorConfig(ExtractorConfig):
         return AssemblerConfig(
             name="carbon_extractor",
             map_char="C",
-            render_symbol=vibes.VIBE_BY_NAME["carbon"].symbol,
+            render_symbol=vibes.VIBE_BY_NAME["carbon_a"].symbol,
             # Protocols
             max_uses=self.max_uses,
             protocols=[
@@ -87,7 +87,7 @@ class OxygenExtractorConfig(ExtractorConfig):
         return AssemblerConfig(
             name="oxygen_extractor",
             map_char="O",
-            render_symbol=vibes.VIBE_BY_NAME["oxygen"].symbol,
+            render_symbol=vibes.VIBE_BY_NAME["oxygen_a"].symbol,
             # Protocols
             max_uses=self.max_uses,
             allow_partial_usage=True,  # can use it while its on cooldown
@@ -112,14 +112,14 @@ class GermaniumExtractorConfig(ExtractorConfig):
         return AssemblerConfig(
             name="germanium_extractor",
             map_char="G",
-            render_symbol=vibes.VIBE_BY_NAME["germanium"].symbol,
+            render_symbol=vibes.VIBE_BY_NAME["germanium_a"].symbol,
             # Protocols
             max_uses=self.max_uses,
             protocols=[
                 ProtocolConfig(output_resources={"germanium": self.efficiency}),
                 *[
                     ProtocolConfig(
-                        vibes=["germanium"] * i, output_resources={"germanium": self.efficiency + i * self.synergy}
+                        vibes=["germanium_a"] * i, output_resources={"germanium": self.efficiency + i * self.synergy}
                     )
                     for i in range(1, 5)
                 ],
@@ -137,7 +137,7 @@ class SiliconExtractorConfig(ExtractorConfig):
         return AssemblerConfig(
             name="silicon_extractor",
             map_char="S",
-            render_symbol=vibes.VIBE_BY_NAME["silicon"].symbol,
+            render_symbol=vibes.VIBE_BY_NAME["silicon_a"].symbol,
             # Protocols
             max_uses=self.max_uses,  # Use direct value, no division
             protocols=[
@@ -163,11 +163,16 @@ class CvCChestConfig(CvCStationConfig):
             render_symbol=vibes.VIBE_BY_NAME["chest"].symbol,
             vibe_transfers={
                 "default": {"heart": 255, "carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255},
-                "heart": {"heart": -1},
-                "carbon": {"carbon": -10},
-                "oxygen": {"oxygen": -10},
-                "germanium": {"germanium": -1},
-                "silicon": {"silicon": -25},
+                "heart_a": {"heart": -1},
+                "heart_b": {"heart": 1},
+                "carbon_a": {"carbon": -10},
+                "carbon_b": {"carbon": 10},
+                "oxygen_a": {"oxygen": -10},
+                "oxygen_b": {"oxygen": 10},
+                "germanium_a": {"germanium": -1},
+                "germanium_b": {"germanium": 1},
+                "silicon_a": {"silicon": -25},
+                "silicon_b": {"silicon": 25},
             },
             initial_inventory=self.initial_inventory,
         )
@@ -187,7 +192,7 @@ class CvCAssemblerConfig(CvCStationConfig):
             clip_immune=True,
             protocols=[
                 ProtocolConfig(
-                    vibes=["heart"] * (i + 1),
+                    vibes=["heart_a"] * (i + 1),
                     input_resources={
                         "carbon": 2 * (self.first_heart_cost + self.additional_heart_cost * i),
                         "oxygen": 2 * (self.first_heart_cost + self.additional_heart_cost * i),
@@ -203,7 +208,7 @@ class CvCAssemblerConfig(CvCStationConfig):
                 # Specific gear protocols: ['gear', 'resource'] -> gear_item
                 # Agent must have the specific resource AND use gear vibe
                 ProtocolConfig(
-                    vibes=["gear", gear[i][0]],
+                    vibes=["gear", f"{gear[i][0]}_a"],
                     input_resources={gear[i][0]: 1},
                     output_resources={gear[i][1]: 1},
                 )

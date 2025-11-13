@@ -77,7 +77,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         agent_feature_pairs = {
             "agent:group": "agent_group",
             "agent:frozen": "agent_frozen",
-            "agent:orientation": "agent_orientation",
             "agent:visitation_counts": "agent_visitation_counts",
         }
         self._agent_feature_key_by_name: dict[str, str] = agent_feature_pairs
@@ -224,7 +223,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             protocol_outputs=get_dict("protocol_outputs"),
             agent_group=get_int("agent_group", -1),
             agent_frozen=get_int("agent_frozen", 0),
-            agent_orientation=get_int("agent_orientation", 0),
         )
 
     def parse_observation(
@@ -571,8 +569,8 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             return state.target_resource
 
         phase_to_vibe = {
-            Phase.GATHER: "carbon",  # Default fallback if no target resource
-            Phase.ASSEMBLE: "heart",  # Red for assembly
+            Phase.GATHER: "carbon_a",  # Default fallback if no target resource
+            Phase.ASSEMBLE: "heart_a",  # Red for assembly
             Phase.DELIVER: "default",  # Must be "default" to deposit hearts into chest
             Phase.RECHARGE: "charger",  # Blue/electric for recharging
             Phase.CRAFT_UNCLIP: "gear",  # Gear icon for crafting unclip items
@@ -918,9 +916,9 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             return explore_action
 
         # First, ensure we have the correct glyph (heart) for assembling
-        if s.current_glyph != "heart":
-            vibe_action = self._actions.change_vibe.ChangeVibe(VIBE_BY_NAME["heart"])
-            s.current_glyph = "heart"
+        if s.current_glyph != "heart_a":
+            vibe_action = self._actions.change_vibe.ChangeVibe(VIBE_BY_NAME["heart_a"])
+            s.current_glyph = "heart_a"
             return vibe_action
 
         # Assembler is known, navigate to it and use it
@@ -944,7 +942,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
         # First, ensure we have the correct glyph (default/neutral) for chest deposit
         # - "default" vibe: DEPOSIT resources (positive values)
-        # - specific resource vibes (e.g., "heart"): WITHDRAW resources (negative values)
+        # - specific resource vibes (e.g., "heart_a"): WITHDRAW resources (negative values)
         if s.current_glyph != "default":
             vibe_action = self._actions.change_vibe.ChangeVibe(VIBE_BY_NAME["default"])
             s.current_glyph = "default"
@@ -1171,5 +1169,6 @@ class BaselinePolicy(MultiAgentPolicy):
             self._agent_policies[agent_id] = StatefulAgentPolicy(
                 BaselineAgentPolicyImpl(self._policy_env_info, agent_id, self._hyperparams),
                 self._policy_env_info,
+                agent_id=agent_id,
             )
         return self._agent_policies[agent_id]

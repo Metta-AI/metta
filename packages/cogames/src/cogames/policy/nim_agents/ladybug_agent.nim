@@ -69,6 +69,9 @@ type
     random*: Rand
     state*: LadybugState
 
+  LadybugPolicy* = ref object
+    agents*: seq[LadybugAgent]
+
 const
   defaultMapSize = 200
   rechargeThresholdLow = 35
@@ -703,3 +706,26 @@ proc step*(
     echo getCurrentExceptionMsg()
     actions[agent.agentId] = agent.cfg.actions.noop.int32
     agent.state.lastAction = agent.cfg.actions.noop
+
+proc newLadybugPolicy*(environmentConfig: string): LadybugPolicy =
+  let cfg = parseConfig(environmentConfig)
+  var agents: seq[LadybugAgent] = @[]
+  for id in 0 ..< cfg.config.numAgents:
+    agents.add(newLadybugAgent(id, environmentConfig))
+  LadybugPolicy(agents: agents)
+
+proc stepBatch*(
+    policy: LadybugPolicy,
+    agentIds: pointer,
+    numAgentIds: int,
+    numAgents: int,
+    numTokens: int,
+    sizeToken: int,
+    rawObservations: pointer,
+    numActions: int,
+    rawActions: pointer
+) =
+  let ids = cast[ptr UncheckedArray[int32]](agentIds)
+  for i in 0 ..< numAgentIds:
+    let idx = int(ids[i])
+    step(policy.agents[idx], numAgents, numTokens, sizeToken, rawObservations, numActions, rawActions)
