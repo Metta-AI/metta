@@ -118,13 +118,15 @@ class TokenPolicyNet(torch.nn.Module):
 class TokenAgentPolicyImpl(AgentPolicy):
     """Per-agent policy utilising the shared token encoder network."""
 
-    def __init__(self, net: TokenPolicyNet, device: torch.device, num_actions: int):
+    def __init__(self, net: TokenPolicyNet, num_actions: int):
         self._net = net
-        self._device = device
         self._num_actions = num_actions
 
+    def _device(self) -> torch.device:
+        return next(self._net.parameters()).device
+
     def step(self, obs: MettaGridObservation) -> MettaGridAction:
-        obs_tensor = torch.tensor(obs, device=self._device).unsqueeze(0).float()
+        obs_tensor = torch.tensor(obs, device=self._device()).unsqueeze(0).float()
 
         with torch.no_grad():
             self._net.eval()
@@ -139,31 +141,28 @@ class TokenPolicy(TrainablePolicy):
 
     short_names = ["token"]
 
-    def __init__(
-        self,
-        features: list[ObservationFeatureSpec],
-        actions_cfg: ActionsConfig,
-        device: torch.device,
-        policy_env_info: PolicyEnvInterface,
-    ):
+    def __init__(self, policy_env_info: PolicyEnvInterface, device: torch.device | str | None = None):
         super().__init__(policy_env_info)
-        self._net = TokenPolicyNet(features, actions_cfg).to(device)
-        self._device = device
+        actions_cfg = policy_env_info.actions
+        self._net = TokenPolicyNet(policy_env_info.obs_features, actions_cfg)
+        if device is not None:
+            self._net = self._net.to(torch.device(device))
         self._num_actions = len(actions_cfg.actions())
 
     def network(self) -> nn.Module:
         return self._net
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
-        return TokenAgentPolicyImpl(self._net, self._device, self._num_actions)
+        return TokenAgentPolicyImpl(self._net, self._num_actions)
 
     def is_recurrent(self) -> bool:
         return False
 
     def load_policy_data(self, checkpoint_path: str) -> None:
-        state_dict = torch.load(checkpoint_path, map_location=self._device)
+        device = next(self._net.parameters()).device
+        state_dict = torch.load(checkpoint_path, map_location=device)
         self._net.load_state_dict(state_dict)
-        self._net = self._net.to(self._device)
+        self._net = self._net.to(device)
 
     def save_policy_data(self, checkpoint_path: str) -> None:
         torch.save(self._net.state_dict(), checkpoint_path)
