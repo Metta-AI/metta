@@ -1,8 +1,7 @@
 # This file has an example of random agents that just take random actions.
 
 import
-  std/[strformat, strutils, tables, sets, random],
-  genny, jsony,
+  std/random,
   common
 
 type
@@ -14,50 +13,43 @@ type
   RandomPolicy* = ref object
     agents*: seq[RandomAgent]
 
-proc newRandomAgent*(
-  agentId: int,
-  environmentConfig: string
-): RandomAgent =
-  echo "Creating new RandomAgent ", agentId
+proc newRandomAgent*(agentId: int, environmentConfig: string): RandomAgent =
   var config = parseConfig(environmentConfig)
   result = RandomAgent(agentId: agentId, cfg: config)
   result.random = initRand(agentId)
 
-proc step*(
-  agent: RandomAgent,
-  numAgents: int,
-  numTokens: int,
-  sizeToken: int,
-  rawObservations: pointer,
-  numActions: int,
-  rawActions: pointer
-) =
-  let actions = cast[ptr UncheckedArray[int32]](rawActions)
-  let action = agent.random.rand(1 .. 4).int32
-  actions[agent.agentId] = action
-  echo "  RandomAgent taking action: ", action
+proc reset*(agent: RandomAgent) =
+  agent.random = initRand(agent.agentId)
 
-proc stepPolicyBatch*(
-    agents: seq[RandomAgent],
-    agentIds: pointer,
-    numAgentIds: int,
+proc step*(
+    agent: RandomAgent,
     numAgents: int,
     numTokens: int,
     sizeToken: int,
-    rawObservations: pointer,
+    rawObservation: pointer,
     numActions: int,
-    rawActions: pointer
+    agentAction: ptr int32
 ) =
-  discard
+  discard numAgents
+  discard numTokens
+  discard sizeToken
+  discard rawObservation
+  discard numActions
+  agentAction[] = agent.random.rand(1 .. 4).int32
 
 proc newRandomPolicy*(environmentConfig: string): RandomPolicy =
-  let cfg = parseConfig(environmentConfig)
+  var cfg: Config
+  try:
+    cfg = parseConfig(environmentConfig)
+  except CatchableError as err:
+    raiseAssert("Invalid policy config: " & err.msg)
+
   var agents: seq[RandomAgent] = @[]
   for id in 0 ..< cfg.config.numAgents:
     agents.add(newRandomAgent(id, environmentConfig))
   RandomPolicy(agents: agents)
 
-proc randomPolicyStepBatch*(
+proc stepBatch*(
     policy: RandomPolicy,
     agentIds: pointer,
     numAgentIds: int,
@@ -68,4 +60,13 @@ proc randomPolicyStepBatch*(
     numActions: int,
     rawActions: pointer
 ) =
-  stepPolicyBatch(policy.agents, agentIds, numAgentIds, numAgents, numTokens, sizeToken, rawObservations, numActions, rawActions)
+  let ids = cast[ptr UncheckedArray[int32]](agentIds)
+  let obsArray = cast[ptr UncheckedArray[uint8]](rawObservations)
+  let actionArray = cast[ptr UncheckedArray[int32]](rawActions)
+  let obsStride = numTokens * sizeToken
+
+  for i in 0 ..< numAgentIds:
+    let idx = int(ids[i])
+    let obsPtr = cast[pointer](obsArray[idx * obsStride].addr)
+    let actPtr = cast[ptr int32](actionArray[idx].addr)
+    step(policy.agents[idx], numAgents, numTokens, sizeToken, obsPtr, numActions, actPtr)

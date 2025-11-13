@@ -178,137 +178,140 @@ proc initCHook*() =
   setControlCHook(ctrlCHandler)
   echo "NimAgents initialized"
 
-proc parseConfig*(environmentConfig: string): Config {.raises: [JsonError, ValueError].} =
-  var config = environmentConfig.fromJson(PolicyConfig)
-  result = Config(config: config)
-  result.features.protocolInputs = initTable[string, int]()
-  result.features.protocolOutputs = initTable[string, int]()
+proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
+  try:
+    var config = environmentConfig.fromJson(PolicyConfig)
+    result = Config(config: config)
+    result.features.protocolInputs = initTable[string, int]()
+    result.features.protocolOutputs = initTable[string, int]()
 
-  for feature in config.obsFeatures:
-    case feature.name:
-    of "agent:group":
-      result.features.group = feature.id
-    of "agent:frozen":
-      result.features.frozen = feature.id
-    of "agent:orientation":
-      result.features.orientation = feature.id
-    of "agent:reserved_for_future_use":
-      result.features.reservedForFutureUse = feature.id
-    of "converting":
-      result.features.converting = feature.id
-    of "swappable":
-      result.features.swappable = feature.id
-    of "episode_completion_pct":
-      result.features.episodeCompletionPct = feature.id
-    of "last_action":
-      result.features.lastAction = feature.id
-    of "last_action_arg":
-      result.features.lastActionArg = feature.id
-    of "last_reward":
-      result.features.lastReward = feature.id
-    of "vibe":
-      result.features.vibe = feature.id
-    of "agent:visitation_counts":
-      result.features.visitationCounts = feature.id
-    of "agent:compass":
-      result.features.compass = feature.id
-    of "tag":
-      result.features.tag = feature.id
-    of "cooldown_remaining":
-      result.features.cooldownRemaining = feature.id
-    of "clipped":
-      result.features.clipped = feature.id
-    of "remaining_uses":
-      result.features.remainingUses = feature.id
-    of "inv:energy":
-      result.features.invEnergy = feature.id
-    of "inv:carbon":
-      result.features.invCarbon = feature.id
-    of "inv:oxygen":
-      result.features.invOxygen = feature.id
-    of "inv:germanium":
-      result.features.invGermanium = feature.id
-    of "inv:silicon":
-      result.features.invSilicon = feature.id
-    of "inv:heart":
-      result.features.invHeart = feature.id
-    of "inv:decoder":
-      result.features.invDecoder = feature.id
-    of "inv:modulator":
-      result.features.invModulator = feature.id
-    of "inv:resonator":
-      result.features.invResonator = feature.id
-    of "inv:scrambler":
-      result.features.invScrambler = feature.id
-    else:
-      if registerProtocolFeature(feature, "protocol_input:",
-          result.features.protocolInputs):
-        discard
-      elif registerProtocolFeature(feature, "protocol_output:",
-          result.features.protocolOutputs):
-        discard
+    for feature in config.obsFeatures:
+      case feature.name:
+      of "agent:group":
+        result.features.group = feature.id
+      of "agent:frozen":
+        result.features.frozen = feature.id
+      of "agent:orientation":
+        result.features.orientation = feature.id
+      of "agent:reserved_for_future_use":
+        result.features.reservedForFutureUse = feature.id
+      of "converting":
+        result.features.converting = feature.id
+      of "swappable":
+        result.features.swappable = feature.id
+      of "episode_completion_pct":
+        result.features.episodeCompletionPct = feature.id
+      of "last_action":
+        result.features.lastAction = feature.id
+      of "last_action_arg":
+        result.features.lastActionArg = feature.id
+      of "last_reward":
+        result.features.lastReward = feature.id
+      of "vibe":
+        result.features.vibe = feature.id
+      of "agent:visitation_counts":
+        result.features.visitationCounts = feature.id
+      of "agent:compass":
+        result.features.compass = feature.id
+      of "tag":
+        result.features.tag = feature.id
+      of "cooldown_remaining":
+        result.features.cooldownRemaining = feature.id
+      of "clipped":
+        result.features.clipped = feature.id
+      of "remaining_uses":
+        result.features.remainingUses = feature.id
+      of "inv:energy":
+        result.features.invEnergy = feature.id
+      of "inv:carbon":
+        result.features.invCarbon = feature.id
+      of "inv:oxygen":
+        result.features.invOxygen = feature.id
+      of "inv:germanium":
+        result.features.invGermanium = feature.id
+      of "inv:silicon":
+        result.features.invSilicon = feature.id
+      of "inv:heart":
+        result.features.invHeart = feature.id
+      of "inv:decoder":
+        result.features.invDecoder = feature.id
+      of "inv:modulator":
+        result.features.invModulator = feature.id
+      of "inv:resonator":
+        result.features.invResonator = feature.id
+      of "inv:scrambler":
+        result.features.invScrambler = feature.id
       else:
-        echo "Unknown feature: ", feature.name
+        if registerProtocolFeature(feature, "protocol_input:",
+            result.features.protocolInputs):
+          discard
+        elif registerProtocolFeature(feature, "protocol_output:",
+            result.features.protocolOutputs):
+          discard
+        else:
+          echo "Unknown feature: ", feature.name
 
-  for id, name in config.actions:
-    case name:
-    of "noop":
-      result.actions.noop = id
-    of "move_north":
-      result.actions.moveNorth = id
-    of "move_south":
-      result.actions.moveSouth = id
-    of "move_west":
-      result.actions.moveWest = id
-    of "move_east":
-      result.actions.moveEast = id
-    of "change_vibe_default":
-      result.actions.vibeDefault = id
-    of "change_vibe_charger":
-      result.actions.vibeCharger = id
-    of "change_vibe_carbon":
-      result.actions.vibeCarbon = id
-    of "change_vibe_oxygen":
-      result.actions.vibeOxygen = id
-    of "change_vibe_germanium":
-      result.actions.vibeGermanium = id
-    of "change_vibe_silicon":
-      result.actions.vibeSilicon = id
-    of "change_vibe_heart":
-      result.actions.vibeHeart = id
-    of "change_vibe_gear":
-      result.actions.vibeGear = id
-    of "change_vibe_assembler":
-      result.actions.vibeAssembler = id
-    of "change_vibe_chest":
-      result.actions.vibeChest = id
-    of "change_vibe_wall":
-      result.actions.vibeWall = id
-    else:
-      discard
+    for id, name in config.actions:
+      case name:
+      of "noop":
+        result.actions.noop = id
+      of "move_north":
+        result.actions.moveNorth = id
+      of "move_south":
+        result.actions.moveSouth = id
+      of "move_west":
+        result.actions.moveWest = id
+      of "move_east":
+        result.actions.moveEast = id
+      of "change_vibe_default":
+        result.actions.vibeDefault = id
+      of "change_vibe_charger":
+        result.actions.vibeCharger = id
+      of "change_vibe_carbon":
+        result.actions.vibeCarbon = id
+      of "change_vibe_oxygen":
+        result.actions.vibeOxygen = id
+      of "change_vibe_germanium":
+        result.actions.vibeGermanium = id
+      of "change_vibe_silicon":
+        result.actions.vibeSilicon = id
+      of "change_vibe_heart":
+        result.actions.vibeHeart = id
+      of "change_vibe_gear":
+        result.actions.vibeGear = id
+      of "change_vibe_assembler":
+        result.actions.vibeAssembler = id
+      of "change_vibe_chest":
+        result.actions.vibeChest = id
+      of "change_vibe_wall":
+        result.actions.vibeWall = id
+      else:
+        discard
 
-  for id, name in config.tags:
-    case name:
-    of "agent":
-      result.tags.agent = id
-    of "assembler":
-      result.tags.assembler = id
-    of "carbon_extractor":
-      result.tags.carbonExtractor = id
-    of "charger":
-      result.tags.charger = id
-    of "chest":
-      result.tags.chest = id
-    of "germanium_extractor":
-      result.tags.germaniumExtractor = id
-    of "oxygen_extractor":
-      result.tags.oxygenExtractor = id
-    of "silicon_extractor":
-      result.tags.siliconExtractor = id
-    of "wall":
-      result.tags.wall = id
-    else:
-      discard
+    for id, name in config.tags:
+      case name:
+      of "agent":
+        result.tags.agent = id
+      of "assembler":
+        result.tags.assembler = id
+      of "carbon_extractor":
+        result.tags.carbonExtractor = id
+      of "charger":
+        result.tags.charger = id
+      of "chest":
+        result.tags.chest = id
+      of "germanium_extractor":
+        result.tags.germaniumExtractor = id
+      of "oxygen_extractor":
+        result.tags.oxygenExtractor = id
+      of "silicon_extractor":
+        result.tags.siliconExtractor = id
+      of "wall":
+        result.tags.wall = id
+      else:
+        discard
+  except JsonError, ValueError:
+    echo "Error parsing environment config: ", getCurrentExceptionMsg()
 
 
 proc computeMapBounds*(map: Table[Location, seq[FeatureValue]]): MapBounds =
