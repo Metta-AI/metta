@@ -22,6 +22,12 @@ def run_lite_eval() -> LiteEvalTool:
                 env=arena.mettagrid(),
                 num_episodes=1,
                 proportions=[1.0, 2.0],
-            )
+                episode_tags={"name": "lite_eval_1", "category": "arena"},
+            ),
+            SimulationRunConfig(
+                env=arena.mettagrid(num_agents=6),
+                num_episodes=2,
+                episode_tags={"name": "lite_eval_2", "category": "arena"},
+            ),
         ],
     )
