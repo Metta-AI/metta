@@ -1,7 +1,8 @@
 import uuid
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
+
+from pydantic import BaseModel, ConfigDict
 
 from metta.sim.replay_log_writer import ReplayLogWriter
 from metta.sim.simulation_config import SimulationConfig
@@ -11,8 +12,9 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.multi_episode_rollout import MultiEpisodeRolloutResult, multi_episode_rollout
 
 
-@dataclass
-class SimulationRollout:
+class SimulationRollout(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     simulation: SimulationConfig
     rollout: MultiEpisodeRolloutResult
     replay_urls: dict[str, str]
