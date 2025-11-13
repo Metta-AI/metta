@@ -94,24 +94,15 @@ def extract_features_from_config(config: MettaGridConfig) -> Dict[str, Any]:
     num_sinks = int(parts[2].replace("sinks", ""))
     terrain = parts[3] if len(parts) > 3 else "no-terrain"
 
-    mb = getattr(config, "map_builder", None) or getattr(getattr(config, "game", None), "map_builder", None)
-    mb = getattr(mb, "instance", mb)
+    mb = config.game.map_builder
+    mb_core = getattr(mb, "instance", mb)
 
-    width = getattr(mb, "width", None)
-    height = getattr(mb, "height", None)
-
+    width = getattr(mb_core, "width", None)
+    height = getattr(mb_core, "height", None)
     if width is None or height is None:
-        width = getattr(config, "width", width)
-        height = getattr(config, "height", height)
-    if width is None or height is None:
-        game = getattr(config, "game", None)
-        width = getattr(game, "width", width)
-        height = getattr(game, "height", height)
+        raise ValueError("map_builder.width/height missing (builder may be incomplete).")
 
-    if width is None or height is None:
-        raise ValueError("map_builder.width/height missing")
-
-    objs = getattr(config, "game_objects", None) or getattr(getattr(config, "game", None), "objects", None) or {}
+    objs = getattr(getattr(config, "game", None), "objects", None) or {}
     num_assemblers = sum(1 for o in objs.values() if getattr(o, "type", "") == "assembler")
 
     return {
