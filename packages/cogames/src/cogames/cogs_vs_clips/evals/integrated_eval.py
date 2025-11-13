@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import logging
-
-from cogames.cogs_vs_clips.mission import Mission, Site
-from cogames.cogs_vs_clips.procedural import MachinaArena
+from cogames.cogs_vs_clips.mission import Mission
 from cogames.cogs_vs_clips.sites import HELLO_WORLD, TRAINING_FACILITY
 from cogames.cogs_vs_clips.variants import (
     CompassVariant,
@@ -20,33 +17,7 @@ from cogames.cogs_vs_clips.variants import (
     SingleUseSwarmVariant,
     VibeCheckMin2Variant,
 )
-from mettagrid.mapgen.mapgen import MapGen
 
-logger = logging.getLogger(__name__)
-
-SMALL_HELLO_WORLD = Site(
-    name="small_hello_world",
-    description="Small hello world map.",
-    map_builder=MapGen.Config(width=50, height=50, instance=MachinaArena.Config(spawn_count=20)),
-    min_cogs=1,
-    max_cogs=20,
-)
-
-MEDIUM_HELLO_WORLD = Site(
-    name="medium_hello_world",
-    description="Medium hello world map.",
-    map_builder=MapGen.Config(width=100, height=100, instance=MachinaArena.Config(spawn_count=20)),
-    min_cogs=1,
-    max_cogs=20,
-)
-
-LARGE_HELLO_WORLD = Site(
-    name="large_hello_world",
-    description="Large hello world map.",
-    map_builder=MapGen.Config(width=150, height=150, instance=MachinaArena.Config(spawn_count=20)),
-    min_cogs=1,
-    max_cogs=20,
-)
 # Resource Bottleneck evals (Different resources are the limiting reagents; agents must prioritize correct resource.)
 OxygenBottleneck = Mission(
     name="oxygen_bottleneck",
@@ -84,7 +55,7 @@ DistantResources = Mission(
         EmptyBaseVariant(),
         CompassVariant(),
         DistantResourcesVariant(),
-        #        NeutralFacedVariant(),
+        NeutralFacedVariant(),
     ],
 )
 
@@ -113,6 +84,7 @@ SingleUseSwarm = Mission(
         SingleUseSwarmVariant(),
         CompassVariant(),
         PackRatVariant(),
+        NeutralFacedVariant(),
     ],
 )
 
@@ -128,14 +100,26 @@ VibeCheck = Mission(
     ],
 )
 
-EasyHeartsMission = Mission(
-    name="easy_hearts",
+EasyHeartsTraining = Mission(
+    name="easy_hearts_training",
     description="Simplified heart crafting, generous caps, extractor base, neutral vibe.",
     site=TRAINING_FACILITY,
     variants=[
         LonelyHeartVariant(),
         PackRatVariant(),
         NeutralFacedVariant(),
+    ],
+)
+
+EasyHeartsMission = Mission(
+    name="easy_hearts_hello_world",
+    description="Simplified heart crafting, generous caps, extractor base, neutral vibe.",
+    site=HELLO_WORLD,
+    variants=[
+        LonelyHeartVariant(),
+        PackRatVariant(),
+        NeutralFacedVariant(),
+        EmptyBaseVariant(),
     ],
 )
 
