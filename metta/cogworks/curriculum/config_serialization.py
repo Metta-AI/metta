@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import random
-import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Mapping, Sequence, Tuple
 
@@ -87,81 +86,41 @@ def get_feature_dim() -> int:
     return dim
 
 
-def _map_builder(cfg: MettaGridConfig):
-    """Locate the map_builder.
-
-    Supports multiple layout variants:
-      - cfg.map_builder
-      - cfg.game.map_builder
-      - wrapped as `.instance` on either
-
-    Returns the resolved builder or None if not found.
-    """
-    game = getattr(cfg, "game", None)
-    mb = getattr(cfg, "map_builder", None) or (getattr(game, "map_builder", None) if game is not None else None)
-    inst = getattr(mb, "instance", None) if mb is not None else None
-    return inst or mb
-
-
 def extract_features_from_config(config: MettaGridConfig) -> Dict[str, Any]:
-    """Extract raw (unnormalized) base features from a config."""
-    mb = _map_builder(config)
-    if mb is None:
-        raise ValueError("map_builder not found on config")
+    label_core = (config.label or "").split("|", 1)[0]
+    parts = label_core.split("_")
+    room_size = parts[0]
+    chain_length = int(parts[1].replace("chain", ""))
+    num_sinks = int(parts[2].replace("sinks", ""))
+    terrain = parts[3] if len(parts) > 3 else "no-terrain"
 
-    if not hasattr(mb, "width") or not hasattr(mb, "height"):
+    mb = getattr(config, "map_builder", None) or getattr(getattr(config, "game", None), "map_builder", None)
+    mb = getattr(mb, "instance", mb)
+
+    width = getattr(mb, "width", None)
+    height = getattr(mb, "height", None)
+
+    if width is None or height is None:
+        width = getattr(config, "width", width)
+        height = getattr(config, "height", height)
+    if width is None or height is None:
+        game = getattr(config, "game", None)
+        width = getattr(game, "width", width)
+        height = getattr(game, "height", height)
+
+    if width is None or height is None:
         raise ValueError("map_builder.width/height missing")
-    width = int(mb.width)
-    height = int(mb.height)
-
-    room_size = getattr(mb, "room_size", None)
-    terrain = getattr(mb, "terrain", None) or getattr(mb, "density", None)
-
-    chain_length = getattr(mb, "chain_length", None)
-    num_sinks = getattr(mb, "num_sinks", None)
-
-    missing_structured = []
-    if room_size is None:
-        missing_structured.append("room_size")
-    if terrain is None:
-        missing_structured.append("terrain")
-    if chain_length is None:
-        missing_structured.append("chain_length")
-    if num_sinks is None:
-        missing_structured.append("num_sinks")
-
-    if missing_structured:
-        label = getattr(config, "label", "") or ""
-        label_core = label.split("|", 1)[0]
-        _ROOM = r"(tiny|small|medium|large|xlarge)"
-        _TERR = r"(no\-terrain|sparse|balanced|dense)"
-        m = re.fullmatch(rf"{_ROOM}_(\d+)chain_(\d+)sinks_{_TERR}", label_core)
-        if not m:
-            raise ValueError(f"Missing structured fields {missing_structured} and label not parseable: {label!r}")
-        room_f, chain_f, sinks_f, terr_f = m.groups()
-        room_size = room_size or room_f
-        terrain = terrain or terr_f
-        chain_length = chain_length if chain_length is not None else int(chain_f)
-        num_sinks = num_sinks if num_sinks is not None else int(sinks_f)
-
-    if room_size is None or terrain is None or chain_length is None or num_sinks is None:
-        raise ValueError("required fields unresolved after label fallback")
-
-    chain_length_i: int = int(chain_length)
-    num_sinks_i: int = int(num_sinks)
-    room_size_s: str = str(room_size)
-    terrain_s: str = str(terrain)
 
     objs = getattr(config, "game_objects", None) or getattr(getattr(config, "game", None), "objects", None) or {}
-    num_assemblers = sum(1 for o in objs.values() if getattr(o, "type", None) == "assembler")
+    num_assemblers = sum(1 for o in objs.values() if getattr(o, "type", "") == "assembler")
 
     return {
-        "width": width,
-        "height": height,
-        "chain_length": chain_length_i,
-        "num_sinks": num_sinks_i,
-        "room_size": room_size_s,
-        "terrain": terrain_s,
+        "width": int(width),
+        "height": int(height),
+        "chain_length": chain_length,
+        "num_sinks": num_sinks,
+        "room_size": room_size,
+        "terrain": terrain,
         "num_assemblers": num_assemblers,
     }
 
