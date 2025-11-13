@@ -33,7 +33,6 @@ class SmolLLMConfig(PolicyArchitecture):
     tokens_key: str = "smollm_tokens"
     logits_key: str = "smollm_logits"
     values_key: str = "values"
-    # no hidden export in this policy
 
     # Heads sizing
     _token_embed_dim: int = 8
