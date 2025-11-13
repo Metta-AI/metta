@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Optional
 from sqlalchemy import Text
 from sqlmodel import Column, Field, SQLModel
 
-from metta.jobs.job_config import JobConfig
+from metta.jobs.job_config import JobConfig, MetricsSource
 from metta.jobs.job_metrics import fetch_job_metrics, parse_total_timesteps
 
 if TYPE_CHECKING:
@@ -103,7 +103,7 @@ class JobState(SQLModel, table=True):
             self.request_id = job.request_id
 
         # Set WandB info for training jobs (remote training jobs generate run names)
-        if job.run_name and self.config.is_training_job:
+        if job.run_name and self.config.metrics_source == MetricsSource.WANDB:
             self.wandb_run_id = job.run_name
             self.wandb_url = (
                 f"https://wandb.ai/{self.config.wandb_entity}/{self.config.wandb_project}/runs/{job.run_name}"
