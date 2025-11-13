@@ -22,7 +22,7 @@ def initialize_or_load_policy(
 ) -> MultiAgentPolicy:
     """Initialize a policy from its class path and optionally load weights.
 
-    Expects PolicySpec to have fully resolved, local paths.
+    Expects PolicySpec to have local paths, shorthand or fully-specified. But should not have remote paths (e.g. s3://).
 
     Returns:
         Initialized policy instance
