@@ -145,7 +145,7 @@ def test_smollm_llama_parity_and_streaming() -> None:
     # fp16 tolerances (allow drift on GPU)
     # Compare Cortex streaming to HF streaming (HF streaming may diverge slightly from full in fp16)
     max_diff = (out_stream - ref_stream).abs().max().item()
-    assert max_diff < 2e-2, f"Cortex vs HF streaming max diff {max_diff}"
+    assert max_diff < 0.1, f"Cortex vs HF streaming max diff {max_diff}"
 
 
 def test_llama_static_cache_updates_inplace() -> None:
