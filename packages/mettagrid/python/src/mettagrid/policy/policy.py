@@ -169,10 +169,7 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
         else:
             raise TypeError(f"Unsupported action type: {type(action)}")
 
-        try:
-            return self._action_name_to_index[action_name]
-        except KeyError as exc:
-            raise ValueError(f"Unknown action name '{action_name}' for policy") from exc
+        return self._action_name_to_index[action_name]
 
     def step_batch(self, _raw_observations, raw_actions) -> None:
         """Loop over agents using Simulation-backed observations."""
