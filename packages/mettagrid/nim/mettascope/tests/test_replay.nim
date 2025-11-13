@@ -315,7 +315,7 @@ proc validateObject(obj: JsonNode, objIndex: int, replayData: JsonNode) =
 
   # All objects have these required fields.
   let requiredFields = [
-    "id", "type_name", "location", "orientation", "inventory", "inventory_max", "color", "is_swappable"
+    "id", "type_name", "location", "orientation", "inventory", "inventory_max", "color"
   ]
   requireFields(obj, requiredFields, objName)
 
@@ -328,8 +328,6 @@ proc validateObject(obj: JsonNode, objIndex: int, replayData: JsonNode) =
   let typeNames = replayData["type_names"].to(seq[string])
   if typeName notin typeNames:
     raise newException(ValueError, &"{objName}.type_name '{typeName}' not in type_names list")
-
-  validateStaticValue(obj["is_swappable"], "bool", &"{objName}.is_swappable")
 
   # Validate dynamic fields (always time series).
   validateLocation(obj["location"], objName)
@@ -473,7 +471,6 @@ proc makeValidReplay(fileName: string = "sample.json.z"): JsonNode =
         "is_agent": true,
         "vision_size": 11,
         "group_id": 0,
-        "is_swappable": false,
         # Time series fields (some single values, some arrays for testing)
         "location": [[0, [5, 5]], [1, [6, 5]], [2, [7, 5]]],
         "action_id": 0,
@@ -496,7 +493,6 @@ proc makeValidReplay(fileName: string = "sample.json.z"): JsonNode =
         "is_agent": true,
         "vision_size": 11,
         "group_id": 0,
-        "is_swappable": false,
         # Time series fields (mix of single values and arrays for testing)
         "location": [[0, [3, 3]], [5, [4, 3]]],
         "action_id": [[0, 1], [10, 0]],
