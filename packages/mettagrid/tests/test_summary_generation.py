@@ -1,11 +1,9 @@
-from __future__ import annotations
-
 import numpy as np
 import pytest
 
-from cogames.evaluate import build_multi_episode_rollout_summaries
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult
+from mettagrid.simulator.multi_episode.summary import build_multi_episode_rollout_summaries
 
 
 def test_build_results_summary_multi_mission_policy_episode() -> None:
@@ -73,14 +71,12 @@ def test_build_results_summary_multi_mission_policy_episode() -> None:
 
     summary = build_multi_episode_rollout_summaries(
         rollout_results=[mission_one, mission_two],
-        mission_names=["mission_one", "mission_two"],
         policy_specs=policy_specs,
     )
 
-    assert len(summary.missions) == 2
+    assert len(summary) == 2
 
-    mission_one_summary = summary.missions[0]
-    assert mission_one_summary.mission_name == "mission_one"
+    mission_one_summary = summary[0]
     assert mission_one_summary.episodes == 2
     assert mission_one_summary.avg_game_stats == pytest.approx({"failures": 1.0, "game_metric": 4.0})
 
@@ -101,8 +97,8 @@ def test_build_results_summary_multi_mission_policy_episode() -> None:
     assert policy_b.avg_agent_metrics == pytest.approx({"stat_a": 9.0})
     assert policy_b.action_timeouts == 2
 
-    mission_two_summary = summary.missions[1]
-    assert mission_two_summary.mission_name == "mission_two"
+    mission_two_summary = summary[1]
+
     assert mission_two_summary.episodes == 3
     assert mission_two_summary.avg_game_stats == pytest.approx({"game_metric": 6.0})
 
