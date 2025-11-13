@@ -2,8 +2,7 @@
 
 import
   std/random,
-  common,
-  policy_utils
+  common
 
 type
   RandomAgent* = ref object
@@ -34,7 +33,7 @@ proc step*(
   rawObservation: pointer,
   numActions: int,
   agentAction: ptr int32
-) {.raises: [].} =
+) =
   discard numAgents
   discard numTokens
   discard sizeToken
@@ -44,8 +43,12 @@ proc step*(
   agentAction[] = action
   # echo "  RandomAgent taking action: ", action
 
-proc newRandomPolicy*(environmentConfig: string): RandomPolicy {.raises: [].} =
-  RandomPolicy(agents: buildAgents(environmentConfig, newRandomAgent))
+proc newRandomPolicy*(environmentConfig: string): RandomPolicy =
+  let cfg = parseConfig(environmentConfig)
+  var agents: seq[RandomAgent] = @[]
+  for id in 0 ..< cfg.config.numAgents:
+    agents.add(newRandomAgent(id, environmentConfig))
+  RandomPolicy(agents: agents)
 
 proc randomPolicyStepBatch*(
     policy: RandomPolicy,
@@ -57,19 +60,17 @@ proc randomPolicyStepBatch*(
     rawObservations: pointer,
     numActions: int,
     rawActions: pointer
-) {.raises: [].} =
-  stepPolicyBatch(
-    policy.agents,
-    agentIds,
-    numAgentIds,
-    numAgents,
-    numTokens,
-    sizeToken,
-    rawObservations,
-    numActions,
-    rawActions,
-    step
-  )
+) =
+  let ids = cast[ptr UncheckedArray[int32]](agentIds)
+  let obsArray = cast[ptr UncheckedArray[uint8]](rawObservations)
+  let actionArray = cast[ptr UncheckedArray[int32]](rawActions)
+  let obsStride = numTokens * sizeToken
+
+  for i in 0 ..< numAgentIds:
+    let idx = int(ids[i])
+    let obsPtr = cast[pointer](obsArray[idx * obsStride].addr)
+    let actPtr = cast[ptr int32](actionArray[idx].addr)
+    step(policy.agents[idx], numAgents, numTokens, sizeToken, obsPtr, numActions, actPtr)
 
 proc randomPolicyStepSingle*(
     policy: RandomPolicy,
@@ -80,10 +81,10 @@ proc randomPolicyStepSingle*(
     rawObservation: pointer,
     numActions: int,
     rawAction: pointer
-) {.raises: [].} =
+) =
   let actionPtrValue = cast[ptr int32](rawAction)
   step(policy.agents[agentId], numAgents, numTokens, sizeToken, rawObservation, numActions, actionPtrValue)
 
-proc randomPolicyReset*(policy: RandomPolicy) {.raises: [].} =
+proc randomPolicyReset*(policy: RandomPolicy) =
   for agent in policy.agents:
     reset(agent)

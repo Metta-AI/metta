@@ -1,7 +1,6 @@
 import
   std/[strformat, tables, random, sets],
-  common,
-  policy_utils
+  common
 
 type
   RaceCarAgent* = ref object
@@ -16,7 +15,7 @@ type
   RaceCarPolicy* = ref object
     agents*: seq[RaceCarAgent]
 
-proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent {.raises: [].} =
+proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
   echo "Creating new heuristic agent ", agentId
 
   var config = parseConfig(environmentConfig)
@@ -111,7 +110,7 @@ proc raceCarStepInternal(
   sizeToken: int,
   rawObservation: pointer,
   agentAction: ptr int32
-) {.raises: [].} =
+) =
   echo "Driving race car agent ", agent.agentId
   # echo "  numAgents", numAgents
   # echo "  numTokens", numTokens
@@ -171,13 +170,17 @@ proc step*(
   rawObservation: pointer,
   numActions: int,
   agentAction: ptr int32
-) {.raises: [].} =
+) =
   discard numAgents
   discard numActions
   raceCarStepInternal(agent, numTokens, sizeToken, rawObservation, agentAction)
 
-proc newRaceCarPolicy*(environmentConfig: string): RaceCarPolicy {.raises: [].} =
-  RaceCarPolicy(agents: buildAgents(environmentConfig, newRaceCarAgent))
+proc newRaceCarPolicy*(environmentConfig: string): RaceCarPolicy =
+  let cfg = parseConfig(environmentConfig)
+  var agents: seq[RaceCarAgent] = @[]
+  for id in 0 ..< cfg.config.numAgents:
+    agents.add(newRaceCarAgent(id, environmentConfig))
+  RaceCarPolicy(agents: agents)
 
 proc raceCarPolicyStepBatch*(
     policy: RaceCarPolicy,
@@ -189,19 +192,17 @@ proc raceCarPolicyStepBatch*(
     rawObservations: pointer,
     numActions: int,
     rawActions: pointer
-) {.raises: [].} =
-  stepPolicyBatch(
-    policy.agents,
-    agentIds,
-    numAgentIds,
-    numAgents,
-    numTokens,
-    sizeToken,
-    rawObservations,
-    numActions,
-    rawActions,
-    step
-  )
+) =
+  let ids = cast[ptr UncheckedArray[int32]](agentIds)
+  let obsArray = cast[ptr UncheckedArray[uint8]](rawObservations)
+  let actionArray = cast[ptr UncheckedArray[int32]](rawActions)
+  let obsStride = numTokens * sizeToken
+
+  for i in 0 ..< numAgentIds:
+    let idx = int(ids[i])
+    let obsPtr = cast[pointer](obsArray[idx * obsStride].addr)
+    let actPtr = cast[ptr int32](actionArray[idx].addr)
+    step(policy.agents[idx], numAgents, numTokens, sizeToken, obsPtr, numActions, actPtr)
 
 proc raceCarPolicyStepSingle*(
     policy: RaceCarPolicy,
@@ -212,10 +213,10 @@ proc raceCarPolicyStepSingle*(
     rawObservation: pointer,
     numActions: int,
     rawAction: pointer
-) {.raises: [].} =
+) =
   let actionPtrValue = cast[ptr int32](rawAction)
   step(policy.agents[agentId], numAgents, numTokens, sizeToken, rawObservation, numActions, actionPtrValue)
 
-proc raceCarPolicyReset*(policy: RaceCarPolicy) {.raises: [].} =
+proc raceCarPolicyReset*(policy: RaceCarPolicy) =
   for agent in policy.agents:
     reset(agent)

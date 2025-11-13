@@ -1,7 +1,6 @@
 import
   std/[tables, random, sets, options],
-  common,
-  policy_utils
+  common
 
 type
   ThinkyAgent* = ref object
@@ -17,7 +16,7 @@ type
   ThinkyPolicy* = ref object
     agents*: seq[ThinkyAgent]
 
-proc newThinkyAgent*(agentId: int, environmentConfig: string): ThinkyAgent {.raises: [].} =
+proc newThinkyAgent*(agentId: int, environmentConfig: string): ThinkyAgent =
   #echo "Creating new heuristic agent ", agentId
 
   var config = parseConfig(environmentConfig)
@@ -117,7 +116,7 @@ proc step*(
   rawObservation: pointer,
   numActions: int,
   agentAction: ptr int32
-) {.raises: [].} =
+) =
   discard numAgents
   discard numActions
   # echo "  numTokens", numTokens
@@ -345,8 +344,12 @@ proc step*(
   #echo "taking random action ", action
 
 
-proc newThinkyPolicy*(environmentConfig: string): ThinkyPolicy {.raises: [].} =
-  ThinkyPolicy(agents: buildAgents(environmentConfig, newThinkyAgent))
+proc newThinkyPolicy*(environmentConfig: string): ThinkyPolicy =
+  let cfg = parseConfig(environmentConfig)
+  var agents: seq[ThinkyAgent] = @[]
+  for id in 0 ..< cfg.config.numAgents:
+    agents.add(newThinkyAgent(id, environmentConfig))
+  ThinkyPolicy(agents: agents)
 
 proc thinkyPolicyStepBatch*(
     policy: ThinkyPolicy,
@@ -358,19 +361,17 @@ proc thinkyPolicyStepBatch*(
     rawObservations: pointer,
     numActions: int,
     rawActions: pointer
-) {.raises: [].} =
-  stepPolicyBatch(
-    policy.agents,
-    agentIds,
-    numAgentIds,
-    numAgents,
-    numTokens,
-    sizeToken,
-    rawObservations,
-    numActions,
-    rawActions,
-    step
-  )
+) =
+  let ids = cast[ptr UncheckedArray[int32]](agentIds)
+  let obsArray = cast[ptr UncheckedArray[uint8]](rawObservations)
+  let actionArray = cast[ptr UncheckedArray[int32]](rawActions)
+  let obsStride = numTokens * sizeToken
+
+  for i in 0 ..< numAgentIds:
+    let idx = int(ids[i])
+    let obsPtr = cast[pointer](obsArray[idx * obsStride].addr)
+    let actPtr = cast[ptr int32](actionArray[idx].addr)
+    step(policy.agents[idx], numAgents, numTokens, sizeToken, obsPtr, numActions, actPtr)
 
 proc thinkyPolicyStepSingle*(
     policy: ThinkyPolicy,
@@ -381,10 +382,10 @@ proc thinkyPolicyStepSingle*(
     rawObservation: pointer,
     numActions: int,
     rawAction: pointer
-) {.raises: [].} =
+) =
   let actionPtrValue = cast[ptr int32](rawAction)
   step(policy.agents[agentId], numAgents, numTokens, sizeToken, rawObservation, numActions, actionPtrValue)
 
-proc thinkyPolicyReset*(policy: ThinkyPolicy) {.raises: [].} =
+proc thinkyPolicyReset*(policy: ThinkyPolicy) =
   for agent in policy.agents:
     reset(agent)
