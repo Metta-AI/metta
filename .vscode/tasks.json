@@ -14,9 +14,9 @@
       "group": "build",
       "options": {
         "env": {
-          "DEBUG": "1"
-        }
-      }
+          "DEBUG": "1",
+        },
+      },
     },
     {
       "type": "shell",

@@ -160,7 +160,7 @@
       "request": "launch",
       "pythonLaunchName": "_MettaGrid Python Config",
       "cppAttachName": "_MettaGrid C++ Config",
-      "preLaunchTask": "uv sync debug"
+      "preLaunchTask": "uv sync debug",
     },
     {
       "name": "MettaGrid Debug Attach C++",
@@ -168,9 +168,9 @@
       "request": "attach",
       "pid": "${command:pickProcess}",
       "sourceMap": {
-        ".": "${workspaceFolder}/packages/mettagrid"
+        ".": "${workspaceFolder}/packages/mettagrid",
       },
-      "waitFor": true
+      "waitFor": true,
     },
     {
       "name": "_MettaGrid Python Config",
@@ -184,11 +184,11 @@
       "python": "${workspaceFolder}/.venv/bin/python",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "presentation": {
-        "hidden": true
-      }
+        "hidden": true,
+      },
     },
     {
       "name": "_MettaGrid C++ Config",
@@ -196,12 +196,12 @@
       "request": "attach",
       "pid": "",
       "sourceMap": {
-        ".": "${workspaceFolder}/packages/mettagrid"
+        ".": "${workspaceFolder}/packages/mettagrid",
       },
       "waitFor": true,
       "presentation": {
-        "hidden": true
-      }
-    }
-  ]
+        "hidden": true,
+      },
+    },
+  ],
 }
