@@ -85,6 +85,16 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         self._protocol_input_prefix = "protocol_input:"
         self._protocol_output_prefix = "protocol_output:"
 
+        # Map resource names to their corresponding vibe names for debugging glyphs.
+        # This keeps resource naming (carbon, oxygen, germanium, silicon) separate from
+        # visual glyph naming (carbon_a, oxygen_a, etc.).
+        self._resource_to_vibe: dict[str, str] = {
+            "carbon": "carbon_a",
+            "oxygen": "oxygen_a",
+            "germanium": "germanium_a",
+            "silicon": "silicon_a",
+        }
+
     def _change_vibe_action(self, vibe_name: str) -> Action:
         """
         Return a safe vibe-change action.
@@ -96,8 +106,8 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         num_vibes = int(getattr(change_vibe_cfg, "number_of_vibes", 0))
         if num_vibes <= 1:
             return self._actions.noop.Noop()
-        # Raise loudly if the requested vibe isn't registered; silently falling back
-        # to noop masks config errors and makes comparisons with other ports harder.
+        # Raise loudly if the requested vibe isn't registered instead of silently
+        # falling back to noop; otherwise config issues become very hard to spot.
         vibe = VIBE_BY_NAME.get(vibe_name)
         if vibe is None:
             raise Exception(f"No valid vibes called {vibe_name}")
@@ -584,7 +594,8 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         """Map phase to a vibe for visual debugging in replays."""
         # During GATHER, vibe the target resource we're currently collecting
         if phase == Phase.GATHER and state.target_resource is not None:
-            return state.target_resource
+            # Map resource name (e.g., "silicon") to a valid vibe name (e.g., "silicon_a").
+            return self._resource_to_vibe.get(state.target_resource, "default")
 
         phase_to_vibe = {
             Phase.GATHER: "carbon_a",  # Default fallback if no target resource
@@ -1190,3 +1201,16 @@ class BaselinePolicy(MultiAgentPolicy):
                 agent_id=agent_id,
             )
         return self._agent_policies[agent_id]
+
+
+RESOURCE_VIBE_ALIASES: dict[str, str] = {
+    "carbon": "carbon_a",
+    "oxygen": "oxygen_a",
+    "germanium": "germanium_a",
+    "silicon": "silicon_a",
+    # Crafting resources (appear when crafting unclipping items)
+    "decoder": "gear",
+    "modulator": "gear",
+    "resonator": "gear",
+    "scrambler": "gear",
+}
