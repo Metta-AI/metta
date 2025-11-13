@@ -2,20 +2,20 @@
 """Train an agent on CoGs vs Clips missions, then run tournament on the same mission.
 
 This script:
-1. Trains a ViT policy agent on a specific CoGs vs Clips mission (e.g., training_facility.easy_hearts)
+1. Trains a ViT policy agent on a specific CoGs vs Clips eval mission (e.g., extractor_hub_30)
 2. Saves checkpoints at regular intervals (default every 10 epochs)
 3. Runs tournament with all checkpoints + baseline policies on the SAME mission
 
 Usage:
-    # Train and run tournament on default mission (training_facility.easy_hearts)
+    # Train and run tournament on default mission (extractor_hub_30)
     python metta/machina1_tournament/train_and_tourney.py --num-episodes 100
 
     # Train on a specific mission
-    python metta/machina1_tournament/train_and_tourney.py --mission training_facility.harvest --num-episodes 100
+    python metta/machina1_tournament/train_and_tourney.py --mission collect_resources_classic --num-episodes 100
     
     # Just run tournament with existing checkpoints
     python metta/machina1_tournament/train_and_tourney.py \\
-        --skip-training --run relh.main.1110.2 --mission training_facility.easy_hearts
+        --skip-training --run relh.main.1110.2 --mission extractor_hub_30
 """
 
 import json
@@ -575,10 +575,10 @@ def main(
     seed: int = typer.Option(42, "--seed", "-s", help="Random seed"),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output JSON file"),  # noqa: B008
     mission: str = typer.Option(
-        "training_facility.easy_hearts",
+        "extractor_hub_30",
         "--mission",
         "-m",
-        help="CoGs vs Clips mission to train/evaluate (e.g., training_facility.easy_hearts)",
+        help="CoGs vs Clips eval mission to train/evaluate (e.g., extractor_hub_30, collect_resources_classic)",
     ),
     num_cogs: int = typer.Option(4, "--num-cogs", help="Number of cogs/agents in the mission"),
 ) -> None:
