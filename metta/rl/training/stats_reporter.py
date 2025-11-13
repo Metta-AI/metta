@@ -656,15 +656,30 @@ class StatsReporter(TrainerComponent):
                 label = key.replace("algorithm/eviction_counts/", "")
                 stats[f"curriculum_stats/per_label_aggregate_evictions/{label}"] = float(value)
 
-        # ===== GROUP C & D: Troubleshooting Stats (if enabled) =====
-        # NOTE: This must run BEFORE Gini calculations to populate per_label_lp_probs
+        # ===== Per-Label LP Scores (ALWAYS collected for Gini calculations) =====
+        # These are required for sampling_gini, so collect them unconditionally
+        per_label_lp_stats = self._get_per_label_lp_stats(curriculum)
+        logger.info(f"Collected {len(per_label_lp_stats)} per-label LP stats for Gini calculations")
+        stats.update(per_label_lp_stats)
+
+        # ===== GROUP C & D: Additional Troubleshooting Stats (if enabled) =====
+        # NOTE: Per-label LP scores are now collected above unconditionally
         if self._should_enable_curriculum_troubleshooting():
             troubleshooting_stats = self._collect_curriculum_troubleshooting_stats(curriculum, curriculum_stats)
-            logger.info(f"Collected {len(troubleshooting_stats)} troubleshooting stats")
+            logger.info(f"Collected {len(troubleshooting_stats)} additional troubleshooting stats")
             stats.update(troubleshooting_stats)
 
         # ===== GROUP B: Gini Coefficients =====
         # There are two types: per-label (terrain type distribution) and per-task (individual task inequality)
+
+        # DIAGNOSTIC: Log what's available in stats
+        logger.info(f"Stats keys before Gini calculations: {len(stats)} total")
+        lp_prob_keys = [k for k in stats.keys() if "per_label_lp_probs" in k]
+        logger.info(f"  - Found {len(lp_prob_keys)} per_label_lp_probs keys")
+
+        # DIAGNOSTIC: Check rollout stats
+        rollout_keys_sample = list(self._state.rollout_stats.keys())[:10]
+        logger.info(f"Rollout stats keys (sample): {rollout_keys_sample}")
 
         # === PER-LABEL GINI COEFFICIENTS (Label-Aggregated Metrics) ===
 
@@ -680,6 +695,8 @@ class StatsReporter(TrainerComponent):
                 f"Pool composition gini: {stats['curriculum_stats/pool_composition_gini']:.3f} "
                 f"({len(pool_comp_fractions)} labels, fractions={pool_comp_fractions[:5]})"
             )
+        else:
+            logger.warning("No pool composition fractions found for gini calculation")
 
         # 2. Sampling gini - inequality in LP-based sampling probabilities by terrain type
         # Uses per_label_lp_probs which are the actual sampling probabilities aggregated by label
@@ -691,32 +708,46 @@ class StatsReporter(TrainerComponent):
                 f"Sampling gini: {stats['curriculum_stats/sampling_gini']:.3f} "
                 f"({len(sampling_probs)} labels, probs={sampling_probs[:5]})"
             )
+        else:
+            logger.warning(
+                f"No sampling probabilities found for gini calculation (found {len(sampling_prob_keys)} keys)"
+            )
 
         # 3. Eviction gini - inequality in which terrain types are evicted THIS EPOCH
-        # Uses per-epoch eviction tracking (reconstructed from flattened keys)
-        per_label_evictions = self._reconstruct_dict_from_flattened_keys(
-            self._state.rollout_stats, "env_curriculum_stats/per_label_evictions_this_epoch"
-        )
+        # Get directly from curriculum (bypasses rollout_stats issues)
+        per_label_evictions = self._get_per_epoch_evictions_from_curriculum(curriculum)
+        logger.info(f"Got evictions from curriculum: {len(per_label_evictions)} labels")
         if per_label_evictions:
             epoch_eviction_counts = list(per_label_evictions.values())
+            logger.info(f"  - Eviction counts: {epoch_eviction_counts[:5]}")
             stats["curriculum_stats/eviction_gini"] = self._calculate_gini_coefficient(epoch_eviction_counts)
             logger.info(
                 f"Eviction gini: {stats['curriculum_stats/eviction_gini']:.3f} "
                 f"({len(epoch_eviction_counts)} labels, counts={epoch_eviction_counts[:5]})"
             )
+        else:
+            logger.info("No evictions this epoch (expected early in training)")
 
         # 4. Per-epoch samples gini - inequality in this epoch's episode completions by terrain type
-        # Uses per-epoch sample tracking (reconstructed from flattened keys)
-        per_label_samples = self._reconstruct_dict_from_flattened_keys(
-            self._state.rollout_stats, "env_curriculum_stats/per_label_samples_this_epoch"
-        )
+        # Get directly from curriculum algorithm (bypasses rollout_stats issues)
+        per_label_samples = self._get_per_epoch_samples_from_curriculum(curriculum)
+        logger.info(f"Got samples from curriculum: {len(per_label_samples)} labels")
         if per_label_samples:
             epoch_sample_counts = list(per_label_samples.values())
-            stats["curriculum_stats/per_epoch_samples_gini"] = self._calculate_gini_coefficient(epoch_sample_counts)
-            logger.info(
-                f"Per-epoch samples gini: {stats['curriculum_stats/per_epoch_samples_gini']:.3f} "
-                f"({len(epoch_sample_counts)} labels, counts={epoch_sample_counts[:5]})"
-            )
+            logger.info(f"  - Sample counts: {epoch_sample_counts[:5]}")
+            # Check if all values are equal (uniform distribution)
+            if len(set(epoch_sample_counts)) > 1:
+                stats["curriculum_stats/per_epoch_samples_gini"] = self._calculate_gini_coefficient(epoch_sample_counts)
+                logger.info(
+                    f"Per-epoch samples gini: {stats['curriculum_stats/per_epoch_samples_gini']:.3f} "
+                    f"({len(epoch_sample_counts)} labels, counts={epoch_sample_counts[:5]})"
+                )
+            else:
+                # All equal - legitimate zero Gini (perfect equality)
+                stats["curriculum_stats/per_epoch_samples_gini"] = 0.0
+                logger.info(f"Per-epoch samples are uniform (all = {epoch_sample_counts[0]}), gini=0.0 by definition")
+        else:
+            logger.info("No samples this epoch (expected if no episodes completed)")
 
         # === PER-TASK GINI COEFFICIENTS (Individual Task Inequality) ===
         # These are calculated by the algorithm and measure inequality across individual tasks
@@ -810,6 +841,41 @@ class StatsReporter(TrainerComponent):
                     result[label] = float(value)
         return result
 
+    def _get_per_epoch_evictions_from_curriculum(self, curriculum: Any) -> dict[str, int]:
+        """Get per-epoch evictions directly from curriculum.
+
+        This bypasses rollout_stats and gets the data directly from the source,
+        avoiding issues with info dict handling in the rollout loop.
+        """
+        if curriculum is None:
+            return {}
+        if not hasattr(curriculum, "get_and_reset_evictions_this_epoch"):
+            return {}
+        try:
+            return curriculum.get_and_reset_evictions_this_epoch()
+        except Exception as e:
+            logger.warning(f"Failed to get evictions from curriculum: {e}")
+            return {}
+
+    def _get_per_epoch_samples_from_curriculum(self, curriculum: Any) -> dict[str, int]:
+        """Get per-epoch sampling counts directly from curriculum algorithm.
+
+        This bypasses rollout_stats and gets the data directly from the source,
+        avoiding issues with info dict handling in the rollout loop.
+        """
+        if curriculum is None:
+            return {}
+        algorithm = getattr(curriculum, "_algorithm", None)
+        if algorithm is None:
+            return {}
+        if not hasattr(algorithm, "get_and_reset_sampling_counts_this_epoch"):
+            return {}
+        try:
+            return algorithm.get_and_reset_sampling_counts_this_epoch()
+        except Exception as e:
+            logger.warning(f"Failed to get sampling counts from curriculum: {e}")
+            return {}
+
     def _should_enable_curriculum_troubleshooting(self) -> bool:
         """Check if curriculum troubleshooting logging is enabled.
 
@@ -842,7 +908,9 @@ class StatsReporter(TrainerComponent):
 
         Includes:
         - Tracked task dynamics (first 3 tasks)
-        - Per-label LP scores at different stages
+
+        Note: Per-label LP scores are now collected unconditionally in _collect_curriculum_stats
+        for Gini calculation purposes.
         """
         stats = {}
 
@@ -860,12 +928,6 @@ class StatsReporter(TrainerComponent):
                 completion_key = f"curriculum_stats/tracked_task_completions_this_epoch/task_{i}"
                 if completion_key in self._state.rollout_stats:
                     stats[completion_key] = float(np.sum(self._state.rollout_stats[completion_key]))
-
-        # GROUP D: Per-label LP scores
-        # Collect from curriculum algorithm's per-label tracking
-        per_label_stats = self._get_per_label_lp_stats(curriculum)
-        logger.info(f"Per-label stats collected: {len(per_label_stats)} stats")
-        stats.update(per_label_stats)
 
         return stats
 
