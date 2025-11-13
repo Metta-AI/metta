@@ -68,6 +68,9 @@ DIAGNOSTIC_MISSIONS: tuple[str, ...] = (
 )
 
 # Training facility missions
+# NOTE: We exclude 'easy_hearts' here because it disables vibe swapping
+# (change_vibe.number_of_vibes = 1), which makes its action space incompatible
+# with the rest of the curriculum in a vectorized training setup.
 TRAINING_FACILITY_MISSIONS: tuple[str, ...] = (
     "harvest",
     "assemble",
@@ -75,13 +78,16 @@ TRAINING_FACILITY_MISSIONS: tuple[str, ...] = (
     "repair",
     "unclip_drills",
     "signs_and_portents",
-    "easy_hearts",
 )
 
 FULL_CURRICULUM_MISSIONS: tuple[str, ...] = (
     *cogs_v_clips.DEFAULT_CURRICULUM_MISSIONS,  # Base curriculum missions
     *MISSIONS,  # All eval missions
-    *TRAINING_FACILITY_MISSIONS,  # Training facility missions
+    # Training facility missions we currently support in this repo
+    "harvest",
+    "assemble",
+    "vibe_check",
+    "repair",
     *DIAGNOSTIC_MISSIONS,  # Diagnostic missions
 )
 
@@ -96,11 +102,8 @@ TRAINING_FACILITY_MISSION_OBJECTS = [
     AssembleMission,
     VibeCheckMission,
     RepairMission,
-    # Note: these mission classes are defined in the CVC missions module
-    # and are imported above.
-    # UnclipDrillsMission,
-    # SignsAndPortentsMission,
-    EasyHeartsMission,
+    # Note: 'easy_hearts' is intentionally omitted from the full curriculum
+    # for now due to its reduced vibe action space (see comment above).
 ]
 for mission in TRAINING_FACILITY_MISSION_OBJECTS:
     _MISSION_BY_NAME[mission.name] = mission
@@ -283,11 +286,7 @@ def play(
         mission=mission,
         variants=variants,
     )
-    sim = SimulationConfig(
-        suite="cogs_vs_clips",
-        name=f"{mission}_{num_cogs}cogs",
-        env=env,
-    )
+    sim = SimulationConfig(suite="cogs_vs_clips", name=f"{mission}_{num_cogs}cogs", env=env)
     return PlayTool(sim=sim, policy_uri=policy_uri)
 
 
