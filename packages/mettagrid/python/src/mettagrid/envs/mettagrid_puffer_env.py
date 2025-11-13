@@ -24,7 +24,7 @@ This avoids double-wrapping while maintaining full PufferLib compatibility.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import numpy as np
 from gymnasium.spaces import Box, Discrete
@@ -104,8 +104,8 @@ class MettaGridPufferEnv(PufferEnv):
 
         self._env_supervisor: MultiAgentPolicy | None = None
         self._new_sim()
-        sim = self._require_sim()
-        self.num_agents: int = sim.num_agents
+        sim = cast(Simulation, self._sim)
+        self.num_agents = sim.num_agents
 
         super().__init__(buf=buf)
 
@@ -118,17 +118,11 @@ class MettaGridPufferEnv(PufferEnv):
         self._current_cfg = config
 
     def get_episode_rewards(self) -> np.ndarray:
-        return self._require_sim().episode_rewards
+        return cast(Simulation, self._sim).episode_rewards
 
     @property
     def current_simulation(self) -> Simulation:
-        return self._require_sim()
-
-    def _require_sim(self) -> Simulation:
-        if self._sim is None:
-            msg = "Simulation is not initialized. Call _new_sim() before accessing it."
-            raise RuntimeError(msg)
-        return self._sim
+        return cast(Simulation, self._sim)
 
     def _new_sim(self) -> None:
         if self._sim is not None:
@@ -156,11 +150,11 @@ class MettaGridPufferEnv(PufferEnv):
 
     @override
     def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, List[Dict[str, Any]]]:
-        sim = self._require_sim()
+        sim = cast(Simulation, self._sim)
 
         if sim._c_sim.terminals().all() or sim._c_sim.truncations().all():
             self._new_sim()
-            sim = self._require_sim()
+            sim = cast(Simulation, self._sim)
 
         sim.step()
 
