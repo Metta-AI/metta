@@ -13,7 +13,7 @@ type
     random: Rand
     location: Location
 
-proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent {.raises: [].} =
+proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
   echo "Creating new heuristic agent ", agentId
 
   var config = parseConfig(environmentConfig)
@@ -171,7 +171,7 @@ proc step*(
   rawObservations: pointer,
   numActions: int,
   rawActions: pointer
-) {.raises: [].} =
+) =
   discard numAgents
   discard numActions
   let observations = cast[ptr UncheckedArray[uint8]](rawObservations)

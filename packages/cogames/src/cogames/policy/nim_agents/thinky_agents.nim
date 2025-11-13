@@ -14,7 +14,7 @@ type
     location: Location
     lastActions: seq[int]
 
-proc newThinkyAgent*(agentId: int, environmentConfig: string): ThinkyAgent {.raises: [].} =
+proc newThinkyAgent*(agentId: int, environmentConfig: string): ThinkyAgent =
   #echo "Creating new heuristic agent ", agentId
 
   var config = parseConfig(environmentConfig)
@@ -109,7 +109,7 @@ proc step*(
   rawObservations: pointer,
   numActions: int,
   rawActions: pointer
-) {.raises: [].} =
+) =
   try:
     # echo "Thinking heuristic agent ", agent.agentId
     # echo "  numAgents", numAgents

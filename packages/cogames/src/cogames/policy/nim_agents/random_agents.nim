@@ -32,7 +32,7 @@ proc step*(
   rawObservations: pointer,
   numActions: int,
   rawActions: pointer
-) {.raises: [].} =
+) =
   let actions = cast[ptr UncheckedArray[int32]](rawActions)
   let action = agent.random.rand(1 .. 4).int32
   actions[agent.agentId] = action
