@@ -166,13 +166,8 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
             state = self._agent_states.get(agent_idx) or self._base_policy.initial_agent_state()
             action, new_state = self._base_policy.step_with_state(obs, state)
             self._agent_states[agent_idx] = new_state
-            if isinstance(action, Action):
-                action_id = self._action_name_to_index[action.name]
-            elif isinstance(action, str):
-                action_id = self._action_name_to_index[action]
-            else:
-                action_id = int(action)
-            raw_actions[agent_idx] = dtype_actions.type(action_id)
+            assert isinstance(action, Action), "Policies must return mettagrid.simulator.Action instances"
+            raw_actions[agent_idx] = dtype_actions.type(self._action_name_to_index[action.name])
 
         if self._agent_id is not None and self._agent_id in self._agent_states:
             self._state = self._agent_states[self._agent_id]
