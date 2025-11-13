@@ -32,6 +32,12 @@ class LonelyHeartVariant(MissionVariant):
     description: str = "Making hearts for one agent is easy."
 
     @override
+    def modify_mission(self, mission):
+        mission.assembler.first_heart_cost = 1
+        mission.assembler.additional_heart_cost = 0
+        mission.heart_capacity = max(mission.heart_capacity, 255)
+
+    @override
     def modify_env(self, mission, env):
         simplified_inputs = {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1, "energy": 1}
 
@@ -175,7 +181,7 @@ class VibeCheckMin2Variant(MissionVariant):
                 filtered.append(proto)
                 continue
             # Keep only heart protocols that require >= 2 'heart' vibes
-            if len(proto.vibes) >= 2 and all(v == "heart" for v in proto.vibes):
+            if len(proto.vibes) >= 2 and all(v == "heart_a" for v in proto.vibes):
                 filtered.append(proto)
         assembler.protocols = filtered
 

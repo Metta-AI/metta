@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-import importlib.util
+import functools
+import importlib
 import os
 import pkgutil
 import re
 from pathlib import Path
 from typing import Optional
 
-from mettagrid.policy.policy import MultiAgentPolicy as Policy
-from mettagrid.policy.policy import TrainablePolicy
+from mettagrid.policy.policy import MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import get_policy_registry
 from mettagrid.util.module import load_symbol
@@ -20,7 +20,7 @@ def initialize_or_load_policy(
     policy_env_info: PolicyEnvInterface,
     policy_class_path: str,
     policy_data_path: Optional[str] = None,
-) -> Policy:
+) -> MultiAgentPolicy:
     """Initialize a policy from its class path and optionally load weights.
 
     Args:
@@ -37,7 +37,7 @@ def initialize_or_load_policy(
     policy = policy_class(policy_env_info)  # type: ignore[misc]
 
     if policy_data_path:
-        if not isinstance(policy, TrainablePolicy):
+        if not isinstance(policy, MultiAgentPolicy):
             raise TypeError("Policy data provided, but the selected policy does not support loading checkpoints.")
 
         policy.load_policy_data(policy_data_path)
@@ -53,6 +53,7 @@ def resolve_policy_class_path(policy: str) -> str:
     Returns:
         Full class path to the policy.
     """
+    discover_and_register_policies()
     registry = get_policy_registry()
     full_path = registry.get(policy, policy)
 
@@ -127,7 +128,8 @@ def resolve_policy_data_path(
     raise FileNotFoundError(f"Checkpoint path not found: {path}")
 
 
-def _discover_and_import_policies(package_name: str) -> None:
+@functools.cache
+def _walk_and_import_package(package_name: str) -> None:
     """Discover and import all modules in a policy package to trigger registration.
 
     Args:
@@ -144,15 +146,20 @@ def _discover_and_import_policies(package_name: str) -> None:
     if package_path is None:
         return
 
+    def _should_skip(module_name: str) -> bool:
+        return ".bindings" in module_name
+
     # Check all paths (packages can have multiple paths)
     for path in package_path:
         # Use iter_modules to find modules and packages
         for _finder, name, ispkg in pkgutil.iter_modules([path], package_name + "."):
+            if _should_skip(name):
+                continue
             try:
                 importlib.import_module(name)
                 # If it's a package, recursively discover its submodules
                 if ispkg:
-                    _discover_and_import_policies(name)
+                    _walk_and_import_package(name)
             except (ImportError, AttributeError, TypeError):
                 # Skip modules that can't be imported (may have missing dependencies)
                 pass
@@ -164,11 +171,13 @@ def _discover_and_import_policies(package_name: str) -> None:
                 item_path = os.path.join(path, item)
                 if os.path.isdir(item_path) and not item.startswith("__") and not item.startswith("."):
                     namespace_name = f"{package_name}.{item}"
+                    if _should_skip(namespace_name):
+                        continue
                     # Try to import as a namespace package
                     try:
                         importlib.import_module(namespace_name)
                         # Recursively discover its submodules
-                        _discover_and_import_policies(namespace_name)
+                        _walk_and_import_package(namespace_name)
                     except ImportError:
                         # Not a valid namespace package, skip
                         pass
@@ -179,6 +188,6 @@ def _discover_and_import_policies(package_name: str) -> None:
 
 # Discover and import policy modules from all policy packages
 # This allows policies to register themselves without creating hard dependencies
-_discover_and_import_policies("mettagrid.policy")
-_discover_and_import_policies("cogames.policy")
-_discover_and_import_policies("metta.agent.policy")
+def discover_and_register_policies(*packages: str) -> None:
+    for package_name in ["mettagrid.policy", "metta.agent.policy", "cogames.policy", *packages]:
+        _walk_and_import_package(package_name)

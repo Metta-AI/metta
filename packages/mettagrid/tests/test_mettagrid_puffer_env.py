@@ -305,8 +305,7 @@ class TestMettaGridPufferEnvSupervisorPolicy:
         env = MettaGridPufferEnv(simulator, puffer_sim_config, env_supervisor_cfg=supervisor_cfg)
 
         # Verify supervisor policy was initialized
-        assert env._env_supervisor_policy is not None
-        assert len(env._env_supervisor_agent_policies) == 2
+        assert env._env_supervisor is not None
 
         # Reset environment
         obs, info = env.reset()

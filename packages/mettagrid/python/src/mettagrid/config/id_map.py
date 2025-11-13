@@ -78,7 +78,6 @@ class IdMap:
             ("agent:orientation", 1.0),
             ("agent:reserved_for_future_use", 255.0),
             ("converting", 1.0),
-            ("swappable", 1.0),
         ]
 
         for name, normalization in core_features:

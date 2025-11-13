@@ -10,12 +10,12 @@
 
 struct ClipperConfig {
   std::vector<std::shared_ptr<Protocol>> unclipping_protocols;
-  float length_scale;
+  GridCoord length_scale;
   uint32_t scaled_cutoff_distance;
   uint32_t clip_period;
 
   ClipperConfig(std::vector<std::shared_ptr<Protocol>> protocol_ptrs = {},
-                float length_scale = 0.0f,
+                GridCoord length_scale = 0u,
                 uint32_t scaled_cutoff_distance = 3,
                 uint32_t clip_period = 0)
       : unclipping_protocols(std::move(protocol_ptrs)),

@@ -16,11 +16,16 @@ VIBES = [
     Vibe("😐", "default", category="emotion"),  # neutral
     # Resources
     Vibe("🔋", "charger", category="resource"),  # energy / charge
-    Vibe("⚫", "carbon", category="resource"),  # C — Carbon
-    Vibe("⚪", "oxygen", category="resource"),  # O — Oxygen
-    Vibe("🟣", "germanium", category="resource"),  # G — Germanium
-    Vibe("🟠", "silicon", category="resource"),  # S — Silicon
-    Vibe("❤️", "heart", category="resource"),  # reward / health
+    Vibe("⚫", "carbon_a", category="resource"),  # C — Carbon
+    Vibe("⬛", "carbon_b", category="resource"),
+    Vibe("⚪", "oxygen_a", category="resource"),  # O — Oxygen
+    Vibe("⬜", "oxygen_b", category="resource"),
+    Vibe("🟣", "germanium_a", category="resource"),  # G — Germanium
+    Vibe("🟪", "germanium_b", category="resource"),
+    Vibe("🟠", "silicon_a", category="resource"),  # S — Silicon
+    Vibe("🟧", "silicon_b", category="resource"),
+    Vibe("❤️", "heart_a", category="resource"),  # reward / health
+    Vibe("💟", "heart_b", category="resource"),
     # Gear
     Vibe("⚙️", "gear", category="gear"),
     # Stations

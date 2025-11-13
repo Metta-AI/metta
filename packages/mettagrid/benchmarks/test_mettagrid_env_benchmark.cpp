@@ -57,7 +57,6 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
   actions_cfg["move"] = action_cfg;
   actions_cfg["rotate"] = action_cfg;
   actions_cfg["attack"] = attack_cfg;
-  actions_cfg["swap"] = action_cfg;
   actions_cfg["change_vibe"] = change_vibe_cfg;
 
   std::unordered_map<std::string, std::shared_ptr<GridObjectConfig>> objects_cfg;
@@ -135,6 +134,7 @@ py::list CreateDefaultMap(size_t num_agents_per_team = 2) {
 
 // Utility function to generate valid random actions
 // Based on CreateBenchmarkConfig: noop=1, move=4, rotate=4, attack=1, swap=1, change_vibe=1
+// Note that rotate and swap no longer exist, so the actions taken below might be meaningless.
 // Total: 12 actions
 py::array_t<int> GenerateValidRandomActions(size_t num_agents, std::mt19937* gen) {
   const size_t num_flat_actions = 12;  // Hardcoded based on benchmark config

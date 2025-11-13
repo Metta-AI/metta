@@ -45,6 +45,19 @@ public:
         }
       }
     }
+
+    // Build inventory feature ID map
+    _inventory_feature_ids.resize(resource_names.size());
+    for (size_t i = 0; i < resource_names.size(); ++i) {
+      const std::string& resource_name = resource_names[i];
+      const std::string feature_key = "inv:" + resource_name;
+      auto it = feature_ids.find(feature_key);
+      if (it != feature_ids.end()) {
+        _inventory_feature_ids[i] = it->second;
+      } else {
+        throw std::runtime_error("Inventory feature 'inv:" + resource_name + "' not found in feature_ids");
+      }
+    }
   }
 
   size_t append_tokens_if_room_available(ObservationTokens tokens,
@@ -83,12 +96,20 @@ public:
     return _output_feature_ids[resource_id];
   }
 
+  ObservationType get_inventory_feature_id(InventoryItem item) const {
+    if (item >= _inventory_feature_ids.size()) {
+      throw std::runtime_error("Invalid item index for inventory feature lookup");
+    }
+    return _inventory_feature_ids[item];
+  }
+
   bool protocol_details_obs;
 
 private:
   size_t resource_count;
   std::vector<ObservationType> _input_feature_ids;
   std::vector<ObservationType> _output_feature_ids;
+  std::vector<ObservationType> _inventory_feature_ids;  // Maps item index to observation feature ID
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SYSTEMS_OBSERVATION_ENCODER_HPP_

@@ -59,7 +59,6 @@ class WallConfig(GridObjectConfig):
     def __init__(self, type_id: int, type_name: str): ...
     type_id: int
     type_name: str
-    swappable: bool
 
 class AgentConfig(GridObjectConfig):
     def __init__(
@@ -117,7 +116,7 @@ class ClipperConfig:
     def __init__(
         self) -> None: ...
     unclipping_protocols: list[Protocol]
-    length_scale: float
+    length_scale: int
     scaled_cutoff_distance: int
     clip_period: int
 
