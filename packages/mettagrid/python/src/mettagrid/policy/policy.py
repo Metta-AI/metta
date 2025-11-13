@@ -1,7 +1,6 @@
 """Base policy classes and interfaces."""
 
 from abc import abstractmethod
-from numbers import Integral
 from pathlib import Path
 from typing import Generic, Optional, Tuple, TypeVar
 
@@ -159,36 +158,21 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
         if self._agent_id is not None:
             self._agent_states[self._agent_id] = self._state
 
-    def _encode_action(self, action: Action | str | int) -> int:
+    def _action_index(self, action: Action | str | int) -> int:
         if isinstance(action, Action):
-            action_name = action.name
-        elif isinstance(action, str):
-            action_name = action
-        elif isinstance(action, Integral):
-            return int(action)
-        else:
-            raise TypeError(f"Unsupported action type: {type(action)}")
-
-        return self._action_name_to_index[action_name]
+            return self._action_name_to_index[action.name]
+        if isinstance(action, str):
+            return self._action_name_to_index[action]
+        return int(action)
 
     def step_batch(self, _raw_observations, raw_actions) -> None:
-        """Loop over agents using Simulation-backed observations."""
-        if self._simulation is None:
-            raise RuntimeError("StatefulAgentPolicy.reset(simulation) must be called before step_batch().")
-
-        sim_observations = self._simulation.observations()
-        num_agents = len(sim_observations)
-        if raw_actions.shape[0] < num_agents:
-            raise ValueError(f"raw_actions has insufficient capacity ({raw_actions.shape[0]}) for {num_agents} agents")
-
-        for agent_idx in range(num_agents):
-            obs = sim_observations[agent_idx]
-            state = self._agent_states.get(agent_idx)
-            if state is None:
-                state = self._base_policy.initial_agent_state()
+        sim = self._simulation
+        observations = [] if sim is None else sim.observations()
+        for agent_idx, obs in enumerate(observations):
+            state = self._agent_states.get(agent_idx) or self._base_policy.initial_agent_state()
             action, new_state = self._base_policy.step_with_state(obs, state)
             self._agent_states[agent_idx] = new_state
-            raw_actions[agent_idx] = dtype_actions.type(self._encode_action(action))
+            raw_actions[agent_idx] = dtype_actions.type(self._action_index(action))
 
         if self._agent_id is not None and self._agent_id in self._agent_states:
             self._state = self._agent_states[self._agent_id]
