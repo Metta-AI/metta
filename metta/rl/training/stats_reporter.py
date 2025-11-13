@@ -656,6 +656,13 @@ class StatsReporter(TrainerComponent):
                 label = key.replace("algorithm/eviction_counts/", "")
                 stats[f"curriculum_stats/per_label_aggregate_evictions/{label}"] = float(value)
 
+        # ===== GROUP C & D: Troubleshooting Stats (if enabled) =====
+        # NOTE: This must run BEFORE Gini calculations to populate per_label_lp_probs
+        if self._should_enable_curriculum_troubleshooting():
+            troubleshooting_stats = self._collect_curriculum_troubleshooting_stats(curriculum, curriculum_stats)
+            logger.info(f"Collected {len(troubleshooting_stats)} troubleshooting stats")
+            stats.update(troubleshooting_stats)
+
         # ===== GROUP B: Gini Coefficients =====
         # There are two types: per-label (terrain type distribution) and per-task (individual task inequality)
 
@@ -686,29 +693,30 @@ class StatsReporter(TrainerComponent):
             )
 
         # 3. Eviction gini - inequality in which terrain types are evicted THIS EPOCH
-        # Uses per-epoch eviction tracking (if available)
-        eviction_epoch_key = "env_curriculum_stats/per_label_evictions_this_epoch"
-        if eviction_epoch_key in self._state.rollout_stats:
-            per_label_evictions = self._state.rollout_stats[eviction_epoch_key]
-            if isinstance(per_label_evictions, dict) and per_label_evictions:
-                epoch_eviction_counts = list(per_label_evictions.values())
-                stats["curriculum_stats/eviction_gini"] = self._calculate_gini_coefficient(epoch_eviction_counts)
-                logger.info(
-                    f"Eviction gini: {stats['curriculum_stats/eviction_gini']:.3f} "
-                    f"({len(epoch_eviction_counts)} labels, counts={epoch_eviction_counts[:5]})"
-                )
+        # Uses per-epoch eviction tracking (reconstructed from flattened keys)
+        per_label_evictions = self._reconstruct_dict_from_flattened_keys(
+            self._state.rollout_stats, "env_curriculum_stats/per_label_evictions_this_epoch"
+        )
+        if per_label_evictions:
+            epoch_eviction_counts = list(per_label_evictions.values())
+            stats["curriculum_stats/eviction_gini"] = self._calculate_gini_coefficient(epoch_eviction_counts)
+            logger.info(
+                f"Eviction gini: {stats['curriculum_stats/eviction_gini']:.3f} "
+                f"({len(epoch_eviction_counts)} labels, counts={epoch_eviction_counts[:5]})"
+            )
 
         # 4. Per-epoch samples gini - inequality in this epoch's episode completions by terrain type
-        per_label_samples_key = "env_curriculum_stats/per_label_samples_this_epoch"
-        if per_label_samples_key in self._state.rollout_stats:
-            per_label_samples = self._state.rollout_stats[per_label_samples_key]
-            if isinstance(per_label_samples, dict) and per_label_samples:
-                epoch_sample_counts = list(per_label_samples.values())
-                stats["curriculum_stats/per_epoch_samples_gini"] = self._calculate_gini_coefficient(epoch_sample_counts)
-                logger.info(
-                    f"Per-epoch samples gini: {stats['curriculum_stats/per_epoch_samples_gini']:.3f} "
-                    f"({len(epoch_sample_counts)} labels, counts={epoch_sample_counts[:5]})"
-                )
+        # Uses per-epoch sample tracking (reconstructed from flattened keys)
+        per_label_samples = self._reconstruct_dict_from_flattened_keys(
+            self._state.rollout_stats, "env_curriculum_stats/per_label_samples_this_epoch"
+        )
+        if per_label_samples:
+            epoch_sample_counts = list(per_label_samples.values())
+            stats["curriculum_stats/per_epoch_samples_gini"] = self._calculate_gini_coefficient(epoch_sample_counts)
+            logger.info(
+                f"Per-epoch samples gini: {stats['curriculum_stats/per_epoch_samples_gini']:.3f} "
+                f"({len(epoch_sample_counts)} labels, counts={epoch_sample_counts[:5]})"
+            )
 
         # === PER-TASK GINI COEFFICIENTS (Individual Task Inequality) ===
         # These are calculated by the algorithm and measure inequality across individual tasks
@@ -767,14 +775,40 @@ class StatsReporter(TrainerComponent):
             if key.startswith("algorithm/debug/"):
                 stats[key] = float(value)
 
-        # ===== GROUP C & D: Troubleshooting Stats (if enabled) =====
-        if self._should_enable_curriculum_troubleshooting():
-            troubleshooting_stats = self._collect_curriculum_troubleshooting_stats(curriculum, curriculum_stats)
-            logger.info(f"Collected {len(troubleshooting_stats)} troubleshooting stats")
-            stats.update(troubleshooting_stats)
-
         logger.info(f"Total curriculum stats collected: {len(stats)}")
         return stats
+
+    @staticmethod
+    def _reconstruct_dict_from_flattened_keys(rollout_stats: dict, prefix: str) -> dict[str, float]:
+        """Reconstruct dictionary from flattened keys.
+
+        When stats are emitted as nested dicts like:
+            {"env_curriculum_stats/per_label_samples_this_epoch": {"label1": 2, "label2": 3}}
+
+        They get flattened by unroll_nested_dict to:
+            {"env_curriculum_stats/per_label_samples_this_epoch/label1": 2,
+             "env_curriculum_stats/per_label_samples_this_epoch/label2": 3}
+
+        This function reconstructs the original dict structure for Gini calculations.
+
+        Args:
+            rollout_stats: Dictionary with flattened keys
+            prefix: The prefix to search for (e.g., "env_curriculum_stats/per_label_samples_this_epoch")
+
+        Returns:
+            Dictionary mapping label -> value
+        """
+        result = {}
+        prefix_with_slash = f"{prefix}/"
+        for key, value in rollout_stats.items():
+            if key.startswith(prefix_with_slash):
+                label = key[len(prefix_with_slash) :]
+                # Value might be a list (accumulated across rollout steps) or scalar
+                if isinstance(value, list):
+                    result[label] = float(sum(value))  # Sum for count-based stats
+                else:
+                    result[label] = float(value)
+        return result
 
     def _should_enable_curriculum_troubleshooting(self) -> bool:
         """Check if curriculum troubleshooting logging is enabled.
