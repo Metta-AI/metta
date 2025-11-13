@@ -30,7 +30,6 @@ include = ["metta.agent", "metta.ops"]
 
 [tool.setuptools.package-data]
 "metta.agent" = ["py.typed"]
-"metta.ops" = ["agalite_kernels/*.cpp", "agalite_kernels/*.cu"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

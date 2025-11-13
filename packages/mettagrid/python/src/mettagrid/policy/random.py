@@ -16,12 +16,15 @@ class RandomAgentPolicy(AgentPolicy):
     def step(self, obs: AgentObservation) -> Action:
         return random.choice(self.policy_env_info.actions.actions())
 
-    def reset(self, simulation=None, *args, **kwargs) -> None:
+    def reset(self) -> None:
+        """Random policy keeps no state."""
         pass
 
 
 class RandomMultiAgentPolicy(MultiAgentPolicy):
     """Random multi-agent policy that samples actions uniformly from the action space."""
+
+    short_names = ["random"]
 
     def __init__(self, policy_env_info: PolicyEnvInterface):
         super().__init__(policy_env_info)

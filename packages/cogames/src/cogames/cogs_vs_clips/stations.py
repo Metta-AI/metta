@@ -1,5 +1,3 @@
-from typing import Literal
-
 from pydantic import Field
 
 from cogames.cogs_vs_clips import vibes
@@ -29,8 +27,6 @@ class CvCStationConfig(Config):
 
 
 class CvCWallConfig(CvCStationConfig):
-    type: Literal["wall"] = Field(default="wall")
-
     def station_cfg(self) -> WallConfig:
         return WallConfig(name="wall", map_char="#", render_symbol=vibes.VIBE_BY_NAME["wall"].symbol)
 
@@ -43,8 +39,6 @@ class ExtractorConfig(CvCStationConfig):
 
 
 class ChargerConfig(ExtractorConfig):
-    type: Literal["charger"] = Field(default="charger")
-
     def station_cfg(self) -> AssemblerConfig:
         return AssemblerConfig(
             name="charger",
@@ -67,13 +61,11 @@ class ChargerConfig(ExtractorConfig):
 
 # Time consuming but easy to mine.
 class CarbonExtractorConfig(ExtractorConfig):
-    type: Literal["carbon_extractor"] = Field(default="carbon_extractor")
-
     def station_cfg(self) -> AssemblerConfig:
         return AssemblerConfig(
-            name=self.type,
+            name="carbon_extractor",
             map_char="C",
-            render_symbol=vibes.VIBE_BY_NAME["carbon"].symbol,
+            render_symbol=vibes.VIBE_BY_NAME["carbon_a"].symbol,
             # Protocols
             max_uses=self.max_uses,
             protocols=[
@@ -91,13 +83,11 @@ class CarbonExtractorConfig(ExtractorConfig):
 # Accumulates oxygen over time, needs to be emptied periodically.
 # Takes a lot of space, relative to usage needs.
 class OxygenExtractorConfig(ExtractorConfig):
-    type: Literal["oxygen_extractor"] = Field(default="oxygen_extractor")
-
     def station_cfg(self) -> AssemblerConfig:
         return AssemblerConfig(
             name="oxygen_extractor",
             map_char="O",
-            render_symbol=vibes.VIBE_BY_NAME["oxygen"].symbol,
+            render_symbol=vibes.VIBE_BY_NAME["oxygen_a"].symbol,
             # Protocols
             max_uses=self.max_uses,
             allow_partial_usage=True,  # can use it while its on cooldown
@@ -115,7 +105,6 @@ class OxygenExtractorConfig(ExtractorConfig):
 
 # Rare and doesn't regenerate. But more cogs increase efficiency.
 class GermaniumExtractorConfig(ExtractorConfig):
-    type: Literal["germanium_extractor"] = Field(default="germanium_extractor")
     synergy: int = 1
     efficiency: int = 1
 
@@ -123,14 +112,14 @@ class GermaniumExtractorConfig(ExtractorConfig):
         return AssemblerConfig(
             name="germanium_extractor",
             map_char="G",
-            render_symbol=vibes.VIBE_BY_NAME["germanium"].symbol,
+            render_symbol=vibes.VIBE_BY_NAME["germanium_a"].symbol,
             # Protocols
             max_uses=self.max_uses,
             protocols=[
                 ProtocolConfig(output_resources={"germanium": self.efficiency}),
                 *[
                     ProtocolConfig(
-                        vibes=["germanium"] * i, output_resources={"germanium": self.efficiency + i * self.synergy}
+                        vibes=["germanium_a"] * i, output_resources={"germanium": self.efficiency + i * self.synergy}
                     )
                     for i in range(1, 5)
                 ],
@@ -142,14 +131,13 @@ class GermaniumExtractorConfig(ExtractorConfig):
 
 
 class SiliconExtractorConfig(ExtractorConfig):
-    type: Literal["silicon_extractor"] = Field(default="silicon_extractor")
     max_uses: int = Field(default=100)  # Silicon has lower default than other extractors
 
     def station_cfg(self) -> AssemblerConfig:
         return AssemblerConfig(
             name="silicon_extractor",
             map_char="S",
-            render_symbol=vibes.VIBE_BY_NAME["silicon"].symbol,
+            render_symbol=vibes.VIBE_BY_NAME["silicon_a"].symbol,
             # Protocols
             max_uses=self.max_uses,  # Use direct value, no division
             protocols=[
@@ -165,50 +153,54 @@ class SiliconExtractorConfig(ExtractorConfig):
 
 
 class CvCChestConfig(CvCStationConfig):
-    type: Literal["communal_chest"] = Field(default="communal_chest")
     initial_inventory: dict[str, int] = Field(default={}, description="Initial inventory for each resource type")
 
     def station_cfg(self) -> ChestConfig:
         # Use map_name/name "chest" so maps and procedural builders that place
         # "chest" resolve to this config. The specific CvC type remains a label.
         return ChestConfig(
-            name="chest",
             map_char="C",
             render_symbol=vibes.VIBE_BY_NAME["chest"].symbol,
             vibe_transfers={
                 "default": {"heart": 255, "carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255},
-                "heart": {"heart": -1},
-                "carbon": {"carbon": -10},
-                "oxygen": {"oxygen": -10},
-                "germanium": {"germanium": -1},
-                "silicon": {"silicon": -25},
+                "heart_a": {"heart": -1},
+                "heart_b": {"heart": 1},
+                "carbon_a": {"carbon": -10},
+                "carbon_b": {"carbon": 10},
+                "oxygen_a": {"oxygen": -10},
+                "oxygen_b": {"oxygen": 10},
+                "germanium_a": {"germanium": -1},
+                "germanium_b": {"germanium": 1},
+                "silicon_a": {"silicon": -25},
+                "silicon_b": {"silicon": 25},
             },
             initial_inventory=self.initial_inventory,
         )
 
 
 class CvCAssemblerConfig(CvCStationConfig):
-    type: Literal["assembler"] = Field(default="assembler")
-    heart_cost: int = Field(default=10)
+    # These could be "fixed_cost" and "variable_cost" instead, but we're more likely to want to read them like this.
+    first_heart_cost: int = Field(default=10)
+    additional_heart_cost: int = Field(default=5)
 
     def station_cfg(self) -> AssemblerConfig:
         gear = [("oxygen", "modulator"), ("germanium", "scrambler"), ("silicon", "resonator"), ("carbon", "decoder")]
         return AssemblerConfig(
-            name=self.type,
+            name="assembler",
             map_char="&",
             render_symbol=vibes.VIBE_BY_NAME["assembler"].symbol,
             clip_immune=True,
             protocols=[
                 ProtocolConfig(
-                    vibes=["heart"] * (i + 1),
+                    vibes=["heart_a"] * (i + 1),
                     input_resources={
-                        "carbon": self.heart_cost * 2,
-                        "oxygen": self.heart_cost * 2,
-                        "germanium": max(self.heart_cost // 2 - i, 1),
-                        "silicon": self.heart_cost * 5,
-                        "energy": self.heart_cost * 2,
+                        "carbon": 2 * (self.first_heart_cost + self.additional_heart_cost * i),
+                        "oxygen": 2 * (self.first_heart_cost + self.additional_heart_cost * i),
+                        "germanium": max(1, (self.first_heart_cost + self.additional_heart_cost * i) // 2),
+                        "silicon": 5 * (self.first_heart_cost + self.additional_heart_cost * i),
+                        "energy": 2 * (self.first_heart_cost + self.additional_heart_cost * i),
                     },
-                    output_resources={"heart": 1},
+                    output_resources={"heart": i + 1},
                 )
                 for i in range(4)
             ]
@@ -216,7 +208,7 @@ class CvCAssemblerConfig(CvCStationConfig):
                 # Specific gear protocols: ['gear', 'resource'] -> gear_item
                 # Agent must have the specific resource AND use gear vibe
                 ProtocolConfig(
-                    vibes=["gear", gear[i][0]],
+                    vibes=["gear", f"{gear[i][0]}_a"],
                     input_resources={gear[i][0]: 1},
                     output_resources={gear[i][1]: 1},
                 )

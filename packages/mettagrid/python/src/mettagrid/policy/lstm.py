@@ -12,7 +12,6 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.utils import LSTMState, LSTMStateDict
 from mettagrid.simulator import Action as MettaGridAction
 from mettagrid.simulator import AgentObservation as MettaGridObservation
-from mettagrid.simulator import Simulation
 
 logger = logging.getLogger("mettagrid.policy.lstm_policy")
 
@@ -171,7 +170,7 @@ class LSTMAgentPolicy(StatefulPolicyImpl[LSTMState]):
         self._device = device
         self._policy_env_info = policy_env_info
 
-    def initial_agent_state(self, simulation: Optional[Simulation] = None) -> LSTMState:
+    def initial_agent_state(self) -> LSTMState:
         """Get initial state for a new agent.
 
         For LSTM, we return a zero-initialized state with shape (num_layers, hidden_size).
@@ -235,6 +234,8 @@ class LSTMAgentPolicy(StatefulPolicyImpl[LSTMState]):
 class LSTMPolicy(TrainablePolicy):
     """LSTM-based policy that creates StatefulPolicy wrappers for each agent."""
 
+    short_names = ["lstm"]
+
     def __init__(self, policy_env_info: PolicyEnvInterface, device: Optional[torch.device] = None):
         super().__init__(policy_env_info)
         self._device = device if device is not None else torch.device("cpu")
@@ -248,7 +249,7 @@ class LSTMPolicy(TrainablePolicy):
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Create a StatefulPolicy wrapper for a specific agent."""
-        return StatefulAgentPolicy(self._agent_policy, self._policy_env_info)
+        return StatefulAgentPolicy(self._agent_policy, self._policy_env_info, agent_id=agent_id)
 
     def is_recurrent(self) -> bool:
         return True

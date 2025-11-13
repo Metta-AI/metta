@@ -33,7 +33,9 @@ class LonelyHeartVariant(MissionVariant):
 
     @override
     def modify_mission(self, mission):
-        mission.assembler.heart_cost = 1
+        mission.assembler.first_heart_cost = 1
+        mission.assembler.additional_heart_cost = 0
+        mission.heart_capacity = max(mission.heart_capacity, 255)
 
     @override
     def modify_env(self, mission, env):
@@ -179,7 +181,7 @@ class VibeCheckMin2Variant(MissionVariant):
                 filtered.append(proto)
                 continue
             # Keep only heart protocols that require >= 2 'heart' vibes
-            if len(proto.vibes) >= 2 and all(v == "heart" for v in proto.vibes):
+            if len(proto.vibes) >= 2 and all(v == "heart_a" for v in proto.vibes):
                 filtered.append(proto)
         assembler.protocols = filtered
 
@@ -219,7 +221,7 @@ class InventoryHeartTuneVariant(MissionVariant):
         if hearts == 0 and self.heart_capacity is None:
             return
 
-        heart_cost = mission.assembler.heart_cost
+        heart_cost = mission.assembler.first_heart_cost
         per_heart = {
             "carbon": heart_cost * 2,
             "oxygen": heart_cost * 2,
@@ -264,7 +266,7 @@ class ChestHeartTuneVariant(MissionVariant):
         hearts = max(0, int(self.hearts))
         if hearts == 0:
             return
-        heart_cost = mission.assembler.heart_cost
+        heart_cost = mission.assembler.first_heart_cost
         per_heart = {
             "carbon": heart_cost * 2,
             "oxygen": heart_cost * 2,
@@ -290,7 +292,7 @@ class ExtractorHeartTuneVariant(MissionVariant):
         hearts = max(0, int(self.hearts))
         if hearts == 0:
             return
-        heart_cost = mission.assembler.heart_cost
+        heart_cost = mission.assembler.first_heart_cost
         one_heart = {
             "carbon": heart_cost * 2,
             "oxygen": heart_cost * 2,
@@ -343,13 +345,13 @@ class ClipHubStationsVariant(MissionVariant):
         mission.charger.start_clipped = True
 
 
-class ClipRateOnVariant(MissionVariant):
-    name: str = "clip_rate_on"
-    description: str = "Enable global clipping with a small non-zero clip rate."
+class ClipPeriodOnVariant(MissionVariant):
+    name: str = "clip_period_on"
+    description: str = "Enable global clipping with a small non-zero clip period."
 
     @override
     def modify_mission(self, mission):
-        mission.clip_rate = 0.02
+        mission.clip_period = 50
 
 
 # Biome variants (weather) for procedural maps
@@ -455,6 +457,6 @@ VARIANTS: list[MissionVariant] = [
     ClipBaseExceptCarbonVariant(),
     ClipHubStationsVariant(),
     CyclicalUnclipVariant(),
-    ClipRateOnVariant(),
+    ClipPeriodOnVariant(),
     *DIFFICULTY_VARIANTS,
 ]

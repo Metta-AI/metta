@@ -225,14 +225,17 @@ def configure_component(component_name: str):
     module.configure()
 
 
-def _get_selected_modules(components: list[str] | None = None) -> list["SetupModule"]:
+def _get_selected_modules(components: list[str] | None = None, ensure_required: bool = False) -> list["SetupModule"]:
     _ensure_components_initialized()
     from metta.setup.registry import get_all_modules
 
     return [
         m
         for m in get_all_modules()
-        if (components is not None and m.name in components) or (components is None and m.is_enabled())
+        if (
+            (components is not None and (m.name in components) or (ensure_required and m.always_required))
+            or (components is None and m.is_enabled())
+        )
     ]
 
 
@@ -268,13 +271,8 @@ def cmd_install(
     elif profile or not profile_exists:
         cmd_configure(profile=profile, non_interactive=non_interactive, component=None)
 
-    if components:
-        always_required_components = ["system", "core"]
-        limited_components = always_required_components + [m for m in components if m not in always_required_components]
-    else:
-        limited_components = None
-    # TODO: this should sort system and core to the front of the list
-    modules = _get_selected_modules(limited_components)
+    always_required_components = ["core", "system"]
+    modules = _get_selected_modules((always_required_components + components) if components else None)
 
     if not modules:
         info("No modules to install.")
@@ -283,14 +281,15 @@ def cmd_install(
     info(f"\nInstalling {len(modules)} components...\n")
 
     for module in modules:
-        info(f"[{module.name}] {module.description}")
+        force_install = force and (components is None) or (components is not None and module.name in components)
+        info(f"[{module.name}] {module.description}" + (" (force install)" if force_install else ""))
 
-        if module.install_once and module.check_installed() and not force:
+        if module.install_once and module.check_installed() and not force_install:
             debug("  -> Already installed, skipping (use --force to reinstall)\n")
             continue
 
         try:
-            module.install(non_interactive=non_interactive, force=force)
+            module.install(non_interactive=non_interactive, force=force_install)
             print()
         except Exception as e:
             error(f"  Error: {e}\n")
@@ -307,7 +306,7 @@ def cmd_status(
     ] = None,
     non_interactive: Annotated[bool, typer.Option("-n", "--non-interactive", help="Non-interactive mode")] = False,
 ):
-    modules = _get_selected_modules(components if components else None)
+    modules = _get_selected_modules(components if components else None, ensure_required=True)
     if not modules:
         warning("No modules to check.")
         return

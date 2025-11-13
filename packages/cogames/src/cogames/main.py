@@ -26,6 +26,8 @@ from cogames.cli.policy import get_policy_spec, get_policy_specs, policy_arg_exa
 from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, submit_command
 from cogames.curricula import make_rotation
 from cogames.device import resolve_training_device
+from mettagrid.policy.loader import discover_and_register_policies
+from mettagrid.policy.policy_registry import get_policy_registry
 from mettagrid.renderer.renderer import RenderMode
 from mettagrid.simulator import Simulator
 
@@ -44,6 +46,7 @@ app = typer.Typer(
     no_args_is_help=True,
     rich_markup_mode="rich",
     pretty_exceptions_show_locals=False,
+    callback=lambda: discover_and_register_policies("cogames.policy"),
 )
 
 
@@ -147,9 +150,6 @@ def play_cmd(
         ParameterSource.PROMPT,
     ):
         env_cfg.game.max_steps = steps
-
-    if cogs is not None:
-        env_cfg.game.num_agents = cogs
 
     play_module.play(
         console,
@@ -338,11 +338,6 @@ def evaluate_cmd(
 ) -> None:
     selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs, steps=steps)
 
-    # Override num_agents if --cogs was explicitly provided
-    if cogs is not None:
-        for _, env_cfg in selected_missions:
-            env_cfg.game.num_agents = cogs
-
     policy_specs = get_policy_specs(ctx, policies)
 
     console.print(
@@ -370,6 +365,20 @@ def version_cmd() -> None:
 
     for dist_name in ["mettagrid", "pufferlib-core", "cogames"]:
         table.add_row(dist_name, public_version(dist_name))
+
+    console.print(table)
+
+
+@app.command(name="policies", help="Show default policies and their shorthand names")
+def policies_cmd() -> None:
+    policy_registry = get_policy_registry()
+    table = Table(show_header=False, box=None, show_lines=False, pad_edge=False)
+    table.add_column("", justify="left", style="bold cyan")
+    table.add_column("", justify="right")
+
+    for policy_name, policy_path in policy_registry.items():
+        table.add_row(policy_name, policy_path)
+    table.add_row("custom", "path.to.your.PolicyClass")
 
     console.print(table)
 

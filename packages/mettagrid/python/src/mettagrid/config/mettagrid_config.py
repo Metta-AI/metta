@@ -205,7 +205,7 @@ class GridObjectConfig(Config):
     or observations.
     """
 
-    name: str = Field(default="", description="Canonical type_name (human-readable)")
+    name: str = Field(description="Canonical type_name (human-readable)")
     map_name: str = Field(default="", description="Stable key used by maps to select this config")
     render_name: str = Field(default="", description="Stable display-class identifier for theming")
     map_char: str = Field(default="?", description="Character used in ASCII maps")
@@ -215,25 +215,24 @@ class GridObjectConfig(Config):
 
     @model_validator(mode="after")
     def _defaults_from_name(self) -> "GridObjectConfig":
-        # Default map_name/render_name to name when not provided
-        if not getattr(self, "map_name", None):
+        if not self.map_name:
             self.map_name = self.name
-        if not getattr(self, "render_name", None):
+        if not self.render_name:
             self.render_name = self.name
         # If no tags, inject a default kind tag so the object is visible in observations
         if not self.tags:
-            default_tag = getattr(self, "type", None)  # this is typically what you want, a Wall gets tag "wall"
-            default_tag = default_tag or self.render_name  # this is a good fallback tag
-            default_tag = default_tag or "object"  # if nothing else, be visible as an object
-            self.tags = [default_tag]
+            self.tags = [self.render_name]
         return self
 
 
 class WallConfig(GridObjectConfig):
     """Python wall/block configuration."""
 
-    type: Literal["wall"] = Field(default="wall")
-    swappable: bool = Field(default=False)
+    # This is used to discriminate between different GridObjectConfig subclasses in Pydantic.
+    # See AnyGridObjectConfig.
+    # Please don't use this for anything game related.
+    pydantic_type: Literal["wall"] = "wall"
+    name: str = Field(default="wall")
 
 
 class ProtocolConfig(Config):
@@ -246,7 +245,11 @@ class ProtocolConfig(Config):
 class AssemblerConfig(GridObjectConfig):
     """Python assembler configuration."""
 
-    type: Literal["assembler"] = Field(default="assembler")
+    # This is used to discriminate between different GridObjectConfig subclasses in Pydantic.
+    # See AnyGridObjectConfig.
+    # Please don't use this for anything game related.
+    pydantic_type: Literal["assembler"] = "assembler"
+    # No default name -- we want to make sure that meaningful names are provided.
     protocols: list[ProtocolConfig] = Field(
         default_factory=list,
         description="Protocols in reverse order of priority.",
@@ -277,7 +280,11 @@ class AssemblerConfig(GridObjectConfig):
 class ChestConfig(GridObjectConfig):
     """Python chest configuration for multi-resource chests."""
 
-    type: Literal["chest"] = Field(default="chest")
+    # This is used to discriminate between different GridObjectConfig subclasses in Pydantic.
+    # See AnyGridObjectConfig.
+    # Please don't use this for anything game related.
+    pydantic_type: Literal["chest"] = "chest"
+    name: str = Field(default="chest")
 
     # Vibe-based transfers: vibe -> resource -> delta
     vibe_transfers: dict[str, dict[str, int]] = Field(
@@ -306,30 +313,24 @@ class ClipperConfig(Config):
 
     The clipper system uses a spatial diffusion process where clipping spreads
     based on distance from already-clipped buildings. The length_scale parameter
-    controls the exponential decay: weight = exp(-distance / length_scale).
-
-    If length_scale is <= 0 (default 0.0), it will be automatically calculated
-    at runtime in C++ using percolation based on the actual grid size and
-    number of buildings placed. Set length_scale > 0 to use a manual value instead.
-
-    If cutoff_distance is <= 0 (default 0.0), it will be automatically set to
-    3 * length_scale at runtime. At this distance, exp(-3) ≈ 0.05, making weights
-    negligible. Set cutoff_distance > 0 to use a manual cutoff.
+    controls the exponential decay: weight ~= exp(-distance / length_scale).
     """
 
     unclipping_protocols: list[ProtocolConfig] = Field(default_factory=list)
-    length_scale: float = Field(
-        default=0.0,
-        description="Controls spatial spread rate: weight = exp(-distance / length_scale). "
-        "If <= 0, automatically calculated using percolation at runtime.",
+    length_scale: int = Field(
+        default=0,
+        ge=0,
+        description="Controls spatial spread rate: weight ~= exp(-distance / length_scale). "
+        "If <= 0, automatically calculated at runtime based on the sparsity of the grid.",
     )
-    cutoff_distance: float = Field(
-        default=0.0,
-        ge=0.0,
-        description="Maximum distance for infection weight calculations. "
-        "If <= 0, automatically set to 3 * length_scale at runtime.",
+    scaled_cutoff_distance: int = Field(
+        default=3,
+        ge=1,
+        description="Maximum distance in units of length_scale for infection weight calculations.",
     )
-    clip_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    clip_period: int = Field(
+        default=0, ge=0, description="Approximate timesteps between clipping events (0 = disabled)"
+    )
 
 
 AnyGridObjectConfig = SerializeAsAny[
@@ -339,7 +340,7 @@ AnyGridObjectConfig = SerializeAsAny[
             Annotated[AssemblerConfig, Tag("assembler")],
             Annotated[ChestConfig, Tag("chest")],
         ],
-        Discriminator("type"),
+        Discriminator("pydantic_type"),
     ]
 ]
 
@@ -400,12 +401,9 @@ class GameConfig(Config):
     # Map builder configuration - accepts any MapBuilder config
     map_builder: AnyMapBuilderConfig = Field(default_factory=lambda: RandomMapBuilder.Config(agents=24))
 
-    # Feature Flags
-    track_movement_metrics: bool = Field(
-        default=True, description="Enable movement metrics tracking (sequential rotations)"
-    )
+    # Note that if this is False, agents won't be able to see how to unclip assemblers.
     protocol_details_obs: bool = Field(
-        default=False, description="Objects show their protocol inputs and outputs when observed"
+        default=True, description="Objects show their protocol inputs and outputs when observed"
     )
 
     reward_estimates: Optional[dict[str, float]] = Field(default=None)
@@ -427,16 +425,14 @@ class GameConfig(Config):
 
     def id_map(self) -> "IdMap":
         """Get the observation feature ID map for this configuration."""
-        # Create a minimal MettaGridConfig wrapper
-        wrapper = MettaGridConfig(game=self)
-        return IdMap(wrapper)
+        return IdMap(self)
 
 
 class EnvSupervisorConfig(Config):
     """Environment supervisor configuration."""
 
-    enabled: bool = Field(default=False)
-    policy: str = Field(default="baseline")
+    policy: Optional[str] = Field(default=None)
+    policy_data_path: Optional[str] = Field(default=None)
 
 
 class MettaGridConfig(Config):
@@ -445,10 +441,6 @@ class MettaGridConfig(Config):
     label: str = Field(default="mettagrid")
     game: GameConfig = Field(default_factory=GameConfig)
     desync_episodes: bool = Field(default=True)
-
-    def id_map(self) -> "IdMap":
-        """Get the observation feature ID map for this configuration."""
-        return IdMap(self)
 
     def with_ascii_map(self, map_data: list[list[str]]) -> "MettaGridConfig":
         self.game.map_builder = AsciiMapBuilder.Config(
@@ -468,7 +460,7 @@ class MettaGridConfig(Config):
         )
         objects = {}
         if border_width > 0 or with_walls:
-            objects["wall"] = WallConfig(name="wall", map_char="#", render_symbol="⬛", swappable=False)
+            objects["wall"] = WallConfig(map_char="#", render_symbol="⬛")
         return MettaGridConfig(
             game=GameConfig(map_builder=map_builder, actions=actions, num_agents=num_agents, objects=objects)
         )

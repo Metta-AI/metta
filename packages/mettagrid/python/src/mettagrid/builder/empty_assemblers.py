@@ -1,7 +1,6 @@
 from mettagrid.config.mettagrid_config import AssemblerConfig, ProtocolConfig, WallConfig
 
 wall = WallConfig(name="wall", map_char="#", render_symbol="⬛")
-block = WallConfig(name="block", map_char="s", render_symbol="📦", swappable=True)
 
 mine_red = AssemblerConfig(
     name="mine_red",

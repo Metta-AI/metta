@@ -72,6 +72,8 @@ class StatelessAgentPolicyImpl(AgentPolicy):
 class StatelessPolicy(TrainablePolicy):
     """Stateless feedforward policy."""
 
+    short_names = ["stateless"]
+
     def __init__(
         self, actions_cfg: ActionsConfig, obs_shape: tuple, device: torch.device, policy_env_info: PolicyEnvInterface
     ):

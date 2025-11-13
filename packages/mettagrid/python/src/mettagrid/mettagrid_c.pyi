@@ -59,7 +59,6 @@ class WallConfig(GridObjectConfig):
     def __init__(self, type_id: int, type_name: str): ...
     type_id: int
     type_name: str
-    swappable: bool
 
 class AgentConfig(GridObjectConfig):
     def __init__(
@@ -115,16 +114,11 @@ class Protocol:
 
 class ClipperConfig:
     def __init__(
-        self,
-        unclipping_protocols: list[Protocol],
-        length_scale: float,
-        cutoff_distance: float,
-        clip_rate: float,
-    ) -> None: ...
+        self) -> None: ...
     unclipping_protocols: list[Protocol]
-    length_scale: float
-    cutoff_distance: float
-    clip_rate: float
+    length_scale: int
+    scaled_cutoff_distance: int
+    clip_period: int
 
 class AttackActionConfig(ActionConfig):
     def __init__(
@@ -190,8 +184,7 @@ class GameConfig:
         objects: dict[str, GridObjectConfig],
         resource_loss_prob: float = 0.0,
         tag_id_map: dict[int, str] | None = None,
-        track_movement_metrics: bool = False,
-        protocol_details_obs: bool = False,
+        protocol_details_obs: bool = True,
         allow_diagonals: bool = False,
         reward_estimates: Optional[dict[str, float]] = None,
         inventory_regen_amounts: dict[int, int] | None = None,
@@ -209,7 +202,6 @@ class GameConfig:
     global_obs: GlobalObsConfig
     resource_loss_prob: float
     # FEATURE FLAGS
-    track_movement_metrics: bool
     protocol_details_obs: bool
     allow_diagonals: bool
     reward_estimates: Optional[dict[str, float]]
