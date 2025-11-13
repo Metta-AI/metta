@@ -47,7 +47,7 @@ proc newRandomPolicy*(environmentConfig: string): RandomPolicy =
     agents.add(newRandomAgent(id, environmentConfig))
   RandomPolicy(agents: agents)
 
-proc randomPolicyStepBatch*(
+proc stepBatch*(
     policy: RandomPolicy,
     agentIds: pointer,
     numAgentIds: int,

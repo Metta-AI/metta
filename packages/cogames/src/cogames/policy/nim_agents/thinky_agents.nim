@@ -344,7 +344,7 @@ proc newThinkyPolicy*(environmentConfig: string): ThinkyPolicy =
     agents.add(newThinkyAgent(id, environmentConfig))
   ThinkyPolicy(agents: agents)
 
-proc thinkyPolicyStepBatch*(
+proc stepBatch*(
     policy: ThinkyPolicy,
     agentIds: pointer,
     numAgentIds: int,

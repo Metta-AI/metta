@@ -176,7 +176,7 @@ proc newRaceCarPolicy*(environmentConfig: string): RaceCarPolicy =
     agents.add(newRaceCarAgent(id, environmentConfig))
   RaceCarPolicy(agents: agents)
 
-proc raceCarPolicyStepBatch*(
+proc stepBatch*(
     policy: RaceCarPolicy,
     agentIds: pointer,
     numAgentIds: int,
