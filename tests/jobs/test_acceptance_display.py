@@ -1,14 +1,13 @@
 """Test that acceptance criteria work correctly at the job level."""
 
-from devops.stable.jobs import tool_job
-from metta.jobs.job_config import AcceptanceCriterion
+from metta.jobs.job_config import AcceptanceCriterion, JobConfig
 
 
 def test_acceptance_criteria_in_job_config():
-    """Test that acceptance criteria are properly converted to AcceptanceCriterion in JobConfig."""
-    job_config = tool_job(
+    """Test that acceptance criteria are properly stored in JobConfig."""
+    job_config = JobConfig(
         name="test_train",
-        tool_path="arena.train",
+        module="recipes.prod.arena_basic_easy_shaped.train",
         args=["run=test"],
         acceptance_criteria=[
             AcceptanceCriterion(metric="overview/sps", operator=">=", threshold=40000),
@@ -33,6 +32,3 @@ def test_acceptance_criteria_in_job_config():
     assert criterion2.metric == "env_agent/heart.gained"
     assert criterion2.operator == ">"
     assert criterion2.threshold == 0.5
-
-    # Verify metrics_to_track is derived from acceptance
-    assert job_config.metrics_to_track == ["overview/sps", "env_agent/heart.gained"]
