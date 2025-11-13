@@ -2,13 +2,17 @@
 
 import
   std/random,
-  common
+  common,
+  policy_utils
 
 type
   RandomAgent* = ref object
     agentId*: int
     cfg*: Config
     random*: Rand
+
+  RandomPolicy* = ref object
+    agents*: seq[RandomAgent]
 
 proc newRandomAgent*(
   agentId: int,
@@ -36,8 +40,50 @@ proc step*(
   discard sizeToken
   discard rawObservation
   discard numActions
-  if agentAction.isNil:
-    return
   let action = agent.random.rand(1 .. 4).int32
   agentAction[] = action
   # echo "  RandomAgent taking action: ", action
+
+proc newRandomPolicy*(environmentConfig: string): RandomPolicy {.raises: [].} =
+  RandomPolicy(agents: buildAgents(environmentConfig, newRandomAgent))
+
+proc randomPolicyStepBatch*(
+    policy: RandomPolicy,
+    agentIds: pointer,
+    numAgentIds: int,
+    numAgents: int,
+    numTokens: int,
+    sizeToken: int,
+    rawObservations: pointer,
+    numActions: int,
+    rawActions: pointer
+) {.raises: [].} =
+  stepPolicyBatch(
+    policy.agents,
+    agentIds,
+    numAgentIds,
+    numAgents,
+    numTokens,
+    sizeToken,
+    rawObservations,
+    numActions,
+    rawActions,
+    step
+  )
+
+proc randomPolicyStepSingle*(
+    policy: RandomPolicy,
+    agentId: int,
+    numAgents: int,
+    numTokens: int,
+    sizeToken: int,
+    rawObservation: pointer,
+    numActions: int,
+    rawAction: pointer
+) {.raises: [].} =
+  let actionPtrValue = cast[ptr int32](rawAction)
+  step(policy.agents[agentId], numAgents, numTokens, sizeToken, rawObservation, numActions, actionPtrValue)
+
+proc randomPolicyReset*(policy: RandomPolicy) {.raises: [].} =
+  for agent in policy.agents:
+    reset(agent)
