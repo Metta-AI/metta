@@ -89,7 +89,7 @@ private:
   }
 
   // Check if agents have sufficient resources for the given protocol
-  bool can_afford_protocol(const Protocol& protocol, const std::vector<Agent*>& surrounding_agents) const {
+  bool static can_afford_protocol(const Protocol& protocol, const std::vector<Agent*>& surrounding_agents) {
     std::unordered_map<InventoryItem, InventoryQuantity> total_resources;
     for (Agent* agent : surrounding_agents) {
       for (const auto& [item, amount] : agent->inventory.get()) {
@@ -104,8 +104,42 @@ private:
     return true;
   }
 
+  // Check if surrounding agents can receive output from the given protocol
+  // Returns true if either (a) the protocol has no output, or (b) the surrounding agents
+  // can absorb at least one item in the output. Returns false if the protocol produces
+  // output and the surrounding agents cannot absorb any of it.
+  bool static can_receive_output(const Protocol& protocol, const std::vector<Agent*>& surrounding_agents) {
+    // If protocol has no positive output, return true
+    if (!Assembler::protocol_has_positive_output(protocol)) {
+      return true;
+    }
+
+    // If there are no surrounding agents, they can't absorb anything
+    if (surrounding_agents.empty()) {
+      return false;
+    }
+
+    // Check if agents can absorb at least one item for each output resource
+    for (const auto& [item, amount] : protocol.output_resources) {
+      if (amount > 0) {
+        // Sum up free space across all surrounding agents for this item
+        InventoryQuantity total_free_space = 0;
+        for (Agent* agent : surrounding_agents) {
+          total_free_space += agent->inventory.free_space(item);
+        }
+        // If at least one item can be absorbed, return true
+        if (total_free_space >= 1) {
+          return true;
+        }
+      }
+    }
+
+    // Protocol produces output but agents can absorb none of it
+    return false;
+  }
+
   // Give output resources to agents
-  void give_output_for_protocol(const Protocol& protocol, const std::vector<Agent*>& surrounding_agents) {
+  void static give_output_for_protocol(const Protocol& protocol, const std::vector<Agent*>& surrounding_agents) {
     std::vector<HasInventory*> agents_as_inventory_havers;
     for (Agent* agent : surrounding_agents) {
       agents_as_inventory_havers.push_back(static_cast<HasInventory*>(agent));
@@ -116,7 +150,7 @@ private:
   }
 
   // Returns true if the protocol yields any positive output amount
-  bool protocol_has_positive_output(const Protocol& protocol) const {
+  bool static protocol_has_positive_output(const Protocol& protocol) {
     for (const auto& [item, amount] : protocol.output_resources) {
       if (amount > 0) {
         return true;
@@ -128,7 +162,7 @@ private:
 public:
   // Consume resources from surrounding agents for the given protocol
   // Intended to be private, but made public for testing. We couldn't get `friend` to work as expected.
-  void consume_resources_for_protocol(const Protocol& protocol, const std::vector<Agent*>& surrounding_agents) {
+  void static consume_resources_for_protocol(const Protocol& protocol, const std::vector<Agent*>& surrounding_agents) {
     std::vector<HasInventory*> agents_as_inventory_havers;
     for (Agent* agent : surrounding_agents) {
       agents_as_inventory_havers.push_back(static_cast<HasInventory*>(agent));
@@ -373,16 +407,21 @@ public:
       // Do not prevent usage if:
       // - the unscaled protocol does not have outputs
       // - usage would unclip the assembler; the unscaled unclipping protocol may happen to include outputs
-      if (!protocol_has_positive_output(protocol_to_use) && protocol_has_positive_output(*original_protocol) &&
-          !is_clipped) {
+      if (!Assembler::protocol_has_positive_output(protocol_to_use) &&
+          Assembler::protocol_has_positive_output(*original_protocol) && !is_clipped) {
         return false;
       }
     }
 
     std::vector<Agent*> surrounding_agents = get_surrounding_agents(&actor);
-    if (!can_afford_protocol(protocol_to_use, surrounding_agents)) {
+    if (!Assembler::can_afford_protocol(protocol_to_use, surrounding_agents)) {
       return false;
     }
+    if (!Assembler::can_receive_output(protocol_to_use, surrounding_agents) && !is_clipped) {
+      // If the agents gain nothing from the protocol, don't use it.
+      return false;
+    }
+
     consume_resources_for_protocol(protocol_to_use, surrounding_agents);
     give_output_for_protocol(protocol_to_use, surrounding_agents);
 

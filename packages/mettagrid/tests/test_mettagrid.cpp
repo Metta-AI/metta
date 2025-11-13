@@ -1476,6 +1476,115 @@ TEST_F(MettaGridCppTest, AssemblerExhaustion) {
   EXPECT_FLOAT_EQ(assembler.cooldown_multiplier, 5.0625f) << "Cooldown multiplier should be 5.0625 after fourth use";
 }
 
+TEST_F(MettaGridCppTest, AssemblerWontProduceOutputIfAgentsCantReceive) {
+  // Create a simple grid
+  Grid grid(10, 10);
+  unsigned int current_timestep = 0;
+
+  // Create an assembler with a protocol that produces output
+  AssemblerConfig config(1, "test_assembler");
+  auto protocol = std::make_shared<Protocol>();
+  protocol->input_resources[TestItems::ORE] = 2;
+  protocol->output_resources[TestItems::LASER] = 1;  // Produces 1 LASER
+  protocol->cooldown = 0;
+
+  config.protocols.push_back(protocol);
+
+  Assembler assembler(5, 5, config);
+  assembler.set_grid(&grid);
+  assembler.set_current_timestep_ptr(&current_timestep);
+
+  auto resource_names = create_test_resource_names();
+
+  // Create a single agent that we'll reuse for different tests
+  AgentConfig agent_cfg = create_test_agent_config();
+  agent_cfg.initial_inventory[TestItems::ORE] = 10;  // Has input resources
+
+  Agent* agent = new Agent(4, 5, agent_cfg, &resource_names);
+  float agent_reward = 0.0f;
+  agent->reward = &agent_reward;
+  grid.add_object(agent);
+
+  // Test 1: Agent with full inventory for output item - should fail
+  agent->update_inventory(TestItems::LASER, 50);  // Fill to limit (50)
+
+  // Verify agent has full inventory
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 50);
+  EXPECT_EQ(agent->inventory.free_space(TestItems::LASER), 0);
+
+  // Try to use assembler - should fail because agent can't receive output
+  bool success = assembler.onUse(*agent, 0);
+  EXPECT_FALSE(success) << "Should fail when agents can't receive output";
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 10) << "Input resources should not be consumed";
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 50) << "Output should not be produced";
+
+  // Test 2: Agent with space for output - should succeed
+  // Remove all LASER to make space
+  agent->update_inventory(TestItems::LASER, -50);
+  // ORE should still be 10 since Test 1 failed and didn't consume it
+
+  // Verify agent has space
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 0);
+  EXPECT_GT(agent->inventory.free_space(TestItems::LASER), 0);
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 10);
+
+  // Try to use assembler - should succeed
+  success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "Should succeed when agents can receive output";
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 8) << "Should consume 2 ore";
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 1) << "Should produce 1 laser";
+
+  // Test 3: Protocol with no output - should always succeed (if inputs are available)
+  AssemblerConfig config_no_output(1, "test_assembler_no_output");
+  auto protocol_no_output = std::make_shared<Protocol>();
+  protocol_no_output->input_resources[TestItems::ORE] = 1;
+  // No output resources
+  protocol_no_output->cooldown = 0;
+
+  config_no_output.protocols.push_back(protocol_no_output);
+
+  Assembler assembler_no_output(5, 5, config_no_output);
+  assembler_no_output.set_grid(&grid);
+  assembler_no_output.set_current_timestep_ptr(&current_timestep);
+
+  // Fill agent's inventory again
+  agent->update_inventory(TestItems::LASER, 50);  // Fill to limit
+  // Calculate delta needed to get ORE back to 10 (it was consumed to 8 in Test 2)
+  agent->update_inventory(TestItems::ORE, 2);  // Reset ORE to 10
+
+  // Agent with full inventory - should still succeed because protocol has no output
+  success = assembler_no_output.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "Should succeed when protocol has no output, even if inventory is full";
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 9) << "Should consume 1 ore";
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 50) << "Output should remain unchanged";
+
+  // Test 4: Multiple agents, all with full inventory - should fail
+  Assembler assembler_multi(5, 5, config);
+  assembler_multi.set_grid(&grid);
+  assembler_multi.set_current_timestep_ptr(&current_timestep);
+
+  // Reset agent's state
+  agent->update_inventory(TestItems::ORE, 10);
+  agent->update_inventory(TestItems::LASER, 50);  // Full
+
+  // Add a second agent at a different surrounding position
+  AgentConfig agent_cfg2 = create_test_agent_config();
+  agent_cfg2.initial_inventory[TestItems::ORE] = 10;
+  agent_cfg2.initial_inventory[TestItems::LASER] = 50;  // Full
+
+  Agent* agent2 = new Agent(4, 6, agent_cfg2, &resource_names);
+  float reward2 = 0.0f;
+  agent2->reward = &reward2;
+  grid.add_object(agent2);
+
+  // Both agents have full inventory
+  EXPECT_EQ(agent->inventory.free_space(TestItems::LASER), 0);
+  EXPECT_EQ(agent2->inventory.free_space(TestItems::LASER), 0);
+
+  success = assembler_multi.onUse(*agent, 0);
+  EXPECT_FALSE(success) << "Should fail when all surrounding agents can't receive output";
+}
+
 // ==================== ResourceMod Tests ====================
 
 TEST_F(MettaGridCppTest, ResourceModBasic) {
