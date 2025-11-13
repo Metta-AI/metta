@@ -659,6 +659,42 @@ To add a new difficulty variant:
 
 ---
 
+## Integrated Evals
+
+A curated set in `integrated_eval.py` balances “scorable” baselines with room to improve. It uses the procedural
+`HELLO_WORLD` site and combines shaping variants (e.g., compass, caps, reward shaping) with constraints (e.g.,
+bottlenecks, energy pressure, single-use) to avoid common zero-score failure modes.
+
+Included missions (variants shown):
+
+- oxygen_bottleneck: EmptyBase(missing=[oxygen_extractor]), ResourceBottleneck([oxygen]),
+  SingleResourceUniform(oxygen_extractor), NeutralFaced, PackRat
+- energy_starved: EmptyBase, DarkSide, NeutralFaced, PackRat
+- distant_resources: EmptyBase, Compass, DistantResources
+- quadrant_buildings: EmptyBase, QuadrantBuildings, Compass, NeutralFaced
+- single_use_swarm: EmptyBase, SingleUseSwarm, Compass, PackRat
+- vibe_check: HeartChorus, VibeCheckMin2
+
+Why these choices:
+
+- **Scorable**: Agents commonly achieve >0 reward under time limits without trivializing the task.
+- **Headroom**: Bottlenecks, distance, and single-use still require coordination and planning to approach ceiling
+  scores.
+- **Signal**: Reward shaping on vibe tasks and inventory/compass guidance produce informative learning signals.
+
+Run the set:
+
+```bash
+uv run packages/cogames/scripts/evaluate_policies.py \
+  --eval-module cogames.cogs_vs_clips.evals.integrated_eval \
+  --policy cogames.policy.fast_agents.agents.ThinkyAgentsMultiPolicy \
+  --cogs 4 --repeats 2 --quiet
+```
+
+Tip: For quick CI smoke tests, pass `--sample 2` to evaluate a random subset deterministically with `--seed`.
+
+---
+
 **Last Updated:** November 4, 2025
 
 **Total Missions:** 14
