@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from pydantic import Field
 from tensordict import TensorDict
 from torch import Tensor
+from torchrl.data import Composite, UnboundedContinuous
 
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
@@ -46,9 +47,7 @@ class AlternatingKickstarterConfig(LossConfig):
 class AlternatingKickstarter(Loss):
     __slots__ = (
         "teacher_policy",
-        "teacher_policy_spec",
         "temperature",
-        "teacher_policy_spec",
         "student_forward",
     )
 
@@ -77,12 +76,18 @@ class AlternatingKickstarter(Loss):
 
         self.teacher_policy = CheckpointManager.load_from_uri(self.cfg.teacher_uri, game_rules, self.device)
 
-        # Detach gradient
-        for param in self.teacher_policy.parameters():
-            param.requires_grad = False
+    def get_experience_spec(self) -> Composite:
+        # Get action space size for logits shape
+        act_space = self.env.single_action_space
+        num_actions = act_space.n
 
-        # get the teacher policy experience spec
-        self.teacher_policy_spec = self.teacher_policy.get_agent_experience_spec()
+        scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
+        logits_f32 = UnboundedContinuous(shape=torch.Size([num_actions]), dtype=torch.float32)
+
+        return Composite(
+            teacher_logits=logits_f32,
+            teacher_values=scalar_f32,
+        )
 
     def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
         with torch.no_grad():
@@ -123,7 +128,7 @@ class AlternatingKickstarter(Loss):
 
         # action loss
         temperature = self.temperature
-        teacher_logits = minibatch["teacher_logits"].to(dtype=torch.float32)
+        teacher_logits = minibatch["teacher_logits"].to(dtype=torch.float32).reshape(B * TT, -1)
         student_logits = student_td["logits"].to(dtype=torch.float32)
         teacher_log_probs = F.log_softmax(teacher_logits / temperature, dim=-1).detach()
         student_log_probs = F.log_softmax(student_logits / temperature, dim=-1)
@@ -133,7 +138,7 @@ class AlternatingKickstarter(Loss):
         )
 
         # value loss
-        teacher_value = minibatch["teacher_values"].to(dtype=torch.float32).detach()
+        teacher_value = minibatch["teacher_values"].to(dtype=torch.float32).reshape(B * TT).detach()
         student_value = student_td["values"].to(dtype=torch.float32)
         ks_value_loss = ((teacher_value.detach() - student_value) ** 2).mean()
 
