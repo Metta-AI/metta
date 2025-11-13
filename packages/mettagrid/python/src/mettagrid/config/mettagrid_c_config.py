@@ -261,7 +261,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_assembler_config.protocols = protocols
             cpp_assembler_config.allow_partial_usage = object_config.allow_partial_usage
             cpp_assembler_config.max_uses = object_config.max_uses
-            cpp_assembler_config.exhaustion = object_config.exhaustion
             cpp_assembler_config.clip_immune = object_config.clip_immune
             cpp_assembler_config.start_clipped = object_config.start_clipped
             # Key by map_name so map grid (which uses map_name) resolves directly.
