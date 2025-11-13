@@ -28,22 +28,6 @@ resource "aws_iam_policy" "sandbox_instance" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
-      # S3 write access for outputs
-      # Researchers can write anywhere in sandbox-outputs bucket
-      # FastAPI will enforce user_id prefix at application level
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:PutObject",
-          "s3:GetObject",
-          "s3:DeleteObject",
-          "s3:ListBucket"
-        ]
-        Resource = [
-          "arn:aws:s3:::softmax-sandbox-outputs",
-          "arn:aws:s3:::softmax-sandbox-outputs/*"
-        ]
-      },
       # CloudWatch Logs (for debugging)
       {
         Effect = "Allow"

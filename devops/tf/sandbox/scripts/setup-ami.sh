@@ -88,30 +88,24 @@ else
     echo "uv already installed"
 fi
 
-# Clone repositories
-echo "[6/7] Cloning repositories..."
+# Install cogames and mettagrid packages
+echo "[6/7] Installing cogames and mettagrid..."
 cd /home/ubuntu
 
-# Clone puffer (metta main repo)
-if [ ! -d "metta" ]; then
-    echo "Cloning metta repository..."
-    git clone https://github.com/Metta-AI/metta.git
-    cd metta
-    # Install dependencies
-    ~/.cargo/bin/uv sync
-    cd ..
+# Install cogames CLI and mettagrid environment
+if ! ~/.cargo/bin/uv tool list | grep -q cogames; then
+    echo "Installing cogames CLI..."
+    ~/.cargo/bin/uv tool install cogames
 else
-    echo "metta repository already exists"
+    echo "cogames already installed"
 fi
 
-# Clone cogames (if separate repo - adjust URL if needed)
-if [ ! -d "cogames" ]; then
-    echo "Cloning cogames repository..."
-    # Note: Update this URL if cogames is a separate repo
-    # For now, assuming it's part of metta
-    echo "cogames is part of metta repository"
+# Install mettagrid Python package for training
+if ! python3.12 -c "import mettagrid" 2>/dev/null; then
+    echo "Installing mettagrid package..."
+    ~/.cargo/bin/uv pip install mettagrid
 else
-    echo "cogames repository already exists"
+    echo "mettagrid already installed"
 fi
 
 # Create welcome message
@@ -131,18 +125,18 @@ Available Resources:
 - Pre-installed software:
   - Docker + NVIDIA Container Toolkit
   - Python 3.12 + uv package manager
-  - Metta/Puffer repository: ~/metta
+  - cogames CLI and mettagrid package
 
 Getting Started:
 ----------------
 1. Check GPU availability:
    nvidia-smi
 
-2. Navigate to metta:
-   cd ~/metta
+2. Train your first agent:
+   cogames train --help
 
-3. Run a quick training test:
-   uv run ./tools/run.py train arena run=sandbox_test trainer.total_timesteps=10000
+3. Submit your trained agent:
+   cogames submit <path_to_model>
 
 4. Monitor your compute usage:
    cogames sandbox status
@@ -156,7 +150,7 @@ Tips:
 
 Documentation:
 --------------
-- Metta docs: https://github.com/Metta-AI/metta
+- cogames docs: https://cogames.io/docs
 - Questions? Email: research@softmax.com
 
 Your credit limit and usage:
@@ -167,7 +161,7 @@ Have fun training!
 EOF
 
 # Set proper permissions
-sudo chown -R ubuntu:ubuntu /home/ubuntu/metta /home/ubuntu/README.txt
+sudo chown -R ubuntu:ubuntu /home/ubuntu/README.txt
 
 echo ""
 echo "=========================================="

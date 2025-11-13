@@ -27,11 +27,10 @@ output "instance_role_arn" {
 output "sandbox_config" {
   description = "Configuration values to be used by sandbox-manager FastAPI service"
   value = {
-    vpc_id                = module.sandbox_vpc.vpc_id
-    subnet_id             = length(module.sandbox_vpc.public_subnets) > 0 ? module.sandbox_vpc.public_subnets[0] : null
-    security_group_id     = aws_security_group.sandbox.id
-    instance_profile      = aws_iam_instance_profile.sandbox.name
-    region                = var.region
-    default_instance_type = var.default_instance_type
+    vpc_id            = module.sandbox_vpc.vpc_id
+    subnet_id         = length(module.sandbox_vpc.public_subnets) > 0 ? module.sandbox_vpc.public_subnets[0] : null
+    security_group_id = aws_security_group.sandbox.id
+    instance_profile  = aws_iam_instance_profile.sandbox.name
+    region            = var.region
   }
 }

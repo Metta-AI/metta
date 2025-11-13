@@ -15,21 +15,3 @@ variable "environment" {
   default     = "production"
   description = "Environment name (production, staging, etc.)"
 }
-
-variable "allowed_ssh_cidrs" {
-  type        = list(string)
-  default     = ["0.0.0.0/0"]
-  description = "CIDR blocks allowed to SSH into sandbox instances. Default allows all (researchers connect from various IPs)."
-}
-
-variable "default_instance_type" {
-  type        = string
-  default     = "g5.12xlarge"
-  description = "Default EC2 instance type for sandboxes (4x A10G GPUs)"
-}
-
-variable "sandbox_ami_id" {
-  type        = string
-  default     = ""
-  description = "AMI ID for sandbox instances (leave empty to use latest Ubuntu 22.04)"
-}

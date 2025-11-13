@@ -4,26 +4,20 @@ resource "aws_security_group" "sandbox" {
   description = "Security group for researcher sandbox EC2 instances"
   vpc_id      = module.sandbox_vpc.vpc_id
 
-  tags = merge(local.tags, {
-    Name = "sandbox-instances"
-  })
+  tags = local.tags
 }
 
-# Allow SSH inbound from specified CIDR blocks
+# Allow SSH inbound from anywhere (researchers connect from various IPs)
 resource "aws_vpc_security_group_ingress_rule" "ssh" {
-  for_each = toset(var.allowed_ssh_cidrs)
-
   security_group_id = aws_security_group.sandbox.id
   description       = "Allow SSH access from researchers"
 
   from_port   = 22
   to_port     = 22
   ip_protocol = "tcp"
-  cidr_ipv4   = each.value
+  cidr_ipv4   = "0.0.0.0/0"
 
-  tags = merge(local.tags, {
-    Name = "sandbox-ssh-inbound-${each.key}"
-  })
+  tags = local.tags
 }
 
 # Allow all outbound traffic (for pip installs, git clone, etc.)
@@ -34,7 +28,5 @@ resource "aws_vpc_security_group_egress_rule" "all" {
   ip_protocol = "-1"
   cidr_ipv4   = "0.0.0.0/0"
 
-  tags = merge(local.tags, {
-    Name = "sandbox-all-outbound"
-  })
+  tags = local.tags
 }

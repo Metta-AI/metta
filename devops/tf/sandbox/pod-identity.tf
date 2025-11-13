@@ -1,24 +1,29 @@
-# IRSA role for sandbox-manager service to manage EC2 instances
-module "sandbox_manager_irsa" {
-  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
-  version = "~> 5.34"
+# IAM role for sandbox-manager service to manage EC2 instances
+# Uses EKS Pod Identity (not IRSA) for easier configuration
+resource "aws_iam_role" "sandbox_manager" {
+  name = "sandbox-manager"
 
-  role_name = "sandbox-manager"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AllowEksAuthToAssumeRoleForPodIdentity"
+        Effect = "Allow"
+        Principal = {
+          Service = "pods.eks.amazonaws.com"
+        }
+        Action = [
+          "sts:AssumeRole",
+          "sts:TagSession"
+        ]
+      }
+    ]
+  })
 
-  oidc_providers = {
-    main = {
-      provider_arn               = module.eks.oidc_provider_arn
-      namespace_service_accounts = ["default:sandbox-manager"]
-    }
-  }
-
-  role_policy_arns = {
-    policy = aws_iam_policy.sandbox_manager.arn
-  }
+  tags = local.tags
 }
 
 # IAM policy for sandbox manager service
-# This policy allows the FastAPI backend to manage EC2 instances
 resource "aws_iam_policy" "sandbox_manager" {
   name        = "sandbox-manager-policy"
   description = "Allows sandbox manager service to orchestrate EC2 instances for researchers"
@@ -112,10 +117,26 @@ resource "aws_iam_policy" "sandbox_manager" {
       }
     ]
   })
+
+  tags = local.tags
+}
+
+# Attach policy to role
+resource "aws_iam_role_policy_attachment" "sandbox_manager" {
+  role       = aws_iam_role.sandbox_manager.name
+  policy_arn = aws_iam_policy.sandbox_manager.arn
+}
+
+# Associate role with EKS service account using Pod Identity
+resource "aws_eks_pod_identity_association" "sandbox_manager" {
+  cluster_name    = data.aws_eks_cluster.main.name
+  namespace       = "default"
+  service_account = "sandbox-manager"
+  role_arn        = aws_iam_role.sandbox_manager.arn
 }
 
 # Output the role ARN for reference
-output "sandbox_manager_irsa_role_arn" {
-  value       = module.sandbox_manager_irsa.iam_role_arn
+output "sandbox_manager_role_arn" {
+  value       = aws_iam_role.sandbox_manager.arn
   description = "ARN of the IAM role for sandbox-manager service account"
 }
