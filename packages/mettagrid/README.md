@@ -230,3 +230,56 @@ bazel build --config=opt //:mettagrid_c
 # Run benchmarks
 ./build-release/benchmarks/grid_object_benchmark
 ```
+
+## Debugging C++ Code
+
+MettaGrid is written in C++ with Python bindings via pybind11. You can debug C++ code directly in VSCode/Cursor by setting breakpoints in the C++ source files.
+
+### Prerequisites
+
+1. **VSCode Extension**: Install the [Python C++ Debugger](https://marketplace.visualstudio.com/items?itemName=benjamin-simmonds.pythoncpp-debug) extension (`pythoncpp`)
+2. **Debug Build**: Always build with `DEBUG=1` to enable debug symbols and dSYM generation
+
+### Setup
+
+The repository includes pre-configured launch configurations in `.vscode/launch.json`:
+
+- **MettaGrid Debug** - Combined Python + C++ debugging session demo example(requires the extension).
+- **MettaGrid Debug Attach C++** - Attach C++ debugger to running Python process within MettaGrid(doesn't require the extension).
+
+### Quick Start
+
+1. **Build with debug symbols**:
+  - Clean everything up
+   ```sh
+   cd packages/mettagrid # (from root of the repository)
+   bazel clean --expunge
+   ```
+
+   - Rebuild with debug flags
+   ```sh
+   bazel build --config=dbg //:mettagrid_c
+   ```
+
+   - Or Reinstall with DEBUG=1 to trigger dSYM generation
+   ```sh
+   cd ../..
+   export DEBUG=1
+   uv sync --reinstall-package mettagrid
+   ```
+
+2. **Set breakpoints** in both Python and C++ files(eg: `packages/mettagrid/cpp/bindings/mettagrid_c.cpp`, `packages/mettagrid/demos/demo_train_pettingzoo.py`)
+
+3. **Launch debugger** using the "MettaGrid Debug" configuration from the VSCode Run panel
+
+4. **Alternatively**, you can use the "MettaGrid Debug Attach C++" configuration to attach the debugger to a running Python process within `packages/mettagrid`. It's going to ask you to select a process to attach to. You can type "metta" and pick the first one on the list.
+
+### Configuration Files
+
+- **`.bazelrc`** - Defines the `--config=dbg` build mode with debug flags (`-g`, `-O0`, `--apple_generate_dsym`)
+- **`.vscode/launch.json`** - Contains launch configurations for combined Python/C++ debugging
+
+### Important Notes
+
+- **Always use `DEBUG=1`**: Without this environment variable, dSYM files won't be generated and C++ breakpoints won't work
+- **Source maps**: The launch config includes source maps to correctly locate C++ files in the packages/mettagrid's workspace

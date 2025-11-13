@@ -154,5 +154,54 @@
       "python": "${workspaceFolder}/.venv/bin/python",
       "preLaunchTask": "${defaultBuildTask}",
     },
-  ],
+    {
+      "name": "MettaGrid Debug",
+      "type": "pythoncpp",
+      "request": "launch",
+      "pythonLaunchName": "_MettaGrid Python Config",
+      "cppAttachName": "_MettaGrid C++ Config",
+      "preLaunchTask": "${defaultBuildTask}"
+    },
+    {
+      "name": "MettaGrid Debug Attach C++",
+      "type": "lldb",
+      "request": "attach",
+      "pid": "${command:pickProcess}",
+      "sourceMap": {
+        ".": "${workspaceFolder}/packages/mettagrid"
+      },
+      "waitFor": true
+    },
+    {
+      "name": "_MettaGrid Python Config",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/packages/mettagrid/demos/demo_train_pettingzoo.py",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "stopOnEntry": true,
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+      },
+      "presentation": {
+        "hidden": true
+      }
+    },
+    {
+      "name": "_MettaGrid C++ Config",
+      "type": "lldb",
+      "request": "attach",
+      "pid": "",
+      "sourceMap": {
+        ".": "${workspaceFolder}/packages/mettagrid"
+      },
+      "waitFor": true,
+      "presentation": {
+        "hidden": true
+      }
+    }
+  ]
 }
