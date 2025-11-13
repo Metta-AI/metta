@@ -268,25 +268,21 @@ def run_tournament(
     variants: Optional[list[str]] = None,
 ) -> tuple[list[GameResult], list[PolicyStats], list]:
     """Run tournament on CoGs vs Clips missions."""
-    # Default to CoGs vs Clips variants if none provided
-    if variants is None:
-        variants = ["lonely_heart", "heart_chorus", "pack_rat", "neutral_faced"]
-
     console.print("\n[bold cyan]Tournament Configuration[/bold cyan]")
     console.print(f"Mission: {mission}")
-    console.print(f"Variants: {', '.join(variants)}")
     console.print(f"Policy Pool Size: {len(policy_pool)}")
     console.print(f"Team Size: {team_size}")
     console.print(f"Number of Episodes: {num_episodes}")
 
-    _, env_cfg, _ = get_mission(mission, variants_arg=variants)
+    # Get mission config once to initialize policies (don't pass variants_arg - mission has them)
+    _, env_cfg_template, _ = get_mission(mission, variants_arg=None)
 
-    if env_cfg.game.num_agents != team_size:
-        env_cfg.game.num_agents = team_size
+    if env_cfg_template.game.num_agents != team_size:
+        env_cfg_template.game.num_agents = team_size
 
     # Initialize policies
     console.print(f"\n[cyan]Initializing {len(policy_pool)} policies...[/cyan]")
-    policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
+    policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg_template)
 
     policy_instances = []
     for i, policy_cfg in enumerate(policy_pool):
@@ -324,6 +320,11 @@ def run_tournament(
     game_results = []
 
     for episode_id in track(range(num_episodes), description="Running episodes"):
+        # Create fresh env_cfg for each episode to avoid state pollution
+        _, env_cfg, _ = get_mission(mission, variants_arg=None)
+        if env_cfg.game.num_agents != team_size:
+            env_cfg.game.num_agents = team_size
+
         sampled_indices = random.sample(range(len(policy_pool)), team_size)
 
         agent_policies = []
@@ -426,17 +427,11 @@ def run_self_play(
 
     Each policy plays against copies of itself to measure pure self-play performance.
     """
-    if variants is None:
-        variants = ["lonely_heart", "heart_chorus", "pack_rat", "neutral_faced"]
-
+    # Don't pass variants_arg if using a mission that already has them
+    # training_facility.easy_hearts already has all the variants baked in
     console.print("\n[bold cyan]Self-Play Evaluation[/bold cyan]")
     console.print(f"Mission: {mission}")
     console.print(f"Episodes per policy: {num_self_play_episodes}")
-
-    _, env_cfg, _ = get_mission(mission, variants_arg=variants)
-
-    if env_cfg.game.num_agents != team_size:
-        env_cfg.game.num_agents = team_size
 
     self_play_stats = []
 
@@ -445,6 +440,13 @@ def run_self_play(
         episode_rewards = []
 
         for episode_id in range(num_self_play_episodes):
+            # Create fresh env_cfg for each episode to avoid state pollution
+            # Don't pass variants_arg - the mission already has them
+            _, env_cfg, _ = get_mission(mission, variants_arg=None)
+
+            if env_cfg.game.num_agents != team_size:
+                env_cfg.game.num_agents = team_size
+
             # All agents use the same policy
             agent_policies = [policy.agent_policy(agent_id) for agent_id in range(team_size)]
 
@@ -466,6 +468,9 @@ def run_self_play(
             game_stats = episode_stats.get("game", {})
             total_hearts = float(game_stats.get("chest.heart.amount", 0.0))
             episode_rewards.append(total_hearts)
+
+            # Debug logging
+            console.print(f"    Episode {episode_id + 1}: {total_hearts:.2f} hearts in {step_count} steps")
 
         mean_reward = float(np.mean(episode_rewards))
         std_reward = float(np.std(episode_rewards))
