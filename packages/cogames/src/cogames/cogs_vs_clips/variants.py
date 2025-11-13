@@ -126,7 +126,7 @@ class ResourceBottleneckVariant(MissionVariant):
 
     @override
     def modify_mission(self, mission):
-        # Map the chosen resource to the corresponding extractor on the mission
+        # Map the chosen resource(s) to the corresponding extractor(s) on the mission and reduce efficiency
         for resource in self.resource:
             if resource in {"carbon", "oxygen", "germanium", "silicon"}:
                 extractor_attr = f"{resource}_extractor"
@@ -135,12 +135,12 @@ class ResourceBottleneckVariant(MissionVariant):
             else:
                 raise ValueError(f"Unsupported resource for bottleneck: {resource}")
 
-        extractor = getattr(mission, extractor_attr, None)
-        if extractor is None:
-            raise AttributeError(f"Mission has no extractor attribute '{extractor_attr}'")
+            extractor = getattr(mission, extractor_attr, None)
+            if extractor is None:
+                raise AttributeError(f"Mission has no extractor attribute '{extractor_attr}'")
 
-        # Reduce efficiency to create the bottleneck; keep it at least 1 to avoid divide-by-zero or negatives
-        extractor.efficiency = max(1, int(extractor.efficiency) - 50)
+            # Reduce efficiency to create the bottleneck; keep it at least 1 to avoid divide-by-zero or negatives
+            extractor.efficiency = max(1, int(extractor.efficiency) - 50)
 
 
 class NeutralFacedVariant(MissionVariant):
