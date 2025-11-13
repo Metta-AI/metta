@@ -26,19 +26,21 @@ import logging
 from collections import defaultdict
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Dict, List
+from typing import Callable, Dict, List, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_VARIANTS, get_difficulty
 from cogames.cogs_vs_clips.mission import Mission, NumCogsVariant
+from cogames.policy.nim_agents.agents import LadybugAgentsMultiPolicy
 from cogames.policy.scripted_agent.baseline_agent import BaselinePolicy
 from cogames.policy.scripted_agent.types import BASELINE_HYPERPARAMETER_PRESETS
 from cogames.policy.scripted_agent.unclipping_agent import (
     UnclippingHyperparameters,
     UnclippingPolicy,
 )
+from mettagrid.policy.policy import MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
 
@@ -71,9 +73,10 @@ class AgentConfig:
 
     key: str
     label: str
-    policy_class: type
+    policy_factory: Callable[[PolicyEnvInterface, Optional[object]], MultiAgentPolicy]
     cogs_list: List[int]
     difficulties: List[str]
+    hyperparam_mode: str = "baseline"  # baseline | unclipping | none
 
 
 def is_clipping_difficulty(name: str) -> bool:
@@ -86,16 +89,26 @@ AGENT_CONFIGS: Dict[str, AgentConfig] = {
     "baseline": AgentConfig(
         key="baseline",
         label="Baseline",
-        policy_class=BaselinePolicy,
+        policy_factory=lambda env, hp: BaselinePolicy(env, hp),
         cogs_list=[1, 2, 4, 8],
-        difficulties=[d.name for d in DIFFICULTY_VARIANTS],  # Run on all including clipping for comparison
+        difficulties=[d.name for d in DIFFICULTY_VARIANTS],
+        hyperparam_mode="baseline",
     ),
     "unclipping": AgentConfig(
         key="unclipping",
         label="UnclippingAgent",
-        policy_class=UnclippingPolicy,
+        policy_factory=lambda env, hp: UnclippingPolicy(env, hp),
         cogs_list=[1, 2, 4, 8],
-        difficulties=[d.name for d in DIFFICULTY_VARIANTS],  # With and without clipping
+        difficulties=[d.name for d in DIFFICULTY_VARIANTS],
+        hyperparam_mode="unclipping",
+    ),
+    "nim_ladybug": AgentConfig(
+        key="nim_ladybug",
+        label="Ladybug (Nim)",
+        policy_factory=lambda env, _hp: LadybugAgentsMultiPolicy(env),
+        cogs_list=[1, 2, 4, 8],
+        difficulties=[d.name for d in DIFFICULTY_VARIANTS],
+        hyperparam_mode="none",
     ),
 }
 
@@ -134,7 +147,8 @@ def run_evaluation(
         preset = "default"
 
     # Convert to UnclippingHyperparameters if using unclipping agent
-    if agent_config.policy_class == UnclippingPolicy:
+    hyperparams: Optional[object]
+    if agent_config.hyperparam_mode == "unclipping":
         hyperparams = UnclippingHyperparameters(
             recharge_threshold_low=base_hyperparams.recharge_threshold_low,
             recharge_threshold_high=base_hyperparams.recharge_threshold_high,
@@ -147,8 +161,10 @@ def run_evaluation(
             exploration_direction_persistence=base_hyperparams.exploration_direction_persistence,
             exploration_assembler_distance_threshold=base_hyperparams.exploration_assembler_distance_threshold,
         )
-    else:
+    elif agent_config.hyperparam_mode == "baseline":
         hyperparams = base_hyperparams
+    else:
+        hyperparams = None
 
     logger.info(f"\n{'=' * 80}")
     logger.info(f"Evaluating: {agent_config.label} (preset: {preset})")
@@ -207,7 +223,7 @@ def run_evaluation(
 
                     # Create policy with PolicyEnvInterface and hyperparameters
                     policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
-                    policy = agent_config.policy_class(policy_env_info, hyperparams)
+                    policy = agent_config.policy_factory(policy_env_info, hyperparams)
                     agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
 
                     # Run repeated trials with seed offsets
