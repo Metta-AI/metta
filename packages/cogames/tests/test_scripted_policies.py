@@ -115,7 +115,7 @@ def test_scripted_policies_can_play_short_episode(policy: PolicyUnderTest, env_c
 
     console = Console(file=io.StringIO(), force_terminal=False, soft_wrap=True, width=80)
     policy_class_path = resolve_policy_class_path(policy.reference)
-    policy_spec = PolicySpec(policy_class_path=policy_class_path, policy_data_path=None)
+    policy_spec = PolicySpec(class_path=policy_class_path, data_path=None)
 
     play_episode(
         console=console,

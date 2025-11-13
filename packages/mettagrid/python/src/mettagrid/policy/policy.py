@@ -374,11 +374,9 @@ class TrainablePolicy(MultiAgentPolicy):
 class PolicySpec(BaseModel):
     """Specification for a policy used during evaluation."""
 
-    class_path: str = Field(description="Path to policy class, or shorthand")
+    class_path: str = Field(description="Local path to policy class, or shorthand")
 
-    data_path: Optional[str] = Field(description="Path to policy weights, if applicable")
-
-    proportion: float = Field(default=1.0, description="Proportion of total agents to assign to this policy")
+    data_path: Optional[str] = Field(default=None, description="Local file path to policy weights, if applicable")
 
     init_kwargs: dict[str, Any] = Field(default_factory=dict)
 

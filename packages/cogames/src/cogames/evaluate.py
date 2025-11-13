@@ -182,6 +182,7 @@ def evaluate(
     console: Console,
     missions: list[tuple[str, MettaGridConfig]],
     policy_specs: list[PolicySpec],
+    proportions: list[float],
     episodes: int,
     action_timeout_ms: int,
     seed: int = 42,
@@ -209,7 +210,6 @@ def evaluate(
         policy_instances: list[MultiAgentPolicy] = [
             initialize_or_load_policy(env_interface, spec) for spec in policy_specs
         ]
-        proportions = [spec.proportion for spec in policy_specs]
 
         progress_label = f"Simulating ({mission_name})"
         progress_iterable = range(episodes)

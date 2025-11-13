@@ -26,6 +26,7 @@ from contextlib import contextmanager
 from typing import Iterable, List
 
 from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
 
@@ -132,7 +133,7 @@ def _evaluate_mission_policy(
         _ensure_vibe_supports_gear(env)
 
         pei = PolicyEnvInterface.from_mg_cfg(env)
-        policy = initialize_or_load_policy(pei, policy_path, None)
+        policy = initialize_or_load_policy(pei, PolicySpec(class_path=policy_path, data_path=None))
         agent_policies = [policy.agent_policy(i) for i in range(env.game.num_agents)]
 
         rewards: List[float] = []
