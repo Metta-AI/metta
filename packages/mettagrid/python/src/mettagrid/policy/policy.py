@@ -137,7 +137,7 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
         self._base_policy = base_policy
         self._state: Optional[StateType] = None
         self._agent_id = agent_id
-        self._agent_states: dict[int, Optional[StateType]] = {}
+        self._agent_states: dict[int, StateType] = {}
         self._action_name_to_index = {name: idx for idx, name in enumerate(policy_env_info.action_names)}
         self._simulation: Simulation | None = None
 
@@ -167,8 +167,9 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
 
     def step_batch(self, _raw_observations, raw_actions) -> None:
         sim = self._simulation
-        observations = [] if sim is None else sim.observations()
-        for agent_idx, obs in enumerate(observations):
+        assert sim is not None, "reset() must be called before step_batch()"
+
+        for agent_idx, obs in enumerate(sim.observations()):
             state = self._agent_states.get(agent_idx) or self._base_policy.initial_agent_state()
             action, new_state = self._base_policy.step_with_state(obs, state)
             self._agent_states[agent_idx] = new_state
