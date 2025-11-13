@@ -1,6 +1,5 @@
 import
-  std/[strformat, strutils, tables, random, sets],
-  genny, jsony,
+  std/[strformat, tables, random, sets, json],
   common
 
 type
@@ -13,18 +12,18 @@ type
     random: Rand
     location: Location
 
-proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent {.raises: [].} =
+  RaceCarPolicy* = ref object
+    agents*: seq[RaceCarAgent]
+
+proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
   echo "Creating new heuristic agent ", agentId
 
   var config = parseConfig(environmentConfig)
   result = RaceCarAgent(agentId: agentId, cfg: config)
   result.random = initRand(agentId)
-
-proc reset*(agent: RaceCarAgent) =
-  echo "Resetting heuristic agent ", agent.agentId
-  agent.map.clear()
-  agent.seen.clear()
-  agent.location = Location(x: 0, y: 0)
+  result.map = initTable[Location, seq[FeatureValue]]()
+  result.seen = initHashSet[Location]()
+  result.location = Location(x: 0, y: 0)
 
 proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]]) =
   ## Update the big map with the small visible map.
@@ -104,9 +103,8 @@ proc raceCarStepInternal(
   numTokens: int,
   sizeToken: int,
   rawObservation: pointer,
-  actions: ptr UncheckedArray[int32],
-  actionIndex: int
-) {.raises: [].} =
+  agentAction: ptr int32
+) =
   try:
     echo "Driving race car agent ", agent.agentId
     # echo "  numAgents", numAgents
@@ -155,7 +153,7 @@ proc raceCarStepInternal(
     echo &"H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
 
     let action = agent.random.rand(1 .. 4).int32
-    actions[actionIndex] = action
+    agentAction[] = action
     echo "taking action ", action
 
   except:
@@ -163,18 +161,45 @@ proc raceCarStepInternal(
     echo getCurrentExceptionMsg()
     quit()
 
+
 proc step*(
   agent: RaceCarAgent,
   numAgents: int,
   numTokens: int,
   sizeToken: int,
-  rawObservations: pointer,
+  rawObservation: pointer,
   numActions: int,
-  rawActions: pointer
-) {.raises: [].} =
+  agentAction: ptr int32
+) =
   discard numAgents
   discard numActions
-  let observations = cast[ptr UncheckedArray[uint8]](rawObservations)
-  let actions = cast[ptr UncheckedArray[int32]](rawActions)
-  let agentObservation = cast[pointer](observations[agent.agentId * numTokens * sizeToken].addr)
-  raceCarStepInternal(agent, numTokens, sizeToken, agentObservation, actions, agent.agentId)
+  raceCarStepInternal(agent, numTokens, sizeToken, rawObservation, agentAction)
+
+proc newRaceCarPolicy*(environmentConfig: string): RaceCarPolicy =
+  let cfg = parseConfig(environmentConfig)
+  var agents: seq[RaceCarAgent] = @[]
+  for id in 0 ..< cfg.config.numAgents:
+    agents.add(newRaceCarAgent(id, environmentConfig))
+  RaceCarPolicy(agents: agents)
+
+proc stepBatch*(
+    policy: RaceCarPolicy,
+    agentIds: pointer,
+    numAgentIds: int,
+    numAgents: int,
+    numTokens: int,
+    sizeToken: int,
+    rawObservations: pointer,
+    numActions: int,
+    rawActions: pointer
+) =
+  let ids = cast[ptr UncheckedArray[int32]](agentIds)
+  let obsArray = cast[ptr UncheckedArray[uint8]](rawObservations)
+  let actionArray = cast[ptr UncheckedArray[int32]](rawActions)
+  let obsStride = numTokens * sizeToken
+
+  for i in 0 ..< numAgentIds:
+    let idx = int(ids[i])
+    let obsPtr = cast[pointer](obsArray[idx * obsStride].addr)
+    let actPtr = cast[ptr int32](actionArray[idx].addr)
+    step(policy.agents[idx], numAgents, numTokens, sizeToken, obsPtr, numActions, actPtr)

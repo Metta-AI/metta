@@ -1,6 +1,5 @@
 import
-  std/[strformat, strutils, tables, random, sets, options],
-  genny, jsony,
+  std/[strformat, tables, random, sets, options, json],
   common
 
 type
@@ -14,18 +13,19 @@ type
     location: Location
     lastActions: seq[int]
 
-proc newThinkyAgent*(agentId: int, environmentConfig: string): ThinkyAgent {.raises: [].} =
+  ThinkyPolicy* = ref object
+    agents*: seq[ThinkyAgent]
+
+proc newThinkyAgent*(agentId: int, environmentConfig: string): ThinkyAgent =
   #echo "Creating new heuristic agent ", agentId
 
   var config = parseConfig(environmentConfig)
   result = ThinkyAgent(agentId: agentId, cfg: config)
   result.random = initRand(agentId)
-
-proc reset*(agent: ThinkyAgent) =
-  #echo "Resetting heuristic agent ", agent.agentId
-  agent.map.clear()
-  agent.seen.clear()
-  agent.location = Location(x: 0, y: 0)
+  result.map = initTable[Location, seq[FeatureValue]]()
+  result.seen = initHashSet[Location]()
+  result.location = Location(x: 0, y: 0)
+  result.lastActions = @[]
 
 proc updateMap(agent: ThinkyAgent, visible: Table[Location, seq[FeatureValue]]) =
   ## Update the big map with the small visible map.
@@ -106,17 +106,17 @@ proc step*(
   numAgents: int,
   numTokens: int,
   sizeToken: int,
-  rawObservations: pointer,
+  rawObservation: pointer,
   numActions: int,
-  rawActions: pointer
-) {.raises: [].} =
+  agentAction: ptr int32
+) =
   try:
-    # echo "Thinking heuristic agent ", agent.agentId
-    # echo "  numAgents", numAgents
+    discard numAgents
+    discard numActions
     # echo "  numTokens", numTokens
     # echo "  sizeToken", sizeToken
     # echo "  numActions", numActions
-    let observations = cast[ptr UncheckedArray[uint8]](rawObservations)
+    let observations = cast[ptr UncheckedArray[uint8]](rawObservation)
 
     proc doAction(action: int) =
 
@@ -127,7 +127,7 @@ proc step*(
         agent.lastActions[^2] == agent.cfg.actions.moveWest:
         # Noop 50% of the time.
         if agent.random.rand(1 .. 2) == 1:
-          echo "Stuck prevention: left, right, left"
+          # echo "Stuck prevention: left, right, left"
           doAction(agent.cfg.actions.noop.int32)
           return
       if agent.lastActions.len >= 2 and
@@ -136,7 +136,7 @@ proc step*(
         agent.lastActions[^2] == agent.cfg.actions.moveEast:
         # Noop 50% of the time.
         if agent.random.rand(1 .. 2) == 1:
-          echo "Stuck prevention: right, left, right"
+          # echo "Stuck prevention: right, left, right"
           doAction(agent.cfg.actions.noop.int32)
           return
       if agent.lastActions.len >= 2 and
@@ -145,7 +145,7 @@ proc step*(
         agent.lastActions[^2] == agent.cfg.actions.moveNorth:
         # Noop 50% of the time.
         if agent.random.rand(1 .. 2) == 1:
-          echo "Stuck prevention: north, south, north"
+          # echo "Stuck prevention: north, south, north"
           doAction(agent.cfg.actions.noop.int32)
           return
       if agent.lastActions.len >= 2 and
@@ -154,19 +154,18 @@ proc step*(
         agent.lastActions[^2] == agent.cfg.actions.moveSouth:
         # Noop 50% of the time.
         if agent.random.rand(1 .. 2) == 1:
-          echo "Stuck prevention: south, north, south"
+          # echo "Stuck prevention: south, north, south"
           doAction(agent.cfg.actions.noop.int32)
           return
 
       agent.lastActions.add(action)
-      let actions = cast[ptr UncheckedArray[int32]](rawActions)
-      actions[agent.agentId] = action.int32
+      agentAction[] = action.int32
 
     var map: Table[Location, seq[FeatureValue]]
     for token in 0 ..< numTokens:
-      let locationPacked = observations[token * sizeToken + agent.agentId * numTokens * sizeToken]
-      let featureId = observations[token * sizeToken + agent.agentId * numTokens * sizeToken + 1]
-      let value = observations[token * sizeToken + agent.agentId * numTokens * sizeToken + 2]
+      let locationPacked = observations[token * sizeToken]
+      let featureId = observations[token * sizeToken + 1]
+      let value = observations[token * sizeToken + 2]
       if locationPacked == 255 and featureId == 255 and value == 255:
         break
       var location: Location
@@ -313,7 +312,7 @@ proc step*(
       # If not vibing here at heart then vibe heart.
       if vibe != agent.cfg.vibes.heart:
         doAction(agent.cfg.actions.vibeHeart.int32)
-        echo "vibing heart"
+        # echo "vibing heart"
         return
 
       let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
@@ -342,3 +341,33 @@ proc step*(
     echo getCurrentException().getStackTrace()
     echo getCurrentExceptionMsg()
     quit()
+
+
+proc newThinkyPolicy*(environmentConfig: string): ThinkyPolicy =
+  let cfg = parseConfig(environmentConfig)
+  var agents: seq[ThinkyAgent] = @[]
+  for id in 0 ..< cfg.config.numAgents:
+    agents.add(newThinkyAgent(id, environmentConfig))
+  ThinkyPolicy(agents: agents)
+
+proc stepBatch*(
+    policy: ThinkyPolicy,
+    agentIds: pointer,
+    numAgentIds: int,
+    numAgents: int,
+    numTokens: int,
+    sizeToken: int,
+    rawObservations: pointer,
+    numActions: int,
+    rawActions: pointer
+) =
+  let ids = cast[ptr UncheckedArray[int32]](agentIds)
+  let obsArray = cast[ptr UncheckedArray[uint8]](rawObservations)
+  let actionArray = cast[ptr UncheckedArray[int32]](rawActions)
+  let obsStride = numTokens * sizeToken
+
+  for i in 0 ..< numAgentIds:
+    let idx = int(ids[i])
+    let obsPtr = cast[pointer](obsArray[idx * obsStride].addr)
+    let actPtr = cast[ptr int32](actionArray[idx].addr)
+    step(policy.agents[idx], numAgents, numTokens, sizeToken, obsPtr, numActions, actPtr)

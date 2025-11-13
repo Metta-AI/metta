@@ -94,6 +94,7 @@ type
     lastReward*: int
     vibe*: int
     visitationCounts*: int
+    compass*: int
     tag*: int
     cooldownRemaining*: int
     clipped*: int
@@ -108,6 +109,8 @@ type
     invModulator*: int
     invResonator*: int
     invScrambler*: int
+    protocolInputs*: Table[string, int]
+    protocolOutputs*: Table[string, int]
 
 proc `+`*(location1: Location, location2: Location): Location =
   ## Add two locations.
@@ -152,6 +155,19 @@ proc generateSpiral*(count: int): seq[Location] =
 
 const spiral* = generateSpiral(1000)
 
+proc registerProtocolFeature(feature: ConfigFeature; prefix: string;
+    dest: var Table[string, int]): bool =
+  ## Store protocol input/output features keyed by their resource suffix.
+  if not feature.name.startsWith(prefix):
+    return false
+  if feature.name.len <= prefix.len:
+    echo "Protocol feature missing resource suffix: ", feature.name
+    return true
+
+  let resource = feature.name[prefix.len .. ^1]
+  dest[resource] = feature.id
+  return true
+
 proc ctrlCHandler*() {.noconv.} =
   ## Handle ctrl-c signal to exit cleanly.
   echo "\nNim DLL caught ctrl-c, exiting..."
@@ -159,12 +175,14 @@ proc ctrlCHandler*() {.noconv.} =
 
 proc initCHook*() =
   setControlCHook(ctrlCHandler)
-  echo "FastAgents initialized"
+  echo "NimAgents initialized"
 
 proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
   try:
     var config = environmentConfig.fromJson(PolicyConfig)
     result = Config(config: config)
+    result.features.protocolInputs = initTable[string, int]()
+    result.features.protocolOutputs = initTable[string, int]()
 
     for feature in config.obsFeatures:
       case feature.name:
@@ -190,6 +208,8 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
         result.features.vibe = feature.id
       of "agent:visitation_counts":
         result.features.visitationCounts = feature.id
+      of "agent:compass":
+        result.features.compass = feature.id
       of "tag":
         result.features.tag = feature.id
       of "cooldown_remaining":
@@ -219,9 +239,11 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
       of "inv:scrambler":
         result.features.invScrambler = feature.id
       else:
-        if feature.name.startsWith("protocol_input:") or
-           feature.name.startsWith("protocol_output:") or
-           feature.name == "agent:compass":
+        if registerProtocolFeature(feature, "protocol_input:",
+            result.features.protocolInputs):
+          discard
+        elif registerProtocolFeature(feature, "protocol_output:",
+            result.features.protocolOutputs):
           discard
         else:
           echo "Unknown feature: ", feature.name
@@ -285,9 +307,9 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
         result.tags.wall = id
       else:
         discard
-
   except JsonError, ValueError:
     echo "Error parsing environment config: ", getCurrentExceptionMsg()
+
 
 proc computeMapBounds*(map: Table[Location, seq[FeatureValue]]): MapBounds =
   ## Compute the bounds of the map.

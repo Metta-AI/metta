@@ -1,13 +1,15 @@
 """Base policy classes and interfaces."""
 
+import ctypes
 from abc import abstractmethod
 from pathlib import Path
-from typing import Generic, Optional, Tuple, TypeVar
+from typing import Generic, Optional, Sequence, Tuple, TypeVar
 
+import numpy as np
 import torch.nn as nn
 from pydantic import BaseModel
 
-from mettagrid.mettagrid_c import dtype_actions
+from mettagrid.mettagrid_c import dtype_actions, dtype_observations
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import PolicyRegistryMeta
 from mettagrid.simulator import Action, AgentObservation, Simulation
@@ -110,6 +112,120 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
     def policy_env_info(self) -> PolicyEnvInterface:
         return self._policy_env_info
 
+    def reset(self) -> None:
+        """Reset any policy state; default no-op."""
+        pass
+
+    def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
+        """Optional fast-path for policies that consume raw buffers.
+
+        Policies that support raw NumPy pointers should override this method.
+        The default implementation raises so callers get a clear error if a
+        policy without batch support is used in a context that requires it."""
+
+        raise NotImplementedError(f"{self.__class__.__name__} does not implement step_batch.")
+
+
+class NimMultiAgentPolicy(MultiAgentPolicy):
+    """Base class for Nim-backed multi-agent policies."""
+
+    def __init__(
+        self,
+        policy_env_info: PolicyEnvInterface,
+        nim_policy_factory,
+        agent_ids: Sequence[int] | None = None,
+    ) -> None:
+        super().__init__(policy_env_info)
+        self._nim_policy = nim_policy_factory(policy_env_info.to_json())
+        self._num_agents = policy_env_info.num_agents
+        obs_shape = policy_env_info.observation_space.shape
+        self._num_tokens = obs_shape[0]
+        self._token_dim = obs_shape[1]
+        subset = np.array(list(agent_ids) if agent_ids is not None else range(self._num_agents), dtype=np.int32)
+        self._default_subset = subset
+        self._default_subset_len = subset.size
+        self._default_subset_ptr = subset.ctypes.data_as(ctypes.POINTER(ctypes.c_int32)) if subset.size > 0 else None
+        self._single_agent_id = np.zeros(1, dtype=np.int32)
+        self._full_obs_buffer = np.full(
+            (self._num_agents, self._num_tokens, self._token_dim),
+            fill_value=255,
+            dtype=dtype_observations,
+        )
+        self._full_action_buffer = np.zeros(self._num_agents, dtype=np.int32)
+
+    def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
+        self._invoke_step_batch(self._default_subset, raw_observations, raw_actions)
+
+    def step_single(self, agent_id: int, obs: AgentObservation) -> int:
+        self._single_agent_id[0] = agent_id
+        row = self._full_obs_buffer[agent_id]
+        row.fill(255)
+        for idx, token in enumerate(obs.tokens):
+            if idx >= self._num_tokens:
+                break
+            token_values = token.raw_token
+            row[idx, : len(token_values)] = token_values
+        self._full_action_buffer[agent_id] = 0
+        self._invoke_step_batch(self._single_agent_id, self._full_obs_buffer, self._full_action_buffer)
+        return int(self._full_action_buffer[agent_id])
+
+    def agent_policy(self, agent_id: int) -> AgentPolicy:
+        return _NimAgentPolicy(self, agent_id)
+
+    def _invoke_step_batch(
+        self,
+        agent_ids: np.ndarray,
+        raw_observations: np.ndarray,
+        raw_actions: np.ndarray,
+    ) -> None:
+        subset_len = agent_ids.shape[0]
+
+        if raw_observations.shape[0] == self._num_agents:
+            obs_buffer = raw_observations
+        else:
+            obs_buffer = self._full_obs_buffer
+            obs_buffer[agent_ids] = raw_observations
+
+        if raw_actions.shape[0] == self._num_agents:
+            action_buffer = raw_actions
+            needs_scatter = False
+        else:
+            action_buffer = self._full_action_buffer
+            action_buffer[agent_ids] = 0
+            needs_scatter = True
+
+        agent_ids_ptr = (
+            self._default_subset_ptr
+            if agent_ids is self._default_subset
+            else agent_ids.ctypes.data_as(ctypes.POINTER(ctypes.c_int32))
+        )
+        self._nim_policy.step_batch(
+            agent_ids_ptr,
+            subset_len,
+            self._num_agents,
+            self._num_tokens,
+            self._token_dim,
+            obs_buffer.ctypes.data,
+            len(self.policy_env_info.action_names),
+            action_buffer.ctypes.data,
+        )
+
+        if needs_scatter:
+            raw_actions[...] = action_buffer[agent_ids]
+
+
+class _NimAgentPolicy(AgentPolicy):
+    """Lightweight proxy that delegates to the shared Nim multi-policy."""
+
+    def __init__(self, parent: NimMultiAgentPolicy, agent_id: int):
+        super().__init__(parent.policy_env_info)
+        self._parent = parent
+        self._agent_id = agent_id
+
+    def step(self, obs: AgentObservation) -> Action:
+        action_index = self._parent.step_single(self._agent_id, obs)
+        return Action(name=self.policy_env_info.action_names[action_index])
+
 
 class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
     """AgentPolicy wrapper that manages internal state (e.g., for RNNs).
@@ -149,10 +265,9 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
             self._agent_states[self._agent_id] = self._state
         return action
 
-    def reset(self, simulation: Optional[Simulation] = None) -> None:
+    def reset(self) -> None:
         """Reset the hidden state to initial state."""
-        self._base_policy.reset(simulation)
-        self._simulation = simulation
+        self._base_policy.reset()
         self._state = self._base_policy.initial_agent_state()
         self._agent_states.clear()
         if self._agent_id is not None:
@@ -181,7 +296,7 @@ class StatefulPolicyImpl(Generic[StateType]):
     and initial_agent_state() which returns the initial state for a new agent.
     """
 
-    def reset(self, simulation: Optional[Simulation]) -> None:
+    def reset(self) -> None:
         """Reset the policy."""
         pass
 
