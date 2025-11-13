@@ -158,13 +158,6 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
         if self._agent_id is not None:
             self._agent_states[self._agent_id] = self._state
 
-    def _action_index(self, action: Action | str | int) -> int:
-        if isinstance(action, Action):
-            return self._action_name_to_index[action.name]
-        if isinstance(action, str):
-            return self._action_name_to_index[action]
-        return int(action)
-
     def step_batch(self, _raw_observations, raw_actions) -> None:
         sim = self._simulation
         assert sim is not None, "reset() must be called before step_batch()"
@@ -173,7 +166,13 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
             state = self._agent_states.get(agent_idx) or self._base_policy.initial_agent_state()
             action, new_state = self._base_policy.step_with_state(obs, state)
             self._agent_states[agent_idx] = new_state
-            raw_actions[agent_idx] = dtype_actions.type(self._action_index(action))
+            if isinstance(action, Action):
+                action_id = self._action_name_to_index[action.name]
+            elif isinstance(action, str):
+                action_id = self._action_name_to_index[action]
+            else:
+                action_id = int(action)
+            raw_actions[agent_idx] = dtype_actions.type(action_id)
 
         if self._agent_id is not None and self._agent_id in self._agent_states:
             self._state = self._agent_states[self._agent_id]
