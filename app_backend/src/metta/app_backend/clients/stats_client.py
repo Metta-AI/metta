@@ -9,10 +9,6 @@ from pydantic import BaseModel
 
 from metta.app_backend.clients.base_client import NotAuthenticatedError, get_machine_token
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskFilterParams, TaskResponse, TasksResponse
-from metta.app_backend.routes.score_routes import (
-    PolicyScoresData,
-    PolicyScoresRequest,
-)
 from metta.app_backend.routes.sql_routes import SQLQueryResponse
 from metta.app_backend.routes.stats_routes import (
     EpisodeCreate,
@@ -336,11 +332,6 @@ class HttpStatsClient(StatsClient):
     def get_all_tasks(self, filters: TaskFilterParams | None = None) -> TasksResponse:
         params = filters.model_dump(mode="json", exclude_none=True) if filters else {}
         return self._make_sync_request(TasksResponse, "GET", "/tasks/all", params=params)
-
-    def get_policy_scores(self, request: PolicyScoresRequest) -> PolicyScoresData:
-        return self._make_sync_request(
-            PolicyScoresData, "POST", "/scorecard/score", json=request.model_dump(mode="json")
-        )
 
     def sql_query(self, query: str) -> SQLQueryResponse:
         return self._make_sync_request(SQLQueryResponse, "POST", "/sql/query", json={"query": query})

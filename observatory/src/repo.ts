@@ -1,18 +1,3 @@
-export type ScorecardCell = {
-  evalName: string
-  replayUrl: string | null
-  thumbnailUrl: string | null
-  value: number
-}
-
-export type ScorecardData = {
-  evalNames: string[]
-  cells: Record<string, Record<string, ScorecardCell>>
-  policyAverageScores: Record<string, number>
-  evalAverageScores: Record<string, number>
-  evalMaxScores: Record<string, number>
-}
-
 export type TokenInfo = {
   id: string
   name: string
@@ -148,14 +133,6 @@ export type MetricsRequest = {
   eval_names: string[]
 }
 
-export type PolicyScorecardRequest = {
-  training_run_ids: string[]
-  run_free_policy_ids: string[]
-  eval_names: string[]
-  training_run_policy_selector: 'latest' | 'best'
-  metric: string
-}
-
 export type TrainingRunScorecardRequest = {
   eval_names: string[]
   metric: string
@@ -166,22 +143,6 @@ export type TrainingRunPolicy = {
   policy_id: string
   epoch_start: number | null
   epoch_end: number | null
-}
-
-export type PolicyScorecardCell = {
-  evalName: string
-  replayUrl: string | null
-  thumbnailUrl: string | null
-  value: number
-}
-
-export type PolicyScorecardData = {
-  evalNames: string[]
-  policyNames: string[]
-  cells: Record<string, Record<string, PolicyScorecardCell>>
-  policyAverageScores: Record<string, number>
-  evalAverageScores: Record<string, number>
-  evalMaxScores: Record<string, number>
 }
 
 import { config } from './config'
@@ -247,7 +208,6 @@ export interface Repo {
   getTrainingRun(runId: string): Promise<TrainingRun>
   updateTrainingRunDescription(runId: string, description: string): Promise<TrainingRun>
   updateTrainingRunTags(runId: string, tags: string[]): Promise<TrainingRun>
-  generateTrainingRunScorecard(runId: string, request: TrainingRunScorecardRequest): Promise<PolicyScorecardData>
   getTrainingRunPolicies(runId: string): Promise<TrainingRunPolicy[]>
 
   // Eval task methods
@@ -260,12 +220,6 @@ export interface Repo {
 
   // Policy methods
   getPolicyIds(policyNames: string[]): Promise<Record<string, string>>
-
-  // Policy-based scorecard methods
-  getPolicies(): Promise<PoliciesResponse>
-  getEvalNames(request: EvalNamesRequest): Promise<Set<string>>
-  getAvailableMetrics(request: MetricsRequest): Promise<string[]>
-  generatePolicyScorecard(request: PolicyScorecardRequest): Promise<PolicyScorecardData>
 }
 
 export class ServerRepo implements Repo {
@@ -385,13 +339,6 @@ export class ServerRepo implements Repo {
     return this.apiCallWithBodyPut<TrainingRun>(`/training-runs/${encodeURIComponent(runId)}/tags`, { tags })
   }
 
-  async generateTrainingRunScorecard(
-    runId: string,
-    request: TrainingRunScorecardRequest
-  ): Promise<PolicyScorecardData> {
-    return this.apiCallWithBody<PolicyScorecardData>(`/scorecard/training-run/${encodeURIComponent(runId)}`, request)
-  }
-
   async getTrainingRunPolicies(runId: string): Promise<TrainingRunPolicy[]> {
     return this.apiCall<TrainingRunPolicy[]>(`/training-runs/${encodeURIComponent(runId)}/policies`)
   }
@@ -454,23 +401,5 @@ export class ServerRepo implements Repo {
     policyNames.forEach((name) => params.append('policy_names', name))
     const response = await this.apiCall<{ policy_ids: Record<string, string> }>(`/stats/policies/ids?${params}`)
     return response.policy_ids
-  }
-
-  // Policy-based scorecard methods
-  async getPolicies(): Promise<PoliciesResponse> {
-    return this.apiCall<PoliciesResponse>('/scorecard/policies')
-  }
-
-  async getEvalNames(request: EvalNamesRequest): Promise<Set<string>> {
-    const res = await this.apiCallWithBody<string[]>('/scorecard/evals', request)
-    return new Set(res)
-  }
-
-  async getAvailableMetrics(request: MetricsRequest): Promise<string[]> {
-    return this.apiCallWithBody<string[]>('/scorecard/metrics', request)
-  }
-
-  async generatePolicyScorecard(request: PolicyScorecardRequest): Promise<PolicyScorecardData> {
-    return this.apiCallWithBody<PolicyScorecardData>('/scorecard/scorecard', request)
   }
 }
