@@ -86,6 +86,11 @@ if ! command -v spacectl &> /dev/null; then
   exit 1
 fi
 
+if ! command -v jq &> /dev/null; then
+  echo -e "${RED}Error: jq not found. Please install jq.${NC}"
+  exit 1
+fi
+
 STACK_NAME="sandbox"
 STACK_OUTPUTS=$(spacectl stack outputs --id "$STACK_NAME" --output json)
 
