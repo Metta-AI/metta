@@ -4,10 +4,10 @@ Evaluate a specified policy across spanning eval missions.
 
 Examples:
   uv run packages/cogames/scripts/evaluate_spanning_policy.py \
-    --policy cogames.policy.fast_agents.agents.ThinkyAgentsMultiPolicy --cogs 4
+    --policy cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy --cogs 4
 
   uv run packages/cogames/scripts/evaluate_spanning_policy.py \
-    --policy cogames.policy.fast_agents.agents.ThinkyAgentsMultiPolicy \
+    --policy cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy \
     --eval-module cogames.cogs_vs_clips.evals.spanning_evals \
     --experiments unclipping_easy distant_resources_standard --cogs 4 --repeats 3
 """
@@ -235,7 +235,7 @@ def main():
     parser.add_argument(
         "--policy",
         type=str,
-        default="cogames.policy.fast_agents.agents.ThinkyAgentsMultiPolicy",
+        default="cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy",
         help="Fully-qualified policy class path",
     )
     parser.add_argument(
