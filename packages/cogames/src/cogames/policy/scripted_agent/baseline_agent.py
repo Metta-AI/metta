@@ -89,12 +89,13 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
     def _change_vibe_action(self, vibe_name: str) -> Action:
         """
         Return a safe vibe-change action.
-        If change_vibe is disabled or configured with <= 1 vibes, return Noop to avoid missing action errors.
+        Guard only on configured number_of_vibes (>1) to avoid emitting an invalid action.
         """
         change_vibe_cfg = getattr(self._actions, "change_vibe", None)
         if change_vibe_cfg is None:
             return self._actions.noop.Noop()
-        if (not getattr(change_vibe_cfg, "enabled", False)) or int(getattr(change_vibe_cfg, "number_of_vibes", 0)) <= 1:
+        num_vibes = int(getattr(change_vibe_cfg, "number_of_vibes", 0))
+        if num_vibes <= 1:
             return self._actions.noop.Noop()
         return self._actions.change_vibe.ChangeVibe(VIBE_BY_NAME[vibe_name])
 
