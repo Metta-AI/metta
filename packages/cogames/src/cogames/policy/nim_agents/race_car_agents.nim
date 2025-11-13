@@ -20,12 +20,6 @@ proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
   result = RaceCarAgent(agentId: agentId, cfg: config)
   result.random = initRand(agentId)
 
-proc reset*(agent: RaceCarAgent) =
-  echo "Resetting heuristic agent ", agent.agentId
-  agent.map.clear()
-  agent.seen.clear()
-  agent.location = Location(x: 0, y: 0)
-
 proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]]) =
   ## Update the big map with the small visible map.
 
