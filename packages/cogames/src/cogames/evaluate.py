@@ -47,6 +47,7 @@ def evaluate(
     episodes: int,
     action_timeout_ms: int,
     seed: int = 42,
+    max_steps: int = 1000,
     output_format: Optional[Literal["yaml", "json"]] = None,
     save_replay: Optional[Path] = None,
 ) -> MissionResultsSummary:
