@@ -230,6 +230,11 @@ class CurriculumConfig(Config):
     algorithm_config: Optional[Union["DiscreteRandomConfig", "LearningProgressConfig"]] = Field(
         default=None, description="Curriculum algorithm hyperparameters"
     )
+    eviction_check_interval: int = Field(
+        default=32,
+        ge=1,
+        description="How many task selections between eviction evaluations",
+    )
 
     @classmethod
     def from_mg(cls, mg_config: MettaGridConfig) -> "CurriculumConfig":
@@ -287,6 +292,8 @@ class Curriculum(StatsLogger):
             if hasattr(self._algorithm, "set_curriculum_reference"):
                 self._algorithm.set_curriculum_reference(self)
         self._cached_task_scores: dict[int, float] = {}
+        self._eviction_check_interval = config.eviction_check_interval
+        self._eviction_check_budget = 0
 
         # Always initialize task pool at capacity
         self._initialize_at_capacity()
@@ -299,14 +306,21 @@ class Curriculum(StatsLogger):
         else:
             # At capacity - check if any task meets eviction criteria first
             task = None
+            check_eviction = False
             if self._algorithm is not None:
+                if self._eviction_check_budget <= 0:
+                    check_eviction = True
+                    self._eviction_check_budget = self._eviction_check_interval
+                else:
+                    self._eviction_check_budget -= 1
+
+            if check_eviction and self._algorithm is not None:
                 evictable_tasks = [
                     tid
                     for tid in self._tasks.keys()
                     if self._algorithm.should_evict_task(tid, self._config.min_presentations_for_eviction)
                 ]
                 if evictable_tasks:
-                    # Evict a task that meets the criteria and create a new one
                     evict_candidate = self._algorithm.recommend_eviction(evictable_tasks)
                     if evict_candidate is not None:
                         self._evict_specific_task(evict_candidate)

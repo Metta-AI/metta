@@ -77,7 +77,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._stats_cache: Dict[str, Any] = {}
         self._stats_cache_valid = False
         self._pending_updates: list[tuple[int, float]] = []
-        self._flush_threshold = 128
+        self._flush_threshold = 32
         self._progress_dirty = True
         self._task_index_cache: dict[int, int] = {}
 
