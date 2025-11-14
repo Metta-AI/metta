@@ -679,8 +679,9 @@ def cmd_pr_feed(
         for pr in matching_prs:
             # Format the updated date
             from datetime import datetime
-            updated = datetime.fromisoformat(pr['updatedAt'].replace('Z', '+00:00'))
-            updated_str = updated.strftime('%Y-%m-%d')
+
+            updated = datetime.fromisoformat(pr["updatedAt"].replace("Z", "+00:00"))
+            updated_str = updated.strftime("%Y-%m-%d")
 
             console.print(f"[green]PR #{pr['number']}:[/green] {pr['title']}")
             console.print(f"  Author: [cyan]@{pr['author']['login']}[/cyan] • Updated: {updated_str}")
@@ -691,10 +692,10 @@ def cmd_pr_feed(
 
     except subprocess.CalledProcessError as e:
         error(f"Failed to fetch PRs: {e.stderr}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
     except Exception as e:
         error(f"Error: {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 # Report env details command
@@ -737,13 +738,6 @@ def cmd_clip(
 @app.command(name="gridworks", help="Start the Gridworks web UI", context_settings={"allow_extra_args": True})
 def cmd_gridworks(ctx: typer.Context):
     cmd = ["./gridworks/start.py", *ctx.args]
-    subprocess.run(cmd, cwd=get_repo_root(), check=False)
-
-
-@app.command(name="pr-feed", help="Show PRs touching a specific path", context_settings={"allow_extra_args": True})
-def cmd_pr_feed_alias(ctx: typer.Context):
-    """Alias for metta tool pr-feed."""
-    cmd = [str(get_repo_root() / "tools/pr-feed.py")] + ctx.args
     subprocess.run(cmd, cwd=get_repo_root(), check=False)
 
 
