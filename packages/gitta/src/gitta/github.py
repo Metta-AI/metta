@@ -126,13 +126,19 @@ def get_matched_pr(commit_hash: str, repo: str) -> tuple[int, str] | None:
         resp = httpx.get(url, headers=headers, timeout=5.0)
         resp.raise_for_status()
     except httpx.HTTPStatusError as e:
-        if e.response.status_code in (404, 422):
+        status = e.response.status_code
+        if status in (404, 422, 403):
             # 404: Commit not in repo or no PRs
             # 422: Commit SHA doesn't exist on GitHub (e.g., local-only commit)
-            # Both cases -> treat as "no match"
+            # 403: API rate limit / forbidden – treat as no match instead of failing launch
             result: tuple[int, str] | None = None
+            if status == 403:
+                logger.debug(
+                    "GitHub API returned 403 while looking up PR for commit %s; treating as no match",
+                    commit_hash,
+                )
         else:
-            raise GitError(f"GitHub API error ({e.response.status_code}): {e.response.text}") from e
+            raise GitError(f"GitHub API error ({status}): {e.response.text}") from e
     except httpx.RequestError as e:
         # Network / timeout / DNS failure
         raise GitError(f"Network error while querying GitHub: {e}") from e
