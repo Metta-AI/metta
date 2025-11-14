@@ -80,7 +80,7 @@ def simulator() -> Simulator:
 
 @pytest.fixture
 def env_config():
-    _, env_cfg, _ = get_mission("evals.extractor_hub_30", variants_arg=["lonely_heart"], cogs=2)
+    _, env_cfg, _ = get_mission("evals.extractor_hub_30", variants_arg=None, cogs=2)
     env_cfg.game.max_steps = 8
     return env_cfg
 

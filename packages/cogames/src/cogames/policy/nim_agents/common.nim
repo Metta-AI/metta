@@ -46,11 +46,16 @@ type
     moveEast*: int
     vibeDefault*: int
     vibeCharger*: int
-    vibeCarbon*: int
-    vibeOxygen*: int
-    vibeGermanium*: int
-    vibeSilicon*: int
-    vibeHeart*: int
+    vibeCarbonA*: int
+    vibeCarbonB*: int
+    vibeOxygenA*: int
+    vibeOxygenB*: int
+    vibeGermaniumA*: int
+    vibeGermaniumB*: int
+    vibeSiliconA*: int
+    vibeSiliconB*: int
+    vibeHeartA*: int
+    vibeHeartB*: int
     vibeGear*: int
     vibeAssembler*: int
     vibeChest*: int
@@ -71,16 +76,21 @@ type
     # TODO: Pass with vibes from config.
     default*: int = 0
     charger*: int = 1
-    carbon*: int = 2
-    oxygen*: int = 3
-    germanium*: int = 4
-    silicon*: int = 5
-    heart*: int = 6
-    gear*: int = 7
-    assembler*: int = 8
-    chest*: int = 9
-    wall*: int = 10
-    paperclip*: int = 11
+    carbonA*: int = 2
+    carbonB*: int = 3
+    oxygenA*: int = 4
+    oxygenB*: int = 5
+    germaniumA*: int = 6
+    germaniumB*: int = 7
+    siliconA*: int = 8
+    siliconB*: int = 9
+    heartA*: int = 10
+    heartB*: int = 11
+    gear*: int = 12
+    assembler*: int = 13
+    chest*: int = 14
+    wall*: int = 15
+    paperclip*: int = 16
 
   Features* = object
     group*: int
@@ -93,6 +103,7 @@ type
     lastReward*: int
     vibe*: int
     compass*: int
+    orientation*: int
     tag*: int
     cooldownRemaining*: int
     clipped*: int
@@ -204,6 +215,8 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
         result.features.vibe = feature.id
       of "agent:compass":
         result.features.compass = feature.id
+      of "agent:orientation":
+        result.features.orientation = feature.id
       of "tag":
         result.features.tag = feature.id
       of "cooldown_remaining":
@@ -258,16 +271,36 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
         result.actions.vibeDefault = id
       of "change_vibe_charger":
         result.actions.vibeCharger = id
+      of "change_vibe_carbon_a":
+        result.actions.vibeCarbonA = id
+      of "change_vibe_carbon_b":
+        result.actions.vibeCarbonB = id
+      of "change_vibe_oxygen_a":
+        result.actions.vibeOxygenA = id
+      of "change_vibe_oxygen_b":
+        result.actions.vibeOxygenB = id
+      of "change_vibe_germanium_a":
+        result.actions.vibeGermaniumA = id
+      of "change_vibe_germanium_b":
+        result.actions.vibeGermaniumB = id
+      of "change_vibe_silicon_a":
+        result.actions.vibeSiliconA = id
+      of "change_vibe_silicon_b":
+        result.actions.vibeSiliconB = id
+      of "change_vibe_heart_a":
+        result.actions.vibeHeartA = id
+      of "change_vibe_heart_b":
+        result.actions.vibeHeartB = id
       of "change_vibe_carbon":
-        result.actions.vibeCarbon = id
+        result.actions.vibeCarbonA = id
       of "change_vibe_oxygen":
-        result.actions.vibeOxygen = id
+        result.actions.vibeOxygenA = id
       of "change_vibe_germanium":
-        result.actions.vibeGermanium = id
+        result.actions.vibeGermaniumA = id
       of "change_vibe_silicon":
-        result.actions.vibeSilicon = id
+        result.actions.vibeSiliconA = id
       of "change_vibe_heart":
-        result.actions.vibeHeart = id
+        result.actions.vibeHeartA = id
       of "change_vibe_gear":
         result.actions.vibeGear = id
       of "change_vibe_assembler":

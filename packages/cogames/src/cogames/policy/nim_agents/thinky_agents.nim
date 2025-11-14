@@ -16,6 +16,78 @@ type
   ThinkyPolicy* = ref object
     agents*: seq[ThinkyAgent]
 
+proc getAssemblerRequirements(agent: ThinkyAgent): Table[string, int] =
+  ## Read the assembler protocol inputs from the cached map to understand heart costs.
+  result = initTable[string, int]()
+  let assemblerLocation = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
+  if assemblerLocation.isNone():
+    return
+  let location = assemblerLocation.get()
+  if location notin agent.map:
+    return
+  let features = agent.map[location]
+
+  var heartProtocolSeen = false
+  for featureValue in features:
+    for resource, featureId in agent.cfg.features.protocolOutputs.pairs:
+      if resource == "heart" and featureValue.featureId == featureId and featureValue.value > 0:
+        heartProtocolSeen = true
+        break
+    if heartProtocolSeen:
+      break
+
+  if not heartProtocolSeen:
+    return
+
+  for resource, featureId in agent.cfg.features.protocolInputs.pairs:
+    for featureValue in features:
+      if featureValue.featureId == featureId and featureValue.value > 0:
+        result[resource] = featureValue.value
+        break
+
+proc requirementOrFallback(
+  requirements: Table[string, int],
+  resource: string,
+  fallback: int
+): int =
+  ## Return the required amount for a resource, defaulting when the assembler recipe is unknown.
+  if requirements.hasKey(resource):
+    let value = requirements[resource]
+    if value > 0:
+      return value
+    return 0
+  return fallback
+
+proc hasResourcesForHeart(
+  requirements: Table[string, int],
+  invEnergy: int,
+  invCarbon: int,
+  invOxygen: int,
+  invGermanium: int,
+  invSilicon: int
+): bool =
+  ## Determine if the agent currently holds enough materials (and energy) to build the next heart.
+  if requirements.len == 0:
+    return invCarbon > 0 and invOxygen > 0 and invGermanium > 0 and invSilicon > 0
+
+  for resource, required in requirements.pairs:
+    if required <= 0:
+      continue
+    case resource
+    of "carbon":
+      if invCarbon < required: return false
+    of "oxygen":
+      if invOxygen < required: return false
+    of "germanium":
+      if invGermanium < required: return false
+    of "silicon":
+      if invSilicon < required: return false
+    of "energy":
+      if invEnergy < required: return false
+    else:
+      discard
+  return true
+
 proc newThinkyAgent*(agentId: int, environmentConfig: string): ThinkyAgent =
   #echo "Creating new heuristic agent ", agentId
 
@@ -200,6 +272,12 @@ proc step*(
 
     #echo &"H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
 
+    let heartRequirements = agent.getAssemblerRequirements()
+    let carbonTarget = requirementOrFallback(heartRequirements, "carbon", 1)
+    let oxygenTarget = requirementOrFallback(heartRequirements, "oxygen", 1)
+    let germaniumTarget = requirementOrFallback(heartRequirements, "germanium", 1)
+    let siliconTarget = requirementOrFallback(heartRequirements, "silicon", 1)
+
     # Is there an energy charger nearby?
     let chargerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.charger)
     if invEnergy < 50 and chargerNearby.isSome():
@@ -211,10 +289,11 @@ proc step*(
 
     # Deposit heart into the chest.
     if invHeart > 0:
-      if vibe != agent.cfg.vibes.default:
-        # echo "my current vibe is", vibe
-        doAction(agent.cfg.actions.vibeDefault.int32)
-        # echo "vibing default"
+      let depositAction = agent.cfg.actions.vibeHeartB
+      let depositVibe = agent.cfg.vibes.heartB
+      if depositAction != 0 and vibe != depositVibe:
+        doAction(depositAction.int32)
+        # echo "adjusting vibe for heart deposit"
         return
       let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
       if chestNearby.isSome():
@@ -267,7 +346,7 @@ proc step*(
     #       return
 
     # Is there carbon nearby?
-    if invCarbon == 0:
+    if carbonTarget > 0 and invCarbon < carbonTarget:
       let carbonNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.carbonExtractor)
       if carbonNearby.isSome():
         let action = agent.cfg.aStar(agent.location, carbonNearby.get(), agent.map)
@@ -277,7 +356,7 @@ proc step*(
           return
 
     # Is there oxygen nearby?
-    if invOxygen == 0:
+    if oxygenTarget > 0 and invOxygen < oxygenTarget:
       let oxygenNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.oxygenExtractor)
       if oxygenNearby.isSome():
         let action = agent.cfg.aStar(agent.location, oxygenNearby.get(), agent.map)
@@ -287,7 +366,7 @@ proc step*(
           return
 
     # Is there germanium nearby?
-    if invGermanium == 0:
+    if germaniumTarget > 0 and invGermanium < germaniumTarget:
       let germaniumNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.germaniumExtractor)
       if germaniumNearby.isSome():
         let action = agent.cfg.aStar(agent.location, germaniumNearby.get(), agent.map)
@@ -297,7 +376,7 @@ proc step*(
           return
 
     # Is there silicon nearby?
-    if invSilicon == 0:
+    if siliconTarget > 0 and invSilicon < siliconTarget:
       let siliconNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.siliconExtractor)
       if siliconNearby.isSome():
         let action = agent.cfg.aStar(agent.location, siliconNearby.get(), agent.map)
@@ -306,13 +385,17 @@ proc step*(
           #echo "going to silicon"
           return
 
-    if invSilicon > 0 and invOxygen > 0 and invCarbon > 0 and invGermanium > 0:
+    if hasResourcesForHeart(heartRequirements, invEnergy, invCarbon, invOxygen, invGermanium, invSilicon):
       # We have all the resources we need, so we can build an assembler.
 
-      # If not vibing here at heart then vibe heart.
-      if vibe != agent.cfg.vibes.heart:
-        doAction(agent.cfg.actions.vibeHeart.int32)
-        # echo "vibing heart"
+      var assembleAction = agent.cfg.actions.vibeHeartA
+      var assembleVibe = agent.cfg.vibes.heartA
+      if assembleAction == 0:
+        assembleAction = agent.cfg.actions.vibeHeartB
+        assembleVibe = agent.cfg.vibes.heartB
+      if assembleAction != 0 and vibe != assembleVibe:
+        doAction(assembleAction.int32)
+        # echo "vibing heart for assembler"
         return
 
       let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
