@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 import os
-import shlex
 import signal
 import subprocess
 import time
@@ -359,8 +358,8 @@ class RemoteJob(Job):
         else:
             base_args = ["--no-spot", "--gpus=4", "--nodes", "1"]
 
-        self.tool_or_cmd = config.tool_maker or config.cmd
-        self.use_tool = config.tool_maker is not None  # Store whether this is a tool_maker or cmd job
+        self.recipe_or_cmd = config.recipe or config.cmd
+        self.use_recipe = config.recipe is not None  # Store whether this is a recipe or cmd job
         self.args = arg_list
         self.base_args = base_args
         self.skip_git_check = skip_git_check
@@ -390,14 +389,14 @@ class RemoteJob(Job):
         Args:
             run_name: WandB run name (only passed for training jobs, None otherwise)
         """
-        # Use stored flag for tool vs cmd
-        cmd_flag = "--tool" if self.use_tool else "--cmd"
+        # Use stored flag for recipe vs cmd
+        cmd_flag = "--recipe" if self.use_recipe else "--cmd"
 
         cmd = [
             "devops/skypilot/launch.py",
             cmd_flag,
             *self.base_args,
-            self.tool_or_cmd,
+            self.recipe_or_cmd,
         ]
 
         # Only pass run= for training jobs (they use WandB for experiment tracking)
