@@ -2,7 +2,7 @@ import
   std/[math],
   opengl, boxy/[shaders], shady, vmath, pixie
 
-# Draw a single quad covering the map and render the grid inside a shader.
+## Drawer for a single quad covering the map with texture and shader.
 
 type
   ShaderQuad* = ref object
@@ -23,23 +23,23 @@ var
   uTilesPerImage: Uniform[Vec2]
 
 proc gridVert*(fragmentWorldPos: var Vec2) =
-  # Generate a full-rect in world units from (0,0) to (mapSize.x, mapSize.y).
+  ## Generate a full-rect in world units from (0,0) to (mapSize.x, mapSize.y).
   let corner = uvec2(gl_VertexID mod 2, gl_VertexID div 2)
   let worldPos = vec2(float(corner.x) * uMapSize.x, float(corner.y) * uMapSize.y)
   fragmentWorldPos = worldPos
   gl_Position = uMvp * vec4(worldPos.x, worldPos.y, 0.0f, 1.0f)
 
 proc gridFrag*(fragmentWorldPos: Vec2, FragColor: var Vec4) =
-  # Texture-based grid sampling with AA similar to pixelator.
-  # 1) Compute tile-space coordinates of the world position.
+  ## Texture-based grid sampling with AA similar to pixelator.
+  # Compute tile-space coordinates of the world position.
   let gridCoord = fragmentWorldPos / uTileSize
-  # 2) Repeat the texture every uTilesPerImage tiles.
+  # Repeat the texture every uTilesPerImage tiles.
   let texPhase = fract(gridCoord / uTilesPerImage)
-  # 3) Convert to pixel coordinates in the texture.
+  # Convert to pixel coordinates in the texture.
   let pixCoord = texPhase * atlasSize
-  # 4) Pixel-accurate AA in texture space (works with mipmaps too).
+  # Pixel-accurate AA in texture space (works with mipmaps too).
   let pixAA = floor(pixCoord) + min(fract(pixCoord) / fwidth(pixCoord), 1.0f) - 0.5f
-  # 5) Sample and tint.
+  # Sample and tint.
   FragColor = texture(atlas, pixAA / atlasSize) * uGridColor * uGridColor.a
 
 proc newGridQuad*(imagePath: string, tilesX, tilesY: int): ShaderQuad =
@@ -109,7 +109,6 @@ proc draw*(
   sq.shader.setUniform("uMapSize", mapSize)
   sq.shader.setUniform("uTileSize", tileSize)
   sq.shader.setUniform("uGridColor", gridColor)
-  # Texture sampling uniforms and state.
   sq.shader.setUniform("atlasSize", vec2(sq.image.width.float32, sq.image.height.float32))
   sq.shader.setUniform("uTilesPerImage", sq.tilesPerImage)
   glActiveTexture(GL_TEXTURE0)
