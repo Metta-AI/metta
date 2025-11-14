@@ -825,27 +825,30 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       }
 
       // Add all protocols information
-      const std::unordered_map<uint64_t, std::shared_ptr<Protocol>>& active_protocols =
+      const std::unordered_map<GroupVibe, vector<std::shared_ptr<Protocol>>>& active_protocols =
           assembler->is_clipped ? assembler->unclip_protocols : assembler->protocols;
       py::list protocols_list;
 
-      for (const auto& [vibe, protocol] : active_protocols) {
-        py::dict protocol_dict;
+      for (const auto& [vibe, protocols] : active_protocols) {
+        for (const auto& protocol : protocols) {
+          py::dict protocol_dict;
 
-        py::dict input_resources_dict;
-        for (const auto& [resource, quantity] : protocol->input_resources) {
-          input_resources_dict[py::int_(resource)] = quantity;
+          py::dict input_resources_dict;
+          for (const auto& [resource, quantity] : protocol->input_resources) {
+            input_resources_dict[py::int_(resource)] = quantity;
+          }
+          protocol_dict["inputs"] = input_resources_dict;
+
+          py::dict output_resources_dict;
+          for (const auto& [resource, quantity] : protocol->output_resources) {
+            output_resources_dict[py::int_(resource)] = quantity;
+          }
+          protocol_dict["outputs"] = output_resources_dict;
+          protocol_dict["cooldown"] = protocol->cooldown;
+          protocol_dict["min_agents"] = protocol->min_agents;
+          protocol_dict["vibes"] = protocol->vibes;
+          protocols_list.append(protocol_dict);
         }
-        protocol_dict["inputs"] = input_resources_dict;
-
-        py::dict output_resources_dict;
-        for (const auto& [resource, quantity] : protocol->output_resources) {
-          output_resources_dict[py::int_(resource)] = quantity;
-        }
-        protocol_dict["outputs"] = output_resources_dict;
-        protocol_dict["cooldown"] = protocol->cooldown;
-
-        protocols_list.append(protocol_dict);
       }
       obj_dict["protocols"] = protocols_list;
     }

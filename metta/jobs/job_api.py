@@ -8,41 +8,42 @@ from __future__ import annotations
 
 import io
 import sys
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import redirect_stdout
+from functools import partial
 from typing import Callable
 
 from metta.jobs.job_config import JobConfig
-from metta.jobs.job_display import JobDisplay, format_job_status_line, report_on_jobs
+from metta.jobs.job_display import JobDisplay, report_on_jobs
 from metta.jobs.job_manager import JobManager
 from metta.jobs.job_state import JobStatus
 
+# Global lock for printing to avoid interleaved output from parallel job submissions
+_print_lock = threading.Lock()
 
-def create_state_change_printer(job_manager: JobManager) -> Callable[[str, str, str], None]:
-    """Create a callback that prints job state changes with artifacts.
+
+def state_change_printer(job_manager: JobManager, job_name: str, old_status: str, new_status: str) -> None:
+    """Print job state changes with artifacts.
 
     Used for non-interactive mode to show progress as jobs change state.
     Prints artifacts (WandB URLs, checkpoints, logs) when jobs complete.
 
     Args:
         job_manager: JobManager instance to query job state
-
-    Returns:
-        Callback function(job_name, old_status, new_status)
+        job_name: Name of job that changed state
+        old_status: Previous status
+        new_status: New status
     """
+    job_state = job_manager.get_job_state(job_name)
+    if not job_state:
+        return
 
-    def callback(job_name: str, old_status: str, new_status: str) -> None:
-        job_state = job_manager.get_job_state(job_name)
-        if not job_state:
-            return
-
+    # Use lock to prevent interleaved output from parallel callbacks
+    with _print_lock:
         # Print status transition
         print(f"{job_name}: {old_status} → {new_status}", flush=True)
-
-        # Print full status line
-        status_line = format_job_status_line(job_state, show_duration=False)
-        print(f"  {status_line}", flush=True)
 
         # For completed jobs, show artifacts
         if new_status == JobStatus.COMPLETED:
@@ -58,8 +59,6 @@ def create_state_change_printer(job_manager: JobManager) -> Callable[[str, str, 
             if job_state.logs_path:
                 print(f"  📝 {job_state.logs_path}", flush=True)
 
-    return callback
-
 
 def submit_with_callback(
     job_manager: JobManager,
@@ -73,14 +72,12 @@ def submit_with_callback(
         config: Job configuration
         on_state_change: Callback fired when job status changes
     """
-    # Submit the job
-    job_manager.submit(config)
-
-    # Attach callback to the job state if provided
+    # Attach callback BEFORE submitting so we catch the pending→running transition
     if on_state_change:
-        job_state = job_manager.get_job_state(config.name)
-        if job_state:
-            job_state.set_state_change_callback(on_state_change)
+        job_manager.set_state_change_callback(config.name, on_state_change)
+
+    # Submit the job (may immediately transition pending→running)
+    job_manager.submit(config)
 
 
 def _monitor_non_interactive(
@@ -123,10 +120,6 @@ def _monitor_non_interactive(
                 last_poll_time = now
 
             time.sleep(0.1)
-
-        # Print final summary after completion
-        print()  # Blank line before final report
-        report_on_jobs(job_manager, list(submitted_jobs), title=title)
 
     except KeyboardInterrupt:
         print("\n\n⚠️  Interrupted by user (Ctrl+C)")
@@ -302,14 +295,15 @@ def submit_monitor_and_report(
         return True
 
     # Create state change callback for non-interactive mode
-    callback = create_state_change_printer(job_manager) if no_interactive else None
+    callback = partial(state_change_printer, job_manager) if no_interactive else None
 
     # Submit all jobs in parallel (SkyPilot launches can be slow)
     job_names = []
 
     def submit_job(job: JobConfig) -> str:
         """Submit a single job and return its name."""
-        print(f"Submitting: {job.name}")
+        with _print_lock:
+            print(f"Submitting: {job.name}")
         if callback:
             submit_with_callback(job_manager, job, on_state_change=callback)
         else:
@@ -332,6 +326,7 @@ def submit_monitor_and_report(
     monitor_jobs_until_complete(job_names, job_manager, group=group, title=title, no_interactive=no_interactive)
 
     # Report on results
+    print()  # Blank line before final report
     report_on_jobs(job_manager, job_names, title=title)
 
     # Check if all jobs passed

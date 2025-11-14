@@ -3,27 +3,14 @@
 from __future__ import annotations
 
 import logging
-import os
-import sys
 from typing import Dict, Optional
 
-from rich.console import Console
 from rich.table import Table
 
+from metta.common.util.log_config import get_console, should_use_rich_console
 from metta.rl.training import TrainerComponent
 
 logger = logging.getLogger(__name__)
-
-
-def should_use_rich_console() -> bool:
-    """Determine if rich console output is appropriate based on terminal context."""
-    if os.environ.get("DISABLE_RICH_LOGGING", "").lower() in ("1", "true", "yes"):
-        return False
-
-    if any(os.environ.get(var) for var in ["SLURM_JOB_ID", "PBS_JOBID", "WANDB_RUN_ID", "SKYPILOT_TASK_ID"]):
-        return False
-
-    return hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
 
 
 def _format_total_steps(total_timesteps: int) -> str:
@@ -61,7 +48,7 @@ def log_rich_progress(
 ) -> None:
     """Render training progress in a rich table."""
 
-    console = Console()
+    console = get_console()
     table = _create_progress_table(epoch, run_name)
 
     total_steps_str = _format_total_steps(total_timesteps)

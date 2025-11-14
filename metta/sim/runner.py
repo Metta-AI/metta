@@ -1,18 +1,15 @@
 import uuid
-from collections import defaultdict
 from functools import partial
 from pathlib import Path
 from typing import Callable, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from mettagrid import MettaGridConfig
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult, multi_episode_rollout
-from mettagrid.simulator.multi_episode.summary import build_multi_episode_rollout_summaries
 from mettagrid.simulator.replay_log_writer import ReplayLogWriter
 
 
@@ -36,6 +33,15 @@ class SimulationRunResult(BaseModel):
 
 
 MultiAgentPolicyInitializer = Callable[[PolicyEnvInterface], MultiAgentPolicy]
+
+
+def _make_replay_writer(replay_dir: str | None) -> ReplayLogWriter | None:
+    if replay_dir is None:
+        return None
+    replay_root = Path(replay_dir).expanduser()
+    unique_dir = replay_root / uuid.uuid4().hex[:12]
+    unique_dir.mkdir(parents=True, exist_ok=True)
+    return ReplayLogWriter(str(unique_dir))
 
 
 def run_simulations(
@@ -63,12 +69,9 @@ def run_simulations(
     simulation_rollouts: list[SimulationRunResult] = []
 
     for simulation in simulations:
-        proportions = simulation.proportions
         replay_writer: ReplayLogWriter | None = None
         if enable_replays and replay_dir:
-            replay_root = Path(replay_dir).expanduser()
-            unique_dir = replay_root / uuid.uuid4().hex[:12]
-            replay_writer = ReplayLogWriter(str(unique_dir))
+            replay_writer = _make_replay_writer(replay_dir)
 
         env_interface = PolicyEnvInterface.from_mg_cfg(simulation.env)
         multi_agent_policies: list[MultiAgentPolicy] = [pi(env_interface) for pi in policy_initializers]
@@ -78,7 +81,7 @@ def run_simulations(
             policies=multi_agent_policies,
             episodes=simulation.num_episodes,
             seed=seed,
-            proportions=proportions,
+            proportions=simulation.proportions,
             # TODO: support this if and only if we also reflect that it happened in results
             # max_time_s=simulation.max_time_s,
             max_action_time_ms=simulation.max_action_time_ms,
@@ -96,46 +99,3 @@ def run_simulations(
         )
 
     return simulation_rollouts
-
-
-# This gets the sim results into a format we know how to submit to wandb
-# We should move away from this towards something with a schema that doesn't give e.g. `category` and `sim_name` meaning
-def build_eval_results(
-    rollout_results: list[SimulationRunResult], target_policy_idx: int, num_policies: int
-) -> EvalResults:
-    summaries = build_multi_episode_rollout_summaries(
-        rollout_results=[result.results for result in rollout_results], num_policies=num_policies
-    )
-    simulation_scores: dict[tuple[str, str], float] = {}
-    category_scores_accum: defaultdict[str, list[float]] = defaultdict(list)
-    replay_urls: dict[str, list[str]] = {}
-
-    for i, (result, summary) in enumerate(zip(rollout_results, summaries, strict=True)):
-        category = result.run.episode_tags.get("category", "unknown")
-        sim_name = result.run.episode_tags.get("name", f"unknown_{i}")
-        policy_rewards: list[float] = []
-        for per_policy_rewards in summary.per_episode_per_policy_avg_rewards.values():
-            if not per_policy_rewards or len(per_policy_rewards) <= target_policy_idx:
-                continue
-            policy_reward = per_policy_rewards[target_policy_idx]
-            if policy_reward is not None:
-                policy_rewards.append(float(policy_reward))
-
-        avg_reward = sum(policy_rewards) / len(policy_rewards) if policy_rewards else 0.0
-        simulation_scores[(category, sim_name)] = avg_reward
-        category_scores_accum[category].append(avg_reward)
-
-        if result.replay_urls:
-            replay_urls[f"{category}.{sim_name}"] = list(result.replay_urls.values())
-
-    category_scores = {
-        category: sum(values) / len(values) for category, values in category_scores_accum.items() if values
-    }
-
-    return EvalResults(
-        scores=EvalRewardSummary(
-            category_scores=category_scores,
-            simulation_scores=simulation_scores,
-        ),
-        replay_urls=replay_urls,
-    )
