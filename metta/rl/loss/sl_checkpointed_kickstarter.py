@@ -24,18 +24,10 @@ class SLCheckpointedKickstarterConfig(LossConfig):
     student_forward: bool = Field(default=False)
 
     # Checkpoint reloading parameters
-    checkpointed_interval: Optional[int] = Field(
-        default=None, gt=0, description="Interval at which teacher checkpoints are saved"
-    )
-    epochs_per_checkpoint: Optional[int] = Field(
-        default=None, gt=0, description="Number of epochs to train with each checkpoint"
-    )
-    terminating_epoch: Optional[int] = Field(
-        default=None, ge=0, description="Stop reloading checkpoints before this epoch"
-    )
-    final_checkpoint: Optional[int] = Field(
-        default=None, ge=0, description="Final checkpoint to use (can be beyond terminating)"
-    )
+    checkpointed_interval: int = Field(gt=0, description="Interval at which teacher checkpoints are saved")
+    epochs_per_checkpoint: int = Field(gt=0, description="Number of epochs to train with each checkpoint")
+    terminating_epoch: int = Field(ge=0, description="Stop reloading checkpoints before this epoch")
+    final_checkpoint: int = Field(ge=0, description="Final checkpoint to use (can be beyond terminating)")
 
     def create(
         self,

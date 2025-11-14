@@ -101,6 +101,8 @@ class Experience:
         # Scheduler updates these keys based on the active losses for the epoch.
         if self._store_keys:
             self.buffer.update_at_(data_td.select(*self._store_keys), (row_ids, t_in_row_val))
+        else:
+            raise ValueError("No store keys set. set_store_keys() was likely used incorrectly.")
 
         self.t_in_row[env_id] += 1
 
