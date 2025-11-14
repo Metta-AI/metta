@@ -21,8 +21,8 @@ class KickstarterConfig(LossConfig):
     action_loss_coef: float = Field(default=0.6, ge=0, le=1.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
     temperature: float = Field(default=2.0, gt=0)
-    student_forward: bool = Field(default=False) # use this if you need to forward student during train (eg if no PPO)
-    teacher_lead_prob: float = Field(default=0.0, ge=0, le=1.0) # at 0.0, it's purely student-led
+    student_forward: bool = Field(default=False)  # use this if you need to forward student during train (eg if no PPO)
+    teacher_lead_prob: float = Field(default=0.0, ge=0, le=1.0)  # at 0.0, it's purely student-led
 
     def create(
         self,
@@ -48,6 +48,7 @@ class Kickstarter(Loss):
     """This uses another policy that is forwarded during rollout, here, in the loss and then compares its logits and
     value against the student's using a KL divergence and MSE loss respectively.
     """
+
     __slots__ = (
         "teacher_policy",
         "student_forward",
@@ -67,6 +68,7 @@ class Kickstarter(Loss):
 
         # Load teacher. Lazy import to avoid circular dependency
         from metta.rl.checkpoint_manager import CheckpointManager
+
         game_rules = getattr(self.env, "policy_env_info", None)
         if game_rules is None:
             raise RuntimeError("Environment metadata is required to instantiate teacher policy")
@@ -118,7 +120,7 @@ class Kickstarter(Loss):
             student_td, _, _ = prepare_policy_forward_td(minibatch, self.policy.get_agent_experience_spec(), clone=True)
             student_td = self.policy(student_td, action=None)
         else:
-            student_td = shared_loss_data["policy_td"].reshape(B * TT) # shared_loss_data is populated by PPO
+            student_td = shared_loss_data["policy_td"].reshape(B * TT)  # shared_loss_data is populated by PPO
 
         # action loss
         temperature = self.cfg.temperature

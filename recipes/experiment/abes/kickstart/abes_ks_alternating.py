@@ -9,11 +9,9 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.rl.loss.alternating_kickstarter import AlternatingKickstarterConfig
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.loss.ppo import PPOConfig
-from metta.rl.loss.sl_checkpointed_kickstarter import SLCheckpointedKickstarterConfig
-
-# from metta.rl.loss.tl_kickstarter import TLKickstarterConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import (
     CheckpointerConfig,
@@ -66,9 +64,7 @@ def make_curriculum(
     arena_tasks = cc.bucketed(arena_env)
 
     for item in ["ore_red", "battery_red", "laser", "armor"]:
-        arena_tasks.add_bucket(
-            f"game.agent.rewards.inventory.{item}", [0, 0.1, 0.5, 0.9, 1.0]
-        )
+        arena_tasks.add_bucket(f"game.agent.rewards.inventory.{item}", [0, 0.1, 0.5, 0.9, 1.0])
         arena_tasks.add_bucket(f"game.agent.rewards.inventory_max.{item}", [1, 2])
 
     # enable or disable attacks. we use cost instead of 'enabled'
@@ -106,25 +102,16 @@ def train(
     enable_detailed_slice_logging: bool = False,
     policy_architecture: Optional[PolicyArchitecture] = None,
 ) -> TrainTool:
-    curriculum = curriculum or make_curriculum(
-        enable_detailed_slice_logging=enable_detailed_slice_logging
-    )
+    curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
     eval_simulations = simulations()
 
     loss_config = LossesConfig(
         ppo=PPOConfig(enabled=True),  # PPO is enabled by default, but explicit here
-        # tl_kickstarter=TLKickstarterConfig(
-        #     enabled=True,
-        #     teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v10008.mpt",
-        # ),
-        sl_checkpointed_kickstarter=SLCheckpointedKickstarterConfig(
+        alternating_kickstarter=AlternatingKickstarterConfig(
             enabled=True,
             teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v8016.mpt",
-            checkpointed_interval=24,
-            epochs_per_checkpoint=1,
-            terminating_epoch=334,
-            final_checkpoint=8016,
+            teacher_lead_prob=0.5,
         ),
     )
 
@@ -138,37 +125,21 @@ def train(
     # Configure scheduler with run gates
     scheduler = SchedulerConfig(
         run_gates=[
-            # LossRunGate(
-            #     loss_instance_name="ppo", phase="rollout", begin_at_step=50_000_000
-            # ),
-            # LossRunGate(
-            #     loss_instance_name="tl_kickstarter",
-            #     phase="rollout",
-            #     end_at_step=50_000_000,
-            # ),
-            # LossRunGate(
-            #     loss_instance_name="tl_kickstarter",
-            #     phase="train",
-            #     end_at_step=50_000_000,
-            # ),
+            LossRunGate(loss_instance_name="ppo", phase="rollout", begin_at_step=1_000_000_000),
             LossRunGate(
-                loss_instance_name="sl_checkpointed_kickstarter",
+                loss_instance_name="alternating_kickstarter",
                 phase="rollout",
-                # begin_at_step=50_000_000,
-                # end_at_step=1_000_000_000,
-                end_at_epoch=334,
+                end_at_step=1_000_000_000,
             ),
             LossRunGate(
-                loss_instance_name="sl_checkpointed_kickstarter",
+                loss_instance_name="alternating_kickstarter",
                 phase="train",
-                # begin_at_step=50_000_000,
-                # end_at_step=1_000_000_000,
-                end_at_epoch=334,
+                end_at_step=1_000_000_000,
             ),
         ],
         rules=[
             HyperUpdateRule(
-                loss_instance_name="sl_checkpointed_kickstarter",
+                loss_instance_name="alternating_kickstarter",
                 attr_path="action_loss_coef",
                 mode="progress",
                 style="linear",
@@ -178,7 +149,7 @@ def train(
                 end_agent_step=1_000_000_000,
             ),
             HyperUpdateRule(
-                loss_instance_name="sl_checkpointed_kickstarter",
+                loss_instance_name="alternating_kickstarter",
                 attr_path="value_loss_coef",
                 mode="progress",
                 style="linear",
@@ -186,6 +157,16 @@ def train(
                 end_value=0.0,
                 start_agent_step=500_000_000,
                 end_agent_step=1_000_000_000,
+            ),
+            HyperUpdateRule(
+                loss_instance_name="alternating_kickstarter",
+                attr_path="teacher_lead_prob",
+                mode="progress",
+                style="linear",
+                start_value=1.0,
+                end_value=0.0,
+                start_agent_step=30_000_000,
+                end_agent_step=500_000_000,
             ),
         ],
     )
@@ -262,12 +243,17 @@ def sweep(sweep_name: str) -> SweepTool:
     In your own recipe, you likely only every need this. You can override other SweepTool parameters in the CLI.
 
     Example usage:
-        `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.baes.10081528" -- gpus=4 nodes=2`
+        `uv run ./tools/run.py recipes.prod.arena_basic_easy_shaped.sweep \
+            sweep_name="ak.baes.10081528" -- gpus=4 nodes=2`
 
     We recommend running using local_test=True before running the sweep on the remote:
-        `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.baes.10081528.local_test" -- local_test=True`
-    This will run a quick local sweep and allow you to catch configuration bugs (NB: Unless those bugs are related to batch_size, minibatch_size, or hardware configuration).
-    If this runs smoothly, you must launch the sweep on a remote sandbox (otherwise sweep progress will halt when you close your computer).
+        `uv run ./tools/run.py recipes.prod.arena_basic_easy_shaped.sweep \
+            sweep_name="ak.baes.10081528.local_test" -- local_test=True`
+
+    This will run a quick local sweep and allow you to catch configuration bugs
+    (NB: Unless those bugs are related to batch_size, minibatch_size, or hardware config).
+    If this runs smoothly, you must launch the sweep on a remote sandbox
+    (otherwise sweep progress will halt when you close your computer).
 
     Running on the remote:
         1 - Start a sweep controller sandbox: `./devops/skypilot/sandbox.py --sweep-controller`, and ssh into it.
@@ -275,7 +261,9 @@ def sweep(sweep_name: str) -> SweepTool:
         3 - Ensure your sky credentials are present: `sky status` -- if not, follow the instructions on screen.
         4 - Install tmux on the sandbox `apt install tmux`
         5 - Launch tmux session: `tmux new -s sweep`
-        6 - Launch the sweep: `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.baes.10081528" -- gpus=4 nodes=2`
+        6 - Launch the sweep:
+            `uv run ./tools/run.py recipes.prod.arena_basic_easy_shaped.sweep \
+                sweep_name="ak.baes.10081528" -- gpus=4 nodes=2`
         7 - Detach when you want: CTRL+B then d
         8 - Attach to look at status/output: `tmux attach -t sweep_configs`
 

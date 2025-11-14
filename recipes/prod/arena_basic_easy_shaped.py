@@ -13,13 +13,8 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
-from metta.rl.training import (
-    CheckpointerConfig,
-    EvaluatorConfig,
-    TrainingEnvironmentConfig,
-)
+from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
@@ -106,124 +101,17 @@ def train(
     curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
     eval_simulations = simulations()
-
-    # Configure losses with PPO and tl_kickstarter
-    loss_config = LossesConfig()
-    # loss_config = LossesConfig(
-    #     ppo=PPOConfig(enabled=True),  # PPO is enabled by default, but explicit here
-    #     tl_kickstarter=TLKickstarterConfig(
-    #         enabled=True,
-    #         teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v10008.mpt",
-    #     ),
-    #     sl_kickstarter=SLKickstarterConfig(
-    #         enabled=True,
-    #         teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v10008.mpt",
-    #     ),
-    # )
-
-    trainer_cfg = TrainerConfig(
-        losses=loss_config,
-    )
+    trainer_cfg = TrainerConfig()
 
     if policy_architecture is None:
         policy_architecture = ViTDefaultConfig()
 
-    # Configure scheduler with run gates
-    # scheduler = SchedulerConfig(
-    #     run_gates=[
-    #         LossRunGate(
-    #             loss_instance_name="tl_kickstarter",
-    #             phase="rollout",
-    #             begin_at_step=0,
-    #             end_at_step=500_000_000,
-    #             cycle_length=20,
-    #             active_in_cycle=list(range(1, 6)),
-    #         ),
-    #         LossRunGate(
-    #             loss_instance_name="tl_kickstarter",
-    #             phase="train",
-    #             begin_at_step=0,
-    #             end_at_step=500_000_000,
-    #             cycle_length=20,
-    #             active_in_cycle=list(range(1, 6)),
-    #         ),
-    #         LossRunGate(
-    #             loss_instance_name="ppo",
-    #             phase="rollout",
-    #             begin_at_step=0,
-    #             end_at_step=500_000_000,
-    #             cycle_length=20,
-    #             active_in_cycle=list(range(6, 21)),
-    #         ),
-    #         LossRunGate(
-    #             loss_instance_name="sl_kickstarter",
-    #             phase="train",
-    #             begin_at_step=0,
-    #             end_at_step=500_000_000,
-    #             cycle_length=20,
-    #             active_in_cycle=list(range(6, 21)),
-    #         ),
-    #         # -------------------------
-    #         # 500M .. 1B agent steps:
-    #         # tl_kickstarter fully OFF (no active gates in this window)
-    #         # sl_kickstarter and ppo fully ON (rollout/train as applicable)
-    #         LossRunGate(
-    #             loss_instance_name="ppo",
-    #             phase="rollout",
-    #             begin_at_step=500_000_000,
-    #             end_at_step=1_000_000_000,
-    #         ),
-    #         LossRunGate(
-    #             loss_instance_name="sl_kickstarter",
-    #             phase="rollout",
-    #             begin_at_step=500_000_000,
-    #             end_at_step=1_000_000_000,
-    #         ),
-    #         LossRunGate(
-    #             loss_instance_name="sl_kickstarter",
-    #             phase="train",
-    #             begin_at_step=500_000_000,
-    #             end_at_step=1_000_000_000,
-    #         ),
-    #         LossRunGate(
-    #             loss_instance_name="ppo",
-    #             phase="rollout",
-    #             begin_at_step=1_000_000_000,
-    #         ),
-    #     ],
-    #     rules=[
-    #         # Linearly decay SL kickstarter losses from defaults to 0 over 500M..1B steps
-    #         HyperUpdateRule(
-    #             loss_instance_name="sl_kickstarter",
-    #             attr_path="action_loss_coef",
-    #             mode="progress",
-    #             style="linear",
-    #             start_value=0.6,
-    #             end_value=0.0,
-    #             start_agent_step=500_000_000,
-    #             end_agent_step=1_000_000_000,
-    #         ),
-    #         HyperUpdateRule(
-    #             loss_instance_name="sl_kickstarter",
-    #             attr_path="value_loss_coef",
-    #             mode="progress",
-    #             style="linear",
-    #             start_value=1.0,
-    #             end_value=0.0,
-    #             start_agent_step=500_000_000,
-    #             end_agent_step=1_000_000_000,
-    #         ),
-    #     ],
-    # )
-
     return TrainTool(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        evaluator=EvaluatorConfig(simulations=eval_simulations, epoch_interval=0),
+        evaluator=EvaluatorConfig(simulations=eval_simulations),
         policy_architecture=policy_architecture,
         torch_profiler=TorchProfilerConfig(),
-        # scheduler=scheduler,
-        checkpointer=CheckpointerConfig(epoch_interval=5),
     )
 
 
