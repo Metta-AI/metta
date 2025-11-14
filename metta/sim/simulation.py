@@ -231,6 +231,7 @@ class Simulation:
         return self.end_simulation()
 
     def end_simulation(self) -> SimulationResults:
+        self._stats_writer.close()
         db = self._from_shards_and_context()
 
         # Generate thumbnail before writing to database so we can include the URL

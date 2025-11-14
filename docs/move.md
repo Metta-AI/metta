@@ -10,12 +10,8 @@ Metta uses a unified movement system with a single `move` action that can be con
 - **Action**: `move` (directions depend on `allow_diagonals` flag)
 - **Cardinal Mode**: `allow_diagonals=false` → 4 directions (0=N, 1=S, 2=W, 3=E)
 - **8-Way Mode**: `allow_diagonals=true` → 8 directions (0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW, 6=W, 7=NW)
-- **Behavior**: Direct movement that updates orientation to match movement direction
 
 ## Key Concepts
-
-**Orientation**: The `move` action automatically updates agent orientation to match the movement direction. Orientation
-affects actions like `attack`.
 
 **Action Space**: The `move` action's parameter count depends on the `allow_diagonals` setting:
 

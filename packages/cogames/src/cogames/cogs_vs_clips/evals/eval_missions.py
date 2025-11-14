@@ -18,8 +18,8 @@ class EvalVariant(MissionVariant):
 
     # Clipping
     # Note: For clipping configuration, use difficulty variants (e.g., CLIPPED_OXYGEN)
-    # instead of setting clip_rate directly here
-    clip_rate: float = 0.0
+    # instead of setting clip_period directly here
+    clip_period: int = 0
     charger_eff: int = 120
     carbon_eff: int = 115
     oxygen_eff: int = 110
@@ -46,7 +46,7 @@ class EvalVariant(MissionVariant):
         mission.silicon_extractor.efficiency = self.silicon_eff
         mission.energy_regen_amount = self.energy_regen
         mission.inventory_regen_interval = self.inventory_regen_interval
-        mission.clip_rate = self.clip_rate
+        mission.clip_period = self.clip_period
 
     @override
     def modify_env(self, mission, env) -> None:
@@ -56,9 +56,11 @@ class EvalVariant(MissionVariant):
         )
         # Set episode length for all evals
         env.game.max_steps = 1000
+        # Enable protocol observation for observation-based agents
+        env.game.protocol_details_obs = True
         # Make HEART crafting feasible with a single agent using the heart glyph
         assembler_obj = env.game.objects.get("assembler")
-        if assembler_obj is not None and hasattr(assembler_obj, "heart_cost"):
+        if assembler_obj is not None and hasattr(assembler_obj, "first_heart_cost"):
             # Set small single-agent recipe and prepend explicit heart/red-heart entries
             if hasattr(assembler_obj, "recipes"):
                 tiny = ProtocolConfig(
@@ -71,7 +73,7 @@ class EvalVariant(MissionVariant):
                     },
                     output_resources={"heart": 1},
                 )
-                heart_recipes = [(["heart"] * (i + 1), tiny) for i in range(4)]
+                heart_recipes = [(["heart_a"] * (i + 1), tiny) for i in range(4)]
                 redheart_recipes = [(["red-heart"] * (i + 1), tiny) for i in range(4)]
                 assembler_obj.recipes = [*heart_recipes, *redheart_recipes, *assembler_obj.recipes]
 

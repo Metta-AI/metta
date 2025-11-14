@@ -1,22 +1,25 @@
 """Policy environment interface for providing environment information to policies."""
 
-from dataclasses import dataclass
+import json
+from typing import ClassVar
 
 import gymnasium as gym
+from pydantic import BaseModel, ConfigDict
 
 from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.config.mettagrid_config import ActionsConfig, MettaGridConfig
 from mettagrid.mettagrid_c import dtype_observations
 
 
-@dataclass
-class PolicyEnvInterface:
+class PolicyEnvInterface(BaseModel):
     """Interface providing environment information needed by policies.
 
     This class encapsulates the environment configuration details that policies
     need to initialize their networks, such as observation dimensions, action spaces,
     and agent counts.
     """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(arbitrary_types_allowed=True)
 
     obs_features: list[ObservationFeatureSpec]
     tags: list[str]
@@ -26,6 +29,8 @@ class PolicyEnvInterface:
     action_space: gym.spaces.Discrete
     obs_width: int
     obs_height: int
+    assembler_protocols: list  # Assembler protocols for recipe initialization
+    tag_id_to_name: dict[int, str]  # Tag ID to name mapping for observation parsing
 
     @property
     def action_names(self) -> list[str]:
@@ -42,9 +47,21 @@ class PolicyEnvInterface:
         Returns:
             A PolicyEnvInterface instance with environment information
         """
+        # Extract assembler protocols if available
+        assembler_protocols = []
+        assembler_config = mg_cfg.game.objects.get("assembler")
+        if assembler_config and hasattr(assembler_config, "protocols"):
+            assembler_protocols = assembler_config.protocols
+
+        # Get tag ID to name mapping from id_map
+        id_map = mg_cfg.game.id_map()
+        tag_names_list = id_map.tag_names()
+        # Tag IDs are assigned based on alphabetical order (index in sorted list)
+        tag_id_to_name = {i: name for i, name in enumerate(tag_names_list)}
+
         return PolicyEnvInterface(
-            obs_features=mg_cfg.game.id_map().features(),
-            tags=mg_cfg.game.id_map().tag_names(),
+            obs_features=id_map.features(),
+            tags=tag_names_list,
             actions=mg_cfg.game.actions,
             num_agents=mg_cfg.game.num_agents,
             observation_space=gym.spaces.Box(
@@ -53,4 +70,13 @@ class PolicyEnvInterface:
             action_space=gym.spaces.Discrete(len(mg_cfg.game.actions.actions())),
             obs_width=mg_cfg.game.obs.width,
             obs_height=mg_cfg.game.obs.height,
+            assembler_protocols=assembler_protocols,
+            tag_id_to_name=tag_id_to_name,
         )
+
+    def to_json(self) -> str:
+        """Convert PolicyEnvInterface to JSON."""
+        payload = self.model_dump(mode="json", include={"num_agents", "obs_width", "obs_height", "tags"})
+        payload["actions"] = self.action_names
+        payload["obs_features"] = [feature.model_dump(mode="json") for feature in self.obs_features]
+        return json.dumps(payload)

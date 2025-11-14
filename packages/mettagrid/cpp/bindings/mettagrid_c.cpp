@@ -70,7 +70,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   _grid = std::make_unique<Grid>(height, width);
   _obs_encoder = std::make_unique<ObservationEncoder>(
-      resource_names.size(), game_config.protocol_details_obs, &resource_names, &game_config.feature_ids);
+      game_config.protocol_details_obs, resource_names, game_config.feature_ids);
 
   // Initialize ObservationFeature namespace with feature IDs
   ObservationFeature::Initialize(game_config.feature_ids);
@@ -103,8 +103,8 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
     _clipper = std::make_unique<Clipper>(*_grid,
                                          clipper_cfg.unclipping_protocols,
                                          clipper_cfg.length_scale,
-                                         clipper_cfg.cutoff_distance,
-                                         clipper_cfg.clip_rate,
+                                         clipper_cfg.scaled_cutoff_distance,
+                                         clipper_cfg.clip_period,
                                          _rng);
   }
 }
@@ -174,10 +174,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
           throw std::runtime_error("Too many agents for agent_id type");
         }
         agent->agent_id = static_cast<decltype(agent->agent_id)>(_agents.size());
-        // Only initialize visitation grid if visitation counts are enabled
-        if (_global_obs_config.visitation_counts) {
-          agent->init_visitation_grid(height, width);
-        }
+        agent->set_obs_encoder(_obs_encoder.get());
         add_agent(agent);
         _group_sizes[agent->group] += 1;
         continue;
@@ -190,6 +187,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
         _stats->incr("objects." + cell);
         assembler->set_grid(_grid.get());
         assembler->set_current_timestep_ptr(&current_step);
+        assembler->set_obs_encoder(_obs_encoder.get());
         continue;
       }
 
@@ -199,6 +197,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
         _grid->add_object(chest);
         _stats->incr("objects." + cell);
         chest->set_grid(_grid.get());
+        chest->set_obs_encoder(_obs_encoder.get());
         continue;
       }
 
@@ -229,13 +228,6 @@ void MettaGrid::_make_buffers(unsigned int num_agents) {
 
 void MettaGrid::_init_buffers(unsigned int num_agents) {
   assert(current_step == 0 && "current_step should be initialized to 0 at the start of _init_buffers");
-
-  // Reset visitation counts for all agents (only if enabled)
-  if (_global_obs_config.visitation_counts) {
-    for (auto& agent : _agents) {
-      agent->reset_visitation_counts();
-    }
-  }
 
   // Clear all buffers
   std::fill(static_cast<bool*>(_terminals.request().ptr),
@@ -377,16 +369,6 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   if (_global_obs_config.last_reward) {
     ObservationType reward_int = static_cast<ObservationType>(std::round(rewards_view(agent_idx) * 100.0f));
     global_tokens.push_back({ObservationFeature::LastReward, reward_int});
-  }
-
-  // Add visitation counts for this agent
-  if (_global_obs_config.visitation_counts) {
-    auto& agent = _agents[agent_idx];
-    auto visitation_counts = agent->get_visitation_counts();
-    for (size_t i = 0; i < 5; i++) {
-      global_tokens.push_back(
-          {ObservationFeature::VisitationCounts, static_cast<ObservationType>(visitation_counts[i])});
-    }
   }
 
   // Global tokens are always at the center of the observation.
@@ -768,7 +750,6 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
     // We define that for location: x is column, y is row. Currently, no z for grid objects.
     // Note: it might be different for matrix computations.
     obj_dict["location"] = py::make_tuple(obj->location.c, obj->location.r);
-    obj_dict["is_swappable"] = obj->swappable();
 
     obj_dict["r"] = obj->location.r;          // To remove
     obj_dict["c"] = obj->location.c;          // To remove
@@ -822,8 +803,6 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       obj_dict["uses_count"] = assembler->uses_count;
       obj_dict["max_uses"] = assembler->max_uses;
       obj_dict["allow_partial_usage"] = assembler->allow_partial_usage;
-      obj_dict["exhaustion"] = assembler->exhaustion;
-      obj_dict["cooldown_multiplier"] = assembler->cooldown_multiplier;
 
       // Add current protocol ID (pattern byte)
       obj_dict["current_protocol_id"] = static_cast<int>(assembler->get_local_vibe());

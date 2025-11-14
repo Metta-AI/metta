@@ -4,10 +4,11 @@ import json
 import logging
 import uuid
 import zlib
-from typing import Dict
+from typing import Any, Dict
 
 import numpy as np
 
+from metta.common.util.constants import METTASCOPE_REPLAY_URL_PREFIX
 from metta.utils.file import http_url, write_data
 from mettagrid.simulator import SimulatorEventHandler
 from mettagrid.simulator.simulator import Simulation
@@ -26,16 +27,18 @@ class ReplayLogWriter(SimulatorEventHandler):
             replay_dir: Local directory where replays will be written.
         """
         self._replay_dir = replay_dir
-        self._episode_id = None
-        self._episode_replay = None
+        self._episode_id: str | None = None
+        self._episode_replay: EpisodeReplay | None = None
         self._should_continue = True
         self.episodes: Dict[str, EpisodeReplay] = {}
+        self._episode_urls: Dict[str, str] = {}
 
     def on_episode_start(self) -> None:
         """Start recording a new episode."""
         assert self._sim is not None
         self._episode_id = str(uuid.uuid4())
         self._episode_replay = EpisodeReplay(self._sim)
+        assert self._episode_id is not None
         self.episodes[self._episode_id] = self._episode_replay
         logger.info("Started recording episode %s", self._episode_id)
 
@@ -45,7 +48,11 @@ class ReplayLogWriter(SimulatorEventHandler):
         """Log a single step in the replay."""
         assert self._episode_replay is not None
         assert self._sim is not None
-        self._episode_replay.log_step(self._sim.current_step, self._sim._c_sim.actions(), self._sim._c_sim.rewards())
+        self._episode_replay.log_step(
+            self._sim.current_step,
+            self._sim._c_sim.actions(),  # type: ignore[attr-defined]
+            self._sim._c_sim.rewards(),  # type: ignore[attr-defined]
+        )
 
     def should_continue(self) -> bool:
         """Check if rendering should continue."""
@@ -55,11 +62,18 @@ class ReplayLogWriter(SimulatorEventHandler):
         """Write the replay to storage and clean up."""
         assert self._episode_replay is not None
         assert self._sim is not None
+        assert self._episode_id is not None
         replay_path = f"{self._replay_dir}/{self._episode_id}.json.z"
         self._episode_replay.write_replay(replay_path)
         url = http_url(replay_path)
         self._sim._context["replay_url"] = url
+        self._episode_urls[self._episode_id] = url
         logger.info("Wrote replay for episode %s to %s", self._episode_id, url)
+        logger.info("Watch replay at %s", METTASCOPE_REPLAY_URL_PREFIX + url)
+
+    def get_written_replay_urls(self) -> Dict[str, str]:
+        """Return URLs for every replay file that has been written to disk."""
+        return dict(self._episode_urls)
 
 
 class EpisodeReplay:
@@ -68,7 +82,7 @@ class EpisodeReplay:
     def __init__(self, sim: Simulation):
         self.sim = sim
         self.step = 0
-        self.objects = []
+        self.objects: list[dict[str, Any]] = []
         self.total_rewards = np.zeros(sim.num_agents)
 
         self._validate_non_empty_string_list(sim.action_names, "action_names")
@@ -134,7 +148,12 @@ class EpisodeReplay:
         # Trim value changes to make them more compact.
         for grid_object in self.objects:
             for key, changes in list(grid_object.items()):
-                if isinstance(changes, list) and len(changes) == 1:
+                if (
+                    isinstance(changes, list)
+                    and len(changes) == 1
+                    and isinstance(changes[0], (list, tuple))
+                    and len(changes[0]) == 2
+                ):
                     grid_object[key] = changes[0][1]
 
         return self.replay_data

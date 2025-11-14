@@ -148,7 +148,7 @@ Examples:
     # We'll parse known args only, allowing unknown ones to be passed as tool args
     parser.add_argument(
         "module_path",
-        help="Module path to run (e.g., arena.train or experiments.recipes.arena.train, "
+        help="Module path to run (e.g., arena.train or recipes.experiment.arena.train, "
         "or two-token syntax like 'train arena'). "
         "Any arguments following the module path will be passed to the tool.",
     )
@@ -248,7 +248,7 @@ Examples:
     # Validate module path (supports shorthand like 'arena.train' or two-token 'train arena')
     if not validate_module_path(module_path):
         print(f"❌ Invalid module path: '{module_path}'", flush=True)
-        print("Module path should be like 'arena.train' or 'experiments.recipes.arena.train'", flush=True)
+        print("Module path should be like 'arena.train' or 'recipes.experiment.arena.train'", flush=True)
         return 1
 
     assert commit_hash

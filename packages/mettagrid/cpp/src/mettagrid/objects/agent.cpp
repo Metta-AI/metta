@@ -4,6 +4,7 @@
 #include <cassert>
 
 #include "config/observation_features.hpp"
+#include "systems/observation_encoder.hpp"
 
 Agent::Agent(GridCoord r,
              GridCoord c,
@@ -51,44 +52,6 @@ void Agent::populate_initial_inventory(const std::unordered_map<InventoryItem, I
   for (const auto& [item, amount] : initial_inventory) {
     this->update_inventory(item, amount);
   }
-}
-
-void Agent::init_visitation_grid(GridCoord height, GridCoord width) {
-  visitation_grid.resize(height, std::vector<unsigned int>(width, 0));
-  visitation_counts_enabled = true;
-}
-
-void Agent::reset_visitation_counts() {
-  for (auto& row : visitation_grid) {
-    std::fill(row.begin(), row.end(), 0);
-  }
-}
-
-void Agent::increment_visitation_count(GridCoord r, GridCoord c) {
-  if (!visitation_counts_enabled) return;
-
-  if (r < static_cast<GridCoord>(visitation_grid.size()) && c < static_cast<GridCoord>(visitation_grid[0].size())) {
-    visitation_grid[r][c]++;
-  }
-}
-
-std::array<unsigned int, 5> Agent::get_visitation_counts() const {
-  std::array<unsigned int, 5> counts = {0, 0, 0, 0, 0};
-  if (!visitation_grid.empty()) {
-    counts[0] = get_visitation_count(location.r, location.c);  // center
-
-    // Handle potential underflow at map edge
-    if (location.r > 0) {
-      counts[1] = get_visitation_count(location.r - 1, location.c);  // up
-    }
-    counts[2] = get_visitation_count(location.r + 1, location.c);  // down
-
-    if (location.c > 0) {
-      counts[3] = get_visitation_count(location.r, location.c - 1);  // left
-    }
-    counts[4] = get_visitation_count(location.r, location.c + 1);  // right
-  }
-  return counts;
 }
 
 void Agent::set_inventory(const std::unordered_map<InventoryItem, InventoryQuantity>& inventory) {
@@ -157,10 +120,6 @@ void Agent::compute_stat_rewards(StatsTracker* game_stats_tracker) {
   }
 }
 
-bool Agent::swappable() const {
-  return this->frozen;
-}
-
 bool Agent::onUse(Agent& actor, ActionArg arg) {
   // Share half of shareable resources from actor to this agent
   for (InventoryItem resource : actor.shareable_resources) {
@@ -178,6 +137,9 @@ bool Agent::onUse(Agent& actor, ActionArg arg) {
 }
 
 std::vector<PartialObservationToken> Agent::obs_features() const {
+  if (!this->obs_encoder) {
+    throw std::runtime_error("Observation encoder not set for agent");
+  }
   const size_t num_tokens = this->inventory.get().size() + 3 + (vibe > 0 ? 1 : 0) + this->tag_ids.size();
 
   std::vector<PartialObservationToken> features;
@@ -190,7 +152,7 @@ std::vector<PartialObservationToken> Agent::obs_features() const {
   for (const auto& [item, amount] : this->inventory.get()) {
     // inventory should only contain non-zero amounts
     assert(amount > 0);
-    auto item_observation_feature = this->inventory.get_feature_id(item);
+    ObservationType item_observation_feature = this->obs_encoder->get_inventory_feature_id(item);
     features.push_back({item_observation_feature, static_cast<ObservationType>(amount)});
   }
 
@@ -200,14 +162,6 @@ std::vector<PartialObservationToken> Agent::obs_features() const {
   }
 
   return features;
-}
-
-unsigned int Agent::get_visitation_count(GridCoord r, GridCoord c) const {
-  if (visitation_grid.empty() || r >= static_cast<GridCoord>(visitation_grid.size()) ||
-      c >= static_cast<GridCoord>(visitation_grid[0].size())) {
-    return 0;  // Return 0 for out-of-bounds positions
-  }
-  return visitation_grid[r][c];
 }
 
 void Agent::update_inventory_diversity_stats(InventoryItem item, InventoryQuantity amount) {

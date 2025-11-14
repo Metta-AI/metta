@@ -84,6 +84,12 @@ class ParsedURI:
         if value.startswith("gdrive://") or value.startswith("https://drive.google.com/"):
             return cls(raw=value, scheme="gdrive", path=value)
 
+        if value.startswith("wandb://"):
+            path = value[len("wandb://") :]
+            if not path:
+                raise ValueError("wandb:// URIs must include a path")
+            return cls(raw=value, scheme="wandb", path=path)
+
         if value.startswith("file://"):
             parsed = urlparse(value)
             # Combine netloc + path to support file://localhost/tmp

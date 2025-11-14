@@ -190,9 +190,6 @@ class GlobalObsConfig(Config):
 
     last_reward: bool = Field(default=True)
 
-    # Controls whether visitation counts are included in observations
-    visitation_counts: bool = Field(default=False)
-
     # Compass token that points toward the assembler/hub center
     compass: bool = Field(default=False)
 
@@ -233,7 +230,6 @@ class WallConfig(GridObjectConfig):
     # Please don't use this for anything game related.
     pydantic_type: Literal["wall"] = "wall"
     name: str = Field(default="wall")
-    swappable: bool = Field(default=False)
 
 
 class ProtocolConfig(Config):
@@ -263,13 +259,6 @@ class AssemblerConfig(GridObjectConfig):
         ),
     )
     max_uses: int = Field(default=0, ge=0, description="Maximum number of uses (0 = unlimited)")
-    exhaustion: float = Field(
-        default=0.0,
-        ge=0.0,
-        description=(
-            "Exhaustion rate - cooldown multiplier grows by (1 + exhaustion) after each use (0 = no exhaustion)"
-        ),
-    )
     clip_immune: bool = Field(
         default=False, description="If true, this assembler cannot be clipped by the Clipper system"
     )
@@ -314,30 +303,24 @@ class ClipperConfig(Config):
 
     The clipper system uses a spatial diffusion process where clipping spreads
     based on distance from already-clipped buildings. The length_scale parameter
-    controls the exponential decay: weight = exp(-distance / length_scale).
-
-    If length_scale is <= 0 (default 0.0), it will be automatically calculated
-    at runtime in C++ using percolation based on the actual grid size and
-    number of buildings placed. Set length_scale > 0 to use a manual value instead.
-
-    If cutoff_distance is <= 0 (default 0.0), it will be automatically set to
-    3 * length_scale at runtime. At this distance, exp(-3) ≈ 0.05, making weights
-    negligible. Set cutoff_distance > 0 to use a manual cutoff.
+    controls the exponential decay: weight ~= exp(-distance / length_scale).
     """
 
     unclipping_protocols: list[ProtocolConfig] = Field(default_factory=list)
-    length_scale: float = Field(
-        default=0.0,
-        description="Controls spatial spread rate: weight = exp(-distance / length_scale). "
-        "If <= 0, automatically calculated using percolation at runtime.",
+    length_scale: int = Field(
+        default=0,
+        ge=0,
+        description="Controls spatial spread rate: weight ~= exp(-distance / length_scale). "
+        "If <= 0, automatically calculated at runtime based on the sparsity of the grid.",
     )
-    cutoff_distance: float = Field(
-        default=0.0,
-        ge=0.0,
-        description="Maximum distance for infection weight calculations. "
-        "If <= 0, automatically set to 3 * length_scale at runtime.",
+    scaled_cutoff_distance: int = Field(
+        default=3,
+        ge=1,
+        description="Maximum distance in units of length_scale for infection weight calculations.",
     )
-    clip_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    clip_period: int = Field(
+        default=0, ge=0, description="Approximate timesteps between clipping events (0 = disabled)"
+    )
 
 
 AnyGridObjectConfig = SerializeAsAny[
@@ -408,8 +391,9 @@ class GameConfig(Config):
     # Map builder configuration - accepts any MapBuilder config
     map_builder: AnyMapBuilderConfig = Field(default_factory=lambda: RandomMapBuilder.Config(agents=24))
 
+    # Note that if this is False, agents won't be able to see how to unclip assemblers.
     protocol_details_obs: bool = Field(
-        default=False, description="Objects show their protocol inputs and outputs when observed"
+        default=True, description="Objects show their protocol inputs and outputs when observed"
     )
 
     reward_estimates: Optional[dict[str, float]] = Field(default=None)
@@ -466,7 +450,7 @@ class MettaGridConfig(Config):
         )
         objects = {}
         if border_width > 0 or with_walls:
-            objects["wall"] = WallConfig(map_char="#", render_symbol="⬛", swappable=False)
+            objects["wall"] = WallConfig(map_char="#", render_symbol="⬛")
         return MettaGridConfig(
             game=GameConfig(map_builder=map_builder, actions=actions, num_agents=num_agents, objects=objects)
         )

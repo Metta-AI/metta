@@ -25,6 +25,8 @@ def create_mock_policy_env_info() -> PolicyEnvInterface:
         action_space=action_space,
         obs_width=7,
         obs_height=7,
+        assembler_protocols=[],
+        tag_id_to_name={},
     )
 
 
