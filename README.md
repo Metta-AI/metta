@@ -162,12 +162,21 @@ metta configure    # Reconfigure for a different profile
 
 ### CUDA hosts
 
-`metta install` automatically runs `scripts/ensure_torch_cuda.py` on Linux hosts that expose `nvidia-smi`. The helper
-detects RTX 40-series cards (compute capability 8.9) and reinstalls PyTorch from the official CUDA wheels so training
-jobs do not fall back to CPU. To skip or override the detected tag:
+Metta now targets PyTorch 2.9, which ships CUDA wheels covering Ada/Blackwell GPUs out of the box. After `./install.sh`
+finishes, install the wheel that matches your driver so `torch.cuda.get_arch_list()` exposes `sm_89` or newer:
 
-- Set `METTA_SKIP_TORCH_CUDA_FIX=1` to leave the CPU wheel in place.
-- Set `METTA_TORCH_CUDA_TAG=cu124` (or another tag) to force a specific wheel.
+```
+# CUDA 12.6 workstations
+uv pip install torch==2.9.* torchvision==0.24.* torchaudio==2.9.* --index-url https://download.pytorch.org/whl/cu126
+
+# CUDA 12.8 (Ada default)
+uv pip install torch==2.9.* torchvision==0.24.* torchaudio==2.9.* --index-url https://download.pytorch.org/whl/cu128
+
+# CUDA 13.0 / Blackwell labs
+uv pip install torch==2.9.* torchvision==0.24.* torchaudio==2.9.* --index-url https://download.pytorch.org/whl/cu130
+```
+
+CPU or macOS users can stay on the default CPU wheels (`uv pip install torch==2.9.* ...`).
 
 ## Usage
 

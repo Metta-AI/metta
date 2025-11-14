@@ -38,26 +38,4 @@ class CoreSetup(SetupModule):
         env = os.environ.copy()
         env["METTAGRID_FORCE_NIM_BUILD"] = "1"
         self.run_command(cmd, non_interactive=non_interactive, env=env, capture_output=False)
-        self._ensure_cuda_ready_torch(force=force)
         success("Core dependencies installed")
-
-    def _ensure_cuda_ready_torch(self, *, force: bool) -> None:
-        script = self.repo_root / "scripts" / "ensure_torch_cuda.py"
-        if not script.exists():
-            return
-
-        cmd = [
-            "uv",
-            "run",
-            "python",
-            str(script),
-            "--quiet",
-        ]
-        if force:
-            cmd.append("--force")
-
-        try:
-            self.run_command(cmd, capture_output=False)
-        except (subprocess.CalledProcessError, FileNotFoundError) as exc:
-            # Non-fatal: fall back to CPU installs but surface context for debugging.
-            error(f"Failed to ensure CUDA-ready torch wheel ({exc}).")
