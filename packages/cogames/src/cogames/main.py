@@ -5,6 +5,7 @@
 import importlib.metadata
 import json
 import logging
+import subprocess
 import sys
 from pathlib import Path
 from typing import Literal, Optional, TypeVar
@@ -173,6 +174,34 @@ def play_cmd(
         game_name=resolved_mission,
         save_replay=save_replay_dir,
     )
+
+
+@app.command(name="replay", help="Replay a saved game using MettaScope")
+def replay_cmd(
+    replay_path: Path = typer.Argument(..., help="Path to the replay file"),  # noqa: B008
+) -> None:
+    """Replay a saved game using MettaScope visualization tool."""
+    if not replay_path.exists():
+        console.print(f"[red]Error: Replay file not found: {replay_path}[/red]")
+        raise typer.Exit(1)
+
+    mettascope_path = Path("packages/mettagrid/nim/mettascope/src/mettascope.nim")
+    if not mettascope_path.exists():
+        console.print(f"[red]Error: MettaScope not found at: {mettascope_path}[/red]")
+        raise typer.Exit(1)
+
+    console.print(f"[cyan]Launching MettaScope to replay: {replay_path}[/cyan]")
+
+    try:
+        # Run nim with mettascope and replay argument
+        cmd = ["nim", "r", str(mettascope_path), f"--replay:{replay_path}"]
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError as exc:
+        console.print(f"[red]Error running MettaScope: {exc}[/red]")
+        raise typer.Exit(1) from exc
+    except FileNotFoundError as exc:
+        console.print("[red]Error: 'nim' command not found. Please ensure Nim is installed and in your PATH.[/red]")
+        raise typer.Exit(1) from exc
 
 
 @app.command("make-mission", help="Create a new mission configuration")

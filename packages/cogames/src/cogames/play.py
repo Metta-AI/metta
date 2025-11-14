@@ -51,8 +51,10 @@ def play(
 
     # Set up replay writer if requested
     event_handlers = []
+    replay_writer = None
     if save_replay:
-        event_handlers.append(ReplayLogWriter(str(save_replay)))
+        replay_writer = ReplayLogWriter(str(save_replay))
+        event_handlers.append(replay_writer)
 
     # Create simulator and renderer
     rollout = Rollout(
@@ -70,3 +72,12 @@ def play(
     console.print(f"Steps: {rollout._sim.current_step}")
     console.print(f"Total Rewards: {rollout._sim.episode_rewards}")
     console.print(f"Final Reward Sum: {float(sum(rollout._sim.episode_rewards)):.2f}")
+
+    # Print replay command if replay was saved
+    if replay_writer:
+        replay_paths = replay_writer.get_written_replay_paths()
+        if replay_paths:
+            for replay_path in replay_paths.values():
+                console.print("\n[bold cyan]Replay saved![/bold cyan]")
+                console.print("To watch the replay, run:")
+                console.print(f"[bold green]cogames replay {replay_path}[/bold green]")

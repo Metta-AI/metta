@@ -27,6 +27,7 @@ class MultiEpisodeRolloutResult(BaseModel):
     rewards: list[np.ndarray]
     action_timeouts: list[np.ndarray]
     stats: list[EpisodeStats]
+    replay_paths: Optional[list[str]] = None
 
 
 def _compute_policy_agent_counts(num_agents: int, proportions: list[float]) -> list[int]:
@@ -84,6 +85,12 @@ def multi_episode_rollout(
     per_episode_stats: list[EpisodeStats] = []
     per_episode_assignments: list[np.ndarray] = []
     per_episode_timeouts: list[np.ndarray] = []
+
+    # Set up a single replay writer for all episodes if save_replay is provided
+    replay_writer = None
+    if save_replay is not None:
+        replay_writer = ReplayLogWriter(str(save_replay))
+
     rng = np.random.default_rng(seed)
     for episode_idx in range(episodes):
         rng.shuffle(assignments)
@@ -91,9 +98,9 @@ def multi_episode_rollout(
             policies[assignments[agent_id]].agent_policy(agent_id) for agent_id in range(env_cfg.game.num_agents)
         ]
         handlers = list(event_handlers or [])
-        # Set up replay event handlers if save_replay is provided
-        if save_replay is not None:
-            handlers.append(ReplayLogWriter(str(save_replay)))
+        # Add replay writer to handlers if it exists
+        if replay_writer is not None:
+            handlers.append(replay_writer)
 
         rollout = Rollout(
             env_cfg,
@@ -112,9 +119,15 @@ def multi_episode_rollout(
         if progress_callback is not None:
             progress_callback(episode_idx)
 
+    # Collect replay paths if replay writer was used
+    replay_paths = None
+    if replay_writer is not None:
+        replay_paths = list(replay_writer.get_written_replay_paths().values())
+
     return MultiEpisodeRolloutResult(
         rewards=per_episode_rewards,
         stats=per_episode_stats,
         action_timeouts=per_episode_timeouts,
         assignments=per_episode_assignments,
+        replay_paths=replay_paths,
     )
