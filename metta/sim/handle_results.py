@@ -160,92 +160,96 @@ def render_eval_summary(rollout_results: list[SimulationRunResult], policy_names
     summaries = build_multi_episode_rollout_summaries(
         [result.results for result in rollout_results], num_policies=len(policy_names)
     )
-    names = [
+    sim_names = [
         f"{result.run.episode_tags.get('category', 'unknown')}.{result.run.episode_tags.get('name', f'unknown_{i}')}"
         for i, result in enumerate(rollout_results)
     ]
-    mission_summaries = list(zip(names, summaries, strict=True))
+    sim_summaries = list(zip(sim_names, summaries, strict=True))
 
-    if should_use_rich_console():
-        console = get_console()
-    else:
-        buffer = io.StringIO()
-        console = Console(
-            record=True,
-            force_terminal=False,
-            color_system=None,
-            no_color=True,
-            file=buffer,  # Prevents printing to stdout
-        )
-        console._buffer = buffer  # type: ignore[assignment]
+    def _print(content) -> None:
+        if should_use_rich_console():
+            get_console().print(content)
+        else:
+            # headless, no stdout, but record everything
+            buffer = io.StringIO()
+            console = Console(
+                record=True,
+                file=buffer,
+                force_terminal=False,
+                color_system=None,
+                no_color=True,
+            )
+            console.print(content)
+            text_output = console.export_text()
+            logger.info("\n%s", text_output)
 
     if len(policy_names) > 1:
-        console.print("\n[bold cyan]Policy Assignments[/bold cyan]")
+        _print("\n[bold cyan]Policy Assignments[/bold cyan]")
         assignment_table = Table(show_header=True, header_style="bold magenta")
         assignment_table.add_column("Simulation")
         assignment_table.add_column("Policy")
         assignment_table.add_column("Num Agents", justify="right")
-        for mission_name, mission in mission_summaries:
-            for policy_idx, policy_summary in enumerate(mission.policy_summaries):
+        for s_name, s in sim_summaries:
+            for policy_idx, policy_summary in enumerate(s.policy_summaries):
                 assignment_table.add_row(
-                    mission_name,
+                    s_name,
                     policy_names[policy_idx],
                     str(policy_summary.agent_count),
                 )
-        console.print(assignment_table)
+        _print(assignment_table)
 
-    console.print("\n[bold cyan]Average Game Stats[/bold cyan]")
+    _print("\n[bold cyan]Average Game Stats[/bold cyan]")
     game_stats_table = Table(show_header=True, header_style="bold magenta")
     game_stats_table.add_column("Simulation")
     game_stats_table.add_column("Metric")
     game_stats_table.add_column("Average", justify="right")
-    for mission_name, mission in mission_summaries:
-        for key, value in mission.avg_game_stats.items():
-            game_stats_table.add_row(mission_name, key, f"{value:.2f}")
-    console.print(game_stats_table)
+    for s_name, s in sim_summaries:
+        for key, value in s.avg_game_stats.items():
+            game_stats_table.add_row(s_name, key, f"{value:.2f}")
+    _print(game_stats_table)
 
-    if any(policy.action_timeouts for mission in summaries for policy in mission.policy_summaries):
-        console.print("\n[bold cyan]Action Generation Timeouts per Policy[/bold cyan]")
+    if any(policy.action_timeouts for s in summaries for policy in s.policy_summaries):
+        _print("\n[bold cyan]Action Generation Timeouts per Policy[/bold cyan]")
         timeouts_table = Table(show_header=True, header_style="bold magenta")
         timeouts_table.add_column("Simulation")
         timeouts_table.add_column("Policy")
         timeouts_table.add_column("Timeouts", justify="right")
-        for mission_name, mission in mission_summaries:
-            for i, policy_summary in enumerate(mission.policy_summaries):
+        for s_name, s in sim_summaries:
+            for i, policy_summary in enumerate(s.policy_summaries):
                 if policy_summary.action_timeouts > 0:
                     timeouts_table.add_row(
-                        mission_name,
+                        s_name,
                         policy_names[i],
                         str(policy_summary.action_timeouts),
                     )
-        console.print(timeouts_table)
+        _print(timeouts_table)
 
-    console.print("\n[bold cyan]Average Policy Stats[/bold cyan]")
+    _print("\n[bold cyan]Average Policy Stats[/bold cyan]")
     for i, policy_name in enumerate(policy_names):
         policy_table = Table(title=policy_name, show_header=True, header_style="bold magenta")
-        policy_table.add_column("Mission")
+        policy_table.add_column("Simulation")
         policy_table.add_column("Metric")
         policy_table.add_column("Average", justify="right")
-        for mission_name, mission in mission_summaries:
-            metrics = mission.policy_summaries[i].avg_agent_metrics
+        for s_name, s in sim_summaries:
+            metrics = s.policy_summaries[i].avg_agent_metrics
             if not metrics:
-                policy_table.add_row(mission_name, "-", "-")
+                policy_table.add_row(s_name, "-", "-")
                 continue
             for key, value in metrics.items():
-                policy_table.add_row(mission_name, key, f"{value:.2f}")
-        console.print(policy_table)
+                policy_table.add_row(s_name, key, f"{value:.2f}")
+        _print(policy_table)
 
-    console.print("\n[bold cyan]Average Reward per Agent[/bold cyan]")
+    _print("\n[bold cyan]Average Reward per Agent[/bold cyan]")
     summary_table = Table(show_header=True, header_style="bold magenta")
-    summary_table.add_column("Mission")
+    summary_table.add_column("Simulation")
     summary_table.add_column("Episode", justify="right")
     for policy_name in policy_names:
         summary_table.add_column(policy_name, justify="right")
 
-    for mission_name, mission in mission_summaries:
-        for episode_idx, avg_rewards in sorted(mission.per_episode_per_policy_avg_rewards.items(), key=lambda x: x[0]):
-            row = [mission_name, str(episode_idx)]
+    for s_name, s in sim_summaries:
+        for episode_idx, avg_rewards in sorted(s.per_episode_per_policy_avg_rewards.items(), key=lambda x: x[0]):
+            row = [s_name, str(episode_idx)]
             row.extend((f"{value:.2f}" if value is not None else "-" for value in avg_rewards))
             summary_table.add_row(*row)
 
-    console.print(summary_table)
+    _print(summary_table)
