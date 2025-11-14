@@ -14,7 +14,6 @@ from metta.agent.policy import Policy
 from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.policy_artifact import PolicyArtifact
-from metta.sim.replay_log_writer import ReplayLogWriter
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.stats import DuckDBStatsWriter
@@ -23,6 +22,7 @@ from metta.sim.utils import get_or_create_policy_ids
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.policy.policy import AgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.simulator.replay_log_writer import ReplayLogWriter
 from mettagrid.simulator.rollout import Rollout
 
 SYNTHETIC_EVAL_SUITE = "training"
@@ -209,7 +209,7 @@ class Simulation:
                 max_action_time_ms=10000,
                 render_mode=None,
                 seed=episode_idx,
-                event_handlers=event_handlers if event_handlers else None,
+                event_handlers=event_handlers,
                 stats_writer=self._stats_writer,
             )
 
