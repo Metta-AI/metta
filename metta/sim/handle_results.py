@@ -1,11 +1,68 @@
+import logging
 from collections import defaultdict
+from typing import Any
 
+import wandb
 from rich.table import Table
 
+from metta.common.util.collections import remove_none_keys
+from metta.common.util.constants import METTASCOPE_REPLAY_URL_PREFIX
 from metta.common.util.log_config import get_console, should_use_rich_console
+from metta.common.wandb.context import WandbRun
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
+from metta.rl.wandb import (
+    POLICY_EVALUATOR_EPOCH_METRIC,
+    POLICY_EVALUATOR_METRIC_PREFIX,
+    POLICY_EVALUATOR_STEP_METRIC,
+    setup_policy_evaluator_metrics,
+)
 from metta.sim.runner import SimulationRunResult
 from mettagrid.simulator.multi_episode.summary import build_multi_episode_rollout_summaries
+
+logger = logging.getLogger(__name__)
+
+
+def get_replay_html_payload(
+    replay_urls: dict[str, list[str]],
+) -> dict[str, Any]:
+    """Upload organized replay HTML links to wandb."""
+    if not replay_urls:
+        return {}
+    replay_groups = {}
+
+    for sim_name, urls in sorted(replay_urls.items()):
+        if "training_task" in sim_name:
+            # Training replays
+            if "training" not in replay_groups:
+                replay_groups["training"] = []
+            replay_groups["training"].extend(urls)
+        else:
+            # Evaluation replays - clean up the display name
+            display_name = sim_name.replace("eval/", "")
+            if display_name not in replay_groups:
+                replay_groups[display_name] = []
+            replay_groups[display_name].extend(urls)
+
+    # Build HTML with episode numbers
+    links = []
+    for name, urls in replay_groups.items():
+        if len(urls) == 1:
+            # Single episode - just show the name
+            links.append(_form_mettascope_link(urls[0], name))
+        else:
+            # Multiple episodes - show name with numbered links
+            episode_links = []
+            for i, url in enumerate(urls, 1):
+                episode_links.append(_form_mettascope_link(url, str(i)))
+            links.append(f"{name} [{' '.join(episode_links)}]")
+
+    # Log all links in a single HTML entry
+    html_content = " | ".join(links)
+    return remove_none_keys({"replays/all": wandb.Html(html_content)})
+
+
+def _form_mettascope_link(url: str, name: str) -> str:
+    return f'<a href="{METTASCOPE_REPLAY_URL_PREFIX}{url}" target="_blank">{name}</a>'
 
 
 # This gets the sim results into a format we know how to submit to wandb
@@ -49,6 +106,43 @@ def to_eval_results(
         ),
         replay_urls=replay_urls,
     )
+
+
+def send_eval_results_to_wandb(
+    *,
+    rollout_results: list[SimulationRunResult],
+    epoch: int,
+    agent_step: int,
+    wandb_run: WandbRun,
+    during_training: bool = False,
+    should_finish_run: bool = False,
+) -> None:
+    eval_results = to_eval_results(rollout_results, num_policies=1, target_policy_idx=0)
+
+    # Get metrics payload
+    metrics_to_log: dict[str, float] = {
+        f"{POLICY_EVALUATOR_METRIC_PREFIX}/eval_{k}": v
+        for k, v in eval_results.scores.to_wandb_metrics_format().items()
+    }
+    metrics_to_log.update(
+        {
+            f"overview/{POLICY_EVALUATOR_METRIC_PREFIX}/{category}_score": score
+            for category, score in eval_results.scores.category_scores.items()
+        }
+    )
+    metrics_to_log.update(get_replay_html_payload(eval_results.replay_urls))
+    if not during_training:
+        try:
+            setup_policy_evaluator_metrics(wandb_run)
+        except Exception:
+            logger.warning("Failed to set default axes for policy evaluator metrics. Continuing")
+            pass
+        metrics_to_log.update({POLICY_EVALUATOR_STEP_METRIC: agent_step, POLICY_EVALUATOR_EPOCH_METRIC: epoch})
+        wandb_run.log(metrics_to_log)
+    else:
+        wandb_run.log(metrics_to_log, step=epoch)
+    if should_finish_run:
+        wandb_run.finish()
 
 
 def render_eval_summary(rollout_results: list[SimulationRunResult], policy_names: list[str]) -> None:

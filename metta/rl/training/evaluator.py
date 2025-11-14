@@ -18,12 +18,10 @@ from metta.eval.eval_request_config import EvalRewardSummary
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import (
     evaluate_policy_remote_with_checkpoint_manager,
-    upload_replay_html,
 )
-from metta.rl.stats import process_policy_evaluator_stats
 from metta.rl.training import TrainerComponent
 from metta.rl.training.optimizer import is_schedulefree_optimizer
-from metta.sim.handle_results import render_eval_summary, to_eval_results
+from metta.sim.handle_results import render_eval_summary, send_eval_results_to_wandb, to_eval_results
 from metta.sim.runner import MultiAgentPolicyInitializer, SimulationRunResult, run_simulations
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
@@ -194,21 +192,12 @@ class Evaluator(TrainerComponent):
             stats_reporter = getattr(self.context, "stats_reporter", None)
             wandb_run = getattr(stats_reporter, "wandb_run", None)
             if wandb_run:
-                process_policy_evaluator_stats(
-                    policy_uri=policy_uri,
-                    eval_results=eval_results,
-                    wandb_run=wandb_run,
+                send_eval_results_to_wandb(
+                    rollout_results=rollout_results,
                     epoch=epoch,
                     agent_step=agent_step,
+                    wandb_run=wandb_run,
                     should_finish_run=False,
-                )
-                upload_replay_html(
-                    replay_urls=eval_results.replay_urls,
-                    agent_step=agent_step,
-                    epoch=epoch,
-                    wandb_run=wandb_run,
-                    step_metric_key="metric/epoch",
-                    epoch_metric_key="metric/epoch",
                 )
 
             self._latest_scores = eval_results.scores
