@@ -43,16 +43,16 @@ class MachinaTrainerSmallMapVariant(MissionVariant):
 MACHINA_TRAINER_MISSIONS: list[Mission] = [
     Mission(
         name="machinatrainerbig",
-        description="Machinatrainerbig map with 10 cogs, 2000 steps, and single-use extractors.",
+        description="Machinatrainerbig map with 60 cogs, 2000 steps, and single-use extractors.",
         site=MACHINA_1,
         num_cogs=60,
-        variants=[MachinaTrainerBigMapVariant(), MachinaTrainerRulesVariant()],
+        variants=[MachinaTrainerBigMapVariant()],
         **_single_use_extractor_kwargs(),
     ),
     Mission(
         name="machinatrainersmall",
         description=(
-            "Machinatrainersmall map (middle 25% of big trainer) with 10 cogs, 2000 steps, single-use extractors."
+            "Machinatrainersmall map (middle 25% of big trainer) with 40 cogs, 2000 steps, single-use extractors."
         ),
         site=MACHINA_1,
         num_cogs=40,
