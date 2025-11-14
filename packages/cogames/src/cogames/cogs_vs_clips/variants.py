@@ -157,9 +157,19 @@ class NeutralFacedVariant(MissionVariant):
         # Fully neutralize the vibe mechanic
         change_vibe.enabled = False
         change_vibe.number_of_vibes = 1
-        env.game.vibe_names = ["default"]
-
         neutral_vibe_name = "default"
+        env.game.vibe_names = [neutral_vibe_name]
+
+        # Remove vibe transfers that rely on non-existent vibes
+        def _strip_non_neutral_vibe_transfers(agent_cfg):
+            agent_cfg.vibe_transfers = {
+                vibe: transfers for vibe, transfers in agent_cfg.vibe_transfers.items() if vibe == neutral_vibe_name
+            }
+
+        _strip_non_neutral_vibe_transfers(env.game.agent)
+        for agent_cfg in env.game.agents:
+            _strip_non_neutral_vibe_transfers(agent_cfg)
+
         # Make assembler/chest behavior neutral-only.
         for name, obj in env.game.objects.items():
             if isinstance(obj, AssemblerConfig) and obj.protocols:
@@ -578,37 +588,60 @@ class EmptyBaseVariant(BaseHubVariant):
         node.corner_bundle = "custom"
 
 
+class TraderVariant(MissionVariant):
+    name: str = "trader"
+    description: str = "Agents can trade resources with each other."
+
+    @override
+    def modify_env(self, mission, env):
+        env.game.agent.vibe_transfers.update(
+            {
+                "carbon_a": {"carbon": 1},
+                "carbon_b": {"carbon": 10},
+                "oxygen_a": {"oxygen": 1},
+                "oxygen_b": {"oxygen": 10},
+                "germanium_a": {"germanium": 1},
+                "germanium_b": {"germanium": 4},
+                "silicon_a": {"silicon": 10},
+                "silicon_b": {"silicon": 50},
+                "heart_a": {"heart": 1},
+                "heart_b": {"heart": 4},
+            }
+        )
+
+
 # TODO - validate that all variant names are unique
 VARIANTS: list[MissionVariant] = [
-    MinedOutVariant(),
-    DarkSideVariant(),
-    SuperChargedVariant(),
-    RoughTerrainVariant(),
-    SolarFlareVariant(),
-    HeartChorusVariant(),
-    VibeCheckMin2Variant(),
-    DesertVariant(),
-    ForestVariant(),
-    CityVariant(),
     CavesVariant(),
-    SingleResourceUniformVariant(),
-    EmptyBaseVariant(),
-    LonelyHeartVariant(),
-    PackRatVariant(),
-    EnergizedVariant(),
-    NeutralFacedVariant(),
-    SingleToolUnclipVariant(),
-    ResourceBottleneckVariant(),
-    CompassVariant(),
-    Small50Variant(),
-    CogToolsOnlyVariant(),
-    InventoryHeartTuneVariant(),
     ChestHeartTuneVariant(),
-    ExtractorHeartTuneVariant(),
-    QuadrantBuildingsVariant(),
+    CityVariant(),
     ClipHubStationsVariant(),
-    CyclicalUnclipVariant(),
     ClipPeriodOnVariant(),
+    CogToolsOnlyVariant(),
+    CompassVariant(),
+    CyclicalUnclipVariant(),
+    DarkSideVariant(),
+    DesertVariant(),
+    EmptyBaseVariant(),
+    EnergizedVariant(),
+    ExtractorHeartTuneVariant(),
+    ForestVariant(),
+    HeartChorusVariant(),
+    InventoryHeartTuneVariant(),
+    LonelyHeartVariant(),
+    MinedOutVariant(),
+    NeutralFacedVariant(),
+    PackRatVariant(),
+    QuadrantBuildingsVariant(),
+    ResourceBottleneckVariant(),
+    RoughTerrainVariant(),
+    SingleResourceUniformVariant(),
+    SingleToolUnclipVariant(),
+    Small50Variant(),
+    SolarFlareVariant(),
+    SuperChargedVariant(),
+    TraderVariant(),
+    VibeCheckMin2Variant(),
     *DIFFICULTY_VARIANTS,
 ]
 
