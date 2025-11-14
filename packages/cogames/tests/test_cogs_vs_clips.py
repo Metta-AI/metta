@@ -62,9 +62,9 @@ def test_neutral_faced_variant_neutralizes_recipes():
     for obj in env.game.objects.values():
         if not isinstance(obj, AssemblerConfig):
             continue
-        assert obj.protocols, "Neutral-faced variant should keep extractor protocols intact"
-        for protocol in obj.protocols:
-            assert protocol.vibes == ["default"]
+        assert len(obj.protocols) == 1
+        protocol = obj.protocols[0]
+        assert protocol.vibes == ["default"]
 
 
 def test_germanium_extractor_has_single_agent_protocol():
