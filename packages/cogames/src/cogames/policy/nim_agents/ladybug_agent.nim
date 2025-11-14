@@ -106,6 +106,21 @@ proc resourceVibe(resource: string): string =
   else:
     "carbon_a"
 
+proc tagName(cfg: Config, tagId: int): string =
+  if tagId >= 0 and tagId < cfg.config.tags.len:
+    return cfg.config.tags[tagId]
+  ""
+
+proc maybeAssign(
+  table: var Table[string, int],
+  featureField: int,
+  key: string,
+  featureId: int,
+  value: int
+) =
+  if featureField != 0 and featureId == featureField:
+    table[key] = value
+
 proc stationFromName(lowerName: string): string =
   if lowerName.contains("assembler"):
     "assembler"
@@ -173,7 +188,7 @@ proc buildObservedObject(agent: LadybugAgent, features: seq[FeatureValue]): Obse
   result.protocolOutputs = initTable[string, int]()
   for fv in features:
     if fv.featureId == agent.cfg.features.tag:
-      result.name = agent.cfg.tagName(fv.value)
+      result.name = tagName(agent.cfg, fv.value)
     elif fv.featureId == agent.cfg.features.converting:
       result.converting = fv.value > 0
     elif fv.featureId == agent.cfg.features.cooldownRemaining:
@@ -183,12 +198,27 @@ proc buildObservedObject(agent: LadybugAgent, features: seq[FeatureValue]): Obse
     elif fv.featureId == agent.cfg.features.remainingUses:
       result.remainingUses = fv.value
     else:
-      for resource, id in agent.cfg.features.protocolInputs.pairs:
-        if fv.featureId == id:
-          result.protocolInputs[resource] = fv.value
-      for resource, id in agent.cfg.features.protocolOutputs.pairs:
-        if fv.featureId == id:
-          result.protocolOutputs[resource] = fv.value
+      let fid = fv.featureId
+      maybeAssign(result.protocolInputs, agent.cfg.features.protocolInputEnergy, "energy", fid, fv.value)
+      maybeAssign(result.protocolInputs, agent.cfg.features.protocolInputCarbon, "carbon", fid, fv.value)
+      maybeAssign(result.protocolInputs, agent.cfg.features.protocolInputOxygen, "oxygen", fid, fv.value)
+      maybeAssign(result.protocolInputs, agent.cfg.features.protocolInputGermanium, "germanium", fid, fv.value)
+      maybeAssign(result.protocolInputs, agent.cfg.features.protocolInputSilicon, "silicon", fid, fv.value)
+      maybeAssign(result.protocolInputs, agent.cfg.features.protocolInputHeart, "heart", fid, fv.value)
+      maybeAssign(result.protocolInputs, agent.cfg.features.protocolInputDecoder, "decoder", fid, fv.value)
+      maybeAssign(result.protocolInputs, agent.cfg.features.protocolInputModulator, "modulator", fid, fv.value)
+      maybeAssign(result.protocolInputs, agent.cfg.features.protocolInputResonator, "resonator", fid, fv.value)
+      maybeAssign(result.protocolInputs, agent.cfg.features.protocolInputScrambler, "scrambler", fid, fv.value)
+      maybeAssign(result.protocolOutputs, agent.cfg.features.protocolOutputEnergy, "energy", fid, fv.value)
+      maybeAssign(result.protocolOutputs, agent.cfg.features.protocolOutputCarbon, "carbon", fid, fv.value)
+      maybeAssign(result.protocolOutputs, agent.cfg.features.protocolOutputOxygen, "oxygen", fid, fv.value)
+      maybeAssign(result.protocolOutputs, agent.cfg.features.protocolOutputGermanium, "germanium", fid, fv.value)
+      maybeAssign(result.protocolOutputs, agent.cfg.features.protocolOutputSilicon, "silicon", fid, fv.value)
+      maybeAssign(result.protocolOutputs, agent.cfg.features.protocolOutputHeart, "heart", fid, fv.value)
+      maybeAssign(result.protocolOutputs, agent.cfg.features.protocolOutputDecoder, "decoder", fid, fv.value)
+      maybeAssign(result.protocolOutputs, agent.cfg.features.protocolOutputModulator, "modulator", fid, fv.value)
+      maybeAssign(result.protocolOutputs, agent.cfg.features.protocolOutputResonator, "resonator", fid, fv.value)
+      maybeAssign(result.protocolOutputs, agent.cfg.features.protocolOutputScrambler, "scrambler", fid, fv.value)
 
 proc discoverStation(agent: LadybugAgent, key: string, loc: Location) =
   if key notin agent.state.stations:
