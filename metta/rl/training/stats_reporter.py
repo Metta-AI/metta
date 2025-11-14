@@ -4,7 +4,6 @@ import logging
 from collections import defaultdict
 from contextlib import nullcontext
 from typing import Any, ContextManager, Optional, Protocol
-from uuid import UUID
 
 import numpy as np
 import torch
