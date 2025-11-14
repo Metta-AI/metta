@@ -334,10 +334,11 @@ Included missions and variants:
 Usage example:
 
 ```bash
-uv run packages/cogames/scripts/evaluate_policies.py \
-  --eval-module cogames.cogs_vs_clips.evals.integrated_eval \
-  --policy cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy \
-  --cogs 4 --repeats 2 --quiet
+uv run python packages/cogames/scripts/evaluate_scripted_agents.py \
+  --agent cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy \
+  --mission-set integrated_evals \
+  --cogs 4 \
+  --repeats 2
 ```
 
 Recommendation: When designing new scorable baselines, combine one “shaping” variant (e.g., `CompassVariant`,
