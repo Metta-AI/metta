@@ -34,6 +34,7 @@ type
     assemblerLocation: Option[Location]
     knownExtractors: Table[ResourceKind, HashSet[Location]]
     depletedExtractors: Table[ResourceKind, HashSet[Location]]
+    maxEnergyObserved: int
 
   RaceCarPolicy* = ref object
     agents*: seq[RaceCarAgent]
@@ -68,10 +69,10 @@ proc resourceRequirement(agent: RaceCarAgent, kind: ResourceKind): int =
     base = 1
   base + RequirementBuffer
 
-proc targetEnergy(agent: RaceCarAgent): int =
-  if agent.energyRequirement > 0:
-    return max(agent.energyRequirement + EnergyBuffer, EnergyReserve)
-  EnergyReserve
+proc energyLowThreshold(agent: RaceCarAgent): int =
+  if agent.maxEnergyObserved <= EnergyReserve:
+    return EnergyReserve
+  max(EnergyReserve, agent.maxEnergyObserved div 3)
 
 proc resourceVibe(agent: RaceCarAgent, kind: ResourceKind): tuple[action: int, vibe: int] =
   case kind
@@ -123,15 +124,35 @@ proc recordLocalExtractor(agent: RaceCarAgent, kind: ResourceKind, location: Loc
     agent.knownExtractors[kind].incl(location)
     rememberExtractorLocation(kind, location)
 
+proc unmarkDepleted(agent: RaceCarAgent, kind: ResourceKind, location: Location) =
+  if agent.depletedExtractors.hasKey(kind):
+    agent.depletedExtractors[kind].excl(location)
+
+proc markExtractorDepleted(agent: RaceCarAgent, kind: ResourceKind, location: Location) =
+  if not agent.depletedExtractors.hasKey(kind):
+    agent.depletedExtractors[kind] = initHashSet[Location]()
+  if location in agent.depletedExtractors[kind]:
+    return
+  agent.depletedExtractors[kind].incl(location)
+  if agent.knownExtractors.hasKey(kind):
+    agent.knownExtractors[kind].excl(location)
+  if sharedExtractorLocations.hasKey(kind):
+    sharedExtractorLocations[kind].excl(location)
+
+proc isExtractorDepleted(agent: RaceCarAgent, kind: ResourceKind, location: Location): bool =
+  agent.depletedExtractors.hasKey(kind) and location in agent.depletedExtractors[kind]
+
 proc extractorTargets(agent: RaceCarAgent, kind: ResourceKind): seq[Location] =
   var seen = initHashSet[Location]()
   if agent.knownExtractors.hasKey(kind):
     for location in agent.knownExtractors[kind]:
+      if agent.isExtractorDepleted(kind, location):
+        continue
       seen.incl(location)
       result.add(location)
   if sharedExtractorLocations.hasKey(kind):
     for location in sharedExtractorLocations[kind]:
-      if location notin seen:
+      if location notin seen and not agent.isExtractorDepleted(kind, location):
         seen.incl(location)
         result.add(location)
 
@@ -156,7 +177,17 @@ proc scanVisibleExtractors(agent: RaceCarAgent, visible: Table[Location, seq[Fea
         for kind in ResourceKind:
           if featureValue.value == agent.extractorTag(kind):
             let globalLocation = agent.location + relativeLocation
-            agent.recordLocalExtractor(kind, globalLocation)
+            var remainingUses = -1
+            if agent.cfg.features.remainingUses != 0:
+              for fv in featureValues:
+                if fv.featureId == agent.cfg.features.remainingUses:
+                  remainingUses = fv.value
+                  break
+            if remainingUses == 0:
+              agent.markExtractorDepleted(kind, globalLocation)
+            else:
+              agent.recordLocalExtractor(kind, globalLocation)
+              agent.unmarkDepleted(kind, globalLocation)
 
 proc protocolFeatureValue(features: seq[FeatureValue], featureId: int): int =
   ## Return the positive value associated with a protocol feature id, if present.
@@ -404,13 +435,16 @@ proc step*(
 
     let vibe = agent.cfg.getVibe(map, Location(x: 0, y: 0))
     let invEnergy = agent.cfg.getInventory(map, agent.cfg.features.invEnergy)
+    if invEnergy > agent.maxEnergyObserved:
+      agent.maxEnergyObserved = invEnergy
     let invHeart = agent.cfg.getInventory(map, agent.cfg.features.invHeart)
     let inventory = agent.sampleInventory(map)
 
     let chargerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.charger)
     let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
 
-    if invEnergy < targetEnergy(agent) and chargerNearby.isSome():
+    let rechargeThreshold = agent.energyLowThreshold()
+    if invEnergy < rechargeThreshold and chargerNearby.isSome():
       let action = agent.cfg.aStar(agent.location, chargerNearby.get(), agent.map)
       if action.isSome():
         doAction(action.get().int32)
@@ -498,6 +532,7 @@ proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
   result.assemblerLocation = none(Location)
   result.knownExtractors = initTable[ResourceKind, HashSet[Location]]()
   result.depletedExtractors = initTable[ResourceKind, HashSet[Location]]()
+  result.maxEnergyObserved = 0
 
 proc newRaceCarPolicy*(environmentConfig: string): RaceCarPolicy =
   let cfg = parseConfig(environmentConfig)
