@@ -66,7 +66,7 @@ class JobConfig(Config):
     """
 
     name: str
-    tool: str | None = None  # Tool for tools/run.py (e.g., "arena.train")
+    tool_maker: str | None = None  # Tool maker path for tools/run.py (e.g., "recipes.prod.arena_basic_easy_shaped.train")
     cmd: str | None = None  # Arbitrary command string (e.g., "pytest tests/")
     args: dict[str, Any] = Field(default_factory=dict)
     overrides: dict[str, Any] = Field(default_factory=dict)
@@ -90,11 +90,11 @@ class JobConfig(Config):
 
     @model_validator(mode="after")
     def validate_tool_or_cmd(self):
-        """Validate that exactly one of tool or cmd is provided."""
-        if self.tool and self.cmd:
-            raise ValueError("Cannot specify both 'tool' and 'cmd'. Use one or the other.")
-        if not self.tool and not self.cmd:
-            raise ValueError("Must specify either 'tool' or 'cmd'.")
+        """Validate that exactly one of tool_maker or cmd is provided."""
+        if self.tool_maker and self.cmd:
+            raise ValueError("Cannot specify both 'tool_maker' and 'cmd'. Use one or the other.")
+        if not self.tool_maker and not self.cmd:
+            raise ValueError("Must specify either 'tool_maker' or 'cmd'.")
 
         # If using cmd, args and overrides should be empty
         if self.cmd and (self.args or self.overrides):
@@ -113,8 +113,8 @@ class JobConfig(Config):
             # Parse arbitrary command string into list
             return shlex.split(self.cmd)
         else:
-            # Build tools/run.py command from tool + args + overrides
-            cmd = ["uv", "run", "./tools/run.py", self.tool]
+            # Build tools/run.py command from tool_maker + args + overrides
+            cmd = ["uv", "run", "./tools/run.py", self.tool_maker]
             for k, v in self.args.items():
                 cmd.append(f"{k}={v}")
             for k, v in self.overrides.items():
