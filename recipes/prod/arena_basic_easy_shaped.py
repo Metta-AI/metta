@@ -128,7 +128,7 @@ def evaluate_latest_in_dir(dir_path: Path) -> EvaluateTool:
     if not policy_uri:
         raise ValueError(f"No policies found in {dir_path}")
     policy_uri = policy_uri[-1]
-    sim = mettagrid(num_agents=1)
+    sim = mettagrid(num_agents=6)
     return EvaluateTool(
         simulations=[SimulationConfig(suite="arena", name="very_basic", env=sim)], policy_uris=[policy_uri]
     )
