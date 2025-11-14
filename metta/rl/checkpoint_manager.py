@@ -292,20 +292,10 @@ class CheckpointManager:
         filename = f"{self.run_name}:v{epoch}.mpt"
         checkpoint_path = self.checkpoint_dir / filename
 
-        # Use Policy's save_policy_data method (via TrainablePolicy interface) to get weights
-        # Save to temp file, then load back to get state_dict for artifact system
-        with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as tmp_file:
-            tmp_path = Path(tmp_file.name)
-            try:
-                agent.save_policy_data(str(tmp_path))
-                state_dict = torch.load(tmp_path, map_location="cpu")
-            finally:
-                tmp_path.unlink(missing_ok=True)
-
         save_policy_artifact_safetensors(
             checkpoint_path,
             policy_architecture=policy_architecture,
-            state_dict=state_dict,
+            state_dict=agent.state_dict(),
         )
 
         remote_uri = None
