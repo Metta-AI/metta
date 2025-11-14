@@ -52,7 +52,7 @@ MACHINA_TRAINER_MISSIONS: list[Mission] = [
     Mission(
         name="machinatrainersmall",
         description=(
-            "Machinatrainersmall map (middle 25% of big trainer) with 10 cogs, 2000 steps, single-use extractors."
+            "Machinatrainersmall map (middle 25% of big trainer) with 40 cogs, 2000 steps, single-use extractors."
         ),
         site=MACHINA_1,
         num_cogs=40,
