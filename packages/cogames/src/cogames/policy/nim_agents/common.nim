@@ -633,9 +633,14 @@ proc getLastAction*(cfg: Config, visible: Table[Location, seq[FeatureValue]]): i
   ## Get the last action of the visible map.
   cfg.getFeature(visible, cfg.features.lastAction)
 
-proc getInventory*(cfg: Config, visible: Table[Location, seq[FeatureValue]], inventoryId: int): int =
+proc getInventory*(
+  cfg: Config,
+  visible: Table[Location, seq[FeatureValue]],
+  inventoryId: int,
+  location: Location = Location(x: 0, y: 0)
+): int =
   ## Get the inventory of the visible map.
-  result = cfg.getFeature(visible, inventoryId)
+  result = cfg.getFeature(visible, inventoryId, location)
   # Missing inventory is 0.
   if result == -1:
     result = 0
