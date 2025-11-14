@@ -4,6 +4,7 @@ from collections import defaultdict
 from typing import Any
 
 import wandb
+from pydantic import Field
 from rich.console import Console
 from rich.table import Table
 
@@ -11,7 +12,6 @@ from metta.common.util.collections import remove_none_keys
 from metta.common.util.constants import METTASCOPE_REPLAY_URL_PREFIX
 from metta.common.util.log_config import get_console, should_use_rich_console
 from metta.common.wandb.context import WandbRun
-from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.rl.wandb import (
     POLICY_EVALUATOR_EPOCH_METRIC,
     POLICY_EVALUATOR_METRIC_PREFIX,
@@ -19,9 +19,36 @@ from metta.rl.wandb import (
     setup_policy_evaluator_metrics,
 )
 from metta.sim.runner import SimulationRunResult
+from mettagrid.base_config import Config
 from mettagrid.simulator.multi_episode.summary import build_multi_episode_rollout_summaries
 
 logger = logging.getLogger(__name__)
+
+
+class EvalRewardSummary(Config):
+    category_scores: dict[str, float] = Field(default_factory=dict, description="Average reward for each category")
+    simulation_scores: dict[tuple[str, str], float] = Field(
+        default_factory=dict, description="Average reward for each simulation (category, short_sim_name)"
+    )
+
+    @property
+    def avg_category_score(self) -> float:
+        return sum(self.category_scores.values()) / len(self.category_scores) if self.category_scores else 0
+
+    @property
+    def avg_simulation_score(self) -> float:
+        return sum(self.simulation_scores.values()) / len(self.simulation_scores) if self.simulation_scores else 0
+
+    def to_wandb_metrics_format(self) -> dict[str, float]:
+        return {
+            **{f"{category}/score": score for category, score in self.category_scores.items()},
+            **{f"{category}/{sim}": score for (category, sim), score in self.simulation_scores.items()},
+        }
+
+
+class EvalResults(Config):
+    scores: EvalRewardSummary = Field(..., description="Evaluation scores")
+    replay_urls: dict[str, list[str]] = Field(default_factory=dict, description="Replay URLs for each simulation")
 
 
 def get_replay_html_payload(
