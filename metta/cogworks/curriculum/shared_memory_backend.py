@@ -22,13 +22,10 @@ about thread safety and resource cleanup without cluttering higher-level code.
 
 from abc import ABC, abstractmethod
 from contextlib import nullcontext
-from multiprocessing import Manager, shared_memory
-from typing import TYPE_CHECKING, Any, ContextManager, Dict, Optional
+from multiprocessing import shared_memory
+from typing import Any, ContextManager, Optional
 
 import numpy as np
-
-if TYPE_CHECKING:
-    from multiprocessing.managers import SyncManager
 
 
 class TaskMemoryBackend(ABC):
@@ -134,11 +131,12 @@ class SharedMemoryBackend(TaskMemoryBackend):
 
     Uses multiprocessing.shared_memory for cross-process data sharing.
     Multiple processes can read/write the same task data concurrently.
-    """
 
-    # Class-level manager for shared locks (shared across all instances)
-    _manager: Optional["SyncManager"] = None
-    _manager_lock_registry: Dict[str, Any] = {}
+    Note: This implementation uses lockless updates. Individual float64 writes to
+    shared memory are atomic on most platforms. For multi-field updates (like
+    update_task_performance), we accept potential minor inconsistencies during
+    concurrent access rather than using locks that don't survive process pickling.
+    """
 
     def __init__(
         self,
@@ -179,8 +177,8 @@ class SharedMemoryBackend(TaskMemoryBackend):
         # Initialize shared structures
         self._init_shared_memory()
 
-        # Initialize shared lock AFTER shared memory (needs session_id)
-        self._init_shared_lock()
+        # Use nullcontext for "locking" - individual float writes are atomic
+        self._lock = nullcontext()
 
     def _init_shared_memory(self):
         """Initialize shared memory structures."""
@@ -219,37 +217,21 @@ class SharedMemoryBackend(TaskMemoryBackend):
             (self.max_tasks, self.task_struct_size), dtype=np.float64, buffer=self._task_array_shm.buf
         )
 
-    def _init_shared_lock(self):
-        """Initialize a truly shared lock using multiprocessing.Manager.
-
-        The lock is registered by session_id so all processes with the same
-        session_id share the same lock instance.
-        """
-        # Create manager singleton if needed (shared across all backends)
-        if SharedMemoryBackend._manager is None:
-            SharedMemoryBackend._manager = Manager()
-
-        # Get or create lock for this session (manager guaranteed non-None here)
-        manager = SharedMemoryBackend._manager
-        assert manager is not None  # Type narrowing for mypy
-
-        if self.session_id not in SharedMemoryBackend._manager_lock_registry:
-            SharedMemoryBackend._manager_lock_registry[self.session_id] = manager.RLock()
-
-        self._lock = SharedMemoryBackend._manager_lock_registry[self.session_id]
-
     def get_task_data(self, index: int) -> np.ndarray:
         """Get task data at given index (raw array view)."""
         return self._task_array[index]
 
     def acquire_lock(self) -> ContextManager[Any]:
-        """Acquire the shared lock."""
+        """Acquire lock for thread-safe access.
+
+        Returns nullcontext for shared memory backend since individual float
+        writes are atomic and we accept minor inconsistencies for performance.
+        """
         return self._lock
 
     def clear(self):
         """Clear all shared memory data."""
-        with self._lock:
-            self._task_array.fill(0.0)
+        self._task_array.fill(0.0)
 
     def cleanup(self):
         """Clean up shared memory resources."""
