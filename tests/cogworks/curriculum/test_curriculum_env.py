@@ -144,11 +144,11 @@ class TestCurriculumEnv:
         else:
             wrapper.step([0] * len(rewards))
 
-        # Check that task was completed with correct total and count (2 envs)
-        expected_sum = np.sum(rewards)  # 1.0 (0.6 + 0.4)
-        assert initial_task._num_completions == 2  # 2 environments completed
-        assert abs(initial_task._total_score - expected_sum) < 1e-6
-        # Mean should still be 0.5
+        # Check that task was completed with correct total and count (1 env with 2 agents)
+        expected_mean = np.mean(rewards)  # 0.5 (mean of 0.6 and 0.4)
+        assert initial_task._num_completions == 1  # 1 environment completed
+        assert abs(initial_task._total_score - expected_mean) < 1e-6
+        # Mean should be 0.5
         assert abs(initial_task._total_score / initial_task._num_completions - 0.5) < 1e-6
 
     def test_curriculum_env_getattr_delegation(self):
@@ -207,9 +207,9 @@ class TestCurriculumEnv:
         # Should have seen 3 different tasks (one per episode)
         assert len(set(tasks_seen)) == 3
 
-        # Each task should have been completed once per vectorized environment (2 envs)
+        # Each task should have been completed once per environment episode (1 env with 2 agents)
         for task in tasks_seen:
-            assert task._num_completions == 2  # 2 environments completed each time
+            assert task._num_completions == 1  # 1 environment completed each time
 
     def test_curriculum_env_wrapper_zero_rewards(self):
         """Test wrapper behavior with zero rewards."""
@@ -294,7 +294,7 @@ class TestCurriculumEnv:
         # Complete an episode
         wrapper.step([1, 0])
 
-        # Check updated stats (2 completions because 2 vectorized envs completed)
+        # Check updated stats (1 completion for 1 environment episode with 2 agents)
         updated_stats = curriculum.stats()
-        assert updated_stats["num_completed"] == 2  # 2 environments completed
+        assert updated_stats["num_completed"] == 1  # 1 environment completed
         assert updated_stats["num_scheduled"] == 2  # Original + new task

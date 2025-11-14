@@ -263,7 +263,8 @@ class BidirectionalLPScorer(LPScorer):
         }
 
         # Calculate learning progress from shared memory
-        learning_progress = self._learning_progress()
+        # Pass task_ids to prevent race condition in multi-process environment
+        learning_progress = self._learning_progress(task_ids)
         if len(learning_progress) > 0:
             stats.update(
                 {
@@ -406,7 +407,7 @@ class BidirectionalLPScorer(LPScorer):
 
         return numerator / denominator
 
-    def _learning_progress(self) -> np.ndarray:
+    def _learning_progress(self, task_ids: list[int] | None = None) -> np.ndarray:
         """Calculate raw learning progress with optional reweighting.
 
         Applies reweighting to fast and slow EMAs before computing absolute difference.
@@ -414,12 +415,17 @@ class BidirectionalLPScorer(LPScorer):
         is set to a low value (e.g., 0.05).
 
         Now builds arrays from shared memory instead of using cached arrays.
+
+        Args:
+            task_ids: Optional list of task IDs to calculate LP for. If None, fetches from tracker.
+                     Providing task_ids prevents race conditions in multi-process environments.
         """
         if self.tracker is None:
             return np.array([])
 
         # Build arrays from shared memory
-        task_ids = self.tracker.get_all_tracked_tasks()
+        if task_ids is None:
+            task_ids = self.tracker.get_all_tracked_tasks()
         if not task_ids:
             return np.array([])
 
@@ -459,7 +465,8 @@ class BidirectionalLPScorer(LPScorer):
             self._stale_dist = False
             return
 
-        learning_progress = self._learning_progress()
+        # Pass task_ids to prevent race condition in multi-process environment
+        learning_progress = self._learning_progress(task_ids)
         if len(learning_progress) == 0:
             self._stale_dist = False
             return

@@ -106,11 +106,14 @@ class CurriculumEnv(PufferEnv):
         """Step the environment and handle task completion.
 
         Calls the environment's step method, then checks if ANY episode is done
-        and completes the current task with the curriculum for each completion.
+        and completes the current task with the curriculum. Note: Only counts one
+        completion per environment episode, not per agent (even if multiple agents
+        complete simultaneously).
         """
         obs, rewards, terminals, truncations, infos = self._env.step(*args, **kwargs)
 
         # Handle completion for ANY environment that finished (not all)
+        # NOTE: Count ONCE per environment episode, not once per agent
         if terminals.any() or truncations.any():
             # Get per-environment rewards for completed episodes
             episode_rewards = self._env.get_episode_rewards()
@@ -125,32 +128,33 @@ class CurriculumEnv(PufferEnv):
                         infos["env_curriculum_stats/per_label_evictions_this_epoch"].get(label, 0) + count
                     )
 
-            # Update curriculum for each completed environment
-            for env_idx, (term, trunc) in enumerate(zip(terminals, truncations, strict=True)):
-                if term or trunc:
-                    reward = float(episode_rewards[env_idx])
-                    self._current_task.complete(reward)
-                    self._curriculum.update_task_performance(self._current_task._task_id, reward)
+            # Calculate mean reward across all agents in this environment
+            # All agents in the same environment complete simultaneously, so take mean
+            mean_reward = float(episode_rewards.mean())
 
-                    # ALWAYS emit per-label sample count (needed for basic curriculum monitoring)
-                    label = self._current_task.get_label()
-                    if label is not None and isinstance(label, str):
-                        if "env_curriculum_stats/per_label_samples_this_epoch" not in infos:
-                            infos["env_curriculum_stats/per_label_samples_this_epoch"] = {}
-                        infos["env_curriculum_stats/per_label_samples_this_epoch"][label] = (
-                            infos["env_curriculum_stats/per_label_samples_this_epoch"].get(label, 0) + 1
-                        )
+            # Record ONE completion for this environment episode
+            self._current_task.complete(mean_reward)
+            self._curriculum.update_task_performance(self._current_task._task_id, mean_reward)
 
-                    # Track task completions for troubleshooting (ONLY if flag enabled)
-                    if self._enable_per_label_tracking:
-                        task_id = self._current_task._task_id
-                        if task_id not in self._tracked_task_ids and len(self._tracked_task_ids) < 3:
-                            self._tracked_task_ids.append(task_id)
+            # ALWAYS emit per-label sample count (needed for basic curriculum monitoring)
+            label = self._current_task.get_label()
+            if label is not None and isinstance(label, str):
+                if "env_curriculum_stats/per_label_samples_this_epoch" not in infos:
+                    infos["env_curriculum_stats/per_label_samples_this_epoch"] = {}
+                infos["env_curriculum_stats/per_label_samples_this_epoch"][label] = (
+                    infos["env_curriculum_stats/per_label_samples_this_epoch"].get(label, 0) + 1
+                )
 
-                        if task_id in self._tracked_task_ids:
-                            self._tracked_task_completions_this_epoch[task_id] = (
-                                self._tracked_task_completions_this_epoch.get(task_id, 0) + 1
-                            )
+            # Track task completions for troubleshooting (ONLY if flag enabled)
+            if self._enable_per_label_tracking:
+                task_id = self._current_task._task_id
+                if task_id not in self._tracked_task_ids and len(self._tracked_task_ids) < 3:
+                    self._tracked_task_ids.append(task_id)
+
+                if task_id in self._tracked_task_ids:
+                    self._tracked_task_completions_this_epoch[task_id] = (
+                        self._tracked_task_completions_this_epoch.get(task_id, 0) + 1
+                    )
 
             # Get new task with retry logic for invalid configurations
             max_retries = 10
