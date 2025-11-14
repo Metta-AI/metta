@@ -712,6 +712,10 @@ class StatsReporter(TrainerComponent):
         raw_lp_debug_stats = self._calculate_raw_lp_gini_from_shared_memory(curriculum)
         stats.update(raw_lp_debug_stats)
 
+        # Calculate gini statistics directly from shared memory
+        gini_stats = self._calculate_gini_stats_from_shared_memory(curriculum)
+        stats.update(gini_stats)
+
         logger.info(f"Total curriculum stats collected: {len(stats)}")
         return stats
 
@@ -829,6 +833,118 @@ class StatsReporter(TrainerComponent):
                 f"Raw LP debug stats: "
                 f"({len(raw_lp_scores)} tasks, mean={mean_lp:.4f}, std={stats['algorithm/debug/raw_lp_std']:.4f}, "
                 f"non_zero={non_zero_count})"
+            )
+
+        return stats
+
+    def _calculate_gini_stats_from_shared_memory(self, curriculum: Any) -> dict[str, float]:
+        """Calculate all gini coefficients directly from task tracker shared memory.
+
+        Calculates:
+        - pool_composition_gini: Inequality in task counts per label
+        - raw_lp_score_gini: Inequality in raw LP scores across all tasks
+        - raw_lp_by_label_gini: Inequality in summed raw LP scores per label
+        - sampling_gini: Inequality in LP scores (sampling probabilities) per label
+        - task_age_gini: Inequality in task ages (time since creation)
+        """
+        stats = {}
+
+        if not hasattr(curriculum, "_algorithm") or not hasattr(curriculum._algorithm, "task_tracker"):
+            logger.warning("Cannot access task tracker from curriculum for gini calculations")
+            return stats
+
+        task_tracker = curriculum._algorithm.task_tracker
+        all_task_ids = task_tracker.get_all_tracked_tasks()
+
+        if not all_task_ids:
+            return stats
+
+        # Collect data grouped by label
+        label_counts = {}
+        label_raw_lp_sums = {}
+        label_lp_scores = {}
+        raw_lp_scores = []
+        task_ages = []
+
+        import time
+
+        current_time = time.time()
+
+        for task_id in all_task_ids:
+            task_stats = task_tracker.get_task_stats(task_id)
+            if task_stats:
+                label = task_tracker.get_task_label(task_id)
+
+                # Get raw LP score
+                p_fast = task_stats.get("p_fast", 0.0)
+                p_slow = task_stats.get("p_slow", 0.0)
+                raw_lp = abs(p_fast - p_slow)
+                raw_lp_scores.append(raw_lp)
+
+                # Get final LP score (sampling probability)
+                lp_score = task_stats.get("lp_score", 0.0)
+
+                # Calculate task age
+                creation_time = task_stats.get("creation_time", current_time)
+                task_age = current_time - creation_time
+                task_ages.append(task_age)
+
+                if label:
+                    # Track label counts for pool composition gini
+                    label_counts[label] = label_counts.get(label, 0) + 1
+
+                    # Track summed raw LP per label
+                    if label not in label_raw_lp_sums:
+                        label_raw_lp_sums[label] = 0.0
+                    label_raw_lp_sums[label] += raw_lp
+
+                    # Track summed LP scores per label (for sampling gini)
+                    if label not in label_lp_scores:
+                        label_lp_scores[label] = 0.0
+                    label_lp_scores[label] += lp_score
+
+        # Calculate pool composition gini
+        if label_counts:
+            counts = list(label_counts.values())
+            gini = self._calculate_gini_coefficient(counts)
+            stats["curriculum_stats/pool_composition_gini"] = gini
+            logger.info(
+                f"Pool composition gini: {gini:.3f} "
+                f"({len(label_counts)} labels, counts={sorted(counts, reverse=True)[:5]})"
+            )
+
+        # Calculate raw LP score gini (across all tasks)
+        if raw_lp_scores:
+            gini = self._calculate_gini_coefficient(raw_lp_scores)
+            stats["curriculum_stats/raw_lp_score_gini"] = gini
+            logger.info(f"Raw LP score gini: {gini:.3f} ({len(raw_lp_scores)} tasks)")
+
+        # Calculate raw LP by label gini (inequality in summed raw LP per label)
+        if label_raw_lp_sums:
+            lp_sums = list(label_raw_lp_sums.values())
+            gini = self._calculate_gini_coefficient(lp_sums)
+            stats["curriculum_stats/raw_lp_by_label_gini"] = gini
+            logger.info(f"Raw LP by label gini: {gini:.3f} ({len(label_raw_lp_sums)} labels)")
+
+        # Calculate sampling gini (inequality in LP scores per label)
+        if label_lp_scores:
+            lp_score_sums = list(label_lp_scores.values())
+            gini = self._calculate_gini_coefficient(lp_score_sums)
+            stats["curriculum_stats/sampling_gini"] = gini
+            logger.info(
+                f"Sampling gini: {gini:.3f} "
+                f"({len(label_lp_scores)} labels, lp_sums={sorted(lp_score_sums, reverse=True)[:5]})"
+            )
+
+        # Calculate task age gini (inequality in task ages)
+        if task_ages:
+            gini = self._calculate_gini_coefficient(task_ages)
+            stats["curriculum_stats/task_age_gini"] = gini
+            mean_age = sum(task_ages) / len(task_ages)
+            logger.info(
+                f"Task age gini: {gini:.3f} "
+                f"({len(task_ages)} tasks, mean_age={mean_age:.1f}s, "
+                f"oldest={max(task_ages):.1f}s)"
             )
 
         return stats
