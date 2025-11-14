@@ -18,6 +18,8 @@ type
     oxygenTarget: int
     germaniumTarget: int
     siliconTarget: int
+    maxEnergyObserved: int
+    recharging: bool
 
   RaceCarPolicy* = ref object
     agents*: seq[RaceCarAgent]
@@ -25,6 +27,16 @@ type
 proc log(message: string) =
   discard
   #echo message
+
+proc energyLowThreshold(agent: RaceCarAgent, currentEnergy: int): int =
+  let cap = max(agent.maxEnergyObserved, currentEnergy)
+  if cap <= 60:
+    return max(30, cap - 20)
+  max(40, cap - max(25, cap div 3))
+
+proc energyHighThreshold(agent: RaceCarAgent, currentEnergy: int): int =
+  let cap = max(agent.maxEnergyObserved, currentEnergy)
+  max(cap - 10, energyLowThreshold(agent, currentEnergy) + max(10, cap div 10))
 
 const the8Offsets = [
   Location(x: +0, y: +0),
@@ -105,6 +117,13 @@ proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
   result.seen = initHashSet[Location]()
   result.location = Location(x: 0, y: 0)
   result.lastActions = @[]
+  result.recipes = @[]
+  result.carbonTarget = 0
+  result.oxygenTarget = 0
+  result.germaniumTarget = 0
+  result.siliconTarget = 0
+  result.maxEnergyObserved = 0
+  result.recharging = false
 
 proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]]) =
   ## Update the big map with the small visible map.
@@ -282,14 +301,23 @@ proc step*(
       agent.germaniumTarget = max(agent.germaniumTarget, activeRecipe.germaniumCost div activeRecipe.pattern.len)
       agent.siliconTarget = max(agent.siliconTarget, activeRecipe.siliconCost div activeRecipe.pattern.len)
 
-    # Is there an energy charger nearby?
-    if invEnergy < 50:
+    if invEnergy > agent.maxEnergyObserved:
+      agent.maxEnergyObserved = invEnergy
+
+    let lowThreshold = agent.energyLowThreshold(invEnergy)
+    let highThreshold = agent.energyHighThreshold(invEnergy)
+
+    if agent.recharging and invEnergy >= highThreshold:
+      agent.recharging = false
+
+    if invEnergy <= lowThreshold or agent.recharging:
       let chargerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.charger)
       if chargerNearby.isSome():
         let action = agent.cfg.aStar(agent.location, chargerNearby.get(), agent.map)
         if action.isSome():
+          agent.recharging = true
           doAction(action.get().int32)
-          log "going to charger"
+          log "going to charger (" & $invEnergy & "/" & $agent.maxEnergyObserved & ")"
           return
 
     # Deposit heart into the chest.
