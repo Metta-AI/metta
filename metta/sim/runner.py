@@ -4,12 +4,12 @@ from typing import Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from metta.sim.replay_log_writer import ReplayLogWriter
 from mettagrid import MettaGridConfig
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult, multi_episode_rollout
+from mettagrid.simulator.replay_log_writer import ReplayLogWriter
 
 
 class SimulationRunConfig(BaseModel):

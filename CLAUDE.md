@@ -529,7 +529,7 @@ The `dependency-validation.yml` workflow automatically:
   - Each group separated by a blank line
   - No imports inside function bodies, even for lazy loading
 - Use modern Python typing syntax (PEP 585: `list[str]` instead of `List[str]`)
-- Use Union type syntax for Python 3.10+ (`type | None` instead of `Optional[type]`)
+- Use `Optional[type]` instead of `type | None` for optional types
 - Follow selective type annotation guidelines:
   - **Always annotate**: All function parameters
   - **Selectively annotate returns for**:

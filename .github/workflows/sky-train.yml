@@ -11,7 +11,7 @@ on:
       module_name:
         description: "Module to launch with devops/run.sh"
         required: true
-        default: "experiments.recipes.arena_basic_easy_shaped.train"
+        default: "recipes.prod.arena_basic_easy_shaped.train"
         type: string
       commit_to_run:
         description: "The full commit hash to run the job against (required for manual runs)."
@@ -38,7 +38,7 @@ on:
     branches: [main]
 
 env:
-  DEFAULT_MODULE_NAME: "experiments.recipes.arena_basic_easy_shaped.train"
+  DEFAULT_MODULE_NAME: "recipes.prod.arena_basic_easy_shaped.train"
   DEFAULT_TIMEOUT_HOURS: 0.333 # 20 minutes = 0.333 hours
   DEFAULT_NUM_GPUS: "4"
   DEFAULT_NUM_NODES: "2"
@@ -91,11 +91,10 @@ jobs:
             MODULE_NAME="${{ env.DEFAULT_MODULE_NAME }}"
           fi
 
-          # Extract everything between "experiments." and ".train"
-          # e.g., "experiments.recipes.arena.train" -> "arena"
-          # e.g., "experiments.a.b.c.train" -> "a.b.c"
-          ENV_NAME=$(echo "$MODULE_NAME" | sed 's|^experiments\\.recipes\\.||' | sed 's|\\.train$||')
-
+          # Extract everything before the final '.train' (removes only the last occurrence)
+          # e.g., "arena.train" -> "arena"
+          # e.g., "a.b.c.train" -> "a.b.c"
+          ENV_NAME="${MODULE_NAME%\.train}"
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             # Manual dispatch: run name is github.sky.<short_hash>.<env_name>.<timestamp>
             # The github.event.inputs.pr_number is not used for the run name itself here.

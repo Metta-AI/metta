@@ -1,7 +1,8 @@
 """Game playing functionality for CoGames."""
 
 import logging
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Optional
 
 from rich.console import Console
 
@@ -10,6 +11,7 @@ from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.renderer.renderer import RenderMode
+from mettagrid.simulator.replay_log_writer import ReplayLogWriter
 from mettagrid.simulator.rollout import Rollout
 
 if TYPE_CHECKING:
@@ -26,6 +28,7 @@ def play(
     game_name: str,
     seed: int = 42,
     render_mode: RenderMode = "gui",
+    save_replay: Optional[Path] = None,
 ) -> None:
     """Play a single game episode with a policy.
 
@@ -34,9 +37,10 @@ def play(
         env_cfg: Game configuration
         policy_spec: Policy specification (class path and optional data path)
         game_name: Human-readable name of the game (used for logging/metadata)
-        max_steps: Maximum steps for the episode (None for no limit)
         seed: Random seed
         render_mode: Render mode - "gui", "unicode", or "none"
+        save_replay: Optional directory path to save replay. Directory will be created if it doesn't exist.
+            Replay will be saved with a unique UUID-based filename.
     """
 
     logger.debug("Starting play session", extra={"game_name": game_name})
@@ -45,8 +49,20 @@ def play(
     policy = initialize_or_load_policy(policy_env_info, policy_spec)
     agent_policies = [policy.agent_policy(agent_id) for agent_id in range(env_cfg.game.num_agents)]
 
+    # Set up replay writer if requested
+    event_handlers = []
+    if save_replay:
+        event_handlers.append(ReplayLogWriter(str(save_replay)))
+
     # Create simulator and renderer
-    rollout = Rollout(env_cfg, agent_policies, render_mode=render_mode, seed=seed, pass_sim_to_policies=True)
+    rollout = Rollout(
+        env_cfg,
+        agent_policies,
+        render_mode=render_mode,
+        seed=seed,
+        pass_sim_to_policies=True,
+        event_handlers=event_handlers,
+    )
     rollout.run_until_done()
 
     # Print summary

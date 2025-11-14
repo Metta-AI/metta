@@ -7,9 +7,9 @@ from typing import Dict, List, Tuple, Union
 
 import duckdb
 
+from metta.common.util.file import exists, local_copy, write_file
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.stats.episode_stats_db import EpisodeStatsDB
-from metta.utils.file import exists, local_copy, write_file
 
 # Tables & indexes
 

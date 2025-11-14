@@ -10,6 +10,7 @@ from pydantic import Field
 
 from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
 from metta.common.tool import Tool
+from metta.common.util.uri import ParsedURI
 from metta.common.wandb.context import WandbContext
 from metta.eval.eval_request_config import EvalResults
 from metta.eval.eval_service import evaluate_policy
@@ -17,7 +18,6 @@ from metta.rl import stats as rl_stats
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir, auto_wandb_config
-from metta.utils.uri import ParsedURI
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger(__name__)
