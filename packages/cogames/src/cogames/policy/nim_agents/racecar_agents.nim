@@ -265,16 +265,50 @@ proc decideAction(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue
     if chest.isSome():
       return agent.moveTowards(chest.get())
 
+  if shouldDeposit(inventory) and chest.isSome():
+    if chest.get() == agent.location:
+      return agent.cfg.actions.vibeChest.int32
+    return agent.moveTowards(chest.get())
+
+  let keyLocations = [
+    Location(x: -10, y: -10),
+    Location(x: -10, y: +10),
+    Location(x: +10, y: -10),
+    Location(x: +10, y: +10)
+  ]
+  if assembler.isSome():
+    for keyLocation in keyLocations:
+      let target = assembler.get() + keyLocation
+      if target notin agent.seen:
+        let action = agent.cfg.aStar(agent.location, target, agent.map)
+        if action.isSome():
+          return action.get().int32
+
+  if inventory.getOrDefault(rkCarbon, 0) == 0:
+    let carbonNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.carbonExtractor)
+    if carbonNearby.isSome():
+      return agent.moveTowards(carbonNearby.get())
+
+  if inventory.getOrDefault(rkOxygen, 0) == 0:
+    let oxygenNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.oxygenExtractor)
+    if oxygenNearby.isSome():
+      return agent.moveTowards(oxygenNearby.get())
+
+  if inventory.getOrDefault(rkGermanium, 0) == 0:
+    let germaniumNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.germaniumExtractor)
+    if germaniumNearby.isSome():
+      return agent.moveTowards(germaniumNearby.get())
+
+  if inventory.getOrDefault(rkSilicon, 0) == 0:
+    let siliconNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.siliconExtractor)
+    if siliconNearby.isSome():
+      return agent.moveTowards(siliconNearby.get())
+
   if hasHeartIngredients(inventory):
     if vibe != agent.cfg.vibes.heart:
       return agent.cfg.actions.vibeHeart.int32
     if assembler.isSome():
       return agent.moveTowards(assembler.get())
-
-  if shouldDeposit(inventory) and chest.isSome():
-    if chest.get() == agent.location:
-      return agent.cfg.actions.vibeChest.int32
-    return agent.moveTowards(chest.get())
 
   let focus = agent.currentFocus(inventory)
   if focus.isSome():
@@ -284,6 +318,12 @@ proc decideAction(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue
     let extractor = agent.cfg.getNearby(agent.location, agent.map, agent.extractorTag(kind))
     if extractor.isSome():
       return agent.moveTowards(extractor.get())
+
+  let unseen = agent.cfg.getNearbyUnseen(agent.location, agent.map, agent.seen)
+  if unseen.isSome():
+    let action = agent.cfg.aStar(agent.location, unseen.get(), agent.map)
+    if action.isSome():
+      return action.get().int32
 
   agent.exploreAction()
 
@@ -321,8 +361,8 @@ proc step*(
     let stabilized = agent.stabilizeAction(action)
     agentAction[] = stabilized
   except:
-    echo getCurrentException().getStackTrace()
-    echo getCurrentExceptionMsg()
+    # echo getCurrentException().getStackTrace()
+    # echo getCurrentExceptionMsg()
     quit()
 
 proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
