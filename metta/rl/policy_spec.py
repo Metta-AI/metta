@@ -36,33 +36,35 @@ class CheckpointPolicy(MultiAgentPolicy):
         self._device = torch_device
         self._display_name = display_name or policy_uri
 
+    def _call_policy_method(self, name: str, *args: Any, **kwargs: Any) -> Any:
+        method = getattr(self._policy, name, None)
+        if callable(method):
+            return method(*args, **kwargs)
+        return None
+
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         return self._policy.agent_policy(agent_id)
 
     def reset(self) -> None:
-        if hasattr(self._policy, "reset"):
-            self._policy.reset()
+        self._call_policy_method("reset")
 
     def step_batch(self, raw_observations, raw_actions) -> None:  # type: ignore[override]
-        if hasattr(self._policy, "step_batch"):
-            self._policy.step_batch(raw_observations, raw_actions)
-        else:
+        if self._call_policy_method("step_batch", raw_observations, raw_actions) is None:
             super().step_batch(raw_observations, raw_actions)
 
     def to(self, device: torch.device) -> "CheckpointPolicy":  # pragma: no cover - convenience passthrough
         self._device = device
-        if hasattr(self._policy, "to"):
-            self._policy = self._policy.to(device)
+        new_policy = self._call_policy_method("to", device)
+        if new_policy is not None:
+            self._policy = new_policy
         return self
 
     def eval(self) -> "CheckpointPolicy":  # pragma: no cover - convenience passthrough
-        if hasattr(self._policy, "eval"):
-            self._policy.eval()
+        self._call_policy_method("eval")
         return self
 
     def train(self, mode: bool = True) -> "CheckpointPolicy":  # pragma: no cover - convenience passthrough
-        if hasattr(self._policy, "train"):
-            self._policy.train(mode)
+        self._call_policy_method("train", mode)
         return self
 
     @property
