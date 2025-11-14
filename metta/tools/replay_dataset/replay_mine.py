@@ -25,7 +25,7 @@ from metta.common.util.constants import (
     PROD_STATS_SERVER_URI,
     SOFTMAX_S3_REPLAYS_PREFIX,
 )
-from metta.utils.file import local_copy
+from metta.common.util.file import local_copy
 
 logger = logging.getLogger(__name__)
 
