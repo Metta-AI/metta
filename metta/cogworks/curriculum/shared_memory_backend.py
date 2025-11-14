@@ -8,12 +8,16 @@ single-process or multi-process.
 Key components:
 - TaskMemoryBackend: Abstract interface defining storage operations
 - LocalMemoryBackend: Fast numpy array storage for single-process use
-- SharedMemoryBackend: Cross-process shared memory with proper cleanup
+- SharedMemoryBackend: Cross-process shared memory with multiprocessing.Lock for synchronization
 
-Task data structure (17 floats per task):
+Task data structure (18 floats per task):
 [task_id, creation_time, completion_count, reward_ema, lp_score, success_rate_ema,
  total_score, last_score, success_threshold, seed, generator_type, ema_squared,
- is_active, p_fast, p_slow, p_true, random_baseline]
+ is_active, p_fast, p_slow, p_true, random_baseline, label_hash]
+
+Synchronization: SharedMemoryBackend uses multiprocessing.Lock to ensure atomic multi-field
+updates across processes. This prevents race conditions when updating related values like
+the 4 bidirectional EMAs (p_fast, p_slow, p_true, random_baseline).
 
 Why separate file: Memory management is a low-level concern distinct from curriculum logic.
 Isolating it here makes it easy to swap implementations, test independently, and reason
@@ -22,7 +26,7 @@ about thread safety and resource cleanup without cluttering higher-level code.
 
 from abc import ABC, abstractmethod
 from contextlib import nullcontext
-from multiprocessing import shared_memory
+from multiprocessing import Lock, shared_memory
 from typing import Any, ContextManager, Optional
 
 import numpy as np
@@ -42,7 +46,7 @@ class TaskMemoryBackend(ABC):
     # Task structure: [task_id, creation_time, completion_count, reward_ema, lp_score,
     #                  success_rate_ema, total_score, last_score, success_threshold,
     #                  seed, generator_type, ema_squared, is_active,
-    #                  p_fast, p_slow, p_true, random_baseline]
+    #                  p_fast, p_slow, p_true, random_baseline, label_hash]
     # Note: Actual sizes are configured per instance in __init__
 
     # Required attributes (must be set by subclasses)
@@ -132,17 +136,16 @@ class SharedMemoryBackend(TaskMemoryBackend):
     Uses multiprocessing.shared_memory for cross-process data sharing.
     Multiple processes can read/write the same task data concurrently.
 
-    Note: This implementation uses lockless updates. Individual float64 writes to
-    shared memory are atomic on most platforms. For multi-field updates (like
-    update_task_performance), we accept potential minor inconsistencies during
-    concurrent access rather than using locks that don't survive process pickling.
+    Synchronization: Uses multiprocessing.Lock to ensure atomic multi-field updates.
+    This prevents race conditions when updating related values (e.g., bidirectional
+    EMAs). The lock is properly shared across processes via pickling.
     """
 
     def __init__(
         self,
         max_tasks: int,
         session_id: Optional[str] = None,
-        task_struct_size: int = 17,
+        task_struct_size: int = 18,
     ):
         """Initialize shared memory backend.
 
@@ -154,7 +157,7 @@ class SharedMemoryBackend(TaskMemoryBackend):
                        NOTE: When using LearningProgressConfig with use_shared_memory=True,
                        session_id is auto-generated at config creation time and shared across
                        all processes, so this fallback should rarely be used.
-            task_struct_size: Size of each task's data structure (default: 17, includes bidirectional EMAs)
+            task_struct_size: Size of each task's data structure (default: 18, includes bidirectional EMAs + label)
         """
         self.max_tasks = max_tasks
         self.task_struct_size = task_struct_size
@@ -177,8 +180,9 @@ class SharedMemoryBackend(TaskMemoryBackend):
         # Initialize shared structures
         self._init_shared_memory()
 
-        # Use nullcontext for "locking" - individual float writes are atomic
-        self._lock = nullcontext()
+        # Create a proper multiprocessing lock for synchronization
+        # This ensures multi-field updates (e.g., all 4 bidirectional EMAs) are atomic
+        self._lock = Lock()
 
     def _init_shared_memory(self):
         """Initialize shared memory structures."""
@@ -224,8 +228,9 @@ class SharedMemoryBackend(TaskMemoryBackend):
     def acquire_lock(self) -> ContextManager[Any]:
         """Acquire lock for thread-safe access.
 
-        Returns nullcontext for shared memory backend since individual float
-        writes are atomic and we accept minor inconsistencies for performance.
+        Returns a multiprocessing.Lock to ensure atomic multi-field updates.
+        This prevents race conditions when updating multiple related values
+        (e.g., bidirectional EMAs: p_fast, p_slow, p_true, random_baseline).
         """
         return self._lock
 

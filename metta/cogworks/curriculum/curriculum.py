@@ -302,32 +302,6 @@ class Curriculum(StatsLogger):
             return self._algorithm.get_task_lp_score(task_id)
         return 0.0
 
-    def get_task_raw_lp_score(self, task_id: int) -> float:
-        """Get the raw learning progress score for a specific task (before z-score normalization).
-
-        Args:
-            task_id: The task ID to get the raw score for
-
-        Returns:
-            The raw learning progress score, or 0.0 if not available
-        """
-        if self._algorithm is not None:
-            return self._algorithm.get_task_raw_lp_score(task_id)
-        return 0.0
-
-    def get_task_postzscored_lp_score(self, task_id: int) -> float:
-        """Get the post-z-score learning progress score for a specific task (after z-score, before sigmoid).
-
-        Args:
-            task_id: The task ID to get the post-z-score score for
-
-        Returns:
-            The post-z-score learning progress score, or 0.0 if not available
-        """
-        if self._algorithm is not None:
-            return self._algorithm.get_task_postzscored_lp_score(task_id)
-        return 0.0
-
     def get_and_reset_evictions_this_epoch(self) -> Dict[str, int]:
         """Get per-epoch evictions and reset the counter.
 

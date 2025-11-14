@@ -114,7 +114,6 @@ def simulations() -> list[SimulationConfig]:
 
 def make_curriculum(
     nav_env: Optional[MettaGridConfig] = None,
-    enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
     num_instances: int = 4,
     num_agents_per_instance: int = 1,
@@ -137,7 +136,6 @@ def make_curriculum(
             rand_task_rate=0.01,
             exploration_bonus=0.1,
             min_samples_for_lp=10,  # Use exploration bonus for first 10 samples
-            enable_detailed_slice_logging=enable_detailed_slice_logging,
             lp_score_temperature=0.0,  # Z-score normalization for relative LP comparison
             z_score_amplification=50.0,  # Amplification after z-score (only when temp=0)
             show_curriculum_troubleshooting_logging=True,  # Enable per-task metrics for debugging
@@ -153,16 +151,15 @@ def make_curriculum(
 
 def train(
     curriculum: Optional[CurriculumConfig] = None,
-    enable_detailed_slice_logging: bool = False,
 ) -> TrainTool:
-    resolved_curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
+    curriculum = curriculum or make_curriculum()
 
     evaluator_cfg = EvaluatorConfig(
         simulations=make_navigation_eval_suite(),
     )
 
     return TrainTool(
-        training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=evaluator_cfg,
     )
 

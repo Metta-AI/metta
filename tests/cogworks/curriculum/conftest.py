@@ -36,8 +36,6 @@ def learning_progress_algorithm():
         ema_timescale=0.001,
         exploration_bonus=0.1,
         num_active_tasks=1000,
-        max_slice_axes=3,
-        enable_detailed_slice_logging=False,
         use_shared_memory=False,
     )
 

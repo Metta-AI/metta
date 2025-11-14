@@ -324,7 +324,6 @@ def make_task_generator_cfg(
 
 def train(
     curriculum_style: str = "level_0",
-    enable_detailed_slice_logging: bool = False,
 ) -> TrainTool:
     from metta.evals.assembly_lines import (
         make_assembly_line_eval_suite,
@@ -340,7 +339,6 @@ def train(
         rand_task_rate=0.01,
         exploration_bonus=0.1,
         min_samples_for_lp=10,  # Use exploration bonus for first 10 samples
-        enable_detailed_slice_logging=enable_detailed_slice_logging,
         lp_score_temperature=0.0,  # Z-score normalization for relative LP comparison
         z_score_amplification=50.0,  # Amplification after z-score (only when temp=0)
         show_curriculum_troubleshooting_logging=True,  # Enable per-task metrics for debugging

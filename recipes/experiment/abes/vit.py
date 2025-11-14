@@ -18,12 +18,10 @@ from recipes.prod.arena_basic_easy_shaped import (
 def train(
     *,
     curriculum=None,
-    enable_detailed_slice_logging: bool = False,
     policy_architecture: PolicyArchitecture | None = None,
 ):
     return base_train(
         curriculum=curriculum,
-        enable_detailed_slice_logging=enable_detailed_slice_logging,
         policy_architecture=policy_architecture or ViTDefaultConfig(),
     )
 

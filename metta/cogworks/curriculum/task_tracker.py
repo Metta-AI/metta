@@ -40,7 +40,7 @@ class TaskTracker:
         backend: Optional[TaskMemoryBackend] = None,
         session_id: Optional[str] = None,
         use_shared_memory: bool = False,
-        task_struct_size: int = 17,
+        task_struct_size: int = 18,
         default_success_threshold: float = 0.5,
         default_generator_type: float = 0.0,
     ):
@@ -52,7 +52,7 @@ class TaskTracker:
             backend: Optional pre-configured backend. If None, creates based on use_shared_memory
             session_id: Unique identifier for shared memory session (only for shared memory)
             use_shared_memory: If True and backend is None, creates SharedMemoryBackend
-            task_struct_size: Size of each task's data structure (default: 17)
+            task_struct_size: Size of each task's data structure (default: 18)
             default_success_threshold: Default success threshold for new tasks (default: 0.5)
             default_generator_type: Default generator type identifier (default: 0.0)
         """
@@ -82,6 +82,9 @@ class TaskTracker:
         self._backend: TaskMemoryBackend = backend
         self._task_id_to_index: Dict[int, int] = {}
         self._next_free_index = 0
+
+        # Label tracking: hash -> label string mapping (local, not in shared memory)
+        self._label_hash_to_string: Dict[int, str] = {}
 
         # Rebuild mapping from existing memory
         self._rebuild_task_mapping()
@@ -172,7 +175,11 @@ class TaskTracker:
         lp_score: Optional[float] = None,
         success_threshold: Optional[float] = None,
     ) -> None:
-        """Update task performance with new completion score."""
+        """Update task performance with new completion score.
+
+        NOTE: This method is kept for backward compatibility. New code should use
+        update_task_performance_with_bidirectional_emas() for atomic updates.
+        """
         # Create task if needed (outside the main lock to avoid deadlock)
         if task_id not in self._task_id_to_index:
             self.track_task_creation(task_id, success_threshold=success_threshold or 0.5)
@@ -234,6 +241,148 @@ class TaskTracker:
             task_data[11] = new_ema_squared
 
             # Update running statistics (replaces completion_history)
+            self._total_completions += 1
+            self._sum_scores += score
+
+    def update_task_performance_with_bidirectional_emas(
+        self,
+        task_id: int,
+        score: float,
+        scorer: Optional[Any] = None,
+        success_threshold: Optional[float] = None,
+    ) -> None:
+        """Atomic update: basic EMAs + bidirectional EMAs in ONE lock.
+
+        Stage 3: This consolidates what used to be 2-3 separate lock acquisitions:
+        1. Basic EMAs (completion_count, reward_ema, success_rate_ema, ema_squared)
+        2. Bidirectional EMAs (p_fast, p_slow, p_true, random_baseline)
+
+        Args:
+            task_id: Task to update
+            score: Performance score (0.0-1.0)
+            scorer: BidirectionalLPScorer instance (optional, for bidirectional EMAs)
+            success_threshold: Success threshold for binary classification
+        """
+        # Create task if needed (outside the main lock to avoid deadlock)
+        if task_id not in self._task_id_to_index:
+            self.track_task_creation(task_id, success_threshold=success_threshold or 0.5)
+
+        with self._backend.acquire_lock():
+            # Task should exist now
+            if task_id not in self._task_id_to_index:
+                # Race condition - another process might have removed it
+                return
+
+            index = self._task_id_to_index[task_id]
+            task_data = self._backend.get_task_data(index)
+
+            # === PART 1: Basic EMA updates (same as before) ===
+            completion_count = int(task_data[2])
+            reward_ema = task_data[3]
+            old_lp_score = task_data[4]
+            success_rate_ema = task_data[5]
+            total_score = task_data[6]
+            task_success_threshold = task_data[8]
+            ema_squared = task_data[11]
+
+            # Update counts and totals
+            new_completion_count = completion_count + 1
+            new_total_score = total_score + score
+
+            # Update reward EMA
+            if completion_count == 0:
+                new_reward_ema = score
+            else:
+                new_reward_ema = (1 - self.ema_alpha) * reward_ema + self.ema_alpha * score
+
+            # Update EMA of squared scores
+            score_squared = score * score
+            if completion_count == 0:
+                new_ema_squared = score_squared
+            else:
+                new_ema_squared = (1 - self.ema_alpha) * ema_squared + self.ema_alpha * score_squared
+
+            # Update success rate EMA
+            current_threshold = success_threshold if success_threshold is not None else task_success_threshold
+            is_success = float(score >= current_threshold)
+            if completion_count == 0:
+                new_success_rate_ema = is_success
+            else:
+                new_success_rate_ema = (1 - self.ema_alpha) * success_rate_ema + self.ema_alpha * is_success
+
+            # === PART 2: Bidirectional EMA updates (if scorer provided) ===
+            if scorer is not None and hasattr(scorer, "config"):
+                # Read current bidirectional EMAs
+                p_fast = task_data[13]
+                p_slow = task_data[14]
+                p_true = task_data[15]
+                random_baseline = task_data[16]
+
+                task_success_rate = score
+
+                # Handle baseline normalization if enabled
+                if scorer.config.use_baseline_normalization:
+                    # Set baseline on first update (capped at 0.75)
+                    if random_baseline == 0.0:
+                        random_baseline = min(task_success_rate, 0.75)
+
+                    # Calculate normalized "mastery" score
+                    improvement_over_baseline = max(task_success_rate - random_baseline, 0.0)
+                    total_possible_improvement = max(1.0 - random_baseline, 1e-10)
+                    normalized_task_success_rate = improvement_over_baseline / total_possible_improvement
+                else:
+                    # Use raw success rate
+                    normalized_task_success_rate = task_success_rate
+
+                # Initialize or update bidirectional EMAs
+                if p_fast == 0.0 and p_slow == 0.0:
+                    # First update - initialize to current value
+                    p_fast = normalized_task_success_rate
+                    p_slow = normalized_task_success_rate
+                    p_true = task_success_rate
+                else:
+                    # Update EMAs
+                    p_fast = normalized_task_success_rate * scorer.config.ema_timescale + p_fast * (
+                        1.0 - scorer.config.ema_timescale
+                    )
+                    slow_timescale = scorer.config.ema_timescale * scorer.config.slow_timescale_factor
+                    p_slow = normalized_task_success_rate * slow_timescale + p_slow * (1.0 - slow_timescale)
+                    p_true = task_success_rate * scorer.config.ema_timescale + p_true * (
+                        1.0 - scorer.config.ema_timescale
+                    )
+
+                # Write bidirectional EMAs
+                task_data[13] = p_fast
+                task_data[14] = p_slow
+                task_data[15] = p_true
+                task_data[16] = random_baseline
+
+                # Update tracked task metrics for wandb (if this is a tracked task)
+                if hasattr(scorer, "_tracked_task_ids") and task_id in scorer._tracked_task_ids:
+                    if task_id in scorer._tracked_task_metrics:
+                        lp = p_fast - p_slow
+                        scorer._tracked_task_metrics[task_id].update(
+                            {
+                                "mean_reward": task_success_rate,
+                                "fast_ema": p_fast,
+                                "slow_ema": p_slow,
+                                "raw_lp": lp,
+                                "raw_reward": score,
+                                "clamped_reward": score,
+                            }
+                        )
+
+            # === PART 3: Write all basic values ===
+            task_data[2] = float(new_completion_count)
+            task_data[3] = new_reward_ema
+            task_data[4] = old_lp_score  # LP score updated lazily during sampling
+            task_data[5] = new_success_rate_ema
+            task_data[6] = new_total_score
+            task_data[7] = score
+            task_data[8] = current_threshold
+            task_data[11] = new_ema_squared
+
+            # Update running statistics
             self._total_completions += 1
             self._sum_scores += score
 
@@ -409,6 +558,83 @@ class TaskTracker:
             "total_completions": self._total_completions,
         }
 
+    # ========== Label Tracking (Shared Memory) ==========
+    # Labels are stored as hashes in shared memory (index 17) with a local mapping
+    # to strings. This keeps shared memory efficient while supporting string labels.
+
+    def set_task_label(self, task_id: int, label: str) -> None:
+        """Store task label in shared memory (as hash).
+
+        Args:
+            task_id: Task ID to label
+            label: Label string (e.g., "lonely_heart", "pack_rat")
+        """
+        if task_id not in self._task_id_to_index:
+            return  # Task doesn't exist
+
+        # Compute stable hash for label
+        # Use only 53 bits to ensure exact float64 representation (2^53 - 1)
+        # This prevents precision loss when storing as float
+        label_hash = hash(label) & 0x1FFFFFFFFFFFFF  # 53-bit mask
+
+        # Store hash in shared memory at index 17
+        with self._backend.acquire_lock():
+            index = self._task_id_to_index[task_id]
+            task_data = self._backend.get_task_data(index)
+            task_data[17] = float(label_hash)
+
+        # Maintain local hash-to-string mapping
+        self._label_hash_to_string[label_hash] = label
+
+    def get_task_label(self, task_id: int) -> Optional[str]:
+        """Get task label from shared memory.
+
+        Args:
+            task_id: Task ID to query
+
+        Returns:
+            Label string, or None if task not found or label not set
+        """
+        if task_id not in self._task_id_to_index:
+            return None
+
+        index = self._task_id_to_index[task_id]
+        task_data = self._backend.get_task_data(index)
+        label_hash = int(task_data[17])
+
+        if label_hash == 0:
+            return None  # No label set
+
+        return self._label_hash_to_string.get(label_hash)
+
+    def get_label_completion_counts(self) -> Dict[str, int]:
+        """Count total completions per label by scanning shared memory.
+
+        Returns:
+            Dictionary mapping label -> total completion count
+        """
+        label_counts: Dict[str, int] = {}
+
+        for _task_id, index in self._task_id_to_index.items():
+            task_data = self._backend.get_task_data(index)
+            is_active = bool(task_data[12])
+
+            if not is_active:
+                continue
+
+            label_hash = int(task_data[17])
+            if label_hash == 0:
+                continue  # No label
+
+            label = self._label_hash_to_string.get(label_hash)
+            if label is None:
+                continue  # Hash not in mapping (shouldn't happen)
+
+            completion_count = int(task_data[2])
+            label_counts[label] = label_counts.get(label, 0) + completion_count
+
+        return label_counts
+
     def get_state(self) -> Dict[str, Any]:
         """Get task tracker state for checkpointing.
 
@@ -435,6 +661,7 @@ class TaskTracker:
                     "p_slow": task_data[14],
                     "p_true": task_data[15],
                     "random_baseline": task_data[16],
+                    "label_hash": task_data[17],
                 }
 
         total_completions = sum(int(self._backend.get_task_data(idx)[2]) for idx in self._task_id_to_index.values())
@@ -489,6 +716,8 @@ class TaskTracker:
                 data[14] = task_data.get("p_slow", 0.0)
                 data[15] = task_data.get("p_true", 0.0)
                 data[16] = task_data.get("random_baseline", 0.0)
+                # Label hash (index 17)
+                data[17] = task_data.get("label_hash", 0.0)
 
             self._next_free_index = len(state["task_memory"])
 
@@ -526,7 +755,7 @@ def CentralizedTaskTracker(
     max_memory_tasks: int = 1000,
     session_id: Optional[str] = None,
     ema_alpha: float = 0.1,
-    task_struct_size: int = 17,
+    task_struct_size: int = 18,
 ) -> TaskTracker:
     """Create a centralized (multi-process) task tracker with shared memory.
 
@@ -536,7 +765,7 @@ def CentralizedTaskTracker(
         max_memory_tasks: Maximum number of tasks to track
         session_id: Unique identifier for shared memory session
         ema_alpha: Alpha parameter for exponential moving average
-        task_struct_size: Size of each task's data structure (default: 17)
+        task_struct_size: Size of each task's data structure (default: 18)
 
     Returns:
         TaskTracker instance with SharedMemoryBackend

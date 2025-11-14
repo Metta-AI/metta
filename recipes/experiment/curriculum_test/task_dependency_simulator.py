@@ -56,7 +56,6 @@ class CurriculumLPConfig(BaseModel):
     rand_task_rate: float = 0.01
     min_presentations_for_eviction: int = 5
     eviction_threshold_percentile: float = 0.1
-    enable_detailed_slice_logging: bool = False
     show_curriculum_troubleshooting_logging: bool = True
     use_shared_memory: bool = True
     session_id: Optional[str] = None
@@ -727,8 +726,6 @@ def create_curriculum(
         lp_score_temperature=config.lp_score_temperature,
         z_score_amplification=config.z_score_amplification,
         early_progress_amplification=config.early_progress_amplification,
-        max_slice_axes=config.max_slice_axes,
-        enable_detailed_slice_logging=config.enable_detailed_slice_logging,
         show_curriculum_troubleshooting_logging=config.show_curriculum_troubleshooting_logging,
         num_active_tasks=config.num_active_tasks,
         rand_task_rate=config.rand_task_rate,
@@ -1084,8 +1081,6 @@ def train(
             rand_task_rate=0.05,  # 5% random sampling for exploration
             min_presentations_for_eviction=20,  # Require some evidence
             eviction_threshold_percentile=0.3,  # Evict bottom 30%
-            enable_detailed_slice_logging=False,
-            max_slice_axes=3,
             use_shared_memory=False,  # Local memory for single-process simulation
         ),
     )
@@ -1157,8 +1152,6 @@ class ZScoreSweepTool(Tool):
                     rand_task_rate=0.05,
                     min_presentations_for_eviction=20,
                     eviction_threshold_percentile=0.3,
-                    enable_detailed_slice_logging=False,
-                    max_slice_axes=3,
                     use_shared_memory=False,
                 ),
             )
@@ -1318,8 +1311,6 @@ class NumTasksSweepTool(Tool):
                     rand_task_rate=0.05,
                     min_presentations_for_eviction=20,
                     eviction_threshold_percentile=0.3,
-                    enable_detailed_slice_logging=False,
-                    max_slice_axes=3,
                     use_shared_memory=False,
                 ),
             )
@@ -1484,8 +1475,6 @@ class NumActiveTasksSweepTool(Tool):
                     rand_task_rate=0.05,
                     min_presentations_for_eviction=20,
                     eviction_threshold_percentile=0.3,
-                    enable_detailed_slice_logging=False,
-                    max_slice_axes=3,
                     use_shared_memory=False,
                 ),
             )

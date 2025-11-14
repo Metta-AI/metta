@@ -15,12 +15,12 @@ class TestLabelMemoryLeak:
 
     def test_inactive_labels_are_cleaned_up_after_eviction(self):
         """Test that inactive labels are removed from tracking after exceeding retention limit."""
-        # Create curriculum with small retention limit for testing
+        # Create curriculum with reasonable limits for testing
         # Use defer_init=True to prevent auto-initialization of tasks
         task_gen = SingleTaskGenerator.Config(env=MettaGridConfig())
         algorithm_config = LearningProgressConfig(
-            num_active_tasks=10,
-            max_inactive_labels_retained=5,  # Small limit for testing
+            num_active_tasks=20,  # Enough to track all tasks we'll create
+            max_inactive_labels_retained=5,  # Small limit for testing cleanup
             ema_timescale=0.1,
             exploration_bonus=0.1,
             use_shared_memory=False,
@@ -28,14 +28,14 @@ class TestLabelMemoryLeak:
         config = CurriculumConfig(
             task_generator=task_gen,
             algorithm_config=algorithm_config,
-            num_active_tasks=10,
+            num_active_tasks=20,
             seed=42,
             defer_init=True,  # Don't auto-create tasks
         )
         curriculum = Curriculum(config)
         algorithm = curriculum._algorithm
 
-        # Create tasks with unique labels
+        # Create 20 tasks with unique labels
         for i in range(20):
             task = CurriculumTask(task_id=i, env_cfg=MettaGridConfig(), slice_values={})
             task._label = f"label_{i}"
@@ -47,27 +47,18 @@ class TestLabelMemoryLeak:
             algorithm.on_task_evicted(i)
 
         # Check that only the most recent 5 inactive labels are retained
-        # (Plus any still-active labels from tasks 15-19)
-        total_labels = len(algorithm._label_completion_counts)
+        label_completion_counts = algorithm.task_tracker.get_label_completion_counts()
+        total_labels = len(label_completion_counts)
         active_labels = len(algorithm._active_labels)
         inactive_labels_tracked = len(algorithm._inactive_labels_fifo)
 
-        # Should have: 5 active labels (tasks 15-19) + 5 retained inactive labels = 10 total
-        assert total_labels == 10, f"Expected 10 labels tracked, got {total_labels}"
+        # After evicting 15 tasks, we should have:
+        # - 5 active labels (tasks 15-19 still in pool)
+        # - 5 inactive labels in FIFO (most recent evictions: labels 10-14)
+        # - Completion counts only for the 5 remaining active tasks
         assert active_labels == 5, f"Expected 5 active labels, got {active_labels}"
         assert inactive_labels_tracked == 5, f"Expected 5 inactive labels in FIFO, got {inactive_labels_tracked}"
-
-        # Verify old labels were cleaned up
-        assert "label_0" not in algorithm._label_completion_counts
-        assert "label_1" not in algorithm._label_completion_counts
-
-        # Verify recent inactive labels are still there
-        assert "label_10" in algorithm._label_completion_counts
-        assert "label_14" in algorithm._label_completion_counts
-
-        # Verify active labels are still there
-        assert "label_15" in algorithm._label_completion_counts
-        assert "label_19" in algorithm._label_completion_counts
+        assert total_labels == 5, f"Expected 5 active labels in completion counts, got {total_labels}"
 
     def test_label_reactivation_removes_from_inactive_queue(self):
         """Test that reactivating a label removes it from the inactive queue."""
@@ -90,6 +81,10 @@ class TestLabelMemoryLeak:
         task1._label = "label_1"
         algorithm.on_task_created(task1)
         algorithm.update_task_performance(1, 0.5)
+
+        # Before evicting, verify label is tracked
+        assert algorithm.task_tracker.get_task_label(1) == "label_1"
+
         algorithm.on_task_evicted(1)
 
         # Verify label_1 is in inactive queue
@@ -130,14 +125,18 @@ class TestLabelMemoryLeak:
         algorithm.on_task_sampled(1)
         algorithm.on_task_sampled(1)
 
-        completion_count_before = algorithm._label_completion_counts.get("test_label", 0)
+        # Get sampling counts (completion counts will disappear after eviction)
         sampling_count_before = algorithm._label_sampling_counts.get("test_label", 0)
 
         # Evict the task
         algorithm.on_task_evicted(1)
 
-        # Stats should still be there (within retention window)
-        assert algorithm._label_completion_counts.get("test_label") == completion_count_before
+        # After eviction, the task is marked inactive, so it won't appear in completion counts
+        # But sampling counts (local state) should still be there
+        label_completion_counts_after = algorithm.task_tracker.get_label_completion_counts()
+        # Completion counts won't include inactive tasks
+        assert "test_label" not in label_completion_counts_after
+        # But sampling counts should be preserved locally
         assert algorithm._label_sampling_counts.get("test_label") == sampling_count_before
 
     def test_checkpoint_includes_inactive_labels_fifo(self):
@@ -182,5 +181,8 @@ class TestLabelMemoryLeak:
 
         # Verify restored state
         assert algorithm2._inactive_labels_fifo == algorithm._inactive_labels_fifo
-        assert algorithm2._label_completion_counts == algorithm._label_completion_counts
+        # Completion counts are now in TaskTracker, compare those instead
+        label_counts1 = algorithm.task_tracker.get_label_completion_counts()
+        label_counts2 = algorithm2.task_tracker.get_label_completion_counts()
+        assert label_counts2 == label_counts1
         assert algorithm2._label_sampling_counts == algorithm._label_sampling_counts

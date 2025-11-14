@@ -35,7 +35,6 @@ from pydantic import model_validator
 
 from .curriculum_base import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask
 from .lp_scorers import BasicLPScorer, BidirectionalLPScorer, LPScorer
-from .stats import CacheCoordinator, LPStatsAggregator
 from .task_tracker import TaskTracker
 
 
@@ -49,7 +48,12 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     use_baseline_normalization: bool = (
         True  # Normalize by baseline to get "mastery" score p_i = (TSR_i - B_i) / (1.0 - B_i)
     )
-    ema_timescale: float = 0.1  # EMA learning rate (0.1 = updates in ~10 samples)
+    # EMA Timescale: Controls convergence speed of fast EMA
+    # - 0.1 (default): Converges in ~10 samples, responsive to recent changes
+    # - 0.01-0.05: Slower convergence, more stable for noisy environments
+    # - 0.001: Very slow (1000+ samples), delays LP signal but maximum stability
+    # Lower values delay learning progress signal development - Gini may stay near 0
+    ema_timescale: float = 0.1
     slow_timescale_factor: float = 0.2  # Multiplier for slow EMA timescale (slow = ema_timescale * this)
     exploration_bonus: float = 0.1
     progress_smoothing: float = 0.0  # For bidirectional reweighting (set to 0 to avoid artificial floor)
@@ -90,12 +94,8 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     task_default_success_threshold: float = 0.5  # Default success threshold for new tasks
     task_default_generator_type: float = 0.0  # Default generator type identifier for tasks
 
-    # Performance and memory management
-    max_slice_axes: int = 3  # Updated terminology
-
     # Memory backend configuration
-    task_struct_size: int = 17  # Size of task data structure in shared memory (includes bidirectional EMAs)
-    enable_detailed_slice_logging: bool = False  # Updated terminology
+    task_struct_size: int = 18  # Size of task data structure in shared memory (17 metrics + label_hash)
     use_shared_memory: bool = True  # Enabled by default for production use
     session_id: Optional[str] = None  # Session ID for shared memory, None = auto-generate shared ID
 
@@ -121,6 +121,124 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
 
     def create(self, num_tasks: int) -> "LearningProgressAlgorithm":
         return LearningProgressAlgorithm(num_tasks, self)
+
+    # Configuration Presets for Common Use Cases
+    # These provide sensible defaults for different training scenarios
+
+    @classmethod
+    def default(cls, num_active_tasks: int = 256, **overrides) -> "LearningProgressConfig":
+        """Standard configuration with balanced learning speed.
+
+        Best for: Most RL environments with moderate complexity
+        - Bidirectional LP for intelligent task selection
+        - Fast EMA convergence (~10 samples)
+        - Strong z-score amplification for selectivity
+
+        Args:
+            num_active_tasks: Number of tasks to keep in active pool
+            **overrides: Override any parameter
+        """
+        defaults = {
+            "use_bidirectional": True,
+            "ema_timescale": 0.1,
+            "num_active_tasks": num_active_tasks,
+            "slow_timescale_factor": 0.2,
+            "rand_task_rate": 0.01,
+            "exploration_bonus": 0.1,
+            "min_samples_for_lp": 10,
+            "lp_score_temperature": 0.0,
+            "z_score_amplification": 10.0,
+            "show_curriculum_troubleshooting_logging": False,
+            "early_progress_amplification": 0.5,
+        }
+        defaults.update(overrides)
+        return cls(**defaults)
+
+    @classmethod
+    def stable(cls, num_active_tasks: int = 256, **overrides) -> "LearningProgressConfig":
+        """Stable configuration for noisy/stochastic environments.
+
+        Best for: Environments with high variance or randomness
+        - Slower EMA convergence for stability (~100 samples)
+        - Higher exploration bonus
+        - More gradual learning progress signal development
+
+        Args:
+            num_active_tasks: Number of tasks to keep in active pool
+            **overrides: Override any parameter
+        """
+        defaults = {
+            "use_bidirectional": True,
+            "ema_timescale": 0.01,  # 10x slower
+            "num_active_tasks": num_active_tasks,
+            "slow_timescale_factor": 0.2,
+            "rand_task_rate": 0.02,  # More exploration
+            "exploration_bonus": 0.15,  # Higher exploration
+            "min_samples_for_lp": 20,  # More samples before LP
+            "lp_score_temperature": 0.0,
+            "z_score_amplification": 5.0,  # Less aggressive
+            "show_curriculum_troubleshooting_logging": False,
+            "early_progress_amplification": 0.5,
+        }
+        defaults.update(overrides)
+        return cls(**defaults)
+
+    @classmethod
+    def fast_learning(cls, num_active_tasks: int = 256, **overrides) -> "LearningProgressConfig":
+        """Fast learning configuration for quickly-adapting agents.
+
+        Best for: Simple environments where agent learns rapidly
+        - Very fast EMA convergence (~5 samples)
+        - Low exploration bonus (focus on LP)
+        - Strong selectivity for high-LP tasks
+
+        Args:
+            num_active_tasks: Number of tasks to keep in active pool
+            **overrides: Override any parameter
+        """
+        defaults = {
+            "use_bidirectional": True,
+            "ema_timescale": 0.2,  # 2x faster
+            "num_active_tasks": num_active_tasks,
+            "slow_timescale_factor": 0.2,
+            "rand_task_rate": 0.005,  # Less exploration
+            "exploration_bonus": 0.05,  # Lower exploration
+            "min_samples_for_lp": 5,  # Quick LP signal
+            "lp_score_temperature": 0.0,
+            "z_score_amplification": 15.0,  # More aggressive
+            "show_curriculum_troubleshooting_logging": False,
+            "early_progress_amplification": 0.5,
+        }
+        defaults.update(overrides)
+        return cls(**defaults)
+
+    @classmethod
+    def arena_legacy(cls, num_active_tasks: int = 256, **overrides) -> "LearningProgressConfig":
+        """Legacy arena configuration (from before refactor).
+
+        Best for: Reproducing old arena training runs
+        - Very slow EMA for maximum stability (1000+ samples)
+        - High z-score amplification
+
+        Args:
+            num_active_tasks: Number of tasks to keep in active pool
+            **overrides: Override any parameter
+        """
+        defaults = {
+            "use_bidirectional": True,
+            "ema_timescale": 0.001,  # Very slow (legacy setting)
+            "num_active_tasks": num_active_tasks,
+            "slow_timescale_factor": 0.2,
+            "rand_task_rate": 0.01,
+            "exploration_bonus": 0.1,
+            "min_samples_for_lp": 10,
+            "lp_score_temperature": 0.0,
+            "z_score_amplification": 10.0,
+            "show_curriculum_troubleshooting_logging": True,
+            "early_progress_amplification": 0.5,
+        }
+        defaults.update(overrides)
+        return cls(**defaults)
 
 
 class LearningProgressAlgorithm(CurriculumAlgorithm):
@@ -157,22 +275,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             else BasicLPScorer(hypers, self.task_tracker)
         )
 
-        # Initialize stats aggregator to centralize stats computation
-        self.stats_aggregator = LPStatsAggregator(
-            task_tracker=self.task_tracker,
-            scorer=self.scorer,
-            num_tasks=num_tasks,
-        )
-
-        # Initialize cache coordinator to centralize cache invalidation
-        self.cache_coordinator = CacheCoordinator(
-            stats_logger=self,
-            scorer=self.scorer,
-        )
-
-        # Track task labels for pool composition and sampling stats
-        self._task_labels: Dict[int, str] = {}  # task_id -> label
-        self._label_completion_counts: Dict[str, int] = {}  # label -> completion count
+        # Track label sampling and eviction (labels themselves are in TaskTracker shared memory)
         self._label_sampling_counts: Dict[str, int] = {}  # label -> cumulative sampling count (episodes started)
         self._label_eviction_counts: Dict[str, int] = {}  # label -> eviction count (cumulative)
 
@@ -235,14 +338,16 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def on_task_evicted(self, task_id: int) -> None:
         """Clean up when a task is evicted."""
+        # Get label BEFORE removing task (otherwise data is gone)
+        evicted_label = self.task_tracker.get_task_label(task_id)
+
         # Remove from task tracker (handles its own locking)
         self.task_tracker.remove_task(task_id)
 
         # Learning progress specific cleanup
         self._remove_task_from_scoring(task_id)
 
-        # Remove from label tracking and clean up inactive labels
-        evicted_label = self._task_labels.pop(task_id, None)
+        # Track eviction by label
         if evicted_label:
             # Track cumulative eviction count for this label
             self._label_eviction_counts[evicted_label] = self._label_eviction_counts.get(evicted_label, 0) + 1
@@ -251,7 +356,14 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             self._label_evictions_this_epoch[evicted_label] = self._label_evictions_this_epoch.get(evicted_label, 0) + 1
 
             # Check if this label still has any active tasks
-            if evicted_label not in self._task_labels.values():
+            # get_all_tracked_tasks() only returns ACTIVE tasks, so this is safe
+            all_active_labels = set()
+            for tid in self.task_tracker.get_all_tracked_tasks():
+                label = self.task_tracker.get_task_label(tid)
+                if label:
+                    all_active_labels.add(label)
+
+            if evicted_label not in all_active_labels:
                 # No more tasks with this label - remove from active set and track as inactive
                 self._active_labels.discard(evicted_label)
                 self._inactive_labels_fifo.append(evicted_label)
@@ -260,7 +372,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                 self._cleanup_old_inactive_labels()
 
         # Invalidate stats cache when task state changes
-        self.cache_coordinator.invalidate_stats_cache()
+        self.invalidate_cache()
 
     def _cleanup_old_inactive_labels(self) -> None:
         """Clean up old inactive labels to prevent unbounded memory growth.
@@ -277,7 +389,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             # Only clean up if this label is still inactive (not reactivated)
             if old_label not in self._active_labels:
                 # Clean up cumulative stats for this label
-                self._label_completion_counts.pop(old_label, None)
+                # (completion counts are now in TaskTracker shared memory, no cleanup needed)
                 self._label_sampling_counts.pop(old_label, None)
                 self._label_eviction_counts.pop(old_label, None)
 
@@ -294,8 +406,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             task_id: The ID of the task that was sampled
         """
         # Track sampling counts per label (both cumulative and per-epoch)
-        if task_id in self._task_labels:
-            label = self._task_labels[task_id]
+        label = self.task_tracker.get_task_label(task_id)
+        if label:
             self._label_sampling_counts[label] = self._label_sampling_counts.get(label, 0) + 1
             self._label_sampling_counts_this_epoch[label] = self._label_sampling_counts_this_epoch.get(label, 0) + 1
 
@@ -329,28 +441,30 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._label_evictions_this_epoch.clear()
 
     def update_task_performance(self, task_id: int, score: float) -> None:
-        """Update task performance using the scorer strategy."""
-        # NEW: Update scorer's internal state
-        self.scorer.update_with_score(task_id, score)
+        """Update task performance atomically.
 
-        # Calculate RAW LP score for storage (before sigmoid/normalization)
-        # Used for Gini coefficient calculation to measure true inequality
-        lp_score = self.scorer.get_raw_lp_score(task_id, self.task_tracker)
+        Stage 3 Atomic Update: All EMA updates happen in ONE lock acquisition:
+        1. Basic EMAs (completion_count, reward_ema, success_rate_ema, ema_squared)
+        2. Bidirectional EMAs (p_fast, p_slow, p_true, random_baseline)
 
-        # Single atomic update to task tracker with both score and LP score
-        # This ensures consistency and avoids multiple writes to shared memory
-        self.task_tracker.update_task_performance(task_id, score, lp_score=lp_score)
+        LP score calculation is deferred until sampling time (lazy evaluation via _stale_dist flag).
+        This reduces from 4+ lock acquisitions to 1.
+        """
+        # Atomic update: All EMAs in one lock
+        self.task_tracker.update_task_performance_with_bidirectional_emas(
+            task_id=task_id,
+            score=score,
+            scorer=self.scorer if hasattr(self.scorer, "config") else None,
+        )
 
-        # Track completion counts by label
-        if task_id in self._task_labels:
-            label = self._task_labels[task_id]
-            old_count = self._label_completion_counts.get(label, 0)
-            self._label_completion_counts[label] = old_count + 1
+        # Mark distribution as stale - LP scores will be recalculated on next sampling
+        self.scorer.invalidate_cache()
 
-            # Debug: Removed excessive logging
+        # Note: Completion counts are now tracked in TaskTracker shared memory
+        # No local label tracking needed here
 
         # Invalidate stats cache when task performance changes
-        self.cache_coordinator.invalidate_stats_cache()
+        self.invalidate_cache()
 
     def _choose_task_from_list(self, task_ids: List[int]) -> int:
         """Choose a task from the provided list based on scores."""
@@ -374,24 +488,22 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         """Get final learning progress score (sampling probability) for a specific task."""
         return self.scorer.score_task(task_id, self.task_tracker)
 
-    def get_task_raw_lp_score(self, task_id: int) -> float:
-        """Get raw learning progress score for a specific task (before z-score normalization)."""
-        return self.scorer.get_raw_lp_score(task_id, self.task_tracker)
-
-    def get_task_postzscored_lp_score(self, task_id: int) -> float:
-        """Get post-z-score learning progress score for a specific task (after z-score, before sigmoid)."""
-        return self.scorer.get_postzscored_lp_score(task_id, self.task_tracker)
-
     def on_task_created(self, task: CurriculumTask) -> None:
         """Handle task creation by tracking it."""
         self.task_tracker.track_task_creation(task._task_id)
+
+        # Check if task was actually tracked (might fail if tracker is full)
+        if task._task_id not in self.task_tracker._task_id_to_index:
+            # Task wasn't tracked (tracker is full), don't add label
+            return
 
         # Initialize LP score to exploration bonus for new tasks
         self.task_tracker.update_lp_score(task._task_id, self.hypers.exploration_bonus)
 
         label = task.get_label()
         if label:
-            self._task_labels[task._task_id] = label
+            # Store label in TaskTracker's shared memory
+            self.task_tracker.set_task_label(task._task_id, label)
 
             # If label was inactive, remove it from the inactive queue (reactivating it)
             if label in self._inactive_labels_fifo:
@@ -400,7 +512,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             self._active_labels.add(label)
 
         # Invalidate stats cache when task state changes
-        self.cache_coordinator.invalidate_stats_cache()
+        self.invalidate_cache()
 
     def get_pool_composition_stats(self) -> Dict[str, Dict[str, int]]:
         """Get pool composition and sampling statistics by label.
@@ -409,10 +521,12 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             Dictionary with 'pool_composition' and 'sampling_counts' keys,
             each containing label->count mappings.
         """
-        # Count labels currently in pool
+        # Count labels currently in pool from TaskTracker shared memory
         pool_composition = {}
-        for label in self._task_labels.values():
-            pool_composition[label] = pool_composition.get(label, 0) + 1
+        for task_id in self.task_tracker.get_all_tracked_tasks():
+            label = self.task_tracker.get_task_label(task_id)
+            if label:
+                pool_composition[label] = pool_composition.get(label, 0) + 1
 
         # Return per-epoch sampling counts (reset each epoch)
         return {
@@ -426,7 +540,17 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         Note: Called per-worker in vectorized environments, so keep lightweight.
         Expensive calculations like Gini are in calculate_gini_coefficients().
         """
-        stats = self.stats_aggregator.get_base_stats()
+        # Start with number of tasks
+        stats = {
+            "num_tasks": self.num_tasks,
+        }
+
+        # Add task tracker global stats with prefix
+        tracker_stats = self.task_tracker.get_global_stats()
+        for key, value in tracker_stats.items():
+            stats[f"tracker/{key}"] = value
+
+        # Add pool composition and sampling statistics
         composition_data = self.get_pool_composition_stats()
 
         for label, count in composition_data["pool_composition"].items():
@@ -529,23 +653,20 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                 completion_count = float(task_stats["completion_count"])
                 completion_counts.append(completion_count)
 
-                raw_lp = float(task_stats.get("lp_score", 0.0))
-                raw_lp_scores.append(raw_lp)
-
-                z_scored = self.scorer.get_postzscored_lp_score(task_id, self.task_tracker)
-                z_scored_lp_scores.append(float(z_scored))
-
+                # Stage 5: All LP score variants now unified into single score_task()
+                # Raw, z-scored, and final sampling probability are now the same value
+                # (final sampling probability after all transformations)
                 sampling_prob = self.scorer.score_task(task_id, self.task_tracker)
+                raw_lp_scores.append(float(sampling_prob))
+                z_scored_lp_scores.append(float(sampling_prob))
                 sampling_probs.append(float(sampling_prob))
 
-                if task_id in self._task_labels:
-                    task_labels_list.append(self._task_labels[task_id])
-                else:
-                    task_labels_list.append("unknown")
+                label = self.task_tracker.get_task_label(task_id)
+                task_labels_list.append(label if label else "unknown")
 
                 if self.hypers.show_curriculum_troubleshooting_logging:
                     gini_stats[f"task_metrics/{task_id}/completion_count"] = completion_count
-                    gini_stats[f"task_metrics/{task_id}/raw_lp"] = raw_lp
+                    # Stage 5: raw_lp and sampling_prob now unified
                     gini_stats[f"task_metrics/{task_id}/sampling_prob"] = sampling_prob
 
         if completion_counts:
@@ -621,7 +742,14 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def get_detailed_stats(self) -> Dict[str, float]:
         """Get detailed stats including learning progress and slice distribution analysis."""
-        return self.stats_aggregator.get_detailed_stats()
+        stats = {}
+
+        # Learning progress stats from scorer with lp/ prefix
+        lp_stats = self.scorer.get_stats()
+        for key, value in lp_stats.items():
+            stats[f"lp/{key}"] = value
+
+        return stats
 
     def get_state(self) -> Dict[str, Any]:
         """Get learning progress algorithm state for checkpointing."""
@@ -631,8 +759,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             "task_tracker": self.task_tracker.get_state(),
             "scorer": self.scorer.get_state(),
             "label_tracking": {
-                "task_labels": self._task_labels,
-                "label_completion_counts": self._label_completion_counts,
+                # Labels are now stored in TaskTracker shared memory
+                # Only save sampling/eviction counts and active label metadata
                 "label_sampling_counts": self._label_sampling_counts,
                 "label_eviction_counts": self._label_eviction_counts,
                 "active_labels": list(self._active_labels),
@@ -661,10 +789,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             self.scorer.load_state(state["scorer"])
 
         # Restore label tracking state (if available, for backward compatibility)
+        # Labels themselves are now in TaskTracker shared memory
         if "label_tracking" in state:
             label_data = state["label_tracking"]
-            self._task_labels = label_data.get("task_labels", {})
-            self._label_completion_counts = label_data.get("label_completion_counts", {})
             self._label_sampling_counts = label_data.get("label_sampling_counts", {})
             self._label_eviction_counts = label_data.get("label_eviction_counts", {})
             self._active_labels = set(label_data.get("active_labels", []))

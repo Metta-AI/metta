@@ -47,7 +47,6 @@ def _select_attn_implementation(attn_implementation: Optional[str]) -> Optional[
 def train(
     *,
     curriculum: Optional[CurriculumConfig] = None,
-    enable_detailed_slice_logging: bool = False,
     freeze_llm: bool = True,
     model_name: Optional[str] = None,
     attn_implementation: Optional[str] = None,
@@ -64,13 +63,10 @@ def train(
         config_kwargs["model_name"] = model_name or "HuggingFaceTB/SmolLM2-135M"
         policy_architecture = SmolLLMConfig(**config_kwargs)
 
-    resolved_curriculum = curriculum or make_curriculum(
-        enable_detailed_slice_logging=enable_detailed_slice_logging,
-    )
+    resolved_curriculum = curriculum or make_curriculum()
 
     tool = base_train(
         curriculum=resolved_curriculum,
-        enable_detailed_slice_logging=enable_detailed_slice_logging,
         policy_architecture=policy_architecture,
     )
 
@@ -133,7 +129,6 @@ __all__ = [
 def make_curriculum(
     arena_env: Optional[MettaGridConfig] = None,
     *,
-    enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
 ) -> CurriculumConfig:
     """SmolLLM-friendly arena curriculum that avoids legacy converter fields."""
@@ -156,12 +151,10 @@ def make_curriculum(
             rand_task_rate=0.01,
             exploration_bonus=0.1,
             min_samples_for_lp=10,  # Use exploration bonus for first 10 samples
-            enable_detailed_slice_logging=enable_detailed_slice_logging,
             lp_score_temperature=0.0,  # Z-score normalization for relative LP comparison
             z_score_amplification=10.0,  # Amplification after z-score (only when temp=0)
             show_curriculum_troubleshooting_logging=True,  # Enable per-task metrics for debugging
             early_progress_amplification=0.5,  # 0.5 = OFF, low values (0.05) amplify unsolved tasks
-            max_slice_axes=5,
         )
 
     return tasks.to_curriculum(algorithm_config=algorithm_config)

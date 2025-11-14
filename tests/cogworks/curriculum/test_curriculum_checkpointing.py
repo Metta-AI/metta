@@ -171,10 +171,11 @@ class TestCurriculumStateSerialization:
 
         # Verify scorer state (bidirectional-specific)
         scorer_state = state["scorer"]
-        # Note: outcomes, p_fast, p_slow, p_true, and random_baseline are now stored in task_tracker's
-        # shared memory, not in scorer_state. Scorer only stores caches and working data.
-        assert "task_dist" in scorer_state or scorer_state["task_dist"] is None
-        assert "score_cache" in scorer_state
+        # Note: After Stage 2 simplification, ALL state (EMAs, LP scores) is in task_tracker's
+        # shared memory. Scorer only stores the stale flag.
+        assert "stale_dist" in scorer_state
+        # Verify stale_dist is always True after serialization (forces recalculation on load)
+        assert scorer_state["stale_dist"] is True
 
         # Verify task tracker state
         task_tracker_state = state["task_tracker"]

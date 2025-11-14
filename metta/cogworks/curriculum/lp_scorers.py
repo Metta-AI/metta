@@ -115,30 +115,6 @@ class LPScorer(ABC):
         """Invalidate any internal caches."""
         ...
 
-    def get_raw_lp_score(self, task_id: int, tracker: TaskTracker) -> float:
-        """Get raw LP score before normalization (default: same as regular score).
-
-        Args:
-            task_id: ID of task to score
-            tracker: TaskTracker instance
-
-        Returns:
-            Raw learning progress score
-        """
-        return self.score_task(task_id, tracker)
-
-    def get_postzscored_lp_score(self, task_id: int, tracker: TaskTracker) -> float:
-        """Get LP score after z-score but before sigmoid (default: same as regular score).
-
-        Args:
-            task_id: ID of task to score
-            tracker: TaskTracker instance
-
-        Returns:
-            Post-z-scored learning progress score
-        """
-        return self.score_task(task_id, tracker)
-
 
 class BidirectionalLPScorer(LPScorer):
     """Bidirectional learning progress using fast/slow exponential moving averages.
@@ -159,20 +135,20 @@ class BidirectionalLPScorer(LPScorer):
 
         # Bidirectional learning progress tracking
         # All EMA state (p_fast, p_slow, p_true, random_baseline) is stored in shared memory (indices 13-16).
-        # The scorer maintains only caches and working data, no persistent outcome buffers.
+        # All LP scores stored in shared memory (index 4: lp_score).
+        #
+        # Single Source of Truth: Shared memory via TaskTracker
+        # - EMAs read from shared memory on demand
+        # - Completion counts read from shared memory on demand
+        # - LP scores read from shared memory on demand
+        #
+        # Distribution Recalculation:
+        # - Distribution recalculated when stale (after any task update)
+        # - Recalculation includes z-score normalization + sigmoid across all tasks
+        # - Final scores written back to shared memory atomically
 
-        # Track last outcome count to detect which tasks have new data (enables selective EMA updates)
-        self._last_outcome_counts: Dict[int, int] = {}
-
-        # Cache for task distribution and scores
-        self._task_dist: Optional[np.ndarray] = None
-        self._raw_lp_scores: Optional[np.ndarray] = None  # Pre-zscore LP scores (after smoothing/reweighting)
-        self._postzscored_lp_scores: Optional[np.ndarray] = None  # Post-zscore LP scores (before sigmoid)
+        # Distribution staleness flag (only state we keep)
         self._stale_dist = True
-        self._score_cache: Dict[int, float] = {}
-        self._raw_lp_cache: Dict[int, float] = {}  # Cache for raw LP scores
-        self._postzscored_lp_cache: Dict[int, float] = {}  # Cache for post-zscore LP scores
-        self._cache_valid_tasks: set[int] = set()
 
         # Track first 3 tasks for detailed wandb metrics
         self._tracked_task_ids: Dict[int, int] = {}  # Maps task_id -> position (0, 1, 2)
@@ -210,178 +186,49 @@ class BidirectionalLPScorer(LPScorer):
             task_data[16] = random_baseline
 
     def score_task(self, task_id: int, tracker: TaskTracker) -> float:
-        """Calculate bidirectional learning progress score for a task."""
-        # Return cached score if valid
-        if task_id in self._cache_valid_tasks and task_id in self._score_cache:
-            return self._score_cache[task_id]
+        """Calculate bidirectional learning progress score for a task.
 
-        # Check completion count from shared memory for sufficient data
-        task_stats = tracker.get_task_stats(task_id)
-        if not task_stats or task_stats["completion_count"] < self.config.min_samples_for_lp:
-            # Tasks without sufficient data get exploration bonus
-            score = self.config.exploration_bonus
-        else:
-            # Calculate bidirectional learning progress
-            self._update_bidirectional_progress(tracker)
-
-            # Get task distribution if needed
-            if self._task_dist is None or self._stale_dist:
-                self._calculate_task_distribution()
-
-            # Find task index in our tracking (must match insertion order from _update_bidirectional_progress)
-            task_indices = tracker.get_all_tracked_tasks()
-            if task_id in task_indices and self._task_dist is not None:
-                task_idx = task_indices.index(task_id)
-                if task_idx < len(self._task_dist):
-                    # Use the bidirectional learning progress as score
-                    score = float(self._task_dist[task_idx])
-
-                    # Store metrics for tracked tasks (for wandb logging)
-                    if task_id in self._tracked_task_ids:
-                        raw_lp = self._learning_progress()[task_idx] if len(self._learning_progress()) > 0 else 0.0
-                        self._tracked_task_metrics[task_id] = {
-                            "raw_lp": raw_lp,
-                            "final_score": score,
-                        }
-                else:
-                    score = self.config.exploration_bonus
-            else:
-                score = self.config.exploration_bonus
-
-        # Cache the computed score and write to shared memory
-        self._score_cache[task_id] = score
-        self._cache_valid_tasks.add(task_id)
-        tracker.update_lp_score(task_id, score)
-        return score
-
-    def get_raw_lp_score(self, task_id: int, tracker: TaskTracker) -> float:
-        """Get raw LP score before z-score normalization (but after smoothing/reweighting).
-
-        This returns the LP value after applying smoothing, performance bonus, and reweighting,
-        but before z-score normalization and sigmoid transformation.
-
-        Args:
-            task_id: ID of task to score
-            tracker: TaskTracker instance
-
-        Returns:
-            Raw LP score before z-score transformation
+        Reads from shared memory when distribution is fresh, recalculates when stale.
+        This is the final sampling probability after all transformations.
         """
-        # Return cached raw LP if valid
-        if task_id in self._cache_valid_tasks and task_id in self._raw_lp_cache:
-            return self._raw_lp_cache[task_id]
-
         # Check completion count from shared memory for sufficient data
         task_stats = tracker.get_task_stats(task_id)
         if not task_stats or task_stats["completion_count"] < self.config.min_samples_for_lp:
             # Tasks without sufficient data get exploration bonus
-            raw_lp = self.config.exploration_bonus
-        else:
-            # Calculate bidirectional learning progress
-            self._update_bidirectional_progress(tracker)
+            return self.config.exploration_bonus
 
-            # Get raw LP scores if needed
-            if self._raw_lp_scores is None or self._stale_dist:
-                self._calculate_task_distribution()
+        # If distribution is stale, recalculate for all tasks
+        if self._stale_dist:
+            self._calculate_task_distribution(tracker)
 
-            # Find task index in our tracking (must match insertion order from _update_bidirectional_progress)
-            task_indices = tracker.get_all_tracked_tasks()
-            if task_id in task_indices and self._raw_lp_scores is not None:
-                task_idx = task_indices.index(task_id)
-                if task_idx < len(self._raw_lp_scores):
-                    raw_lp = float(self._raw_lp_scores[task_idx])
-                else:
-                    raw_lp = self.config.exploration_bonus
-            else:
-                raw_lp = self.config.exploration_bonus
-
-        # Cache the computed raw LP
-        self._raw_lp_cache[task_id] = raw_lp
-        self._cache_valid_tasks.add(task_id)
-        return raw_lp
-
-    def get_postzscored_lp_score(self, task_id: int, tracker: TaskTracker) -> float:
-        """Get LP score after z-score normalization but before sigmoid.
-
-        This returns the LP value after z-score normalization (or temperature scaling)
-        but before sigmoid transformation and final normalization.
-
-        Args:
-            task_id: ID of task to score
-            tracker: TaskTracker instance
-
-        Returns:
-            Post-z-score LP score before sigmoid
-        """
-        # Return cached post-zscore LP if valid
-        if task_id in self._cache_valid_tasks and task_id in self._postzscored_lp_cache:
-            return self._postzscored_lp_cache[task_id]
-
-        # Check completion count from shared memory for sufficient data
+        # Read LP score from shared memory (written by _calculate_task_distribution)
         task_stats = tracker.get_task_stats(task_id)
-        if not task_stats or task_stats["completion_count"] < self.config.min_samples_for_lp:
-            # Tasks without sufficient data get exploration bonus
-            postzscored_lp = self.config.exploration_bonus
+        if task_stats:
+            return task_stats.get("lp_score", self.config.exploration_bonus)
         else:
-            # Calculate bidirectional learning progress
-            self._update_bidirectional_progress(tracker)
-
-            # Get post-zscore LP scores if needed
-            if self._postzscored_lp_scores is None or self._stale_dist:
-                self._calculate_task_distribution()
-
-            # Find task index in our tracking (must match insertion order from _update_bidirectional_progress)
-            task_indices = tracker.get_all_tracked_tasks()
-            if task_id in task_indices and self._postzscored_lp_scores is not None:
-                task_idx = task_indices.index(task_id)
-                if task_idx < len(self._postzscored_lp_scores):
-                    postzscored_lp = float(self._postzscored_lp_scores[task_idx])
-                else:
-                    postzscored_lp = self.config.exploration_bonus
-            else:
-                postzscored_lp = self.config.exploration_bonus
-
-        # Cache the computed post-zscore LP
-        self._postzscored_lp_cache[task_id] = postzscored_lp
-        self._cache_valid_tasks.add(task_id)
-        return postzscored_lp
+            return self.config.exploration_bonus
 
     def update_with_score(self, task_id: int, score: float) -> None:
-        """Update bidirectional EMA tracking for a task with new score."""
+        """Track task for detailed wandb metrics.
+
+        Stage 3: EMA updates now happen atomically in TaskTracker.
+        This method only registers tasks for tracking (first 3 tasks get detailed metrics).
+        """
         # Track first 3 unique tasks for detailed wandb metrics
         if task_id not in self._tracked_task_ids and len(self._tracked_task_ids) < 3:
             next_position = len(self._tracked_task_ids)
             self._tracked_task_ids[task_id] = next_position
             self._tracked_task_metrics[task_id] = {}
 
-        # Store raw reward for tracked tasks (for wandb)
-        if task_id in self._tracked_task_ids:
-            self._tracked_task_metrics[task_id].update(
-                {
-                    "raw_reward": score,
-                    "clamped_reward": score,
-                }
-            )
+        # Note: EMA updates and tracked task metrics are now handled atomically
+        # in TaskTracker.update_task_performance_with_bidirectional_emas()
 
-        # Update bidirectional progress for this specific task with the new score
-        if self.tracker is not None:
-            self._update_task_emas(task_id, score, self.tracker)
-
-        # Mark distribution as stale
+        # Mark distribution as stale - it will be recalculated on next score_task() call
         self._stale_dist = True
-        # Invalidate ALL caches because bidirectional LP depends on all tasks (due to z-score normalization)
-        self._cache_valid_tasks.clear()
-        self._score_cache.clear()
-        self._raw_lp_cache.clear()
-        self._postzscored_lp_cache.clear()
 
     def remove_task(self, task_id: int) -> None:
         """Remove task from scoring system."""
-        self._score_cache.pop(task_id, None)
-        self._raw_lp_cache.pop(task_id, None)
-        self._postzscored_lp_cache.pop(task_id, None)
-        self._cache_valid_tasks.discard(task_id)
-        self._last_outcome_counts.pop(task_id, None)
+        # Mark distribution as stale - it will be recalculated on next score_task() call
         self._stale_dist = True
 
     def get_stats(self) -> Dict[str, float]:
@@ -401,31 +248,28 @@ class BidirectionalLPScorer(LPScorer):
                 "mean_lp_score": 0.0,
             }
 
-        self._update_bidirectional_progress(self.tracker)
-
         # Compute mean task success rate from shared memory success_rate_ema
         task_success_rates = []
+        lp_scores = []
         for task_id in task_ids:
             task_stats = self.tracker.get_task_stats(task_id)
             if task_stats and task_stats["completion_count"] > 0:
                 task_success_rates.append(task_stats["success_rate_ema"])
+                lp_scores.append(task_stats.get("lp_score", 0.0))
 
         stats = {
             "mean_task_success_rate": float(np.mean(task_success_rates)) if task_success_rates else 0.0,
+            "mean_lp_score": float(np.mean(lp_scores)) if lp_scores else 0.0,
         }
 
-        # Add mean LP score from score cache
-        if self._score_cache:
-            stats["mean_lp_score"] = float(np.mean(list(self._score_cache.values())))
-        else:
-            stats["mean_lp_score"] = 0.0
-
-        if self._task_dist is not None and len(self._task_dist) > 0:
+        # Calculate learning progress from shared memory
+        learning_progress = self._learning_progress()
+        if len(learning_progress) > 0:
             stats.update(
                 {
-                    "mean_sample_prob": float(np.mean(self._task_dist)),
-                    "num_zeros_lp_dist": float(np.sum(self._task_dist == 0)),
-                    "mean_learning_progress": float(np.mean(self._learning_progress())),
+                    "mean_sample_prob": stats["mean_lp_score"],  # Approximate (after normalization)
+                    "num_zeros_lp_dist": float(np.sum(lp_scores == 0) if lp_scores else 0),
+                    "mean_learning_progress": float(np.mean(learning_progress)),
                 }
             )
         else:
@@ -450,36 +294,24 @@ class BidirectionalLPScorer(LPScorer):
     def get_state(self) -> Dict[str, Any]:
         """Serialize bidirectional scorer state.
 
-        Note: EMAs (p_fast, p_slow, p_true, random_baseline) are stored in shared memory
-        via the task tracker (indices 13-16), so they're not included here.
-        Only scorer-specific working data (caches) is serialized.
+        Note: All state (EMAs, LP scores) is stored in shared memory via the task tracker,
+        so there's minimal state to serialize. We just mark distribution as stale on load.
         """
         return {
-            "task_dist": self._task_dist.tolist() if self._task_dist is not None else None,
-            "stale_dist": self._stale_dist,
-            "score_cache": self._score_cache,
-            "cache_valid_tasks": list(self._cache_valid_tasks),
-            "last_outcome_counts": self._last_outcome_counts,
+            "stale_dist": True,  # Always stale after load (force recalculation)
         }
 
     def load_state(self, state: Dict[str, Any]) -> None:
         """Deserialize bidirectional scorer state.
 
-        Note: EMAs (p_fast, p_slow, p_true, random_baseline) are stored in shared memory
-        via the task tracker (indices 13-16), so they're restored from there automatically.
+        Note: All state (EMAs, LP scores) is stored in shared memory via the task tracker,
+        so they're restored from there automatically. Just mark distribution as stale.
         """
-        self._task_dist = np.array(state["task_dist"]) if state.get("task_dist") is not None else None
-        self._stale_dist = state.get("stale_dist", True)
-        self._score_cache = state.get("score_cache", {})
-        self._cache_valid_tasks = set(state.get("cache_valid_tasks", []))
-        self._last_outcome_counts = {int(k): v for k, v in state.get("last_outcome_counts", {}).items()}
+        self._stale_dist = True  # Always recalculate distribution after load
 
     def invalidate_cache(self) -> None:
-        """Invalidate score cache."""
-        self._cache_valid_tasks.clear()
-        self._score_cache.clear()
-        self._raw_lp_cache.clear()
-        self._postzscored_lp_cache.clear()
+        """Invalidate distribution (mark as stale)."""
+        self._stale_dist = True
 
     def _update_task_emas(self, task_id: int, score: float, tracker: TaskTracker) -> None:
         """Update bidirectional EMAs for a single task with a new score.
@@ -539,41 +371,6 @@ class BidirectionalLPScorer(LPScorer):
             )
 
         # Mark distribution as stale since EMAs changed
-        self._stale_dist = True
-
-    def _update_bidirectional_progress(self, tracker: TaskTracker) -> None:
-        """Update bidirectional learning progress for all tasks.
-
-        This method updates EMAs for all tracked tasks that have new data since last update.
-        Used when explicitly called (e.g., in tests) or when getting stats.
-        """
-        # Get all tracked task IDs from tracker
-        task_ids = tracker.get_all_tracked_tasks()
-        if not task_ids:
-            return
-
-        # Process each task individually
-        for task_id in task_ids:
-            # Get task stats from shared memory
-            task_stats = tracker.get_task_stats(task_id)
-            if not task_stats:
-                continue
-
-            completion_count = task_stats["completion_count"]
-
-            # Check if task has new completions since last update
-            has_new_data = completion_count > 0 and completion_count != self._last_outcome_counts.get(task_id, 0)
-
-            if not has_new_data:
-                continue
-
-            # Use reward_ema as the current performance value for batch updates
-            score = task_stats["reward_ema"]
-            self._update_task_emas(task_id, score, tracker)
-
-            # Update the last completion count AFTER processing EMAs
-            self._last_outcome_counts[task_id] = int(completion_count)
-
         self._stale_dist = True
 
     def _reweight(self, p: float) -> float:
@@ -651,28 +448,19 @@ class BidirectionalLPScorer(LPScorer):
         x_clipped = np.clip(x, -500, 500)  # Clip to prevent overflow
         return 1.0 / (1.0 + np.exp(-x_clipped))
 
-    def _calculate_task_distribution(self) -> None:
-        """Calculate task sampling distribution from learning progress."""
-        if self.tracker is None:
-            self._task_dist = None
-            self._raw_lp_scores = None
-            self._postzscored_lp_scores = None
-            self._stale_dist = False
-            return
+    def _calculate_task_distribution(self, tracker: TaskTracker) -> None:
+        """Calculate task sampling distribution from learning progress and write to shared memory.
 
-        task_ids = self.tracker.get_all_tracked_tasks()
+        This method reads EMAs from shared memory, calculates final LP scores,
+        and writes them back atomically.
+        """
+        task_ids = tracker.get_all_tracked_tasks()
         if not task_ids:
-            self._task_dist = None
-            self._raw_lp_scores = None
-            self._postzscored_lp_scores = None
             self._stale_dist = False
             return
 
         learning_progress = self._learning_progress()
         if len(learning_progress) == 0:
-            self._task_dist = None
-            self._raw_lp_scores = None
-            self._postzscored_lp_scores = None
             self._stale_dist = False
             return
 
@@ -681,14 +469,11 @@ class BidirectionalLPScorer(LPScorer):
         subprobs = learning_progress + self.config.progress_smoothing
 
         # Add performance bonus if configured
-        if self.config.performance_bonus_weight > 0 and self.tracker is not None:
+        if self.config.performance_bonus_weight > 0:
             # Build p_true array from shared memory (using same task_ids from above)
-            p_true_array = np.array([self._get_ema_from_shared_memory(tid, self.tracker)[2] for tid in task_ids])
+            p_true_array = np.array([self._get_ema_from_shared_memory(tid, tracker)[2] for tid in task_ids])
             performance_bonus = p_true_array * self.config.performance_bonus_weight
             subprobs = subprobs + performance_bonus
-
-        # Store raw LP scores (before z-score normalization)
-        self._raw_lp_scores = subprobs.copy().astype(np.float32)
 
         # Apply temperature scaling or z-score normalization before sigmoid
         # Temperature controls how LP scores are transformed before sigmoid:
@@ -712,9 +497,6 @@ class BidirectionalLPScorer(LPScorer):
             subprobs = subprobs / temperature
         # else: negative temperature is invalid, leave subprobs unchanged
 
-        # Store post-z-score LP scores (after z-score/temperature, before sigmoid)
-        self._postzscored_lp_scores = subprobs.copy().astype(np.float32)
-
         subprobs = self._sigmoid(subprobs)
 
         # Normalize to sum to 1
@@ -724,7 +506,21 @@ class BidirectionalLPScorer(LPScorer):
         else:
             task_dist = np.ones_like(subprobs) / len(subprobs)
 
-        self._task_dist = task_dist.astype(np.float32)
+        # Write LP scores back to shared memory atomically
+        for i, task_id in enumerate(task_ids):
+            lp_score = float(task_dist[i])
+            tracker.update_lp_score(task_id, lp_score)
+
+            # Update tracked task metrics for wandb logging
+            if task_id in self._tracked_task_ids:
+                raw_lp = learning_progress[i] if i < len(learning_progress) else 0.0
+                self._tracked_task_metrics[task_id].update(
+                    {
+                        "raw_lp": raw_lp,
+                        "final_score": lp_score,
+                    }
+                )
+
         self._stale_dist = False
 
 
@@ -745,85 +541,80 @@ class BasicLPScorer(LPScorer):
         """
         super().__init__(config, tracker)
 
-        # Cache for scores
-        self._score_cache: Dict[int, float] = {}
-        self._cache_valid_tasks: set[int] = set()
+        # Stage 6: No local caching, only stale flag for consistency with BidirectionalLPScorer
+        self._stale_dist = True
 
     def score_task(self, task_id: int, tracker: TaskTracker) -> float:
-        """Calculate basic learning progress score using EMA variance."""
-        # Return cached score if valid
-        if task_id in self._cache_valid_tasks and task_id in self._score_cache:
-            return self._score_cache[task_id]
+        """Calculate basic learning progress score using EMA variance.
 
+        Stage 6: No local caching, always calculate from TaskTracker's shared memory.
+        """
         task_stats = tracker.get_task_stats(task_id)
         if not task_stats or task_stats["completion_count"] < 2:
-            score = self.config.exploration_bonus
-        else:
-            # Use TaskTracker's reward_ema and ema_squared for variance calculation
-            ema_score = task_stats["reward_ema"]
-            ema_squared = task_stats["ema_squared"]
-            completion_count = task_stats["completion_count"]
+            return self.config.exploration_bonus
 
-            # Calculate variance: Var(X) = E[X²] - (E[X])²
-            variance = max(0.0, ema_squared - (ema_score * ema_score))
+        # Use TaskTracker's reward_ema and ema_squared for variance calculation
+        ema_score = task_stats["reward_ema"]
+        ema_squared = task_stats["ema_squared"]
+        completion_count = task_stats["completion_count"]
 
-            # Calculate standard deviation
-            std_dev = np.sqrt(variance)
+        # Calculate variance: Var(X) = E[X²] - (E[X])²
+        variance = max(0.0, ema_squared - (ema_score * ema_score))
 
-            # Use exploration bonus for tasks with insufficient samples
-            if completion_count < self.config.min_samples_for_lp:
-                score = self.config.exploration_bonus
-            else:
-                # Learning progress is approximated by variance in performance
-                score = std_dev
+        # Calculate standard deviation
+        std_dev = np.sqrt(variance)
 
-        # Cache the computed score
-        self._score_cache[task_id] = score
-        self._cache_valid_tasks.add(task_id)
-        return score
+        # Use exploration bonus for tasks with insufficient samples
+        if completion_count < self.config.min_samples_for_lp:
+            return self.config.exploration_bonus
+
+        # Learning progress is approximated by variance in performance
+        return std_dev
 
     def update_with_score(self, task_id: int, score: float) -> None:
         """Update basic EMA tracking for a task with new score.
 
-        Note: Basic mode relies primarily on TaskTracker's EMAs.
+        Stage 6: EMA updates now happen atomically in TaskTracker (Stage 3).
+        This method only marks the distribution as stale for consistency.
         """
-        # Invalidate cache for this task
-        self._cache_valid_tasks.discard(task_id)
+        # Mark distribution as stale (though basic mode doesn't use distributions)
+        self._stale_dist = True
 
     def remove_task(self, task_id: int) -> None:
         """Remove task from scoring system."""
-        self._score_cache.pop(task_id, None)
-        self._cache_valid_tasks.discard(task_id)
+        # Mark distribution as stale
+        self._stale_dist = True
 
     def get_stats(self) -> Dict[str, float]:
-        """Get detailed basic learning progress statistics."""
-        # Basic mode stats are minimal since most data is in TaskTracker
-        stats = {
+        """Get detailed basic learning progress statistics.
+
+        Stage 6: Stats calculated from shared memory, no local caches.
+        """
+        # Basic mode stats are minimal since all data is in TaskTracker
+        return {
             "mean_learning_progress": 0.0,  # Could compute from all tasks if needed
-            "num_cached_scores": len(self._score_cache),
+            "mean_lp_score": 0.0,
         }
 
-        # Add mean LP score from score cache
-        if self._score_cache:
-            stats["mean_lp_score"] = float(np.mean(list(self._score_cache.values())))
-        else:
-            stats["mean_lp_score"] = 0.0
-
-        return stats
-
     def get_state(self) -> Dict[str, Any]:
-        """Serialize basic scorer state."""
+        """Serialize basic scorer state.
+
+        Stage 6: Only stale flag is serialized, like BidirectionalLPScorer.
+        """
         return {
-            "score_cache": self._score_cache,
-            "cache_valid_tasks": list(self._cache_valid_tasks),
+            "stale_dist": self._stale_dist,
         }
 
     def load_state(self, state: Dict[str, Any]) -> None:
-        """Deserialize basic scorer state."""
-        self._score_cache = state.get("score_cache", {})
-        self._cache_valid_tasks = set(state.get("cache_valid_tasks", []))
+        """Deserialize basic scorer state.
+
+        Stage 6: Only stale flag is restored.
+        """
+        self._stale_dist = state.get("stale_dist", True)
 
     def invalidate_cache(self) -> None:
-        """Invalidate score cache."""
-        self._cache_valid_tasks.clear()
-        self._score_cache.clear()
+        """Invalidate internal state (mark distribution as stale).
+
+        Stage 6: No caches to clear, just mark as stale.
+        """
+        self._stale_dist = True

@@ -62,7 +62,6 @@ def make_curriculum(
     include_small_maps: bool = True,
     include_medium_maps: bool = True,
     include_large_maps: bool = False,
-    enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
 ) -> CurriculumConfig:
     """Create curriculum with all map-variant combinations.
@@ -80,7 +79,6 @@ def make_curriculum(
         include_small_maps: Include 30x30 maps (3 missions × 14 combos = 42 tasks)
         include_medium_maps: Include 50x50 maps (3 missions × 5 combos = 15 tasks)
         include_large_maps: Include 70x70+ maps (3 missions × 5 combos = 15 tasks, requires num_cogs >= 8)
-        enable_detailed_slice_logging: Enable detailed curriculum logging
         algorithm_config: Custom curriculum algorithm config
 
     Returns:
@@ -196,12 +194,10 @@ def make_curriculum(
             rand_task_rate=0.01,
             exploration_bonus=0.1,
             min_samples_for_lp=5,  # Reduced from 10 to work with duplicate tasks
-            enable_detailed_slice_logging=enable_detailed_slice_logging,
             lp_score_temperature=0.0,
             z_score_amplification=10.0,
             show_curriculum_troubleshooting_logging=True,
             early_progress_amplification=0.5,
-            max_slice_axes=4,
         )
 
     curriculum_config = merged_tasks.to_curriculum(
@@ -225,7 +221,6 @@ def train(
     include_medium_maps: bool = True,
     include_large_maps: bool = False,
     curriculum: Optional[CurriculumConfig] = None,
-    enable_detailed_slice_logging: bool = False,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
 ) -> TrainTool:
@@ -251,7 +246,6 @@ def train(
         include_medium_maps: Include 50x50 maps (3 missions × 5 combos = 15 tasks)
         include_large_maps: Include 70x70+ maps (3 missions × 5 combos = 15 tasks, requires 8 agents)
         curriculum: Custom curriculum config (overrides other params)
-        enable_detailed_slice_logging: Enable detailed curriculum logging
         eval_variants: Variants to evaluate on (default: same as training)
         eval_difficulty: Eval difficulty level
 
@@ -277,7 +271,6 @@ def train(
         include_small_maps=include_small_maps,
         include_medium_maps=include_medium_maps,
         include_large_maps=include_large_maps,
-        enable_detailed_slice_logging=enable_detailed_slice_logging,
     )
 
     # Resolve eval variants

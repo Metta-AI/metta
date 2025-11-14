@@ -150,22 +150,6 @@ class CurriculumAlgorithm(StatsLogger, ABC):
         """
         return 0.0
 
-    def get_task_raw_lp_score(self, task_id: int) -> float:
-        """Get raw learning progress score before z-score normalization.
-
-        Returns:
-            Raw LP score, or 0.0 if not applicable
-        """
-        return 0.0
-
-    def get_task_postzscored_lp_score(self, task_id: int) -> float:
-        """Get learning progress score after z-score normalization but before sigmoid.
-
-        Returns:
-            Post-z-score LP score, or 0.0 if not applicable
-        """
-        return 0.0
-
     def calculate_gini_coefficients(self) -> Dict[str, float]:
         """Calculate Gini coefficients for the curriculum (optional, expensive operation).
 
