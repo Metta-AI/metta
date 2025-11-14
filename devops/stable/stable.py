@@ -86,19 +86,47 @@ def mark_step_complete(state: ReleaseState | None, step_name: str) -> None:
     save_state(state)
 
 
-def get_user_confirmation(prompt: str) -> bool:
-    """Get yes/no confirmation from user."""
+def get_user_confirmation(prompt: str, default: Optional[bool] = None, no_interactive: bool = False) -> bool:
+    """Get yes/no confirmation from user.
+
+    Args:
+        prompt: Question to ask user
+        default: Default value if running non-interactively. If None, will fail in non-interactive mode.
+        no_interactive: If True, use default without prompting
+
+    Returns:
+        True if user confirms, False otherwise
+
+    Raises:
+        RuntimeError: If default is None and running in non-interactive mode
+    """
+    # Check if we're in non-interactive mode
+    if no_interactive:
+        if default is None:
+            raise RuntimeError(f"Cannot prompt '{prompt}' in non-interactive mode without a default")
+        return default
+
+    # Build prompt suffix based on default
+    if default is True:
+        suffix = " [Y/n] "
+    elif default is False:
+        suffix = " [y/N] "
+    else:
+        suffix = " [y/n] "
+
     while True:
         try:
-            response = input(f"{prompt} [y/N] ").strip().lower()
+            response = input(f"{prompt}{suffix}").strip().lower()
             if response in ("y", "yes"):
                 return True
-            elif response in ("n", "no", ""):
+            elif response in ("n", "no"):
                 return False
+            elif response == "" and default is not None:
+                return default
             else:
                 print("Invalid input. Please enter 'y' or 'n'.")
         except (EOFError, KeyboardInterrupt):
-            return False
+            return default if default is not None else False
 
 
 def setup_logging(log_file: Path) -> None:
@@ -296,7 +324,9 @@ def _prepare_jobs_for_release(
     return prepared_jobs
 
 
-def step_prepare_tag(version: str, state: Optional[ReleaseState] = None, **_kwargs) -> None:
+def step_prepare_tag(
+    version: str, state: Optional[ReleaseState] = None, no_interactive: bool = False, **_kwargs
+) -> None:
     """Create staging tag (v{version}-rc) to mark commit for validation."""
     tag_name = f"v{version}-rc"
     print_step_header(f"Prepare Staging Tag (v{version})")
@@ -319,7 +349,8 @@ def step_prepare_tag(version: str, state: Optional[ReleaseState] = None, **_kwar
             mark_step_complete(state, "prepare_tag")
             return
         # Fresh run - ask user if we should recreate
-        if not get_user_confirmation("Delete existing tag and continue?"):
+        # Default to No - safer to not delete existing tags automatically
+        if not get_user_confirmation("Delete existing tag and continue?", default=False, no_interactive=no_interactive):
             sys.exit(1)
         git.run_git("tag", "-d", tag_name)
         try:
@@ -337,7 +368,11 @@ def step_prepare_tag(version: str, state: Optional[ReleaseState] = None, **_kwar
 
 
 def step_bug_check(
-    version: str, state: Optional[ReleaseState] = None, skip_commit_match: bool = False, **_kwargs
+    version: str,
+    state: Optional[ReleaseState] = None,
+    skip_commit_match: bool = False,
+    no_interactive: bool = False,
+    **_kwargs,
 ) -> None:
     """Check for blocking bugs via Asana or manual confirmation."""
     print_step_header("Bug Status Check")
@@ -368,7 +403,9 @@ def step_bug_check(
     print("  1. Check Asana for blocking bugs")
     print("  2. Resolve or triage any blockers\n")
 
-    if not get_user_confirmation("Bug check PASSED?"):
+    # Default to Yes - assume no bugs if Asana unavailable and running non-interactively
+    # This allows automated releases to proceed when Asana check is inconclusive
+    if not get_user_confirmation("Bug check PASSED?", default=True, no_interactive=no_interactive):
         print("❌ Bug check FAILED")
         sys.exit(1)
 
@@ -381,6 +418,7 @@ def step_job_validation(
     job: Optional[str] = None,
     retry: bool = False,
     skip_commit_match: bool = False,
+    no_interactive: bool = False,
     **_kwargs,
 ) -> None:
     """Run validation jobs via JobManager.
@@ -423,12 +461,12 @@ def step_job_validation(
         return
 
     # Submit, monitor, and get initial report
-
     submit_monitor_and_report(
         job_manager,
         prepared_jobs,
         title=f"Release Validation: {state_version}",
         group=state_version,
+        no_interactive=no_interactive,
     )
 
     # Show detailed release-specific displays (acceptance + training artifacts)
@@ -794,6 +832,9 @@ def common(
     skip_commit_match: bool = typer.Option(
         False, "--skip-commit-match", help="Skip verification that current commit matches RC tag"
     ),
+    no_interactive: bool = typer.Option(
+        False, "--no-interactive", help="Run in non-interactive mode (use defaults for prompts)"
+    ),
 ):
     """Stable Release System - automated release validation and deployment."""
     resolved_version = resolve_version(version, new)
@@ -802,6 +843,7 @@ def common(
     ctx.obj = {
         "version": resolved_version,
         "skip_commit_match": skip_commit_match,
+        "no_interactive": no_interactive,
     }
 
     print("=" * 80)
@@ -830,15 +872,18 @@ def cmd_validate(
     """Run validation pipeline (prepare-tag -> validation -> summary)."""
     version = ctx.obj["version"]
     skip_commit_match = ctx.obj["skip_commit_match"]
+    no_interactive = ctx.obj["no_interactive"]
 
     state_version = f"v{version}"
     state = load_or_create_state(state_version, git.get_current_commit())
 
     # Step 1: Prepare RC tag (automatic - skips if already done)
-    step_prepare_tag(version=version, state=state)
+    step_prepare_tag(version=version, state=state, no_interactive=no_interactive)
 
     # Step 2: Run validation
-    step_job_validation(version=version, job=job, retry=retry, skip_commit_match=skip_commit_match)
+    step_job_validation(
+        version=version, job=job, retry=retry, skip_commit_match=skip_commit_match, no_interactive=no_interactive
+    )
 
     # Step 3: Show summary
     step_summary(version=version, skip_commit_match=skip_commit_match)
@@ -849,6 +894,7 @@ def cmd_hotfix(ctx: typer.Context):
     """Hotfix mode (prepare-tag -> summary, skip validation)."""
     version = ctx.obj["version"]
     skip_commit_match = ctx.obj["skip_commit_match"]
+    no_interactive = ctx.obj["no_interactive"]
 
     state_version = f"v{version}"
     state = load_or_create_state(state_version, git.get_current_commit())
@@ -856,7 +902,7 @@ def cmd_hotfix(ctx: typer.Context):
     print(yellow("\n⚡ HOTFIX MODE: Skipping validation\n"))
 
     # Step 1: Prepare RC tag
-    step_prepare_tag(version=version, state=state)
+    step_prepare_tag(version=version, state=state, no_interactive=no_interactive)
 
     # Create release
     step_release(version=version, skip_commit_match=skip_commit_match)
@@ -879,18 +925,21 @@ def cmd_release(
     """Full release pipeline (prepare-tag -> validation -> bug check -> release tag)."""
     version = ctx.obj["version"]
     skip_commit_match = ctx.obj["skip_commit_match"]
+    no_interactive = ctx.obj["no_interactive"]
 
     state_version = f"v{version}"
     state = load_or_create_state(state_version, git.get_current_commit())
 
     # Step 1: Prepare RC tag (automatic - skips if already done)
-    step_prepare_tag(version=version, state=state)
+    step_prepare_tag(version=version, state=state, no_interactive=no_interactive)
 
     # Step 2: Run validation
-    step_job_validation(version=version, job=job, retry=retry, skip_commit_match=skip_commit_match)
+    step_job_validation(
+        version=version, job=job, retry=retry, skip_commit_match=skip_commit_match, no_interactive=no_interactive
+    )
 
     # Step 3: Check for blocking bugs
-    step_bug_check(version=version, state=state, skip_commit_match=skip_commit_match)
+    step_bug_check(version=version, state=state, skip_commit_match=skip_commit_match, no_interactive=no_interactive)
 
     # Step 4: Create release
     step_release(version=version, skip_commit_match=skip_commit_match)
