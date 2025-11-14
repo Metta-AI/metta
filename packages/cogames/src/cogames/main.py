@@ -5,6 +5,8 @@
 import importlib.metadata
 import json
 import logging
+import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import Literal, Optional, TypeVar
@@ -42,7 +44,40 @@ sys.path.insert(0, ".")
 logger = logging.getLogger("cogames.main")
 
 
+def _run_uv_sync() -> None:
+    """Run uv sync to ensure dependencies are up-to-date and packages are recompiled."""
+    # Skip sync if COGAMES_SKIP_SYNC environment variable is set
+    if os.environ.get("COGAMES_SKIP_SYNC"):
+        return
+
+    try:
+        # Run uv sync with minimal output
+        result = subprocess.run(
+            ["uv", "sync", "--quiet"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        # Only show output if there was an error
+        if result.returncode != 0:
+            console.print(f"[yellow]Warning: uv sync failed: {result.stderr}[/yellow]")
+
+    except FileNotFoundError:
+        # uv not found - skip sync silently
+        pass
+    except Exception as exc:
+        # Other errors - log but don't fail
+        logger.debug(f"Failed to run uv sync: {exc}")
+
+
 T = TypeVar("T")
+
+
+def _app_callback() -> None:
+    """Run before any command - sync dependencies and register policies."""
+    _run_uv_sync()
+    discover_and_register_policies("cogames.policy")
 
 
 app = typer.Typer(
@@ -51,7 +86,7 @@ app = typer.Typer(
     no_args_is_help=True,
     rich_markup_mode="rich",
     pretty_exceptions_show_locals=False,
-    callback=lambda: discover_and_register_policies("cogames.policy"),
+    callback=_app_callback,
 )
 
 
