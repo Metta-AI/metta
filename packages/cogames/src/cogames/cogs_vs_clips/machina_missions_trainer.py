@@ -13,8 +13,28 @@ from cogames.cogs_vs_clips.stations import (
 )
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
-TRAINER_BIG_MAP_NAME = "evals/machinatrainerbig.map"
-TRAINER_SMALL_MAP_NAME = "evals/machinatrainersmall.map"
+TRAINER_BIG_MAP_NAME = "machinatrainerbig.map"
+TRAINER_SMALL_MAP_NAME = "machinatrainersmall.map"
+
+
+def _single_use_extractor_kwargs() -> dict:
+    """Return kwargs to configure all extractors as single-use (max_uses=1)."""
+    return {
+        "carbon_extractor": CarbonExtractorConfig(max_uses=1),
+        "oxygen_extractor": OxygenExtractorConfig(max_uses=1),
+        "germanium_extractor": GermaniumExtractorConfig(max_uses=1),
+        "silicon_extractor": SiliconExtractorConfig(max_uses=1),
+    }
+
+
+class MachinaTrainerRulesVariant(MissionVariant):
+    """Apply trainer-specific rules (e.g., max_steps=2000)."""
+
+    name: str = "machinatrainer_rules"
+
+    def modify_env(self, mission: Mission, env: MettaGridConfig) -> None:
+        """Set max_steps to 2000 for trainer missions."""
+        env.game.max_steps = 2000
 
 
 class MachinaTrainerBigMapVariant(MissionVariant):
@@ -39,7 +59,6 @@ class MachinaTrainerSmallMapVariant(MissionVariant):
         env.game.map_builder = get_map(self.map_name, fixed_spawn_order=self.fixed_spawn_order)
 
 
-
 MACHINA_TRAINER_MISSIONS: list[Mission] = [
     Mission(
         name="machinatrainerbig",
@@ -52,10 +71,10 @@ MACHINA_TRAINER_MISSIONS: list[Mission] = [
     Mission(
         name="machinatrainersmall",
         description=(
-            "Machinatrainersmall map (middle 25% of big trainer) with 40 cogs, 2000 steps, single-use extractors."
+            "Machinatrainersmall map (middle 25% of big trainer) with 24 cogs, 2000 steps, single-use extractors."
         ),
         site=MACHINA_1,
-        num_cogs=40,
+        num_cogs=24,  # Matches available spawn points in map
         variants=[MachinaTrainerSmallMapVariant(), MachinaTrainerRulesVariant()],
         **_single_use_extractor_kwargs(),
     ),
