@@ -65,9 +65,7 @@ export const YamlKey: FC<{
         disabled ? "text-gray-500" : "font-semibold text-blue-900"
       )}
     >
-      <div>
-        <span className="cursor-pointer hover:bg-blue-100">{name}</span>:
-      </div>
+      <span className="cursor-pointer hover:bg-blue-100">{name}</span>:
     </span>
   );
   return (
