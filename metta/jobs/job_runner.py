@@ -169,16 +169,10 @@ class Job(ABC):
     def run_name(self) -> str | None:
         """Extract WandB run name from job config args if present.
 
-        Only applicable for training jobs. Returns None for non-training jobs
-        or if run= is not specified in args.
+        Returns None if run is not specified in args.
         """
-        if not self.config.is_training_job:
-            return None
-        # Look for run=<name> in args
-        for arg in self.config.args:
-            if arg.startswith("run="):
-                return arg.split("=", 1)[1]
-        return None
+        # Check if 'run' key exists in args dict
+        return self.config.args.get("run")
 
     @property
     def exit_code(self) -> int | None:
@@ -463,8 +457,8 @@ class RemoteJob(Job):
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
-            # Only generate run_name for training jobs (they use WandB)
-            run_name = self._generate_run_name() if self.config.is_training_job else None
+            # Only generate run_name if 'run' is specified in args (training jobs)
+            run_name = self._generate_run_name() if self.config.args.get("run") else None
             request_id, job_id, _ = retry_function(
                 lambda: self._launch_via_script(run_name),
                 max_retries=max_attempts - 1,
