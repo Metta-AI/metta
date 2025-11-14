@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
-import importlib.util
-from typing import Optional
-
-import torch
+from typing import Any, Optional
 
 import metta.cogworks.curriculum as cc
 from experiments.recipes.arena_basic_easy_shaped import (
     evaluate,
     evaluate_in_sweep,
-    mettagrid,
+    mettagrid as _base_mettagrid,
     play,
     replay,
     simulations,
@@ -25,94 +22,8 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.tools.train import TrainTool
 from metta.tools.sweep import SweepTool
 from mettagrid import MettaGridConfig
-
-_FLASH_ATTENTION_AVAILABLE = importlib.util.find_spec("flash_attn") is not None
-
-
-def _select_attn_implementation(attn_implementation: Optional[str]) -> Optional[str]:
-    """Prefer FlashAttention when installed; otherwise fall back to eager attention."""
-
-    if attn_implementation is not None:
-        return attn_implementation
-    if _FLASH_ATTENTION_AVAILABLE:
-        return "flash_attention_2"
-    return None
-
-
-def train(
-    *,
-    curriculum: Optional[CurriculumConfig] = None,
-    enable_detailed_slice_logging: bool = False,
-    model_name: Optional[str] = None,
-    mem_len: Optional[int] = None,
-    policy_architecture: Optional[PolicyArchitecture] = None,
-):
-    if policy_architecture is None:
-        config_kwargs = {}
-        config_kwargs["model_name"] = model_name or "HuggingFaceTB/SmolLM-360M"
-        # Prefer FlashAttention2 with a half-precision dtype by default when available.
-        # FA2 supports only float16/bfloat16; pick bfloat16 (generally stable on recent NVIDIA GPUs).
-        if _FLASH_ATTENTION_AVAILABLE and torch.cuda.is_available():
-            config_kwargs["attn_implementation"] = "flash_attention_2"
-            config_kwargs["torch_dtype"] = "bfloat16"
-        if mem_len is not None:
-            config_kwargs["mem_len"] = int(mem_len)
-        policy_architecture = SmolLLMConfig(**config_kwargs)
-
-    resolved_curriculum = curriculum or make_curriculum(
-        enable_detailed_slice_logging=enable_detailed_slice_logging,
-    )
-
-    tool = base_train(
-        curriculum=resolved_curriculum,
-        enable_detailed_slice_logging=enable_detailed_slice_logging,
-        policy_architecture=policy_architecture,
-    )
-
-    return _apply_smollm_defaults(tool)
-
-
-def _apply_smollm_defaults(tool: TrainTool) -> TrainTool:
-    """Clamp heavy training defaults to keep SmolLLM within memory limits."""
-
-    trainer = tool.trainer
-    env = tool.training_env
-
-    trainer_updates: dict[str, object] = {}
-    env_updates: dict[str, object] = {}
-
-    if trainer.compile:
-        trainer_updates["compile"] = False
-
-    if trainer.batch_size > 131_072:
-        trainer_updates["batch_size"] = 32768
-
-    if trainer.minibatch_size > 4_096:
-        trainer_updates["minibatch_size"] = 512
-
-    if trainer.bptt_horizon > 4:
-        trainer_updates["bptt_horizon"] = 64
-
-    if trainer_updates:
-        tool.trainer = trainer.model_copy(update=trainer_updates)
-
-    if env.forward_pass_minibatch_target_size > 2_048:
-        env_updates["forward_pass_minibatch_target_size"] = 512
-    if env.auto_workers:
-        env_updates["auto_workers"] = False
-    if env.num_workers != 1:
-        env_updates["num_workers"] = 1
-    if env.async_factor != 1:
-        env_updates["async_factor"] = 1
-
-    if env_updates:
-        tool.training_env = env.model_copy(update=env_updates)
-
-    return tool
-
 
 __all__ = [
     "mettagrid",
@@ -126,6 +37,87 @@ __all__ = [
     "sweep",
     "train",
 ]
+
+
+def _smollm_config(
+    model_name: Optional[str] = None,
+    mem_len: Optional[int] = None,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], int]:
+    """ALL SmolLM configuration in ONE place.
+
+    Returns: (policy_config, trainer_updates, env_updates, num_agents)
+    """
+    # Environment setup
+    num_agents = 24
+
+    # Policy architecture configuration
+    policy_config = {
+        "model_name": model_name or "HuggingFaceTB/SmolLM-360M",
+        "attn_implementation": "flash_attention_2",
+        "torch_dtype": "bfloat16",
+        "mem_len": int(mem_len) if mem_len is not None else 128,
+    }
+
+    # Trainer configuration
+    trainer_updates = {
+        "compile": False,
+        "batch_size": 32768,
+        "minibatch_size": 512,
+        "bptt_horizon": 512,
+    }
+
+    # Environment configuration
+    env_updates = {
+        "forward_pass_minibatch_target_size": 48,
+        "auto_workers": False,
+        "num_workers": 1,
+        "async_factor": 1,
+    }
+
+    return policy_config, trainer_updates, env_updates, num_agents
+
+
+def mettagrid(num_agents: int = 3) -> MettaGridConfig:
+    """SmolLLM-optimized arena with fewer agents to reduce memory requirements."""
+    return _base_mettagrid(num_agents=num_agents)
+
+
+def train(
+    *,
+    curriculum: Optional[CurriculumConfig] = None,
+    enable_detailed_slice_logging: bool = False,
+    model_name: Optional[str] = None,
+    mem_len: Optional[int] = None,
+    policy_architecture: Optional[PolicyArchitecture] = None,
+):
+    """Train SmolLLM with optimized defaults for memory-constrained environments."""
+    # Get all SmolLM configuration from ONE place
+    policy_config, trainer_updates, env_updates, num_agents = _smollm_config(
+        model_name, mem_len
+    )
+
+    # Apply policy architecture
+    if policy_architecture is None:
+        policy_architecture = SmolLLMConfig(**policy_config)
+
+    # Curriculum
+    resolved_curriculum = curriculum or make_curriculum(
+        arena_env=mettagrid(num_agents=num_agents),
+        enable_detailed_slice_logging=enable_detailed_slice_logging,
+    )
+
+    # Create base tool
+    tool = base_train(
+        curriculum=resolved_curriculum,
+        enable_detailed_slice_logging=enable_detailed_slice_logging,
+        policy_architecture=policy_architecture,
+    )
+
+    # Apply all configuration overrides
+    tool.trainer = tool.trainer.model_copy(update=trainer_updates)
+    tool.training_env = tool.training_env.model_copy(update=env_updates)
+
+    return tool
 
 
 def make_curriculum(
