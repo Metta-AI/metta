@@ -67,6 +67,17 @@ def test_neutral_faced_variant_neutralizes_recipes():
             assert protocol.vibes == ["default"]
 
 
+def test_germanium_extractor_has_single_agent_protocol():
+    env = HarvestMission.make_env()
+    germanium = env.game.objects["germanium_extractor"]
+    assert isinstance(germanium, AssemblerConfig)
+
+    assert len(germanium.protocols) == 4
+    single_agent_protocol = germanium.protocols[0]
+    assert single_agent_protocol.min_agents == 0
+    assert single_agent_protocol.output_resources["germanium"] == HarvestMission.germanium_extractor.efficiency
+
+
 def test_inventory_heart_tune_caps_initial_inventory_to_limits():
     mission = HarvestMission.with_variants([InventoryHeartTuneVariant(hearts=20)])
     env = mission.make_env()
