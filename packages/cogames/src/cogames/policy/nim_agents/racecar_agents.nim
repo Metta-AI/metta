@@ -32,6 +32,8 @@ type
     energyRequirement: int
     resourceOrder: seq[ResourceKind]
     assemblerLocation: Option[Location]
+    knownExtractors: Table[ResourceKind, HashSet[Location]]
+    depletedExtractors: Table[ResourceKind, HashSet[Location]]
 
   RaceCarPolicy* = ref object
     agents*: seq[RaceCarAgent]
@@ -41,7 +43,7 @@ const
   EnergyBuffer = 20
   RequirementBuffer = 1
 
-var sharedExtractorOffsets: Table[ResourceKind, HashSet[Location]] = initTable[ResourceKind, HashSet[Location]]()
+var sharedExtractorLocations: Table[ResourceKind, HashSet[Location]] = initTable[ResourceKind, HashSet[Location]]()
 
 proc buildResourceOrder(agentId: int): seq[ResourceKind] =
   let base = @[rkCarbon, rkOxygen, rkGermanium, rkSilicon]
@@ -109,29 +111,29 @@ proc heartDepositVibe(agent: RaceCarAgent): tuple[action: int, vibe: int] =
     return (agent.cfg.actions.vibeHeartA, agent.cfg.vibes.heartA)
   (0, agent.cfg.vibes.default)
 
-proc rememberExtractorOffset(kind: ResourceKind, offset: Location) =
-  if not sharedExtractorOffsets.hasKey(kind):
-    sharedExtractorOffsets[kind] = initHashSet[Location]()
-  sharedExtractorOffsets[kind].incl(offset)
+proc rememberExtractorLocation(kind: ResourceKind, location: Location) =
+  if not sharedExtractorLocations.hasKey(kind):
+    sharedExtractorLocations[kind] = initHashSet[Location]()
+  sharedExtractorLocations[kind].incl(location)
 
-proc chooseExtractorTarget(agent: RaceCarAgent, kind: ResourceKind): Option[Location] =
-  if agent.assemblerLocation.isNone():
-    return none(Location)
-  if sharedExtractorOffsets.hasKey(kind):
-    var found = false
-    var bestLocation = Location(x: 0, y: 0)
-    var bestDistance = high(int)
-    let assemblerLoc = agent.assemblerLocation.get()
-    for offset in sharedExtractorOffsets[kind]:
-      let candidate = assemblerLoc + offset
-      let distance = manhattan(candidate, agent.location)
-      if not found or distance < bestDistance:
-        bestDistance = distance
-        bestLocation = candidate
-        found = true
-    if found:
-      return some(bestLocation)
-  none(Location)
+proc recordLocalExtractor(agent: RaceCarAgent, kind: ResourceKind, location: Location) =
+  if not agent.knownExtractors.hasKey(kind):
+    agent.knownExtractors[kind] = initHashSet[Location]()
+  if location notin agent.knownExtractors[kind]:
+    agent.knownExtractors[kind].incl(location)
+    rememberExtractorLocation(kind, location)
+
+proc extractorTargets(agent: RaceCarAgent, kind: ResourceKind): seq[Location] =
+  var seen = initHashSet[Location]()
+  if agent.knownExtractors.hasKey(kind):
+    for location in agent.knownExtractors[kind]:
+      seen.incl(location)
+      result.add(location)
+  if sharedExtractorLocations.hasKey(kind):
+    for location in sharedExtractorLocations[kind]:
+      if location notin seen:
+        seen.incl(location)
+        result.add(location)
 
 proc extractorTag(agent: RaceCarAgent, kind: ResourceKind): int =
   case kind
@@ -147,18 +149,14 @@ proc sampleInventory(agent: RaceCarAgent, visible: Table[Location, seq[FeatureVa
   result[rkGermanium] = agent.cfg.getInventory(visible, agent.cfg.features.invGermanium)
   result[rkSilicon] = agent.cfg.getInventory(visible, agent.cfg.features.invSilicon)
 
-proc updateExtractorOffsets(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]]) =
-  if agent.assemblerLocation.isNone():
-    return
-  let assemblerLoc = agent.assemblerLocation.get()
+proc scanVisibleExtractors(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]]) =
   for relativeLocation, featureValues in visible:
     for featureValue in featureValues:
       if featureValue.featureId == agent.cfg.features.tag:
         for kind in ResourceKind:
           if featureValue.value == agent.extractorTag(kind):
             let globalLocation = agent.location + relativeLocation
-            let offset = globalLocation - assemblerLoc
-            rememberExtractorOffset(kind, offset)
+            agent.recordLocalExtractor(kind, globalLocation)
 
 proc protocolFeatureValue(features: seq[FeatureValue], featureId: int): int =
   ## Return the positive value associated with a protocol feature id, if present.
@@ -342,21 +340,28 @@ proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]])
 type ExtractorPlan = tuple[action: Option[int32], waiting: bool]
 
 proc seekExtractor(agent: RaceCarAgent, kind: ResourceKind): ExtractorPlan =
-  var target = agent.chooseExtractorTarget(kind)
-  if target.isNone():
-    let tag = agent.extractorTag(kind)
-    let nearby = agent.cfg.getNearby(agent.location, agent.map, tag)
-    if nearby.isSome():
-      target = nearby
-      if agent.assemblerLocation.isSome():
-        let offset = nearby.get() - agent.assemblerLocation.get()
-        rememberExtractorOffset(kind, offset)
-  if target.isSome():
-    let location = target.get()
+  var bestAction: Option[int32]
+  var bestDistance = high(int)
+  for location in agent.extractorTargets(kind):
+    let dist = manhattan(location, agent.location)
+    if dist >= bestDistance:
+      continue
     let action = agent.cfg.aStar(agent.location, location, agent.map)
     if action.isSome():
-      return (some(action.get().int32), false)
+      bestDistance = dist
+      bestAction = some(action.get().int32)
     elif agent.location == location:
+      return (none(int32), true)
+  if bestAction.isSome():
+    return (bestAction, false)
+
+  let tag = agent.extractorTag(kind)
+  let nearby = agent.cfg.getNearby(agent.location, agent.map, tag)
+  if nearby.isSome():
+    let action = agent.cfg.aStar(agent.location, nearby.get(), agent.map)
+    if action.isSome():
+      return (some(action.get().int32), false)
+    elif agent.location == nearby.get():
       return (none(int32), true)
   (none(int32), false)
 
@@ -394,7 +399,7 @@ proc step*(
       map[location].add(FeatureValue(featureId: featureId.int, value: value.int))
 
     updateMap(agent, map)
-    agent.updateExtractorOffsets(map)
+    agent.scanVisibleExtractors(map)
     agent.updateHeartRequirements()
 
     let vibe = agent.cfg.getVibe(map, Location(x: 0, y: 0))
@@ -491,6 +496,8 @@ proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
   result.energyRequirement = 0
   result.resourceOrder = buildResourceOrder(agentId)
   result.assemblerLocation = none(Location)
+  result.knownExtractors = initTable[ResourceKind, HashSet[Location]]()
+  result.depletedExtractors = initTable[ResourceKind, HashSet[Location]]()
 
 proc newRaceCarPolicy*(environmentConfig: string): RaceCarPolicy =
   let cfg = parseConfig(environmentConfig)
