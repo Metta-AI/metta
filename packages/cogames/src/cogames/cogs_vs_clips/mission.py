@@ -218,6 +218,32 @@ class Mission(Config):
                 "oxygen_extractor": self.oxygen_extractor.station_cfg(),
                 "germanium_extractor": self.germanium_extractor.station_cfg(),
                 "silicon_extractor": self.silicon_extractor.station_cfg(),
+                # Resource-specific chests used by diagnostic missions
+                # These use simplified vibe_transfers (only "default") to avoid issues when vibes are restricted
+                "chest_carbon": self.chest.station_cfg().model_copy(
+                    update={
+                        "map_name": "chest_carbon",
+                        "vibe_transfers": {"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
+                    }
+                ),
+                "chest_oxygen": self.chest.station_cfg().model_copy(
+                    update={
+                        "map_name": "chest_oxygen",
+                        "vibe_transfers": {"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
+                    }
+                ),
+                "chest_germanium": self.chest.station_cfg().model_copy(
+                    update={
+                        "map_name": "chest_germanium",
+                        "vibe_transfers": {"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
+                    }
+                ),
+                "chest_silicon": self.chest.station_cfg().model_copy(
+                    update={
+                        "map_name": "chest_silicon",
+                        "vibe_transfers": {"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
+                    }
+                ),
                 # Clipped variants with unique map_names so they don't conflict with regular extractors
                 # These are used by maps that explicitly place clipped extractors
                 "clipped_carbon_extractor": self.carbon_extractor.model_copy(update={"start_clipped": True})

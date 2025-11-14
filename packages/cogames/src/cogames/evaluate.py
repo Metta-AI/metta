@@ -96,10 +96,10 @@ def evaluate(
             )
         mission_results.append(rollout_payload)
 
-    summary = build_multi_episode_rollout_summaries(mission_results, policy_specs)
+    summaries = build_multi_episode_rollout_summaries(mission_results, num_policies=len(policy_specs))
     mission_names = [mission_name for mission_name, _ in missions]
-    _output_results(console, policy_specs, mission_names, summary, output_format)
-    return summary
+    _output_results(console, policy_specs, mission_names, summaries, output_format)
+    return summaries
 
 
 def _output_results(
@@ -148,28 +148,13 @@ def _output_results(
     assignment_table.add_column("Policy")
     assignment_table.add_column("Num Agents", justify="right")
     for mission_name, mission in mission_summaries:
-        for policy_summary in mission.policy_summaries:
+        for policy_idx, policy_summary in enumerate(mission.policy_summaries):
             assignment_table.add_row(
                 mission_name,
-                policy_summary.policy_name,
+                display_names[policy_idx],
                 str(policy_summary.agent_count),
             )
     console.print(assignment_table)
-
-    console.print("\n[bold cyan]Average Policy Stats[/bold cyan]")
-    for i, policy_name in enumerate(display_names):
-        policy_table = Table(title=policy_name, show_header=True, header_style="bold magenta")
-        policy_table.add_column("Mission")
-        policy_table.add_column("Metric")
-        policy_table.add_column("Average", justify="right")
-        for mission_name, mission in mission_summaries:
-            metrics = mission.policy_summaries[i].avg_agent_metrics
-            if not metrics:
-                policy_table.add_row(mission_name, "-", "0.00")
-                continue
-            for key, value in metrics.items():
-                policy_table.add_row(mission_name, key, f"{value:.2f}")
-        console.print(policy_table)
 
     console.print("\n[bold cyan]Average Game Stats[/bold cyan]")
     game_stats_table = Table(show_header=True, header_style="bold magenta")
@@ -181,7 +166,22 @@ def _output_results(
             game_stats_table.add_row(mission_name, key, f"{value:.2f}")
     console.print(game_stats_table)
 
-    console.print("\n[bold cyan]Average Reward per Agent[/bold cyan]")
+    console.print("\n[bold cyan]Average Policy Stats[/bold cyan]")
+    for i, policy_name in enumerate(display_names):
+        policy_table = Table(title=policy_name, show_header=True, header_style="bold magenta")
+        policy_table.add_column("Mission")
+        policy_table.add_column("Metric")
+        policy_table.add_column("Average", justify="right")
+        for mission_name, mission in mission_summaries:
+            metrics = mission.policy_summaries[i].avg_agent_metrics
+            if not metrics:
+                policy_table.add_row(mission_name, "-", "-")
+                continue
+            for key, value in metrics.items():
+                policy_table.add_row(mission_name, key, f"{value:.2f}")
+        console.print(policy_table)
+
+    console.print("\n[bold cyan]Average Per-Agent Reward [/bold cyan]")
     summary_table = Table(show_header=True, header_style="bold magenta")
     summary_table.add_column("Mission")
     summary_table.add_column("Episode", justify="right")

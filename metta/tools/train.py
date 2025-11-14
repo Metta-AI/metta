@@ -242,16 +242,13 @@ class TrainTool(Tool):
 
         if distributed_helper.is_master():
             stats_config = self.stats_reporter.model_copy(update={"report_to_wandb": bool(wandb_run)})
-            reporting_enabled = (
-                stats_config.report_to_wandb or stats_config.report_to_stats_client or stats_config.report_to_console
-            )
+            reporting_enabled = stats_config.report_to_wandb or stats_config.report_to_console
 
             if self.gradient_reporter.epoch_interval:
                 components.append(GradientReporter(self.gradient_reporter))
 
             stats_component = StatsReporter.from_config(
                 stats_config,
-                stats_client=stats_client,
                 wandb_run=wandb_run,
             )
 

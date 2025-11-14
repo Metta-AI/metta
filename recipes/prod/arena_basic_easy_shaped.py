@@ -2,6 +2,7 @@
 This recipe is automatically validated in CI and release processes.
 """
 
+from pathlib import Path
 from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
@@ -22,6 +23,7 @@ from metta.sweep.core import make_sweep
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
+from metta.tools.stub import StubTool
 from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
@@ -120,6 +122,19 @@ def evaluate(policy_uris: Optional[Sequence[str]] = None) -> EvaluateTool:
     return EvaluateTool(simulations=simulations(), policy_uris=policy_uris or [])
 
 
+def evaluate_latest_in_dir(dir_path: Path) -> EvaluateTool:
+    """Evaluate the latest policy on arena simulations."""
+    checkpoints = dir_path.glob("*.mpt")
+    policy_uri = [checkpoint.as_posix() for checkpoint in sorted(checkpoints, key=lambda x: x.stat().st_mtime)]
+    if not policy_uri:
+        raise ValueError(f"No policies found in {dir_path}")
+    policy_uri = policy_uri[-1]
+    sim = mettagrid(num_agents=6)
+    return EvaluateTool(
+        simulations=[SimulationConfig(suite="arena", name="very_basic", env=sim)], policy_uris=[policy_uri]
+    )
+
+
 def play(policy_uri: Optional[str] = None) -> PlayTool:
     """Interactive play with a policy."""
     return PlayTool(sim=simulations()[0], policy_uri=policy_uri)
@@ -152,14 +167,14 @@ def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
             suite="sweep",
             name="basic",
             env=basic_env,
-            num_episodes=10,  # 10 episodes for statistical reliability
+            num_episodes=1,  # Using 1 episode for evaluation
             max_time_s=240,  # 4 minutes max per simulation
         ),
         SimulationConfig(
             suite="sweep",
             name="combat",
             env=combat_env,
-            num_episodes=10,
+            num_episodes=1,
             max_time_s=240,
         ),
     ]
@@ -168,6 +183,10 @@ def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
         simulations=simulations,
         policy_uris=[policy_uri],
     )
+
+
+def evaluate_stub(*args, **kwargs) -> StubTool:
+    return StubTool()
 
 
 def sweep(sweep_name: str) -> SweepTool:
@@ -226,9 +245,9 @@ def sweep(sweep_name: str) -> SweepTool:
         # NB: You MUST use a specific sweep eval suite, different than those in training.
         # Besides this being a recommended practice, using the same eval suite in both
         # training and scoring will lead to key conflicts that will lock the sweep.
-        eval_entrypoint="evaluate_in_sweep",
+        eval_entrypoint="evaluate_stub",
         # Typically, "evaluator/eval_{suite}/score"
-        objective="evaluator/eval_sweep/score",
+        objective="experience/rewards",
         parameters=parameters,
         max_trials=80,
         # Default value is 1. We don't recommend going higher than 4.

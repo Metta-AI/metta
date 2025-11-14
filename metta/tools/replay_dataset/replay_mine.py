@@ -46,12 +46,12 @@ class ReplayMiner:
 
     def __init__(
         self,
-        stats_db_uri: str,
+        stats_server_uri: str,
         date: str,  # YYYY-MM-DD format
         min_reward: float = 0.0,
         environment: str | None = None,
     ):
-        self.stats_db_uri = stats_db_uri
+        self.stats_server_uri = stats_server_uri
         self.date = date
         self.min_reward = min_reward
         self.environment = environment
@@ -160,16 +160,15 @@ class ReplayMiner:
     def _get_replay_urls(self) -> list[str]:
         """Get replay URLs from either HTTP API or direct database access."""
         # Check if this is an HTTP(S) API endpoint
-        if self.stats_db_uri.startswith("http://") or self.stats_db_uri.startswith("https://"):
+        if self.stats_server_uri.startswith("http://") or self.stats_server_uri.startswith("https://"):
             return self._get_replay_urls_from_api()
-        else:
-            return self._get_replay_urls_from_db()
+        return []
 
     def _get_replay_urls_from_api(self) -> list[str]:
         """Query replay URLs via HTTP stats API for a specific date."""
         from metta.app_backend.clients.stats_client import HttpStatsClient
 
-        with HttpStatsClient(backend_url=self.stats_db_uri) as client:
+        with HttpStatsClient(backend_url=self.stats_server_uri) as client:
             # Build SQL query to get replay URLs for the specified date
             query = f"""
                 SELECT replay_url
@@ -189,19 +188,12 @@ class ReplayMiner:
             replay_urls = [row[0] for row in result.rows if row[0]]
             return replay_urls
 
-    def _get_replay_urls_from_db(self) -> list[str]:
-        """Query replay URLs via direct database access."""
-        from metta.sim.simulation_stats_db import SimulationStatsDB
-
-        with SimulationStatsDB.from_uri(self.stats_db_uri) as db:
-            return db.get_replay_urls(env=self.environment)
-
     def get_earliest_replay_date(self) -> str | None:
         """Query database for earliest replay date with replays."""
-        if self.stats_db_uri.startswith("http://") or self.stats_db_uri.startswith("https://"):
+        if self.stats_server_uri.startswith("http://") or self.stats_server_uri.startswith("https://"):
             from metta.app_backend.clients.stats_client import HttpStatsClient
 
-            with HttpStatsClient(backend_url=self.stats_db_uri) as client:
+            with HttpStatsClient(backend_url=self.stats_server_uri) as client:
                 query = """
                     SELECT MIN(DATE(created_at)) as earliest_date
                     FROM episodes
@@ -209,24 +201,10 @@ class ReplayMiner:
                 """
                 result = client.sql_query(query)
                 return result.rows[0][0] if result.rows and result.rows[0][0] else None
-        else:
-            from metta.sim.simulation_stats_db import SimulationStatsDB
-
-            with SimulationStatsDB.from_uri(self.stats_db_uri) as db:
-                # Query for earliest date with replays
-                cursor = db._connection.execute(
-                    """
-                    SELECT MIN(DATE(created_at)) as earliest_date
-                    FROM episodes
-                    WHERE replay_url IS NOT NULL
-                    """
-                )
-                row = cursor.fetchone()
-                return row[0] if row and row[0] else None
 
     def mine_replays(self) -> dict[str, Any]:
         """Query database, download replays, and extract samples for a specific date."""
-        logger.info(f"Mining replays from {self.stats_db_uri}")
+        logger.info(f"Mining replays from {self.stats_server_uri}")
         logger.info(f"Date: {self.date}")
         logger.info(f"Filters: min_reward={self.min_reward}, environment={self.environment}")
 
@@ -339,10 +317,10 @@ def main():
         epilog="Creates daily-sharded datasets from game replays stored in S3.",
     )
     parser.add_argument(
-        "--stats-db-uri",
+        "--stats-server-uri",
         type=str,
         default=PROD_STATS_SERVER_URI,
-        help="Stats database URI (HTTP API, local path, or s3://)",
+        help="Stats server api endpoint",
     )
     parser.add_argument(
         "--date",
@@ -383,7 +361,7 @@ def main():
             # Query for earliest date
             logger.info("Backfill mode: querying for earliest replay date...")
             temp_miner = ReplayMiner(
-                stats_db_uri=args.stats_db_uri,
+                stats_server_uri=args.stats_server_uri,
                 date=yesterday,  # Temporary, just for query
                 min_reward=args.min_reward,
                 environment=args.environment,
@@ -423,7 +401,7 @@ def main():
             # Single date - process directly
             success = process_single_date(
                 dates_to_process[0],
-                args.stats_db_uri,
+                args.stats_server_uri,
                 args.min_reward,
                 args.environment,
                 args.output_prefix,
@@ -433,7 +411,7 @@ def main():
             # Multiple dates - sequential processing
             return process_date_range(
                 dates_to_process,
-                args.stats_db_uri,
+                args.stats_server_uri,
                 args.min_reward,
                 args.environment,
                 args.output_prefix,
@@ -446,7 +424,7 @@ def main():
 
 def process_single_date(
     date: str,
-    stats_db_uri: str,
+    stats_server_uri: str,
     min_reward: float,
     environment: str | None,
     output_prefix: str,
@@ -454,7 +432,7 @@ def process_single_date(
     """Process a single date and return success status."""
     try:
         miner = ReplayMiner(
-            stats_db_uri=stats_db_uri,
+            stats_server_uri=stats_server_uri,
             date=date,
             min_reward=min_reward,
             environment=environment,
@@ -479,7 +457,7 @@ def process_single_date(
 
 def process_date_range(
     dates: list[str],
-    stats_db_uri: str,
+    stats_server_uri: str,
     min_reward: float,
     environment: str | None,
     output_prefix: str,
@@ -496,7 +474,7 @@ def process_date_range(
         try:
             success = process_single_date(
                 date,
-                stats_db_uri,
+                stats_server_uri,
                 min_reward,
                 environment,
                 output_prefix,

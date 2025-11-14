@@ -136,7 +136,7 @@ proc raceCarStepInternal(
     echo "updated map:"
     agent.cfg.drawMap(agent.map, agent.seen)
 
-    let vibe = agent.cfg.getVibe(map)
+    let vibe = agent.cfg.getVibe(map, Location(x: 0, y: 0))
     echo "vibe: ", vibe
 
     let invEnergy = agent.cfg.getInventory(map, agent.cfg.features.invEnergy)
