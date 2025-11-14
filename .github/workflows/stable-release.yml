@@ -83,7 +83,7 @@ jobs:
         if: success()
         uses: ./.github/actions/discord-webhook
         with:
-          webhook-url: ${{ secrets.DISCORD_TEST_HOOK }}
+          webhook-url: ${{ secrets.DISCORD_STABLE_HOOK }}
           content: |
             ✅ **Stable Release Completed**
 
@@ -95,7 +95,7 @@ jobs:
         if: failure()
         uses: ./.github/actions/discord-webhook
         with:
-          webhook-url: ${{ secrets.DISCORD_TEST_HOOK }}
+          webhook-url: ${{ secrets.DISCORD_STABLE_HOOK }}
           content: |
             ❌ **Stable Release Failed**
 
