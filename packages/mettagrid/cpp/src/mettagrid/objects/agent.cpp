@@ -33,11 +33,19 @@ Agent::Agent(GridCoord r,
       resource_names(resource_names),
       diversity_tracked_mask(resource_names != nullptr ? resource_names->size() : 0, 0),
       tracked_resource_presence(resource_names != nullptr ? resource_names->size() : 0, 0),
-      tracked_resource_diversity(0) {
+      tracked_resource_diversity(0),
+      shareable_mask(resource_names != nullptr ? resource_names->size() : 0, 0) {
   for (InventoryItem item : config.diversity_tracked_resources) {
     const size_t index = static_cast<size_t>(item);
     if (index < diversity_tracked_mask.size()) {
       diversity_tracked_mask[index] = 1;
+    }
+  }
+
+  for (InventoryItem item : config.shareable_resources) {
+    const size_t index = static_cast<size_t>(item);
+    if (index < shareable_mask.size()) {
+      shareable_mask[index] = 1;
     }
   }
 
@@ -125,17 +133,14 @@ bool Agent::onUse(Agent& actor, ActionArg arg) {
   // Share half of the resource matching the actor's vibe ID
   InventoryItem resource_to_share = static_cast<InventoryItem>(actor.vibe);
 
-  // Check if this resource is in shareable_resources
-  for (InventoryItem shareable : actor.shareable_resources) {
-    if (shareable == resource_to_share) {
-      InventoryQuantity actor_amount = actor.inventory.amount(resource_to_share);
-      // Calculate half (rounded down)
-      InventoryQuantity share_attempted_amount = actor_amount / 2;
-      if (share_attempted_amount > 0) {
-        InventoryDelta successful_share_amount = this->update_inventory(resource_to_share, share_attempted_amount);
-        actor.update_inventory(resource_to_share, -successful_share_amount);
-      }
-      break;
+  // Check if this resource is shareable using the mask
+  if (resource_to_share < actor.shareable_mask.size() && actor.shareable_mask[resource_to_share]) {
+    InventoryQuantity actor_amount = actor.inventory.amount(resource_to_share);
+    // Calculate half (rounded down)
+    InventoryQuantity share_attempted_amount = actor_amount / 2;
+    if (share_attempted_amount > 0) {
+      InventoryDelta successful_share_amount = this->update_inventory(resource_to_share, share_attempted_amount);
+      actor.update_inventory(resource_to_share, -successful_share_amount);
     }
   }
 

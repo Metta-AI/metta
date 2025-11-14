@@ -77,6 +77,7 @@ private:
   std::vector<char> diversity_tracked_mask;
   std::vector<char> tracked_resource_presence;
   std::size_t tracked_resource_diversity{0};
+  std::vector<char> shareable_mask;
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_AGENT_HPP_
