@@ -1,12 +1,15 @@
 from __future__ import annotations
 
-from cogames.cogs_vs_clips.mission import Mission
+import logging
+
+from cogames.cogs_vs_clips.mission import Mission, Site
+from cogames.cogs_vs_clips.procedural import MachinaArena
 from cogames.cogs_vs_clips.sites import HELLO_WORLD, TRAINING_FACILITY
 from cogames.cogs_vs_clips.variants import (
-    CompassVariant,
     DarkSideVariant,
     DistantResourcesVariant,
     EmptyBaseVariant,
+    ExtractorHeartTuneVariant,
     HeartChorusVariant,
     LonelyHeartVariant,
     NeutralFacedVariant,
@@ -17,7 +20,33 @@ from cogames.cogs_vs_clips.variants import (
     SingleUseSwarmVariant,
     VibeCheckMin2Variant,
 )
+from mettagrid.mapgen.mapgen import MapGen
 
+logger = logging.getLogger(__name__)
+
+SMALL_HELLO_WORLD = Site(
+    name="small_hello_world",
+    description="Small hello world map.",
+    map_builder=MapGen.Config(width=50, height=50, instance=MachinaArena.Config(spawn_count=20)),
+    min_cogs=1,
+    max_cogs=20,
+)
+
+MEDIUM_HELLO_WORLD = Site(
+    name="medium_hello_world",
+    description="Medium hello world map.",
+    map_builder=MapGen.Config(width=100, height=100, instance=MachinaArena.Config(spawn_count=20)),
+    min_cogs=1,
+    max_cogs=20,
+)
+
+LARGE_HELLO_WORLD = Site(
+    name="large_hello_world",
+    description="Large hello world map.",
+    map_builder=MapGen.Config(width=150, height=150, instance=MachinaArena.Config(spawn_count=20)),
+    min_cogs=1,
+    max_cogs=20,
+)
 # Resource Bottleneck evals (Different resources are the limiting reagents; agents must prioritize correct resource.)
 OxygenBottleneck = Mission(
     name="oxygen_bottleneck",
@@ -25,9 +54,10 @@ OxygenBottleneck = Mission(
     site=HELLO_WORLD,
     variants=[
         EmptyBaseVariant(missing=["oxygen_extractor"]),
-        ResourceBottleneckVariant(resource=["oxygen"]),
+        ExtractorHeartTuneVariant(hearts=10),
+        ResourceBottleneckVariant(resource="oxygen"),
         SingleResourceUniformVariant(building_name="oxygen_extractor"),
-        NeutralFacedVariant(),
+        #        NeutralFacedVariant(),
         PackRatVariant(),
     ],
 )
@@ -39,9 +69,9 @@ EnergyStarved = Mission(
     site=HELLO_WORLD,
     variants=[
         EmptyBaseVariant(),
+        ResourceBottleneckVariant(resource="energy"),
         DarkSideVariant(),
-        NeutralFacedVariant(),
-        PackRatVariant(),
+        #        NeutralFacedVariant(),
     ],
 )
 
@@ -53,9 +83,8 @@ DistantResources = Mission(
     site=HELLO_WORLD,
     variants=[
         EmptyBaseVariant(),
-        CompassVariant(),
         DistantResourcesVariant(),
-        NeutralFacedVariant(),
+        #        NeutralFacedVariant(),
     ],
 )
 
@@ -68,8 +97,7 @@ QuadrantBuildings = Mission(
     variants=[
         EmptyBaseVariant(),
         QuadrantBuildingsVariant(),
-        CompassVariant(),
-        NeutralFacedVariant(),
+        #        NeutralFacedVariant(),
     ],
 )
 
@@ -82,9 +110,8 @@ SingleUseSwarm = Mission(
     variants=[
         EmptyBaseVariant(),
         SingleUseSwarmVariant(),
-        CompassVariant(),
+        #        NeutralFacedVariant(),
         PackRatVariant(),
-        NeutralFacedVariant(),
     ],
 )
 
@@ -95,31 +122,21 @@ VibeCheck = Mission(
     description="Agents must check their vibe, either binary or full, and then coordinate others for assembly.",
     site=HELLO_WORLD,
     variants=[
+        EmptyBaseVariant(),
         HeartChorusVariant(),
         VibeCheckMin2Variant(),
     ],
 )
 
-EasyHeartsTraining = Mission(
-    name="easy_hearts_training",
+EasyHeartsMission = Mission(
+    name="easy_hearts",
     description="Simplified heart crafting, generous caps, extractor base, neutral vibe.",
     site=TRAINING_FACILITY,
     variants=[
         LonelyHeartVariant(),
+        HeartChorusVariant(),
         PackRatVariant(),
         NeutralFacedVariant(),
-    ],
-)
-
-EasyHeartsMission = Mission(
-    name="easy_hearts_hello_world",
-    description="Simplified heart crafting, generous caps, extractor base, neutral vibe.",
-    site=HELLO_WORLD,
-    variants=[
-        LonelyHeartVariant(),
-        PackRatVariant(),
-        NeutralFacedVariant(),
-        EmptyBaseVariant(),
     ],
 )
 

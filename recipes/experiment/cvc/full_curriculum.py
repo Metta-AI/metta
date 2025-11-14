@@ -171,6 +171,14 @@ def make_curriculum(
             mission_env = mission.make_env()
             cogs_v_clips._clamp_agent_inventory(mission_env)
 
+        # Give each environment a label so per-label rewards can be tracked in stats/W&B.
+        # Use the mission name as the label, which is stable across curriculum tasks.
+        try:
+            mission_env.label = mission_name  # type: ignore[attr-defined]
+        except Exception:
+            # Best-effort; if the config does not support labels, leave it as default.
+            pass
+
         mission_tasks = cc.bucketed(mission_env)
 
         # Add curriculum buckets for learning progress
