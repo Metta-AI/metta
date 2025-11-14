@@ -43,7 +43,7 @@ proc gridFrag*(fragmentWorldPos: Vec2, FragColor: var Vec4) =
   FragColor = texture(atlas, pixAA / atlasSize) * uGridColor * uGridColor.a
 
 proc newGridQuad*(imagePath: string, tilesX, tilesY: int): ShaderQuad =
-  ## Creates a new ShaderQuad.
+  ## Creates a new GridQuad.
   result = ShaderQuad()
   result.image = readImage(imagePath)
   result.tilesPerImage = vec2(tilesX.float32, tilesY.float32)
