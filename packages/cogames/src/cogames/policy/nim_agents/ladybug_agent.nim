@@ -9,6 +9,7 @@ type
     converting, clipped: bool
     cooldownRemaining, remainingUses: int
     protocolInputs, protocolOutputs: Table[string, int]
+    agentGroup, agentFrozen: int
   ExtractorInfo = object
     position: Location
     resource: string
@@ -215,6 +216,10 @@ proc buildObservedObject(agent: LadybugAgent, features: seq[FeatureValue]): Obse
       result.clipped = fv.value > 0
     elif fv.featureId == agent.cfg.features.remainingUses:
       result.remainingUses = fv.value
+    elif fv.featureId == agent.cfg.features.group:
+      result.agentGroup = fv.value
+    elif fv.featureId == agent.cfg.features.frozen:
+      result.agentFrozen = fv.value
     else:
       let fid = fv.featureId
       maybeAssign(result.protocolInputs, agent.cfg.features.protocolInputEnergy, "energy", fid, fv.value)
@@ -240,6 +245,8 @@ proc buildObservedObject(agent: LadybugAgent, features: seq[FeatureValue]): Obse
 
   if tagIds.len > 0:
     result.name = tagName(agent.cfg, tagIds[0])
+  elif result.agentGroup != 0 or result.agentFrozen != 0:
+    result.name = "agent"
   else:
     result.name = ""
 
@@ -814,6 +821,10 @@ proc doGather(agent: LadybugAgent): int =
   let waitAction = agent.handleWaiting()
   if waitAction.isSome():
     return waitAction.get()
+  if not agent.state.heartRecipeKnown:
+    agent.state.targetResource = ""
+    clearWaiting(agent)
+    return agent.explore()
   let deficits = agent.calculateDeficits()
   var needsResources = false
   for deficit in deficits.values:
