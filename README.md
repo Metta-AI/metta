@@ -160,6 +160,15 @@ metta install      # Install additional components
 metta configure    # Reconfigure for a different profile
 ```
 
+### CUDA hosts
+
+`metta install` automatically runs `scripts/ensure_torch_cuda.py` on Linux hosts that expose `nvidia-smi`. The helper
+detects RTX 40-series cards (compute capability 8.9) and reinstalls PyTorch from the official CUDA wheels so training
+jobs do not fall back to CPU. To skip or override the detected tag:
+
+- Set `METTA_SKIP_TORCH_CUDA_FIX=1` to leave the CPU wheel in place.
+- Set `METTA_TORCH_CUDA_TAG=cu124` (or another tag) to force a specific wheel.
+
 ## Usage
 
 The repository contains command-line tools in the `tools/` directory.
