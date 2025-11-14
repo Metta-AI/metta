@@ -10,8 +10,7 @@ Agent::Agent(GridCoord r,
              GridCoord c,
              const AgentConfig& config,
              const std::vector<std::string>* resource_names,
-             const std::unordered_map<std::string, ObservationType>* feature_ids,
-             const std::vector<std::string>* vibe_names)
+             const std::unordered_map<std::string, ObservationType>* feature_ids)
     : GridObject(),
       HasInventory(config.inventory_config, resource_names, feature_ids),
       group(config.group_id),
@@ -32,7 +31,6 @@ Agent::Agent(GridCoord r,
       steps_without_motion(0),
       inventory_regen_amounts(config.inventory_regen_amounts),
       resource_names(resource_names),
-      vibe_names(vibe_names),
       diversity_tracked_mask(resource_names != nullptr ? resource_names->size() : 0, 0),
       tracked_resource_presence(resource_names != nullptr ? resource_names->size() : 0, 0),
       tracked_resource_diversity(0) {
@@ -124,31 +122,20 @@ void Agent::compute_stat_rewards(StatsTracker* game_stats_tracker) {
 }
 
 bool Agent::onUse(Agent& actor, ActionArg arg) {
-  // Share half of the resource matching the actor's vibe
-  const std::string& vibe_name = (*actor.vibe_names)[actor.vibe];
+  // Share half of the resource matching the actor's vibe ID
+  InventoryItem resource_to_share = static_cast<InventoryItem>(actor.vibe);
 
-  // Find matching resource by name
-  InventoryItem resource_to_share = static_cast<InventoryItem>(-1);
-  for (size_t i = 0; i < actor.resource_names->size(); ++i) {
-    if ((*actor.resource_names)[i] == vibe_name) {
-      resource_to_share = static_cast<InventoryItem>(i);
-      break;
-    }
-  }
-
-  // If we found a matching resource and it's in shareable_resources, share it
-  if (resource_to_share != static_cast<InventoryItem>(-1)) {
-    for (InventoryItem shareable : actor.shareable_resources) {
-      if (shareable == resource_to_share) {
-        InventoryQuantity actor_amount = actor.inventory.amount(resource_to_share);
-        // Calculate half (rounded down)
-        InventoryQuantity share_attempted_amount = actor_amount / 2;
-        if (share_attempted_amount > 0) {
-          InventoryDelta successful_share_amount = this->update_inventory(resource_to_share, share_attempted_amount);
-          actor.update_inventory(resource_to_share, -successful_share_amount);
-        }
-        break;
+  // Check if this resource is in shareable_resources
+  for (InventoryItem shareable : actor.shareable_resources) {
+    if (shareable == resource_to_share) {
+      InventoryQuantity actor_amount = actor.inventory.amount(resource_to_share);
+      // Calculate half (rounded down)
+      InventoryQuantity share_attempted_amount = actor_amount / 2;
+      if (share_attempted_amount > 0) {
+        InventoryDelta successful_share_amount = this->update_inventory(resource_to_share, share_attempted_amount);
+        actor.update_inventory(resource_to_share, -successful_share_amount);
       }
+      break;
     }
   }
 
