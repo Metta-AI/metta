@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Any, Optional, Sequence
 
 import typer
 from pydantic import Field
 from rich.table import Table
 
 from cogames.cli.base import console
+from metta.rl.policy_artifact import load_policy_artifact
 from mettagrid.policy.loader import find_policy_checkpoints, resolve_policy_class_path, resolve_policy_data_path
 from mettagrid.policy.policy import PolicySpec
 
@@ -134,30 +135,7 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
     if not raw:
         raise ValueError("Policy specification cannot be empty.")
 
-    raw_class_path, sep, remainder = raw.partition(POLICY_ARG_DELIMITER)
-    raw_class_path = raw_class_path.strip()
-    raw_policy_data: str | None = None
-    raw_fraction: str | None = None
-
-    if sep:
-        candidate = remainder
-        fraction_candidate = None
-        data_candidate = candidate
-        if POLICY_ARG_DELIMITER in candidate:
-            potential_data, _, potential_fraction = candidate.rpartition(POLICY_ARG_DELIMITER)
-            potential_fraction = potential_fraction.strip()
-            if potential_fraction:
-                try:
-                    float(potential_fraction)
-                    fraction_candidate = potential_fraction
-                    data_candidate = potential_data
-                except ValueError:
-                    pass
-        raw_policy_data = data_candidate.strip() or None
-        raw_fraction = fraction_candidate
-
-    if not raw_class_path:
-        raise ValueError("Policy class path cannot be empty.")
+    raw_class_path, raw_policy_data, raw_fraction = _split_policy_components(raw)
 
     if not raw_fraction:
         fraction = 1.0
@@ -170,12 +148,65 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
         if fraction <= 0:
             raise ValueError("Policy proportion must be a positive number.")
 
-    # It isn't strictly necessary to resolve these here, but doing so enables nicer error messages
-    resolved_class_path = resolve_policy_class_path(raw_class_path)
     resolved_policy_data = resolve_policy_data_path(raw_policy_data or None)
+
+    init_kwargs: dict[str, Any] = {}
+    if raw_class_path:
+        resolved_class_path = resolve_policy_class_path(raw_class_path)
+    else:
+        if not resolved_policy_data:
+            raise ValueError("Policy specification must include a class or checkpoint path.")
+        resolved_class_path, init_kwargs = _infer_policy_from_checkpoint(resolved_policy_data)
 
     return PolicySpecWithProportion(
         class_path=resolved_class_path,
         data_path=resolved_policy_data,
+        init_kwargs=init_kwargs,
         proportion=fraction,
     )
+
+
+def _split_policy_components(raw: str) -> tuple[str | None, str | None, str | None]:
+    if POLICY_ARG_DELIMITER in raw:
+        potential_path = Path(raw)
+        if potential_path.exists():
+            return None, str(potential_path), None
+
+    if POLICY_ARG_DELIMITER not in raw:
+        return None, raw.strip() or None, None
+
+    class_part, _, remainder = raw.partition(POLICY_ARG_DELIMITER)
+    class_part = class_part.strip() or None
+    remainder = remainder.strip()
+
+    if not remainder:
+        return class_part, None, None
+
+    fraction_candidate: str | None = None
+    data_candidate = remainder
+
+    if POLICY_ARG_DELIMITER in remainder:
+        potential_data, _, potential_fraction = remainder.rpartition(POLICY_ARG_DELIMITER)
+        potential_fraction = potential_fraction.strip()
+        if potential_fraction:
+            try:
+                float(potential_fraction)
+            except ValueError:
+                pass
+            else:
+                fraction_candidate = potential_fraction
+                data_candidate = potential_data
+
+    policy_data = data_candidate.strip() or None
+    return class_part, policy_data, fraction_candidate
+
+
+def _infer_policy_from_checkpoint(path: str) -> tuple[str, dict[str, Any]]:
+    artifact = load_policy_artifact(path)
+    architecture = artifact.policy_architecture
+    if architecture is None:
+        raise ValueError(
+            "Checkpoint does not include policy architecture metadata. Please specify the policy class explicitly."
+        )
+    resolved_class_path = resolve_policy_class_path(architecture.class_path)
+    return resolved_class_path, {"config": architecture}
