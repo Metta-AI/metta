@@ -288,12 +288,11 @@ def _print_summary(results: list[CheckResult]) -> None:
 StageRunner = Callable[[bool, Sequence[str] | None, str | None, bool], CheckResult]
 
 stages: dict[str, StageRunner] = {
-    "lint": lambda v, args, name: _run_lint(verbose=v, extra_args=args),
-    "python-tests-and-benchmarks": lambda v, args, name: _run_python_tests(verbose=v, extra_args=args),
-    "cpp-tests": lambda v, args, name: _run_cpp_tests(verbose=v, extra_args=args),
-    "cpp-benchmarks": lambda v, args, name: _run_cpp_benchmarks(verbose=v, extra_args=args),
-    "recipe-tests": lambda v, args, name: _run_recipe_tests(verbose=v, name_filter=name),
-    "nim-tests": lambda v, args, name: _run_nim_tests(verbose=v, extra_args=args),
+    "lint": lambda v, args, name, _: _run_lint(verbose=v, extra_args=args),
+    "python-tests-and-benchmarks": lambda v, args, name, _: _run_python_tests(verbose=v, extra_args=args),
+    "cpp-tests": lambda v, args, name, _: _run_cpp_tests(verbose=v, extra_args=args),
+    "cpp-benchmarks": lambda v, args, name, _: _run_cpp_benchmarks(verbose=v, extra_args=args),
+    "nim-tests": lambda v, args, name, _: _run_nim_tests(verbose=v, extra_args=args),
     "recipe-tests": lambda v, args, name, ni: _run_recipe_tests(verbose=v, name_filter=name, no_interactive=ni),
 }
 
