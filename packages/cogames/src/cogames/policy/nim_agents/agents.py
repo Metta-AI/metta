@@ -15,7 +15,7 @@ na = importlib.import_module("nim_agents")
 
 
 class ThinkyAgentsMultiPolicy(NimMultiAgentPolicy):
-    short_names = ["nim_thinky"]
+    short_names = ["nim_thinky", "thinky"]
 
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_ids: Sequence[int] | None = None):
         super().__init__(
@@ -48,7 +48,7 @@ class RaceCarAgentsMultiPolicy(NimMultiAgentPolicy):
 
 
 class LadybugAgentsMultiPolicy(NimMultiAgentPolicy):
-    short_names = ["ladybug"]
+    short_names = ["nim_ladybug"]
 
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_ids: Sequence[int] | None = None):
         super().__init__(

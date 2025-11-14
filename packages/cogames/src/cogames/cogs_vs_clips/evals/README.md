@@ -687,7 +687,7 @@ Run the set:
 ```bash
 uv run packages/cogames/scripts/evaluate_policies.py \
   --eval-module cogames.cogs_vs_clips.evals.integrated_eval \
-  --policy cogames.policy.fast_agents.agents.ThinkyAgentsMultiPolicy \
+  --policy cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy \
   --cogs 4 --repeats 2 --quiet
 ```
 
