@@ -4,6 +4,7 @@ import re
 import subprocess
 import sys
 import webbrowser
+from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Optional
 
@@ -32,6 +33,15 @@ if TYPE_CHECKING:
 
 VERSION_PATTERN = re.compile(r"^(\d+\.\d+\.\d+(?:\.\d+)?)$")
 DEFAULT_INITIAL_VERSION = "0.0.0.1"
+
+
+class PRStatus(StrEnum):
+    """GitHub PR status filter options."""
+
+    OPEN = "open"
+    CLOSED = "closed"
+    MERGED = "merged"
+    ALL = "all"
 
 
 class MettaCLI:
@@ -615,25 +625,20 @@ def cmd_go(ctx: typer.Context):
 def cmd_pr_feed(
     path: Annotated[str, typer.Argument(help="Path filter (e.g., metta/jobs)")],
     num_prs: Annotated[int, typer.Option("--num_prs", help="Maximum number of PRs to search")] = 50,
-    status: Annotated[str, typer.Option("--status", help="PR status: open, closed, or all")] = "open",
+    status: Annotated[PRStatus, typer.Option("--status", help="PR status filter")] = PRStatus.OPEN,
 ):
     """Show PRs that touch files in a specific path."""
     import json
 
-    # Validate status and convert to GraphQL enum
+    # Convert status to GraphQL enum
     # Note: "closed" includes both CLOSED (without merge) and MERGED
-    valid_statuses = {
-        "open": ("OPEN", "OPEN"),
-        "closed": ("CLOSED, MERGED", "CLOSED"),
-        "merged": ("MERGED", "MERGED"),
-        "all": ("OPEN, CLOSED, MERGED", "ALL"),
+    status_mapping = {
+        PRStatus.OPEN: ("OPEN", "OPEN"),
+        PRStatus.CLOSED: ("CLOSED, MERGED", "CLOSED"),
+        PRStatus.MERGED: ("MERGED", "MERGED"),
+        PRStatus.ALL: ("OPEN, CLOSED, MERGED", "ALL"),
     }
-    if status not in valid_statuses:
-        error(f"Invalid status: {status}. Choose from: open, closed, merged, all")
-        raise typer.Exit(1)
-
-    # Convert to GraphQL enum
-    states, status_display = valid_statuses[status]
+    states, status_display = status_mapping[status]
 
     console = Console()
     console.print(f"🔍 Searching for [yellow]{status_display}[/yellow] PRs touching: [cyan]{path}[/cyan]")
