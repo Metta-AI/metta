@@ -176,9 +176,6 @@ class _DiagnosticMissionBase(Mission):
                 extractor.start_clipped = True
             if resource in self.extractor_max_uses and hasattr(extractor, "max_uses"):
                 extractor.max_uses = self.extractor_max_uses[resource]
-            clipped_key = f"clipped_{resource}_extractor"
-            if clipped_key in cfg.game.objects:
-                cfg.game.objects.pop(clipped_key)
 
     def _apply_assembler_requirements(self, cfg: MettaGridConfig) -> None:
         assembler = cfg.game.objects.get("assembler")
