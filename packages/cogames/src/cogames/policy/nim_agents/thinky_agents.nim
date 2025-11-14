@@ -2,6 +2,12 @@ import
   std/[strformat, tables, random, sets, options, json],
   common
 
+const
+  MaxEnergy = 100
+  MaxResourceInventory = 100
+  MaxToolInventory = 100
+  PutInventoryAmount = 10
+
 type
   ThinkyAgent* = ref object
     agentId*: int
@@ -23,8 +29,8 @@ type
     agents*: seq[ThinkyAgent]
 
 proc log(message: string) =
-  discard
-  #echo message
+  when defined(debug):
+    echo message
 
 const the8Offsets = [
   Location(x: +0, y: +0),
@@ -282,8 +288,8 @@ proc step*(
       agent.germaniumTarget = max(agent.germaniumTarget, activeRecipe.germaniumCost div activeRecipe.pattern.len)
       agent.siliconTarget = max(agent.siliconTarget, activeRecipe.siliconCost div activeRecipe.pattern.len)
 
-    # Is there an energy charger nearby?
-    if invEnergy < 50:
+    # Are we running low on energy?
+    if invEnergy < MaxEnergy div 4:
       let chargerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.charger)
       if chargerNearby.isSome():
         let action = agent.cfg.aStar(agent.location, chargerNearby.get(), agent.map)
@@ -291,17 +297,25 @@ proc step*(
           doAction(action.get().int32)
           log "going to charger"
           return
+    # Charge opportunistically.
+    if invEnergy < MaxEnergy - 20:
+      let chargerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.charger)
+      if chargerNearby.isSome():
+        if manhattan(agent.location, chargerNearby.get()) < 2:
+          let action = agent.cfg.aStar(agent.location, chargerNearby.get(), agent.map)
+          if action.isSome():
+            doAction(action.get().int32)
+            log "charge nearby might as well charge"
+            return
 
     # Deposit heart into the chest.
     if invHeart > 0:
       # Reset the targets when we deposit hearts.
-
       log "depositing hearts"
-
-      agent.carbonTarget = 0
-      agent.oxygenTarget = 0
-      agent.germaniumTarget = 0
-      agent.siliconTarget = 0
+      agent.carbonTarget = 10
+      agent.oxygenTarget = 10
+      agent.germaniumTarget = 1
+      agent.siliconTarget = 20
 
       let depositAction = agent.cfg.actions.vibeHeartB
       let depositVibe = agent.cfg.vibes.heartB
@@ -316,51 +330,9 @@ proc step*(
           log "going to chest"
           return
 
-    # Is there carbon nearby?
-    if agent.carbonTarget > 0 and invCarbon < agent.carbonTarget:
-      let carbonNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.carbonExtractor)
-      if carbonNearby.isSome():
-        let action = agent.cfg.aStar(agent.location, carbonNearby.get(), agent.map)
-        if action.isSome():
-          doAction(action.get().int32)
-          log "going to carbon, need: " & $agent.carbonTarget & " have: " & $invCarbon
-          return
-
-    # Is there oxygen nearby?
-    if agent.oxygenTarget > 0 and invOxygen < agent.oxygenTarget:
-      let oxygenNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.oxygenExtractor)
-      if oxygenNearby.isSome():
-        let action = agent.cfg.aStar(agent.location, oxygenNearby.get(), agent.map)
-        if action.isSome():
-          doAction(action.get().int32)
-          log "going to oxygen, need: " & $agent.oxygenTarget & " have: " & $invOxygen
-          return
-
-    # Is there germanium nearby?
-    if agent.germaniumTarget > 0 and invGermanium < agent.germaniumTarget:
-      let germaniumNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.germaniumExtractor)
-      if germaniumNearby.isSome():
-        let action = agent.cfg.aStar(agent.location, germaniumNearby.get(), agent.map)
-        if action.isSome():
-          doAction(action.get().int32)
-          log "going to germanium, need: " & $agent.germaniumTarget & " have: " & $invGermanium
-          return
-
-    # Is there silicon nearby?
-    if agent.siliconTarget > 0 and invSilicon < agent.siliconTarget:
-      let siliconNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.siliconExtractor)
-      if siliconNearby.isSome():
-        let action = agent.cfg.aStar(agent.location, siliconNearby.get(), agent.map)
-        if action.isSome():
-          doAction(action.get().int32)
-          log "going to silicon, need: " & $agent.siliconTarget & " have: " & $invSilicon
-          return
-
     if invCarbon >= agent.carbonTarget and invOxygen >= agent.oxygenTarget and invGermanium >= agent.germaniumTarget and invSilicon >= agent.siliconTarget:
-      # We have all the resources we need, so we can build an assembler.
-
+      # We have all the resources we need, so we can build a heart.
       log "trying to build a heart"
-
       var assembleAction = agent.cfg.actions.vibeHeartA
       var assembleVibe = agent.cfg.vibes.heartA
       if assembleAction == 0:
@@ -377,6 +349,170 @@ proc step*(
         if action.isSome():
           doAction(action.get().int32)
           log "going to assembler to build heart"
+          return
+
+    # Dump excess resources.
+    let atMaxInventory = invCarbon + invOxygen + invGermanium + invSilicon >= MaxResourceInventory
+    let avgResource = (invCarbon + invOxygen + invGermanium + invSilicon) div 4
+    if atMaxInventory:
+      log "at max inventory"
+
+    if atMaxInventory and invCarbon > avgResource and invCarbon > agent.carbonTarget + PutInventoryAmount:
+      let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
+      if chestNearby.isSome():
+        if vibe != agent.cfg.vibes.carbonB:
+          doAction(agent.cfg.actions.vibeCarbonB.int32)
+          log "vibing carbon B to dump excess carbon"
+          log "avgResource: " & $avgResource & " carbonTarget: " & $agent.carbonTarget & " putInventoryAmount: " & $PutInventoryAmount
+          return
+        let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
+        if action.isSome():
+          doAction(action.get().int32)
+          log "going to chest to dump excess carbon"
+          return
+
+    if atMaxInventory and invSilicon > avgResource and invSilicon > agent.siliconTarget + PutInventoryAmount:
+      let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
+      if chestNearby.isSome():
+        if vibe != agent.cfg.vibes.siliconB:
+          doAction(agent.cfg.actions.vibeSiliconB.int32)
+          log "vibing silicon B to dump excess silicon"
+          log "avgResource: " & $avgResource & " siliconTarget: " & $agent.siliconTarget & " putInventoryAmount: " & $PutInventoryAmount
+          return
+        let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
+        if action.isSome():
+          doAction(action.get().int32)
+          log "going to chest to dump excess silicon"
+          return
+
+    if atMaxInventory and invOxygen > avgResource and invOxygen > agent.oxygenTarget + PutInventoryAmount:
+      let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
+      if chestNearby.isSome():
+        if vibe != agent.cfg.vibes.oxygenB:
+          doAction(agent.cfg.actions.vibeOxygenB.int32)
+          log "vibing oxygen B to dump excess oxygen"
+          log "avgResource: " & $avgResource & " oxygenTarget: " & $agent.oxygenTarget & " putInventoryAmount: " & $PutInventoryAmount
+          return
+        let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
+        if action.isSome():
+          doAction(action.get().int32)
+          log "going to chest to dump excess oxygen"
+          return
+
+    if atMaxInventory and invGermanium > avgResource and invGermanium > agent.germaniumTarget + PutInventoryAmount:
+      let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
+      if chestNearby.isSome():
+        if vibe != agent.cfg.vibes.germaniumB:
+          doAction(agent.cfg.actions.vibeGermaniumB.int32)
+          log "vibing germanium B to dump excess germanium"
+          log "avgResource: " & $avgResource & " germaniumTarget: " & $agent.germaniumTarget & " putInventoryAmount: " & $PutInventoryAmount
+          return
+        let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
+        if action.isSome():
+          doAction(action.get().int32)
+          log "going to chest to dump excess germanium"
+          return
+
+    # Is there carbon nearby?
+    if agent.carbonTarget > 0 and invCarbon < agent.carbonTarget:
+      var closeChest = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
+      if closeChest.isSome():
+        # Does it have the resources we need?
+        let chestInventory = agent.cfg.getInventory(agent.map, agent.cfg.features.invCarbon, closeChest.get())
+        if chestInventory > 0:
+          # Vibe the right resource to take from the chest.
+          if vibe != agent.cfg.vibes.carbonA:
+            doAction(agent.cfg.actions.vibeCarbonA.int32)
+            log "vibing carbon A to take from chest"
+            return
+          let action = agent.cfg.aStar(agent.location, closeChest.get(), agent.map)
+          if action.isSome():
+            doAction(action.get().int32)
+            log "going to chest to take carbon from chest"
+        let action = agent.cfg.aStar(agent.location, closeChest.get(), agent.map)
+        if action.isSome():
+          doAction(action.get().int32)
+      let carbonNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.carbonExtractor)
+      if carbonNearby.isSome():
+        let action = agent.cfg.aStar(agent.location, carbonNearby.get(), agent.map)
+        if action.isSome():
+          doAction(action.get().int32)
+          log "going to carbon, need: " & $agent.carbonTarget & " have: " & $invCarbon
+          return
+
+    # Is there silicon nearby?
+    if agent.siliconTarget > 0 and invSilicon < agent.siliconTarget:
+      var closeChest = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
+      if closeChest.isSome():
+        # Does it have the resources we need?
+        let chestInventory = agent.cfg.getInventory(agent.map, agent.cfg.features.invSilicon, closeChest.get())
+        if chestInventory > 0:
+          # Vibe the right resource to take from the chest.
+          if vibe != agent.cfg.vibes.siliconA:
+            doAction(agent.cfg.actions.vibeSiliconA.int32)
+            log "vibing silicon A to take from chest"
+            return
+          let action = agent.cfg.aStar(agent.location, closeChest.get(), agent.map)
+          if action.isSome():
+            doAction(action.get().int32)
+            log "going to chest to take silicon from chest"
+            return
+      let siliconNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.siliconExtractor)
+      if siliconNearby.isSome():
+        let action = agent.cfg.aStar(agent.location, siliconNearby.get(), agent.map)
+        if action.isSome():
+          doAction(action.get().int32)
+          log "going to silicon, need: " & $agent.siliconTarget & " have: " & $invSilicon
+          return
+
+    # Is there oxygen nearby?
+    if agent.oxygenTarget > 0 and invOxygen < agent.oxygenTarget:
+      var closeChest = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
+      if closeChest.isSome():
+        # Does it have the resources we need?
+        let chestInventory = agent.cfg.getInventory(agent.map, agent.cfg.features.invOxygen, closeChest.get())
+        if chestInventory > 0:
+          # Vibe the right resource to take from the chest.
+          if vibe != agent.cfg.vibes.oxygenA:
+            doAction(agent.cfg.actions.vibeOxygenA.int32)
+            log "vibing oxygen A to take from chest"
+            return
+          let action = agent.cfg.aStar(agent.location, closeChest.get(), agent.map)
+          if action.isSome():
+            doAction(action.get().int32)
+            log "going to chest to take oxygen from chest"
+            return
+      let oxygenNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.oxygenExtractor)
+      if oxygenNearby.isSome():
+        let action = agent.cfg.aStar(agent.location, oxygenNearby.get(), agent.map)
+        if action.isSome():
+          doAction(action.get().int32)
+          log "going to oxygen, need: " & $agent.oxygenTarget & " have: " & $invOxygen
+          return
+
+    # Is there germanium nearby?
+    if agent.germaniumTarget > 0 and invGermanium < agent.germaniumTarget:
+      var closeChest = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
+      if closeChest.isSome():
+        # Does it have the resources we need?
+        let chestInventory = agent.cfg.getInventory(agent.map, agent.cfg.features.invGermanium, closeChest.get())
+        if chestInventory > 0:
+          # Vibe the right resource to take from the chest.
+          if vibe != agent.cfg.vibes.germaniumA:
+            doAction(agent.cfg.actions.vibeGermaniumA.int32)
+            log "vibing germanium A to take from chest"
+            return
+          let action = agent.cfg.aStar(agent.location, closeChest.get(), agent.map)
+          if action.isSome():
+            doAction(action.get().int32)
+            log "going to chest to take germanium from chest"
+            return
+      let germaniumNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.germaniumExtractor)
+      if germaniumNearby.isSome():
+        let action = agent.cfg.aStar(agent.location, germaniumNearby.get(), agent.map)
+        if action.isSome():
+          doAction(action.get().int32)
+          log "going to germanium, need: " & $agent.germaniumTarget & " have: " & $invGermanium
           return
 
     # Explore locations around the assembler.
