@@ -665,9 +665,10 @@ def cmd_pr_feed(
         prs = data["data"]["repository"]["pullRequests"]["nodes"]
 
         # Filter PRs that touch the specified path
+        # Use 'in' instead of 'startswith' to be more flexible with path matching
         matching_prs = []
         for pr in prs:
-            if any(file["path"].startswith(path) for file in pr["files"]["nodes"]):
+            if any(path in file["path"] for file in pr["files"]["nodes"]):
                 matching_prs.append(pr)
 
         if not matching_prs:
