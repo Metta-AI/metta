@@ -2,10 +2,103 @@
 This recipe is automatically validated in CI and release processes.
 """
 
+from __future__ import annotations
+
 from pathlib import Path
+from typing import Any
 
 from metta.tools.cogames_eval import CogamesEvalTool
 from metta.tools.cogames_train import CogamesTrainTool
+
+# ============================================================================
+# Shared Test Configurations
+# ============================================================================
+# These configurations are used by both CI (via commands) and stable (via tools)
+# to ensure the test parameters stay in sync.
+
+
+def get_ci_train_config(name: str) -> dict[str, Any]:
+    """Configuration for CI training test (fast, local, no S3)."""
+    return {
+        "mission": "training_facility.harvest",
+        "variant": ["small_50"],
+        "steps": 1000,
+        "checkpoints": f"./train_dir/{name}",
+    }
+
+
+def get_ci_eval_config(train_name: str) -> dict[str, Any]:
+    """Configuration for CI evaluation test (fast, local)."""
+    return {
+        "mission": "training_facility.harvest",
+        "variant": ["small_50"],
+        "episodes": 5,
+        "checkpoint_dir": f"./train_dir/{train_name}",  # For evaluate_latest_in_dir
+    }
+
+
+def get_stable_train_config(name: str) -> dict[str, Any]:
+    """Configuration for stable release training test (remote, with S3)."""
+    s3_uri = f"s3://softmax-public/cogames/{name}/checkpoint.pt"
+    return {
+        "mission": "training_facility.harvest",
+        "variant": ["standard"],
+        "steps": 100000,
+        "checkpoints": f"/tmp/{name}",
+        "s3_uri": s3_uri,
+    }
+
+
+def get_stable_eval_config(train_name: str) -> dict[str, Any]:
+    """Configuration for stable release evaluation test (remote, from S3)."""
+    s3_uri = f"s3://softmax-public/cogames/{train_name}/checkpoint.pt"
+    return {
+        "mission": "training_facility.harvest",
+        "variant": ["standard"],
+        "episodes": 20,
+        "policy_uri": s3_uri,
+    }
+
+
+def build_train_command(config: dict[str, Any]) -> str:
+    """Build cogames train command from configuration dictionary.
+
+    Used by CI suite to create raw commands from shared configs.
+    """
+    parts = ["cogames", "train"]
+    parts.extend(["--mission", config["mission"]])
+
+    if config.get("variant"):
+        # For commands, use first variant (CI uses single variant)
+        parts.extend(["--variant", config["variant"][0]])
+
+    parts.extend(["--steps", str(config["steps"])])
+    parts.extend(["--checkpoints", config["checkpoints"]])
+
+    return " ".join(parts)
+
+
+def build_eval_command(config: dict[str, Any], checkpoint_path: str) -> str:
+    """Build cogames eval command from configuration dictionary.
+
+    Used by CI suite to create raw commands from shared configs.
+
+    Args:
+        config: Eval configuration dictionary
+        checkpoint_path: Full path to checkpoint file to evaluate
+    """
+    parts = ["cogames", "eval"]
+    parts.extend(["--mission", config["mission"]])
+
+    if config.get("variant"):
+        # For commands, use first variant (CI uses single variant)
+        parts.extend(["--variant", config["variant"][0]])
+
+    parts.extend(["--policy", f"lstm:{checkpoint_path}"])
+    parts.extend(["--episodes", str(config["episodes"])])
+    parts.append("--format json")
+
+    return " ".join(parts)
 
 
 def train(

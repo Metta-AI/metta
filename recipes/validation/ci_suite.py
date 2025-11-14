@@ -6,6 +6,7 @@ import os
 from datetime import datetime
 
 from metta.jobs.job_config import JobConfig
+from recipes.prod.cogames import build_train_command, get_ci_train_config
 
 
 def get_user_timestamp() -> str:
@@ -94,20 +95,17 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
     )
 
     # CoGames - Train with small_50 variant for fast CI testing
+    # Use shared config to stay in sync with stable suite
+    cogames_train_config = get_ci_train_config(cogames_train_name)
     cogames_train = JobConfig(
         name=cogames_train_name,
-        recipe="recipes.prod.cogames.train",
-        args={
-            "mission": "training_facility.harvest",
-            "variant": '["small_50"]',
-            "steps": "1000",
-            "checkpoints": f"./train_dir/{cogames_train_name}",
-        },
+        cmd=build_train_command(cogames_train_config),
         timeout_s=300,
         group=group,
     )
 
     # CoGames - Evaluate trained policy from local checkpoint
+    # Use tool for automatic checkpoint discovery (can't predict checkpoint name in advance)
     cogames_eval = JobConfig(
         name=cogames_eval_name,
         recipe="recipes.prod.cogames.evaluate_latest_in_dir",
