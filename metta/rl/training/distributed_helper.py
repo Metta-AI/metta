@@ -93,14 +93,30 @@ class DistributedHelper:
         if "LOCAL_RANK" not in os.environ or torch.device(system_cfg.device).type != "cuda":
             return None
 
+        # Log environment variables for multi-node debugging
+        logger.info(
+            f"Distributed environment - WORLD_SIZE: {os.environ.get('WORLD_SIZE', 'not set')}, "
+            f"NUM_NODES: {os.environ.get('NUM_NODES', 'not set')}, "
+            f"RANK: {os.environ.get('RANK', 'not set')}, "
+            f"LOCAL_RANK: {os.environ.get('LOCAL_RANK', 'not set')}"
+        )
+
         world_size_str = os.environ.get("WORLD_SIZE") or os.environ.get("NUM_NODES") or "1"
         world_size = int(world_size_str) if world_size_str.strip() else 1
+
+        # Log which source was used for world_size
+        if os.environ.get("WORLD_SIZE"):
+            logger.info(f"Using WORLD_SIZE from environment: {world_size}")
+        elif os.environ.get("NUM_NODES"):
+            logger.warning(f"WORLD_SIZE not set, falling back to NUM_NODES: {world_size} (This may be incorrect for multi-GPU nodes!)")
+        else:
+            logger.info("No WORLD_SIZE or NUM_NODES found, defaulting to 1")
 
         if world_size <= 1:
             return None
 
         rank = int(os.environ.get("RANK", os.environ.get("NODE_INDEX", "0")))
-        logger.info(f"world_size: {world_size} rank: {rank}")
+        logger.info(f"Initializing distributed: world_size={world_size}, rank={rank}, device={system_cfg.device}")
 
         torch.distributed.init_process_group(
             backend="nccl",
@@ -166,10 +182,17 @@ class DistributedHelper:
             1, env_cfg.forward_pass_minibatch_target_size // self.get_world_size()
         )
 
+        # Add more detailed logging for multi-node debugging
+        original_batch_size = trainer_cfg.batch_size * self.get_world_size()
         logger.info(
-            "Scaled batch config for %s processes: batch_size=%s, forward_pass_minibatch_target_size=%s",
+            "Scaled batch config for %s processes (rank %s): "
+            "batch_size=%s (was %s per rank, %s global), "
+            "forward_pass_minibatch_target_size=%s",
             self.get_world_size(),
+            self.get_rank(),
             trainer_cfg.batch_size,
+            trainer_cfg.batch_size,
+            original_batch_size,
             env_cfg.forward_pass_minibatch_target_size
             if env_cfg is not None
             else getattr(trainer_cfg, "forward_pass_minibatch_target_size", "n/a"),

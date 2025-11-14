@@ -57,12 +57,20 @@ class Trainer:
             torch.autograd.set_detect_anomaly(True)
             logger.warning("Torch autograd anomaly detection enabled; backward will be slower.")
         if distributed_helper is None:
-            distributed_helper = DistributedHelper(SystemConfig(device=self._device.type))
+            distributed_helper = DistributedHelper(SystemConfig(device=str(self._device)))
         self._distributed_helper = distributed_helper
         self._run_name = run_name
         self._components: list[TrainerComponent] = []
         self.timer = Stopwatch(log_level=logger.getEffectiveLevel())
         self.timer.start()
+
+        # Log trainer initialization for multi-node debugging
+        logger.info(
+            f"Trainer initializing - Device: {self._device}, "
+            f"World size: {self._distributed_helper.get_world_size()}, "
+            f"Rank: {self._distributed_helper.get_rank()}, "
+            f"Is distributed: {self._distributed_helper.is_distributed}"
+        )
 
         self._policy.to(self._device)
         self._policy.initialize_to_environment(self._env.policy_env_info, self._device)
@@ -150,6 +158,10 @@ class Trainer:
             raise
 
         self._distributed_helper.synchronize()
+        logger.info(
+            f"[Rank {self._distributed_helper.get_rank()}/{self._distributed_helper.get_world_size()}] "
+            f"Training complete at agent_step {self._state.agent_step}"
+        )
         self._invoke_callback(TrainerCallback.TRAINING_COMPLETE)
 
     def _set_train_epoch_callable(self, fn: Callable[[], None]) -> None:
@@ -161,6 +173,13 @@ class Trainer:
 
         # Start new epoch
         self.core_loop.on_epoch_start(self._context)
+
+        # Log periodically to confirm all nodes are active (every 10 epochs)
+        if self._context.epoch % 10 == 0:
+            logger.info(
+                f"[Rank {self._distributed_helper.get_rank()}/{self._distributed_helper.get_world_size()}] "
+                f"Active at epoch {self._context.epoch}, agent_step {self._context.agent_step}"
+            )
 
         # Rollout phase
         with self.timer("_rollout"):
