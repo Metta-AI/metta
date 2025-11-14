@@ -13,7 +13,6 @@ from pydantic import Field
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.wandb.context import WandbRun
-from metta.eval.eval_request_config import EvalRewardSummary
 from metta.rl.model_analysis import compute_dormant_neuron_stats
 from metta.rl.stats import accumulate_rollout_stats, compute_timing_stats, process_training_stats
 from metta.rl.training.component import TrainerComponent
@@ -52,7 +51,6 @@ def build_wandb_payload(
     memory_stats: dict[str, Any],
     parameters: dict[str, Any],
     hyperparameters: dict[str, Any],
-    evals: EvalRewardSummary,
     *,
     agent_step: int,
     epoch: int,
@@ -65,8 +63,6 @@ def build_wandb_payload(
         "epoch_steps_per_second": timing_info.get("epoch_steps_per_second", 0.0),
         **processed_stats.get("overview", {}),
     }
-    for category, score in evals.category_scores.items():
-        overview[f"{category}_score"] = score
     if "reward" in overview:
         overview["reward_vs_total_time"] = overview["reward"]
 
@@ -95,13 +91,6 @@ def build_wandb_payload(
     _update(processed_stats.get("environment_stats", {}))
     _update(parameters, prefix="parameters/")
     _update(hyperparameters, prefix="hyperparameters/")
-
-    eval_metrics = evals.to_wandb_metrics_format()
-    for key, value in eval_metrics.items():
-        scalar = _to_scalar(value)
-        if scalar is None:
-            continue
-        payload[f"eval_{key}"] = scalar
 
     _update(system_stats)
     _update({f"trainer_memory/{k}": v for k, v in memory_stats.items()})
@@ -132,7 +121,6 @@ class StatsReporterState(Config):
 
     rollout_stats: dict = Field(default_factory=lambda: defaultdict(list))
     grad_stats: dict = Field(default_factory=dict)
-    eval_scores: EvalRewardSummary = Field(default_factory=EvalRewardSummary)
     stats_run_id: Optional[UUID] = None
     area_under_reward: float = 0.0
     """Cumulative area under the reward curve"""
@@ -280,11 +268,6 @@ class StatsReporter(TrainerComponent):
             # Clear stats after processing
             self.clear_rollout_stats()
             self.clear_grad_stats()
-
-    def update_eval_scores(self, scores: EvalRewardSummary) -> None:
-        self._state.eval_scores = scores
-        if self._context is not None:
-            self.context.latest_eval_scores = scores
 
     def clear_rollout_stats(self) -> None:
         """Clear rollout statistics."""
@@ -446,7 +429,6 @@ class StatsReporter(TrainerComponent):
             memory_stats=memory_stats,
             parameters=parameters,
             hyperparameters=hyperparameters,
-            evals=self._state.eval_scores,
             agent_step=agent_step,
             epoch=epoch,
         )
