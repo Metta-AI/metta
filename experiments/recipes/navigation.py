@@ -92,6 +92,7 @@ def make_curriculum(
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
+    seed: int | None = None,
 ) -> TrainTool:
     resolved_curriculum = curriculum or make_curriculum(
         enable_detailed_slice_logging=enable_detailed_slice_logging
@@ -101,8 +102,19 @@ def train(
         simulations=make_navigation_eval_suite(),
     )
 
+    seed_kwargs = {"seed": seed} if seed is not None else {}
+    training_env_cfg = TrainingEnvironmentConfig(curriculum=resolved_curriculum, **seed_kwargs)
+
+    from metta.rl.system_config import SystemConfig
+    system_cfg = SystemConfig(seed=seed) if seed is not None else SystemConfig()
+
+    from metta.rl.trainer_config import TrainerConfig
+    trainer_cfg = TrainerConfig()
+
     return TrainTool(
-        training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
+        system=system_cfg,
+        trainer=trainer_cfg,
+        training_env=training_env_cfg,
         evaluator=evaluator_cfg,
     )
 
