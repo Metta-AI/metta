@@ -202,6 +202,8 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
         result.features.frozen = feature.id
       of "agent:orientation":
         result.features.orientation = feature.id
+      of "agent:visitation_counts":
+        discard
       of "agent:reserved_for_future_use":
         result.features.reservedForFutureUse = feature.id
       of "converting":
