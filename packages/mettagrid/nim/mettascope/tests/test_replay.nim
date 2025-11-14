@@ -55,7 +55,7 @@ block generated_replay_test:
   let loadedReplay = loadReplay(replayPath)
   let issues = validateReplay(loadedReplay)
   if issues.len > 0:
-    echo $issues
+    # loadReplay will pretty print any validation issues
     raise newException(AssertionError, &"Validation issues found in replay")
 
   echo &"✓ Successfully generated and validated replay: {extractFilename(replayPath)}"

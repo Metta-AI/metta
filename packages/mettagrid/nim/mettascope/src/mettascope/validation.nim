@@ -583,7 +583,7 @@ proc validateReplay*(data: JsonNode): seq[ValidationIssue] =
   validateReplaySchema(data, issues)
   return issues
 
-proc `$`*(issues: seq[ValidationIssue]) =
+proc `prettyPrint`*(issues: seq[ValidationIssue]) =
   ## Display validation issues in a readable format.
   if issues.len == 0:
     echo "✓ No validation issues found."
