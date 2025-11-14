@@ -154,9 +154,6 @@ class Evaluator(TrainerComponent):
                 )
             except Exception as e:
                 logger.error(f"Failed to evaluate policy remotely: {e}", exc_info=True)
-                if not self._config.evaluate_local:
-                    return
-                logger.info("Falling back to local evaluation")
 
         # Local evaluation
         if self._config.evaluate_local:
@@ -257,37 +254,6 @@ class Evaluator(TrainerComponent):
             logger.warning("Evaluator: curriculum unavailable; skipping evaluation")
             return
 
-        stats_reporter = self.context.stats_reporter
-        stats_epoch_id = None
-
-        # Check if we have stats infrastructure available
-        if not stats_reporter:
-            if not self._config.allow_eval_without_stats:
-                logger.warning("Evaluator: skipping epoch %s because stats_reporter is not available", epoch)
-                return
-            logger.info("Evaluator: running without stats tracking (no stats_reporter)")
-        elif not hasattr(stats_reporter, "state") or stats_reporter.state is None:
-            if not self._config.allow_eval_without_stats:
-                logger.warning("Evaluator: skipping epoch %s because stats_reporter.state is not available", epoch)
-                return
-            logger.info("Evaluator: running without stats tracking (no stats_reporter.state)")
-        else:
-            stats_run_id = getattr(stats_reporter.state, "stats_run_id", None)
-            if not stats_run_id:
-                # TODO: Passha: Reintroduce this check when ready
-                # if not self._config.allow_eval_without_stats:
-                #     logger.warning("Evaluator: skipping epoch %s because stats_run_id is not available", epoch)
-                #     return
-                logger.info("Evaluator: running pushing to cogweb (no stats_run_id)")
-            else:
-                # We have full stats infrastructure - create stats epoch
-                stats_epoch_id = stats_reporter.create_epoch(
-                    stats_run_id,
-                    epoch,
-                    epoch,
-                    attributes={"source": "evaluation", "agent_step": self.context.agent_step},
-                )
-
         optimizer = getattr(self.context, "optimizer", None)
         is_schedulefree = optimizer is not None and is_schedulefree_optimizer(optimizer)
         if is_schedulefree and optimizer is not None:
@@ -298,7 +264,6 @@ class Evaluator(TrainerComponent):
             curriculum=curriculum,
             epoch=epoch,
             agent_step=self.context.agent_step,
-            stats_epoch_id=stats_epoch_id,
         )
 
         # Restore train mode after evaluation for ScheduleFree optimizers

@@ -4,7 +4,7 @@ import logging
 
 from cogames.cogs_vs_clips.mission import Mission, Site
 from cogames.cogs_vs_clips.procedural import MachinaArena
-from cogames.cogs_vs_clips.sites import HELLO_WORLD, TRAINING_FACILITY
+from cogames.cogs_vs_clips.sites import HELLO_WORLD
 from cogames.cogs_vs_clips.variants import (
     DarkSideVariant,
     DistantResourcesVariant,
@@ -131,7 +131,7 @@ VibeCheck = Mission(
 EasyHeartsMission = Mission(
     name="easy_hearts",
     description="Simplified heart crafting, generous caps, extractor base, neutral vibe.",
-    site=TRAINING_FACILITY,
+    site=HELLO_WORLD,
     variants=[
         LonelyHeartVariant(),
         HeartChorusVariant(),
