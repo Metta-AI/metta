@@ -14,6 +14,13 @@ repositories:
   - name: datadog
     url: https://helm.datadoghq.com
 
+templates:
+  cronjob: &cronjob_template
+    chart: ./cronjob
+    version: 0.1.0
+    namespace: monitoring
+
+
 releases:
   ########## System configurations ##########
   - name: system
@@ -171,10 +178,6 @@ releases:
   #   3. Create GitHub workflow in .github/workflows/deploy-{name}-cronjob.yml
   #      - Set image_name: metta-cronjobs
   #      - Set suffix: -{name} to create tags like latest-{name}
-  cronjob: &cronjob_template
-    chart: ./cronjob
-    version: 0.1.0
-    namespace: monitoring
 
   - name: pr-similarity-cache-cronjob
     <<: *cronjob_template
@@ -216,5 +219,5 @@ releases:
 # Helpful commands:
 #   Deploy cronjob definition: cd devops/charts && helmfile -l name=<release-name> apply
 #   Inspect cronjob definition: kubectl get cronjobs -n monitoring
-#   Trigger a run of cronjob off-schedule: kubectl -n monitoring create job <custom-name> --from=cronjob/<release-name>
+#   Trigger a run of cronjob off-schedule: kubectl -n monitoring create job <custom-name> --from=cronjob/<release-name>-cronjob
 #   Inspect runs/logs: kubectl get jobs -n monitoring && kubectl logs -n monitoring job/<job-name>
