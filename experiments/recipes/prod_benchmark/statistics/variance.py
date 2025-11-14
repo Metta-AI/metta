@@ -36,6 +36,8 @@ def compute_variance_curve(
     bootstrap_iterations: int = 1000,
     ci_level: float = 0.95,
     seed: int | None = None,
+    window_start: float | None = None,
+    window_end: float | None = None,
 ) -> tuple[list[int], list[float], list[tuple[float, float]], list[str]]:
     """Compute coefficient of variation as a function of sample size.
 
@@ -45,6 +47,8 @@ def compute_variance_curve(
         percent: Percentage of training data to use (default: 0.25 for last 25%)
         samples: Number of samples to request from W&B (default: 2000)
         min_timesteps: Minimum timesteps required for a run to be included (default: None)
+        window_start: Start of absolute timestep window (overrides percent if provided)
+        window_end: End of absolute timestep window (overrides percent if provided)
 
     Returns:
         (
@@ -54,14 +58,24 @@ def compute_variance_curve(
             included_runs,
         ): Sample sizes, bootstrapped mean CV values, CI bounds, and included run IDs
     """
-    # Fetch and compute AUC for each run using percentage-based window
+    # Fetch and compute AUC for each run
     fetch_spec = FetchSpec(samples=samples)
-    summary_spec = SummarySpec(
-        type="auc",
-        percent=percent,
-        percent_window="last",
-        normalize_steps=True,
-    )
+
+    # Use absolute window if provided, otherwise use percentage-based window
+    if window_start is not None and window_end is not None:
+        summary_spec = SummarySpec(
+            type="auc",
+            step_min=int(window_start),
+            step_max=int(window_end),
+            normalize_steps=True,
+        )
+    else:
+        summary_spec = SummarySpec(
+            type="auc",
+            percent=percent,
+            percent_window="last",
+            normalize_steps=True,
+        )
 
     auc_values = []
     included_runs = []
@@ -144,6 +158,8 @@ def plot_variance(
     output_path: str,
     percent: float,
     ci_level: float,
+    window_start: float | None = None,
+    window_end: float | None = None,
 ):
     """Create a simple plot of CV vs sample size."""
     # Filter out inf values for plotting
@@ -242,11 +258,15 @@ def plot_variance(
 
     plt.xlabel("Number of Runs", fontsize=14, fontweight="bold")
     plt.ylabel("Coefficient of Variation (%)", fontsize=14, fontweight="bold")
-    plt.title(
-        f"Variance Analysis: Last {percent * 100:.0f}% of Training\n(Stabilizes when CV or CI width change < {threshold * 100:.0f}%)",
-        fontsize=15,
-        fontweight="bold",
-    )
+
+    # Create title based on whether absolute window or percentage window is used
+    if window_start is not None and window_end is not None:
+        window_str = f"{window_start/1e9:.1f}B → {window_end/1e9:.1f}B timesteps"
+        title = f"Variance Analysis: {window_str}\n(Stabilizes when CV or CI width change < {threshold * 100:.0f}%)"
+    else:
+        title = f"Variance Analysis: Last {percent * 100:.0f}% of Training\n(Stabilizes when CV or CI width change < {threshold * 100:.0f}%)"
+
+    plt.title(title, fontsize=15, fontweight="bold")
 
     # Restrict x-axis to first 15 runs so emphasis stays on early behavior
     plt.xlim(0, 15)
@@ -318,17 +338,39 @@ def main():
         default=None,
         help="Random seed for reproducible bootstrapping (default: None)",
     )
+    parser.add_argument(
+        "--window-start",
+        type=float,
+        default=None,
+        help="Start of absolute timestep window (e.g., 1000000000 for 1B). Overrides --percent.",
+    )
+    parser.add_argument(
+        "--window-end",
+        type=float,
+        default=None,
+        help="End of absolute timestep window (e.g., 1500000000 for 1.5B). Overrides --percent.",
+    )
 
     args = parser.parse_args()
 
-    # Auto-compute min_timesteps if not provided (assumes 2B training)
-    if args.min_timesteps is None and args.percent > 0:
-        # If analyzing last 25% of 2B training, minimum should be 1.5B
-        args.min_timesteps = 2_000_000_000 * (1 - args.percent)
+    # Auto-compute min_timesteps if not provided
+    if args.min_timesteps is None:
+        if args.window_end is not None:
+            # If using absolute window, min_timesteps should be window_end
+            args.min_timesteps = args.window_end
+        elif args.percent > 0:
+            # If analyzing last 25% of 2B training, minimum should be 1.5B
+            args.min_timesteps = 2_000_000_000 * (1 - args.percent)
 
     print(f"\nAnalyzing {len(args.run_ids)} runs...")
     print(f"Metric: {args.metric}")
-    print(f"Window: Last {args.percent * 100:.0f}% of training")
+
+    # Display window information
+    if args.window_start is not None and args.window_end is not None:
+        print(f"Window: {args.window_start/1e9:.1f}B → {args.window_end/1e9:.1f}B timesteps")
+    else:
+        print(f"Window: Last {args.percent * 100:.0f}% of training")
+
     if args.min_timesteps:
         print(f"Minimum timesteps required: {args.min_timesteps:,.0f}")
     print(f"Samples per run: {args.samples}")
@@ -350,6 +392,8 @@ def main():
         args.bootstrap_iterations,
         args.ci_level,
         args.seed,
+        args.window_start,
+        args.window_end,
     )
 
     # Print results
@@ -429,6 +473,8 @@ def main():
         args.output,
         args.percent,
         args.ci_level,
+        args.window_start,
+        args.window_end,
     )
 
 
