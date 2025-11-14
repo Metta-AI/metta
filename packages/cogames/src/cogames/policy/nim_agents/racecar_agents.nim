@@ -1,5 +1,5 @@
 import
-  std/[tables, random, sets, options, strutils],
+  std/[tables, random, sets, options],
   common
 
 when defined(racecar_debug):
@@ -51,15 +51,6 @@ proc buildResourceOrder(agentId: int): seq[ResourceKind] =
   let offset = agentId mod base.len
   for i in 0 ..< base.len:
     result.add(base[(offset + i) mod base.len])
-
-proc toResourceKind(resource: string): Option[ResourceKind] =
-  let lowered = resource.toLowerAscii()
-  case lowered
-  of "carbon": some(rkCarbon)
-  of "oxygen": some(rkOxygen)
-  of "germanium": some(rkGermanium)
-  of "silicon": some(rkSilicon)
-  else: none(ResourceKind)
 
 proc recipeRequirement(agent: RaceCarAgent, kind: ResourceKind): int =
   if agent.heartRequirements.len > 0 and agent.heartRequirements.hasKey(kind):
@@ -169,6 +160,15 @@ proc updateExtractorOffsets(agent: RaceCarAgent, visible: Table[Location, seq[Fe
             let offset = globalLocation - assemblerLoc
             rememberExtractorOffset(kind, offset)
 
+proc protocolFeatureValue(features: seq[FeatureValue], featureId: int): int =
+  ## Return the positive value associated with a protocol feature id, if present.
+  if featureId == 0:
+    return 0
+  for featureValue in features:
+    if featureValue.featureId == featureId and featureValue.value > 0:
+      return featureValue.value
+  0
+
 proc updateHeartRequirements(agent: RaceCarAgent) =
   if agent.map.len == 0:
     return
@@ -179,30 +179,25 @@ proc updateHeartRequirements(agent: RaceCarAgent) =
   if assemblerLocation notin agent.map:
     return
   let features = agent.map[assemblerLocation]
-  let heartOutputId = agent.cfg.features.protocolOutputs.getOrDefault("heart", -1)
-  if heartOutputId == -1:
-    return
-
-  var heartProtocolSeen = false
-  for featureValue in features:
-    if featureValue.featureId == heartOutputId and featureValue.value > 0:
-      heartProtocolSeen = true
-      break
-  if not heartProtocolSeen:
+  let heartAmount = protocolFeatureValue(features, agent.cfg.features.protocolOutputHeart)
+  if heartAmount == 0:
     return
 
   var updated = initTable[ResourceKind, int]()
   var energyRequirement = agent.energyRequirement
-  for resource, featureId in agent.cfg.features.protocolInputs.pairs:
-    for featureValue in features:
-      if featureValue.featureId == featureId and featureValue.value > 0:
-        if resource == "energy":
-          energyRequirement = max(energyRequirement, featureValue.value)
-        else:
-          let maybeKind = resource.toResourceKind()
-          if maybeKind.isSome():
-            updated[maybeKind.get()] = featureValue.value
-        break
+  let energyCost = protocolFeatureValue(features, agent.cfg.features.protocolInputEnergy)
+  if energyCost > 0:
+    energyRequirement = max(energyRequirement, energyCost)
+
+  proc recordRequirement(kind: ResourceKind, featureId: int) =
+    let value = protocolFeatureValue(features, featureId)
+    if value > 0:
+      updated[kind] = value
+
+  recordRequirement(rkCarbon, agent.cfg.features.protocolInputCarbon)
+  recordRequirement(rkOxygen, agent.cfg.features.protocolInputOxygen)
+  recordRequirement(rkGermanium, agent.cfg.features.protocolInputGermanium)
+  recordRequirement(rkSilicon, agent.cfg.features.protocolInputSilicon)
 
   if updated.len > 0:
     agent.heartRequirements = updated
@@ -402,7 +397,7 @@ proc step*(
     agent.updateExtractorOffsets(map)
     agent.updateHeartRequirements()
 
-    let vibe = agent.cfg.getVibe(map)
+    let vibe = agent.cfg.getVibe(map, Location(x: 0, y: 0))
     let invEnergy = agent.cfg.getInventory(map, agent.cfg.features.invEnergy)
     let invHeart = agent.cfg.getInventory(map, agent.cfg.features.invHeart)
     let inventory = agent.sampleInventory(map)
