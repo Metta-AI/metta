@@ -42,8 +42,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
-from cogames.cogs_vs_clips.evals.difficulty_variants import get_difficulty
 from cogames.cogs_vs_clips.mission import Mission, NumCogsVariant
+from cogames.cogs_vs_clips.variants import VARIANTS
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
@@ -101,7 +101,6 @@ AGENT_CONFIGS: Dict[str, AgentConfig] = {
     ),
 }
 
-# All evaluation missions (populated at runtime via --eval-module)
 EXPERIMENT_MAP: Dict[str, Mission] = {}
 
 
@@ -117,12 +116,11 @@ def load_eval_missions(module_path: str):
 def run_evaluation(
     agent_config: AgentConfig,
     experiments: List[str],
-    difficulties: List[str],
+    variants: List[str],
     cogs_list: List[int],
     max_steps: int = 1000,
     seed: int = 42,
     repeats: int = 3,
-    no_difficulty: bool = False,
     experiment_map: Dict[str, Mission] | None = None,
 ) -> List[EvalResult]:
     """Run evaluation for an agent configuration."""
@@ -132,12 +130,12 @@ def run_evaluation(
     logger.info(f"\n{'=' * 80}")
     logger.info(f"Evaluating: {agent_config.label}")
     logger.info(f"Experiments: {len(experiments)}")
-    logger.info(f"Difficulties: {len(difficulties)}")
+    logger.info(f"Variants: {len(variants) if variants else 0} (none = base mission)")
     logger.info(f"Agent counts: {cogs_list}")
     logger.info(f"{'=' * 80}\n")
 
     runs_per_case = max(1, int(repeats))
-    total_cases = len(experiments) * len(difficulties) * len(cogs_list)
+    total_cases = len(experiments) * max(1, len(variants)) * len(cogs_list)
     total_tests = total_cases * runs_per_case
     case_counter = 0
     completed_runs = 0
@@ -149,37 +147,41 @@ def run_evaluation(
 
         base_mission = experiment_lookup[exp_name]
 
-        for difficulty_name in difficulties:
-            difficulty = None
-            difficulty_label = difficulty_name
-            if not no_difficulty:
-                try:
-                    difficulty = get_difficulty(difficulty_name)
-                except Exception:
-                    logger.error(f"Unknown difficulty: {difficulty_name}")
+        # If no variants specified, run with base mission
+        variant_list = variants if variants else [None]
+
+        for variant_name in variant_list:
+            variant = None
+            variant_label = "base"
+            if variant_name:
+                # Find the variant by name
+                variant = next((v for v in VARIANTS if v.name == variant_name), None)
+                if variant is None:
+                    logger.error(f"Unknown variant: {variant_name}")
                     continue
+                variant_label = variant_name
 
             for num_cogs in cogs_list:
                 case_counter += 1
-                label = "none" if no_difficulty else difficulty_label
-                logger.info(f"[{case_counter}/{total_cases}] {exp_name} | {label} | {num_cogs} agent(s)")
+                logger.info(f"[{case_counter}/{total_cases}] {exp_name} | {variant_label} | {num_cogs} agent(s)")
 
-                # Get clip period for metadata
-                clip_period = getattr(difficulty, "extractor_clip_period", 0)
+                # Get clip period for metadata (if applicable)
+                clip_period = getattr(variant, "extractor_clip_period", 0) if variant else 0
 
                 try:
-                    # Create mission and apply difficulty if enabled
-                    if difficulty is None:
-                        mission = base_mission.with_variants([NumCogsVariant(num_cogs=num_cogs)])
-                    else:
-                        mission = base_mission.with_variants([difficulty, NumCogsVariant(num_cogs=num_cogs)])
+                    # Create mission and apply variant if specified
+                    mission_variants = [NumCogsVariant(num_cogs=num_cogs)]
+                    if variant:
+                        mission_variants.insert(0, variant)
+
+                    mission = base_mission.with_variants(mission_variants)
 
                     env_config = mission.make_env()
-                    # Only override max_steps if difficulty doesn't specify it
+                    # Only override max_steps if variant doesn't specify it
                     has_override = (
-                        (difficulty is not None)
-                        and hasattr(difficulty, "max_steps_override")
-                        and (difficulty.max_steps_override is not None)
+                        (variant is not None)
+                        and hasattr(variant, "max_steps_override")
+                        and (variant.max_steps_override is not None)
                     )
                     if not has_override:
                         env_config.game.max_steps = max_steps
@@ -219,7 +221,7 @@ def run_evaluation(
                             agent=agent_config.label,
                             experiment=exp_name,
                             num_cogs=num_cogs,
-                            difficulty=("none" if no_difficulty else difficulty_label),
+                            difficulty=variant_label,
                             clip_period=clip_period,
                             total_reward=total_reward,
                             avg_reward_per_agent=avg_reward_per_agent,
@@ -248,7 +250,7 @@ def run_evaluation(
                             agent=agent_config.label,
                             experiment=exp_name,
                             num_cogs=num_cogs,
-                            difficulty=("none" if no_difficulty else difficulty_label),
+                            difficulty=variant_label,
                             clip_period=clip_period,
                             total_reward=0.0,
                             avg_reward_per_agent=0.0,
@@ -308,17 +310,17 @@ def print_summary(results: List[EvalResult]):
             f"avg_total={avg_total_reward:.2f} avg_per_agent={avg_reward_per_agent:.2f}"
         )
 
-    # By difficulty
-    logger.info("\n## By Difficulty")
-    difficulties = sorted(set(r.difficulty for r in results))
-    for diff in difficulties:
-        diff_results = [r for r in results if r.difficulty == diff]
-        diff_successes = sum(1 for r in diff_results if r.success)
-        avg_total_reward = sum(r.total_reward for r in diff_results) / len(diff_results)
-        avg_reward_per_agent = sum(r.avg_reward_per_agent for r in diff_results) / len(diff_results)
+    # By variant
+    logger.info("\n## By Variant")
+    variants = sorted(set(r.difficulty for r in results))
+    for var in variants:
+        var_results = [r for r in results if r.difficulty == var]
+        var_successes = sum(1 for r in var_results if r.success)
+        avg_total_reward = sum(r.total_reward for r in var_results) / len(var_results)
+        avg_reward_per_agent = sum(r.avg_reward_per_agent for r in var_results) / len(var_results)
         logger.info(
-            f"  {diff:20s}: {diff_successes}/{len(diff_results)} "
-            f"({100 * diff_successes / len(diff_results):.1f}%) "
+            f"  {var:20s}: {var_successes}/{len(var_results)} "
+            f"({100 * var_successes / len(var_results):.1f}%) "
             f"avg_total={avg_total_reward:.2f} avg_per_agent={avg_reward_per_agent:.2f}"
         )
 
@@ -359,7 +361,7 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots"):
     # Get unique values for each dimension
     agents = sorted(set(r.agent for r in results))
     experiments = sorted(set(r.experiment for r in results))
-    difficulties = sorted(set(r.difficulty for r in results))
+    variants = sorted(set(r.difficulty for r in results))
     num_cogs_list = sorted(set(r.num_cogs for r in results))
 
     # 1. Average reward per agent by agent type
@@ -380,11 +382,11 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots"):
     # 6. Total reward by eval environment
     _plot_by_environment_total(aggregated, experiments, agents, output_path)
 
-    # 7. Average reward per agent by difficulty
-    _plot_by_difficulty(aggregated, difficulties, agents, output_path)
+    # 7. Average reward per agent by variant
+    _plot_by_difficulty(aggregated, variants, agents, output_path)
 
-    # 8. Total reward by difficulty
-    _plot_by_difficulty_total(aggregated, difficulties, agents, output_path)
+    # 8. Total reward by variant
+    _plot_by_difficulty_total(aggregated, variants, agents, output_path)
 
     # 8.5. Average reward per agent by environment, grouped by agent count
     _plot_by_environment_by_cogs(aggregated, experiments, num_cogs_list, output_path)
@@ -395,11 +397,11 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots"):
     # 10. Heatmap: Environment x Agent (total)
     _plot_heatmap_env_agent_total(aggregated, experiments, agents, output_path)
 
-    # 11. Heatmap: Difficulty x Agent (avg per agent)
-    _plot_heatmap_diff_agent(aggregated, difficulties, agents, output_path)
+    # 11. Heatmap: Variant x Agent (avg per agent)
+    _plot_heatmap_diff_agent(aggregated, variants, agents, output_path)
 
-    # 12. Heatmap: Difficulty x Agent (total)
-    _plot_heatmap_diff_agent_total(aggregated, difficulties, agents, output_path)
+    # 12. Heatmap: Variant x Agent (total)
+    _plot_heatmap_diff_agent_total(aggregated, variants, agents, output_path)
 
     logger.info(f"✓ Plots saved to {output_path}/")
 
@@ -873,111 +875,6 @@ def _plot_heatmap_diff_agent_total(aggregated, difficulties, agents, output_path
     plt.close()
 
 
-def _plot_by_preset(aggregated, presets, agents, experiments, difficulties, output_path):
-    """Plot reward by hyperparameter preset across different dimensions."""
-
-    # Preset x Agent
-    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
-
-    # Plot 1: Overall by preset and agent
-    ax = axes[0]
-    width = 0.35
-    x = np.arange(len(presets))
-
-    for i, agent in enumerate(agents):
-        rewards = []
-        for preset in presets:
-            vals = [
-                v["avg_reward_per_agent"]
-                for k, v in aggregated.items()
-                if v["agent"] == agent and v["preset"] == preset
-            ]
-            rewards.append(np.mean(vals) if vals else 0)
-
-        offset = width * (i - len(agents) / 2 + 0.5)
-        ax.bar(x + offset, rewards, width, label=agent, alpha=0.8, edgecolor="black")
-
-    ax.set_ylabel("Average Reward", fontsize=11, fontweight="bold")
-    ax.set_xlabel("Hyperparameter Preset", fontsize=11, fontweight="bold")
-    ax.set_title("Reward by Preset (Overall)", fontsize=12, fontweight="bold")
-    ax.set_xticks(x)
-    ax.set_xticklabels(presets, rotation=45, ha="right")
-    ax.legend(fontsize=10)
-    ax.grid(axis="y", alpha=0.3)
-
-    # Plot 2: Preset performance on top 3 environments
-    ax = axes[1]
-    top_envs = sorted(
-        experiments,
-        key=lambda e: float(
-            np.mean([v["avg_reward_per_agent"] for k, v in aggregated.items() if v["experiment"] == e])
-        ),
-        reverse=True,
-    )[:3]  # type: ignore
-
-    x = np.arange(len(presets))
-    width = 0.25
-
-    for i, env in enumerate(top_envs):
-        rewards = []
-        for preset in presets:
-            vals = [
-                v["avg_reward_per_agent"]
-                for k, v in aggregated.items()
-                if v["preset"] == preset and v["experiment"] == env
-            ]
-            rewards.append(np.mean(vals) if vals else 0)
-
-        offset = width * (i - 1)
-        ax.bar(x + offset, rewards, width, label=env, alpha=0.8, edgecolor="black")
-
-    ax.set_ylabel("Average Reward", fontsize=11, fontweight="bold")
-    ax.set_xlabel("Hyperparameter Preset", fontsize=11, fontweight="bold")
-    ax.set_title("Reward by Preset (Top 3 Envs)", fontsize=12, fontweight="bold")
-    ax.set_xticks(x)
-    ax.set_xticklabels(presets, rotation=45, ha="right")
-    ax.legend(fontsize=9)
-    ax.grid(axis="y", alpha=0.3)
-
-    # Plot 3: Preset performance on top 3 difficulties
-    ax = axes[2]
-    top_diffs = sorted(
-        difficulties,
-        key=lambda d: float(
-            np.mean([v["avg_reward_per_agent"] for k, v in aggregated.items() if v["difficulty"] == d])
-        ),  # type: ignore
-        reverse=True,
-    )[:3]
-
-    x = np.arange(len(presets))
-    width = 0.25
-
-    for i, diff in enumerate(top_diffs):
-        rewards = []
-        for preset in presets:
-            vals = [
-                v["avg_reward_per_agent"]
-                for k, v in aggregated.items()
-                if v["preset"] == preset and v["difficulty"] == diff
-            ]
-            rewards.append(np.mean(vals) if vals else 0)
-
-        offset = width * (i - 1)
-        ax.bar(x + offset, rewards, width, label=diff, alpha=0.8, edgecolor="black")
-
-    ax.set_ylabel("Average Reward", fontsize=11, fontweight="bold")
-    ax.set_xlabel("Hyperparameter Preset", fontsize=11, fontweight="bold")
-    ax.set_title("Reward by Preset (Top 3 Difficulties)", fontsize=12, fontweight="bold")
-    ax.set_xticks(x)
-    ax.set_xticklabels(presets, rotation=45, ha="right")
-    ax.legend(fontsize=9)
-    ax.grid(axis="y", alpha=0.3)
-
-    plt.tight_layout()
-    plt.savefig(output_path / "reward_by_preset.png", dpi=150, bbox_inches="tight")
-    plt.close()
-
-
 def main():
     parser = argparse.ArgumentParser(description="Evaluate policies across missions")
     parser.add_argument(
@@ -1000,31 +897,19 @@ def main():
         help="Path to checkpoint file for trained policies (optional)",
     )
     parser.add_argument(
-        "--eval-module",
-        type=str,
-        default="cogames.cogs_vs_clips.evals.eval_missions",
-        help=(
-            "Module to load EVAL_MISSIONS from "
-            "(default: cogames.cogs_vs_clips.evals.eval_missions). "
-            "For integrated evals use cogames.cogs_vs_clips.evals.integrated_eval"
-        ),
-    )
-    parser.add_argument(
         "--experiments",
         nargs="*",
         default=None,
         help="Experiments to test (default: all). Use class names like 'OxygenBottleneck'",
     )
     parser.add_argument(
-        "--difficulties",
+        "--variants",
         nargs="*",
         default=None,
-        help="Difficulties to test (default: standard only)",
-    )
-    parser.add_argument(
-        "--no-difficulty",
-        action="store_true",
-        help="Skip applying difficulty variants (use missions as-defined)",
+        help=(
+            "Mission variants to test (default: none, runs base missions). "
+            "Available variants from VARIANTS in variants.py"
+        ),
     )
     parser.add_argument(
         "--cogs",
@@ -1049,13 +934,12 @@ def main():
     )
     parser.add_argument(
         "--mission-set",
-        choices=["auto", "eval_missions", "integrated_evals", "diagnostic_evals"],
-        default="auto",
+        choices=["eval_missions", "integrated_evals", "diagnostic_evals", "all"],
+        default="all",
         help=(
-            "Convenience selector for built-in mission groups. "
-            "'auto' uses --eval-module as provided; "
-            "'eval_missions' and 'integrated_evals' load the bundled modules; "
-            "'diagnostic_evals' runs the curated diagnostic suite."
+            "Mission set selector. "
+            "'all' runs on all three mission sets (eval_missions, integrated_evals, diagnostic_evals); "
+            "Or specify individual sets: 'eval_missions', 'integrated_evals', 'diagnostic_evals'"
         ),
     )
     parser.add_argument(
@@ -1069,15 +953,21 @@ def main():
 
     # Select mission set based on argument
     mission_set = args.mission_set
-    eval_module = args.eval_module
-    if mission_set == "diagnostic_evals":
+
+    if mission_set == "all":
+        # Load all three mission sets
+        missions_list = []
+        missions_list.extend(load_eval_missions("cogames.cogs_vs_clips.evals.eval_missions"))
+        missions_list.extend(load_eval_missions("cogames.cogs_vs_clips.evals.integrated_evals"))
+        missions_list.extend([mission_cls() for mission_cls in DIAGNOSTIC_EVALS])  # type: ignore[call-arg]
+    elif mission_set == "diagnostic_evals":
         missions_list = [mission_cls() for mission_cls in DIAGNOSTIC_EVALS]  # type: ignore[call-arg]
+    elif mission_set == "eval_missions":
+        missions_list = load_eval_missions("cogames.cogs_vs_clips.evals.eval_missions")
+    elif mission_set == "integrated_evals":
+        missions_list = load_eval_missions("cogames.cogs_vs_clips.evals.integrated_evals")
     else:
-        if mission_set == "eval_missions":
-            eval_module = "cogames.cogs_vs_clips.evals.eval_missions"
-        elif mission_set == "integrated_evals":
-            eval_module = "cogames.cogs_vs_clips.evals.integrated_evals"
-        missions_list = load_eval_missions(eval_module)
+        raise ValueError(f"Unknown mission set: {mission_set}")
 
     experiment_map = {mission.name: mission for mission in missions_list}  # type: ignore[misc]
     global EXPERIMENT_MAP
@@ -1121,13 +1011,8 @@ def main():
     # Run evaluations
     all_results = []
     for config in configs:
-        # Use specified difficulties, or default to "standard" only
-        if args.no_difficulty:
-            difficulties = ["base"]
-        elif args.difficulties:
-            difficulties = args.difficulties
-        else:
-            difficulties = ["standard"]
+        # Use specified variants, or default to no variants (base missions)
+        variants = args.variants if args.variants else []
 
         # Use specified cogs or default to [1, 2, 4]
         cogs_list = args.cogs if args.cogs else [1, 2, 4]
@@ -1135,13 +1020,12 @@ def main():
         results = run_evaluation(
             agent_config=config,
             experiments=experiments,
-            difficulties=difficulties,
+            variants=variants,
             cogs_list=cogs_list,
             experiment_map=experiment_map,  # type: ignore[arg-type]
             max_steps=args.steps,
             seed=args.seed,
             repeats=args.repeats,
-            no_difficulty=args.no_difficulty,
         )
         all_results.extend(results)
 
