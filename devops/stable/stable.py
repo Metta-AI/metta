@@ -130,13 +130,19 @@ def state_dir() -> Path:
     return get_repo_root() / "devops/stable/state"
 
 
+def version_state_dir(version: str) -> Path:
+    """Get version-specific state directory."""
+    return state_dir() / version
+
+
 def log_file() -> Path:
+    """Get unified log file path (shared across all versions)."""
     return state_dir() / "job_manager.log"
 
 
-def get_job_manager() -> JobManager:
-    """Get JobManager instance for release validation (uses JobManager defaults)."""
-    return JobManager(base_dir=state_dir())
+def get_job_manager(version: str) -> JobManager:
+    """Get JobManager instance for release validation (version-specific database, unified logs)."""
+    return JobManager(base_dir=version_state_dir(version))
 
 
 def load_state_or_exit(version: str, step_name: str) -> ReleaseState:
@@ -405,9 +411,9 @@ def step_job_validation(
         print(f"Running: {len(job_configs)} job(s)\n")
 
     # Initialize JobManager
-    job_manager = get_job_manager()
-    log_file = get_repo_root() / "devops/stable/state/job_manager.log"
-    print(f"💡 Detailed logs: tail -f {log_file}\n")
+    job_manager = get_job_manager(version)
+    log_path = log_file()
+    print(f"💡 Detailed logs: tail -f {log_path}\n")
 
     # Prepare jobs with version prefixing and retry logic
     prepared_jobs = _prepare_jobs_for_release(job_configs, state_version, job_manager, retry)
@@ -493,7 +499,7 @@ def step_summary(version: str, skip_commit_match: bool = False, **_kwargs) -> No
     # Load state version and JobManager
     state_version = f"v{version}"
     _ = load_state_or_exit(version, "summary")  # Verify state exists
-    job_manager = get_job_manager()
+    job_manager = get_job_manager(version)
 
     # Get git log since last stable release
     git_log = git.git_log_since("origin/stable")
@@ -571,7 +577,7 @@ def step_release(version: str, skip_commit_match: bool = False, **_kwargs) -> No
     # Load state and JobManager
     state_version = f"v{version}"
     state = load_state_or_exit(version, "release")
-    job_manager = get_job_manager()
+    job_manager = get_job_manager(version)
 
     # Verify all jobs passed
     all_job_configs = get_all_jobs(version=state_version)
@@ -891,6 +897,7 @@ def cmd_release(
 
 
 if __name__ == "__main__":
+    # Set up unified logging (shared across all versions)
     setup_logging(log_file())
     # Default to 'validate' if no subcommand was provided
     has_command = any(arg in ["validate", "hotfix", "release"] for arg in sys.argv[1:])
