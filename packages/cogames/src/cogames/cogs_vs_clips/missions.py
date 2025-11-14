@@ -50,8 +50,21 @@ RepairMission = Mission(
 
 
 # Easy Hearts: simplified heart crafting and generous limits with extractor hub
-EasyHeartsMission = Mission(
-    name="easy_hearts",
+EasyHeartsTrainingMission = Mission(
+    name="easy_hearts_training",
+    description="Simplified heart crafting, generous caps, extractor base, neutral vibe.",
+    site=TRAINING_FACILITY,
+    variants=[
+        LonelyHeartVariant(),
+        HeartChorusVariant(),
+        PackRatVariant(),
+        NeutralFacedVariant(),
+    ],
+)
+
+# Easy Hearts: simplified heart crafting and generous limits with extractor hub
+EasyHeartsHelloWorldMission = Mission(
+    name="easy_hearts_hello_world",
     description="Simplified heart crafting, generous caps, extractor base, neutral vibe.",
     site=TRAINING_FACILITY,
     variants=[
@@ -103,7 +116,8 @@ MISSIONS: list[Mission] = [
     VibeCheckMission,
     RepairMission,
     TreasureHuntMission,
-    EasyHeartsMission,
+    EasyHeartsTrainingMission,
+    EasyHeartsHelloWorldMission,
     HelloWorldUnclipMission,
     HelloWorldOpenWorldMission,
     Machina1OpenWorldMission,

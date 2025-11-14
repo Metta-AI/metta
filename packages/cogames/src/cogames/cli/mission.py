@@ -421,21 +421,44 @@ def list_evals() -> None:
     console.print("  [bold]cogames play[/bold] --mission [blue]evals.divide_and_conquer[/blue]")
 
 
-def describe_mission(mission_name: str, game_config: MettaGridConfig) -> None:
+def describe_mission(mission_name: str, game_config: MettaGridConfig, mission_cfg: Mission | None = None) -> None:
     """Print detailed information about a specific mission.
 
     Args:
         mission_name: Name of the mission
-        env_cfg: Environment configuration
+        game_config: Environment configuration
+        mission_cfg: Mission object if available (to show description and variants)
     """
 
     console.print(f"\n[bold cyan]{mission_name}[/bold cyan]\n")
+
+    if mission_cfg is not None:
+        # Human-facing mission description
+        console.print("[bold]Description:[/bold]")
+        console.print(f"  {mission_cfg.description}\n")
+
+        # Variants applied
+        if mission_cfg.variants:
+            console.print("[bold]Variants Applied:[/bold]")
+            for v in mission_cfg.variants:
+                desc = f" - {v.description}" if getattr(v, "description", "") else ""
+                console.print(f"  • {v.name}{desc}")
+            console.print("")
 
     # Display mission configuration
     console.print("[bold]Mission Configuration:[/bold]")
     console.print(f"  • Number of agents: {game_config.game.num_agents}")
     if isinstance(game_config.game.map_builder, MapGen.Config):
         console.print(f"  • Map size: {game_config.game.map_builder.width}x{game_config.game.map_builder.height}")
+    # Key knobs
+    console.print(
+        f"  • Regen interval: {game_config.game.inventory_regen_interval}, "
+        f"Move energy cost: {game_config.game.actions.move.consumed_resources.get('energy', 0)}"
+    )
+    # Clipping info
+    clip_period = getattr(game_config.game.clipper, "clip_period", 0)
+    if clip_period:
+        console.print(f"  • Clip period: {clip_period}")
 
     # Display available actions
     console.print("\n[bold]Available Actions:[/bold]")

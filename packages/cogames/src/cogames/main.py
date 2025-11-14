@@ -117,7 +117,7 @@ def games_cmd(
         return
 
     try:
-        describe_mission(resolved_mission, env_cfg)
+        describe_mission(resolved_mission, env_cfg, mission_cfg)
     except ValueError as exc:  # pragma: no cover - user input
         console.print(f"[red]Error: {exc}[/red]")
         raise typer.Exit(1) from exc
@@ -131,6 +131,22 @@ def evals_cmd() -> None:
 @app.command("variants", help="List all available mission variants")
 def variants_cmd() -> None:
     list_variants()
+
+
+@app.command(name="describe", help="Describe a mission and its configuration")
+def describe_cmd(
+    ctx: typer.Context,
+    mission: str = typer.Argument(..., help="Mission name (e.g., hello_world.open_world)"),
+    cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
+    variant: Optional[list[str]] = typer.Option(  # noqa: B008
+        None,
+        "--variant",
+        "-v",
+        help="Mission variant (can be used multiple times, e.g., --variant solar_flare --variant dark_side)",
+    ),
+) -> None:
+    resolved_mission, env_cfg, mission_cfg = get_mission_name_and_config(ctx, mission, variant, cogs)
+    describe_mission(resolved_mission, env_cfg, mission_cfg)
 
 
 @app.command(name="play", help="Play a game")
