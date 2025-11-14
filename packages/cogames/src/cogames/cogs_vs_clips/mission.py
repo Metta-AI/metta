@@ -5,7 +5,6 @@ from typing import override
 
 from pydantic import Field
 
-from cogames.cogs_vs_clips import vibes
 from cogames.cogs_vs_clips.stations import (
     CarbonExtractorConfig,
     ChargerConfig,
@@ -18,6 +17,7 @@ from cogames.cogs_vs_clips.stations import (
     resources,
 )
 from mettagrid.base_config import Config
+from mettagrid.config import vibes
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
