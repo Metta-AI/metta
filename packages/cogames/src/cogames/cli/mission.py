@@ -13,6 +13,7 @@ from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS as INTEGR
 from cogames.cogs_vs_clips.evals.spanning_evals import EVAL_MISSIONS as SPANNING_EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, MissionVariant, NumCogsVariant, Site
 from cogames.cogs_vs_clips.missions import MISSIONS
+from cogames.cogs_vs_clips.procedural import MachinaArena
 from cogames.cogs_vs_clips.sites import SITES
 from cogames.cogs_vs_clips.variants import VARIANTS
 from cogames.game import load_mission_config, load_mission_config_from_python
@@ -450,6 +451,14 @@ def describe_mission(mission_name: str, game_config: MettaGridConfig, mission_cf
     console.print(f"  • Number of agents: {game_config.game.num_agents}")
     if isinstance(game_config.game.map_builder, MapGen.Config):
         console.print(f"  • Map size: {game_config.game.map_builder.width}x{game_config.game.map_builder.height}")
+        # Show procedural map details (e.g., biome from variants like -v desert)
+        instance = getattr(game_config.game.map_builder, "instance", None)
+        if isinstance(instance, MachinaArena.Config):
+            console.print("\n[bold]MapGen (MachinaArena):[/bold]")
+            console.print(f"  • Base biome: {instance.base_biome}")
+            if instance.biome_weights:
+                console.print(f"  • Biome weights: {instance.biome_weights}")
+            console.print(f"  • Building coverage: {instance.building_coverage}")
     # Key knobs
     console.print(
         f"  • Regen interval: {game_config.game.inventory_regen_interval}, "
