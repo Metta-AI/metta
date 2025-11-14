@@ -262,12 +262,19 @@ def render_eval_summary(rollout_results: list[SimulationRunResult], policy_names
             replay_rows.append((s_name, episode_id, viewer_url))
 
     if replay_rows:
-        _print("\n[bold cyan]Replay Links[/bold cyan]")
-        replay_table = Table(show_header=True, header_style="bold magenta")
-        replay_table.add_column("Simulation")
-        replay_table.add_column("Episode")
-        replay_table.add_column("Viewer")
-        for s_name, episode_id, viewer_url in replay_rows:
-            viewer_text = f"[link={viewer_url}]Open in Mettascope[/link]" if use_rich_console else viewer_url
-            replay_table.add_row(s_name, episode_id, viewer_text)
-        _print(replay_table)
+        if use_rich_console:
+            _print("\n[bold cyan]Replay Links[/bold cyan]")
+            replay_table = Table(show_header=True, header_style="bold magenta")
+            replay_table.add_column("Simulation")
+            replay_table.add_column("Episode")
+            replay_table.add_column("Viewer")
+            for s_name, episode_id, viewer_url in replay_rows:
+                replay_table.add_row(s_name, episode_id, f"[link={viewer_url}]Open in Mettascope[/link]")
+            _print(replay_table)
+        else:
+            lines = ["Replay Links:"]
+            for s_name, episode_id, viewer_url in replay_rows:
+                lines.append(f"- Simulation: {s_name}")
+                lines.append(f"  Episode: {episode_id}")
+                lines.append(f"  Viewer: {viewer_url}")
+            logger.info("\n%s", "\n".join(lines))
