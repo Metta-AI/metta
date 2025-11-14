@@ -318,10 +318,11 @@ class Evaluator(TrainerComponent):
         else:
             stats_run_id = getattr(stats_reporter.state, "stats_run_id", None)
             if not stats_run_id:
-                if not self._config.allow_eval_without_stats:
-                    logger.warning("Evaluator: skipping epoch %s because stats_run_id is not available", epoch)
-                    return
-                logger.info("Evaluator: running without stats tracking (no stats_run_id)")
+                # TODO: Passha: Reintroduce this check when ready
+                # if not self._config.allow_eval_without_stats:
+                #     logger.warning("Evaluator: skipping epoch %s because stats_run_id is not available", epoch)
+                #     return
+                logger.info("Evaluator: running pushing to cogweb (no stats_run_id)")
             else:
                 # We have full stats infrastructure - create stats epoch
                 stats_epoch_id = stats_reporter.create_epoch(

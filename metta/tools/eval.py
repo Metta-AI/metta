@@ -16,7 +16,7 @@ from metta.rl import stats as rl_stats
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.runner import MultiAgentPolicyInitializer, build_eval_results, run_simulations
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.utils.auto_config import auto_replay_dir, auto_wandb_config
+from metta.tools.utils.auto_config import auto_replay_dir, auto_stats_server_uri, auto_wandb_config
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ class EvaluateTool(Tool):
 
     group: str | None = None  # Separate group parameter like in train.py
 
-    stats_server_uri: str | None = None  # If set, send stats to this http server
+    stats_server_uri: str | None = auto_stats_server_uri()
     register_missing_policies: bool = False
     eval_task_id: str | None = None
     push_metrics_to_wandb: bool = False
