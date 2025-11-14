@@ -37,14 +37,12 @@ class JobState(SQLModel, table=True):
     name: str = Field(primary_key=True)
     config_json: str = Field(default="", sa_column=Column("config", Text), exclude=True)
 
-    # Callback not persisted to DB - stored in memory only
-    _on_state_change: Callable[[str, str, str], None] | None = None
-
     def __init__(self, **data: Any):
         if "config" in data and isinstance(data["config"], JobConfig):
             data["config_json"] = json.dumps(data["config"].model_dump())
             del data["config"]
         super().__init__(**data)
+        self._on_state_change: Callable[[str, str, str], None] | None = None
 
     @property
     def config(self) -> JobConfig:
@@ -81,10 +79,10 @@ class JobState(SQLModel, table=True):
         old_status = self.status
         if old_status != new_status:
             self.status = new_status
-            # Trigger callback if registered
-            if self._on_state_change:
+            callback = getattr(self, "_on_state_change", None)
+            if callback:
                 try:
-                    self._on_state_change(self.name, old_status, new_status)
+                    callback(self.name, old_status, new_status)
                 except Exception as e:
                     logger.error(f"State change callback failed for {self.name}: {e}")
 
