@@ -167,7 +167,7 @@ def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
             suite="sweep",
             name="basic",
             env=basic_env,
-            num_episodes=1,  # 10 episodes for statistical reliability
+            num_episodes=1,  # Using 1 episode for evaluation
             max_time_s=240,  # 4 minutes max per simulation
         ),
         SimulationConfig(
