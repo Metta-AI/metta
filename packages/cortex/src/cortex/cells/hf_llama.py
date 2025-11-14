@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import Optional, Tuple
 
 import torch
@@ -66,8 +67,7 @@ class HFLlamaLayerCell(MemoryCell):
             getattr(
                 self.hf_layer.self_attn,
                 "head_dim",
-                self.hidden_size
-                // int(getattr(self.hf_config, "num_attention_heads", 1)),
+                self.hidden_size // int(getattr(self.hf_config, "num_attention_heads", 1)),
             )
         )
 
@@ -123,8 +123,7 @@ class HFLlamaLayerCell(MemoryCell):
                 getattr(
                     self.hf_layer.self_attn,
                     "head_dim",
-                    self.hidden_size
-                    // int(getattr(self.hf_config, "num_attention_heads", 1)),
+                    self.hidden_size // int(getattr(self.hf_config, "num_attention_heads", 1)),
                 )
             )
 
@@ -244,8 +243,11 @@ class HFLlamaLayerCell(MemoryCell):
         dtype = x_seq.dtype
 
         # Ensure state
-        if state is None or not isinstance(state, TensorDict) or state.batch_size == [] or (
-            state.batch_size and state.batch_size[0] != B
+        if (
+            state is None
+            or not isinstance(state, TensorDict)
+            or state.batch_size == []
+            or (state.batch_size and state.batch_size[0] != B)
         ):
             state = self.init_state(batch=B, device=device, dtype=dtype)
 
@@ -259,10 +261,20 @@ class HFLlamaLayerCell(MemoryCell):
         # Per-timestep last reset indices and additive mask implementing resets and causality
         last_reset_idx = self._build_last_reset_indices(resets_bt)
 
-        # Position ids account for segment resets: continue counting since last segment start
+        # Determine attention implementation (flash vs eager)
+        attn_impl = getattr(self.hf_config, "_attn_implementation", None)
+        if attn_impl is None:
+            attn_impl = getattr(self.hf_config, "attn_implementation", None)
+        use_flash = attn_impl == "flash_attention_2"
+
+        # Position ids account for segment resets when supported
         base_since_seg = (pos - seg_pos).view(B, 1).expand(B, T)
         ar = torch.arange(T, device=device).view(1, T).expand(B, T)
-        position_ids = torch.where(last_reset_idx >= 0, ar - last_reset_idx, base_since_seg + ar)
+        if use_flash and T > 1:
+            # With FlashAttention and T>1 we ignore per‑timestep resets inside the chunk
+            position_ids = base_since_seg + ar
+        else:
+            position_ids = torch.where(last_reset_idx >= 0, ar - last_reset_idx, base_since_seg + ar)
         position_embeddings = self.hf_submodel.rotary_emb(x_seq, position_ids)
 
         # Build a StaticCache for the model and populate this layer from TD state
@@ -270,27 +282,70 @@ class HFLlamaLayerCell(MemoryCell):
             cache, layer_idx, kv_len, cache_position = self._prepare_static_cache(
                 state, B=B, T=T, dtype=dtype, device=device
             )
-            # Build additive mask over the static window
-            attention_mask = self._build_additive_mask_static(
-                B=B,
-                T=T,
-                mem_len=self.mem_len,
-                kv_len=kv_len,
-                pos=pos,
-                seg_pos=seg_pos,
-                last_reset_idx=last_reset_idx,
-                dtype=dtype,
-                device=device,
-            )
-            y = self.hf_layer(
-                hidden_states=x_seq,
-                attention_mask=attention_mask,
-                position_ids=position_ids,
-                past_key_values=cache,
-                cache_position=cache_position,
-                position_embeddings=position_embeddings,
-                use_cache=True,
-            )
+            if use_flash:
+                # FlashAttention path
+                if T > 1:
+                    # Efficient path: ignore per‑timestep resets; rely on causal masking
+                    if resets is not None and torch.count_nonzero(resets) > 0:
+                        warnings.warn(
+                            "FlashAttention: ignoring per‑timestep resets within chunk when T>1; "
+                            "use bptt_horizon=1 or eager attention to enforce mid‑chunk resets.",
+                            stacklevel=1,
+                        )
+                    y = self.hf_layer(
+                        hidden_states=x_seq,
+                        attention_mask=None,
+                        position_ids=position_ids,
+                        past_key_values=cache,
+                        cache_position=cache_position,
+                        position_embeddings=position_embeddings,
+                        use_cache=True,
+                    )
+                else:
+                    # T == 1: build a 2D (B, K) padding mask from our additive mask
+                    att2d = self._build_additive_mask_static(
+                        B=B,
+                        T=T,
+                        mem_len=self.mem_len,
+                        kv_len=kv_len,
+                        pos=pos,
+                        seg_pos=seg_pos,
+                        last_reset_idx=last_reset_idx,
+                        dtype=dtype,
+                        device=device,
+                    )
+                    valid_k = att2d.squeeze(1).squeeze(1) == 0  # [B, K] bool mask: True means valid
+                    y = self.hf_layer(
+                        hidden_states=x_seq,
+                        attention_mask=valid_k,
+                        position_ids=position_ids,
+                        past_key_values=cache,
+                        cache_position=cache_position,
+                        position_embeddings=position_embeddings,
+                        use_cache=True,
+                    )
+            else:
+                # Eager path: build full additive mask over the static window
+                attention_mask = self._build_additive_mask_static(
+                    B=B,
+                    T=T,
+                    mem_len=self.mem_len,
+                    kv_len=kv_len,
+                    pos=pos,
+                    seg_pos=seg_pos,
+                    last_reset_idx=last_reset_idx,
+                    dtype=dtype,
+                    device=device,
+                )
+                y = self.hf_layer(
+                    hidden_states=x_seq,
+                    attention_mask=attention_mask,
+                    position_ids=position_ids,
+                    past_key_values=cache,
+                    cache_position=cache_position,
+                    position_embeddings=position_embeddings,
+                    use_cache=True,
+                )
             # KV updated in place via bound references; ensure state keeps aliases
             state.set("k", cache.layers[layer_idx].keys)
             state.set("v", cache.layers[layer_idx].values)
@@ -299,23 +354,39 @@ class HFLlamaLayerCell(MemoryCell):
             state.set("kv_len", new_kv_len)
         else:
             # No KV cache
-            attention_mask = self._build_additive_mask(
-                B=B,
-                T=T,
-                past_len=0,
-                pos=pos,
-                seg_pos=seg_pos,
-                last_reset_idx=last_reset_idx,
-                dtype=dtype,
-                device=device,
-            )
-            y = self.hf_layer(
-                hidden_states=x_seq,
-                attention_mask=attention_mask,
-                position_ids=position_ids,
-                position_embeddings=position_embeddings,
-                use_cache=False,
-            )
+            if use_flash:
+                # For FlashAttention without cache, rely on causal behavior; ignore mid‑chunk resets
+                if T > 1 and resets is not None and torch.count_nonzero(resets) > 0:
+                    warnings.warn(
+                        "FlashAttention: ignoring per‑timestep resets within chunk when T>1; "
+                        "use bptt_horizon=1 or eager attention to enforce mid‑chunk resets.",
+                        stacklevel=1,
+                    )
+                y = self.hf_layer(
+                    hidden_states=x_seq,
+                    attention_mask=None,
+                    position_ids=position_ids,
+                    position_embeddings=position_embeddings,
+                    use_cache=False,
+                )
+            else:
+                attention_mask = self._build_additive_mask(
+                    B=B,
+                    T=T,
+                    past_len=0,
+                    pos=pos,
+                    seg_pos=seg_pos,
+                    last_reset_idx=last_reset_idx,
+                    dtype=dtype,
+                    device=device,
+                )
+                y = self.hf_layer(
+                    hidden_states=x_seq,
+                    attention_mask=attention_mask,
+                    position_ids=position_ids,
+                    position_embeddings=position_embeddings,
+                    use_cache=False,
+                )
 
         # No explicit crop needed for StaticCache (fixed capacity)
 
@@ -325,13 +396,16 @@ class HFLlamaLayerCell(MemoryCell):
         new_seg_pos = torch.where(last_reset_in_chunk >= 0, pos + last_reset_in_chunk, seg_pos)
         # Compose output state
         if self.mem_len > 0:
-            out_state = TensorDict({
-                "k": state.get("k"),
-                "v": state.get("v"),
-                "kv_len": state.get("kv_len"),
-                "pos": new_pos,
-                "seg_pos": new_seg_pos,
-            }, batch_size=[B])
+            out_state = TensorDict(
+                {
+                    "k": state.get("k"),
+                    "v": state.get("v"),
+                    "kv_len": state.get("kv_len"),
+                    "pos": new_pos,
+                    "seg_pos": new_seg_pos,
+                },
+                batch_size=[B],
+            )
         else:
             out_state = TensorDict(
                 {
@@ -352,12 +426,11 @@ class HFLlamaLayerCell(MemoryCell):
             return None
         B = state.batch_size[0] if isinstance(state, TensorDict) and state.batch_size else 1
         device = (
-            state.get("pos").device
-            if isinstance(state, TensorDict) and "pos" in state.keys()
-            else torch.device("cpu")
+            state.get("pos").device if isinstance(state, TensorDict) and "pos" in state.keys() else torch.device("cpu")
         )
         new = self.init_state(batch=B, device=device, dtype=torch.float32)
         update_parent_state(new, state)
         return new
+
 
 __all__ = ["HFLlamaLayerConfig", "HFLlamaLayerCell"]
