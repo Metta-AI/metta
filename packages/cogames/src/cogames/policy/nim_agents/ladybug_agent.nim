@@ -25,12 +25,16 @@ type
     energy, carbon, oxygen, germanium, silicon, hearts: int
     decoder, modulator, resonator, scrambler: int
     heartRecipe: Table[string, int]
+    heartRecipeKnown: bool
     stations: Table[string, Option[Location]]
     extractors: Table[string, seq[ExtractorInfo]]
     currentGlyph, targetResource, pendingUseResource, explorationDirection: string
     pendingUseAmount: int
     waitingAtExtractor: Option[Location]
     usingObjectThisStep, stuckLoopDetected: bool
+    cachedPath: seq[(int, int)]
+    cachedPathTarget: Option[Location]
+    cachedPathReachAdjacent: bool
   LadybugAgent* = ref object
     agentId*: int
     cfg*: Config
@@ -67,7 +71,10 @@ proc initState(agent: LadybugAgent) =
   agent.state.phase = gatherPhase
   agent.state.currentGlyph = "default"
   agent.state.targetResource = ""
+  agent.state.pendingUseResource = ""
+  agent.state.pendingUseAmount = 0
   agent.state.heartRecipe = initTable[string, int]()
+  agent.state.heartRecipeKnown = false
   agent.state.stations = initTable[string, Option[Location]]()
   for key in StationKeys:
     agent.state.stations[key] = none(Location)
@@ -89,8 +96,12 @@ proc initState(agent: LadybugAgent) =
   agent.state.usingObjectThisStep = false
   agent.state.stuckLoopDetected = false
   agent.state.stuckEscapeStep = 0
+  agent.state.cachedPath = @[]
+  agent.state.cachedPathTarget = none(Location)
+  agent.state.cachedPathReachAdjacent = false
 
 proc detectLoops(agent: LadybugAgent)
+proc tryRandomDirection(agent: LadybugAgent): int
 
 proc resourceVibe(resource: string): string =
   ## Map canonical resource names to the actual vibe glyphs used by the engine.
@@ -120,6 +131,11 @@ proc maybeAssign(
 ) =
   if featureField != 0 and featureId == featureField:
     table[key] = value
+
+proc clearCachedPath(agent: LadybugAgent) =
+  agent.state.cachedPath = @[]
+  agent.state.cachedPathTarget = none(Location)
+  agent.state.cachedPathReachAdjacent = false
 
 proc stationFromName(lowerName: string): string =
   if lowerName.contains("assembler"):
@@ -184,12 +200,14 @@ proc updateInventory(agent: LadybugAgent, visible: Table[Location, seq[FeatureVa
   agent.state.scrambler = agent.cfg.getInventory(visible, agent.cfg.features.invScrambler)
 
 proc buildObservedObject(agent: LadybugAgent, features: seq[FeatureValue]): ObservedObject =
+  var tagIds: seq[int] = @[]
   result.protocolInputs = initTable[string, int]()
   result.protocolOutputs = initTable[string, int]()
   for fv in features:
     if fv.featureId == agent.cfg.features.tag:
-      result.name = tagName(agent.cfg, fv.value)
-    elif fv.featureId == agent.cfg.features.converting:
+      tagIds.add(fv.value)
+      continue
+    if fv.featureId == agent.cfg.features.converting:
       result.converting = fv.value > 0
     elif fv.featureId == agent.cfg.features.cooldownRemaining:
       result.cooldownRemaining = fv.value
@@ -219,6 +237,11 @@ proc buildObservedObject(agent: LadybugAgent, features: seq[FeatureValue]): Obse
       maybeAssign(result.protocolOutputs, agent.cfg.features.protocolOutputModulator, "modulator", fid, fv.value)
       maybeAssign(result.protocolOutputs, agent.cfg.features.protocolOutputResonator, "resonator", fid, fv.value)
       maybeAssign(result.protocolOutputs, agent.cfg.features.protocolOutputScrambler, "scrambler", fid, fv.value)
+
+  if tagIds.len > 0:
+    result.name = tagName(agent.cfg, tagIds[0])
+  else:
+    result.name = ""
 
 proc discoverStation(agent: LadybugAgent, key: string, loc: Location) =
   if key notin agent.state.stations:
@@ -291,12 +314,13 @@ proc discoverObjects(agent: LadybugAgent, visible: Table[Location, seq[FeatureVa
     if stationKey.len > 0:
       agent.state.occupancy[world.y][world.x] = cellObstacle
       discoverStation(agent, stationKey, world)
-      if stationKey == "assembler" and agent.state.heartRecipe.len == 0 and
+      if stationKey == "assembler" and (not agent.state.heartRecipeKnown) and
           obj.protocolOutputs.getOrDefault("heart", 0) > 0:
         agent.state.heartRecipe = initTable[string, int]()
         for resource, amount in obj.protocolInputs.pairs:
           if resource != "energy":
             agent.state.heartRecipe[resource] = amount
+        agent.state.heartRecipeKnown = true
       continue
 
     if lowerName.contains("extractor"):
@@ -403,6 +427,9 @@ proc handleWaiting(agent: LadybugAgent): Option[int] =
   some(agent.cfg.actions.noop)
 
 proc calculateDeficits(agent: LadybugAgent): Table[string, int] =
+  if not agent.state.heartRecipeKnown:
+    raise newException(ValueError,
+      "Heart recipe not discovered! Agent must observe assembler with correct vibe to learn recipe. Ensure protocol_details_obs=True in game config.")
   result = initTable[string, int]()
   for resource in ResourceTypes:
     let required = agent.state.heartRecipe.getOrDefault(resource, 0)
@@ -424,6 +451,17 @@ proc findNearestExtractor(agent: LadybugAgent, resource: string): Option[Extract
   if bestDist == high(int):
     return none(ExtractorInfo)
   some(best)
+
+proc findAnyNeededExtractor(agent: LadybugAgent): Option[(ExtractorInfo, string)] =
+  let deficits = agent.calculateDeficits()
+  var needed = toSeq(deficits.pairs)
+  needed.sort(proc(a, b: (string, int)): int = cmp(b[1], a[1]))
+  for (resource, deficit) in needed:
+    if deficit > 0:
+      let extractorOpt = agent.findNearestExtractor(resource)
+      if extractorOpt.isSome():
+        return some((extractorOpt.get(), resource))
+  none((ExtractorInfo, string))
 
 proc isWithinBounds(agent: LadybugAgent, row: int, col: int): bool =
   row >= 0 and row < agent.state.mapHeight and col >= 0 and col < agent.state.mapWidth
@@ -489,42 +527,74 @@ proc moveTowards(
   let goals = agent.computeGoalCells(targetRow, targetCol, reachAdjacent)
   if goals.len == 0:
     return agent.cfg.actions.noop
-  var queue = initDeque[(int, int)]()
-  var cameFrom = initTable[(int, int), (int, int)]()
-  let start = (agent.state.row, agent.state.col)
-  queue.addLast(start)
-  cameFrom[start] = parentSentinel
-  let goalSet = goals.toHashSet
-  while queue.len > 0:
-    let current = queue.popFirst()
-    if current in goalSet:
-      let path = reconstructPath(cameFrom, current)
-      if path.len == 0:
-        return agent.cfg.actions.noop
-      let nextStep = path[0]
-      let dr = nextStep[0] - agent.state.row
-      let dc = nextStep[1] - agent.state.col
-      if dr == -1 and dc == 0:
-        return agent.cfg.actions.moveNorth
-      if dr == 1 and dc == 0:
-        return agent.cfg.actions.moveSouth
-      if dr == 0 and dc == 1:
-        return agent.cfg.actions.moveEast
-      if dr == 0 and dc == -1:
-        return agent.cfg.actions.moveWest
+  var goalSet = initHashSet[(int, int)]()
+  for g in goals:
+    goalSet.incl(g)
+  let targetLoc = Location(x: targetCol, y: targetRow)
+  var pathValid = false
+  if agent.state.cachedPath.len > 0 and agent.state.cachedPathTarget.isSome and
+      agent.state.cachedPathTarget.get().x == targetCol and
+      agent.state.cachedPathTarget.get().y == targetRow and
+      agent.state.cachedPathReachAdjacent == reachAdjacent:
+    let nextStep = agent.state.cachedPath[0]
+    if agent.isTraversable(nextStep[0], nextStep[1]) or (allowGoalBlock and nextStep in goalSet):
+      pathValid = true
+    else:
+      clearCachedPath(agent)
+  if not pathValid:
+    var queue = initDeque[(int, int)]()
+    var cameFrom = initTable[(int, int), (int, int)]()
+    let start = (agent.state.row, agent.state.col)
+    queue.addLast(start)
+    cameFrom[start] = parentSentinel
+    var found = false
+    var goalReached: (int, int)
+    while queue.len > 0 and not found:
+      let current = queue.popFirst()
+      if current in goalSet:
+        found = true
+        goalReached = current
+        break
+      for (dr, dc) in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+        let nr = current[0] + dr
+        let nc = current[1] + dc
+        if cameFrom.hasKey((nr, nc)):
+          continue
+        var canTraverse = agent.isTraversable(nr, nc)
+        if not canTraverse and allowGoalBlock and (nr, nc) in goalSet:
+          canTraverse = true
+        if not canTraverse:
+          continue
+        cameFrom[(nr, nc)] = current
+        queue.addLast((nr, nc))
+    if not found:
+      clearCachedPath(agent)
+      let randomAction = agent.tryRandomDirection()
+      return randomAction
+    let newPath = reconstructPath(cameFrom, goalReached)
+    if newPath.len == 0:
       return agent.cfg.actions.noop
-    for (dr, dc) in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-      let nr = current[0] + dr
-      let nc = current[1] + dc
-      if cameFrom.hasKey((nr, nc)):
-        continue
-      var canTraverse = agent.isTraversable(nr, nc)
-      if not canTraverse and allowGoalBlock and (nr, nc) in goalSet:
-        canTraverse = true
-      if not canTraverse:
-        continue
-      cameFrom[(nr, nc)] = current
-      queue.addLast((nr, nc))
+    agent.state.cachedPath = newPath
+    agent.state.cachedPathTarget = some(targetLoc)
+    agent.state.cachedPathReachAdjacent = reachAdjacent
+  let nextStep = agent.state.cachedPath[0]
+  agent.state.cachedPath.delete(0)
+  if agent.state.cachedPath.len == 0:
+    clearCachedPath(agent)
+  if allowGoalBlock and agent.isAgentBlocking(nextStep[0], nextStep[1]):
+    clearCachedPath(agent)
+    let reroute = agent.tryRandomDirection()
+    return reroute
+  let dr = nextStep[0] - agent.state.row
+  let dc = nextStep[1] - agent.state.col
+  if dr == -1 and dc == 0:
+    return agent.cfg.actions.moveNorth
+  if dr == 1 and dc == 0:
+    return agent.cfg.actions.moveSouth
+  if dr == 0 and dc == 1:
+    return agent.cfg.actions.moveEast
+  if dr == 0 and dc == -1:
+    return agent.cfg.actions.moveWest
   agent.cfg.actions.noop
 
 proc directionDelta(direction: string): (int, int) =
@@ -551,10 +621,12 @@ proc tryRandomDirection(agent: LadybugAgent): int =
     let nr = agent.state.row + delta[0]
     let nc = agent.state.col + delta[1]
     if agent.isTraversable(nr, nc):
+      clearCachedPath(agent)
       return agent.directionAction(dir)
   return agent.cfg.actions.noop
 
 proc explore(agent: LadybugAgent): int =
+  clearCachedPath(agent)
   if agent.state.explorationDirection.len > 0:
     let steps = agent.state.stepCount - agent.state.explorationDirectionSetStep
     if steps >= explorationDirectionPersistence:
@@ -626,6 +698,12 @@ proc explore(agent: LadybugAgent): int =
       agent.state.explorationDirection = ""
   return agent.tryRandomDirection()
 
+proc exploreUntil(agent: LadybugAgent, condition: proc (): bool, reason: string): Option[int] =
+  if condition():
+    return none(int)
+  agent.state.explorationEscapeUntilStep = 0
+  some(agent.explore())
+
 proc navigateToAdjacent(
   agent: LadybugAgent,
   targetRow: int,
@@ -639,6 +717,11 @@ proc navigateToAdjacent(
   some(action)
 
 proc moveIntoCell(agent: LadybugAgent, targetRow: int, targetCol: int): int =
+  if agent.state.row == targetRow and agent.state.col == targetCol:
+    return agent.cfg.actions.noop
+  if agent.isAgentBlocking(targetRow, targetCol):
+    clearCachedPath(agent)
+    return agent.tryRandomDirection()
   agent.state.usingObjectThisStep = true
   return agent.moveTowards(targetRow, targetCol, allowGoalBlock = true)
 
@@ -663,17 +746,22 @@ proc handleStuck(agent: LadybugAgent): Option[int] =
   some(agent.tryRandomDirection())
 
 proc updatePhase(agent: LadybugAgent) =
+  let previousPhase = agent.state.phase
   if agent.state.energy < rechargeThresholdLow:
     agent.state.phase = rechargePhase
     clearWaiting(agent)
+    if previousPhase != agent.state.phase:
+      clearCachedPath(agent)
     return
   if agent.state.phase == rechargePhase and agent.state.energy < rechargeThresholdHigh:
     return
   if agent.state.hearts > 0:
     agent.state.phase = deliverPhase
     clearWaiting(agent)
+    if previousPhase != agent.state.phase:
+      clearCachedPath(agent)
     return
-  if agent.state.heartRecipe.len > 0:
+  if agent.state.heartRecipeKnown:
     var ready = true
     for resource, amount in agent.state.heartRecipe.pairs:
       if agent.getInventoryValue(resource) < amount:
@@ -682,8 +770,12 @@ proc updatePhase(agent: LadybugAgent) =
     if ready:
       agent.state.phase = assemblePhase
       clearWaiting(agent)
+      if previousPhase != agent.state.phase:
+        clearCachedPath(agent)
       return
   agent.state.phase = gatherPhase
+  if previousPhase != agent.state.phase:
+    clearCachedPath(agent)
 
 proc desiredVibe(agent: LadybugAgent): string =
   case agent.state.phase
@@ -722,34 +814,40 @@ proc doGather(agent: LadybugAgent): int =
   let waitAction = agent.handleWaiting()
   if waitAction.isSome():
     return waitAction.get()
-  if agent.state.heartRecipe.len == 0:
-    agent.state.targetResource = ""
-    return agent.explore()
   let deficits = agent.calculateDeficits()
-  var needed: seq[(string, int)]
-  for resource, deficit in deficits.pairs:
+  var needsResources = false
+  for deficit in deficits.values:
     if deficit > 0:
-      needed.add((resource, deficit))
-  if needed.len == 0:
+      needsResources = true
+      break
+  if not needsResources:
     clearWaiting(agent)
+    return agent.cfg.actions.noop
+  let exploreAction = agent.exploreUntil(
+    proc (): bool = agent.findAnyNeededExtractor().isSome(),
+    "need extractor"
+  )
+  if exploreAction.isSome():
+    return exploreAction.get()
+  let extractorChoice = agent.findAnyNeededExtractor()
+  if extractorChoice.isNone():
     return agent.explore()
-  needed.sort(proc(a, b: (string, int)): int = cmp(b[1], a[1]))
-  for (resource, _) in needed:
-    let extractorOpt = agent.findNearestExtractor(resource)
-    if extractorOpt.isSome():
-      agent.state.targetResource = resource
-      let extractor = extractorOpt.get()
-      let nav = agent.navigateToAdjacent(extractor.position.y, extractor.position.x)
-      if nav.isSome():
-        return nav.get()
-      return agent.useExtractor(extractor)
-  agent.state.targetResource = needed[0][0]
-  return agent.explore()
+  let (extractor, resource) = extractorChoice.get()
+  agent.state.targetResource = resource
+  let nav = agent.navigateToAdjacent(extractor.position.y, extractor.position.x)
+  if nav.isSome():
+    clearWaiting(agent)
+    return nav.get()
+  return agent.useExtractor(extractor)
 
 proc doAssemble(agent: LadybugAgent): int =
   agent.state.targetResource = ""
-  if agent.state.stations["assembler"].isNone:
-    return agent.explore()
+  let exploreAction = agent.exploreUntil(
+    proc (): bool = agent.state.stations["assembler"].isSome(),
+    "need assembler"
+  )
+  if exploreAction.isSome():
+    return exploreAction.get()
   if agent.state.currentGlyph != "heart_a":
     agent.state.currentGlyph = "heart_a"
     return agent.vibeAction("heart_a")
@@ -761,8 +859,12 @@ proc doAssemble(agent: LadybugAgent): int =
 
 proc doDeliver(agent: LadybugAgent): int =
   agent.state.targetResource = ""
-  if agent.state.stations["chest"].isNone:
-    return agent.explore()
+  let exploreAction = agent.exploreUntil(
+    proc (): bool = agent.state.stations["chest"].isSome(),
+    "need chest"
+  )
+  if exploreAction.isSome():
+    return exploreAction.get()
   if agent.state.currentGlyph != "default":
     agent.state.currentGlyph = "default"
     return agent.vibeAction("default")
@@ -774,8 +876,12 @@ proc doDeliver(agent: LadybugAgent): int =
 
 proc doRecharge(agent: LadybugAgent): int =
   agent.state.targetResource = ""
-  if agent.state.stations["charger"].isNone:
-    return agent.explore()
+  let exploreAction = agent.exploreUntil(
+    proc (): bool = agent.state.stations["charger"].isSome(),
+    "need charger"
+  )
+  if exploreAction.isSome():
+    return exploreAction.get()
   let loc = agent.state.stations["charger"].get()
   let nav = agent.navigateToAdjacent(loc.y, loc.x)
   if nav.isSome():
