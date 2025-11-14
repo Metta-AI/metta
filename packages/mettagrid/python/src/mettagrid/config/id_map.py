@@ -58,12 +58,15 @@ class IdMap:
     def tag_names(self) -> list[str]:
         """Get all tag names in alphabetical order."""
 
-        return sorted(
+        result = sorted(
             set(
                 [tag for obj_config in self._config.objects.values() for tag in obj_config.tags]
                 + [tag for agent_config in self._config.agents for tag in agent_config.tags]
+                + self._config.agent.tags
             )
         )
+        print(f"result: {result}")
+        return result
 
     def _compute_features(self) -> list[ObservationFeatureSpec]:
         """Compute observation features from the game configuration."""
