@@ -177,15 +177,12 @@ class SingleToolUnclipVariant(MissionVariant):
 
     @override
     def modify_env(self, mission, env):
-        change_vibe = getattr(env.game.actions, "change_vibe", None)
-        if change_vibe is not None:
-            change_vibe.number_of_vibes = 1
-        env.game.vibe_names = ["gear"]
-        # Restrict assembler to a single generic gear recipe: carbon -> decoder
+        # Restrict assembler to a single generic gear recipe: carbon -> decoder (no vibes required)
+        # Since the protocol doesn't require vibes, agents won't need to change vibes
         assembler = env.game.objects.get("assembler")
         if isinstance(assembler, AssemblerConfig):
             assembler.protocols = [
-                ProtocolConfig(vibes=["gear"], input_resources={self.resource: 1}, output_resources={"decoder": 1})
+                ProtocolConfig(vibes=[], input_resources={self.resource: 1}, output_resources={"decoder": 1})
             ]
 
 
