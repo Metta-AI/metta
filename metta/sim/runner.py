@@ -69,6 +69,7 @@ def run_simulations(
     simulation_rollouts: list[SimulationRunResult] = []
 
     for simulation in simulations:
+        proportions = simulation.proportions
         replay_writer: ReplayLogWriter | None = None
         if enable_replays and replay_dir:
             replay_writer = _make_replay_writer(replay_dir)
@@ -81,7 +82,7 @@ def run_simulations(
             policies=multi_agent_policies,
             episodes=simulation.num_episodes,
             seed=seed,
-            proportions=simulation.proportions,
+            proportions=proportions,
             # TODO: support this if and only if we also reflect that it happened in results
             # max_time_s=simulation.max_time_s,
             max_action_time_ms=simulation.max_action_time_ms,

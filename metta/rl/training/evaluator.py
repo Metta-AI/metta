@@ -13,14 +13,13 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum import Curriculum
 from metta.common.util.git_helpers import GitError, get_task_commit_hash
 from metta.common.util.git_repo import REPO_SLUG
-from metta.eval.eval_request_config import EvalRewardSummary
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import (
     evaluate_policy_remote_with_checkpoint_manager,
 )
 from metta.rl.training import TrainerComponent
 from metta.rl.training.optimizer import is_schedulefree_optimizer
-from metta.sim.handle_results import render_eval_summary, send_eval_results_to_wandb, to_eval_results
+from metta.sim.handle_results import render_eval_summary, send_eval_results_to_wandb
 from metta.sim.runner import SimulationRunResult, run_simulations
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
@@ -57,17 +56,6 @@ class EvaluatorConfig(Config):
 class NoOpEvaluator(TrainerComponent):
     """No-op evaluator for when evaluation is disabled."""
 
-    def __init__(self) -> None:
-        super().__init__()
-        self._latest_scores = EvalRewardSummary()
-
-    def get_latest_scores(self) -> EvalRewardSummary:
-        return self._latest_scores
-
-    def register(self, context) -> None:  # type: ignore[override]
-        super().register(context)
-        self.context.latest_eval_scores = self._latest_scores
-
     def on_epoch_end(self, epoch: int) -> None:  # type: ignore[override]
         pass
 
@@ -88,16 +76,11 @@ class Evaluator(TrainerComponent):
         self._device = device
         self._system_cfg = system_cfg
         self._stats_client = stats_client
-        self._latest_scores = EvalRewardSummary()
 
         self._configure_evaluation_settings(
             eval_cfg=self._config,
             stats_client=self._stats_client,
         )
-
-    def register(self, context) -> None:  # type: ignore[override]
-        super().register(context)
-        self.context.latest_eval_scores = self._latest_scores
 
     @staticmethod
     def _configure_evaluation_settings(
@@ -153,10 +136,10 @@ class Evaluator(TrainerComponent):
         epoch: int,
         agent_step: int,
         stats_epoch_id: Optional[UUID] = None,
-    ) -> EvalRewardSummary:
+    ) -> None:
         if not policy_uri:
             logger.warning("No policy URI available for evaluation")
-            return EvalRewardSummary()
+            return
 
         # Build simulation configurations
         sims = self._build_simulations(curriculum)
@@ -169,24 +152,19 @@ class Evaluator(TrainerComponent):
                     simulations=sims,
                     stats_epoch_id=stats_epoch_id,
                 )
-                # Remote evaluation doesn't return scores directly
-                # They would be reported through other channels
-                self.context.latest_eval_scores = self._latest_scores
-                return self._latest_scores
             except Exception as e:
                 logger.error(f"Failed to evaluate policy remotely: {e}", exc_info=True)
                 if not self._config.evaluate_local:
-                    return EvalRewardSummary()
+                    return
                 logger.info("Falling back to local evaluation")
 
         # Local evaluation
         if self._config.evaluate_local:
             rollout_results = self._evaluate_local(policy_uri=policy_uri, simulations=sims)
-            # TODO: Pasha: should also send epochs/episodes/metrics to stats-server
             render_eval_summary(rollout_results, policy_names=[policy_uri or "target policy"])
 
-            eval_results = to_eval_results(rollout_results, num_policies=1, target_policy_idx=0)
-
+            # TODO: maybe a better way to get wandb run
+            # TODO: Pasha: should also send epochs/episodes/metrics to stats-server
             stats_reporter = getattr(self.context, "stats_reporter", None)
             wandb_run = getattr(stats_reporter, "wandb_run", None)
             if wandb_run:
@@ -197,12 +175,6 @@ class Evaluator(TrainerComponent):
                     wandb_run=wandb_run,
                     should_finish_run=False,
                 )
-
-            self._latest_scores = eval_results.scores
-            self.context.latest_eval_scores = self._latest_scores
-            return eval_results.scores
-
-        return EvalRewardSummary()
 
     def _build_simulations(self, curriculum: Curriculum) -> list[SimulationConfig]:
         sims = []
@@ -258,17 +230,18 @@ class Evaluator(TrainerComponent):
     ) -> list[SimulationRunResult]:
         logger.info(f"Evaluating policy locally from {policy_uri}")
 
-        policy_spec = CheckpointManager.policy_spec_from_uri(policy_uri, device=self._device)
         return run_simulations(
-            policy_specs=[policy_spec],
+            policy_specs=[
+                CheckpointManager.policy_spec_from_uri(
+                    policy_uri,
+                    device=self._device,
+                )
+            ],
             simulations=[sim.to_simulation_run_config() for sim in simulations],
             replay_dir=self._config.replay_dir,
             seed=self._system_cfg.seed,
             enable_replays=True,
         )
-
-    def get_latest_scores(self) -> EvalRewardSummary:
-        return self._latest_scores
 
     def on_epoch_end(self, epoch: int) -> None:
         if not self.should_evaluate(epoch):
@@ -320,7 +293,7 @@ class Evaluator(TrainerComponent):
         if is_schedulefree and optimizer is not None:
             optimizer.eval()
 
-        scores = self.evaluate(
+        self.evaluate(
             policy_uri=policy_uri,
             curriculum=curriculum,
             epoch=epoch,
@@ -331,7 +304,3 @@ class Evaluator(TrainerComponent):
         # Restore train mode after evaluation for ScheduleFree optimizers
         if is_schedulefree and optimizer is not None:
             optimizer.train()
-
-        stats_reporter = getattr(self.context, "stats_reporter", None)
-        if stats_reporter and hasattr(stats_reporter, "update_eval_scores"):
-            stats_reporter.update_eval_scores(scores)

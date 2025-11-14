@@ -71,9 +71,8 @@ class EvaluateTool(Tool):
             return 0, 0
 
     def eval_policy(self, normalized_uri: str) -> list[SimulationRunResult]:
-        policy_spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device="cpu")
         rollout_results = run_simulations(
-            policy_specs=[policy_spec],
+            policy_specs=[CheckpointManager.policy_spec_from_uri(normalized_uri, device="cpu")],
             simulations=[sim.to_simulation_run_config() for sim in self.simulations],
             replay_dir=self.replay_dir,
             seed=self.system.seed,
