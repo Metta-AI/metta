@@ -611,6 +611,86 @@ def cmd_go(ctx: typer.Context):
     webbrowser.open(url)
 
 
+@app.command(name="pr-feed", help="Show PRs that touch a specific path")
+def cmd_pr_feed(
+    path: Annotated[str, typer.Argument(help="Path filter (e.g., metta/jobs)")],
+    num_prs: Annotated[int, typer.Option("--num_prs", help="Maximum number of PRs to search")] = 50,
+    status: Annotated[str, typer.Option("--status", help="PR status: open, closed, or all")] = "open",
+):
+    """Show PRs that touch files in a specific path."""
+    import json
+
+    # Validate status
+    valid_statuses = {"open": "OPEN", "closed": "CLOSED", "merged": "MERGED", "all": "OPEN, CLOSED, MERGED"}
+    if status not in valid_statuses:
+        error(f"Invalid status: {status}. Choose from: open, closed, merged, all")
+        raise typer.Exit(1)
+
+    # Convert to GraphQL enum
+    states = valid_statuses[status]
+    status_display = status.upper()
+
+    console = Console()
+    console.print(f"🔍 Searching for [yellow]{status_display}[/yellow] PRs touching: [cyan]{path}[/cyan]")
+    console.print()
+
+    try:
+        # Run GraphQL query via gh CLI
+        query = f"""
+        query {{
+          repository(owner: "Metta-AI", name: "metta") {{
+            pullRequests(first: {num_prs}, states: [{states}]) {{
+              nodes {{
+                number
+                title
+                url
+                author {{ login }}
+                files(first: 100) {{
+                  nodes {{ path }}
+                }}
+              }}
+            }}
+          }}
+        }}
+        """
+
+        result = subprocess.run(
+            ["gh", "api", "graphql", "-f", f"query={query}"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        data = json.loads(result.stdout)
+        prs = data["data"]["repository"]["pullRequests"]["nodes"]
+
+        # Filter PRs that touch the specified path
+        matching_prs = []
+        for pr in prs:
+            if any(file["path"].startswith(path) for file in pr["files"]["nodes"]):
+                matching_prs.append(pr)
+
+        if not matching_prs:
+            console.print(f"[yellow]No {status_display} PRs found touching {path}[/yellow]")
+            return
+
+        # Display results
+        for pr in matching_prs:
+            console.print(f"[green]PR #{pr['number']}:[/green] {pr['title']}")
+            console.print(f"  Author: [cyan]@{pr['author']['login']}[/cyan]")
+            console.print(f"  {pr['url']}")
+            console.print()
+
+        console.print(f"[green]✅ Found {len(matching_prs)} {status_display} PR(s)[/green]")
+
+    except subprocess.CalledProcessError as e:
+        error(f"Failed to fetch PRs: {e.stderr}")
+        raise typer.Exit(1)
+    except Exception as e:
+        error(f"Error: {e}")
+        raise typer.Exit(1)
+
+
 # Report env details command
 @app.command(name="report-env-details", help="Report environment details including UV project directory")
 def cmd_report_env_details():
