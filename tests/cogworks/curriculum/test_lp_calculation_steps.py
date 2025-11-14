@@ -819,8 +819,8 @@ class TestGiniCoefficient:
         for _ in range(2):
             algorithm.update_task_performance(task_ids[2], 0.5)
 
-        # Get stats - Gini is now in get_base_stats()
-        stats = algorithm.get_base_stats()
+        # Get Gini stats - now computed separately from base stats
+        stats = algorithm.calculate_gini_coefficients()
 
         # Should have curriculum_gini/pool_occupancy
         assert "curriculum_gini/pool_occupancy" in stats, "Should have curriculum_gini/pool_occupancy in stats"

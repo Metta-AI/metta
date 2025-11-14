@@ -1,18 +1,38 @@
-"""Core curriculum implementations and utilities."""
+"""Core curriculum orchestration and task pool management.
+
+This module contains the main Curriculum class that orchestrates automatic curriculum
+learning. The curriculum maintains a pool of active tasks, uses TaskGenerators to create
+new tasks, and delegates to CurriculumAlgorithms for intelligent selection and eviction.
+
+Key components:
+- Curriculum: Main orchestrator managing the task pool lifecycle
+- CurriculumConfig: Configuration for curriculum behavior and algorithm selection
+- CurriculumTask: Wrapper holding task_id, env_cfg, and performance metrics
+- DiscreteRandomCurriculum: Simple reference algorithm for uniform random sampling
+
+Separation of concerns:
+- TaskGenerator creates environment configs (what tasks look like)
+- CurriculumAlgorithm decides which tasks to sample/evict (how to select)
+- Curriculum manages the pool and coordinates between them (orchestration)
+
+Why this file: Central point of curriculum API and simple/reference implementations.
+Complex algorithms live in their own files (e.g., learning_progress_algorithm.py).
+"""
 
 from __future__ import annotations
 
-import abc
 import logging
 import random
-from abc import ABC
-from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Union
-
-if TYPE_CHECKING:
-    from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from typing import Any, ClassVar, Dict, List, Literal, Optional, Union
 
 from pydantic import ConfigDict, Field
 
+from metta.cogworks.curriculum.curriculum_base import (
+    CurriculumAlgorithm,
+    CurriculumAlgorithmConfig,
+    CurriculumTask,
+)
+from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.stats import StatsLogger
 from metta.cogworks.curriculum.task_generator import AnyTaskGeneratorConfig, SingleTaskGenerator
 from mettagrid.base_config import Config
@@ -21,172 +41,16 @@ from mettagrid.config.mettagrid_config import MettaGridConfig
 logger = logging.getLogger(__name__)
 
 
-class CurriculumTask:
-    """A task instance with a task_id and env_cfg."""
-
-    def __init__(self, task_id: int, env_cfg, slice_values: Optional[Dict[str, Any]] = None):
-        self._task_id = task_id
-        self._env_cfg = env_cfg
-        self._slice_values = slice_values or {}
-        self._num_completions = 0
-        self._total_score = 0.0
-        self._mean_score = 0.0
-        self._num_scheduled = 0
-        # Extract label from env config for per-label logging
-        self._label = getattr(env_cfg, "label", "unknown")
-
-    def complete(self, score: float):
-        """Complete the task with a score."""
-        self._num_completions += 1
-        self._total_score += score
-        self._mean_score = self._total_score / self._num_completions
-
-    def get_env_cfg(self):
-        """Get the environment configuration for this task."""
-        return self._env_cfg
-
-    def get_slice_values(self):
-        """Get the slice values that were used to generate this task."""
-        return self._slice_values
-
-    def get_bucket_values(self):
-        """Get the slice values (backward compatibility alias)."""
-        return self._slice_values
-
-    def get_label(self):
-        """Get the task label for per-label metrics."""
-        return self._label
-
-
-class CurriculumAlgorithmConfig(Config, ABC):
-    """Hyperparameters for the CurriculumAlgorithm."""
-
-    type: str = Field(description="Type of algorithm hyperparameters")
-    initial_weights: Optional[list[float]] = None
-
-    @abc.abstractmethod
-    def algorithm_type(self) -> str:
-        """Return the algorithm type string used in configs."""
-        pass
-
-    def create(self, num_tasks: int) -> "CurriculumAlgorithm":
-        """Create the curriculum algorithm with these hyperparameters.
-
-        Args:
-            num_tasks: Number of tasks the algorithm will manage
-
-        Returns:
-            Configured curriculum algorithm instance
-        """
-        return DiscreteRandomCurriculum(num_tasks, self)
-
-    model_config: ClassVar[ConfigDict] = ConfigDict(
-        extra="forbid",
-        validate_assignment=True,
-        populate_by_name=True,
-    )
-
-
-class CurriculumAlgorithm(StatsLogger, ABC):
-    """
-    Curriculum algorithms are responsible for:
-    1. Scoring tasks based on their learning progress or other metrics
-    2. Recommending which tasks to evict when the pool is full
-    3. Tracking task performance for algorithm-specific purposes
-    4. Providing feedback to Curriculum for task selection
-
-    The Curriculum maintains the task pool and lifecycle, while algorithms provide guidance.
-    Inherits from StatsLogger to provide unified statistics interface.
-    """
-
-    num_tasks: int
-    hypers: CurriculumAlgorithmConfig
-
-    # Core API for task scoring and recommendations
-
-    @abc.abstractmethod
-    def score_tasks(self, task_ids: List[int]) -> Dict[int, float]:
-        """Score tasks for selection purposes. Higher scores = more likely to be selected."""
-        pass
-
-    @abc.abstractmethod
-    def recommend_eviction(self, task_ids: List[int]) -> Optional[int]:
-        """Recommend which task to evict. Return None for random selection."""
-        pass
-
-    @abc.abstractmethod
-    def on_task_evicted(self, task_id: int) -> None:
-        """Notification that a task has been evicted from the pool."""
-        pass
-
-    @abc.abstractmethod
-    def update_task_performance(self, task_id: int, score: float):
-        """Update task performance. Override in subclasses that track performance."""
-        pass
-
-    def get_state(self) -> Dict[str, Any]:
-        """Get algorithm state for checkpointing. Override in subclasses that have state."""
-        return {"type": self.hypers.algorithm_type()}
-
-    def load_state(self, state: Dict[str, Any]) -> None:
-        """Load algorithm state from checkpoint. Override in subclasses that have state."""
-        pass
-
-    def on_task_created(self, task: "CurriculumTask") -> None:
-        """Notification that a new task has been created. Override if needed."""
-        pass
-
-    def set_curriculum_reference(self, curriculum: "Curriculum") -> None:
-        """Set reference to curriculum for stats updates. Override if needed."""
-        pass
-
-    def should_evict_task(self, task_id: int, min_presentations: int) -> bool:
-        """Check if a task should be evicted based on algorithm-specific criteria.
-
-        Default implementation returns False (no eviction). Subclasses should override
-        to implement their own eviction criteria.
-
-        Args:
-            task_id: The task to check
-            min_presentations: Minimum number of task presentations before eviction
-                              (should be passed from CurriculumConfig.min_presentations_for_eviction)
-
-        Returns:
-            True if task should be evicted
-        """
-        return False
-
-    def __init__(
-        self, num_tasks: int, hypers: Optional[CurriculumAlgorithmConfig] = None, initialize_weights: bool = True
-    ):
-        if num_tasks <= 0:
-            raise ValueError(f"Number of tasks must be positive. num_tasks {num_tasks}")
-        self.num_tasks = num_tasks
-
-        if hypers is None:
-            hypers = DiscreteRandomConfig()
-        self.hypers = hypers
-
-        # Initialize stats logging
-        StatsLogger.__init__(self)
-
-    def get_base_stats(self) -> Dict[str, float]:
-        """Get basic statistics that all algorithms must provide."""
-        return {"num_tasks": self.num_tasks}
-
-    def stats(self, prefix: str = "") -> dict[str, float]:
-        """Return statistics for logging purposes. Add `prefix` to all keys."""
-        # Use the StatsLogger implementation
-        return super().stats(prefix)
-
-
 class DiscreteRandomConfig(CurriculumAlgorithmConfig):
     """Hyperparameters for DiscreteRandomCurriculum."""
 
-    type: str = "discrete_random"
+    type: Literal["discrete_random"] = "discrete_random"
 
     def algorithm_type(self) -> str:
         return "discrete_random"
+
+    def create(self, num_tasks: int) -> CurriculumAlgorithm:
+        return DiscreteRandomCurriculum(num_tasks, self)
 
 
 class DiscreteRandomCurriculum(CurriculumAlgorithm):
@@ -227,7 +91,7 @@ class CurriculumConfig(Config):
     )
 
     algorithm_config: Optional[Union["DiscreteRandomConfig", "LearningProgressConfig"]] = Field(
-        default=None, description="Curriculum algorithm hyperparameters"
+        default=None, description="Curriculum algorithm hyperparameters", discriminator="type"
     )
 
     @classmethod
@@ -248,7 +112,7 @@ class CurriculumConfig(Config):
         super().model_post_init(__context)
 
         # Sync num_active_tasks from algorithm_config if available
-        if self.algorithm_config and hasattr(self.algorithm_config, "num_active_tasks"):
+        if self.algorithm_config:
             self.num_active_tasks = self.algorithm_config.num_active_tasks
 
     def make(self) -> "Curriculum":
@@ -280,16 +144,11 @@ class Curriculum(StatsLogger):
 
         self._algorithm: Optional[CurriculumAlgorithm] = None
         if config.algorithm_config is not None:
-            # Always use algorithm_config.num_active_tasks if available (source of truth for algorithm-based curricula)
-            num_tasks = (
-                config.algorithm_config.num_active_tasks
-                if hasattr(config.algorithm_config, "num_active_tasks")
-                else config.num_active_tasks
-            )
+            # Always use algorithm_config.num_active_tasks (source of truth for algorithm-based curricula)
+            num_tasks = config.algorithm_config.num_active_tasks
             self._algorithm = config.algorithm_config.create(num_tasks)
             # Pass curriculum reference to algorithm for stats updates
-            if hasattr(self._algorithm, "set_curriculum_reference"):
-                self._algorithm.set_curriculum_reference(self)
+            self._algorithm.set_curriculum_reference(self)
 
         # Initialize task pool at capacity unless deferred (e.g., for checkpoint loading)
         if not config.defer_init:
@@ -304,7 +163,7 @@ class Curriculum(StatsLogger):
         2. Algorithm_config present and in sync with config: use algorithm_config (allows CLI overrides)
         3. Algorithm_config present but out of sync: use config (manual override after creation)
         """
-        if self._config.algorithm_config is None or not hasattr(self._config.algorithm_config, "num_active_tasks"):
+        if self._config.algorithm_config is None:
             return self._config.num_active_tasks
 
         # If they match, they're in sync - use algorithm_config (allows CLI overrides to work)
@@ -350,7 +209,7 @@ class Curriculum(StatsLogger):
         task._num_scheduled += 1
 
         # Notify algorithm that this task was sampled (for sampling statistics)
-        if self._algorithm is not None and hasattr(self._algorithm, "on_task_sampled"):
+        if self._algorithm is not None:
             self._algorithm.on_task_sampled(task._task_id)
 
         return task
@@ -416,7 +275,7 @@ class Curriculum(StatsLogger):
         self._num_created += 1
 
         # Notify algorithm of new task
-        if self._algorithm is not None and hasattr(self._algorithm, "on_task_created"):
+        if self._algorithm is not None:
             self._algorithm.on_task_created(task)
 
         return task
@@ -438,7 +297,7 @@ class Curriculum(StatsLogger):
         Returns:
             The learning progress score, or 0.0 if not available
         """
-        if self._algorithm is not None and hasattr(self._algorithm, "get_task_lp_score"):
+        if self._algorithm is not None:
             return self._algorithm.get_task_lp_score(task_id)
         return 0.0
 
@@ -451,7 +310,7 @@ class Curriculum(StatsLogger):
         Returns:
             The raw learning progress score, or 0.0 if not available
         """
-        if self._algorithm is not None and hasattr(self._algorithm, "get_task_raw_lp_score"):
+        if self._algorithm is not None:
             return self._algorithm.get_task_raw_lp_score(task_id)
         return 0.0
 
@@ -464,7 +323,7 @@ class Curriculum(StatsLogger):
         Returns:
             The post-z-score learning progress score, or 0.0 if not available
         """
-        if self._algorithm is not None and hasattr(self._algorithm, "get_task_postzscored_lp_score"):
+        if self._algorithm is not None:
             return self._algorithm.get_task_postzscored_lp_score(task_id)
         return 0.0
 
@@ -474,7 +333,7 @@ class Curriculum(StatsLogger):
         Returns:
             Dictionary mapping label -> eviction count this epoch
         """
-        if self._algorithm is not None and hasattr(self._algorithm, "get_and_reset_evictions_this_epoch"):
+        if self._algorithm is not None:
             return self._algorithm.get_and_reset_evictions_this_epoch()
         return {}
 
@@ -484,14 +343,14 @@ class Curriculum(StatsLogger):
         This is called by the training infrastructure at epoch boundaries
         to ensure per-epoch metrics start fresh each epoch.
         """
-        if self._algorithm is not None and hasattr(self._algorithm, "reset_epoch_counters"):
+        if self._algorithm is not None:
             self._algorithm.reset_epoch_counters()
 
     def get_base_stats(self) -> Dict[str, float]:
         """Get basic curriculum statistics."""
         # Get global completion count from algorithm's task tracker if available
         # This tracks ALL completions across all tasks ever created (even evicted ones)
-        if self._algorithm is not None and hasattr(self._algorithm, "task_tracker"):
+        if self._algorithm is not None and self._algorithm.task_tracker is not None:
             num_completed = float(self._algorithm.task_tracker._total_completions)
         else:
             # Fallback: sum completions for currently active tasks only
@@ -501,7 +360,7 @@ class Curriculum(StatsLogger):
         # Get num_active_tasks from task tracker if using shared memory, otherwise from local dict
         # This is critical when using shared memory - self._tasks may be sparse but TaskTracker
         # has the full set of active tasks across all workers
-        if self._algorithm is not None and hasattr(self._algorithm, "task_tracker"):
+        if self._algorithm is not None and self._algorithm.task_tracker is not None:
             num_active_tasks = float(len(self._algorithm.task_tracker.get_all_tracked_tasks()))
         else:
             num_active_tasks = float(len(self._tasks))
@@ -592,10 +451,6 @@ class Curriculum(StatsLogger):
         # 1. Algorithm state (including task_tracker) is already restored above via load_state()
         # 2. Calling it would re-initialize tracking with default values
 
-
-# Import concrete config classes at the end to avoid circular imports
-# ruff: noqa: E402
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 
 # Rebuild the model to resolve forward references
 CurriculumConfig.model_rebuild()

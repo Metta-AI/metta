@@ -1,7 +1,17 @@
-"""
-Unified statistics logging system for curriculum components.
+"""Statistics logging infrastructure for curriculum components.
 
-Provides StatsLogger base class for consistent statistics interfaces.
+This module provides the base StatsLogger class and supporting utilities for consistent
+statistics reporting across the curriculum system. All curriculum components (Curriculum,
+CurriculumAlgorithm, LPScorer) inherit from StatsLogger to provide unified stats collection.
+
+Key components:
+- StatsLogger: Abstract base with caching and automatic prefix handling
+- LPStatsAggregator: Aggregates stats from learning progress components
+- CacheCoordinator: Manages cache invalidation across multiple components
+
+Why separate file: Statistics collection is cross-cutting and needed by many components.
+Centralizing it here avoids circular dependencies and provides a single source of truth
+for how stats are collected, cached, and reported.
 """
 
 from abc import ABC, abstractmethod

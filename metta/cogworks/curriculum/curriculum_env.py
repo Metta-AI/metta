@@ -1,3 +1,20 @@
+"""Environment wrapper for curriculum integration.
+
+This module bridges the training loop and curriculum system. CurriculumEnv wraps any
+environment and automatically handles task selection, application, and performance reporting.
+
+Key responsibilities:
+- Request new tasks from curriculum on each episode reset
+- Apply task configuration to the wrapped environment
+- Report episode outcomes back to curriculum for learning progress tracking
+- Retry logic for invalid task configurations
+- Optional per-label episode tracking for debugging
+
+Why separate file: Keeps environment integration concerns separate from curriculum logic.
+The curriculum is agnostic to how tasks are actually used - this wrapper implements the
+"glue" that connects curriculum decisions to actual environment execution.
+"""
+
 from __future__ import annotations
 
 from typing import Any
@@ -36,9 +53,8 @@ class CurriculumEnv(PufferEnv):
 
         # Check if troubleshooting logging is enabled
         self._enable_per_label_tracking = False
-        if hasattr(curriculum, "_algorithm") and curriculum._algorithm is not None:
-            if hasattr(curriculum._algorithm, "hypers"):
-                self._enable_per_label_tracking = curriculum._algorithm.hypers.show_curriculum_troubleshooting_logging
+        if curriculum._algorithm is not None:
+            self._enable_per_label_tracking = curriculum._algorithm.hypers.show_curriculum_troubleshooting_logging
 
         # Tracked task attributes (only if troubleshooting enabled)
         if self._enable_per_label_tracking:

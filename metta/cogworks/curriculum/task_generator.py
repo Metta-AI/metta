@@ -1,3 +1,20 @@
+"""Task generation system for curriculum learning.
+
+This module provides the TaskGenerator abstraction that decouples task creation from
+curriculum orchestration. Generators are stateless and deterministic - given a task_id
+(used as seed), they produce an environment configuration. This allows curricula to
+request tasks by ID without needing to know how they're constructed.
+
+Key components:
+- TaskGenerator: Abstract base for generating environment configs from task IDs
+- SingleTaskGenerator: Always returns the same environment config (baseline)
+- BucketedTaskGenerator: Samples from discrete parameter buckets with specified weights
+- TaskGeneratorSet: Composes multiple generators with weighted sampling
+
+Why separate file: Task generation logic is independent from curriculum selection logic,
+making it easy to swap generation strategies without changing the curriculum algorithm.
+"""
+
 from __future__ import annotations
 
 import logging

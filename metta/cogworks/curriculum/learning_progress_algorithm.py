@@ -1,17 +1,39 @@
-"""
-Learning Progress Algorithm with integrated bidirectional scoring.
+"""Learning progress curriculum algorithm for intelligent task selection.
 
-Provides intelligent task selection based on bidirectional learning progress analysis,
-using fast and slow exponential moving averages to detect learning opportunities.
+This module implements the Learning Progress algorithm - a curriculum learning approach that
+prioritizes tasks where the agent is learning fastest. It tracks fast/slow EMAs of task
+performance to identify learning opportunities, then samples tasks proportionally to their
+learning progress scores.
+
+Core algorithm:
+1. Track task performance using exponential moving averages (fast and slow)
+2. Compute learning progress as the rate of performance change (|fast - slow|)
+3. Apply exploration bonus to under-sampled tasks
+4. Transform scores with z-score normalization and sigmoid for sampling probabilities
+5. Sample tasks proportionally to their scores (high LP → more likely to be selected)
+
+Key components:
+- LearningProgressConfig: Comprehensive configuration with sensible defaults
+- LearningProgressAlgorithm: Main algorithm coordinating scorer, tracker, and stats
+- Integrates with TaskTracker for performance data and LPScorer for scoring strategy
+
+Design philosophy:
+- All state (EMAs, counts) lives in shared memory for true multi-process training
+- Strategy pattern for scoring allows swapping between bidirectional/basic/custom
+- Stateless algorithms make checkpointing and debugging straightforward
+
+Why separate file: This is a complex algorithm (650+ lines) with many configuration
+options and moving parts. Keeping it separate from the simple DiscreteRandomCurriculum
+maintains clarity and allows the two approaches to evolve independently.
 """
 
 import random
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import model_validator
 
-from .curriculum import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask
+from .curriculum_base import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask
 from .lp_scorers import BasicLPScorer, BidirectionalLPScorer, LPScorer
 from .stats import CacheCoordinator, LPStatsAggregator
 from .task_tracker import TaskTracker
@@ -20,7 +42,7 @@ from .task_tracker import TaskTracker
 class LearningProgressConfig(CurriculumAlgorithmConfig):
     """Configuration for learning progress with bidirectional scoring as default."""
 
-    type: str = "learning_progress"
+    type: Literal["learning_progress"] = "learning_progress"
 
     # Bidirectional learning progress settings (now default)
     use_bidirectional: bool = True
@@ -312,13 +334,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self.scorer.update_with_score(task_id, score)
 
         # Calculate RAW LP score for storage (before sigmoid/normalization)
-        # This is used for Gini coefficient calculation to measure true inequality
-        # in learning progress, not just the normalized sampling distribution
-        if hasattr(self.scorer, "get_raw_lp_score"):
-            lp_score = self.scorer.get_raw_lp_score(task_id, self.task_tracker)
-        else:
-            # Fallback for scorers without raw LP (e.g., BasicLPScorer)
-            lp_score = self.scorer.score_task(task_id, self.task_tracker)
+        # Used for Gini coefficient calculation to measure true inequality
+        lp_score = self.scorer.get_raw_lp_score(task_id, self.task_tracker)
 
         # Single atomic update to task tracker with both score and LP score
         # This ensures consistency and avoids multiple writes to shared memory
@@ -359,33 +376,25 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def get_task_raw_lp_score(self, task_id: int) -> float:
         """Get raw learning progress score for a specific task (before z-score normalization)."""
-        if hasattr(self.scorer, "get_raw_lp_score"):
-            return self.scorer.get_raw_lp_score(task_id, self.task_tracker)
-        # Fallback to regular LP score if scorer doesn't support raw LP
-        return self.get_task_lp_score(task_id)
+        return self.scorer.get_raw_lp_score(task_id, self.task_tracker)
 
     def get_task_postzscored_lp_score(self, task_id: int) -> float:
         """Get post-z-score learning progress score for a specific task (after z-score, before sigmoid)."""
-        if hasattr(self.scorer, "get_postzscored_lp_score"):
-            return self.scorer.get_postzscored_lp_score(task_id, self.task_tracker)
-        # Fallback to regular LP score if scorer doesn't support post-z-score LP
-        return self.get_task_lp_score(task_id)
+        return self.scorer.get_postzscored_lp_score(task_id, self.task_tracker)
 
     def on_task_created(self, task: CurriculumTask) -> None:
         """Handle task creation by tracking it."""
         self.task_tracker.track_task_creation(task._task_id)
 
-        # Track task label for pool composition stats
-        if hasattr(task, "get_label"):
-            label = task.get_label()
-            if label:
-                self._task_labels[task._task_id] = label
+        label = task.get_label()
+        if label:
+            self._task_labels[task._task_id] = label
 
-                # If label was inactive, remove it from the inactive queue (reactivating it)
-                if label in self._inactive_labels_fifo:
-                    self._inactive_labels_fifo.remove(label)
+            # If label was inactive, remove it from the inactive queue (reactivating it)
+            if label in self._inactive_labels_fifo:
+                self._inactive_labels_fifo.remove(label)
 
-                self._active_labels.add(label)
+            self._active_labels.add(label)
 
         # Invalidate stats cache when task state changes
         self.cache_coordinator.invalidate_stats_cache()
@@ -409,27 +418,22 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         }
 
     def get_base_stats(self) -> Dict[str, float]:
-        """Get basic statistics that all algorithms must provide."""
-        stats = self.stats_aggregator.get_base_stats()
+        """Get basic statistics that all algorithms must provide.
 
-        # Add pool composition stats (logged every epoch)
+        Note: Called per-worker in vectorized environments, so keep lightweight.
+        Expensive calculations like Gini are in calculate_gini_coefficients().
+        """
+        stats = self.stats_aggregator.get_base_stats()
         composition_data = self.get_pool_composition_stats()
 
-        # Add pool composition (number of each label in memory)
         for label, count in composition_data["pool_composition"].items():
             stats[f"pool_composition/{label}"] = float(count)
 
-        # Add sampling counts (number of times each label was sampled)
         for label, count in composition_data["sampling_counts"].items():
             stats[f"sampling_counts/{label}"] = float(count)
 
-        # Add eviction counts (number of times each label was evicted)
         for label, count in self._label_eviction_counts.items():
             stats[f"eviction_counts/{label}"] = float(count)
-
-        # Calculate comprehensive Gini coefficients
-        gini_stats = self._calculate_comprehensive_gini_coefficients()
-        stats.update(gini_stats)
 
         return stats
 
@@ -483,8 +487,11 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         return gini
 
-    def _calculate_comprehensive_gini_coefficients(self) -> Dict[str, float]:
+    def calculate_gini_coefficients(self) -> Dict[str, float]:
         """Calculate Gini coefficients at each stage of the LP calculation pipeline.
+
+        This is an expensive operation that should be called once per epoch from
+        the centralized stats reporter, not from each worker in vectorized environments.
 
         This helps diagnose where selectivity is lost in the chain:
         1. Raw LP scores (task-level)
@@ -516,44 +523,34 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         for task_id in all_task_ids:
             task_stats = self.task_tracker.get_task_stats(task_id)
             if task_stats:
-                # 1. Completion counts (for pool occupancy Gini)
                 completion_count = float(task_stats["completion_count"])
                 completion_counts.append(completion_count)
 
-                # 2. Raw LP scores (stored in tracker)
                 raw_lp = float(task_stats.get("lp_score", 0.0))
                 raw_lp_scores.append(raw_lp)
 
-                # 3. Z-scored LP scores (if bidirectional scorer available)
-                if hasattr(self.scorer, "get_postzscored_lp_score"):
-                    z_scored = self.scorer.get_postzscored_lp_score(task_id, self.task_tracker)
-                    z_scored_lp_scores.append(float(z_scored))
+                z_scored = self.scorer.get_postzscored_lp_score(task_id, self.task_tracker)
+                z_scored_lp_scores.append(float(z_scored))
 
-                # 4. Final sampling probabilities
                 sampling_prob = self.scorer.score_task(task_id, self.task_tracker)
                 sampling_probs.append(float(sampling_prob))
 
-                # Track label for aggregations
                 if task_id in self._task_labels:
                     task_labels_list.append(self._task_labels[task_id])
                 else:
                     task_labels_list.append("unknown")
 
-                # Log per-task metrics if troubleshooting enabled
                 if self.hypers.show_curriculum_troubleshooting_logging:
                     gini_stats[f"task_metrics/{task_id}/completion_count"] = completion_count
                     gini_stats[f"task_metrics/{task_id}/raw_lp"] = raw_lp
                     gini_stats[f"task_metrics/{task_id}/sampling_prob"] = sampling_prob
 
-        # === 1. Pool Occupancy Gini (task-level completion counts) ===
         if completion_counts:
             gini_stats["curriculum_gini/pool_occupancy"] = self._calculate_gini_coefficient(completion_counts)
 
-        # === 2. Raw LP Scores Gini (task-level) ===
         if raw_lp_scores:
             gini_stats["curriculum_gini/raw_lp_scores"] = self._calculate_gini_coefficient(raw_lp_scores)
 
-        # === 3. Raw LP Scores by Label (aggregated) ===
         if raw_lp_scores and task_labels_list:
             label_lp_sums = {}
             for label, lp in zip(task_labels_list, raw_lp_scores, strict=True):
@@ -563,17 +560,14 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                 label_lp_values = list(label_lp_sums.values())
                 gini_stats["curriculum_gini/raw_lp_by_label"] = self._calculate_gini_coefficient(label_lp_values)
 
-        # === 4. Z-Scored LP Scores Gini (task-level) ===
         if z_scored_lp_scores:
             gini_stats["curriculum_gini/zscored_lp_scores"] = self._calculate_gini_coefficient(
-                [abs(z) for z in z_scored_lp_scores]  # Use absolute values for Gini
+                [abs(z) for z in z_scored_lp_scores]
             )
 
-        # === 5. Final Sampling Probabilities Gini (task-level) ===
         if sampling_probs:
             gini_stats["curriculum_gini/sampling_probs"] = self._calculate_gini_coefficient(sampling_probs)
 
-        # === 5b. Sampling Probabilities by Label (aggregated) ===
         if sampling_probs and task_labels_list:
             label_prob_sums = {}
             for label, prob in zip(task_labels_list, sampling_probs, strict=True):
@@ -585,12 +579,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                     label_prob_values
                 )
 
-        # === 6. Sampling Counts by Label (per-epoch) ===
         if self._label_sampling_counts_this_epoch:
             label_sampling_values = list(self._label_sampling_counts_this_epoch.values())
             gini_stats["curriculum_gini/sampling_by_label"] = self._calculate_gini_coefficient(label_sampling_values)
 
-        # === 7. Eviction Counts by Label ===
         if self._label_eviction_counts:
             label_eviction_values = list(self._label_eviction_counts.values())
             if label_eviction_values and sum(label_eviction_values) > 0:
@@ -598,13 +590,12 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                     label_eviction_values
                 )
 
-        # === 8. Pool Composition by Label ===
         composition_data = self.get_pool_composition_stats()
         if composition_data["pool_composition"]:
             pool_comp_values = list(composition_data["pool_composition"].values())
             gini_stats["curriculum_gini/pool_composition_by_label"] = self._calculate_gini_coefficient(pool_comp_values)
 
-        # Calculate "selectivity loss" metrics (how much Gini decreases at each stage)
+        # Selectivity loss: how much inequality is reduced in the transformation pipeline
         if "curriculum_gini/raw_lp_scores" in gini_stats and "curriculum_gini/sampling_probs" in gini_stats:
             selectivity_loss = (
                 gini_stats["curriculum_gini/raw_lp_scores"] - gini_stats["curriculum_gini/sampling_probs"]
@@ -667,12 +658,12 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def cleanup_shared_memory(self) -> None:
         """Clean up shared memory resources with better error handling."""
-        if not hasattr(self, "task_tracker"):
+        task_tracker = getattr(self, "task_tracker", None)
+        if task_tracker is None:
             return
 
         try:
-            # TaskTracker always has cleanup_shared_memory method
-            self.task_tracker.cleanup_shared_memory()
+            task_tracker.cleanup_shared_memory()
         except Exception as e:
             # Log but don't raise - cleanup should be best-effort
             import logging
@@ -681,5 +672,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def __del__(self):
         """Cleanup when object is destroyed."""
-        if hasattr(self, "hypers") and getattr(self.hypers, "use_shared_memory", False):
+        hypers = getattr(self, "hypers", None)
+        if hypers is not None and getattr(hypers, "use_shared_memory", False):
             self.cleanup_shared_memory()

@@ -1,8 +1,23 @@
-"""Task tracking component for curriculum algorithms.
+"""Task performance tracking with pluggable memory backends.
 
-Provides unified TaskTracker implementation with configurable memory backends:
-- LocalMemoryBackend: In-memory tracking for single-process use
-- SharedMemoryBackend: Shared memory tracking for multi-process use
+This module provides the TaskTracker class that maintains performance metrics (completion
+counts, reward EMAs, success rates) for all active tasks. The implementation is unified -
+the same code works whether using local memory (single-process) or shared memory (multi-process).
+
+Key responsibilities:
+- Track task creation and removal with O(1) lookup by task_id
+- Maintain exponential moving averages of task performance
+- Provide thread-safe access via backend-specific locking
+- Support state serialization for checkpointing
+
+Memory backend abstraction:
+- LocalMemoryBackend: Fast numpy arrays for single-process training
+- SharedMemoryBackend: Multiprocessing shared memory for distributed workers
+- Backend selection is transparent to curriculum algorithms
+
+Why separate file: Task tracking is a distinct concern from curriculum logic. It manages
+the low-level storage and updates, while curriculum algorithms make high-level decisions
+about what to track and how to use the tracked data.
 """
 
 import time

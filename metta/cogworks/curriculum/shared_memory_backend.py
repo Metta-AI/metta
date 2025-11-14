@@ -1,7 +1,23 @@
-"""Memory backends for curriculum task tracking.
+"""Memory storage backends for task performance data.
 
-Provides unified interface for task data storage with both local and shared memory implementations.
-The abstraction allows TaskTracker to work identically whether using in-process or multi-process storage.
+This module defines the TaskMemoryBackend interface and provides two implementations:
+local memory (numpy arrays) and shared memory (multiprocessing.shared_memory). The unified
+interface allows TaskTracker to work identically regardless of whether training is
+single-process or multi-process.
+
+Key components:
+- TaskMemoryBackend: Abstract interface defining storage operations
+- LocalMemoryBackend: Fast numpy array storage for single-process use
+- SharedMemoryBackend: Cross-process shared memory with proper cleanup
+
+Task data structure (17 floats per task):
+[task_id, creation_time, completion_count, reward_ema, lp_score, success_rate_ema,
+ total_score, last_score, success_threshold, seed, generator_type, ema_squared,
+ is_active, p_fast, p_slow, p_true, random_baseline]
+
+Why separate file: Memory management is a low-level concern distinct from curriculum logic.
+Isolating it here makes it easy to swap implementations, test independently, and reason
+about thread safety and resource cleanup without cluttering higher-level code.
 """
 
 from abc import ABC, abstractmethod

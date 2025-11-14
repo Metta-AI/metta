@@ -1,8 +1,25 @@
-"""Learning Progress Scorer implementations.
+"""Learning progress scoring strategies for curriculum algorithms.
 
-Provides strategy pattern for different LP scoring algorithms:
-- BidirectionalLPScorer: Fast/slow EMA-based learning progress
-- BasicLPScorer: Variance-based learning progress
+This module implements the strategy pattern for different approaches to measuring learning
+progress. Scorers analyze task performance data (stored in shared memory) and compute scores
+that guide curriculum task selection - higher scores indicate better learning opportunities.
+
+Key implementations:
+- BidirectionalLPScorer: Compares fast/slow EMAs to detect performance changes (default)
+- BasicLPScorer: Uses variance estimation from EMAs (legacy/simpler approach)
+- LPScorer: Abstract base defining the scoring interface
+
+Bidirectional LP intuition:
+When fast EMA > slow EMA, the agent is improving (positive learning signal).
+When fast EMA < slow EMA, the agent is regressing (still learning, just negatively).
+The absolute difference |fast - slow| measures the rate of change.
+
+All EMA state lives in shared memory (via TaskTracker), not in scorer instance variables.
+This enables true multi-process learning progress tracking where all workers see the same
+task performance history.
+
+Why separate file: Scoring logic is complex and benefits from isolation. Multiple strategies
+can coexist and be swapped at runtime via config, following the strategy pattern.
 """
 
 from __future__ import annotations
@@ -97,6 +114,30 @@ class LPScorer(ABC):
     def invalidate_cache(self) -> None:
         """Invalidate any internal caches."""
         ...
+
+    def get_raw_lp_score(self, task_id: int, tracker: TaskTracker) -> float:
+        """Get raw LP score before normalization (default: same as regular score).
+
+        Args:
+            task_id: ID of task to score
+            tracker: TaskTracker instance
+
+        Returns:
+            Raw learning progress score
+        """
+        return self.score_task(task_id, tracker)
+
+    def get_postzscored_lp_score(self, task_id: int, tracker: TaskTracker) -> float:
+        """Get LP score after z-score but before sigmoid (default: same as regular score).
+
+        Args:
+            task_id: ID of task to score
+            tracker: TaskTracker instance
+
+        Returns:
+            Post-z-scored learning progress score
+        """
+        return self.score_task(task_id, tracker)
 
 
 class BidirectionalLPScorer(LPScorer):
