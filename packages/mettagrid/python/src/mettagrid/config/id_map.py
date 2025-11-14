@@ -65,7 +65,6 @@ class IdMap:
                 + self._config.agent.tags
             )
         )
-        print(f"result: {result}")
         return result
 
     def _compute_features(self) -> list[ObservationFeatureSpec]:
@@ -101,6 +100,10 @@ class IdMap:
 
         # Agent-specific features
         features.append(ObservationFeatureSpec(id=feature_id, normalization=255.0, name="vibe"))
+        feature_id += 1
+
+        # Visitation counts (include even if config disables emitting data)
+        features.append(ObservationFeatureSpec(id=feature_id, normalization=1000.0, name="agent:visitation_counts"))
         feature_id += 1
 
         # Compass direction toward assembler

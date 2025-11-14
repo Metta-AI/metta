@@ -55,7 +55,7 @@ def multi_episode_rollout(
     proportions: Optional[Sequence[float]] = None,
     progress_callback: Optional[ProgressCallback] = None,
     save_replay: Optional[Path] = None,
-    max_action_time_ms: int = 10000,
+    max_action_time_ms: int | None = None,
     event_handlers: Optional[list[SimulatorEventHandler]] = None,
 ) -> MultiEpisodeRolloutResult:
     """
@@ -75,11 +75,6 @@ def multi_episode_rollout(
     if proportions is not None and len(proportions) != len(policies):
         raise ValueError("Number of proportions must match number of policies.")
 
-    # Set up replay event handlers if save_replay is provided
-    handlers = list(event_handlers or [])
-    if save_replay is not None:
-        handlers.append(ReplayLogWriter(str(save_replay)))
-
     policy_counts = _compute_policy_agent_counts(
         env_cfg.game.num_agents, list(proportions) if proportions is not None else [1.0] * len(policies)
     )
@@ -95,6 +90,10 @@ def multi_episode_rollout(
         agent_policies: list[AgentPolicy] = [
             policies[assignments[agent_id]].agent_policy(agent_id) for agent_id in range(env_cfg.game.num_agents)
         ]
+        handlers = list(event_handlers or [])
+        # Set up replay event handlers if save_replay is provided
+        if save_replay is not None:
+            handlers.append(ReplayLogWriter(str(save_replay)))
 
         rollout = Rollout(
             env_cfg,

@@ -205,7 +205,9 @@ def _setup_recipe_logging(log_file: Path) -> None:
     metta_logger.setLevel(logging.DEBUG)
 
 
-def _run_recipe_tests(*, verbose: bool = False, name_filter: str | None = None) -> CheckResult:
+def _run_recipe_tests(
+    *, verbose: bool = False, name_filter: str | None = None, no_interactive: bool = False, max_local_jobs: int = 2
+) -> CheckResult:
     """Run recipe CI tests from stable recipes."""
     _print_header("Recipe CI Tests")
 
@@ -242,8 +244,7 @@ def _run_recipe_tests(*, verbose: bool = False, name_filter: str | None = None) 
         console.print(f"💡 Detailed logs: tail -f {log_file}\n")
 
         # Create JobManager after logging is configured
-        # Use 2 workers for local CI to speed up parallel execution
-        manager = JobManager(base_dir=jobs_dir, max_local_jobs=2)
+        manager = JobManager(base_dir=jobs_dir, max_local_jobs=max_local_jobs)
 
         # Submit, monitor, and report with group name
         all_passed = submit_monitor_and_report(
@@ -251,6 +252,7 @@ def _run_recipe_tests(*, verbose: bool = False, name_filter: str | None = None) 
             recipe_jobs,
             title="Recipe CI Tests",
             group=group,
+            no_interactive=no_interactive,
         )
 
         if all_passed:
@@ -283,15 +285,15 @@ def _print_summary(results: list[CheckResult]) -> None:
     console.print()
 
 
-StageRunner = Callable[[bool, Sequence[str] | None, str | None], CheckResult]
+StageRunner = Callable[[bool, Sequence[str] | None, str | None, bool], CheckResult]
 
 stages: dict[str, StageRunner] = {
-    "lint": lambda v, args, name: _run_lint(verbose=v, extra_args=args),
-    "python-tests-and-benchmarks": lambda v, args, name: _run_python_tests(verbose=v, extra_args=args),
-    "cpp-tests": lambda v, args, name: _run_cpp_tests(verbose=v, extra_args=args),
-    "cpp-benchmarks": lambda v, args, name: _run_cpp_benchmarks(verbose=v, extra_args=args),
-    "recipe-tests": lambda v, args, name: _run_recipe_tests(verbose=v, name_filter=name),
-    "nim-tests": lambda v, args, name: _run_nim_tests(verbose=v, extra_args=args),
+    "lint": lambda v, args, name, _: _run_lint(verbose=v, extra_args=args),
+    "python-tests-and-benchmarks": lambda v, args, name, _: _run_python_tests(verbose=v, extra_args=args),
+    "cpp-tests": lambda v, args, name, _: _run_cpp_tests(verbose=v, extra_args=args),
+    "cpp-benchmarks": lambda v, args, name, _: _run_cpp_benchmarks(verbose=v, extra_args=args),
+    "nim-tests": lambda v, args, name, _: _run_nim_tests(verbose=v, extra_args=args),
+    "recipe-tests": lambda v, args, name, ni: _run_recipe_tests(verbose=v, name_filter=name, no_interactive=ni),
 }
 
 
@@ -307,6 +309,9 @@ def cmd_ci(
     ] = None,
     continue_on_error: Annotated[bool, typer.Option("--continue-on-error", help="Don't stop on first failure")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Show detailed output")] = False,
+    no_interactive: Annotated[
+        bool, typer.Option("--no-interactive", help="Disable live display for CI environments")
+    ] = False,
 ):
     """Run CI checks locally to match remote CI behavior."""
     extra_args = list(getattr(ctx, "args", []))
@@ -327,7 +332,7 @@ def cmd_ci(
             raise typer.Exit(1)
 
         # Run the specific stage
-        result = stages[stage](verbose, extra_args, name)
+        result = stages[stage](verbose, extra_args, name, no_interactive)
         if result.passed:
             success(f"Stage '{stage}' passed!")
             sys.exit(0)
@@ -342,7 +347,7 @@ def cmd_ci(
 
     # Run all stages in order
     for stage_name, stage_func in stages.items():
-        result = stage_func(verbose, None, None)
+        result = stage_func(verbose, None, None, no_interactive)
         results.append(result)
         if not result.passed and not continue_on_error:
             _print_summary(results)

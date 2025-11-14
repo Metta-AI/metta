@@ -29,7 +29,7 @@ def test_launch_dry_run_success():
     """
     launch_script = get_launch_script_path()
 
-    # Run with --dry-run and --skip-git-check to avoid git state requirements
+    # Run with --dry-run and --skip-git-check (which also skips GitHub API calls)
     result = subprocess.run(
         [
             sys.executable,
