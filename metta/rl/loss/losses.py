@@ -6,13 +6,10 @@ from pydantic import Field
 from metta.agent.policy import Policy
 from metta.rl.loss import contrastive_config
 from metta.rl.loss.action_supervised import ActionSupervisedConfig
-from metta.rl.loss.alternating_kickstarter import AlternatingKickstarterConfig
 from metta.rl.loss.grpo import GRPOConfig
+from metta.rl.loss.kickstarter import KickstarterConfig
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.loss.ppo import PPOConfig
-from metta.rl.loss.sl_checkpointed_kickstarter import SLCheckpointedKickstarterConfig
-from metta.rl.loss.sl_kickstarter import SLKickstarterConfig
-from metta.rl.loss.tl_kickstarter import TLKickstarterConfig
 from metta.rl.training import TrainingEnvironment
 from mettagrid.base_config import Config
 
@@ -29,14 +26,7 @@ class LossesConfig(Config):
     )
     supervisor: ActionSupervisedConfig = Field(default_factory=lambda: ActionSupervisedConfig(enabled=False))
     grpo: GRPOConfig = Field(default_factory=lambda: GRPOConfig(enabled=False))
-    tl_kickstarter: TLKickstarterConfig = Field(default_factory=lambda: TLKickstarterConfig(enabled=False))
-    sl_kickstarter: SLKickstarterConfig = Field(default_factory=lambda: SLKickstarterConfig(enabled=False))
-    sl_checkpointed_kickstarter: SLCheckpointedKickstarterConfig = Field(
-        default_factory=lambda: SLCheckpointedKickstarterConfig(enabled=False)
-    )
-    alternating_kickstarter: AlternatingKickstarterConfig = Field(
-        default_factory=lambda: AlternatingKickstarterConfig(enabled=False)
-    )
+    kickstarter: KickstarterConfig = Field(default_factory=lambda: KickstarterConfig(enabled=False))
 
     def _configs(self) -> dict[str, LossConfig]:
         loss_configs: dict[str, LossConfig] = {}
@@ -48,14 +38,8 @@ class LossesConfig(Config):
             loss_configs["supervisor"] = self.supervisor
         if self.grpo.enabled:
             loss_configs["grpo"] = self.grpo
-        if self.tl_kickstarter.enabled:
-            loss_configs["tl_kickstarter"] = self.tl_kickstarter
-        if self.sl_kickstarter.enabled:
-            loss_configs["sl_kickstarter"] = self.sl_kickstarter
-        if self.sl_checkpointed_kickstarter.enabled:
-            loss_configs["sl_checkpointed_kickstarter"] = self.sl_checkpointed_kickstarter
-        if self.alternating_kickstarter.enabled:
-            loss_configs["alternating_kickstarter"] = self.alternating_kickstarter
+        if self.kickstarter.enabled:
+            loss_configs["kickstarter"] = self.kickstarter
         return loss_configs
 
     def init_losses(

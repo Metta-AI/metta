@@ -9,10 +9,9 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.rl.loss.kickstarter import KickstarterConfig
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.loss.ppo import PPOConfig
-from metta.rl.loss.sl_kickstarter import SLKickstarterConfig
-from metta.rl.loss.tl_kickstarter import TLKickstarterConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import (
     CheckpointerConfig,
@@ -107,16 +106,13 @@ def train(
 
     eval_simulations = simulations()
 
-    # Configure losses with PPO and tl_kickstarter
+    # Configure losses with PPO and Kickstarter
     loss_config = LossesConfig(
         ppo=PPOConfig(enabled=True),  # PPO is enabled by default, but explicit here
-        tl_kickstarter=TLKickstarterConfig(
+        kickstarter=KickstarterConfig(
             enabled=True,
             teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v10008.mpt",
-        ),
-        sl_kickstarter=SLKickstarterConfig(
-            enabled=True,
-            teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v10008.mpt",
+            teacher_lead_prob=1,
         ),
     )
 
@@ -128,11 +124,11 @@ def train(
     if policy_architecture is None:
         policy_architecture = ViTDefaultConfig()
 
-    # Configure scheduler with run gates
+    # Kickstarting cycles by epoch between teacher lead and student lead
     scheduler = SchedulerConfig(
         run_gates=[
             LossRunGate(
-                loss_instance_name="tl_kickstarter",
+                loss_instance_name="kickstarter",
                 phase="rollout",
                 begin_at_step=0,
                 end_at_step=500_000_000,
@@ -163,10 +159,6 @@ def train(
                 cycle_length=50,
                 active_in_cycle=list(range(21, 51)),
             ),
-            # -------------------------
-            # 500M .. 1B agent steps:
-            # tl_kickstarter fully OFF (no active gates in this window)
-            # sl_kickstarter and ppo fully ON (rollout/train as applicable)
             LossRunGate(
                 loss_instance_name="ppo",
                 phase="rollout",
@@ -192,7 +184,6 @@ def train(
             ),
         ],
         rules=[
-            # Linearly decay SL kickstarter losses from defaults to 0 over 500M..1B steps
             HyperUpdateRule(
                 loss_instance_name="sl_kickstarter",
                 attr_path="action_loss_coef",

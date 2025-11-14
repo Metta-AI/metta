@@ -12,8 +12,6 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.loss.ppo import PPOConfig
 from metta.rl.loss.sl_checkpointed_kickstarter import SLCheckpointedKickstarterConfig
-
-# from metta.rl.loss.tl_kickstarter import TLKickstarterConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import (
     CheckpointerConfig,
@@ -109,11 +107,7 @@ def train(
     eval_simulations = simulations()
 
     loss_config = LossesConfig(
-        ppo=PPOConfig(enabled=True),  # PPO is enabled by default, but explicit here
-        # tl_kickstarter=TLKickstarterConfig(
-        #     enabled=True,
-        #     teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v10008.mpt",
-        # ),
+        ppo=PPOConfig(enabled=True),
         sl_checkpointed_kickstarter=SLCheckpointedKickstarterConfig(
             enabled=True,
             teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v8016.mpt",
@@ -134,19 +128,6 @@ def train(
     # Configure scheduler with run gates
     scheduler = SchedulerConfig(
         run_gates=[
-            # LossRunGate(
-            #     loss_instance_name="ppo", phase="rollout", begin_at_step=50_000_000
-            # ),
-            # LossRunGate(
-            #     loss_instance_name="tl_kickstarter",
-            #     phase="rollout",
-            #     end_at_step=50_000_000,
-            # ),
-            # LossRunGate(
-            #     loss_instance_name="tl_kickstarter",
-            #     phase="train",
-            #     end_at_step=50_000_000,
-            # ),
             LossRunGate(
                 loss_instance_name="sl_checkpointed_kickstarter",
                 phase="rollout",
