@@ -20,14 +20,14 @@ jobs:
   stable-release:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # Needed to create tags and push to stable branch
-      issues: write    # Needed for Asana integration (if used)
+      contents: write # Needed to create tags and push to stable branch
+      issues: write # Needed for Asana integration (if used)
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Full history needed for git operations
+          fetch-depth: 0 # Full history needed for git operations
 
       - name: Setup Environment
         uses: ./.github/actions/setup-environment
