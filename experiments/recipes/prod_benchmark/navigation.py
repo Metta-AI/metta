@@ -128,7 +128,6 @@ def make_curriculum(
 
 
 def train(
-    *,
     architecture: str = "vit_reset",
     seed: int | None = None,
     enable_detailed_slice_logging: bool = False,
