@@ -239,7 +239,7 @@ def render_eval_summary(rollout_results: list[SimulationRunResult], policy_names
                 policy_table.add_row(s_name, key, f"{value:.2f}")
         _print(policy_table)
 
-    _print("\n[bold cyan]Average Reward per Agent[/bold cyan]")
+    _print("\n[bold cyan]Average Per-Agent Reward [/bold cyan]")
     summary_table = Table(show_header=True, header_style="bold magenta")
     summary_table.add_column("Simulation")
     summary_table.add_column("Episode", justify="right")
