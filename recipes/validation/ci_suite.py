@@ -6,7 +6,7 @@ import os
 from datetime import datetime
 
 from metta.jobs.job_config import JobConfig
-from recipes.prod.cogames import build_train_command, get_ci_train_config
+from recipes.prod.cogames import build_eval_command, build_train_command, get_ci_eval_config, get_ci_train_config
 
 
 def get_user_timestamp() -> str:
@@ -105,11 +105,12 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
     )
 
     # CoGames - Evaluate trained policy from local checkpoint
-    # Use tool for automatic checkpoint discovery (can't predict checkpoint name in advance)
+    # Use shared config to stay in sync with stable suite
+    # Pass directory path - cogames will auto-discover latest .pt file
+    cogames_eval_config = get_ci_eval_config(cogames_train_name)
     cogames_eval = JobConfig(
         name=cogames_eval_name,
-        recipe="recipes.prod.cogames.evaluate_latest_in_dir",
-        args={"dir_path": f"./train_dir/{cogames_train_name}"},
+        cmd=build_eval_command(cogames_eval_config, cogames_eval_config["checkpoint_dir"]),
         dependency_names=[cogames_train_name],
         timeout_s=300,
         group=group,
