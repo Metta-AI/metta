@@ -1,5 +1,6 @@
 import math
 
+from mettagrid.config._cpp_build import ensure_protocol_min_agents
 from mettagrid.config.mettagrid_config import (
     AgentConfig,
     AssemblerConfig,
@@ -23,6 +24,8 @@ from mettagrid.mettagrid_c import MoveActionConfig as CppMoveActionConfig
 from mettagrid.mettagrid_c import Protocol as CppProtocol
 from mettagrid.mettagrid_c import ResourceModConfig as CppResourceModConfig
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
+
+ensure_protocol_min_agents()
 
 
 def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
