@@ -198,14 +198,7 @@ class LocalJob(Job):
     ):
         super().__init__(config.name, log_dir, config.timeout_s, config)
         self.cwd = cwd or get_repo_root()
-        if "cmd" in config.metadata:
-            cmd = config.metadata["cmd"]
-            if isinstance(cmd, str):
-                cmd = shlex.split(cmd)
-            self.cmd = cmd
-        else:
-            self.cmd = ["uv", "run", "./tools/run.py", config.module]
-            self.cmd.extend(config.args)
+        self.cmd = config.build_command()
 
         self._proc: Optional[subprocess.Popen] = None
         self._exit_code: Optional[int] = None
@@ -366,7 +359,8 @@ class RemoteJob(Job):
         else:
             base_args = ["--no-spot", "--gpus=4", "--nodes", "1"]
 
-        self.module = config.module
+        self.tool_or_cmd = config.tool or config.cmd
+        self.use_tool = config.tool is not None  # Store whether this is a tool or cmd job
         self.args = arg_list
         self.base_args = base_args
         self.skip_git_check = skip_git_check
@@ -396,10 +390,14 @@ class RemoteJob(Job):
         Args:
             run_name: WandB run name (only passed for training jobs, None otherwise)
         """
+        # Use stored flag for tool vs cmd
+        cmd_flag = "--tool" if self.use_tool else "--cmd"
+
         cmd = [
             "devops/skypilot/launch.py",
+            cmd_flag,
             *self.base_args,
-            self.module,
+            self.tool_or_cmd,
         ]
 
         # Only pass run= for training jobs (they use WandB for experiment tracking)
