@@ -72,7 +72,6 @@ class AgentConfig(GridObjectConfig):
         resource_limits: dict[int, int] = {},
         stat_rewards: dict[str, float] = {},
         stat_reward_max: dict[str, float] = {},
-        group_reward_pct: float = 0,
         initial_inventory: dict[int, int] = {},
         soul_bound_resources: list[int] | None = None,
         shareable_resources: list[int] | None = None,
@@ -89,7 +88,6 @@ class AgentConfig(GridObjectConfig):
     resource_limits: dict[int, int]
     stat_rewards: dict[str, float]  # Added this
     stat_reward_max: dict[str, float]  # Added this
-    group_reward_pct: float
     initial_inventory: dict[int, int]
     soul_bound_resources: list[int]
     shareable_resources: list[int]
