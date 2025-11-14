@@ -129,6 +129,7 @@ bool Agent::onUse(Agent& actor, ActionArg arg) {
   }
 
   // Transfer each configured resource
+  bool any_transfer_occurred = false;
   const auto& resource_deltas = vibe_it->second;
   for (const auto& [resource, amount] : resource_deltas) {
     if (amount > 0) {
@@ -138,11 +139,14 @@ bool Agent::onUse(Agent& actor, ActionArg arg) {
       if (share_attempted_amount > 0) {
         InventoryDelta successful_share_amount = this->update_inventory(resource, share_attempted_amount);
         actor.update_inventory(resource, -successful_share_amount);
+        if (successful_share_amount > 0) {
+          any_transfer_occurred = true;
+        }
       }
     }
   }
 
-  return true;
+  return any_transfer_occurred;
 }
 
 std::vector<PartialObservationToken> Agent::obs_features() const {
