@@ -1,6 +1,3 @@
-from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
-from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
-from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS as INTEGRATED_EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import Mission
 from cogames.cogs_vs_clips.mission_utils import get_map
 from cogames.cogs_vs_clips.sites import HELLO_WORLD, MACHINA_1, TRAINING_FACILITY
@@ -110,9 +107,6 @@ MISSIONS: list[Mission] = [
     HelloWorldUnclipMission,
     HelloWorldOpenWorldMission,
     Machina1OpenWorldMission,
-    *EVAL_MISSIONS,
-    *INTEGRATED_EVAL_MISSIONS,
-    *[mission_cls() for mission_cls in DIAGNOSTIC_EVALS],  # type: ignore[call-arg]
 ]
 
 
