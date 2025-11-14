@@ -107,6 +107,7 @@ class ActionConfig:
 
 class Protocol:
     def __init__(self) -> None: ...
+    min_agents: int
     vibes: list[int]
     input_resources: dict[int, int]
     output_resources: dict[int, int]
