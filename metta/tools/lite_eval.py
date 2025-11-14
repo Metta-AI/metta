@@ -1,3 +1,4 @@
+import json
 import logging
 from collections import defaultdict
 from datetime import datetime
@@ -53,9 +54,22 @@ class LiteEvalTool(Tool):
         )
         logger.info(f"Summaries: {summaries}")
 
+        eval_results = self._build_eval_results(simulation_results, summaries)
+        logger.info(
+            "EvalResults schema: %s",
+            json.dumps(
+                {
+                    "metrics": {
+                        "reward_avg": eval_results.scores.avg_simulation_score,
+                        "reward_avg_category_normalized": eval_results.scores.avg_category_score,
+                        "detailed": eval_results.scores.to_wandb_metrics_format(),
+                    },
+                    "replay_url": eval_results.replay_urls,
+                },
+                indent=2,
+            ),
+        )
         if self.log_to_wandb:
-            eval_results = self._build_eval_results(simulation_results, summaries)
-            logger.info("EvalResults schema: %s", eval_results)
             self._log_to_wandb(eval_results)
         return 0
 
