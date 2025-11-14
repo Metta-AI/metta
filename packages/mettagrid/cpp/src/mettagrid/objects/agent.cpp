@@ -125,7 +125,7 @@ bool Agent::onUse(Agent& actor, ActionArg arg) {
   // Look up transfers for the actor's vibe
   auto vibe_it = actor.vibe_transfers.find(actor.vibe);
   if (vibe_it == actor.vibe_transfers.end()) {
-    return true;  // No transfers configured for this vibe
+    return false;  // No transfers configured for this vibe
   }
 
   // Transfer each configured resource
