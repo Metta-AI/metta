@@ -642,7 +642,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         # Collect task-level data
         completion_counts = []
-        raw_lp_scores = []
+        raw_lp_scores = []  # Actual raw LP: |p_fast - p_slow|
         z_scored_lp_scores = []
         sampling_probs = []
         task_labels_list = []
@@ -653,20 +653,24 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                 completion_count = float(task_stats["completion_count"])
                 completion_counts.append(completion_count)
 
-                # Stage 5: All LP score variants now unified into single score_task()
-                # Raw, z-scored, and final sampling probability are now the same value
-                # (final sampling probability after all transformations)
+                # Get final sampling probability (after all transformations)
                 sampling_prob = self.scorer.score_task(task_id, self.task_tracker)
-                raw_lp_scores.append(float(sampling_prob))
-                z_scored_lp_scores.append(float(sampling_prob))
                 sampling_probs.append(float(sampling_prob))
+                z_scored_lp_scores.append(float(sampling_prob))  # Currently same as sampling_prob
+
+                # Get actual raw learning progress: |p_fast - p_slow|
+                # This is the true LP signal before smoothing/normalization
+                p_fast = float(task_stats.get("p_fast", 0.0))
+                p_slow = float(task_stats.get("p_slow", 0.0))
+                raw_lp = abs(p_fast - p_slow)
+                raw_lp_scores.append(raw_lp)
 
                 label = self.task_tracker.get_task_label(task_id)
                 task_labels_list.append(label if label else "unknown")
 
                 if self.hypers.show_curriculum_troubleshooting_logging:
                     gini_stats[f"task_metrics/{task_id}/completion_count"] = completion_count
-                    # Stage 5: raw_lp and sampling_prob now unified
+                    gini_stats[f"task_metrics/{task_id}/raw_lp"] = raw_lp
                     gini_stats[f"task_metrics/{task_id}/sampling_prob"] = sampling_prob
 
         if completion_counts:
@@ -674,6 +678,14 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         if raw_lp_scores:
             gini_stats["curriculum_gini/raw_lp_scores"] = self._calculate_gini_coefficient(raw_lp_scores)
+            # Debug stats for raw LP
+            import statistics
+
+            gini_stats["debug/raw_lp_mean"] = float(statistics.mean(raw_lp_scores))
+            gini_stats["debug/raw_lp_std"] = float(statistics.stdev(raw_lp_scores)) if len(raw_lp_scores) > 1 else 0.0
+            gini_stats["debug/raw_lp_max"] = float(max(raw_lp_scores))
+            gini_stats["debug/raw_lp_min"] = float(min(raw_lp_scores))
+            gini_stats["debug/raw_lp_nonzero_count"] = float(sum(1 for x in raw_lp_scores if x > 1e-10))
 
         if raw_lp_scores and task_labels_list:
             label_lp_sums = {}
