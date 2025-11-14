@@ -56,6 +56,8 @@ def train(
     )
 
     tool.trainer.behavior_cloning.policy_uri = NIM_TEACHER_POLICY
+    tool.trainer.behavior_cloning.student_led = False
+
     tool.trainer.total_timesteps = total_timesteps
     tool.trainer.minibatch_size = 512
     tool.trainer.batch_size = 4096
