@@ -1,17 +1,11 @@
 import numpy as np
 import pytest
 
-from mettagrid.policy.policy import PolicySpec
 from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult
 from mettagrid.simulator.multi_episode.summary import build_multi_episode_rollout_summaries
 
 
 def test_build_results_summary_multi_mission_policy_episode() -> None:
-    policy_specs = [
-        PolicySpec(class_path="cogames.policy.MockPolicy", data_path=None),
-        PolicySpec(class_path="cogames.policy.MockPolicy", data_path=None),
-    ]
-
     mission_one = MultiEpisodeRolloutResult(
         assignments=[
             np.array([0, 0, 1], dtype=int),
@@ -69,10 +63,7 @@ def test_build_results_summary_multi_mission_policy_episode() -> None:
         ],
     )
 
-    summary = build_multi_episode_rollout_summaries(
-        rollout_results=[mission_one, mission_two],
-        policy_specs=policy_specs,
-    )
+    summary = build_multi_episode_rollout_summaries(rollout_results=[mission_one, mission_two], num_policies=2)
 
     assert len(summary) == 2
 
@@ -87,12 +78,10 @@ def test_build_results_summary_multi_mission_policy_episode() -> None:
 
     assert len(mission_one_summary.policy_summaries) == 2
     policy_a, policy_b = mission_one_summary.policy_summaries
-    assert policy_a.policy_name == "MockPolicy"
     assert policy_a.agent_count == 2
     assert policy_a.avg_agent_metrics == pytest.approx({"stat_a": 5.0, "stat_b": 3.0})
     assert policy_a.action_timeouts == 1
 
-    assert policy_b.policy_name == "MockPolicy"
     assert policy_b.agent_count == 1
     assert policy_b.avg_agent_metrics == pytest.approx({"stat_a": 9.0})
     assert policy_b.action_timeouts == 2
@@ -109,12 +98,10 @@ def test_build_results_summary_multi_mission_policy_episode() -> None:
     assert r2[2] == pytest.approx([6.0, 7.5])
 
     policy_c, policy_d = mission_two_summary.policy_summaries
-    assert policy_c.policy_name == "MockPolicy"
     assert policy_c.agent_count == 1
     assert policy_c.avg_agent_metrics == pytest.approx({"stat_a": 12.0})
     assert policy_c.action_timeouts == 0
 
-    assert policy_d.policy_name == "MockPolicy"
     assert policy_d.agent_count == 2
     assert policy_d.avg_agent_metrics == pytest.approx({"stat_a": 9.0, "stat_b": 4.5})
     assert policy_d.action_timeouts == 5
