@@ -136,6 +136,88 @@ RESOURCE_TYPES = [
 ]
 
 
+def make_assembly_line_eval_env(
+    chain_length: int,
+    num_sinks: int,
+    room_size: str,
+    terrain: str,
+) -> MettaGridConfig:
+    task_generator_cfg = make_task_generator_cfg(
+        chain_lengths=[chain_length],
+        num_sinks=[num_sinks],
+        room_sizes=[room_size],
+        terrains=[terrain],
+    )
+    task_generator = AssemblyLinesTaskGenerator(task_generator_cfg)
+    # different set of resources and converters for evals
+    return task_generator.get_task(random.randint(0, 1000000))
+
+
+def make_assembly_line_eval_suite() -> list[SimulationConfig]:
+    return [
+        SimulationConfig(
+            suite="in_context_ordered_chains",
+            name="2c_2s_medium",
+            env=make_assembly_line_eval_env(2, 2, "medium", "no-terrain"),
+        ),
+        SimulationConfig(
+            suite="in_context_ordered_chains",
+            name="2c_2s_medium_balanced",
+            env=make_assembly_line_eval_env(2, 2, "medium", "balanced"),
+        ),
+        SimulationConfig(
+            suite="in_context_ordered_chains",
+            name="3c_1s_medium",
+            env=make_assembly_line_eval_env(3, 1, "medium", "no-terrain"),
+        ),
+        SimulationConfig(
+            suite="in_context_ordered_chains",
+            name="3c_2s_medium",
+            env=make_assembly_line_eval_env(3, 2, "medium", "no-terrain"),
+        ),
+        SimulationConfig(
+            suite="in_context_ordered_chains",
+            name="4c_1s_medium_terrain_dense",
+            env=make_assembly_line_eval_env(4, 1, "medium", "dense"),
+        ),
+        SimulationConfig(
+            suite="in_context_ordered_chains",
+            name="4c_1s_medium_balanced",
+            env=make_assembly_line_eval_env(4, 1, "medium", "balanced"),
+        ),
+        SimulationConfig(
+            suite="in_context_ordered_chains",
+            name="4c_2s_medium_balanced",
+            env=make_assembly_line_eval_env(4, 2, "medium", "balanced"),
+        ),
+        SimulationConfig(
+            suite="in_context_ordered_chains",
+            name="4c_2s_large_balanced",
+            env=make_assembly_line_eval_env(4, 2, "large", "balanced"),
+        ),
+        SimulationConfig(
+            suite="in_context_ordered_chains",
+            name="5c_1s_medium",
+            env=make_assembly_line_eval_env(5, 1, "medium", "no-terrain"),
+        ),
+        SimulationConfig(
+            suite="in_context_ordered_chains",
+            name="5c_1s_medium_balanced",
+            env=make_assembly_line_eval_env(5, 1, "medium", "balanced"),
+        ),
+        SimulationConfig(
+            suite="in_context_ordered_chains",
+            name="5c_2s_medium_balanced",
+            env=make_assembly_line_eval_env(5, 2, "medium", "balanced"),
+        ),
+        SimulationConfig(
+            suite="in_context_ordered_chains",
+            name="5c_2s_large_dense",
+            env=make_assembly_line_eval_env(5, 2, "large", "dense"),
+        ),
+    ]
+
+
 @dataclass
 class _BuildCfg:
     used_objects: list[str] = field(default_factory=list)
@@ -325,10 +407,6 @@ def make_task_generator_cfg(
 def train(
     curriculum_style: str = "level_0",
 ) -> TrainTool:
-    from metta.evals.assembly_lines import (
-        make_assembly_line_eval_suite,
-    )
-
     task_generator_cfg = make_task_generator_cfg(**curriculum_args[curriculum_style])
     curriculum = CurriculumConfig(task_generator=task_generator_cfg, algorithm_config=LearningProgressConfig())
 
@@ -348,8 +426,6 @@ def make_mettagrid(task_generator: AssemblyLinesTaskGenerator) -> MettaGridConfi
 
 def evaluate(policy_uris: str | list[str] | None = None) -> EvaluateTool:
     """Evaluate policies on assembly line tasks."""
-    from metta.evals.assembly_lines import make_assembly_line_eval_suite
-
     return EvaluateTool(
         simulations=make_assembly_line_eval_suite(),
         policy_uris=policy_uris or [],
@@ -375,17 +451,14 @@ def replay(
 
 def experiment():
     for curriculum_style in curriculum_args:
-        run_name = f"assembly_lines_{curriculum_style}.{time.strftime('%Y-%m-%d')}"
-
         subprocess.run(
             [
                 "./devops/skypilot/launch.py",
-                "--tool",
-                "experiments.recipes.assembly_lines.train",
-                f"run={run_name}",
+                "recipes.experiment.assembly_lines.train",
+                f"run=assembly_lines_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
                 "--gpus=4",
-                "--heartbeat-timeout-seconds=3600",
+                "--heartbeat-timeout=3600",
                 "--skip-git-check",
             ]
         )
