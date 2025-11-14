@@ -163,9 +163,12 @@ class NeutralFacedVariant(MissionVariant):
         # Make assembler/chest behavior neutral-only.
         for name, obj in env.game.objects.items():
             if isinstance(obj, AssemblerConfig) and obj.protocols:
-                primary_protocol = obj.protocols[0].model_copy(deep=True)
-                primary_protocol.vibes = [neutral_vibe_name]
-                obj.protocols = [primary_protocol]
+                updated_protocols: list[ProtocolConfig] = []
+                for proto in obj.protocols:
+                    updated = proto.model_copy(deep=True)
+                    updated.vibes = [neutral_vibe_name]
+                    updated_protocols.append(updated)
+                obj.protocols = updated_protocols
             elif isinstance(obj, ChestConfig) and name == "chest":
                 obj.vibe_transfers = {neutral_vibe_name: {"heart": 255}}
 
