@@ -1,8 +1,8 @@
 """Test vibe-based agent resource sharing functionality.
 
 This test verifies that agents share resources based on their current vibe:
-- When vibe=0 (neutral): shares half of ALL shareable resources (original behavior)
-- When vibe!=0: shares half of ONLY the resource matching the vibe name
+- Agents share half of ONLY the resource matching the vibe name
+- If vibe doesn't match a shareable resource, no sharing occurs
 """
 
 from mettagrid.config.mettagrid_config import MettaGridConfig
@@ -104,81 +104,8 @@ class TestVibeBasedSharing:
             f"Agent 1 should still have 6 food (not shareable). Has {agent1_after['inventory'][food_idx]}"
         )
 
-    def test_neutral_vibe_shares_all_resources(self):
-        """Test that vibe=0 (neutral) still shares all shareable resources (backward compatibility)."""
-        # Create a simple environment with 2 agents
-        cfg = MettaGridConfig.EmptyRoom(num_agents=2, with_walls=True).with_ascii_map(
-            [
-                ["#", "#", "#", "#"],
-                ["#", "@", "@", "#"],
-                ["#", "#", "#", "#"],
-            ]
-        )
-
-        # Configure resources
-        cfg.game.resource_names = ["charger", "water", "food"]
-        cfg.game.agent.initial_inventory = {"charger": 10, "water": 8, "food": 6}
-        cfg.game.agent.shareable_resources = ["charger", "water"]
-
-        # Enable move action
-        cfg.game.actions.move.enabled = True
-        cfg.game.actions.noop.enabled = True
-
-        sim = Simulation(cfg)
-
-        # Get resource indices
-        charger_idx = sim.resource_names.index("charger")
-        water_idx = sim.resource_names.index("water")
-        food_idx = sim.resource_names.index("food")
-
-        # Get agent states - vibe should be 0 by default
-        grid_objects = sim.grid_objects()
-        agents = sorted([obj for obj in grid_objects.values() if "agent_id" in obj], key=lambda x: x["agent_id"])
-        agent0 = agents[0]
-
-        # Vibe should be 0 (neutral/default) unless explicitly set
-        assert agent0.get("vibe", 0) == 0, "Agent 0 should have neutral vibe (0) by default"
-
-        # Have agent 0 move onto agent 1 with neutral vibe
-        # This should share ALL shareable resources (original behavior)
-        sim.agent(0).set_action("move_east")
-        sim.agent(1).set_action("noop")
-        sim.step()
-
-        # Check inventory after sharing
-        grid_objects_after = sim.grid_objects()
-        agents_after = sorted(
-            [obj for obj in grid_objects_after.values() if "agent_id" in obj], key=lambda x: x["agent_id"]
-        )
-        agent0_after = agents_after[0]
-        agent1_after = agents_after[1]
-
-        # With neutral vibe, should share half of ALL shareable resources:
-        # Charger: 10 -> 5 (agent 0), 10 -> 15 (agent 1)
-        # Water: 8 -> 4 (agent 0), 8 -> 12 (agent 1)
-        # Food: unchanged (not shareable)
-        assert agent0_after["inventory"][charger_idx] == 5, (
-            f"Agent 0 should have 5 charger after sharing all. Has {agent0_after['inventory'][charger_idx]}"
-        )
-        assert agent0_after["inventory"][water_idx] == 4, (
-            f"Agent 0 should have 4 water after sharing all. Has {agent0_after['inventory'][water_idx]}"
-        )
-        assert agent0_after["inventory"][food_idx] == 6, (
-            f"Agent 0 should still have 6 food (not shareable). Has {agent0_after['inventory'][food_idx]}"
-        )
-
-        assert agent1_after["inventory"][charger_idx] == 15, (
-            f"Agent 1 should have 15 charger after receiving. Has {agent1_after['inventory'][charger_idx]}"
-        )
-        assert agent1_after["inventory"][water_idx] == 12, (
-            f"Agent 1 should have 12 water after receiving. Has {agent1_after['inventory'][water_idx]}"
-        )
-        assert agent1_after["inventory"][food_idx] == 6, (
-            f"Agent 1 should still have 6 food (not shareable). Has {agent1_after['inventory'][food_idx]}"
-        )
-
-    def test_vibe_with_non_shareable_resource_fallback(self):
-        """Test that vibing a non-shareable resource falls back to sharing all shareable resources."""
+    def test_vibe_with_no_matching_resource(self):
+        """Test that vibing a non-existent resource results in no sharing."""
         # Create environment
         cfg = MettaGridConfig.EmptyRoom(num_agents=2, with_walls=True).with_ascii_map(
             [
@@ -188,10 +115,9 @@ class TestVibeBasedSharing:
             ]
         )
 
-        # food is a vibe but NOT shareable
         cfg.game.resource_names = ["charger", "water", "food"]
         cfg.game.agent.initial_inventory = {"charger": 10, "water": 8, "food": 6}
-        cfg.game.agent.shareable_resources = ["charger", "water"]  # food is not shareable
+        cfg.game.agent.shareable_resources = ["charger", "water"]
 
         cfg.game.actions.move.enabled = True
         cfg.game.actions.noop.enabled = True
@@ -205,21 +131,18 @@ class TestVibeBasedSharing:
         water_idx = sim.resource_names.index("water")
         food_idx = sim.resource_names.index("food")
 
-        # Set agent 0's vibe to "food" (which is not shareable)
-        # According to vibes.py, we need to find the right vibe ID
-        # For this test, we'll assume there's a vibe action for food or use a different vibe
-        # Let's use "up" vibe which doesn't match any resource
+        # Set agent 0's vibe to "up" which doesn't match any resource
         sim.agent(0).set_action("change_vibe_up")
         sim.agent(1).set_action("noop")
         sim.step()
 
         # Have agent 0 move onto agent 1
-        # Since "up" vibe doesn't match any shareable resource, should fall back to sharing all
+        # Since "up" vibe doesn't match any resource, no sharing should occur
         sim.agent(0).set_action("move_east")
         sim.agent(1).set_action("noop")
         sim.step()
 
-        # Check inventory after sharing
+        # Check inventory - nothing should change
         grid_objects_after = sim.grid_objects()
         agents_after = sorted(
             [obj for obj in grid_objects_after.values() if "agent_id" in obj], key=lambda x: x["agent_id"]
@@ -227,12 +150,12 @@ class TestVibeBasedSharing:
         agent0_after = agents_after[0]
         agent1_after = agents_after[1]
 
-        # Should fall back to sharing ALL shareable resources
-        assert agent0_after["inventory"][charger_idx] == 5, (
-            f"Agent 0 should have 5 charger (fallback to sharing all). Has {agent0_after['inventory'][charger_idx]}"
+        # No sharing should occur
+        assert agent0_after["inventory"][charger_idx] == 10, (
+            f"Agent 0 should still have 10 charger (no sharing). Has {agent0_after['inventory'][charger_idx]}"
         )
-        assert agent0_after["inventory"][water_idx] == 4, (
-            f"Agent 0 should have 4 water (fallback to sharing all). Has {agent0_after['inventory'][water_idx]}"
+        assert agent0_after["inventory"][water_idx] == 8, (
+            f"Agent 0 should still have 8 water (no sharing). Has {agent0_after['inventory'][water_idx]}"
         )
-        assert agent1_after["inventory"][charger_idx] == 15
-        assert agent1_after["inventory"][water_idx] == 12
+        assert agent1_after["inventory"][charger_idx] == 10
+        assert agent1_after["inventory"][water_idx] == 8

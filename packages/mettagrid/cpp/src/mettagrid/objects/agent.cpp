@@ -31,15 +31,15 @@ Agent::Agent(GridCoord r,
       prev_action_name(""),
       steps_without_motion(0),
       inventory_regen_amounts(config.inventory_regen_amounts),
-      resource_names_(resource_names),
-      vibe_names_(vibe_names),
-      diversity_tracked_mask_(resource_names != nullptr ? resource_names->size() : 0, 0),
-      tracked_resource_presence_(resource_names != nullptr ? resource_names->size() : 0, 0),
-      tracked_resource_diversity_(0) {
+      resource_names(resource_names),
+      vibe_names(vibe_names),
+      diversity_tracked_mask(resource_names != nullptr ? resource_names->size() : 0, 0),
+      tracked_resource_presence(resource_names != nullptr ? resource_names->size() : 0, 0),
+      tracked_resource_diversity(0) {
   for (InventoryItem item : config.diversity_tracked_resources) {
     const size_t index = static_cast<size_t>(item);
-    if (index < diversity_tracked_mask_.size()) {
-      diversity_tracked_mask_[index] = 1;
+    if (index < diversity_tracked_mask.size()) {
+      diversity_tracked_mask[index] = 1;
     }
   }
 
@@ -124,56 +124,31 @@ void Agent::compute_stat_rewards(StatsTracker* game_stats_tracker) {
 }
 
 bool Agent::onUse(Agent& actor, ActionArg arg) {
-  // If vibe is set and we have the mapping information, share only the vibed resource
-  if (actor.vibe != 0 && actor.vibe_names_ != nullptr && actor.resource_names_ != nullptr) {
-    // Get the vibe name from the vibe ID
-    if (static_cast<size_t>(actor.vibe) < actor.vibe_names_->size()) {
-      const std::string& vibe_name = (*actor.vibe_names_)[actor.vibe];
+  // Share half of the resource matching the actor's vibe
+  const std::string& vibe_name = (*actor.vibe_names)[actor.vibe];
 
-      // Find matching resource by name
-      InventoryItem resource_to_share = static_cast<InventoryItem>(-1);
-      for (size_t i = 0; i < actor.resource_names_->size(); ++i) {
-        if ((*actor.resource_names_)[i] == vibe_name) {
-          resource_to_share = static_cast<InventoryItem>(i);
-          break;
-        }
-      }
-
-      // If we found a matching resource and it's in shareable_resources, share it
-      if (resource_to_share != static_cast<InventoryItem>(-1)) {
-        bool is_shareable = false;
-        for (InventoryItem shareable : actor.shareable_resources) {
-          if (shareable == resource_to_share) {
-            is_shareable = true;
-            break;
-          }
-        }
-
-        if (is_shareable) {
-          InventoryQuantity actor_amount = actor.inventory.amount(resource_to_share);
-          // Calculate half (rounded down)
-          InventoryQuantity share_attempted_amount = actor_amount / 2;
-          if (share_attempted_amount > 0) {
-            // The actor is trying to give us resources. We need to make sure we can take them.
-            InventoryDelta successful_share_amount = this->update_inventory(resource_to_share, share_attempted_amount);
-            actor.update_inventory(resource_to_share, -successful_share_amount);
-          }
-          return true;
-        }
-      }
+  // Find matching resource by name
+  InventoryItem resource_to_share = static_cast<InventoryItem>(-1);
+  for (size_t i = 0; i < actor.resource_names->size(); ++i) {
+    if ((*actor.resource_names)[i] == vibe_name) {
+      resource_to_share = static_cast<InventoryItem>(i);
+      break;
     }
   }
 
-  // Fallback: Share half of all shareable resources (original behavior)
-  // This happens when vibe is 0, mapping info is missing, or vibe doesn't match a shareable resource
-  for (InventoryItem resource : actor.shareable_resources) {
-    InventoryQuantity actor_amount = actor.inventory.amount(resource);
-    // Calculate half (rounded down)
-    InventoryQuantity share_attempted_amount = actor_amount / 2;
-    if (share_attempted_amount > 0) {
-      // The actor is trying to give us resources. We need to make sure we can take them.
-      InventoryDelta successful_share_amount = this->update_inventory(resource, share_attempted_amount);
-      actor.update_inventory(resource, -successful_share_amount);
+  // If we found a matching resource and it's in shareable_resources, share it
+  if (resource_to_share != static_cast<InventoryItem>(-1)) {
+    for (InventoryItem shareable : actor.shareable_resources) {
+      if (shareable == resource_to_share) {
+        InventoryQuantity actor_amount = actor.inventory.amount(resource_to_share);
+        // Calculate half (rounded down)
+        InventoryQuantity share_attempted_amount = actor_amount / 2;
+        if (share_attempted_amount > 0) {
+          InventoryDelta successful_share_amount = this->update_inventory(resource_to_share, share_attempted_amount);
+          actor.update_inventory(resource_to_share, -successful_share_amount);
+        }
+        break;
+      }
     }
   }
 
@@ -210,21 +185,21 @@ std::vector<PartialObservationToken> Agent::obs_features() const {
 
 void Agent::update_inventory_diversity_stats(InventoryItem item, InventoryQuantity amount) {
   const size_t index = static_cast<size_t>(item);
-  if (index >= diversity_tracked_mask_.size() || !diversity_tracked_mask_[index]) {
+  if (index >= diversity_tracked_mask.size() || !diversity_tracked_mask[index]) {
     return;
   }
 
   const bool now_present = amount > 0;
-  const bool currently_present = tracked_resource_presence_[index] != 0;
+  const bool currently_present = tracked_resource_presence[index] != 0;
   if (currently_present == now_present) {
     return;
   }
 
-  const float prev_diversity = static_cast<float>(tracked_resource_diversity_);
-  tracked_resource_presence_[index] = now_present ? 1 : 0;
-  tracked_resource_diversity_ += now_present ? 1 : -1;
+  const float prev_diversity = static_cast<float>(tracked_resource_diversity);
+  tracked_resource_presence[index] = now_present ? 1 : 0;
+  tracked_resource_diversity += now_present ? 1 : -1;
 
-  const float new_diversity = static_cast<float>(tracked_resource_diversity_);
+  const float new_diversity = static_cast<float>(tracked_resource_diversity);
   this->stats.set("inventory.diversity", new_diversity);
 
   for (int threshold = 2; threshold <= 5; ++threshold) {

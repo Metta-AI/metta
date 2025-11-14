@@ -73,12 +73,12 @@ public:
 
 private:
   const ObservationEncoder* obs_encoder = nullptr;
-  const std::vector<std::string>* resource_names_ = nullptr;
-  const std::vector<std::string>* vibe_names_ = nullptr;
+  const std::vector<std::string>* resource_names = nullptr;
+  const std::vector<std::string>* vibe_names = nullptr;
   void update_inventory_diversity_stats(InventoryItem item, InventoryQuantity amount);
-  std::vector<char> diversity_tracked_mask_;
-  std::vector<char> tracked_resource_presence_;
-  std::size_t tracked_resource_diversity_{0};
+  std::vector<char> diversity_tracked_mask;
+  std::vector<char> tracked_resource_presence;
+  std::size_t tracked_resource_diversity{0};
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_AGENT_HPP_
