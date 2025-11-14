@@ -73,7 +73,7 @@ class ObservatoryKeySetup(SetupModule):
 
 @register_module
 class ObservatoryKeyLocalSetup(ObservatoryKeySetup):
-    auth_server_url: str = DEV_STATS_SERVER_URI
+    auth_server_url: str = OBSERVATORY_AUTH_SERVER_URL
     api_server_url: str = DEV_STATS_SERVER_URI
 
     @property

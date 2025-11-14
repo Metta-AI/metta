@@ -1,13 +1,12 @@
 import logging
 from typing import Sequence
 
-from metta.app_backend.clients.stats_client import HttpStatsClient
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
 from metta.common.tool.tool import Tool
 from metta.common.util.git_helpers import get_task_commit_hash
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_config import SimulationConfig
-from metta.sim.utils import get_or_create_policy_ids
 from metta.tools.utils.auto_config import auto_stats_server_uri
 
 logger = logging.getLogger(__name__)
@@ -22,7 +21,7 @@ class RequestRemoteEvalTool(Tool):
 
     def invoke(self, args: dict[str, str]) -> int | None:
         # Errors if stats_server_uri is not set or authentication fails
-        stats_client = HttpStatsClient.create(self.stats_server_uri)
+        stats_client = StatsClient.create(self.stats_server_uri)
         normalized_uri = CheckpointManager.normalize_uri(self.policy_uri)
         policy_id = get_or_create_policy_ids(stats_client, [(normalized_uri, "")])[normalized_uri]
 

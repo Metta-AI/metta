@@ -9,14 +9,12 @@ Runs eval tasks inside a Docker container.
 """
 
 import asyncio
-import base64
 import json
 import logging
 import os
 import shutil
 import subprocess
 import sys
-import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
@@ -24,19 +22,14 @@ from datetime import datetime
 import boto3
 
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
-from metta.app_backend.routes.eval_task_routes import (
-    EvalTaskResponse,
-    TaskStatus,
-    TaskStatusUpdate,
-    TaskUpdateRequest,
-)
+from metta.app_backend.metta_repo import EvalTaskRow, FinishedTaskStatus
+from metta.app_backend.routes.eval_task_routes import TaskFinishRequest
 from metta.common.auth.auth_config_reader_writer import observatory_auth_config
 from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.tool.tool import ToolResult
 from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import SOFTMAX_S3_BASE, SOFTMAX_S3_BUCKET
 from metta.common.util.git_repo import REPO_URL
-from metta.rl.checkpoint_manager import CheckpointManager
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +44,7 @@ class TaskResult:
 
 class AbstractTaskExecutor(ABC):
     @abstractmethod
-    async def execute_task(self, task: EvalTaskResponse) -> TaskResult:
+    async def execute_task(self, task: EvalTaskRow) -> TaskResult:
         pass
 
 
@@ -158,41 +151,17 @@ class SimTaskExecutor(AbstractTaskExecutor):
     @trace("worker.execute_task")
     async def execute_task(
         self,
-        task: EvalTaskResponse,
+        task: EvalTaskRow,
     ) -> TaskResult:
         if not task.git_hash:
             raise RuntimeError(f"Git hash not found for task {task.id}")
 
         self._setup_versioned_checkout(task.git_hash)
 
-        # Convert simulations list to a base64-encoded JSON string to avoid parsing issues
-        simulations = task.attributes.get("simulations", [])
-        simulations_json = json.dumps(simulations)
-        simulations_base64 = base64.b64encode(simulations_json.encode()).decode()
-
-        # write simulations_json_base64 to a file
-        file_path = f"simulations_json_base64_{task.id}.json"
-        with open(file_path, "w") as f:
-            f.write(simulations_base64)
-
-        normalized = CheckpointManager.normalize_uri(task.policy_uri)
+        cmd = task.command.split(" ")
+        logger.info(f"Running command: {' '.join(cmd)}")
 
         job_result_file_path = f"job_result_file_path_{task.id}.json"
-
-        cmd = [
-            "uv",
-            "run",
-            "tools/run.py",
-            "recipes.experiment.remote_eval.eval",
-            f"policy_uri={normalized}",
-            f"simulations_json_base64_path={os.path.abspath(file_path)}",
-            f"eval_task_id={str(task.id)}",
-            f"stats_server_uri={self._backend_url}",
-            f"result_file_path={os.path.abspath(job_result_file_path)}",
-        ]
-        # exclude simulation_json_base64 from logging, since it's too large and nondescriptive
-        logged_cmd = [arg for arg in cmd if not arg.startswith("simulations_json_base64")]
-        logger.info(f"Running command: {' '.join(logged_cmd)}")
 
         result = self._run_cmd_from_versioned_checkout(cmd)
 
@@ -246,28 +215,25 @@ class EvalTaskWorker:
     @trace("worker.update_status")
     async def _update_task_status(
         self,
-        task_id: uuid.UUID,
-        status: TaskStatus,
+        task_id: int,
+        status: FinishedTaskStatus,
         error_reason: str | None = None,
         log_path: str | None = None,
         warnings: list[str] | None = None,
     ) -> None:
-        await self._client.update_task_status(
-            TaskUpdateRequest(
-                require_assignee=self._assignee,
-                updates={
-                    task_id: TaskStatusUpdate(
-                        status=status,
-                        attributes=remove_none_values(
-                            {
-                                f"error_reason_{self._assignee}": error_reason,
-                                "output_log_path": log_path,
-                                "warnings": warnings,
-                            }
-                        ),
-                    )
-                },
-            )
+        await self._client.finish_task(
+            task_id,
+            TaskFinishRequest(
+                task_id=task_id,
+                status=status,
+                log_path=log_path,
+                status_details=remove_none_values(
+                    {
+                        "error_reason": error_reason,
+                        "warnings": warnings,
+                    }
+                ),
+            ),
         )
         logger.info(
             f"Updated task {task_id} status to: {status}" + "\n" + f"Error reason: {error_reason}"
@@ -284,7 +250,7 @@ class EvalTaskWorker:
                 claimed_tasks = await self._client.get_claimed_tasks(assignee=self._assignee)
 
                 if claimed_tasks.tasks:
-                    task: EvalTaskResponse = min(claimed_tasks.tasks, key=lambda x: x.assigned_at or datetime.min)
+                    task: EvalTaskRow = min(claimed_tasks.tasks, key=lambda x: x.assigned_at or datetime.min)
                     logger.info(f"Processing task {task.id}")
                     try:
                         task_result = await self._task_executor.execute_task(task)

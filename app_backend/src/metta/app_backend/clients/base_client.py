@@ -54,7 +54,7 @@ class BaseAppBackendClient:
     async def close(self):
         await self._http_client.aclose()
 
-    async def _make_request(self, response_type: Type[T], method: str, url: str, **kwargs):
+    async def _make_request(self, response_type: Type[T], method: str, url: str, **kwargs) -> T:
         headers = remove_none_values({"X-Auth-Token": self._machine_token})
         response = await self._http_client.request(method, url, headers=headers, **kwargs)
         response.raise_for_status()

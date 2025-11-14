@@ -4,7 +4,7 @@ from typing import Sequence
 
 from pydantic import Field
 
-from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
 from metta.common.wandb.context import WandbConfig, WandbContext
 from metta.rl.checkpoint_manager import CheckpointManager
@@ -58,7 +58,7 @@ class EvaluateTool(Tool):
         if self.stats_server_uri is None:
             logger.info("Stats client is not set, skipping wandb logging")
             return None
-        stats_client = HttpStatsClient.create(self.stats_server_uri)
+        stats_client = StatsClient.create(self.stats_server_uri)
         try:
             (epoch, attributes) = stats_client.sql_query(
                 f"""SELECT e.end_training_epoch, e.attributes

@@ -22,11 +22,10 @@ from pydantic import BaseModel
 
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.container_managers.factory import create_container_manager
+from metta.app_backend.metta_repo import EvalTaskRow
 from metta.app_backend.routes.eval_task_routes import (
-    EvalTaskResponse,
     TaskClaimRequest,
-    TaskStatusUpdate,
-    TaskUpdateRequest,
+    TaskFinishRequest,
 )
 from metta.app_backend.worker_managers.base import AbstractWorkerManager
 from metta.app_backend.worker_managers.container_manager import ContainerWorkerManager
@@ -41,7 +40,7 @@ logger = logging.getLogger(__name__)
 class WorkerInfo(BaseModel):
     worker: Worker
     git_hashes: list[str] = []
-    assigned_task: EvalTaskResponse | None = None
+    assigned_task: EvalTaskRow | None = None
 
 
 class AbstractWorkerScaler(ABC):
@@ -111,7 +110,7 @@ class EvalTaskOrchestrator:
         self._worker_idle_timeout_minutes = worker_idle_timeout_minutes
 
     @trace("orchestrator.claim_task")
-    async def _attempt_claim_task(self, task: EvalTaskResponse, worker: WorkerInfo) -> bool:
+    async def _attempt_claim_task(self, task: EvalTaskRow, worker: WorkerInfo) -> bool:
         claim_request = TaskClaimRequest(tasks=[task.id], assignee=worker.worker.name)
         claimed_ids = await self._task_client.claim_tasks(claim_request)
         if task.id in claimed_ids.claimed:
@@ -121,7 +120,7 @@ class EvalTaskOrchestrator:
             logger.debug("Failed to claim task; someone else must have it")
             return False
 
-    async def _get_available_workers(self, claimed_tasks: list[EvalTaskResponse]) -> dict[str, WorkerInfo]:
+    async def _get_available_workers(self, claimed_tasks: list[EvalTaskRow]) -> dict[str, WorkerInfo]:
         alive_workers = await self._worker_manager.discover_alive_workers()
 
         worker_names = [w.name for w in alive_workers]
@@ -139,7 +138,7 @@ class EvalTaskOrchestrator:
         return alive_workers_by_name
 
     async def _kill_dead_workers_and_tasks(
-        self, claimed_tasks: list[EvalTaskResponse], alive_workers_by_name: dict[str, WorkerInfo]
+        self, claimed_tasks: list[EvalTaskRow], alive_workers_by_name: dict[str, WorkerInfo]
     ) -> None:
         try:
             for task in claimed_tasks:
@@ -155,16 +154,13 @@ class EvalTaskOrchestrator:
                 status = "error"
 
                 logger.info(f"Releasing claim on task {task.id} because {reason}. Setting status to {status}")
-                await self._task_client.update_task_status(
-                    TaskUpdateRequest(
-                        updates={
-                            task.id: TaskStatusUpdate(
-                                status=status,
-                                clear_assignee=True,
-                                attributes={f"unassign_reason_{task.retries}": reason},
-                            )
-                        }
-                    )
+                await self._task_client.finish_task(
+                    task.id,
+                    TaskFinishRequest(
+                        task_id=task.id,
+                        status=status,
+                        status_details={"unassign_reason": reason},
+                    ),
                 )
 
                 if task.assignee and (worker := alive_workers_by_name.get(task.assignee)):
@@ -175,7 +171,7 @@ class EvalTaskOrchestrator:
             logger.error(f"Error killing dead workers and tasks: {e}", exc_info=True)
 
     async def _assign_task_to_worker(
-        self, worker: WorkerInfo, available_tasks_by_git_hash: dict[str | None, list[EvalTaskResponse]]
+        self, worker: WorkerInfo, available_tasks_by_git_hash: dict[str | None, list[EvalTaskRow]]
     ) -> None:
         # Assign a task to a worker, prioritizing its existing git hashes
         for git_hash in worker.git_hashes:
@@ -197,7 +193,7 @@ class EvalTaskOrchestrator:
 
     async def _assign_tasks_to_workers(self, alive_workers_by_name: dict[str, WorkerInfo]) -> None:
         available_tasks = await self._task_client.get_available_tasks()
-        available_tasks_by_git_hash: dict[str | None, list[EvalTaskResponse]] = group_by(
+        available_tasks_by_git_hash: dict[str | None, list[EvalTaskRow]] = group_by(
             available_tasks.tasks, key_fn=lambda t: t.git_hash
         )
         for worker in alive_workers_by_name.values():

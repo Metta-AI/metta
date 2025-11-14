@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from functools import partial
 from typing import Any, Optional
-from uuid import UUID
 
 import torch
 from pydantic import Field
@@ -14,10 +14,8 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum import Curriculum
 from metta.common.util.git_helpers import GitError, get_task_commit_hash
 from metta.common.util.git_repo import REPO_SLUG
+from metta.common.wandb.context import WandbRun
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.evaluate import (
-    evaluate_policy_remote_with_checkpoint_manager,
-)
 from metta.rl.training import TrainerComponent
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.sim.handle_results import render_eval_summary, send_eval_results_to_wandb
@@ -70,15 +68,19 @@ class Evaluator(TrainerComponent):
         self,
         config: EvaluatorConfig,
         device: torch.device,
-        system_cfg: Any,
+        seed: int,
+        run_name: str,
         stats_client: Optional[StatsClient] = None,
+        wandb_run: Optional[WandbRun] = None,
     ):
         super().__init__()
         self._master_only = True
         self._config = config
         self._device = device
-        self._system_cfg = system_cfg
+        self._seed = seed
+        self._run_name = run_name
         self._stats_client = stats_client
+        self._wandb_run = wandb_run
 
         self._configure_evaluation_settings(
             eval_cfg=self._config,
@@ -132,13 +134,100 @@ class Evaluator(TrainerComponent):
             return False
         return epoch % interval == 0
 
+    def write_eval_results_to_observatory(
+        self,
+        *,
+        stats_client: StatsClient,
+        rollout_results: list[SimulationRunResult],
+        policy_spec: PolicySpec,
+        epoch: int,
+        agent_step: int,
+    ) -> None:
+        """Write evaluation results to the observatory by creating a DuckDB and uploading it."""
+        from metta.app_backend.episode_stats_db import (
+            create_episode_stats_db,
+            insert_agent_metric,
+            insert_agent_policy,
+            insert_episode,
+            insert_episode_tag,
+        )
+
+        # Create or get policy
+        policy_id = stats_client.create_policy(
+            name=self._run_name,
+            attributes={},
+            is_system_policy=False,
+        )
+
+        # Create policy version
+        policy_version_id = stats_client.create_policy_version(
+            policy_id=policy_id.id,
+            git_hash=self._config.git_hash,
+            policy_spec=policy_spec.model_dump(mode="json"),
+            attributes={"epoch": epoch, "agent_step": agent_step},
+        )
+
+        # Create DuckDB with episode stats
+        try:
+            conn, duckdb_path = create_episode_stats_db()
+
+            # Process each simulation result
+            for sim_result in rollout_results:
+                sim_config = sim_result.run
+                results = sim_result.results
+
+                # Process each episode
+                for episode_idx in range(len(results.rewards)):
+                    episode_id = str(uuid.uuid4())
+                    assignments = results.assignments[episode_idx]
+                    rewards = results.rewards[episode_idx]
+                    replay_url = list(sim_result.replay_urls.values())[0]
+                    # Insert episode record
+                    insert_episode(
+                        conn,
+                        episode_id=episode_id,
+                        primary_pv_id=str(policy_version_id.id),
+                        replay_url=replay_url,
+                        thumbnail_url=None,
+                        eval_task_id=None,
+                    )
+
+                    # Insert episode tags
+                    for key, value in sim_config.episode_tags.items():
+                        insert_episode_tag(conn, episode_id, key, value)
+
+                    # Insert agent policies and metrics
+                    for agent_id in range(len(assignments)):
+                        # For now, assume single policy (index 0)
+                        pv_id = str(policy_version_id.id)
+
+                        insert_agent_policy(conn, episode_id, pv_id, agent_id)
+
+                        # Insert reward metric
+                        insert_agent_metric(conn, episode_id, agent_id, "reward", float(rewards[agent_id]))
+                        agent_metrics = results.stats[episode_idx]["agent"][agent_id]
+                        for metric_name, metric_value in agent_metrics.items():
+                            insert_agent_metric(conn, episode_id, agent_id, metric_name, metric_value)
+
+            conn.close()
+
+            # Upload DuckDB file
+            logger.info(f"Uploading evaluation results to observatory (DuckDB size: {duckdb_path})")
+            response = stats_client.bulk_upload_episodes(str(duckdb_path))
+            logger.info(
+                f"Successfully uploaded {response.episodes_created} episodes to observatory at {response.duckdb_s3_uri}"
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to write evaluation results to observatory: {e}", exc_info=True)
+            raise
+
     def evaluate(
         self,
         policy_uri: Optional[str],
         curriculum: Any,
         epoch: int,
         agent_step: int,
-        stats_epoch_id: Optional[UUID] = None,
     ) -> None:
         if not policy_uri:
             logger.warning("No policy URI available for evaluation")
@@ -148,32 +237,29 @@ class Evaluator(TrainerComponent):
         sims = self._build_simulations(curriculum)
 
         # Try remote evaluation first if configured
-        if self._config.evaluate_remote:
-            try:
-                self._evaluate_remote(
-                    policy_uri=policy_uri,
-                    simulations=sims,
-                    stats_epoch_id=stats_epoch_id,
-                )
-            except Exception as e:
-                logger.error(f"Failed to evaluate policy remotely: {e}", exc_info=True)
+        # Pasha: FIX THIS
 
         # Local evaluation
         if self._config.evaluate_local:
             rollout_results, policy_spec = self._evaluate_local(policy_uri=policy_uri, simulations=sims)
             render_eval_summary(rollout_results, policy_names=[self._spec_display_name(policy_spec)])
 
-            # TODO: maybe a better way to get wandb run
-            # TODO: Pasha: should also send epochs/episodes/metrics to stats-server
-            stats_reporter = getattr(self.context, "stats_reporter", None)
-            wandb_run = getattr(stats_reporter, "wandb_run", None)
-            if wandb_run:
+            if self._wandb_run:
                 send_eval_results_to_wandb(
                     rollout_results=rollout_results,
                     epoch=epoch,
                     agent_step=agent_step,
-                    wandb_run=wandb_run,
+                    wandb_run=self._wandb_run,
                     should_finish_run=False,
+                )
+
+            if self._stats_client:
+                self.write_eval_results_to_observatory(
+                    stats_client=self._stats_client,
+                    rollout_results=rollout_results,
+                    policy_spec=policy_spec,
+                    epoch=epoch,
+                    agent_step=agent_step,
                 )
 
     def _build_policy_spec(self, policy_uri: str) -> PolicySpec:
@@ -216,24 +302,6 @@ class Evaluator(TrainerComponent):
 
         return sims
 
-    def _evaluate_remote(
-        self,
-        policy_uri: str,
-        simulations: list[SimulationConfig],
-        stats_epoch_id: Optional[UUID] = None,
-    ) -> None:
-        logger.info(f"Evaluating policy remotely from {policy_uri}")
-        stats_reporter = getattr(self.context, "stats_reporter", None)
-        wandb_run = getattr(stats_reporter, "wandb_run", None) if stats_reporter else None
-        evaluate_policy_remote_with_checkpoint_manager(
-            policy_uri=policy_uri,
-            simulations=simulations,
-            stats_epoch_id=stats_epoch_id,
-            stats_client=self._stats_client,
-            wandb_run=wandb_run,
-            evaluation_cfg=self._config,
-        )
-
     def _evaluate_local(
         self,
         policy_uri: str,
@@ -247,7 +315,7 @@ class Evaluator(TrainerComponent):
             policy_initializers=policy_initializers,
             simulations=[sim.to_simulation_run_config() for sim in simulations],
             replay_dir=self._config.replay_dir,
-            seed=self._system_cfg.seed,
+            seed=self._seed,
             enable_replays=True,
         )
         return rollout_results, policy_spec

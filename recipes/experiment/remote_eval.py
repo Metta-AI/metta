@@ -4,7 +4,7 @@ from typing import Sequence
 
 from pydantic import Field
 
-from metta.app_backend.clients.stats_client import HttpStatsClient
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool.tool import ToolResult, ToolWithResult
 from metta.sim.handle_results import to_eval_results
 from metta.sim.simulation_config import SimulationConfig
@@ -27,7 +27,7 @@ class ExecuteRemoteEvalTool(ToolWithResult):
 
     def run_job(self) -> ToolResult:
         # Will error if stats_server_uri does not exist or we are not not authenticated with it
-        _ = HttpStatsClient.create(self.stats_server_uri)
+        _ = StatsClient.create(self.stats_server_uri)
 
         eval_tool = EvaluateTool(
             simulations=self.simulations,
