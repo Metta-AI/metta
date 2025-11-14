@@ -96,10 +96,13 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
     # CoGames - Train with small_50 variant for fast CI testing
     cogames_train = JobConfig(
         name=cogames_train_name,
-        cmd=(
-            f"cogames train --mission training_facility.harvest --variant small_50 "
-            f"--steps 1000 --checkpoints ./train_dir/{cogames_train_name}"
-        ),
+        recipe="recipes.prod.cogames.train",
+        args={
+            "mission": "training_facility.harvest",
+            "variant": '["small_50"]',
+            "steps": "1000",
+            "checkpoints": f"./train_dir/{cogames_train_name}",
+        },
         timeout_s=300,
         group=group,
     )
@@ -107,11 +110,8 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
     # CoGames - Evaluate trained policy from local checkpoint
     cogames_eval = JobConfig(
         name=cogames_eval_name,
-        cmd=(
-            f"cogames eval --mission training_facility.harvest --variant small_50 "
-            f"--policy lstm:./train_dir/{cogames_train_name}/training_facility.harvest "
-            f"--episodes 5 --format json"
-        ),
+        recipe="recipes.prod.cogames.evaluate_latest_in_dir",
+        args={"dir_path": f"./train_dir/{cogames_train_name}"},
         dependency_names=[cogames_train_name],
         timeout_s=300,
         group=group,
