@@ -30,8 +30,6 @@ public:
   std::string group_name;
   // We expect only a small number (single-digit) of soul-bound resources.
   std::vector<InventoryItem> soul_bound_resources;
-  // Resources that this agent will try to share when it uses another agent.
-  std::vector<InventoryItem> shareable_resources;
   // Despite being a GridObjectId, this is different from the `id` property.
   // This is the index into MettaGrid._agents (std::vector<Agent*>)
   GridObjectId agent_id;

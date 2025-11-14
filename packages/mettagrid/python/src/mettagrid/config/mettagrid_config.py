@@ -61,9 +61,6 @@ class AgentConfig(Config):
     soul_bound_resources: list[str] = Field(
         default_factory=list, description="Resources that cannot be stolen during attacks"
     )
-    shareable_resources: list[str] = Field(
-        default_factory=list, description="Resources that will be shared when we use another agent"
-    )
     inventory_regen_amounts: dict[str, int] = Field(
         default_factory=dict, description="Resources to regenerate and their amounts per regeneration interval"
     )

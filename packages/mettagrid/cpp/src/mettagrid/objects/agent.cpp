@@ -21,7 +21,6 @@ Agent::Agent(GridCoord r,
       action_failure_penalty(config.action_failure_penalty),
       group_name(config.group_name),
       soul_bound_resources(config.soul_bound_resources),
-      shareable_resources(config.shareable_resources),
       agent_id(0),
       stats(resource_names),
       current_stat_reward(0),
@@ -43,10 +42,13 @@ Agent::Agent(GridCoord r,
     }
   }
 
-  for (InventoryItem item : config.shareable_resources) {
-    const size_t index = static_cast<size_t>(item);
-    if (index < shareable_mask.size()) {
-      shareable_mask[index] = 1;
+  // Build shareable_mask from vibe_transfers
+  for (const auto& [vibe_id, resource_deltas] : config.vibe_transfers) {
+    for (const auto& [resource, amount] : resource_deltas) {
+      const size_t index = static_cast<size_t>(resource);
+      if (index < shareable_mask.size()) {
+        shareable_mask[index] = 1;
+      }
     }
   }
 
