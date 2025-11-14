@@ -44,6 +44,8 @@ type
   LadybugPolicy* = ref object
     agents*: seq[LadybugAgent]
 
+proc initHeartRecipeFromConfig(agent: LadybugAgent) {.raises: [].}
+
 const
   defaultMapSize = 200
   rechargeThresholdLow = 35
@@ -60,6 +62,12 @@ const
   ResourceTypes = ["carbon", "oxygen", "germanium", "silicon"]
   StationKeys = ["assembler", "chest", "charger"]
   DirectionNames = ["north", "south", "east", "west"]
+  DefaultHeartRecipe = [
+    ("carbon", 2),
+    ("oxygen", 2),
+    ("germanium", 1),
+    ("silicon", 3)
+  ]
 
 proc initState(agent: LadybugAgent) =
   agent.state = LadybugState()
@@ -76,6 +84,11 @@ proc initState(agent: LadybugAgent) =
   agent.state.pendingUseAmount = 0
   agent.state.heartRecipe = initTable[string, int]()
   agent.state.heartRecipeKnown = false
+  agent.initHeartRecipeFromConfig()
+  if not agent.state.heartRecipeKnown:
+    for (resource, amount) in DefaultHeartRecipe:
+      agent.state.heartRecipe[resource] = amount
+    agent.state.heartRecipeKnown = true
   agent.state.stations = initTable[string, Option[Location]]()
   for key in StationKeys:
     agent.state.stations[key] = none(Location)
@@ -147,6 +160,16 @@ proc stationFromName(lowerName: string): string =
     "charger"
   else:
     ""
+
+proc initHeartRecipeFromConfig(agent: LadybugAgent) =
+  for protocol in agent.cfg.assemblerProtocols:
+    if protocol.outputResources.getOrDefault("heart", 0) > 0:
+      agent.state.heartRecipe = initTable[string, int]()
+      for resource, amount in protocol.inputResources.pairs:
+        if resource != "energy":
+          agent.state.heartRecipe[resource] = amount
+      agent.state.heartRecipeKnown = true
+      return
 
 proc newLadybugAgent*(agentId: int, environmentConfig: string): LadybugAgent {.raises: [].} =
   var config = parseConfig(environmentConfig)
