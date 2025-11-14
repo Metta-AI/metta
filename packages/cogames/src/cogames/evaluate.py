@@ -96,7 +96,7 @@ def evaluate(
             )
         mission_results.append(rollout_payload)
 
-    summary = build_multi_episode_rollout_summaries(mission_results, policy_specs)
+    summary = build_multi_episode_rollout_summaries(mission_results, num_policies=len(policy_specs))
     mission_names = [mission_name for mission_name, _ in missions]
     _output_results(console, policy_specs, mission_names, summary, output_format)
     return summary
@@ -148,10 +148,10 @@ def _output_results(
     assignment_table.add_column("Policy")
     assignment_table.add_column("Num Agents", justify="right")
     for mission_name, mission in mission_summaries:
-        for policy_summary in mission.policy_summaries:
+        for policy_idx, policy_summary in enumerate(mission.policy_summaries):
             assignment_table.add_row(
                 mission_name,
-                policy_summary.policy_name,
+                display_names[policy_idx],
                 str(policy_summary.agent_count),
             )
     console.print(assignment_table)
@@ -165,7 +165,7 @@ def _output_results(
         for mission_name, mission in mission_summaries:
             metrics = mission.policy_summaries[i].avg_agent_metrics
             if not metrics:
-                policy_table.add_row(mission_name, "-", "0.00")
+                policy_table.add_row(mission_name, "-", "-")
                 continue
             for key, value in metrics.items():
                 policy_table.add_row(mission_name, key, f"{value:.2f}")
