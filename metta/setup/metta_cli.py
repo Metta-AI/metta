@@ -740,6 +740,13 @@ def cmd_gridworks(ctx: typer.Context):
     subprocess.run(cmd, cwd=get_repo_root(), check=False)
 
 
+@app.command(name="pr-feed", help="Show PRs touching a specific path", context_settings={"allow_extra_args": True})
+def cmd_pr_feed_alias(ctx: typer.Context):
+    """Alias for metta tool pr-feed."""
+    cmd = [str(get_repo_root() / "tools/pr-feed.py")] + ctx.args
+    subprocess.run(cmd, cwd=get_repo_root(), check=False)
+
+
 app.add_typer(run_monitor_app, name="run-monitor", help="Monitor training runs.")
 app.add_typer(local_app, name="local")
 app.add_typer(book_app, name="book")
