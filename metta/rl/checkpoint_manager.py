@@ -204,13 +204,22 @@ class CheckpointManager:
     ) -> PolicySpec:
         normalized_uri = CheckpointManager.normalize_uri(uri)
         device_value = str(device)
+
+        resolved_display_name = display_name
+        if resolved_display_name is None:
+            try:
+                metadata = CheckpointManager.get_policy_metadata(normalized_uri)
+            except Exception:
+                metadata = {}
+            resolved_display_name = metadata.get("run_name") or metadata.get("checkpoint_name") or metadata.get("name")
+
         init_kwargs: dict[str, str | bool] = {
             "policy_uri": normalized_uri,
             "device": device_value,
             "strict": strict,
         }
-        if display_name:
-            init_kwargs["display_name"] = display_name
+        if resolved_display_name:
+            init_kwargs["display_name"] = resolved_display_name
         return PolicySpec(
             class_path="metta.rl.policy_spec.CheckpointPolicy",
             init_kwargs=init_kwargs,
