@@ -23,7 +23,8 @@ protected:
     grid = std::make_unique<Grid>(10, 10);
     current_timestep = 0;
     unclip_protocol =
-        std::make_shared<Protocol>(std::vector<ObservationType>{},
+        std::make_shared<Protocol>(0,
+                                   std::vector<ObservationType>{},
                                    std::unordered_map<InventoryItem, InventoryQuantity>{{TestItems::ORE, 1}},
                                    std::unordered_map<InventoryItem, InventoryQuantity>{{TestItems::BATTERY, 1}},
                                    10);
@@ -245,7 +246,8 @@ protected:
     current_timestep = 0;
     rng.seed(42);
     unclip_protocol =
-        std::make_shared<Protocol>(std::vector<ObservationType>{},
+        std::make_shared<Protocol>(0,
+                                   std::vector<ObservationType>{},
                                    std::unordered_map<InventoryItem, InventoryQuantity>{{TestItems::ORE, 1}},
                                    std::unordered_map<InventoryItem, InventoryQuantity>{{TestItems::BATTERY, 1}},
                                    10);

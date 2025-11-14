@@ -105,8 +105,10 @@ class OxygenExtractorConfig(ExtractorConfig):
 
 # Rare and doesn't regenerate. But more cogs increase efficiency.
 class GermaniumExtractorConfig(ExtractorConfig):
+    # How much one agent gets.
+    efficiency: int = 2
+    # How much each additional agent gets.
     synergy: int = 1
-    efficiency: int = 1
 
     def station_cfg(self) -> AssemblerConfig:
         return AssemblerConfig(
@@ -116,13 +118,13 @@ class GermaniumExtractorConfig(ExtractorConfig):
             # Protocols
             max_uses=self.max_uses,
             protocols=[
-                ProtocolConfig(output_resources={"germanium": self.efficiency}),
-                *[
-                    ProtocolConfig(
-                        vibes=["germanium_a"] * i, output_resources={"germanium": self.efficiency + i * self.synergy}
-                    )
-                    for i in range(1, 5)
-                ],
+                ProtocolConfig(
+                    # For the 1 agent protocol, we set min_agents to zero so it's visible when no
+                    # agents are adjacent to the extractor.
+                    min_agents=(additional_agents + 1) if additional_agents >= 1 else 0,
+                    output_resources={"germanium": self.efficiency + additional_agents * self.synergy},
+                )
+                for additional_agents in range(1, 4)
             ],
             # Clipping
             start_clipped=self.start_clipped,
