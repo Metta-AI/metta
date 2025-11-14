@@ -225,8 +225,8 @@ DistantResourcesEasy = Mission(
     site=HELLO_WORLD,
     variants=[
         CompassVariant(),
-        Small50Variant(),
         PackRatVariant(),
+        DistantResourcesVariant(),
     ],
 )
 
