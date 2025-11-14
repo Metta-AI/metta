@@ -12,8 +12,10 @@ def sweep(sweep_name: str) -> SweepTool:
     In your own recipe, you likely only every need this. You can override other SweepTool parameters in the CLI.
 
     Example usage:
-        `uv run ./tools/run.py recipes.prod.arena_basic_easy_shaped.sweep \
+
+        `uv run ./tools/run.py recipes.experiment.arena_basic_easy_shaped.sweep \
             sweep_name="ak.baes.10081528" -- gpus=4 nodes=2`
+
 
     We recommend running using local_test=True before running the sweep on the remote:
         `uv run ./tools/run.py recipes.prod.arena_basic_easy_shaped.sweep \
