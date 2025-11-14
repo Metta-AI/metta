@@ -107,7 +107,7 @@
       "name": "_Python: Sweep Train",
       "type": "debugpy",
       "request": "launch",
-      "module": "tools.train",
+      "module": "metta.tools.train",
       "args": [
         "+user=${env:USER}",
         "data_dir=./train_dir/sweep/${sweep_name}/runs",
