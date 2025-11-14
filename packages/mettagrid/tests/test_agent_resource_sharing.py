@@ -24,7 +24,7 @@ class TestAgentResourceSharing:
         cfg.game.agent.vibe_transfers = {
             "default": {
                 "energy": 5,  # Share half of initial energy
-                "water": 4,   # Share half of initial water
+                "water": 4,  # Share half of initial water
             }
         }
 
@@ -85,7 +85,7 @@ class TestAgentResourceSharing:
         # Agent 0 should have transferred resources according to vibe_transfers config
         # Energy: 10 -> 5 (agent 0), 10 -> 15 (agent 1)
         # Water: 8 -> 4 (agent 0), 8 -> 12 (agent 1)
-        # Food: 6 -> 6 (agent 0, unchanged), 6 -> 6 (agent 1, unchanged - not in vibe_transfers)
+        # Food: 6 -> 6 (agent 0, unchanged), 6 -> 6 (agent 1, unchanged - not configured)
         assert agent0_after["inventory"][energy_idx] == 5, (
             f"Agent 0 should have 5 energy after sharing. Has {agent0_after['inventory'][energy_idx]}"
         )
@@ -93,7 +93,7 @@ class TestAgentResourceSharing:
             f"Agent 0 should have 4 water after sharing. Has {agent0_after['inventory'][water_idx]}"
         )
         assert agent0_after["inventory"][food_idx] == 6, (
-            f"Agent 0 should still have 6 food (not shareable). Has {agent0_after['inventory'][food_idx]}"
+            f"Agent 0 should still have 6 food (not configured). Has {agent0_after['inventory'][food_idx]}"
         )
 
         assert agent1_after["inventory"][energy_idx] == 15, (
@@ -103,5 +103,5 @@ class TestAgentResourceSharing:
             f"Agent 1 should have 12 water after receiving. Has {agent1_after['inventory'][water_idx]}"
         )
         assert agent1_after["inventory"][food_idx] == 6, (
-            f"Agent 1 should still have 6 food (not shareable). Has {agent1_after['inventory'][food_idx]}"
+            f"Agent 1 should still have 6 food (not configured). Has {agent1_after['inventory'][food_idx]}"
         )

@@ -33,22 +33,11 @@ Agent::Agent(GridCoord r,
       diversity_tracked_mask(resource_names != nullptr ? resource_names->size() : 0, 0),
       tracked_resource_presence(resource_names != nullptr ? resource_names->size() : 0, 0),
       tracked_resource_diversity(0),
-      shareable_mask(resource_names != nullptr ? resource_names->size() : 0, 0),
       vibe_transfers(config.vibe_transfers) {
   for (InventoryItem item : config.diversity_tracked_resources) {
     const size_t index = static_cast<size_t>(item);
     if (index < diversity_tracked_mask.size()) {
       diversity_tracked_mask[index] = 1;
-    }
-  }
-
-  // Build shareable_mask from vibe_transfers
-  for (const auto& [vibe_id, resource_deltas] : config.vibe_transfers) {
-    for (const auto& [resource, amount] : resource_deltas) {
-      const size_t index = static_cast<size_t>(resource);
-      if (index < shareable_mask.size()) {
-        shareable_mask[index] = 1;
-      }
     }
   }
 
@@ -142,11 +131,6 @@ bool Agent::onUse(Agent& actor, ActionArg arg) {
   // Transfer each configured resource
   const auto& resource_deltas = vibe_it->second;
   for (const auto& [resource, amount] : resource_deltas) {
-    // Check if this resource is shareable using the mask
-    if (resource >= actor.shareable_mask.size() || !actor.shareable_mask[resource]) {
-      continue;  // Resource is not shareable, skip it
-    }
-
     if (amount > 0) {
       // Transfer from actor to receiver (this)
       InventoryQuantity actor_amount = actor.inventory.amount(resource);

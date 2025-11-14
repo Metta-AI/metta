@@ -29,7 +29,7 @@ class TestVibeBasedSharing:
         cfg.game.agent.initial_inventory = {"charger": 10, "water": 8, "food": 6}
 
         # Configure vibe_transfers: when agent has "charger" vibe, transfer 5 charger
-        # Resources in vibe_transfers are automatically marked as shareable
+        # Only resources listed here participate in transfers
         cfg.game.agent.vibe_transfers = {
             "charger": {"charger": 5}  # vibe "charger" -> transfer 5 charger
         }
@@ -87,7 +87,7 @@ class TestVibeBasedSharing:
         # With vibe_transfers configured to transfer 5 charger:
         # - Only charger should be shared (5 units as configured)
         # - Water should NOT be shared (no config for water in this vibe)
-        # - Food is not shareable anyway
+        # - Food is not configured for transfer
         assert agent0_after["inventory"][charger_idx] == 5, (
             f"Agent 0 should have 5 charger after transferring 5. Has {agent0_after['inventory'][charger_idx]}"
         )
@@ -96,7 +96,7 @@ class TestVibeBasedSharing:
             f"Has {agent0_after['inventory'][water_idx]}"
         )
         assert agent0_after["inventory"][food_idx] == 6, (
-            f"Agent 0 should still have 6 food (not shareable). Has {agent0_after['inventory'][food_idx]}"
+            f"Agent 0 should still have 6 food (not configured). Has {agent0_after['inventory'][food_idx]}"
         )
 
         assert agent1_after["inventory"][charger_idx] == 15, (
@@ -106,7 +106,7 @@ class TestVibeBasedSharing:
             f"Agent 1 should still have 8 water (not shared via vibe). Has {agent1_after['inventory'][water_idx]}"
         )
         assert agent1_after["inventory"][food_idx] == 6, (
-            f"Agent 1 should still have 6 food (not shareable). Has {agent1_after['inventory'][food_idx]}"
+            f"Agent 1 should still have 6 food (not configured). Has {agent1_after['inventory'][food_idx]}"
         )
 
     def test_vibe_with_no_configured_transfers(self):
@@ -175,5 +175,9 @@ class TestVibeBasedSharing:
         assert agent0_after["inventory"][water_idx] == 8, (
             f"Agent 0 should still have 8 water (no sharing). Has {agent0_after['inventory'][water_idx]}"
         )
+        assert agent0_after["inventory"][food_idx] == 6, (
+            f"Agent 0 should still have 6 food (no sharing). Has {agent0_after['inventory'][food_idx]}"
+        )
         assert agent1_after["inventory"][charger_idx] == 10
         assert agent1_after["inventory"][water_idx] == 8
+        assert agent1_after["inventory"][food_idx] == 6

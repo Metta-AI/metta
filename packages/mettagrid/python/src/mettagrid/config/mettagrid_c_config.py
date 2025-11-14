@@ -165,9 +165,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         vibe_transfers_map = {}
         for vibe_name, resource_deltas in agent_props.get("vibe_transfers", {}).items():
             vibe_id = vibe_name_to_id[vibe_name]
-            resource_deltas_cpp = {
-                resource_name_to_id[resource]: delta for resource, delta in resource_deltas.items()
-            }
+            resource_deltas_cpp = {resource_name_to_id[resource]: delta for resource, delta in resource_deltas.items()}
             vibe_transfers_map[vibe_id] = resource_deltas_cpp
 
         # Build inventory config with support for grouped limits
