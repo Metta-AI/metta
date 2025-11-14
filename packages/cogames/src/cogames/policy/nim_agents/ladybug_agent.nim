@@ -1,6 +1,5 @@
 import
-  std/[algorithm, deques, options, random, sequtils, sets, strformat, strutils, tables],
-  genny, jsony,
+  std/[algorithm, deques, options, random, sequtils, sets, strutils, tables],
   common
 
 type
@@ -89,6 +88,9 @@ const
   cellFree = 1
   cellObstacle = 2
   parentSentinel = (-9999, -9999)
+  ResourceTypes = ["carbon", "oxygen", "germanium", "silicon"]
+  StationKeys = ["assembler", "chest", "charger"]
+  DirectionNames = ["north", "south", "east", "west"]
 
 proc initState(agent: LadybugAgent) =
   agent.state = LadybugState()
@@ -103,10 +105,10 @@ proc initState(agent: LadybugAgent) =
   agent.state.targetResource = ""
   agent.state.heartRecipe = initTable[string, int]()
   agent.state.stations = initTable[string, Option[Location]]()
-  for key in ["assembler", "chest", "charger"]:
+  for key in StationKeys:
     agent.state.stations[key] = none(Location)
   agent.state.extractors = initTable[string, seq[ExtractorInfo]]()
-  for resource in ["carbon", "oxygen", "germanium", "silicon"]:
+  for resource in ResourceTypes:
     agent.state.extractors[resource] = @[]
   agent.state.agentOccupancy = initHashSet[Location]()
   agent.state.occupancy = newSeqWith(
@@ -406,7 +408,7 @@ proc handleWaiting(agent: LadybugAgent): Option[int] =
 
 proc calculateDeficits(agent: LadybugAgent): Table[string, int] =
   result = initTable[string, int]()
-  for resource in ["carbon", "oxygen", "germanium", "silicon"]:
+  for resource in ResourceTypes:
     let required = agent.state.heartRecipe.getOrDefault(resource, 0)
     let deficit = required - agent.getInventoryValue(resource)
     result[resource] = (if deficit > 0: deficit else: 0)
@@ -546,7 +548,7 @@ proc directionAction(agent: LadybugAgent, direction: string): int =
   else: agent.cfg.actions.noop
 
 proc tryRandomDirection(agent: LadybugAgent): int =
-  var dirs = @["north", "south", "east", "west"]
+  var dirs = @DirectionNames
   agent.random.shuffle(dirs)
   for dir in dirs:
     let delta = directionDelta(dir)
@@ -610,7 +612,7 @@ proc explore(agent: LadybugAgent): int =
       return action
     agent.state.explorationDirection = ""
 
-  var dirs = @["north", "south", "east", "west"]
+  var dirs = @DirectionNames
   agent.random.shuffle(dirs)
   for dir in dirs:
     let delta = directionDelta(dir)
