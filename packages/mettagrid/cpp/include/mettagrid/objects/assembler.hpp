@@ -176,10 +176,10 @@ public:
   // Protocol lookup table for protocols that depend on agents vibing- keyed by local vibe (64-bit number from sorted
   // vibes). Later, this may be switched to having string keys based on the vibes.
   // Note that 0 is both the vibe you get when no one is showing a vibe, and also the default vibe.
-  const std::unordered_map<GroupVibe, std::shared_ptr<Protocol>> protocols;
+  const std::unordered_map<GroupVibe, std::vector<std::shared_ptr<Protocol>>> protocols;
 
   // Unclip protocols - used when assembler is clipped
-  std::unordered_map<GroupVibe, std::shared_ptr<Protocol>> unclip_protocols;
+  std::unordered_map<GroupVibe, std::vector<std::shared_ptr<Protocol>>> unclip_protocols;
 
   // Clipped state
   bool is_clipped;
@@ -197,10 +197,6 @@ public:
   // Usage tracking
   unsigned int uses_count;  // Current number of times used
   unsigned int max_uses;    // Maximum number of uses (0 = unlimited)
-
-  // Exhaustion tracking
-  float exhaustion;           // Exhaustion rate (0 = no exhaustion)
-  float cooldown_multiplier;  // Current cooldown multiplier from exhaustion
 
   // Grid access for finding surrounding agents
   class Grid* grid;
@@ -226,8 +222,6 @@ public:
         cooldown_duration(0),
         uses_count(0),
         max_uses(cfg.max_uses),
-        exhaustion(cfg.exhaustion),
-        cooldown_multiplier(1.0f),
         grid(nullptr),
         current_timestep_ptr(nullptr),
         obs_encoder(nullptr),
@@ -285,12 +279,19 @@ public:
   }
 
   // Helper function to build a protocol map from a vector of protocols
-  static std::unordered_map<GroupVibe, std::shared_ptr<Protocol>> build_protocol_map(
+  static std::unordered_map<GroupVibe, std::vector<std::shared_ptr<Protocol>>> build_protocol_map(
       const std::vector<std::shared_ptr<Protocol>>& protocol_list) {
-    std::unordered_map<GroupVibe, std::shared_ptr<Protocol>> protocol_map;
+    std::unordered_map<GroupVibe, std::vector<std::shared_ptr<Protocol>>> protocol_map;
     for (const auto& protocol : protocol_list) {
       GroupVibe vibe = calculate_group_vibe_from_vibes(protocol->vibes);
-      protocol_map[vibe] = protocol;
+      protocol_map[vibe].push_back(protocol);
+    }
+    for (auto& [vibe, protocol_list] : protocol_map) {
+      std::sort(protocol_list.begin(),
+                protocol_list.end(),
+                [](const std::shared_ptr<Protocol>& a, const std::shared_ptr<Protocol>& b) {
+                  return a->min_agents > b->min_agents;
+                });
     }
     return protocol_map;
   }
@@ -325,6 +326,7 @@ public:
   const Protocol* get_current_protocol() const {
     if (!grid) return nullptr;
     GroupVibe vibe = get_local_vibe();
+    size_t num_agents = get_surrounding_agents(nullptr).size();
 
     auto protocols_to_use = protocols;
     if (is_clipped) {
@@ -332,11 +334,23 @@ public:
     }
 
     auto it = protocols_to_use.find(vibe);
-    if (it != protocols_to_use.end()) return it->second.get();
+    if (it != protocols_to_use.end()) {
+      for (const auto& protocol : it->second) {
+        if (protocol->min_agents <= num_agents) {
+          return protocol.get();
+        }
+      }
+    }
 
     // Check the default if no protocol is found for the current vibe.
     it = protocols_to_use.find(0);
-    if (it != protocols_to_use.end()) return it->second.get();
+    if (it != protocols_to_use.end()) {
+      for (const auto& protocol : it->second) {
+        if (protocol->min_agents <= num_agents) {
+          return protocol.get();
+        }
+      }
+    }
 
     return nullptr;
   }
@@ -425,7 +439,7 @@ public:
     consume_resources_for_protocol(protocol_to_use, surrounding_agents);
     give_output_for_protocol(protocol_to_use, surrounding_agents);
 
-    cooldown_duration = static_cast<unsigned int>(protocol_to_use.cooldown * cooldown_multiplier);
+    cooldown_duration = static_cast<unsigned int>(protocol_to_use.cooldown);
     cooldown_end_timestep = *current_timestep_ptr + cooldown_duration;
 
     // If we were clipped and successfully used an unclip protocol, become unclipped. Also, don't count this as a use.
@@ -433,11 +447,6 @@ public:
       become_unclipped();
     } else {
       uses_count++;
-
-      // Apply exhaustion (increase cooldown multiplier exponentially)
-      if (exhaustion > 0.0f) {
-        cooldown_multiplier *= (1.0f + exhaustion);
-      }
     }
     return true;
   }

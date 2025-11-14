@@ -77,7 +77,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         agent_feature_pairs = {
             "agent:group": "agent_group",
             "agent:frozen": "agent_frozen",
-            "agent:visitation_counts": "agent_visitation_counts",
         }
         self._agent_feature_key_by_name: dict[str, str] = agent_feature_pairs
 
@@ -98,10 +97,12 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
     def _change_vibe_action(self, vibe_name: str) -> Action:
         """
         Return a safe vibe-change action.
-        Guard only on configured number_of_vibes (>1) to avoid emitting an invalid action.
+        Guard against disabled or single-vibe configurations before issuing the action.
         """
         change_vibe_cfg = getattr(self._actions, "change_vibe", None)
         if change_vibe_cfg is None:
+            return self._actions.noop.Noop()
+        if not getattr(change_vibe_cfg, "enabled", True):
             return self._actions.noop.Noop()
         num_vibes = int(getattr(change_vibe_cfg, "number_of_vibes", 0))
         if num_vibes <= 1:
@@ -946,7 +947,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
         # First, ensure we have the correct glyph (heart) for assembling
         if s.current_glyph != "heart_a":
-            vibe_action = self._actions.change_vibe.ChangeVibe(VIBE_BY_NAME["heart_a"])
+            vibe_action = self._change_vibe_action("heart_a")
             s.current_glyph = "heart_a"
             return vibe_action
 

@@ -133,7 +133,6 @@ class ObjectState:
     agent_id: int = -1  # Which agent (-1 if not an agent) - NOT in observations, kept for API
     agent_group: int = -1  # Team/group
     agent_frozen: int = 0  # Is frozen?
-    agent_visitation_counts: int = 0  # How many times visited (for tracking)
 
 
 @dataclass

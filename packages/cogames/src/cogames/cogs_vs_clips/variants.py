@@ -1,4 +1,4 @@
-from typing import override
+from typing import Iterable, Sequence, override
 
 from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_VARIANTS
 from cogames.cogs_vs_clips.mission import MissionVariant
@@ -122,12 +122,17 @@ class EnergizedVariant(MissionVariant):
 class ResourceBottleneckVariant(MissionVariant):
     name: str = "resource_bottleneck"
     description: str = "A resource is the limiting factor. Agents must prioritize it over other resources."
-    resource: list[str] = ["oxygen", "germanium", "silicon", "carbon"]
+    resource: Sequence[str] | str = ("oxygen", "germanium", "silicon", "carbon")
 
     @override
     def modify_mission(self, mission):
-        # Map the chosen resource(s) to the corresponding extractor(s) on the mission and reduce efficiency
-        for resource in self.resource:
+        # Accept either a single resource or an iterable of resources to bottleneck
+        if isinstance(self.resource, str):
+            resources: Iterable[str] = [self.resource]
+        else:
+            resources = list(self.resource)
+
+        for resource in resources:
             if resource in {"carbon", "oxygen", "germanium", "silicon"}:
                 extractor_attr = f"{resource}_extractor"
             elif resource == "energy":
@@ -139,7 +144,6 @@ class ResourceBottleneckVariant(MissionVariant):
             if extractor is None:
                 raise AttributeError(f"Mission has no extractor attribute '{extractor_attr}'")
 
-            # Reduce efficiency to create the bottleneck; keep it at least 1 to avoid divide-by-zero or negatives
             extractor.efficiency = max(1, int(extractor.efficiency) - 50)
 
 
@@ -173,11 +177,12 @@ class SingleToolUnclipVariant(MissionVariant):
 
     @override
     def modify_env(self, mission, env):
-        # Restrict assembler to a single generic gear recipe: carbon -> decoder
+        # Restrict assembler to a single generic gear recipe: carbon -> decoder (no vibes required)
+        # Since the protocol doesn't require vibes, agents won't need to change vibes
         assembler = env.game.objects.get("assembler")
         if isinstance(assembler, AssemblerConfig):
             assembler.protocols = [
-                ProtocolConfig(vibes=["gear"], input_resources={self.resource: 1}, output_resources={"decoder": 1})
+                ProtocolConfig(vibes=[], input_resources={self.resource: 1}, output_resources={"decoder": 1})
             ]
 
 

@@ -1,21 +1,17 @@
-import uuid
-from pathlib import Path
-from typing import Sequence
+from typing import Callable, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from metta.sim.replay_log_writer import ReplayLogWriter
 from mettagrid import MettaGridConfig
-from mettagrid.policy.loader import initialize_or_load_policy
-from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
+from mettagrid.policy.policy import MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult, multi_episode_rollout
+from mettagrid.simulator.replay_log_writer import ReplayLogWriter
 
 
 class SimulationRunConfig(BaseModel):
     env: MettaGridConfig  # noqa: F821
     num_episodes: int = Field(default=1, description="Number of episodes to run", ge=1)
-    policy_specs: Sequence[PolicySpec]
     proportions: Sequence[float] | None = None
 
     max_action_time_ms: int | None = Field(
@@ -32,27 +28,26 @@ class SimulationRunResult(BaseModel):
     replay_urls: dict[str, str]
 
 
+MultiAgentPolicyInitializer = Callable[[PolicyEnvInterface], MultiAgentPolicy]
+
+
 def run_simulations(
+    policy_initializers: Sequence[MultiAgentPolicyInitializer],
     simulations: Sequence[SimulationRunConfig],
-    replay_dir: str,
+    replay_dir: str | None,
     seed: int,
     enable_replays: bool = True,
 ) -> list[SimulationRunResult]:
     simulation_rollouts: list[SimulationRunResult] = []
 
     for simulation in simulations:
-        policies = simulation.policy_specs
         proportions = simulation.proportions
         replay_writer: ReplayLogWriter | None = None
-        if enable_replays:
-            replay_root = Path(replay_dir).expanduser()
-            unique_dir = replay_root / uuid.uuid4().hex[:12]
-            replay_writer = ReplayLogWriter(str(unique_dir))
+        if enable_replays and replay_dir:
+            replay_writer = ReplayLogWriter(str(replay_dir))
 
         env_interface = PolicyEnvInterface.from_mg_cfg(simulation.env)
-        multi_agent_policies: list[MultiAgentPolicy] = [
-            initialize_or_load_policy(env_interface, spec) for spec in policies
-        ]
+        multi_agent_policies: list[MultiAgentPolicy] = [pi(env_interface) for pi in policy_initializers]
 
         rollout_result = multi_episode_rollout(
             env_cfg=simulation.env,

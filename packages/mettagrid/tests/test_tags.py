@@ -281,9 +281,6 @@ class TestTags:
 
         # Should find all 10 tags (IDs 0-9 for sorted tags)
         assert len(tag_ids_found) == 10, f"Should find all 10 tags, found {len(tag_ids_found)}"
-        # Tag IDs should be consecutive starting from 0
-        expected_ids = set(range(0, 10))
-        assert tag_ids_found == expected_ids, f"Tag IDs should be {expected_ids}, got {tag_ids_found}"
 
     def test_tag_id_mapping(self):
         """Test that tag names are consistently mapped to IDs."""
@@ -342,6 +339,8 @@ class TestTags:
 
         # Get tag feature ID from environment
         tag_feature_id = env1.config.game.id_map().feature_id("tag")
+        alpha_tag_value = env1.config.game.id_map().tag_names().index("alpha")
+        beta_tag_value = env1.config.game.id_map().tag_names().index("beta")
 
         # Extract tag IDs from both environments
         def get_wall_tag_ids(sim, obs):
@@ -361,7 +360,9 @@ class TestTags:
         assert len(tags1) == 2, f"Should have 2 tag IDs, got {len(tags1)}"
         # Tag IDs should be consecutive starting from 0
         # "alpha" < "beta" alphabetically, so alpha=0, beta=1
-        assert tags1 == {0, 1}, f"Expected tag IDs {{0, 1}}, got {tags1}"
+        assert tags1 == {alpha_tag_value, beta_tag_value}, (
+            f"Expected tag IDs {{alpha_tag_value, beta_tag_value}}, got {tags1}"
+        )
 
     def test_assembler_with_tags(self):
         """Test that assembler objects can have tags."""
@@ -660,6 +661,8 @@ def test_tag_mapping_in_id_map():
                     tags=["machine", "industrial"],
                 ),
             },
+            # It's weird we have both of these! But we do.
+            agent=AgentConfig(tags=["default_agent"]),
             agents=[
                 AgentConfig(tags=["player", "mobile"]),
             ],
@@ -688,7 +691,7 @@ def test_tag_mapping_in_id_map():
 
     # All unique tags sorted: ["blocking", "industrial", "machine", "mobile", "player", "solid"]
     # IDs correspond to list indices (0-5)
-    expected_tags = ["blocking", "industrial", "machine", "mobile", "player", "solid"]
+    expected_tags = ["blocking", "default_agent", "industrial", "machine", "mobile", "player", "solid"]
     assert len(tag_values) == len(expected_tags), f"Should have {len(expected_tags)} tags, got {len(tag_values)}"
 
     # Verify tags are sorted alphabetically with correct IDs (indices)

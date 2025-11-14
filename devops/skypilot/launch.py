@@ -181,7 +181,7 @@ Examples:
         default=None,
         help="Maximum job runtime in hours before automatic termination (supports decimals, e.g., 1.5 = 90 minutes)",
     )
-    parser.add_argument("--skip-git-check", action="store_true", help="Skip git state validation")
+    parser.add_argument("--skip-git-check", action="store_true", help="Skip git state validation and GitHub API calls")
     parser.add_argument("-c", "--confirm", action="store_true", help="Show confirmation prompt")
     parser.add_argument(
         "--github-pat", type=str, default=None, help="GitHub PAT token for posting status updates (repo scope)"
@@ -325,6 +325,7 @@ Examples:
         git_ref=args.git_ref,
         timeout_hours=args.max_runtime_hours,
         task=task,
+        skip_github=args.skip_git_check,
         **extra_details,
     )
 

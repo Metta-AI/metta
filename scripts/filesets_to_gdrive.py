@@ -15,7 +15,7 @@ sys.path.extend(
 
 from codeclip.file import get_context
 
-from metta.utils.file import write_data
+from metta.common.util.file import write_data
 
 # Simple fileset definitions
 FILESETS = {

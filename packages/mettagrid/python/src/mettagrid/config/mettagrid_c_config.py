@@ -200,7 +200,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             inventory_config=inventory_config,
             stat_rewards=stat_rewards,
             stat_reward_max=stat_reward_max,
-            group_reward_pct=0.0,
             initial_inventory=initial_inventory,
             soul_bound_resources=soul_bound_resources,
             shareable_resources=shareable_resources,
@@ -233,18 +232,22 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             objects_cpp_params[object_config.map_name or object_type] = cpp_wall_config
         elif isinstance(object_config, AssemblerConfig):
             protocols = []
-            seen_vibes = []
+            seen_vibes_and_min_agents = []
 
             for protocol_config in reversed(object_config.protocols):
                 # Convert vibe names to IDs
                 vibe_ids = sorted([vibe_name_to_id[vibe] for vibe in protocol_config.vibes])
                 # Check for duplicate vibes
-                if vibe_ids in seen_vibes:
-                    raise ValueError(f"Protocol with vibes {protocol_config.vibes} already exists in {object_type}")
-                seen_vibes.append(vibe_ids)
+                if (vibe_ids, protocol_config.min_agents) in seen_vibes_and_min_agents:
+                    raise ValueError(
+                        f"Protocol with vibes {protocol_config.vibes} and min_agents {protocol_config.min_agents} "
+                        f"already exists in {object_type}"
+                    )
+                seen_vibes_and_min_agents.append((vibe_ids, protocol_config.min_agents))
                 input_res = {resource_name_to_id[k]: int(v) for k, v in protocol_config.input_resources.items()}
                 output_res = {resource_name_to_id[k]: int(v) for k, v in protocol_config.output_resources.items()}
                 cpp_protocol = CppProtocol()
+                cpp_protocol.min_agents = protocol_config.min_agents
                 cpp_protocol.vibes = vibe_ids
                 cpp_protocol.input_resources = input_res
                 cpp_protocol.output_resources = output_res
@@ -261,7 +264,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_assembler_config.protocols = protocols
             cpp_assembler_config.allow_partial_usage = object_config.allow_partial_usage
             cpp_assembler_config.max_uses = object_config.max_uses
-            cpp_assembler_config.exhaustion = object_config.exhaustion
             cpp_assembler_config.clip_immune = object_config.clip_immune
             cpp_assembler_config.start_clipped = object_config.start_clipped
             # Key by map_name so map grid (which uses map_name) resolves directly.
@@ -333,7 +335,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         episode_completion_pct=global_obs_config.episode_completion_pct,
         last_action=global_obs_config.last_action,
         last_reward=global_obs_config.last_reward,
-        visitation_counts=global_obs_config.visitation_counts,
         compass=global_obs_config.compass,
     )
     game_cpp_params["global_obs"] = global_obs_cpp

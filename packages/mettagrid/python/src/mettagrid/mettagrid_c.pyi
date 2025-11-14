@@ -72,7 +72,6 @@ class AgentConfig(GridObjectConfig):
         resource_limits: dict[int, int] = {},
         stat_rewards: dict[str, float] = {},
         stat_reward_max: dict[str, float] = {},
-        group_reward_pct: float = 0,
         initial_inventory: dict[int, int] = {},
         soul_bound_resources: list[int] | None = None,
         shareable_resources: list[int] | None = None,
@@ -89,7 +88,6 @@ class AgentConfig(GridObjectConfig):
     resource_limits: dict[int, int]
     stat_rewards: dict[str, float]  # Added this
     stat_reward_max: dict[str, float]  # Added this
-    group_reward_pct: float
     initial_inventory: dict[int, int]
     soul_bound_resources: list[int]
     shareable_resources: list[int]
@@ -107,6 +105,7 @@ class ActionConfig:
 
 class Protocol:
     def __init__(self) -> None: ...
+    min_agents: int
     vibes: list[int]
     input_resources: dict[int, int]
     output_resources: dict[int, int]
@@ -158,13 +157,11 @@ class GlobalObsConfig:
         episode_completion_pct: bool = True,
         last_action: bool = True,
         last_reward: bool = True,
-        visitation_counts: bool = False,
         compass: bool = False,
     ) -> None: ...
     episode_completion_pct: bool
     last_action: bool
     last_reward: bool
-    visitation_counts: bool
     compass: bool
 
 class GameConfig:

@@ -185,7 +185,7 @@ def sweep(sweep_name: str) -> SweepTool:
 
     return make_sweep(
         name=sweep_name,
-        recipe="experiments.recipes.losses.schedulefree",
+        recipe="recipes.experiment.losses.schedulefree",
         train_entrypoint="train",
         eval_entrypoint="evaluate_in_sweep",
         objective="evaluator/eval_sweep/score",
