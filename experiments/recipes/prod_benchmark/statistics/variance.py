@@ -158,7 +158,7 @@ def plot_variance(
             lower_vals.append(bounds[0] * 100)
             upper_vals.append(bounds[1] * 100)
 
-    # Find threshold crossing
+    # Find threshold crossing for CV
     threshold_n = None
     for i in range(1, len(mean_cv_values)):
         prev_cv = mean_cv_values[i - 1]
@@ -169,6 +169,24 @@ def plot_variance(
                 threshold_n = (
                     i + 1
                 )  # +1 because index starts at 0 but sample sizes start at 1
+                break
+
+    # Find threshold crossing for CI width
+    ci_widths = []
+    for bounds in ci_bounds:
+        if bounds[0] != float("inf") and bounds[1] != float("inf"):
+            ci_widths.append(bounds[1] - bounds[0])
+        else:
+            ci_widths.append(float("inf"))
+
+    ci_threshold_n = None
+    for i in range(1, len(ci_widths)):
+        prev_width = ci_widths[i - 1]
+        curr_width = ci_widths[i]
+        if prev_width != float("inf") and curr_width != float("inf") and prev_width > 0:
+            pct_change = abs(curr_width - prev_width) / abs(prev_width)
+            if pct_change < threshold:
+                ci_threshold_n = i + 1
                 break
 
     # Create plot
@@ -190,7 +208,7 @@ def plot_variance(
             color="green",
             linestyle=":",
             linewidth=2,
-            label=f"Stabilized at N={threshold_n}\n(CV change < {threshold * 100:.0f}%)",
+            label=f"CV stabilized at N={threshold_n}\n(CV change < {threshold * 100:.0f}%)",
         )
         plt.scatter(
             [threshold_n],
@@ -203,10 +221,29 @@ def plot_variance(
             linewidth=2,
         )
 
+    if ci_threshold_n:
+        plt.axvline(
+            x=ci_threshold_n,
+            color="orange",
+            linestyle="--",
+            linewidth=2,
+            label=f"CI width stabilized at N={ci_threshold_n}\n(Width change < {threshold * 100:.0f}%)",
+        )
+        plt.scatter(
+            [ci_threshold_n],
+            [mean_cv_values[ci_threshold_n - 1] * 100],
+            color="orange",
+            s=300,
+            marker="D",
+            zorder=5,
+            edgecolor="black",
+            linewidth=2,
+        )
+
     plt.xlabel("Number of Runs", fontsize=14, fontweight="bold")
     plt.ylabel("Coefficient of Variation (%)", fontsize=14, fontweight="bold")
     plt.title(
-        f"Variance Analysis: Last {percent * 100:.0f}% of Training\n(Stabilizes when CV change between consecutive points < {threshold * 100:.0f}%)",
+        f"Variance Analysis: Last {percent * 100:.0f}% of Training\n(Stabilizes when CV or CI width change < {threshold * 100:.0f}%)",
         fontsize=15,
         fontweight="bold",
     )
@@ -340,13 +377,47 @@ def main():
 
     if threshold_n:
         print(
-            f"✓ STABILIZED at N = {threshold_n} runs (CV change: {stabilization_change * 100:.2f}%)"
+            f"✓ CV STABILIZED at N = {threshold_n} runs (CV change: {stabilization_change * 100:.2f}%)"
         )
         print(
             f"  → Adding more runs beyond {threshold_n} changes CV by < {args.threshold * 100:.0f}%"
         )
     else:
-        print("✗ NOT YET STABLE (need more runs)")
+        print("✗ CV NOT YET STABLE (need more runs)")
+
+    # Check CI width stabilization
+    print(
+        f"\nLooking for when CI width change between consecutive samples < {args.threshold * 100:.0f}%..."
+    )
+    ci_widths = []
+    for bounds in ci_bounds:
+        if bounds[0] != float("inf") and bounds[1] != float("inf"):
+            ci_widths.append(bounds[1] - bounds[0])
+        else:
+            ci_widths.append(float("inf"))
+
+    ci_threshold_n = None
+    ci_stabilization_change = None
+    for i in range(1, len(ci_widths)):
+        prev_width = ci_widths[i - 1]
+        curr_width = ci_widths[i]
+        if prev_width != float("inf") and curr_width != float("inf") and prev_width > 0:
+            pct_change = abs(curr_width - prev_width) / abs(prev_width)
+            if pct_change < args.threshold:
+                ci_threshold_n = i + 1
+                ci_stabilization_change = pct_change
+                break
+
+    if ci_threshold_n:
+        print(
+            f"✓ CI WIDTH STABILIZED at N = {ci_threshold_n} runs (width change: {ci_stabilization_change * 100:.2f}%)"
+        )
+        print(
+            f"  → Adding more runs beyond {ci_threshold_n} changes CI width by < {args.threshold * 100:.0f}%"
+        )
+    else:
+        print("✗ CI WIDTH NOT YET STABLE (need more runs)")
+
     print("=" * 70)
 
     # Create plot
