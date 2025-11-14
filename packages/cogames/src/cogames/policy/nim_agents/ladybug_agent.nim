@@ -64,6 +64,8 @@ type
     explorationDirection: string
     explorationDirectionSetStep: int
     explorationEscapeUntilStep: int
+    stuckLoopDetected: bool
+    stuckEscapeStep: int
 
   LadybugAgent* = ref object
     agentId*: int
@@ -119,6 +121,10 @@ proc initState(agent: LadybugAgent) =
   agent.state.waitSteps = 0
   agent.state.waitingAtExtractor = none(Location)
   agent.state.usingObjectThisStep = false
+  agent.state.stuckLoopDetected = false
+  agent.state.stuckEscapeStep = 0
+
+proc detectLoops(agent: LadybugAgent)
 
 proc resourceVibe(resource: string): string =
   ## Map canonical resource names to the actual vibe glyphs used by the engine.
@@ -319,6 +325,35 @@ proc updatePosition(agent: LadybugAgent) =
   agent.state.positionHistory.add(Location(x: agent.state.col, y: agent.state.row))
   if agent.state.positionHistory.len > positionHistorySize:
     agent.state.positionHistory.delete(0)
+  detectLoops(agent)
+
+proc detectLoops(agent: LadybugAgent) =
+  let hist = agent.state.positionHistory
+  let lenHist = hist.len
+  if lenHist >= 6:
+    let a1 = hist[lenHist - 1]
+    let a2 = hist[lenHist - 2]
+    let a3 = hist[lenHist - 3]
+    let a4 = hist[lenHist - 4]
+    let a5 = hist[lenHist - 5]
+    let a6 = hist[lenHist - 6]
+    if a1 == a3 and a3 == a5 and a2 == a4 and a4 == a6 and a1 != a2:
+      agent.state.stuckLoopDetected = true
+      agent.state.stuckEscapeStep = agent.state.stepCount
+      return
+  if lenHist >= 9:
+    let b1 = hist[lenHist - 1]
+    let b2 = hist[lenHist - 2]
+    let b3 = hist[lenHist - 3]
+    let b4 = hist[lenHist - 4]
+    let b5 = hist[lenHist - 5]
+    let b6 = hist[lenHist - 6]
+    let b7 = hist[lenHist - 7]
+    let b8 = hist[lenHist - 8]
+    let b9 = hist[lenHist - 9]
+    if b1 == b4 and b4 == b7 and b2 == b5 and b5 == b8 and b3 == b6 and b6 == b9:
+      agent.state.stuckLoopDetected = true
+      agent.state.stuckEscapeStep = agent.state.stepCount
 
 proc clearWaiting(agent: LadybugAgent) =
   agent.state.waitingAtExtractor = none(Location)
@@ -519,7 +554,7 @@ proc tryRandomDirection(agent: LadybugAgent): int =
     let nc = agent.state.col + delta[1]
     if agent.isTraversable(nr, nc):
       return agent.directionAction(dir)
-  agent.cfg.actions.noop
+  return agent.cfg.actions.noop
 
 proc explore(agent: LadybugAgent): int =
   if agent.state.explorationDirection.len > 0:
@@ -570,8 +605,9 @@ proc explore(agent: LadybugAgent): int =
     let delta = directionDelta(agent.state.explorationDirection)
     let nr = agent.state.row + delta[0]
     let nc = agent.state.col + delta[1]
-    if agent.isTraversable(nr, nc):
-      return agent.directionAction(agent.state.explorationDirection)
+    let action = agent.moveTowards(nr, nc)
+    if action != agent.cfg.actions.noop:
+      return action
     agent.state.explorationDirection = ""
 
   var dirs = @["north", "south", "east", "west"]
@@ -583,7 +619,13 @@ proc explore(agent: LadybugAgent): int =
     if agent.isTraversable(nr, nc):
       agent.state.explorationDirection = dir
       agent.state.explorationDirectionSetStep = agent.state.stepCount
-      return agent.directionAction(dir)
+      let delta = directionDelta(dir)
+      let nr = agent.state.row + delta[0]
+      let nc = agent.state.col + delta[1]
+      let action = agent.moveTowards(nr, nc)
+      if action != agent.cfg.actions.noop:
+        return action
+      agent.state.explorationDirection = ""
   return agent.tryRandomDirection()
 
 proc navigateToAdjacent(
@@ -615,6 +657,12 @@ proc useExtractor(agent: LadybugAgent, extractor: ExtractorInfo): int =
   agent.state.waitingAtExtractor = some(extractor.position)
   agent.state.waitSteps = 0
   return agent.moveIntoCell(extractor.position.y, extractor.position.x)
+
+proc handleStuck(agent: LadybugAgent): Option[int] =
+  if not agent.state.stuckLoopDetected:
+    return none(int)
+  agent.state.stuckLoopDetected = false
+  some(agent.tryRandomDirection())
 
 proc updatePhase(agent: LadybugAgent) =
   if agent.state.energy < rechargeThresholdLow:
@@ -769,6 +817,12 @@ proc step*(
     agent.updateInventory(visible)
     discoverObjects(agent, visible)
     updatePhase(agent)
+    let stuckAction = handleStuck(agent)
+    if stuckAction.isSome():
+      let actionId = stuckAction.get()
+      actions[agent.agentId] = actionId.int32
+      agent.state.lastAction = actionId
+      return
     let desired = agent.desiredVibe()
     if agent.state.currentGlyph != desired:
       agent.state.currentGlyph = desired
