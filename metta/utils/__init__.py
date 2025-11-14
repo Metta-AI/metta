@@ -14,9 +14,9 @@ def __getattr__(name: str):
     if name == "file":
         import importlib
 
-        return importlib.import_module("metta.utils.file")
+        return importlib.import_module("metta.common.util.file")
     elif name == "uri":
         import importlib
 
-        return importlib.import_module("metta.utils.uri")
+        return importlib.import_module("metta.common.util.uri")
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
