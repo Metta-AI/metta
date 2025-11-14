@@ -3,75 +3,39 @@ import
   common
 
 type
-  Phase = enum
-    gatherPhase,
-    assemblePhase,
-    deliverPhase,
-    rechargePhase
-
+  Phase = enum gatherPhase, assemblePhase, deliverPhase, rechargePhase
   ObservedObject = object
     name: string
-    converting: bool
-    cooldownRemaining: int
-    clipped: bool
-    remainingUses: int
-    protocolInputs: Table[string, int]
-    protocolOutputs: Table[string, int]
-
+    converting, clipped: bool
+    cooldownRemaining, remainingUses: int
+    protocolInputs, protocolOutputs: Table[string, int]
   ExtractorInfo = object
     position: Location
     resource: string
-    lastSeen: int
-    converting: bool
-    cooldownRemaining: int
-    clipped: bool
-    remainingUses: int
-
+    lastSeen, cooldownRemaining, remainingUses: int
+    converting, clipped: bool
   LadybugState = object
-    row: int
-    col: int
-    mapHeight: int
-    mapWidth: int
-    obsHalfWidth: int
-    obsHalfHeight: int
+    row, col, mapHeight, mapWidth, obsHalfWidth, obsHalfHeight: int
+    phase: Phase
+    stepCount, waitSteps, lastAction: int
+    explorationDirectionSetStep, explorationEscapeUntilStep, stuckEscapeStep: int
+    positionHistory: seq[Location]
     occupancy: seq[seq[int]]
     agentOccupancy: HashSet[Location]
-    phase: Phase
-    stepCount: int
-    positionHistory: seq[Location]
-    energy: int
-    carbon: int
-    oxygen: int
-    germanium: int
-    silicon: int
-    hearts: int
-    decoder: int
-    modulator: int
-    resonator: int
-    scrambler: int
+    energy, carbon, oxygen, germanium, silicon, hearts: int
+    decoder, modulator, resonator, scrambler: int
     heartRecipe: Table[string, int]
     stations: Table[string, Option[Location]]
     extractors: Table[string, seq[ExtractorInfo]]
-    currentGlyph: string
-    targetResource: string
-    pendingUseResource: string
+    currentGlyph, targetResource, pendingUseResource, explorationDirection: string
     pendingUseAmount: int
     waitingAtExtractor: Option[Location]
-    waitSteps: int
-    usingObjectThisStep: bool
-    lastAction: int
-    explorationDirection: string
-    explorationDirectionSetStep: int
-    explorationEscapeUntilStep: int
-    stuckLoopDetected: bool
-    stuckEscapeStep: int
-
+    usingObjectThisStep, stuckLoopDetected: bool
   LadybugAgent* = ref object
     agentId*: int
     cfg*: Config
     random*: Rand
     state*: LadybugState
-
   LadybugPolicy* = ref object
     agents*: seq[LadybugAgent]
 
@@ -141,6 +105,16 @@ proc resourceVibe(resource: string): string =
     "silicon_a"
   else:
     "carbon_a"
+
+proc stationFromName(lowerName: string): string =
+  if lowerName.contains("assembler"):
+    "assembler"
+  elif lowerName.contains("chest"):
+    "chest"
+  elif lowerName.contains("charger"):
+    "charger"
+  else:
+    ""
 
 proc newLadybugAgent*(agentId: int, environmentConfig: string): LadybugAgent {.raises: [].} =
   var config = parseConfig(environmentConfig)
@@ -283,24 +257,16 @@ proc discoverObjects(agent: LadybugAgent, visible: Table[Location, seq[FeatureVa
       agent.state.occupancy[world.y][world.x] = cellObstacle
       continue
 
-    if lowerName.contains("assembler"):
+    let stationKey = stationFromName(lowerName)
+    if stationKey.len > 0:
       agent.state.occupancy[world.y][world.x] = cellObstacle
-      discoverStation(agent, "assembler", world)
-      if agent.state.heartRecipe.len == 0 and obj.protocolOutputs.getOrDefault("heart", 0) > 0:
+      discoverStation(agent, stationKey, world)
+      if stationKey == "assembler" and agent.state.heartRecipe.len == 0 and
+          obj.protocolOutputs.getOrDefault("heart", 0) > 0:
         agent.state.heartRecipe = initTable[string, int]()
         for resource, amount in obj.protocolInputs.pairs:
           if resource != "energy":
             agent.state.heartRecipe[resource] = amount
-      continue
-
-    if lowerName.contains("chest"):
-      agent.state.occupancy[world.y][world.x] = cellObstacle
-      discoverStation(agent, "chest", world)
-      continue
-
-    if lowerName.contains("charger"):
-      agent.state.occupancy[world.y][world.x] = cellObstacle
-      discoverStation(agent, "charger", world)
       continue
 
     if lowerName.contains("extractor"):
