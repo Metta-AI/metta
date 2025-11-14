@@ -611,3 +611,8 @@ VARIANTS: list[MissionVariant] = [
     ClipPeriodOnVariant(),
     *DIFFICULTY_VARIANTS,
 ]
+
+# Hidden variants registry: Remains usable but will NOT appear in `cogames variants` listing
+HIDDEN_VARIANTS: list[MissionVariant] = [
+    # Example: ExperimentalVariant(),  # keep empty by default
+]

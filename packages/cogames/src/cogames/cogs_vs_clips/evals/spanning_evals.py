@@ -17,7 +17,6 @@ from cogames.cogs_vs_clips.variants import (
     DistantResourcesVariant,
     EmptyBaseVariant,
     EnergizedVariant,
-    ExtractorHeartTuneVariant,
     InventoryHeartTuneVariant,
     LonelyHeartVariant,
     NeutralFacedVariant,
@@ -67,7 +66,6 @@ OxygenBottleneck = Mission(
     site=HELLO_WORLD,
     variants=[
         EmptyBaseVariant(missing=["oxygen_extractor"]),
-        ExtractorHeartTuneVariant(hearts=10),
         ResourceBottleneckVariant(resource=["oxygen"]),
         SingleResourceUniformVariant(building_name="oxygen_extractor"),
         NeutralFacedVariant(),
@@ -148,7 +146,6 @@ OxygenBottleneckEasy = Mission(
     site=HELLO_WORLD,
     variants=[
         SingleResourceUniformVariant(building_name="oxygen_extractor"),
-        ExtractorHeartTuneVariant(hearts=10),
         NeutralFacedVariant(),
         PackRatVariant(),
     ],
@@ -228,8 +225,8 @@ DistantResourcesEasy = Mission(
     site=HELLO_WORLD,
     variants=[
         CompassVariant(),
-        Small50Variant(),
         PackRatVariant(),
+        DistantResourcesVariant(),
     ],
 )
 
@@ -398,7 +395,7 @@ VibeCheckHard = Mission(
 )
 
 EasyHeartsTraining = Mission(
-    name="easy_hearts",
+    name="easy_hearts_training",
     description="Simplified heart crafting, generous caps, extractor base, neutral vibe.",
     site=TRAINING_FACILITY,
     variants=[
