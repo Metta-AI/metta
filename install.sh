@@ -25,9 +25,10 @@ while [ $# -gt 0 ]; do
       echo "Usage: $0 [OPTIONS]"
       echo ""
       echo "This script:"
-      echo "  1. Installs uv and python dependencies"
-      echo "  2. Configures Metta for your profile"
-      echo "  3. Installs components"
+      echo "  1. Installs uv (if needed)"
+      echo "  2. Syncs Python dependencies"
+      echo "  3. Configures Metta for your profile"
+      echo "  4. Installs components (including bootstrap deps)"
       echo ""
       echo "Options:"
       echo "  --profile PROFILE      Set user profile (external, cloud, or softmax)"
@@ -58,15 +59,37 @@ check_cmd() {
 
 echo "Welcome to Metta!"
 
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-sh "$SCRIPT_DIR/devops/tools/install-system.sh"
-
-for cmd in uv bazel git g++ nimby nim; do
-  if ! check_cmd "$cmd"; then
-    echo "$cmd not found. Consider running ./devops/tools/install-system.sh"
+# Install uv if not present
+if ! check_cmd uv; then
+  echo "Installing uv..."
+  
+  # Ensure common bin directories are in PATH before installing
+  for dir in "$HOME/.local/bin" "$HOME/.cargo/bin"; do
+    if [ -d "$dir" ] && [ ":${PATH}:" != *":${dir}:"* ]; then
+      export PATH="${dir}:${PATH}"
+    fi
+  done
+  
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  
+  # Source cargo env if it exists (uv installer typically installs to ~/.cargo/bin)
+  if [ -f "$HOME/.cargo/env" ]; then
+    . "$HOME/.cargo/env"
+  fi
+  
+  # Check common locations and add to PATH if needed
+  for dir in "$HOME/.local/bin" "$HOME/.cargo/bin"; do
+    if [ -d "$dir" ] && [ -f "$dir/uv" ] && [ ":${PATH}:" != *":${dir}:"* ]; then
+      export PATH="${dir}:${PATH}"
+    fi
+  done
+  
+  if ! check_cmd uv; then
+    echo "Error: Failed to install uv. Please install it manually from https://github.com/astral-sh/uv"
     exit 1
   fi
-done
+  echo "uv installed successfully"
+fi
 
 uv sync
 uv run python -m metta.setup.metta_cli install $PROFILE_ADDITION $NON_INTERACTIVE_ADDITION
