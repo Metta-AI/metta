@@ -1,22 +1,32 @@
 #!/usr/bin/env -S uv run
 """
-Evaluation Script for Baseline Scripted Agents
+Evaluation Script for Policies
 
-Tests two baseline policies:
-- BaselinePolicy: Single/multi-agent resource gathering and heart assembly
-- UnclippingPolicy: Extends baseline with extractor unclipping
+Tests any policy including:
+- Scripted agents: baseline, ladybug
+- NIM agents: thinky, nim_random, nim_race_car
+- Any custom policy via full class path
 
 Usage:
-  # Quick test
-  uv run python packages/cogames/scripts/evaluate_scripted_agents.py \\
-      --agent simple --experiments OxygenBottleneck --cogs 1
-
-  # Full evaluation
+  # Evaluate all predefined agents
   uv run python packages/cogames/scripts/evaluate_scripted_agents.py --agent all
 
-  # Specific configuration
+  # Evaluate specific scripted agent (shorthand)
   uv run python packages/cogames/scripts/evaluate_scripted_agents.py \\
-      --agent unclipping --experiments ExtractorHub30 ExtractorHub50 --cogs 1 2 4
+      --agent baseline --experiments oxygen_bottleneck --cogs 1
+
+  # Evaluate NIM agent (shorthand)
+  uv run python packages/cogames/scripts/evaluate_scripted_agents.py \\
+      --agent thinky --experiments oxygen_bottleneck --cogs 1
+
+  # Evaluate ladybug (unclipping agent) with specific config
+  uv run python packages/cogames/scripts/evaluate_scripted_agents.py \\
+      --agent ladybug --mission-set integrated_evals --cogs 2 4
+
+  # Evaluate with full policy path and checkpoint
+  uv run python packages/cogames/scripts/evaluate_scripted_agents.py \\
+      --agent cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy \\
+      --checkpoint ./checkpoints/model.pt --experiments oxygen_bottleneck --cogs 1
 """
 
 import argparse
@@ -26,20 +36,16 @@ import logging
 from collections import defaultdict
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
-from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_VARIANTS, get_difficulty
+from cogames.cogs_vs_clips.evals.difficulty_variants import get_difficulty
 from cogames.cogs_vs_clips.mission import Mission, NumCogsVariant
-from cogames.policy.scripted_agent.baseline_agent import BaselinePolicy
-from cogames.policy.scripted_agent.types import BASELINE_HYPERPARAMETER_PRESETS
-from cogames.policy.scripted_agent.unclipping_agent import (
-    UnclippingHyperparameters,
-    UnclippingPolicy,
-)
+from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
 
@@ -55,7 +61,6 @@ class EvalResult:
     experiment: str
     num_cogs: int
     difficulty: str
-    preset: str
     clip_period: int
     total_reward: float  # Total reward across all agents
     avg_reward_per_agent: float  # Average reward per agent
@@ -69,13 +74,12 @@ class EvalResult:
 
 @dataclass
 class AgentConfig:
-    """Configuration for a baseline agent."""
+    """Configuration for an agent policy."""
 
     key: str
     label: str
-    policy_class: type
-    cogs_list: List[int]
-    difficulties: List[str]
+    policy_path: str  # Fully-qualified policy class path
+    data_path: Optional[str] = None  # Optional checkpoint path
 
 
 def is_clipping_difficulty(name: str) -> bool:
@@ -88,16 +92,12 @@ AGENT_CONFIGS: Dict[str, AgentConfig] = {
     "baseline": AgentConfig(
         key="baseline",
         label="Baseline",
-        policy_class=BaselinePolicy,
-        cogs_list=[1, 2, 4, 8],
-        difficulties=[d.name for d in DIFFICULTY_VARIANTS],  # Run on all including clipping for comparison
+        policy_path="cogames.policy.scripted_agent.baseline_agent.BaselinePolicy",
     ),
-    "unclipping": AgentConfig(
-        key="unclipping",
-        label="UnclippingAgent",
-        policy_class=UnclippingPolicy,
-        cogs_list=[1, 2, 4, 8],
-        difficulties=[d.name for d in DIFFICULTY_VARIANTS],  # With and without clipping
+    "ladybug": AgentConfig(
+        key="ladybug",
+        label="Ladybug",
+        policy_path="cogames.policy.scripted_agent.unclipping_agent.UnclippingPolicy",
     ),
 }
 
@@ -122,7 +122,6 @@ def run_evaluation(
     max_steps: int = 1000,
     seed: int = 42,
     repeats: int = 3,
-    preset: str = "default",
     no_difficulty: bool = False,
     experiment_map: Dict[str, Mission] | None = None,
 ) -> List[EvalResult]:
@@ -130,32 +129,8 @@ def run_evaluation(
     results = []
     experiment_lookup = experiment_map if experiment_map is not None else EXPERIMENT_MAP
 
-    # Get hyperparameters for the preset
-    base_hyperparams = BASELINE_HYPERPARAMETER_PRESETS.get(preset)
-    if base_hyperparams is None:
-        logger.error(f"Unknown preset: {preset}. Using 'default'.")
-        base_hyperparams = BASELINE_HYPERPARAMETER_PRESETS["default"]
-        preset = "default"
-
-    # Convert to UnclippingHyperparameters if using unclipping agent
-    if agent_config.policy_class == UnclippingPolicy:
-        hyperparams = UnclippingHyperparameters(
-            recharge_threshold_low=base_hyperparams.recharge_threshold_low,
-            recharge_threshold_high=base_hyperparams.recharge_threshold_high,
-            stuck_detection_enabled=base_hyperparams.stuck_detection_enabled,
-            stuck_escape_distance=base_hyperparams.stuck_escape_distance,
-            position_history_size=base_hyperparams.position_history_size,
-            exploration_area_check_window=base_hyperparams.exploration_area_check_window,
-            exploration_area_size_threshold=base_hyperparams.exploration_area_size_threshold,
-            exploration_escape_duration=base_hyperparams.exploration_escape_duration,
-            exploration_direction_persistence=base_hyperparams.exploration_direction_persistence,
-            exploration_assembler_distance_threshold=base_hyperparams.exploration_assembler_distance_threshold,
-        )
-    else:
-        hyperparams = base_hyperparams
-
     logger.info(f"\n{'=' * 80}")
-    logger.info(f"Evaluating: {agent_config.label} (preset: {preset})")
+    logger.info(f"Evaluating: {agent_config.label}")
     logger.info(f"Experiments: {len(experiments)}")
     logger.info(f"Difficulties: {len(difficulties)}")
     logger.info(f"Agent counts: {cogs_list}")
@@ -212,9 +187,15 @@ def run_evaluation(
                     # Get the actual max_steps from env_config (after all modifications)
                     actual_max_steps = env_config.game.max_steps
 
-                    # Create policy with PolicyEnvInterface and hyperparameters
+                    # Create policy using generic initialization
                     policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
-                    policy = agent_config.policy_class(policy_env_info, hyperparams)
+
+                    policy_spec = PolicySpec(
+                        class_path=agent_config.policy_path,
+                        data_path=agent_config.data_path,
+                    )
+
+                    policy = initialize_or_load_policy(policy_env_info, policy_spec)
                     agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
 
                     # Run repeated trials with seed offsets
@@ -239,7 +220,6 @@ def run_evaluation(
                             experiment=exp_name,
                             num_cogs=num_cogs,
                             difficulty=("none" if no_difficulty else difficulty_label),
-                            preset=preset,
                             clip_period=clip_period,
                             total_reward=total_reward,
                             avg_reward_per_agent=avg_reward_per_agent,
@@ -269,7 +249,6 @@ def run_evaluation(
                             experiment=exp_name,
                             num_cogs=num_cogs,
                             difficulty=("none" if no_difficulty else difficulty_label),
-                            preset=preset,
                             clip_period=clip_period,
                             total_reward=0.0,
                             avg_reward_per_agent=0.0,
@@ -343,21 +322,6 @@ def print_summary(results: List[EvalResult]):
             f"avg_total={avg_total_reward:.2f} avg_per_agent={avg_reward_per_agent:.2f}"
         )
 
-    # By preset (if multiple presets tested)
-    presets = sorted(set(r.preset for r in results))
-    if len(presets) > 1:
-        logger.info("\n## By Hyperparameter Preset")
-        for preset in presets:
-            preset_results = [r for r in results if r.preset == preset]
-            preset_successes = sum(1 for r in preset_results if r.success)
-            avg_total_reward = sum(r.total_reward for r in preset_results) / len(preset_results)
-            avg_reward_per_agent = sum(r.avg_reward_per_agent for r in preset_results) / len(preset_results)
-            logger.info(
-                f"  {preset:15s}: {preset_successes}/{len(preset_results)} "
-                f"({100 * preset_successes / len(preset_results):.1f}%) "
-                f"avg_total={avg_total_reward:.2f} avg_per_agent={avg_reward_per_agent:.2f}"
-            )
-
 
 def create_plots(results: List[EvalResult], output_dir: str = "eval_plots"):
     """Create comprehensive plots from evaluation results."""
@@ -373,7 +337,7 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots"):
     data = defaultdict(lambda: defaultdict(list))
 
     for r in results:
-        key = (r.agent, r.experiment, r.difficulty, r.num_cogs, r.preset)
+        key = (r.agent, r.experiment, r.difficulty, r.num_cogs)
         data[key]["total_rewards"].append(r.total_reward)
         data[key]["avg_rewards"].append(r.avg_reward_per_agent)
         data[key]["successes"].append(r.success)
@@ -381,13 +345,12 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots"):
     # Aggregate data
     aggregated = {}
     for key, vals in data.items():
-        agent, experiment, difficulty, num_cogs, preset = key
+        agent, experiment, difficulty, num_cogs = key
         aggregated[key] = {
             "agent": agent,
             "experiment": experiment,
             "difficulty": difficulty,
             "num_cogs": num_cogs,
-            "preset": preset,
             "avg_total_reward": np.mean(vals["total_rewards"]),
             "avg_reward_per_agent": np.mean(vals["avg_rewards"]),
             "success_rate": np.mean(vals["successes"]),
@@ -398,7 +361,6 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots"):
     experiments = sorted(set(r.experiment for r in results))
     difficulties = sorted(set(r.difficulty for r in results))
     num_cogs_list = sorted(set(r.num_cogs for r in results))
-    presets = sorted(set(r.preset for r in results))
 
     # 1. Average reward per agent by agent type
     _plot_by_agent(aggregated, agents, output_path)
@@ -438,10 +400,6 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots"):
 
     # 12. Heatmap: Difficulty x Agent (total)
     _plot_heatmap_diff_agent_total(aggregated, difficulties, agents, output_path)
-
-    # 7. Reward by preset (if multiple presets)
-    if len(presets) > 1:
-        _plot_by_preset(aggregated, presets, agents, experiments, difficulties, output_path)
 
     logger.info(f"✓ Plots saved to {output_path}/")
 
@@ -1021,12 +979,25 @@ def _plot_by_preset(aggregated, presets, agents, experiments, difficulties, outp
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Evaluate baseline scripted agents")
+    parser = argparse.ArgumentParser(description="Evaluate policies across missions")
     parser.add_argument(
         "--agent",
-        choices=[*AGENT_CONFIGS.keys(), "all"],
-        default="all",
-        help="Agent to evaluate (default: all)",
+        type=str,
+        nargs="*",
+        default=None,
+        help=(
+            "Agent(s)/policy to evaluate. Can specify multiple. Can be:\n"
+            "  - Shorthand: 'baseline', 'ladybug', 'thinky', 'all'\n"
+            "  - Full policy path: 'cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy'\n"
+            "  - Other registered names: 'nim_thinky', 'nim_random', 'unclipping', etc.\n"
+            "  - Default: ladybug and thinky"
+        ),
+    )
+    parser.add_argument(
+        "--checkpoint",
+        type=str,
+        default=None,
+        help="Path to checkpoint file for trained policies (optional)",
     )
     parser.add_argument(
         "--eval-module",
@@ -1048,7 +1019,7 @@ def main():
         "--difficulties",
         nargs="*",
         default=None,
-        help="Difficulties to test (default: agent-specific)",
+        help="Difficulties to test (default: standard only)",
     )
     parser.add_argument(
         "--no-difficulty",
@@ -1060,22 +1031,11 @@ def main():
         nargs="*",
         type=int,
         default=None,
-        help="Agent counts to test (default: agent-specific)",
+        help="Agent counts to test (default: 1, 2, 4)",
     )
     parser.add_argument("--steps", type=int, default=1000, help="Max steps per episode (default: 1000)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed (default: 42)")
     parser.add_argument("--output", type=str, default=None, help="Output JSON file for results")
-    parser.add_argument(
-        "--preset",
-        choices=list(BASELINE_HYPERPARAMETER_PRESETS.keys()),
-        default="default",
-        help="Hyperparameter preset to use (default: default)",
-    )
-    parser.add_argument(
-        "--all-presets",
-        action="store_true",
-        help="Run evaluation across all hyperparameter presets",
-    )
     parser.add_argument(
         "--plot-dir",
         type=str,
@@ -1111,7 +1071,7 @@ def main():
     mission_set = args.mission_set
     eval_module = args.eval_module
     if mission_set == "diagnostic_evals":
-        missions_list = [mission_cls() for mission_cls in DIAGNOSTIC_EVALS]
+        missions_list = [mission_cls() for mission_cls in DIAGNOSTIC_EVALS]  # type: ignore[call-arg]
     else:
         if mission_set == "eval_missions":
             eval_module = "cogames.cogs_vs_clips.evals.eval_missions"
@@ -1119,15 +1079,38 @@ def main():
             eval_module = "cogames.cogs_vs_clips.evals.integrated_evals"
         missions_list = load_eval_missions(eval_module)
 
-    experiment_map = {mission.name: mission for mission in missions_list}
+    experiment_map = {mission.name: mission for mission in missions_list}  # type: ignore[misc]
     global EXPERIMENT_MAP
-    EXPERIMENT_MAP = experiment_map
+    EXPERIMENT_MAP = experiment_map  # type: ignore[assignment]
 
-    # Determine which agents to test
-    if args.agent == "all":
-        configs = list(AGENT_CONFIGS.values())
+    # Determine which agents to test based on --agent argument
+    # Can be: "all", a shorthand like "baseline", or a full policy path
+    # Default to ladybug and thinky if nothing specified
+    if args.agent is None or len(args.agent) == 0:
+        # Default: ladybug and thinky
+        agent_keys = ["ladybug", "thinky"]
     else:
-        configs = [AGENT_CONFIGS[args.agent]]
+        agent_keys = args.agent
+
+    configs = []
+    for agent_key in agent_keys:
+        if agent_key == "all":
+            # Add all predefined configs
+            configs.extend(list(AGENT_CONFIGS.values()))
+        elif agent_key in AGENT_CONFIGS:
+            # Use predefined config
+            configs.append(AGENT_CONFIGS[agent_key])
+        else:
+            # Treat as a policy class path (full or shorthand)
+            label = agent_key.rsplit(".", 1)[-1] if "." in agent_key else agent_key
+            configs.append(
+                AgentConfig(
+                    key="custom",
+                    label=label,
+                    policy_path=agent_key,
+                    data_path=args.checkpoint,
+                )
+            )
 
     # Determine experiments
     if args.experiments:
@@ -1135,38 +1118,32 @@ def main():
     else:
         experiments = list(experiment_map.keys())
 
-    # Determine which presets to test
-    if args.all_presets:
-        presets = list(BASELINE_HYPERPARAMETER_PRESETS.keys())
-    else:
-        presets = [args.preset]
-
     # Run evaluations
     all_results = []
-    for preset in presets:
-        for config in configs:
-            # Use specified difficulties or agent-specific defaults
-            if args.no_difficulty:
-                difficulties = ["base"]
-            else:
-                difficulties = args.difficulties if args.difficulties else config.difficulties
+    for config in configs:
+        # Use specified difficulties, or default to "standard" only
+        if args.no_difficulty:
+            difficulties = ["base"]
+        elif args.difficulties:
+            difficulties = args.difficulties
+        else:
+            difficulties = ["standard"]
 
-            # Use specified cogs or agent-specific defaults
-            cogs_list = args.cogs if args.cogs else config.cogs_list
+        # Use specified cogs or default to [1, 2, 4]
+        cogs_list = args.cogs if args.cogs else [1, 2, 4]
 
-            results = run_evaluation(
-                agent_config=config,
-                experiments=experiments,
-                difficulties=difficulties,
-                cogs_list=cogs_list,
-                experiment_map=experiment_map,
-                max_steps=args.steps,
-                seed=args.seed,
-                repeats=args.repeats,
-                preset=preset,
-                no_difficulty=args.no_difficulty,
-            )
-            all_results.extend(results)
+        results = run_evaluation(
+            agent_config=config,
+            experiments=experiments,
+            difficulties=difficulties,
+            cogs_list=cogs_list,
+            experiment_map=experiment_map,  # type: ignore[arg-type]
+            max_steps=args.steps,
+            seed=args.seed,
+            repeats=args.repeats,
+            no_difficulty=args.no_difficulty,
+        )
+        all_results.extend(results)
 
     # Print summary
     print_summary(all_results)
