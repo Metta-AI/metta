@@ -9,7 +9,7 @@ const
   PutInventoryAmount = 10
 
 type
-  ThinkyAgent* = ref object
+  RaceCarAgent* = ref object
     agentId*: int
 
     map: Table[Location, seq[FeatureValue]]
@@ -25,8 +25,12 @@ type
     germaniumTarget: int
     siliconTarget: int
 
-  ThinkyPolicy* = ref object
-    agents*: seq[ThinkyAgent]
+    maxEnergyObserved: int
+    recharging: bool
+    exploreStage: int
+
+  RaceCarPolicy* = ref object
+    agents*: seq[RaceCarAgent]
 
 proc log(message: string) =
   when defined(debug):
@@ -44,7 +48,62 @@ const the8Offsets = [
   Location(x: -1, y: -1),
 ]
 
-proc getActiveRecipe(agent: ThinkyAgent): RecipeInfo =
+const scoutVectors = [
+  Location(x: 1, y: 0),
+  Location(x: -1, y: 0),
+  Location(x: 0, y: 1),
+  Location(x: 0, y: -1),
+  Location(x: 1, y: 1),
+  Location(x: -1, y: 1),
+  Location(x: 1, y: -1),
+  Location(x: -1, y: -1),
+]
+
+const scoutBaseDistances = @[8, 16, 24, 32, 40]
+
+proc assignedScoutVector(agent: RaceCarAgent): Location =
+  scoutVectors[agent.agentId mod scoutVectors.len]
+
+proc scoutDistance(agent: RaceCarAgent): int =
+  if agent.exploreStage < scoutBaseDistances.len:
+    scoutBaseDistances[agent.exploreStage]
+  else:
+    scoutBaseDistances[^1] + (agent.exploreStage - scoutBaseDistances.len + 1) * 8
+
+proc scoutTarget(agent: RaceCarAgent): Location =
+  let vec = agent.assignedScoutVector()
+  let dist = agent.scoutDistance()
+  Location(x: vec.x * dist, y: vec.y * dist)
+
+proc reachedScoutTarget(agent: RaceCarAgent): bool =
+  manhattan(agent.location, agent.scoutTarget()) <= 2
+
+proc scoutAction(agent: RaceCarAgent): Option[int32] =
+  let target = agent.scoutTarget()
+  let action = agent.cfg.aStar(agent.location, target, agent.map)
+  if action.isSome():
+    return some(action.get().int32)
+
+  let vec = agent.assignedScoutVector()
+  if vec.x > 0:
+    return some(agent.cfg.actions.moveEast.int32)
+  elif vec.x < 0:
+    return some(agent.cfg.actions.moveWest.int32)
+  elif vec.y > 0:
+    return some(agent.cfg.actions.moveSouth.int32)
+  elif vec.y < 0:
+    return some(agent.cfg.actions.moveNorth.int32)
+  none(int32)
+
+proc energyLowThreshold(agent: RaceCarAgent): int =
+  let cap = max(agent.maxEnergyObserved, 1)
+  max(15, cap div 3)
+
+proc energyHighThreshold(agent: RaceCarAgent): int =
+  let cap = max(agent.maxEnergyObserved, 1)
+  min(cap, max(25, cap - max(10, cap div 10)))
+
+proc getActiveRecipe(agent: RaceCarAgent): RecipeInfo =
   ## Get the recipes form the assembler protocol inputs.
   let assemblerLocation = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
   if assemblerLocation.isSome():
@@ -101,18 +160,26 @@ proc getActiveRecipe(agent: ThinkyAgent): RecipeInfo =
       elif feature.featureId == agent.cfg.features.protocolOutputScrambler:
         result.scramblerCost = feature.value
 
-proc newThinkyAgent*(agentId: int, environmentConfig: string): ThinkyAgent =
+proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
   ## Create a new thinky agent, the fastest and the smartest agent.
 
   var config = parseConfig(environmentConfig)
-  result = ThinkyAgent(agentId: agentId, cfg: config)
+  result = RaceCarAgent(agentId: agentId, cfg: config)
   result.random = initRand(agentId)
   result.map = initTable[Location, seq[FeatureValue]]()
   result.seen = initHashSet[Location]()
   result.location = Location(x: 0, y: 0)
   result.lastActions = @[]
+  result.recipes = @[]
+  result.carbonTarget = 0
+  result.oxygenTarget = 0
+  result.germaniumTarget = 0
+  result.siliconTarget = 0
+  result.maxEnergyObserved = 0
+  result.recharging = false
+  result.exploreStage = 0
 
-proc updateMap(agent: ThinkyAgent, visible: Table[Location, seq[FeatureValue]]) =
+proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]]) =
   ## Update the big map with the small visible map.
 
   if agent.map.len == 0:
@@ -186,7 +253,7 @@ proc updateMap(agent: ThinkyAgent, visible: Table[Location, seq[FeatureValue]]) 
         agent.seen.incl(location)
 
 proc step*(
-  agent: ThinkyAgent,
+  agent: RaceCarAgent,
   numAgents: int,
   numTokens: int,
   sizeToken: int,
@@ -288,25 +355,23 @@ proc step*(
       agent.germaniumTarget = max(agent.germaniumTarget, activeRecipe.germaniumCost div activeRecipe.pattern.len)
       agent.siliconTarget = max(agent.siliconTarget, activeRecipe.siliconCost div activeRecipe.pattern.len)
 
-    # Are we running low on energy?
-    if invEnergy < MaxEnergy div 4:
+    agent.maxEnergyObserved = max(agent.maxEnergyObserved, invEnergy)
+
+    let lowThreshold = energyLowThreshold(agent)
+    let highThreshold = energyHighThreshold(agent)
+
+    if agent.recharging and invEnergy >= highThreshold:
+      agent.recharging = false
+
+    if invEnergy <= lowThreshold or agent.recharging:
       let chargerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.charger)
       if chargerNearby.isSome():
         let action = agent.cfg.aStar(agent.location, chargerNearby.get(), agent.map)
         if action.isSome():
+          agent.recharging = true
           doAction(action.get().int32)
           log "going to charger"
           return
-    # Charge opportunistically.
-    if invEnergy < MaxEnergy - 20:
-      let chargerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.charger)
-      if chargerNearby.isSome():
-        if manhattan(agent.location, chargerNearby.get()) < 2:
-          let action = agent.cfg.aStar(agent.location, chargerNearby.get(), agent.map)
-          if action.isSome():
-            doAction(action.get().int32)
-            log "charge nearby might as well charge"
-            return
 
     # Deposit heart into the chest.
     if invHeart > 0:
@@ -533,14 +598,14 @@ proc step*(
             log "going to key location to explore"
             return
 
-    # Try to find a nearby unseen location nearest to the agent.
-    let unseenNearby = agent.cfg.getNearbyUnseen(agent.location, agent.map, agent.seen)
-    if unseenNearby.isSome():
-      let action = agent.cfg.aStar(agent.location, unseenNearby.get(), agent.map)
-      if action.isSome():
-        doAction(action.get().int32)
-        log "going to unseen location nearest to agent"
-        return
+    if agent.reachedScoutTarget():
+      inc(agent.exploreStage)
+
+    let exploreAction = agent.scoutAction()
+    if exploreAction.isSome():
+      doAction(exploreAction.get())
+      log "exploring assigned sector"
+      return
 
     # If all else fails, take a random move to explore the map or get unstuck.
     let action = agent.random.rand(1 .. 4).int32
@@ -552,15 +617,15 @@ proc step*(
     echo getCurrentExceptionMsg()
     quit()
 
-proc newThinkyPolicy*(environmentConfig: string): ThinkyPolicy =
+proc newRaceCarPolicy*(environmentConfig: string): RaceCarPolicy =
   let cfg = parseConfig(environmentConfig)
-  var agents: seq[ThinkyAgent] = @[]
+  var agents: seq[RaceCarAgent] = @[]
   for id in 0 ..< cfg.config.numAgents:
-    agents.add(newThinkyAgent(id, environmentConfig))
-  ThinkyPolicy(agents: agents)
+    agents.add(newRaceCarAgent(id, environmentConfig))
+  RaceCarPolicy(agents: agents)
 
 proc stepBatch*(
-    policy: ThinkyPolicy,
+    policy: RaceCarPolicy,
     agentIds: pointer,
     numAgentIds: int,
     numAgents: int,
