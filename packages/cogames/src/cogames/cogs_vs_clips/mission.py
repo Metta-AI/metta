@@ -11,6 +11,7 @@ from cogames.cogs_vs_clips.stations import (
     ChargerConfig,
     CvCAssemblerConfig,
     CvCChestConfig,
+    CvCStationConfig,
     CvCWallConfig,
     GermaniumExtractorConfig,
     OxygenExtractorConfig,
@@ -26,6 +27,7 @@ from mettagrid.config.mettagrid_config import (
     ClipperConfig,
     GameConfig,
     GlobalObsConfig,
+    GridObjectConfig,
     MettaGridConfig,
     MoveActionConfig,
     NoopActionConfig,
@@ -153,6 +155,12 @@ class Mission(Config):
         map_builder = self.site.map_builder
         num_cogs = self.num_cogs if self.num_cogs is not None else self.site.min_cogs
 
+        def _clipped(name: str, station_config: CvCStationConfig) -> GridObjectConfig:
+            clipped_cfg = station_config.model_copy(update={"start_clipped": True}).station_cfg()
+            clipped_cfg.map_name = name
+            clipped_cfg.render_name = clipped_cfg.render_name or clipped_cfg.name
+            return clipped_cfg
+
         game = GameConfig(
             map_builder=map_builder,
             num_agents=num_cogs,
@@ -219,18 +227,10 @@ class Mission(Config):
                 "germanium_extractor": self.germanium_extractor.station_cfg(),
                 "silicon_extractor": self.silicon_extractor.station_cfg(),
                 # Clipped variants
-                "clipped_carbon_extractor": self.carbon_extractor.model_copy(
-                    update={"start_clipped": True}
-                ).station_cfg(),
-                "clipped_oxygen_extractor": self.oxygen_extractor.model_copy(
-                    update={"start_clipped": True}
-                ).station_cfg(),
-                "clipped_germanium_extractor": self.germanium_extractor.model_copy(
-                    update={"start_clipped": True}
-                ).station_cfg(),
-                "clipped_silicon_extractor": self.silicon_extractor.model_copy(
-                    update={"start_clipped": True}
-                ).station_cfg(),
+                "clipped_carbon_extractor": _clipped("clipped_carbon_extractor", self.carbon_extractor),
+                "clipped_oxygen_extractor": _clipped("clipped_oxygen_extractor", self.oxygen_extractor),
+                "clipped_germanium_extractor": _clipped("clipped_germanium_extractor", self.germanium_extractor),
+                "clipped_silicon_extractor": _clipped("clipped_silicon_extractor", self.silicon_extractor),
             },
         )
 

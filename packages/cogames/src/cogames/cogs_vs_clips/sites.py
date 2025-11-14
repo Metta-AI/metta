@@ -30,6 +30,38 @@ TRAINING_FACILITY = Site(
     max_cogs=4,
 )
 
+TRAINING_GAUNTLET = Site(
+    name="training_gauntlet",
+    description="Obstacle gauntlet connecting resource wings through narrow corridors.",
+    map_builder=get_map("training_facility_gauntlet.map"),
+    min_cogs=1,
+    max_cogs=6,
+)
+
+TRAINING_CROSSFIRE = Site(
+    name="training_crossfire",
+    description="Cross-shaped choke points with clipped resource bays and staggered hub access.",
+    map_builder=get_map("training_facility_crossfire.map"),
+    min_cogs=2,
+    max_cogs=6,
+)
+
+TRAINING_LABYRINTH = Site(
+    name="training_labyrinth",
+    description="Dense labyrinth of one-tile corridors dotted with clipped hubs.",
+    map_builder=get_map("training_facility_labyrinth.map"),
+    min_cogs=2,
+    max_cogs=4,
+)
+
+TRAINING_PRESSURE = Site(
+    name="training_pressure",
+    description="Pressure chambers with mirrored wings and clipped chargers demanding tight rotations.",
+    map_builder=get_map("training_facility_pressure.map"),
+    min_cogs=3,
+    max_cogs=6,
+)
+
 HELLO_WORLD = Site(
     name="hello_world",
     description="Welcome to space.",
@@ -58,6 +90,10 @@ EVALS = Site(
 
 SITES = [
     TRAINING_FACILITY,
+    TRAINING_GAUNTLET,
+    TRAINING_CROSSFIRE,
+    TRAINING_LABYRINTH,
+    TRAINING_PRESSURE,
     HELLO_WORLD,
     MACHINA_1,
     EVALS,

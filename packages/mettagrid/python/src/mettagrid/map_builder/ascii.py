@@ -59,7 +59,8 @@ class AsciiMapBuilder(MapBuilder[AsciiMapBuilderConfig]):
     def __init__(self, config: AsciiMapBuilderConfig):
         super().__init__(config)
 
-        self._level = np.array([list(line) for line in config.map_data], dtype="U6")
+        raw_grid = [list(line) for line in config.map_data]
+        self._level = np.array(raw_grid, dtype=object)
         self._level = np.vectorize(self._char_to_map_name)(self._level)
 
     def _char_to_map_name(self, char: str) -> str:

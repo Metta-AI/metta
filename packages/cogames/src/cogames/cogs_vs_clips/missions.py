@@ -1,7 +1,15 @@
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import Mission
 from cogames.cogs_vs_clips.mission_utils import get_map
-from cogames.cogs_vs_clips.sites import HELLO_WORLD, MACHINA_1, TRAINING_FACILITY
+from cogames.cogs_vs_clips.sites import (
+    HELLO_WORLD,
+    MACHINA_1,
+    TRAINING_CROSSFIRE,
+    TRAINING_FACILITY,
+    TRAINING_GAUNTLET,
+    TRAINING_LABYRINTH,
+    TRAINING_PRESSURE,
+)
 from cogames.cogs_vs_clips.variants import (
     ChestHeartTuneVariant,
     ClipHubStationsVariant,
@@ -80,6 +88,63 @@ EasyHeartsMission = Mission(
 )
 
 
+GauntletRunMission = Mission(
+    name="gauntlet_run",
+    description=("Navigate the gauntlet corridors, repair clipped hubs, and coordinate resource runs from each wing."),
+    site=TRAINING_GAUNTLET,
+    num_cogs=4,
+    variants=[
+        ClipRateOnVariant(),
+        ChestHeartTuneVariant(hearts=2),
+        InventoryHeartTuneVariant(hearts=1, heart_capacity=3),
+    ],
+)
+
+
+CrossfireSiegeMission = Mission(
+    name="crossfire_siege",
+    description="Unclip mirrored resource bays while coordinating cross-corridor rotations under constant pressure.",
+    site=TRAINING_CROSSFIRE,
+    num_cogs=4,
+    variants=[
+        ClipRateOnVariant(),
+        ClipHubStationsVariant(),
+        ChestHeartTuneVariant(hearts=1),
+        InventoryHeartTuneVariant(hearts=1, heart_capacity=2),
+    ],
+)
+
+
+LabyrinthRelayMission = Mission(
+    name="labyrinth_relay",
+    description="Run relay lines through one-tile corridors to feed the hub amidst clipped checkpoints.",
+    site=TRAINING_LABYRINTH,
+    num_cogs=3,
+    variants=[
+        ClipHubStationsVariant(),
+        ClipRateOnVariant(),
+        InventoryHeartTuneVariant(hearts=2, heart_capacity=3),
+        HeartChorusVariant(),
+        VibeCheckMin2Variant(),
+    ],
+)
+
+
+PressureChambersMission = Mission(
+    name="pressure_chambers",
+    description="Cycle mirrored pressure wings where clipped chargers and resource bays demand tight timing.",
+    site=TRAINING_PRESSURE,
+    num_cogs=4,
+    variants=[
+        ClipHubStationsVariant(),
+        ClipRateOnVariant(),
+        ChestHeartTuneVariant(hearts=3),
+        InventoryHeartTuneVariant(hearts=2, heart_capacity=4),
+        PackRatVariant(),
+    ],
+)
+
+
 # Hello World Missions
 ExploreMission = Mission(
     name="explore",
@@ -134,6 +199,10 @@ MISSIONS: list[Mission] = [
     ExploreMission,
     TreasureHuntMission,
     EasyHeartsMission,
+    GauntletRunMission,
+    CrossfireSiegeMission,
+    LabyrinthRelayMission,
+    PressureChambersMission,
     HelloWorldUnclipMission,
     HelloWorldOpenWorldMission,
     Machina1OpenWorldMission,

@@ -72,13 +72,13 @@ class TestMapBuilder:
 class TestMapGrid:
     def test_map_grid_dtype(self):
         # Test the dtype constant
-        assert map_grid_dtype == np.dtype("<U20")
+        assert map_grid_dtype == np.dtype("<U64")
 
         # Test creating array with correct dtype
         grid = np.array([["wall", "empty"]], dtype=map_grid_dtype)
         assert grid.dtype == map_grid_dtype
 
-        # Test it can hold strings up to 20 characters
-        long_name = "a" * 20
+        # Test it can hold strings up to 64 characters
+        long_name = "a" * 64
         grid = np.array([[long_name]], dtype=map_grid_dtype)
         assert grid[0, 0] == long_name

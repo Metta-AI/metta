@@ -25,7 +25,6 @@ from cogames.cli.mission import describe_mission, get_mission_name_and_config, g
 from cogames.cli.policy import get_policy_spec, get_policy_specs, policy_arg_example, policy_arg_w_proportion_example
 from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, submit_command
 from cogames.curricula import make_rotation
-from cogames.device import resolve_training_device
 from mettagrid.renderer.renderer import RenderMode
 from mettagrid.simulator import Simulator
 
@@ -253,6 +252,8 @@ def train_cmd(
     ),
     log_outputs: bool = typer.Option(False, "--log-outputs", help="Log training outputs"),
 ) -> None:
+    from cogames.device import resolve_training_device  # noqa: PLC0415
+
     selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs)
     if len(selected_missions) == 1:
         mission_name, env_cfg = selected_missions[0]
