@@ -42,9 +42,7 @@ def get_install_dir() -> Path | None:
     for dir_str in COMMON_INSTALL_DIRS:
         if dir_str in path_dirs:
             dir_path = Path(dir_str)
-            if dir_path.exists() and (
-                os.access(dir_path, os.W_OK) or (hasattr(os, "geteuid") and os.geteuid() == 0)
-            ):
+            if dir_path.exists() and (os.access(dir_path, os.W_OK) or (hasattr(os, "geteuid") and os.geteuid() == 0)):
                 return dir_path
     return None
 

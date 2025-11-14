@@ -62,28 +62,28 @@ echo "Welcome to Metta!"
 # Install uv if not present
 if ! check_cmd uv; then
   echo "Installing uv..."
-  
+
   # Ensure common bin directories are in PATH before installing
   for dir in "$HOME/.local/bin" "$HOME/.cargo/bin"; do
     if [ -d "$dir" ] && [ ":${PATH}:" != *":${dir}:"* ]; then
       export PATH="${dir}:${PATH}"
     fi
   done
-  
+
   curl -LsSf https://astral.sh/uv/install.sh | sh
-  
+
   # Source cargo env if it exists (uv installer typically installs to ~/.cargo/bin)
   if [ -f "$HOME/.cargo/env" ]; then
     . "$HOME/.cargo/env"
   fi
-  
+
   # Check common locations and add to PATH if needed
   for dir in "$HOME/.local/bin" "$HOME/.cargo/bin"; do
     if [ -d "$dir" ] && [ -f "$dir/uv" ] && [ ":${PATH}:" != *":${dir}:"* ]; then
       export PATH="${dir}:${PATH}"
     fi
   done
-  
+
   if ! check_cmd uv; then
     echo "Error: Failed to install uv. Please install it manually from https://github.com/astral-sh/uv"
     exit 1
