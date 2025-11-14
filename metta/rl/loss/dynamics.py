@@ -27,8 +27,14 @@ class DynamicsConfig(LossConfig):
         loss_config: Any,
     ) -> "Dynamics":
         """Create Dynamics loss instance."""
-        # Pass config positionally so it maps to Loss.cfg
-        return Dynamics(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
+        return Dynamics(
+            policy,
+            trainer_cfg,
+            vec_env,
+            device,
+            instance_name=instance_name,
+            loss_config=loss_config,
+        )
 
 
 class Dynamics(Loss):
