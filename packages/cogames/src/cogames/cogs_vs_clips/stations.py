@@ -106,9 +106,9 @@ class OxygenExtractorConfig(ExtractorConfig):
 # Rare and doesn't regenerate. But more cogs increase efficiency.
 class GermaniumExtractorConfig(ExtractorConfig):
     # How much one agent gets.
-    efficiency: float = Field(default=1.0)
+    efficiency: int = 2
     # How much each additional agent gets.
-    synergy: float = Field(default=0.5)
+    synergy: int = 1
 
     def station_cfg(self) -> AssemblerConfig:
         return AssemblerConfig(
@@ -122,7 +122,7 @@ class GermaniumExtractorConfig(ExtractorConfig):
                     # For the 1 agent protocol, we set min_agents to zero so it's visible when no
                     # agents are adjacent to the extractor.
                     min_agents=(additional_agents + 1) if additional_agents >= 1 else 0,
-                    output_resources={"germanium": max(1, int(self.efficiency + additional_agents * self.synergy))},
+                    output_resources={"germanium": max(1, (self.efficiency + additional_agents * self.synergy) // 2)},
                 )
                 for additional_agents in range(4)
             ],
@@ -145,7 +145,7 @@ class SiliconExtractorConfig(ExtractorConfig):
             protocols=[
                 ProtocolConfig(
                     input_resources={"energy": 25},
-                    output_resources={"silicon": max(1, int(12 * self.efficiency // 100))},
+                    output_resources={"silicon": max(1, int(25 * self.efficiency // 100) // 2)},
                 )
             ],
             # Clipping
@@ -187,28 +187,25 @@ class CvCAssemblerConfig(CvCStationConfig):
 
     def station_cfg(self) -> AssemblerConfig:
         gear = [("oxygen", "modulator"), ("germanium", "scrambler"), ("silicon", "resonator"), ("carbon", "decoder")]
-        heart_protocols: list[ProtocolConfig] = []
-        for i in range(4):
-            base_cost = self.first_heart_cost + self.additional_heart_cost * i
-            heart_protocols.append(
-                ProtocolConfig(
-                    vibes=["heart_a"] * (i + 1),
-                    input_resources={
-                        "carbon": base_cost,
-                        "oxygen": base_cost,
-                        "germanium": max(1, base_cost // 4),
-                        "silicon": max(1, (5 * base_cost) // 2),
-                        "energy": base_cost,
-                    },
-                    output_resources={"heart": i + 1},
-                )
-            )
         return AssemblerConfig(
             name="assembler",
             map_char="&",
             render_symbol=vibes.VIBE_BY_NAME["assembler"].symbol,
             clip_immune=True,
-            protocols=heart_protocols
+            protocols=[
+                ProtocolConfig(
+                    vibes=["heart_a"] * (i + 1),
+                    input_resources={
+                        "carbon": self.first_heart_cost + self.additional_heart_cost * i,
+                        "oxygen": self.first_heart_cost + self.additional_heart_cost * i,
+                        "germanium": max(1, (self.first_heart_cost + self.additional_heart_cost * i) // 4),
+                        "silicon": max(1, (5 * (self.first_heart_cost + self.additional_heart_cost * i)) // 2),
+                        "energy": self.first_heart_cost + self.additional_heart_cost * i,
+                    },
+                    output_resources={"heart": i + 1},
+                )
+                for i in range(4)
+            ]
             + [
                 # Specific gear protocols: ['gear', 'resource'] -> gear_item
                 # Agent must have the specific resource AND use gear vibe
