@@ -12,22 +12,6 @@
       "preLaunchTask": "${defaultBuildTask}",
     },
     {
-      "name": "Sweep: Init",
-      "type": "pythoncpp",
-      "request": "launch",
-      "pythonLaunchName": "_Python: Sweep Init",
-      "cppAttachName": "_C++ Attach",
-      "preLaunchTask": "${defaultBuildTask}",
-    },
-    {
-      "name": "Sweep: Eval",
-      "type": "pythoncpp",
-      "request": "launch",
-      "pythonLaunchName": "_Python: Sweep Eval",
-      "cppAttachName": "_C++ Attach",
-      "preLaunchTask": "${defaultBuildTask}",
-    },
-    {
       "name": "Sweep: Train",
       "type": "pythoncpp",
       "request": "launch",
@@ -100,18 +84,6 @@
       "preLaunchTask": "${defaultBuildTask}",
     },
 
-    // Utility: Manual C++ attach
-    {
-      "name": "MettaGrid Debug Attach C++",
-      "type": "lldb",
-      "request": "attach",
-      "pid": "${command:pickProcess}",
-      "sourceMap": {
-        ".": "${workspaceFolder}/packages/mettagrid",
-      },
-      "waitFor": true,
-    },
-
     // Hidden Python configurations (boilerplate extracted here)
     {
       "name": "_Python: Train Metta",
@@ -119,38 +91,6 @@
       "request": "launch",
       "module": "metta.common.tool.run_tool",
       "args": ["recipes.experiment.scratchpad.${env:USER}.train"],
-      "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "env": {
-        "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
-      },
-      "console": "integratedTerminal",
-      "justMyCode": false,
-      "presentation": {"hidden": true},
-    },
-    {
-      "name": "_Python: Sweep Init",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "tools.sweep_init",
-      "args": ["+user=${env:USER}", "dist_cfg_path=${data_dir}/${env:USER}/dist_cfg.yaml"],
-      "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "env": {
-        "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
-      },
-      "console": "integratedTerminal",
-      "justMyCode": false,
-      "presentation": {"hidden": true},
-    },
-    {
-      "name": "_Python: Sweep Eval",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "tools.sweep_eval",
-      "args": ["+user=${env:USER}", "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml"],
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
       "env": {
