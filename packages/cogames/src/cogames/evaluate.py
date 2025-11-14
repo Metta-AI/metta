@@ -96,10 +96,10 @@ def evaluate(
             )
         mission_results.append(rollout_payload)
 
-    summary = build_multi_episode_rollout_summaries(mission_results, num_policies=len(policy_specs))
+    summaries = build_multi_episode_rollout_summaries(mission_results, num_policies=len(policy_specs))
     mission_names = [mission_name for mission_name, _ in missions]
-    _output_results(console, policy_specs, mission_names, summary, output_format)
-    return summary
+    _output_results(console, policy_specs, mission_names, summaries, output_format)
+    return summaries
 
 
 def _output_results(

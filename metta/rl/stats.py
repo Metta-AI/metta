@@ -197,7 +197,12 @@ def compute_timing_stats(
 
 
 def process_policy_evaluator_stats(
-    policy_uri: str, eval_results: EvalResults, run: WandbRun, epoch: int, agent_step: int, should_finish_run: bool
+    policy_uri: str,
+    eval_results: EvalResults,
+    wandb_run: WandbRun,
+    epoch: int,
+    agent_step: int,
+    should_finish_run: bool,
 ) -> None:
     metrics_to_log: dict[str, float] = {
         f"{POLICY_EVALUATOR_METRIC_PREFIX}/eval_{k}": v
@@ -215,12 +220,14 @@ def process_policy_evaluator_stats(
 
     try:
         try:
-            setup_policy_evaluator_metrics(run)
+            setup_policy_evaluator_metrics(wandb_run)
         except Exception:
             logger.warning("Failed to set default axes for policy evaluator metrics. Continuing")
             pass
 
-        run.log({**metrics_to_log, POLICY_EVALUATOR_STEP_METRIC: agent_step, POLICY_EVALUATOR_EPOCH_METRIC: epoch})
+        wandb_run.log(
+            {**metrics_to_log, POLICY_EVALUATOR_STEP_METRIC: agent_step, POLICY_EVALUATOR_EPOCH_METRIC: epoch}
+        )
         logger.info(f"Logged {len(metrics_to_log)} metrics to wandb for policy {policy_uri}")
         if eval_results.replay_urls:
             try:
@@ -228,7 +235,7 @@ def process_policy_evaluator_stats(
                     replay_urls=eval_results.replay_urls,
                     agent_step=agent_step,  # type: ignore
                     epoch=epoch,  # type: ignore
-                    wandb_run=run,
+                    wandb_run=wandb_run,
                     step_metric_key=POLICY_EVALUATOR_STEP_METRIC,
                     epoch_metric_key=POLICY_EVALUATOR_EPOCH_METRIC,
                 )
@@ -236,4 +243,4 @@ def process_policy_evaluator_stats(
                 logger.error(f"Failed to upload replays for {policy_uri}: {e}", exc_info=True)
     finally:
         if should_finish_run:
-            run.finish()
+            wandb_run.finish()

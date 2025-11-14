@@ -14,16 +14,17 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum import Curriculum
 from metta.common.util.git_helpers import GitError, get_task_commit_hash
 from metta.common.util.git_repo import REPO_SLUG
-from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
+from metta.eval.eval_request_config import EvalRewardSummary
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import (
     evaluate_policy_remote_with_checkpoint_manager,
     upload_replay_html,
 )
+from metta.rl.stats import process_policy_evaluator_stats
 from metta.rl.training import TrainerComponent
-from metta.rl.training.format_eval_results import build_eval_summary_rows, render_eval_summary
 from metta.rl.training.optimizer import is_schedulefree_optimizer
-from metta.sim.runner import MultiAgentPolicyInitializer, SimulationRunResult, build_eval_results, run_simulations
+from metta.sim.handle_results import render_eval_summary, to_eval_results
+from metta.sim.runner import MultiAgentPolicyInitializer, SimulationRunResult, run_simulations
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.base_config import Config
@@ -184,38 +185,35 @@ class Evaluator(TrainerComponent):
 
         # Local evaluation
         if self._config.evaluate_local:
-            evaluation_results, rollout_details = self._evaluate_local(
-                policy_uri=policy_uri,
-                simulations=sims,
-                stats_epoch_id=stats_epoch_id,
-            )
+            rollout_results = self._evaluate_local(policy_uri=policy_uri, simulations=sims)
+            # TODO: Pasha: should also send epochs/episodes/metrics to stats-server
+            render_eval_summary(rollout_results, policy_names=[policy_uri or "target policy"])
 
-            rows = build_eval_summary_rows(
-                policy_uri=policy_uri,
-                simulations=sims,
-                rollout_results=rollout_details,
-                evaluation_results=evaluation_results,
-                replay_dir=self._config.replay_dir,
-            )
-            render_eval_summary(rows)
+            eval_results = to_eval_results(rollout_results, num_policies=1, target_policy_idx=0)
 
-            # Upload replays if available
             stats_reporter = getattr(self.context, "stats_reporter", None)
-            if stats_reporter and evaluation_results.replay_urls:
-                wandb_run = getattr(stats_reporter, "wandb_run", None)
-                if wandb_run:
-                    upload_replay_html(
-                        replay_urls=evaluation_results.replay_urls,
-                        agent_step=agent_step,
-                        epoch=epoch,
-                        wandb_run=wandb_run,
-                        step_metric_key="metric/epoch",
-                        epoch_metric_key="metric/epoch",
-                    )
+            wandb_run = getattr(stats_reporter, "wandb_run", None)
+            if wandb_run:
+                process_policy_evaluator_stats(
+                    policy_uri=policy_uri,
+                    eval_results=eval_results,
+                    wandb_run=wandb_run,
+                    epoch=epoch,
+                    agent_step=agent_step,
+                    should_finish_run=False,
+                )
+                upload_replay_html(
+                    replay_urls=eval_results.replay_urls,
+                    agent_step=agent_step,
+                    epoch=epoch,
+                    wandb_run=wandb_run,
+                    step_metric_key="metric/epoch",
+                    epoch_metric_key="metric/epoch",
+                )
 
-            self._latest_scores = evaluation_results.scores
+            self._latest_scores = eval_results.scores
             self.context.latest_eval_scores = self._latest_scores
-            return evaluation_results.scores
+            return eval_results.scores
 
         return EvalRewardSummary()
 
@@ -270,8 +268,7 @@ class Evaluator(TrainerComponent):
         self,
         policy_uri: str,
         simulations: list[SimulationConfig],
-        stats_epoch_id: Optional[UUID] = None,
-    ) -> tuple[EvalResults, list[SimulationRunResult]]:
+    ) -> list[SimulationRunResult]:
         logger.info(f"Evaluating policy locally from {policy_uri}")
 
         def _materialize_policy(policy_uri: str) -> MultiAgentPolicyInitializer:
@@ -285,17 +282,13 @@ class Evaluator(TrainerComponent):
             return _m
 
         policy_initializers = [_materialize_policy((policy_uri))]
-        rollout_results = run_simulations(
+        return run_simulations(
             policy_initializers=policy_initializers,
             simulations=[sim.to_simulation_run_config() for sim in simulations],
             replay_dir=self._config.replay_dir,
             seed=self._system_cfg.seed,
             enable_replays=True,
         )
-
-        # TODO: this should also submit to stats-server
-        eval_results = build_eval_results(rollout_results, num_policies=1, target_policy_idx=0)
-        return eval_results, rollout_results
 
     def get_latest_scores(self) -> EvalRewardSummary:
         return self._latest_scores
