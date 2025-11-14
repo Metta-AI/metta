@@ -65,7 +65,6 @@ class IdMap:
                 + self._config.agent.tags
             )
         )
-        print(f"result: {result}")
         return result
 
     def _compute_features(self) -> list[ObservationFeatureSpec]:
