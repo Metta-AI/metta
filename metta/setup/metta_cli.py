@@ -624,10 +624,8 @@ def cmd_go(ctx: typer.Context):
 @app.command(name="pr-feed", help="Show PRs that touch a specific path")
 def cmd_pr_feed(
     path: Annotated[str, typer.Argument(help="Path filter (e.g., metta/jobs)")],
-    num_prs: Annotated[
-        int, typer.Option("--num_prs", help="Maximum PRs to search (GitHub API limit: 100)", min=1, max=100)
-    ] = 100,
     status: Annotated[PRStatus, typer.Option("--status", help="PR status filter")] = PRStatus.OPEN,
+    after: Annotated[Optional[str], typer.Option("--after", help="Cursor for pagination (fetch next page)")] = None,
 ):
     """Show PRs that touch files in a specific path."""
     import json
@@ -647,11 +645,23 @@ def cmd_pr_feed(
     console.print()
 
     try:
+        # Build pagination parameter
+        after_clause = f', after: "{after}"' if after else ""
+
         # Run GraphQL query via gh CLI (ordered by most recently updated)
+        # Always fetch 100 PRs (GitHub's max) and include pagination info
         query = f"""
         query {{
           repository(owner: "Metta-AI", name: "metta") {{
-            pullRequests(first: {num_prs}, states: [{states}], orderBy: {{field: UPDATED_AT, direction: DESC}}) {{
+            pullRequests(
+              first: 100,
+              states: [{states}],
+              orderBy: {{field: UPDATED_AT, direction: DESC}}{after_clause}
+            ) {{
+              pageInfo {{
+                hasNextPage
+                endCursor
+              }}
               nodes {{
                 number
                 title
@@ -675,7 +685,9 @@ def cmd_pr_feed(
         )
 
         data = json.loads(result.stdout)
-        prs = data["data"]["repository"]["pullRequests"]["nodes"]
+        pull_requests = data["data"]["repository"]["pullRequests"]
+        prs = pull_requests["nodes"]
+        page_info = pull_requests["pageInfo"]
 
         # Filter PRs that touch the specified path (exact prefix match)
         matching_prs = []
@@ -685,6 +697,12 @@ def cmd_pr_feed(
 
         if not matching_prs:
             console.print(f"[yellow]No {status_display} PRs found touching {path}[/yellow]")
+
+            # Show pagination info even if no matches
+            if page_info["hasNextPage"]:
+                console.print("\n[dim]More PRs available. Fetch next page with:[/dim]")
+                cmd = f"metta pr-feed {path} --status={status.value} --after={page_info['endCursor']}"
+                console.print(f"[dim]{cmd}[/dim]")
             return
 
         # Display results (already in reverse chronological order from query)
@@ -701,6 +719,13 @@ def cmd_pr_feed(
             console.print()
 
         console.print(f"[green]✅ Found {len(matching_prs)} {status_display} PR(s)[/green]")
+
+        # Show pagination info
+        if page_info["hasNextPage"]:
+            console.print("\n[yellow]📄 More PRs available. Fetch next page with:[/yellow]")
+            console.print(f"[cyan]metta pr-feed {path} --status={status.value} --after={page_info['endCursor']}[/cyan]")
+        else:
+            console.print("\n[dim]No more pages available.[/dim]")
 
     except subprocess.CalledProcessError as e:
         error(f"Failed to fetch PRs: {e.stderr}")
