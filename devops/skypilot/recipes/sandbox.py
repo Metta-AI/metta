@@ -1,13 +1,13 @@
 #!/usr/bin/env -S uv run
 import argparse
-from typing import Any, Dict, List, Optional, Tuple
-import shlex
 import logging
 import os
+import shlex
 import subprocess
 import sys
 import time
 import warnings
+from typing import Any, Dict, List, Optional, Tuple
 
 # Suppress Pydantic warnings from SkyPilot dependencies before importing sky
 # SkyPilot v0.10.3.post2 with Pydantic 2.12.3 generates UnsupportedFieldAttributeWarning
@@ -57,10 +57,10 @@ def _build_incluster_persist_script(cluster_name: str) -> str:
     quoted_name = shlex.quote(cluster_name)
     return (
         "set -e; "
-        "if [ \"${SKYPILOT_NODE_RANK:-0}\" != \"0\" ]; then exit 0; fi; "
+        'if [ "${SKYPILOT_NODE_RANK:-0}" != "0" ]; then exit 0; fi; '
         "mkdir -p /workspace/metta/.cluster; "
-        f"printf \"%s\\n\" {quoted_name} > /workspace/metta/.cluster/name; "
-        "printf \"%s\\n\" \"${SKYPILOT_NUM_NODES:-1}\" > /workspace/metta/.cluster/num_nodes"
+        f'printf "%s\\n" {quoted_name} > /workspace/metta/.cluster/name; '
+        'printf "%s\\n" "${SKYPILOT_NUM_NODES:-1}" > /workspace/metta/.cluster/num_nodes'
     )
 
 
@@ -370,7 +370,7 @@ Common management commands:
     parser.add_argument(
         "--gpu-type",
         type=str,
-        choices=["L4", "A10G", "A100", "H100"],
+        choices=["L4", "A10G", "A100", "H100", "A100-80GB"],
         help="GPU type to use (overrides config accelerators)",
     )
     parser.add_argument(
@@ -481,10 +481,7 @@ Common management commands:
         default_gpu_type = accelerators_str.split(":")[0]
         gpu_type = (args.gpu_type or default_gpu_type).upper()
 
-        print(
-            f"GPU configuration: {bold(str(args.gpus))} {bold(gpu_type)} GPU"
-            f"{'s' if args.gpus != 1 else ''} per node"
-        )
+        print(f"GPU configuration: {bold(str(args.gpus))} {bold(gpu_type)} GPU{'s' if args.gpus != 1 else ''} per node")
 
         # Get instance type and calculate per-node cost
         instance_type, region, hourly_cost = get_gpu_instance_info(
@@ -512,9 +509,7 @@ Common management commands:
                 4: "~$2.80-3.60/hour",
                 8: "~$5.60-7.20/hour",
             }
-            per_node_est = gpu_cost_estimates.get(
-                args.gpus, f"~${0.70 * args.gpus:.2f}-{0.90 * args.gpus:.2f}/hour"
-            )
+            per_node_est = gpu_cost_estimates.get(args.gpus, f"~${0.70 * args.gpus:.2f}-{0.90 * args.gpus:.2f}/hour")
             print(f"Approximate cost (per node): {yellow(per_node_est)}")
             print(f"Approximate total (very rough): {yellow(per_node_est)} × {args.nodes} nodes")
 
