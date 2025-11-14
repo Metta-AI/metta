@@ -1,16 +1,5 @@
 #!/usr/bin/env python3
-"""Ensure the installed PyTorch wheel contains CUDA kernels for local GPUs.
-
-The default PyPI wheels that `uv sync` installs are CPU-only. On Linux hosts
-with NVIDIA GPUs (e.g. RTX 4090 / sm_89) these wheels emit warnings and force
-`system.device=cpu`. This helper detects that situation and reinstalls the
-matching CUDA wheel from the official PyTorch index so that training runs can
-use the GPU without manual intervention.
-
-The script is intentionally idempotent and safe to call on every `metta
-install`. It only modifies the environment when a GPU is present and the
-current wheel is missing CUDA support (e.g. CPU wheel or missing architectures).
-"""
+"""Reinstall PyTorch with CUDA kernels when GPUs are present."""
 
 from __future__ import annotations
 
@@ -19,14 +8,11 @@ import os
 import shutil
 import subprocess
 import sys
-from dataclasses import dataclass
-from typing import Sequence
+from importlib import import_module, metadata
 
-from importlib import metadata
 from packaging.version import Version
 
-
-CUDA_TAG_PREFERENCES: dict[str, list[str]] = {
+CUDA_TAGS = {
     "11.8": ["cu118"],
     "12.1": ["cu121"],
     "12.2": ["cu122", "cu121"],
@@ -37,191 +23,86 @@ CUDA_TAG_PREFERENCES: dict[str, list[str]] = {
     "12.7": ["cu126"],
     "12.8": ["cu126", "cu124"],
 }
-
-DEFAULT_TAG_PRIORITY = ["cu128", "cu126", "cu124", "cu122", "cu121", "cu118"]
+FALLBACK_TAGS = ["cu128", "cu126", "cu124", "cu122", "cu121", "cu118"]
 SKIP_ENV = "METTA_SKIP_TORCH_CUDA_FIX"
-TAG_OVERRIDE_ENV = "METTA_TORCH_CUDA_TAG"
-
-
-@dataclass
-class TorchState:
-    version: Version
-    cuda_version: str | None
-    compiled_arches: set[str]
-    gpu_arches: set[str]
-    cuda_available: bool
-
-    def missing_arches(self) -> set[str]:
-        return {cap for cap in self.gpu_arches if cap not in self.compiled_arches}
-
-    def needs_reinstall(self) -> tuple[bool, str]:
-        if not self.gpu_arches:
-            return False, "no NVIDIA GPU detected"
-        if self.cuda_version is None:
-            return True, "PyTorch CPU-only wheel detected"
-        if not self.cuda_available:
-            return True, "torch.cuda.is_available() is False"
-        missing = self.missing_arches()
-        if missing:
-            return True, f"CUDA wheel missing {', '.join(sorted(missing))}"
-        return False, "current wheel already supports detected GPUs"
+TAG_ENV = "METTA_TORCH_CUDA_TAG"
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--quiet", action="store_true", help="suppress no-op logs")
-    parser.add_argument("--force", action="store_true", help="force reinstall even if wheel looks OK")
+    parser.add_argument("--force", action="store_true", help="reinstall even if torch looks usable")
+    parser.add_argument("--quiet", action="store_true", help="suppress informational logs")
     return parser.parse_args()
 
 
-def info(message: str, *, quiet: bool) -> None:
+def log(message: str, *, quiet: bool = False) -> None:
     if not quiet:
         print(f"[torch-cuda] {message}")
 
 
-def warn(message: str) -> None:
-    print(f"[torch-cuda] {message}")
-
-
-def run(cmd: Sequence[str], *, quiet: bool = False) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(cmd, text=True, capture_output=quiet, check=True)
-
-
-def detect_cuda_version(torch_cuda_version: str | None) -> str | None:
-    if torch_cuda_version:
-        return torch_cuda_version
-    smi_output = query_nvidia_smi(["cuda_version"])
-    if smi_output:
-        return smi_output[0]
-    return None
-
-
-def query_nvidia_smi(fields: list[str]) -> list[str]:
+def detect_gpus(torch_mod: object) -> set[str]:
+    caps: set[str] = set()
+    cuda = getattr(torch_mod, "cuda", None)
+    if cuda is not None:
+        try:
+            for idx in range(cuda.device_count()):
+                major, minor = cuda.get_device_capability(idx)
+                caps.add(f"sm_{major}{minor}")
+        except Exception:
+            caps.clear()
+    if caps:
+        return caps
     if shutil.which("nvidia-smi") is None:
-        return []
-
-    cmd = ["nvidia-smi", f"--query-gpu={','.join(fields)}", "--format=csv,noheader"]
+        return set()
     try:
-        result = subprocess.run(cmd, text=True, capture_output=True, check=True)
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=compute_cap", "--format=csv,noheader"],
+            text=True,
+            capture_output=True,
+            check=True,
+        )
     except subprocess.CalledProcessError:
-        return []
-
-    values: list[str] = []
-    for line in result.stdout.strip().splitlines():
-        val = line.strip()
-        if not val or val == "N/A":
-            continue
-        values.append(val)
-    return values
-
-
-def detect_gpu_arches(torch_module: object) -> set[str]:
-    arches = set(_gpu_arches_from_smi())
-    return arches or set(_gpu_arches_from_torch(torch_module))
-
-
-def _gpu_arches_from_smi() -> list[str]:
-    caps = query_nvidia_smi(["compute_cap"])
-    arches: list[str] = []
-    for cap in caps:
-        parts = cap.split(".")
-        try:
-            major = int(parts[0])
-            minor = int(parts[1]) if len(parts) > 1 else 0
-        except ValueError:
-            continue
-        arches.append(f"sm_{major}{minor}")
-    return arches
-
-
-def _gpu_arches_from_torch(torch_module: object) -> list[str]:
-    cuda = getattr(torch_module, "cuda", None)
-    if cuda is None:
-        return []
-    try:
-        count = cuda.device_count()
-    except Exception:
-        return []
-
-    arches: list[str] = []
-    for idx in range(count):
-        try:
-            major, minor = cuda.get_device_capability(idx)
-        except Exception:
-            continue
-        arches.append(f"sm_{major}{minor}")
-    return arches
-
-
-def compiled_arches(torch_module: object) -> set[str]:
-    cuda = getattr(torch_module, "cuda", None)
-    if cuda is None:
         return set()
-    get_arch_list = getattr(cuda, "get_arch_list", None)
-    if get_arch_list is None:
-        return set()
-    try:
-        return {arch.lower() for arch in get_arch_list()}
-    except Exception:
-        return set()
+    for line in result.stdout.splitlines():
+        parts = [p for p in line.strip().split(".") if p]
+        if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+            caps.add(f"sm_{parts[0]}{parts[1]}")
+    return caps
 
 
-def current_torch_state() -> TorchState | None:
-    try:
-        version_str = metadata.version("torch")
-    except metadata.PackageNotFoundError:
-        warn("PyTorch is not installed; skipping CUDA wheel detection.")
-        return None
-
-    import importlib
-
-    try:
-        torch_module = importlib.import_module("torch")
-    except ImportError as exc:
-        warn(f"Unable to import torch ({exc}); skipping CUDA wheel detection.")
-        return None
-    version = Version(version_str)
-    cuda_version = detect_cuda_version(getattr(torch_module.version, "cuda", None))
-    arches = detect_gpu_arches(torch_module)
-    compiled = compiled_arches(torch_module)
-    cuda_available = False
-    cuda_attr = getattr(torch_module, "cuda", None)
-    if cuda_attr is not None:
-        try:
-            cuda_available = bool(cuda_attr.is_available())
-        except Exception:
-            cuda_available = False
-
-    return TorchState(
-        version=version,
-        cuda_version=cuda_version,
-        compiled_arches=compiled,
-        gpu_arches=arches,
-        cuda_available=cuda_available,
-    )
+def wheel_ok(torch_mod: object, gpu_caps: set[str]) -> tuple[bool, str]:
+    cuda_version = getattr(torch_mod.version, "cuda", None)
+    cuda_available = getattr(torch_mod.cuda, "is_available", lambda: False)()
+    compiled = {arch.lower() for arch in getattr(torch_mod.cuda, "get_arch_list", lambda: [])()}
+    if not gpu_caps:
+        return True, "no GPUs detected"
+    if cuda_version is None:
+        return False, "CPU-only PyTorch wheel"
+    if not cuda_available:
+        return False, "torch.cuda.is_available() is False"
+    missing = {cap for cap in gpu_caps if cap not in compiled}
+    if missing:
+        return False, f"wheel missing {', '.join(sorted(missing))}"
+    return True, "current torch wheel already targets GPUs"
 
 
 def pick_tags(cuda_version: str | None) -> list[str]:
-    forced_tag = os.getenv(TAG_OVERRIDE_ENV)
-    if forced_tag:
-        return [forced_tag]
-
-    tags: list[str] = []
-    if cuda_version and cuda_version in CUDA_TAG_PREFERENCES:
-        tags.extend(CUDA_TAG_PREFERENCES[cuda_version])
-    tags.extend(DEFAULT_TAG_PRIORITY)
-
-    deduped: list[str] = []
+    forced = os.getenv(TAG_ENV)
+    if forced:
+        return [forced]
+    tags = CUDA_TAGS.get(cuda_version or "", []) + FALLBACK_TAGS
+    seen: set[str] = set()
+    ordered: list[str] = []
     for tag in tags:
-        if tag not in deduped:
-            deduped.append(tag)
-    return deduped
+        if tag not in seen:
+            seen.add(tag)
+            ordered.append(tag)
+    return ordered
 
 
-def install_torch(tag: str, base_version: Version, *, quiet: bool) -> bool:
-    version_pin = f"{base_version.base_version}+{tag}"
-    index_url = f"https://download.pytorch.org/whl/{tag}"
-    cmd: list[str] = [
+def install(tag: str, version: Version, *, quiet: bool) -> bool:
+    target = f"{version.base_version}+{tag}"
+    cmd = [
         "uv",
         "pip",
         "install",
@@ -229,88 +110,72 @@ def install_torch(tag: str, base_version: Version, *, quiet: bool) -> bool:
         "--force-reinstall",
         "--no-cache-dir",
         "--index-url",
-        index_url,
+        f"https://download.pytorch.org/whl/{tag}",
         "--extra-index-url",
         "https://pypi.org/simple",
-        f"torch=={version_pin}",
+        f"torch=={target}",
     ]
     try:
-        run(cmd, quiet=quiet)
+        subprocess.run(cmd, check=True, text=True, capture_output=quiet)
         return True
-    except subprocess.CalledProcessError as exc:  # pragma: no cover - network failure
-        warn(f"Failed to install torch=={version_pin} ({exc}).")
+    except subprocess.CalledProcessError as exc:
+        log(f"Failed to install torch=={target} ({exc}).", quiet=quiet)
         return False
 
 
-def verify_install(required_arches: set[str], *, quiet: bool) -> bool:
-    script = """
-import sys
+def verify(gpu_caps: set[str], *, quiet: bool) -> bool:
+    script = f"""
 import torch
-
-required = {required_arches!r}
-cuda_version = getattr(torch.version, "cuda", None)
-cuda_available = getattr(torch.cuda, "is_available", lambda: False)()
-arch_fn = getattr(torch.cuda, "get_arch_list", lambda: [])
-compiled = {arch.lower() for arch in arch_fn()}
-missing = [cap for cap in required if cap not in compiled]
-if not required:
-    raise SystemExit(0)
-if cuda_version is None or not cuda_available or missing:
-    raise SystemExit(1)
+caps = {sorted(gpu_caps)!r}
+cuda_version = getattr(torch.version, 'cuda', None)
+available = getattr(torch.cuda, 'is_available', lambda: False)()
+archs = {{a.lower() for a in getattr(torch.cuda, 'get_arch_list', lambda: [])()}}
+missing = [cap for cap in caps if cap not in archs]
+raise SystemExit(0 if caps and cuda_version and available and not missing else 1)
 """
     try:
-        run([sys.executable, "-c", script], quiet=quiet)
+        subprocess.run([sys.executable, "-c", script], check=True, text=True, capture_output=quiet)
         return True
     except subprocess.CalledProcessError:
         return False
 
 
-def should_skip() -> bool:
-    return os.getenv(SKIP_ENV, "").lower() in {"1", "true", "yes"}
-
-
 def main() -> int:
     args = parse_args()
 
-    if should_skip():
-        info(f"Skipping CUDA torch fix because {SKIP_ENV} is set.", quiet=args.quiet)
+    if os.getenv(SKIP_ENV, "").lower() in {"1", "true", "yes"}:
+        log(f"Skipping because {SKIP_ENV} is set.", quiet=args.quiet)
         return 0
 
-    state = current_torch_state()
-    if state is None:
+    try:
+        version = metadata.version("torch")
+    except metadata.PackageNotFoundError:
+        log("PyTorch not installed; skipping.", quiet=args.quiet)
         return 0
 
-    if not state.gpu_arches:
-        info("No NVIDIA GPUs detected; leaving torch as-is.", quiet=args.quiet)
+    try:
+        torch_mod = import_module("torch")
+    except ImportError as exc:
+        log(f"Cannot import torch ({exc}); skipping.", quiet=args.quiet)
         return 0
 
-    needs_reinstall, reason = state.needs_reinstall()
-    if not needs_reinstall and not args.force:
-        info(reason, quiet=args.quiet)
+    gpu_caps = detect_gpus(torch_mod)
+    if not gpu_caps:
+        log("No NVIDIA GPUs detected; leaving torch as-is.", quiet=args.quiet)
         return 0
 
-    info(
-        f"Reinstalling torch {state.version} for CUDA (reason: {reason}).",
-        quiet=False,
-    )
+    ok, reason = wheel_ok(torch_mod, gpu_caps)
+    if ok and not args.force:
+        log(reason, quiet=args.quiet)
+        return 0
 
-    tags = pick_tags(state.cuda_version)
-    if not tags:
-        warn("Could not determine a suitable CUDA wheel tag; install torch manually.")
-        return 1
+    log(f"Reinstalling torch {version} for CUDA ({reason}).")
+    for tag in pick_tags(getattr(torch_mod.version, "cuda", None)):
+        if install(tag, Version(version), quiet=args.quiet) and verify(gpu_caps, quiet=args.quiet):
+            log(f"Installed torch=={Version(version).base_version}+{tag} with CUDA support.")
+            return 0
 
-    for tag in tags:
-        if install_torch(tag, state.version, quiet=args.quiet):
-            if verify_install(state.gpu_arches, quiet=args.quiet):
-                info(
-                    f"Installed torch=={state.version.base_version}+{tag} with CUDA support.",
-                    quiet=False,
-                )
-                return 0
-            warn(f"Installed torch with {tag} tag but verification failed; trying next tag.")
-
-    warn("Unable to install a CUDA-enabled PyTorch wheel automatically. "
-         "Set METTA_TORCH_CUDA_TAG=cuXXX and rerun or reinstall manually.")
+    log("Unable to install a matching CUDA wheel automatically. Set METTA_TORCH_CUDA_TAG or install manually.")
     return 1
 
 
