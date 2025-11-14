@@ -47,7 +47,7 @@ class RaceCarAgentsMultiPolicy(NimMultiAgentPolicy):
         )
 
 
-class LadybugAgentsMultiPolicy(NimMultiAgentPolicy):
+class LadyBugAgentsMultiPolicy(NimMultiAgentPolicy):
     short_names = ["nim_ladybug"]
 
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_ids: Sequence[int] | None = None):
@@ -56,3 +56,8 @@ class LadybugAgentsMultiPolicy(NimMultiAgentPolicy):
             nim_policy_factory=na.LadybugPolicy,
             agent_ids=agent_ids,
         )
+
+
+# Backwards compatibility for older import path (lowercase "b")
+class LadybugAgentsMultiPolicy(LadyBugAgentsMultiPolicy):
+    pass
