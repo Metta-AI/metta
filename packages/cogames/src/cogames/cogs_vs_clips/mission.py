@@ -218,6 +218,11 @@ class Mission(Config):
                 "oxygen_extractor": self.oxygen_extractor.station_cfg(),
                 "germanium_extractor": self.germanium_extractor.station_cfg(),
                 "silicon_extractor": self.silicon_extractor.station_cfg(),
+                # Resource-specific chests used by diagnostic missions
+                "chest_carbon": self.chest.station_cfg().model_copy(update={"map_name": "chest_carbon"}),
+                "chest_oxygen": self.chest.station_cfg().model_copy(update={"map_name": "chest_oxygen"}),
+                "chest_germanium": self.chest.station_cfg().model_copy(update={"map_name": "chest_germanium"}),
+                "chest_silicon": self.chest.station_cfg().model_copy(update={"map_name": "chest_silicon"}),
                 # Clipped variants with unique map_names so they don't conflict with regular extractors
                 # These are used by maps that explicitly place clipped extractors
                 "clipped_carbon_extractor": self.carbon_extractor.model_copy(update={"start_clipped": True})
