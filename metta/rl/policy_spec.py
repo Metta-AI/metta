@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import torch
 
 from metta.rl.checkpoint_manager import CheckpointManager
@@ -56,6 +58,15 @@ class CheckpointPolicy(MultiAgentPolicy):
         if hasattr(self._policy, "train"):
             self._policy.train(mode)
         return self
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        if not callable(self._policy):
+            raise TypeError(f"Underlying policy {type(self._policy).__name__} is not callable")
+        return self._policy(*args, **kwargs)
+
+    def forward(self, *args: Any, **kwargs: Any) -> Any:
+        # Provide nn.Module-like API so direct forward() calls also work.
+        return self.__call__(*args, **kwargs)
 
     def __getattr__(self, item):
         try:

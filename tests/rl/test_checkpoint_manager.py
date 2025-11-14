@@ -6,6 +6,7 @@ import pytest
 import torch
 import torch.nn as nn
 from pydantic import Field
+from tensordict import TensorDict
 
 import mettagrid.builder.envs as eb
 from metta.agent.components.component_config import ComponentConfig
@@ -150,6 +151,27 @@ class TestBasicSaveLoad:
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
         policy = initialize_or_load_policy(env_info, spec)
         assert policy.agent_policy(0) is not None
+
+    def test_checkpoint_policy_remains_callable(
+        self,
+        checkpoint_manager,
+        mock_agent,
+        mock_policy_architecture,
+    ):
+        checkpoint_manager.save_agent(mock_agent, epoch=2, policy_architecture=mock_policy_architecture)
+        latest = checkpoint_manager.get_latest_checkpoint()
+        assert latest is not None
+        spec = CheckpointManager.policy_spec_from_uri(latest)
+        env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
+        policy = initialize_or_load_policy(env_info, spec)
+
+        assert callable(policy)
+
+        obs_shape = env_info.observation_space.shape
+        env_obs = torch.zeros((env_info.num_agents, *obs_shape), dtype=torch.uint8)
+        td = TensorDict({"env_obs": env_obs}, batch_size=[env_info.num_agents])
+        result = policy(td.clone())
+        assert "actions" in result
 
 
 class TestErrorHandling:
