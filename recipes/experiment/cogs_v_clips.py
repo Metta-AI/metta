@@ -7,14 +7,12 @@ recipes should import from here and extend via custom defaults, similar to how
 
 from __future__ import annotations
 
-from collections import Counter
 from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
-from cogames.cli.mission import parse_variants
+from cogames.cli.mission import find_mission, parse_variants
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
-from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVariant
-from cogames.cogs_vs_clips.missions import MISSIONS
+from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, MissionVariant, NumCogsVariant
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -61,27 +59,7 @@ COORDINATION_MISSIONS: tuple[str, ...] = (
     "divide_and_conquer",
     "collect_resources_spread",
 )
-
-
-def _build_mission_index(missions: Sequence[Mission]) -> dict[str, Mission]:
-    """Index missions by simple name and full site.name form.
-
-    Some training missions (e.g., `training_facility.harvest`) share short names
-    like `open_world`. To avoid ambiguous lookups we only register the short name
-    when it is unique across the provided list, while always exposing the
-    site-qualified `site.name.mission` format.
-    """
-
-    counts = Counter(mission.name for mission in missions)
-    mission_by_name: dict[str, Mission] = {}
-    for mission in missions:
-        if counts[mission.name] == 1:
-            mission_by_name[mission.name] = mission
-        mission_by_name[mission.full_name()] = mission
-    return mission_by_name
-
-
-_MISSION_BY_NAME: dict[str, Mission] = _build_mission_index(MISSIONS)
+_MISSION_BY_NAME: dict[str, Mission] = {mission.name: mission for mission in EVAL_MISSIONS}
 
 
 def _normalize_variant_names(
@@ -117,6 +95,25 @@ def _parse_variant_objects(names: Sequence[str] | None) -> list[MissionVariant]:
     if not names:
         return []
     return parse_variants(list(names))
+
+
+def _resolve_mission_template(name: str) -> Mission:
+    mission = _MISSION_BY_NAME.get(name)
+    if mission is not None:
+        return mission
+
+    delim_count = name.count(MAP_MISSION_DELIMITER)
+    if delim_count == 0:
+        site_name, mission_name = name, None
+    elif delim_count == 1:
+        site_name, mission_name = name.split(MAP_MISSION_DELIMITER)
+    else:
+        raise ValueError(f"Mission name can contain at most one '{MAP_MISSION_DELIMITER}' delimiter")
+
+    try:
+        return find_mission(site_name, mission_name)
+    except ValueError as exc:
+        raise ValueError(f"Mission '{name}' not found. Run `cogames missions` to list valid names.") from exc
 
 
 def _resolve_eval_variants(
@@ -203,9 +200,7 @@ def make_training_env(
     variants: Optional[Sequence[str]] = None,
 ) -> MettaGridConfig:
     """Create a single training environment from a mission."""
-    mission_template = _MISSION_BY_NAME.get(mission)
-    if mission_template is None:
-        raise ValueError(f"Mission '{mission}' not found in EVAL_MISSIONS")
+    mission_template = _resolve_mission_template(mission)
 
     variant_names = _normalize_variant_names(variants=variants)
     mission = _prepare_mission(
