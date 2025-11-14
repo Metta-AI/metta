@@ -90,9 +90,9 @@ runs:
 
         chmod +x ./devops/skypilot/launch.py
 
-        # Build launch.py command using --tool flag
+        # Build launch.py command using --recipe flag
         LAUNCH_ARGS=(
-          "--tool"
+          "--recipe"
           "${{ inputs.module_name }}"
           "run=${{ inputs.run_name }}"
         )
