@@ -1,6 +1,4 @@
-import uuid
 from collections import defaultdict
-from pathlib import Path
 from typing import Callable, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -49,9 +47,7 @@ def run_simulations(
         proportions = simulation.proportions
         replay_writer: ReplayLogWriter | None = None
         if enable_replays and replay_dir:
-            replay_root = Path(replay_dir).expanduser()
-            unique_dir = replay_root / uuid.uuid4().hex[:12]
-            replay_writer = ReplayLogWriter(str(unique_dir))
+            replay_writer = ReplayLogWriter(str(replay_dir))
 
         env_interface = PolicyEnvInterface.from_mg_cfg(simulation.env)
         multi_agent_policies: list[MultiAgentPolicy] = [pi(env_interface) for pi in policy_initializers]
