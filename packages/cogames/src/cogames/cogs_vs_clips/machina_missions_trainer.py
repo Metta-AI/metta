@@ -46,7 +46,7 @@ MACHINA_TRAINER_MISSIONS: list[Mission] = [
         description="Machinatrainerbig map with 60 cogs, 2000 steps, and single-use extractors.",
         site=MACHINA_1,
         num_cogs=60,
-        variants=[MachinaTrainerBigMapVariant(), MachinaTrainerRulesVariant()],
+        variants=[MachinaTrainerBigMapVariant()],
         **_single_use_extractor_kwargs(),
     ),
     Mission(
