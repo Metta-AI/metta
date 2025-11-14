@@ -15,7 +15,7 @@ from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, Missio
 from cogames.cogs_vs_clips.missions import MISSIONS
 from cogames.cogs_vs_clips.procedural import MachinaArena
 from cogames.cogs_vs_clips.sites import SITES
-from cogames.cogs_vs_clips.variants import VARIANTS
+from cogames.cogs_vs_clips.variants import HIDDEN_VARIANTS, VARIANTS
 from cogames.game import load_mission_config, load_mission_config_from_python
 from mettagrid import MettaGridConfig
 from mettagrid.config.mettagrid_config import AssemblerConfig
@@ -46,10 +46,11 @@ def parse_variants(variants_arg: Optional[list[str]]) -> list[MissionVariant]:
         return []
 
     variants: list[MissionVariant] = []
+    all_variants = [*VARIANTS, *HIDDEN_VARIANTS]
     for name in variants_arg:
         # Find matching variant class by instantiating and checking the name
         variant: MissionVariant | None = None
-        for v in VARIANTS:
+        for v in all_variants:
             if v.name == name:
                 variant = v
                 break
