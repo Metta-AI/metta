@@ -1,5 +1,6 @@
 import re
 
+import asana
 import requests
 
 ASANA_GITHUB_ATTACHMENT_ACTION_URL = "https://github.integrations.asana.plus/custom/v1/actions/widget"
@@ -17,6 +18,17 @@ class AsanaTask:
         attachment_secret: str,
     ):
         print(f"[__init__] Initializing AsanaTask with project_id={project_id}, workspace_id={workspace_id}")
+
+        # Initialize Asana SDK client
+        config = asana.Configuration()
+        config.access_token = asana_token
+        self.api_client = asana.ApiClient(config)
+
+        # Initialize API instances
+        self.tasks_api = asana.TasksApi(self.api_client)
+        self.stories_api = asana.StoriesApi(self.api_client)
+
+        # Store configuration
         self.asana_token = asana_token
         self.github_url_field_id = github_url_field_id
         self.pr_author_field_id = pr_author_field_id
@@ -137,89 +149,63 @@ class AsanaTask:
             return None
         print(f"[validate] Extracted GID: {gid}")
 
-        api_url = f"https://app.asana.com/api/1.0/tasks/{gid}"
-        headers = {
-            "Authorization": f"Bearer {self.asana_token}",
-            "Content-Type": "application/json",
+        opts = {
+            "opt_fields": "permalink_url,custom_fields,name,notes,modified_at,completed,assignee.email,followers.email,projects.gid"
         }
-        params = {
-            "opt_fields": ",".join(
-                [
-                    "permalink_url",
-                    "custom_fields",
-                    "name",
-                    "notes",
-                    "modified_at",
-                    "completed",
-                    "assignee.email",
-                    "followers.email",
-                    "projects.gid",
-                ]
-            )
-        }
-        print(f"[validate] Making GET request to: {api_url}")
-        response = requests.get(api_url, headers=headers, params=params, timeout=30)
-        print(f"[validate] Response status: {response.status_code}")
-        if response.status_code != 200:
-            print(f"[validate] API request failed: {response.text}")
+
+        try:
+            print(f"[validate] Fetching task {gid}")
+            data = self.tasks_api.get_task(gid, opts)
+
+            projects = [project["gid"] for project in data.get("projects", [])]
+            if self.project_id not in projects:
+                print(
+                    f"[validate] Task not in target project. Task projects: {projects}, target project: {self.project_id}"
+                )
+                return None
+
+            custom_fields = data.get("custom_fields", [])
+            task_github_url = None
+            for field in custom_fields:
+                if field.get("gid") == self.github_url_field_id:
+                    task_github_url = field.get("text_value")
+                    break
+
+            print(f"[validate] Task GitHub URL: '{task_github_url}', expected: '{github_url}'")
+            if task_github_url != github_url:
+                print("[validate] GitHub URL mismatch")
+                return None
+
+            print("[validate] Task validation successful")
+            return data
+        except Exception as e:
+            print(f"[validate] Failed to fetch task: {e}")
             return None
-
-        data = response.json()["data"]
-
-        projects = [project["gid"] for project in data.get("projects", [])]
-        if self.project_id not in projects:
-            print(
-                f"[validate] Task not in target project. Task projects: {projects}, target project: {self.project_id}"
-            )
-            return None
-
-        custom_fields = data.get("custom_fields", [])
-        task_github_url = None
-        for field in custom_fields:
-            if field.get("gid") == self.github_url_field_id:
-                task_github_url = field.get("text_value")
-                break
-
-        print(f"[validate] Task GitHub URL: '{task_github_url}', expected: '{github_url}'")
-        if task_github_url != github_url:
-            print("[validate] GitHub URL mismatch")
-            return None
-
-        print("[validate] Task validation successful")
-        return data
 
     def search(
         self,
         github_url: str,
     ) -> dict | None:
         print(f"[search] search() called with github_url='{github_url}'")
-        api_url = f"https://app.asana.com/api/1.0/workspaces/{self.workspace_id}/tasks/search"
-        headers = {
-            "Authorization": f"Bearer {self.asana_token}",
-            "Content-Type": "application/json",
-        }
-        params = {
+        opts = {
             "opt_fields": "permalink_url,custom_fields,name,notes,modified_at,completed,assignee.email,followers.email",
-            "limit": 100,
-            "sort_by": "created_at",
             "projects.any": self.project_id,
             f"custom_fields.{self.github_url_field_id}.value": github_url,
         }
-        print(f"[search] Making search request to: {api_url}")
-        print(f"[search] Search params: {params}")
-        response = requests.get(api_url, headers=headers, params=params, timeout=30)
-        print(f"[search] Search response status: {response.status_code}")
-        if response.status_code != 200:
-            print(f"[search] Search API request failed: {response.text}")
-            return None
 
-        data = response.json()
-        results = data["data"]
-        print(f"[search] Search returned {len(results)} results")
-        if results:
-            print(f"[search] Returning first result: {results[0].get('permalink_url')}")
-            return results[0]
-        return None
+        try:
+            print(f"[search] Searching for tasks in workspace {self.workspace_id}")
+            print(f"[search] Search params: {opts}")
+            # Use search_tasks_for_workspace and convert generator to list
+            results = list(self.tasks_api.search_tasks_for_workspace(self.workspace_id, opts, item_limit=1))
+            print(f"[search] Search returned {len(results)} results")
+            if results:
+                print(f"[search] Returning first result: {results[0].get('permalink_url')}")
+                return results[0]
+            return None
+        except Exception as e:
+            print(f"[search] Search failed: {e}")
+            return None
 
     def create(
         self,
@@ -232,40 +218,34 @@ class AsanaTask:
         pr_author: str | None,
     ) -> str:
         print(f"[create] create() called with title='{title}', assignee='{assignee}', collaborators={collaborators}")
-        api_url = "https://app.asana.com/api/1.0/tasks"
-        headers = {
-            "Authorization": f"Bearer {self.asana_token}",
-            "Content-Type": "application/json",
-        }
-        payload = {
+        body = {
             "data": {
                 "name": title,
                 "notes": description,
                 "workspace": self.workspace_id,
                 "projects": [self.project_id],
                 "followers": collaborators,
+                "custom_fields": {
+                    self.github_url_field_id: github_url,
+                    self.pr_author_field_id: pr_author,
+                },
             }
         }
         if assignee:
-            payload["data"]["assignee"] = assignee
-        custom_fields = {}
-        custom_fields[self.github_url_field_id] = github_url
-        custom_fields[self.pr_author_field_id] = pr_author
-        payload["data"]["custom_fields"] = custom_fields
+            body["data"]["assignee"] = assignee
         if completed:
-            payload["data"]["completed"] = True
+            body["data"]["completed"] = True
 
-        print(f"[create] Creating task with payload: {payload}")
-        response = requests.post(api_url, json=payload, headers=headers, timeout=30)
-        print(f"[create] Create response status: {response.status_code}")
-        if response.status_code == 201:
-            url = response.json()["data"]["permalink_url"]
+        try:
+            print(f"[create] Creating task with body: {body}")
+            task = self.tasks_api.create_task(body, {})
+            url = task["permalink_url"]
             print(f"[create] Task created successfully: {url}")
             self.ensure_github_url_in_task(url, title, github_url)
             return url
-        else:
-            print(f"[create] Task creation failed: {response.text}")
-            raise Exception(f"Asana API Error (create): {response.status_code} - {response.text}")
+        except Exception as e:
+            print(f"[create] Task creation failed: {e}")
+            raise Exception(f"Asana API Error (create): {e}")
 
     def update(
         self,
@@ -278,28 +258,27 @@ class AsanaTask:
         pr_author: str | None,
     ):
         print(f"[update] update() called with gid='{gid}', title='{title}', completed={completed}")
-        api_url = f"https://app.asana.com/api/1.0/tasks/{gid}"
-        headers = {
-            "Authorization": f"Bearer {self.asana_token}",
-            "Content-Type": "application/json",
+        body = {
+            "data": {
+                "name": title,
+                "notes": description,
+                "completed": completed,
+                "custom_fields": {
+                    self.github_url_field_id: github_url,
+                    self.pr_author_field_id: pr_author,
+                },
+            }
         }
-        payload = {"data": {"name": title, "notes": description, "completed": completed}}
         if assignee:
-            payload["data"]["assignee"] = assignee
-        custom_fields = {}
-        custom_fields[self.github_url_field_id] = github_url
-        custom_fields[self.pr_author_field_id] = pr_author
-        if custom_fields:
-            payload["data"]["custom_fields"] = custom_fields
+            body["data"]["assignee"] = assignee
 
-        print(f"[update] Updating task with payload: {payload}")
-        response = requests.put(api_url, json=payload, headers=headers, timeout=30)
-        print(f"[update] Update response status: {response.status_code}")
-        if response.status_code != 200:
-            print(f"[update] Task update failed: {response.text}")
-            raise Exception(f"Asana API Error (update): {response.status_code} - {response.text}")
-        else:
+        try:
+            print(f"[update] Updating task with body: {body}")
+            self.tasks_api.update_task(body, gid, {})
             print("[update] Task updated successfully")
+        except Exception as e:
+            print(f"[update] Task update failed: {e}")
+            raise Exception(f"Asana API Error (update): {e}")
 
     def update_if_needed(
         self,
@@ -429,47 +408,135 @@ class AsanaTask:
         print(f"[get_comments] get_comments() called with task_id='{task_id}'")
         from datetime import datetime
 
-        import requests
-
-        url = f"https://app.asana.com/api/1.0/tasks/{task_id}/stories"
-        headers = {"Authorization": f"Bearer {self.asana_token}", "Content-Type": "application/json"}
-        params = {
+        opts = {
             "opt_fields": "text,html_text,created_by.name,created_by.email,created_at,type,resource_subtype,is_pinned"
         }
-        print(f"[get_comments] Making GET request to: {url}")
-        response = requests.get(url, headers=headers, params=params)
-        print(f"[get_comments] Get comments response status: {response.status_code}")
-        response.raise_for_status()
-        data = response.json()
-        comments = [
-            story
-            for story in data["data"]
-            if story.get("type") == "comment" or story.get("resource_subtype") == "comment_added"
-        ]
-        print(f"[get_comments] Found {len(comments)} comment stories out of {len(data['data'])} total stories")
-        ret = []
-        for comment in comments:
-            author_name = comment.get("created_by", {}).get("name", "Unknown")
-            github_url = self.extract_github_url_from_comment(comment.get("html_text", ""), author_name)
-            if github_url:  # Only include comments that have GitHub URLs
-                ret.append(
-                    {
-                        "id": comment.get("gid"),
-                        "text": comment.get("text", ""),
-                        "html_text": comment.get("html_text", ""),
-                        "author": {
-                            "name": author_name,
-                            "email": comment.get("created_by", {}).get("email"),
-                        },
-                        "created_at": datetime.fromisoformat(comment.get("created_at", "").replace("Z", "+00:00")),
-                        "is_pinned": comment.get("is_pinned", False),
-                        "github_url": github_url,
-                    }
-                )
-        print(f"[get_comments] Processed {len(ret)} comments with GitHub URLs")
-        print(f"comments in asana: {ret}")
 
-        return ret
+        try:
+            print(f"[get_comments] Fetching stories for task {task_id}")
+            stories = list(self.stories_api.get_stories_for_task(task_id, opts))
+            comments = [
+                story
+                for story in stories
+                if story.get("type") == "comment" or story.get("resource_subtype") == "comment_added"
+            ]
+            print(f"[get_comments] Found {len(comments)} comment stories out of {len(stories)} total stories")
+            ret = []
+            for comment in comments:
+                author_name = comment.get("created_by", {}).get("name", "Unknown")
+                github_url = self.extract_github_url_from_comment(comment.get("html_text", ""), author_name)
+                if github_url:  # Only include comments that have GitHub URLs
+                    ret.append(
+                        {
+                            "id": comment.get("gid"),
+                            "text": comment.get("text", ""),
+                            "html_text": comment.get("html_text", ""),
+                            "author": {
+                                "name": author_name,
+                                "email": comment.get("created_by", {}).get("email"),
+                            },
+                            "created_at": datetime.fromisoformat(
+                                comment.get("created_at", "").replace("Z", "+00:00")
+                            ),
+                            "is_pinned": comment.get("is_pinned", False),
+                            "github_url": github_url,
+                        }
+                    )
+            print(f"[get_comments] Processed {len(ret)} comments with GitHub URLs")
+            print(f"comments in asana: {ret}")
+            return ret
+        except Exception as e:
+            print(f"[get_comments] Failed to fetch comments: {e}")
+            return []
+
+    def create_subtask(
+        self,
+        name: str,
+        assignee: str | None,
+        notes: str = "",
+    ) -> str:
+        """Create a subtask under the current task"""
+        print(f"[create_subtask] Creating subtask '{name}' assigned to '{assignee}'")
+        body = {
+            "data": {
+                "name": name,
+                "notes": notes,
+            }
+        }
+        if assignee:
+            body["data"]["assignee"] = assignee
+
+        try:
+            subtask = self.tasks_api.create_subtask_for_task(body, self.task_gid, {})
+            gid = subtask["gid"]
+            print(f"[create_subtask] Subtask created successfully with GID: {gid}")
+            return gid
+        except Exception as e:
+            print(f"[create_subtask] Failed to create subtask: {e}")
+            raise Exception(f"Asana API Error (create_subtask): {e}")
+
+    def get_subtasks(self) -> list[dict]:
+        """Get all subtasks of the current task"""
+        print(f"[get_subtasks] Fetching subtasks for task {self.task_gid}")
+        opts = {"opt_fields": "gid,name,assignee.email,completed,notes"}
+
+        try:
+            subtasks = list(self.tasks_api.get_subtasks_for_task(self.task_gid, opts))
+            print(f"[get_subtasks] Found {len(subtasks)} subtasks")
+            return subtasks
+        except Exception as e:
+            print(f"[get_subtasks] Failed to fetch subtasks: {e}")
+            return []
+
+    def synchronize_review_subtasks(
+        self,
+        requested_reviewers: list[str],
+        github_asana_mapping: dict[str, str],
+    ) -> None:
+        """Synchronize review subtasks based on requested reviewers"""
+        print(f"[synchronize_review_subtasks] Synchronizing subtasks for {len(requested_reviewers)} reviewers")
+
+        # Get existing subtasks
+        existing_subtasks = self.get_subtasks()
+
+        # Build mapping of assignee email to subtask for review subtasks
+        review_subtask_prefix = "Review by "
+        existing_review_subtasks = {}
+        for subtask in existing_subtasks:
+            if subtask["name"].startswith(review_subtask_prefix):
+                assignee_email = subtask.get("assignee", {}).get("email") if subtask.get("assignee") else None
+                if assignee_email:
+                    existing_review_subtasks[assignee_email] = subtask
+
+        print(f"[synchronize_review_subtasks] Found {len(existing_review_subtasks)} existing review subtasks")
+
+        # Create subtasks for new requested reviewers
+        for reviewer_login in requested_reviewers:
+            reviewer_email = github_asana_mapping.get(reviewer_login)
+            if not reviewer_email:
+                print(f"[synchronize_review_subtasks] No Asana email found for reviewer {reviewer_login}, skipping")
+                continue
+
+            if reviewer_email in existing_review_subtasks:
+                subtask = existing_review_subtasks[reviewer_email]
+                if subtask["completed"]:
+                    print(f"[synchronize_review_subtasks] Reopening completed review subtask for {reviewer_login}")
+                    # Reopen the subtask
+                    body = {"data": {"completed": False}}
+                    try:
+                        self.tasks_api.update_task(body, subtask["gid"], {})
+                    except Exception as e:
+                        print(f"[synchronize_review_subtasks] Failed to reopen subtask: {e}")
+                else:
+                    print(f"[synchronize_review_subtasks] Review subtask already exists for {reviewer_login}")
+            else:
+                print(f"[synchronize_review_subtasks] Creating new review subtask for {reviewer_login}")
+                subtask_name = f"{review_subtask_prefix}{reviewer_login}"
+                self.create_subtask(
+                    name=subtask_name,
+                    assignee=reviewer_email,
+                    notes=f"Review requested from {reviewer_login}",
+                )
 
     def synchronize_comments_in_asana(self, comments_from_github: list[dict]) -> None:
         """
@@ -485,9 +552,6 @@ class AsanaTask:
         if not comments_from_github:
             print("[synchronize_comments_in_asana] No GitHub comments to process")
             return
-
-        api_url = f"https://app.asana.com/api/1.0/tasks/{self.task_gid}"
-        headers = {"Authorization": f"Bearer {self.asana_token}", "Content-Type": "application/json"}
 
         # Create a map of GitHub URLs to existing Asana comments
         existing_comments_by_github_url = {comment["github_url"]: comment for comment in asana_comments_with_links}
@@ -514,32 +578,24 @@ class AsanaTask:
                 if existing_comment["html_text"] != formatted_comment:
                     print(f"[s] Updating existing comment for review at {github_url}")
                     story_id = existing_comment["id"]
-                    url = f"https://app.asana.com/api/1.0/stories/{story_id}"
-                    payload = {"data": {"html_text": formatted_comment}}
+                    body = {"data": {"html_text": formatted_comment}}
                     try:
-                        print(payload)
-                        response = requests.put(url, headers=headers, json=payload)
-                        if response.status_code == 200:
-                            print(f"Updated Asana comment {story_id} for review at {github_url}")
-                        else:
-                            print(
-                                f"Failed to update Asana comment {story_id}: {response.status_code} - {response.text}"
-                            )
-                    except requests.exceptions.RequestException as e:
+                        print(body)
+                        self.stories_api.update_story(body, story_id, {})
+                        print(f"Updated Asana comment {story_id} for review at {github_url}")
+                    except Exception as e:
                         print(f"Error updating Asana comment {story_id}: {e}")
                 else:
                     print(f"[synchronize_comments_in_asana] Review at {github_url} comment is up to date")
             else:
                 print(f"[s] Review at {github_url} has no existing Asana comment")
                 # Create new comment
-                url = f"{api_url}/stories"
-                payload = {"data": {"html_text": formatted_comment, "type": "comment"}}
-                print(payload)
+                body = {"data": {"html_text": formatted_comment}}
+                print(body)
 
                 try:
-                    response = requests.post(url, headers=headers, json=payload)
-                    response.raise_for_status()
+                    self.stories_api.create_story_for_task(body, self.task_gid, {})
                     print(f"Added new Asana comment for review at {github_url}")
-                except requests.exceptions.RequestException as e:
+                except Exception as e:
                     print(f"Error adding Asana comment for review at {github_url}: {e}")
-                    print(payload)
+                    print(body)

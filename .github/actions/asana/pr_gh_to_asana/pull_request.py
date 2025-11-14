@@ -60,6 +60,11 @@ class PullRequest:
         self.is_open = self.state == "open"
         self.task_completed = not self.is_open
 
+        # Extract requested reviewers (people who have been asked to review but haven't yet)
+        self.requested_reviewers = [
+            reviewer["login"] for reviewer in d.get("requested_reviewers", []) if reviewer.get("login")
+        ]
+
         self.reviewers = [
             review["user"]["login"]
             for review in d.get("retrieved_reviews", [])
@@ -70,7 +75,9 @@ class PullRequest:
             for review in d.get("retrieved_comments", [])
             if review.get("user") and review["user"].get("login")
         ]
-        self.github_logins = set(self.assignees + self.reviewers + self.commenters + [self.author])
+        self.github_logins = set(
+            self.assignees + self.reviewers + self.commenters + self.requested_reviewers + [self.author]
+        )
 
         self.retrieved_reviews = d.get("retrieved_reviews", [])
         self.retrieved_timeline = d.get("retrieved_timeline", [])
