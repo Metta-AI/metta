@@ -13,12 +13,23 @@ from metta.tools.cogames_train import CogamesTrainTool
 # ============================================================================
 # Shared Test Configurations
 # ============================================================================
-# These configurations are used by both CI (via commands) and stable (via tools)
-# to ensure the test parameters stay in sync.
+# These configurations define the canonical parameters for CI and stable tests.
+#
+# Usage:
+# - CI suite (recipes/validation/ci_suite.py): Imports these functions and uses
+#   build_train_command() to create raw cogames commands for local testing
+# - Stable suite (recipes/validation/stable_suite.py): Uses recipe tool_makers
+#   directly with inline args that match these configs (see comments in stable_suite.py)
+#
+# This ensures CI tests (raw commands, local) and stable tests (tools, remote)
+# use the same underlying parameters and stay in sync.
 
 
 def get_ci_train_config(name: str) -> dict[str, Any]:
-    """Configuration for CI training test (fast, local, no S3)."""
+    """Configuration for CI training test (fast, local, no S3).
+
+    Used by: ci_suite.py (imported and converted to command)
+    """
     return {
         "mission": "training_facility.harvest",
         "variant": ["small_50"],
@@ -28,7 +39,10 @@ def get_ci_train_config(name: str) -> dict[str, Any]:
 
 
 def get_ci_eval_config(train_name: str) -> dict[str, Any]:
-    """Configuration for CI evaluation test (fast, local)."""
+    """Configuration for CI evaluation test (fast, local).
+
+    Used by: ci_suite.py (for documentation; eval uses evaluate_latest_in_dir tool)
+    """
     return {
         "mission": "training_facility.harvest",
         "variant": ["small_50"],
@@ -38,7 +52,11 @@ def get_ci_eval_config(train_name: str) -> dict[str, Any]:
 
 
 def get_stable_train_config(name: str) -> dict[str, Any]:
-    """Configuration for stable release training test (remote, with S3)."""
+    """Configuration for stable release training test (remote, with S3).
+
+    Used by: stable_suite.py (as reference; inline args should match these values)
+    Returns dict matching recipes.prod.cogames.train() parameters.
+    """
     s3_uri = f"s3://softmax-public/cogames/{name}/checkpoint.pt"
     return {
         "mission": "training_facility.harvest",
@@ -50,7 +68,11 @@ def get_stable_train_config(name: str) -> dict[str, Any]:
 
 
 def get_stable_eval_config(train_name: str) -> dict[str, Any]:
-    """Configuration for stable release evaluation test (remote, from S3)."""
+    """Configuration for stable release evaluation test (remote, from S3).
+
+    Used by: stable_suite.py (as reference; inline args should match these values)
+    Returns dict matching recipes.prod.cogames.evaluate() parameters.
+    """
     s3_uri = f"s3://softmax-public/cogames/{train_name}/checkpoint.pt"
     return {
         "mission": "training_facility.harvest",

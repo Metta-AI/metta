@@ -7,7 +7,6 @@ Job names are fully qualified with user/timestamp and version.
 from __future__ import annotations
 
 from metta.jobs.job_config import AcceptanceCriterion, JobConfig, RemoteConfig
-from recipes.prod.cogames import get_stable_eval_config, get_stable_train_config
 
 
 def get_stable_jobs(prefix: str) -> list[JobConfig]:
@@ -118,25 +117,35 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
     # ========================================
 
     # CoGames training - 100k steps with S3 upload
-    # Use shared config to stay in sync with CI suite
+    # Config derived from get_stable_train_config() in recipes/prod/cogames.py
     cogames_train_name = f"{prefix}.cogames_train_100k"
-    cogames_train_config = get_stable_train_config(cogames_train_name)
+    cogames_s3_uri = f"s3://softmax-public/cogames/{cogames_train_name}/checkpoint.pt"
     cogames_train_100k = JobConfig(
         name=cogames_train_name,
         recipe="recipes.prod.cogames.train",
-        args={k: str(v) if not isinstance(v, list) else str(v) for k, v in cogames_train_config.items()},
+        args={
+            "mission": "training_facility.harvest",
+            "variant": '["standard"]',
+            "steps": "100000",
+            "checkpoints": f"/tmp/{cogames_train_name}",
+            "s3_uri": cogames_s3_uri,
+        },
         timeout_s=3600,
         remote=RemoteConfig(gpus=1, nodes=1),
     )
 
     # CoGames evaluation - downloads from S3 and evaluates
-    # Use shared config to stay in sync with CI suite
+    # Config derived from get_stable_eval_config() in recipes/prod/cogames.py
     cogames_eval_name = f"{prefix}.cogames_eval_100k"
-    cogames_eval_config = get_stable_eval_config(cogames_train_name)
     cogames_eval_100k = JobConfig(
         name=cogames_eval_name,
         recipe="recipes.prod.cogames.evaluate",
-        args={k: str(v) if not isinstance(v, list) else str(v) for k, v in cogames_eval_config.items()},
+        args={
+            "mission": "training_facility.harvest",
+            "variant": '["standard"]',
+            "policy_uri": cogames_s3_uri,
+            "episodes": "20",
+        },
         dependency_names=[cogames_train_name],
         timeout_s=1800,
     )
