@@ -198,10 +198,10 @@ class BidirectionalLPScorer(LPScorer):
         self, task_id: int, tracker: TaskTracker, p_fast: float, p_slow: float, p_true: float, random_baseline: float
     ) -> None:
         """Write EMA values to shared memory for a task."""
-        if task_id not in tracker._task_id_to_index:
+        index = tracker.get_task_index(task_id)
+        if index is None:
             return
 
-        index = tracker._task_id_to_index[task_id]
         with tracker._backend.acquire_lock():
             task_data = tracker._backend.get_task_data(index)
             task_data[13] = p_fast

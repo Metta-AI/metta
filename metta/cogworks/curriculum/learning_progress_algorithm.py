@@ -642,8 +642,19 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def load_state(self, state: Dict[str, Any]) -> None:
         """Load learning progress algorithm state from checkpoint."""
+        import logging
+
+        logger = logging.getLogger(__name__)
+
         # Restore task tracker
         self.task_tracker.load_state(state["task_tracker"])
+
+        # Log what was restored
+        num_tasks = len(self.task_tracker.get_all_tracked_tasks())
+        total_completions = self.task_tracker._total_completions
+        logger.info(
+            f"LP Algorithm: Loaded {num_tasks} tasks from checkpoint with {total_completions} total completions"
+        )
 
         # Restore scorer state
         if "scorer" in state:
@@ -658,6 +669,19 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             self._label_eviction_counts = label_data.get("label_eviction_counts", {})
             self._active_labels = set(label_data.get("active_labels", []))
             self._inactive_labels_fifo = label_data.get("inactive_labels_fifo", [])
+
+        # Fix LP scores for tasks loaded from old checkpoints
+        # Tasks with 0 completions should have exploration_bonus, not 0.0
+        fixed_count = 0
+        for task_id in self.task_tracker.get_all_tracked_tasks():
+            stats = self.task_tracker.get_task_stats(task_id)
+            if stats and stats["completion_count"] == 0 and stats["lp_score"] == 0.0:
+                self.task_tracker.update_lp_score(task_id, self.hypers.exploration_bonus)
+                fixed_count += 1
+
+        if fixed_count > 0:
+            bonus = self.hypers.exploration_bonus
+            logger.info(f"LP Algorithm: Fixed {fixed_count} tasks with 0 completions to exploration_bonus={bonus}")
 
     def cleanup_shared_memory(self) -> None:
         """Clean up shared memory resources with better error handling."""

@@ -257,11 +257,12 @@ class Curriculum(StatsLogger):
 
     def _create_task(self) -> CurriculumTask:
         """Create a new task with a unique ID from Python's unlimited integer space."""
-        # Use Python's full 64-bit integer space (2^63 - 1)
-        # With ~1000 active tasks, collision probability is negligible (~10^-16)
-        task_id = self._rng.randint(0, 2**63 - 1)
+        # Use 53-bit integer space (2^53 - 1) to ensure compatibility with float64 storage
+        # Float64 has 53 bits of mantissa precision, so integers up to 2^53 can be stored exactly
+        # With ~1000 active tasks, collision probability is still negligible (~10^-13)
+        task_id = self._rng.randint(0, 2**53 - 1)
         while task_id in self._task_ids:
-            task_id = self._rng.randint(0, 2**63 - 1)
+            task_id = self._rng.randint(0, 2**53 - 1)
         self._task_ids.add(task_id)
         env_cfg = self._task_generator.get_task(task_id)
 
@@ -387,6 +388,10 @@ class Curriculum(StatsLogger):
 
     def get_state(self) -> Dict[str, Any]:
         """Get curriculum state for checkpointing."""
+        import logging
+
+        logger = logging.getLogger(__name__)
+
         state = {
             "config": self._config.model_dump(),  # Save config for validation
             "seed": self._rng.getstate(),
@@ -409,10 +414,26 @@ class Curriculum(StatsLogger):
         if self._algorithm is not None:
             state["algorithm_state"] = self._algorithm.get_state()
 
+        num_tasks = len(state["tasks"])
+        has_algo = "algorithm_state" in state
+        algo_status = "present" if has_algo else "missing"
+        logger.info(f"Curriculum: Saving state with {num_tasks} tasks, algorithm_state={algo_status}")
+
         return state
 
     def load_state(self, state: Dict[str, Any]) -> None:
         """Load curriculum state from checkpoint."""
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        num_tasks_to_load = len(state.get("tasks", {}))
+        has_algo_state = "algorithm_state" in state
+        logger.info(
+            f"Curriculum: Loading state with {num_tasks_to_load} tasks, "
+            f"algorithm_state={'present' if has_algo_state else 'missing'}"
+        )
+
         # Validate config matches
         if state["config"] != self._config.model_dump():
             logger.warning("Curriculum config mismatch during restore")
@@ -446,6 +467,8 @@ class Curriculum(StatsLogger):
 
             self._tasks[task_id] = task
             self._task_ids.add(task_id)
+
+        logger.info(f"Curriculum: Successfully loaded {len(self._tasks)} tasks")
 
         # NOTE: We don't call on_task_created() here because:
         # 1. Algorithm state (including task_tracker) is already restored above via load_state()

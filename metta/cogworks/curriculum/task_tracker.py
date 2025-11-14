@@ -237,27 +237,64 @@ class TaskTracker:
             self._total_completions += 1
             self._sum_scores += score
 
+    def get_task_index(self, task_id: int) -> Optional[int]:
+        """Get the array index for a task ID.
+
+        For shared memory backends, will search shared memory if task is not in local mapping.
+        Returns None if task is not found.
+        """
+        # Fast path: check local mapping first
+        if task_id in self._task_id_to_index:
+            return self._task_id_to_index[task_id]
+
+        # Slow path for shared memory: scan to find task from another worker
+        if isinstance(self._backend, SharedMemoryBackend):
+            for i in range(self._backend.max_tasks):
+                task_data = self._backend.get_task_data(i)
+                if int(task_data[0]) == task_id and bool(task_data[12]):  # is_active
+                    return i
+
+        return None
+
     def update_lp_score(self, task_id: int, lp_score: float) -> None:
         """Update the learning progress score for a task."""
-        with self._backend.acquire_lock():
-            if task_id not in self._task_id_to_index:
-                return
+        index = self.get_task_index(task_id)
+        if index is None:
+            return
 
-            index = self._task_id_to_index[task_id]
+        with self._backend.acquire_lock():
             task_data = self._backend.get_task_data(index)
             task_data[4] = lp_score
 
     def get_task_stats(self, task_id: int) -> Optional[Dict[str, float]]:
         """Get statistics for a specific task.
 
+        For shared memory backends, will search shared memory if task is not in local mapping.
+        This allows reading stats for tasks created by other workers.
+
         Note: No locking - may read slightly stale data, but that's acceptable
         for statistics queries to avoid lock contention.
         """
-        if task_id not in self._task_id_to_index:
-            return None
+        # Fast path: check local mapping first
+        if task_id in self._task_id_to_index:
+            index = self._task_id_to_index[task_id]
+            task_data = self._backend.get_task_data(index)
+        elif isinstance(self._backend, SharedMemoryBackend):
+            # Slow path: scan shared memory to find task from another worker
+            index = None
+            for i in range(self._backend.max_tasks):
+                task_data = self._backend.get_task_data(i)
+                if int(task_data[0]) == task_id and bool(task_data[12]):  # is_active
+                    index = i
+                    break
 
-        index = self._task_id_to_index[task_id]
-        task_data = self._backend.get_task_data(index)
+            if index is None:
+                return None
+
+            task_data = self._backend.get_task_data(index)
+        else:
+            # Local memory backend and task not found
+            return None
 
         if task_data[12] == 0:  # not active
             return None
@@ -319,9 +356,26 @@ class TaskTracker:
     def get_all_tracked_tasks(self) -> List[int]:
         """Get all currently tracked task IDs.
 
+        For shared memory backends, scans shared memory to find ALL tasks from ALL workers.
+        For local memory backends, returns tasks from the local mapping.
+
         Note: No locking - returns snapshot which may be slightly stale.
         """
-        return list(self._task_id_to_index.keys())
+        # For shared memory, scan to see tasks from all workers
+        if isinstance(self._backend, SharedMemoryBackend):
+            task_ids = []
+            for i in range(self._backend.max_tasks):
+                task_data = self._backend.get_task_data(i)
+                is_active = bool(task_data[12])
+                # A slot is active if is_active flag is True
+                # (task_id == 0 with is_active == False means free slot)
+                if is_active:
+                    task_id = int(task_data[0])
+                    task_ids.append(task_id)
+            return task_ids
+        else:
+            # Local memory: use mapping (only this process's tasks)
+            return list(self._task_id_to_index.keys())
 
     def remove_task(self, task_id: int) -> None:
         """Remove a task from tracking."""
