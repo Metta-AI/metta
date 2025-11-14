@@ -344,7 +344,9 @@ class RemoteJob(Job):
         if not config.remote and not job_id:
             raise ValueError("RemoteJob requires config.remote to be set (or job_id for resuming)")
 
-        arg_list = config.args
+        # Convert args dict to list of "key=value" strings for launch.py
+        arg_list = [f"{k}={v}" for k, v in config.args.items()]
+
         if config.remote:
             base_args = [f"--gpus={config.remote.gpus}", f"--nodes={config.remote.nodes}"]
             if not config.remote.spot:
