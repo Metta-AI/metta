@@ -54,7 +54,7 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
     arena_eval = JobConfig(
         name=arena_eval_name,
         module="recipes.prod.arena_basic_easy_shaped.evaluate_latest_in_dir",
-        args=["dir_path=./train_dir/{arena_train_name}/checkpoints/"],
+        args=[f"dir_path=./train_dir/{arena_train_name}/checkpoints/"],
         dependency_names=[arena_train_name],
         timeout_s=300,
         group=group,
