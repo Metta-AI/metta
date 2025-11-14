@@ -38,7 +38,7 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
 
     arena_train = JobConfig(
         name=arena_train_name,
-        tool="recipes.prod.arena_basic_easy_shaped.train",
+        tool_maker="recipes.prod.arena_basic_easy_shaped.train",
         args={
             "run": arena_train_name,
             "trainer.total_timesteps": "10000",
@@ -53,7 +53,7 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
     # policy_uri = "s3://softmax-public/policies/{arena_train_name}:latest"
     arena_eval = JobConfig(
         name=arena_eval_name,
-        tool="recipes.prod.arena_basic_easy_shaped.evaluate_latest_in_dir",
+        tool_maker="recipes.prod.arena_basic_easy_shaped.evaluate_latest_in_dir",
         args={"dir_path": f"./train_dir/{arena_train_name}/checkpoints/"},
         dependency_names=[arena_train_name],
         timeout_s=300,
@@ -63,7 +63,7 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
     # Play test with random policy (run with minimal steps)
     arena_play = JobConfig(
         name=arena_play_name,
-        tool="recipes.prod.arena_basic_easy_shaped.play",
+        tool_maker="recipes.prod.arena_basic_easy_shaped.play",
         args={"max_steps": "100", "render": "log", "open_browser_on_start": "False"},  # Headless mode for CI
         timeout_s=60,
         group=group,  # Tag with group for monitoring
@@ -72,7 +72,7 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
     # CvC Small Maps - Train just enough to get a single checkpoint
     cvc_small_train = JobConfig(
         name=cvc_small_train_name,
-        tool="recipes.prod.cvc.small_maps.train",
+        tool_maker="recipes.prod.cvc.small_maps.train",
         args={
             "run": cvc_small_train_name,
             "trainer.total_timesteps": "10000",
@@ -87,7 +87,7 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
     # CvC Small Maps - Play test with random policy
     cvc_small_play = JobConfig(
         name=cvc_small_play_name,
-        tool="recipes.prod.cvc.small_maps.play",
+        tool_maker="recipes.prod.cvc.small_maps.play",
         args={"max_steps": "100", "render": "log", "open_browser_on_start": "False"},  # Headless mode for CI
         timeout_s=60,
         group=group,  # Tag with group for monitoring

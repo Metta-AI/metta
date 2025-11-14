@@ -359,8 +359,8 @@ class RemoteJob(Job):
         else:
             base_args = ["--no-spot", "--gpus=4", "--nodes", "1"]
 
-        self.tool_or_cmd = config.tool or config.cmd
-        self.use_tool = config.tool is not None  # Store whether this is a tool or cmd job
+        self.tool_or_cmd = config.tool_maker or config.cmd
+        self.use_tool = config.tool_maker is not None  # Store whether this is a tool_maker or cmd job
         self.args = arg_list
         self.base_args = base_args
         self.skip_git_check = skip_git_check
