@@ -1,5 +1,7 @@
 """Policy evaluation management."""
 
+from __future__ import annotations
+
 import logging
 from typing import Any, Optional
 from uuid import UUID
@@ -19,8 +21,9 @@ from metta.rl.evaluate import (
     upload_replay_html,
 )
 from metta.rl.training import TrainerComponent
+from metta.rl.training.format_eval_results import build_eval_summary_rows, render_eval_summary
 from metta.rl.training.optimizer import is_schedulefree_optimizer
-from metta.sim.runner import MultiAgentPolicyInitializer, build_eval_results, run_simulations
+from metta.sim.runner import MultiAgentPolicyInitializer, SimulationRunResult, build_eval_results, run_simulations
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.base_config import Config
@@ -181,11 +184,20 @@ class Evaluator(TrainerComponent):
 
         # Local evaluation
         if self._config.evaluate_local:
-            evaluation_results = self._evaluate_local(
+            evaluation_results, rollout_details = self._evaluate_local(
                 policy_uri=policy_uri,
                 simulations=sims,
                 stats_epoch_id=stats_epoch_id,
             )
+
+            rows = build_eval_summary_rows(
+                policy_uri=policy_uri,
+                simulations=sims,
+                rollout_results=rollout_details,
+                evaluation_results=evaluation_results,
+                replay_dir=self._config.replay_dir,
+            )
+            render_eval_summary(rows)
 
             # Upload replays if available
             stats_reporter = getattr(self.context, "stats_reporter", None)
@@ -259,7 +271,7 @@ class Evaluator(TrainerComponent):
         policy_uri: str,
         simulations: list[SimulationConfig],
         stats_epoch_id: Optional[UUID] = None,
-    ) -> EvalResults:
+    ) -> tuple[EvalResults, list[SimulationRunResult]]:
         logger.info(f"Evaluating policy locally from {policy_uri}")
 
         def _materialize_policy(policy_uri: str) -> MultiAgentPolicyInitializer:
@@ -282,7 +294,8 @@ class Evaluator(TrainerComponent):
         )
 
         # TODO: this should also submit to stats-server
-        return build_eval_results(rollout_results, num_policies=1, target_policy_idx=0)
+        eval_results = build_eval_results(rollout_results, num_policies=1, target_policy_idx=0)
+        return eval_results, rollout_results
 
     def get_latest_scores(self) -> EvalRewardSummary:
         return self._latest_scores
@@ -334,7 +347,7 @@ class Evaluator(TrainerComponent):
 
         optimizer = getattr(self.context, "optimizer", None)
         is_schedulefree = optimizer is not None and is_schedulefree_optimizer(optimizer)
-        if is_schedulefree:
+        if is_schedulefree and optimizer is not None:
             optimizer.eval()
 
         scores = self.evaluate(
@@ -346,7 +359,7 @@ class Evaluator(TrainerComponent):
         )
 
         # Restore train mode after evaluation for ScheduleFree optimizers
-        if is_schedulefree:
+        if is_schedulefree and optimizer is not None:
             optimizer.train()
 
         stats_reporter = getattr(self.context, "stats_reporter", None)
