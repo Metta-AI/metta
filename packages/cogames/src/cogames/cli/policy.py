@@ -134,13 +134,27 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
     if not raw:
         raise ValueError("Policy specification cannot be empty.")
 
-    parts = [part.strip() for part in raw.split(POLICY_ARG_DELIMITER)]
-    if len(parts) > 3:
-        raise ValueError(f"Policy specification must include at most two '{POLICY_ARG_DELIMITER}' separated values.")
+    raw_class_path, sep, remainder = raw.partition(POLICY_ARG_DELIMITER)
+    raw_class_path = raw_class_path.strip()
+    raw_policy_data: str | None = None
+    raw_fraction: str | None = None
 
-    raw_class_path = parts[0]
-    raw_policy_data = parts[1] if len(parts) > 1 else None
-    raw_fraction = parts[2] if len(parts) > 2 else None
+    if sep:
+        candidate = remainder
+        fraction_candidate = None
+        data_candidate = candidate
+        if POLICY_ARG_DELIMITER in candidate:
+            potential_data, _, potential_fraction = candidate.rpartition(POLICY_ARG_DELIMITER)
+            potential_fraction = potential_fraction.strip()
+            if potential_fraction:
+                try:
+                    float(potential_fraction)
+                    fraction_candidate = potential_fraction
+                    data_candidate = potential_data
+                except ValueError:
+                    pass
+        raw_policy_data = data_candidate.strip() or None
+        raw_fraction = fraction_candidate
 
     if not raw_class_path:
         raise ValueError("Policy class path cannot be empty.")

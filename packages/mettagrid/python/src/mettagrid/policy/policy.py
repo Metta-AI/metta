@@ -1,11 +1,13 @@
 """Base policy classes and interfaces."""
 
 import ctypes
+import zipfile
 from abc import abstractmethod
 from pathlib import Path
 from typing import Any, Generic, Optional, Sequence, Tuple, TypeVar
 
 import numpy as np
+import torch
 import torch.nn as nn
 from pydantic import BaseModel, Field
 
@@ -357,9 +359,8 @@ class TrainablePolicy(MultiAgentPolicy):
 
         Default implementation loads PyTorch state dict.
         """
-        import torch
-
-        self.network().load_state_dict(torch.load(policy_data_path, map_location="cpu"))
+        state_dict = _load_policy_state_dict(Path(policy_data_path))
+        self.network().load_state_dict(state_dict)
 
     def save_policy_data(self, policy_data_path: str) -> None:
         """Save network weights to file.
@@ -388,3 +389,45 @@ class PolicySpec(BaseModel):
         if self.data_path:
             parts.append(Path(self.data_path).name)
         return "-".join(parts)
+
+
+_SEQUENTIAL_PREFIX = "_sequential_network."
+_MPT_WEIGHTS_FILENAME = "weights.safetensors"
+
+
+def _strip_sequential_prefix(key: str) -> str:
+    if key.startswith(_SEQUENTIAL_PREFIX):
+        return key[len(_SEQUENTIAL_PREFIX) :]
+    return key
+
+
+def _load_policy_state_dict(path: Path) -> dict[str, torch.Tensor]:
+    """Load a policy state dict from .pt or .mpt checkpoints."""
+
+    if path.suffix == ".mpt":
+        return _load_mpt_state_dict(path)
+
+    return torch.load(path, map_location="cpu")
+
+
+def _load_mpt_state_dict(path: Path) -> dict[str, torch.Tensor]:
+    """Load a zipped safetensors checkpoint produced by CheckpointManager."""
+
+    try:
+        from safetensors.torch import load as safetensors_load
+    except ImportError as exc:  # pragma: no cover - handled in environments missing safetensors
+        raise ImportError(
+            "Loading .mpt checkpoints requires the 'safetensors' package. Install it with `pip install safetensors`."
+        ) from exc
+
+    if not path.exists():
+        raise FileNotFoundError(f"Checkpoint file not found: {path}")
+
+    with zipfile.ZipFile(path, "r") as archive:
+        try:
+            data = archive.read(_MPT_WEIGHTS_FILENAME)
+        except KeyError as exc:
+            raise ValueError(f"{path} is missing {_MPT_WEIGHTS_FILENAME}") from exc
+
+    tensors = safetensors_load(data)
+    return {_strip_sequential_prefix(k): v for k, v in tensors.items()}
