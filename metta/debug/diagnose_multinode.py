@@ -31,6 +31,7 @@ class DiagnoseMultiNodeTool(Tool):
     test_communication: bool = Field(default=True, description="Test inter-process communication")
     verbose: bool = Field(default=True, description="Enable verbose output")
     test_duration_seconds: float = Field(default=5.0, description="Duration for performance tests")
+    run: Optional[str]
 
     def invoke(self, args: dict[str, str]) -> int | None:
         """Run the diagnostic tests."""
