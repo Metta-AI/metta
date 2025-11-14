@@ -39,6 +39,7 @@ type
     agentOccupancy: HashSet[Location]
     phase: Phase
     stepCount: int
+    positionHistory: seq[Location]
     energy: int
     carbon: int
     oxygen: int
@@ -61,7 +62,8 @@ type
     usingObjectThisStep: bool
     lastAction: int
     explorationDirection: string
-    explorationExpiresAt: int
+    explorationDirectionSetStep: int
+    explorationEscapeUntilStep: int
 
   LadybugAgent* = ref object
     agentId*: int
@@ -76,6 +78,12 @@ const
   defaultMapSize = 200
   rechargeThresholdLow = 35
   rechargeThresholdHigh = 85
+  positionHistorySize = 40
+  explorationAreaCheckWindow = 35
+  explorationAreaSizeThreshold = 9
+  explorationEscapeDuration = 8
+  explorationDirectionPersistence = 18
+  explorationAssemblerDistanceThreshold = 12
   cellFree = 1
   cellObstacle = 2
   parentSentinel = (-9999, -9999)
@@ -105,7 +113,9 @@ proc initState(agent: LadybugAgent) =
   )
   agent.state.lastAction = agent.cfg.actions.noop
   agent.state.explorationDirection = ""
-  agent.state.explorationExpiresAt = 0
+  agent.state.explorationDirectionSetStep = 0
+  agent.state.explorationEscapeUntilStep = 0
+  agent.state.positionHistory = @[]
   agent.state.waitSteps = 0
   agent.state.waitingAtExtractor = none(Location)
   agent.state.usingObjectThisStep = false
@@ -306,6 +316,9 @@ proc updatePosition(agent: LadybugAgent) =
     inc agent.state.col
   elif agent.state.lastAction == agent.cfg.actions.moveWest:
     dec agent.state.col
+  agent.state.positionHistory.add(Location(x: agent.state.col, y: agent.state.row))
+  if agent.state.positionHistory.len > positionHistorySize:
+    agent.state.positionHistory.delete(0)
 
 proc clearWaiting(agent: LadybugAgent) =
   agent.state.waitingAtExtractor = none(Location)
@@ -509,9 +522,50 @@ proc tryRandomDirection(agent: LadybugAgent): int =
   agent.cfg.actions.noop
 
 proc explore(agent: LadybugAgent): int =
-  let persist = 8
-  if agent.state.explorationDirection.len == 0 or agent.state.stepCount >= agent.state.explorationExpiresAt:
+  if agent.state.explorationDirection.len > 0:
+    let steps = agent.state.stepCount - agent.state.explorationDirectionSetStep
+    if steps >= explorationDirectionPersistence:
+      agent.state.explorationDirection = ""
+
+  # Escape mode: navigate toward assembler if stuck recently
+  if agent.state.explorationEscapeUntilStep > agent.state.stepCount:
     agent.state.explorationDirection = ""
+    if agent.state.stations["assembler"].isSome():
+      let assemblerLoc = agent.state.stations["assembler"].get()
+      if isAdjacent(agent.state.row, agent.state.col, assemblerLoc.y, assemblerLoc.x):
+        agent.state.explorationEscapeUntilStep = 0
+      else:
+        return agent.moveTowards(assemblerLoc.y, assemblerLoc.x, reachAdjacent = true)
+    else:
+      agent.state.explorationEscapeUntilStep = 0
+  else:
+    # Check if we've stayed within a small area recently; if so, trigger escape
+    let historyLen = agent.state.positionHistory.len
+    if historyLen >= explorationAreaCheckWindow and agent.state.stations["assembler"].isSome():
+      var minRow = high(int)
+      var maxRow = low(int)
+      var minCol = high(int)
+      var maxCol = low(int)
+      for i in (historyLen - explorationAreaCheckWindow) ..< historyLen:
+        let pos = agent.state.positionHistory[i]
+        if pos.y < minRow:
+          minRow = pos.y
+        if pos.y > maxRow:
+          maxRow = pos.y
+        if pos.x < minCol:
+          minCol = pos.x
+        if pos.x > maxCol:
+          maxCol = pos.x
+      let areaHeight = maxRow - minRow + 1
+      let areaWidth = maxCol - minCol + 1
+      if areaHeight <= explorationAreaSizeThreshold and areaWidth <= explorationAreaSizeThreshold:
+        let assemblerLoc = agent.state.stations["assembler"].get()
+        let dist = abs(agent.state.row - assemblerLoc.y) + abs(agent.state.col - assemblerLoc.x)
+        if dist > explorationAssemblerDistanceThreshold:
+          agent.state.explorationEscapeUntilStep = agent.state.stepCount + explorationEscapeDuration
+          agent.state.explorationDirection = ""
+          return agent.moveTowards(assemblerLoc.y, assemblerLoc.x, reachAdjacent = true)
+
   if agent.state.explorationDirection.len > 0:
     let delta = directionDelta(agent.state.explorationDirection)
     let nr = agent.state.row + delta[0]
@@ -519,6 +573,7 @@ proc explore(agent: LadybugAgent): int =
     if agent.isTraversable(nr, nc):
       return agent.directionAction(agent.state.explorationDirection)
     agent.state.explorationDirection = ""
+
   var dirs = @["north", "south", "east", "west"]
   agent.random.shuffle(dirs)
   for dir in dirs:
@@ -527,7 +582,7 @@ proc explore(agent: LadybugAgent): int =
     let nc = agent.state.col + delta[1]
     if agent.isTraversable(nr, nc):
       agent.state.explorationDirection = dir
-      agent.state.explorationExpiresAt = agent.state.stepCount + persist
+      agent.state.explorationDirectionSetStep = agent.state.stepCount
       return agent.directionAction(dir)
   return agent.tryRandomDirection()
 
