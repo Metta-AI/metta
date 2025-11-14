@@ -1,5 +1,5 @@
 import
-  std/[tables, random, sets, options],
+  std/[tables, random, sets, options, strutils],
   common
 
 when defined(racecar_debug):
@@ -28,30 +28,119 @@ type
     location: Location
     lastActions: seq[int]
     resourceFocus: Option[ResourceKind]
+    heartRequirements: Table[ResourceKind, int]
+    energyRequirement: int
+    resourceOrder: seq[ResourceKind]
+    assemblerLocation: Option[Location]
 
   RaceCarPolicy* = ref object
     agents*: seq[RaceCarAgent]
 
 const
   EnergyReserve = 50
-  ResourceQuotaCarbon = 30
-  ResourceQuotaOxygen = 30
-  ResourceQuotaGermanium = 30
-  ResourceQuotaSilicon = 50
+  EnergyBuffer = 20
+  RequirementBuffer = 1
 
-proc resourceQuota(kind: ResourceKind): int =
-  case kind
-  of rkCarbon: ResourceQuotaCarbon
-  of rkOxygen: ResourceQuotaOxygen
-  of rkGermanium: ResourceQuotaGermanium
-  of rkSilicon: ResourceQuotaSilicon
+var sharedExtractorOffsets: Table[ResourceKind, HashSet[Location]] = initTable[ResourceKind, HashSet[Location]]()
 
-proc vibeFor(agent: RaceCarAgent, kind: ResourceKind): int32 =
+proc buildResourceOrder(agentId: int): seq[ResourceKind] =
+  let base = @[rkCarbon, rkOxygen, rkGermanium, rkSilicon]
+  result = @[]
+  if base.len == 0:
+    return
+  let offset = agentId mod base.len
+  for i in 0 ..< base.len:
+    result.add(base[(offset + i) mod base.len])
+
+proc toResourceKind(resource: string): Option[ResourceKind] =
+  let lowered = resource.toLowerAscii()
+  case lowered
+  of "carbon": some(rkCarbon)
+  of "oxygen": some(rkOxygen)
+  of "germanium": some(rkGermanium)
+  of "silicon": some(rkSilicon)
+  else: none(ResourceKind)
+
+proc recipeRequirement(agent: RaceCarAgent, kind: ResourceKind): int =
+  if agent.heartRequirements.len > 0 and agent.heartRequirements.hasKey(kind):
+    return agent.heartRequirements[kind]
+  1
+
+proc resourceRequirement(agent: RaceCarAgent, kind: ResourceKind): int =
+  var base = recipeRequirement(agent, kind)
+  if agent.heartRequirements.len > 0 and agent.heartRequirements.hasKey(kind) and
+      agent.heartRequirements[kind] <= 0:
+    return 0
+  if base <= 0:
+    base = 1
+  base + RequirementBuffer
+
+proc targetEnergy(agent: RaceCarAgent): int =
+  if agent.energyRequirement > 0:
+    return max(agent.energyRequirement + EnergyBuffer, EnergyReserve)
+  EnergyReserve
+
+proc resourceVibe(agent: RaceCarAgent, kind: ResourceKind): tuple[action: int, vibe: int] =
   case kind
-  of rkCarbon: agent.cfg.actions.vibeCarbon.int32
-  of rkOxygen: agent.cfg.actions.vibeOxygen.int32
-  of rkGermanium: agent.cfg.actions.vibeGermanium.int32
-  of rkSilicon: agent.cfg.actions.vibeSilicon.int32
+  of rkCarbon:
+    if agent.cfg.actions.vibeCarbonA != 0:
+      return (agent.cfg.actions.vibeCarbonA, agent.cfg.vibes.carbonA)
+    elif agent.cfg.actions.vibeCarbonB != 0:
+      return (agent.cfg.actions.vibeCarbonB, agent.cfg.vibes.carbonB)
+  of rkOxygen:
+    if agent.cfg.actions.vibeOxygenA != 0:
+      return (agent.cfg.actions.vibeOxygenA, agent.cfg.vibes.oxygenA)
+    elif agent.cfg.actions.vibeOxygenB != 0:
+      return (agent.cfg.actions.vibeOxygenB, agent.cfg.vibes.oxygenB)
+  of rkGermanium:
+    if agent.cfg.actions.vibeGermaniumA != 0:
+      return (agent.cfg.actions.vibeGermaniumA, agent.cfg.vibes.germaniumA)
+    elif agent.cfg.actions.vibeGermaniumB != 0:
+      return (agent.cfg.actions.vibeGermaniumB, agent.cfg.vibes.germaniumB)
+  of rkSilicon:
+    if agent.cfg.actions.vibeSiliconA != 0:
+      return (agent.cfg.actions.vibeSiliconA, agent.cfg.vibes.siliconA)
+    elif agent.cfg.actions.vibeSiliconB != 0:
+      return (agent.cfg.actions.vibeSiliconB, agent.cfg.vibes.siliconB)
+  (0, agent.cfg.vibes.default)
+
+proc heartAssembleVibe(agent: RaceCarAgent): tuple[action: int, vibe: int] =
+  if agent.cfg.actions.vibeHeartA != 0:
+    return (agent.cfg.actions.vibeHeartA, agent.cfg.vibes.heartA)
+  elif agent.cfg.actions.vibeHeartB != 0:
+    return (agent.cfg.actions.vibeHeartB, agent.cfg.vibes.heartB)
+  (0, agent.cfg.vibes.default)
+
+proc heartDepositVibe(agent: RaceCarAgent): tuple[action: int, vibe: int] =
+  if agent.cfg.actions.vibeHeartB != 0:
+    return (agent.cfg.actions.vibeHeartB, agent.cfg.vibes.heartB)
+  elif agent.cfg.actions.vibeHeartA != 0:
+    return (agent.cfg.actions.vibeHeartA, agent.cfg.vibes.heartA)
+  (0, agent.cfg.vibes.default)
+
+proc rememberExtractorOffset(kind: ResourceKind, offset: Location) =
+  if not sharedExtractorOffsets.hasKey(kind):
+    sharedExtractorOffsets[kind] = initHashSet[Location]()
+  sharedExtractorOffsets[kind].incl(offset)
+
+proc chooseExtractorTarget(agent: RaceCarAgent, kind: ResourceKind): Option[Location] =
+  if agent.assemblerLocation.isNone():
+    return none(Location)
+  if sharedExtractorOffsets.hasKey(kind):
+    var found = false
+    var bestLocation = Location(x: 0, y: 0)
+    var bestDistance = high(int)
+    let assemblerLoc = agent.assemblerLocation.get()
+    for offset in sharedExtractorOffsets[kind]:
+      let candidate = assemblerLoc + offset
+      let distance = manhattan(candidate, agent.location)
+      if not found or distance < bestDistance:
+        bestDistance = distance
+        bestLocation = candidate
+        found = true
+    if found:
+      return some(bestLocation)
+  none(Location)
 
 proc extractorTag(agent: RaceCarAgent, kind: ResourceKind): int =
   case kind
@@ -67,30 +156,103 @@ proc sampleInventory(agent: RaceCarAgent, visible: Table[Location, seq[FeatureVa
   result[rkGermanium] = agent.cfg.getInventory(visible, agent.cfg.features.invGermanium)
   result[rkSilicon] = agent.cfg.getInventory(visible, agent.cfg.features.invSilicon)
 
-proc hasHeartIngredients(inventory: Table[ResourceKind, int]): bool =
+proc updateExtractorOffsets(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]]) =
+  if agent.assemblerLocation.isNone():
+    return
+  let assemblerLoc = agent.assemblerLocation.get()
+  for relativeLocation, featureValues in visible:
+    for featureValue in featureValues:
+      if featureValue.featureId == agent.cfg.features.tag:
+        for kind in ResourceKind:
+          if featureValue.value == agent.extractorTag(kind):
+            let globalLocation = agent.location + relativeLocation
+            let offset = globalLocation - assemblerLoc
+            rememberExtractorOffset(kind, offset)
+
+proc updateHeartRequirements(agent: RaceCarAgent) =
+  if agent.map.len == 0:
+    return
+  let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
+  if assemblerNearby.isNone():
+    return
+  let assemblerLocation = assemblerNearby.get()
+  if assemblerLocation notin agent.map:
+    return
+  let features = agent.map[assemblerLocation]
+  let heartOutputId = agent.cfg.features.protocolOutputs.getOrDefault("heart", -1)
+  if heartOutputId == -1:
+    return
+
+  var heartProtocolSeen = false
+  for featureValue in features:
+    if featureValue.featureId == heartOutputId and featureValue.value > 0:
+      heartProtocolSeen = true
+      break
+  if not heartProtocolSeen:
+    return
+
+  var updated = initTable[ResourceKind, int]()
+  var energyRequirement = agent.energyRequirement
+  for resource, featureId in agent.cfg.features.protocolInputs.pairs:
+    for featureValue in features:
+      if featureValue.featureId == featureId and featureValue.value > 0:
+        if resource == "energy":
+          energyRequirement = max(energyRequirement, featureValue.value)
+        else:
+          let maybeKind = resource.toResourceKind()
+          if maybeKind.isSome():
+            updated[maybeKind.get()] = featureValue.value
+        break
+
+  if updated.len > 0:
+    agent.heartRequirements = updated
+  agent.energyRequirement = max(agent.energyRequirement, energyRequirement)
+
+proc hasHeartIngredients(agent: RaceCarAgent, inventory: Table[ResourceKind, int], invEnergy: int): bool =
   for kind in ResourceKind:
-    if inventory.getOrDefault(kind, 0) < resourceQuota(kind):
+    let required = recipeRequirement(agent, kind)
+    if required <= 0:
+      continue
+    if inventory.getOrDefault(kind, 0) < required:
       return false
-  true
+  invEnergy >= (if agent.energyRequirement > 0: agent.energyRequirement else: EnergyReserve)
 
 proc updateFocus(agent: RaceCarAgent, inventory: Table[ResourceKind, int]) =
   if agent.resourceFocus.isSome:
     let current = agent.resourceFocus.get()
-    if inventory.getOrDefault(current, 0) >= resourceQuota(current):
+    if inventory.getOrDefault(current, 0) >= resourceRequirement(agent, current):
       agent.resourceFocus = none(ResourceKind)
 
   if agent.resourceFocus.isSome:
     return
 
-  var bestKind: Option[ResourceKind]
-  var lowest = high(int)
-  for kind in ResourceKind:
-    let amount = inventory.getOrDefault(kind, 0)
-    if amount < resourceQuota(kind) and amount < lowest:
-      lowest = amount
-      bestKind = some(kind)
+  let priorityKinds = @[rkGermanium, rkSilicon]
+  for kind in priorityKinds:
+    let required = resourceRequirement(agent, kind)
+    if required <= 0:
+      continue
+    if inventory.getOrDefault(kind, 0) < required:
+      agent.resourceFocus = some(kind)
+      return
 
-  agent.resourceFocus = bestKind
+  if agent.resourceOrder.len > 0:
+    for kind in agent.resourceOrder:
+      let required = resourceRequirement(agent, kind)
+      if required <= 0:
+        continue
+      if inventory.getOrDefault(kind, 0) < required:
+        agent.resourceFocus = some(kind)
+        return
+  else:
+    for kind in ResourceKind:
+      let required = resourceRequirement(agent, kind)
+      if required <= 0:
+        continue
+      if inventory.getOrDefault(kind, 0) < required:
+        agent.resourceFocus = some(kind)
+        return
+
+  agent.resourceFocus = none(ResourceKind)
 
 proc randomMove(agent: RaceCarAgent): int32 =
   case agent.random.rand(1 .. 4)
@@ -182,14 +344,26 @@ proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]])
           agent.map[location] = @[]
         agent.seen.incl(location)
 
-proc seekExtractor(agent: RaceCarAgent, kind: ResourceKind): Option[int32] =
-  let tag = agent.extractorTag(kind)
-  let nearby = agent.cfg.getNearby(agent.location, agent.map, tag)
-  if nearby.isSome():
-    let action = agent.cfg.aStar(agent.location, nearby.get(), agent.map)
+type ExtractorPlan = tuple[action: Option[int32], waiting: bool]
+
+proc seekExtractor(agent: RaceCarAgent, kind: ResourceKind): ExtractorPlan =
+  var target = agent.chooseExtractorTarget(kind)
+  if target.isNone():
+    let tag = agent.extractorTag(kind)
+    let nearby = agent.cfg.getNearby(agent.location, agent.map, tag)
+    if nearby.isSome():
+      target = nearby
+      if agent.assemblerLocation.isSome():
+        let offset = nearby.get() - agent.assemblerLocation.get()
+        rememberExtractorOffset(kind, offset)
+  if target.isSome():
+    let location = target.get()
+    let action = agent.cfg.aStar(agent.location, location, agent.map)
     if action.isSome():
-      return some(action.get().int32)
-  none(int32)
+      return (some(action.get().int32), false)
+    elif agent.location == location:
+      return (none(int32), true)
+  (none(int32), false)
 
 proc step*(
   agent: RaceCarAgent,
@@ -225,26 +399,27 @@ proc step*(
       map[location].add(FeatureValue(featureId: featureId.int, value: value.int))
 
     updateMap(agent, map)
+    agent.updateExtractorOffsets(map)
+    agent.updateHeartRequirements()
 
     let vibe = agent.cfg.getVibe(map)
     let invEnergy = agent.cfg.getInventory(map, agent.cfg.features.invEnergy)
     let invHeart = agent.cfg.getInventory(map, agent.cfg.features.invHeart)
-    let invCarbon = agent.cfg.getInventory(map, agent.cfg.features.invCarbon)
-    let invOxygen = agent.cfg.getInventory(map, agent.cfg.features.invOxygen)
-    let invGermanium = agent.cfg.getInventory(map, agent.cfg.features.invGermanium)
-    let invSilicon = agent.cfg.getInventory(map, agent.cfg.features.invSilicon)
+    let inventory = agent.sampleInventory(map)
 
-    if invEnergy < EnergyReserve:
-      let chargerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.charger)
-      if chargerNearby.isSome():
-        let action = agent.cfg.aStar(agent.location, chargerNearby.get(), agent.map)
-        if action.isSome():
-          doAction(action.get().int32)
-          return
+    let chargerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.charger)
+    let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
+
+    if invEnergy < targetEnergy(agent) and chargerNearby.isSome():
+      let action = agent.cfg.aStar(agent.location, chargerNearby.get(), agent.map)
+      if action.isSome():
+        doAction(action.get().int32)
+        return
 
     if invHeart > 0:
-      if vibe != agent.cfg.vibes.default:
-        doAction(agent.cfg.actions.vibeDefault.int32)
+      let (depositAction, depositVibe) = agent.heartDepositVibe()
+      if depositAction != 0 and vibe != depositVibe:
+        doAction(depositAction.int32)
         return
       let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
       if chestNearby.isSome():
@@ -259,8 +434,8 @@ proc step*(
       Location(x: +10, y: -10),
       Location(x: +10, y: +10),
     ]
-    let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
     if assemblerNearby.isSome():
+      agent.assemblerLocation = some(assemblerNearby.get())
       for keyLocation in keyLocations:
         let location = assemblerNearby.get() + keyLocation
         if location notin agent.seen:
@@ -269,33 +444,12 @@ proc step*(
             doAction(action.get().int32)
             return
 
-    if invCarbon == 0:
-      let action = agent.seekExtractor(rkCarbon)
-      if action.isSome():
-        doAction(action.get())
-        return
-    if invOxygen == 0:
-      let action = agent.seekExtractor(rkOxygen)
-      if action.isSome():
-        doAction(action.get())
-        return
-    if invGermanium == 0:
-      let action = agent.seekExtractor(rkGermanium)
-      if action.isSome():
-        doAction(action.get())
-        return
-    if invSilicon == 0:
-      let action = agent.seekExtractor(rkSilicon)
-      if action.isSome():
-        doAction(action.get())
-        return
-
-    let inventory = agent.sampleInventory(map)
     agent.updateFocus(inventory)
 
-    if hasHeartIngredients(inventory):
-      if vibe != agent.cfg.vibes.heart:
-        doAction(agent.cfg.actions.vibeHeart.int32)
+    if agent.hasHeartIngredients(inventory, invEnergy):
+      let (assembleAction, assembleVibe) = agent.heartAssembleVibe()
+      if assembleAction != 0 and vibe != assembleVibe:
+        doAction(assembleAction.int32)
         return
       if assemblerNearby.isSome():
         let action = agent.cfg.aStar(agent.location, assemblerNearby.get(), agent.map)
@@ -305,13 +459,17 @@ proc step*(
 
     if agent.resourceFocus.isSome():
       let focusKind = agent.resourceFocus.get()
-      if inventory.getOrDefault(focusKind, 0) < resourceQuota(focusKind):
-        if vibe != agent.vibeFor(focusKind):
-          doAction(agent.vibeFor(focusKind))
+      if inventory.getOrDefault(focusKind, 0) < resourceRequirement(agent, focusKind):
+        let (resourceAction, resourceVibeValue) = agent.resourceVibe(focusKind)
+        if resourceAction != 0 and vibe != resourceVibeValue:
+          doAction(resourceAction.int32)
           return
-        let action = agent.seekExtractor(focusKind)
-        if action.isSome():
-          doAction(action.get())
+        let plan = agent.seekExtractor(focusKind)
+        if plan.action.isSome():
+          doAction(plan.action.get())
+          return
+        if plan.waiting:
+          doAction(agent.cfg.actions.noop.int32)
           return
 
     let unseenNearby = agent.cfg.getNearbyUnseen(agent.location, agent.map, agent.seen)
@@ -334,6 +492,10 @@ proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
   result.location = Location(x: 0, y: 0)
   result.lastActions = @[]
   result.resourceFocus = none(ResourceKind)
+  result.heartRequirements = initTable[ResourceKind, int]()
+  result.energyRequirement = 0
+  result.resourceOrder = buildResourceOrder(agentId)
+  result.assemblerLocation = none(Location)
 
 proc newRaceCarPolicy*(environmentConfig: string): RaceCarPolicy =
   let cfg = parseConfig(environmentConfig)
