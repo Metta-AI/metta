@@ -165,9 +165,10 @@ def render_eval_summary(rollout_results: list[SimulationRunResult], policy_names
         for i, result in enumerate(rollout_results)
     ]
     sim_summaries = list(zip(sim_names, summaries, strict=True))
+    use_rich_console = should_use_rich_console()
 
     def _print(content) -> None:
-        if should_use_rich_console():
+        if use_rich_console:
             get_console().print(content)
         else:
             # headless, no stdout, but record everything
@@ -253,3 +254,20 @@ def render_eval_summary(rollout_results: list[SimulationRunResult], policy_names
             summary_table.add_row(*row)
 
     _print(summary_table)
+
+    replay_rows: list[tuple[str, str, str]] = []
+    for s_name, result in zip(sim_names, rollout_results, strict=True):
+        for episode_id, url in sorted(result.replay_urls.items()):
+            viewer_url = f"{METTASCOPE_REPLAY_URL_PREFIX}{url}"
+            replay_rows.append((s_name, episode_id, viewer_url))
+
+    if replay_rows:
+        _print("\n[bold cyan]Replay Links[/bold cyan]")
+        replay_table = Table(show_header=True, header_style="bold magenta")
+        replay_table.add_column("Simulation")
+        replay_table.add_column("Episode")
+        replay_table.add_column("Viewer")
+        for s_name, episode_id, viewer_url in replay_rows:
+            viewer_text = f"[link={viewer_url}]Open in Mettascope[/link]" if use_rich_console else viewer_url
+            replay_table.add_row(s_name, episode_id, viewer_text)
+        _print(replay_table)
