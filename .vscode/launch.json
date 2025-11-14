@@ -100,6 +100,8 @@
       "console": "integratedTerminal",
       "justMyCode": false,
       "presentation": {"hidden": true},
+      "preLaunchTask": "${defaultBuildTask}",
+      "stopOnEntry": true,
     },
     {
       "name": "_Python: Sweep Train",
@@ -120,6 +122,8 @@
       "console": "integratedTerminal",
       "justMyCode": false,
       "presentation": {"hidden": true},
+      "preLaunchTask": "${defaultBuildTask}",
+      "stopOnEntry": true,
     },
     {
       "name": "_Python: Evaluate",
@@ -136,6 +140,8 @@
       "console": "integratedTerminal",
       "justMyCode": false,
       "presentation": {"hidden": true},
+      "preLaunchTask": "${defaultBuildTask}",
+      "stopOnEntry": true,
     },
     {
       "name": "_Python: Generate Replay",
@@ -152,6 +158,8 @@
       "console": "integratedTerminal",
       "justMyCode": false,
       "presentation": {"hidden": true},
+      "preLaunchTask": "${defaultBuildTask}",
+      "stopOnEntry": true,
     },
     {
       "name": "_Python: Play Metta",
@@ -168,6 +176,8 @@
       "console": "integratedTerminal",
       "justMyCode": false,
       "presentation": {"hidden": true},
+      "preLaunchTask": "${defaultBuildTask}",
+      "stopOnEntry": true,
     },
     {
       "name": "_Python: Play Cogames",
@@ -184,6 +194,8 @@
       "console": "integratedTerminal",
       "justMyCode": false,
       "presentation": {"hidden": true},
+      "preLaunchTask": "${defaultBuildTask}",
+      "stopOnEntry": true,
     },
     {
       "name": "_Python: Evaluate Cogames",
@@ -200,6 +212,8 @@
       "console": "integratedTerminal",
       "justMyCode": false,
       "presentation": {"hidden": true},
+      "preLaunchTask": "${defaultBuildTask}",
+      "stopOnEntry": true,
     },
     {
       "name": "_Python: MettaGrid Demo",
@@ -214,6 +228,8 @@
         "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "console": "integratedTerminal",
+      "preLaunchTask": "${defaultBuildTask}",
+      "stopOnEntry": true,
       "justMyCode": false,
       "presentation": {"hidden": true},
     },
@@ -232,6 +248,8 @@
       "console": "integratedTerminal",
       "justMyCode": false,
       "presentation": {"hidden": true},
+      "preLaunchTask": "${defaultBuildTask}",
+      "stopOnEntry": true,
     },
     {
       "name": "_Python: MettaGrid Debug",
