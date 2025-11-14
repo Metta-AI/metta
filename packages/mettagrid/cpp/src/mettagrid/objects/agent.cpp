@@ -10,7 +10,8 @@ Agent::Agent(GridCoord r,
              GridCoord c,
              const AgentConfig& config,
              const std::vector<std::string>* resource_names,
-             const std::unordered_map<std::string, ObservationType>* feature_ids)
+             const std::unordered_map<std::string, ObservationType>* feature_ids,
+             const std::vector<std::string>* vibe_names)
     : GridObject(),
       HasInventory(config.inventory_config, resource_names, feature_ids),
       group(config.group_id),
@@ -30,6 +31,8 @@ Agent::Agent(GridCoord r,
       prev_action_name(""),
       steps_without_motion(0),
       inventory_regen_amounts(config.inventory_regen_amounts),
+      resource_names_(resource_names),
+      vibe_names_(vibe_names),
       diversity_tracked_mask_(resource_names != nullptr ? resource_names->size() : 0, 0),
       tracked_resource_presence_(resource_names != nullptr ? resource_names->size() : 0, 0),
       tracked_resource_diversity_(0) {
@@ -121,7 +124,48 @@ void Agent::compute_stat_rewards(StatsTracker* game_stats_tracker) {
 }
 
 bool Agent::onUse(Agent& actor, ActionArg arg) {
-  // Share half of shareable resources from actor to this agent
+  // If vibe is set and we have the mapping information, share only the vibed resource
+  if (actor.vibe != 0 && actor.vibe_names_ != nullptr && actor.resource_names_ != nullptr) {
+    // Get the vibe name from the vibe ID
+    if (static_cast<size_t>(actor.vibe) < actor.vibe_names_->size()) {
+      const std::string& vibe_name = (*actor.vibe_names_)[actor.vibe];
+
+      // Find matching resource by name
+      InventoryItem resource_to_share = static_cast<InventoryItem>(-1);
+      for (size_t i = 0; i < actor.resource_names_->size(); ++i) {
+        if ((*actor.resource_names_)[i] == vibe_name) {
+          resource_to_share = static_cast<InventoryItem>(i);
+          break;
+        }
+      }
+
+      // If we found a matching resource and it's in shareable_resources, share it
+      if (resource_to_share != static_cast<InventoryItem>(-1)) {
+        bool is_shareable = false;
+        for (InventoryItem shareable : actor.shareable_resources) {
+          if (shareable == resource_to_share) {
+            is_shareable = true;
+            break;
+          }
+        }
+
+        if (is_shareable) {
+          InventoryQuantity actor_amount = actor.inventory.amount(resource_to_share);
+          // Calculate half (rounded down)
+          InventoryQuantity share_attempted_amount = actor_amount / 2;
+          if (share_attempted_amount > 0) {
+            // The actor is trying to give us resources. We need to make sure we can take them.
+            InventoryDelta successful_share_amount = this->update_inventory(resource_to_share, share_attempted_amount);
+            actor.update_inventory(resource_to_share, -successful_share_amount);
+          }
+          return true;
+        }
+      }
+    }
+  }
+
+  // Fallback: Share half of all shareable resources (original behavior)
+  // This happens when vibe is 0, mapping info is missing, or vibe doesn't match a shareable resource
   for (InventoryItem resource : actor.shareable_resources) {
     InventoryQuantity actor_amount = actor.inventory.amount(resource);
     // Calculate half (rounded down)

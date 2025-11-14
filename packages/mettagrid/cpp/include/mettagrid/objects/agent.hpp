@@ -48,7 +48,8 @@ public:
         GridCoord c,
         const AgentConfig& config,
         const std::vector<std::string>* resource_names,
-        const std::unordered_map<std::string, ObservationType>* feature_ids = nullptr);
+        const std::unordered_map<std::string, ObservationType>* feature_ids = nullptr,
+        const std::vector<std::string>* vibe_names = nullptr);
 
   void init(RewardType* reward_ptr);
 
@@ -72,6 +73,8 @@ public:
 
 private:
   const ObservationEncoder* obs_encoder = nullptr;
+  const std::vector<std::string>* resource_names_ = nullptr;
+  const std::vector<std::string>* vibe_names_ = nullptr;
   void update_inventory_diversity_stats(InventoryItem item, InventoryQuantity amount);
   std::vector<char> diversity_tracked_mask_;
   std::vector<char> tracked_resource_presence_;

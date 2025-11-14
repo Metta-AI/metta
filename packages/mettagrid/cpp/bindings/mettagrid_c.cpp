@@ -161,7 +161,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
 
       const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg);
       if (agent_config) {
-        Agent* agent = new Agent(r, c, *agent_config, &resource_names, &game_config.feature_ids);
+        Agent* agent = new Agent(r, c, *agent_config, &resource_names, &game_config.feature_ids, &game_config.vibe_names);
         _grid->add_object(agent);
         if (_agents.size() > std::numeric_limits<decltype(agent->agent_id)>::max()) {
           throw std::runtime_error("Too many agents for agent_id type");
