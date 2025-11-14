@@ -15,6 +15,7 @@ class TrainerCallback(Enum):
     """Types of callbacks that can be invoked on trainer components."""
 
     STEP = "step"
+    ROLLOUT_END = "rollout_end"
     EPOCH_END = "epoch"
     TRAINING_COMPLETE = "training_complete"
     FAILURE = "failure"
@@ -67,6 +68,10 @@ class TrainerComponent:
 
     def on_step(self, infos: list[dict[str, Any]]) -> None:
         """Called after each environment step."""
+        pass
+
+    def on_rollout_end(self) -> None:
+        """Called at the end of rollout, before training begins."""
         pass
 
     def on_epoch_end(self, epoch: int) -> None:
