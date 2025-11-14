@@ -72,9 +72,11 @@ protected:
 
     for (short distance = 1; distance <= 3; distance++) {
       for (short offset : COL_OFFSETS) {
-        // Attack always northward
-        GridLocation target_loc = _grid->relative_location(actor.location, Orientation::North, distance, offset);
-        Agent* target_agent = dynamic_cast<Agent*>(_grid->object_at(target_loc));
+        // Commented out because we no longer have orientation, and thus relative_location.
+        // But leaving the code in place since we probably want some version of attack in the future.
+        // GridLocation target_loc = _grid->relative_location(actor.location, Orientation::North, distance, offset);
+        // Agent* target_agent = dynamic_cast<Agent*>(_grid->object_at(target_loc));
+        Agent* target_agent = nullptr;
         if (target_agent) {
           last_agent = target_agent;
           if (num_skipped == arg) {

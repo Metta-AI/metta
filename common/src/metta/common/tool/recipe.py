@@ -51,7 +51,12 @@ class Recipe:
 
     @property
     def short_name(self) -> str:
-        return self.module_name.replace("experiments.recipes.", "")
+        """Get short name by removing recipes.prod. or recipes.experiment. prefix."""
+        name = self.module_name
+        for prefix in ["recipes.prod.", "recipes.experiment."]:
+            if name.startswith(prefix):
+                return name[len(prefix) :]
+        return name
 
     def _build_tool_maps(self) -> None:
         """Build maker_name->tool_maker and tool_class_name->makers maps."""
@@ -77,7 +82,7 @@ class Recipe:
 
     @classmethod
     def load(cls, module_path: str) -> Optional["Recipe"]:
-        """Try to load a recipe from a module path. e.g. 'experiments.recipes.arena'"""
+        """Try to load a recipe from a module path. e.g. 'recipes.experiment.arena'"""
         if importlib.util.find_spec(module_path) is None:
             return None
 

@@ -54,44 +54,6 @@ void Agent::populate_initial_inventory(const std::unordered_map<InventoryItem, I
   }
 }
 
-void Agent::init_visitation_grid(GridCoord height, GridCoord width) {
-  visitation_grid.resize(height, std::vector<unsigned int>(width, 0));
-  visitation_counts_enabled = true;
-}
-
-void Agent::reset_visitation_counts() {
-  for (auto& row : visitation_grid) {
-    std::fill(row.begin(), row.end(), 0);
-  }
-}
-
-void Agent::increment_visitation_count(GridCoord r, GridCoord c) {
-  if (!visitation_counts_enabled) return;
-
-  if (r < static_cast<GridCoord>(visitation_grid.size()) && c < static_cast<GridCoord>(visitation_grid[0].size())) {
-    visitation_grid[r][c]++;
-  }
-}
-
-std::array<unsigned int, 5> Agent::get_visitation_counts() const {
-  std::array<unsigned int, 5> counts = {0, 0, 0, 0, 0};
-  if (!visitation_grid.empty()) {
-    counts[0] = get_visitation_count(location.r, location.c);  // center
-
-    // Handle potential underflow at map edge
-    if (location.r > 0) {
-      counts[1] = get_visitation_count(location.r - 1, location.c);  // up
-    }
-    counts[2] = get_visitation_count(location.r + 1, location.c);  // down
-
-    if (location.c > 0) {
-      counts[3] = get_visitation_count(location.r, location.c - 1);  // left
-    }
-    counts[4] = get_visitation_count(location.r, location.c + 1);  // right
-  }
-  return counts;
-}
-
 void Agent::set_inventory(const std::unordered_map<InventoryItem, InventoryQuantity>& inventory) {
   // First, remove items that are not present in the provided inventory map
   // Make a copy of current item keys to avoid iterator invalidation
@@ -200,14 +162,6 @@ std::vector<PartialObservationToken> Agent::obs_features() const {
   }
 
   return features;
-}
-
-unsigned int Agent::get_visitation_count(GridCoord r, GridCoord c) const {
-  if (visitation_grid.empty() || r >= static_cast<GridCoord>(visitation_grid.size()) ||
-      c >= static_cast<GridCoord>(visitation_grid[0].size())) {
-    return 0;  // Return 0 for out-of-bounds positions
-  }
-  return visitation_grid[r][c];
 }
 
 void Agent::update_inventory_diversity_stats(InventoryItem item, InventoryQuantity amount) {

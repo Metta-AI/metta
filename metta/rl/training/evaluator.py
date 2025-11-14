@@ -7,21 +7,24 @@ from uuid import UUID
 import torch
 from pydantic import Field
 
+from metta.agent.policy import Policy
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum import Curriculum
 from metta.common.util.git_helpers import GitError, get_task_commit_hash
 from metta.common.util.git_repo import REPO_SLUG
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
-from metta.eval.eval_service import evaluate_policy
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import (
     evaluate_policy_remote_with_checkpoint_manager,
     upload_replay_html,
 )
 from metta.rl.training import TrainerComponent
 from metta.rl.training.optimizer import is_schedulefree_optimizer
+from metta.sim.runner import MultiAgentPolicyInitializer, build_eval_results, run_simulations
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.base_config import Config
+from mettagrid.policy.policy import PolicyEnvInterface
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +48,10 @@ class EvaluatorConfig(Config):
     replay_dir: Optional[str] = None
     skip_git_check: bool = Field(default=False)
     git_hash: str | None = Field(default=None)
+    allow_eval_without_stats: bool = Field(
+        default=False,
+        description="Allow evaluations to run without stats infrastructure (useful for local development/testing)",
+    )
 
 
 class NoOpEvaluator(TrainerComponent):
@@ -254,13 +261,28 @@ class Evaluator(TrainerComponent):
         stats_epoch_id: Optional[UUID] = None,
     ) -> EvalResults:
         logger.info(f"Evaluating policy locally from {policy_uri}")
-        return evaluate_policy(
-            checkpoint_uri=policy_uri,
-            simulations=simulations,
+
+        def _materialize_policy(policy_uri: str) -> MultiAgentPolicyInitializer:
+            def _m(policy_env_info: PolicyEnvInterface) -> Policy:
+                artifact = CheckpointManager.load_artifact_from_uri(policy_uri)
+                policy = artifact.instantiate(policy_env_info, device=self._device)
+                policy = policy.to(self._device)
+                policy.eval()
+                return policy
+
+            return _m
+
+        policy_initializers = [_materialize_policy((policy_uri))]
+        rollout_results = run_simulations(
+            policy_initializers=policy_initializers,
+            simulations=[sim.to_simulation_run_config() for sim in simulations],
             replay_dir=self._config.replay_dir,
-            stats_epoch_id=stats_epoch_id,
-            stats_client=self._stats_client,
+            seed=self._system_cfg.seed,
+            enable_replays=True,
         )
+
+        # TODO: this should also submit to stats-server
+        return build_eval_results(rollout_results, num_policies=1, target_policy_idx=0)
 
     def get_latest_scores(self) -> EvalRewardSummary:
         return self._latest_scores
@@ -280,25 +302,35 @@ class Evaluator(TrainerComponent):
             return
 
         stats_reporter = self.context.stats_reporter
+        stats_epoch_id = None
+
+        # Check if we have stats infrastructure available
         if not stats_reporter:
-            logger.warning("Evaluator: skipping epoch %s because stats_reporter is not available", epoch)
-            return
-
-        if not hasattr(stats_reporter, "state") or stats_reporter.state is None:
-            logger.warning("Evaluator: skipping epoch %s because stats_reporter.state is not available", epoch)
-            return
-
-        stats_run_id = getattr(stats_reporter.state, "stats_run_id", None)
-        if not stats_run_id:
-            logger.warning("Evaluator: skipping epoch %s because stats_run_id is not available", epoch)
-            return
-
-        stats_epoch_id = stats_reporter.create_epoch(
-            stats_run_id,  # Now the type checker knows this is not None
-            epoch,  # Technically this is wrong, but we're not actually using this field
-            epoch,
-            attributes={"source": "evaluation", "agent_step": self.context.agent_step},
-        )
+            if not self._config.allow_eval_without_stats:
+                logger.warning("Evaluator: skipping epoch %s because stats_reporter is not available", epoch)
+                return
+            logger.info("Evaluator: running without stats tracking (no stats_reporter)")
+        elif not hasattr(stats_reporter, "state") or stats_reporter.state is None:
+            if not self._config.allow_eval_without_stats:
+                logger.warning("Evaluator: skipping epoch %s because stats_reporter.state is not available", epoch)
+                return
+            logger.info("Evaluator: running without stats tracking (no stats_reporter.state)")
+        else:
+            stats_run_id = getattr(stats_reporter.state, "stats_run_id", None)
+            if not stats_run_id:
+                # TODO: Passha: Reintroduce this check when ready
+                # if not self._config.allow_eval_without_stats:
+                #     logger.warning("Evaluator: skipping epoch %s because stats_run_id is not available", epoch)
+                #     return
+                logger.info("Evaluator: running pushing to cogweb (no stats_run_id)")
+            else:
+                # We have full stats infrastructure - create stats epoch
+                stats_epoch_id = stats_reporter.create_epoch(
+                    stats_run_id,
+                    epoch,
+                    epoch,
+                    attributes={"source": "evaluation", "agent_step": self.context.agent_step},
+                )
 
         optimizer = getattr(self.context, "optimizer", None)
         is_schedulefree = optimizer is not None and is_schedulefree_optimizer(optimizer)
@@ -318,5 +350,5 @@ class Evaluator(TrainerComponent):
             optimizer.train()
 
         stats_reporter = getattr(self.context, "stats_reporter", None)
-        if stats_reporter:
+        if stats_reporter and hasattr(stats_reporter, "update_eval_scores"):
             stats_reporter.update_eval_scores(scores)

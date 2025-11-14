@@ -1,33 +1,25 @@
 import json
 import logging
 import sys
-import uuid
-from datetime import datetime
 from typing import Sequence
 
 import torch
 from pydantic import Field
 
+from metta.agent.policy import Policy
 from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
 from metta.common.tool import Tool
+from metta.common.util.uri import ParsedURI
 from metta.common.wandb.context import WandbContext
 from metta.eval.eval_request_config import EvalResults
-from metta.eval.eval_service import evaluate_policy
 from metta.rl import stats as rl_stats
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.sim.runner import MultiAgentPolicyInitializer, build_eval_results, run_simulations
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.utils.auto_config import auto_replay_dir, auto_wandb_config
-from metta.utils.uri import ParsedURI
+from metta.tools.utils.auto_config import auto_replay_dir, auto_stats_server_uri, auto_wandb_config
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger(__name__)
-
-
-def _determine_run_name(policy_uri: str) -> str:
-    parsed = ParsedURI.parse(policy_uri)
-    if parsed.scheme == "file" and parsed.local_path is not None:
-        return f"eval_{parsed.local_path.stem}"
-    return f"eval_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
 
 class EvaluateTool(Tool):
@@ -39,9 +31,7 @@ class EvaluateTool(Tool):
 
     group: str | None = None  # Separate group parameter like in train.py
 
-    stats_dir: str | None = None  # The (local) directory where stats should be stored
-    stats_db_uri: str | None = None  # If set, export stats to this url (local path, wandb:// or s3://)
-    stats_server_uri: str | None = None  # If set, send stats to this http server
+    stats_server_uri: str | None = auto_stats_server_uri()
     register_missing_policies: bool = False
     eval_task_id: str | None = None
     push_metrics_to_wandb: bool = False
@@ -108,37 +98,30 @@ class EvaluateTool(Tool):
                     logger.error("Fallback WandB logging failed: %s", e2, exc_info=True)
 
     def eval_policy(self, normalized_uri: str, stats_client: StatsClient | None) -> EvalResults:
-        policy_env_info = PolicyEnvInterface.from_mg_cfg(self.simulations[0].env)
-
-        # Verify the checkpoint exists (always use CPU for simulations)
         device = torch.device("cpu")
-        try:
-            agent = CheckpointManager.load_from_uri(normalized_uri, policy_env_info, device)
-            metadata = CheckpointManager.get_policy_metadata(normalized_uri)
-            del agent
-        except Exception as e:
-            logger.warning(f"Failed to load policy from {normalized_uri}: {e}")
-            raise
+        device = torch.device("cpu")
 
-        eval_run_name = _determine_run_name(normalized_uri)
+        def _materialize_policy(policy_uri: str) -> MultiAgentPolicyInitializer:
+            def _m(policy_env_info: PolicyEnvInterface) -> Policy:
+                artifact = CheckpointManager.load_artifact_from_uri(policy_uri)
+                policy = artifact.instantiate(policy_env_info, device=device)
+                policy = policy.to(device)
+                policy.eval()
+                return policy
 
-        # Get eval_task_id from config if provided
-        eval_task_id = None
-        if self.eval_task_id:
-            eval_task_id = uuid.UUID(self.eval_task_id)
+            return _m
 
-        eval_results = evaluate_policy(
-            checkpoint_uri=normalized_uri,
-            simulations=list(self.simulations),
-            replay_dir=(
-                f"{self.replay_dir}/{eval_run_name}/{metadata.get('run_name', 'unknown')}"
-                if self.enable_replays
-                else None
-            ),
-            export_stats_db_uri=self.stats_db_uri,
-            stats_client=stats_client,
-            eval_task_id=eval_task_id,
+        policy_initializers = [_materialize_policy((normalized_uri))]
+        rollout_results = run_simulations(
+            policy_initializers=policy_initializers,
+            simulations=[sim.to_simulation_run_config() for sim in self.simulations],
+            replay_dir=self.replay_dir,
+            seed=self.system.seed,
+            enable_replays=True,
         )
+
+        # TODO: this should also submit to stats-server
+        eval_results = build_eval_results(rollout_results, num_policies=1, target_policy_idx=0)
 
         self._log_to_wandb(normalized_uri, eval_results, stats_client)
 
@@ -203,3 +186,10 @@ class EvaluateTool(Tool):
         print("===JSON_OUTPUT_START===")
         print(json.dumps(all_results, indent=2))
         print("===JSON_OUTPUT_END===")
+
+        # Fail if no policies were successfully evaluated
+        if not all_results["policies"]:
+            raise ValueError(
+                f"Failed to evaluate any policies. Attempted to load {len(self.policy_uris)} "
+                f"policy URIs but none succeeded."
+            )

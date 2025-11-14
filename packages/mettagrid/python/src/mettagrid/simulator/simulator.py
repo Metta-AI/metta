@@ -46,13 +46,13 @@ class Simulation:
         self,
         config: mettagrid_config.MettaGridConfig,
         seed: int = 0,
-        event_handlers: Optional[Sequence[SimulatorEventHandler]] | None = None,
+        event_handlers: Sequence[SimulatorEventHandler] = (),  # Use tuple to avoid mutable default
         simulator: Optional[Simulator] | None = None,
         buffers: Optional[Buffers] = None,
     ):
         self._config = config
         self._seed = seed
-        self._event_handlers = event_handlers or []
+        self._event_handlers = list(event_handlers)
         self._simulator = simulator
         self._context: Dict[str, Any] = {}
 

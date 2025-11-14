@@ -22,6 +22,7 @@ from metta.setup.tools.ci_runner import cmd_ci
 from metta.setup.tools.clean import cmd_clean
 from metta.setup.tools.code_formatters import app as code_formatters_app
 from metta.setup.tools.test_runner.test_cpp import app as cpp_test_runner_app
+from metta.setup.tools.test_runner.test_nim import app as nim_test_runner_app
 from metta.setup.tools.test_runner.test_python import app as python_test_runner_app
 from metta.setup.utils import debug, error, info, success, warning
 from metta.utils.live_run_monitor import app as run_monitor_app
@@ -661,6 +662,7 @@ app.add_typer(symlink_app, name="symlink-setup")
 app.add_typer(softmax_system_health_app, name="softmax-system-health")
 app.add_typer(python_test_runner_app, name="pytest")
 app.add_typer(cpp_test_runner_app, name="cpptest")
+app.add_typer(nim_test_runner_app, name="nimtest")
 app.command(
     name="ci",
     help="Run CI checks locally",

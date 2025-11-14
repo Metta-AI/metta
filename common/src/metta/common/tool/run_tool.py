@@ -470,7 +470,7 @@ constructor/function vs configuration overrides based on introspection.
         nargs="?",
         help=(
             "Path or shorthand to the tool maker (function or Tool class). Examples: "
-            "'experiments.recipes.arena.train', 'arena.train', or two-part "
+            "'recipes.experiment.arena.train', 'arena.train', or two-part "
             "'train arena' (equivalent to 'arena.train')."
         ),
     )
@@ -511,7 +511,7 @@ constructor/function vs configuration overrides based on introspection.
         )
         return 2
     # Support shorthand syntax for tool path:
-    #  - Allow omitting 'experiments.recipes.' prefix, e.g. 'arena.train'
+    #  - Allow omitting 'recipes.prod.' or 'recipes.experiment.' prefix, e.g. 'arena.train'
     #  - Allow two-part form 'train arena' as sugar for 'arena.train'
 
     # Exit on ctrl+c with proper exit code

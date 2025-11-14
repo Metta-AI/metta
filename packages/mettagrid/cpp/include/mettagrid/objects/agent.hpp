@@ -38,9 +38,6 @@ public:
   StatsTracker stats;
   RewardType current_stat_reward;
   RewardType* reward;
-  // Visitation count grid: tracks how many times the agent has visited each position
-  std::vector<std::vector<unsigned int>> visitation_grid;
-  bool visitation_counts_enabled = false;
   GridLocation prev_location;
   std::string prev_action_name;
   unsigned int steps_without_motion;
@@ -56,14 +53,6 @@ public:
   void init(RewardType* reward_ptr);
 
   void populate_initial_inventory(const std::unordered_map<InventoryItem, InventoryQuantity>& initial_inventory);
-
-  void init_visitation_grid(GridCoord height, GridCoord width);
-
-  void reset_visitation_counts();
-
-  void increment_visitation_count(GridCoord r, GridCoord c);
-
-  std::array<unsigned int, 5> get_visitation_counts() const;
 
   void set_inventory(const std::unordered_map<InventoryItem, InventoryQuantity>& inventory);
 
@@ -83,7 +72,6 @@ public:
 
 private:
   const ObservationEncoder* obs_encoder = nullptr;
-  unsigned int get_visitation_count(GridCoord r, GridCoord c) const;
   void update_inventory_diversity_stats(InventoryItem item, InventoryQuantity amount);
   std::vector<char> diversity_tracked_mask_;
   std::vector<char> tracked_resource_presence_;

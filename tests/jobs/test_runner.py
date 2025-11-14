@@ -185,14 +185,14 @@ def test_remotejob_initialization(tmp_path):
 
     config = JobConfig(
         name="remote_test",
-        module="experiments.recipes.arena.train",
+        module="recipes.experiment.arena.train",
         args=["run=test", "trainer.total_timesteps=100000"],
         remote=RemoteConfig(gpus=1, nodes=1, spot=True),
     )
     job = RemoteJob(config, log_dir=str(tmp_path))
 
     assert job.name == "remote_test"
-    assert job.module == "experiments.recipes.arena.train"
+    assert job.module == "recipes.experiment.arena.train"
     assert "run=test" in job.args
     assert "trainer.total_timesteps=100000" in job.args
     assert not job._submitted

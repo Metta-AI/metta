@@ -77,14 +77,40 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         agent_feature_pairs = {
             "agent:group": "agent_group",
             "agent:frozen": "agent_frozen",
-            "agent:orientation": "agent_orientation",
-            "agent:visitation_counts": "agent_visitation_counts",
         }
         self._agent_feature_key_by_name: dict[str, str] = agent_feature_pairs
 
         # Protocol feature prefixes (for dynamic recipe discovery)
         self._protocol_input_prefix = "protocol_input:"
         self._protocol_output_prefix = "protocol_output:"
+
+        # Map resource names to their corresponding vibe names for debugging glyphs.
+        # This keeps resource naming (carbon, oxygen, germanium, silicon) separate from
+        # visual glyph naming (carbon_a, oxygen_a, etc.).
+        self._resource_to_vibe: dict[str, str] = {
+            "carbon": "carbon_a",
+            "oxygen": "oxygen_a",
+            "germanium": "germanium_a",
+            "silicon": "silicon_a",
+        }
+
+    def _change_vibe_action(self, vibe_name: str) -> Action:
+        """
+        Return a safe vibe-change action.
+        Guard only on configured number_of_vibes (>1) to avoid emitting an invalid action.
+        """
+        change_vibe_cfg = getattr(self._actions, "change_vibe", None)
+        if change_vibe_cfg is None:
+            return self._actions.noop.Noop()
+        num_vibes = int(getattr(change_vibe_cfg, "number_of_vibes", 0))
+        if num_vibes <= 1:
+            return self._actions.noop.Noop()
+
+        # Raise an exception if the vibe doesn't exist
+        vibe = VIBE_BY_NAME.get(vibe_name)
+        if vibe is None:
+            raise Exception(f"No valid vibes called {vibe_name}")
+        return self._actions.change_vibe.ChangeVibe(vibe)
 
     def _read_inventory_from_obs(self, s: SimpleAgentState, obs: AgentObservation) -> None:
         """Read inventory from observation tokens at center cell and update state."""
@@ -224,7 +250,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             protocol_outputs=get_dict("protocol_outputs"),
             agent_group=get_int("agent_group", -1),
             agent_frozen=get_int("agent_frozen", 0),
-            agent_orientation=get_int("agent_orientation", 0),
         )
 
     def parse_observation(
@@ -335,7 +360,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         if state.current_glyph != desired_vibe:
             state.current_glyph = desired_vibe
             # Return vibe change action this step
-            action = self._actions.change_vibe.ChangeVibe(VIBE_BY_NAME[desired_vibe])
+            action = self._change_vibe_action(desired_vibe)
             state.last_action = action
             return action, state
 
@@ -568,11 +593,12 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         """Map phase to a vibe for visual debugging in replays."""
         # During GATHER, vibe the target resource we're currently collecting
         if phase == Phase.GATHER and state.target_resource is not None:
-            return state.target_resource
+            # Map resource name (e.g., "silicon") to a valid vibe name (e.g., "silicon_a").
+            return self._resource_to_vibe.get(state.target_resource, "default")
 
         phase_to_vibe = {
-            Phase.GATHER: "carbon",  # Default fallback if no target resource
-            Phase.ASSEMBLE: "heart",  # Red for assembly
+            Phase.GATHER: "carbon_a",  # Default fallback if no target resource
+            Phase.ASSEMBLE: "heart_a",  # Red for assembly
             Phase.DELIVER: "default",  # Must be "default" to deposit hearts into chest
             Phase.RECHARGE: "charger",  # Blue/electric for recharging
             Phase.CRAFT_UNCLIP: "gear",  # Gear icon for crafting unclip items
@@ -918,9 +944,9 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
             return explore_action
 
         # First, ensure we have the correct glyph (heart) for assembling
-        if s.current_glyph != "heart":
-            vibe_action = self._actions.change_vibe.ChangeVibe(VIBE_BY_NAME["heart"])
-            s.current_glyph = "heart"
+        if s.current_glyph != "heart_a":
+            vibe_action = self._actions.change_vibe.ChangeVibe(VIBE_BY_NAME["heart_a"])
+            s.current_glyph = "heart_a"
             return vibe_action
 
         # Assembler is known, navigate to it and use it
@@ -944,9 +970,9 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
         # First, ensure we have the correct glyph (default/neutral) for chest deposit
         # - "default" vibe: DEPOSIT resources (positive values)
-        # - specific resource vibes (e.g., "heart"): WITHDRAW resources (negative values)
+        # - specific resource vibes (e.g., "heart_a"): WITHDRAW resources (negative values)
         if s.current_glyph != "default":
-            vibe_action = self._actions.change_vibe.ChangeVibe(VIBE_BY_NAME["default"])
+            vibe_action = self._change_vibe_action("default")
             s.current_glyph = "default"
             return vibe_action
 
@@ -1174,3 +1200,16 @@ class BaselinePolicy(MultiAgentPolicy):
                 agent_id=agent_id,
             )
         return self._agent_policies[agent_id]
+
+
+RESOURCE_VIBE_ALIASES: dict[str, str] = {
+    "carbon": "carbon_a",
+    "oxygen": "oxygen_a",
+    "germanium": "germanium_a",
+    "silicon": "silicon_a",
+    # Crafting resources (appear when crafting unclipping items)
+    "decoder": "gear",
+    "modulator": "gear",
+    "resonator": "gear",
+    "scrambler": "gear",
+}

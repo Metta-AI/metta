@@ -22,6 +22,7 @@ from mettagrid.builder.envs import make_arena
 from mettagrid.config.mettagrid_config import EnvSupervisorConfig
 from mettagrid.mettagrid_c import dtype_actions
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.simulator.replay_log_writer import ReplayLogWriter
 
 logger = logging.getLogger(__name__)
 
@@ -163,6 +164,11 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
 
         self._num_workers = num_workers
 
+        # Create replay writer if replay writing is enabled
+        replay_writer = None
+        if self._replay_directory is not None:
+            replay_writer = ReplayLogWriter(str(self._replay_directory))
+
         self._vecenv = make_vecenv(
             self._curriculum,
             cfg.vectorization,
@@ -171,6 +177,7 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
             batch_size=self._batch_size,
             num_workers=num_workers,
             zero_copy=cfg.zero_copy,
+            replay_writer=replay_writer,
         )
 
         # NOTE: Downstream rollout code currently assumes that PufferLib returns
