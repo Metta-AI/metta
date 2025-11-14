@@ -31,7 +31,7 @@ def run_lite_eval() -> LiteEvalTool:
                 episode_tags={"name": "basic", "category": "arena"},
             ),
             SimulationRunConfig(
-                env=arena.mettagrid(num_agents=6),
+                env=combat_env,
                 num_episodes=2,
                 episode_tags={"name": "combat", "category": "arena"},
             ),

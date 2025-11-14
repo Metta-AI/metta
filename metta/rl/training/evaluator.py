@@ -7,21 +7,24 @@ from uuid import UUID
 import torch
 from pydantic import Field
 
+from metta.agent.policy import Policy
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum import Curriculum
 from metta.common.util.git_helpers import GitError, get_task_commit_hash
 from metta.common.util.git_repo import REPO_SLUG
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
-from metta.eval.eval_service import evaluate_policy
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import (
     evaluate_policy_remote_with_checkpoint_manager,
     upload_replay_html,
 )
 from metta.rl.training import TrainerComponent
 from metta.rl.training.optimizer import is_schedulefree_optimizer
+from metta.sim.runner import MultiAgentPolicyInitializer, build_eval_results, run_simulations
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.base_config import Config
+from mettagrid.policy.policy import PolicyEnvInterface
 
 logger = logging.getLogger(__name__)
 
@@ -258,13 +261,28 @@ class Evaluator(TrainerComponent):
         stats_epoch_id: Optional[UUID] = None,
     ) -> EvalResults:
         logger.info(f"Evaluating policy locally from {policy_uri}")
-        return evaluate_policy(
-            checkpoint_uri=policy_uri,
-            simulations=simulations,
+
+        def _materialize_policy(policy_uri: str) -> MultiAgentPolicyInitializer:
+            def _m(policy_env_info: PolicyEnvInterface) -> Policy:
+                artifact = CheckpointManager.load_artifact_from_uri(policy_uri)
+                policy = artifact.instantiate(policy_env_info, device=self._device)
+                policy = policy.to(self._device)
+                policy.eval()
+                return policy
+
+            return _m
+
+        policy_initializers = [_materialize_policy((policy_uri))]
+        rollout_results = run_simulations(
+            policy_initializers=policy_initializers,
+            simulations=[sim.to_simulation_run_config() for sim in simulations],
             replay_dir=self._config.replay_dir,
-            stats_epoch_id=stats_epoch_id,
-            stats_client=self._stats_client,
+            seed=self._system_cfg.seed,
+            enable_replays=True,
         )
+
+        # TODO: this should also submit to stats-server
+        return build_eval_results(rollout_results, 0)
 
     def get_latest_scores(self) -> EvalRewardSummary:
         return self._latest_scores

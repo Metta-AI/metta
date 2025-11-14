@@ -5,15 +5,12 @@ from collections import defaultdict
 import numpy as np
 from pydantic import BaseModel
 
-from mettagrid.policy.policy import PolicySpec
 from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult
 
 
 class MultiEpisodeRolloutPolicySummary(BaseModel):
     """Summary of a policy's performance on an single env."""
 
-    # Possibly non-unique
-    policy_name: str
     # Number of agents assigned to this policy for this mission
     agent_count: int
     # Average metrics across agents assigned to this policy for this mission
@@ -38,13 +35,12 @@ class MultiEpisodeRolloutSummary(BaseModel):
 
 def build_multi_episode_rollout_summaries(
     rollout_results: list[MultiEpisodeRolloutResult],
-    policy_specs: list[PolicySpec],
 ) -> list[MultiEpisodeRolloutSummary]:
     if not rollout_results:
         return []
 
-    policy_names = [spec.name for spec in policy_specs]
-    num_policies = len(policy_specs)
+    num_policies = max(np.max(assignment) for assignment in [result.assignments for result in rollout_results]) + 1
+
     summaries: list[MultiEpisodeRolloutSummary] = []
 
     for mission_result in rollout_results:
@@ -61,7 +57,7 @@ def build_multi_episode_rollout_summaries(
         for stats, episode_assignments in zip(
             mission_result.stats,
             per_episode_assignments,
-            strict=False,
+            strict=True,
         ):
             game_stats = stats.get("game", {})
             for key, value in game_stats.items():
@@ -101,7 +97,7 @@ def build_multi_episode_rollout_summaries(
             ]
 
         policy_summaries: list[MultiEpisodeRolloutPolicySummary] = []
-        for policy_idx, policy_name in enumerate(policy_names):
+        for policy_idx in range(num_policies):
             agent_count = int(policy_counts[policy_idx]) if policy_idx < len(policy_counts) else 0
             average_metrics = (
                 {key: value / agent_count for key, value in sorted(materialized_policy_stats[policy_idx].items())}
@@ -122,7 +118,6 @@ def build_multi_episode_rollout_summaries(
 
             policy_summaries.append(
                 MultiEpisodeRolloutPolicySummary(
-                    policy_name=policy_name,
                     agent_count=agent_count,
                     avg_agent_metrics=average_metrics,
                     action_timeouts=action_timeouts,
