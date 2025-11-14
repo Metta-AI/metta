@@ -635,16 +635,17 @@ def cmd_pr_feed(
     console.print()
 
     try:
-        # Run GraphQL query via gh CLI
+        # Run GraphQL query via gh CLI (ordered by most recently updated)
         query = f"""
         query {{
           repository(owner: "Metta-AI", name: "metta") {{
-            pullRequests(first: {num_prs}, states: [{states}]) {{
+            pullRequests(first: {num_prs}, states: [{states}], orderBy: {{field: UPDATED_AT, direction: DESC}}) {{
               nodes {{
                 number
                 title
                 url
                 author {{ login }}
+                updatedAt
                 files(first: 100) {{
                   nodes {{ path }}
                 }}
@@ -664,21 +665,25 @@ def cmd_pr_feed(
         data = json.loads(result.stdout)
         prs = data["data"]["repository"]["pullRequests"]["nodes"]
 
-        # Filter PRs that touch the specified path
-        # Use 'in' instead of 'startswith' to be more flexible with path matching
+        # Filter PRs that touch the specified path (exact prefix match)
         matching_prs = []
         for pr in prs:
-            if any(path in file["path"] for file in pr["files"]["nodes"]):
+            if any(file["path"].startswith(path) for file in pr["files"]["nodes"]):
                 matching_prs.append(pr)
 
         if not matching_prs:
             console.print(f"[yellow]No {status_display} PRs found touching {path}[/yellow]")
             return
 
-        # Display results
+        # Display results (already in reverse chronological order from query)
         for pr in matching_prs:
+            # Format the updated date
+            from datetime import datetime
+            updated = datetime.fromisoformat(pr['updatedAt'].replace('Z', '+00:00'))
+            updated_str = updated.strftime('%Y-%m-%d')
+
             console.print(f"[green]PR #{pr['number']}:[/green] {pr['title']}")
-            console.print(f"  Author: [cyan]@{pr['author']['login']}[/cyan]")
+            console.print(f"  Author: [cyan]@{pr['author']['login']}[/cyan] • Updated: {updated_str}")
             console.print(f"  {pr['url']}")
             console.print()
 
