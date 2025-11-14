@@ -19,7 +19,7 @@ repo_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(repo_root / "common" / "src"))
 sys.path.insert(0, str(repo_root / "packages" / "mettagrid" / "python" / "src"))
 
-from experiments.recipes.prod_benchmark.statistics.analysis import (
+from experiments.recipes.prod_benchmark.statistics.analysis import (  # noqa: E402
     FetchSpec,
     SummarySpec,
     _fetch_series,
@@ -33,7 +33,10 @@ def compute_variance_curve(
     percent: float = 0.25,
     samples: int = 2000,
     min_timesteps: float | None = None,
-) -> tuple[list[int], list[float], list[str]]:
+    bootstrap_iterations: int = 1000,
+    ci_level: float = 0.95,
+    seed: int | None = None,
+) -> tuple[list[int], list[float], list[tuple[float, float]], list[str]]:
     """Compute coefficient of variation as a function of sample size.
 
     Args:
@@ -44,7 +47,12 @@ def compute_variance_curve(
         min_timesteps: Minimum timesteps required for a run to be included (default: None)
 
     Returns:
-        (sample_sizes, cv_values, included_runs): Sample sizes, CV values, and list of included run IDs
+        (
+            sample_sizes,
+            mean_cv_values,
+            ci_bounds,
+            included_runs,
+        ): Sample sizes, bootstrapped mean CV values, CI bounds, and included run IDs
     """
     # Fetch and compute AUC for each run using percentage-based window
     fetch_spec = FetchSpec(samples=samples)
@@ -84,51 +92,77 @@ def compute_variance_curve(
     if len(auc_values) < 2:
         raise ValueError("Need at least 2 successful runs for variance analysis")
 
+    if bootstrap_iterations < 1:
+        raise ValueError("bootstrap_iterations must be >= 1")
+
+    if not 0 < ci_level < 1:
+        raise ValueError("ci_level must be between 0 and 1")
+
     print(f"\nSuccessfully included {len(auc_values)} runs in analysis")
     if excluded_runs:
         print(f"Excluded {len(excluded_runs)} runs that didn't meet criteria")
 
-    # Compute CV for each sample size
+    rng = np.random.default_rng(seed)
     sample_sizes = list(range(1, len(auc_values) + 1))
-    cv_values = []
+    mean_cv_values: list[float] = []
+    ci_bounds: list[tuple[float, float]] = []
+
+    lower_quantile = (1 - ci_level) / 2
+    upper_quantile = 1 - lower_quantile
 
     for n in sample_sizes:
-        subset = auc_values[:n]
-        if len(subset) > 1:
-            mean_val = np.mean(subset)
-            std_val = np.std(subset, ddof=1)
+        if n == 1:
+            mean_cv_values.append(float("inf"))
+            ci_bounds.append((float("inf"), float("inf")))
+            continue
+
+        bootstrap_cvs = []
+        for _ in range(bootstrap_iterations):
+            subset = rng.choice(auc_values, size=n, replace=True)
+            mean_val = float(np.mean(subset))
+            std_val = float(np.std(subset, ddof=1))
             if abs(mean_val) > 1e-10:
                 cv = abs(std_val / mean_val)
             else:
                 cv = float("inf")
-            cv_values.append(cv)
-        else:
-            cv_values.append(float("inf"))
+            bootstrap_cvs.append(cv)
 
-    return sample_sizes, cv_values, included_runs
+        mean_cv = float(np.mean(bootstrap_cvs))
+        lower_bound = float(np.quantile(bootstrap_cvs, lower_quantile))
+        upper_bound = float(np.quantile(bootstrap_cvs, upper_quantile))
+        mean_cv_values.append(mean_cv)
+        ci_bounds.append((lower_bound, upper_bound))
+
+    return sample_sizes, mean_cv_values, ci_bounds, included_runs
 
 
 def plot_variance(
     sample_sizes: list[int],
-    cv_values: list[float],
+    mean_cv_values: list[float],
+    ci_bounds: list[tuple[float, float]],
     threshold: float,
     output_path: str,
     percent: float,
+    ci_level: float,
 ):
     """Create a simple plot of CV vs sample size."""
     # Filter out inf values for plotting
     x_vals = []
     y_vals = []
-    for n, cv in zip(sample_sizes, cv_values):
+    lower_vals = []
+    upper_vals = []
+    for n, cv, bounds in zip(sample_sizes, mean_cv_values, ci_bounds):
         if cv != float("inf"):
             x_vals.append(n)
-            y_vals.append(cv * 100)  # Convert to percentage
+            y_vals.append(cv * 100)
+            lower_vals.append(bounds[0] * 100)
+            upper_vals.append(bounds[1] * 100)
 
     # Find threshold crossing
     threshold_n = None
-    for i in range(1, len(cv_values)):
-        prev_cv = cv_values[i - 1]
-        curr_cv = cv_values[i]
+    for i in range(1, len(mean_cv_values)):
+        prev_cv = mean_cv_values[i - 1]
+        curr_cv = mean_cv_values[i]
         if prev_cv != float("inf") and curr_cv != float("inf"):
             pct_change = abs(curr_cv - prev_cv) / abs(prev_cv)
             if pct_change < threshold:
@@ -140,6 +174,15 @@ def plot_variance(
     # Create plot
     plt.figure(figsize=(12, 7))
     plt.plot(x_vals, y_vals, marker="o", linewidth=2, markersize=8, color="blue")
+    if lower_vals and upper_vals:
+        plt.fill_between(
+            x_vals,
+            lower_vals,
+            upper_vals,
+            color="blue",
+            alpha=0.15,
+            label=f"{ci_level * 100:.0f}% bootstrap CI",
+        )
 
     if threshold_n:
         plt.axvline(
@@ -151,7 +194,7 @@ def plot_variance(
         )
         plt.scatter(
             [threshold_n],
-            [cv_values[threshold_n - 1] * 100],
+            [mean_cv_values[threshold_n - 1] * 100],
             color="green",
             s=300,
             marker="*",
@@ -168,9 +211,9 @@ def plot_variance(
         fontweight="bold",
     )
 
-    # Set x-axis limits to show up to 20
-    plt.xlim(0, 21)
-    plt.xticks(range(0, 21, 2))
+    # Restrict x-axis to first 15 runs so emphasis stays on early behavior
+    plt.xlim(0, 15)
+    plt.xticks(range(0, 16, 2))
 
     plt.grid(True, alpha=0.3)
     plt.legend(fontsize=12, loc="best")
@@ -220,6 +263,24 @@ def main():
         default=None,
         help="Minimum timesteps required for inclusion (default: None, auto-computed from percent)",
     )
+    parser.add_argument(
+        "--bootstrap-iterations",
+        type=int,
+        default=1000,
+        help="Number of bootstrap resamples per sample size (default: 1000)",
+    )
+    parser.add_argument(
+        "--ci-level",
+        type=float,
+        default=0.95,
+        help="Confidence interval level for bootstrap bounds (default: 0.95)",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Random seed for reproducible bootstrapping (default: None)",
+    )
 
     args = parser.parse_args()
 
@@ -234,11 +295,24 @@ def main():
     if args.min_timesteps:
         print(f"Minimum timesteps required: {args.min_timesteps:,.0f}")
     print(f"Samples per run: {args.samples}")
+    print(f"Bootstrap iterations per point: {args.bootstrap_iterations}")
     print(f"Variance threshold: {args.threshold * 100}%\n")
 
     # Compute variance curve
-    sample_sizes, cv_values, included_runs = compute_variance_curve(
-        args.run_ids, args.metric, args.percent, args.samples, args.min_timesteps
+    (
+        sample_sizes,
+        mean_cv_values,
+        ci_bounds,
+        included_runs,
+    ) = compute_variance_curve(
+        args.run_ids,
+        args.metric,
+        args.percent,
+        args.samples,
+        args.min_timesteps,
+        args.bootstrap_iterations,
+        args.ci_level,
+        args.seed,
     )
 
     # Print results
@@ -246,7 +320,7 @@ def main():
     print("RESULTS")
     print("=" * 70)
     print(f"Included runs: {len(included_runs)} out of {len(args.run_ids)} total")
-    print(f"Final CV (N={len(sample_sizes)}): {cv_values[-1] * 100:.2f}%")
+    print(f"Final CV (N={len(sample_sizes)}): {mean_cv_values[-1] * 100:.2f}%")
     print(
         f"\nLooking for when CV change between consecutive samples < {args.threshold * 100:.0f}%..."
     )
@@ -254,9 +328,9 @@ def main():
     # Find threshold crossing
     threshold_n = None
     stabilization_change = None
-    for i in range(1, len(cv_values)):
-        prev_cv = cv_values[i - 1]
-        curr_cv = cv_values[i]
+    for i in range(1, len(mean_cv_values)):
+        prev_cv = mean_cv_values[i - 1]
+        curr_cv = mean_cv_values[i]
         if prev_cv != float("inf") and curr_cv != float("inf"):
             pct_change = abs(curr_cv - prev_cv) / abs(prev_cv)
             if pct_change < args.threshold:
@@ -278,10 +352,12 @@ def main():
     # Create plot
     plot_variance(
         sample_sizes,
-        cv_values,
+        mean_cv_values,
+        ci_bounds,
         args.threshold,
         args.output,
         args.percent,
+        args.ci_level,
     )
 
 
