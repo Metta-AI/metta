@@ -7,12 +7,14 @@ recipes should import from here and extend via custom defaults, similar to how
 
 from __future__ import annotations
 
+from collections import Counter
 from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 from cogames.cli.mission import parse_variants
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVariant
+from cogames.cogs_vs_clips.missions import MISSIONS
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -60,7 +62,26 @@ COORDINATION_MISSIONS: tuple[str, ...] = (
     "collect_resources_spread",
 )
 
-_MISSION_BY_NAME: dict[str, Mission] = {mission.name: mission for mission in EVAL_MISSIONS}
+
+def _build_mission_index(missions: Sequence[Mission]) -> dict[str, Mission]:
+    """Index missions by simple name and full site.name form.
+
+    Some training missions (e.g., `training_facility.harvest`) share short names
+    like `open_world`. To avoid ambiguous lookups we only register the short name
+    when it is unique across the provided list, while always exposing the
+    site-qualified `site.name.mission` format.
+    """
+
+    counts = Counter(mission.name for mission in missions)
+    mission_by_name: dict[str, Mission] = {}
+    for mission in missions:
+        if counts[mission.name] == 1:
+            mission_by_name[mission.name] = mission
+        mission_by_name[mission.full_name()] = mission
+    return mission_by_name
+
+
+_MISSION_BY_NAME: dict[str, Mission] = _build_mission_index(MISSIONS)
 
 
 def _normalize_variant_names(
