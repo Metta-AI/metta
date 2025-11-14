@@ -116,19 +116,37 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
     # CoGames - Stable Tests
     # ========================================
 
-    # CoGames training - 100k steps
+    # CoGames training - 100k steps with S3 upload
     cogames_train_name = f"{prefix}.cogames_train_100k"
+    cogames_s3_uri = f"s3://softmax-public/cogames/{cogames_train_name}/checkpoint.pt"
     cogames_train_100k = JobConfig(
         name=cogames_train_name,
-        cmd=f'devops/stable/cogames_train_eval.py --mission cogs_vs_clips --variant standard --steps 100000 --checkpoints-dir /tmp/{cogames_train_name}/checkpoints --eval-episodes 20 --artifacts \'{{"eval_results.json": "s3://softmax-public/cogames/{cogames_train_name}/eval_results.json"}}\'',
+        tool="metta.tools.cogames_train.cogames_train",
+        args={
+            "mission": "training_facility.harvest",
+            "variant": '["standard"]',
+            "steps": "100000",
+            "checkpoints": f"/tmp/{cogames_train_name}",
+            "s3_uri": cogames_s3_uri,
+        },
         timeout_s=3600,
         remote=RemoteConfig(gpus=1, nodes=1),
-        metrics_source=MetricsSource.COGAMES_LOG,
-        metrics_to_track=["SPS", "agent_steps", "win_rate"],
-        artifacts=["eval_results.json"],
-        acceptance_criteria=[
-            AcceptanceCriterion(metric="SPS", operator=">=", threshold=5000),
-        ],
+    )
+
+    # CoGames evaluation - downloads from S3 and evaluates
+    cogames_eval_name = f"{prefix}.cogames_eval_100k"
+    cogames_eval_100k = JobConfig(
+        name=cogames_eval_name,
+        tool="metta.tools.cogames_eval.cogames_eval",
+        args={
+            "mission": "training_facility.harvest",
+            "variant": '["standard"]',
+            "policy_uri": cogames_s3_uri,
+            "episodes": "20",
+            "format": "json",
+        },
+        dependency_names=[cogames_train_name],
+        timeout_s=1800,
     )
 
     return [
@@ -139,4 +157,5 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
         cvc_small_train_2b,
         cvc_eval_2b,
         cogames_train_100k,
+        cogames_eval_100k,
     ]

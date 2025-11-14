@@ -93,10 +93,19 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
         group=group,  # Tag with group for monitoring
     )
 
-    # CoGames - Train and evaluate (using small_50 variant for fast CI testing)
+    # CoGames - Train with small_50 variant for fast CI testing
     cogames_train = JobConfig(
         name=cogames_train_name,
-        cmd=f"devops/stable/cogames_train_eval.py --mission cogs_vs_clips --variant small_50 --steps 1000 --checkpoints-dir ./train_dir/{cogames_train_name}/checkpoints --eval-episodes 5 --artifacts '{{}}'",
+        cmd=f"cogames train --mission training_facility.harvest --variant small_50 --steps 1000 --checkpoints ./train_dir/{cogames_train_name}",
+        timeout_s=300,
+        group=group,
+    )
+
+    # CoGames - Evaluate trained policy from local checkpoint
+    cogames_eval = JobConfig(
+        name=cogames_eval_name,
+        cmd=f"cogames eval --mission training_facility.harvest --variant small_50 --policy lstm:./train_dir/{cogames_train_name}/training_facility.harvest --episodes 5 --format json",
+        dependency_names=[cogames_train_name],
         timeout_s=300,
         group=group,
     )
@@ -108,4 +117,5 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
         cvc_small_train,
         cvc_small_play,
         cogames_train,
+        cogames_eval,
     ], group
