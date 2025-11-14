@@ -2,6 +2,16 @@ import
   std/[tables, random, sets, options],
   common
 
+when defined(racecar_debug):
+  template rcEcho(args: varargs[untyped]) =
+    {.push stackTrace: off.}
+    system.echo(args)
+    {.pop.}
+else:
+  template rcEcho(args: varargs[untyped]) = discard
+
+template echo(args: varargs[untyped]) = rcEcho(args)
+
 type
   ResourceKind = enum
     rkCarbon,
