@@ -102,7 +102,6 @@ type
     lastActionArg*: int
     lastReward*: int
     vibe*: int
-    visitationCounts*: int
     compass*: int
     orientation*: int
     tag*: int
@@ -214,8 +213,6 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
         result.features.lastReward = feature.id
       of "vibe":
         result.features.vibe = feature.id
-      of "agent:visitation_counts":
-        result.features.visitationCounts = feature.id
       of "agent:compass":
         result.features.compass = feature.id
       of "agent:orientation":
