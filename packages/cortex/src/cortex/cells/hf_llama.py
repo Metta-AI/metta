@@ -47,7 +47,14 @@ class HFLlamaLayerCell(MemoryCell):
         if not isinstance(hf_submodel, nn.Module):
             raise ValueError("HFLlamaLayerConfig must include an 'hf_submodel' nn.Module (e.g., model.model)")
         self.hf_layer: nn.Module = hf_layer
-        self.hf_submodel: nn.Module = hf_submodel
+        # IMPORTANT: Do NOT register the entire HF submodel as a submodule here.
+        # Registering it would pull in parameters from all layers (embed/norm/other blocks)
+        # which are not used by this cell's forward, causing DDP to flag unused parameters.
+        # We only need rotary embeddings; keep a direct handle to that module instead.
+        # LlamaRotaryEmbedding carries buffers but no trainable parameters, so it is safe.
+        self.hf_rotary_emb = getattr(hf_submodel, "rotary_emb", None)
+        if self.hf_rotary_emb is None:
+            raise ValueError("hf_submodel is missing 'rotary_emb'")
         self.hf_config = hf_config
 
         self.mem_len = int(cfg.mem_len)
@@ -106,6 +113,8 @@ class HFLlamaLayerCell(MemoryCell):
         device: torch.device,
     ) -> tuple[StaticCache, int, torch.Tensor, torch.Tensor]:
         """Create StaticCache bound to TensorDict KV tensors. Returns (cache, layer_idx, kv_len, cache_position)."""
+        # TODO: Currently KV cache is reintialzed and each layer keeps L layers in each forward pass (deleted after each forward pass),
+        # in future we would like to materialize only the required size.
         have_kv = ("k" in state.keys()) and ("v" in state.keys())
         if have_kv:
             st_k = state.get("k")
@@ -275,7 +284,7 @@ class HFLlamaLayerCell(MemoryCell):
             position_ids = base_since_seg + ar
         else:
             position_ids = torch.where(last_reset_idx >= 0, ar - last_reset_idx, base_since_seg + ar)
-        position_embeddings = self.hf_submodel.rotary_emb(x_seq, position_ids)
+        position_embeddings = self.hf_rotary_emb(x_seq, position_ids)
 
         # Build a StaticCache for the model and populate this layer from TD state
         if self.mem_len > 0:

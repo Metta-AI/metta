@@ -52,7 +52,7 @@ def train(
 ):
     if policy_architecture is None:
         config_kwargs = {}
-        config_kwargs["model_name"] = model_name or "HuggingFaceTB/SmolLM2-135M"
+        config_kwargs["model_name"] = model_name or "HuggingFaceTB/SmolLM-360M"
         # Prefer FlashAttention2 with a half-precision dtype by default when available.
         # FA2 supports only float16/bfloat16; pick bfloat16 (generally stable on recent NVIDIA GPUs).
         if _FLASH_ATTENTION_AVAILABLE and torch.cuda.is_available():
