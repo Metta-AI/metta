@@ -1,14 +1,16 @@
-from metta.rl.loss.loss import Loss, LossConfig
-from metta.agent.policy import Policy
 from typing import Any
+
 import torch
 from pydantic import Field
-
+from tensordict import NonTensorData, TensorDict
 from torch import Tensor
-from tensordict import TensorDict, NonTensorData
-from metta.rl.training import ComponentContext
+
+from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage
+from metta.rl.loss.loss import Loss, LossConfig
+from metta.rl.training import ComponentContext
 from metta.utils.batch import calculate_prioritized_sampling_params
+
 
 class PrioLossSamplerConfig(LossConfig):
     # Alpha=0 means uniform sampling; tuned via sweep
