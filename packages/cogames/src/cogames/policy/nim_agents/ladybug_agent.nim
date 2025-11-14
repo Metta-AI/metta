@@ -110,6 +110,20 @@ proc initState(agent: LadybugAgent) =
   agent.state.waitingAtExtractor = none(Location)
   agent.state.usingObjectThisStep = false
 
+proc resourceVibe(resource: string): string =
+  ## Map canonical resource names to the actual vibe glyphs used by the engine.
+  case resource.toLowerAscii()
+  of "carbon":
+    "carbon_a"
+  of "oxygen":
+    "oxygen_a"
+  of "germanium":
+    "germanium_a"
+  of "silicon":
+    "silicon_a"
+  else:
+    "carbon_a"
+
 proc newLadybugAgent*(agentId: int, environmentConfig: string): LadybugAgent {.raises: [].} =
   var config = parseConfig(environmentConfig)
   result = LadybugAgent(agentId: agentId, cfg: config)
@@ -574,10 +588,10 @@ proc desiredVibe(agent: LadybugAgent): string =
   case agent.state.phase
   of gatherPhase:
     if agent.state.targetResource.len > 0:
-      return agent.state.targetResource
-    return "carbon"
+      return resourceVibe(agent.state.targetResource)
+    return "carbon_a"
   of assemblePhase:
-    return "heart"
+    return "heart_a"
   of deliverPhase:
     return "default"
   of rechargePhase:
@@ -585,12 +599,21 @@ proc desiredVibe(agent: LadybugAgent): string =
 
 proc vibeAction(agent: LadybugAgent, vibe: string): int =
   case vibe
-  of "carbon": agent.cfg.actions.vibeCarbon
-  of "oxygen": agent.cfg.actions.vibeOxygen
-  of "germanium": agent.cfg.actions.vibeGermanium
-  of "silicon": agent.cfg.actions.vibeSilicon
-  of "heart": agent.cfg.actions.vibeHeart
+  of "carbon_a": agent.cfg.actions.vibeCarbonA
+  of "carbon_b": agent.cfg.actions.vibeCarbonB
+  of "oxygen_a": agent.cfg.actions.vibeOxygenA
+  of "oxygen_b": agent.cfg.actions.vibeOxygenB
+  of "germanium_a": agent.cfg.actions.vibeGermaniumA
+  of "germanium_b": agent.cfg.actions.vibeGermaniumB
+  of "silicon_a": agent.cfg.actions.vibeSiliconA
+  of "silicon_b": agent.cfg.actions.vibeSiliconB
+  of "heart_a": agent.cfg.actions.vibeHeartA
+  of "heart_b": agent.cfg.actions.vibeHeartB
   of "charger": agent.cfg.actions.vibeCharger
+  of "gear": agent.cfg.actions.vibeGear
+  of "assembler": agent.cfg.actions.vibeAssembler
+  of "chest": agent.cfg.actions.vibeChest
+  of "wall": agent.cfg.actions.vibeWall
   of "default": agent.cfg.actions.vibeDefault
   else: agent.cfg.actions.vibeDefault
 
@@ -626,9 +649,9 @@ proc doAssemble(agent: LadybugAgent): int =
   agent.state.targetResource = ""
   if agent.state.stations["assembler"].isNone:
     return agent.explore()
-  if agent.state.currentGlyph != "heart":
-    agent.state.currentGlyph = "heart"
-    return agent.vibeAction("heart")
+  if agent.state.currentGlyph != "heart_a":
+    agent.state.currentGlyph = "heart_a"
+    return agent.vibeAction("heart_a")
   let loc = agent.state.stations["assembler"].get()
   let nav = agent.navigateToAdjacent(loc.y, loc.x)
   if nav.isSome():

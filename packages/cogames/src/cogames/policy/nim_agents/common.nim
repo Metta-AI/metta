@@ -105,7 +105,6 @@ type
     lastReward*: int
     vibe*: int
     compass*: int
-    orientation*: int
     tag*: int
     cooldownRemaining*: int
     clipped*: int
@@ -221,8 +220,6 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
         result.features.vibe = feature.id
       of "agent:compass":
         result.features.compass = feature.id
-      of "agent:orientation":
-        result.features.orientation = feature.id
       of "tag":
         result.features.tag = feature.id
       of "cooldown_remaining":
@@ -277,36 +274,26 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
         result.actions.vibeDefault = id
       of "change_vibe_charger":
         result.actions.vibeCharger = id
-      of "change_vibe_carbon_a":
+      of "change_vibe_carbon_a", "change_vibe_carbon":
         result.actions.vibeCarbonA = id
       of "change_vibe_carbon_b":
         result.actions.vibeCarbonB = id
-      of "change_vibe_oxygen_a":
+      of "change_vibe_oxygen_a", "change_vibe_oxygen":
         result.actions.vibeOxygenA = id
       of "change_vibe_oxygen_b":
         result.actions.vibeOxygenB = id
-      of "change_vibe_germanium_a":
+      of "change_vibe_germanium_a", "change_vibe_germanium":
         result.actions.vibeGermaniumA = id
       of "change_vibe_germanium_b":
         result.actions.vibeGermaniumB = id
-      of "change_vibe_silicon_a":
+      of "change_vibe_silicon_a", "change_vibe_silicon":
         result.actions.vibeSiliconA = id
       of "change_vibe_silicon_b":
         result.actions.vibeSiliconB = id
-      of "change_vibe_heart_a":
+      of "change_vibe_heart_a", "change_vibe_heart":
         result.actions.vibeHeartA = id
       of "change_vibe_heart_b":
         result.actions.vibeHeartB = id
-      of "change_vibe_carbon":
-        result.actions.vibeCarbonA = id
-      of "change_vibe_oxygen":
-        result.actions.vibeOxygenA = id
-      of "change_vibe_germanium":
-        result.actions.vibeGermaniumA = id
-      of "change_vibe_silicon":
-        result.actions.vibeSiliconA = id
-      of "change_vibe_heart":
-        result.actions.vibeHeartA = id
       of "change_vibe_gear":
         result.actions.vibeGear = id
       of "change_vibe_assembler":
