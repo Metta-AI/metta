@@ -130,13 +130,6 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
                                object_type_names[type_id] + ". Trying to add " + object_cfg->type_name + ".");
     }
     object_type_names[type_id] = object_cfg->type_name;
-
-    const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg.get());
-    if (agent_config) {
-      unsigned int id = agent_config->group_id;
-      _group_sizes[id] = 0;
-      _group_reward_pct[id] = agent_config->group_reward_pct;
-    }
   }
 
   // Initialize objects from map
@@ -176,7 +169,6 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
         agent->agent_id = static_cast<decltype(agent->agent_id)>(_agents.size());
         agent->set_obs_encoder(_obs_encoder.get());
         add_agent(agent);
-        _group_sizes[agent->group] += 1;
         continue;
       }
 
@@ -204,8 +196,6 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
       throw std::runtime_error("Unable to create object of type " + cell + " at (" + std::to_string(r) + ", " +
                                std::to_string(c) + ")");
     }
-
-    _group_rewards.resize(_group_sizes.size());
   }
 }
 
@@ -673,35 +663,6 @@ void MettaGrid::step() {
   }
 
   _step();
-
-  auto rewards_view = _rewards.mutable_unchecked<1>();
-
-  // Clear group rewards from previous step
-  std::fill(_group_rewards.begin(), _group_rewards.end(), 0.0f);
-
-  bool share_rewards = false;
-
-  for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
-    if (rewards_view(agent_idx) != 0.0f) {
-      share_rewards = true;
-      auto& agent = _agents[agent_idx];
-      auto group_id = agent->group;
-
-      RewardType agent_reward = rewards_view(agent_idx);
-      RewardType group_reward = agent_reward * _group_reward_pct[group_id];
-      rewards_view(agent_idx) = agent_reward - group_reward;
-
-      _group_rewards[group_id] += group_reward / static_cast<RewardType>(_group_sizes[group_id]);
-    }
-  }
-
-  if (share_rewards) {
-    for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
-      auto& agent = _agents[agent_idx];
-      size_t group_id = static_cast<size_t>(agent->group);
-      rewards_view(agent_idx) += _group_rewards[group_id];
-    }
-  }
 }
 
 py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_col, const py::list& ignore_types) {
