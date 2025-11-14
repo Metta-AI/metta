@@ -76,8 +76,7 @@ class Experience:
 
         self._range_tensor = torch.arange(total_agents, device=self.device, dtype=torch.int32)
 
-        # Keys to use when writing into the buffer; defaults to all spec keys.
-        # This can be dynamically restricted by the scheduler based on active losses.
+        # Keys to use when writing into the buffer; defaults to all spec keys. Scheduler updates per loss gate activity.
         self._store_keys: List[Any] = list(self.buffer.keys(include_nested=True, leaves_only=True))
 
     def _check_for_duplicate_keys(self, experience_spec: Composite) -> None:
@@ -99,8 +98,7 @@ class Experience:
         t_in_row_val = self.t_in_row[env_id.start].item()
         row_ids = self.row_slot_ids[env_id]
 
-        # Only write the currently active keys; this allows the scheduler to
-        # disable losses without requiring their experience fields each epoch.
+        # Scheduler updates these keys based on the active losses for the epoch.
         if self._store_keys:
             self.buffer.update_at_(data_td.select(*self._store_keys), (row_ids, t_in_row_val))
 
@@ -176,14 +174,8 @@ class Experience:
         return list(self._store_keys)
 
     def set_store_keys(self, keys: Iterable[Any]) -> None:
-        """Restrict which keys are written when storing experience.
-
-        Args:
-            keys: Iterable of keys (matching the Composite spec) that should
-                be written into the buffer on subsequent `store` calls.
-
-        Raises:
-            KeyError: If any provided key does not exist in the buffer spec.
+        """Restrict which keys are written when storing experience. Otherwise, the buffer will throw an error if it
+        looks for keys that are not in the tensor dict when calling store().
         """
         all_keys = set(self.buffer.keys(include_nested=True, leaves_only=True))
         missing = [k for k in keys if k not in all_keys]
