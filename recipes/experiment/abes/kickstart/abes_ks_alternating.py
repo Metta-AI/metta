@@ -9,7 +9,7 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss.alternating_kickstarter import AlternatingKickstarterConfig
+from metta.rl.loss.kickstarter import KickstarterConfig
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.loss.ppo import PPOConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
@@ -108,7 +108,7 @@ def train(
 
     loss_config = LossesConfig(
         ppo=PPOConfig(enabled=True),  # PPO is enabled by default, but explicit here
-        alternating_kickstarter=AlternatingKickstarterConfig(
+        kickstarter=KickstarterConfig(
             enabled=True,
             teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v8016.mpt",
             teacher_lead_prob=0.5,
@@ -127,19 +127,19 @@ def train(
         run_gates=[
             LossRunGate(loss_instance_name="ppo", phase="rollout", begin_at_step=1_000_000_000),
             LossRunGate(
-                loss_instance_name="alternating_kickstarter",
+                loss_instance_name="kickstarter",
                 phase="rollout",
                 end_at_step=1_000_000_000,
             ),
             LossRunGate(
-                loss_instance_name="alternating_kickstarter",
+                loss_instance_name="kickstarter",
                 phase="train",
                 end_at_step=1_000_000_000,
             ),
         ],
         rules=[
             HyperUpdateRule(
-                loss_instance_name="alternating_kickstarter",
+                loss_instance_name="kickstarter",
                 attr_path="action_loss_coef",
                 mode="progress",
                 style="linear",
@@ -149,7 +149,7 @@ def train(
                 end_agent_step=1_000_000_000,
             ),
             HyperUpdateRule(
-                loss_instance_name="alternating_kickstarter",
+                loss_instance_name="kickstarter",
                 attr_path="value_loss_coef",
                 mode="progress",
                 style="linear",
@@ -159,7 +159,7 @@ def train(
                 end_agent_step=1_000_000_000,
             ),
             HyperUpdateRule(
-                loss_instance_name="alternating_kickstarter",
+                loss_instance_name="kickstarter",
                 attr_path="teacher_lead_prob",
                 mode="progress",
                 style="linear",
