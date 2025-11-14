@@ -2,16 +2,16 @@
 """Stable Release System - CLI
 
 Commands:
-  validate              Run validation (prepare-tag -> validation -> release)
+  validate              Run validation only (prepare-tag -> validation -> summary)
+  release               Full release pipeline (prepare-tag -> validation -> bug check -> release tag)
   hotfix                Hotfix mode (prepare-tag -> release, skip validation)
-  release               Create release (prepare-tag -> validation -> bug check -> release tag)
 
 Options:
   --version X           Use specific version
   --new                 Force new release (ignore in-progress state)
   --skip-commit-match   Skip verification that current commit matches RC tag
-  --job PATTERN        Filter validation jobs (validate mode only)
-  --retry-failed        Retry failed jobs (validate mode only)
+  --job PATTERN        Filter validation jobs (validate and release modes)
+  --retry-failed        Retry failed jobs (validate and release modes)
 """
 
 from __future__ import annotations
@@ -143,11 +143,27 @@ def load_state_or_exit(version: str, step_name: str) -> ReleaseState:
     """Load release state or exit with error message."""
     state_version = f"v{version}"
     state = load_state(state_version)
-    if not state:
-        print(f"❌ No state found for version {version}")
-        print(f"   Run 'validate' before '{step_name}'")
-        sys.exit(1)
+    assert state, f"State should have been created before '{step_name}'"
     return state
+
+
+def get_rc_commit(version: str) -> str:
+    """Get the commit SHA that the RC tag points to.
+
+    Args:
+        version: Release version (without 'v' prefix)
+
+    Returns:
+        Commit SHA that the RC tag points to
+
+    Raises:
+        AssertionError: If RC tag doesn't exist (indicates bug in control flow)
+    """
+    rc_tag_name = f"v{version}-rc"
+    try:
+        return git.run_git("rev-list", "-n", "1", rc_tag_name).strip()
+    except git.GitError as e:
+        raise AssertionError(f"RC tag {rc_tag_name} should have been created by prepare_tag step") from e
 
 
 def verify_on_rc_commit(version: str, step_name: str, skip_check: bool = False) -> str:
@@ -170,12 +186,7 @@ def verify_on_rc_commit(version: str, step_name: str, skip_check: bool = False) 
     current_commit = git.get_current_commit()
 
     # Get RC tag commit
-    try:
-        rc_commit = git.run_git("rev-list", "-n", "1", rc_tag_name).strip()
-    except git.GitError:
-        print(f"❌ RC tag {rc_tag_name} not found")
-        print("   Run 'prepare-tag' step first to create the RC tag")
-        sys.exit(1)
+    rc_commit = get_rc_commit(version)
 
     # Verify we're on the RC commit (unless skip_check is set)
     if current_commit != rc_commit:
@@ -632,15 +643,9 @@ def step_release(version: str, skip_commit_match: bool = False, **_kwargs) -> No
     print(f"✅ Created release notes: {release_notes_path}")
 
     # Get the commit SHA from the RC tag (validation was run against this)
+    rc_commit = get_rc_commit(version)
     rc_tag_name = f"v{version}-rc"
-    try:
-        # Get commit SHA that RC tag points to
-        rc_commit = git.run_git("rev-list", "-n", "1", rc_tag_name).strip()
-        print(f"RC tag {rc_tag_name} points to commit: {rc_commit}")
-    except git.GitError as e:
-        print(f"❌ Failed to find RC tag {rc_tag_name}: {e}")
-        print("   Run prepare-tag step first")
-        sys.exit(1)
+    print(f"RC tag {rc_tag_name} points to commit: {rc_commit}")
 
     # Create git tag pointing to the same commit as RC tag
     tag_name = f"v{version}"
@@ -852,18 +857,36 @@ def cmd_hotfix(ctx: typer.Context):
 
 
 @app.command("release")
-def cmd_release(ctx: typer.Context):
-    """Create release (bug check -> release tag)."""
+def cmd_release(
+    ctx: typer.Context,
+    job: Optional[str] = typer.Option(
+        None,
+        "--job",
+        help="Filter validation jobs by name",
+    ),
+    retry: bool = typer.Option(
+        False,
+        "--retry",
+        help="Retry previously failed jobs (default: skip failed jobs)",
+    ),
+):
+    """Full release pipeline (prepare-tag -> validation -> bug check -> release tag)."""
     version = ctx.obj["version"]
     skip_commit_match = ctx.obj["skip_commit_match"]
 
     state_version = f"v{version}"
     state = load_or_create_state(state_version, git.get_current_commit())
 
-    # Final gate: check for blocking bugs
+    # Step 1: Prepare RC tag (automatic - skips if already done)
+    step_prepare_tag(version=version, state=state)
+
+    # Step 2: Run validation
+    step_job_validation(version=version, job=job, retry=retry, skip_commit_match=skip_commit_match)
+
+    # Step 3: Check for blocking bugs
     step_bug_check(version=version, state=state, skip_commit_match=skip_commit_match)
 
-    # Create release
+    # Step 4: Create release
     step_release(version=version, skip_commit_match=skip_commit_match)
 
 
