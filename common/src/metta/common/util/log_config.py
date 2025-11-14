@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 import rich.traceback
+from rich.console import Console
 from rich.logging import RichHandler
 
 from metta.common.util.constants import RANK_ENV_VARS
@@ -217,3 +218,20 @@ def init_logging(run_dir: Path | None = None) -> None:
 
     # Do not log anything from here as it will interfere with scripts that return data on cli
     # e.g. calling constants.py will print a log statement and we won't be able to parse the expected value
+
+
+@functools.cache
+def get_console() -> Console:
+    # Good practice to use a global console instance by default
+    return Console()
+
+
+def should_use_rich_console() -> bool:
+    """Determine if rich console output is appropriate based on terminal context."""
+    if os.environ.get("DISABLE_RICH_LOGGING", "").lower() in ("1", "true", "yes"):
+        return False
+
+    if any(os.environ.get(var) for var in ["SLURM_JOB_ID", "PBS_JOBID", "WANDB_RUN_ID", "SKYPILOT_TASK_ID"]):
+        return False
+
+    return hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
