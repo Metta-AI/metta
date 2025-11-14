@@ -233,18 +233,22 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             objects_cpp_params[object_config.map_name or object_type] = cpp_wall_config
         elif isinstance(object_config, AssemblerConfig):
             protocols = []
-            seen_vibes = []
+            seen_vibes_and_min_agents = []
 
             for protocol_config in reversed(object_config.protocols):
                 # Convert vibe names to IDs
                 vibe_ids = sorted([vibe_name_to_id[vibe] for vibe in protocol_config.vibes])
                 # Check for duplicate vibes
-                if vibe_ids in seen_vibes:
-                    raise ValueError(f"Protocol with vibes {protocol_config.vibes} already exists in {object_type}")
-                seen_vibes.append(vibe_ids)
+                if (vibe_ids, protocol_config.min_agents) in seen_vibes_and_min_agents:
+                    raise ValueError(
+                        f"Protocol with vibes {protocol_config.vibes} and min_agents {protocol_config.min_agents} "
+                        f"already exists in {object_type}"
+                    )
+                seen_vibes_and_min_agents.append((vibe_ids, protocol_config.min_agents))
                 input_res = {resource_name_to_id[k]: int(v) for k, v in protocol_config.input_resources.items()}
                 output_res = {resource_name_to_id[k]: int(v) for k, v in protocol_config.output_resources.items()}
                 cpp_protocol = CppProtocol()
+                cpp_protocol.min_agents = protocol_config.min_agents
                 cpp_protocol.vibes = vibe_ids
                 cpp_protocol.input_resources = input_res
                 cpp_protocol.output_resources = output_res

@@ -1027,7 +1027,7 @@ TEST_F(MettaGridCppTest, AssemblerGetCurrentProtocol) {
   auto protocol0 = std::make_shared<Protocol>();  // Default protocol (vibe 0)
   protocol0->input_resources[0] = 1;
 
-  auto protocol1 = std::make_shared<Protocol>(std::vector<ObservationType>{1});  // Protocol for vibe 1
+  auto protocol1 = std::make_shared<Protocol>(0, std::vector<ObservationType>{1});  // Protocol for vibe 1
   protocol1->input_resources[1] = 2;
 
   config.protocols.push_back(protocol0);
@@ -1073,9 +1073,9 @@ TEST_F(MettaGridCppTest, AssemblerProtocolObservationsEnabled) {
   protocol0->input_resources[0] = 2;              // 2 units of item 0
   protocol0->output_resources[1] = 1;             // 1 unit of output item 1
 
-  auto protocol1 = std::make_shared<Protocol>(std::vector<ObservationType>{1});  // Protocol for vibe 1
-  protocol1->input_resources[2] = 3;                                             // 3 units of item 2
-  protocol1->output_resources[3] = 2;                                            // 2 units of output item 3
+  auto protocol1 = std::make_shared<Protocol>(0, std::vector<ObservationType>{1});  // Protocol for vibe 1
+  protocol1->input_resources[2] = 3;                                                // 3 units of item 2
+  protocol1->output_resources[3] = 2;                                               // 2 units of output item 3
 
   config.protocols.push_back(protocol0);
   config.protocols.push_back(protocol1);
@@ -1125,7 +1125,7 @@ TEST_F(MettaGridCppTest, AssemblerBalancedConsumptionAmpleResources) {
   std::unordered_map<InventoryItem, InventoryQuantity> output_resources;
   output_resources[TestItems::LASER] = 1;
 
-  auto protocol = std::make_shared<Protocol>(std::vector<ObservationType>{}, input_resources, output_resources, 0);
+  auto protocol = std::make_shared<Protocol>(0, std::vector<ObservationType>{}, input_resources, output_resources, 0);
 
   // Create assembler with the protocol
   AssemblerConfig config(1, "test_assembler");
@@ -1178,7 +1178,7 @@ TEST_F(MettaGridCppTest, AssemblerBalancedConsumptionMixedResources) {
   std::unordered_map<InventoryItem, InventoryQuantity> output_resources;
   output_resources[TestItems::LASER] = 1;
 
-  auto protocol = std::make_shared<Protocol>(std::vector<ObservationType>{}, input_resources, output_resources, 0);
+  auto protocol = std::make_shared<Protocol>(0, std::vector<ObservationType>{}, input_resources, output_resources, 0);
 
   // Create assembler with the protocol
   AssemblerConfig config(1, "test_assembler");
@@ -1406,6 +1406,125 @@ TEST_F(MettaGridCppTest, AssemblerMaxUses) {
   EXPECT_EQ(assembler.uses_count, 3) << "Uses count should still be 3";
   EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 7) << "Should still have 7 ore (no consumption)";
   EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 3) << "Should still have 3 lasers (no production)";
+}
+
+TEST_F(MettaGridCppTest, AssemblerMinAgentsProtocolSelection) {
+  // Create a simple grid
+  Grid grid(10, 10);
+  unsigned int current_timestep = 0;
+
+  // Create an assembler with multiple protocols with different min_agents values
+  AssemblerConfig config(1, "test_assembler");
+
+  // Protocol 1: min_agents = 0 (can be used with any number of agents)
+  auto protocol_0 = std::make_shared<Protocol>(0, std::vector<ObservationType>{});
+  protocol_0->input_resources[TestItems::ORE] = 1;
+  protocol_0->output_resources[TestItems::LASER] = 1;
+  protocol_0->cooldown = 0;
+
+  // Protocol 2: min_agents = 2 (requires at least 2 agents)
+  auto protocol_2 = std::make_shared<Protocol>(2, std::vector<ObservationType>{});
+  protocol_2->input_resources[TestItems::ORE] = 2;
+  protocol_2->output_resources[TestItems::ARMOR] = 1;
+  protocol_2->cooldown = 0;
+
+  // Protocol 3: min_agents = 4 (requires at least 4 agents)
+  auto protocol_4 = std::make_shared<Protocol>(4, std::vector<ObservationType>{});
+  protocol_4->input_resources[TestItems::ORE] = 3;
+  protocol_4->output_resources[TestItems::HEART] = 1;
+  protocol_4->cooldown = 0;
+
+  // Add protocols in order (they should be sorted by min_agents descending)
+  config.protocols.push_back(protocol_0);
+  config.protocols.push_back(protocol_2);
+  config.protocols.push_back(protocol_4);
+
+  Assembler assembler(5, 5, config);
+  assembler.set_grid(&grid);
+  assembler.set_current_timestep_ptr(&current_timestep);
+
+  auto resource_names = create_test_resource_names();
+
+  // Positions around (5, 5): (4, 4), (4, 5), (4, 6), (5, 4), (5, 6), (6, 4), (6, 5), (6, 6)
+  std::vector<std::pair<GridCoord, GridCoord>> positions = {
+      {4, 4}, {4, 5}, {4, 6}, {5, 4}, {5, 6}, {6, 4}, {6, 5}, {6, 6}};
+
+  // Helper function to count and place agents around the assembler
+  // Returns the total number of agents after placement
+  auto place_agents = [&](int target_count) -> int {
+    int current_count = 0;
+    // Count existing agents
+    for (const auto& pos : positions) {
+      GridObject* obj = grid.object_at(GridLocation(pos.first, pos.second));
+      if (obj) {
+        Agent* agent = dynamic_cast<Agent*>(obj);
+        if (agent) {
+          current_count++;
+        }
+      }
+    }
+    // Add agents until we reach target_count
+    for (int i = 0; current_count < target_count && i < static_cast<int>(positions.size()); ++i) {
+      // Check if position is empty
+      if (grid.is_empty(positions[i].first, positions[i].second)) {
+        AgentConfig agent_cfg = create_test_agent_config();
+        agent_cfg.initial_inventory[TestItems::ORE] = 10;
+        Agent* agent = new Agent(positions[i].first, positions[i].second, agent_cfg, &resource_names);
+        float agent_reward = 0.0f;
+        agent->reward = &agent_reward;
+        grid.add_object(agent);
+        current_count++;
+      }
+    }
+    return current_count;
+  };
+
+  // Test 1: With 0 agents, should return protocol_0 (min_agents = 0)
+  const Protocol* current_protocol = assembler.get_current_protocol();
+  EXPECT_NE(current_protocol, nullptr) << "Should return a protocol with 0 agents";
+  EXPECT_EQ(current_protocol->min_agents, 0) << "Should return protocol with min_agents = 0";
+  EXPECT_EQ(current_protocol->output_resources.count(TestItems::LASER), 1)
+      << "Should return protocol_0 (produces LASER)";
+
+  // Test 2: With 1 agent, should return protocol_0 (min_agents = 0)
+  place_agents(1);
+  current_protocol = assembler.get_current_protocol();
+  EXPECT_NE(current_protocol, nullptr) << "Should return a protocol with 1 agent";
+  EXPECT_EQ(current_protocol->min_agents, 0) << "Should return protocol with min_agents = 0";
+  EXPECT_EQ(current_protocol->output_resources.count(TestItems::LASER), 1)
+      << "Should return protocol_0 (produces LASER)";
+
+  // Test 3: With 2 agents, should return protocol_2 (min_agents = 2, highest that fits)
+  place_agents(2);
+  current_protocol = assembler.get_current_protocol();
+  EXPECT_NE(current_protocol, nullptr) << "Should return a protocol with 2 agents";
+  EXPECT_EQ(current_protocol->min_agents, 2) << "Should return protocol with min_agents = 2";
+  EXPECT_EQ(current_protocol->output_resources.count(TestItems::ARMOR), 1)
+      << "Should return protocol_2 (produces ARMOR)";
+
+  // Test 4: With 3 agents, should return protocol_2 (min_agents = 2, highest that fits)
+  place_agents(3);
+  current_protocol = assembler.get_current_protocol();
+  EXPECT_NE(current_protocol, nullptr) << "Should return a protocol with 3 agents";
+  EXPECT_EQ(current_protocol->min_agents, 2) << "Should return protocol with min_agents = 2";
+  EXPECT_EQ(current_protocol->output_resources.count(TestItems::ARMOR), 1)
+      << "Should return protocol_2 (produces ARMOR)";
+
+  // Test 5: With 4 agents, should return protocol_4 (min_agents = 4, highest that fits)
+  place_agents(4);
+  current_protocol = assembler.get_current_protocol();
+  EXPECT_NE(current_protocol, nullptr) << "Should return a protocol with 4 agents";
+  EXPECT_EQ(current_protocol->min_agents, 4) << "Should return protocol with min_agents = 4";
+  EXPECT_EQ(current_protocol->output_resources.count(TestItems::HEART), 1)
+      << "Should return protocol_4 (produces HEART)";
+
+  // Test 6: With 5 agents, should return protocol_4 (min_agents = 4, highest that fits)
+  place_agents(5);
+  current_protocol = assembler.get_current_protocol();
+  EXPECT_NE(current_protocol, nullptr) << "Should return a protocol with 5 agents";
+  EXPECT_EQ(current_protocol->min_agents, 4) << "Should return protocol with min_agents = 4";
+  EXPECT_EQ(current_protocol->output_resources.count(TestItems::HEART), 1)
+      << "Should return protocol_4 (produces HEART)";
 }
 
 TEST_F(MettaGridCppTest, AssemblerWontProduceOutputIfAgentsCantReceive) {

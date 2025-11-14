@@ -234,6 +234,9 @@ class WallConfig(GridObjectConfig):
 
 
 class ProtocolConfig(Config):
+    # Note that `vibes` implicitly also sets a minimum number of agents. So min_agents is useful
+    # when you want to set a minimum that's higher than the number of vibes.
+    min_agents: int = Field(default=0, ge=0, description="Number of agents required to use this protocol")
     vibes: list[str] = Field(default_factory=list)
     input_resources: dict[str, int] = Field(default_factory=dict)
     output_resources: dict[str, int] = Field(default_factory=dict)
