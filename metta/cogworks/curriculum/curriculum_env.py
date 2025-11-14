@@ -110,8 +110,29 @@ class CurriculumEnv(PufferEnv):
         """
         obs, rewards, terminals, truncations, infos = self._env.step(*args, **kwargs)
 
+        # DEBUG: Track completions with detailed logging
+        if not hasattr(self, "_debug_completion_count"):
+            self._debug_completion_count = 0
+
         # Handle completion for ANY environment that finished (not all)
         if terminals.any() or truncations.any():
+            self._debug_completion_count += 1
+
+            # Log details on first 5 completions to see what's happening
+            if self._debug_completion_count <= 5:
+                import logging
+
+                logger = logging.getLogger(__name__)
+                logger.info("=" * 80)
+                logger.info(f"CURRICULUM_ENV: EPISODE COMPLETION #{self._debug_completion_count}")
+                logger.info("=" * 80)
+                logger.info(f"  terminals.shape: {terminals.shape}, terminals.any(): {terminals.any()}")
+                logger.info(f"  truncations.shape: {truncations.shape}, truncations.any(): {truncations.any()}")
+                logger.info(f"  Number of completions this step: {terminals.sum() + truncations.sum()}")
+
+                # Show which envs completed
+                completed_indices = [i for i, (t, tr) in enumerate(zip(terminals, truncations, strict=True)) if t or tr]
+                logger.info(f"  Completed env indices: {completed_indices[:10]}...")
             # Get per-environment rewards for completed episodes
             episode_rewards = self._env.get_episode_rewards()
 
@@ -130,9 +151,26 @@ class CurriculumEnv(PufferEnv):
             for env_idx, (term, trunc) in enumerate(zip(terminals, truncations, strict=True)):
                 if term or trunc:
                     reward = float(episode_rewards[env_idx])
+
+                    # DEBUG: Log first few reward updates
+                    if self._debug_completion_count <= 5:
+                        import logging
+
+                        logger = logging.getLogger(__name__)
+                        task_id = self._current_task._task_id
+                        logger.info(f"  Env {env_idx}: reward={reward:.4f}, task_id={task_id}")
+                        logger.info(f"    Calling curriculum.update_task_performance({task_id}, {reward:.4f})")
+
                     self._current_task.complete(reward)
                     # Update the curriculum algorithm with task performance for learning progress
                     self._curriculum.update_task_performance(self._current_task._task_id, reward)
+
+                    # DEBUG: Verify update happened
+                    if self._debug_completion_count <= 5:
+                        import logging
+
+                        logger = logging.getLogger(__name__)
+                        logger.info("    Update complete")
 
                     # ALWAYS emit per-label sample count (needed for basic curriculum monitoring)
                     label = self._current_task.get_label()
@@ -186,6 +224,24 @@ class CurriculumEnv(PufferEnv):
                             f"on episode completion. Last error: {e}"
                         )
                         raise
+
+            # DEBUG: Close completion log
+            if self._debug_completion_count <= 5:
+                import logging
+
+                logger = logging.getLogger(__name__)
+                logger.info("=" * 80)
+
+            # DEBUG: Stop after 5 completions to inspect logs
+            if self._debug_completion_count == 5:
+                import logging
+
+                logger = logging.getLogger(__name__)
+                logger.info("")
+                logger.info("=" * 80)
+                logger.info("DEBUG: Stopping training after 5 episode completions for log inspection")
+                logger.info("=" * 80)
+                raise SystemExit("Debug stop: 5 episode completions reached")
 
         return obs, rewards, terminals, truncations, infos
 

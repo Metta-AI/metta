@@ -386,6 +386,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         """Handle task creation by tracking it."""
         self.task_tracker.track_task_creation(task._task_id)
 
+        # Initialize LP score to exploration bonus for new tasks
+        self.task_tracker.update_lp_score(task._task_id, self.hypers.exploration_bonus)
+
         label = task.get_label()
         if label:
             self._task_labels[task._task_id] = label

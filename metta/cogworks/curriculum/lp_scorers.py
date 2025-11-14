@@ -248,9 +248,10 @@ class BidirectionalLPScorer(LPScorer):
             else:
                 score = self.config.exploration_bonus
 
-        # Cache the computed score
+        # Cache the computed score and write to shared memory
         self._score_cache[task_id] = score
         self._cache_valid_tasks.add(task_id)
+        tracker.update_lp_score(task_id, score)
         return score
 
     def get_raw_lp_score(self, task_id: int, tracker: TaskTracker) -> float:
