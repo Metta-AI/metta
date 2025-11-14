@@ -3,27 +3,30 @@
 #include <algorithm>
 #include <cassert>
 
-#include "objects/agent_config.hpp"
+#include "config/observation_features.hpp"
+#include "systems/observation_encoder.hpp"
 
-Agent::Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vector<std::string>* resource_names)
+Agent::Agent(GridCoord r,
+             GridCoord c,
+             const AgentConfig& config,
+             const std::vector<std::string>* resource_names,
+             const std::unordered_map<std::string, ObservationType>* feature_ids)
     : GridObject(),
-      HasInventory(config.inventory_config),
+      HasInventory(config.inventory_config, resource_names, feature_ids),
       group(config.group_id),
       frozen(0),
       freeze_duration(config.freeze_duration),
-      orientation(Orientation::North),
       stat_rewards(config.stat_rewards),
       stat_reward_max(config.stat_reward_max),
       action_failure_penalty(config.action_failure_penalty),
       group_name(config.group_name),
       soul_bound_resources(config.soul_bound_resources),
       shareable_resources(config.shareable_resources),
-      glyph(0),
       agent_id(0),
       stats(resource_names),
       current_stat_reward(0),
       reward(nullptr),
-      prev_location(r, c, GridLayer::AgentLayer),
+      prev_location(r, c),
       prev_action_name(""),
       steps_without_motion(0),
       inventory_regen_amounts(config.inventory_regen_amounts),
@@ -38,7 +41,7 @@ Agent::Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vec
   }
 
   populate_initial_inventory(config.initial_inventory);
-  GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer), config.tag_ids);
+  GridObject::init(config.type_id, config.type_name, GridLocation(r, c), config.tag_ids, config.initial_vibe);
 }
 
 void Agent::init(RewardType* reward_ptr) {
@@ -49,44 +52,6 @@ void Agent::populate_initial_inventory(const std::unordered_map<InventoryItem, I
   for (const auto& [item, amount] : initial_inventory) {
     this->update_inventory(item, amount);
   }
-}
-
-void Agent::init_visitation_grid(GridCoord height, GridCoord width) {
-  visitation_grid.resize(height, std::vector<unsigned int>(width, 0));
-  visitation_counts_enabled = true;
-}
-
-void Agent::reset_visitation_counts() {
-  for (auto& row : visitation_grid) {
-    std::fill(row.begin(), row.end(), 0);
-  }
-}
-
-void Agent::increment_visitation_count(GridCoord r, GridCoord c) {
-  if (!visitation_counts_enabled) return;
-
-  if (r < static_cast<GridCoord>(visitation_grid.size()) && c < static_cast<GridCoord>(visitation_grid[0].size())) {
-    visitation_grid[r][c]++;
-  }
-}
-
-std::array<unsigned int, 5> Agent::get_visitation_counts() const {
-  std::array<unsigned int, 5> counts = {0, 0, 0, 0, 0};
-  if (!visitation_grid.empty()) {
-    counts[0] = get_visitation_count(location.r, location.c);  // center
-
-    // Handle potential underflow at map edge
-    if (location.r > 0) {
-      counts[1] = get_visitation_count(location.r - 1, location.c);  // up
-    }
-    counts[2] = get_visitation_count(location.r + 1, location.c);  // down
-
-    if (location.c > 0) {
-      counts[3] = get_visitation_count(location.r, location.c - 1);  // left
-    }
-    counts[4] = get_visitation_count(location.r, location.c + 1);  // right
-  }
-  return counts;
 }
 
 void Agent::set_inventory(const std::unordered_map<InventoryItem, InventoryQuantity>& inventory) {
@@ -155,10 +120,6 @@ void Agent::compute_stat_rewards(StatsTracker* game_stats_tracker) {
   }
 }
 
-bool Agent::swappable() const {
-  return this->frozen;
-}
-
 bool Agent::onUse(Agent& actor, ActionArg arg) {
   // Share half of shareable resources from actor to this agent
   for (InventoryItem resource : actor.shareable_resources) {
@@ -176,21 +137,22 @@ bool Agent::onUse(Agent& actor, ActionArg arg) {
 }
 
 std::vector<PartialObservationToken> Agent::obs_features() const {
-  const size_t num_tokens = this->inventory.get().size() + 5 + (glyph > 0 ? 1 : 0) + this->tag_ids.size();
+  if (!this->obs_encoder) {
+    throw std::runtime_error("Observation encoder not set for agent");
+  }
+  const size_t num_tokens = this->inventory.get().size() + 3 + (vibe > 0 ? 1 : 0) + this->tag_ids.size();
 
   std::vector<PartialObservationToken> features;
   features.reserve(num_tokens);
 
-  features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(type_id)});
   features.push_back({ObservationFeature::Group, static_cast<ObservationType>(group)});
   features.push_back({ObservationFeature::Frozen, static_cast<ObservationType>(frozen != 0 ? 1 : 0)});
-  features.push_back({ObservationFeature::Orientation, static_cast<ObservationType>(orientation)});
-  if (glyph != 0) features.push_back({ObservationFeature::Glyph, static_cast<ObservationType>(glyph)});
+  if (vibe != 0) features.push_back({ObservationFeature::Vibe, static_cast<ObservationType>(vibe)});
 
   for (const auto& [item, amount] : this->inventory.get()) {
     // inventory should only contain non-zero amounts
     assert(amount > 0);
-    auto item_observation_feature = static_cast<ObservationType>(InventoryFeatureOffset + item);
+    ObservationType item_observation_feature = this->obs_encoder->get_inventory_feature_id(item);
     features.push_back({item_observation_feature, static_cast<ObservationType>(amount)});
   }
 
@@ -200,14 +162,6 @@ std::vector<PartialObservationToken> Agent::obs_features() const {
   }
 
   return features;
-}
-
-unsigned int Agent::get_visitation_count(GridCoord r, GridCoord c) const {
-  if (visitation_grid.empty() || r >= static_cast<GridCoord>(visitation_grid.size()) ||
-      c >= static_cast<GridCoord>(visitation_grid[0].size())) {
-    return 0;  // Return 0 for out-of-bounds positions
-  }
-  return visitation_grid[r][c];
 }
 
 void Agent::update_inventory_diversity_stats(InventoryItem item, InventoryQuantity amount) {

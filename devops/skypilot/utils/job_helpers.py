@@ -9,11 +9,9 @@ from typing import cast
 import sky
 import sky.exceptions
 import sky.jobs
-import wandb
 from sky.server.common import RequestId, get_server_url
 
 import gitta as git
-from metta.app_backend.clients.base_client import get_machine_token
 from metta.common.util.git_repo import REPO_SLUG
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
 
@@ -46,7 +44,7 @@ def launch_task(task: sky.Task) -> str:
 def check_git_state(commit_hash: str) -> str | None:
     error_lines = []
 
-    has_changes, status_output = git.has_unstaged_changes()
+    has_changes, status_output = git.has_uncommitted_changes()
     if has_changes:
         error_lines.append(red("❌ You have uncommitted changes that won't be reflected in the cloud job."))
         error_lines.append("Options:")
@@ -75,9 +73,14 @@ def display_job_summary(
     git_ref: str | None = None,
     timeout_hours: float | None = None,
     task: sky.Task | None = None,
+    skip_github: bool = False,
     **kwargs,
 ) -> None:
-    """Display a summary of the job that will be launched."""
+    """Display a summary of the job that will be launched.
+
+    Args:
+        skip_github: If True, skip GitHub API calls (for testing/CI)
+    """
     divider_length = 60
     divider = blue("=" * divider_length)
 
@@ -147,13 +150,20 @@ def display_job_summary(
         first_line = commit_message.split("\n")[0]
         print(f"{bold('Commit Message:')} {yellow(first_line)}")
 
-    pr_info = git.get_matched_pr(commit_hash, REPO_SLUG)
-    if pr_info:
-        pr_number, pr_title = pr_info
-        first_line = pr_title.split("\n")[0]
-        print(f"{bold('PR:')} {yellow(f'#{pr_number} - {first_line}')}")
-    else:
-        print(f"{bold('PR:')} {red('Not an open PR HEAD')}")
+    # Only check GitHub if not skipped (avoids API calls in tests/CI)
+    if not skip_github:
+        try:
+            pr_info = git.get_matched_pr(commit_hash, REPO_SLUG)
+            if pr_info:
+                pr_number, pr_title = pr_info
+                first_line = pr_title.split("\n")[0]
+                print(f"{bold('PR:')} {yellow(f'#{pr_number} - {first_line}')}")
+            else:
+                print(f"{bold('PR:')} {red('Not an open PR HEAD')}")
+        except git.GitError:
+            # GitHub API unavailable (rate limit, network error, etc.)
+            # This is non-critical info, so we just skip it
+            pass
 
     print(blue("-" * divider_length))
     print(f"\n{bold('Command:')} {yellow(cmd)}")
@@ -175,11 +185,21 @@ def set_task_secrets(task: sky.Task) -> None:
     # Note: we can't mount these with `file_mounts` because of skypilot bug with service accounts.
     # Also, copying the entire `.netrc` is too much (it could contain other credentials).
 
+    # Lazy import to avoid loading wandb at CLI startup
+    import wandb
+
     wandb_password = netrc.netrc(os.path.expanduser("~/.netrc")).hosts["api.wandb.ai"][2]
     if not wandb_password:
         raise ValueError("Failed to get wandb password, run 'metta install' to fix")
 
-    observatory_token = get_machine_token("https://api.observatory.softmax-research.net")
+    # Lazy import - app_backend is optional and not available in CI
+    try:
+        from metta.app_backend.clients.base_client import get_machine_token
+
+        observatory_token = get_machine_token("https://api.observatory.softmax-research.net")
+    except ImportError:
+        observatory_token = None
+
     if not observatory_token:
         observatory_token = ""  # we don't have a token in CI
 
@@ -229,8 +249,8 @@ def check_job_statuses(job_ids: list[int]) -> dict[int, dict[str, str]]:
     job_data = {}
 
     try:
-        # Get job queue with all users' jobs
-        job_records = sky.get(sky.jobs.queue(refresh=True, all_users=True))
+        # Get job queue filtered to only the requested job IDs (more efficient than fetching all jobs)
+        job_records = sky.get(sky.jobs.queue(refresh=True, all_users=True, job_ids=job_ids))
 
         # Create a mapping for quick lookup
         jobs_map = {job["job_id"]: job for job in job_records}

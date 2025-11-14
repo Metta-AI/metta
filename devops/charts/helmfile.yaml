@@ -15,11 +15,11 @@ repositories:
     url: https://helm.datadoghq.com
 
 templates:
-  softmax-cronjob: &softmax_cronjob
-    chart: ./softmax-cronjob
+  cronjob: &cronjob_template
+    chart: ./cronjob
     version: 0.1.0
-    namespace: cronjobs
-    createNamespace: true
+    namespace: monitoring
+
 
 releases:
   ########## System configurations ##########
@@ -158,60 +158,66 @@ releases:
         args: ["create", "namespace", "home", "--dry-run=client"]
   # Note: Observatory is deployed automatically by Github Actions.
 
+  - name: library
+    chart: ./library
+    version: 0.1.0
+    namespace: library
 
-# Below are helm releases for cronjobs that run on a docker image with the `softmax` package installed.
+  ########## Cronjobs ##########
+  # Shared cronjob template for all periodic tasks
+  # All cronjobs get broad read-only cluster permissions (see cronjob/templates/rbac.yaml).
+  # We value simplicity over fine-grained security - some cronjobs get more access than needed.
+  #
+  # NOTE: Cronjobs are deployed automatically by GitHub Actions workflows, not manually via helmfile.
+  # The workflows override the image.tag values below with specific SHA-tagged images.
+  # The tag values here are only used if someone manually runs: helmfile apply -l name=<cronjob>
+  #
+  # To add a new cronjob:
+  #   1. Create Dockerfile.{name} in devops/charts/cronjob/
+  #   2. Add release entry below using <<: *cronjob_template
+  #   3. Create GitHub workflow in .github/workflows/deploy-{name}-cronjob.yml
+  #      - Set image_name: metta-cronjobs
+  #      - Set suffix: -{name} to create tags like latest-{name}
 
-  - name: softmax-cronjob-serviceaccount
-    <<: *softmax_cronjob
+  - name: pr-similarity-cache-cronjob
+    <<: *cronjob_template
     values:
-      - cronjobEnabled: false
-      - serviceAccount:
-          create: true
-          name: standard-service-account
-          annotations:
-            eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/standard-service-account
+      - schedule: "0 0 * * *"  # Daily at midnight
+      - image:
+          tag: latest-pr-similarity  # Workflow overrides with sha-abc123-pr-similarity
+      - datadog:
+          service: pr-similarity-cache-refresh
 
   - name: dashboard-cronjob
-    <<: *softmax_cronjob
+    <<: *cronjob_template
     values:
-      - command:
-          - uv
-          - run
-          - python
-          - -m
-          - softmax.dashboard.report
-          - --push
+      - schedule: "0 */6 * * *"  # Every 6 hours
+      - image:
+          tag: latest-dashboard  # Workflow overrides with sha-abc123-dashboard
+      - datadog:
+          service: dashboard-collector
 
-  - name: pr-similarity-cache-refresh-cronjob
-    <<: *softmax_cronjob
-    values:
-      - schedule: "0 0 * * *"  # Once daily at midnight
-      - command:
-          - uv
-          - run
-          - python
-          - -m
-          - softmax.pr_similarity.cache_refresh
-
-# To add a new cronjob, copy the example below and fill in the details.
-# It will be deployed within the production `cronjobs` namespace
-# Remove the `datadog.env` value if you don't want to tag pushes to datadog as development
-  # - name: example-dev-cronjob
-  #   <<: *softmax_cronjob
+  # Dev cronjob deployments (see devops/charts/CRONJOB_DEV_WORKFLOW.md for instructions)
+  # Uncomment the release you want to deploy for dev testing:
+  #
+  # - name: pr-similarity-cache-cronjob-dev
+  #   <<: *cronjob_template
   #   values:
-  #     - command:
-  #         - uv
-  #         - run
-  #         - python
-  #         - -m
-  #         - my.example.main
+  #     - schedule: "*/5 * * * *"  # Every 5 minutes for testing
   #     - datadog:
-  #         env: development
+  #         service: pr-similarity-cache-refresh-dev
+  #         env: dev
+  #
+  # - name: dashboard-cronjob-dev
+  #   <<: *cronjob_template
+  #   values:
+  #     - schedule: "*/5 * * * *"  # Every 5 minutes for testing
+  #     - datadog:
+  #         service: dashboard-collector-dev
+  #         env: dev
 
 # Helpful commands:
 #   Deploy cronjob definition: cd devops/charts && helmfile -l name=<release-name> apply
-#   Inspect cronjob definition: kubectl get cronjobs -n cronjobs
-#   Trigger a run of cronjob off-schedule: kubectl -n cronjobs create job <custom-name> --from=cronjob/<release-name>
-#   Inspect runs/logs: kubectl get jobs -n cronjobs && kubectl logs -n cronjobs job/<job-name>
-
-# If you need to expand permissions, update the `standard-service-account-access` IAM policy in `tf/eks/standard_service_account.tf`.
+#   Inspect cronjob definition: kubectl get cronjobs -n monitoring
+#   Trigger a run of cronjob off-schedule: kubectl -n monitoring create job <custom-name> --from=cronjob/<release-name>-cronjob
+#   Inspect runs/logs: kubectl get jobs -n monitoring && kubectl logs -n monitoring job/<job-name>

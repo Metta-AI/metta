@@ -1,10 +1,5 @@
-import numpy as np
-
 from mettagrid.config.mettagrid_config import MettaGridConfig
-from mettagrid.core import MettaGridCore
-from mettagrid.mettagrid_c import dtype_actions
-from mettagrid.test_support.actions import action_index
-from mettagrid.test_support.orientation import Orientation
+from mettagrid.simulator import Simulation
 
 
 class TestAgentResourceSharing:
@@ -30,11 +25,10 @@ class TestAgentResourceSharing:
         cfg.game.actions.move.enabled = True
         cfg.game.actions.noop.enabled = True
 
-        env = MettaGridCore(cfg)
-        obs, info = env.reset()
+        sim = Simulation(cfg)
 
         # Get initial state
-        grid_objects = env.grid_objects()
+        grid_objects = sim.grid_objects()
         agents = []
         for _obj_id, obj in grid_objects.items():
             if "agent_id" in obj:
@@ -43,9 +37,9 @@ class TestAgentResourceSharing:
         assert len(agents) == 2, "Should find 2 agents"
 
         # Check initial inventory
-        energy_idx = env.resource_names.index("energy")
-        water_idx = env.resource_names.index("water")
-        food_idx = env.resource_names.index("food")
+        energy_idx = sim.resource_names.index("energy")
+        water_idx = sim.resource_names.index("water")
+        food_idx = sim.resource_names.index("food")
 
         agent0 = agents[0]
         agent1 = agents[1]
@@ -61,14 +55,13 @@ class TestAgentResourceSharing:
         # Have agent 0 move onto agent 1 to trigger onUse
         # Agent 0 is at position (1,1), Agent 1 is at position (1,2)
         # So agent 0 needs to move to the right (East)
-        move_idx = action_index(env, "move", Orientation.EAST)
-        noop_idx = action_index(env, "noop")
-        actions = np.array([move_idx, noop_idx], dtype=dtype_actions)
+        sim.agent(0).set_action("move_east")
+        sim.agent(1).set_action("noop")
 
-        obs, rewards, terminals, truncations, info = env.step(actions)
+        sim.step()
 
         # Check inventory after sharing
-        grid_objects_after = env.grid_objects()
+        grid_objects_after = sim.grid_objects()
         agents_after = []
         for _obj_id, obj in grid_objects_after.items():
             if "agent_id" in obj:

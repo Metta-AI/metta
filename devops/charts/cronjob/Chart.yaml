@@ -1,0 +1,4 @@
+apiVersion: v2
+name: cronjob
+version: 0.1.0
+description: Shared CronJob template for periodic tasks

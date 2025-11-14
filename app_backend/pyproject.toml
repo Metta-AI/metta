@@ -22,7 +22,7 @@ dependencies = [
   "pytest-asyncio>=1.0.0",
   "python-multipart>=0.0.20",
   "httpx>=0.28.1",
-  "wandb>=0.19.11",
+  "wandb>=0.22.3",
   "metta-common",
   "gitta",
 ]
@@ -39,10 +39,10 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+namespaces = true
 include = ["metta.app_backend"]
 
 [tool.setuptools.package-data]
-"metta" = ["__init__.py"]
 "metta.app_backend" = ["py.typed"]
 
 [tool.pytest.ini_options]

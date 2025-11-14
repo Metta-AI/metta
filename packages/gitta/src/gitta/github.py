@@ -126,8 +126,10 @@ def get_matched_pr(commit_hash: str, repo: str) -> tuple[int, str] | None:
         resp = httpx.get(url, headers=headers, timeout=5.0)
         resp.raise_for_status()
     except httpx.HTTPStatusError as e:
-        if e.response.status_code == 404:
-            # Commit not in repo or no PRs -> treat as "no match"
+        if e.response.status_code in (404, 422):
+            # 404: Commit not in repo or no PRs
+            # 422: Commit SHA doesn't exist on GitHub (e.g., local-only commit)
+            # Both cases -> treat as "no match"
             result: tuple[int, str] | None = None
         else:
             raise GitError(f"GitHub API error ({e.response.status_code}): {e.response.text}") from e
@@ -334,7 +336,7 @@ def get_commits(
                 error_msg = f"Failed to get commits: {e}"
                 if hasattr(e, "response") and e.response is not None:
                     error_msg += f" - Status: {e.response.status_code}"
-                logger.error(error_msg)
+                logger.error(error_msg, exc_info=True)
                 raise GitError(error_msg) from e
 
             commits = resp.json() or []
@@ -392,7 +394,7 @@ def get_workflow_runs(
             error_msg = f"Failed to get workflow runs: {e}"
             if hasattr(e, "response") and e.response is not None:
                 error_msg += f" - Status: {e.response.status_code}"
-            logger.error(error_msg)
+            logger.error(error_msg, exc_info=True)
             raise GitError(error_msg) from e
 
         return (resp.json() or {}).get("workflow_runs", [])
@@ -431,7 +433,7 @@ def get_workflow_run_jobs(
             error_msg = f"Failed to get workflow run jobs: {e}"
             if hasattr(e, "response") and e.response is not None:
                 error_msg += f" - Status: {e.response.status_code}"
-            logger.error(error_msg)
+            logger.error(error_msg, exc_info=True)
             raise GitError(error_msg) from e
 
         return (resp.json() or {}).get("jobs", [])

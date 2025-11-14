@@ -78,7 +78,7 @@ if __name__ == "__main__":
         )
 
     except Exception as e:
-        logger.error(f"SkyPilot queue latency: N/A (task_id: {task_id}, error: {e})")
+        logger.error(f"SkyPilot queue latency: N/A (task_id: {task_id}, error: {e})", exc_info=True)
         metrics.update(
             {
                 "skypilot/latency_calculated": False,

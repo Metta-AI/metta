@@ -4,17 +4,18 @@ Demonstrates the new pattern for creating environments as shown in experiments/a
 """
 
 import pytest
+from pydantic import ValidationError
 
 import mettagrid.builder.envs as eb
-from mettagrid import MettaGridEnv
 from mettagrid.builder import building
 from mettagrid.config.mettagrid_config import (
-    ActionConfig,
     ActionsConfig,
     AgentConfig,
     AgentRewards,
     GameConfig,
     MettaGridConfig,
+    MoveActionConfig,
+    NoopActionConfig,
     WallConfig,
 )
 from mettagrid.map_builder.random import RandomMapBuilder
@@ -23,7 +24,7 @@ from mettagrid.map_builder.random import RandomMapBuilder
 class TestProgrammaticEnvironments:
     """Test creating environments programmatically without config files."""
 
-    def test_create_simple_environment(self):
+    def test_create_simple_config(self):
         """Test creating a simple environment with basic components."""
         config = MettaGridConfig(
             label="test_simple",
@@ -34,8 +35,8 @@ class TestProgrammaticEnvironments:
                     "wall": building.wall,
                 },
                 actions=ActionsConfig(
-                    move=ActionConfig(),
-                    noop=ActionConfig(),
+                    move=MoveActionConfig(),
+                    noop=NoopActionConfig(),
                 ),
                 agent=AgentConfig(
                     rewards=AgentRewards(
@@ -60,7 +61,7 @@ class TestProgrammaticEnvironments:
         assert "wall" in config.game.objects
         assert config.game.actions.move is not None
 
-    def test_create_arena_like_environment(self):
+    def test_create_arena_like_config(self):
         """Test creating an arena-style environment similar to experiments/arena.py."""
 
         # Use the make_arena function from the envs module
@@ -76,7 +77,7 @@ class TestProgrammaticEnvironments:
         assert combat_env.label == "arena.combat"
         assert combat_env.game.actions.attack.consumed_resources["laser"] == 1
 
-    def test_create_navigation_environment(self):
+    def test_create_navigation_config(self):
         """Test creating a navigation environment."""
 
         nav_env = eb.make_navigation(num_agents=4)
@@ -85,9 +86,8 @@ class TestProgrammaticEnvironments:
         assert "altar" in nav_env.game.objects
         assert "wall" in nav_env.game.objects
         assert nav_env.game.actions.move is not None
-        assert nav_env.game.actions.rotate is not None
 
-    def test_environment_with_custom_rewards(self):
+    def test_config_with_custom_rewards(self):
         """Test creating an environment with custom reward configuration."""
         config = MettaGridConfig(
             label="custom_rewards",
@@ -98,8 +98,8 @@ class TestProgrammaticEnvironments:
                     "altar": building.assembler_altar,
                 },
                 actions=ActionsConfig(
-                    move=ActionConfig(),
-                    noop=ActionConfig(),
+                    move=MoveActionConfig(),
+                    noop=NoopActionConfig(),
                 ),
                 agent=AgentConfig(
                     rewards=AgentRewards(
@@ -137,7 +137,7 @@ class TestProgrammaticEnvironments:
         assert limits["ore_red"] == 10
         assert limits["battery_red"] == 5
 
-    def test_environment_with_teams(self):
+    def test_config_with_teams(self):
         """Test creating an environment with agent teams."""
         # Create agents with different team configurations
         agents = []
@@ -174,7 +174,8 @@ class TestProgrammaticEnvironments:
                     "wall": building.wall,
                 },
                 actions=ActionsConfig(
-                    move=ActionConfig(),
+                    move=MoveActionConfig(),
+                    noop=NoopActionConfig(),
                 ),
                 agent=AgentConfig(),
                 agents=agents,
@@ -206,68 +207,24 @@ class TestProgrammaticEnvironments:
         # assert set(cpp_config.objects["agent.team_a"]["resource_rewards"].values()) == {0.5, 0.8, 2}
         # assert set(cpp_config.objects["agent.team_b"]["resource_rewards"].values()) == {0.5, 0.8, 1}
 
-    @pytest.mark.slow
-    def test_environment_with_mettagrid_integration(self):
-        """Test that programmatic environments work with MettaGridEnv."""
 
-        # Create environment config
-        config = eb.make_navigation(num_agents=2)
+class TestTypeIdentityBreakingChange:
+    """Tests reflecting the breaking removal of type_id from Python configs."""
 
-        # Initialize the actual environment
-        env = MettaGridEnv(config)
+    def test_passing_type_id_raises_validation_error(self):
+        with pytest.raises(ValidationError):
+            # Pydantic should reject unknown field 'type_id'
+            _ = WallConfig(type_id=123)  # type: ignore[arg-type]
 
-        try:
-            # Reset and verify
-            obs, info = env.reset()
-            assert obs is not None
-            assert obs.shape[0] == 2  # 2 agents
+    def test_cpp_config_builds_without_type_ids(self):
+        # Building C++ config should succeed with name-only objects
+        from mettagrid.config.mettagrid_c_config import convert_to_cpp_game_config
 
-            # Verify action space
-            assert env.action_space is not None
-
-            # Take a random action
-            action = env.action_space.sample()
-            obs, reward, done, truncated, info = env.step(action)
-
-            assert obs is not None
-            assert reward is not None
-            assert done is not None
-            assert truncated is not None
-
-        finally:
-            env.close()
-
-
-class TestTypeIdAllocation:
-    """Unit tests for automatic type_id resolution."""
-
-    def test_auto_assign_type_ids_with_mixed_explicit_and_implicit_values(self):
         objects = {
-            "apple": WallConfig(type_id=2),
-            "banana": WallConfig(),
-            "carrot": WallConfig(type_id=4),
-            "date": WallConfig(),
-            "elderberry": WallConfig(),
+            "apple": WallConfig(name="apple"),
+            "banana": WallConfig(name="banana"),
+            "carrot": WallConfig(name="carrot"),
         }
-
-        config = GameConfig(objects=objects)
-
-        assert config.objects["apple"].type_id == 2
-        assert config.objects["banana"].type_id == 1
-        assert config.objects["carrot"].type_id == 4
-        assert config.objects["date"].type_id == 3
-        assert config.objects["elderberry"].type_id == 5
-
-        assert config.resolved_type_ids["apple"] == 2
-        assert config.resolved_type_ids["banana"] == 1
-        assert config.resolved_type_ids["carrot"] == 4
-        assert config.resolved_type_ids["date"] == 3
-        assert config.resolved_type_ids["elderberry"] == 5
-
-    def test_auto_assign_type_ids_raises_when_pool_exhausted(self):
-        objects = {f"object_{index:03d}": WallConfig() for index in range(256)}
-
-        with pytest.raises(ValueError) as err:
-            GameConfig(objects=objects)
-
-        assert "auto-generated type_id exceeds uint8 range" in str(err.value)
+        cfg = GameConfig(objects=objects)
+        cpp_cfg = convert_to_cpp_game_config(cfg)
+        assert cpp_cfg is not None

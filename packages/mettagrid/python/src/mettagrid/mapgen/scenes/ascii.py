@@ -11,12 +11,12 @@ class Ascii(Scene[AsciiConfig]):
     def post_init(self):
         ascii_config = AsciiMapBuilder.Config.from_uri(self.config.uri)
         self.ascii_data = "\n".join("".join(line) for line in ascii_config.map_data)
-        self.char_to_name_map = ascii_config.char_to_name_map
+        self.char_to_map_name = ascii_config.char_to_map_name
 
     def get_children(self):
         return [
             ChildrenAction(
-                scene=InlineAscii.Config(data=self.ascii_data, char_to_name=self.char_to_name_map),
+                scene=InlineAscii.Config(data=self.ascii_data, char_to_name=self.char_to_map_name),
                 where="full",
             ),
         ]

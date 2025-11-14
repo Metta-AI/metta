@@ -11,6 +11,7 @@ from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.agent.util.torch_backends import build_sdpa_context
 from metta.app_backend.clients.stats_client import StatsClient
+from metta.cogworks.curriculum import Curriculum
 from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger, init_logging
@@ -44,6 +45,7 @@ from metta.rl.training import (
     WandbAborterConfig,
     WandbLogger,
 )
+from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import (
     auto_run_name,
     auto_stats_server_uri,
@@ -76,6 +78,7 @@ class TrainTool(Tool):
 
     map_preview_uri: str | None = None
     disable_macbook_optimize: bool = False
+    sandbox: bool = False
 
     @model_validator(mode="after")
     def validate_fields(self) -> "TrainTool":
@@ -105,6 +108,10 @@ class TrainTool(Tool):
         if platform.system() == "Darwin" and not self.disable_macbook_optimize:
             self._minimize_config_for_debugging()  # this overrides many config settings for local testings
 
+        if self.sandbox:
+            self._apply_sandbox_config()
+            logger.info("Running in sandbox mode (fast validation: 1M steps, epoch-1 checkpoints/evals)")
+
         if self.evaluator and self.evaluator.evaluate_local:
             # suppress NCCL watchdog timeouts while ranks wait for master to complete evals
             logger.warning("Local policy evaluation can be inefficient - consider switching to remote evaluation!")
@@ -112,6 +119,13 @@ class TrainTool(Tool):
 
         distributed_helper = DistributedHelper(self.system)
         distributed_helper.scale_batch_config(self.trainer, self.training_env)
+
+        if self.trainer.behavior_cloning.policy_uri is not None:
+            self.trainer.losses.supervisor.enabled = True
+            self.trainer.losses.ppo.enabled = False
+            self.training_env.supervisor.policy = self.trainer.behavior_cloning.policy_uri
+            self.training_env.supervisor.policy_data_path = self.trainer.behavior_cloning.policy_data_uri
+            self.trainer.losses.supervisor.student_led = self.trainer.behavior_cloning.student_led
 
         self.training_env.seed += distributed_helper.get_rank()
         env = VectorizedTrainingEnvironment(self.training_env)
@@ -183,7 +197,7 @@ class TrainTool(Tool):
             policy_architecture=self.policy_architecture,
         )
         policy = policy_checkpointer.load_or_create_policy(
-            env.game_rules,
+            env.policy_env_info,
             policy_uri=self.initial_policy_uri,
         )
         return policy_checkpointer, policy
@@ -386,3 +400,34 @@ class TrainTool(Tool):
         self.checkpointer.epoch_interval = min(self.checkpointer.epoch_interval, 10)
         self.uploader.epoch_interval = min(self.uploader.epoch_interval, 10)
         self.evaluator.epoch_interval = min(self.evaluator.epoch_interval, 10)
+
+    def _apply_sandbox_config(self) -> None:
+        """Apply sandbox mode configuration for fast validation testing."""
+        # Reduce total timesteps for very quick testing (1M instead of 50B)
+        self.trainer.total_timesteps = 1_000_000
+
+        # Save checkpoint after first epoch
+        self.checkpointer.epoch_interval = 1
+
+        # Run evaluation after first epoch with short episodes for fast validation
+        self.evaluator.epoch_interval = 1
+        self.evaluator.allow_eval_without_stats = True
+
+        # Create a short evaluation environment (100 steps instead of 1000+)
+        # This makes evaluations complete in ~10-20 seconds instead of minutes
+        curriculum = Curriculum(self.training_env.curriculum)
+        eval_env = curriculum.get_task().get_env_cfg().model_copy(deep=True)
+        eval_env.game.max_steps = 100
+
+        self.evaluator.training_replay_envs = [
+            SimulationConfig(
+                suite="training",
+                name="sandbox_validation",
+                env=eval_env,
+            )
+        ]
+        # Clear any additional simulations - only run the quick training validation
+        self.evaluator.simulations = []
+
+        # Upload checkpoints more frequently in sandbox mode
+        self.uploader.epoch_interval = 1

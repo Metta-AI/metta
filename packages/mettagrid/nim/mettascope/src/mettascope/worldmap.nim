@@ -1,11 +1,13 @@
 import
-  std/[math, os, strutils, tables, strformat, random],
+  std/[math, os, strutils, tables, strformat, random, times],
   boxy, vmath, windy, fidget2/[hybridrender, common],
   common, panels, actions, utils, replays, objectinfo,
   pathfinding, tilemap, pixelator
 
 const TS = 1.0 / 64.0 # Tile scale.
 const TILE_SIZE = 64
+
+proc centerAt*(panel: Panel, entity: Entity)
 
 var
   terrainMap*: TileMap
@@ -210,6 +212,12 @@ proc useSelections*(panel: Panel) =
   if window.buttonPressed[MouseLeft] and not modifierDown:
     mouseDownPos = window.mousePos.vec2
 
+  # Focus agent on double-click.
+  if window.buttonPressed[DoubleClick] and not modifierDown:
+    settings.lockFocus = not settings.lockFocus
+    if settings.lockFocus and selection != nil:
+      centerAt(panel, selection)
+
   # Only select on mouse up, and only if we didn't drag much.
   if window.buttonReleased[MouseLeft] and not modifierDown:
     let mouseDragDistance = (window.mousePos.vec2 - mouseDownPos).length
@@ -309,15 +317,16 @@ proc drawObjects*() =
         pos * TILE_SIZE
       )
     else:
-      px.drawSprite(
-        replay.typeImages.getOrDefault(thing.typeName, "objects/unknown"),
-        pos * TILE_SIZE,
-      )
+      let spriteName = replay.typeImages.getOrDefault(thing.typeName, "objects/unknown")
       if thing.isClipped.at:
-        let image = thing.typeName & ".clipped"
         px.drawSprite(
-          image,
+          spriteName & ".clipped",
           pos * TILE_SIZE
+        )
+      else:
+        px.drawSprite(
+          spriteName,
+          pos * TILE_SIZE,
         )
 
 proc drawVisualRanges*(alpha = 0.5) =
@@ -723,8 +732,16 @@ proc drawWorldMini*() =
 
 proc centerAt*(panel: Panel, entity: Entity) =
   ## Center the map on the given entity.
-  ## TODO: Implement this.
-  discard
+  if entity.isNil:
+    return
+  let location = entity.location.at(step).xy
+  let rectW = panel.rect.w.float32
+  let rectH = panel.rect.h.float32
+  if rectW <= 0 or rectH <= 0:
+    return
+  let z = panel.zoom * panel.zoom
+  panel.pos.x = rectW / 2.0f - location.x.float32 * z
+  panel.pos.y = rectH / 2.0f - location.y.float32 * z
 
 proc drawWorldMain*() =
   ## Draw the world map.
@@ -776,15 +793,21 @@ proc fitFullMap*(panel: Panel) =
 
 proc drawWorldMap*(panel: Panel) =
   ## Draw the world map.
+
+  if replay == nil or replay.mapSize[0] == 0 or replay.mapSize[1] == 0:
+    # Replay has not been loaded yet.
+    return
+
+  ## Draw the world map.
+  if settings.lockFocus:
+    centerAt(panel, selection)
+
   panel.beginPanAndZoom()
 
   if panel.hasMouse:
     useSelections(panel)
 
   agentControls()
-
-  if followSelection:
-    centerAt(panel, selection)
 
   if panel.zoom < 3:
     drawWorldMini()

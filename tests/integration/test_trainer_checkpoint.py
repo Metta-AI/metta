@@ -203,7 +203,11 @@ class DummyPolicy(Policy, nn.Module):
     """Lightweight torch module used to populate fake checkpoints quickly."""
 
     def __init__(self, epoch: int) -> None:
-        super().__init__()
+        from mettagrid.config.mettagrid_config import MettaGridConfig
+        from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+
+        policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
+        super().__init__(policy_env_info)
         self.register_buffer("epoch_tensor", torch.tensor(epoch, dtype=torch.float32))
 
     def forward(self, td) -> None:

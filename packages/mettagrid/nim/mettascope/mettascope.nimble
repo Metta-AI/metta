@@ -14,10 +14,15 @@ task bindings, "Generate bindings":
 
   proc compile(libName: string) =
     exec "nim c -d:release --app:lib -d:fidgetUseCached=true --tlsEmulation:off --out:" & libName & " --outdir:bindings/generated bindings/bindings.nim"
+    # Post-process generated Python file: fix cstring -> c_char_p for Python ctypes compatibility
+    let pyFile = "bindings/generated/mettascope.py"
+    var content = readFile(pyFile)
+    content = content.replace("cstring)", "c_char_p)")
+    writeFile(pyFile, content)
 
   when defined(windows):
-    compile "mettascope2.dll"
+    compile "mettascope.dll"
   elif defined(macosx):
-    compile "libmettascope2.dylib"
+    compile "libmettascope.dylib"
   else:
-    compile "libmettascope2.so"
+    compile "libmettascope.so"

@@ -44,9 +44,9 @@ class Experience:
         spec = experience_spec.expand(self.segments, self.bptt_horizon).to(self.device)
         self.buffer = spec.zero()
 
-        # Episode tracking
-        self.ep_lengths = torch.zeros(total_agents, device=self.device, dtype=torch.int32)
-        self.ep_indices = torch.arange(total_agents, device=self.device, dtype=torch.int32) % self.segments
+        # Row-aligned tracking (per-agent row slot id and position within row)
+        self.t_in_row = torch.zeros(total_agents, device=self.device, dtype=torch.int32)
+        self.row_slot_ids = torch.arange(total_agents, device=self.device, dtype=torch.int32) % self.segments
         self.free_idx = total_agents % self.segments
 
         # Minibatch configuration
@@ -92,21 +92,21 @@ class Experience:
         assert isinstance(env_id, slice), (
             f"TypeError: env_id expected to be a slice for segmented storage. Got {type(env_id).__name__} instead."
         )
-        episode_lengths = self.ep_lengths[env_id.start].item()
-        indices = self.ep_indices[env_id]
+        t_in_row_val = self.t_in_row[env_id.start].item()
+        row_ids = self.row_slot_ids[env_id]
 
-        self.buffer.update_at_(data_td.select(*self.buffer.keys(include_nested=True)), (indices, episode_lengths))
+        self.buffer.update_at_(data_td.select(*self.buffer.keys(include_nested=True)), (row_ids, t_in_row_val))
 
-        self.ep_lengths[env_id] += 1
+        self.t_in_row[env_id] += 1
 
-        if episode_lengths + 1 >= self.bptt_horizon:
+        if t_in_row_val + 1 >= self.bptt_horizon:
             self._reset_completed_episodes(env_id)
 
     def _reset_completed_episodes(self, env_id) -> None:
         """Reset episode tracking for completed episodes."""
         num_full = env_id.stop - env_id.start
-        self.ep_indices[env_id] = (self.free_idx + self._range_tensor[:num_full]) % self.segments
-        self.ep_lengths[env_id] = 0
+        self.row_slot_ids[env_id] = (self.free_idx + self._range_tensor[:num_full]) % self.segments
+        self.t_in_row[env_id] = 0
         self.free_idx = (self.free_idx + num_full) % self.segments
         self.full_rows += num_full
 
@@ -114,8 +114,8 @@ class Experience:
         """Reset tracking variables for a new rollout."""
         self.full_rows = 0
         self.free_idx = self.total_agents % self.segments
-        self.ep_indices = self._range_tensor % self.segments
-        self.ep_lengths.zero_()
+        self.row_slot_ids = self._range_tensor % self.segments
+        self.t_in_row.zero_()
 
     def update(self, indices: Tensor, data_td: TensorDict) -> None:
         """Update buffer with new data for given indices."""
@@ -130,7 +130,6 @@ class Experience:
         """Get mean values of all tracked buffers."""
         stats = {
             "rewards": self.buffer["rewards"].mean().item(),
-            "act_log_prob": self.buffer["act_log_prob"].mean().item(),
             "dones": self.buffer["dones"].mean().item(),
             "truncateds": self.buffer["truncateds"].mean().item(),
         }
@@ -139,13 +138,15 @@ class Experience:
             stats["values"] = self.buffer["values"].mean().item()
         if "ratio" in self.buffer.keys():
             stats["ratio"] = self.buffer["ratio"].mean().item()
+        if "act_log_prob" in self.buffer.keys():
+            stats["act_log_prob"] = self.buffer["act_log_prob"].mean().item()
 
         # Add episode length stats for active episodes
-        active_episodes = self.ep_lengths > 0
+        active_episodes = self.t_in_row > 0
         if active_episodes.any():
-            stats["ep_lengths"] = self.ep_lengths[active_episodes].float().mean().item()
+            stats["t_in_row"] = self.t_in_row[active_episodes].float().mean().item()
         else:
-            stats["ep_lengths"] = 0.0
+            stats["t_in_row"] = 0.0
 
         # Add action statistics based on action space type
         if "actions" in self.buffer.keys():
