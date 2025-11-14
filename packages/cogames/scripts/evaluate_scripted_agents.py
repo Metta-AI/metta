@@ -42,7 +42,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
-from cogames.cogs_vs_clips.mission import Mission, NumCogsVariant
+from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVariant
 from cogames.cogs_vs_clips.variants import VARIANTS
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import PolicySpec
@@ -51,6 +51,28 @@ from mettagrid.simulator.rollout import Rollout
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
+
+
+def _ensure_vibe_supports_gear(env_cfg) -> None:
+    """
+    Ensure the change_vibe action space is large enough to include the 'gear' vibe
+    if any assembler protocol uses it.
+    """
+    try:
+        assembler = env_cfg.game.objects.get("assembler")
+        uses_gear = False
+        if assembler is not None and hasattr(assembler, "protocols"):
+            for proto in assembler.protocols:
+                if any(v == "gear" for v in getattr(proto, "vibes", [])):
+                    uses_gear = True
+                    break
+        if uses_gear:
+            change_vibe = env_cfg.game.actions.change_vibe
+            if getattr(change_vibe, "number_of_vibes", 0) < 8:
+                change_vibe.number_of_vibes = 8
+    except Exception:
+        # Best-effort; if anything fails, leave as-is.
+        pass
 
 
 @dataclass
@@ -170,18 +192,20 @@ def run_evaluation(
 
                 try:
                     # Create mission and apply variant if specified
-                    mission_variants = [NumCogsVariant(num_cogs=num_cogs)]
+                    mission_variants: list[MissionVariant] = [NumCogsVariant(num_cogs=num_cogs)]
                     if variant:
                         mission_variants.insert(0, variant)
 
                     mission = base_mission.with_variants(mission_variants)
 
                     env_config = mission.make_env()
+                    # Ensure 'gear' vibe is representable in the action space when required.
+                    _ensure_vibe_supports_gear(env_config)
                     # Only override max_steps if variant doesn't specify it
-                    has_override = (
+                    has_override = bool(
                         (variant is not None)
                         and hasattr(variant, "max_steps_override")
-                        and (variant.max_steps_override is not None)
+                        and variant.max_steps_override is not None
                     )
                     if not has_override:
                         env_config.game.max_steps = max_steps
@@ -444,7 +468,7 @@ def _plot_by_agent_total(aggregated, agents, output_path):
         agent_rewards[vals["agent"]].append(vals["avg_total_reward"])
 
     avg_rewards = [np.mean(agent_rewards[agent]) for agent in agents]
-    colors = plt.cm.Set2(range(len(agents)))
+    colors = plt.get_cmap("Set2")(range(len(agents)))
 
     bars = ax.bar(agents, avg_rewards, color=colors, alpha=0.8, edgecolor="black")
     ax.set_ylabel("Total Reward", fontsize=12, fontweight="bold")
@@ -934,7 +958,7 @@ def main():
     )
     parser.add_argument(
         "--mission-set",
-        choices=["eval_missions", "integrated_evals", "diagnostic_evals", "all"],
+        choices=["eval_missions", "integrated_evals", "diagnostic_evals", "spanning_evals", "all"],
         default="all",
         help=(
             "Mission set selector. "
@@ -955,10 +979,11 @@ def main():
     mission_set = args.mission_set
 
     if mission_set == "all":
-        # Load all three mission sets
+        # Load all mission sets
         missions_list = []
         missions_list.extend(load_eval_missions("cogames.cogs_vs_clips.evals.eval_missions"))
         missions_list.extend(load_eval_missions("cogames.cogs_vs_clips.evals.integrated_evals"))
+        missions_list.extend(load_eval_missions("cogames.cogs_vs_clips.evals.spanning_evals"))
         missions_list.extend([mission_cls() for mission_cls in DIAGNOSTIC_EVALS])  # type: ignore[call-arg]
     elif mission_set == "diagnostic_evals":
         missions_list = [mission_cls() for mission_cls in DIAGNOSTIC_EVALS]  # type: ignore[call-arg]
@@ -966,6 +991,8 @@ def main():
         missions_list = load_eval_missions("cogames.cogs_vs_clips.evals.eval_missions")
     elif mission_set == "integrated_evals":
         missions_list = load_eval_missions("cogames.cogs_vs_clips.evals.integrated_evals")
+    elif mission_set == "spanning_evals":
+        missions_list = load_eval_missions("cogames.cogs_vs_clips.evals.spanning_evals")
     else:
         raise ValueError(f"Unknown mission set: {mission_set}")
 
