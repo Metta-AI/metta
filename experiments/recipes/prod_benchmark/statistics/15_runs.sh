@@ -75,7 +75,7 @@ fi
 RECIPE_SLUG="${RECIPE//./_}"
 RECIPE_SLUG="${RECIPE_SLUG//recipes/}"
 RECIPE_SLUG="$(printf '%s' "$RECIPE_SLUG" | tr -s '_')"
-BASE_RUN_NAME="benchmark_${RECIPE_SLUG}_$(date +%Y%m%d)"
+BASE_RUN_NAME="benchmark_${RECIPE_SLUG}_$(date +%Y%m%d)_v1"
 NUM_GPUS=4
 
 if [[ -n "$UNIFORM_SEED" ]]; then
