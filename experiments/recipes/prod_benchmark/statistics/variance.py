@@ -8,9 +8,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import math
-import os
-import re
 import sys
 from pathlib import Path
 
@@ -22,39 +19,12 @@ repo_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(repo_root / "common" / "src"))
 sys.path.insert(0, str(repo_root / "packages" / "mettagrid" / "python" / "src"))
 
-from experiments.recipes.prod_benchmark.statistics.analysis import (  # noqa: E402
+from experiments.recipes.prod_benchmark.statistics.analysis import (
     FetchSpec,
     SummarySpec,
     _fetch_series,
     _reduce_summary,
 )
-
-
-def _infer_run_label(run_ids: list[str]) -> str:
-    """Create a readable label from the provided run IDs."""
-
-    if not run_ids:
-        return ""
-
-    first = run_ids[0]
-    if ".seed" in first:
-        candidate = first.split(".seed", 1)[0]
-        if all(run_id.startswith(candidate) for run_id in run_ids):
-            return candidate
-
-    prefix = os.path.commonprefix(run_ids)
-    prefix = prefix.rstrip("._- ")
-    return prefix or first
-
-
-def _slugify(text: str) -> str:
-    """Return a filesystem-friendly slug."""
-
-    if not text:
-        return "variance"
-    slug = re.sub(r"[^A-Za-z0-9._-]+", "_", text.strip())
-    slug = re.sub(r"_+", "_", slug)
-    return slug.strip("._-") or "variance"
 
 
 def compute_variance_curve(
@@ -63,10 +33,7 @@ def compute_variance_curve(
     percent: float = 0.25,
     samples: int = 2000,
     min_timesteps: float | None = None,
-    bootstrap_iterations: int = 1000,
-    ci_level: float = 0.95,
-    seed: int | None = None,
-) -> tuple[list[int], list[float], list[tuple[float, float]], list[str]]:
+) -> tuple[list[int], list[float], list[str]]:
     """Compute coefficient of variation as a function of sample size.
 
     Args:
@@ -77,12 +44,7 @@ def compute_variance_curve(
         min_timesteps: Minimum timesteps required for a run to be included (default: None)
 
     Returns:
-        (
-            sample_sizes,
-            mean_cv_values,
-            ci_bounds,
-            included_runs,
-        ): Sample sizes, bootstrapped mean CV values, CI bounds, and included run IDs
+        (sample_sizes, cv_values, included_runs): Sample sizes, CV values, and list of included run IDs
     """
     # Fetch and compute AUC for each run using percentage-based window
     fetch_spec = FetchSpec(samples=samples)
@@ -122,130 +84,74 @@ def compute_variance_curve(
     if len(auc_values) < 2:
         raise ValueError("Need at least 2 successful runs for variance analysis")
 
-    if bootstrap_iterations < 1:
-        raise ValueError("bootstrap_iterations must be >= 1")
-
-    if not 0 < ci_level < 1:
-        raise ValueError("ci_level must be between 0 and 1")
-
     print(f"\nSuccessfully included {len(auc_values)} runs in analysis")
     if excluded_runs:
         print(f"Excluded {len(excluded_runs)} runs that didn't meet criteria")
 
-    rng = np.random.default_rng(seed)
+    # Compute CV for each sample size
     sample_sizes = list(range(1, len(auc_values) + 1))
-    mean_cv_values: list[float] = []
-    ci_bounds: list[tuple[float, float]] = []
-
-    lower_quantile = (1 - ci_level) / 2
-    upper_quantile = 1 - lower_quantile
+    cv_values = []
 
     for n in sample_sizes:
-        if n == 1:
-            mean_cv_values.append(float("inf"))
-            ci_bounds.append((float("inf"), float("inf")))
-            continue
-
-        bootstrap_cvs = []
-        for _ in range(bootstrap_iterations):
-            subset = rng.choice(auc_values, size=n, replace=True)
-            mean_val = float(np.mean(subset))
-            std_val = float(np.std(subset, ddof=1))
+        subset = auc_values[:n]
+        if len(subset) > 1:
+            mean_val = np.mean(subset)
+            std_val = np.std(subset, ddof=1)
             if abs(mean_val) > 1e-10:
                 cv = abs(std_val / mean_val)
             else:
                 cv = float("inf")
-            bootstrap_cvs.append(cv)
+            cv_values.append(cv)
+        else:
+            cv_values.append(float("inf"))
 
-        mean_cv = float(np.mean(bootstrap_cvs))
-        lower_bound = float(np.quantile(bootstrap_cvs, lower_quantile))
-        upper_bound = float(np.quantile(bootstrap_cvs, upper_quantile))
-        mean_cv_values.append(mean_cv)
-        ci_bounds.append((lower_bound, upper_bound))
-
-    return sample_sizes, mean_cv_values, ci_bounds, included_runs
-
-
-def _find_band_stabilization(
-    ci_bounds: list[tuple[float, float]], threshold: float
-) -> tuple[int | None, float | None]:
-    """Return the sample size where CI band width change stabilizes."""
-
-    for idx in range(1, len(ci_bounds)):
-        prev_lower, prev_upper = ci_bounds[idx - 1]
-        curr_lower, curr_upper = ci_bounds[idx]
-
-        if not all(
-            math.isfinite(value)
-            for value in (prev_lower, prev_upper, curr_lower, curr_upper)
-        ):
-            continue
-
-        prev_width = prev_upper - prev_lower
-        curr_width = curr_upper - curr_lower
-        if prev_width <= 0:
-            continue
-
-        pct_change = abs(curr_width - prev_width) / prev_width
-        if pct_change < threshold:
-            return idx + 1, pct_change
-
-    return None, None
+    return sample_sizes, cv_values, included_runs
 
 
 def plot_variance(
     sample_sizes: list[int],
-    mean_cv_values: list[float],
-    ci_bounds: list[tuple[float, float]],
+    cv_values: list[float],
     threshold: float,
     output_path: str,
     percent: float,
-    ci_level: float,
-    run_label: str,
 ):
     """Create a simple plot of CV vs sample size."""
     # Filter out inf values for plotting
     x_vals = []
     y_vals = []
-    lower_vals = []
-    upper_vals = []
-    for n, cv, bounds in zip(sample_sizes, mean_cv_values, ci_bounds):
+    for n, cv in zip(sample_sizes, cv_values):
         if cv != float("inf"):
             x_vals.append(n)
-            y_vals.append(cv * 100)
-            lower_vals.append(bounds[0] * 100)
-            upper_vals.append(bounds[1] * 100)
+            y_vals.append(cv * 100)  # Convert to percentage
 
-    # Find threshold crossing based on CI band width change
-    threshold_n, stabilization_change = _find_band_stabilization(ci_bounds, threshold)
+    # Find threshold crossing
+    threshold_n = None
+    for i in range(1, len(cv_values)):
+        prev_cv = cv_values[i - 1]
+        curr_cv = cv_values[i]
+        if prev_cv != float("inf") and curr_cv != float("inf"):
+            pct_change = abs(curr_cv - prev_cv) / abs(prev_cv)
+            if pct_change < threshold:
+                threshold_n = (
+                    i + 1
+                )  # +1 because index starts at 0 but sample sizes start at 1
+                break
 
     # Create plot
     plt.figure(figsize=(12, 7))
     plt.plot(x_vals, y_vals, marker="o", linewidth=2, markersize=8, color="blue")
-    if lower_vals and upper_vals:
-        plt.fill_between(
-            x_vals,
-            lower_vals,
-            upper_vals,
-            color="blue",
-            alpha=0.15,
-            label=f"{ci_level * 100:.0f}% bootstrap CI",
-        )
 
-    if threshold_n and stabilization_change is not None:
+    if threshold_n:
         plt.axvline(
             x=threshold_n,
             color="green",
             linestyle=":",
             linewidth=2,
-            label=(
-                f"Stabilized at N={threshold_n}\n"
-                f"(CI band width change < {threshold * 100:.0f}%)"
-            ),
+            label=f"Stabilized at N={threshold_n}\n(CV change < {threshold * 100:.0f}%)",
         )
         plt.scatter(
             [threshold_n],
-            [mean_cv_values[threshold_n - 1] * 100],
+            [cv_values[threshold_n - 1] * 100],
             color="green",
             s=300,
             marker="*",
@@ -256,21 +162,15 @@ def plot_variance(
 
     plt.xlabel("Number of Runs", fontsize=14, fontweight="bold")
     plt.ylabel("Coefficient of Variation (%)", fontsize=14, fontweight="bold")
-    title_lines = [
-        run_label,
-        f"Variance Analysis: Last {percent * 100:.0f}% of Training",
-        "Stabilizes when CI band width change",
-        f"between consecutive points < {threshold * 100:.0f}%",
-    ]
     plt.title(
-        "\n".join(line for line in title_lines if line),
+        f"Variance Analysis: Last {percent * 100:.0f}% of Training\n(Stabilizes when CV change between consecutive points < {threshold * 100:.0f}%)",
         fontsize=15,
         fontweight="bold",
     )
 
-    # Restrict x-axis to first 15 runs so emphasis stays on early behavior
-    plt.xlim(0, 15)
-    plt.xticks(range(0, 16, 2))
+    # Set x-axis limits to show up to 20
+    plt.xlim(0, 21)
+    plt.xticks(range(0, 21, 2))
 
     plt.grid(True, alpha=0.3)
     plt.legend(fontsize=12, loc="best")
@@ -305,10 +205,8 @@ def main():
     )
     parser.add_argument(
         "--output",
-        default=None,
-        help=(
-            "Output plot path. Defaults to <run_label>_variance.png inside prod_benchmark/statistics"
-        ),
+        default="variance_simple.png",
+        help="Output plot path (default: variance_simple.png)",
     )
     parser.add_argument(
         "--samples",
@@ -321,29 +219,6 @@ def main():
         type=float,
         default=None,
         help="Minimum timesteps required for inclusion (default: None, auto-computed from percent)",
-    )
-    parser.add_argument(
-        "--bootstrap-iterations",
-        type=int,
-        default=1000,
-        help="Number of bootstrap resamples per sample size (default: 1000)",
-    )
-    parser.add_argument(
-        "--ci-level",
-        type=float,
-        default=0.95,
-        help="Confidence interval level for bootstrap bounds (default: 0.95)",
-    )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=None,
-        help="Random seed for reproducible bootstrapping (default: None)",
-    )
-    parser.add_argument(
-        "--title",
-        default=None,
-        help="Optional graph title (default: inferred from run IDs)",
     )
 
     args = parser.parse_args()
@@ -358,35 +233,12 @@ def main():
     print(f"Window: Last {args.percent * 100:.0f}% of training")
     if args.min_timesteps:
         print(f"Minimum timesteps required: {args.min_timesteps:,.0f}")
-    graph_title = args.title or _infer_run_label(args.run_ids)
     print(f"Samples per run: {args.samples}")
-    print(f"Bootstrap iterations per point: {args.bootstrap_iterations}")
     print(f"Variance threshold: {args.threshold * 100}%\n")
-    if graph_title:
-        print(f"Graph title: {graph_title}\n")
-
-    output_path = (
-        Path(args.output)
-        if args.output
-        else Path(__file__).parent / (f"{_slugify(graph_title)}_variance.png")
-    )
-    print(f"Output path: {output_path}\n")
 
     # Compute variance curve
-    (
-        sample_sizes,
-        mean_cv_values,
-        ci_bounds,
-        included_runs,
-    ) = compute_variance_curve(
-        args.run_ids,
-        args.metric,
-        args.percent,
-        args.samples,
-        args.min_timesteps,
-        args.bootstrap_iterations,
-        args.ci_level,
-        args.seed,
+    sample_sizes, cv_values, included_runs = compute_variance_curve(
+        args.run_ids, args.metric, args.percent, args.samples, args.min_timesteps
     )
 
     # Print results
@@ -394,24 +246,30 @@ def main():
     print("RESULTS")
     print("=" * 70)
     print(f"Included runs: {len(included_runs)} out of {len(args.run_ids)} total")
-    print(f"Final CV (N={len(sample_sizes)}): {mean_cv_values[-1] * 100:.2f}%")
+    print(f"Final CV (N={len(sample_sizes)}): {cv_values[-1] * 100:.2f}%")
     print(
-        "\nLooking for when bootstrapped CI band width change"
-        f" between consecutive samples < {args.threshold * 100:.0f}%..."
+        f"\nLooking for when CV change between consecutive samples < {args.threshold * 100:.0f}%..."
     )
 
-    threshold_n, stabilization_change = _find_band_stabilization(
-        ci_bounds, args.threshold
-    )
+    # Find threshold crossing
+    threshold_n = None
+    stabilization_change = None
+    for i in range(1, len(cv_values)):
+        prev_cv = cv_values[i - 1]
+        curr_cv = cv_values[i]
+        if prev_cv != float("inf") and curr_cv != float("inf"):
+            pct_change = abs(curr_cv - prev_cv) / abs(prev_cv)
+            if pct_change < args.threshold:
+                threshold_n = i + 1
+                stabilization_change = pct_change
+                break
 
     if threshold_n:
         print(
-            f"✓ STABILIZED at N = {threshold_n} runs "
-            f"(CI band width change: {stabilization_change * 100:.2f}%)"
+            f"✓ STABILIZED at N = {threshold_n} runs (CV change: {stabilization_change * 100:.2f}%)"
         )
         print(
-            f"  → Adding more runs beyond {threshold_n} changes the CI band width "
-            f"by < {args.threshold * 100:.0f}%"
+            f"  → Adding more runs beyond {threshold_n} changes CV by < {args.threshold * 100:.0f}%"
         )
     else:
         print("✗ NOT YET STABLE (need more runs)")
@@ -420,13 +278,10 @@ def main():
     # Create plot
     plot_variance(
         sample_sizes,
-        mean_cv_values,
-        ci_bounds,
+        cv_values,
         args.threshold,
-        str(output_path),
+        args.output,
         args.percent,
-        args.ci_level,
-        graph_title,
     )
 
 

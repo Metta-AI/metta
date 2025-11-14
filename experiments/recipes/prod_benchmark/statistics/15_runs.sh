@@ -37,6 +37,7 @@ ensure_site_packages_visible
 # Parse arguments
 RECIPE=""
 UNIFORM_SEED=""
+EXTRA_TOOL_ARGS=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --uniform-seed)
@@ -56,8 +57,8 @@ while [[ $# -gt 0 ]]; do
                 RECIPE="$1"
                 shift
             else
-                echo "Unexpected argument: $1" >&2
-                exit 1
+                EXTRA_TOOL_ARGS+=("$1")
+                shift
             fi
             ;;
     esac
@@ -121,13 +122,24 @@ for seed in "${SEEDS[@]}"; do
 
     echo "[${run_idx}/${#SEEDS[@]}] Launching run: $run_name (seed=$seed)"
 
-    ./devops/skypilot/launch.py \
-        "$RECIPE" \
-        "run=${run_name}" \
-        "seed=${seed}" \
-        --gpus="${NUM_GPUS}" \
-        --heartbeat-timeout=3600 \
-        --skip-git-check &
+    launch_cmd=(
+        ./devops/skypilot/launch.py
+        "$RECIPE"
+        "run=${run_name}"
+        "seed=${seed}"
+    )
+
+    if [[ ${#EXTRA_TOOL_ARGS[@]} -gt 0 ]]; then
+        launch_cmd+=("${EXTRA_TOOL_ARGS[@]}")
+    fi
+
+    launch_cmd+=(
+        --gpus="${NUM_GPUS}"
+        --heartbeat-timeout=3600
+        --skip-git-check
+    )
+
+    "${launch_cmd[@]}" &
 
     run_idx=$((run_idx + 1))
     echo ""
