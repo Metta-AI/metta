@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+import optree
 import torch
 import torch.nn as nn
 from cortex.config import CortexStackConfig
@@ -10,7 +11,7 @@ from cortex.factory import build_cortex
 from cortex.stacks import CortexStack
 from einops import rearrange
 from pydantic import ConfigDict
-from tensordict import TensorDict
+from tensordict import TensorDict, TensorDictBase
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.components.component_config import ComponentConfig
@@ -19,6 +20,43 @@ logger = logging.getLogger(__name__)
 
 FlatKey = str
 LeafPath = Tuple[str, str, str]  # (block_key, cell_key, leaf_key)
+
+
+# --- optree registration for TensorDictBase ---
+def _td_flatten(td: TensorDictBase) -> Tuple[Iterable[Any], tuple]:
+    keys = tuple(td.keys())
+    children = [td.get(k) for k in keys]
+    meta = (
+        keys,
+        tuple(td.batch_size) if not isinstance(td.batch_size, tuple) else td.batch_size,
+        getattr(td, "device", None),
+        td.__class__,
+    )
+    return children, meta
+
+
+def _td_unflatten(meta: tuple, children: Iterable[Any]) -> TensorDict:
+    keys, _meta_batch_size, _meta_device, td_type = meta
+    children_list = list(children)
+    data = {k: c for k, c in zip(keys, children_list, strict=False)}
+    # Infer batch size from any child (TensorDict or Tensor) to match gathered leaf size
+    inferred_bs: Optional[Tuple[int, ...]] = None
+    for c in children_list:
+        if isinstance(c, TensorDictBase):
+            inferred_bs = tuple(c.batch_size)  # type: ignore[assignment]
+            break
+        if isinstance(c, torch.Tensor):
+            inferred_bs = (int(c.shape[0]),)
+            break
+    if inferred_bs is None:
+        inferred_bs = tuple(_meta_batch_size) if isinstance(_meta_batch_size, tuple) else _meta_batch_size
+    return td_type(data, batch_size=inferred_bs)
+
+
+_REGISTERED_TD_NODE = globals().get("_REGISTERED_TD_NODE", False)
+if not _REGISTERED_TD_NODE:
+    optree.register_pytree_node(TensorDictBase, _td_flatten, _td_unflatten, namespace="torch")
+    _REGISTERED_TD_NODE = True
 
 
 def _as_reset_mask(
@@ -40,10 +78,7 @@ def _as_reset_mask(
     if dones.numel() == 0 and truncateds.numel() == 0:
         return None
     resets_bool = (dones.bool() | truncateds.bool()).to(device=device)
-    try:
-        return resets_bool.view(B) if TT == 1 else resets_bool.view(B, TT)
-    except RuntimeError:
-        return resets_bool.reshape(-1)[:B] if TT == 1 else resets_bool.reshape(B, TT)
+    return resets_bool.view(B) if TT == 1 else resets_bool.view(B, TT)
 
 
 class CortexTDConfig(ComponentConfig):
@@ -66,6 +101,12 @@ class CortexTDConfig(ComponentConfig):
     # Cache storage dtype for CortexTD: 'fp32' (default) or 'bf16'
     store_dtype: str = "fp32"
 
+    # Controls whether training passes the cached pre-state (`state0`) to the
+    # underlying Cortex stack. When False, training runs without
+    # passing hidden state (i.e., `state0=None`). When True, training will
+    # gather the cached pre-state per row and pass it to the stack.
+    pass_state_during_training: bool = True
+
     def make_component(self, env: Any = None) -> nn.Module:
         return CortexTD(config=self)
 
@@ -82,16 +123,11 @@ class CortexTD(nn.Module):
         # Build the stack from config
         scfg: CortexStackConfig = config.stack_cfg
         stack = build_cortex(scfg)
-        # Optional sanity check: d_hidden should match the stack's external size
-        try:
-            stack_hidden = int(stack.cfg.d_hidden)  # type: ignore[attr-defined]
-            if stack_hidden != int(config.d_hidden):
-                raise ValueError(
-                    f"CortexTDConfig.d_hidden ({config.d_hidden}) does not match stack.cfg.d_hidden ({stack_hidden})."
-                )
-        except Exception:
-            # If cfg is not present, skip the check
-            pass
+        stack_hidden = int(stack.cfg.d_hidden)  # type: ignore[attr-defined]
+        if stack_hidden != int(config.d_hidden):
+            raise ValueError(
+                f"CortexTDConfig.d_hidden ({config.d_hidden}) does not match stack.cfg.d_hidden ({stack_hidden})."
+            )
 
         self.stack: CortexStack = stack
         self.d_hidden: int = int(config.d_hidden)
@@ -103,42 +139,35 @@ class CortexTD(nn.Module):
             raise ValueError("store_dtype must be 'bf16' or 'fp32'")
         self._store_dtype: torch.dtype = torch.bfloat16 if store_dtype == "bf16" else torch.float32
 
-        self._flat_entries: List[Tuple[FlatKey, LeafPath]] = self._discover_state_entries()
+        # Template treedef and leaf shape metadata derived via optree
+        self._state_treedef: Optional[Any] = None
+        self._leaf_shapes: List[Tuple[int, ...]] = []  # per-leaf shapes excluding batch dim
 
-        if self.out_features is None or int(self.out_features) == int(self.d_hidden):
-            self._out_proj: nn.Module = nn.Identity()
-        else:
-            self._out_proj = nn.Linear(int(self.d_hidden), int(self.out_features))
+        # Optional output projection + nonlinearity when out_features != d_hidden
+        layers: List[nn.Module] = []
+        if self.out_features is not None and self.out_features != self.d_hidden:
+            layers.append(nn.Linear(self.d_hidden, self.out_features))
+            layers.append(self._make_activation(self.config.output_nonlinearity))
+        self._out: nn.Module = nn.Sequential(*layers) if layers else nn.Identity()
 
-        # Output nonlinearity module constructed from torch.nn by name
-        self._out_act: nn.Module = self._make_activation(self.config.output_nonlinearity)
+        # Stores
+        self._rollout_store_leaves: List[torch.Tensor] = []  # [cap, *leaf_shape] per leaf
+        self._row_store_leaves: List[torch.Tensor] = []
 
-        self._leaf_shapes: Dict[LeafPath, Tuple[int, ...]] = self._discover_leaf_shapes()
-        self._rollout_store: Dict[LeafPath, torch.Tensor] = {}
-        self._train_store: Dict[LeafPath, torch.Tensor] = {}
-
+        # Env id→slot map for rollout state only
         self._rollout_id2slot: Dict[int, int] = {}
         self._rollout_next_slot: int = 0
-        self._train_id2slot: Dict[int, int] = {}
-
-        self._in_training: bool = False
-        self._snapshot_done: bool = False
 
         self._rollout_current_state: Optional[TensorDict] = None
         self._rollout_current_env_ids: Optional[torch.Tensor] = None  # Long[Br]
 
-        # Prime: materialize any lazily-created leaves (e.g., AxonLayer groups)
-        # by running a single zero-input step on CPU. This yields a more complete
-        # state template than stack.init_state() alone, so future gather/scatter
-        # operations include all leaves from the start.
+        # Prime leaves by a zero step for complete templates
         self._prime_state_template()
 
-        # Eval-time logging is done at DEBUG level each time keys are inferred
-
     def _prime_state_template(self) -> None:
-        """Initialize state template by running zero-step to materialize lazy leaves."""
+        """Initialize state template by running zero-step to materialize all leaves."""
         s1 = self._zero_step_init_state(batch=1, device=torch.device("cpu"), dtype=torch.float32)
-        self._maybe_register_new_leaves(s1)
+        self._adopt_template_from_state(s1)
 
     def _zero_step_init_state(self, *, batch: int, device: torch.device, dtype: torch.dtype) -> TensorDict:
         """Create initial state with zero-input forward pass to materialize all leaves."""
@@ -147,40 +176,23 @@ class CortexTD(nn.Module):
             _y, s1 = self.stack.step(x0, None)
         return s1
 
-    def _maybe_register_new_leaves(self, state: TensorDict) -> None:
-        """Register lazily-created state leaves and ensure store capacity."""
-        existing = {leaf_path for _, leaf_path in self._flat_entries}
-        for bkey in state.keys():
-            btd = state.get(bkey)
-            if not isinstance(btd, TensorDict):
-                continue
-            for ckey in btd.keys():
-                ctd = btd.get(ckey)
-                if not isinstance(ctd, TensorDict):
-                    continue
-                for lkey in ctd.keys():
-                    t = ctd.get(lkey)
-                    if not isinstance(t, torch.Tensor):
-                        continue
-                    path = (bkey, ckey, lkey)
-                    if path in existing:
-                        continue
-                    # Register new leaf and ensure store tensors exist
-                    fkey = self._flat_key(*path)
-                    self._flat_entries.append((fkey, path))
-                    self._leaf_shapes[path] = tuple(t.shape[1:])
+    def _adopt_template_from_state(self, state: TensorDictBase) -> None:
+        """Adopt treedef and per-leaf shapes from a representative state."""
+        leaves, treedef = optree.tree_flatten(state, namespace="torch")
+        self._state_treedef = treedef
+        self._leaf_shapes = []
+        for leaf in leaves:
+            assert isinstance(leaf, torch.Tensor), "Cortex state leaves must be Tensors"
+            self._leaf_shapes.append(tuple(leaf.shape[1:]))
+        # Reset stores to empty; capacity will be allocated on demand
+        self._rollout_store_leaves = []
+        self._row_store_leaves = []
 
-                    # Ensure both stores have tensors with current capacity
-                    def _cap(store: Dict[LeafPath, torch.Tensor]) -> int:
-                        return next(iter(store.values())).shape[0] if store else 1
-
-                    dev = t.device
-                    self._ensure_store_capacity(
-                        self._rollout_store, _cap(self._rollout_store), device=dev, dtype=self._store_dtype
-                    )
-                    self._ensure_store_capacity(
-                        self._train_store, _cap(self._train_store), device=dev, dtype=self._store_dtype
-                    )
+    def _maybe_refresh_template(self, state: TensorDictBase) -> None:
+        """Refresh the template if the current state's structure diverges."""
+        leaves, _ = optree.tree_flatten(state, namespace="torch")
+        if self._state_treedef is None or len(leaves) != len(self._leaf_shapes):
+            self._adopt_template_from_state(state)
 
     @torch._dynamo.disable
     def forward(self, td: TensorDict) -> TensorDict:  # type: ignore[override]
@@ -190,298 +202,223 @@ class CortexTD(nn.Module):
         dtype = x.dtype
 
         TT = int(td["bptt"][0].item())
-
         B = int(td["batch"][0].item())
 
         if TT <= 0 or B <= 0:
             raise ValueError("'bptt' and 'batch' must be positive integers")
-
         if x.shape[0] != B * TT:
             raise ValueError(f"input length {x.shape[0]} must equal batch*bptt ({B}*{TT})")
 
-        # training_env_ids: default to a simple range for evaluation
-        if "training_env_ids" not in td.keys():
-            td.set("training_env_ids", torch.arange(B, device=device, dtype=torch.long).view(B, 1))
-            logger.debug(
-                "[CortexTD] Missing 'training_env_ids'; defaulting to arange(B) with B=%d.",
-                B,
-            )
-
-        env_ids = td["training_env_ids"].squeeze(-1).reshape(-1)[:B]
-        env_ids_long = env_ids.to(device=device, dtype=torch.long)
-
-        resets = _as_reset_mask(td.get("dones", None), td.get("truncateds", None), B=B, TT=TT, device=device)
-
-        if TT > 1:
-            # Entering training: refresh train store from rollout on every switch
-            if not self._in_training:
-                self._flush_rollout_current_to_store()
-                self._snapshot_train_store()
-                self._in_training = True
-            # While training, clear rollout cache to avoid stale carryover
-            self._rollout_current_state = None
-            self._rollout_current_env_ids = None
-        else:  # TT == 1
-            # Leaving training: mark flag only; rollout cache continues across steps
-            if self._in_training:
-                self._in_training = False
+        # We use only dones for reset to keep parity with advantage calculation.
+        resets = _as_reset_mask(td.get("dones", None), None, B=B, TT=TT, device=device)
 
         if TT == 1:
+            # Rollout step: maintain env-based state and cache pre-state for new rows
+            if "training_env_ids" not in td.keys():
+                td.set("training_env_ids", torch.arange(B, device=device, dtype=torch.long).view(B, 1))
+                logger.debug(
+                    "[CortexTD] Missing 'training_env_ids'; defaulting to arange(B) with B=%d.",
+                    B,
+                )
+            env_ids_2d = td["training_env_ids"].to(device=device, dtype=torch.long)
+            assert env_ids_2d.dim() == 2 and env_ids_2d.shape[1] == 1, "training_env_ids must be [B,1]"
+            env_ids_long = env_ids_2d.view(-1)
+
             state_prev = self._ensure_rollout_current_state(env_ids_long, B=B, device=device, dtype=dtype)
+
+            self._maybe_refresh_template(state_prev)
+            # Cache pre-state at row starts into row store (TensorDict)
+            if "row_id" not in td.keys() or "t_in_row" not in td.keys():
+                logger.debug(
+                    "[CortexTD] Missing 'row_id' or 't_in_row' during evaluation (TT==1); skipping row_store caching."
+                )
+            else:
+                row_id_flat = td["row_id"].to(device=device, dtype=torch.long).view(-1)
+                t_in_row_flat = td["t_in_row"].to(device=device, dtype=torch.long).view(-1)
+                mask_start = t_in_row_flat == 0
+                if bool(mask_start.any()):
+                    idx = torch.nonzero(mask_start, as_tuple=False).reshape(-1)
+                    state_sel = self._select_state_rows(state_prev, idx)
+                    row_ids_sel = row_id_flat[idx]
+                    self._scatter_state_by_slots_list(state_sel, row_ids_sel, store=self._row_store_leaves)
+
             x_step = x.view(B, -1)
             y, state_next = self.stack.step(x_step, state_prev, resets=resets)
-            self._maybe_register_new_leaves(state_next)
             self._rollout_current_state = state_next
-            y = self._out_act(self._out_proj(y))
+            y = self._out(y)
             td.set(self.out_key, y.reshape(B * TT, -1))
             return td
+
+        # Training path: optionally pass cached pre-state depending on config
+        if self.config.pass_state_during_training:
+            if "row_id" not in td.keys():
+                raise KeyError("CortexTD training path (TT>1) requires 'row_id' when pass_state_during_training=True")
+            row_tensor = td["row_id"].to(device=device, dtype=torch.long)
+            # Accept either flattened [B*TT] or shaped [B,TT]
+            if row_tensor.numel() != B * TT:
+                raise ValueError("row_id must contain exactly B*TT elements")
+            row_ids = row_tensor.view(B, TT)[:, 0]
+            state0 = self._gather_state_by_slots_list(
+                row_ids, store=self._row_store_leaves, B=B, device=device, dtype=dtype
+            )
         else:
-            env_ids_train = td["training_env_ids"].squeeze(-1).to(device=device)
-            env_ids_train = env_ids_train.view(B, TT)[:, 0]
-            env_ids_train_long = env_ids_train.to(dtype=torch.long)
+            state0 = None
+        x_seq = rearrange(x, "(b t) h -> b t h", b=B, t=TT)
 
-            train_slots = self._map_ids_to_slots(env_ids_train_long, self._train_id2slot, create_missing=False)
-            state0 = self._gather_state_by_slots(train_slots, store=self._train_store, B=B, device=device, dtype=dtype)
-
-            x_seq = rearrange(x, "(b t) h -> b t h", b=B, t=TT)
-            y_seq, _ = self.stack(x_seq, state0, resets=resets)
-            y_seq = self._out_act(self._out_proj(y_seq))
-            td.set(self.out_key, rearrange(y_seq, "b t h -> (b t) h"))
-            return td
+        # NOTE: We currently do not reset during training as it seems to be
+        # acting as a regularizer which helps in training as some sort of a
+        # warm start, which means gradient information flows between episodes;
+        # in future maybe we want resets to only detach and not zero out the
+        # states, but currently cortex does not support this.
+        y_seq, _ = self.stack(x_seq, state0)
+        y_seq = self._out(y_seq)
+        td.set(self.out_key, rearrange(y_seq, "b t h -> (b t) h"))
+        return td
 
     def experience_keys(self) -> Dict[FlatKey, torch.Size]:
         """Replay keys required by the component."""
-
-        return {"training_env_ids": torch.Size([1])}
+        # Minimal keys for rollout/training. Row alignment requires row_id/t_in_row.
+        return {
+            "training_env_ids": torch.Size([1]),
+            "row_id": torch.Size([]),
+            "t_in_row": torch.Size([]),
+            "dones": torch.Size([]),
+            "truncateds": torch.Size([]),
+        }
 
     def reset_memory(self) -> None:
+        # Intentionally a no-op: preserve rollout hidden state and row pre-states
+        # across rollouts for continuity.
         return
 
-    def get_memory(self) -> Dict[str, Dict[str, Dict[str, torch.Tensor]]]:
+    def get_memory(self) -> Dict[str, Dict[str, List[torch.Tensor]]]:
         """Serialize dense stores for checkpointing."""
 
-        def pack(store: Dict[LeafPath, torch.Tensor]) -> Dict[str, torch.Tensor]:
-            packed: Dict[str, torch.Tensor] = {}
-            for (b_key, c_key, leaf_key), t in store.items():
-                packed[f"{b_key}|{c_key}|{leaf_key}"] = t
-            return packed
-
         return {
-            "rollout_store": {"data": pack(self._rollout_store)},
-            "train_store": {"data": pack(self._train_store)},
+            "rollout_store": {"leaves": list(self._rollout_store_leaves)},
+            "row_store": {"leaves": list(self._row_store_leaves)},
         }
 
     def set_memory(self, memory) -> None:  # type: ignore[override]
         """Restore dense stores from the structure emitted by ``get_memory``."""
-        try:
 
-            def unpack(blob: Dict[str, torch.Tensor]) -> Dict[LeafPath, torch.Tensor]:
-                store: Dict[LeafPath, torch.Tensor] = {}
-                for k, t in blob.items():
-                    b_key, c_key, leaf_key = k.split("|")
-                    store[(b_key, c_key, leaf_key)] = t
-                return store
-
-            rollout_blob = memory.get("rollout_store", {}).get("data", {})
-            train_blob = memory.get("train_store", {}).get("data", {})
-            if rollout_blob or train_blob:
-                self._rollout_store = unpack(rollout_blob)
-                self._train_store = unpack(train_blob)
-                if not hasattr(self, "_store_dtype"):
-                    self._store_dtype = torch.float32
-            else:
-                raise RuntimeError("CortexTD.set_memory: missing 'rollout_store'/'train_store' data blobs")
-        except Exception as e:  # pragma: no cover - defensive
-            raise RuntimeError(f"CortexTD.set_memory: malformed memory structure: {e}") from e
+        rollout_leaves = memory.get("rollout_store", {}).get("leaves", [])
+        row_leaves = memory.get("row_store", {}).get("leaves", [])
+        self._rollout_store_leaves = list(rollout_leaves)
+        self._row_store_leaves = list(row_leaves)
+        if not hasattr(self, "_store_dtype"):
+            self._store_dtype = torch.float32
 
     def get_agent_experience_spec(self) -> Composite:
         # Advertise minimal keys (training_env_ids) for replay; hidden state is not stored.
         spec_dict: Dict[str, UnboundedDiscrete] = {}
         for key, shape in self.experience_keys().items():
-            dtype = torch.long if key == "training_env_ids" else torch.float32
+            if key in ("training_env_ids", "row_id", "t_in_row"):
+                dtype = torch.long
+            else:
+                dtype = torch.float32
             spec_dict[key] = UnboundedDiscrete(shape=torch.Size(shape), dtype=dtype)
         return Composite(spec_dict)
 
-    def _discover_state_entries(self) -> List[Tuple[FlatKey, LeafPath]]:
-        template = self._zero_step_init_state(batch=1, device=torch.device("cpu"), dtype=torch.float32)
-        entries: List[Tuple[FlatKey, LeafPath]] = []
-        for block_key in template.keys():
-            block_state = template.get(block_key)
-            if not isinstance(block_state, TensorDict):
-                continue
-            for cell_key in block_state.keys():
-                cell_state = block_state.get(cell_key)
-                if not isinstance(cell_state, TensorDict):
-                    continue
-                for leaf_key in cell_state.keys():
-                    tensor = cell_state.get(leaf_key)
-                    if not isinstance(tensor, torch.Tensor):
-                        continue
-                    fkey = self._flat_key(block_key, cell_key, leaf_key)
-                    entries.append((fkey, (block_key, cell_key, leaf_key)))
-        return entries
-
-    def _discover_leaf_shapes(self) -> Dict[LeafPath, Tuple[int, ...]]:
-        template = self._zero_step_init_state(batch=1, device=torch.device("cpu"), dtype=torch.float32)
-        shapes: Dict[LeafPath, Tuple[int, ...]] = {}
-        for block_key in template.keys():
-            block_state = template.get(block_key)
-            if not isinstance(block_state, TensorDict):
-                continue
-            for cell_key in block_state.keys():
-                cell_state = block_state.get(cell_key)
-                if not isinstance(cell_state, TensorDict):
-                    continue
-                for leaf_key in cell_state.keys():
-                    tensor = cell_state.get(leaf_key)
-                    if isinstance(tensor, torch.Tensor):
-                        shapes[(block_key, cell_key, leaf_key)] = tuple(tensor.shape[1:])
-        return shapes
-
-    def _ensure_store_capacity(
+    def _ensure_store_capacity_list(
         self,
-        store: Dict[LeafPath, torch.Tensor],
+        store: List[torch.Tensor],
         min_slots: int,
         *,
         device: torch.device,
         dtype: torch.dtype,
     ) -> None:
-        cur_cap = 0
-        if store:
-            any_leaf = next(iter(store.values()))
-            cur_cap = int(any_leaf.shape[0])
-            ok = all(t.device == device and t.dtype == dtype and t.shape[0] >= min_slots for t in store.values())
-            if ok and cur_cap >= min_slots:
-                return
-        new_cap = max(min_slots, max(1, cur_cap * 2))
-        for leaf_path, leaf_shape in self._leaf_shapes.items():
-            if leaf_path not in store:
-                store[leaf_path] = torch.zeros((new_cap, *leaf_shape), device=device, dtype=dtype)
-            else:
-                old = store[leaf_path]
-                if old.shape[0] < new_cap or old.device != device or old.dtype != dtype:
-                    new = torch.zeros((new_cap, *leaf_shape), device=device, dtype=dtype)
-                    new[: old.shape[0]].copy_(old.to(device=device, dtype=dtype))
-                    store[leaf_path] = new
+        cur_cap = int(store[0].shape[0]) if store else 0
+        new_cap = cur_cap
+        if cur_cap < min_slots:
+            new_cap = max(min_slots, max(1, cur_cap * 2))
+        if not store:
+            # Initialize tensors for each leaf
+            for shape in self._leaf_shapes:
+                store.append(torch.zeros((max(1, new_cap), *shape), device=device, dtype=dtype))
+            return
+        if new_cap != cur_cap:
+            for i, old in enumerate(store):
+                new = torch.zeros((new_cap, *old.shape[1:]), device=device, dtype=dtype)
+                new[: old.shape[0]].copy_(old.to(device=device, dtype=dtype))
+                store[i] = new
+        else:
+            # Ensure device/dtype alignment
+            for i, old in enumerate(store):
+                if old.device != device or old.dtype != dtype:
+                    store[i] = old.to(device=device, dtype=dtype)
 
-    def _gather_state_by_slots(
+    def _gather_state_by_slots_list(
         self,
         slot_ids: torch.Tensor,
         *,
-        store: Dict[LeafPath, torch.Tensor],
+        store: List[torch.Tensor],
         B: int,
         device: torch.device,
         dtype: torch.dtype,
     ) -> TensorDict:
-        """Gather batch state from slot-indexed store, zeroing invalid slots."""
-        # Fast path: no slots requested -> return all zeros
+        if self._state_treedef is None:
+            # Initialize a minimal empty TD
+            return TensorDict({}, batch_size=[B], device=device)
+
         if slot_ids.numel() == 0:
-            out = TensorDict({}, batch_size=[B], device=device)
-            # Build zero tensors per leaf
-            for _fkey, (bkey, ckey, lkey) in self._flat_entries:
-                shape = self._leaf_shapes[(bkey, ckey, lkey)]
-                zero = torch.zeros((B, *shape), device=device, dtype=dtype)
-                btd = out.get(bkey) if bkey in out.keys() else TensorDict({}, batch_size=[B])
-                ctd = (
-                    btd.get(ckey)
-                    if (isinstance(btd, TensorDict) and ckey in btd.keys())
-                    else TensorDict({}, batch_size=[B])
-                )
-                ctd.set(lkey, zero)
-                btd[ckey] = ctd
-                out[bkey] = btd
-            return out
+            # Return zeros per leaf with correct shapes
+            leaves: List[torch.Tensor] = []
+            for shape in self._leaf_shapes:
+                leaves.append(torch.zeros((B, *shape), device=device, dtype=dtype))
+            return optree.tree_unflatten(self._state_treedef, leaves)
 
         if slot_ids.dim() != 1:
             slot_ids = slot_ids.reshape(-1)
         valid_mask = slot_ids >= 0
         slot_ids_clamped = slot_ids.clamp_min(0)
         max_slot = int(slot_ids_clamped.max().item()) + 1 if slot_ids_clamped.numel() > 0 else 0
-        self._ensure_store_capacity(store, max_slot, device=device, dtype=self._store_dtype)
+        self._ensure_store_capacity_list(store, max_slot, device=device, dtype=self._store_dtype)
 
-        batch_state = TensorDict({}, batch_size=[B], device=device)
-        for _fkey, (bkey, ckey, lkey) in self._flat_entries:
-            src = store[(bkey, ckey, lkey)]  # [N, ...]
+        gathered_leaves: List[torch.Tensor] = []
+        for src in store:
             cap = int(src.shape[0])
             if max_slot > cap:
-                raise RuntimeError(
-                    f"[CortexTD] slot out of bounds: need<{max_slot} got cap={cap} for leaf {(bkey, ckey, lkey)}"
-                )
+                raise RuntimeError(f"[CortexTD] slot out of bounds: need<{max_slot} cap={cap}")
             gathered = src.index_select(0, slot_ids_clamped)
             if not bool(valid_mask.all()):
                 gathered[~valid_mask] = 0
-            gathered = gathered.to(dtype=dtype, device=device)
-            btd = batch_state.get(bkey) if bkey in batch_state.keys() else TensorDict({}, batch_size=[B])
-            ctd = (
-                btd.get(ckey)
-                if (isinstance(btd, TensorDict) and ckey in btd.keys())
-                else TensorDict({}, batch_size=[B])
-            )
-            ctd.set(lkey, gathered)
-            btd[ckey] = ctd
-            batch_state[bkey] = btd
-        return batch_state
+            gathered_leaves.append(gathered.to(dtype=dtype, device=device))
+        return optree.tree_unflatten(self._state_treedef, gathered_leaves)
 
-    def _scatter_state_by_slots(
-        self, state: TensorDict, slot_ids: torch.Tensor, *, store: Dict[LeafPath, torch.Tensor]
+    def _scatter_state_by_slots_list(
+        self, state: TensorDictBase, slot_ids: torch.Tensor, *, store: List[torch.Tensor]
     ) -> None:
-        B = int(slot_ids.numel())
-        if B == 0:
+        if slot_ids.numel() == 0:
             return
         if slot_ids.dim() != 1:
             slot_ids = slot_ids.reshape(-1)
         max_slot = int(slot_ids.max().item()) + 1
-        leaf_device = None
-        for _fk, (b_key, c_key, leaf_key) in self._flat_entries:
-            t = state.get(b_key).get(c_key).get(leaf_key)
-            if isinstance(t, torch.Tensor):
-                leaf_device = t.device
-                break
-        if leaf_device is None:
-            leaf_device = state.device if hasattr(state, "device") else torch.device("cpu")
-
-        self._ensure_store_capacity(store, max_slot, device=leaf_device, dtype=self._store_dtype)
-        for _fkey, (bkey, ckey, lkey) in self._flat_entries:
-            src = state.get(bkey).get(ckey).get(lkey)  # [B, ...]
-            dest = store[(bkey, ckey, lkey)]
-            dest.index_copy_(0, slot_ids, src.to(dtype=dest.dtype).detach())
-
-    def _snapshot_train_store(self) -> None:
-        if not self._rollout_id2slot:
-            self._train_store = {leaf: tensor.clone().detach() for leaf, tensor in self._rollout_store.items()}
-            self._train_id2slot = {}
+        leaves, _ = optree.tree_flatten(state, namespace="torch")
+        assert all(isinstance(leaf_item, torch.Tensor) for leaf_item in leaves), "Cortex state leaves must be Tensors"
+        leaf_device = leaves[0].device if leaves else torch.device("cpu")
+        self._ensure_store_capacity_list(store, max_slot, device=leaf_device, dtype=self._store_dtype)
+        if not store:
             return
-        items = sorted(self._rollout_id2slot.items(), key=lambda kv: kv[1])  # sort by rollout slot
-        env_ids_sorted = [eid for eid, _ in items]
-        old_slots = [slot for _, slot in items]
-        new_slots = list(range(len(old_slots)))
-        self._train_id2slot = {eid: ns for eid, ns in zip(env_ids_sorted, new_slots, strict=False)}
-        self._train_store = {}
-        for leaf_path, src in self._rollout_store.items():
-            device = src.device
-            dtype = src.dtype
-            index = torch.tensor(old_slots, device=device, dtype=torch.long)
-            compact = src.index_select(0, index)
-            self._train_store[leaf_path] = compact.clone().detach().to(dtype=dtype)
+        for leaf, dest in zip(leaves, store, strict=False):
+            dest.index_copy_(0, slot_ids, leaf.to(dtype=dest.dtype).detach())
 
-    def _infer_dtype(self, state: TensorDict) -> torch.dtype:
-        for _fkey, (bkey, ckey, lkey) in self._flat_entries:
-            t = state.get(bkey).get(ckey).get(lkey)
-            if isinstance(t, torch.Tensor):
-                return t.dtype
-        return torch.float32
+    def _select_state_rows(self, state: TensorDictBase, idx: torch.Tensor) -> TensorDict:
+        """Return a state where each tensor leaf is indexed by the given rows.
 
-    def _infer_device(self, state: TensorDict) -> torch.device:
-        for _fkey, (bkey, ckey, lkey) in self._flat_entries:
-            t = state.get(bkey).get(ckey).get(lkey)
-            if isinstance(t, torch.Tensor):
-                return t.device
-        return state.device if hasattr(state, "device") else torch.device("cpu")
+        Uses optree to flatten state into tensor leaves, applies index_select on
+        the batch dimension, and reconstructs the TensorDict via the saved treedef.
+        """
+        if idx.dim() != 1:
+            idx = idx.reshape(-1)
+        leaves, _ = optree.tree_flatten(state, namespace="torch")
+        sel_leaves: List[torch.Tensor] = [leaf.index_select(0, idx) for leaf in leaves]
+        return optree.tree_unflatten(self._state_treedef, sel_leaves)
 
     def _flush_rollout_current_to_store(self) -> None:
         if self._rollout_current_state is not None and self._rollout_current_env_ids is not None:
             slots = self._map_ids_to_slots(self._rollout_current_env_ids, self._rollout_id2slot, create_missing=True)
-            self._scatter_state_by_slots(self._rollout_current_state, slots, store=self._rollout_store)
+            self._scatter_state_by_slots_list(self._rollout_current_state, slots, store=self._rollout_store_leaves)
 
     def _ensure_rollout_current_state(
         self,
@@ -501,7 +438,9 @@ class CortexTD(nn.Module):
 
         self._flush_rollout_current_to_store()
         slots = self._map_ids_to_slots(env_ids_long, self._rollout_id2slot, create_missing=False)
-        state_prev = self._gather_state_by_slots(slots, store=self._rollout_store, B=B, device=device, dtype=dtype)
+        state_prev = self._gather_state_by_slots_list(
+            slots, store=self._rollout_store_leaves, B=B, device=device, dtype=dtype
+        )
         self._rollout_current_state = state_prev
         self._rollout_current_env_ids = env_ids_long.detach().clone()
         return state_prev

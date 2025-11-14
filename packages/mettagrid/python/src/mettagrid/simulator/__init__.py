@@ -10,6 +10,7 @@ from mettagrid.simulator.interface import (
     ObservationToken,
     SimulatorEventHandler,
 )
+from mettagrid.simulator.replay_log_writer import ReplayLogWriter
 from mettagrid.simulator.simulator import (
     BoundingBox,
     Simulation,
@@ -24,6 +25,8 @@ __all__ = [
     "ObservationFeatureSpec",
     "ObservationToken",
     "SimulatorEventHandler",
+    # From replay_log_writer
+    "ReplayLogWriter",
     # From simulator
     "BoundingBox",
     "Simulation",

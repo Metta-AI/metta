@@ -9,8 +9,8 @@ import wandb
 from wandb.sdk import wandb_run
 
 from metta.common.util.constants import METTASCOPE_REPLAY_URL_PREFIX
+from metta.common.util.file import write_file
 from metta.common.util.fs import get_repo_root
-from metta.utils.file import write_file
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.simulator import Simulation, Simulator
 

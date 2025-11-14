@@ -89,7 +89,7 @@ private:
   }
 
   // Check if agents have sufficient resources for the given protocol
-  bool can_afford_protocol(const Protocol& protocol, const std::vector<Agent*>& surrounding_agents) const {
+  bool static can_afford_protocol(const Protocol& protocol, const std::vector<Agent*>& surrounding_agents) {
     std::unordered_map<InventoryItem, InventoryQuantity> total_resources;
     for (Agent* agent : surrounding_agents) {
       for (const auto& [item, amount] : agent->inventory.get()) {
@@ -104,8 +104,42 @@ private:
     return true;
   }
 
+  // Check if surrounding agents can receive output from the given protocol
+  // Returns true if either (a) the protocol has no output, or (b) the surrounding agents
+  // can absorb at least one item in the output. Returns false if the protocol produces
+  // output and the surrounding agents cannot absorb any of it.
+  bool static can_receive_output(const Protocol& protocol, const std::vector<Agent*>& surrounding_agents) {
+    // If protocol has no positive output, return true
+    if (!Assembler::protocol_has_positive_output(protocol)) {
+      return true;
+    }
+
+    // If there are no surrounding agents, they can't absorb anything
+    if (surrounding_agents.empty()) {
+      return false;
+    }
+
+    // Check if agents can absorb at least one item for each output resource
+    for (const auto& [item, amount] : protocol.output_resources) {
+      if (amount > 0) {
+        // Sum up free space across all surrounding agents for this item
+        InventoryQuantity total_free_space = 0;
+        for (Agent* agent : surrounding_agents) {
+          total_free_space += agent->inventory.free_space(item);
+        }
+        // If at least one item can be absorbed, return true
+        if (total_free_space >= 1) {
+          return true;
+        }
+      }
+    }
+
+    // Protocol produces output but agents can absorb none of it
+    return false;
+  }
+
   // Give output resources to agents
-  void give_output_for_protocol(const Protocol& protocol, const std::vector<Agent*>& surrounding_agents) {
+  void static give_output_for_protocol(const Protocol& protocol, const std::vector<Agent*>& surrounding_agents) {
     std::vector<HasInventory*> agents_as_inventory_havers;
     for (Agent* agent : surrounding_agents) {
       agents_as_inventory_havers.push_back(static_cast<HasInventory*>(agent));
@@ -116,7 +150,7 @@ private:
   }
 
   // Returns true if the protocol yields any positive output amount
-  bool protocol_has_positive_output(const Protocol& protocol) const {
+  bool static protocol_has_positive_output(const Protocol& protocol) {
     for (const auto& [item, amount] : protocol.output_resources) {
       if (amount > 0) {
         return true;
@@ -128,7 +162,7 @@ private:
 public:
   // Consume resources from surrounding agents for the given protocol
   // Intended to be private, but made public for testing. We couldn't get `friend` to work as expected.
-  void consume_resources_for_protocol(const Protocol& protocol, const std::vector<Agent*>& surrounding_agents) {
+  void static consume_resources_for_protocol(const Protocol& protocol, const std::vector<Agent*>& surrounding_agents) {
     std::vector<HasInventory*> agents_as_inventory_havers;
     for (Agent* agent : surrounding_agents) {
       agents_as_inventory_havers.push_back(static_cast<HasInventory*>(agent));
@@ -164,10 +198,6 @@ public:
   unsigned int uses_count;  // Current number of times used
   unsigned int max_uses;    // Maximum number of uses (0 = unlimited)
 
-  // Exhaustion tracking
-  float exhaustion;           // Exhaustion rate (0 = no exhaustion)
-  float cooldown_multiplier;  // Current cooldown multiplier from exhaustion
-
   // Grid access for finding surrounding agents
   class Grid* grid;
 
@@ -177,8 +207,6 @@ public:
   // Pointer to current timestep from environment
   unsigned int* current_timestep_ptr;
 
-  // Protocol observation configuration
-  bool protocol_details_obs;
   const class ObservationEncoder* obs_encoder;
 
   // Allow partial usage during cooldown
@@ -187,18 +215,16 @@ public:
   Assembler(GridCoord r, GridCoord c, const AssemblerConfig& cfg)
       : protocols(build_protocol_map(cfg.protocols)),
         unclip_protocols(),
-        is_clipped(false),
+        is_clipped(cfg.start_clipped),
         clip_immune(cfg.clip_immune),
         start_clipped(cfg.start_clipped),
         cooldown_end_timestep(0),
         cooldown_duration(0),
         uses_count(0),
         max_uses(cfg.max_uses),
-        exhaustion(cfg.exhaustion),
-        cooldown_multiplier(1.0f),
         grid(nullptr),
         current_timestep_ptr(nullptr),
-        protocol_details_obs(cfg.protocol_details_obs),
+        obs_encoder(nullptr),
         allow_partial_usage(cfg.allow_partial_usage),
         clipper_ptr(nullptr) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c), cfg.tag_ids, cfg.initial_vibe);
@@ -375,20 +401,25 @@ public:
       // Do not prevent usage if:
       // - the unscaled protocol does not have outputs
       // - usage would unclip the assembler; the unscaled unclipping protocol may happen to include outputs
-      if (!protocol_has_positive_output(protocol_to_use) && protocol_has_positive_output(*original_protocol) &&
-          !is_clipped) {
+      if (!Assembler::protocol_has_positive_output(protocol_to_use) &&
+          Assembler::protocol_has_positive_output(*original_protocol) && !is_clipped) {
         return false;
       }
     }
 
     std::vector<Agent*> surrounding_agents = get_surrounding_agents(&actor);
-    if (!can_afford_protocol(protocol_to_use, surrounding_agents)) {
+    if (!Assembler::can_afford_protocol(protocol_to_use, surrounding_agents)) {
       return false;
     }
+    if (!Assembler::can_receive_output(protocol_to_use, surrounding_agents) && !is_clipped) {
+      // If the agents gain nothing from the protocol, don't use it.
+      return false;
+    }
+
     consume_resources_for_protocol(protocol_to_use, surrounding_agents);
     give_output_for_protocol(protocol_to_use, surrounding_agents);
 
-    cooldown_duration = static_cast<unsigned int>(protocol_to_use.cooldown * cooldown_multiplier);
+    cooldown_duration = static_cast<unsigned int>(protocol_to_use.cooldown);
     cooldown_end_timestep = *current_timestep_ptr + cooldown_duration;
 
     // If we were clipped and successfully used an unclip protocol, become unclipped. Also, don't count this as a use.
@@ -396,18 +427,12 @@ public:
       become_unclipped();
     } else {
       uses_count++;
-
-      // Apply exhaustion (increase cooldown multiplier exponentially)
-      if (exhaustion > 0.0f) {
-        cooldown_multiplier *= (1.0f + exhaustion);
-      }
     }
     return true;
   }
 
   virtual std::vector<PartialObservationToken> obs_features() const override {
     std::vector<PartialObservationToken> features;
-    features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
 
     unsigned int remaining = std::min(cooldown_remaining(), 255u);
     if (remaining > 0) {
@@ -427,7 +452,7 @@ public:
     }
 
     // Add protocol details if configured to do so
-    if (this->protocol_details_obs && this->obs_encoder) {
+    if (this->obs_encoder && this->obs_encoder->protocol_details_obs) {
       const Protocol* current_protocol = get_current_protocol();
       if (current_protocol) {
         // Add protocol inputs (input:resource) - only non-zero values
@@ -451,7 +476,9 @@ public:
       features.push_back({ObservationFeature::Tag, static_cast<ObservationType>(tag_id)});
     }
 
-    if (this->vibe != 0) features.push_back({ObservationFeature::Vibe, static_cast<ObservationType>(this->vibe)});
+    if (this->vibe != 0) {
+      features.push_back({ObservationFeature::Vibe, static_cast<ObservationType>(this->vibe)});
+    }
 
     return features;
   }

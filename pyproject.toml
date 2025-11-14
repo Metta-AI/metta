@@ -3,7 +3,7 @@ requires = ["setuptools==80.9.0", "wheel==0.45.1"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["cogweb", "devops", "experiments", "metta"]
+packages = ["cogweb", "devops", "metta", "recipes"]
 py-modules = []
 
 [project]
@@ -39,6 +39,7 @@ dependencies = [
   "ninja>=1.11.1",
   "nvidia-ml-py",
   "omegaconf>=2.3.0",
+  "optree>=0.17.0",
   "pandas>=2.3.0",
   "pettingzoo>=1.25",
   "peft>=0.12.0",
@@ -72,9 +73,9 @@ dependencies = [
   "tqdm>=4.67.1",
   "typer>=0.19.2",
   "uvicorn[standard]>=0.34.2",
-  "wandb>=0.19.11",
   "wandb-core>=0.17.0b11",
   "sqlmodel>=0.0.27",
+  "wandb>=0.23.0",
 ]
 name = "metta"
 version = "0.1"
@@ -167,7 +168,6 @@ members = [
   "agent",
   "app_backend",
   "common",
-  "experiments",
   "packages/codebot",
   "packages/cogames",
   "packages/cortex",

@@ -102,7 +102,6 @@ def forward(x: Tensor, state: TensorDict, *, resets: Optional[ResetMask] = None)
 - **Automatic reset handling**: Resets are handled automatically when passed through `forward(resets=mask)`
   - The reset mask propagates through Stack → Block → Cell automatically
 
-
 This uniformity means you can treat a complex multi-layer stack exactly like a single cell, enabling arbitrary
 composition without changing your code interface.
 
@@ -189,8 +188,8 @@ stack = build_cortex_auto_stack(
 Notes:
 
 - Type‑based: every instance matching the override type is updated.
-- Explicit‑fields only: only fields you set on the override are merged; others keep their original values
-  (e.g., `X^` still enables `use_axon_qkv=True`).
+- Explicit‑fields only: only fields you set on the override are merged; others keep their original values (e.g., `X^`
+  still enables `use_axon_qkv=True`).
 - `cell.hidden_size` is always inferred from the enclosing block/stack and cannot be overridden.
 - Per‑layer targeting is not supported by this API; provide a custom pattern/map if you need per‑layer differences.
 
@@ -209,7 +208,7 @@ sequences, `[B, H]` for single-step.
 | `CausalConv1d` | Depthwise causal Conv1D cell (ring-buffer state); supports optional channel-mixing mode.                   | Yes (channel-mixing only) | No                       |
 | `AxonCell`     | Streaming RTU with diagonal input weights (per-channel local recurrence, 2H→H→out_dim projection).         | Yes                       | Yes (seq‑allin, short‑T) |
 | `XLCell`       | Transformer‑XL style multi‑head attention with rolling memory; optional AxonLayer‑backed Q/K/V projections. | No                        | No                       |
-| `AGaLiTeCell`  | AGaLiTe attention       | No                        | Yes (fused discount sum) |
+| `AGaLiTeCell`  | AGaLiTe attention                                                                                           | No                        | Yes (fused discount sum) |
 
 **Notes:**
 
@@ -223,11 +222,11 @@ Wrappers around cells that handle projections, normalization, and information fl
 
 | Block              | Description                                                                                                                                      |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `PassThroughBlock`     | Applies the nested cell directly at `d_hidden` with residual; no projections.                                                                    |
-| `PreUpBlock`           | Pre-upsamples to `d_inner = int(proj_factor * d_hidden)`, runs the cell at `d_inner`, gates and projects back to `d_hidden`, then adds residual. |
-| `PostUpBlock`          | Runs the cell at `d_hidden`, then applies a gated feed-forward projection up and back down before residual. Useful for deep stacks.              |
-| `PostUpGatedBlock`     | Like `PostUpBlock` but with GRU‑style gating (GTrXL‑inspired) for both sublayers (cell and FFN) to stabilize deep training.                     |
-| `AdapterBlock`         | Wraps another block with a trainable residual adapter (identity at init). Lets you insert capacity without changing behavior at t=0.             |
+| `PassThroughBlock` | Applies the nested cell directly at `d_hidden` with residual; no projections.                                                                    |
+| `PreUpBlock`       | Pre-upsamples to `d_inner = int(proj_factor * d_hidden)`, runs the cell at `d_inner`, gates and projects back to `d_hidden`, then adds residual. |
+| `PostUpBlock`      | Runs the cell at `d_hidden`, then applies a gated feed-forward projection up and back down before residual. Useful for deep stacks.              |
+| `PostUpGatedBlock` | Like `PostUpBlock` but with GRU‑style gating (GTrXL‑inspired) for both sublayers (cell and FFN) to stabilize deep training.                      |
+| `AdapterBlock`     | Wraps another block with a trainable residual adapter (identity at init). Lets you insert capacity without changing behavior at t=0.             |
 
 #### Hidden Size Inference in Blocks
 
@@ -289,14 +288,13 @@ col_cfg2 = build_column_auto_config(d_hidden=256, pattern="X^", custom_map=custo
 
 Built‑in expert tokens:
 
-- `A`  = Axon (PostUp)
+- `A` = Axon (PostUp)
 - `Ag` = AGaLiTe (PostUpGated)
-- `X`  = Transformer‑XL (PostUpGated), `X^` axonified QKV
-- `M`  = mLSTM (PreUp), `M^` axonified gates+QKV
-- `S`  = sLSTM (PostUp), `S^` axonified gates
-- `L`  = LSTM (PassThrough)
-- `C`  = CausalConv1d (PassThrough)
-
+- `X` = Transformer‑XL (PostUpGated), `X^` axonified QKV
+- `M` = mLSTM (PreUp), `M^` axonified gates+QKV
+- `S` = sLSTM (PostUp), `S^` axonified gates
+- `L` = LSTM (PassThrough)
+- `C` = CausalConv1d (PassThrough)
 
 ### Compact Forward Pass (per token t)
 
@@ -638,7 +636,7 @@ Both custom cells and blocks are automatically available through the configurati
 You can define stacks from compact token patterns using the auto builders. Each pattern expands to a Column of
 predefined or custom “expert” blocks. See Quick Start for the list of built‑in tokens and caret `^` semantics.
 
-1) Register custom tokens (optional)
+1. Register custom tokens (optional)
 
 Register new symbols with a decorator. You can also register caret variants explicitly by using the token with a `^`.
 
@@ -661,7 +659,7 @@ def build_Y_axon():
 Make sure your module is imported before building (e.g., `import your_pkg.my_tokens`). Built‑ins are loaded by
 `cortex.tokens` automatically.
 
-2) Build from a pattern
+2. Build from a pattern
 
 Use the auto builders to construct a `CortexStackConfig` or an instantiated stack from token patterns.
 
@@ -673,6 +671,6 @@ cfg = build_cortex_auto_config(d_hidden=256, num_layers=3, pattern="Y^Y")
 stack = build_cortex_auto_stack(d_hidden=256, num_layers=3, pattern=["YY", "Y^", "YYY"])
 ```
 
-4) Quick check
+4. Quick check
 
 Instantiate a stack and run a short forward pass as shown in Quick Start.

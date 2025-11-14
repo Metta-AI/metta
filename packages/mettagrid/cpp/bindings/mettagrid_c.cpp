@@ -47,7 +47,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       _global_obs_config(game_config.global_obs),
       _game_config(game_config),
       _num_observation_tokens(game_config.num_observation_tokens),
-      _track_movement_metrics(game_config.track_movement_metrics),
       _resource_loss_prob(game_config.resource_loss_prob),
       _inventory_regen_interval(game_config.inventory_regen_interval) {
   _seed = seed;
@@ -71,7 +70,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   _grid = std::make_unique<Grid>(height, width);
   _obs_encoder = std::make_unique<ObservationEncoder>(
-      resource_names.size(), game_config.protocol_details_obs, &resource_names, &game_config.feature_ids);
+      game_config.protocol_details_obs, resource_names, game_config.feature_ids);
 
   // Initialize ObservationFeature namespace with feature IDs
   ObservationFeature::Initialize(game_config.feature_ids);
@@ -104,8 +103,8 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
     _clipper = std::make_unique<Clipper>(*_grid,
                                          clipper_cfg.unclipping_protocols,
                                          clipper_cfg.length_scale,
-                                         clipper_cfg.cutoff_distance,
-                                         clipper_cfg.clip_rate,
+                                         clipper_cfg.scaled_cutoff_distance,
+                                         clipper_cfg.clip_period,
                                          _rng);
   }
 }
@@ -175,10 +174,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
           throw std::runtime_error("Too many agents for agent_id type");
         }
         agent->agent_id = static_cast<decltype(agent->agent_id)>(_agents.size());
-        // Only initialize visitation grid if visitation counts are enabled
-        if (_global_obs_config.visitation_counts) {
-          agent->init_visitation_grid(height, width);
-        }
+        agent->set_obs_encoder(_obs_encoder.get());
         add_agent(agent);
         _group_sizes[agent->group] += 1;
         continue;
@@ -191,6 +187,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
         _stats->incr("objects." + cell);
         assembler->set_grid(_grid.get());
         assembler->set_current_timestep_ptr(&current_step);
+        assembler->set_obs_encoder(_obs_encoder.get());
         continue;
       }
 
@@ -200,6 +197,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
         _grid->add_object(chest);
         _stats->incr("objects." + cell);
         chest->set_grid(_grid.get());
+        chest->set_obs_encoder(_obs_encoder.get());
         continue;
       }
 
@@ -230,13 +228,6 @@ void MettaGrid::_make_buffers(unsigned int num_agents) {
 
 void MettaGrid::_init_buffers(unsigned int num_agents) {
   assert(current_step == 0 && "current_step should be initialized to 0 at the start of _init_buffers");
-
-  // Reset visitation counts for all agents (only if enabled)
-  if (_global_obs_config.visitation_counts) {
-    for (auto& agent : _agents) {
-      agent->reset_visitation_counts();
-    }
-  }
 
   // Clear all buffers
   std::fill(static_cast<bool*>(_terminals.request().ptr),
@@ -343,6 +334,9 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   int c_end =
       std::min(static_cast<int>(observer_col) + static_cast<int>(obs_width_radius) + 1, static_cast<int>(_grid->width));
 
+  const int map_center_r = static_cast<int>(_grid->height) / 2;
+  const int map_center_c = static_cast<int>(_grid->width) / 2;
+
   // Fill in visible objects. Observations should have been cleared in _step, so
   // we don't need to do that here.
   size_t attempted_tokens_written = 0;
@@ -377,16 +371,6 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
     global_tokens.push_back({ObservationFeature::LastReward, reward_int});
   }
 
-  // Add visitation counts for this agent
-  if (_global_obs_config.visitation_counts) {
-    auto& agent = _agents[agent_idx];
-    auto visitation_counts = agent->get_visitation_counts();
-    for (size_t i = 0; i < 5; i++) {
-      global_tokens.push_back(
-          {ObservationFeature::VisitationCounts, static_cast<ObservationType>(visitation_counts[i])});
-    }
-  }
-
   // Global tokens are always at the center of the observation.
   uint8_t global_location =
       PackedCoordinate::pack(static_cast<uint8_t>(obs_height_radius), static_cast<uint8_t>(obs_width_radius));
@@ -394,6 +378,53 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   attempted_tokens_written +=
       _obs_encoder->append_tokens_if_room_available(agent_obs_tokens, global_tokens, global_location);
   tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
+
+  /*
+   * COMPASS TOKEN EMISSION
+   * ----------------------
+   * Some missions opt in to a lightweight "compass" hint by enabling the global_obs.compass flag.
+   * Rather than mutate the world, we inject a synthetic observation token that occupies one of the
+   * eight neighbor slots around the agent inside its egocentric window. The location byte alone
+   * communicates the direction: it is offset one step toward the assembler hub (which always sits
+   * in the map center for CvC missions). The token value is a simple sentinel (currently 1).
+   * When the agent is already at the hub there is no direction to emit, and although the offset
+   * should always land inside the observation window, we keep the bounds check as a defensive guard.
+   */
+  if (_global_obs_config.compass) {
+    const int delta_r = map_center_r - static_cast<int>(observer_row);
+    const int delta_c = map_center_c - static_cast<int>(observer_col);
+
+    int step_r = 0;
+    int step_c = 0;
+    if (delta_r != 0) {
+      step_r = (delta_r > 0) ? 1 : -1;
+    }
+    if (delta_c != 0) {
+      step_c = (delta_c > 0) ? 1 : -1;
+    }
+
+    if (step_r != 0 || step_c != 0) {
+      int obs_r = static_cast<int>(obs_height_radius) + step_r;
+      int obs_c = static_cast<int>(obs_width_radius) + step_c;
+
+      if (obs_r >= 0 && obs_r < static_cast<int>(observable_height) && obs_c >= 0 &&
+          obs_c < static_cast<int>(observable_width)) {
+        uint8_t compass_location = PackedCoordinate::pack(static_cast<uint8_t>(obs_r), static_cast<uint8_t>(obs_c));
+
+        ObservationToken* compass_ptr =
+            reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, tokens_written, 0));
+        ObservationTokens compass_tokens(
+            compass_ptr, static_cast<size_t>(observation_view.shape(1)) - static_cast<size_t>(tokens_written));
+
+        const std::vector<PartialObservationToken> compass_token = {
+            {ObservationFeature::Compass, static_cast<ObservationType>(1)}};
+
+        attempted_tokens_written +=
+            _obs_encoder->append_tokens_if_room_available(compass_tokens, compass_token, compass_location);
+        tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
+      }
+    }
+  }
 
   // Process locations in increasing manhattan distance order
   for (const auto& [r_offset, c_offset] : PackedCoordinate::ObservationPattern{observable_height, observable_width}) {
@@ -719,7 +750,6 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
     // We define that for location: x is column, y is row. Currently, no z for grid objects.
     // Note: it might be different for matrix computations.
     obj_dict["location"] = py::make_tuple(obj->location.c, obj->location.r);
-    obj_dict["is_swappable"] = obj->swappable();
 
     obj_dict["r"] = obj->location.r;          // To remove
     obj_dict["c"] = obj->location.c;          // To remove
@@ -773,8 +803,6 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       obj_dict["uses_count"] = assembler->uses_count;
       obj_dict["max_uses"] = assembler->max_uses;
       obj_dict["allow_partial_usage"] = assembler->allow_partial_usage;
-      obj_dict["exhaustion"] = assembler->exhaustion;
-      obj_dict["cooldown_multiplier"] = assembler->cooldown_multiplier;
 
       // Add current protocol ID (pattern byte)
       obj_dict["current_protocol_id"] = static_cast<int>(assembler->get_local_vibe());

@@ -2,12 +2,22 @@
 
 from __future__ import annotations
 
-from typing import TypeVar, cast
+from typing import TypeAlias, TypedDict, TypeVar, cast
 
 import numpy as np
 from gymnasium import spaces
 
 SpaceT = TypeVar("SpaceT", bound=spaces.Space)
+
+# Type alias for clarity
+StatsDict: TypeAlias = dict[str, float]
+
+
+class EpisodeStats(TypedDict):
+    """Episode statistics returned from C++ simulator."""
+
+    game: StatsDict
+    agent: list[StatsDict]
 
 
 def _require_space(space: spaces.Space, kind: type[SpaceT], label: str) -> SpaceT:

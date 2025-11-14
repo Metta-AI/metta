@@ -317,15 +317,16 @@ proc drawObjects*() =
         pos * TILE_SIZE
       )
     else:
-      px.drawSprite(
-        replay.typeImages.getOrDefault(thing.typeName, "objects/unknown"),
-        pos * TILE_SIZE,
-      )
+      let spriteName = replay.typeImages.getOrDefault(thing.typeName, "objects/unknown")
       if thing.isClipped.at:
-        let image = thing.typeName & ".clipped"
         px.drawSprite(
-          image,
+          spriteName & ".clipped",
           pos * TILE_SIZE
+        )
+      else:
+        px.drawSprite(
+          spriteName,
+          pos * TILE_SIZE,
         )
 
 proc drawVisualRanges*(alpha = 0.5) =
@@ -791,6 +792,12 @@ proc fitFullMap*(panel: Panel) =
   panel.pos.y = rectH / 2.0f - cy * z
 
 proc drawWorldMap*(panel: Panel) =
+  ## Draw the world map.
+
+  if replay == nil or replay.mapSize[0] == 0 or replay.mapSize[1] == 0:
+    # Replay has not been loaded yet.
+    return
+
   ## Draw the world map.
   if settings.lockFocus:
     centerAt(panel, selection)

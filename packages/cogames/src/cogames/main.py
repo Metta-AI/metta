@@ -22,10 +22,17 @@ from cogames import train as train_module
 from cogames.cli.base import console
 from cogames.cli.login import DEFAULT_COGAMES_SERVER, perform_login
 from cogames.cli.mission import describe_mission, get_mission_name_and_config, get_mission_names_and_configs
-from cogames.cli.policy import get_policy_spec, get_policy_specs, policy_arg_example, policy_arg_w_proportion_example
+from cogames.cli.policy import (
+    get_policy_spec,
+    get_policy_specs_with_proportions,
+    policy_arg_example,
+    policy_arg_w_proportion_example,
+)
 from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, submit_command
 from cogames.curricula import make_rotation
 from cogames.device import resolve_training_device
+from mettagrid.policy.loader import discover_and_register_policies
+from mettagrid.policy.policy_registry import get_policy_registry
 from mettagrid.renderer.renderer import RenderMode
 from mettagrid.simulator import Simulator
 
@@ -44,6 +51,7 @@ app = typer.Typer(
     no_args_is_help=True,
     rich_markup_mode="rich",
     pretty_exceptions_show_locals=False,
+    callback=lambda: discover_and_register_policies("cogames.policy"),
 )
 
 
@@ -127,6 +135,14 @@ def play_cmd(
         False, "--print-cvc-config", help="Print Mission config (CVC config) and exit"
     ),
     print_mg_config: bool = typer.Option(False, "--print-mg-config", help="Print MettaGridConfig and exit"),
+    save_replay_dir: Optional[Path] = typer.Option(  # noqa: B008
+        None,
+        "--save-replay-dir",
+        help=(
+            "Directory to save replay. Directory will be created if it doesn't exist. "
+            "Replay will be saved with a unique UUID-based filename."
+        ),
+    ),
 ) -> None:
     resolved_mission, env_cfg, mission_cfg = get_mission_name_and_config(ctx, mission, variant, cogs)
 
@@ -148,9 +164,6 @@ def play_cmd(
     ):
         env_cfg.game.max_steps = steps
 
-    if cogs is not None:
-        env_cfg.game.num_agents = cogs
-
     play_module.play(
         console,
         env_cfg=env_cfg,
@@ -158,6 +171,7 @@ def play_cmd(
         seed=42,
         render_mode=render,
         game_name=resolved_mission,
+        save_replay=save_replay_dir,
     )
 
 
@@ -272,8 +286,8 @@ def train_cmd(
     try:
         train_module.train(
             env_cfg=env_cfg,
-            policy_class_path=policy_spec.policy_class_path,
-            initial_weights_path=policy_spec.policy_data_path,
+            policy_class_path=policy_spec.class_path,
+            initial_weights_path=policy_spec.data_path,
             device=torch_device,
             num_steps=steps,
             checkpoints_path=Path(checkpoints_path),
@@ -334,15 +348,18 @@ def evaluate_cmd(
         "--format",
         help="Output results in YAML or JSON format",
     ),
+    save_replay_dir: Optional[Path] = typer.Option(  # noqa: B008
+        None,
+        "--save-replay-dir",
+        help=(
+            "Directory to save replays. Directory will be created if it doesn't exist. "
+            "Each replay will be saved with a unique UUID-based filename."
+        ),
+    ),
 ) -> None:
     selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs, steps=steps)
 
-    # Override num_agents if --cogs was explicitly provided
-    if cogs is not None:
-        for _, env_cfg in selected_missions:
-            env_cfg.game.num_agents = cogs
-
-    policy_specs = get_policy_specs(ctx, policies)
+    policy_specs = get_policy_specs_with_proportions(ctx, policies)
 
     console.print(
         f"[cyan]Preparing evaluation for {len(policy_specs)} policies across {len(selected_missions)} mission(s)[/cyan]"
@@ -351,10 +368,12 @@ def evaluate_cmd(
     evaluate_module.evaluate(
         console,
         missions=selected_missions,
-        policy_specs=policy_specs,
+        policy_specs=[spec.to_policy_spec() for spec in policy_specs],
+        proportions=[spec.proportion for spec in policy_specs],
         action_timeout_ms=action_timeout_ms,
         episodes=episodes,
         output_format=format_,
+        save_replay=save_replay_dir,
     )
 
 
@@ -369,6 +388,20 @@ def version_cmd() -> None:
 
     for dist_name in ["mettagrid", "pufferlib-core", "cogames"]:
         table.add_row(dist_name, public_version(dist_name))
+
+    console.print(table)
+
+
+@app.command(name="policies", help="Show default policies and their shorthand names")
+def policies_cmd() -> None:
+    policy_registry = get_policy_registry()
+    table = Table(show_header=False, box=None, show_lines=False, pad_edge=False)
+    table.add_column("", justify="left", style="bold cyan")
+    table.add_column("", justify="right")
+
+    for policy_name, policy_path in policy_registry.items():
+        table.add_row(policy_name, policy_path)
+    table.add_row("custom", "path.to.your.PolicyClass")
 
     console.print(table)
 

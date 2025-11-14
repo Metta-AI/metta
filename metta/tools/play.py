@@ -14,7 +14,7 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config
 from mettagrid.policy.policy import AgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.policy.random import RandomAgentPolicy
+from mettagrid.policy.random_agent import RandomAgentPolicy
 from mettagrid.renderer.renderer import RenderMode
 from mettagrid.simulator.rollout import Rollout
 
@@ -32,26 +32,10 @@ class PlayTool(Tool):
     wandb: WandbConfig = auto_wandb_config()
     sim: SimulationConfig
     policy_uri: str | None = None
-    replay_dir: str | None = None
-    stats_dir: str | None = None
     open_browser_on_start: bool = True
     max_steps: Optional[int] = None
     seed: int = 42
     render: RenderMode = "gui"
-
-    @property
-    def effective_replay_dir(self) -> str:
-        """Return configured replay directory or default under system data_dir."""
-        if self.replay_dir is not None:
-            return self.replay_dir
-        return str(self.system.data_dir / "replays")
-
-    @property
-    def effective_stats_dir(self) -> str:
-        """Return configured stats directory or default under system data_dir."""
-        if self.stats_dir is not None:
-            return self.stats_dir
-        return str(self.system.data_dir / "stats")
 
     def _load_policy_from_uri(
         self, policy_uri: str, policy_env_info: PolicyEnvInterface, device: torch.device

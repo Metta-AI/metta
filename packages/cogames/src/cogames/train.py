@@ -17,14 +17,14 @@ from mettagrid import MettaGridConfig, PufferMettaGridEnv
 from mettagrid.config.mettagrid_config import EnvSupervisorConfig
 from mettagrid.envs.early_reset_handler import EarlyResetHandler
 from mettagrid.envs.stats_tracker import StatsTracker
-from mettagrid.policy.policy import TrainablePolicy
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.policy.utils import (
+from mettagrid.policy.loader import (
     find_policy_checkpoints,
     get_policy_class_shorthand,
     initialize_or_load_policy,
     resolve_policy_data_path,
 )
+from mettagrid.policy.policy import PolicySpec, TrainablePolicy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Simulator
 from mettagrid.util.stats_writer import NoopStatsWriter
 from pufferlib import pufferl
@@ -180,30 +180,8 @@ def train(
         envs_per_worker,
     )
 
-    def _clone_cfg() -> MettaGridConfig:
-        if env_cfg_supplier is not None:
-            supplied = env_cfg_supplier()
-            if not isinstance(supplied, MettaGridConfig):
-                raise TypeError("env_cfg_supplier must return a MettaGridConfig")
-            return supplied.model_copy(deep=True)
-        assert env_cfg is not None
-        return env_cfg.model_copy(deep=True)
-
-    base_cfg = _clone_cfg()
-
-    def env_creator(
-        cfg: Optional[MettaGridConfig] = None,
-        buf: Optional[Any] = None,
-        seed: Optional[int] = None,
-    ):
-        target_cfg = cfg.model_copy(deep=True) if cfg is not None else _clone_cfg()
-        simulator = Simulator()
-        simulator.add_event_handler(StatsTracker(NoopStatsWriter()))
-        simulator.add_event_handler(EarlyResetHandler())
-        env_supervisor_cfg = EnvSupervisorConfig(enabled=False)
-        env = PufferMettaGridEnv(simulator, target_cfg, env_supervisor_cfg, buf, seed if seed is not None else 0)
-        set_buffers(env, buf)
-        return env
+    env_creator = _EnvCreator(env_cfg, env_cfg_supplier)
+    base_cfg = env_creator.clone_cfg()
 
     vecenv = pvector.make(
         env_creator,
@@ -224,13 +202,15 @@ def train(
 
     policy = initialize_or_load_policy(
         PolicyEnvInterface.from_mg_cfg(vecenv.driver_env.env_cfg),
-        policy_class_path=policy_class_path,
-        policy_data_path=resolved_initial_weights,
-        device=device,
+        PolicySpec(
+            class_path=policy_class_path,
+            data_path=resolved_initial_weights,
+        ),
     )
     assert isinstance(policy, TrainablePolicy), (
         f"Policy class {policy_class_path} must implement TrainablePolicy interface"
     )
+    policy.network().to(device)
 
     use_rnn = getattr(policy, "is_recurrent", lambda: False)()
     if not use_rnn:
@@ -427,3 +407,39 @@ def train(
 
         console.print("=" * 80, style="bold green")
         console.print()
+
+
+class _EnvCreator:
+    """Picklable environment factory for vectorized training."""
+
+    def __init__(
+        self,
+        env_cfg: Optional[MettaGridConfig],
+        env_cfg_supplier: Optional[Callable[[], MettaGridConfig]],
+    ) -> None:
+        self._env_cfg = env_cfg
+        self._env_cfg_supplier = env_cfg_supplier
+
+    def clone_cfg(self) -> MettaGridConfig:
+        if self._env_cfg_supplier is not None:
+            supplied = self._env_cfg_supplier()
+            if not isinstance(supplied, MettaGridConfig):  # pragma: no cover - defensive
+                raise TypeError("env_cfg_supplier must return a MettaGridConfig")
+            return supplied.model_copy(deep=True)
+        assert self._env_cfg is not None
+        return self._env_cfg.model_copy(deep=True)
+
+    def __call__(
+        self,
+        cfg: Optional[MettaGridConfig] = None,
+        buf: Optional[Any] = None,
+        seed: Optional[int] = None,
+    ) -> PufferMettaGridEnv:
+        target_cfg = cfg.model_copy(deep=True) if cfg is not None else self.clone_cfg()
+        simulator = Simulator()
+        simulator.add_event_handler(StatsTracker(NoopStatsWriter()))
+        simulator.add_event_handler(EarlyResetHandler())
+        env_supervisor_cfg = EnvSupervisorConfig()
+        env = PufferMettaGridEnv(simulator, target_cfg, env_supervisor_cfg, buf, seed if seed is not None else 0)
+        set_buffers(env, buf)
+        return env

@@ -4,6 +4,7 @@ from typing import Optional
 
 from pydantic import Field
 
+from metta.sim.runner import SimulationRunConfig
 from mettagrid import MettaGridConfig
 from mettagrid.base_config import Config
 
@@ -29,3 +30,10 @@ class SimulationConfig(Config):
     @property
     def full_name(self) -> str:
         return f"{self.suite}/{self.name}"
+
+    def to_simulation_run_config(self) -> SimulationRunConfig:
+        return SimulationRunConfig(
+            env=self.env,
+            num_episodes=self.num_episodes,
+            episode_tags={"name": self.name, "category": self.suite},
+        )

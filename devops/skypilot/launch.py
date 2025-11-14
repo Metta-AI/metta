@@ -148,7 +148,7 @@ Examples:
     # We'll parse known args only, allowing unknown ones to be passed as tool args
     parser.add_argument(
         "module_path",
-        help="Module path to run (e.g., arena.train or experiments.recipes.arena.train, "
+        help="Module path to run (e.g., arena.train or recipes.experiment.arena.train, "
         "or two-token syntax like 'train arena'). "
         "Any arguments following the module path will be passed to the tool.",
     )
@@ -181,7 +181,7 @@ Examples:
         default=None,
         help="Maximum job runtime in hours before automatic termination (supports decimals, e.g., 1.5 = 90 minutes)",
     )
-    parser.add_argument("--skip-git-check", action="store_true", help="Skip git state validation")
+    parser.add_argument("--skip-git-check", action="store_true", help="Skip git state validation and GitHub API calls")
     parser.add_argument("-c", "--confirm", action="store_true", help="Show confirmation prompt")
     parser.add_argument(
         "--github-pat", type=str, default=None, help="GitHub PAT token for posting status updates (repo scope)"
@@ -248,7 +248,7 @@ Examples:
     # Validate module path (supports shorthand like 'arena.train' or two-token 'train arena')
     if not validate_module_path(module_path):
         print(f"❌ Invalid module path: '{module_path}'", flush=True)
-        print("Module path should be like 'arena.train' or 'experiments.recipes.arena.train'", flush=True)
+        print("Module path should be like 'arena.train' or 'recipes.experiment.arena.train'", flush=True)
         return 1
 
     assert commit_hash
@@ -325,6 +325,7 @@ Examples:
         git_ref=args.git_ref,
         timeout_hours=args.max_runtime_hours,
         task=task,
+        skip_github=args.skip_git_check,
         **extra_details,
     )
 
