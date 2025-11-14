@@ -973,9 +973,24 @@ class StatsReporter(TrainerComponent):
         logger.info(f"Tracked task IDs: {tracked_task_ids}")
 
         if tracked_task_ids:
+            # Get task tracker for accessing task stats
+            algorithm = getattr(curriculum, "_algorithm", None)
+            task_tracker = algorithm.task_tracker if algorithm else None
+
             for i, task_id in enumerate(tracked_task_ids):
                 lp_score = curriculum.get_task_lp_score(task_id)
                 stats[f"curriculum_stats/tracked_task_lp_scores/task_{i}"] = float(lp_score)
+
+                # Get detailed task stats including reward EMA
+                if task_tracker:
+                    task_stats = task_tracker.get_task_stats(task_id)
+                    if task_stats:
+                        stats[f"curriculum_stats/tracked_task_reward_ema/task_{i}"] = float(task_stats["reward_ema"])
+                        stats[f"curriculum_stats/tracked_task_completions/task_{i}"] = float(
+                            task_stats["completion_count"]
+                        )
+                        stats[f"curriculum_stats/tracked_task_p_fast/task_{i}"] = float(task_stats["p_fast"])
+                        stats[f"curriculum_stats/tracked_task_p_slow/task_{i}"] = float(task_stats["p_slow"])
 
                 # Completion counts this epoch from accumulated info dicts
                 completion_key = f"curriculum_stats/tracked_task_completions_this_epoch/task_{i}"

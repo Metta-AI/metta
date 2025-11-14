@@ -734,6 +734,36 @@ class TaskTracker:
         # Only close, don't unlink in destructor
         pass  # Backend handles its own cleanup
 
+    def __getstate__(self):
+        """Prepare for pickling - save configuration and mappings."""
+        return {
+            "max_memory_tasks": self.max_memory_tasks,
+            "ema_alpha": self.ema_alpha,
+            "default_success_threshold": self.default_success_threshold,
+            "default_generator_type": self.default_generator_type,
+            "backend": self._backend,  # SharedMemoryBackend has its own pickle support
+            "total_completions": self._total_completions,
+            "sum_scores": self._sum_scores,
+        }
+
+    def __setstate__(self, state):
+        """Restore from pickle - reconnect to shared memory and rebuild mappings."""
+        self.max_memory_tasks = state["max_memory_tasks"]
+        self.ema_alpha = state["ema_alpha"]
+        self.default_success_threshold = state["default_success_threshold"]
+        self.default_generator_type = state["default_generator_type"]
+        self._backend = state["backend"]
+        self._total_completions = state["total_completions"]
+        self._sum_scores = state["sum_scores"]
+
+        # Initialize label tracking (local per-process)
+        self._label_hash_to_string = {}
+
+        # Rebuild task ID to index mapping from shared memory
+        self._task_id_to_index = {}
+        self._next_free_index = 0
+        self._rebuild_task_mapping()
+
 
 # Backwards compatibility factory functions
 def LocalTaskTracker(max_memory_tasks: int = 1000, ema_alpha: float = 0.1) -> TaskTracker:

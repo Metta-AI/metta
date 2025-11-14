@@ -259,6 +259,32 @@ class SharedMemoryBackend(TaskMemoryBackend):
         except Exception:
             pass
 
+    def __getstate__(self):
+        """Prepare for pickling - save connection parameters."""
+        return {
+            "max_tasks": self.max_tasks,
+            "task_struct_size": self.task_struct_size,
+            "session_id": self.session_id,
+            "created_shared_memory": self._created_shared_memory,
+        }
+
+    def __setstate__(self, state):
+        """Restore from pickle - reconnect to existing shared memory."""
+        self.max_tasks = state["max_tasks"]
+        self.task_struct_size = state["task_struct_size"]
+        self.session_id = state["session_id"]
+        self._created_shared_memory = False  # Worker processes never created it, only connect
+
+        # Set shared memory names before reconnecting
+        self._task_array_name = f"ta_{self.session_id}"
+        self._created_shared_memory = False
+
+        # Reconnect to existing shared memory
+        self._init_shared_memory()
+
+        # Recreate lock (each process needs its own lock object pointing to the shared lock)
+        self._lock = Lock()
+
 
 # Backwards compatibility alias
 SharedTaskMemory = SharedMemoryBackend
