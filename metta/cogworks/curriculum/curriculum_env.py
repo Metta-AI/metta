@@ -132,6 +132,17 @@ class CurriculumEnv(PufferEnv):
             # All agents in the same environment complete simultaneously, so take mean
             mean_reward = float(episode_rewards.mean())
 
+            # Debug logging for reward tracking (can be removed after verification)
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.debug(
+                f"Task {self._current_task._task_id} (label={self._current_task.get_label()}) "
+                f"completed with mean_reward={mean_reward:.4f} "
+                f"(raw episode_rewards: min={episode_rewards.min():.4f}, "
+                f"max={episode_rewards.max():.4f}, mean={episode_rewards.mean():.4f})"
+            )
+
             # Record ONE completion for this environment episode
             self._current_task.complete(mean_reward)
             self._curriculum.update_task_performance(self._current_task._task_id, mean_reward)

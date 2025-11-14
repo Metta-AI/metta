@@ -645,32 +645,6 @@ class StatsReporter(TrainerComponent):
         tasks_with_nonzero_lp = 0
         tasks_with_nonzero_ema = 0
 
-        # Sample a few tasks to show details
-        sample_size = min(5, len(tracked_tasks))
-        logger.info(f"\nShowing details for {sample_size} sample tasks:")
-
-        for task_id in tracked_tasks[:sample_size]:
-            # Get raw data from task tracker
-            task_stats = task_tracker.get_task_stats(task_id)
-            if not task_stats:
-                logger.info(f"  Task {task_id}: NO DATA")
-                continue
-
-            completion_count = task_stats["completion_count"]
-            reward_ema = task_stats["reward_ema"]
-            lp_score = task_stats["lp_score"]
-            p_fast = task_stats["p_fast"]
-            p_slow = task_stats["p_slow"]
-            p_true = task_stats["p_true"]
-            random_baseline = task_stats["random_baseline"]
-
-            logger.info(f"  Task {task_id}:")
-            logger.info(f"    Completions: {completion_count}")
-            logger.info(f"    Reward EMA: {reward_ema:.4f}")
-            logger.info(f"    LP Score: {lp_score:.4f}")
-            logger.info(f"    Bidirectional EMAs: p_fast={p_fast:.4f}, p_slow={p_slow:.4f}, p_true={p_true:.4f}")
-            logger.info(f"    Baseline: {random_baseline:.4f}")
-
         # Compute aggregate stats
         for task_id in tracked_tasks:
             task_stats = task_tracker.get_task_stats(task_id)
@@ -730,377 +704,132 @@ class StatsReporter(TrainerComponent):
         sample_keys = list(curriculum_stats.keys())[:10]
         logger.info(f"Sample curriculum stat keys: {sample_keys}")
 
-        if "num_completed" in curriculum_stats:
-            stats["curriculum_stats/total_completions"] = float(curriculum_stats["num_completed"])
+        # Calculate per-label mean LP scores directly from shared memory
+        per_label_lp_stats = self._calculate_per_label_mean_lp_from_shared_memory(curriculum)
+        stats.update(per_label_lp_stats)
 
-        if "num_evicted" in curriculum_stats:
-            stats["curriculum_stats/num_evicted"] = float(curriculum_stats["num_evicted"])
-
-        if "algorithm/mean_lp_score" in curriculum_stats:
-            stats["curriculum_stats/mean_pool_lp_score"] = float(curriculum_stats["algorithm/mean_lp_score"])
-
-        total_pool_size = curriculum_stats.get("num_active_tasks", 0)
-        if total_pool_size > 0:
-            for key, value in curriculum_stats.items():
-                if key.startswith("algorithm/pool_composition/"):
-                    label = key.replace("algorithm/pool_composition/", "")
-                    stats[f"curriculum_stats/pool_composition_fraction/{label}"] = float(value / total_pool_size)
-
-        for key, value in curriculum_stats.items():
-            if key.startswith("algorithm/eviction_counts/"):
-                label = key.replace("algorithm/eviction_counts/", "")
-                stats[f"curriculum_stats/per_label_aggregate_evictions/{label}"] = float(value)
-
-        # Forward per-label completion counts
-        for key, value in curriculum_stats.items():
-            if key.startswith("per_label_completions/"):
-                label = key.replace("per_label_completions/", "")
-                stats[f"curriculum_stats/per_label_completions/{label}"] = float(value)
-
-        # Needed for sampling_gini calculation
-        per_label_probs = self._get_per_label_sampling_probs(curriculum)
-        if per_label_probs:
-            stats.update(per_label_probs)
-
-        # Detailed per-label LP scores (expensive, only if troubleshooting enabled)
-        if self._should_enable_curriculum_troubleshooting():
-            per_label_lp_stats = self._get_per_label_lp_stats(curriculum)
-            if per_label_lp_stats:
-                logger.info(f"Collected {len(per_label_lp_stats)} detailed per-label LP stats")
-                stats.update(per_label_lp_stats)
-
-        if self._should_enable_curriculum_troubleshooting():
-            troubleshooting_stats = self._collect_curriculum_troubleshooting_stats(curriculum, curriculum_stats)
-            logger.info(f"Collected {len(troubleshooting_stats)} additional troubleshooting stats")
-            stats.update(troubleshooting_stats)
-
-        logger.info(f"Stats keys before Gini calculations: {len(stats)} total")
-        lp_prob_keys = [k for k in stats.keys() if "per_label_lp_probs" in k]
-        logger.info(f"  - Found {len(lp_prob_keys)} per_label_lp_probs keys")
-
-        rollout_keys_sample = list(self._state.rollout_stats.keys())[:10]
-        logger.info(f"Rollout stats keys (sample): {rollout_keys_sample}")
-
-        pool_comp_fraction_keys = [
-            k for k in stats.keys() if k.startswith("curriculum_stats/pool_composition_fraction/")
-        ]
-        pool_comp_fractions = [stats[k] for k in pool_comp_fraction_keys]
-        if pool_comp_fractions:
-            stats["curriculum_stats/pool_composition_gini"] = self._calculate_gini_coefficient(pool_comp_fractions)
-            logger.info(
-                f"Pool composition gini: {stats['curriculum_stats/pool_composition_gini']:.3f} "
-                f"({len(pool_comp_fractions)} labels, fractions={pool_comp_fractions[:5]})"
-            )
-        else:
-            logger.warning("No pool composition fractions found for gini calculation")
-
-        sampling_prob_keys = [k for k in stats.keys() if k.startswith("curriculum_stats/per_label_lp_probs/")]
-        sampling_probs = [stats[k] for k in sampling_prob_keys]
-        if sampling_probs:
-            stats["curriculum_stats/sampling_gini"] = self._calculate_gini_coefficient(sampling_probs)
-            logger.info(
-                f"Sampling gini: {stats['curriculum_stats/sampling_gini']:.3f} "
-                f"({len(sampling_probs)} labels, probs={sampling_probs[:5]})"
-            )
-        else:
-            logger.warning(
-                f"No sampling probabilities found for gini calculation (found {len(sampling_prob_keys)} keys)"
-            )
-
-        per_label_evictions = self._get_per_epoch_evictions_from_curriculum(curriculum)
-        logger.info(f"Got evictions from curriculum: {len(per_label_evictions)} labels")
-        if per_label_evictions:
-            epoch_eviction_counts = list(per_label_evictions.values())
-            logger.info(f"  - Eviction counts: {epoch_eviction_counts[:5]}")
-            stats["curriculum_stats/eviction_gini"] = self._calculate_gini_coefficient(epoch_eviction_counts)
-            logger.info(
-                f"Eviction gini: {stats['curriculum_stats/eviction_gini']:.3f} "
-                f"({len(epoch_eviction_counts)} labels, counts={epoch_eviction_counts[:5]})"
-            )
-        else:
-            logger.info("No evictions this epoch (expected early in training)")
-
-        per_label_samples = self._get_per_epoch_samples_from_curriculum(curriculum)
-        logger.info(f"Got samples from curriculum: {len(per_label_samples)} labels")
-        if per_label_samples:
-            epoch_sample_counts = list(per_label_samples.values())
-            logger.info(f"  - Sample counts: {epoch_sample_counts[:5]}")
-            if len(set(epoch_sample_counts)) > 1:
-                stats["curriculum_stats/per_epoch_samples_gini"] = self._calculate_gini_coefficient(epoch_sample_counts)
-                logger.info(
-                    f"Per-epoch samples gini: {stats['curriculum_stats/per_epoch_samples_gini']:.3f} "
-                    f"({len(epoch_sample_counts)} labels, counts={epoch_sample_counts[:5]})"
-                )
-            else:
-                stats["curriculum_stats/per_epoch_samples_gini"] = 0.0
-                logger.info(f"Per-epoch samples are uniform (all = {epoch_sample_counts[0]}), gini=0.0 by definition")
-        else:
-            logger.info("No samples this epoch (expected if no episodes completed)")
-
-        if "algorithm/curriculum_gini/pool_occupancy" in curriculum_stats:
-            gini_value = float(curriculum_stats["algorithm/curriculum_gini/pool_occupancy"])
-            stats["curriculum_stats/task_sampling_gini"] = gini_value
-            logger.info(f"Task sampling gini: {gini_value:.3f} (from algorithm/curriculum_gini/pool_occupancy)")
-        else:
-            logger.warning("algorithm/curriculum_gini/pool_occupancy not found in curriculum_stats")
-
-        if "algorithm/curriculum_gini/raw_lp_scores" in curriculum_stats:
-            gini_value = float(curriculum_stats["algorithm/curriculum_gini/raw_lp_scores"])
-            stats["curriculum_stats/task_lp_gini"] = gini_value
-            logger.info(f"Task LP gini: {gini_value:.3f} (from algorithm/curriculum_gini/raw_lp_scores)")
-
-            if "algorithm/debug/raw_lp_unique_count" in curriculum_stats:
-                unique_count = curriculum_stats["algorithm/debug/raw_lp_unique_count"]
-                total_count = curriculum_stats.get("algorithm/debug/raw_lp_total_count", 0)
-                logger.info(
-                    f"  Raw LP: {unique_count:.0f} unique values out of {total_count:.0f} tasks "
-                    f"(mean={curriculum_stats.get('algorithm/debug/raw_lp_mean', 0):.4f}, "
-                    f"std={curriculum_stats.get('algorithm/debug/raw_lp_std', 0):.4f})"
-                )
-        else:
-            logger.warning("algorithm/curriculum_gini/raw_lp_scores not found in curriculum_stats")
-
-        # Pass through all Gini stats from algorithm
-        gini_keys_found = []
-        for key, value in curriculum_stats.items():
-            if key.startswith("algorithm/curriculum_gini/"):
-                stats[key] = float(value)
-                gini_type = key.replace("algorithm/curriculum_gini/", "")
-                gini_keys_found.append(gini_type)
-
-        if gini_keys_found:
-            logger.info(f"Passed through {len(gini_keys_found)} gini stats: {gini_keys_found[:5]}")
-
-        # 8. Pass through all debug stats
-        for key, value in curriculum_stats.items():
-            if key.startswith("algorithm/debug/"):
-                stats[key] = float(value)
+        # Calculate raw LP debug stats directly from shared memory
+        raw_lp_debug_stats = self._calculate_raw_lp_gini_from_shared_memory(curriculum)
+        stats.update(raw_lp_debug_stats)
 
         logger.info(f"Total curriculum stats collected: {len(stats)}")
         return stats
 
-    @staticmethod
-    def _reconstruct_dict_from_flattened_keys(rollout_stats: dict, prefix: str) -> dict[str, float]:
-        """Reconstruct dictionary from flattened keys.
+    def _calculate_per_label_mean_lp_from_shared_memory(self, curriculum: Any) -> dict[str, float]:
+        """Calculate per-label mean LP scores directly from task tracker shared memory.
 
-        When stats are emitted as nested dicts like:
-            {"env_curriculum_stats/per_label_samples_this_epoch": {"label1": 2, "label2": 3}}
-
-        They get flattened by unroll_nested_dict to:
-            {"env_curriculum_stats/per_label_samples_this_epoch/label1": 2,
-             "env_curriculum_stats/per_label_samples_this_epoch/label2": 3}
-
-        This function reconstructs the original dict structure for Gini calculations.
-
-        Args:
-            rollout_stats: Dictionary with flattened keys
-            prefix: The prefix to search for (e.g., "env_curriculum_stats/per_label_samples_this_epoch")
-
-        Returns:
-            Dictionary mapping label -> value
-        """
-        result = {}
-        prefix_with_slash = f"{prefix}/"
-        for key, value in rollout_stats.items():
-            if key.startswith(prefix_with_slash):
-                label = key[len(prefix_with_slash) :]
-                # Value might be a list (accumulated across rollout steps) or scalar
-                if isinstance(value, list):
-                    result[label] = float(sum(value))  # Sum for count-based stats
-                else:
-                    result[label] = float(value)
-        return result
-
-    def _get_per_epoch_evictions_from_curriculum(self, curriculum: Any) -> dict[str, int]:
-        """Get per-epoch evictions directly from curriculum."""
-        if curriculum is None:
-            return {}
-        algorithm = getattr(curriculum, "_algorithm", curriculum)
-        try:
-            return algorithm.get_and_reset_evictions_this_epoch()
-        except Exception as e:
-            logger.warning(f"Failed to get evictions from curriculum: {e}")
-            return {}
-
-    def _get_per_epoch_samples_from_curriculum(self, curriculum: Any) -> dict[str, int]:
-        """Get per-epoch sampling counts directly from curriculum algorithm."""
-        if curriculum is None:
-            return {}
-        algorithm = getattr(curriculum, "_algorithm", None)
-        if algorithm is None:
-            return {}
-        try:
-            return algorithm.get_and_reset_sampling_counts_this_epoch()
-        except Exception as e:
-            logger.warning(f"Failed to get sampling counts from curriculum: {e}")
-            return {}
-
-    def _should_enable_curriculum_troubleshooting(self) -> bool:
-        """Check if curriculum troubleshooting logging is enabled.
-
-        Checks the curriculum algorithm's hyperparameters for the
-        show_curriculum_troubleshooting_logging flag.
-
-        Context Access: self.context.curriculum is set in trainer from env._curriculum
-        Flag Location: LearningProgressAlgorithmHypers.show_curriculum_troubleshooting_logging
-        """
-        if not self.context or not hasattr(self.context, "curriculum"):
-            logger.info("Troubleshooting disabled: No context or curriculum")
-            return False
-
-        curriculum = self.context.curriculum
-        if not curriculum or not hasattr(curriculum, "_algorithm"):
-            logger.info("Troubleshooting disabled: No curriculum or algorithm")
-            return False
-
-        algorithm = curriculum._algorithm
-        if not algorithm or not hasattr(algorithm, "hypers"):
-            logger.info("Troubleshooting disabled: No algorithm or hypers")
-            return False
-
-        flag_value = getattr(algorithm.hypers, "show_curriculum_troubleshooting_logging", False)
-        logger.info(f"Troubleshooting flag value: {flag_value}")
-        return flag_value
-
-    def _collect_curriculum_troubleshooting_stats(self, curriculum: Any, curriculum_stats: dict) -> dict[str, float]:
-        """Collect detailed troubleshooting stats for curriculum debugging.
-
-        Includes:
-        - Tracked task dynamics (first 3 tasks)
-
-        Note: Per-label LP scores are now collected unconditionally in _collect_curriculum_stats
-        for Gini calculation purposes.
+        Reads LP scores from shared memory for all tasks, groups by label, and calculates mean.
         """
         stats = {}
 
-        # GROUP C: Tracked task dynamics
-        # Get first 3 task IDs from the curriculum's task pool
-        tracked_task_ids = self._get_tracked_task_ids(curriculum)
-        logger.info(f"Tracked task IDs: {tracked_task_ids}")
+        if not hasattr(curriculum, "_algorithm") or not hasattr(curriculum._algorithm, "task_tracker"):
+            logger.warning("Cannot access task tracker from curriculum")
+            return stats
 
-        if tracked_task_ids:
-            # Get task tracker for accessing task stats
-            algorithm = getattr(curriculum, "_algorithm", None)
-            task_tracker = algorithm.task_tracker if algorithm else None
+        task_tracker = curriculum._algorithm.task_tracker
+        all_task_ids = task_tracker.get_all_tracked_tasks()
 
-            for i, task_id in enumerate(tracked_task_ids):
-                lp_score = curriculum.get_task_lp_score(task_id)
-                stats[f"curriculum_stats/tracked_task_lp_scores/task_{i}"] = float(lp_score)
+        if not all_task_ids:
+            return stats
 
-                # Get detailed task stats including reward EMA
-                if task_tracker:
-                    task_stats = task_tracker.get_task_stats(task_id)
-                    if task_stats:
-                        stats[f"curriculum_stats/tracked_task_reward_ema/task_{i}"] = float(task_stats["reward_ema"])
-                        stats[f"curriculum_stats/tracked_task_completions/task_{i}"] = float(
-                            task_stats["completion_count"]
-                        )
-                        stats[f"curriculum_stats/tracked_task_p_fast/task_{i}"] = float(task_stats["p_fast"])
-                        stats[f"curriculum_stats/tracked_task_p_slow/task_{i}"] = float(task_stats["p_slow"])
+        # Group LP scores and reward EMAs by label (for debugging)
+        label_lp_scores = {}
+        label_reward_emas = {}
 
-                # Completion counts this epoch from accumulated info dicts
-                completion_key = f"curriculum_stats/tracked_task_completions_this_epoch/task_{i}"
-                if completion_key in self._state.rollout_stats:
-                    stats[completion_key] = float(np.sum(self._state.rollout_stats[completion_key]))
+        for task_id in all_task_ids:
+            task_stats = task_tracker.get_task_stats(task_id)
+            if task_stats:
+                lp_score = task_stats.get("lp_score", 0.0)
+                reward_ema = task_stats.get("reward_ema", 0.0)
+                completion_count = task_stats.get("completion_count", 0)
+                label = task_tracker.get_task_label(task_id)
+
+                if label:
+                    if label not in label_lp_scores:
+                        label_lp_scores[label] = []
+                        label_reward_emas[label] = []
+                    label_lp_scores[label].append(lp_score)
+                    if completion_count > 0:  # Only include tasks with completions
+                        label_reward_emas[label].append(reward_ema)
+
+        # Calculate mean LP score per label
+        if label_lp_scores:
+            for label, lp_scores in label_lp_scores.items():
+                mean_lp = sum(lp_scores) / len(lp_scores)
+                stats[f"curriculum_stats/per_label_mean_lp_score/{label}"] = mean_lp
+
+                # Debug: also log mean reward EMA
+                if label in label_reward_emas and label_reward_emas[label]:
+                    mean_reward = sum(label_reward_emas[label]) / len(label_reward_emas[label])
+                    logger.debug(
+                        f"Label {label}: mean_lp={mean_lp:.4f}, "
+                        f"mean_reward_ema={mean_reward:.4f} "
+                        f"(from {len(label_reward_emas[label])} completed tasks)"
+                    )
+
+            logger.info(
+                f"Calculated mean LP scores for {len(label_lp_scores)} labels "
+                f"(sample: {list(label_lp_scores.keys())[:3]})"
+            )
 
         return stats
 
-    def _get_tracked_task_ids(self, curriculum: Any) -> list[int]:
-        """Get first 3 task IDs for detailed tracking."""
-        # Get active tasks from curriculum (stored in _tasks dict)
-        if not hasattr(curriculum, "_tasks"):
-            logger.warning("Curriculum has no _tasks attribute")
-            return []
+    def _calculate_raw_lp_gini_from_shared_memory(self, curriculum: Any) -> dict[str, float]:
+        """Calculate raw LP debug stats directly from task tracker shared memory.
 
-        tasks = curriculum._tasks
-        if not tasks:
-            logger.info("Curriculum task pool is empty (early in training)")
-            return []
-
-        # Return first 3 task IDs (or fewer if pool is smaller)
-        task_ids = list(tasks.keys())[:3]
-        logger.info(f"Found {len(tasks)} total tasks, tracking first 3: {task_ids}")
-        return task_ids
-
-    def _get_per_label_sampling_probs(self, curriculum: Any) -> dict[str, float]:
-        """Get per-label sampling probabilities for Gini calculation.
-
-        Lightweight computation that only calculates the normalized sampling
-        probabilities per label, needed for sampling_gini metric.
+        Reads p_fast and p_slow from shared memory for all tasks, calculates raw LP as |p_fast - p_slow|.
         """
         stats = {}
 
-        algorithm = getattr(curriculum, "_algorithm", None)
-        if not algorithm:
+        if not hasattr(curriculum, "_algorithm") or not hasattr(curriculum._algorithm, "task_tracker"):
+            logger.warning("Cannot access task tracker from curriculum")
             return stats
 
-        tasks = getattr(curriculum, "_tasks", None)
-        if not tasks:
+        task_tracker = curriculum._algorithm.task_tracker
+        all_task_ids = task_tracker.get_all_tracked_tasks()
+
+        if not all_task_ids:
             return stats
 
-        # Sum sampling probabilities per label
-        per_label_probs: dict[str, float] = {}
+        # Calculate raw LP scores
+        raw_lp_scores = []
 
-        for task_id, task in tasks.items():
-            label = task.get_label()
-            if not label or not isinstance(label, str):
-                continue
+        for task_id in all_task_ids:
+            task_stats = task_tracker.get_task_stats(task_id)
+            if task_stats:
+                p_fast = task_stats.get("p_fast", 0.0)
+                p_slow = task_stats.get("p_slow", 0.0)
+                raw_lp = abs(p_fast - p_slow)
+                raw_lp_scores.append(raw_lp)
 
-            if label not in per_label_probs:
-                per_label_probs[label] = 0.0
+        # Calculate debug stats directly from shared memory
+        if raw_lp_scores:
+            mean_lp = sum(raw_lp_scores) / len(raw_lp_scores)
+            stats["algorithm/debug/raw_lp_mean"] = mean_lp
 
-            per_label_probs[label] += algorithm.get_task_lp_score(task_id)
+            # Standard deviation
+            if len(raw_lp_scores) > 1:
+                variance = sum((x - mean_lp) ** 2 for x in raw_lp_scores) / len(raw_lp_scores)
+                stats["algorithm/debug/raw_lp_std"] = variance**0.5
+            else:
+                stats["algorithm/debug/raw_lp_std"] = 0.0
 
-        # Normalize to get true per-label sampling probabilities
-        total_prob_sum = sum(per_label_probs.values())
-        if total_prob_sum > 0:
-            for label in per_label_probs:
-                normalized_prob = per_label_probs[label] / total_prob_sum
-                stats[f"curriculum_stats/per_label_lp_probs/{label}"] = float(normalized_prob)
+            # Min/max
+            stats["algorithm/debug/raw_lp_min"] = min(raw_lp_scores)
+            stats["algorithm/debug/raw_lp_max"] = max(raw_lp_scores)
 
-        return stats
+            # Non-zero count
+            non_zero_count = sum(1 for x in raw_lp_scores if x > 1e-10)
+            stats["algorithm/debug/raw_lp_nonzero_count"] = float(non_zero_count)
 
-    def _get_per_label_lp_stats(self, curriculum: Any) -> dict[str, float]:
-        """Get detailed per-label LP scores computed once from shared memory.
+            # Total count
+            stats["algorithm/debug/raw_lp_total_count"] = float(len(raw_lp_scores))
 
-        This computes raw and postzscored LP scores in addition to probabilities.
-        Only called when troubleshooting logging is enabled.
-        """
-        stats = {}
-
-        algorithm = getattr(curriculum, "_algorithm", None)
-        if not algorithm:
-            return stats
-
-        tasks = getattr(curriculum, "_tasks", None)
-        if not tasks:
-            return stats
-
-        # Compute per-label aggregated scores directly from shared memory
-        per_label: dict[str, dict[str, float]] = {}
-
-        for task_id, task in tasks.items():
-            label = task.get_label()
-            if not label or not isinstance(label, str):
-                continue
-
-            if label not in per_label:
-                per_label[label] = {"lp_score": 0.0, "count": 0}
-
-            # Get the final LP score (after z-score normalization and all transforms)
-            lp_score = algorithm.get_task_lp_score(task_id)
-            per_label[label]["lp_score"] += lp_score
-            per_label[label]["count"] += 1
-
-        # Compute averages
-        for label, score_dict in per_label.items():
-            count = score_dict.pop("count")
-            if count > 0:
-                # Average LP score across tasks with this label
-                score_dict["lp_score"] /= count
-
-                # Add to stats (prob was already added by _get_per_label_sampling_probs)
-                stats[f"curriculum_stats/per_label_lp_scores/{label}"] = float(score_dict["lp_score"])
+            logger.info(
+                f"Raw LP debug stats: "
+                f"({len(raw_lp_scores)} tasks, mean={mean_lp:.4f}, std={stats['algorithm/debug/raw_lp_std']:.4f}, "
+                f"non_zero={non_zero_count})"
+            )
 
         return stats
 
