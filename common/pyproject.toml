@@ -10,7 +10,7 @@ authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
 license = { text = "MIT" }
 readme = "README.md"
 urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/metta" }
-dependencies = ["rich>=14.1", "wandb>=0.21.2", "cogames"]
+dependencies = ["rich>=14.1", "wandb>=0.22.3", "cogames"]
 
 [project.scripts]
 tool = "metta.common.tool.run_tool:cli_entry"

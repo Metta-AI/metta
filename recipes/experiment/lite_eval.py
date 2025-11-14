@@ -1,7 +1,7 @@
-from metta.sim.runner import EnvRunConfig, FullSimulationConfig
+from metta.sim.runner import SimulationRunConfig
 from metta.tools.lite_eval import LiteEvalTool
 from mettagrid.policy.policy import PolicySpec
-from recipes.experiment.arena import mettagrid
+from recipes.experiment import arena
 
 
 def run_lite_eval() -> LiteEvalTool:
@@ -15,15 +15,25 @@ def run_lite_eval() -> LiteEvalTool:
             data_path=None,
         ),
     ]
+    basic_env = arena.mettagrid()
+    basic_env.game.actions.attack.consumed_resources["laser"] = 100
+
+    combat_env = basic_env.model_copy()
+    combat_env.game.actions.attack.consumed_resources["laser"] = 1
+
     return LiteEvalTool(
+        policy_specs=policy_specs,
         simulations=[
-            FullSimulationConfig(
-                env_run=EnvRunConfig(
-                    env=mettagrid(),
-                    num_episodes=1,
-                ),
-                policy_specs=policy_specs,
+            SimulationRunConfig(
+                env=basic_env,
+                num_episodes=1,
                 proportions=[1.0, 2.0],
-            )
+                episode_tags={"name": "basic", "category": "arena"},
+            ),
+            SimulationRunConfig(
+                env=combat_env,
+                num_episodes=2,
+                episode_tags={"name": "combat", "category": "arena"},
+            ),
         ],
     )

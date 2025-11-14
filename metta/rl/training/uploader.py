@@ -8,10 +8,10 @@ from urllib.parse import urlparse
 
 import wandb
 
+from metta.common.util.file import local_copy
 from metta.common.wandb.context import WandbRun
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import DistributedHelper, TrainerComponent
-from metta.utils.file import local_copy
 from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)

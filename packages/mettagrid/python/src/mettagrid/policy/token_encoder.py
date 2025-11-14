@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -14,6 +14,15 @@ from mettagrid.simulator import Action as MettaGridAction
 from mettagrid.simulator import AgentObservation as MettaGridObservation
 
 logger = logging.getLogger("mettagrid.policy.token_policy")
+
+
+def coordinates(observations: torch.Tensor, dtype: torch.dtype = torch.uint8) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Split packed observation bytes into (x, y) nibble indices as ``dtype`` tensors."""
+
+    coords_byte = observations[..., 0].to(torch.long)
+    y_coords = (coords_byte >> 4) & 0x0F
+    x_coords = coords_byte & 0x0F
+    return x_coords.to(dtype), y_coords.to(dtype)
 
 
 class TokenPolicyNet(torch.nn.Module):
@@ -73,13 +82,14 @@ class TokenPolicyNet(torch.nn.Module):
         tokens = self._flatten_tokens(observations)
 
         coords_byte = tokens[..., 0].to(torch.long)
+        x_coords, y_coords = coordinates(tokens, torch.long)
         feature_ids = tokens[..., 1].to(torch.long)
         values = tokens[..., 2].to(torch.float32)
 
         valid_mask = coords_byte != 0xFF
 
-        x_coords = torch.clamp((coords_byte >> 4) & 0x0F, min=0, max=255)
-        y_coords = torch.clamp(coords_byte & 0x0F, min=0, max=255)
+        x_coords = torch.clamp(x_coords, min=0, max=255)
+        y_coords = torch.clamp(y_coords, min=0, max=255)
         feature_ids_clamped = torch.clamp(feature_ids, min=0, max=self.feature_embed.num_embeddings - 1)
 
         token_embed = self.pos_x_embed(x_coords) + self.pos_y_embed(y_coords) + self.feature_embed(feature_ids_clamped)

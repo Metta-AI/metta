@@ -10,14 +10,14 @@ alwaysApply: true
 - `mettagrid/` - C++/Python environment
 - Tools: mettascope, observatory, gridworks, app_backend
 
-## Commands  
+## Commands
 - Always use `uv run` for Python
 - Setup: `./install.sh`, Test: `metta test`, Lint: `metta lint --fix`
 
 ## Recipe system
 ```bash
-uv run ./tools/run.py experiments.recipes.arena.train run=name
-uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./checkpoints
+uv run ./tools/run.py arena.train run=name
+uv run ./tools/run.py arena.evaluate policy_uri=file://./checkpoints
 ```
 
 ## AI behavior

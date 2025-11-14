@@ -7,27 +7,27 @@ import time
 from dataclasses import dataclass
 from typing import Sequence
 
-from experiments.recipes.cogs_v_clips import play
-from experiments.recipes.cvc.coordination import train as train_coordination
-from experiments.recipes.cvc.medium_maps import train as train_medium_maps
-from experiments.recipes.cvc.single_mission import train as train_single_mission
-from experiments.recipes.cvc.small_maps import train as train_small_maps
-
-from experiments.recipes.cvc.curriculum import (
+from recipes.experiment.cvc.curriculum import (
     make_curriculum,
     make_training_env,
 )
-from experiments.recipes.cvc.curriculum import (
+from recipes.experiment.cvc.curriculum import (
     train as train_curriculum,
 )
-from experiments.recipes.cvc.evaluation import evaluate, make_eval_suite
+from recipes.experiment.cvc.evaluation import evaluate, make_eval_suite
+from recipes.experiment.cvc.small_maps import train as train_small_maps
+
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import MettaGridConfig
+from recipes.experiment.cogs_v_clips import play
+from recipes.experiment.cvc.coordination import train as train_coordination
+from recipes.experiment.cvc.medium_maps import train as train_medium_maps
+from recipes.experiment.cvc.single_mission import train as train_single_mission
 
-RECIPE_MODULE = "experiments.recipes.cvc"
+RECIPE_MODULE = "recipes.experiment.cvc"
 
 __all__ = [
     "SkypilotExperiment",

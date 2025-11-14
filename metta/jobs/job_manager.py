@@ -167,7 +167,7 @@ class JobManager:
 
                     if status and status not in SKYPILOT_RUNNING_STATUSES:
                         # Job finished while we were down - mark complete
-                        job_state.status = JobStatus.COMPLETED
+                        job_state.update_status(JobStatus.COMPLETED)
                         job_state.skypilot_status = status
                         job_state.exit_code = self._map_skypilot_status_to_exit_code(status)
                         job_state.completed_at = datetime.now().isoformat(timespec="seconds")
@@ -198,7 +198,7 @@ class JobManager:
 
             # Mark local jobs as stale (can't reattach to subprocesses)
             for job_state in local_stale:
-                job_state.status = JobStatus.COMPLETED
+                job_state.update_status(JobStatus.COMPLETED)
                 job_state.exit_code = -1  # Abnormal termination
                 job_state.completed_at = datetime.now().isoformat(timespec="seconds")
                 session.add(job_state)
@@ -288,7 +288,7 @@ class JobManager:
                 logger.debug(f"Job {job_state.name}: dependency {dep_name} not found in database yet")
                 return False
 
-            if dep_state.status != "completed":
+            if dep_state.status != JobStatus.COMPLETED:
                 logger.debug(f"Job {job_state.name}: waiting for dependency {dep_name} (status: {dep_state.status})")
                 return False
 
@@ -325,7 +325,7 @@ class JobManager:
             if not job_state:
                 return False
 
-            job_state.status = JobStatus.COMPLETED
+            job_state.update_status(JobStatus.COMPLETED)
             job_state.completed_at = datetime.now().isoformat(timespec="seconds")
             job_state.exit_code = job_result.exit_code
             job_state.logs_path = job_result.logs_path
@@ -376,7 +376,7 @@ class JobManager:
             exit_code = self._map_skypilot_status_to_exit_code(status)
 
             prev_status = job_state.skypilot_status
-            job_state.status = JobStatus.COMPLETED
+            job_state.update_status(JobStatus.COMPLETED)
             job_state.completed_at = datetime.now().isoformat(timespec="seconds")
             job_state.exit_code = exit_code
             if not job_state.job_id:
@@ -648,7 +648,7 @@ class JobManager:
                     f"Job '{config.name}' already exists with status '{existing.status}'. "
                     f"Use get_job_state() to check status before submitting."
                 )
-            job_state = JobState(name=config.name, config=config, status="pending")
+            job_state = JobState(name=config.name, config=config, status=JobStatus.PENDING)
 
             # Set checkpoint URI using run name (from args) for training jobs
             # WandB URL will be extracted from logs once job starts running
@@ -674,7 +674,7 @@ class JobManager:
     def _try_start_job(self, name: str) -> bool:
         with Session(self._engine) as session:
             job_state = session.get(JobState, name)
-            if not job_state or job_state.status != "pending":
+            if not job_state or job_state.status != JobStatus.PENDING:
                 return False
 
             # Check dependencies first
@@ -710,7 +710,7 @@ class JobManager:
                 with self._local_jobs_lock:
                     self._active_local_jobs[name] = job
 
-            job_state.status = JobStatus.RUNNING
+            job_state.update_status(JobStatus.RUNNING)
             job_state.started_at = datetime.now().isoformat(timespec="seconds")
             session.add(job_state)
 
