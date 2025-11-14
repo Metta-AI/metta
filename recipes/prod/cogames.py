@@ -41,13 +41,13 @@ def get_ci_train_config(name: str) -> dict[str, Any]:
 def get_ci_eval_config(train_name: str) -> dict[str, Any]:
     """Configuration for CI evaluation test (fast, local).
 
-    Used by: ci_suite.py (for documentation; eval uses evaluate_latest_in_dir tool)
+    Used by: ci_suite.py (imported and converted to command)
     """
     return {
         "mission": "training_facility.harvest",
         "variant": ["small_50"],
         "episodes": 5,
-        "checkpoint_dir": f"./train_dir/{train_name}",  # For evaluate_latest_in_dir
+        "checkpoint_dir": f"./train_dir/{train_name}",
     }
 
 
@@ -107,7 +107,7 @@ def build_eval_command(config: dict[str, Any], checkpoint_path: str) -> str:
 
     Args:
         config: Eval configuration dictionary
-        checkpoint_path: Full path to checkpoint file to evaluate
+        checkpoint_path: Path to checkpoint file or directory (cogames will auto-discover latest .pt file)
     """
     parts = ["cogames", "eval"]
     parts.extend(["--mission", config["mission"]])
