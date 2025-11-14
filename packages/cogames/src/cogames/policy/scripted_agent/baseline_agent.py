@@ -77,7 +77,6 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         agent_feature_pairs = {
             "agent:group": "agent_group",
             "agent:frozen": "agent_frozen",
-            "agent:visitation_counts": "agent_visitation_counts",
         }
         self._agent_feature_key_by_name: dict[str, str] = agent_feature_pairs
 
@@ -107,10 +106,10 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         if num_vibes <= 1:
             return self._actions.noop.Noop()
 
-        # Look up the vibe safely; fall back to noop if it doesn't exist.
+        # Raise an exception if the vibe doesn't exist
         vibe = VIBE_BY_NAME.get(vibe_name)
         if vibe is None:
-            return self._actions.noop.Noop()
+            raise Exception(f"No valid vibes called {vibe_name}")
         return self._actions.change_vibe.ChangeVibe(vibe)
 
     def _read_inventory_from_obs(self, s: SimpleAgentState, obs: AgentObservation) -> None:
@@ -1201,3 +1200,16 @@ class BaselinePolicy(MultiAgentPolicy):
                 agent_id=agent_id,
             )
         return self._agent_policies[agent_id]
+
+
+RESOURCE_VIBE_ALIASES: dict[str, str] = {
+    "carbon": "carbon_a",
+    "oxygen": "oxygen_a",
+    "germanium": "germanium_a",
+    "silicon": "silicon_a",
+    # Crafting resources (appear when crafting unclipping items)
+    "decoder": "gear",
+    "modulator": "gear",
+    "resonator": "gear",
+    "scrambler": "gear",
+}

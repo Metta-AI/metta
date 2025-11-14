@@ -28,11 +28,11 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
     """
     group = prefix if prefix else get_user_timestamp()
 
-    arena_train_name = f"{prefix}.arena_train"
-    arena_eval_name = f"{prefix}.arena_eval"
-    arena_play_name = f"{prefix}.arena_play"
-    cvc_small_train_name = f"{prefix}.cvc_small_train"
-    cvc_small_play_name = f"{prefix}.cvc_small_play"
+    arena_train_name = f"{group}.arena_train"
+    arena_eval_name = f"{group}.arena_eval"
+    arena_play_name = f"{group}.arena_play"
+    cvc_small_train_name = f"{group}.cvc_small_train"
+    cvc_small_play_name = f"{group}.cvc_small_play"
 
     arena_train = JobConfig(
         name=arena_train_name,
@@ -48,10 +48,13 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
     )
 
     # Evaluate the trained policy from the training run
+    # TODO: make this use s3 and not local file when github ci perms are set to be able to fetch from s3
+
+    # policy_uri = "s3://softmax-public/policies/{arena_train_name}:latest"
     arena_eval = JobConfig(
         name=arena_eval_name,
-        module="recipes.prod.arena_basic_easy_shaped.evaluate",
-        args=[f'policy_uris=["s3://softmax-public/policies/{arena_train_name}:latest"]'],
+        module="recipes.prod.arena_basic_easy_shaped.evaluate_latest_in_dir",
+        args=[f"dir_path=./train_dir/{arena_train_name}/checkpoints/"],
         dependency_names=[arena_train_name],
         timeout_s=300,
         group=group,

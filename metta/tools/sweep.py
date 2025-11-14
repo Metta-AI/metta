@@ -119,7 +119,7 @@ class SweepTool(Tool):
     # Scheduler configuration
     max_trials: int = 10
     batch_size: int = 4  # Number of suggestions per batch
-    recipe_module: str = "experiments.recipes.arena"
+    recipe_module: str = "recipes.experiment.arena"
     train_entrypoint: str = "train"
     eval_entrypoint: str = "evaluate"
 
