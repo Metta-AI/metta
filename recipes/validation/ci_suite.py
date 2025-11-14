@@ -28,11 +28,11 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
     """
     group = prefix if prefix else get_user_timestamp()
 
-    arena_train_name = f"{prefix}.arena_train"
-    arena_eval_name = f"{prefix}.arena_eval"
-    arena_play_name = f"{prefix}.arena_play"
-    cvc_small_train_name = f"{prefix}.cvc_small_train"
-    cvc_small_play_name = f"{prefix}.cvc_small_play"
+    arena_train_name = f"{group}.arena_train"
+    arena_eval_name = f"{group}.arena_eval"
+    arena_play_name = f"{group}.arena_play"
+    cvc_small_train_name = f"{group}.cvc_small_train"
+    cvc_small_play_name = f"{group}.cvc_small_play"
 
     arena_train = JobConfig(
         name=arena_train_name,
