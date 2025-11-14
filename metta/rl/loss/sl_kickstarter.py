@@ -9,10 +9,11 @@ from torch import Tensor
 from torchrl.data import Composite
 
 from metta.agent.policy import Policy
-from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import ComponentContext
+from mettagrid.policy.loader import initialize_or_load_policy
+from metta.rl.checkpoint_manager import CheckpointManager
 
 
 class SLKickstarterConfig(LossConfig):
@@ -66,7 +67,8 @@ class SLKickstarter(Loss):
         if game_rules is None:
             raise RuntimeError("Environment metadata is required to instantiate teacher policy")
 
-        self.teacher_policy = CheckpointManager.load_from_uri(self.cfg.teacher_uri, game_rules, self.device)
+        teacher_spec = CheckpointManager.policy_spec_from_uri(self.cfg.teacher_uri, device=str(self.device))
+        self.teacher_policy = initialize_or_load_policy(game_rules, teacher_spec)
 
         self.teacher_policy_spec = self.teacher_policy.get_agent_experience_spec()
 

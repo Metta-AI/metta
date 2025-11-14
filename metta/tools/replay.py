@@ -31,14 +31,14 @@ class ReplayTool(Tool):
     open_browser_on_start: bool = True
     launch_viewer: bool = True
 
-    def _build_policy_spec(self, normalized_uri: str | None) -> PolicySpec:
-        if normalized_uri is None:
-            return PolicySpec(class_path="metta.agent.mocks.mock_agent.MockAgent", data_path=None)
-        return CheckpointManager.policy_spec_from_uri(normalized_uri, device="cpu")
-
     def invoke(self, args: dict[str, str]) -> int | None:
         normalized_uri = CheckpointManager.normalize_uri(self.policy_uri) if self.policy_uri else None
-        policy_specs = [self._build_policy_spec(normalized_uri)]
+        policy_spec = (
+            CheckpointManager.policy_spec_from_uri(normalized_uri, device="cpu")
+            if normalized_uri
+            else PolicySpec(class_path="metta.agent.mocks.mock_agent.MockAgent", data_path=None)
+        )
+        policy_specs = [policy_spec]
 
         simulation_run = self.sim.to_simulation_run_config()
 

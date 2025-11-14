@@ -1,7 +1,6 @@
 import uuid
-from functools import partial
 from pathlib import Path
-from typing import Callable, Sequence
+from typing import Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -32,50 +31,33 @@ class SimulationRunResult(BaseModel):
     replay_urls: dict[str, str]
 
 
-MultiAgentPolicyInitializer = Callable[[PolicyEnvInterface], MultiAgentPolicy]
-
-
-def _make_replay_writer(replay_dir: str | None) -> ReplayLogWriter | None:
-    if replay_dir is None:
-        return None
-    replay_root = Path(replay_dir).expanduser()
-    unique_dir = replay_root / uuid.uuid4().hex[:12]
-    unique_dir.mkdir(parents=True, exist_ok=True)
-    return ReplayLogWriter(str(unique_dir))
-
-
 def run_simulations(
     *,
     policy_specs: Sequence[PolicySpec] | None = None,
-    policy_initializers: Sequence[MultiAgentPolicyInitializer] | None = None,
     simulations: Sequence[SimulationRunConfig],
     replay_dir: str | None,
     seed: int,
     enable_replays: bool = True,
 ) -> list[SimulationRunResult]:
-    if policy_initializers is None:
-        if policy_specs is None:
-            msg = "Either policy_specs or policy_initializers must be provided"
-            raise ValueError(msg)
-        policy_initializers = [partial(initialize_or_load_policy, policy_spec=spec) for spec in policy_specs]
-    elif policy_specs is not None:
-        msg = "Provide only policy_specs or policy_initializers, not both"
-        raise ValueError(msg)
-
-    if not policy_initializers:
-        msg = "At least one policy initializer is required"
+    if not policy_specs:
+        msg = "At least one policy spec is required"
         raise ValueError(msg)
 
     simulation_rollouts: list[SimulationRunResult] = []
 
     for simulation in simulations:
         proportions = simulation.proportions
+        env_interface = PolicyEnvInterface.from_mg_cfg(simulation.env)
+        multi_agent_policies: list[MultiAgentPolicy] = [
+            initialize_or_load_policy(env_interface, spec) for spec in policy_specs
+        ]
+
         replay_writer: ReplayLogWriter | None = None
         if enable_replays and replay_dir:
-            replay_writer = _make_replay_writer(replay_dir)
-
-        env_interface = PolicyEnvInterface.from_mg_cfg(simulation.env)
-        multi_agent_policies: list[MultiAgentPolicy] = [pi(env_interface) for pi in policy_initializers]
+            replay_root = Path(replay_dir).expanduser()
+            unique_dir = replay_root / uuid.uuid4().hex[:12]
+            unique_dir.mkdir(parents=True, exist_ok=True)
+            replay_writer = ReplayLogWriter(str(unique_dir))
 
         rollout_result = multi_episode_rollout(
             env_cfg=simulation.env,

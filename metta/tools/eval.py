@@ -42,43 +42,34 @@ class EvaluateTool(Tool):
         return wandb
 
     def _guess_epoch_and_agent_step(self, policy_uri: str) -> tuple[int, int] | None:
-        stats_client: StatsClient | None = None
         if self.stats_server_uri is None:
             logger.info("Stats client is not set, skipping wandb logging")
             return None
         stats_client = HttpStatsClient.create(self.stats_server_uri)
         try:
-            (epoch, attributes) = stats_client.sql_query(
+            query_result = stats_client.sql_query(
                 f"""SELECT e.end_training_epoch, e.attributes
                         FROM policies p join epochs e ON p.epoch_id = e.id
                         WHERE p.url = '{policy_uri}'"""
-            ).rows[0]
-            agent_step = attributes.get("agent_step")
-            if agent_step is None:
-                logger.info("Agent step is not set, skipping wandb logging")
-                return None
-            return epoch, agent_step
-        except IndexError:
-            # No rows returned; log with fallback step/epoch
+            )
+        except Exception as err:
+            logger.error(f"Error logging evaluation results to wandb: {err}", exc_info=True)
+            return 0, 0
+
+        rows = query_result.rows
+        if not rows:
             logger.info(
                 "No epoch metadata for %s in stats DB; logging eval metrics to WandB with default step/epoch=0",
                 policy_uri,
             )
             return 0, 0
-        except Exception as e:
-            logger.error(f"Error logging evaluation results to wandb: {e}", exc_info=True)
-            # Best-effort fallback logging with default indices
-            return 0, 0
 
-    def eval_policy(self, normalized_uri: str) -> list[SimulationRunResult]:
-        rollout_results = run_simulations(
-            policy_specs=[CheckpointManager.policy_spec_from_uri(normalized_uri, device="cpu")],
-            simulations=[sim.to_simulation_run_config() for sim in self.simulations],
-            replay_dir=self.replay_dir,
-            seed=self.system.seed,
-            enable_replays=self.enable_replays,
-        )
-        return rollout_results
+        epoch, attributes = rows[0]
+        agent_step = (attributes or {}).get("agent_step")
+        if agent_step is None:
+            logger.info("Agent step is not set, skipping wandb logging")
+            return None
+        return epoch, agent_step
 
     def invoke(self, args: dict[str, str]) -> int | None:
         if self.policy_uris is None:
@@ -89,7 +80,14 @@ class EvaluateTool(Tool):
 
         for policy_uri in self.policy_uris:
             normalized_uri = CheckpointManager.normalize_uri(policy_uri)
-            rollout_results = self.eval_policy(normalized_uri)
+            policy_spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device="cpu")
+            rollout_results = run_simulations(
+                policy_specs=[policy_spec],
+                simulations=[sim.to_simulation_run_config() for sim in self.simulations],
+                replay_dir=self.replay_dir,
+                seed=self.system.seed,
+                enable_replays=self.enable_replays,
+            )
             render_eval_summary(rollout_results, policy_names=[policy_uri or "target policy"])
             if self.push_metrics_to_wandb:
                 guess = self._guess_epoch_and_agent_step(normalized_uri)
