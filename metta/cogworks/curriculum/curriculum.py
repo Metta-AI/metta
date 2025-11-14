@@ -325,12 +325,31 @@ class Curriculum(StatsLogger):
         """Get basic curriculum statistics."""
         # Get global completion count from algorithm's task tracker if available
         # This tracks ALL completions across all tasks ever created (even evicted ones)
+        per_label_completions: Dict[str, float] = {}
         if self._algorithm is not None and self._algorithm.task_tracker is not None:
-            num_completed = float(self._algorithm.task_tracker._total_completions)
+            # CENTRALIZED MULTI-PROCESS COLLECTION:
+            # get_all_tracked_tasks() scans shared memory to find ALL tasks from ALL worker processes
+            # get_task_stats() reads completion counts directly from shared memory (synchronized)
+            # This ensures we aggregate completions across ALL processes, not just one
+            task_ids = self._algorithm.task_tracker.get_all_tracked_tasks()
+            num_completed = 0.0
+            for task_id in task_ids:
+                stats = self._algorithm.task_tracker.get_task_stats(task_id)
+                if stats:
+                    completion_count = stats.get("completion_count", 0.0)
+                    num_completed += completion_count
+                    # Track per-label completions
+                    label = self._algorithm.task_tracker.get_task_label(task_id)
+                    if label:
+                        per_label_completions[label] = per_label_completions.get(label, 0.0) + completion_count
         else:
             # Fallback: sum completions for currently active tasks only
             # NOTE: This undercounts if tasks have been evicted!
             num_completed = float(sum(task._num_completions for task in self._tasks.values()))
+            for task in self._tasks.values():
+                label = task.get_label()
+                if label:
+                    per_label_completions[label] = per_label_completions.get(label, 0.0) + float(task._num_completions)
 
         # Get num_active_tasks from task tracker if using shared memory, otherwise from local dict
         # This is critical when using shared memory - self._tasks may be sparse but TaskTracker
@@ -347,6 +366,10 @@ class Curriculum(StatsLogger):
             "num_scheduled": float(sum(task._num_scheduled for task in self._tasks.values())),
             "num_active_tasks": num_active_tasks,
         }
+
+        # Add per-label completion counts
+        for label, count in per_label_completions.items():
+            base_stats[f"per_label_completions/{label}"] = count
 
         # Include algorithm stats if available
         if self._algorithm is not None:

@@ -2,6 +2,7 @@
 This recipe is automatically validated in CI and release processes.
 """
 
+from pathlib import Path
 from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
@@ -121,6 +122,19 @@ def train(
 def evaluate(policy_uris: Optional[Sequence[str]] = None) -> EvaluateTool:
     """Evaluate policies on arena simulations."""
     return EvaluateTool(simulations=simulations(), policy_uris=policy_uris or [])
+
+
+def evaluate_latest_in_dir(dir_path: Path) -> EvaluateTool:
+    """Evaluate the latest policy on arena simulations."""
+    checkpoints = dir_path.glob("*.mpt")
+    policy_uri = [checkpoint.as_posix() for checkpoint in sorted(checkpoints, key=lambda x: x.stat().st_mtime)]
+    if not policy_uri:
+        raise ValueError(f"No policies found in {dir_path}")
+    policy_uri = policy_uri[-1]
+    sim = mettagrid(num_agents=6)
+    return EvaluateTool(
+        simulations=[SimulationConfig(suite="arena", name="very_basic", env=sim)], policy_uris=[policy_uri]
+    )
 
 
 def play(policy_uri: Optional[str] = None) -> PlayTool:

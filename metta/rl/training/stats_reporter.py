@@ -751,6 +751,12 @@ class StatsReporter(TrainerComponent):
                 label = key.replace("algorithm/eviction_counts/", "")
                 stats[f"curriculum_stats/per_label_aggregate_evictions/{label}"] = float(value)
 
+        # Forward per-label completion counts
+        for key, value in curriculum_stats.items():
+            if key.startswith("per_label_completions/"):
+                label = key.replace("per_label_completions/", "")
+                stats[f"curriculum_stats/per_label_completions/{label}"] = float(value)
+
         # Needed for sampling_gini calculation
         per_label_probs = self._get_per_label_sampling_probs(curriculum)
         if per_label_probs:

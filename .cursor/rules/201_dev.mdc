@@ -13,8 +13,8 @@ alwaysApply: false
 ## Quick integration test
 ```bash
 export TEST_ID=$(date +%Y%m%d_%H%M%S)
-uv run ./tools/run.py experiments.recipes.arena.train run=test_$TEST_ID trainer.total_timesteps=100000
-uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./train_dir/test_$TEST_ID/checkpoints
+uv run ./tools/run.py arena.train run=test_$TEST_ID trainer.total_timesteps=100000
+uv run ./tools/run.py arena.evaluate policy_uri=file://./train_dir/test_$TEST_ID/checkpoints
 ```
 
 ## Frontend

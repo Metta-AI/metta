@@ -529,8 +529,6 @@ def _(
     mg_config.game.global_obs.last_action = True
     mg_config.game.global_obs.last_reward = True
 
-    mg_config.game.global_obs.visitation_counts = False
-
     print("✅ Simple hallway environment: start with arena, add custom map")
     return (
         AgentRewards,

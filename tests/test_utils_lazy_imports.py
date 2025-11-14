@@ -7,9 +7,11 @@ def test_lazy_import_file_module() -> None:
     """Test that file module can be lazily imported from metta.utils."""
     from metta.utils import file
 
-    # Verify the module was imported
+    # Verify the module was imported (now redirects to metta.common.util.file)
     assert file is not None
     assert hasattr(file, "__name__")
+    # Verify it's actually the file module from common.util
+    assert file.__name__ == "metta.common.util.file"
 
 
 def test_lazy_import_uri_module() -> None:
