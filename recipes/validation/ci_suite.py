@@ -96,15 +96,7 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
     # CoGames - Train and evaluate
     cogames_train = JobConfig(
         name=cogames_train_name,
-        cmd="devops/stable/cogames_train_eval.py",
-        args={
-            "--mission": "cogs_vs_clips",
-            "--variant": "mini",
-            "--steps": "1000",
-            "--checkpoints-dir": f"./train_dir/{cogames_train_name}/checkpoints",
-            "--eval-episodes": "5",
-            "--artifacts": "{}",  # Empty dict for local CI (no S3 upload)
-        },
+        cmd=f"devops/stable/cogames_train_eval.py --mission cogs_vs_clips --variant mini --steps 1000 --checkpoints-dir ./train_dir/{cogames_train_name}/checkpoints --eval-episodes 5 --artifacts '{{}}'",
         timeout_s=300,
         group=group,
     )

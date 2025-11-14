@@ -120,15 +120,7 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
     cogames_train_name = f"{prefix}.cogames_train_100k"
     cogames_train_100k = JobConfig(
         name=cogames_train_name,
-        cmd="devops/stable/cogames_train_eval.py",
-        args={
-            "--mission": "cogs_vs_clips",
-            "--variant": "standard",
-            "--steps": "100000",
-            "--checkpoints-dir": f"/tmp/{cogames_train_name}/checkpoints",
-            "--eval-episodes": "20",
-            "--artifacts": f'{{"eval_results.json": "s3://softmax-public/cogames/{cogames_train_name}/eval_results.json"}}',
-        },
+        cmd=f'devops/stable/cogames_train_eval.py --mission cogs_vs_clips --variant standard --steps 100000 --checkpoints-dir /tmp/{cogames_train_name}/checkpoints --eval-episodes 20 --artifacts \'{{"eval_results.json": "s3://softmax-public/cogames/{cogames_train_name}/eval_results.json"}}\'',
         timeout_s=3600,
         remote=RemoteConfig(gpus=1, nodes=1),
         metrics_source=MetricsSource.COGAMES_LOG,
