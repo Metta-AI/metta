@@ -1,19 +1,19 @@
 import logging
+from functools import partial
 from typing import Sequence
 
-import torch
 from pydantic import Field
 
-from metta.agent.policy import Policy
 from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
 from metta.common.tool import Tool
 from metta.common.wandb.context import WandbConfig, WandbContext
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.handle_results import render_eval_summary, send_eval_results_to_wandb
-from metta.sim.runner import MultiAgentPolicyInitializer, SimulationRunResult, run_simulations
+from metta.sim.runner import SimulationRunResult, run_simulations
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir, auto_stats_server_uri, auto_wandb_config
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.policy import PolicySpec
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +31,15 @@ class EvaluateTool(Tool):
     register_missing_policies: bool = False
     eval_task_id: str | None = None
     push_metrics_to_wandb: bool = False
+
+    def _build_policy_spec(self, normalized_uri: str) -> PolicySpec:
+        spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device="cpu")
+        return spec
+
+    @staticmethod
+    def _spec_display_name(policy_spec: PolicySpec) -> str:
+        init_kwargs = policy_spec.init_kwargs or {}
+        return init_kwargs.get("display_name") or policy_spec.name
 
     def _get_wandb_config(self, policy_uri: str) -> WandbConfig | None:
         run_name = CheckpointManager.get_policy_metadata(policy_uri).get("run_name")
@@ -73,20 +82,8 @@ class EvaluateTool(Tool):
             # Best-effort fallback logging with default indices
             return 0, 0
 
-    def eval_policy(self, normalized_uri: str) -> list[SimulationRunResult]:
-        device = torch.device("cpu")
-
-        def _materialize_policy(policy_uri: str) -> MultiAgentPolicyInitializer:
-            def _m(policy_env_info: PolicyEnvInterface) -> Policy:
-                artifact = CheckpointManager.load_artifact_from_uri(policy_uri)
-                policy = artifact.instantiate(policy_env_info, device=device)
-                policy = policy.to(device)
-                policy.eval()
-                return policy
-
-            return _m
-
-        policy_initializers = [_materialize_policy((normalized_uri))]
+    def eval_policy(self, policy_spec: PolicySpec) -> list[SimulationRunResult]:
+        policy_initializers = [partial(initialize_or_load_policy, policy_spec=policy_spec)]
         rollout_results = run_simulations(
             policy_initializers=policy_initializers,
             simulations=[sim.to_simulation_run_config() for sim in self.simulations],
@@ -105,8 +102,9 @@ class EvaluateTool(Tool):
 
         for policy_uri in self.policy_uris:
             normalized_uri = CheckpointManager.normalize_uri(policy_uri)
-            rollout_results = self.eval_policy(normalized_uri)
-            render_eval_summary(rollout_results, policy_names=[policy_uri or "target policy"])
+            policy_spec = self._build_policy_spec(normalized_uri)
+            rollout_results = self.eval_policy(policy_spec)
+            render_eval_summary(rollout_results, policy_names=[self._spec_display_name(policy_spec)])
             if self.push_metrics_to_wandb:
                 guess = self._guess_epoch_and_agent_step(normalized_uri)
                 if guess is None:

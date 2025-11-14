@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import logging
+from functools import partial
 from typing import Any, Optional
 from uuid import UUID
 
 import torch
 from pydantic import Field
 
-from metta.agent.policy import Policy
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum import Curriculum
 from metta.common.util.git_helpers import GitError, get_task_commit_hash
@@ -21,11 +21,12 @@ from metta.rl.evaluate import (
 from metta.rl.training import TrainerComponent
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.sim.handle_results import render_eval_summary, send_eval_results_to_wandb
-from metta.sim.runner import MultiAgentPolicyInitializer, SimulationRunResult, run_simulations
+from metta.sim.runner import SimulationRunResult, run_simulations
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.base_config import Config
-from mettagrid.policy.policy import PolicyEnvInterface
+from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.policy import PolicySpec
 
 logger = logging.getLogger(__name__)
 
@@ -162,21 +163,32 @@ class Evaluator(TrainerComponent):
 
         # Local evaluation
         if self._config.evaluate_local:
-            rollout_results = self._evaluate_local(policy_uri=policy_uri, simulations=sims)
-            render_eval_summary(rollout_results, policy_names=[policy_uri or "target policy"])
+            rollout_results, policy_spec = self._evaluate_local(policy_uri=policy_uri, simulations=sims)
+            render_eval_summary(rollout_results, policy_names=[self._spec_display_name(policy_spec)])
 
             # TODO: maybe a better way to get wandb run
             # TODO: Pasha: should also send epochs/episodes/metrics to stats-server
-            stats_reporter = getattr(self.context, "stats_reporter", None)
-            wandb_run = getattr(stats_reporter, "wandb_run", None)
-            if wandb_run:
-                send_eval_results_to_wandb(
-                    rollout_results=rollout_results,
-                    epoch=epoch,
-                    agent_step=agent_step,
-                    wandb_run=wandb_run,
-                    should_finish_run=False,
-                )
+        stats_reporter = getattr(self.context, "stats_reporter", None)
+        wandb_run = getattr(stats_reporter, "wandb_run", None)
+        if wandb_run:
+            send_eval_results_to_wandb(
+                rollout_results=rollout_results,
+                epoch=epoch,
+                agent_step=agent_step,
+                wandb_run=wandb_run,
+                should_finish_run=False,
+            )
+
+    def _build_policy_spec(self, policy_uri: str) -> PolicySpec:
+        return CheckpointManager.policy_spec_from_uri(
+            policy_uri,
+            device=self._device,
+        )
+
+    @staticmethod
+    def _spec_display_name(policy_spec: PolicySpec) -> str:
+        init_kwargs = policy_spec.init_kwargs or {}
+        return init_kwargs.get("display_name") or policy_spec.name
 
     def _build_simulations(self, curriculum: Curriculum) -> list[SimulationConfig]:
         sims = []
@@ -229,27 +241,19 @@ class Evaluator(TrainerComponent):
         self,
         policy_uri: str,
         simulations: list[SimulationConfig],
-    ) -> list[SimulationRunResult]:
+    ) -> tuple[list[SimulationRunResult], PolicySpec]:
         logger.info(f"Evaluating policy locally from {policy_uri}")
 
-        def _materialize_policy(policy_uri: str) -> MultiAgentPolicyInitializer:
-            def _m(policy_env_info: PolicyEnvInterface) -> Policy:
-                artifact = CheckpointManager.load_artifact_from_uri(policy_uri)
-                policy = artifact.instantiate(policy_env_info, device=self._device)
-                policy = policy.to(self._device)
-                policy.eval()
-                return policy
-
-            return _m
-
-        policy_initializers = [_materialize_policy((policy_uri))]
-        return run_simulations(
+        policy_spec = self._build_policy_spec(policy_uri)
+        policy_initializers = [partial(initialize_or_load_policy, policy_spec=policy_spec)]
+        rollout_results = run_simulations(
             policy_initializers=policy_initializers,
             simulations=[sim.to_simulation_run_config() for sim in simulations],
             replay_dir=self._config.replay_dir,
             seed=self._system_cfg.seed,
             enable_replays=True,
         )
+        return rollout_results, policy_spec
 
     def on_epoch_end(self, epoch: int) -> None:
         if not self.should_evaluate(epoch):
