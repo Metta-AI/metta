@@ -187,7 +187,8 @@ class _DiagnosticMissionBase(Mission):
         self._ensure_minimal_heart_recipe(assembler)
         if self.assembler_heart_chorus <= 1:
             return
-        chorus = ["heart"] * self.assembler_heart_chorus
+        # Use a valid heart vibe from the CVC vibe set.
+        chorus = ["heart_a"] * self.assembler_heart_chorus
         updated: list[ProtocolConfig] = []
         heart_protocol_applied = False
         for proto in assembler.protocols:
@@ -236,7 +237,7 @@ class _DiagnosticMissionBase(Mission):
                     continue
                 updated_proto = proto.model_copy(
                     update={
-                        "vibes": ["heart"],
+                        "vibes": ["heart_a"],
                         "input_resources": minimal_inputs,
                         "cooldown": 0,
                         "output_resources": {"heart": 1},
@@ -251,7 +252,7 @@ class _DiagnosticMissionBase(Mission):
             updated_protocols.insert(
                 0,
                 ProtocolConfig(
-                    vibes=["heart"],
+                    vibes=["heart_a"],
                     input_resources=minimal_inputs,
                     output_resources={"heart": 1},
                     cooldown=0,
