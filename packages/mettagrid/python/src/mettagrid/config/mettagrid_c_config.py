@@ -200,7 +200,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             inventory_config=inventory_config,
             stat_rewards=stat_rewards,
             stat_reward_max=stat_reward_max,
-            group_reward_pct=0.0,
             initial_inventory=initial_inventory,
             soul_bound_resources=soul_bound_resources,
             shareable_resources=shareable_resources,
