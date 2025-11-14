@@ -42,7 +42,6 @@ class EvaluationSmokeTest(SmokeTest):
             "./tools/run.py",
             "recipes.experiment.navigation.eval",
             f"policy_uris=wandb://run/{self.policy}",
-            "stats_db_uri=wandb://stats/navigation_db",
             "system.seed=31415",
             "system.torch_deterministic=True",
             "system.device=cpu",
