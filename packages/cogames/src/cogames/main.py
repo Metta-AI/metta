@@ -59,16 +59,16 @@ def _run_uv_sync() -> None:
             check=False,
         )
 
-        # Only show output if there was an error
+        # Abort if sync fails
         if result.returncode != 0:
-            console.print(f"[yellow]Warning: uv sync failed: {result.stderr}[/yellow]")
+            console.print(f"[red]Error: uv sync failed[/red]")
+            if result.stderr:
+                console.print(f"[red]{result.stderr}[/red]")
+            raise typer.Exit(1)
 
     except FileNotFoundError:
         # uv not found - skip sync silently
         pass
-    except Exception as exc:
-        # Other errors - log but don't fail
-        logger.debug(f"Failed to run uv sync: {exc}")
 
 
 T = TypeVar("T")
