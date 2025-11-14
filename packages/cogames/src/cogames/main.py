@@ -135,6 +135,14 @@ def play_cmd(
         False, "--print-cvc-config", help="Print Mission config (CVC config) and exit"
     ),
     print_mg_config: bool = typer.Option(False, "--print-mg-config", help="Print MettaGridConfig and exit"),
+    save_replay_dir: Optional[Path] = typer.Option(  # noqa: B008
+        None,
+        "--save-replay-dir",
+        help=(
+            "Directory to save replay. Directory will be created if it doesn't exist. "
+            "Replay will be saved with a unique UUID-based filename."
+        ),
+    ),
 ) -> None:
     resolved_mission, env_cfg, mission_cfg = get_mission_name_and_config(ctx, mission, variant, cogs)
 
@@ -163,6 +171,7 @@ def play_cmd(
         seed=42,
         render_mode=render,
         game_name=resolved_mission,
+        save_replay=save_replay_dir,
     )
 
 
@@ -339,6 +348,14 @@ def evaluate_cmd(
         "--format",
         help="Output results in YAML or JSON format",
     ),
+    save_replay_dir: Optional[Path] = typer.Option(  # noqa: B008
+        None,
+        "--save-replay-dir",
+        help=(
+            "Directory to save replays. Directory will be created if it doesn't exist. "
+            "Each replay will be saved with a unique UUID-based filename."
+        ),
+    ),
 ) -> None:
     selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs, steps=steps)
 
@@ -356,6 +373,7 @@ def evaluate_cmd(
         action_timeout_ms=action_timeout_ms,
         episodes=episodes,
         output_format=format_,
+        save_replay=save_replay_dir,
     )
 
 

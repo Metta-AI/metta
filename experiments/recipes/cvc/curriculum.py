@@ -1,6 +1,6 @@
 """Curriculum CoGs vs Clips entry points."""
 
-from experiments.recipes.cogs_v_clips import (
+from recipes.experiment.cogs_v_clips import (
     make_curriculum,
     make_training_env,
     play,

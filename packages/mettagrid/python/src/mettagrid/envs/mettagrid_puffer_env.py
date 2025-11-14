@@ -39,7 +39,7 @@ from mettagrid.mettagrid_c import (
     dtype_terminals,
     dtype_truncations,
 )
-from mettagrid.policy.loader import initialize_or_load_policy, resolve_policy_class_path
+from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Simulation, Simulator
@@ -134,7 +134,7 @@ class MettaGridPufferEnv(PufferEnv):
             self._env_supervisor = initialize_or_load_policy(
                 PolicyEnvInterface.from_mg_cfg(self._current_cfg),
                 PolicySpec(
-                    class_path=resolve_policy_class_path(self._env_supervisor_cfg.policy),
+                    class_path=self._env_supervisor_cfg.policy,
                     data_path=self._env_supervisor_cfg.policy_data_path,
                 ),
             )

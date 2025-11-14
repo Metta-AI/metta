@@ -14,7 +14,7 @@ from sky.server.common import get_server_url
 from sqlmodel import Session
 
 from metta.jobs.job_manager import JobManager
-from metta.jobs.job_state import JobState
+from metta.jobs.job_state import JobState, JobStatus
 
 
 class JobDisplay:
@@ -148,10 +148,10 @@ class JobDisplay:
 
         # Compute counts
         total = len(jobs)
-        running = sum(1 for j in jobs if j.status == "running")
-        pending = sum(1 for j in jobs if j.status == "pending")
-        succeeded = sum(1 for j in jobs if j.status == "completed" and j.exit_code == 0)
-        failed = sum(1 for j in jobs if j.status == "completed" and j.exit_code != 0)
+        running = sum(1 for j in jobs if j.status == JobStatus.RUNNING)
+        pending = sum(1 for j in jobs if j.status == JobStatus.PENDING)
+        succeeded = sum(1 for j in jobs if j.status == JobStatus.COMPLETED and j.exit_code == 0)
+        failed = sum(1 for j in jobs if j.status == JobStatus.COMPLETED and j.exit_code != 0)
         elapsed_s = time.time() - self._start_time
 
         # Print title if provided
@@ -174,9 +174,9 @@ class JobDisplay:
         print()
 
         # Separate jobs into three categories
-        active_jobs = [j for j in jobs if j.status in ("running", "pending")]
-        completed_jobs = [j for j in jobs if j.status == "completed" and j.exit_code == 0]
-        failed_jobs = [j for j in jobs if j.status == "completed" and j.exit_code != 0]
+        active_jobs = [j for j in jobs if j.status in (JobStatus.RUNNING, JobStatus.PENDING)]
+        completed_jobs = [j for j in jobs if j.status == JobStatus.COMPLETED and j.exit_code == 0]
+        failed_jobs = [j for j in jobs if j.status == JobStatus.COMPLETED and j.exit_code != 0]
 
         # Print failed jobs FIRST (at the top for maximum visibility)
         if failed_jobs:
@@ -222,7 +222,7 @@ class JobDisplay:
                     dep_state = session.get(JobState, dep_name)
                     if not dep_state:
                         unsatisfied.append(dep_name)
-                    elif dep_state.status != "completed":
+                    elif dep_state.status != JobStatus.COMPLETED:
                         unsatisfied.append(dep_name)
                     elif dep_state.exit_code != 0 or dep_state.acceptance_passed is False:
                         unsatisfied.append(f"{dep_name} (failed)")
@@ -539,9 +539,9 @@ def report_on_jobs(job_manager: JobManager, job_names: list[str], title: str = "
 
     # Compute counts
     total = len(jobs)
-    completed = sum(1 for j in jobs if j.status == "completed")
-    succeeded = sum(1 for j in jobs if j.status == "completed" and j.is_successful)
-    failed = sum(1 for j in jobs if j.status == "completed" and not j.is_successful)
+    completed = sum(1 for j in jobs if j.status == JobStatus.COMPLETED)
+    succeeded = sum(1 for j in jobs if j.status == JobStatus.COMPLETED and j.is_successful)
+    failed = sum(1 for j in jobs if j.status == JobStatus.COMPLETED and not j.is_successful)
 
     # Show progress bar
     progress = format_progress_bar(completed, total)
@@ -632,7 +632,7 @@ def format_job_with_acceptance(job_state: JobState) -> str:
     lines.append(status_line)
 
     # Check for launch/execution failures first (exit_code != 0 with no metrics)
-    if job_state.status == "completed" and job_state.exit_code not in (0, None):
+    if job_state.status == JobStatus.COMPLETED and job_state.exit_code not in (0, None):
         has_metrics = job_state.metrics and any(k for k in job_state.metrics.keys() if not k.startswith("_"))
 
         if not has_metrics:
@@ -678,7 +678,7 @@ def format_job_with_acceptance(job_state: JobState) -> str:
                         lines.append(red(f"    ✗ {criterion.metric}: {actual:.1f} (target: {target_str})"))
     # Acceptance criteria for successful jobs
     elif job_state.config.acceptance_criteria:
-        if job_state.status == "completed":
+        if job_state.status == JobStatus.COMPLETED:
             # For completed jobs: show pass/fail with indicators
             if job_state.acceptance_passed:
                 lines.append(green("  ✓ Acceptance criteria passed"))
@@ -699,7 +699,7 @@ def format_job_with_acceptance(job_state: JobState) -> str:
                         lines.append(green(f"    ✓ {criterion.metric}: {actual:.1f} (target: {target_str})"))
                     else:
                         lines.append(red(f"    ✗ {criterion.metric}: {actual:.1f} (target: {target_str})"))
-        elif job_state.status == "running":
+        elif job_state.status == JobStatus.RUNNING:
             # For running jobs: show criteria without pass/fail (not decided yet)
             lines.append("  🎯 Acceptance criteria:")
             for criterion in job_state.config.acceptance_criteria:

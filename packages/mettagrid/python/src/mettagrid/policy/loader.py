@@ -22,16 +22,13 @@ def initialize_or_load_policy(
 ) -> MultiAgentPolicy:
     """Initialize a policy from its class path and optionally load weights.
 
-    Args:
-        policy_env_info: PolicyEnvInterface (created from env if not provided)
-        policy_class_path: Full class path to the policy
-        policy_data_path: Optional path to policy checkpoint
+    Expects PolicySpec to have local paths, shorthand or fully-specified. But should not have remote paths (e.g. s3://).
 
     Returns:
         Initialized policy instance
     """
 
-    policy_class = load_symbol(policy_spec.class_path)
+    policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
 
     try:
         policy = policy_class(policy_env_info, **(policy_spec.init_kwargs or {}))  # type: ignore[call-arg]
@@ -41,10 +38,11 @@ def initialize_or_load_policy(
         ) from e
 
     if policy_spec.data_path:
-        if not isinstance(policy, MultiAgentPolicy):
-            raise TypeError("Policy data provided, but the selected policy does not support loading checkpoints.")
-
         policy.load_policy_data(policy_spec.data_path)
+
+    if not isinstance(policy, MultiAgentPolicy):
+        raise TypeError(f"Policy {policy_spec.class_path} is not a MultiAgentPolicy")
+
     return policy
 
 

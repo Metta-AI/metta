@@ -20,7 +20,7 @@ from cogames.play import play as play_episode
 from metta.common.tool.run_tool import init_mettagrid_system_environment
 from mettagrid.config.mettagrid_config import EnvSupervisorConfig
 from mettagrid.envs.mettagrid_puffer_env import MettaGridPufferEnv
-from mettagrid.policy.loader import discover_and_register_policies, resolve_policy_class_path
+from mettagrid.policy.loader import discover_and_register_policies
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.simulator import Simulator
 
@@ -80,7 +80,7 @@ def simulator() -> Simulator:
 
 @pytest.fixture
 def env_config():
-    _, env_cfg, _ = get_mission("evals.extractor_hub_30", variants_arg=["lonely_heart"], cogs=2)
+    _, env_cfg, _ = get_mission("evals.extractor_hub_30", variants_arg=None, cogs=2)
     env_cfg.game.max_steps = 8
     return env_cfg
 
@@ -114,8 +114,7 @@ def test_scripted_policies_can_play_short_episode(policy: PolicyUnderTest, env_c
     """Policies should run through a short cogames.play session."""
 
     console = Console(file=io.StringIO(), force_terminal=False, soft_wrap=True, width=80)
-    policy_class_path = resolve_policy_class_path(policy.reference)
-    policy_spec = PolicySpec(class_path=policy_class_path, data_path=None)
+    policy_spec = PolicySpec(class_path=policy.reference, data_path=None)
 
     play_episode(
         console=console,

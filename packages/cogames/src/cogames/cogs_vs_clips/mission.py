@@ -218,19 +218,20 @@ class Mission(Config):
                 "oxygen_extractor": self.oxygen_extractor.station_cfg(),
                 "germanium_extractor": self.germanium_extractor.station_cfg(),
                 "silicon_extractor": self.silicon_extractor.station_cfg(),
-                # Clipped variants
-                "clipped_carbon_extractor": self.carbon_extractor.model_copy(
-                    update={"start_clipped": True}
-                ).station_cfg(),
-                "clipped_oxygen_extractor": self.oxygen_extractor.model_copy(
-                    update={"start_clipped": True}
-                ).station_cfg(),
-                "clipped_germanium_extractor": self.germanium_extractor.model_copy(
-                    update={"start_clipped": True}
-                ).station_cfg(),
-                "clipped_silicon_extractor": self.silicon_extractor.model_copy(
-                    update={"start_clipped": True}
-                ).station_cfg(),
+                # Clipped variants with unique map_names so they don't conflict with regular extractors
+                # These are used by maps that explicitly place clipped extractors
+                "clipped_carbon_extractor": self.carbon_extractor.model_copy(update={"start_clipped": True})
+                .station_cfg()
+                .model_copy(update={"map_name": "clipped_carbon_extractor"}),
+                "clipped_oxygen_extractor": self.oxygen_extractor.model_copy(update={"start_clipped": True})
+                .station_cfg()
+                .model_copy(update={"map_name": "clipped_oxygen_extractor"}),
+                "clipped_germanium_extractor": self.germanium_extractor.model_copy(update={"start_clipped": True})
+                .station_cfg()
+                .model_copy(update={"map_name": "clipped_germanium_extractor"}),
+                "clipped_silicon_extractor": self.silicon_extractor.model_copy(update={"start_clipped": True})
+                .station_cfg()
+                .model_copy(update={"map_name": "clipped_silicon_extractor"}),
             },
         )
 

@@ -317,15 +317,16 @@ proc drawObjects*() =
         pos * TILE_SIZE
       )
     else:
-      px.drawSprite(
-        replay.typeImages.getOrDefault(thing.typeName, "objects/unknown"),
-        pos * TILE_SIZE,
-      )
+      let spriteName = replay.typeImages.getOrDefault(thing.typeName, "objects/unknown")
       if thing.isClipped.at:
-        let image = thing.typeName & ".clipped"
         px.drawSprite(
-          image,
+          spriteName & ".clipped",
           pos * TILE_SIZE
+        )
+      else:
+        px.drawSprite(
+          spriteName,
+          pos * TILE_SIZE,
         )
 
 proc drawVisualRanges*(alpha = 0.5) =

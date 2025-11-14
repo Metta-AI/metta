@@ -8,12 +8,12 @@ import pufferlib
 import pufferlib.vector
 from metta.cogworks.curriculum import Curriculum, CurriculumEnv
 from metta.common.util.log_config import init_logging
-from metta.sim.replay_log_writer import ReplayLogWriter
 from mettagrid.config.mettagrid_config import EnvSupervisorConfig
 from mettagrid.envs.early_reset_handler import EarlyResetHandler
 from mettagrid.envs.mettagrid_puffer_env import MettaGridPufferEnv
 from mettagrid.envs.stats_tracker import StatsTracker
 from mettagrid.simulator import Simulator
+from mettagrid.simulator.replay_log_writer import ReplayLogWriter
 from mettagrid.util.stats_writer import NoopStatsWriter, StatsWriter
 
 logger = logging.getLogger("vecenv")
