@@ -39,6 +39,7 @@ class CogamesTrainTool(Tool):
             steps=100000 s3_uri=s3://bucket/path/checkpoint.pt
     """
 
+    run: str | None = Field(default=None, description="Run name for tracking (optional)")
     mission: str = Field(description="Mission name (e.g., training_facility.harvest)")
     steps: int = Field(default=10000, description="Number of training steps")
     checkpoints: str = Field(default="./train_dir", description="Local checkpoints directory")
@@ -46,7 +47,9 @@ class CogamesTrainTool(Tool):
     policy: str = Field(default="lstm", description="Policy type")
     seed: int = Field(default=42, description="Random seed")
     cogs: int | None = Field(default=None, description="Number of cogs (agents)")
-    s3_uri: str | None = Field(default=None, description="S3 URI to upload checkpoint (e.g., s3://bucket/path/checkpoint.pt)")
+    s3_uri: str | None = Field(
+        default=None, description="S3 URI to upload checkpoint (e.g., s3://bucket/path/checkpoint.pt)"
+    )
 
     def invoke(self, args: dict[str, str]) -> int | None:
         checkpoints_dir = Path(self.checkpoints)

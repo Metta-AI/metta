@@ -124,6 +124,7 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
         name=cogames_train_name,
         recipe="recipes.prod.cogames.train",
         args={
+            "run": cogames_train_name,
             "mission": "training_facility.harvest",
             "variant": '["standard"]',
             "steps": "100000",
