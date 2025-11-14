@@ -11,8 +11,8 @@ from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
-from recipes.experiment.arena import mettagrid
 from mettagrid.policy.policy import PolicySpec
+from recipes.experiment.arena import mettagrid
 
 
 class TestNewPolicySystem:

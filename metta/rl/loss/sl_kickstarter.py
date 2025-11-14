@@ -9,11 +9,11 @@ from torch import Tensor
 from torchrl.data import Composite
 
 from metta.agent.policy import Policy
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import ComponentContext
 from mettagrid.policy.loader import initialize_or_load_policy
-from metta.rl.checkpoint_manager import CheckpointManager
 
 
 class SLKickstarterConfig(LossConfig):
