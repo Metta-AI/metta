@@ -105,7 +105,12 @@ class TestVibeBasedSharing:
         )
 
     def test_vibe_with_no_matching_resource(self):
-        """Test that vibing a non-existent resource results in no sharing."""
+        """Test that vibing a non-existent resource results in no sharing.
+
+        This tests the case where not all vibes correspond to resources.
+        Vibe IDs can be >= number of resources, and in those cases the
+        bounds check in Agent::onUse() should prevent any sharing.
+        """
         # Create environment
         cfg = MettaGridConfig.EmptyRoom(num_agents=2, with_walls=True).with_ascii_map(
             [
@@ -115,6 +120,7 @@ class TestVibeBasedSharing:
             ]
         )
 
+        # Only 3 resources (IDs 0, 1, 2)
         cfg.game.resource_names = ["charger", "water", "food"]
         cfg.game.agent.initial_inventory = {"charger": 10, "water": 8, "food": 6}
         cfg.game.agent.shareable_resources = ["charger", "water"]
@@ -122,7 +128,7 @@ class TestVibeBasedSharing:
         cfg.game.actions.move.enabled = True
         cfg.game.actions.noop.enabled = True
         cfg.game.actions.change_vibe.enabled = True
-        cfg.game.actions.change_vibe.number_of_vibes = 100
+        cfg.game.actions.change_vibe.number_of_vibes = 100  # Many vibes, most don't match resources
 
         sim = Simulation(cfg)
 
@@ -131,13 +137,24 @@ class TestVibeBasedSharing:
         water_idx = sim.resource_names.index("water")
         food_idx = sim.resource_names.index("food")
 
-        # Set agent 0's vibe to "up" which doesn't match any resource
+        # Set agent 0's vibe to "up" - this vibe ID is >= 3 (number of resources)
+        # so it doesn't correspond to any resource
         sim.agent(0).set_action("change_vibe_up")
         sim.agent(1).set_action("noop")
         sim.step()
 
+        # Verify vibe is set and is out of bounds for resources
+        grid_objects = sim.grid_objects()
+        agents = sorted([obj for obj in grid_objects.values() if "agent_id" in obj], key=lambda x: x["agent_id"])
+        agent0 = agents[0]
+
+        # The vibe ID should be >= 3 (the number of resources)
+        assert agent0["vibe"] >= 3, (
+            f"Vibe ID should be >= 3 to test out-of-bounds case. Got {agent0['vibe']}"
+        )
+
         # Have agent 0 move onto agent 1
-        # Since "up" vibe doesn't match any resource, no sharing should occur
+        # Since vibe ID >= resource count, no sharing should occur
         sim.agent(0).set_action("move_east")
         sim.agent(1).set_action("noop")
         sim.step()
