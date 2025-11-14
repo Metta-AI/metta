@@ -15,10 +15,16 @@ from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.jobs.job_metrics import _strip_ansi_codes, parse_cogames_eval_results, parse_cogames_stats_from_logs
 from metta.jobs.job_config import JobConfig, MetricsSource
 from metta.jobs.job_metrics import extract_skypilot_job_id, fetch_wandb_metrics
-from metta.jobs.job_runner import ExitCode, LocalJob, RemoteJob
+from metta.jobs.job_runner import LocalJob, RemoteJob
 from metta.jobs.job_state import JobState, JobStatus
 
 logger = logging.getLogger(__name__)
+
+
+class ExitCode:
+    """Special exit codes."""
+
+    SKIPPED = -2  # Job skipped due to failed dependency
 
 
 class JobManager:
