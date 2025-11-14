@@ -397,15 +397,21 @@ def step_bug_check(
         print("❌ Bug check FAILED - resolve blocking issues before release")
         sys.exit(1)
 
-    # Asana check inconclusive - fall back to manual
+    # Asana check inconclusive - fall back to manual or skip in non-interactive mode
+    if no_interactive:
+        # In non-interactive mode, log that we're skipping Asana check and proceed
+        print("⚠️  Asana automation unavailable - skipping bug check in non-interactive mode")
+        print("✅ Bug check SKIPPED (non-interactive mode)")
+        mark_step_complete(state, "bug_check")
+        return
+
+    # Interactive mode - prompt user
     print("⚠️  Asana automation unavailable")
     print("\nManual verification required:")
     print("  1. Check Asana for blocking bugs")
     print("  2. Resolve or triage any blockers\n")
 
-    # Default to Yes - assume no bugs if Asana unavailable and running non-interactively
-    # This allows automated releases to proceed when Asana check is inconclusive
-    if not get_user_confirmation("Bug check PASSED?", default=True, no_interactive=no_interactive):
+    if not get_user_confirmation("Bug check PASSED?", default=True, no_interactive=False):
         print("❌ Bug check FAILED")
         sys.exit(1)
 
