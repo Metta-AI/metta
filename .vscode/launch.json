@@ -17,6 +17,20 @@
       "preLaunchTask": "${defaultBuildTask}",
     },
     {
+      "name": "Train Nim Supervised",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "metta.common.tool.run_tool",
+      "args": ["recipes.experiment.nim_supervised.train"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "preLaunchTask": "${defaultBuildTask}",
+    },
+    {
       "name": "Sweep: Init",
       "type": "debugpy",
       "request": "launch",
