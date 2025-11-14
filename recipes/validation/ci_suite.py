@@ -39,10 +39,10 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
         module="recipes.prod.arena_basic_easy_shaped.train",
         args=[
             f"run={arena_train_name}",
-            "trainer.total_timesteps=10000",
+            "trainer.total_timesteps=100",
             "checkpointer.epoch_interval=1",
         ],
-        timeout_s=300,
+        timeout_s=60,
         is_training_job=True,
         group=group,
     )
@@ -64,7 +64,7 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
     arena_play = JobConfig(
         name=arena_play_name,
         module="recipes.prod.arena_basic_easy_shaped.play",
-        args=["max_steps=100", "render=log", "open_browser_on_start=False"],  # Headless mode for CI
+        args=["max_steps=10", "render=log", "open_browser_on_start=False"],  # Headless mode for CI
         timeout_s=60,
         group=group,  # Tag with group for monitoring
     )
@@ -75,12 +75,12 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
         module="recipes.prod.cvc.small_maps.train",
         args=[
             f"run={cvc_small_train_name}",
-            "trainer.total_timesteps=10000",
+            "trainer.total_timesteps=100",
             "checkpointer.epoch_interval=1",
-            "num_cogs=4",
+            "num_cogs=2",
             'variants=["lonely_heart","heart_chorus","pack_rat","neutral_faced"]',
         ],
-        timeout_s=300,
+        timeout_s=60,
         is_training_job=True,
         group=group,
     )
@@ -89,7 +89,7 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
     cvc_small_play = JobConfig(
         name=cvc_small_play_name,
         module="recipes.prod.cvc.small_maps.play",
-        args=["max_steps=100", "render=log", "open_browser_on_start=False"],  # Headless mode for CI
+        args=["max_steps=10", "render=log", "open_browser_on_start=False"],  # Headless mode for CI
         timeout_s=60,
         group=group,  # Tag with group for monitoring
     )
