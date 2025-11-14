@@ -12,6 +12,7 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 from recipes.experiment.arena import mettagrid
+from mettagrid.policy.policy import PolicySpec
 
 
 class TestNewPolicySystem:
@@ -39,13 +40,9 @@ class TestNewPolicySystem:
         env_config = eb.make_navigation(num_agents=2)
         sim_run_config = SimulationRunConfig(env=env_config)
 
-        def _mock_policy_initializer(policy_env_info):
-            agent = MockAgent(policy_env_info)
-            agent.eval()
-            return agent
-
+        policy_spec = PolicySpec(class_path="metta.agent.mocks.mock_agent.MockAgent", data_path=None)
         results = run_simulations(
-            policy_initializers=[_mock_policy_initializer],
+            policy_specs=[policy_spec],
             simulations=[sim_run_config],
             replay_dir=None,
             seed=0,

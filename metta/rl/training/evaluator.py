@@ -7,7 +7,6 @@ from uuid import UUID
 import torch
 from pydantic import Field
 
-from metta.agent.policy import Policy
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum import Curriculum
 from metta.common.util.git_helpers import GitError, get_task_commit_hash
@@ -20,11 +19,10 @@ from metta.rl.evaluate import (
 )
 from metta.rl.training import TrainerComponent
 from metta.rl.training.optimizer import is_schedulefree_optimizer
-from metta.sim.runner import MultiAgentPolicyInitializer, build_eval_results, run_simulations
+from metta.sim.runner import build_eval_results, run_simulations
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.base_config import Config
-from mettagrid.policy.policy import PolicyEnvInterface
 
 logger = logging.getLogger(__name__)
 
@@ -262,19 +260,9 @@ class Evaluator(TrainerComponent):
     ) -> EvalResults:
         logger.info(f"Evaluating policy locally from {policy_uri}")
 
-        def _materialize_policy(policy_uri: str) -> MultiAgentPolicyInitializer:
-            def _m(policy_env_info: PolicyEnvInterface) -> Policy:
-                artifact = CheckpointManager.load_artifact_from_uri(policy_uri)
-                policy = artifact.instantiate(policy_env_info, device=self._device)
-                policy = policy.to(self._device)
-                policy.eval()
-                return policy
-
-            return _m
-
-        policy_initializers = [_materialize_policy((policy_uri))]
+        policy_spec = CheckpointManager.policy_spec_from_uri(policy_uri, device=self._device)
         rollout_results = run_simulations(
-            policy_initializers=policy_initializers,
+            policy_specs=[policy_spec],
             simulations=[sim.to_simulation_run_config() for sim in simulations],
             replay_dir=self._config.replay_dir,
             seed=self._system_cfg.seed,

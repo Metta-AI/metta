@@ -3,10 +3,8 @@ import logging
 import sys
 from typing import Sequence
 
-import torch
 from pydantic import Field
 
-from metta.agent.policy import Policy
 from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
 from metta.common.tool import Tool
 from metta.common.util.uri import ParsedURI
@@ -14,10 +12,9 @@ from metta.common.wandb.context import WandbContext
 from metta.eval.eval_request_config import EvalResults
 from metta.rl import stats as rl_stats
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.sim.runner import MultiAgentPolicyInitializer, build_eval_results, run_simulations
+from metta.sim.runner import build_eval_results, run_simulations
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir, auto_stats_server_uri, auto_wandb_config
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger(__name__)
 
@@ -98,22 +95,9 @@ class EvaluateTool(Tool):
                     logger.error("Fallback WandB logging failed: %s", e2, exc_info=True)
 
     def eval_policy(self, normalized_uri: str, stats_client: StatsClient | None) -> EvalResults:
-        device = torch.device("cpu")
-        device = torch.device("cpu")
-
-        def _materialize_policy(policy_uri: str) -> MultiAgentPolicyInitializer:
-            def _m(policy_env_info: PolicyEnvInterface) -> Policy:
-                artifact = CheckpointManager.load_artifact_from_uri(policy_uri)
-                policy = artifact.instantiate(policy_env_info, device=device)
-                policy = policy.to(device)
-                policy.eval()
-                return policy
-
-            return _m
-
-        policy_initializers = [_materialize_policy((normalized_uri))]
+        policy_spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device="cpu")
         rollout_results = run_simulations(
-            policy_initializers=policy_initializers,
+            policy_specs=[policy_spec],
             simulations=[sim.to_simulation_run_config() for sim in self.simulations],
             replay_dir=self.replay_dir,
             seed=self.system.seed,

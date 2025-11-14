@@ -1,5 +1,6 @@
 import uuid
 from collections import defaultdict
+from functools import partial
 from pathlib import Path
 from typing import Callable, Sequence
 
@@ -7,7 +8,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from mettagrid import MettaGridConfig
-from mettagrid.policy.policy import MultiAgentPolicy
+from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult, multi_episode_rollout
 from mettagrid.simulator.multi_episode.summary import build_multi_episode_rollout_summaries
@@ -37,12 +39,27 @@ MultiAgentPolicyInitializer = Callable[[PolicyEnvInterface], MultiAgentPolicy]
 
 
 def run_simulations(
-    policy_initializers: Sequence[MultiAgentPolicyInitializer],
+    *,
+    policy_specs: Sequence[PolicySpec] | None = None,
+    policy_initializers: Sequence[MultiAgentPolicyInitializer] | None = None,
     simulations: Sequence[SimulationRunConfig],
     replay_dir: str | None,
     seed: int,
     enable_replays: bool = True,
 ) -> list[SimulationRunResult]:
+    if policy_initializers is None:
+        if policy_specs is None:
+            msg = "Either policy_specs or policy_initializers must be provided"
+            raise ValueError(msg)
+        policy_initializers = [partial(initialize_or_load_policy, policy_spec=spec) for spec in policy_specs]
+    elif policy_specs is not None:
+        msg = "Provide only policy_specs or policy_initializers, not both"
+        raise ValueError(msg)
+
+    if not policy_initializers:
+        msg = "At least one policy initializer is required"
+        raise ValueError(msg)
+
     simulation_rollouts: list[SimulationRunResult] = []
 
     for simulation in simulations:

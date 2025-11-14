@@ -20,6 +20,7 @@ from metta.rl.policy_artifact import (
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
+from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger(__name__)
@@ -192,6 +193,24 @@ class CheckpointManager:
     def load_from_uri(uri: str, game_rules: PolicyEnvInterface, device: torch.device) -> Policy:
         artifact = CheckpointManager.load_artifact_from_uri(uri)
         return artifact.instantiate(game_rules, device)
+
+    @staticmethod
+    def policy_spec_from_uri(
+        uri: str,
+        *,
+        device: torch.device | str = "cpu",
+        strict: bool = True,
+    ) -> PolicySpec:
+        normalized_uri = CheckpointManager.normalize_uri(uri)
+        device_value = str(device)
+        return PolicySpec(
+            class_path="metta.rl.policy_spec.CheckpointPolicy",
+            init_kwargs={
+                "policy_uri": normalized_uri,
+                "device": device_value,
+                "strict": strict,
+            },
+        )
 
     @staticmethod
     def load_artifact_from_uri(uri: str) -> PolicyArtifact:

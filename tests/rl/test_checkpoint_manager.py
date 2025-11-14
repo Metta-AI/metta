@@ -7,12 +7,15 @@ import torch
 import torch.nn as nn
 from pydantic import Field
 
+import mettagrid.builder.envs as eb
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.system_config import SystemConfig
 from mettagrid.base_config import Config
+from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 
 class MockActionComponentConfig(ComponentConfig):
@@ -133,6 +136,20 @@ class TestBasicSaveLoad:
         checkpoint_manager.save_agent(mock_agent, epoch=1, policy_architecture=mock_policy_architecture)
         latest = checkpoint_manager.get_latest_checkpoint()
         assert latest is not None
+
+    def test_policy_spec_from_uri_initializes_checkpoint(
+        self,
+        checkpoint_manager,
+        mock_agent,
+        mock_policy_architecture,
+    ):
+        checkpoint_manager.save_agent(mock_agent, epoch=1, policy_architecture=mock_policy_architecture)
+        latest = checkpoint_manager.get_latest_checkpoint()
+        assert latest is not None
+        spec = CheckpointManager.policy_spec_from_uri(latest)
+        env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
+        policy = initialize_or_load_policy(env_info, spec)
+        assert policy.agent_policy(0) is not None
 
 
 class TestErrorHandling:
