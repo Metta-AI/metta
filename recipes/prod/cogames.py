@@ -170,12 +170,15 @@ def evaluate(
     )
 
 
-def evaluate_latest_in_dir(dir_path: Path) -> CogamesEvalTool:
+def evaluate_latest_in_dir(dir_path: Path | str) -> CogamesEvalTool:
     """Evaluate the latest checkpoint in a directory.
 
     Args:
-        dir_path: Directory containing checkpoints
+        dir_path: Directory containing checkpoints (Path or string)
     """
+    # Convert to Path if string (when called via job args)
+    dir_path = Path(dir_path) if isinstance(dir_path, str) else dir_path
+
     # Find latest .pt file
     checkpoints = list(dir_path.glob("**/*.pt"))
     if not checkpoints:
