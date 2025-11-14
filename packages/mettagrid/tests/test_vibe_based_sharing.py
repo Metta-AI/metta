@@ -1,8 +1,9 @@
 """Test vibe-based agent resource sharing functionality.
 
 This test verifies that agents share resources based on their current vibe:
-- Agents share half of ONLY the resource matching the vibe name
-- If vibe doesn't match a shareable resource, no sharing occurs
+- Agents transfer resources according to vibe_transfers configuration
+- vibe_transfers maps vibe names to resource names and amounts
+- If vibe doesn't have configured transfers, no sharing occurs
 """
 
 from mettagrid.config.mettagrid_config import MettaGridConfig
@@ -13,7 +14,7 @@ class TestVibeBasedSharing:
     """Test vibe-based resource sharing when agents use each other."""
 
     def test_vibe_based_single_resource_sharing(self):
-        """Test that agents share only the vibed resource when vibe is set."""
+        """Test that agents share resources according to vibe_transfers config."""
         # Create a simple environment with 2 agents
         cfg = MettaGridConfig.EmptyRoom(num_agents=2, with_walls=True).with_ascii_map(
             [
@@ -24,10 +25,14 @@ class TestVibeBasedSharing:
         )
 
         # Configure resources and sharing
-        # Resource names match some vibe names (e.g., "charger" vibe -> "charger" resource)
         cfg.game.resource_names = ["charger", "water", "food"]
         cfg.game.agent.initial_inventory = {"charger": 10, "water": 8, "food": 6}
         cfg.game.agent.shareable_resources = ["charger", "water"]  # Only charger and water are shareable
+
+        # Configure vibe_transfers: when agent has "charger" vibe, share 5 charger
+        cfg.game.agent.vibe_transfers = {
+            "charger": {"charger": 5}  # vibe "charger" -> transfer 5 charger
+        }
 
         # Enable move and change_vibe actions
         cfg.game.actions.move.enabled = True
@@ -79,12 +84,12 @@ class TestVibeBasedSharing:
         agent0_after = agents_after[0]
         agent1_after = agents_after[1]
 
-        # With vibe-based sharing:
-        # - Only charger should be shared (half of 10 = 5)
-        # - Water should NOT be shared (stays at 8 for both)
+        # With vibe_transfers configured to transfer 5 charger:
+        # - Only charger should be shared (5 units as configured)
+        # - Water should NOT be shared (no config for water in this vibe)
         # - Food is not shareable anyway
         assert agent0_after["inventory"][charger_idx] == 5, (
-            f"Agent 0 should have 5 charger after vibe-based sharing. Has {agent0_after['inventory'][charger_idx]}"
+            f"Agent 0 should have 5 charger after transferring 5. Has {agent0_after['inventory'][charger_idx]}"
         )
         assert agent0_after["inventory"][water_idx] == 8, (
             f"Agent 0 should still have 8 water (vibe-based sharing only affects charger). "
@@ -104,12 +109,11 @@ class TestVibeBasedSharing:
             f"Agent 1 should still have 6 food (not shareable). Has {agent1_after['inventory'][food_idx]}"
         )
 
-    def test_vibe_with_no_matching_resource(self):
-        """Test that vibing a non-existent resource results in no sharing.
+    def test_vibe_with_no_configured_transfers(self):
+        """Test that vibes without configured transfers result in no sharing.
 
-        This tests the case where not all vibes correspond to resources.
-        Vibe IDs can be >= number of resources, and in those cases the
-        bounds check in Agent::onUse() should prevent any sharing.
+        This tests the case where a vibe has no entry in vibe_transfers config.
+        In this case, no resources should be shared even if they're shareable.
         """
         # Create environment
         cfg = MettaGridConfig.EmptyRoom(num_agents=2, with_walls=True).with_ascii_map(
@@ -120,15 +124,17 @@ class TestVibeBasedSharing:
             ]
         )
 
-        # Only 3 resources (IDs 0, 1, 2)
         cfg.game.resource_names = ["charger", "water", "food"]
         cfg.game.agent.initial_inventory = {"charger": 10, "water": 8, "food": 6}
         cfg.game.agent.shareable_resources = ["charger", "water"]
 
+        # No vibe_transfers configured - even shareable resources won't be shared
+        cfg.game.agent.vibe_transfers = {}
+
         cfg.game.actions.move.enabled = True
         cfg.game.actions.noop.enabled = True
         cfg.game.actions.change_vibe.enabled = True
-        cfg.game.actions.change_vibe.number_of_vibes = 100  # Many vibes, most don't match resources
+        cfg.game.actions.change_vibe.number_of_vibes = 100
 
         sim = Simulation(cfg)
 
@@ -137,24 +143,20 @@ class TestVibeBasedSharing:
         water_idx = sim.resource_names.index("water")
         food_idx = sim.resource_names.index("food")
 
-        # Set agent 0's vibe to "up" - this vibe ID is >= 3 (number of resources)
-        # so it doesn't correspond to any resource
-        sim.agent(0).set_action("change_vibe_up")
+        # Set agent 0's vibe to "charger"
+        sim.agent(0).set_action("change_vibe_charger")
         sim.agent(1).set_action("noop")
         sim.step()
 
-        # Verify vibe is set and is out of bounds for resources
+        # Verify vibe is set
         grid_objects = sim.grid_objects()
         agents = sorted([obj for obj in grid_objects.values() if "agent_id" in obj], key=lambda x: x["agent_id"])
         agent0 = agents[0]
 
-        # The vibe ID should be >= 3 (the number of resources)
-        assert agent0["vibe"] >= 3, (
-            f"Vibe ID should be >= 3 to test out-of-bounds case. Got {agent0['vibe']}"
-        )
+        assert agent0["vibe"] == 1, "Agent 0 should have vibe set to 1 (charger)"
 
         # Have agent 0 move onto agent 1
-        # Since vibe ID >= resource count, no sharing should occur
+        # Since no vibe_transfers configured, no sharing should occur
         sim.agent(0).set_action("move_east")
         sim.agent(1).set_action("noop")
         sim.step()

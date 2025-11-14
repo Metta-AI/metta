@@ -78,6 +78,7 @@ private:
   std::vector<char> tracked_resource_presence;
   std::size_t tracked_resource_diversity{0};
   std::vector<char> shareable_mask;
+  std::unordered_map<ObservationType, std::unordered_map<InventoryItem, int>> vibe_transfers;
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_AGENT_HPP_

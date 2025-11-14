@@ -71,6 +71,9 @@ class AgentConfig(Config):
         default_factory=list,
         description="Resource names that contribute to inventory diversity metrics",
     )
+    vibe_transfers: dict[str, dict[str, int]] = Field(
+        default_factory=dict, description="Maps vibe name to resource deltas for agent-to-agent sharing"
+    )
     initial_vibe: int = Field(default=0, ge=0, description="Initial vibe value for this agent instance")
 
 

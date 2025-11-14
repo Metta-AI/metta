@@ -34,7 +34,8 @@ Agent::Agent(GridCoord r,
       diversity_tracked_mask(resource_names != nullptr ? resource_names->size() : 0, 0),
       tracked_resource_presence(resource_names != nullptr ? resource_names->size() : 0, 0),
       tracked_resource_diversity(0),
-      shareable_mask(resource_names != nullptr ? resource_names->size() : 0, 0) {
+      shareable_mask(resource_names != nullptr ? resource_names->size() : 0, 0),
+      vibe_transfers(config.vibe_transfers) {
   for (InventoryItem item : config.diversity_tracked_resources) {
     const size_t index = static_cast<size_t>(item);
     if (index < diversity_tracked_mask.size()) {
@@ -130,17 +131,28 @@ void Agent::compute_stat_rewards(StatsTracker* game_stats_tracker) {
 }
 
 bool Agent::onUse(Agent& actor, ActionArg arg) {
-  // Share half of the resource matching the actor's vibe ID
-  InventoryItem resource_to_share = static_cast<InventoryItem>(actor.vibe);
+  // Look up transfers for the actor's vibe
+  auto vibe_it = actor.vibe_transfers.find(actor.vibe);
+  if (vibe_it == actor.vibe_transfers.end()) {
+    return true;  // No transfers configured for this vibe
+  }
 
-  // Check if this resource is shareable using the mask
-  if (resource_to_share < actor.shareable_mask.size() && actor.shareable_mask[resource_to_share]) {
-    InventoryQuantity actor_amount = actor.inventory.amount(resource_to_share);
-    // Calculate half (rounded down)
-    InventoryQuantity share_attempted_amount = actor_amount / 2;
-    if (share_attempted_amount > 0) {
-      InventoryDelta successful_share_amount = this->update_inventory(resource_to_share, share_attempted_amount);
-      actor.update_inventory(resource_to_share, -successful_share_amount);
+  // Transfer each configured resource
+  const auto& resource_deltas = vibe_it->second;
+  for (const auto& [resource, amount] : resource_deltas) {
+    // Check if this resource is shareable using the mask
+    if (resource >= actor.shareable_mask.size() || !actor.shareable_mask[resource]) {
+      continue;  // Resource is not shareable, skip it
+    }
+
+    if (amount > 0) {
+      // Transfer from actor to receiver (this)
+      InventoryQuantity actor_amount = actor.inventory.amount(resource);
+      InventoryQuantity share_attempted_amount = std::min(static_cast<InventoryQuantity>(amount), actor_amount);
+      if (share_attempted_amount > 0) {
+        InventoryDelta successful_share_amount = this->update_inventory(resource, share_attempted_amount);
+        actor.update_inventory(resource, -successful_share_amount);
+      }
     }
   }
 
