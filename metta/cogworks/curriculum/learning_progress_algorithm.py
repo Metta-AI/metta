@@ -5,7 +5,7 @@ Provides intelligent task selection based on bidirectional learning progress ana
 using fast and slow exponential moving averages to detect learning opportunities.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
@@ -210,11 +210,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         else:
             self._ensure_progress_ready()
             idx = self._task_index_cache.get(task_id)
-            if (
-                idx is not None
-                and self._task_dist is not None
-                and 0 <= idx < len(self._task_dist)
-            ):
+            if idx is not None and self._task_dist is not None and 0 <= idx < len(self._task_dist):
                 score = float(self._task_dist[idx])
             else:
                 score = self.hypers.exploration_bonus
