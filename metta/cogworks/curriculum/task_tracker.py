@@ -25,7 +25,7 @@ class TaskTracker:
         backend: Optional[TaskMemoryBackend] = None,
         session_id: Optional[str] = None,
         use_shared_memory: bool = False,
-        task_struct_size: int = 13,
+        task_struct_size: int = 17,
         default_success_threshold: float = 0.5,
         default_generator_type: float = 0.0,
     ):
@@ -37,7 +37,7 @@ class TaskTracker:
             backend: Optional pre-configured backend. If None, creates based on use_shared_memory
             session_id: Unique identifier for shared memory session (only for shared memory)
             use_shared_memory: If True and backend is None, creates SharedMemoryBackend
-            task_struct_size: Size of each task's data structure (default: 13)
+            task_struct_size: Size of each task's data structure (default: 17)
             default_success_threshold: Default success threshold for new tasks (default: 0.5)
             default_generator_type: Default generator type identifier (default: 0.0)
         """
@@ -136,6 +136,11 @@ class TaskTracker:
             task_data[10] = generator_type
             task_data[11] = 0.0  # ema_squared (for variance calculation)
             task_data[12] = 1.0  # is_active
+            # Bidirectional LP EMAs (indices 13-16)
+            task_data[13] = 0.0  # p_fast
+            task_data[14] = 0.0  # p_slow
+            task_data[15] = 0.0  # p_true
+            task_data[16] = 0.0  # random_baseline
 
             # Find next free slot after this one
             self._next_free_index = index + 1
@@ -253,6 +258,11 @@ class TaskTracker:
         seed = task_data[9]
         generator_type = task_data[10]
         ema_squared = task_data[11]
+        # Bidirectional LP EMAs (indices 13-16)
+        p_fast = task_data[13]
+        p_slow = task_data[14]
+        p_true = task_data[15]
+        random_baseline = task_data[16]
 
         if completion_count == 0:
             return {
@@ -267,6 +277,10 @@ class TaskTracker:
                 "seed": seed,
                 "generator_type": generator_type,
                 "age_seconds": time.time() - creation_time,
+                "p_fast": p_fast,
+                "p_slow": p_slow,
+                "p_true": p_true,
+                "random_baseline": random_baseline,
             }
 
         return {
@@ -281,6 +295,10 @@ class TaskTracker:
             "seed": seed,
             "generator_type": generator_type,
             "age_seconds": time.time() - creation_time,
+            "p_fast": p_fast,
+            "p_slow": p_slow,
+            "p_true": p_true,
+            "random_baseline": random_baseline,
         }
 
     def get_all_tracked_tasks(self) -> List[int]:
@@ -344,6 +362,10 @@ class TaskTracker:
                     "seed": task_data[9],
                     "generator_type": task_data[10],
                     "ema_squared": task_data[11],
+                    "p_fast": task_data[13],
+                    "p_slow": task_data[14],
+                    "p_true": task_data[15],
+                    "random_baseline": task_data[16],
                 }
 
         total_completions = sum(int(self._backend.get_task_data(idx)[2]) for idx in self._task_id_to_index.values())
@@ -393,6 +415,11 @@ class TaskTracker:
                 data[10] = task_data.get("generator_type", 0.0)
                 data[11] = task_data.get("ema_squared", 0.0)
                 data[12] = 1.0  # is_active
+                # Bidirectional LP EMAs (indices 13-16)
+                data[13] = task_data.get("p_fast", 0.0)
+                data[14] = task_data.get("p_slow", 0.0)
+                data[15] = task_data.get("p_true", 0.0)
+                data[16] = task_data.get("random_baseline", 0.0)
 
             self._next_free_index = len(state["task_memory"])
 
@@ -430,7 +457,7 @@ def CentralizedTaskTracker(
     max_memory_tasks: int = 1000,
     session_id: Optional[str] = None,
     ema_alpha: float = 0.1,
-    task_struct_size: int = 12,
+    task_struct_size: int = 17,
 ) -> TaskTracker:
     """Create a centralized (multi-process) task tracker with shared memory.
 
@@ -440,7 +467,7 @@ def CentralizedTaskTracker(
         max_memory_tasks: Maximum number of tasks to track
         session_id: Unique identifier for shared memory session
         ema_alpha: Alpha parameter for exponential moving average
-        task_struct_size: Size of each task's data structure (default: 12)
+        task_struct_size: Size of each task's data structure (default: 17)
 
     Returns:
         TaskTracker instance with SharedMemoryBackend

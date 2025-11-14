@@ -8,7 +8,7 @@ Provides strategy pattern for different LP scoring algorithms:
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import numpy as np
 
@@ -24,13 +24,15 @@ DEFAULT_SUCCESS_RATE = 0.0
 class LPScorer(ABC):
     """Abstract base class for learning progress scoring strategies."""
 
-    def __init__(self, config: "LearningProgressConfig"):
+    def __init__(self, config: "LearningProgressConfig", tracker: Optional[TaskTracker] = None):
         """Initialize scorer with configuration.
 
         Args:
             config: Learning progress configuration object
+            tracker: Optional TaskTracker instance for shared memory access
         """
         self.config = config
+        self.tracker = tracker
 
     @abstractmethod
     def score_task(self, task_id: int, tracker: TaskTracker) -> float:
@@ -105,24 +107,21 @@ class BidirectionalLPScorer(LPScorer):
     learning progress (fast EMA > slow EMA) are prioritized.
     """
 
-    def __init__(self, config: "LearningProgressConfig"):
+    def __init__(self, config: "LearningProgressConfig", tracker: Optional[TaskTracker] = None):
         """Initialize bidirectional scorer.
 
         Args:
             config: Learning progress configuration
+            tracker: TaskTracker instance for shared memory access (required for EMAs)
         """
-        super().__init__(config)
+        super().__init__(config, tracker)
 
         # Bidirectional learning progress tracking
-        self._outcomes: Dict[int, List[float]] = {}
-        self._p_fast: Optional[np.ndarray] = None
-        self._p_slow: Optional[np.ndarray] = None
-        self._p_true: Optional[np.ndarray] = None
-        self._random_baseline: Optional[np.ndarray] = None
-        self._baseline_initialized: Optional[np.ndarray] = None  # Track which baselines are set
-        self._task_success_rate: np.ndarray = np.array([])
-        self._update_mask: np.ndarray = np.array([])
-        self._sample_levels: np.ndarray = np.array([])
+        # All EMA state (p_fast, p_slow, p_true, random_baseline) is stored in shared memory (indices 13-16).
+        # The scorer maintains only caches and working data, no persistent outcome buffers.
+
+        # Track last outcome count to detect which tasks have new data (enables selective EMA updates)
+        self._last_outcome_counts: Dict[int, int] = {}
 
         # Cache for task distribution and scores
         self._task_dist: Optional[np.ndarray] = None
@@ -138,29 +137,58 @@ class BidirectionalLPScorer(LPScorer):
         self._tracked_task_ids: Dict[int, int] = {}  # Maps task_id -> position (0, 1, 2)
         self._tracked_task_metrics: Dict[int, Dict[str, float]] = {}  # Store latest metrics for each tracked task
 
+    def _get_ema_from_shared_memory(self, task_id: int, tracker: TaskTracker) -> tuple[float, float, float, float]:
+        """Get EMA values from shared memory for a task.
+
+        Returns:
+            Tuple of (p_fast, p_slow, p_true, random_baseline)
+        """
+        task_stats = tracker.get_task_stats(task_id)
+        if task_stats is None:
+            return 0.0, 0.0, 0.0, 0.0
+        return (
+            task_stats.get("p_fast", 0.0),
+            task_stats.get("p_slow", 0.0),
+            task_stats.get("p_true", 0.0),
+            task_stats.get("random_baseline", 0.0),
+        )
+
+    def _write_ema_to_shared_memory(
+        self, task_id: int, tracker: TaskTracker, p_fast: float, p_slow: float, p_true: float, random_baseline: float
+    ) -> None:
+        """Write EMA values to shared memory for a task."""
+        if task_id not in tracker._task_id_to_index:
+            return
+
+        index = tracker._task_id_to_index[task_id]
+        with tracker._backend.acquire_lock():
+            task_data = tracker._backend.get_task_data(index)
+            task_data[13] = p_fast
+            task_data[14] = p_slow
+            task_data[15] = p_true
+            task_data[16] = random_baseline
+
     def score_task(self, task_id: int, tracker: TaskTracker) -> float:
         """Calculate bidirectional learning progress score for a task."""
         # Return cached score if valid
         if task_id in self._cache_valid_tasks and task_id in self._score_cache:
             return self._score_cache[task_id]
 
+        # Check completion count from shared memory for sufficient data
         task_stats = tracker.get_task_stats(task_id)
-        if not task_stats or task_stats["completion_count"] < 2:
-            # New tasks get exploration bonus
-            score = self.config.exploration_bonus
-        elif task_id not in self._outcomes or len(self._outcomes[task_id]) < 2:
+        if not task_stats or task_stats["completion_count"] < self.config.min_samples_for_lp:
             # Tasks without sufficient data get exploration bonus
             score = self.config.exploration_bonus
         else:
             # Calculate bidirectional learning progress
-            self._update_bidirectional_progress()
+            self._update_bidirectional_progress(tracker)
 
             # Get task distribution if needed
             if self._task_dist is None or self._stale_dist:
                 self._calculate_task_distribution()
 
-            # Find task index in our tracking
-            task_indices = list(self._outcomes.keys())
+            # Find task index in our tracking (must match insertion order from _update_bidirectional_progress)
+            task_indices = tracker.get_all_tracked_tasks()
             if task_id in task_indices and self._task_dist is not None:
                 task_idx = task_indices.index(task_id)
                 if task_idx < len(self._task_dist):
@@ -201,23 +229,21 @@ class BidirectionalLPScorer(LPScorer):
         if task_id in self._cache_valid_tasks and task_id in self._raw_lp_cache:
             return self._raw_lp_cache[task_id]
 
+        # Check completion count from shared memory for sufficient data
         task_stats = tracker.get_task_stats(task_id)
-        if not task_stats or task_stats["completion_count"] < 2:
-            # New tasks get exploration bonus
-            raw_lp = self.config.exploration_bonus
-        elif task_id not in self._outcomes or len(self._outcomes[task_id]) < 2:
+        if not task_stats or task_stats["completion_count"] < self.config.min_samples_for_lp:
             # Tasks without sufficient data get exploration bonus
             raw_lp = self.config.exploration_bonus
         else:
             # Calculate bidirectional learning progress
-            self._update_bidirectional_progress()
+            self._update_bidirectional_progress(tracker)
 
             # Get raw LP scores if needed
             if self._raw_lp_scores is None or self._stale_dist:
                 self._calculate_task_distribution()
 
-            # Find task index in our tracking
-            task_indices = list(self._outcomes.keys())
+            # Find task index in our tracking (must match insertion order from _update_bidirectional_progress)
+            task_indices = tracker.get_all_tracked_tasks()
             if task_id in task_indices and self._raw_lp_scores is not None:
                 task_idx = task_indices.index(task_id)
                 if task_idx < len(self._raw_lp_scores):
@@ -229,6 +255,7 @@ class BidirectionalLPScorer(LPScorer):
 
         # Cache the computed raw LP
         self._raw_lp_cache[task_id] = raw_lp
+        self._cache_valid_tasks.add(task_id)
         return raw_lp
 
     def get_postzscored_lp_score(self, task_id: int, tracker: TaskTracker) -> float:
@@ -248,23 +275,21 @@ class BidirectionalLPScorer(LPScorer):
         if task_id in self._cache_valid_tasks and task_id in self._postzscored_lp_cache:
             return self._postzscored_lp_cache[task_id]
 
+        # Check completion count from shared memory for sufficient data
         task_stats = tracker.get_task_stats(task_id)
-        if not task_stats or task_stats["completion_count"] < 2:
-            # New tasks get exploration bonus (not z-scored)
-            postzscored_lp = self.config.exploration_bonus
-        elif task_id not in self._outcomes or len(self._outcomes[task_id]) < 2:
+        if not task_stats or task_stats["completion_count"] < self.config.min_samples_for_lp:
             # Tasks without sufficient data get exploration bonus
             postzscored_lp = self.config.exploration_bonus
         else:
             # Calculate bidirectional learning progress
-            self._update_bidirectional_progress()
+            self._update_bidirectional_progress(tracker)
 
             # Get post-zscore LP scores if needed
             if self._postzscored_lp_scores is None or self._stale_dist:
                 self._calculate_task_distribution()
 
-            # Find task index in our tracking
-            task_indices = list(self._outcomes.keys())
+            # Find task index in our tracking (must match insertion order from _update_bidirectional_progress)
+            task_indices = tracker.get_all_tracked_tasks()
             if task_id in task_indices and self._postzscored_lp_scores is not None:
                 task_idx = task_indices.index(task_id)
                 if task_idx < len(self._postzscored_lp_scores):
@@ -276,68 +301,75 @@ class BidirectionalLPScorer(LPScorer):
 
         # Cache the computed post-zscore LP
         self._postzscored_lp_cache[task_id] = postzscored_lp
+        self._cache_valid_tasks.add(task_id)
         return postzscored_lp
 
     def update_with_score(self, task_id: int, score: float) -> None:
         """Update bidirectional EMA tracking for a task with new score."""
-        # Convert score to success rate (assuming score is between 0 and 1)
-        success_rate = score  # max(0.0, min(1.0, score))
-
         # Track first 3 unique tasks for detailed wandb metrics
         if task_id not in self._tracked_task_ids and len(self._tracked_task_ids) < 3:
             next_position = len(self._tracked_task_ids)
             self._tracked_task_ids[task_id] = next_position
             self._tracked_task_metrics[task_id] = {}
 
-        # Initialize outcomes for new tasks
-        if task_id not in self._outcomes:
-            self._outcomes[task_id] = []
-
-        # Add outcome and maintain memory limit
-        self._outcomes[task_id].append(success_rate)
-        self._outcomes[task_id] = self._outcomes[task_id][-self.config.memory :]
-
         # Store raw reward for tracked tasks (for wandb)
         if task_id in self._tracked_task_ids:
             self._tracked_task_metrics[task_id].update(
                 {
                     "raw_reward": score,
-                    "clamped_reward": success_rate,
-                    "sample_count": len(self._outcomes[task_id]),
+                    "clamped_reward": score,
                 }
             )
 
-        # Update bidirectional progress to ensure EMAs are updated
-        self._update_bidirectional_progress()
+        # Update bidirectional progress for this specific task with the new score
+        if self.tracker is not None:
+            self._update_task_emas(task_id, score, self.tracker)
 
         # Mark distribution as stale
         self._stale_dist = True
-        self._cache_valid_tasks.discard(task_id)
+        # Invalidate ALL caches because bidirectional LP depends on all tasks (due to z-score normalization)
+        self._cache_valid_tasks.clear()
+        self._score_cache.clear()
+        self._raw_lp_cache.clear()
+        self._postzscored_lp_cache.clear()
 
     def remove_task(self, task_id: int) -> None:
         """Remove task from scoring system."""
-        self._outcomes.pop(task_id, None)
         self._score_cache.pop(task_id, None)
         self._raw_lp_cache.pop(task_id, None)
         self._postzscored_lp_cache.pop(task_id, None)
         self._cache_valid_tasks.discard(task_id)
+        self._last_outcome_counts.pop(task_id, None)
         self._stale_dist = True
 
     def get_stats(self) -> Dict[str, float]:
         """Get detailed bidirectional learning progress statistics."""
-        if not self._outcomes:
+        if self.tracker is None:
             return {
                 "mean_task_success_rate": 0.0,
                 "mean_learning_progress": 0.0,
                 "mean_lp_score": 0.0,
             }
 
-        self._update_bidirectional_progress()
+        task_ids = self.tracker.get_all_tracked_tasks()
+        if not task_ids:
+            return {
+                "mean_task_success_rate": 0.0,
+                "mean_learning_progress": 0.0,
+                "mean_lp_score": 0.0,
+            }
+
+        self._update_bidirectional_progress(self.tracker)
+
+        # Compute mean task success rate from shared memory success_rate_ema
+        task_success_rates = []
+        for task_id in task_ids:
+            task_stats = self.tracker.get_task_stats(task_id)
+            if task_stats and task_stats["completion_count"] > 0:
+                task_success_rates.append(task_stats["success_rate_ema"])
 
         stats = {
-            "mean_task_success_rate": float(np.mean(self._task_success_rate))
-            if len(self._task_success_rate) > 0
-            else 0.0,
+            "mean_task_success_rate": float(np.mean(task_success_rates)) if task_success_rates else 0.0,
         }
 
         # Add mean LP score from score cache
@@ -374,44 +406,31 @@ class BidirectionalLPScorer(LPScorer):
         return stats
 
     def get_state(self) -> Dict[str, Any]:
-        """Serialize bidirectional scorer state."""
+        """Serialize bidirectional scorer state.
+
+        Note: EMAs (p_fast, p_slow, p_true, random_baseline) are stored in shared memory
+        via the task tracker (indices 13-16), so they're not included here.
+        Only scorer-specific working data (caches) is serialized.
+        """
         return {
-            "outcomes": {k: v for k, v in self._outcomes.items()},
-            "p_fast": self._p_fast.tolist() if self._p_fast is not None else None,
-            "p_slow": self._p_slow.tolist() if self._p_slow is not None else None,
-            "p_true": self._p_true.tolist() if self._p_true is not None else None,
-            "random_baseline": self._random_baseline.tolist() if self._random_baseline is not None else None,
-            "baseline_initialized": self._baseline_initialized.tolist()
-            if self._baseline_initialized is not None
-            else None,
-            "task_success_rate": self._task_success_rate.tolist(),
-            "update_mask": self._update_mask.tolist(),
-            "sample_levels": self._sample_levels.tolist(),
             "task_dist": self._task_dist.tolist() if self._task_dist is not None else None,
             "stale_dist": self._stale_dist,
             "score_cache": self._score_cache,
             "cache_valid_tasks": list(self._cache_valid_tasks),
+            "last_outcome_counts": self._last_outcome_counts,
         }
 
     def load_state(self, state: Dict[str, Any]) -> None:
-        """Deserialize bidirectional scorer state."""
-        self._outcomes = {int(k): v for k, v in state.get("outcomes", {}).items()}
-        self._p_fast = np.array(state["p_fast"]) if state.get("p_fast") is not None else None
-        self._p_slow = np.array(state["p_slow"]) if state.get("p_slow") is not None else None
-        self._p_true = np.array(state["p_true"]) if state.get("p_true") is not None else None
-        self._random_baseline = np.array(state["random_baseline"]) if state.get("random_baseline") is not None else None
-        self._baseline_initialized = (
-            np.array(state["baseline_initialized"], dtype=bool)
-            if state.get("baseline_initialized") is not None
-            else None
-        )
-        self._task_success_rate = np.array(state.get("task_success_rate", []))
-        self._update_mask = np.array(state.get("update_mask", []))
-        self._sample_levels = np.array(state.get("sample_levels", []))
+        """Deserialize bidirectional scorer state.
+
+        Note: EMAs (p_fast, p_slow, p_true, random_baseline) are stored in shared memory
+        via the task tracker (indices 13-16), so they're restored from there automatically.
+        """
         self._task_dist = np.array(state["task_dist"]) if state.get("task_dist") is not None else None
         self._stale_dist = state.get("stale_dist", True)
         self._score_cache = state.get("score_cache", {})
         self._cache_valid_tasks = set(state.get("cache_valid_tasks", []))
+        self._last_outcome_counts = {int(k): v for k, v in state.get("last_outcome_counts", {}).items()}
 
     def invalidate_cache(self) -> None:
         """Invalidate score cache."""
@@ -420,144 +439,99 @@ class BidirectionalLPScorer(LPScorer):
         self._raw_lp_cache.clear()
         self._postzscored_lp_cache.clear()
 
-    def _update_bidirectional_progress(self) -> None:
-        """Update bidirectional learning progress tracking with current task success rates."""
-        if not self._outcomes:
-            return
+    def _update_task_emas(self, task_id: int, score: float, tracker: TaskTracker) -> None:
+        """Update bidirectional EMAs for a single task with a new score.
 
-        # Get all tracked task IDs
-        task_ids = sorted(self._outcomes.keys())
-        num_tasks = len(task_ids)
+        Args:
+            task_id: ID of the task to update
+            score: New performance score for the task
+            tracker: TaskTracker instance for shared memory access
+        """
+        # Get current EMA values from shared memory
+        p_fast, p_slow, p_true, random_baseline = self._get_ema_from_shared_memory(task_id, tracker)
 
-        if num_tasks == 0:
-            return
+        task_success_rate = score
 
-        # Calculate task success rates
-        task_success_rates = np.array(
-            [
-                np.mean(self._outcomes[task_id]) if self._outcomes[task_id] else DEFAULT_SUCCESS_RATE
-                for task_id in task_ids
-            ]
-        )
-
-        # Handle NaN values
-        task_success_rates = np.nan_to_num(task_success_rates, nan=DEFAULT_SUCCESS_RATE)
-
-        # Create update mask for tasks with sufficient data
-        self._update_mask = np.array([len(self._outcomes[task_id]) >= 2 for task_id in task_ids])
-
-        if not np.any(self._update_mask):
-            return
-
-        # Optionally normalize by random baseline
+        # Handle baseline normalization if enabled
         if self.config.use_baseline_normalization:
-            # Initialize random baseline array if needed
-            if self._random_baseline is None or len(self._random_baseline) != num_tasks:
-                # Initialize baseline array to zeros
-                self._random_baseline = np.zeros(num_tasks)
-                # Track which tasks have had their baseline set
-                self._baseline_initialized = np.zeros(num_tasks, dtype=bool)
+            # Set baseline on first update (capped at 0.75)
+            if random_baseline == 0.0:
+                random_baseline = min(task_success_rate, 0.75)
 
-            # Ensure _baseline_initialized is properly initialized (for resize case)
-            if self._baseline_initialized is None or len(self._baseline_initialized) != num_tasks:
-                self._baseline_initialized = np.zeros(num_tasks, dtype=bool)
+            # Calculate normalized "mastery" score
+            improvement_over_baseline = max(task_success_rate - random_baseline, 0.0)
+            total_possible_improvement = max(1.0 - random_baseline, 1e-10)
+            normalized_task_success_rate = improvement_over_baseline / total_possible_improvement
+        else:
+            # Use raw success rate
+            normalized_task_success_rate = task_success_rate
 
-            # Set baseline for new tasks (first observation, capped at 0.75)
-            # This captures the "floor" performance - the starting-point skill level
-            new_tasks_mask = self._update_mask & ~self._baseline_initialized
-            if np.any(new_tasks_mask):
-                # Capture FIRST observation as baseline, capped at 0.75 to prevent division by zero
-                # and ensure there's room for improvement (1.0 - B_i > 0)
-                # Use the first outcome value, not the current TSR (which is the mean)
-                for i, task_id in enumerate(task_ids):
-                    if new_tasks_mask[i] and task_id in self._outcomes and len(self._outcomes[task_id]) > 0:
-                        first_observation = self._outcomes[task_id][0]
-                        self._random_baseline[i] = min(first_observation, 0.75)
-                self._baseline_initialized[new_tasks_mask] = True
+        # Initialize or update EMAs
+        if p_fast == 0.0 and p_slow == 0.0:
+            # First update - initialize to current value
+            p_fast = normalized_task_success_rate
+            p_slow = normalized_task_success_rate
+            p_true = task_success_rate
+        else:
+            # Update EMAs
+            p_fast = normalized_task_success_rate * self.config.ema_timescale + p_fast * (
+                1.0 - self.config.ema_timescale
+            )
+            slow_timescale = self.config.ema_timescale * self.config.slow_timescale_factor
+            p_slow = normalized_task_success_rate * slow_timescale + p_slow * (1.0 - slow_timescale)
+            p_true = task_success_rate * self.config.ema_timescale + p_true * (1.0 - self.config.ema_timescale)
 
-            # Calculate normalized "mastery" score: p_i = (TSR_i - B_i) / (1.0 - B_i)
-            # This measures progress from the baseline to perfect performance
-            improvement_over_baseline = np.maximum(
-                task_success_rates[self._update_mask] - self._random_baseline[self._update_mask],
-                0.0,
+        # Write updated EMAs back to shared memory
+        self._write_ema_to_shared_memory(task_id, tracker, p_fast, p_slow, p_true, random_baseline)
+
+        # Store EMA values for tracked tasks (for wandb)
+        if task_id in self._tracked_task_ids and task_id in self._tracked_task_metrics:
+            lp = p_fast - p_slow
+            self._tracked_task_metrics[task_id].update(
+                {
+                    "mean_reward": task_success_rate,
+                    "fast_ema": p_fast,
+                    "slow_ema": p_slow,
+                    "raw_lp": lp,
+                }
             )
 
-            total_possible_improvement = 1.0 - self._random_baseline[self._update_mask]
-            # Handle edge case where baseline is 1.0 (shouldn't happen with 0.75 cap, but be safe)
-            total_possible_improvement = np.where(total_possible_improvement <= 1e-10, 1.0, total_possible_improvement)
+        # Mark distribution as stale since EMAs changed
+        self._stale_dist = True
 
-            # This is the "mastery" score p_i that feeds into the EMAs
-            normalized_task_success_rates = improvement_over_baseline / total_possible_improvement
-        else:
-            # Use raw success rates directly (default)
-            # Learning progress = rate of change in raw performance
-            normalized_task_success_rates = task_success_rates[self._update_mask]
+    def _update_bidirectional_progress(self, tracker: TaskTracker) -> None:
+        """Update bidirectional learning progress for all tasks.
 
-        # Initialize or update fast and slow EMAs
-        if self._p_fast is None or len(self._p_fast) != num_tasks:
-            self._p_fast = np.zeros(num_tasks)
-            self._p_slow = np.zeros(num_tasks)
-            self._p_true = np.zeros(num_tasks)
+        This method updates EMAs for all tracked tasks that have new data since last update.
+        Used when explicitly called (e.g., in tests) or when getting stats.
+        """
+        # Get all tracked task IDs from tracker
+        task_ids = tracker.get_all_tracked_tasks()
+        if not task_ids:
+            return
 
-            self._p_fast[self._update_mask] = normalized_task_success_rates
-            self._p_slow[self._update_mask] = normalized_task_success_rates
-            self._p_true[self._update_mask] = task_success_rates[self._update_mask]
-        else:
-            # Resize arrays if needed
-            if (
-                self._p_fast is not None
-                and self._p_slow is not None
-                and self._p_true is not None
-                and len(self._p_fast) != num_tasks
-            ):
-                new_p_fast = np.zeros(num_tasks)
-                new_p_slow = np.zeros(num_tasks)
-                new_p_true = np.zeros(num_tasks)
+        # Process each task individually
+        for task_id in task_ids:
+            # Get task stats from shared memory
+            task_stats = tracker.get_task_stats(task_id)
+            if not task_stats:
+                continue
 
-                min_len = min(len(self._p_fast), num_tasks)
-                new_p_fast[:min_len] = self._p_fast[:min_len]
-                new_p_slow[:min_len] = self._p_slow[:min_len]
-                new_p_true[:min_len] = self._p_true[:min_len]
+            completion_count = task_stats["completion_count"]
 
-                self._p_fast = new_p_fast
-                self._p_slow = new_p_slow
-                self._p_true = new_p_true
+            # Check if task has new completions since last update
+            has_new_data = completion_count > 0 and completion_count != self._last_outcome_counts.get(task_id, 0)
 
-            # Update EMAs
-            if self._p_fast is not None and self._p_slow is not None and self._p_true is not None:
-                # Fast EMA uses the configured timescale
-                self._p_fast[self._update_mask] = (
-                    normalized_task_success_rates * self.config.ema_timescale
-                    + self._p_fast[self._update_mask] * (1.0 - self.config.ema_timescale)
-                )
-                # Slow EMA uses a much slower timescale
-                slow_timescale = self.config.ema_timescale * self.config.slow_timescale_factor
-                self._p_slow[self._update_mask] = normalized_task_success_rates * slow_timescale + self._p_slow[
-                    self._update_mask
-                ] * (1.0 - slow_timescale)
-                self._p_true[self._update_mask] = task_success_rates[
-                    self._update_mask
-                ] * self.config.ema_timescale + self._p_true[self._update_mask] * (1.0 - self.config.ema_timescale)
+            if not has_new_data:
+                continue
 
-                # Store EMA values for tracked tasks (for wandb)
-                for task_id in self._tracked_task_ids:
-                    if task_id in task_ids and task_id in self._tracked_task_metrics:
-                        task_idx = task_ids.index(task_id)
-                        if task_idx < len(self._p_fast):
-                            mean_reward = task_success_rates[task_idx]
-                            fast_ema = self._p_fast[task_idx]
-                            slow_ema = self._p_slow[task_idx]
-                            lp = fast_ema - slow_ema
-                            self._tracked_task_metrics[task_id].update(
-                                {
-                                    "mean_reward": mean_reward,
-                                    "fast_ema": fast_ema,
-                                    "slow_ema": slow_ema,
-                                    "raw_lp": lp,
-                                }
-                            )
+            # Use reward_ema as the current performance value for batch updates
+            score = task_stats["reward_ema"]
+            self._update_task_emas(task_id, score, tracker)
 
-        self._task_success_rate = task_success_rates
+            # Update the last completion count AFTER processing EMAs
+            self._last_outcome_counts[task_id] = int(completion_count)
+
         self._stale_dist = True
 
     def _reweight(self, p: float) -> float:
@@ -599,16 +573,26 @@ class BidirectionalLPScorer(LPScorer):
         Applies reweighting to fast and slow EMAs before computing absolute difference.
         This amplifies learning signal from unsolved tasks when early_progress_amplification
         is set to a low value (e.g., 0.05).
+
+        Now builds arrays from shared memory instead of using cached arrays.
         """
-        if self._p_fast is None or self._p_slow is None:
+        if self.tracker is None:
             return np.array([])
+
+        # Build arrays from shared memory
+        task_ids = self.tracker.get_all_tracked_tasks()
+        if not task_ids:
+            return np.array([])
+
+        p_fast_array = np.array([self._get_ema_from_shared_memory(tid, self.tracker)[0] for tid in task_ids])
+        p_slow_array = np.array([self._get_ema_from_shared_memory(tid, self.tracker)[1] for tid in task_ids])
 
         # Apply reweighting if not at default (0.5)
         if abs(self.config.early_progress_amplification - 0.5) > 1e-6:
             # Apply reweighting element-wise to both fast and slow EMAs
             # Need to clip to [0, 1] range to ensure valid probability values
-            p_fast_clipped = np.clip(self._p_fast, 0.0, 1.0)
-            p_slow_clipped = np.clip(self._p_slow, 0.0, 1.0)
+            p_fast_clipped = np.clip(p_fast_array, 0.0, 1.0)
+            p_slow_clipped = np.clip(p_slow_array, 0.0, 1.0)
 
             # Vectorize the reweight function and apply
             reweighted_fast = np.vectorize(self._reweight)(p_fast_clipped)
@@ -618,7 +602,7 @@ class BidirectionalLPScorer(LPScorer):
             return np.abs(reweighted_fast - reweighted_slow)
         else:
             # Default behavior: unweighted LP
-            return np.abs(self._p_fast - self._p_slow)
+            return np.abs(p_fast_array - p_slow_array)
 
     def _sigmoid(self, x: np.ndarray) -> np.ndarray:
         """Sigmoid function with clipping to prevent overflow."""
@@ -627,7 +611,15 @@ class BidirectionalLPScorer(LPScorer):
 
     def _calculate_task_distribution(self) -> None:
         """Calculate task sampling distribution from learning progress."""
-        if not self._outcomes:
+        if self.tracker is None:
+            self._task_dist = None
+            self._raw_lp_scores = None
+            self._postzscored_lp_scores = None
+            self._stale_dist = False
+            return
+
+        task_ids = self.tracker.get_all_tracked_tasks()
+        if not task_ids:
             self._task_dist = None
             self._raw_lp_scores = None
             self._postzscored_lp_scores = None
@@ -647,8 +639,10 @@ class BidirectionalLPScorer(LPScorer):
         subprobs = learning_progress + self.config.progress_smoothing
 
         # Add performance bonus if configured
-        if self.config.performance_bonus_weight > 0 and self._p_true is not None:
-            performance_bonus = self._p_true * self.config.performance_bonus_weight
+        if self.config.performance_bonus_weight > 0 and self.tracker is not None:
+            # Build p_true array from shared memory (using same task_ids from above)
+            p_true_array = np.array([self._get_ema_from_shared_memory(tid, self.tracker)[2] for tid in task_ids])
+            performance_bonus = p_true_array * self.config.performance_bonus_weight
             subprobs = subprobs + performance_bonus
 
         # Store raw LP scores (before z-score normalization)
@@ -700,13 +694,14 @@ class BasicLPScorer(LPScorer):
     more learning opportunity.
     """
 
-    def __init__(self, config: "LearningProgressConfig"):
+    def __init__(self, config: "LearningProgressConfig", tracker: Optional[TaskTracker] = None):
         """Initialize basic scorer.
 
         Args:
             config: Learning progress configuration
+            tracker: Optional TaskTracker instance (for consistency with BidirectionalLPScorer)
         """
-        super().__init__(config)
+        super().__init__(config, tracker)
 
         # Cache for scores
         self._score_cache: Dict[int, float] = {}

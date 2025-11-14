@@ -9,7 +9,6 @@ import random
 import uuid
 from typing import Any, Dict, List, Optional
 
-import numpy as np
 from pydantic import model_validator
 
 from .curriculum import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask
@@ -73,7 +72,7 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     max_slice_axes: int = 3  # Updated terminology
 
     # Memory backend configuration
-    task_struct_size: int = 13  # Size of task data structure in shared memory (includes ema_squared)
+    task_struct_size: int = 17  # Size of task data structure in shared memory (includes bidirectional EMAs)
     enable_detailed_slice_logging: bool = False  # Updated terminology
     use_shared_memory: bool = True  # Enabled by default for production use
     session_id: Optional[str] = None  # Session ID for shared memory, None = auto-generate shared ID
@@ -129,16 +128,17 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             default_generator_type=hypers.task_default_generator_type,
         )
 
-        # Note: slice_analyzer is already initialized in parent class via StatsLogger
-
-        # Initialize scorer strategy
-        self.scorer: LPScorer = BidirectionalLPScorer(hypers) if hypers.use_bidirectional else BasicLPScorer(hypers)
+        # Initialize scorer strategy (pass tracker for shared memory EMA access)
+        self.scorer: LPScorer = (
+            BidirectionalLPScorer(hypers, self.task_tracker)
+            if hypers.use_bidirectional
+            else BasicLPScorer(hypers, self.task_tracker)
+        )
 
         # Initialize stats aggregator to centralize stats computation
         self.stats_aggregator = LPStatsAggregator(
             task_tracker=self.task_tracker,
             scorer=self.scorer,
-            slice_analyzer=self.slice_analyzer,
             num_tasks=num_tasks,
         )
 
@@ -146,25 +146,15 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self.cache_coordinator = CacheCoordinator(
             stats_logger=self,
             scorer=self.scorer,
-            slice_analyzer=self.slice_analyzer,
         )
-
-        # Cache for expensive statistics computation
-        self._stats_cache: Dict[str, Any] = {}
-        self._stats_cache_valid = False
 
         # Track task labels for pool composition and sampling stats
         self._task_labels: Dict[int, str] = {}  # task_id -> label
         self._label_completion_counts: Dict[str, int] = {}  # label -> completion count
         self._label_sampling_counts: Dict[str, int] = {}  # label -> cumulative sampling count (episodes started)
+        self._label_eviction_counts: Dict[str, int] = {}  # label -> eviction count (cumulative)
 
-        # Per-label tracking (only if troubleshooting logging enabled to prevent memory leaks)
-        if hypers.show_curriculum_troubleshooting_logging:
-            self._label_eviction_counts: Dict[str, int] = {}  # label -> eviction count
-        else:
-            self._label_eviction_counts = None
-
-        # Per-epoch tracking (ALWAYS enabled for gini calculation)
+        # Per-epoch tracking (for gini calculation and epoch-level metrics)
         self._label_evictions_this_epoch: Dict[str, int] = {}  # label -> evictions this epoch
         self._label_sampling_counts_this_epoch: Dict[str, int] = {}  # label -> samples this epoch
 
@@ -174,49 +164,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Track recently inactive labels to manage memory
         self._inactive_labels_fifo: list[str] = []  # FIFO queue of inactive labels for cleanup
 
-    @property
-    def lp_scorer(self):
-        """Compatibility property for tests that expect lp_scorer attribute."""
-        return self
-
-    @property
-    def exploration_bonus(self):
-        """Compatibility property for tests that expect exploration_bonus attribute."""
-        return self.hypers.exploration_bonus
-
-    @property
-    def _cache_valid_tasks(self):
-        """Compatibility property for tests that access scorer's cache."""
-        return self.scorer._cache_valid_tasks
-
-    @property
-    def _score_cache(self):
-        """Compatibility property for tests that access scorer's cache."""
-        return self.scorer._score_cache
-
     def stats(self, prefix: str = "") -> Dict[str, float]:
         """Get all statistics with optional prefix. Always includes learning progress stats."""
-        cache_key = prefix if prefix else "_default"
-
-        if self._stats_cache_valid and cache_key in self._stats_cache:
-            return self._stats_cache[cache_key]
-
-        # Get base stats (required)
-        stats = self.get_base_stats()
-
-        if self.enable_detailed_logging:
-            detailed = self.get_detailed_stats()
-            stats.update(detailed)
-
-        # Add prefix to all keys
-        if prefix:
-            stats = {f"{prefix}{k}": v for k, v in stats.items()}
-
-        # Cache result
-        self._stats_cache[cache_key] = stats
-        self._stats_cache_valid = True
-
-        return stats
+        # Use the StatsLogger implementation
+        return super().stats(prefix)
 
     def score_tasks(self, task_ids: List[int]) -> Dict[int, float]:
         """Score tasks using the configured method (bidirectional by default)."""
@@ -271,11 +222,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Remove from label tracking and clean up inactive labels
         evicted_label = self._task_labels.pop(task_id, None)
         if evicted_label:
-            # Track cumulative eviction count for this label (only if troubleshooting logging enabled)
-            if self._label_eviction_counts is not None:
-                self._label_eviction_counts[evicted_label] = self._label_eviction_counts.get(evicted_label, 0) + 1
+            # Track cumulative eviction count for this label
+            self._label_eviction_counts[evicted_label] = self._label_eviction_counts.get(evicted_label, 0) + 1
 
-            # Track per-epoch eviction count (ALWAYS enabled for gini calculation)
+            # Track per-epoch eviction count (for gini calculation)
             self._label_evictions_this_epoch[evicted_label] = self._label_evictions_this_epoch.get(evicted_label, 0) + 1
 
             # Check if this label still has any active tasks
@@ -286,9 +236,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
                 # Clean up old inactive labels to prevent memory leak
                 self._cleanup_old_inactive_labels()
-
-        # Remove from slice analyzer to prevent memory leak
-        self.slice_analyzer.remove_task(task_id)
 
         # Invalidate stats cache when task state changes
         self.cache_coordinator.invalidate_stats_cache()
@@ -310,10 +257,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                 # Clean up cumulative stats for this label
                 self._label_completion_counts.pop(old_label, None)
                 self._label_sampling_counts.pop(old_label, None)
-
-                # Clean up eviction counts if tracking them
-                if self._label_eviction_counts is not None:
-                    self._label_eviction_counts.pop(old_label, None)
+                self._label_eviction_counts.pop(old_label, None)
 
                 # Note: We don't clean up per-epoch counters here as they're reset each epoch anyway
 
@@ -409,40 +353,23 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         weights = [scores.get(task_id, 0.0) for task_id in task_ids]
         return random.choices(task_ids, weights=weights)[0]
 
-    def get_learning_progress_score(self, task_id: int, task_tracker=None) -> float:
-        """Get learning progress score for a specific task (compatibility method for tests)."""
-        # NEW: Use scorer strategy
-        return self.scorer.score_task(task_id, self.task_tracker)
-
     def get_task_lp_score(self, task_id: int) -> float:
-        """Get learning progress score for a specific task (alias for get_learning_progress_score)."""
-        return self.get_learning_progress_score(task_id)
+        """Get final learning progress score (sampling probability) for a specific task."""
+        return self.scorer.score_task(task_id, self.task_tracker)
 
     def get_task_raw_lp_score(self, task_id: int) -> float:
         """Get raw learning progress score for a specific task (before z-score normalization)."""
         if hasattr(self.scorer, "get_raw_lp_score"):
             return self.scorer.get_raw_lp_score(task_id, self.task_tracker)
         # Fallback to regular LP score if scorer doesn't support raw LP
-        return self.get_learning_progress_score(task_id)
+        return self.get_task_lp_score(task_id)
 
     def get_task_postzscored_lp_score(self, task_id: int) -> float:
         """Get post-z-score learning progress score for a specific task (after z-score, before sigmoid)."""
         if hasattr(self.scorer, "get_postzscored_lp_score"):
             return self.scorer.get_postzscored_lp_score(task_id, self.task_tracker)
         # Fallback to regular LP score if scorer doesn't support post-z-score LP
-        return self.get_learning_progress_score(task_id)
-
-    def get_stats(self) -> Dict[str, float]:
-        """Get learning progress statistics (compatibility method for tests)."""
-        return self.scorer.get_stats()
-
-    def update_task_with_slice_values(self, task_id: int, score: float, slice_values: Dict[str, Any]) -> None:
-        """Update task performance including slice values for analysis."""
-        # First update performance
-        self.update_task_performance(task_id, score)
-
-        # Then update slice analyzer
-        self.slice_analyzer.update_task_completion(task_id, slice_values, score)
+        return self.get_task_lp_score(task_id)
 
     def on_task_created(self, task: CurriculumTask) -> None:
         """Handle task creation by tracking it."""
@@ -459,12 +386,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                     self._inactive_labels_fifo.remove(label)
 
                 self._active_labels.add(label)
-
-        # Extract and update slice values if available
-        slice_values = task.get_slice_values()
-        if slice_values:
-            # Initial tracking with neutral score
-            self.slice_analyzer.update_task_completion(task._task_id, slice_values, 0.5)
 
         # Invalidate stats cache when task state changes
         self.cache_coordinator.invalidate_stats_cache()
@@ -503,11 +424,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             stats[f"sampling_counts/{label}"] = float(count)
 
         # Add eviction counts (number of times each label was evicted)
-        if self._label_eviction_counts is not None:
-            for label, count in self._label_eviction_counts.items():
-                stats[f"eviction_counts/{label}"] = float(count)
+        for label, count in self._label_eviction_counts.items():
+            stats[f"eviction_counts/{label}"] = float(count)
 
-        # Calculate comprehensive Gini coefficients (replaces old pool_occupancy_gini and pool_lp_gini)
+        # Calculate comprehensive Gini coefficients
         gini_stats = self._calculate_comprehensive_gini_coefficients()
         stats.update(gini_stats)
 
@@ -578,27 +498,12 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         Returns:
             Dictionary of Gini coefficients at each pipeline stage
         """
-        import logging
-
-        logger = logging.getLogger(__name__)
-
         gini_stats = {}
 
         # Get all tracked tasks
         all_task_ids = self.task_tracker.get_all_tracked_tasks()
 
-        # Debug: Log task tracking status
-        gini_stats["debug/num_tracked_tasks"] = float(len(all_task_ids)) if all_task_ids else 0.0
-
-        # Also check task_id_to_index mapping
-        if hasattr(self.task_tracker, "_task_id_to_index"):
-            gini_stats["debug/task_id_mapping_size"] = float(len(self.task_tracker._task_id_to_index))
-
         if not all_task_ids:
-            mapping_size = (
-                len(self.task_tracker._task_id_to_index) if hasattr(self.task_tracker, "_task_id_to_index") else "N/A"
-            )
-            logger.warning(f"No tracked tasks! task_id_to_index size: {mapping_size}")
             return gini_stats
 
         # Collect task-level data
@@ -608,16 +513,14 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         sampling_probs = []
         task_labels_list = []
 
-        num_tasks_with_stats = 0
         for task_id in all_task_ids:
             task_stats = self.task_tracker.get_task_stats(task_id)
             if task_stats:
-                num_tasks_with_stats += 1
                 # 1. Completion counts (for pool occupancy Gini)
                 completion_count = float(task_stats["completion_count"])
                 completion_counts.append(completion_count)
 
-                # 2. Raw LP scores (stored in tracker after our fix)
+                # 2. Raw LP scores (stored in tracker)
                 raw_lp = float(task_stats.get("lp_score", 0.0))
                 raw_lp_scores.append(raw_lp)
 
@@ -641,37 +544,14 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                     gini_stats[f"task_metrics/{task_id}/completion_count"] = completion_count
                     gini_stats[f"task_metrics/{task_id}/raw_lp"] = raw_lp
                     gini_stats[f"task_metrics/{task_id}/sampling_prob"] = sampling_prob
-            else:
-                logger.warning(f"No stats found for task {task_id}")
-
-        # Debug: Log collection results
-        gini_stats["debug/num_tasks_with_stats"] = float(num_tasks_with_stats)
 
         # === 1. Pool Occupancy Gini (task-level completion counts) ===
         if completion_counts:
             gini_stats["curriculum_gini/pool_occupancy"] = self._calculate_gini_coefficient(completion_counts)
-        else:
-            logger.warning("No completion counts collected for Gini calculation!")
 
         # === 2. Raw LP Scores Gini (task-level) ===
         if raw_lp_scores:
-            # Debug: Log LP score distribution to diagnose Gini=0
             gini_stats["curriculum_gini/raw_lp_scores"] = self._calculate_gini_coefficient(raw_lp_scores)
-            # Add diagnostic stats
-            gini_stats["debug/raw_lp_min"] = float(min(raw_lp_scores))
-            gini_stats["debug/raw_lp_max"] = float(max(raw_lp_scores))
-            gini_stats["debug/raw_lp_mean"] = float(sum(raw_lp_scores) / len(raw_lp_scores))
-            gini_stats["debug/raw_lp_nonzero_count"] = float(sum(1 for x in raw_lp_scores if x != 0))
-            gini_stats["debug/raw_lp_total_count"] = float(len(raw_lp_scores))
-            gini_stats["debug/raw_lp_unique_count"] = float(len(set(raw_lp_scores)))
-            gini_stats["debug/raw_lp_std"] = float(np.std(raw_lp_scores)) if len(raw_lp_scores) > 1 else 0.0
-
-            # Log warning if all scores are identical (causes Gini=0)
-            if len(set(raw_lp_scores)) == 1:
-                logger.warning(
-                    f"All {len(raw_lp_scores)} raw LP scores are identical ({raw_lp_scores[0]:.6f}), "
-                    "Gini will be 0. This likely means tasks haven't been completed enough yet."
-                )
 
         # === 3. Raw LP Scores by Label (aggregated) ===
         if raw_lp_scores and task_labels_list:
@@ -781,65 +661,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             self._task_labels = label_data.get("task_labels", {})
             self._label_completion_counts = label_data.get("label_completion_counts", {})
             self._label_sampling_counts = label_data.get("label_sampling_counts", {})
-
-            # Handle eviction counts (may be None if troubleshooting disabled)
-            eviction_counts = label_data.get("label_eviction_counts")
-            if self._label_eviction_counts is not None and eviction_counts is not None:
-                self._label_eviction_counts = eviction_counts
-
+            self._label_eviction_counts = label_data.get("label_eviction_counts", {})
             self._active_labels = set(label_data.get("active_labels", []))
             self._inactive_labels_fifo = label_data.get("inactive_labels_fifo", [])
-
-    def get_per_label_lp_scores(self, task_pool: dict) -> dict[str, dict[str, float]]:
-        """Get per-label LP scores for troubleshooting.
-
-        Args:
-            task_pool: Dictionary mapping task_id -> CurriculumTask from the curriculum
-
-        Returns:
-            Dict mapping label -> {raw, postzscored, prob}
-            - raw: average raw LP score for tasks in this label
-            - postzscored: average post-z-scored LP for tasks in this label
-            - prob: total sampling probability for this label (sum of task probs)
-        """
-        if not self.hypers.show_curriculum_troubleshooting_logging:
-            return {}
-
-        per_label: dict[str, dict[str, float]] = {}
-        for task_id, task in task_pool.items():
-            label = task.get_label()
-            if not label or not isinstance(label, str):
-                continue
-
-            if label not in per_label:
-                per_label[label] = {"raw": 0.0, "postzscored": 0.0, "prob": 0.0, "count": 0}
-
-            # Accumulate scores
-            # - raw and postzscored are averaged (diagnostic metrics)
-            # - prob is summed (represents total sampling probability for this label)
-            per_label[label]["raw"] += self.get_task_raw_lp_score(task_id)
-            per_label[label]["postzscored"] += self.get_task_postzscored_lp_score(task_id)
-            per_label[label]["prob"] += self.get_task_lp_score(task_id)  # Sum for sampling probability
-            per_label[label]["count"] += 1
-
-        # Process scores per label
-        # First, calculate total sum of all LP scores for normalization
-        total_prob_sum = sum(scores["prob"] for scores in per_label.values())
-
-        for _label, scores in per_label.items():
-            count = scores.pop("count")
-            if count > 0:
-                # Average raw and postzscored (diagnostic metrics)
-                scores["raw"] /= count
-                scores["postzscored"] /= count
-                # Normalize prob to get true sampling probability
-                # (sum of label probs / total sum = probability of sampling this label)
-                if total_prob_sum > 0:
-                    scores["prob"] /= total_prob_sum
-                else:
-                    scores["prob"] = 0.0
-
-        return per_label
 
     def cleanup_shared_memory(self) -> None:
         """Clean up shared memory resources with better error handling."""

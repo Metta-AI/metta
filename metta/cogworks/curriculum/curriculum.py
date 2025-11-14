@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 from pydantic import ConfigDict, Field
 
-from metta.cogworks.curriculum.stats import SliceAnalyzer, StatsLogger
+from metta.cogworks.curriculum.stats import StatsLogger
 from metta.cogworks.curriculum.task_generator import AnyTaskGeneratorConfig, SingleTaskGenerator
 from mettagrid.base_config import Config
 from mettagrid.config.mettagrid_config import MettaGridConfig
@@ -168,20 +168,11 @@ class CurriculumAlgorithm(StatsLogger, ABC):
         self.hypers = hypers
 
         # Initialize stats logging
-        enable_detailed = getattr(hypers, "enable_detailed_slice_logging", False)
-        StatsLogger.__init__(self, enable_detailed_logging=enable_detailed)
-
-        # All algorithms get slice analysis capability
-        max_slice_axes = getattr(hypers, "max_slice_axes", 3)
-        self.slice_analyzer = SliceAnalyzer(max_slice_axes=max_slice_axes, enable_detailed_logging=enable_detailed)
+        StatsLogger.__init__(self)
 
     def get_base_stats(self) -> Dict[str, float]:
         """Get basic statistics that all algorithms must provide."""
-        return {"num_tasks": self.num_tasks, **self.slice_analyzer.get_base_stats()}
-
-    def get_detailed_stats(self) -> Dict[str, float]:
-        """Get detailed stats including expensive slice analysis."""
-        return self.slice_analyzer.get_detailed_stats()
+        return {"num_tasks": self.num_tasks}
 
     def stats(self, prefix: str = "") -> dict[str, float]:
         """Return statistics for logging purposes. Add `prefix` to all keys."""
@@ -277,7 +268,7 @@ class Curriculum(StatsLogger):
 
     def __init__(self, config: CurriculumConfig):
         # Initialize StatsLogger (algorithm handles detailed stats)
-        StatsLogger.__init__(self, enable_detailed_logging=False)
+        StatsLogger.__init__(self)
 
         self._config = config
         self._task_generator = config.task_generator.create()
@@ -600,7 +591,6 @@ class Curriculum(StatsLogger):
         # NOTE: We don't call on_task_created() here because:
         # 1. Algorithm state (including task_tracker) is already restored above via load_state()
         # 2. Calling it would re-initialize tracking with default values
-        # 3. slice_analyzer state is not checkpointed, so it will rebuild naturally
 
 
 # Import concrete config classes at the end to avoid circular imports

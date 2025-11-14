@@ -25,7 +25,8 @@ class TaskMemoryBackend(ABC):
 
     # Task structure: [task_id, creation_time, completion_count, reward_ema, lp_score,
     #                  success_rate_ema, total_score, last_score, success_threshold,
-    #                  seed, generator_type, ema_squared, is_active]
+    #                  seed, generator_type, ema_squared, is_active,
+    #                  p_fast, p_slow, p_true, random_baseline]
     # Note: Actual sizes are configured per instance in __init__
 
     # Required attributes (must be set by subclasses)
@@ -70,13 +71,13 @@ class LocalMemoryBackend(TaskMemoryBackend):
     def __init__(
         self,
         max_tasks: int,
-        task_struct_size: int = 13,
+        task_struct_size: int = 17,
     ):
         """Initialize local memory backend.
 
         Args:
             max_tasks: Maximum number of tasks to track (required, set from LearningProgressConfig)
-            task_struct_size: Size of each task's data structure (default: 13)
+            task_struct_size: Size of each task's data structure (default: 17)
         """
         self.max_tasks = max_tasks
         self.task_struct_size = task_struct_size
@@ -120,7 +121,7 @@ class SharedMemoryBackend(TaskMemoryBackend):
         self,
         max_tasks: int,
         session_id: Optional[str] = None,
-        task_struct_size: int = 13,
+        task_struct_size: int = 17,
     ):
         """Initialize shared memory backend.
 
@@ -132,7 +133,7 @@ class SharedMemoryBackend(TaskMemoryBackend):
                        NOTE: When using LearningProgressConfig with use_shared_memory=True,
                        session_id is auto-generated at config creation time and shared across
                        all processes, so this fallback should rarely be used.
-            task_struct_size: Size of each task's data structure (default: 13, includes ema_squared)
+            task_struct_size: Size of each task's data structure (default: 17, includes bidirectional EMAs)
         """
         self.max_tasks = max_tasks
         self.task_struct_size = task_struct_size
