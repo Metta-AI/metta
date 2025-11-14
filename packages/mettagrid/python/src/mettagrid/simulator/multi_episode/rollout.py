@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Callable, Sequence
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict
@@ -55,7 +55,7 @@ def multi_episode_rollout(
     policies: list[MultiAgentPolicy],
     episodes: int,
     seed: int = 0,
-    proportions: list[float] | None = None,
+    proportions: Sequence[float] | None = None,
     progress_callback: ProgressCallback | None = None,
     **kwargs,
 ) -> MultiEpisodeRolloutResult:
@@ -68,7 +68,7 @@ def multi_episode_rollout(
     if proportions is not None and len(proportions) != len(policies):
         raise ValueError("Number of proportions must match number of policies.")
     policy_counts = _compute_policy_agent_counts(
-        env_cfg.game.num_agents, proportions if proportions is not None else [1.0] * len(policies)
+        env_cfg.game.num_agents, list(proportions) if proportions is not None else [1.0] * len(policies)
     )
     assignments = np.repeat(np.arange(len(policies)), policy_counts)
 

@@ -143,6 +143,16 @@ def _run_python_tests(
     return CheckResult("Python Tests", passed)
 
 
+def _run_nim_tests(*, verbose: bool = False, extra_args: Sequence[str] | None = None) -> CheckResult:
+    """Run Nim tests."""
+    _ensure_no_extra_args("nim-tests", extra_args)
+    _print_header("Nim Tests")
+
+    cmd = ["uv", "run", "metta", "nimtest"]
+    passed = _run_command(cmd, "Nim tests", verbose=verbose)
+    return CheckResult("Nim Tests", passed)
+
+
 def _run_cpp_tests(*, verbose: bool = False, extra_args: Sequence[str] | None = None) -> CheckResult:
     """Run C++ unit tests (excludes benchmarks)."""
     _ensure_no_extra_args("cpp-tests", extra_args)
@@ -281,6 +291,7 @@ stages: dict[str, StageRunner] = {
     "cpp-tests": lambda v, args, name: _run_cpp_tests(verbose=v, extra_args=args),
     "cpp-benchmarks": lambda v, args, name: _run_cpp_benchmarks(verbose=v, extra_args=args),
     "recipe-tests": lambda v, args, name: _run_recipe_tests(verbose=v, name_filter=name),
+    "nim-tests": lambda v, args, name: _run_nim_tests(verbose=v, extra_args=args),
 }
 
 

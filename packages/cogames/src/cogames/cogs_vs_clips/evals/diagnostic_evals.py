@@ -352,6 +352,7 @@ class DiagnosticExtractMissingOxygen(_DiagnosticMissionBase):
     name: str = "diagnostic_extract_missing_oxygen"
     description: str = "Gather oxygen from the extractor to complete a heart."
     map_name: str = "evals/diagnostic_extract_lab.map"
+    dynamic_assembler_chorus: bool = True
     inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"carbon": 2, "germanium": 1, "silicon": 3})
     max_steps: int = Field(default=130)
 
@@ -360,6 +361,7 @@ class DiagnosticExtractMissingGermanium(_DiagnosticMissionBase):
     name: str = "diagnostic_extract_missing_germanium"
     description: str = "Gather germanium from the extractor to complete a heart."
     map_name: str = "evals/diagnostic_extract_lab.map"
+    dynamic_assembler_chorus: bool = True
     inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"carbon": 2, "oxygen": 2, "silicon": 3})
     max_steps: int = Field(default=130)
 
@@ -368,6 +370,7 @@ class DiagnosticExtractMissingSilicon(_DiagnosticMissionBase):
     name: str = "diagnostic_extract_missing_silicon"
     description: str = "Gather silicon from the extractor to complete a heart."
     map_name: str = "evals/diagnostic_extract_lab.map"
+    dynamic_assembler_chorus: bool = True
     inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"carbon": 2, "oxygen": 2, "germanium": 1})
     max_steps: int = Field(default=130)
 
