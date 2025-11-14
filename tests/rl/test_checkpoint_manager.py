@@ -173,6 +173,20 @@ class TestBasicSaveLoad:
         result = policy(td.clone())
         assert "actions" in result
 
+    def test_policy_spec_display_name_preserved(
+        self,
+        checkpoint_manager,
+        mock_agent,
+        mock_policy_architecture,
+    ):
+        checkpoint_manager.save_agent(mock_agent, epoch=4, policy_architecture=mock_policy_architecture)
+        latest = checkpoint_manager.get_latest_checkpoint()
+        assert latest is not None
+        spec = CheckpointManager.policy_spec_from_uri(latest, display_name="friendly-name")
+        env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
+        policy = initialize_or_load_policy(env_info, spec)
+        assert getattr(policy, "display_name", "") == "friendly-name"
+
 
 class TestErrorHandling:
     def test_load_from_empty_directory(self, checkpoint_manager):

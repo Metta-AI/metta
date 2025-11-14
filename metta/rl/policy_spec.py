@@ -19,16 +19,22 @@ class CheckpointPolicy(MultiAgentPolicy):
         policy_uri: str,
         device: str | torch.device = "cpu",
         strict: bool = True,
+        display_name: str | None = None,
     ) -> None:
         super().__init__(policy_env_info)
         torch_device = torch.device(device)
 
+        strict_value = strict
+        if isinstance(strict_value, str):
+            strict_value = strict_value.lower() not in {"0", "false", "no"}
+
         artifact = CheckpointManager.load_artifact_from_uri(policy_uri)
-        policy = artifact.instantiate(policy_env_info, device=torch_device, strict=strict)
+        policy = artifact.instantiate(policy_env_info, device=torch_device, strict=strict_value)
         policy = policy.to(torch_device)
         policy.eval()
         self._policy = policy
         self._device = torch_device
+        self._display_name = display_name or policy_uri
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         return self._policy.agent_policy(agent_id)
@@ -58,6 +64,10 @@ class CheckpointPolicy(MultiAgentPolicy):
         if hasattr(self._policy, "train"):
             self._policy.train(mode)
         return self
+
+    @property
+    def display_name(self) -> str:
+        return self._display_name
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         if not callable(self._policy):

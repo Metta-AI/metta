@@ -200,16 +200,20 @@ class CheckpointManager:
         *,
         device: torch.device | str = "cpu",
         strict: bool = True,
+        display_name: str | None = None,
     ) -> PolicySpec:
         normalized_uri = CheckpointManager.normalize_uri(uri)
         device_value = str(device)
+        init_kwargs: dict[str, str | bool] = {
+            "policy_uri": normalized_uri,
+            "device": device_value,
+            "strict": strict,
+        }
+        if display_name:
+            init_kwargs["display_name"] = display_name
         return PolicySpec(
             class_path="metta.rl.policy_spec.CheckpointPolicy",
-            init_kwargs={
-                "policy_uri": normalized_uri,
-                "device": device_value,
-                "strict": strict,
-            },
+            init_kwargs=init_kwargs,
         )
 
     @staticmethod

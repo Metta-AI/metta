@@ -3,14 +3,15 @@ from typing import Sequence
 
 from pydantic import Field
 
-from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
+from metta.app_backend.clients.stats_client import HttpStatsClient
 from metta.common.tool import Tool
 from metta.common.wandb.context import WandbConfig, WandbContext
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.handle_results import render_eval_summary, send_eval_results_to_wandb
-from metta.sim.runner import SimulationRunResult, run_simulations
+from metta.sim.runner import run_simulations
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir, auto_stats_server_uri, auto_wandb_config
+from mettagrid.policy.policy import PolicySpec
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,20 @@ class EvaluateTool(Tool):
     register_missing_policies: bool = False
     eval_task_id: str | None = None
     push_metrics_to_wandb: bool = False
+
+    def _spec_display_name(self, policy_spec: PolicySpec) -> str:
+        init_kwargs = policy_spec.init_kwargs or {}
+        return init_kwargs.get("display_name") or policy_spec.name
+
+    def _policy_display_name(self, policy_uri: str) -> str | None:
+        try:
+            metadata = CheckpointManager.get_policy_metadata(policy_uri)
+        except Exception:
+            return None
+        display_name = metadata.get("run_name")
+        if display_name:
+            return display_name
+        return metadata.get("checkpoint_name") or metadata.get("name")
 
     def _get_wandb_config(self, policy_uri: str) -> WandbConfig | None:
         run_name = CheckpointManager.get_policy_metadata(policy_uri).get("run_name")
@@ -80,7 +95,11 @@ class EvaluateTool(Tool):
 
         for policy_uri in self.policy_uris:
             normalized_uri = CheckpointManager.normalize_uri(policy_uri)
-            policy_spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device="cpu")
+            policy_spec = CheckpointManager.policy_spec_from_uri(
+                normalized_uri,
+                device="cpu",
+                display_name=self._policy_display_name(normalized_uri),
+            )
             rollout_results = run_simulations(
                 policy_specs=[policy_spec],
                 simulations=[sim.to_simulation_run_config() for sim in self.simulations],
@@ -88,7 +107,7 @@ class EvaluateTool(Tool):
                 seed=self.system.seed,
                 enable_replays=self.enable_replays,
             )
-            render_eval_summary(rollout_results, policy_names=[policy_uri or "target policy"])
+            render_eval_summary(rollout_results, policy_names=[self._spec_display_name(policy_spec)])
             if self.push_metrics_to_wandb:
                 guess = self._guess_epoch_and_agent_step(normalized_uri)
                 if guess is None:
