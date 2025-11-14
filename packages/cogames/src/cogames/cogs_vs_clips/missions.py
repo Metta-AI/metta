@@ -1,6 +1,3 @@
-from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
-from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
-from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS as INTEGRATED_EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import Mission
 from cogames.cogs_vs_clips.mission_utils import get_map
 from cogames.cogs_vs_clips.sites import HELLO_WORLD, MACHINA_1, TRAINING_FACILITY
@@ -53,10 +50,23 @@ RepairMission = Mission(
 
 
 # Easy Hearts: simplified heart crafting and generous limits with extractor hub
-EasyHeartsMission = Mission(
-    name="easy_hearts",
+EasyHeartsTrainingMission = Mission(
+    name="easy_hearts_training_facility",
     description="Simplified heart crafting, generous caps, extractor base, neutral vibe.",
     site=TRAINING_FACILITY,
+    variants=[
+        LonelyHeartVariant(),
+        HeartChorusVariant(),
+        PackRatVariant(),
+        NeutralFacedVariant(),
+    ],
+)
+
+# Easy Hearts: simplified heart crafting and generous limits with extractor hub
+EasyHeartsHelloWorldMission = Mission(
+    name="easy_hearts_hello_world",
+    description="Simplified heart crafting, generous caps, extractor base, neutral vibe.",
+    site=HELLO_WORLD,
     variants=[
         LonelyHeartVariant(),
         HeartChorusVariant(),
@@ -106,13 +116,11 @@ MISSIONS: list[Mission] = [
     VibeCheckMission,
     RepairMission,
     TreasureHuntMission,
-    EasyHeartsMission,
+    EasyHeartsTrainingMission,
+    EasyHeartsHelloWorldMission,
     HelloWorldUnclipMission,
     HelloWorldOpenWorldMission,
     Machina1OpenWorldMission,
-    *EVAL_MISSIONS,
-    *INTEGRATED_EVAL_MISSIONS,
-    *[mission_cls() for mission_cls in DIAGNOSTIC_EVALS],  # type: ignore[call-arg]
 ]
 
 
