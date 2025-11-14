@@ -3,6 +3,7 @@ from collections import defaultdict
 from typing import Any
 
 import wandb
+from rich.console import Console
 from rich.table import Table
 
 from metta.common.util.collections import remove_none_keys
@@ -145,15 +146,16 @@ def send_eval_results_to_wandb(
         wandb_run.finish()
 
 
+def _truncate_name(name: str, max_length: int = 60) -> str:
+    if len(name) <= max_length:
+        return name
+    if "/" in name:
+        return name.split("/")[-1][-max_length:]
+    return name[-max_length:]
+
+
 def render_eval_summary(rollout_results: list[SimulationRunResult], policy_names: list[str]) -> None:
-    if should_use_rich_console():
-        render_rich_eval_summary(rollout_results, policy_names)
-    else:
-        # TODO: Nishad: render_plain_eval_summary(rollout_results, policy_names)
-        pass
-
-
-def render_rich_eval_summary(rollout_results: list[SimulationRunResult], policy_names: list[str]) -> None:
+    policy_names = [_truncate_name(name) for name in policy_names]
     summaries = build_multi_episode_rollout_summaries(
         [result.results for result in rollout_results], num_policies=len(policy_names)
     )
@@ -163,22 +165,56 @@ def render_rich_eval_summary(rollout_results: list[SimulationRunResult], policy_
     ]
     mission_summaries = list(zip(names, summaries, strict=True))
 
-    console = get_console()
-    console.print("\n[bold cyan]Policy Assignments[/bold cyan]")
-    assignment_table = Table(show_header=True, header_style="bold magenta")
-    assignment_table.add_column("Mission")
-    assignment_table.add_column("Policy")
-    assignment_table.add_column("Num Agents", justify="right")
-    for mission_name, mission in mission_summaries:
-        for policy_idx, policy_summary in enumerate(mission.policy_summaries):
-            assignment_table.add_row(
-                mission_name,
-                policy_names[policy_idx],
-                str(policy_summary.agent_count),
-            )
-    console.print(assignment_table)
+    def _print(content) -> None:
+        if should_use_rich_console():
+            get_console().print(content)
+        else:
+            console = Console(record=True)
+            console.print(content)
+            logger.info("\n" + console.export_text())
 
-    console.print("\n[bold cyan]Average Policy Stats[/bold cyan]")
+    if len(policy_names) > 1:
+        _print("\n[bold cyan]Policy Assignments[/bold cyan]")
+        assignment_table = Table(show_header=True, header_style="bold magenta")
+        assignment_table.add_column("Simulation")
+        assignment_table.add_column("Policy")
+        assignment_table.add_column("Num Agents", justify="right")
+        for mission_name, mission in mission_summaries:
+            for policy_idx, policy_summary in enumerate(mission.policy_summaries):
+                assignment_table.add_row(
+                    mission_name,
+                    policy_names[policy_idx],
+                    str(policy_summary.agent_count),
+                )
+        _print(assignment_table)
+
+    _print("\n[bold cyan]Average Game Stats[/bold cyan]")
+    game_stats_table = Table(show_header=True, header_style="bold magenta")
+    game_stats_table.add_column("Simulation")
+    game_stats_table.add_column("Metric")
+    game_stats_table.add_column("Average", justify="right")
+    for mission_name, mission in mission_summaries:
+        for key, value in mission.avg_game_stats.items():
+            game_stats_table.add_row(mission_name, key, f"{value:.2f}")
+    _print(game_stats_table)
+
+    if any(policy.action_timeouts for mission in summaries for policy in mission.policy_summaries):
+        _print("\n[bold cyan]Action Generation Timeouts per Policy[/bold cyan]")
+        timeouts_table = Table(show_header=True, header_style="bold magenta")
+        timeouts_table.add_column("Simulation")
+        timeouts_table.add_column("Policy")
+        timeouts_table.add_column("Timeouts", justify="right")
+        for mission_name, mission in mission_summaries:
+            for i, policy_summary in enumerate(mission.policy_summaries):
+                if policy_summary.action_timeouts > 0:
+                    timeouts_table.add_row(
+                        mission_name,
+                        policy_names[i],
+                        str(policy_summary.action_timeouts),
+                    )
+        _print(timeouts_table)
+
+    _print("\n[bold cyan]Average Policy Stats[/bold cyan]")
     for i, policy_name in enumerate(policy_names):
         policy_table = Table(title=policy_name, show_header=True, header_style="bold magenta")
         policy_table.add_column("Mission")
@@ -191,19 +227,9 @@ def render_rich_eval_summary(rollout_results: list[SimulationRunResult], policy_
                 continue
             for key, value in metrics.items():
                 policy_table.add_row(mission_name, key, f"{value:.2f}")
-        console.print(policy_table)
+        _print(policy_table)
 
-    console.print("\n[bold cyan]Average Game Stats[/bold cyan]")
-    game_stats_table = Table(show_header=True, header_style="bold magenta")
-    game_stats_table.add_column("Mission")
-    game_stats_table.add_column("Metric")
-    game_stats_table.add_column("Average", justify="right")
-    for mission_name, mission in mission_summaries:
-        for key, value in mission.avg_game_stats.items():
-            game_stats_table.add_row(mission_name, key, f"{value:.2f}")
-    console.print(game_stats_table)
-
-    console.print("\n[bold cyan]Average Reward per Agent[/bold cyan]")
+    _print("\n[bold cyan]Average Reward per Agent[/bold cyan]")
     summary_table = Table(show_header=True, header_style="bold magenta")
     summary_table.add_column("Mission")
     summary_table.add_column("Episode", justify="right")
@@ -216,22 +242,4 @@ def render_rich_eval_summary(rollout_results: list[SimulationRunResult], policy_
             row.extend((f"{value:.2f}" if value is not None else "-" for value in avg_rewards))
             summary_table.add_row(*row)
 
-    console.print(summary_table)
-
-    if any(policy.action_timeouts for mission in summaries for policy in mission.policy_summaries):
-        console.print("\n[bold cyan]Action Generation Timeouts per Policy[/bold cyan]")
-        timeouts_table = Table(show_header=True, header_style="bold magenta")
-        timeouts_table.add_column("Mission")
-        timeouts_table.add_column("Policy")
-        timeouts_table.add_column("Timeouts", justify="right")
-        for mission_name, mission in mission_summaries:
-            for i, policy_summary in enumerate(mission.policy_summaries):
-                if policy_summary.action_timeouts > 0:
-                    timeouts_table.add_row(
-                        mission_name,
-                        policy_names[i],
-                        str(policy_summary.action_timeouts),
-                    )
-        console.print(timeouts_table)
-
-    # TODO: Nishad: add replay urls here
+    _print(summary_table)

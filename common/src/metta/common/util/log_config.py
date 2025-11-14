@@ -222,6 +222,7 @@ def init_logging(run_dir: Path | None = None) -> None:
 
 @functools.cache
 def get_console() -> Console:
+    # Good practice to use a global console instance by default
     return Console()
 
 
