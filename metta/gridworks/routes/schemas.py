@@ -23,6 +23,7 @@ from mettagrid.mapgen.mapgen import MapGen
 
 logger = logging.getLogger(__name__)
 
+
 def all_scenes():
     for _, name, ispkg in pkgutil.walk_packages(
         mettagrid.mapgen.scenes.__path__,
@@ -53,24 +54,24 @@ def make_schemas_router() -> APIRouter:
     @functools.cache
     def get_schemas() -> dict[str, Any]:
         models = [
-          Config,  # including Config here guarantees that MapGen.Config name will be fully qualified
-          MettaGridConfig,
-          SimulationConfig,
-          CurriculumConfig,
-          PlayTool,
-          ReplayTool,
-          EvaluateTool,
-          TrainTool,
-          MapGen.Config,
-          RandomMapBuilder.Config,
-          AsciiMapBuilder.Config,
-          *all_scenes(),
+            Config,  # including Config here guarantees that MapGen.Config name will be fully qualified
+            MettaGridConfig,
+            SimulationConfig,
+            CurriculumConfig,
+            PlayTool,
+            ReplayTool,
+            EvaluateTool,
+            TrainTool,
+            MapGen.Config,
+            RandomMapBuilder.Config,
+            AsciiMapBuilder.Config,
+            *all_scenes(),
         ]
 
         # Sanity check: ensure all models are pydantic models
         valid_models = []
         for m in models:
-            if isinstance(m, type) and issubclass(m, BaseModel) and hasattr(m, "__pydantic_core_schema__"):
+            if isinstance(m, type) and issubclass(m, BaseModel):
                 valid_models.append(m)
             else:
                 logger.warning(f"Skipping non-Pydantic model from schema: {m}")
