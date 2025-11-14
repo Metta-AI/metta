@@ -35,28 +35,22 @@ class MultiEpisodeRolloutSummary(BaseModel):
 
 def build_multi_episode_rollout_summaries(
     rollout_results: list[MultiEpisodeRolloutResult],
+    num_policies: int,
 ) -> list[MultiEpisodeRolloutSummary]:
     if not rollout_results:
         return []
 
-    num_policies = max(np.max(assignment) for assignment in [result.assignments for result in rollout_results]) + 1
-
     summaries: list[MultiEpisodeRolloutSummary] = []
 
     for mission_result in rollout_results:
-        per_episode_assignments = mission_result.assignments
-        policy_counts = (
-            np.bincount(np.asarray(per_episode_assignments[0], dtype=int), minlength=num_policies)
-            if per_episode_assignments
-            else np.zeros(num_policies, dtype=int)
-        )
+        policy_counts = np.bincount(mission_result.assignments[0], minlength=num_policies)
 
         summed_game_stats: defaultdict[str, float] = defaultdict(float)
         summed_policy_stats: list[defaultdict[str, float]] = [defaultdict(float) for _ in range(num_policies)]
 
         for stats, episode_assignments in zip(
             mission_result.stats,
-            per_episode_assignments,
+            mission_result.assignments,
             strict=True,
         ):
             game_stats = stats.get("game", {})
@@ -81,7 +75,7 @@ def build_multi_episode_rollout_summaries(
 
         per_episode_per_policy_avg_rewards: dict[int, list[float | None]] = {}
         for episode_idx, (rewards, episode_assignments) in enumerate(
-            zip(mission_result.rewards, per_episode_assignments, strict=False)
+            zip(mission_result.rewards, mission_result.assignments, strict=False)
         ):
             per_policy_totals = np.zeros(num_policies, dtype=float)
             per_policy_counts = np.zeros(num_policies, dtype=int)
@@ -106,7 +100,7 @@ def build_multi_episode_rollout_summaries(
             )
             action_timeouts = 0
             for episode_assignments, episode_timeouts in zip(
-                per_episode_assignments,
+                mission_result.assignments,
                 mission_result.action_timeouts,
                 strict=False,
             ):

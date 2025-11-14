@@ -55,7 +55,7 @@ def multi_episode_rollout(
     proportions: Optional[Sequence[float]] = None,
     progress_callback: Optional[ProgressCallback] = None,
     save_replay: Optional[Path] = None,
-    max_action_time_ms: int = 10000,
+    max_action_time_ms: int | None = None,
     event_handlers: Optional[list[SimulatorEventHandler]] = None,
 ) -> MultiEpisodeRolloutResult:
     """

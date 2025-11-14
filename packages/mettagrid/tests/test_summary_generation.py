@@ -63,7 +63,7 @@ def test_build_results_summary_multi_mission_policy_episode() -> None:
         ],
     )
 
-    summary = build_multi_episode_rollout_summaries(rollout_results=[mission_one, mission_two])
+    summary = build_multi_episode_rollout_summaries(rollout_results=[mission_one, mission_two], num_policies=2)
 
     assert len(summary) == 2
 

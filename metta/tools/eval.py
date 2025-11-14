@@ -121,7 +121,7 @@ class EvaluateTool(Tool):
         )
 
         # TODO: this should also submit to stats-server
-        eval_results = build_eval_results(rollout_results, 0)
+        eval_results = build_eval_results(rollout_results, num_policies=1, target_policy_idx=0)
 
         self._log_to_wandb(normalized_uri, eval_results, stats_client)
 

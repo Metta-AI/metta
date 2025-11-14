@@ -282,7 +282,7 @@ class Evaluator(TrainerComponent):
         )
 
         # TODO: this should also submit to stats-server
-        return build_eval_results(rollout_results, 0)
+        return build_eval_results(rollout_results, num_policies=1, target_policy_idx=0)
 
     def get_latest_scores(self) -> EvalRewardSummary:
         return self._latest_scores

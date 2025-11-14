@@ -83,8 +83,12 @@ def run_simulations(
 
 # This gets the sim results into a format we know how to submit to wandb
 # We should move away from this towards something with a schema that doesn't give e.g. `category` and `sim_name` meaning
-def build_eval_results(rollout_results: list[SimulationRunResult], target_policy_idx: int) -> EvalResults:
-    summaries = build_multi_episode_rollout_summaries(rollout_results=[result.results for result in rollout_results])
+def build_eval_results(
+    rollout_results: list[SimulationRunResult], target_policy_idx: int, num_policies: int
+) -> EvalResults:
+    summaries = build_multi_episode_rollout_summaries(
+        rollout_results=[result.results for result in rollout_results], num_policies=num_policies
+    )
     simulation_scores: dict[tuple[str, str], float] = {}
     category_scores_accum: defaultdict[str, list[float]] = defaultdict(list)
     replay_urls: dict[str, list[str]] = {}

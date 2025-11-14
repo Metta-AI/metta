@@ -43,7 +43,7 @@ class LiteEvalTool(Tool):
             seed=self.system.seed,
             enable_replays=True,
         )
-        eval_results = build_eval_results(simulation_results, 0)
+        eval_results = build_eval_results(simulation_results, num_policies=len(self.policy_specs), target_policy_idx=0)
         logger.info(
             "EvalResults schema: %s",
             json.dumps(
