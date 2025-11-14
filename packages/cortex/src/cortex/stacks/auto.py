@@ -1,122 +1,140 @@
-"""Cortex auto stack builder mixing Axon, XL, mLSTM, and sLSTM blocks with configurable patterns."""
+"""Auto builder: stacks of Column layers built from AXMS patterns."""
 
 from __future__ import annotations
 
-from cortex.config import (
-    AxonConfig,
-    BlockConfig,
-    CortexStackConfig,
-    PassThroughBlockConfig,
-    PostUpBlockConfig,
-    PreUpBlockConfig,
-    XLCellConfig,
-    mLSTMCellConfig,
-    sLSTMCellConfig,
-)
+from typing import Iterable, List, cast
+
+from pydantic import BaseModel
+
+from cortex.blocks.column.auto import build_column_auto_config
+from cortex.config import BlockConfig, CortexStackConfig, RouterConfig
 from cortex.stacks.base import CortexStack
 
 
 def build_cortex_auto_config(
     *,
     d_hidden: int,
-    num_layers: int = 4,
-    block_pattern: str | None = None,
-    axon_postup: PostUpBlockConfig | None = None,
-    mlstm_preup: PreUpBlockConfig | None = None,
-    xl_postup: PostUpBlockConfig | None = None,
-    slstm_postup: PostUpBlockConfig | None = None,
-    use_axonlayers: bool = False,
+    num_layers: int = 2,
+    pattern: str | list[str] | None = "AXMS",
+    custom_map: dict[str, BlockConfig] | None = None,
+    router: RouterConfig | None = None,
     post_norm: bool = True,
+    compile_blocks: bool = True,
+    override_global_configs: Iterable[BaseModel] | None = None,
 ) -> CortexStackConfig:
-    """Build CortexStackConfig for mixed Axon/XL/mLSTM/sLSTM stack with customizable block configs and patterns."""
+    """Build a CortexStackConfig with Column layers from AXMS patterns."""
 
-    # Resolve pattern over {A, X, M, S}
-    if block_pattern is None:
-        base = "AXMS"
-        block_pattern = (base * ((num_layers + len(base) - 1) // len(base)))[:num_layers]
+    if pattern is None:
+        patterns: list[str] = ["AXMS"] * num_layers
+    elif isinstance(pattern, str):
+        patterns = [pattern] * num_layers
     else:
-        if len(block_pattern) != num_layers:
-            raise AssertionError(f"Pattern length {len(block_pattern)} != num_layers {num_layers}")
-        allowed = {"A", "X", "M", "S"}
-        if not set(block_pattern).issubset(allowed):
-            raise AssertionError("Pattern must use only 'A', 'X', 'M', 'S'")
-
-    # Establish defaults when block configs are not provided
-    if axon_postup is None:
-        # Axon defaults to a PostUp block configuration
-        axon_postup = PostUpBlockConfig(cell=AxonConfig())
-    if mlstm_preup is None:
-        mlstm_preup = PreUpBlockConfig(cell=mLSTMCellConfig())
-    if slstm_postup is None:
-        slstm_postup = PostUpBlockConfig(cell=sLSTMCellConfig())
-    if xl_postup is None:
-        xl_postup = PostUpBlockConfig(cell=XLCellConfig())
-
-    # Helper to clone a pydantic model (preserve subclass types on nested models)
-    def _clone(cfg):
-        if hasattr(cfg, "model_copy"):
-            return cfg.model_copy(deep=True)  # pydantic v2
-        return cfg.copy(deep=True)  # pydantic v1
+        if len(pattern) != num_layers:
+            raise ValueError(f"pattern list length {len(pattern)} != num_layers {num_layers}")
+        patterns = list(pattern)
 
     blocks: list[BlockConfig] = []
-    for i, ch in enumerate(block_pattern):
-        if ch == "A":
-            # Special-case: if this is the very first layer and the caller
-            # did not supply a custom Axon block, default to PassThrough.
-            if i == 0:
-                blk = PassThroughBlockConfig(cell=AxonConfig())
-            else:
-                blk = _clone(axon_postup)
-        elif ch == "X":
-            blk = _clone(xl_postup)
-            if use_axonlayers and isinstance(blk.cell, XLCellConfig):
-                dumped = blk.cell.model_dump()
-                dumped["use_axon_qkv"] = True
-                blk.cell = XLCellConfig(**dumped)
-        elif ch == "M":
-            blk = _clone(mlstm_preup)
-            if use_axonlayers and isinstance(blk.cell, mLSTMCellConfig):
-                dumped = blk.cell.model_dump()
-                dumped["use_axon_layer"] = True
-                dumped["use_axon_qkv"] = True
-                blk.cell = mLSTMCellConfig(**dumped)
-        else:  # 'S'
-            blk = _clone(slstm_postup)
-            if use_axonlayers and isinstance(blk.cell, sLSTMCellConfig):
-                dumped = blk.cell.model_dump()
-                dumped["use_axon_layer"] = True
-                blk.cell = sLSTMCellConfig(**dumped)
+    for pat in patterns:
+        col_cfg = build_column_auto_config(d_hidden=d_hidden, pattern=pat, router=router, custom_map=custom_map)
+        blocks.append(col_cfg)
 
-        blocks.append(blk)
+    # Optionally apply global overrides by type (e.g., XLCellConfig(mem_len=64)).
+    if override_global_configs:
+        blocks = [cast(BlockConfig, _apply_overrides_model(b, override_global_configs)) for b in blocks]
 
-    cfg = CortexStackConfig(blocks=blocks, d_hidden=d_hidden, post_norm=post_norm)
-    return cfg
+    return CortexStackConfig(
+        blocks=blocks,
+        d_hidden=d_hidden,
+        post_norm=post_norm,
+        compile_blocks=bool(compile_blocks),
+    )
 
 
 def build_cortex_auto_stack(
     *,
     d_hidden: int,
-    num_layers: int = 3,
-    block_pattern: str | None = None,
-    # Accept either PreUp or PostUp; default is PostUp when None.
-    axon_postup: PostUpBlockConfig | PreUpBlockConfig | None = None,
-    mlstm_preup: PreUpBlockConfig | None = None,
-    slstm_postup: PostUpBlockConfig | None = None,
-    use_axonlayers: bool = False,
+    num_layers: int = 4,
+    pattern: str | list[str] | None = "AXMS",
+    custom_map: dict[str, BlockConfig] | None = None,
+    router: RouterConfig | None = None,
     post_norm: bool = True,
+    compile_blocks: bool = True,
+    override_global_configs: Iterable[BaseModel] | None = None,
 ) -> CortexStack:
-    """Build a CortexStack using the configuration returned by build_cortex_auto_config."""
+    """Build a Column-based CortexStack with per-layer patterns."""
     cfg = build_cortex_auto_config(
         d_hidden=d_hidden,
         num_layers=num_layers,
-        block_pattern=block_pattern,
-        axon_postup=axon_postup,
-        mlstm_preup=mlstm_preup,
-        slstm_postup=slstm_postup,
-        use_axonlayers=use_axonlayers,
+        pattern=pattern,
+        custom_map=custom_map,
+        router=router,
         post_norm=post_norm,
+        compile_blocks=compile_blocks,
+        override_global_configs=override_global_configs,
     )
     return CortexStack(cfg)
 
 
-__all__ = ["build_cortex_auto_config", "build_cortex_auto_stack"]
+def _clone_model(model: BaseModel) -> BaseModel:
+    if hasattr(model, "model_copy"):
+        return model.model_copy(deep=True)  # pydantic v2
+    return model.copy(deep=True)  # pydantic v1
+
+
+def _merge_model(model: BaseModel, update: BaseModel) -> BaseModel:
+    """Return a new model with explicitly set fields from update overriding model."""
+    fields_set = getattr(update, "model_fields_set", None) or getattr(update, "__fields_set__", None)
+    # Pydantic v2 path
+    if hasattr(model, "model_copy") and hasattr(update, "model_dump"):
+        if fields_set:
+            dump_all = update.model_dump()
+            upd = {k: dump_all[k] for k in fields_set if k in dump_all}
+        else:
+            upd = update.model_dump(exclude_unset=True)
+        return model.model_copy(update=upd)  # type: ignore[attr-defined]
+    # Pydantic v1 fallback (no try/except)
+    upd_data = update.dict()
+    if fields_set:
+        upd = {k: upd_data[k] for k in fields_set if k in upd_data}
+    else:
+        upd = update.dict(exclude_unset=True)
+    data = model.dict()
+    data.update(upd)
+    return type(model)(**data)
+
+
+def _apply_overrides_model(model: BaseModel, overrides: Iterable[BaseModel]) -> BaseModel:
+    """Recursively apply overrides by matching model types.
+
+    Any submodel whose type matches one of the override models' types is
+    reconstructed with the override's fields merged on top of the original.
+    """
+    # Direct match: merge and return
+    for ov in overrides:
+        if isinstance(model, type(ov)):
+            return _merge_model(model, ov)
+
+    # Otherwise, recurse into fields
+    # Build a shallow clone to avoid mutating the input instance
+    cloned = _clone_model(model)
+    fields = getattr(cloned, "model_fields", None) or getattr(cloned, "__fields__", {})
+    for name in fields.keys():
+        value = getattr(cloned, name, None)
+        new_value = _apply_overrides_value(value, overrides)
+        if new_value is not value:
+            setattr(cloned, name, new_value)
+    return cloned
+
+
+def _apply_overrides_value(value, overrides: Iterable[BaseModel]):
+    if isinstance(value, BaseModel):
+        return _apply_overrides_model(value, overrides)
+    if isinstance(value, list):
+        changed = False
+        out: List = []
+        for item in value:
+            new_item = _apply_overrides_value(item, overrides)
+            changed = changed or (new_item is not item)
+            out.append(new_item)
+        return out if changed else value
+    return value

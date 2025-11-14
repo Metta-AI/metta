@@ -4,16 +4,15 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from pydantic import BaseModel, Field, SerializeAsAny, field_validator
+from pydantic import BaseModel, ConfigDict, Field, SerializeAsAny, field_validator
 
 
 class CellConfig(BaseModel):
     """Base configuration for memory cells with optional hidden size inference."""
 
-    hidden_size: int | None = Field(default=None)
+    model_config = ConfigDict(extra="allow")
 
-    class Config:
-        extra = "allow"  # Allow additional fields for extensibility
+    hidden_size: int | None = Field(default=None)
 
 
 class LSTMCellConfig(CellConfig):
@@ -96,6 +95,23 @@ class XLCellConfig(CellConfig):
     axon_qkv_config: AxonConfig | None = Field(default=None)
 
 
+class AGaLiTeCellConfig(CellConfig):
+    """Configuration for AGaLiTe attention cell with recurrent discounted state."""
+
+    cell_type: str = "agalite"
+    hidden_size: int | None = Field(default=None)
+    n_heads: int = Field(default=4, ge=1)
+    head_dim: int | None = Field(default=None, ge=1)
+
+    # Feature expansion parameter (outer products)
+    eta: int = Field(default=6, ge=1)
+
+    # Oscillatory basis and numerics
+    r: int = Field(default=2, ge=1)  # number of oscillatory frequencies
+    eps: float = Field(default=1e-5, ge=0.0)
+    dropout: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
 class AxonConfig(CellConfig):
     """Configuration for Axon cell with streaming RTU and diagonal input weights."""
 
@@ -127,12 +143,11 @@ class AxonConfig(CellConfig):
 class BlockConfig(BaseModel):
     """Base configuration for cortex blocks."""
 
+    model_config = ConfigDict(extra="allow")
+
     # May be overridden to None (e.g., Adapter) in subclasses
     # serialize_as_any=True preserves concrete subclass fields/tags during dumps
     cell: SerializeAsAny[CellConfig | None] = Field(default=None)
-
-    class Config:
-        extra = "allow"  # Allow additional fields for extensibility
 
     def get_cell_hidden_size(self, d_hidden: int) -> int:
         """Compute cell hidden size from stack's external dimension."""
@@ -185,6 +200,15 @@ class PostUpBlockConfig(BlockConfig):
     proj_factor: float = Field(default=1.5, gt=0.0)
 
 
+class PostUpGatedBlockConfig(BlockConfig):
+    """Configuration for GRU‑gated post blocks (GTrXL‑style gating)."""
+
+    block_type: str = "postup_gated"
+    proj_factor: float = Field(default=1.5, gt=0.0)
+    # Gate bias b_g; larger values bias towards identity mapping at init.
+    gru_bias: float = Field(default=2.0)
+
+
 class AdapterBlockConfig(BlockConfig):
     """Configuration for adapter blocks with identity-initialized residual paths."""
 
@@ -219,12 +243,13 @@ class AdapterBlockConfig(BlockConfig):
 
 
 class CortexStackConfig(BaseModel):
-    """Configuration for building a sequential stack of blocks."""
+    """Configuration for a sequential stack of blocks."""
 
     # Preserve subclass fields/tags for each block on dump
     blocks: list[SerializeAsAny[BlockConfig]]  # Accept any BlockConfig subclass
     d_hidden: int = Field(ge=1)
     post_norm: bool = Field(default=True)
+    compile_blocks: bool = Field(default=True)
 
     # Coerce list items into correct BlockConfig subclass using tag
     @field_validator("blocks", mode="before")
@@ -233,6 +258,73 @@ class CortexStackConfig(BaseModel):
         if not isinstance(value, list):
             return value
         out: list[Any] = []
+        for item in value:
+            if isinstance(item, BlockConfig):
+                out.append(item)
+                continue
+            if isinstance(item, Mapping):
+                tag = item.get("block_type")
+                if isinstance(tag, str) and tag:
+                    from cortex.blocks.registry import get_block_config_class
+
+                    cfg_cls = get_block_config_class(tag)
+                    out.append(cfg_cls.model_validate(item))
+                    continue
+            out.append(item)
+        return out
+
+
+class RouterConfig(BaseModel):
+    """Router settings with global prior and optional per-token refinement."""
+
+    # Global prior settings
+    d_key: int | None = Field(default=None, ge=1, description="Key/query dim for global prior; defaults to d_hidden.")
+    temperature: float = Field(default=1.0, gt=0.0, description="Softmax temperature for the global gate.")
+    top_k: int | None = Field(default=None, ge=1, description="If set, keep only top‑k experts in the global prior.")
+    use_sqrt_scale: bool = Field(default=True, description="Use 1/sqrt(d_key) (vs 1/d_key) dot‑product scaling.")
+    init_scale_wq: float = Field(default=0.0, description="Uniform init scale for Wq; 0 → near‑uniform prior.")
+    init_scale_wk: float = Field(default=0.0, description="Uniform init scale for Wk; 0 → near‑uniform prior.")
+
+    # Per-token refinement (optional; disabled when whisper_lambda == 0)
+    d_key_local: int | None = Field(default=None, ge=1, description="Key dim for per‑token refiner; defaults to d_key.")
+    local_temperature: float = Field(default=1.0, gt=0.0, description="Temperature for token‑refiner logits.")
+    whisper_lambda: float = Field(default=0.1, ge=0.0, description="Strength λ of per‑token refinement (0 disables).")
+    center_refine: bool = Field(default=True, description="Center token logits over experts to redistribute mass only.")
+    restrict_to_topk: bool = Field(default=True, description="Limit refinement to the global top‑k support if set.")
+
+    class Config:
+        extra = "allow"
+
+
+class ColumnBlockConfig(BlockConfig):
+    """Column of experts with a shared router."""
+
+    block_type: str = "column"
+    experts: list[SerializeAsAny[BlockConfig]]
+    router: RouterConfig = Field(default_factory=RouterConfig, description="Router hyperparameters for this column.")
+    alpha_init: float = Field(
+        default=1.0,
+        ge=0.0,
+        description=(
+            "Initial scale for the shared ReZero gate α applied to BOTH the main MoE residual r_t "
+            "and the correction head ρ(r_t): out = x + α·r_t + α·ρ(r_t). "
+            "Smaller values keep the block near-identity at init; "
+            "larger values engage both paths more strongly. Also scales gradient flow through both paths."
+        ),
+    )
+
+    class Config:
+        extra = "allow"
+
+    def get_cell_hidden_size(self, d_hidden: int) -> int:  # type: ignore[override]
+        return d_hidden
+
+    @field_validator("experts", mode="before")
+    @classmethod
+    def _coerce_experts(cls, value):
+        if not isinstance(value, list):
+            return value
+        out: list[BlockConfig] = []
         for item in value:
             if isinstance(item, BlockConfig):
                 out.append(item)
@@ -261,6 +353,9 @@ __all__ = [
     "PassThroughBlockConfig",
     "PreUpBlockConfig",
     "PostUpBlockConfig",
+    "PostUpGatedBlockConfig",
     "AdapterBlockConfig",
     "CortexStackConfig",
+    "RouterConfig",
+    "ColumnBlockConfig",
 ]

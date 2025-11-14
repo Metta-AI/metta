@@ -43,7 +43,7 @@ class MapBuffer:
         self._cursor_row: Optional[int] = None
         self._cursor_col: Optional[int] = None
 
-        # Highlighted agent state (for glyph picker)
+        # Highlighted agent state (for vibe picker)
         self._highlighted_agent_id: Optional[int] = None
 
         # Cached grid objects

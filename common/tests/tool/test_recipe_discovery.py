@@ -12,10 +12,10 @@ def test_recipe_discovery_without_init():
 
     # Should find recipes in subdirectories without __init__.py
     # Should find top-level recipes
-    assert "experiments.recipes.arena" in recipes, f"Should find top-level recipes. Found: {sorted(recipes)}"
+    assert "recipes.experiment.arena" in recipes, f"Should find top-level recipes. Found: {sorted(recipes)}"
 
     # Should skip __init__.py files
-    assert "experiments.recipes.__init__" not in recipes, "Should skip __init__.py files"
+    assert "recipes.experiment.__init__" not in recipes, "Should skip __init__.py files"
 
     # Should skip private modules
     assert not any(name.split(".")[-1].startswith("_") for name in recipes), (
@@ -30,7 +30,7 @@ def test_recipe_registry_get_normalizes_paths():
     recipe_registry.discover_all()
 
     # Should work with full path
-    recipe_full = recipe_registry.get("experiments.recipes.arena")
+    recipe_full = recipe_registry.get("recipes.experiment.arena")
     assert recipe_full is not None, "Should find recipe with full path"
 
     # Should work with short path
@@ -50,5 +50,5 @@ def test_recipe_short_name():
     recipe = recipe_registry.get("arena")
     assert recipe is not None
 
-    assert recipe.module_name == "experiments.recipes.arena"
+    assert recipe.module_name == "recipes.experiment.arena"
     assert recipe.short_name == "arena"

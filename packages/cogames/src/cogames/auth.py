@@ -3,6 +3,7 @@
 import asyncio
 import html
 import os
+import socket
 import threading
 import webbrowser
 from datetime import datetime
@@ -337,8 +338,6 @@ class BaseCLIAuthenticator:
 
     def _find_free_port(self) -> int:
         """Find a free port to bind the server to"""
-        import socket
-
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind(("127.0.0.1", 0))
             return s.getsockname()[1]

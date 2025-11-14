@@ -10,9 +10,6 @@ Use the cortexcore distribution; import path remains `cortex`:
 
 ```
 pip install cortexcore
-
-# then in Python
-from cortex import build_cortex, CortexStackConfig
 ```
 
 ## Table of Contents
@@ -21,10 +18,12 @@ from cortex import build_cortex, CortexStackConfig
 - [Architecture](#architecture)
   - [Why This Design?](#why-this-design)
   - [Uniform Interface Design](#uniform-interface-design)
+- [Quick Start](#quick-start)
 - [Supported Components](#supported-components)
   - [Memory Cells](#memory-cells)
   - [Blocks](#blocks)
-- [Quick Start](#quick-start)
+- [MoE using Column](#moe-using-column)
+- [Advanced Setup](#advanced-setup)
 - [Metta Framework Integration](#metta-framework-integration)
 - [AxonLayer: A Generalized Linear Operator with Stateful Dynamics](#axonlayer-a-generalized-linear-operator-with-stateful-dynamics)
   - [AxonLayer Integration Across Cells](#axonlayer-integration-across-cells)
@@ -37,7 +36,7 @@ from cortex import build_cortex, CortexStackConfig
 
 ## Architecture
 
-Cortex implements a modular stack-based memory architecture with three core abstractions:
+Cortex implements a modular stack-based memory architecture with four core abstractions:
 
 1. **Cells**: Stateless memory units (LSTM, GRU, etc.) that process sequences
    - Purpose: Encapsulate recurrent computation logic (gates, state updates, memory mechanisms)
@@ -47,7 +46,14 @@ Cortex implements a modular stack-based memory architecture with three core abst
 2. **Blocks**: Wrappers around cells that handle projections and transformations
    - Purpose: Control information flow, stabilize gradients, and manage dimensionality
 
-3. **Stacks**: Compositions of multiple blocks forming the complete memory system
+3. **Column**: A router‑mixed set of expert blocks executed in parallel and combined
+   - Purpose: Let multiple block "experts" compete/cooperate per token/over time.
+   - How: A global prior gate (with optional per‑token refinement) mixes expert deltas; an E‑axis mixer and outer ReZero
+     stabilize depth
+   - Code: `packages/cortex/src/cortex/blocks/column/column.py` and helpers in
+     `packages/cortex/src/cortex/blocks/column/auto.py`
+
+4. **Stacks**: Compositions of multiple blocks forming the complete memory system
    - Purpose: Build deep, hierarchical memory architectures
 
 ### Why This Design?
@@ -79,31 +85,114 @@ composition at any level:
 **Shared Signatures:**
 
 ```python
-# All three abstractions implement these methods:
+# All four abstractions implement a unified interface for forward pass
 def forward(x: Tensor, state: TensorDict, *, resets: Optional[ResetMask] = None) -> Tuple[Tensor, TensorDict]:
     """Process input with state, optionally applying resets, return output and new state."""
-
-def init_state(batch: int, *, device: torch.device, dtype: torch.dtype) -> TensorDict:
-    """Initialize state for a batch."""
-
-def reset_state(state: TensorDict, mask: ResetMask) -> TensorDict:
-    """Apply episode boundary resets to state (rarely needed, see below)."""
+    ...
+    return out, new_state
 ```
 
-**Key Properties:**
-
-- **Consistent shapes**: All accept `[B, T, H]` for sequences or `[B, H]` for single-step
-- **TensorDict state**: State is always a TensorDict with arbitrary nesting depth
+- **Input (x)**: All accept `[B, T, H]` for sequences or `[B, H]` for single-step
+- **Recurrent state**: State is always a TensorDict with arbitrary nesting depth
   - Cells: Flat state (e.g., `{"h": ..., "c": ...}`)
   - Blocks: Nest cell state under cell class name (e.g., `{"LSTMCell": {"h": ..., "c": ...}}`)
+  - Columns: One entry per expert (e.g., `{"expert_PreUpBlock_0": {...}, ...}`)
   - Stacks: Nest block states under indexed keys (e.g., `{"PreUpBlock_0": {"LSTMCell": {...}}}`)
+- **Output (out)**: `[B, T, H]` for sequences or `[B, H]` for single-step
 - **Automatic reset handling**: Resets are handled automatically when passed through `forward(resets=mask)`
   - The reset mask propagates through Stack → Block → Cell automatically
-  - `reset_state()` exists for completeness but is typically not needed in practice
-  - Just pass `resets` to `forward()` and the hierarchy handles it internally
 
 This uniformity means you can treat a complex multi-layer stack exactly like a single cell, enabling arbitrary
 composition without changing your code interface.
+
+## Quick Start
+
+Use the auto stack DSL in `packages/cortex/src/cortex/stacks/auto.py`, which builds a stack of Column layers from
+compact patterns of expert tokens. Each layer is a Column whose experts are chosen by a pattern such as "AXMS".
+
+Built‑in expert tokens:
+
+- `A` = Axon (PostUp)
+- `X` = Transformer‑XL (PostUp, GRU‑gated)
+- `M` = mLSTM (PreUp)
+- `S` = sLSTM (PostUp)
+- Suffix `^` enables Axon projections for that expert where supported (e.g., `M^`, `X^`, `S^`).
+
+```python
+import torch
+from cortex.stacks import build_cortex_auto_stack  # packages/cortex/src/cortex/stacks/auto.py
+
+# Build a 4-layer Column stack; each layer mixes A, X, M, S experts
+stack = build_cortex_auto_stack(
+    d_hidden=256,
+    num_layers=4,
+    pattern="AXMS",                 # per-layer expert set (can be a list for per-layer patterns)
+)
+
+stack = stack.cuda()
+
+# Initialize and run
+B, T = 4, 16
+x = torch.randn(B, T, 256, device="cuda")
+out, state = stack(x)
+
+# Single-step inference
+x_step = torch.randn(B, 256, device="cuda")
+out_step, state = stack.step(x_step, state)
+```
+
+Advanced control:
+
+- Per‑layer patterns: pass a list like `["AXMS", "AM^S", "XXS", "M^"]`; or a single pattern "XXS" repeated with
+  `num_layers`.
+- Custom symbols: supply `custom_map={"Q": PreUpBlockConfig(cell=mLSTMCellConfig(...))}` and use "Q" in patterns.
+- Column implementation: `packages/cortex/src/cortex/blocks/column/column.py`; pattern builder:
+  `packages/cortex/src/cortex/blocks/column/auto.py`.
+
+### Global overrides
+
+You can override default configs produced by the token builder by passing `override_global_configs` to the auto stack
+builders. Overrides are applied by type across the entire generated config graph (Column → experts → blocks → cells),
+merging only the explicitly set fields on your override instance.
+
+Examples:
+
+```python
+from cortex.stacks import build_cortex_auto_stack
+from cortex.config import XLCellConfig, RouterConfig, PostUpGatedBlockConfig
+
+# 1) Override Transformer‑XL memory length globally (affects X/X^)
+stack = build_cortex_auto_stack(
+    d_hidden=256,
+    num_layers=2,
+    pattern="X^X",
+    override_global_configs=[XLCellConfig(mem_len=64)],
+)
+
+# 2) Change Column router defaults (e.g., key dim and temperature)
+stack = build_cortex_auto_stack(
+    d_hidden=256,
+    num_layers=2,
+    pattern="AXMS",
+    override_global_configs=[RouterConfig(d_key=128, temperature=0.7)],
+)
+
+# 3) Tweak block‑level projection width for gated post‑up (used by token X)
+stack = build_cortex_auto_stack(
+    d_hidden=256,
+    num_layers=2,
+    pattern="XX",
+    override_global_configs=[PostUpGatedBlockConfig(proj_factor=2.0)],
+)
+```
+
+Notes:
+
+- Type‑based: every instance matching the override type is updated.
+- Explicit‑fields only: only fields you set on the override are merged; others keep their original values (e.g., `X^`
+  still enables `use_axon_qkv=True`).
+- `cell.hidden_size` is always inferred from the enclosing block/stack and cannot be overridden.
+- Per‑layer targeting is not supported by this API; provide a custom pattern/map if you need per‑layer differences.
 
 ## Supported Components
 
@@ -112,13 +201,15 @@ composition without changing your code interface.
 Core computational units implementing recurrent logic. All cells follow batch-first convention: `[B, T, H]` for
 sequences, `[B, H]` for single-step.
 
-| Cell           | Description                                                                                                | Triton Accelerated        | CUDA Accelerated         |
-| -------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------- | ------------------------ |
-| `LSTMCell`     | Stateless LSTM wrapper with TensorDict state (`h`, `c`); step and sequence parity; optional resets.        | Yes                       | No                       |
-| `mLSTMCell`    | Matrix-LSTM with per-head state, chunkwise closed-form updates, and optional causal Conv1D pre-activation. | Yes                       | No                       |
-| `sLSTMCell`    | Structured LSTM with per-head gating, stabilized accumulators (`c`, `n`, `m`), and optional causal Conv1D. | Yes                       | No                       |
-| `CausalConv1d` | Depthwise causal Conv1D cell (ring-buffer state); supports optional channel-mixing mode.                   | Yes (channel-mixing only) | No                       |
-| `AxonCell`     | Streaming RTU with diagonal input weights (per-channel local recurrence, 2H→H→out_dim projection).         | Yes                       | Yes (seq‑allin, short‑T) |
+| Cell           | Description                                                                                                 | Triton Accelerated        | CUDA Accelerated         |
+| -------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------- | ------------------------ |
+| `LSTMCell`     | Stateless LSTM wrapper with TensorDict state (`h`, `c`); step and sequence parity; optional resets.         | Yes                       | No                       |
+| `mLSTMCell`    | Matrix-LSTM with per-head state, chunkwise closed-form updates, and optional causal Conv1D pre-activation.  | Yes                       | No                       |
+| `sLSTMCell`    | Structured LSTM with per-head gating, stabilized accumulators (`c`, `n`, `m`), and optional causal Conv1D.  | Yes                       | No                       |
+| `CausalConv1d` | Depthwise causal Conv1D cell (ring-buffer state); supports optional channel-mixing mode.                    | Yes (channel-mixing only) | No                       |
+| `AxonCell`     | Streaming RTU with diagonal input weights (per-channel local recurrence, 2H→H→out_dim projection).          | Yes                       | Yes (seq‑allin, short‑T) |
+| `XLCell`       | Transformer‑XL style multi‑head attention with rolling memory; optional AxonLayer‑backed Q/K/V projections. | No                        | No                       |
+| `AGaLiTeCell`  | AGaLiTe attention                                                                                           | No                        | Yes (fused discount sum) |
 
 **Notes:**
 
@@ -135,6 +226,7 @@ Wrappers around cells that handle projections, normalization, and information fl
 | `PassThroughBlock` | Applies the nested cell directly at `d_hidden` with residual; no projections.                                                                    |
 | `PreUpBlock`       | Pre-upsamples to `d_inner = int(proj_factor * d_hidden)`, runs the cell at `d_inner`, gates and projects back to `d_hidden`, then adds residual. |
 | `PostUpBlock`      | Runs the cell at `d_hidden`, then applies a gated feed-forward projection up and back down before residual. Useful for deep stacks.              |
+| `PostUpGatedBlock` | Like `PostUpBlock` but with GRU‑style gating (GTrXL‑inspired) for both sublayers (cell and FFN) to stabilize deep training.                      |
 | `AdapterBlock`     | Wraps another block with a trainable residual adapter (identity at init). Lets you insert capacity without changing behavior at t=0.             |
 
 #### Hidden Size Inference in Blocks
@@ -166,58 +258,141 @@ PreUpBlockConfig(
 This override happens only when building via `CortexStackConfig`/`build_cortex`. If you instantiate blocks and cells
 directly (without the stack builder), you must provide concrete sizes that satisfy these relationships manually.
 
-## Quick Start
+## MoE using Column
+
+Column is a mixture-of-experts block that runs multiple expert blocks in parallel and routes their deltas through a
+router. A global prior gate (with optional per-token refinement) selects the top‑k experts per token, an E‑axis mixer
+stabilizes cross-expert interactions, and an outer ReZero aligns residuals.
+
+Build a Column from a compact token pattern:
 
 ```python
-from cortex import (
-    CortexStackConfig,
-    LSTMCellConfig,
-    PreUpBlockConfig,
-    PassThroughBlockConfig,
-    build_cortex
-)
+from cortex.blocks.column.auto import build_column_auto_config
+from cortex.config import RouterConfig
+import cortex.tokens  # ensure built‑in tokens are registered via decorators
 
-# Define a memory stack configuration
+col_cfg = build_column_auto_config(
+    d_hidden=256,
+    pattern="AXMS^",                 # A|X|M|S experts; ^ enables axonified variant when supported
+    router=RouterConfig(top_k=2, temperature=0.7),
+)
+```
+
+Customize experts per symbol (caret requests axonify known cells X/M/S when only base is provided):
+
+```python
+from cortex.config import PostUpGatedBlockConfig, XLCellConfig
+
+custom = {"X": PostUpGatedBlockConfig(cell=XLCellConfig(mem_len=128))}
+col_cfg2 = build_column_auto_config(d_hidden=256, pattern="X^", custom_map=custom)
+```
+
+Built‑in expert tokens:
+
+- `A` = Axon (PostUp)
+- `Ag` = AGaLiTe (PostUpGated)
+- `X` = Transformer‑XL (PostUpGated), `X^` axonified QKV
+- `M` = mLSTM (PreUp), `M^` axonified gates+QKV
+- `S` = sLSTM (PostUp), `S^` axonified gates
+- `L` = LSTM (PassThrough)
+- `C` = CausalConv1d (PassThrough)
+
+### Compact Forward Pass (per token t)
+
+$$
+\begin{aligned}
+u_t &:= \mathrm{RMSNorm}(x_t) \\
+y_{t,i} &= \mathrm{Block}_i(u_t) \\
+\Delta_{t,i} &= y_{t,i} - u_t \\
+\tilde{\Delta}_{t,i} &= \Delta_{t,i} + \mathrm{Mixer}(\Delta)_{t,i}
+\quad\text{(cross-attention over experts }E\text{)} \\
+\alpha_t &= \mathrm{softmax}\!\big(\log \mathrm{softmax}(z_g) + \lambda\, \hat{p}_t\big)
+\quad (\alpha_{t,i}\ge 0,\ \sum_i \alpha_{t,i}=1) \\
+r_t &= \sum_i \alpha_{t,i}\,\tilde{\Delta}_{t,i} + (u_t - x_t)
+\quad\text{(align from normalized space }u_t\text{ back to }x_t\text{)} \\
+y_{\mathrm{total}}(t) &= x_t + r_t \\
+\mathrm{out}_t &= y_{\mathrm{total}}(t) + \alpha_{\mathrm{col}} \cdot \rho(r_t)\, .
+\end{aligned}
+$$
+
+## Advanced Setup
+
+Compose stacks manually by specifying columns, blocks and cells directly. This mirrors what the DSL expands to and is
+useful for full control or experimentation.
+
+```python
+import torch
+from cortex import CortexStackConfig, build_cortex
+from cortex.config import LSTMCellConfig, PreUpBlockConfig, PassThroughBlockConfig
+
 config = CortexStackConfig(
-    d_hidden=256,  # External hidden dimension
+    d_hidden=256,
     blocks=[
-        # First block: project up 2x, apply LSTM, project down
-        PreUpBlockConfig(
-            cell=LSTMCellConfig(hidden_size=None, num_layers=2),  # inferred: 2.0 * d_hidden
-            proj_factor=2.0
-        ),
-        # Second block: direct LSTM application
-        PassThroughBlockConfig(
-            cell=LSTMCellConfig(hidden_size=256, num_layers=1)
-        )
+        PreUpBlockConfig(cell=LSTMCellConfig(hidden_size=None, num_layers=2), proj_factor=2.0),
+        PassThroughBlockConfig(cell=LSTMCellConfig(hidden_size=256, num_layers=1)),
     ],
-    post_norm=True  # Apply LayerNorm after stack
+    post_norm=True,
 )
 
-# Build the stack
 stack = build_cortex(config)
+B, T = 4, 16
+state = stack.init_state(batch=B, device="cuda", dtype=torch.float32)
+x = torch.randn(B, T, 256, device="cuda")
+out, state = stack(x, state)
+```
 
-# Initialize state
-batch_size = 4
-state = stack.init_state(batch=batch_size, device="cuda", dtype=torch.float32)
+### Register tokens and build via `build_cortex`
 
-# Forward pass with sequences
-x = torch.randn(batch_size, seq_len, 256)  # [B, T, H]
-output, new_state = stack(x, state)
+You can register custom expert tokens and still build stacks manually with `build_cortex` by first creating Column
+configs from token patterns.
 
-# Handle resets per timestep
-resets = torch.zeros(batch_size, seq_len, dtype=torch.bool)
-resets[:, 5] = True  # Reset at timestep 5
-output, new_state = stack(x, state, resets=resets)
+```python
+# 1) Define and register custom tokens
+from cortex.registry import register_token
+from cortex.config import PostUpGatedBlockConfig, PreUpBlockConfig, XLCellConfig, mLSTMCellConfig
 
-# Single-step mode for inference
-x_step = torch.randn(batch_size, 256)  # [B, H]
-output_step, state = stack.step(x_step, state)
+@register_token("Y")
+def build_Y():
+    return PostUpGatedBlockConfig(cell=XLCellConfig(mem_len=64))
+
+@register_token("Y^")
+def build_Y_axon():
+    d = XLCellConfig().model_dump()
+    d["use_axon_qkv"] = True
+    return PostUpGatedBlockConfig(cell=XLCellConfig(**d))
+
+@register_token("Q")
+def build_Q():
+    return PreUpBlockConfig(cell=mLSTMCellConfig())
+
+# 2) Build Columns from a pattern and compose a stack config
+import cortex.tokens  # ensure built-ins are registered
+from cortex.blocks.column.auto import build_column_auto_config
+from cortex import CortexStackConfig, build_cortex
+
+col1 = build_column_auto_config(d_hidden=256, pattern="AY^Q")
+col2 = build_column_auto_config(d_hidden=256, pattern="AXMS^")
+cfg = CortexStackConfig(d_hidden=256, blocks=[col1, col2], post_norm=True)
+stack = build_cortex(cfg)
+
+# Alternatively, use custom_map at runtime (no decorators)
+custom_map = {
+    # New custom symbols
+    "Y": PostUpGatedBlockConfig(cell=XLCellConfig(mem_len=64)),
+    "Q": PreUpBlockConfig(cell=mLSTMCellConfig()),
+    # Override built‑in X; requesting "X^" will axonify this config automatically
+    "X": PostUpGatedBlockConfig(cell=XLCellConfig(mem_len=32)),
+}
+
+# Use separators for custom symbols; caret works for built‑ins (X/M/S)
+col3 = build_column_auto_config(d_hidden=256, pattern="Y X^ Q", custom_map=custom_map)
+cfg2 = CortexStackConfig(d_hidden=256, blocks=[col3], post_norm=True)
+stack2 = build_cortex(cfg2)
 ```
 
 ---
 
-### AxonLayer: A Generalized Linear Operator with Stateful Dynamics
+## AxonLayer: A Generalized Linear Operator with Stateful Dynamics
 
 `AxonLayer` provides a stateful generalization of the standard `nn.Linear(in_features → out_features)` operator. Instead
 of performing a purely affine transformation, it integrates a lightweight **recurrent dynamic** through an internal
@@ -259,7 +434,7 @@ class MyCell(MemoryCell):
         return out, next_state
 ```
 
-#### Internal Structure
+### Internal Structure
 
 Internally, `AxonLayer` encapsulates an **`AxonCell`**, which serves as the computational core responsible for local
 recurrence and gradient-preserving temporal traces. `AxonCell` generalizes the behavior of a linear layer through
@@ -282,7 +457,7 @@ several defining mechanisms:
 These mechanisms collectively allow `AxonLayer` to act as a _locally recurrent linear primitive_, efficiently
 propagating gradient information across time without explicit recurrent loops or large memory footprints.
 
-#### Rationale
+### Rationale
 
 - **State-Augmented Linear Transformation:** `AxonLayer` transforms the conventional linear projection into a
   state-aware operator capable of encoding short- and medium-term temporal dependencies.
@@ -305,51 +480,12 @@ alternative to `nn.Linear` that wraps `AxonCell` and updates per-layer state ins
 | -------------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | sLSTM (`cortex.cells.slstm.sLSTMCell`) | Fused gate projections: `if_fused` (i,f) from conv path; `zo_fused` (z,o) from seq path | `use_axon_layer`                 | group=`slstm`, keys=`if_fused`, `zo_fused` (compat keys like `{igate,fgate,zgate,ogate}_h{i}` may also appear) |
 | mLSTM (`cortex.cells.mlstm.mLSTMCell`) | Input/forget gates; optional QKV path                                                   | `use_axon_layer`, `use_axon_qkv` | group=`mlstm` keys=`igate`,`fgate`; optional group=`mlstm_qkv` keys=`qk`,`v`                                   |
+| XL (`cortex.cells.xl.XLCell`)          | Q/K/V projections (optional)                                                            | `use_axon_qkv`                   | group=`xl_qkv`, keys=`q`, `k`, `v`                                                                             |
 
 Note: AxonLayer usage is opt-in per cell via its config (e.g., `use_axon_layer`, `use_axon_qkv`). The layer mutates the
-provided parent TensorDict state in place.
-
-## Easy Configuration
-
-Use ready‑made builders and config defaults to compose stacks quickly.
-
-- cortex_auto
-  - Mixed stack where each layer is one of: `A` = Axon (PreUp), `M` = mLSTM (PreUp), `S` = sLSTM (PostUp).
-  - Pattern controlled by `block_pattern` over `{A,M,S}`; defaults to repeating `"AMS"` to reach `num_layers` (default
-    3).
-  - Optional `use_axonlayers=True` enables AxonLayer projections inside cells: sets `mLSTM.use_axon_layer=True` and
-    `mLSTM.use_axon_qkv=True`, and `sLSTM.use_axon_layer=True`.
-  - All other details (heads, kernel sizes, proj factors) come from each config’s own defaults unless you pass explicit
-    block configs.
-
-Example (cortex_auto):
-
-```python
-from cortex.stacks import build_cortex_auto_stack
-
-# Default: 3 layers with pattern "AMS" and config defaults
-stack = build_cortex_auto_stack(d_hidden=128)
-
-# Enable AxonLayers in mLSTM and sLSTM
-stack = build_cortex_auto_stack(d_hidden=128, use_axonlayers=True)
-
-# Custom pattern and optional per-block configs
-from cortex.config import PreUpBlockConfig, PostUpBlockConfig, AxonConfig, mLSTMCellConfig, sLSTMCellConfig
-stack = build_cortex_auto_stack(
-    d_hidden=128,
-    num_layers=3,
-    block_pattern="SAM",  # sLSTM → Axon → mLSTM
-    axon_preup=PreUpBlockConfig(cell=AxonConfig()),
-    mlstm_preup=PreUpBlockConfig(cell=mLSTMCellConfig()),
-    slstm_postup=PostUpBlockConfig(cell=sLSTMCellConfig()),
-)
-```
-
-To run the registered template in the evaluation harness:
-
-```bash
-uv run python packages/cortex/evaluations/run.py --task delayed_recall --stack cortex_auto
-```
+provided parent TensorDict state in place. When building stacks with the auto-pattern DSL, you can enable these Axon
+augmentations inline by using the `^` suffix on supported experts (for example, `M^`, `S^`, or `X^`). The suffix routes
+through the AxonLayer-enabled variant of that expert without manually toggling the config flags.
 
 ## Metta Framework Integration
 
@@ -496,64 +632,44 @@ Both custom cells and blocks are automatically available through the configurati
 
 ### Create a New Architecture (Stack Recipe)
 
-Follow this process to add a new architecture:
+You can define stacks from compact token patterns using the auto builders. Each pattern expands to a Column of
+predefined or custom “expert” blocks. See Quick Start for the list of built‑in tokens and caret `^` semantics.
 
-1. Pick a block pattern and sizes
+1. Register custom tokens (optional)
 
-- Decide how many blocks you want and whether each should be `PreUp`, `PostUp`, or `PassThrough`.
-- Choose `proj_factor` for `PreUp`/`PostUp` blocks; `d_hidden` is the fixed external width.
-
-2. Write a builder in `cortex/stacks/`
-
-- Create `packages/cortex/src/cortex/stacks/my_arch.py` with a small helper that returns a `CortexStack`.
+Register new symbols with a decorator. You can also register caret variants explicitly by using the token with a `^`.
 
 ```python
-from cortex.config import CortexStackConfig, PreUpBlockConfig, PostUpBlockConfig, mLSTMCellConfig, sLSTMCellConfig
-from cortex.stacks.base import CortexStack
+# packages/your_pkg/my_tokens.py
+from cortex.registry import register_token
+from cortex.config import PostUpGatedBlockConfig, XLCellConfig
 
-def build_my_arch(d_hidden: int, *, num_blocks: int = 4) -> CortexStack:
-    blocks = [
-        PreUpBlockConfig(cell=mLSTMCellConfig(hidden_size=None, num_heads=4), proj_factor=2.0),
-        PostUpBlockConfig(cell=sLSTMCellConfig(hidden_size=None, num_heads=4), proj_factor=1.5),
-        # ...repeat or vary as needed...
-    ]
-    cfg = CortexStackConfig(d_hidden=d_hidden, blocks=blocks, post_norm=True)
-    return CortexStack(cfg)
+@register_token("Y")
+def build_Y():
+    return PostUpGatedBlockConfig(cell=XLCellConfig())
+
+@register_token("Y^")
+def build_Y_axon():
+    d = XLCellConfig().model_dump()
+    d["use_axon_qkv"] = True
+    return PostUpGatedBlockConfig(cell=XLCellConfig(**d))
 ```
 
-3. Export it
+Make sure your module is imported before building (e.g., `import your_pkg.my_tokens`). Built‑ins are loaded by
+`cortex.tokens` automatically.
 
-- Add the builder to `packages/cortex/src/cortex/stacks/__init__.py` so users can import it.
+2. Build from a pattern
+
+Use the auto builders to construct a `CortexStackConfig` or an instantiated stack from token patterns.
 
 ```python
-from cortex.stacks.my_arch import build_my_arch  # and add to __all__
+from cortex.stacks import build_cortex_auto_config, build_cortex_auto_stack
+import cortex.tokens  # ensure built‑ins are registered via decorators
+
+cfg = build_cortex_auto_config(d_hidden=256, num_layers=3, pattern="Y^Y")
+stack = build_cortex_auto_stack(d_hidden=256, num_layers=3, pattern=["YY", "Y^", "YYY"])
 ```
 
-4. Register a template for quick evals (optional, but recommended)
+4. Quick check
 
-- Edit `packages/cortex/evaluations/stacks.py` and register your builder under `STACKS`:
-
-```python
-from cortex.stacks.my_arch import build_my_arch
-STACKS["my_arch"] = StackSpec(name="my_arch", builder=lambda: build_my_arch(d_hidden=128), d_hidden=128)
-```
-
-5. Evaluate quickly (CLI)
-
-- Run the synthetic tasks to sanity‑check wiring and step/sequence parity:
-
-```bash
-python packages/cortex/evaluations/run.py --task delayed_recall --stack my_arch
-python packages/cortex/evaluations/run.py --task majority --stack all   # runs all registered templates
-```
-
-6. (Optional) Add tests
-
-- See `packages/cortex/tests/test_cortex_stack.py` for examples that check shapes, state handling, and resets.
-
-### Tips
-
-- Prefer batch‑first shapes `[B, T, H]` and pass state explicitly.
-- Use `PreUpBlock` when a cell benefits from a larger inner width; use `PostUpBlock` to stabilize depth with a cell at
-  `d_hidden`.
-- Let the stack infer `cell.hidden_size=None` inside `PreUpBlock`/`PostUpBlock` unless you're composing blocks manually.
+Instantiate a stack and run a short forward pass as shown in Quick Start.

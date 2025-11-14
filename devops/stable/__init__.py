@@ -1,1 +1,1 @@
-"""Stable release validation and orchestration."""
+"""Stable deployment helpers."""

@@ -145,4 +145,3 @@ proc recomputePath*(agentId: int, currentPos: IVec2) =
     agentPaths[agentId] = pathActions
   else:
     clearPath(agentId)
-

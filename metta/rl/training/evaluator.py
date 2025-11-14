@@ -45,6 +45,10 @@ class EvaluatorConfig(Config):
     replay_dir: Optional[str] = None
     skip_git_check: bool = Field(default=False)
     git_hash: str | None = Field(default=None)
+    allow_eval_without_stats: bool = Field(
+        default=False,
+        description="Allow evaluations to run without stats infrastructure (useful for local development/testing)",
+    )
 
 
 class NoOpEvaluator(TrainerComponent):
@@ -257,8 +261,6 @@ class Evaluator(TrainerComponent):
         return evaluate_policy(
             checkpoint_uri=policy_uri,
             simulations=simulations,
-            device=self._device,
-            vectorization=self._system_cfg.vectorization,
             replay_dir=self._config.replay_dir,
             stats_epoch_id=stats_epoch_id,
             stats_client=self._stats_client,
@@ -282,25 +284,34 @@ class Evaluator(TrainerComponent):
             return
 
         stats_reporter = self.context.stats_reporter
+        stats_epoch_id = None
+
+        # Check if we have stats infrastructure available
         if not stats_reporter:
-            logger.warning("Evaluator: skipping epoch %s because stats_reporter is not available", epoch)
-            return
-
-        if not hasattr(stats_reporter, "state") or stats_reporter.state is None:
-            logger.warning("Evaluator: skipping epoch %s because stats_reporter.state is not available", epoch)
-            return
-
-        stats_run_id = getattr(stats_reporter.state, "stats_run_id", None)
-        if not stats_run_id:
-            logger.warning("Evaluator: skipping epoch %s because stats_run_id is not available", epoch)
-            return
-
-        stats_epoch_id = stats_reporter.create_epoch(
-            stats_run_id,  # Now the type checker knows this is not None
-            epoch,  # Technically this is wrong, but we're not actually using this field
-            epoch,
-            attributes={"source": "evaluation", "agent_step": self.context.agent_step},
-        )
+            if not self._config.allow_eval_without_stats:
+                logger.warning("Evaluator: skipping epoch %s because stats_reporter is not available", epoch)
+                return
+            logger.info("Evaluator: running without stats tracking (no stats_reporter)")
+        elif not hasattr(stats_reporter, "state") or stats_reporter.state is None:
+            if not self._config.allow_eval_without_stats:
+                logger.warning("Evaluator: skipping epoch %s because stats_reporter.state is not available", epoch)
+                return
+            logger.info("Evaluator: running without stats tracking (no stats_reporter.state)")
+        else:
+            stats_run_id = getattr(stats_reporter.state, "stats_run_id", None)
+            if not stats_run_id:
+                if not self._config.allow_eval_without_stats:
+                    logger.warning("Evaluator: skipping epoch %s because stats_run_id is not available", epoch)
+                    return
+                logger.info("Evaluator: running without stats tracking (no stats_run_id)")
+            else:
+                # We have full stats infrastructure - create stats epoch
+                stats_epoch_id = stats_reporter.create_epoch(
+                    stats_run_id,
+                    epoch,
+                    epoch,
+                    attributes={"source": "evaluation", "agent_step": self.context.agent_step},
+                )
 
         optimizer = getattr(self.context, "optimizer", None)
         is_schedulefree = optimizer is not None and is_schedulefree_optimizer(optimizer)
@@ -320,5 +331,5 @@ class Evaluator(TrainerComponent):
             optimizer.train()
 
         stats_reporter = getattr(self.context, "stats_reporter", None)
-        if stats_reporter:
+        if stats_reporter and hasattr(stats_reporter, "update_eval_scores"):
             stats_reporter.update_eval_scores(scores)

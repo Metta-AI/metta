@@ -9,11 +9,9 @@ from typing import cast
 import sky
 import sky.exceptions
 import sky.jobs
-import wandb
 from sky.server.common import RequestId, get_server_url
 
 import gitta as git
-from metta.app_backend.clients.base_client import get_machine_token
 from metta.common.util.git_repo import REPO_SLUG
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
 
@@ -46,7 +44,7 @@ def launch_task(task: sky.Task) -> str:
 def check_git_state(commit_hash: str) -> str | None:
     error_lines = []
 
-    has_changes, status_output = git.has_unstaged_changes()
+    has_changes, status_output = git.has_uncommitted_changes()
     if has_changes:
         error_lines.append(red("❌ You have uncommitted changes that won't be reflected in the cloud job."))
         error_lines.append("Options:")
@@ -175,11 +173,21 @@ def set_task_secrets(task: sky.Task) -> None:
     # Note: we can't mount these with `file_mounts` because of skypilot bug with service accounts.
     # Also, copying the entire `.netrc` is too much (it could contain other credentials).
 
+    # Lazy import to avoid loading wandb at CLI startup
+    import wandb
+
     wandb_password = netrc.netrc(os.path.expanduser("~/.netrc")).hosts["api.wandb.ai"][2]
     if not wandb_password:
         raise ValueError("Failed to get wandb password, run 'metta install' to fix")
 
-    observatory_token = get_machine_token("https://api.observatory.softmax-research.net")
+    # Lazy import - app_backend is optional and not available in CI
+    try:
+        from metta.app_backend.clients.base_client import get_machine_token
+
+        observatory_token = get_machine_token("https://api.observatory.softmax-research.net")
+    except ImportError:
+        observatory_token = None
+
     if not observatory_token:
         observatory_token = ""  # we don't have a token in CI
 
@@ -229,8 +237,8 @@ def check_job_statuses(job_ids: list[int]) -> dict[int, dict[str, str]]:
     job_data = {}
 
     try:
-        # Get job queue with all users' jobs
-        job_records = sky.get(sky.jobs.queue(refresh=True, all_users=True))
+        # Get job queue filtered to only the requested job IDs (more efficient than fetching all jobs)
+        job_records = sky.get(sky.jobs.queue(refresh=True, all_users=True, job_ids=job_ids))
 
         # Create a mapping for quick lookup
         jobs_map = {job["job_id"]: job for job in job_records}

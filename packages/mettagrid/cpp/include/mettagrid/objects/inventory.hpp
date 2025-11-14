@@ -1,6 +1,7 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_INVENTORY_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_INVENTORY_HPP_
 
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -21,7 +22,9 @@ private:
 
 public:
   // Constructor and Destructor
-  explicit Inventory(const InventoryConfig& cfg);
+  explicit Inventory(const InventoryConfig& cfg,
+                     const std::vector<std::string>* resource_names = nullptr,
+                     const std::unordered_map<std::string, ObservationType>* feature_ids = nullptr);
   ~Inventory();
 
   // Update the inventory for a specific item

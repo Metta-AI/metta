@@ -18,8 +18,7 @@ class WandbConfig(Config):
     project: str
     entity: str
     group: str | None = None
-    name: str | None = None
-    run_id: str | None = None
+    run_id: str | None = None  # Used for both WandB id and display name
     data_dir: str | None = None
     job_type: str | None = None
     tags: list[str] = []
@@ -117,11 +116,12 @@ class WandbContext:
                 elif isinstance(self.run_config, str):
                     config = self.run_config
                 else:
-                    logger.error(f"Invalid extra_cfg: {self.run_config}")
+                    logger.error(f"Invalid extra_cfg: {self.run_config}", exc_info=True)
                     config = None
 
             self.run = wandb.init(
                 id=self.wandb_config.run_id,
+                name=self.wandb_config.run_id,  # Use run_id as display name
                 job_type=self.wandb_config.job_type,
                 project=self.wandb_config.project,
                 entity=self.wandb_config.entity,
@@ -176,7 +176,7 @@ class WandbContext:
             try:
                 wandb.finish()
             except Exception as e:
-                logger.error(f"Error during W&B cleanup: {str(e)}")
+                logger.error(f"Error during W&B cleanup: {str(e)}", exc_info=True)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.cleanup_run(self.run)

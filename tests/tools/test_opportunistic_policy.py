@@ -17,7 +17,9 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from mettagrid import MettaGridEnv, dtype_observations
+from mettagrid import PufferMettaGridEnv, dtype_observations
+from mettagrid.config.mettagrid_config import EnvSupervisorConfig
+from mettagrid.simulator import Simulator
 
 
 class TestBasicPolicyEnvironment:
@@ -30,8 +32,10 @@ class TestBasicPolicyEnvironment:
 
     @pytest.fixture
     def env_with_config(self, simple_env_config):
-        """Create MettaGridEnv from config."""
-        env = MettaGridEnv(simple_env_config)
+        """Create PufferMettaGridEnv from config."""
+        simulator = Simulator()
+        env_supervisor_cfg = EnvSupervisorConfig()
+        env = PufferMettaGridEnv(simulator, simple_env_config, env_supervisor_cfg)
         try:
             yield env
         finally:
@@ -93,7 +97,7 @@ class TestBasicPolicyEnvironment:
                 "uv",
                 "run",
                 "./tools/run.py",
-                "experiments.recipes.arena.train",
+                "recipes.experiment.arena.train",
                 f"run={run_name}",
                 "trainer.total_timesteps=100",  # Very minimal training
                 "wandb=off",
@@ -114,7 +118,7 @@ class TestBasicPolicyEnvironment:
 
         assert captured_runs, "Training command was not invoked"
         train_cmd, kwargs = captured_runs[0]
-        assert train_cmd[:4] == ["uv", "run", "./tools/run.py", "experiments.recipes.arena.train"]
+        assert train_cmd[:4] == ["uv", "run", "./tools/run.py", "recipes.experiment.arena.train"]
         assert kwargs["cwd"] == Path.cwd()
         assert kwargs["env"]["AWS_ACCESS_KEY_ID"] == "dummy_for_test"
 
@@ -137,14 +141,9 @@ class TestBasicPolicyEnvironment:
         monkeypatch.setattr(CurriculumConfig, "from_mg", classmethod(_small_curriculum))
         simulation = Simulation.create(
             sim_config=sim_config,
-            device="cpu",
-            vectorization="serial",
             policy_uri=None,
         )
-        try:
-            assert simulation.full_name == "test/test_nav"
-        finally:
-            simulation._vecenv.close()  # type: ignore[attr-defined]
+        assert simulation.full_name == "test/test_nav"
 
     def test_eval_tool_config_with_policy_uri(self):
         """Test that EvaluateTool accepts policy URIs."""

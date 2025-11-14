@@ -8,12 +8,13 @@ This module handles:
 
 from __future__ import annotations
 
+import re
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from devops.stable.tasks import TaskResult
 from metta.common.util.fs import get_repo_root
 
 # ============================================================================
@@ -22,48 +23,9 @@ from metta.common.util.fs import get_repo_root
 
 
 def get_state_path(version: str) -> Path:
-    """Get state file path for a specific release version.
-
-    Args:
-        version: Version string
-
-    Returns:
-        Path to state file, relative to repo root
-    """
     state_dir = get_repo_root() / "devops/stable/state"
     state_dir.mkdir(parents=True, exist_ok=True)
     return state_dir / f"{version}.json"
-
-
-def get_log_dir(version: str, job_type: str) -> Path:
-    """Get log directory for a specific release version and job type.
-
-    Args:
-        version: Version string
-        job_type: Type of job ("local" or "remote")
-
-    Returns:
-        Path to log directory, relative to repo root
-    """
-    log_dir = get_repo_root() / "devops/stable/logs" / version / job_type
-    log_dir.mkdir(parents=True, exist_ok=True)
-    return log_dir
-
-
-# ============================================================================
-# Data Models
-# ============================================================================
-
-
-class ReleaseState(BaseModel):
-    """State of a release qualification run."""
-
-    version: str
-    created_at: str
-    commit_sha: Optional[str] = None
-    results: dict[str, "TaskResult"] = {}
-    gates: list[dict] = []
-    released: bool = False
 
 
 # ============================================================================
@@ -71,15 +33,23 @@ class ReleaseState(BaseModel):
 # ============================================================================
 
 
+class Gate(BaseModel):
+    """Tracks completion of pipeline-level gates (prepare_tag, bug_check, etc.)."""
+
+    step: str
+    passed: bool
+    timestamp: str
+
+
+class ReleaseState(BaseModel):
+    version: str
+    created_at: str
+    commit_sha: Optional[str] = None
+    gates: list[Gate] = Field(default_factory=list)
+    released: bool = False
+
+
 def load_state(version: str) -> Optional[ReleaseState]:
-    """Load release state from JSON file.
-
-    Args:
-        version: Version string (with or without 'release_' prefix)
-
-    Returns:
-        ReleaseState if found, None otherwise
-    """
     path = get_state_path(version)
     if not path.exists():
         return None
@@ -92,17 +62,6 @@ def load_state(version: str) -> Optional[ReleaseState]:
 
 
 def load_or_create_state(version: str, commit_sha: str) -> ReleaseState:
-    """Load existing state or create new one.
-
-    Args:
-        version: Version string
-        commit_sha: Git commit SHA to use when creating new state
-
-    Returns:
-        ReleaseState (either loaded or newly created)
-    """
-    from datetime import datetime
-
     state = load_state(version)
     if state:
         return state
@@ -110,7 +69,7 @@ def load_or_create_state(version: str, commit_sha: str) -> ReleaseState:
     # Create new state
     state = ReleaseState(
         version=version,
-        created_at=datetime.utcnow().isoformat(timespec="seconds"),
+        created_at=datetime.now(UTC).isoformat(timespec="seconds"),
         commit_sha=commit_sha,
     )
     save_state(state)
@@ -118,22 +77,16 @@ def load_or_create_state(version: str, commit_sha: str) -> ReleaseState:
 
 
 def get_most_recent_state() -> Optional[tuple[str, ReleaseState]]:
-    """Get the most recent release state.
-
-    Only considers state files with valid timestamp-based version format:
-    v{YYYY.MM.DD-HHMM}.json (e.g., v2025.10.10-1801.json)
-
-    Returns:
-        Tuple of (version, state) or None if no state files exist
     """
-    import re
-
+    Only considers state files with valid timestamp-based version format vYYYY.MM.DD-HHMMSS.json
+    Also accepts legacy 4-digit format vYYYY.MM.DD-HHMM.json for backward compatibility.
+    """
     state_base = get_repo_root() / "devops/stable/state"
     if not state_base.exists():
         return None
 
-    # Pattern for valid timestamp-based versions: vYYYY.MM.DD-HHMM
-    version_pattern = re.compile(r"^v\d{4}\.\d{2}\.\d{2}-\d{4}$")
+    # Pattern for valid timestamp-based version format: vYYYY.MM.DD-HHMMSS or vYYYY.MM.DD-HHMM
+    version_pattern = re.compile(r"^v\d{4}\.\d{2}\.\d{2}-\d{4,6}$")
 
     # Find all .json files with valid version format
     state_files = []
@@ -159,26 +112,9 @@ def get_most_recent_state() -> Optional[tuple[str, ReleaseState]]:
 
 
 def save_state(state: ReleaseState) -> Path:
-    """Save release state to JSON file.
-
-    Note: This is NOT concurrent-safe. Tasks run sequentially, so we don't need
-    atomic writes or file locking. If concurrent execution is needed in the future,
-    add proper file locking (e.g., via filelock library).
-    """
     path = get_state_path(state.version)
 
     # Simple write - no atomicity needed for sequential execution
     path.write_text(state.model_dump_json(indent=2))
 
     return path
-
-
-# Rebuild model after TaskResult is imported to resolve forward references
-def _rebuild_models():
-    """Rebuild Pydantic models to resolve forward references."""
-    from devops.stable.tasks import TaskResult  # noqa: F401
-
-    ReleaseState.model_rebuild()
-
-
-_rebuild_models()

@@ -8,7 +8,10 @@
 #include <vector>
 
 // Constructor implementation
-Inventory::Inventory(const InventoryConfig& cfg) : _inventory(), _limits() {
+Inventory::Inventory(const InventoryConfig& cfg,
+                     const std::vector<std::string>* resource_names,
+                     const std::unordered_map<std::string, ObservationType>* feature_ids)
+    : _inventory(), _limits() {
   for (const auto& limit_pair : cfg.limits) {
     const auto& resources = limit_pair.first;
     const auto& limit_value = limit_pair.second;

@@ -97,7 +97,7 @@ class ProteinOptimizer:
 
             for item in result:
                 if not isinstance(item, tuple) or len(item) != 2:
-                    logger.error(f"Unexpected result format from Protein.suggest: {item}")
+                    logger.error(f"Unexpected result format from Protein.suggest: {item}", exc_info=True)
                     raise ValueError(f"Expected (suggestion, info) tuple, got: {item}")
                 suggestion, info = item
                 decoded = self._decode_categoricals(suggestion)

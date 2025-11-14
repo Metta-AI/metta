@@ -4,7 +4,6 @@ from pathlib import Path
 import pytest
 
 import mettagrid.builder.envs as eb
-from experiments.recipes.arena import mettagrid
 from metta.agent.mocks import MockAgent
 from metta.cogworks.curriculum import env_curriculum
 from metta.rl.checkpoint_manager import CheckpointManager
@@ -16,6 +15,7 @@ from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
+from recipes.experiment.arena import mettagrid
 
 
 class TestNewPolicySystem:
@@ -43,8 +43,6 @@ class TestNewPolicySystem:
         env_config = eb.make_navigation(num_agents=2)
         sim = Simulation.create(
             sim_config=SimulationConfig(suite="sim_suite", name="test", env=env_config),
-            device="cpu",
-            vectorization="serial",
             policy_uri=None,
         )
 
