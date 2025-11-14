@@ -75,9 +75,7 @@ def play(
 
     # Print replay command if replay was saved
     if replay_writer:
-        replay_paths = replay_writer.get_written_replay_paths()
-        if replay_paths:
-            for replay_path in replay_paths.values():
-                console.print("\n[bold cyan]Replay saved![/bold cyan]")
-                console.print("To watch the replay, run:")
-                console.print(f"[bold green]cogames replay {replay_path}[/bold green]")
+        for replay_path in replay_writer.get_written_replay_paths():
+            console.print("\n[bold cyan]Replay saved![/bold cyan]")
+            console.print("To watch the replay, run:")
+            console.print(f"[bold green]cogames replay {replay_path}[/bold green]")

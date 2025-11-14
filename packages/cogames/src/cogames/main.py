@@ -3,6 +3,7 @@
 """CLI for CoGames - collection of environments for multi-agent cooperative and competitive games."""
 
 import importlib.metadata
+import importlib.util
 import json
 import logging
 import subprocess
@@ -44,6 +45,24 @@ logger = logging.getLogger("cogames.main")
 
 
 T = TypeVar("T")
+
+
+def _resolve_mettascope_script() -> Path:
+    spec = importlib.util.find_spec("mettagrid")
+    if spec is None or spec.origin is None:
+        raise FileNotFoundError("mettagrid package is not available; cannot locate MettaScope.")
+
+    package_dir = Path(spec.origin).resolve().parent
+    search_roots = (package_dir, *package_dir.parents)
+
+    for root in search_roots:
+        candidate = root / "nim" / "mettascope" / "src" / "mettascope.nim"
+        if candidate.exists():
+            return candidate
+
+    raise FileNotFoundError(
+        f"MettaScope sources not found relative to installed mettagrid package (searched from {package_dir})."
+    )
 
 
 app = typer.Typer(
@@ -185,16 +204,17 @@ def replay_cmd(
         console.print(f"[red]Error: Replay file not found: {replay_path}[/red]")
         raise typer.Exit(1)
 
-    mettascope_path = Path("packages/mettagrid/nim/mettascope/src/mettascope.nim")
-    if not mettascope_path.exists():
-        console.print(f"[red]Error: MettaScope not found at: {mettascope_path}[/red]")
-        raise typer.Exit(1)
+    try:
+        mettascope_path = _resolve_mettascope_script()
+    except FileNotFoundError as exc:
+        console.print(f"[red]Error locating MettaScope: {exc}[/red]")
+        raise typer.Exit(1) from exc
 
     console.print(f"[cyan]Launching MettaScope to replay: {replay_path}[/cyan]")
 
     try:
         # Run nim with mettascope and replay argument
-        cmd = ["nim", "r", str(mettascope_path), f"--replay:{replay_path}"]
+        cmd = ["nim", "r", "-d:fidgetUseCached", str(mettascope_path), f"--replay:{replay_path}"]
         subprocess.run(cmd, check=True)
     except subprocess.CalledProcessError as exc:
         console.print(f"[red]Error running MettaScope: {exc}[/red]")

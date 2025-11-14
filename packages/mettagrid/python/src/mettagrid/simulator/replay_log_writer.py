@@ -4,7 +4,7 @@ import json
 import logging
 import uuid
 import zlib
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import numpy as np
 
@@ -81,9 +81,9 @@ class ReplayLogWriter(SimulatorEventHandler):
         """Return URLs for every replay file that has been written to disk."""
         return dict(self._episode_urls)
 
-    def get_written_replay_paths(self) -> Dict[str, str]:
+    def get_written_replay_paths(self) -> List[str]:
         """Return file paths for every replay file that has been written to disk."""
-        return dict(self._episode_paths)
+        return list(self._episode_paths.values())
 
 
 class EpisodeReplay:
