@@ -19,47 +19,33 @@ async def list_skypilot_jobs(
     status: Optional[str] = None,
     limit: int = 100,
 ) -> str:
-    """List Skypilot jobs with optional status filter.
+    """List Skypilot jobs with optional status filter."""
+    logger.info("Listing Skypilot jobs")
 
-    Args:
-        status: Optional status filter ("PENDING", "RUNNING", "SUCCEEDED", "FAILED", "CANCELLED")
-        limit: Maximum number of jobs to return (default: 100)
+    cmd = ["sky", "jobs", "queue", "--json"]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
 
-    Returns:
-        JSON string with list of jobs and their status
-    """
+    if returncode != 0:
+        raise RuntimeError(f"sky jobs queue failed: {stderr}")
+
     try:
-        logger.info("Listing Skypilot jobs")
+        jobs_data = json.loads(stdout)
+    except json.JSONDecodeError:
+        jobs_data = _parse_sky_jobs_text_output(stdout)
 
-        cmd = ["sky", "jobs", "queue", "--json"]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
+    if status:
+        jobs_data = [job for job in jobs_data if job.get("status", "").upper() == status.upper()]
 
-        if returncode != 0:
-            raise RuntimeError(f"sky jobs queue failed: {stderr}")
+    jobs_data = jobs_data[:limit]
 
-        try:
-            jobs_data = json.loads(stdout)
-        except json.JSONDecodeError:
-            jobs_data = _parse_sky_jobs_text_output(stdout)
+    data = {
+        "jobs": jobs_data,
+        "count": len(jobs_data),
+    }
 
-        if status:
-            jobs_data = [job for job in jobs_data if job.get("status", "").upper() == status.upper()]
-
-        jobs_data = jobs_data[:limit]
-
-        data = {
-            "jobs": jobs_data,
-            "count": len(jobs_data),
-        }
-
-        logger.info(f"list_skypilot_jobs completed ({len(jobs_data)} jobs)")
-        return format_success_response(data)
-
-    except Exception as e:
-        logger.warning(f"list_skypilot_jobs failed: {e}")
-        return format_error_response(e, "list_skypilot_jobs")
-
+    logger.info(f"list_skypilot_jobs completed ({len(jobs_data)} jobs)")
+    return format_success_response(data)
 
 def _parse_sky_jobs_text_output(text: str) -> list[dict]:
     """Parse sky jobs queue text output (fallback if JSON fails)."""
@@ -82,264 +68,172 @@ def _parse_sky_jobs_text_output(text: str) -> list[dict]:
 async def get_skypilot_job_status(
     job_id: str,
 ) -> str:
-    """Get detailed status for a specific Skypilot job.
+    """Get detailed status for a specific Skypilot job."""
+    logger.info(f"Getting Skypilot job status: {job_id}")
 
-    Args:
-        job_id: Skypilot job ID
+    cmd = ["sky", "jobs", "status", job_id, "--json"]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
 
-    Returns:
-        JSON string with detailed job status
-    """
+    if returncode != 0:
+        raise RuntimeError(f"sky jobs status failed: {stderr}")
+
     try:
-        logger.info(f"Getting Skypilot job status: {job_id}")
+        job_data = json.loads(stdout)
+    except json.JSONDecodeError:
+        job_data = {"job_id": job_id, "status": "UNKNOWN", "raw_output": stdout}
 
-        cmd = ["sky", "jobs", "status", job_id, "--json"]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
-
-        if returncode != 0:
-            raise RuntimeError(f"sky jobs status failed: {stderr}")
-
-        try:
-            job_data = json.loads(stdout)
-        except json.JSONDecodeError:
-            job_data = {"job_id": job_id, "status": "UNKNOWN", "raw_output": stdout}
-
-        logger.info("get_skypilot_job_status completed")
-        return format_success_response(job_data)
-
-    except Exception as e:
-        logger.warning(f"get_skypilot_job_status failed: {e}")
-        return format_error_response(e, "get_skypilot_job_status")
-
+    logger.info("get_skypilot_job_status completed")
+    return format_success_response(job_data)
 
 async def get_skypilot_job_logs(
     job_id: str,
     tail_lines: int = 100,
 ) -> str:
-    """Get logs for a Skypilot job.
+    """Get logs for a Skypilot job."""
+    logger.info(f"Getting Skypilot job logs: {job_id}")
 
-    Args:
-        job_id: Skypilot job ID
-        tail_lines: Number of lines to return (default: 100)
+    cmd = ["sky", "jobs", "logs", job_id, "--tail", str(tail_lines)]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
 
-    Returns:
-        JSON string with log content
-    """
-    try:
-        logger.info(f"Getting Skypilot job logs: {job_id}")
+    if returncode != 0:
+        raise RuntimeError(f"sky jobs logs failed: {stderr}")
 
-        cmd = ["sky", "jobs", "logs", job_id, "--tail", str(tail_lines)]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-        stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
+    data = {
+        "job_id": job_id,
+        "log_type": "job",
+        "lines": tail_lines,
+        "content": stdout,
+    }
 
-        if returncode != 0:
-            raise RuntimeError(f"sky jobs logs failed: {stderr}")
-
-        data = {
-            "job_id": job_id,
-            "log_type": "job",
-            "lines": tail_lines,
-            "content": stdout,
-        }
-
-        logger.info("get_skypilot_job_logs completed")
-        return format_success_response(data)
-
-    except Exception as e:
-        logger.warning(f"get_skypilot_job_logs failed: {e}")
-        return format_error_response(e, "get_skypilot_job_logs")
-
+    logger.info("get_skypilot_job_logs completed")
+    return format_success_response(data)
 
 async def analyze_skypilot_job_performance(
     limit: int = 100,
 ) -> str:
-    """Analyze job performance trends.
+    """Analyze job performance trends."""
+    logger.info("Analyzing Skypilot job performance")
 
-    Args:
-        limit: Maximum number of jobs to analyze (default: 100)
+    cmd = ["sky", "jobs", "queue", "--json"]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
 
-    Returns:
-        JSON string with performance analysis
-    """
+    if returncode != 0:
+        raise RuntimeError(f"sky jobs queue failed: {stderr}")
+
     try:
-        logger.info("Analyzing Skypilot job performance")
+        jobs_data = json.loads(stdout)
+    except json.JSONDecodeError:
+        jobs_data = _parse_sky_jobs_text_output(stdout)
 
-        cmd = ["sky", "jobs", "queue", "--json"]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
+    jobs_data = jobs_data[:limit]
 
-        if returncode != 0:
-            raise RuntimeError(f"sky jobs queue failed: {stderr}")
+    analysis = skypilot_analyzer.analyze_job_performance(jobs_data)
 
-        try:
-            jobs_data = json.loads(stdout)
-        except json.JSONDecodeError:
-            jobs_data = _parse_sky_jobs_text_output(stdout)
-
-        jobs_data = jobs_data[:limit]
-
-        analysis = skypilot_analyzer.analyze_job_performance(jobs_data)
-
-        logger.info("analyze_skypilot_job_performance completed")
-        return format_success_response(analysis)
-
-    except Exception as e:
-        logger.warning(f"analyze_skypilot_job_performance failed: {e}")
-        return format_error_response(e, "analyze_skypilot_job_performance")
-
+    logger.info("analyze_skypilot_job_performance completed")
+    return format_success_response(analysis)
 
 async def get_skypilot_resource_utilization(
     limit: int = 100,
 ) -> str:
-    """Get resource utilization statistics.
+    """Get resource utilization statistics."""
+    logger.info("Getting Skypilot resource utilization")
 
-    Args:
-        limit: Maximum number of jobs to analyze (default: 100)
+    cmd = ["sky", "jobs", "queue", "--json"]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
 
-    Returns:
-        JSON string with resource utilization
-    """
+    if returncode != 0:
+        raise RuntimeError(f"sky jobs queue failed: {stderr}")
+
     try:
-        logger.info("Getting Skypilot resource utilization")
+        jobs_data = json.loads(stdout)
+    except json.JSONDecodeError:
+        jobs_data = _parse_sky_jobs_text_output(stdout)
 
-        cmd = ["sky", "jobs", "queue", "--json"]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
+    jobs_data = jobs_data[:limit]
 
-        if returncode != 0:
-            raise RuntimeError(f"sky jobs queue failed: {stderr}")
+    utilization = skypilot_analyzer.get_resource_utilization(jobs_data)
 
-        try:
-            jobs_data = json.loads(stdout)
-        except json.JSONDecodeError:
-            jobs_data = _parse_sky_jobs_text_output(stdout)
-
-        jobs_data = jobs_data[:limit]
-
-        utilization = skypilot_analyzer.get_resource_utilization(jobs_data)
-
-        logger.info("get_skypilot_resource_utilization completed")
-        return format_success_response(utilization)
-
-    except Exception as e:
-        logger.warning(f"get_skypilot_resource_utilization failed: {e}")
-        return format_error_response(e, "get_skypilot_resource_utilization")
-
+    logger.info("get_skypilot_resource_utilization completed")
+    return format_success_response(utilization)
 
 async def compare_skypilot_job_configs(
     job_ids: list[str],
 ) -> str:
-    """Compare job configurations.
+    """Compare job configurations."""
+    logger.info(f"Comparing Skypilot job configs: {len(job_ids)} jobs")
 
-    Args:
-        job_ids: List of job IDs to compare
+    jobs_data = []
+    for job_id in job_ids:
+        cmd = ["sky", "jobs", "status", job_id, "--json"]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        stdout, returncode = result.stdout, result.returncode
 
-    Returns:
-        JSON string with configuration comparison
-    """
-    try:
-        logger.info(f"Comparing Skypilot job configs: {len(job_ids)} jobs")
+        if returncode == 0:
+            try:
+                job_data = json.loads(stdout)
+                job_data["job_id"] = job_id
+                jobs_data.append(job_data)
+            except json.JSONDecodeError:
+                jobs_data.append({"job_id": job_id, "status": "UNKNOWN", "config": {}})
 
-        jobs_data = []
-        for job_id in job_ids:
-            cmd = ["sky", "jobs", "status", job_id, "--json"]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-            stdout, returncode = result.stdout, result.returncode
+    comparison = skypilot_analyzer.compare_job_configurations(jobs_data)
 
-            if returncode == 0:
-                try:
-                    job_data = json.loads(stdout)
-                    job_data["job_id"] = job_id
-                    jobs_data.append(job_data)
-                except json.JSONDecodeError:
-                    jobs_data.append({"job_id": job_id, "status": "UNKNOWN", "config": {}})
-
-        comparison = skypilot_analyzer.compare_job_configurations(jobs_data)
-
-        logger.info("compare_skypilot_job_configs completed")
-        return format_success_response(comparison)
-
-    except Exception as e:
-        logger.warning(f"compare_skypilot_job_configs failed: {e}")
-        return format_error_response(e, "compare_skypilot_job_configs")
-
+    logger.info("compare_skypilot_job_configs completed")
+    return format_success_response(comparison)
 
 async def analyze_skypilot_job_failures(
     limit: int = 100,
 ) -> str:
-    """Analyze job failure patterns.
+    """Analyze job failure patterns."""
+    logger.info("Analyzing Skypilot job failures")
 
-    Args:
-        limit: Maximum number of jobs to analyze (default: 100)
+    cmd = ["sky", "jobs", "queue", "--json"]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
 
-    Returns:
-        JSON string with failure analysis
-    """
+    if returncode != 0:
+        raise RuntimeError(f"sky jobs queue failed: {stderr}")
+
     try:
-        logger.info("Analyzing Skypilot job failures")
+        jobs_data = json.loads(stdout)
+    except json.JSONDecodeError:
+        jobs_data = _parse_sky_jobs_text_output(stdout)
 
-        cmd = ["sky", "jobs", "queue", "--json"]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
+    jobs_data = jobs_data[:limit]
 
-        if returncode != 0:
-            raise RuntimeError(f"sky jobs queue failed: {stderr}")
+    analysis = skypilot_analyzer.analyze_job_failures(jobs_data)
 
-        try:
-            jobs_data = json.loads(stdout)
-        except json.JSONDecodeError:
-            jobs_data = _parse_sky_jobs_text_output(stdout)
-
-        jobs_data = jobs_data[:limit]
-
-        analysis = skypilot_analyzer.analyze_job_failures(jobs_data)
-
-        logger.info("analyze_skypilot_job_failures completed")
-        return format_success_response(analysis)
-
-    except Exception as e:
-        logger.warning(f"analyze_skypilot_job_failures failed: {e}")
-        return format_error_response(e, "analyze_skypilot_job_failures")
-
+    logger.info("analyze_skypilot_job_failures completed")
+    return format_success_response(analysis)
 
 async def get_skypilot_job_cost_estimates(
     limit: int = 100,
 ) -> str:
-    """Get job cost estimates.
+    """Get job cost estimates."""
+    logger.info("Getting Skypilot job cost estimates")
 
-    Args:
-        limit: Maximum number of jobs to analyze (default: 100)
+    cmd = ["sky", "jobs", "queue", "--json"]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
 
-    Returns:
-        JSON string with cost estimates
-    """
+    if returncode != 0:
+        raise RuntimeError(f"sky jobs queue failed: {stderr}")
+
     try:
-        logger.info("Getting Skypilot job cost estimates")
+        jobs_data = json.loads(stdout)
+    except json.JSONDecodeError:
+        jobs_data = _parse_sky_jobs_text_output(stdout)
 
-        cmd = ["sky", "jobs", "queue", "--json"]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
+    jobs_data = jobs_data[:limit]
 
-        if returncode != 0:
-            raise RuntimeError(f"sky jobs queue failed: {stderr}")
+    estimates = skypilot_analyzer.get_job_cost_estimates(jobs_data)
 
-        try:
-            jobs_data = json.loads(stdout)
-        except json.JSONDecodeError:
-            jobs_data = _parse_sky_jobs_text_output(stdout)
-
-        jobs_data = jobs_data[:limit]
-
-        estimates = skypilot_analyzer.get_job_cost_estimates(jobs_data)
-
-        logger.info("get_skypilot_job_cost_estimates completed")
-        return format_success_response(estimates)
-
-    except Exception as e:
-        logger.warning(f"get_skypilot_job_cost_estimates failed: {e}")
-        return format_error_response(e, "get_skypilot_job_cost_estimates")
-
+    logger.info("get_skypilot_job_cost_estimates completed")
+    return format_success_response(estimates)
 
 async def link_skypilot_job_to_wandb_runs(
     wandb_store: "WandbStore",
@@ -347,119 +241,90 @@ async def link_skypilot_job_to_wandb_runs(
     entity: str,
     project: str,
 ) -> str:
-    """Link a Skypilot job to its WandB runs.
+    """Link a Skypilot job to its WandB runs."""
+    logger.info(f"Linking Skypilot job to WandB runs: {job_id}")
 
-    Args:
-        wandb_store: WandbStore instance
-        job_id: Skypilot job ID
-        entity: WandB entity (user/team)
-        project: WandB project name
+    cmd = ["sky", "jobs", "status", job_id, "--json"]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
 
-    Returns:
-        JSON string with linked WandB runs
-    """
+    if returncode != 0:
+        raise RuntimeError(f"sky jobs status failed: {stderr}")
+
     try:
-        logger.info(f"Linking Skypilot job to WandB runs: {job_id}")
+        job_data = json.loads(stdout)
+    except json.JSONDecodeError:
+        job_data = {"job_id": job_id, "name": ""}
 
-        cmd = ["sky", "jobs", "status", job_id, "--json"]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
+    job_name = job_data.get("name", "")
 
-        if returncode != 0:
-            raise RuntimeError(f"sky jobs status failed: {stderr}")
+    matching_runs = []
+    if job_name:
+        # Use wandb_store to search for runs matching the job name
+        runs = wandb_store.list_runs(
+            entity=entity,
+            project=project,
+            filters={"name": {"$regex": job_name}},
+            limit=100,  # Reasonable limit for linking
+        )
+        matching_runs = [
+            {
+                "id": run.get("id"),
+                "name": run.get("name"),
+                "url": run.get("url"),
+                "state": run.get("state"),
+            }
+            for run in runs
+        ]
 
-        try:
-            job_data = json.loads(stdout)
-        except json.JSONDecodeError:
-            job_data = {"job_id": job_id, "name": ""}
+    data = {
+        "skypilot_job": {
+            "job_id": job_id,
+            "name": job_name,
+        },
+        "wandb_runs": matching_runs,
+        "count": len(matching_runs),
+    }
 
-        job_name = job_data.get("name", "")
-
-        matching_runs = []
-        if job_name:
-            # Use wandb_store to search for runs matching the job name
-            runs = wandb_store.list_runs(
-                entity=entity,
-                project=project,
-                filters={"name": {"$regex": job_name}},
-                limit=100,  # Reasonable limit for linking
-            )
-            matching_runs = [
-                {
-                    "id": run.get("id"),
-                    "name": run.get("name"),
-                    "url": run.get("url"),
-                    "state": run.get("state"),
-                }
-                for run in runs
-            ]
-
-        data = {
-            "skypilot_job": {
-                "job_id": job_id,
-                "name": job_name,
-            },
-            "wandb_runs": matching_runs,
-            "count": len(matching_runs),
-        }
-
-        logger.info(f"link_skypilot_job_to_wandb_runs completed ({len(matching_runs)} runs)")
-        return format_success_response(data)
-
-    except Exception as e:
-        logger.warning(f"link_skypilot_job_to_wandb_runs failed: {e}")
-        return format_error_response(e, "link_skypilot_job_to_wandb_runs")
-
+    logger.info(f"link_skypilot_job_to_wandb_runs completed ({len(matching_runs)} runs)")
+    return format_success_response(data)
 
 async def link_skypilot_job_to_s3_checkpoints(
     s3_store: "S3Store",
     job_id: str,
 ) -> str:
-    """Link a Skypilot job to its S3 checkpoints.
+    """Link a Skypilot job to its S3 checkpoints."""
+    logger.info(f"Linking Skypilot job to S3 checkpoints: {job_id}")
 
-    Args:
-        s3_store: S3Store instance
-        job_id: Skypilot job ID
+    cmd = ["sky", "jobs", "status", job_id, "--json"]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
 
-    Returns:
-        JSON string with linked checkpoints
-    """
+    if returncode != 0:
+        raise RuntimeError(f"sky jobs status failed: {stderr}")
+
     try:
-        logger.info(f"Linking Skypilot job to S3 checkpoints: {job_id}")
+        job_data = json.loads(stdout)
+    except json.JSONDecodeError:
+        job_data = {"job_id": job_id, "name": ""}
 
-        cmd = ["sky", "jobs", "status", job_id, "--json"]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
+    job_name = job_data.get("name", "")
+    run_name = job_name
 
-        if returncode != 0:
-            raise RuntimeError(f"sky jobs status failed: {stderr}")
+    checkpoints = []
+    if run_name:
+        s3_prefix = f"checkpoints/{run_name}/"
+        # Use s3_store to list checkpoints
+        checkpoints = s3_store.list_checkpoints(prefix=s3_prefix, max_keys=1000)
 
-        try:
-            job_data = json.loads(stdout)
-        except json.JSONDecodeError:
-            job_data = {"job_id": job_id, "name": ""}
+    data = {
+        "skypilot_job": {
+            "job_id": job_id,
+            "name": job_name,
+        },
+        "checkpoints": checkpoints,
+        "count": len(checkpoints),
+    }
 
-        job_name = job_data.get("name", "")
-        run_name = job_name
-
-        checkpoints = []
-        if run_name:
-            s3_prefix = f"checkpoints/{run_name}/"
-            # Use s3_store to list checkpoints
-            checkpoints = s3_store.list_checkpoints(prefix=s3_prefix, max_keys=1000)
-
-        data = {
-            "skypilot_job": {
-                "job_id": job_id,
-                "name": job_name,
-            },
-            "checkpoints": checkpoints,
-            "count": len(checkpoints),
-        }
-
-        logger.info(f"link_skypilot_job_to_s3_checkpoints completed ({len(checkpoints)} checkpoints)")
-        return format_success_response(data)
-
-    except Exception as e:
-        logger.warning(f"link_skypilot_job_to_s3_checkpoints failed: {e}")
-        return format_error_response(e, "link_skypilot_job_to_s3_checkpoints")
+    logger.info(f"link_skypilot_job_to_s3_checkpoints completed ({len(checkpoints)} checkpoints)")
+    return format_success_response(data)

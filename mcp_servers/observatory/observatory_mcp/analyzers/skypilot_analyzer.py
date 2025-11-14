@@ -9,14 +9,7 @@ logger = logging.getLogger(__name__)
 def analyze_job_performance(
     jobs_data: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Analyze job performance trends.
-
-    Args:
-        jobs_data: List of job dictionaries
-
-    Returns:
-        Performance analysis dictionary
-    """
+    """Analyze job performance trends."""
     if not jobs_data:
         return {"performance": {}, "trends": {}}
 
@@ -49,14 +42,7 @@ def analyze_job_performance(
 def get_resource_utilization(
     jobs_data: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Get resource utilization statistics.
-
-    Args:
-        jobs_data: List of job dictionaries
-
-    Returns:
-        Resource utilization dictionary
-    """
+    """Get resource utilization statistics."""
     if not jobs_data:
         return {"utilization": {}}
 
@@ -76,14 +62,7 @@ def get_resource_utilization(
 def compare_job_configurations(
     jobs_data: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Compare job configurations.
-
-    Args:
-        jobs_data: List of job dictionaries with config information
-
-    Returns:
-        Configuration comparison dictionary
-    """
+    """Compare job configurations."""
     if not jobs_data:
         return {"comparisons": {}}
 
@@ -105,14 +84,7 @@ def compare_job_configurations(
 def analyze_job_failures(
     jobs_data: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Analyze job failure patterns.
-
-    Args:
-        jobs_data: List of job dictionaries
-
-    Returns:
-        Failure analysis dictionary
-    """
+    """Analyze job failure patterns."""
     if not jobs_data:
         return {"failures": {}}
 
@@ -133,14 +105,7 @@ def analyze_job_failures(
 def get_job_cost_estimates(
     jobs_data: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Get job cost estimates.
-
-    Args:
-        jobs_data: List of job dictionaries
-
-    Returns:
-        Cost estimates dictionary
-    """
+    """Get job cost estimates."""
     if not jobs_data:
         return {"cost_estimates": {}}
 

@@ -1,7 +1,10 @@
 """S3 checkpoint analysis functions."""
 
 import logging
+from datetime import datetime, timedelta
 from typing import Any
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -9,20 +12,10 @@ logger = logging.getLogger(__name__)
 def analyze_checkpoint_progression(
     checkpoints: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Analyze checkpoint progression over time.
-
-    Args:
-        checkpoints: List of checkpoint dictionaries with epoch and metadata
-
-    Returns:
-        Progression analysis dictionary
-    """
-    if not checkpoints:
-        return {"progression": [], "trends": {}}
-
-    checkpoints_with_epoch = [c for c in checkpoints if "epoch" in c]
+    """Analyze checkpoint progression over time."""
+    checkpoints_with_epoch = [c for c in checkpoints if "epoch" in c] if checkpoints else []
     if not checkpoints_with_epoch:
-        return {"progression": [], "trends": {"error": "No checkpoints with epoch information"}}
+        return {"progression": [], "trends": {}}
 
     checkpoints_with_epoch.sort(key=lambda x: x.get("epoch", 0))
 
@@ -57,48 +50,25 @@ def find_best_checkpoint(
     checkpoints: list[dict[str, Any]],
     criteria: str = "latest",
 ) -> dict[str, Any] | None:
-    """Find best checkpoint by criteria.
-
-    Args:
-        checkpoints: List of checkpoint dictionaries
-        criteria: Criteria to use ("latest", "largest", "smallest", "earliest")
-
-    Returns:
-        Best checkpoint dictionary or None
-    """
-    if not checkpoints:
-        return None
-
-    checkpoints_with_epoch = [c for c in checkpoints if "epoch" in c]
+    """Find best checkpoint by criteria."""
+    checkpoints_with_epoch = [c for c in checkpoints if "epoch" in c] if checkpoints else []
     if not checkpoints_with_epoch:
         return None
 
-    if criteria == "latest":
-        return max(checkpoints_with_epoch, key=lambda x: x.get("epoch", 0))
-    elif criteria == "earliest":
-        return min(checkpoints_with_epoch, key=lambda x: x.get("epoch", 0))
-    elif criteria == "largest":
-        return max(checkpoints_with_epoch, key=lambda x: x.get("size", 0))
-    elif criteria == "smallest":
-        return min(checkpoints_with_epoch, key=lambda x: x.get("size", 0))
-    else:
-        return checkpoints_with_epoch[-1]
+    criteria_map = {
+        "latest": lambda: max(checkpoints_with_epoch, key=lambda x: x.get("epoch", 0)),
+        "earliest": lambda: min(checkpoints_with_epoch, key=lambda x: x.get("epoch", 0)),
+        "largest": lambda: max(checkpoints_with_epoch, key=lambda x: x.get("size", 0)),
+        "smallest": lambda: min(checkpoints_with_epoch, key=lambda x: x.get("size", 0)),
+    }
+    return criteria_map.get(criteria, lambda: checkpoints_with_epoch[-1])()
 
 
 def analyze_checkpoint_usage(
     checkpoints: list[dict[str, Any]],
     time_window_days: int = 30,
 ) -> dict[str, Any]:
-    """Analyze checkpoint usage patterns.
-
-    Args:
-        checkpoints: List of checkpoint dictionaries
-        time_window_days: Time window in days to analyze (default: 30)
-
-    Returns:
-        Usage analysis dictionary
-    """
-    from datetime import datetime, timedelta
+    """Analyze checkpoint usage patterns."""
 
     if not checkpoints:
         return {"usage": {}, "patterns": {}}
@@ -107,12 +77,9 @@ def analyze_checkpoint_usage(
 
     recent_checkpoints = []
     for checkpoint in checkpoints:
-        try:
             last_modified = datetime.fromisoformat(checkpoint.get("last_modified", "").replace("Z", "+00:00"))
             if last_modified.replace(tzinfo=None) >= cutoff_date:
                 recent_checkpoints.append(checkpoint)
-        except (ValueError, TypeError):
-            continue
 
     usage = {
         "total_checkpoints": len(checkpoints),
@@ -136,14 +103,7 @@ def analyze_checkpoint_usage(
 def get_checkpoint_statistics(
     checkpoints: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Get statistics about checkpoints.
-
-    Args:
-        checkpoints: List of checkpoint dictionaries
-
-    Returns:
-        Statistics dictionary
-    """
+    """Get statistics about checkpoints."""
     if not checkpoints:
         return {"statistics": {}}
 
@@ -174,14 +134,7 @@ def get_checkpoint_statistics(
 def compare_checkpoints_across_runs(
     runs_data: dict[str, list[dict[str, Any]]],
 ) -> dict[str, Any]:
-    """Compare checkpoints across multiple runs.
-
-    Args:
-        runs_data: Dictionary mapping run names to checkpoint lists
-
-    Returns:
-        Comparison analysis dictionary
-    """
+    """Compare checkpoints across multiple runs."""
     if not runs_data:
         return {"comparisons": {}}
 
@@ -209,8 +162,8 @@ def _calculate_trend(values: list[float]) -> str:
     first_half = values[: len(values) // 2]
     second_half = values[len(values) // 2 :]
 
-    first_avg = sum(first_half) / len(first_half) if first_half else 0
-    second_avg = sum(second_half) / len(second_half) if second_half else 0
+    first_avg = float(np.mean(first_half)) if first_half else 0.0
+    second_avg = float(np.mean(second_half)) if second_half else 0.0
 
     if second_avg > first_avg * 1.05:
         return "increasing"

@@ -3,6 +3,9 @@
 import logging
 from typing import Any
 
+import numpy as np
+from scipy import stats
+
 logger = logging.getLogger(__name__)
 
 
@@ -10,15 +13,7 @@ def compare_runs(
     runs_data: list[dict[str, Any]],
     metric_keys: list[str],
 ) -> dict[str, Any]:
-    """Compare multiple WandB runs.
-
-    Args:
-        runs_data: List of run data dictionaries with metrics
-        metric_keys: List of metric keys to compare
-
-    Returns:
-        Comparison analysis dictionary
-    """
+    """Compare multiple WandB runs."""
     if not runs_data:
         return {"runs": [], "comparisons": {}}
 
@@ -31,10 +26,10 @@ def compare_runs(
 
         if values:
             comparisons[key] = {
-                "mean": sum(values) / len(values),
-                "min": min(values),
-                "max": max(values),
-                "std": _calculate_std(values),
+                "mean": float(np.mean(values)),
+                "min": float(np.min(values)),
+                "max": float(np.max(values)),
+                "std": float(np.std(values)),
             }
 
     return {
@@ -49,16 +44,7 @@ def analyze_learning_curves(
     metric_keys: list[str],
     smoothing_window: int = 10,
 ) -> dict[str, Any]:
-    """Analyze learning curves for trends and convergence.
-
-    Args:
-        metrics_data: List of metric data points
-        metric_keys: List of metric keys to analyze
-        smoothing_window: Window size for smoothing (default: 10)
-
-    Returns:
-        Learning curve analysis dictionary
-    """
+    """Analyze learning curves for trends and convergence."""
     analysis = {}
 
     for key in metric_keys:
@@ -90,16 +76,7 @@ def identify_critical_moments(
     metric_keys: list[str],
     threshold: float = 0.1,
 ) -> list[dict[str, Any]]:
-    """Identify critical moments in training.
-
-    Args:
-        metrics_data: List of metric data points
-        metric_keys: List of metric keys to analyze
-        threshold: Threshold for detecting significant changes
-
-    Returns:
-        List of critical moments
-    """
+    """Identify critical moments in training."""
     moments = []
 
     for key in metric_keys:
@@ -143,15 +120,7 @@ def correlate_metrics(
     metrics_data: list[dict[str, Any]],
     metric_pairs: list[tuple[str, str]],
 ) -> dict[str, Any]:
-    """Calculate correlations between metric pairs.
-
-    Args:
-        metrics_data: List of metric data points
-        metric_pairs: List of (metric1, metric2) tuples
-
-    Returns:
-        Correlation analysis dictionary
-    """
+    """Calculate correlations between metric pairs."""
     correlations = {}
 
     for key1, key2 in metric_pairs:
@@ -159,13 +128,12 @@ def correlate_metrics(
         values2 = [point.get(key2, 0) for point in metrics_data if key2 in point]
 
         if len(values1) == len(values2) and len(values1) >= 2:
-            correlation = _pearson_correlation(values1, values2)
-            p_value = _calculate_p_value(values1, values2, correlation)
+            correlation, p_value = stats.pearsonr(values1, values2)
 
             correlations[f"{key1}:{key2}"] = {
-                "correlation": correlation,
-                "p_value": p_value,
-                "strength": _interpret_correlation(correlation),
+                "correlation": float(correlation),
+                "p_value": float(p_value),
+                "strength": _interpret_correlation(float(correlation)),
             }
 
     return {
@@ -214,8 +182,8 @@ def _detect_convergence(values: list[float], threshold: float = 0.01) -> bool:
         return False
 
     recent = values[-10:]
-    variance = _calculate_variance(recent)
-    mean = sum(recent) / len(recent)
+    variance = float(np.var(recent))
+    mean = float(np.mean(recent))
 
     return variance / (mean * mean) < threshold if mean != 0 else False
 
@@ -227,7 +195,7 @@ def _detect_plateau(values: list[float], threshold: float = 0.01) -> bool:
 
     recent = values[-5:]
     change = abs(recent[-1] - recent[0])
-    mean = sum(recent) / len(recent)
+    mean = float(np.mean(recent))
 
     return change / mean < threshold if mean != 0 else False
 
@@ -239,65 +207,6 @@ def _calculate_rate_of_change(values: list[float]) -> float:
 
     changes = [values[i] - values[i - 1] for i in range(1, len(values))]
     return sum(changes) / len(changes) if changes else 0.0
-
-
-def _calculate_std(values: list[float]) -> float:
-    """Calculate standard deviation."""
-    if len(values) < 2:
-        return 0.0
-
-    mean = sum(values) / len(values)
-    variance = sum((v - mean) ** 2 for v in values) / len(values)
-    return variance**0.5
-
-
-def _calculate_variance(values: list[float]) -> float:
-    """Calculate variance."""
-    if len(values) < 2:
-        return 0.0
-
-    mean = sum(values) / len(values)
-    return sum((v - mean) ** 2 for v in values) / len(values)
-
-
-def _pearson_correlation(x: list[float], y: list[float]) -> float:
-    """Calculate Pearson correlation coefficient."""
-    if len(x) != len(y) or len(x) < 2:
-        return 0.0
-
-    n = len(x)
-    sum_x = sum(x)
-    sum_y = sum(y)
-    sum_xy = sum(x[i] * y[i] for i in range(n))
-    sum_x2 = sum(xi * xi for xi in x)
-    sum_y2 = sum(yi * yi for yi in y)
-
-    numerator = n * sum_xy - sum_x * sum_y
-    denominator = ((n * sum_x2 - sum_x * sum_x) * (n * sum_y2 - sum_y * sum_y)) ** 0.5
-
-    if denominator == 0:
-        return 0.0
-
-    return numerator / denominator
-
-
-def _calculate_p_value(x: list[float], y: list[float], correlation: float) -> float:
-    """Calculate approximate p-value for correlation."""
-    if len(x) < 3:
-        return 1.0
-
-    n = len(x)
-    t_stat = correlation * ((n - 2) / (1 - correlation * correlation)) ** 0.5
-    p_value = 2 * (1 - _normal_cdf(abs(t_stat)))
-
-    return p_value
-
-
-def _normal_cdf(x: float) -> float:
-    """Approximate normal CDF."""
-    import math
-
-    return 0.5 * (1 + math.erf(x / (2**0.5)))
 
 
 def _interpret_correlation(correlation: float) -> str:

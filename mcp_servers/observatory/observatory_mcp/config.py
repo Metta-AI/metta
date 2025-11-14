@@ -1,9 +1,4 @@
-"""
-Configuration for Observatory MCP Server
-
-Handles server configuration, authentication settings, and default values
-for connecting to the Metta Observatory backend and external services.
-"""
+"""Configuration for Observatory MCP Server."""
 
 import os
 from dataclasses import dataclass, field
@@ -43,11 +38,7 @@ class ObservatoryMCPConfig:
 
     @classmethod
     def from_env(cls) -> "ObservatoryMCPConfig":
-        """Create configuration from environment variables.
-
-        Returns:
-            ObservatoryMCPConfig instance with values from environment variables
-        """
+        """Create configuration from environment variables."""
         return cls(
             backend_url=os.getenv("METTA_MCP_BACKEND_URL", "http://localhost:8000"),
             machine_token=os.getenv("METTA_MCP_MACHINE_TOKEN"),
@@ -61,11 +52,7 @@ class ObservatoryMCPConfig:
         )
 
     def validate(self) -> List[str]:
-        """Validate the configuration and return any errors.
-
-        Returns:
-            List of error messages. Empty list if configuration is valid.
-        """
+        """Validate the configuration and return any errors."""
         errors = []
         if not self.backend_url:
             errors.append("METTA_MCP_BACKEND_URL is required but not set.")
@@ -97,15 +84,7 @@ class ObservatoryMCPConfig:
         return bool(self.backend_url) and len(self.validate()) == 0
 
     def is_aws_configured(self) -> bool:
-        """Check if AWS is configured.
-
-        Always returns True to allow boto3 to attempt initialization using either:
-        - AWS_PROFILE environment variable (if set), or
-        - Default AWS credentials (from ~/.aws/credentials, IAM role, etc.)
-
-        Returns:
-            Always True - initialization will be attempted regardless
-        """
+        """Check if AWS is configured (always returns True to allow boto3 to attempt initialization)."""
         return True  # Always try - boto3 can use default credentials or profile
 
     def is_wandb_configured(self) -> bool:

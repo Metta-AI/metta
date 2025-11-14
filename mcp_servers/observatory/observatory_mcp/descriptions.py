@@ -1,8 +1,4 @@
-"""
-Tool descriptions for Observatory MCP Server.
-
-Centralized location for all tool descriptions to maintain consistency.
-"""
+"""Tool descriptions for Observatory MCP Server."""
 
 MCP_TOOL_DESCRIPTIONS = {
     "get_training_runs": (

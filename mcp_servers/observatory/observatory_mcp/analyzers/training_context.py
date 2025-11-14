@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from typing import Any, Optional
 
+import numpy as np
+
 
 @dataclass
 class WandbTrainingContext:
@@ -39,17 +41,7 @@ def analyze_training_progression(
     context_window_steps: int = 1000,
     center_step: Optional[int] = None,
 ) -> WandbTrainingContext:
-    """Analyze training progression from metrics data.
-
-    Args:
-        metrics_data: List of metric data points from WandB history
-        metric_keys: List of metric keys to analyze
-        context_window_steps: Number of steps to analyze around center
-        center_step: Optional center step (defaults to middle of data)
-
-    Returns:
-        WandbTrainingContext with analysis results
-    """
+    """Analyze training progression from metrics data."""
     if not metrics_data:
         raise ValueError("No metrics data provided")
 
@@ -113,8 +105,7 @@ def _calculate_performance_stability(metrics_data: list[dict[str, Any]], metric_
     for key in metric_keys:
         values = [point.get(key, 0) for point in metrics_data if key in point]
         if len(values) >= 2:
-            mean = sum(values) / len(values)
-            variance = sum((v - mean) ** 2 for v in values) / len(values)
+            variance = float(np.var(values))
             stability = 1.0 / (1.0 + variance)
             stabilities.append(stability)
 
@@ -124,16 +115,7 @@ def _calculate_performance_stability(metrics_data: list[dict[str, Any]], metric_
 def _calculate_behavioral_adaptation_rate(metrics_data: list[dict[str, Any]]) -> float:
     """Calculate behavioral adaptation rate (rate of change in metrics).
 
-    Measures how quickly behavior is adapting by calculating the average
-    absolute rate of change across all metrics. Higher values indicate
-    more active adaptation.
-
-    Args:
-        metrics_data: List of metric data points
-
-    Returns:
-        Average absolute rate of change across all metrics
-    """
+    Measures how quickly behavior is adapting by calculating the average absolute rate of change across all metrics."""
     if len(metrics_data) < 2:
         return 0.0
 
@@ -184,20 +166,10 @@ def _pearson_correlation(x: list[float], y: list[float]) -> float:
     if len(x) != len(y) or len(x) < 2:
         return 0.0
 
-    n = len(x)
-    sum_x = sum(x)
-    sum_y = sum(y)
-    sum_xy = sum(x[i] * y[i] for i in range(n))
-    sum_x2 = sum(xi * xi for xi in x)
-    sum_y2 = sum(yi * yi for yi in y)
+    from scipy import stats
 
-    numerator = n * sum_xy - sum_x * sum_y
-    denominator = ((n * sum_x2 - sum_x * sum_x) * (n * sum_y2 - sum_y * sum_y)) ** 0.5
-
-    if denominator == 0:
-        return 0.0
-
-    return numerator / denominator
+    correlation, _ = stats.pearsonr(x, y)
+    return float(correlation)
 
 
 def _identify_critical_moments(metrics_data: list[dict[str, Any]], metric_keys: list[str]) -> list[dict[str, Any]]:

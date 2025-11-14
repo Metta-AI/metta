@@ -1,8 +1,4 @@
-"""
-Observatory MCP Server Utilities
-
-Helper functions for error handling, response formatting, and data transformation.
-"""
+"""Observatory MCP Server Utilities."""
 
 import logging
 from typing import Any
@@ -13,43 +9,19 @@ logger = logging.getLogger(__name__)
 
 
 def format_success_response(data: Any) -> str:
-    """Format success response as JSON string.
-
-    Args:
-        data: Data to return (will be JSON serialized)
-
-    Returns:
-        JSON string with success response
-    """
+    """Format success response as JSON string."""
     return SuccessResponse(data=data).model_dump_json(indent=2, exclude_none=True)
 
 
 def format_error_response(error: Exception, tool_name: str, context: str | None = None) -> str:
-    """Format error as JSON string for MCP response.
-
-    Args:
-        error: Exception that occurred
-        tool_name: Name of the tool that failed
-        context: Optional additional context about the error
-
-    Returns:
-        JSON string with error information
-    """
+    """Format error as JSON string for MCP response."""
     return ErrorResponse(
         tool=tool_name, message=str(error), error_type=type(error).__name__, context=context
     ).model_dump_json(indent=2, exclude_none=True)
 
 
 def handle_backend_error(error: Exception, tool_name: str) -> str:
-    """Handle errors from backend API calls.
-
-    Args:
-        error: Exception from backend call
-        tool_name: Name of the tool that made the call
-
-    Returns:
-        Formatted error response string
-    """
+    """Handle errors from backend API calls."""
     logger.error(f"Backend error in {tool_name}: {error}", exc_info=True)
 
     error_type = type(error).__name__
@@ -80,16 +52,7 @@ def handle_backend_error(error: Exception, tool_name: str) -> str:
 
 
 def handle_validation_error(error: Exception, tool_name: str, field: str | None = None) -> str:
-    """Handle validation errors (missing required fields, invalid types, etc.).
-
-    Args:
-        error: Validation exception
-        tool_name: Name of the tool
-        field: Optional field name that failed validation
-
-    Returns:
-        Formatted error response string
-    """
+    """Handle validation errors (missing required fields, invalid types, etc.)."""
     error_msg = str(error)
     if field:
         error_msg = f"Validation error for field '{field}': {error_msg}"
@@ -100,16 +63,7 @@ def handle_validation_error(error: Exception, tool_name: str, field: str | None 
 
 
 def serialize_response_data(data: Any) -> Any:
-    """Serialize response data to make it JSON-compatible.
-
-    Handles UUID objects, datetime objects, and Pydantic models.
-
-    Args:
-        data: Data to serialize
-
-    Returns:
-        JSON-serializable data
-    """
+    """Serialize response data to make it JSON-compatible."""
     if hasattr(data, "model_dump"):
         return data.model_dump(mode="json")
     if isinstance(data, dict):

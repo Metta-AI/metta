@@ -1,11 +1,4 @@
-"""
-Pydantic models for Observatory MCP Server.
-
-Defines input models for all tools and response models for consistent serialization.
-
-This module reuses backend models where possible to maintain a single source of truth.
-For models with field name differences, adapter models are provided.
-"""
+"""Pydantic models for Observatory MCP Server."""
 
 from typing import Any, Literal
 
@@ -44,10 +37,7 @@ class ErrorResponse(BaseModel):
 
 # Adapter models for field name differences
 class GenerateScorecardInput(BaseModel):
-    """Input model for generate_scorecard tool.
-
-    Adapter for ScorecardRequest that uses 'policy_selector' instead of 'training_run_policy_selector'.
-    """
+    """Input model for generate_scorecard tool (adapter for ScorecardRequest)."""
 
     training_run_ids: list[str] = Field(description="List of training run IDs")
     run_free_policy_ids: list[str] = Field(description="List of run-free policy IDs")
@@ -69,10 +59,7 @@ class GenerateScorecardInput(BaseModel):
 
 
 class RunSqlQueryInput(BaseModel):
-    """Input model for run_sql_query tool.
-
-    Adapter for SQLQueryRequest that uses 'sql' instead of 'query'.
-    """
+    """Input model for run_sql_query tool (adapter for SQLQueryRequest)."""
 
     sql: str = Field(description="SQL query string to execute")
 
