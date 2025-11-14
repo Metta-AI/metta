@@ -533,5 +533,3 @@ DIAGNOSTIC_EVALS: list[type[_DiagnosticMissionBase]] = [
     DiagnosticAgile,
     DiagnosticRadial,
 ]
-
-
