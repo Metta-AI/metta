@@ -4,14 +4,12 @@ import logging
 from collections import defaultdict
 from contextlib import nullcontext
 from typing import Any, ContextManager, Optional, Protocol
-from uuid import UUID
 
 import numpy as np
 import torch
 import torch.nn as nn
 from pydantic import Field
 
-from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.wandb.context import WandbRun
 from metta.rl.model_analysis import compute_dormant_neuron_stats
 from metta.rl.stats import accumulate_rollout_stats, compute_timing_stats, process_training_stats
@@ -105,7 +103,6 @@ class StatsReporterConfig(Config):
     """Configuration for stats reporting."""
 
     report_to_wandb: bool = True
-    report_to_stats_client: bool = True
     report_to_console: bool = True
     grad_mean_variance_interval: int = 50
     interval: int = 1
@@ -121,7 +118,6 @@ class StatsReporterState(Config):
 
     rollout_stats: dict = Field(default_factory=lambda: defaultdict(list))
     grad_stats: dict = Field(default_factory=dict)
-    stats_run_id: Optional[UUID] = None
     area_under_reward: float = 0.0
     """Cumulative area under the reward curve"""
 
@@ -132,10 +128,9 @@ class NoOpStatsReporter(TrainerComponent):
     def __init__(self):
         """Initialize no-op stats reporter."""
         # Create a minimal config for the no-op reporter
-        config = StatsReporterConfig(report_to_wandb=False, report_to_stats_client=False, interval=999999)
+        config = StatsReporterConfig(report_to_wandb=False, interval=999999)
         super().__init__(epoch_interval=config.interval)
         self.wandb_run = None
-        self.stats_run_id = None
 
     def on_step(self, infos: list[dict[str, Any]]) -> None:
         pass
@@ -157,30 +152,23 @@ class StatsReporter(TrainerComponent):
     def from_config(
         cls,
         config: Optional[StatsReporterConfig],
-        stats_client: Optional[StatsClient] = None,
         wandb_run: Optional[WandbRun] = None,
     ) -> TrainerComponent:
         """Create a StatsReporter from optional config, returning no-op if None."""
         if config is None:
             return NoOpStatsReporter()
-        return cls(config=config, stats_client=stats_client, wandb_run=wandb_run)
+        return cls(config=config, wandb_run=wandb_run)
 
     def __init__(
         self,
         config: StatsReporterConfig,
-        stats_client: Optional[StatsClient] = None,
         wandb_run: Optional[WandbRun] = None,
     ):
         super().__init__(epoch_interval=config.interval)
         self._config = config
-        self._stats_client = stats_client
         self._wandb_run = wandb_run
         self._state = StatsReporterState()
         self._latest_payload: dict[str, float] | None = None
-
-        # Initialize stats run if client is available
-        if self._stats_client and self._config.report_to_stats_client:
-            self._initialize_stats_run()
 
     @property
     def wandb_run(self) -> WandbRun | None:
@@ -193,30 +181,6 @@ class StatsReporter(TrainerComponent):
     def register(self, context) -> None:  # type: ignore[override]
         super().register(context)
         context.stats_reporter = self
-
-    def _initialize_stats_run(self) -> None:
-        """Initialize stats run with the stats client."""
-        if not self._stats_client:
-            return
-
-        # Extract wandb attributes with defaults
-        name = url = "unknown"
-        description: Optional[str] = None
-        tags: Optional[list[str]] = None
-
-        if self._wandb_run:
-            name = self._wandb_run.name or name
-            url = self._wandb_run.url
-            if self._wandb_run.tags:
-                tags = list(self._wandb_run.tags)
-            description = self._wandb_run.notes
-
-        try:
-            result = self._stats_client.create_training_run(name=name, url=url, description=description, tags=tags)
-            self._state.stats_run_id = result.id
-            logger.info(f"Created stats run with ID: {self._state.stats_run_id}")
-        except Exception as e:
-            logger.warning(f"Failed to create training run: {e}", exc_info=True)
 
     @property
     def state(self) -> StatsReporterState:
@@ -281,42 +245,6 @@ class StatsReporter(TrainerComponent):
     def update_grad_stats(self, grad_stats: dict[str, float]) -> None:
         self._state.grad_stats = grad_stats
 
-    def create_epoch(
-        self,
-        run_id: UUID,
-        start_epoch: int,
-        end_epoch: int,
-        attributes: dict[str, Any] | None = None,
-    ) -> Optional[UUID]:
-        if not self._stats_client or not self._config.report_to_stats_client:
-            return None
-
-        try:
-            result = self._stats_client.create_epoch(
-                run_id=run_id,
-                start_training_epoch=start_epoch,
-                end_training_epoch=end_epoch,
-                attributes=attributes or {},
-            )
-            return result.id
-        except Exception as e:
-            logger.warning(f"Failed to create epoch: {e}", exc_info=True)
-            return None
-
-    def finalize(self, status: str = "completed") -> None:
-        """Finalize stats reporting.
-
-        Args:
-            status: Final status of the training run
-        """
-        if self._stats_client and self._state.stats_run_id and self._config.report_to_stats_client:
-            try:
-                self._stats_client.update_training_run_status(self._state.stats_run_id, status)
-                logger.info(f"Training run status updated to '{status}'")
-            except Exception as e:
-                logger.warning(f"Failed to update training run status: {e}", exc_info=True)
-        self._latest_payload = None
-
     def on_step(self, infos: dict[str, Any] | list[dict[str, Any]]) -> None:
         """Accumulate step infos.
 
@@ -349,19 +277,10 @@ class StatsReporter(TrainerComponent):
         )
 
     def on_training_complete(self) -> None:
-        """Handle training completion.
-
-        Args:
-        """
-        self.finalize(status="completed")
+        pass
 
     def on_failure(self) -> None:
-        """Handle training failure.
-
-        Args:
-            trainer: The trainer instance
-        """
-        self.finalize(status="failed")
+        pass
 
     # ------------------------------------------------------------------
     # Internal helpers
