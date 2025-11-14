@@ -1,6 +1,6 @@
 import
   std/[math],
-  opengl, boxy/[shaders], shady, vmath
+  opengl, boxy/[shaders], shady, vmath, pixie
 
 # Draw a single quad covering the map and render the grid inside a shader.
 
@@ -8,12 +8,19 @@ type
   ShaderQuad* = ref object
     shader: Shader
     vao: GLuint
+    texture: GLuint
+    image: Image
+    tilesPerImage: Vec2
 
 var
   uMvp: Uniform[Mat4]
   uMapSize: Uniform[Vec2]
   uTileSize: Uniform[Vec2]
   uGridColor: Uniform[Vec4]
+  # Texture uniforms (match pixelator naming for sampling helpers)
+  atlasSize: Uniform[Vec2]
+  atlas: Uniform[Sampler2D]
+  uTilesPerImage: Uniform[Vec2]
 
 proc gridVert*(fragmentWorldPos: var Vec2) =
   # Generate a full-rect in world units from (0,0) to (mapSize.x, mapSize.y).
@@ -23,38 +30,23 @@ proc gridVert*(fragmentWorldPos: var Vec2) =
   gl_Position = uMvp * vec4(worldPos.x, worldPos.y, 0.0f, 1.0f)
 
 proc gridFrag*(fragmentWorldPos: Vec2, FragColor: var Vec4) =
-  # Compute grid intensity using AA in screen space via fwidth.
-  # Convert to tile-space so lines repeat every tile.
+  # Texture-based grid sampling with AA similar to pixelator.
+  # 1) Compute tile-space coordinates of the world position.
   let gridCoord = fragmentWorldPos / uTileSize
-  let gx = gridCoord.x
-  let gy = gridCoord.y
+  # 2) Repeat the texture every uTilesPerImage tiles.
+  let texPhase = fract(gridCoord / uTilesPerImage)
+  # 3) Convert to pixel coordinates in the texture.
+  let pixCoord = texPhase * atlasSize
+  # 4) Pixel-accurate AA in texture space (works with mipmaps too).
+  let pixAA = floor(pixCoord) + min(fract(pixCoord) / fwidth(pixCoord), 1.0f) - 0.5f
+  # 5) Sample and tint.
+  FragColor = texture(atlas, pixAA / atlasSize) * uGridColor * uGridColor.a
 
-  if gx.fract < 0.01f or gy.fract < 0.01f:
-    FragColor = uGridColor
-  else:
-    FragColor = vec4(0.0f, 0.0f, 0.0f, 0.0f)
-
-
-  # # Distance to nearest vertical and horizontal grid line in tile-space.
-  # let distX = min(fract(gx), 1.0f - fract(gx))
-  # let distY = min(fract(gy), 1.0f - fract(gy))
-
-  # # Screen-space derivative of tile coordinates (tiles per pixel).
-  # let scale = fwidth(gridCoord)
-  # let scaleX = scale.x
-  # let scaleY = scale.y
-
-  # # Convert desired pixel line width to tile-space width using derivatives.
-  # # Use smoothstep for antialiased hard lines.
-  # let lineX = 1.0f - smoothstep(0.0f, 1 * scaleX, distX)
-  # let lineY = 1.0f - smoothstep(0.0f, 1 * scaleY, distY)
-  # let alpha = max(lineX, lineY)
-
-  # FragColor = vec4(uGridColor.rgb, uGridColor.a * alpha)
-
-proc newGridQuad*(): ShaderQuad =
+proc newGridQuad*(imagePath: string, tilesX, tilesY: int): ShaderQuad =
   ## Creates a new ShaderQuad.
   result = ShaderQuad()
+  result.image = readImage(imagePath)
+  result.tilesPerImage = vec2(tilesX.float32, tilesY.float32)
 
   when defined(emscripten):
     result.shader = newShader(
@@ -72,6 +64,28 @@ proc newGridQuad*(): ShaderQuad =
       ("gridVert", toGLSL(gridVert, "410", "")),
       ("gridFrag", toGLSL(gridFrag, "410", ""))
     )
+
+  # Upload texture to GL and generate mipmaps.
+  glGenTextures(1, result.texture.addr)
+  glActiveTexture(GL_TEXTURE0)
+  glBindTexture(GL_TEXTURE_2D, result.texture)
+  glTexImage2D(
+    GL_TEXTURE_2D,
+    0,
+    GL_RGBA8.GLint,
+    result.image.width.GLint,
+    result.image.height.GLint,
+    0,
+    GL_RGBA,
+    GL_UNSIGNED_BYTE,
+    cast[pointer](result.image.data[0].addr)
+  )
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR.GLint)
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR.GLint)
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT.GLint)
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT.GLint)
+  glGenerateMipmap(GL_TEXTURE_2D)
+  glBindTexture(GL_TEXTURE_2D, 0)
 
   # Create an empty VAO; vertices are generated from gl_VertexID.
   glGenVertexArrays(1, result.vao.addr)
@@ -95,6 +109,12 @@ proc draw*(
   sq.shader.setUniform("uMapSize", mapSize)
   sq.shader.setUniform("uTileSize", tileSize)
   sq.shader.setUniform("uGridColor", gridColor)
+  # Texture sampling uniforms and state.
+  sq.shader.setUniform("atlasSize", vec2(sq.image.width.float32, sq.image.height.float32))
+  sq.shader.setUniform("uTilesPerImage", sq.tilesPerImage)
+  glActiveTexture(GL_TEXTURE0)
+  glBindTexture(GL_TEXTURE_2D, sq.texture)
+  sq.shader.setUniform("atlas", 0)
   sq.shader.bindUniforms()
 
   glBindVertexArray(sq.vao)

@@ -478,12 +478,12 @@ proc drawGrid*() {.measure.} =
   # Draw the grid using a single quad and shader-based lines.
   bxy.enterRawOpenGLMode()
   if sq == nil:
-    sq = newGridQuad()
+    sq = newGridQuad(dataDir & "/view/grid10.png", 10, 10)
   let
     mvp = getProjectionView()
     mapSize = vec2(replay.mapSize[0].float32, replay.mapSize[1].float32)
     tileSize = vec2(1.0f, 1.0f) # world units per tile
-    gridColor = vec4(1.0f, 1.0f, 1.0f, 0.25f) # subtle white grid
+    gridColor = vec4(1.0f, 1.0f, 1.0f, 1.0f) # subtle white grid
   sq.draw(mvp, mapSize, tileSize, gridColor, 1.0f)
   bxy.exitRawOpenGLMode()
 
