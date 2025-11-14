@@ -24,9 +24,6 @@ dependencies = [
 ]
 dynamic = ["version"]
 
-[project.scripts]
-cogames = "cogames.main:app"
-
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["cogames", "cogames.*"]

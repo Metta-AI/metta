@@ -17,9 +17,7 @@ app = typer.Typer(
 )
 
 repo_root = get_repo_root()
-wrapper_script = repo_root / "metta" / "setup" / "installer" / "bin" / "metta"
 local_bin = Path.home() / ".local" / "bin"
-target_symlink = local_bin / "metta"
 
 
 def _local_bin_is_in_path() -> bool:
@@ -27,7 +25,7 @@ def _local_bin_is_in_path() -> bool:
     return str(local_bin) in path_dirs
 
 
-def _check_existing_metta() -> Optional[str]:
+def _check_existing(target_symlink: Path, wrapper_script: Path) -> Optional[str]:
     if not target_symlink.exists():
         return None
 
@@ -42,7 +40,7 @@ def _check_existing_metta() -> Optional[str]:
     return "other"
 
 
-def setup_path(force: bool = False, quiet: bool = False) -> None:
+def setup_path(force: bool, quiet: bool, target_symlink: Path, wrapper_script: Path) -> None:
     wrapper_script.chmod(0o755)
 
     try:
@@ -54,15 +52,17 @@ def setup_path(force: bool = False, quiet: bool = False) -> None:
         """)
         return
 
-    existing = _check_existing_metta()
+    existing = _check_existing(target_symlink, wrapper_script)
+
+    name = target_symlink.name
 
     if existing in ("ours", "other-but-same-content"):
         if not quiet:
-            success("metta is already symlinked correctly.")
+            success(f"{name} symlinked correctly.")
         return
     elif existing == "other":
         if force:
-            info(f"Replacing existing metta command at {target_symlink}")
+            info(f"Replacing existing {target_symlink.name} command at {target_symlink}")
             try:
                 target_symlink.unlink()
             except Exception as e:
@@ -70,7 +70,7 @@ def setup_path(force: bool = False, quiet: bool = False) -> None:
                 return
         else:
             debug(f"""
-            A 'metta' command already exists at {target_symlink}
+            A '{target_symlink.name}' command already exists at {target_symlink}
             Run with --force if you want to replace it.
             """)
             return
@@ -87,17 +87,23 @@ def setup_path(force: bool = False, quiet: bool = False) -> None:
         return
 
     if _local_bin_is_in_path():
-        success("metta command is now available")
+        success(f"{name} command is now available")
     else:
         warning(f"{local_bin} is not in your PATH")
         info("""
-        To use metta globally, add this to your shell profile:
+        To use {name} globally, add this to your shell profile:
           export PATH="$HOME/.local/bin:$PATH"
 
         For example:
           echo 'export PATH=\"$HOME/.local/bin:$PATH\"' >> ~/.bashrc
           source ~/.bashrc
         """)
+
+
+desired_symlinks = [
+    (local_bin / "metta", repo_root / "metta" / "setup" / "installer" / "bin" / "metta"),
+    (local_bin / "cogames", repo_root / "metta" / "setup" / "installer" / "bin" / "cogames"),
+]
 
 
 @app.command(name="setup")
@@ -107,24 +113,27 @@ def cmd_setup(
     ] = False,
     quiet: Annotated[bool, typer.Option("--quiet", help="Do not print success messages.")] = False,
 ):
-    setup_path(force=force, quiet=quiet)
+    for target_symlink, wrapper_script in desired_symlinks:
+        setup_path(force=force, quiet=quiet, target_symlink=target_symlink, wrapper_script=wrapper_script)
 
 
 @app.command(name="check")
 def cmd_check():
-    status = _check_existing_metta()
-    if status in ("ours", "other-but-same-content"):
-        success("metta command is properly installed")
-    elif status == "other":
-        warning("""
-        metta command is installed from a different checkout
-        Run 'metta symlink-setup setup --force' to reinstall from this checkout
-        """)
-    else:
-        warning("""
-        metta command is not installed
-        Run 'metta symlink-setup setup' to install
-        """)
+    for target_symlink, wrapper_script in desired_symlinks:
+        status = _check_existing(target_symlink, wrapper_script)
+        name = target_symlink.name
+        if status in ("ours", "other-but-same-content"):
+            success(f"{name} command is properly installed")
+        elif status == "other":
+            warning(f"""
+            {name} command is installed from a different checkout
+            Run '{name} symlink-setup setup --force' to reinstall from this checkout
+            """)
+        else:
+            warning(f"""
+            {name} command is not installed
+            Run '{name} symlink-setup setup' to install
+            """)
 
 
 def main():
