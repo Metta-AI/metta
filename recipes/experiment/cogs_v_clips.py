@@ -13,6 +13,7 @@ import metta.cogworks.curriculum as cc
 from cogames.cli.mission import find_mission, parse_variants
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, MissionVariant, NumCogsVariant
+from cogames.cogs_vs_clips.missions import MISSIONS
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -59,7 +60,6 @@ COORDINATION_MISSIONS: tuple[str, ...] = (
     "divide_and_conquer",
     "collect_resources_spread",
 )
-_MISSION_BY_NAME: dict[str, Mission] = {mission.name: mission for mission in EVAL_MISSIONS}
 
 
 def _normalize_variant_names(
@@ -98,18 +98,20 @@ def _parse_variant_objects(names: Sequence[str] | None) -> list[MissionVariant]:
 
 
 def _resolve_mission_template(name: str) -> Mission:
-    mission = _MISSION_BY_NAME.get(name)
-    if mission is not None:
-        return mission
+    for mission in MISSIONS:
+        if mission.name == name or mission.full_name() == name:
+            return mission
 
-    delim_count = name.count(MAP_MISSION_DELIMITER)
-    if delim_count == 0:
-        site_name, mission_name = name, None
-    elif delim_count == 1:
-        site_name, mission_name = name.split(MAP_MISSION_DELIMITER)
-    else:
+    if MAP_MISSION_DELIMITER not in name:
+        try:
+            return find_mission(name, None)
+        except ValueError as exc:
+            raise ValueError(f"Mission '{name}' not found. Run `cogames missions` to list valid names.") from exc
+
+    if name.count(MAP_MISSION_DELIMITER) > 1:
         raise ValueError(f"Mission name can contain at most one '{MAP_MISSION_DELIMITER}' delimiter")
 
+    site_name, mission_name = name.split(MAP_MISSION_DELIMITER)
     try:
         return find_mission(site_name, mission_name)
     except ValueError as exc:
