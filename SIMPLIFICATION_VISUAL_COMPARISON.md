@@ -3,6 +3,7 @@
 ## Data Flow Comparison
 
 ### CURRENT (Complex)
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  Episode Completion (score=0.7)                             │
@@ -49,6 +50,7 @@
 ```
 
 ### SIMPLIFIED (Proposed)
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  Episode Completion (score=0.7)                             │
@@ -84,22 +86,23 @@
 ## Cache Structure Comparison
 
 ### CURRENT (7 cache structures)
+
 ```python
 class BidirectionalLPScorer:
     # Arrays for all tasks
     _task_dist: Optional[np.ndarray]              # [256] floats
-    _raw_lp_scores: Optional[np.ndarray]          # [256] floats  
+    _raw_lp_scores: Optional[np.ndarray]          # [256] floats
     _postzscored_lp_scores: Optional[np.ndarray]  # [256] floats
-    
-    # Per-task dictionaries  
+
+    # Per-task dictionaries
     _score_cache: Dict[int, float]                # {task_id: score}
     _raw_lp_cache: Dict[int, float]               # {task_id: raw_lp}
     _postzscored_lp_cache: Dict[int, float]       # {task_id: postz_lp}
-    
+
     # Cache management
     _cache_valid_tasks: set[int]                  # {task_id, ...}
     _stale_dist: bool
-    
+
     # Selective update tracking
     _last_outcome_counts: Dict[int, int]          # {task_id: count}
 ```
@@ -107,11 +110,12 @@ class BidirectionalLPScorer:
 **Memory**: ~15KB for 256 tasks + hash table overhead
 
 ### SIMPLIFIED (1 flag)
+
 ```python
 class BidirectionalLPScorer:
     # Just track if distribution needs global normalization
     _dist_stale: bool
-    
+
     # Everything else lives in shared memory
 ```
 
@@ -124,6 +128,7 @@ class BidirectionalLPScorer:
 ## Stats Collection Comparison
 
 ### CURRENT (3 classes, indirection)
+
 ```
 stats() call
     │
@@ -143,6 +148,7 @@ stats() call
 ```
 
 ### SIMPLIFIED (direct computation)
+
 ```
 stats() call
     │
@@ -159,6 +165,7 @@ stats() call
 ## API Surface Comparison
 
 ### CURRENT (Confusing)
+
 ```python
 # Which one should I use?
 curriculum.get_task_lp_score(task_id)           # Final score?
@@ -171,6 +178,7 @@ algorithm.scorer.get_raw_lp_score(task_id, tracker)  # Different from above?
 ```
 
 ### SIMPLIFIED (Clear)
+
 ```python
 # One way to get the sampling probability
 curriculum.get_task_lp_score(task_id)  # Returns: probability this task will be sampled
@@ -185,6 +193,7 @@ curriculum.get_task_lp_score(task_id)  # Returns: probability this task will be 
 ## Code Complexity Metrics
 
 ### Lines of Code
+
 ```
 Current:
   BidirectionalLPScorer:     ~500 lines
@@ -201,10 +210,11 @@ Reduction: 64% fewer lines
 ```
 
 ### Cyclomatic Complexity
+
 ```
 Current:
   update_task_performance(): 8 branches
-  score_task():             12 branches  
+  score_task():             12 branches
   _calculate_task_distribution(): 10 branches
   Average complexity:       10
 
@@ -218,6 +228,7 @@ Reduction: 67% lower complexity
 ```
 
 ### State Variables
+
 ```
 Current:  15 instance variables (caches, flags, tracking)
 Simplified: 3 instance variables (just essentials)
@@ -230,24 +241,26 @@ Reduction: 80% fewer state variables
 ## Debugging Experience
 
 ### CURRENT (Check 3 places)
+
 ```python
 # Where's the bug? Check all these:
 1. Shared memory (TaskTracker)
    - Is completion_count correct?
    - Is reward_ema updating?
    - Are bidirectional EMAs (p_fast, p_slow) updating?
-   
+
 2. Local caches (BidirectionalLPScorer)
    - Is _task_dist stale?
    - Are _score_cache entries valid?
    - Is _cache_valid_tasks correct?
-   
+
 3. Stats caches (LPStatsAggregator)
    - Is stats cache stale?
    - When was it last invalidated?
 ```
 
 ### SIMPLIFIED (Check 1 place)
+
 ```python
 # Single source of truth:
 1. Shared memory (TaskTracker)
@@ -261,18 +274,19 @@ Reduction: 80% fewer state variables
 ## Testing Complexity
 
 ### CURRENT
+
 ```python
 def test_lp_score_calculation():
     # Need to test cache invalidation
     scorer.update_with_score(task_id, 0.5)
     assert scorer._stale_dist == True
-    
+
     # Need to test cache hit
     score1 = scorer.score_task(task_id, tracker)
     scorer._stale_dist = False  # Manually set for test
     score2 = scorer.score_task(task_id, tracker)
     assert score1 == score2  # Should use cache
-    
+
     # Need to test cache miss
     scorer._cache_valid_tasks.remove(task_id)
     score3 = scorer.score_task(task_id, tracker)
@@ -280,16 +294,17 @@ def test_lp_score_calculation():
 ```
 
 ### SIMPLIFIED
+
 ```python
 def test_lp_score_calculation():
     # Test the actual calculation
     scorer.update_with_score(task_id, 0.5)
     score = scorer.score_task(task_id, tracker)
-    
+
     # Verify it's in shared memory
     task_stats = tracker.get_task_stats(task_id)
     assert task_stats["lp_score"] == score
-    
+
     # That's it! No cache logic to test
 ```
 
@@ -298,17 +313,19 @@ def test_lp_score_calculation():
 ## Summary: Why This Matters
 
 ### For Development
+
 - **Faster onboarding**: New developers understand in 10 minutes vs 2 hours
 - **Easier debugging**: One place to look, not three
 - **Fewer bugs**: 67% lower complexity = proportionally fewer bugs
 
-### For Operations  
+### For Operations
+
 - **Better observability**: Inspect shared memory directly
 - **Easier troubleshooting**: Clear data flow
 - **Lower memory usage**: 15KB → 1 byte per scorer
 
 ### For Research
+
 - **Faster iteration**: Change algorithm without cache invalidation logic
 - **Clearer comparisons**: No cache artifacts affecting results
 - **Better reproducibility**: Single source of truth eliminates cache-order dependencies
-

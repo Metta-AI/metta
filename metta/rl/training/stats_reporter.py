@@ -1064,23 +1064,22 @@ class StatsReporter(TrainerComponent):
                 continue
 
             if label not in per_label:
-                per_label[label] = {"raw": 0.0, "postzscored": 0.0, "count": 0}
+                per_label[label] = {"lp_score": 0.0, "count": 0}
 
-            per_label[label]["raw"] += algorithm.get_task_raw_lp_score(task_id)
-            per_label[label]["postzscored"] += algorithm.get_task_postzscored_lp_score(task_id)
+            # Get the final LP score (after z-score normalization and all transforms)
+            lp_score = algorithm.get_task_lp_score(task_id)
+            per_label[label]["lp_score"] += lp_score
             per_label[label]["count"] += 1
 
         # Compute averages
         for label, score_dict in per_label.items():
             count = score_dict.pop("count")
             if count > 0:
-                # Average raw and postzscored (diagnostic metrics)
-                score_dict["raw"] /= count
-                score_dict["postzscored"] /= count
+                # Average LP score across tasks with this label
+                score_dict["lp_score"] /= count
 
                 # Add to stats (prob was already added by _get_per_label_sampling_probs)
-                stats[f"curriculum_stats/per_label_lp_scores/{label}"] = float(score_dict["raw"])
-                stats[f"curriculum_stats/per_label_postzscored_lp_scores/{label}"] = float(score_dict["postzscored"])
+                stats[f"curriculum_stats/per_label_lp_scores/{label}"] = float(score_dict["lp_score"])
 
         return stats
 
