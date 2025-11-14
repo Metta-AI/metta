@@ -139,8 +139,53 @@ def check_bootstrap_deps() -> bool:
     return True
 
 
-def install_system_packages(run_command, non_interactive: bool = False) -> None:
+def _simple_run_command(
+    cmd: list[str],
+    cwd: Path | None = None,
+    check: bool = True,
+    capture_output: bool = True,
+    env: dict[str, str] | None = None,
+    non_interactive: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    """Simple run_command wrapper for standalone CLI usage.
+
+    This provides a minimal run_command implementation for use outside of SetupModule context.
+    """
+    from metta.common.util.fs import get_repo_root
+
+    if cwd is None:
+        cwd = get_repo_root()
+
+    # Set up environment for non-interactive mode
+    if env is None:
+        env = {}
+    full_env = os.environ.copy()
+    full_env.update(env)
+
+    if non_interactive:
+        full_env["DEBIAN_FRONTEND"] = "noninteractive"
+        full_env["NEEDRESTART_MODE"] = "a"
+        full_env["UCF_FORCE_CONFFNEW"] = "1"
+        stdin = subprocess.DEVNULL
+    else:
+        stdin = None
+
+    return subprocess.run(
+        cmd,
+        cwd=cwd,
+        check=check,
+        capture_output=capture_output,
+        stdin=stdin,
+        env=full_env,
+        text=True,
+    )
+
+
+def install_system_packages(run_command=None, non_interactive: bool = False) -> None:
     """Install git and g++ via system package manager."""
+    if run_command is None:
+        run_command = _simple_run_command
+
     if platform.system() == "Darwin":
         if shutil.which("brew"):
             for pkg in ["git", "gcc"]:
@@ -187,7 +232,7 @@ def get_bazelisk_url() -> str:
         raise RuntimeError(f"Unsupported platform: {system}")
 
 
-def install_bazel(run_command, non_interactive: bool = False) -> None:
+def install_bazel(run_command=None, non_interactive: bool = False) -> None:
     """Install bazel via bazelisk."""
     ensure_paths()
 
@@ -321,7 +366,7 @@ def link_nim_bins(src_dir: Path) -> None:
         info(f"Linked Nim binaries into {install_dir}. Ensure this directory is in your PATH.")
 
 
-def install_nim_via_nimby(run_command, non_interactive: bool = False) -> None:
+def install_nim_via_nimby(run_command=None, non_interactive: bool = False) -> None:
     """Install nim via nimby."""
     remove_legacy_nim_installations()
     ensure_paths()
@@ -416,7 +461,7 @@ def install_nim_via_nimby(run_command, non_interactive: bool = False) -> None:
     link_nim_bins(nim_bin_dir)
 
 
-def install_bootstrap_deps(run_command, non_interactive: bool = False) -> None:
+def install_bootstrap_deps(run_command=None, non_interactive: bool = False) -> None:
     """Install all bootstrap dependencies: bazel, nimby, nim, git, g++."""
     ensure_paths()
 
@@ -430,3 +475,41 @@ def install_bootstrap_deps(run_command, non_interactive: bool = False) -> None:
     install_nim_via_nimby(run_command, non_interactive=non_interactive)
 
     ensure_paths()
+
+
+def main() -> None:
+    """CLI entrypoint for bootstrap installation."""
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(description="Install bootstrap dependencies (bazel, nimby, nim, git, g++)")
+    parser.add_argument(
+        "--non-interactive",
+        action="store_true",
+        help="Run in non-interactive mode (no prompts)",
+    )
+    parser.add_argument(
+        "--check-only",
+        action="store_true",
+        help="Only check if bootstrap deps are installed (don't install)",
+    )
+    args = parser.parse_args()
+
+    if args.check_only:
+        if check_bootstrap_deps():
+            print("All bootstrap dependencies are installed.")
+            sys.exit(0)
+        else:
+            print("Some bootstrap dependencies are missing.")
+            sys.exit(1)
+
+    try:
+        install_bootstrap_deps(_simple_run_command, non_interactive=args.non_interactive)
+        print("Bootstrap dependencies installed successfully.")
+    except Exception as e:
+        error(f"Failed to install bootstrap dependencies: {e}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

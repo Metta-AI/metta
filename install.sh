@@ -91,6 +91,17 @@ if ! check_cmd uv; then
   echo "uv installed successfully"
 fi
 
+# Install bootstrap dependencies (bazel, nimby, nim, git, g++) BEFORE uv sync
+# This ensures uv sync can build packages like mettagrid that require these tools
+if [ -n "$NON_INTERACTIVE_ADDITION" ]; then
+  BOOTSTRAP_NON_INTERACTIVE="--non-interactive"
+else
+  BOOTSTRAP_NON_INTERACTIVE=""
+fi
+
+echo "Installing bootstrap dependencies..."
+uv run python -m metta.setup.components.system_packages.bootstrap $BOOTSTRAP_NON_INTERACTIVE
+
 uv sync
 uv run python -m metta.setup.metta_cli install $PROFILE_ADDITION $NON_INTERACTIVE_ADDITION
 if [ "$INSTALL_CUDA_EXTRAS" = "1" ]; then
