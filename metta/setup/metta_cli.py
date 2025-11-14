@@ -620,15 +620,20 @@ def cmd_pr_feed(
     """Show PRs that touch files in a specific path."""
     import json
 
-    # Validate status
-    valid_statuses = {"open": "OPEN", "closed": "CLOSED", "merged": "MERGED", "all": "OPEN, CLOSED, MERGED"}
+    # Validate status and convert to GraphQL enum
+    # Note: "closed" includes both CLOSED (without merge) and MERGED
+    valid_statuses = {
+        "open": ("OPEN", "OPEN"),
+        "closed": ("CLOSED, MERGED", "CLOSED"),
+        "merged": ("MERGED", "MERGED"),
+        "all": ("OPEN, CLOSED, MERGED", "ALL"),
+    }
     if status not in valid_statuses:
         error(f"Invalid status: {status}. Choose from: open, closed, merged, all")
         raise typer.Exit(1)
 
     # Convert to GraphQL enum
-    states = valid_statuses[status]
-    status_display = status.upper()
+    states, status_display = valid_statuses[status]
 
     console = Console()
     console.print(f"🔍 Searching for [yellow]{status_display}[/yellow] PRs touching: [cyan]{path}[/cyan]")
