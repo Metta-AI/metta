@@ -634,7 +634,7 @@ def cmd_pr_feed(
     # Note: "closed" includes both CLOSED (without merge) and MERGED
     status_mapping = {
         PRStatus.OPEN: ("OPEN", "OPEN"),
-        PRStatus.CLOSED: ("CLOSED, MERGED", "CLOSED"),
+        PRStatus.CLOSED: ("CLOSED, MERGED", "CLOSED/MERGED"),
         PRStatus.MERGED: ("MERGED", "MERGED"),
         PRStatus.ALL: ("OPEN, CLOSED, MERGED", "ALL"),
     }
