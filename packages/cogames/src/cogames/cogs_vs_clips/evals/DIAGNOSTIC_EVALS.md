@@ -320,7 +320,7 @@ for diagnostic_class in DIAGNOSTIC_EVALS:
 ```bash
 # Evaluate baseline agent on all diagnostics
 cd packages/cogames
-uv run python scripts/evaluate_scripted_agents.py \
+uv run python scripts/run_evaluation.py \
   --agent baseline \
   --mission-set diagnostic_evals \
   --cogs 1 2 4 \

@@ -334,7 +334,7 @@ Included missions and variants:
 Usage example:
 
 ```bash
-uv run python packages/cogames/scripts/evaluate_scripted_agents.py \
+uv run python packages/cogames/scripts/run_evaluation.py \
   --agent cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy \
   --mission-set integrated_evals \
   --cogs 4 \

@@ -10,32 +10,32 @@ Tests any policy including:
 
 Usage:
   # Evaluate all predefined agents
-  uv run python packages/cogames/scripts/evaluate_scripted_agents.py --agent all
+  uv run python packages/cogames/scripts/run_evaluation.py --agent all
 
   # Evaluate specific scripted agent (shorthand)
-  uv run python packages/cogames/scripts/evaluate_scripted_agents.py \\
+  uv run python packages/cogames/scripts/run_evaluation.py \\
       --agent baseline --experiments oxygen_bottleneck --cogs 1
 
   # Evaluate NIM agent (shorthand)
-  uv run python packages/cogames/scripts/evaluate_scripted_agents.py \\
+  uv run python packages/cogames/scripts/run_evaluation.py \\
       --agent thinky --experiments oxygen_bottleneck --cogs 1
 
   # Evaluate ladybug (unclipping agent) with specific config
-  uv run python packages/cogames/scripts/evaluate_scripted_agents.py \\
+  uv run python packages/cogames/scripts/run_evaluation.py \\
       --agent ladybug --mission-set integrated_evals --cogs 2 4
 
   # Evaluate with full policy path and local checkpoint
-  uv run python packages/cogames/scripts/evaluate_scripted_agents.py \\
+  uv run python packages/cogames/scripts/run_evaluation.py \\
       --agent cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy \\
       --checkpoint ./checkpoints/model.pt --experiments oxygen_bottleneck --cogs 1
 
   # Evaluate with S3 checkpoint URI
-  uv run python packages/cogames/scripts/evaluate_scripted_agents.py \\
+  uv run python packages/cogames/scripts/run_evaluation.py \\
       --agent cogames.policy.lstm.LSTMPolicy \\
       --checkpoint s3://bucket/path/to/checkpoint.mpt --experiments oxygen_bottleneck --cogs 1
 
   # Evaluate directly from S3 URI (policy_path is the checkpoint URI)
-  uv run python packages/cogames/scripts/evaluate_scripted_agents.py \\
+  uv run python packages/cogames/scripts/run_evaluation.py \\
       --agent s3://bucket/path/to/checkpoint.mpt --experiments oxygen_bottleneck --cogs 1
 """
 
