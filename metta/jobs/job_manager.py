@@ -12,9 +12,14 @@ from sqlmodel import Session, SQLModel, create_engine, select
 
 from devops.skypilot.utils.job_helpers import check_job_statuses
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
-from metta.jobs.job_metrics import _strip_ansi_codes, parse_cogames_eval_results, parse_cogames_stats_from_logs
 from metta.jobs.job_config import JobConfig, MetricsSource
-from metta.jobs.job_metrics import extract_skypilot_job_id, fetch_wandb_metrics
+from metta.jobs.job_metrics import (
+    _strip_ansi_codes,
+    extract_skypilot_job_id,
+    fetch_wandb_metrics,
+    parse_cogames_eval_results,
+    parse_cogames_stats_from_logs,
+)
 from metta.jobs.job_runner import LocalJob, RemoteJob
 from metta.jobs.job_state import JobState, JobStatus
 
@@ -25,6 +30,8 @@ class ExitCode:
     """Special exit codes."""
 
     SKIPPED = -2  # Job skipped due to failed dependency
+    ABNORMAL = -3  # Job terminated abnormally
+    CANCELLED = -4  # Job was cancelled
 
 
 class JobManager:
@@ -574,7 +581,7 @@ class JobManager:
             session.commit()
 
         job_type = "remote" if config.remote else "local"
-        task_spec = config.tool_maker if config.tool_maker else config.cmd
+        task_spec = config.recipe if config.recipe else config.cmd
         logger.info(
             f"Job submitted: {config.name} | type={job_type} | task={task_spec} | "
             f"metrics_source={config.metrics_source.value} | metrics={config.metrics_to_track}"

@@ -56,7 +56,7 @@ class AcceptanceCriterion(Config):
 class JobConfig(Config):
     """Job specification combining execution config with task parameters.
 
-    Use either `tool` (for tools/run.py) or `cmd` (for arbitrary commands), not both.
+    Use either `recipe` (for tools/run.py) or `cmd` (for arbitrary commands), not both.
     remote=None runs locally, remote=RemoteConfig(...) runs remotely.
     metrics_source specifies where/how to collect metrics (wandb, cogames_log, artifacts, or none).
     metrics_to_track lists which metrics to monitor.
@@ -66,7 +66,7 @@ class JobConfig(Config):
     """
 
     name: str
-    tool_maker: str | None = None  # Tool maker path for tools/run.py (e.g., "recipes.prod.arena_basic_easy_shaped.train")
+    recipe: str | None = None  # Recipe path for tools/run.py (e.g., "recipes.prod.arena_basic_easy_shaped.train")
     cmd: str | None = None  # Arbitrary command string (e.g., "pytest tests/")
     args: dict[str, Any] = Field(default_factory=dict)
     overrides: dict[str, Any] = Field(default_factory=dict)
@@ -89,12 +89,12 @@ class JobConfig(Config):
     artifacts: list[str] = Field(default_factory=list)  # Expected artifact names (e.g., ["eval_results.json"])
 
     @model_validator(mode="after")
-    def validate_tool_or_cmd(self):
-        """Validate that exactly one of tool_maker or cmd is provided."""
-        if self.tool_maker and self.cmd:
-            raise ValueError("Cannot specify both 'tool_maker' and 'cmd'. Use one or the other.")
-        if not self.tool_maker and not self.cmd:
-            raise ValueError("Must specify either 'tool_maker' or 'cmd'.")
+    def validate_recipe_or_cmd(self):
+        """Validate that exactly one of recipe or cmd is provided."""
+        if self.recipe and self.cmd:
+            raise ValueError("Cannot specify both 'recipe' and 'cmd'. Use one or the other.")
+        if not self.recipe and not self.cmd:
+            raise ValueError("Must specify either 'recipe' or 'cmd'.")
 
         # If using cmd, args and overrides should be empty
         if self.cmd and (self.args or self.overrides):
@@ -113,8 +113,8 @@ class JobConfig(Config):
             # Parse arbitrary command string into list
             return shlex.split(self.cmd)
         else:
-            # Build tools/run.py command from tool_maker + args + overrides
-            cmd = ["uv", "run", "./tools/run.py", self.tool_maker]
+            # Build tools/run.py command from recipe + args + overrides
+            cmd = ["uv", "run", "./tools/run.py", self.recipe]
             for k, v in self.args.items():
                 cmd.append(f"{k}={v}")
             for k, v in self.overrides.items():

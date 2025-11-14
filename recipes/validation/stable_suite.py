@@ -6,7 +6,7 @@ Job names are fully qualified with user/timestamp and version.
 
 from __future__ import annotations
 
-from metta.jobs.job_config import AcceptanceCriterion, JobConfig, MetricsSource, RemoteConfig
+from metta.jobs.job_config import AcceptanceCriterion, JobConfig, RemoteConfig
 
 
 def get_stable_jobs(prefix: str) -> list[JobConfig]:
@@ -29,7 +29,7 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
     arena_train_name = f"{prefix}.arena_single_gpu_100m"
     arena_train_100m = JobConfig(
         name=arena_train_name,
-        tool_maker="recipes.prod.arena_basic_easy_shaped.train",
+        recipe="recipes.prod.arena_basic_easy_shaped.train",
         args={
             "run": arena_train_name,
             "trainer.total_timesteps": "100000000",
@@ -47,7 +47,7 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
     arena_eval_100m_name = f"{prefix}.arena_evaluate_100m"
     arena_eval_100m = JobConfig(
         name=arena_eval_100m_name,
-        tool_maker="recipes.prod.arena_basic_easy_shaped.evaluate",
+        recipe="recipes.prod.arena_basic_easy_shaped.evaluate",
         args={"policy_uris": f'["s3://softmax-public/policies/{arena_train_name}:latest"]'},
         dependency_names=[arena_train_name],
         timeout_s=1800,
@@ -57,7 +57,7 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
     arena_train_2b_name = f"{prefix}.arena_multi_gpu_2b"
     arena_train_2b = JobConfig(
         name=arena_train_2b_name,
-        tool_maker="recipes.prod.arena_basic_easy_shaped.train",
+        recipe="recipes.prod.arena_basic_easy_shaped.train",
         args={
             "run": arena_train_2b_name,
             "trainer.total_timesteps": "2000000000",
@@ -75,7 +75,7 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
     arena_eval_2b_name = f"{prefix}.arena_evaluate_2b"
     arena_eval_2b = JobConfig(
         name=arena_eval_2b_name,
-        tool_maker="recipes.prod.arena_basic_easy_shaped.evaluate",
+        recipe="recipes.prod.arena_basic_easy_shaped.evaluate",
         args={"policy_uris": f'["s3://softmax-public/policies/{arena_train_2b_name}:latest"]'},
         dependency_names=[arena_train_2b_name],
         timeout_s=1800,
@@ -89,7 +89,7 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
     cvc_small_train_name = f"{prefix}.cvc_small_multi_gpu_2b"
     cvc_small_train_2b = JobConfig(
         name=cvc_small_train_name,
-        tool_maker="recipes.prod.cvc.small_maps.train",
+        recipe="recipes.prod.cvc.small_maps.train",
         args={
             "run": cvc_small_train_name,
             "trainer.total_timesteps": "2000000000",
@@ -106,7 +106,7 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
     cvc_eval_2b_name = f"{prefix}.cvc_evaluate_2b"
     cvc_eval_2b = JobConfig(
         name=cvc_eval_2b_name,
-        tool_maker="recipes.prod.cvc.small_maps.evaluate",
+        recipe="recipes.prod.cvc.small_maps.evaluate",
         args={"policy_uris": f'["s3://softmax-public/policies/{cvc_small_train_name}:latest"]'},
         dependency_names=[cvc_small_train_name],
         timeout_s=1800,
@@ -121,7 +121,7 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
     cogames_s3_uri = f"s3://softmax-public/cogames/{cogames_train_name}/checkpoint.pt"
     cogames_train_100k = JobConfig(
         name=cogames_train_name,
-        tool_maker="recipes.prod.cogames.train",
+        recipe="recipes.prod.cogames.train",
         args={
             "mission": "training_facility.harvest",
             "variant": '["standard"]',
@@ -137,7 +137,7 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
     cogames_eval_name = f"{prefix}.cogames_eval_100k"
     cogames_eval_100k = JobConfig(
         name=cogames_eval_name,
-        tool_maker="recipes.prod.cogames.evaluate",
+        recipe="recipes.prod.cogames.evaluate",
         args={
             "mission": "training_facility.harvest",
             "variant": '["standard"]',

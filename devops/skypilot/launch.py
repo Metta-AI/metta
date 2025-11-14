@@ -151,13 +151,13 @@ Examples:
         nargs="?",
         help="Module path to run (e.g., arena.train or recipes.experiment.arena.train, "
         "or two-token syntax like 'train arena'). Can also be arbitrary command if --cmd flag is used. "
-        "Any arguments following the module path will be passed to the tool.",
+        "Any arguments following the module path will be passed to the recipe.",
     )
 
     parser.add_argument(
-        "--tool",
+        "--recipe",
         action="store_true",
-        help="Treat module_path as a tool module (wraps with devops/run.sh for torchrun)",
+        help="Treat module_path as a recipe module (wraps with devops/run.sh for torchrun)",
     )
 
     parser.add_argument(
@@ -211,17 +211,17 @@ Examples:
     # Use parse_known_args to handle both launch flags and tool args
     args, tool_args = parser.parse_known_args()
 
-    # Validate flag usage - require explicit --tool or --cmd
-    if args.tool and args.cmd:
-        parser.error("Cannot specify both --tool and --cmd")
-    if not args.tool and not args.cmd:
-        parser.error("Must specify either --tool or --cmd")
+    # Validate flag usage - require explicit --recipe or --cmd
+    if args.recipe and args.cmd:
+        parser.error("Cannot specify both --recipe and --cmd")
+    if not args.recipe and not args.cmd:
+        parser.error("Must specify either --recipe or --cmd")
     if not args.module_path:
         parser.error("module_path is required")
 
-    use_torchrun = args.tool
+    use_torchrun = args.recipe
 
-    # Handle two-token syntax (e.g., 'train arena' → 'arena.train') - only for tool mode
+    # Handle two-token syntax (e.g., 'train arena' → 'arena.train') - only for recipe mode
     module_path = args.module_path
     if use_torchrun:
         second_token = tool_args[0] if tool_args else None
@@ -271,14 +271,14 @@ Examples:
 
     assert commit_hash
 
-    # Validate module path and tool configuration - only for tool mode
+    # Validate module path and recipe configuration - only for recipe mode
     if use_torchrun:
         if not validate_module_path(module_path):
             print(f"❌ Invalid module path: '{module_path}'", flush=True)
             print("Module path should be like 'arena.train' or 'recipes.experiment.arena.train'", flush=True)
             return 1
 
-        # Validate the run.py tool configuration early to catch errors before setting up the task
+        # Validate the run.py recipe configuration early to catch errors before setting up the task
         if not _validate_run_tool(module_path, run_id, filtered_args):
             return 1
 
@@ -290,7 +290,7 @@ Examples:
 
     # Build command based on mode
     if use_torchrun:
-        # Tool mode: pass module and args separately (for devops/run.sh)
+        # Recipe mode: pass module and args separately (for devops/run.sh)
         command = f"{module_path} {' '.join(filtered_args)}"
     else:
         # Command mode: pass full command as-is
