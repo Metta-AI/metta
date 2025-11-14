@@ -1,3 +1,4 @@
+import io
 import logging
 from collections import defaultdict
 from typing import Any
@@ -165,16 +166,21 @@ def render_eval_summary(rollout_results: list[SimulationRunResult], policy_names
     ]
     mission_summaries = list(zip(names, summaries, strict=True))
 
-    def _print(content) -> None:
-        if should_use_rich_console():
-            get_console().print(content)
-        else:
-            console = Console(record=True)
-            console.print(content)
-            logger.info("\n" + console.export_text())
+    if should_use_rich_console():
+        console = get_console()
+    else:
+        buffer = io.StringIO()
+        console = Console(
+            record=True,
+            force_terminal=False,
+            color_system=None,
+            no_color=True,
+            file=buffer,  # Prevents printing to stdout
+        )
+        console._buffer = buffer  # type: ignore[assignment]
 
     if len(policy_names) > 1:
-        _print("\n[bold cyan]Policy Assignments[/bold cyan]")
+        console.print("\n[bold cyan]Policy Assignments[/bold cyan]")
         assignment_table = Table(show_header=True, header_style="bold magenta")
         assignment_table.add_column("Simulation")
         assignment_table.add_column("Policy")
@@ -186,9 +192,9 @@ def render_eval_summary(rollout_results: list[SimulationRunResult], policy_names
                     policy_names[policy_idx],
                     str(policy_summary.agent_count),
                 )
-        _print(assignment_table)
+        console.print(assignment_table)
 
-    _print("\n[bold cyan]Average Game Stats[/bold cyan]")
+    console.print("\n[bold cyan]Average Game Stats[/bold cyan]")
     game_stats_table = Table(show_header=True, header_style="bold magenta")
     game_stats_table.add_column("Simulation")
     game_stats_table.add_column("Metric")
@@ -196,10 +202,10 @@ def render_eval_summary(rollout_results: list[SimulationRunResult], policy_names
     for mission_name, mission in mission_summaries:
         for key, value in mission.avg_game_stats.items():
             game_stats_table.add_row(mission_name, key, f"{value:.2f}")
-    _print(game_stats_table)
+    console.print(game_stats_table)
 
     if any(policy.action_timeouts for mission in summaries for policy in mission.policy_summaries):
-        _print("\n[bold cyan]Action Generation Timeouts per Policy[/bold cyan]")
+        console.print("\n[bold cyan]Action Generation Timeouts per Policy[/bold cyan]")
         timeouts_table = Table(show_header=True, header_style="bold magenta")
         timeouts_table.add_column("Simulation")
         timeouts_table.add_column("Policy")
@@ -212,9 +218,9 @@ def render_eval_summary(rollout_results: list[SimulationRunResult], policy_names
                         policy_names[i],
                         str(policy_summary.action_timeouts),
                     )
-        _print(timeouts_table)
+        console.print(timeouts_table)
 
-    _print("\n[bold cyan]Average Policy Stats[/bold cyan]")
+    console.print("\n[bold cyan]Average Policy Stats[/bold cyan]")
     for i, policy_name in enumerate(policy_names):
         policy_table = Table(title=policy_name, show_header=True, header_style="bold magenta")
         policy_table.add_column("Mission")
@@ -227,9 +233,9 @@ def render_eval_summary(rollout_results: list[SimulationRunResult], policy_names
                 continue
             for key, value in metrics.items():
                 policy_table.add_row(mission_name, key, f"{value:.2f}")
-        _print(policy_table)
+        console.print(policy_table)
 
-    _print("\n[bold cyan]Average Reward per Agent[/bold cyan]")
+    console.print("\n[bold cyan]Average Reward per Agent[/bold cyan]")
     summary_table = Table(show_header=True, header_style="bold magenta")
     summary_table.add_column("Mission")
     summary_table.add_column("Episode", justify="right")
@@ -242,4 +248,4 @@ def render_eval_summary(rollout_results: list[SimulationRunResult], policy_names
             row.extend((f"{value:.2f}" if value is not None else "-" for value in avg_rewards))
             summary_table.add_row(*row)
 
-    _print(summary_table)
+    console.print(summary_table)
