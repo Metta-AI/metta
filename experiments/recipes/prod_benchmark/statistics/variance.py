@@ -375,7 +375,7 @@ def main():
                 stabilization_change = pct_change
                 break
 
-    if threshold_n:
+    if threshold_n and stabilization_change is not None:
         print(
             f"✓ CV STABILIZED at N = {threshold_n} runs (CV change: {stabilization_change * 100:.2f}%)"
         )
@@ -408,7 +408,7 @@ def main():
                 ci_stabilization_change = pct_change
                 break
 
-    if ci_threshold_n:
+    if ci_threshold_n and ci_stabilization_change is not None:
         print(
             f"✓ CI WIDTH STABILIZED at N = {ci_threshold_n} runs (width change: {ci_stabilization_change * 100:.2f}%)"
         )
