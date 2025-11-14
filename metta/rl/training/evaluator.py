@@ -168,16 +168,16 @@ class Evaluator(TrainerComponent):
 
             # TODO: maybe a better way to get wandb run
             # TODO: Pasha: should also send epochs/episodes/metrics to stats-server
-        stats_reporter = getattr(self.context, "stats_reporter", None)
-        wandb_run = getattr(stats_reporter, "wandb_run", None)
-        if wandb_run:
-            send_eval_results_to_wandb(
-                rollout_results=rollout_results,
-                epoch=epoch,
-                agent_step=agent_step,
-                wandb_run=wandb_run,
-                should_finish_run=False,
-            )
+            stats_reporter = getattr(self.context, "stats_reporter", None)
+            wandb_run = getattr(stats_reporter, "wandb_run", None)
+            if wandb_run:
+                send_eval_results_to_wandb(
+                    rollout_results=rollout_results,
+                    epoch=epoch,
+                    agent_step=agent_step,
+                    wandb_run=wandb_run,
+                    should_finish_run=False,
+                )
 
     def _build_policy_spec(self, policy_uri: str) -> PolicySpec:
         return CheckpointManager.policy_spec_from_uri(
