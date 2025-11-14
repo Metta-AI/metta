@@ -112,7 +112,7 @@ MISSIONS: list[Mission] = [
     Machina1OpenWorldMission,
     *EVAL_MISSIONS,
     *INTEGRATED_EVAL_MISSIONS,
-    *[mission_cls() for mission_cls in DIAGNOSTIC_EVALS],
+    *[mission_cls() for mission_cls in DIAGNOSTIC_EVALS],  # type: ignore[call-arg]
 ]
 
 
