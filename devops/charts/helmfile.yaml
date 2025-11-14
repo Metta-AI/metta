@@ -219,5 +219,5 @@ releases:
 # Helpful commands:
 #   Deploy cronjob definition: cd devops/charts && helmfile -l name=<release-name> apply
 #   Inspect cronjob definition: kubectl get cronjobs -n monitoring
-#   Trigger a run of cronjob off-schedule: kubectl -n monitoring create job <custom-name> --from=cronjob/<release-name>
+#   Trigger a run of cronjob off-schedule: kubectl -n monitoring create job <custom-name> --from=cronjob/<release-name>-cronjob
 #   Inspect runs/logs: kubectl get jobs -n monitoring && kubectl logs -n monitoring job/<job-name>
