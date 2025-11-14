@@ -624,7 +624,9 @@ def cmd_go(ctx: typer.Context):
 @app.command(name="pr-feed", help="Show PRs that touch a specific path")
 def cmd_pr_feed(
     path: Annotated[str, typer.Argument(help="Path filter (e.g., metta/jobs)")],
-    num_prs: Annotated[int, typer.Option("--num_prs", help="Maximum number of PRs to search")] = 50,
+    num_prs: Annotated[
+        int, typer.Option("--num_prs", help="Maximum PRs to search (GitHub API limit: 100)", min=1, max=100)
+    ] = 100,
     status: Annotated[PRStatus, typer.Option("--status", help="PR status filter")] = PRStatus.OPEN,
 ):
     """Show PRs that touch files in a specific path."""
