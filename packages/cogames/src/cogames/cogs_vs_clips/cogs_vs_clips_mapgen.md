@@ -319,25 +319,26 @@ Key design choices:
 - Add guidance (`CompassVariant`) on distance-heavy tasks to reduce pure exploration failure modes.
 - Raise agent caps modestly (`PackRatVariant`) to avoid early inventory stalls but keep routing relevant.
 - Shape reward on vibe missions (`HeartChorusVariant`) so partial progress is scored.
-- Neutralize vibes on non-vibe-focused tasks (`NeutralFacedVariant`) to focus on the primary challenge.
+- Keep vibe mechanics intact unless the mission explicitly focuses on vibe manipulation.
 
 Included missions and variants:
 
 - oxygen_bottleneck: `EmptyBaseVariant(missing=["oxygen_extractor"])`, `ResourceBottleneckVariant(["oxygen"])`,
-  `SingleResourceUniformVariant("oxygen_extractor")`, `NeutralFacedVariant`, `PackRatVariant`
-- energy_starved: `EmptyBaseVariant`, `DarkSideVariant`, `NeutralFacedVariant`, `PackRatVariant`
+  `SingleResourceUniformVariant("oxygen_extractor")`, `PackRatVariant`
+- energy_starved: `EmptyBaseVariant`, `DarkSideVariant`, `PackRatVariant`
 - distant_resources: `EmptyBaseVariant`, `CompassVariant`, `DistantResourcesVariant`
-- quadrant_buildings: `EmptyBaseVariant`, `QuadrantBuildingsVariant`, `CompassVariant`, `NeutralFacedVariant`
+- quadrant_buildings: `EmptyBaseVariant`, `QuadrantBuildingsVariant`, `CompassVariant`
 - single_use_swarm: `EmptyBaseVariant`, `SingleUseSwarmVariant`, `CompassVariant`, `PackRatVariant`
 - vibe_check: `HeartChorusVariant`, `VibeCheckMin2Variant`
 
 Usage example:
 
 ```bash
-uv run packages/cogames/scripts/evaluate_policies.py \
-  --eval-module cogames.cogs_vs_clips.evals.integrated_eval \
-  --policy cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy \
-  --cogs 4 --repeats 2 --quiet
+uv run python packages/cogames/scripts/evaluate_scripted_agents.py \
+  --agent cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy \
+  --mission-set integrated_evals \
+  --cogs 4 \
+  --repeats 2
 ```
 
 Recommendation: When designing new scorable baselines, combine one “shaping” variant (e.g., `CompassVariant`,

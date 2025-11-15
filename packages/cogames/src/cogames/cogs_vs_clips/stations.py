@@ -1,7 +1,7 @@
 from pydantic import Field
 
-from cogames.cogs_vs_clips import vibes
 from mettagrid.base_config import Config
+from mettagrid.config import vibes
 from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, GridObjectConfig, ProtocolConfig, WallConfig
 
 resources = [

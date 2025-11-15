@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Callable, Optional, Sequence
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from mettagrid import MettaGridConfig
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
@@ -27,6 +27,7 @@ class MultiEpisodeRolloutResult(BaseModel):
     rewards: list[np.ndarray]
     action_timeouts: list[np.ndarray]
     stats: list[EpisodeStats]
+    replay_paths: list[str] = Field(default_factory=list)
 
 
 def _compute_policy_agent_counts(num_agents: int, proportions: list[float]) -> list[int]:
@@ -84,6 +85,8 @@ def multi_episode_rollout(
     per_episode_stats: list[EpisodeStats] = []
     per_episode_assignments: list[np.ndarray] = []
     per_episode_timeouts: list[np.ndarray] = []
+    all_replay_paths: list[str] = []
+
     rng = np.random.default_rng(seed)
     for episode_idx in range(episodes):
         rng.shuffle(assignments)
@@ -91,9 +94,12 @@ def multi_episode_rollout(
             policies[assignments[agent_id]].agent_policy(agent_id) for agent_id in range(env_cfg.game.num_agents)
         ]
         handlers = list(event_handlers or [])
-        # Set up replay event handlers if save_replay is provided
+
+        # Create a new replay writer for each episode if save_replay is provided
+        episode_replay_writer = None
         if save_replay is not None:
-            handlers.append(ReplayLogWriter(str(save_replay)))
+            episode_replay_writer = ReplayLogWriter(str(save_replay))
+            handlers.append(episode_replay_writer)
 
         rollout = Rollout(
             env_cfg,
@@ -109,6 +115,10 @@ def multi_episode_rollout(
         per_episode_timeouts.append(np.array(rollout.timeout_counts, dtype=float))
         per_episode_assignments.append(assignments.copy())
 
+        # Collect replay paths from this episode's writer
+        if episode_replay_writer is not None:
+            all_replay_paths.extend(episode_replay_writer.get_written_replay_paths())
+
         if progress_callback is not None:
             progress_callback(episode_idx)
 
@@ -117,4 +127,5 @@ def multi_episode_rollout(
         stats=per_episode_stats,
         action_timeouts=per_episode_timeouts,
         assignments=per_episode_assignments,
+        replay_paths=all_replay_paths,
     )
