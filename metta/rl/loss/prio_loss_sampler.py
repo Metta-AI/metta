@@ -53,7 +53,28 @@ class PrioLossSampler(Loss):
         self.adv_magnitude = torch.tensor(0.0, dtype=torch.float32, device=self.device)
         self.prio_weights = torch.tensor(0.0, dtype=torch.float32, device=self.device)
         self.prio_probs = torch.tensor(0.0, dtype=torch.float32, device=self.device)
+        self.all_prio_is_weights = None
         self.anneal_beta = 0.0
+
+        if hasattr(self.policy, "burn_in_steps"):
+            self.burn_in_steps = self.policy.burn_in_steps
+        else:
+            self.burn_in_steps = 0
+        self.burn_in_steps_iter = 0
+
+    def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
+        """Rollout step: forward policy and store experience with optional burn-in."""
+        with torch.no_grad():
+            self.policy.forward(td)
+
+        if self.burn_in_steps_iter < self.burn_in_steps:
+            self.burn_in_steps_iter += 1
+            return
+
+        env_slice = context.training_env_id
+        if env_slice is None:
+            raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
+        self.replay.store(data_td=td, env_id=env_slice)
 
     def run_train(
         self,
@@ -61,8 +82,8 @@ class PrioLossSampler(Loss):
         context: ComponentContext,
         mb_idx: int,
     ) -> tuple[Tensor, TensorDict, bool]:
-
         if mb_idx == 0:
+            # precompute what we can upfront on the first mb. Then index as we need based on sampling.
             if "ratio" in self.replay.buffer.keys():
                 self.replay.buffer["ratio"].fill_(1.0)
 
@@ -85,29 +106,42 @@ class PrioLossSampler(Loss):
                     advantages,
                     cfg.gamma,
                     cfg.gae_lambda,
-                    cfg.vtrace.rho_clip,
-                    cfg.vtrace.c_clip,
+                    1.0,  # v-trace is used in PPO actor instead. 1.0 means no v-trace
+                    1.0,  # v-trace is used in PPO actor instead. 1.0 means no v-trace
                     self.device,
                 )
 
             self.adv_magnitude = self.advantages.abs().sum(dim=1)
-            self.prio_weights = torch.nan_to_num(self.adv_magnitude**cfg.prioritized_experience_replay.prio_alpha, 0, 0, 0)
+            self.prio_weights = torch.nan_to_num(
+                self.adv_magnitude**cfg.prioritized_experience_replay.prio_alpha, 0, 0, 0
+            )
             self.prio_probs = (self.prio_weights + 1e-6) / (self.prio_weights.sum() + 1e-6)
+            self.all_prio_is_weights = (self.replay.segments * self.prio_probs) ** -self.anneal_beta
 
         # Sample segment indices
         idx = torch.multinomial(self.prio_probs, self.replay.minibatch_segments)
 
-        minibatch = self.replay.buffer[idx]
+        minibatch = self.replay.buffer[idx].clone()
 
         with torch.no_grad():
-            minibatch["advantages"] = advantages[idx]
-            minibatch["returns"] = advantages[idx] + minibatch["values"]
-            prio_weights = (self.replay.segments * self.prio_probs[idx, None]) ** -self.anneal_beta
+            minibatch["advantages"] = self.advantages[idx]
+            minibatch["returns"] = self.advantages[idx] + minibatch["values"]
+            prio_weights = self.all_prio_is_weights[idx, None]
 
         shared_loss_data["sampled_mb"] = minibatch  # one loss should write the sampled mb for others to use
         shared_loss_data["indices"] = NonTensorData(idx)  # av this breaks compile
-        shared_loss_data["prio_weights"] = self.prio_weights[idx]
+        shared_loss_data["prio_weights"] = prio_weights
 
-        
+        # Then forward the policy using the sampled minibatch
+        policy_td = minibatch.select(*self.policy_experience_spec.keys(include_nested=True))
+        B, TT = policy_td.batch_size
+        policy_td = policy_td.reshape(B * TT)
+        policy_td.set("bptt", torch.full((B * TT,), TT, device=policy_td.device, dtype=torch.long))
+        policy_td.set("batch", torch.full((B * TT,), B, device=policy_td.device, dtype=torch.long))
+
+        flat_actions = minibatch["actions"].reshape(B * TT, -1)
+
+        policy_td = self.policy.forward(policy_td, action=flat_actions)
+        shared_loss_data["policy_td"] = policy_td.reshape(B, TT)
 
         return torch.tensor(0.0, dtype=torch.float32, device=self.device), shared_loss_data, False

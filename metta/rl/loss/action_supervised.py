@@ -140,6 +140,10 @@ class ActionSupervised(Loss):
 
         minibatch = shared_loss_data["sampled_mb"]
 
+        # av update the below to use the sampler. forward then in the rollout. Should overtake prio sampler rollout.
+        # use loss run gate accordingly
+        # then clean up the below since the sampler runs the policy in training.
+
         policy_td = minibatch.select(*self.policy_experience_spec.keys(include_nested=True))
         B, TT = policy_td.batch_size
         flat_policy_td = policy_td.reshape(B * TT)
