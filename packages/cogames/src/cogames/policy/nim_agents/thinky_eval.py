@@ -59,35 +59,35 @@ EVALS: List[Tuple[str, str, int]] = [
     ("diagnostic_radial", "", 1),
     # Hello World evals
     ("distant_resources", "", NUM_COGS),
-    ("quadrant_buildings", "buggy", NUM_COGS) # Not enough charger for such distances.
+    ("quadrant_buildings", "buggy", NUM_COGS), # Not enough charger for such distances.
     ("vibe_check", "", NUM_COGS),
     ("easy_hearts", "buggy", NUM_COGS),
     ("oxygen_bottleneck_easy", "", NUM_COGS),
     ("oxygen_bottleneck_standard", "", NUM_COGS),
-    ("oxygen_bottleneck_hard", "", NUM_COGS),
+    ("oxygen_bottleneck_hard", "buggy", NUM_COGS), # Not enough charger for such distances.
     ("energy_starved_easy", "", NUM_COGS),
-    ("energy_starved_standard", "", NUM_COGS),
-    ("energy_starved_hard", "", NUM_COGS),
-    ("unclipping_easy", "", NUM_COGS),
-    ("unclipping_standard", "", NUM_COGS),
-    ("unclipping_hard", "", NUM_COGS),
+    ("energy_starved_standard", "buggy", NUM_COGS), # E drain too high.
+    ("energy_starved_hard", "buggy", NUM_COGS), # E drain too high.
+    ("unclipping_easy", "n/a", NUM_COGS),
+    ("unclipping_standard", "n/a", NUM_COGS),
+    ("unclipping_hard", "n/a", NUM_COGS),
     ("distant_resources_easy", "", NUM_COGS),
     ("distant_resources_standard", "", NUM_COGS),
-    ("distant_resources_hard", "", NUM_COGS),
+    ("distant_resources_hard", "buggy", NUM_COGS), # Not enough time for such distances.
     ("quadrant_buildings_easy", "", NUM_COGS),
     ("quadrant_buildings_standard", "", NUM_COGS),
     ("quadrant_buildings_hard", "", NUM_COGS),
-    ("single_use_swarm_easy", "", NUM_COGS),
-    ("single_use_swarm_standard", "", NUM_COGS),
-    ("single_use_swarm_hard", "", NUM_COGS),
-    ("vibe_check_easy", "", NUM_COGS),
+    ("single_use_swarm_easy", "k/e", NUM_COGS),
+    ("single_use_swarm_standard", "buggy", NUM_COGS), # Not enough time for such distances.
+    ("single_use_swarm_hard", "buggy", NUM_COGS), # E drain too high.
+    ("vibe_check_easy", "buggy", NUM_COGS), # No/invalid recipes available.
     ("vibe_check_standard", "", NUM_COGS),
     ("vibe_check_hard", "", NUM_COGS),
     # Hearts evals
     ("easy_large_hearts", "slow", NUM_COGS),
     ("easy_medium_hearts", "", NUM_COGS),
-    ("easy_small_hearts", "", NUM_COGS),
-    ("easy_hearts_training", "", NUM_COGS),
+    ("easy_small_hearts", "k/e", NUM_COGS),
+    ("easy_hearts_training", "buggy", NUM_COGS), # No/invalid recipes available.
 ]
 
 
