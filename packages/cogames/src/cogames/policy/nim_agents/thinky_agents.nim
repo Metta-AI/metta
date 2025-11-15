@@ -235,6 +235,16 @@ proc getNearbyExtractor*(
         let agentsNearby = cfg.getNumAgentsNearby(location, map)
         if agentsNearby > 1:
           continue
+        var skip = false
+        for f in map[location]:
+          if f.featureId == cfg.features.remainingUses and f.value == 0:
+            skip = true
+            break
+          # if f.featureId == cfg.features.cooldownRemaining and f.value > 50:
+          #   skip = true
+          #   break
+        if skip:
+          continue
         let distance = manhattan(location, currentLocation)
         if distance < closestDistance:
           closestDistance = distance
@@ -350,7 +360,7 @@ proc step*(
 
     # Are we running low on energy?
     if invEnergy < MaxEnergy div 4:
-      let chargerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.charger)
+      let chargerNearby = agent.cfg.getNearbyExtractor(agent.location, agent.map, agent.cfg.tags.charger)
       if chargerNearby.isSome():
         measurePush("charger nearby")
         let action = agent.cfg.aStar(agent.location, chargerNearby.get(), agent.map)
@@ -362,7 +372,7 @@ proc step*(
 
     # Charge opportunistically.
     if invEnergy < MaxEnergy - 20:
-      let chargerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.charger)
+      let chargerNearby = agent.cfg.getNearbyExtractor(agent.location, agent.map, agent.cfg.tags.charger)
       if chargerNearby.isSome():
         if manhattan(agent.location, chargerNearby.get()) < 2:
           measurePush("charge nearby")
