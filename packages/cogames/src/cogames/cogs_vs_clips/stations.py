@@ -109,6 +109,7 @@ class GermaniumExtractorConfig(ExtractorConfig):
     efficiency: int = 2
     # How much each additional agent gets.
     synergy: int = 1
+    max_uses: int = Field(default=1)
 
     def station_cfg(self) -> AssemblerConfig:
         return AssemblerConfig(
