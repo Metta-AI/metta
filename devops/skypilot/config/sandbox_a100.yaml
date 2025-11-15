@@ -1,0 +1,168 @@
+resources:
+  cloud: aws
+  region: us-east-1
+  accelerators: "A100:1"
+  cpus: 8+
+  # image_id is overridden by sandbox.py for A100/H100; keep default here
+
+file_mounts:
+  /mnt/s3/softmax-public:
+    source: s3://softmax-public
+    mode: MOUNT_CACHED
+  /mnt/s3/train_dir:
+    source: s3://softmax-train-dir
+    mode: MOUNT_CACHED
+
+# For A100/H100, we bring our own host image (AMI with R570+) and then
+# launch the Docker container explicitly to mirror docker:metta:latest behavior.
+setup: |
+  set -euo pipefail
+
+  # Ensure Docker is available and running (idempotent)
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "[SETUP] Installing Docker..."
+    # Try apt first (Ubuntu DLAMIs). Ignore failures silently (user images may preinstall Docker).
+    if command -v apt-get >/dev/null 2>&1; then
+      sudo apt-get update -y || true
+      sudo apt-get install -y docker.io || true
+      sudo systemctl enable docker || true
+    fi
+  fi
+
+  if ! systemctl is-active --quiet docker 2>/dev/null; then
+    echo "[SETUP] Starting Docker service..."
+    sudo systemctl start docker || true
+  fi
+
+  # Install NVIDIA Container Toolkit if missing (optional best-effort)
+  if ! docker info 2>/dev/null | grep -qi nvidia; then
+    echo "[SETUP] NVIDIA Container Toolkit not detected; attempting best-effort install..."
+    if command -v apt-get >/dev/null 2>&1; then
+      # This follows NVIDIA docs loosely; ignore failures to avoid breaking provisioning.
+      distribution=$(. /etc/os-release; echo $ID$VERSION_ID) || true
+      curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg || true
+      curl -fsSL https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list | \
+        sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+        sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list >/dev/null || true
+      sudo apt-get update -y || true
+      sudo apt-get install -y nvidia-container-toolkit || true
+      sudo nvidia-ctk runtime configure --runtime=docker || true
+      sudo systemctl restart docker || true
+    fi
+  fi
+
+run: |
+  set -euo pipefail
+
+  echo "[RUN] Preparing Docker credentials (if provided by platform)..."
+  if [ -n "${SKYPILOT_DOCKER_SERVER:-}" ] && [ -n "${SKYPILOT_DOCKER_USERNAME:-}" ] && [ -n "${SKYPILOT_DOCKER_PASSWORD:-}" ]; then
+    echo "$SKYPILOT_DOCKER_PASSWORD" | docker login "$SKYPILOT_DOCKER_SERVER" -u "$SKYPILOT_DOCKER_USERNAME" --password-stdin || true
+  else
+    echo "[RUN] No SKYPILOT_DOCKER_* creds injected; attempting AWS ECR login..."
+    # Ensure AWS CLI is present
+    if ! command -v aws >/dev/null 2>&1; then
+      if command -v apt-get >/dev/null 2>&1; then
+        echo "[RUN] Installing awscli via apt..."
+        sudo apt-get update -y || true
+        sudo apt-get install -y awscli || true
+      fi
+    fi
+    ECR_SERVER="${SKYPILOT_DOCKER_SERVER:-751442549699.dkr.ecr.us-east-1.amazonaws.com}"
+    REGION_FROM_SERVER=$(echo "$ECR_SERVER" | sed -n 's#.*ecr\.\([a-z0-9-]*\)\.amazonaws\.com#\1#p')
+    AWS_REGION_EFFECTIVE="${AWS_REGION:-${AWS_DEFAULT_REGION:-${REGION_FROM_SERVER:-us-east-1}}}"
+    if command -v aws >/dev/null 2>&1; then
+      echo "[RUN] Logging into ECR registry $ECR_SERVER (region=$AWS_REGION_EFFECTIVE)"
+      if aws ecr get-login-password --region "$AWS_REGION_EFFECTIVE" | docker login --username AWS --password-stdin "$ECR_SERVER"; then
+        echo "[RUN] ECR login successful."
+      else
+        echo "[RUN] ECR login failed; will rely on existing Docker auth."
+      fi
+    else
+      echo "[RUN] AWS CLI not available; cannot auto-login to ECR."
+    fi
+  fi
+
+  IMAGE="${SKYPILOT_DOCKER_SERVER:-751442549699.dkr.ecr.us-east-1.amazonaws.com}/metta:latest"
+  CONTAINER_NAME="metta"
+
+  echo "[RUN] Ensuring long-lived container '$CONTAINER_NAME' is running..."
+  echo "[RUN] Pulling image: $IMAGE"
+  if ! docker pull "$IMAGE"; then
+    echo "[RUN] Failed to pull $IMAGE; check ECR access and repository name."
+    exit 100
+  fi
+  if ! docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
+    echo "[RUN] Creating container $CONTAINER_NAME from $IMAGE"
+    docker run -d \
+      --name "$CONTAINER_NAME" \
+      --gpus all \
+      --cap-add=IPC_LOCK \
+      --ulimit memlock=-1:-1 \
+      --ipc=host \
+      --userns=host \
+      --entrypoint /bin/sh \
+      -v /mnt/s3/softmax-public:/mnt/s3/softmax-public \
+      -v /mnt/s3/train_dir:/mnt/s3/train_dir \
+      -e GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-Metta-AI/metta}" \
+      -e METTA_GIT_REF="${METTA_GIT_REF:-main}" \
+      -e WANDB_PASSWORD="${WANDB_PASSWORD:-}" \
+      -e OBSERVATORY_TOKEN="${OBSERVATORY_TOKEN:-}" \
+      -e SKYPILOT_NUM_GPUS_PER_NODE="${SKYPILOT_NUM_GPUS_PER_NODE:-}" \
+      -e SKYPILOT_NUM_NODES="${SKYPILOT_NUM_NODES:-}" \
+      -e SKYPILOT_NODE_IPS="${SKYPILOT_NODE_IPS:-}" \
+      -e SKYPILOT_NODE_RANK="${SKYPILOT_NODE_RANK:-}" \
+      "$IMAGE" \
+      -c 'trap : TERM INT; while :; do sleep 3600; done'
+
+    echo "[RUN] Waiting for container to be running..."
+    for i in $(seq 1 30); do
+      status=$(docker inspect -f '{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null || echo false)
+      if [ "$status" = "true" ]; then
+        break
+      fi
+      sleep 1
+    done
+    is_running=$(docker inspect -f '{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null || echo false)
+    if [ "$is_running" != "true" ]; then
+      state=$(docker inspect -f '{{.State.Status}}:{{.State.ExitCode}}' "$CONTAINER_NAME" 2>/dev/null || echo unknown)
+      echo "[RUN] Container failed to stay running (state=$state). Last logs:"
+      docker logs --tail 200 "$CONTAINER_NAME" || true
+      exit 101
+    fi
+  else
+    echo "[RUN] Container exists; starting if stopped"
+    docker start "$CONTAINER_NAME" >/dev/null
+  fi
+
+  echo "[RUN] Running setup and environment configuration inside container..."
+  docker exec -i "$CONTAINER_NAME" bash -lc '
+    set -e
+    cd /workspace/metta
+
+    # Activate metta venv if present
+    if [ -n "$VIRTUAL_ENV" ]; then
+      deactivate 2>/dev/null || true
+    fi
+    if [ -f .venv/bin/activate ]; then
+      . .venv/bin/activate
+    fi
+
+    # Ensure repo is on the requested ref and install deps/agents
+    bash ./devops/skypilot/config/lifecycle/setup.sh
+
+    # Configure runtime env
+    bash ./devops/skypilot/config/lifecycle/configure_environment.sh
+
+    METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
+    source "$METTA_ENV_FILE"
+
+    echo "Sandbox setup complete. Ready for SSH."
+  '
+
+envs:
+  GITHUB_REPOSITORY: Metta-AI/metta
+
+secrets:
+  # configured by launch script based on local credentials
+  WANDB_PASSWORD: ""
+  OBSERVATORY_TOKEN: ""

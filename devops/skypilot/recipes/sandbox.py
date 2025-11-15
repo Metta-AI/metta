@@ -53,14 +53,36 @@ credentials_logger.propagate = False
 
 
 def _build_incluster_persist_script(cluster_name: str) -> str:
-    """Return a one-liner to persist cluster name and node count on head (rank 0)."""
+    """Return a one-liner to persist cluster name and node count on head (rank 0).
+
+    If a Docker container is running, prefer persisting inside the container; otherwise,
+    fall back to the host path. This preserves behavior across both docker: runtime and
+    AMI+docker-manual setups.
+    """
     quoted_name = shlex.quote(cluster_name)
     return (
         "set -e; "
         'if [ "${SKYPILOT_NODE_RANK:-0}" != "0" ]; then exit 0; fi; '
-        "mkdir -p /workspace/metta/.cluster; "
-        f'printf "%s\\n" {quoted_name} > /workspace/metta/.cluster/name; '
-        'printf "%s\\n" "${SKYPILOT_NUM_NODES:-1}" > /workspace/metta/.cluster/num_nodes'
+        # Try to find our named container first, then any running container
+        'CID=""; '
+        'if command -v docker >/dev/null 2>&1; then '
+        '  if docker ps -a --format "{{.Names}}" | grep -qx "metta"; then CID=metta; '
+        '  else CID=$(docker ps -q | head -n1); fi; '
+        'fi; '
+        'if [ -n "$CID" ]; then '
+        "  docker exec -i \"$CID\" bash -lc "
+        + shlex.quote(
+            "set -e; "
+            "mkdir -p /workspace/metta/.cluster; "
+            f"printf %s\\n {quoted_name} > /workspace/metta/.cluster/name; "
+            "printf %s\\n \"${SKYPILOT_NUM_NODES:-1}\" > /workspace/metta/.cluster/num_nodes"
+        )
+        + "; "
+        'else '
+        "  mkdir -p /workspace/metta/.cluster; "
+        f"  printf %s\\n {quoted_name} > /workspace/metta/.cluster/name; "
+        '  printf %s\\n "${SKYPILOT_NUM_NODES:-1}" > /workspace/metta/.cluster/num_nodes; '
+        'fi'
     )
 
 
@@ -483,6 +505,10 @@ Common management commands:
 
         print(f"GPU configuration: {bold(str(args.gpus))} {bold(gpu_type)} GPU{'s' if args.gpus != 1 else ''} per node")
 
+        # For A100/H100 families, switch to AMI-host + manual docker recipe
+        if gpu_type in ["A100", "H100", "A100-80GB"]:
+            config_path = "./devops/skypilot/config/sandbox_a100.yaml"
+
         # Get instance type and calculate per-node cost
         instance_type, region, hourly_cost = get_gpu_instance_info(
             args.gpus,
@@ -527,6 +553,12 @@ Common management commands:
             overrides: Dict[str, Any] = {"accelerators": accelerators_override}
             if args.instance_type:
                 overrides["instance_type"] = args.instance_type
+
+            # Use custom AMI for A100 and H100 instances
+            if gpu_type in ["A100", "H100", "A100-80GB"]:
+                overrides["image_id"] = "ami-06161ef177f46b7d3"
+                print(f"Using custom AMI: {cyan('ami-06161ef177f46b7d3')} for {gpu_type}")
+
             task.set_resources_override(overrides)
 
             # Multi-node support
