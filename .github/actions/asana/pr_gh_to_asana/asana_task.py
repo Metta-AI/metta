@@ -150,7 +150,10 @@ class AsanaTask:
         print(f"[validate] Extracted GID: {gid}")
 
         opts = {
-            "opt_fields": "permalink_url,custom_fields,name,notes,modified_at,completed,assignee.email,followers.email,projects.gid"
+            "opt_fields": (
+                "permalink_url,custom_fields,name,notes,modified_at,completed,"
+                "assignee.email,followers.email,projects.gid"
+            )
         }
 
         try:
@@ -160,7 +163,8 @@ class AsanaTask:
             projects = [project["gid"] for project in data.get("projects", [])]
             if self.project_id not in projects:
                 print(
-                    f"[validate] Task not in target project. Task projects: {projects}, target project: {self.project_id}"
+                    f"[validate] Task not in target project. "
+                    f"Task projects: {projects}, target project: {self.project_id}"
                 )
                 return None
 
@@ -245,7 +249,7 @@ class AsanaTask:
             return url
         except Exception as e:
             print(f"[create] Task creation failed: {e}")
-            raise Exception(f"Asana API Error (create): {e}")
+            raise Exception(f"Asana API Error (create): {e}") from e
 
     def update(
         self,
@@ -278,7 +282,7 @@ class AsanaTask:
             print("[update] Task updated successfully")
         except Exception as e:
             print(f"[update] Task update failed: {e}")
-            raise Exception(f"Asana API Error (update): {e}")
+            raise Exception(f"Asana API Error (update): {e}") from e
 
     def update_if_needed(
         self,
@@ -435,9 +439,7 @@ class AsanaTask:
                                 "name": author_name,
                                 "email": comment.get("created_by", {}).get("email"),
                             },
-                            "created_at": datetime.fromisoformat(
-                                comment.get("created_at", "").replace("Z", "+00:00")
-                            ),
+                            "created_at": datetime.fromisoformat(comment.get("created_at", "").replace("Z", "+00:00")),
                             "is_pinned": comment.get("is_pinned", False),
                             "github_url": github_url,
                         }
@@ -473,7 +475,7 @@ class AsanaTask:
             return gid
         except Exception as e:
             print(f"[create_subtask] Failed to create subtask: {e}")
-            raise Exception(f"Asana API Error (create_subtask): {e}")
+            raise Exception(f"Asana API Error (create_subtask): {e}") from e
 
     def get_subtasks(self) -> list[dict]:
         """Get all subtasks of the current task"""
