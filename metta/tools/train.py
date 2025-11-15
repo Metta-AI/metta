@@ -31,8 +31,6 @@ from metta.rl.training import (
     Heartbeat,
     Monitor,
     ProgressLogger,
-    Scheduler,
-    SchedulerConfig,
     StatsReporter,
     StatsReporterConfig,
     TorchProfiler,
@@ -45,6 +43,7 @@ from metta.rl.training import (
     WandbAborterConfig,
     WandbLogger,
 )
+from metta.rl.training.scheduler import LossScheduler, SchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import (
     auto_run_name,
@@ -71,6 +70,7 @@ class TrainTool(Tool):
     group: Optional[str] = None
     evaluator: EvaluatorConfig = Field(default_factory=EvaluatorConfig)
     torch_profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
+    scheduler: SchedulerConfig | None = None
 
     context_checkpointer: dict[str, Any] = Field(default_factory=dict)
     stats_reporter: StatsReporterConfig = Field(default_factory=StatsReporterConfig)
@@ -238,27 +238,17 @@ class TrainTool(Tool):
         if heartbeat_cfg is not None:
             components.append(Heartbeat(epoch_interval=heartbeat_cfg.epoch_interval))
 
-        # Ensure learning-rate schedules stay in sync across ranks
-        hyper_cfg = getattr(self.trainer, "hyperparameter_scheduler", None)
-        if hyper_cfg and getattr(hyper_cfg, "enabled", False):
-            interval = getattr(hyper_cfg, "epoch_interval", 1) or 1
-            hyper_component = Scheduler(SchedulerConfig(interval=max(1, int(interval))))
-            components.append(hyper_component)
-
         stats_component: TrainerComponent | None = None
 
         if distributed_helper.is_master():
             stats_config = self.stats_reporter.model_copy(update={"report_to_wandb": bool(wandb_run)})
-            reporting_enabled = (
-                stats_config.report_to_wandb or stats_config.report_to_stats_client or stats_config.report_to_console
-            )
+            reporting_enabled = stats_config.report_to_wandb or stats_config.report_to_console
 
             if self.gradient_reporter.epoch_interval:
                 components.append(GradientReporter(self.gradient_reporter))
 
             stats_component = StatsReporter.from_config(
                 stats_config,
-                stats_client=stats_client,
                 wandb_run=wandb_run,
             )
 
@@ -322,6 +312,9 @@ class TrainTool(Tool):
 
         if wandb_run is not None and distributed_helper.is_master():
             trainer.register(WandbLogger(wandb_run))
+
+        if self.scheduler is not None:
+            trainer.register(LossScheduler(self.scheduler))
 
     def _configure_torch_backends(self) -> None:
         if not torch.cuda.is_available():

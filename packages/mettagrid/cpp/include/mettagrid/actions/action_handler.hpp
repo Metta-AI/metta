@@ -111,6 +111,8 @@ public:
     }
   }
 
+  // Returns true if the action was executed, false otherwise. In particular, a result of false should have no impact
+  // on the environment, and should imply that the agent effectively took a noop action.
   bool handle_action(Agent& actor, ActionArg arg) {
     // Handle frozen status
     if (actor.frozen != 0) {
