@@ -63,6 +63,8 @@ def train(
     tool.trainer.batch_size = 4096
     tool.trainer.bptt_horizon = 16
 
+    tool.trainer.losses.supervisor.teacher_random_walk_prob = 0.2
+
     tool.wandb.enabled = False
     tool.system.vectorization = vectorization
     tool.system.device = "cpu"

@@ -14,6 +14,8 @@ from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.loss.replay_samplers import sample_minibatch_sequential
 from metta.rl.training import ComponentContext
 
+WALK_ACTION_IDS = torch.tensor([1, 2, 3, 4], dtype=torch.long)
+
 
 class ActionSupervisedConfig(LossConfig):
     action_loss_coef: float = Field(default=0.6, ge=0)
@@ -27,6 +29,7 @@ class ActionSupervisedConfig(LossConfig):
         default=False, description="Whether to use student-led training"
     )  # sigma as per Matt's document
     action_reward_coef: float = Field(default=0.01, ge=0)  # wild ass guess at this point
+    teacher_random_walk_prob: float = Field(default=0.0, ge=0.0, le=1.0)
 
     # Controls whether to add the imitation loss to the environment rewards.
     add_action_loss_to_rewards: bool = Field(default=True)
@@ -58,6 +61,7 @@ class ActionSupervised(Loss):
         "use_own_sampling",
         "student_led",
         "action_reward_coef",
+        "teacher_random_walk_prob",
     )
 
     def __init__(
@@ -82,6 +86,7 @@ class ActionSupervised(Loss):
         self.use_own_sampling = self.cfg.use_own_sampling
         self.student_led = self.cfg.student_led
         self.action_reward_coef = self.cfg.action_reward_coef
+        self.teacher_random_walk_prob = self.cfg.teacher_random_walk_prob
 
     def get_experience_spec(self) -> Composite:
         scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
@@ -120,6 +125,8 @@ class ActionSupervised(Loss):
             # when sending to the environment. After it gets sent to env it is no longer used.
             # NOTE: teacher-leading means actions reported to wandb are teacher actions, not student actions
             td["actions"] = td["teacher_actions"]
+            if self.teacher_random_walk_prob > 0:
+                self._maybe_apply_random_walk(td["actions"])
 
     def run_train(
         self,
@@ -203,3 +210,22 @@ class ActionSupervised(Loss):
         loss = actor_loss + value_loss
 
         return loss, shared_loss_data, False
+
+    def _maybe_apply_random_walk(self, actions: Tensor) -> None:
+        if WALK_ACTION_IDS.numel() == 0:
+            return
+        noise_mask = torch.rand(actions.shape, device=actions.device) < self.teacher_random_walk_prob
+        if not noise_mask.any():
+            return
+        walk_ids = WALK_ACTION_IDS.to(actions.device)
+        random_choices = walk_ids[
+            torch.randint(
+                low=0,
+                high=walk_ids.shape[0],
+                size=(int(noise_mask.sum().item()),),
+                device=actions.device,
+            )
+        ]
+        flat_actions = actions.view(-1)
+        flat_mask = noise_mask.view(-1)
+        flat_actions[flat_mask] = random_choices
