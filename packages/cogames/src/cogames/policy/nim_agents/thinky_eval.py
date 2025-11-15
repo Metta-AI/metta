@@ -38,7 +38,7 @@ EVALS: List[Tuple[str, str, int]] = [
     ("collect_far", "", NUM_COGS),
     ("divide_and_conquer", "", NUM_COGS),
     ("go_together", "", NUM_COGS),
-    ("single_use_swarm", "", NUM_COGS),
+    ("single_use_swarm", "k/e", NUM_COGS),
     # Diagnostic evals
     ("diagnostic_chest_navigation1", "", 1),
     ("diagnostic_chest_navigation2", "", 1),
@@ -58,7 +58,7 @@ EVALS: List[Tuple[str, str, int]] = [
     ("diagnostic_agile", "", 1),
     ("diagnostic_radial", "", 1),
     # Hello World evals
-    ("distant_resources", "", NUM_COGS),
+    ("distant_resources", "k/e", NUM_COGS), # Not enough time for such distances.
     ("quadrant_buildings", "buggy", NUM_COGS), # Not enough charger for such distances.
     ("vibe_check", "", NUM_COGS),
     ("easy_hearts", "buggy", NUM_COGS),
@@ -72,17 +72,17 @@ EVALS: List[Tuple[str, str, int]] = [
     ("unclipping_standard", "n/a", NUM_COGS),
     ("unclipping_hard", "n/a", NUM_COGS),
     ("distant_resources_easy", "", NUM_COGS),
-    ("distant_resources_standard", "", NUM_COGS),
+    ("distant_resources_standard", "k/e", NUM_COGS), # Not enough time for such distances.
     ("distant_resources_hard", "buggy", NUM_COGS), # Not enough time for such distances.
     ("quadrant_buildings_easy", "", NUM_COGS),
-    ("quadrant_buildings_standard", "", NUM_COGS),
-    ("quadrant_buildings_hard", "", NUM_COGS),
+    ("quadrant_buildings_standard", "buggy", NUM_COGS), # Not enough charger for such distances.
+    ("quadrant_buildings_hard", "buggy", NUM_COGS), # Not enough charger for such distances.
     ("single_use_swarm_easy", "k/e", NUM_COGS),
     ("single_use_swarm_standard", "buggy", NUM_COGS), # Not enough time for such distances.
     ("single_use_swarm_hard", "buggy", NUM_COGS), # E drain too high.
     ("vibe_check_easy", "buggy", NUM_COGS), # No/invalid recipes available.
     ("vibe_check_standard", "", NUM_COGS),
-    ("vibe_check_hard", "", NUM_COGS),
+    ("vibe_check_hard", "k/e", NUM_COGS), # Not enough time for such distances.
     # Hearts evals
     ("easy_large_hearts", "slow", NUM_COGS),
     ("easy_medium_hearts", "", NUM_COGS),
@@ -212,14 +212,18 @@ def main() -> None:
     start = time.perf_counter()
     total_hpa = 0.0
     successful_evals = 0
+    num_evals = 0
     for experiment_name, tag, num_cogs in EVALS:
+        if tag != "":
+          continue
+        num_evals += 1
         hpa = run_eval(experiment_name, tag, mission_map, num_cogs)
         if hpa > 0:
             successful_evals += 1
         total_hpa += hpa
-    success_rate = successful_evals / len(EVALS)
+    success_rate = successful_evals / num_evals
     elapsed = time.perf_counter() - start
-    total_evals = f"{len(EVALS)} evals {success_rate * 100:.1f}% successful"
+    total_evals = f"{num_evals} evals {success_rate * 100:.1f}% successful"
     hpa = f"{total_hpa:.2f}"
     tm = f"{elapsed:.2f}"
     tag = "total"
