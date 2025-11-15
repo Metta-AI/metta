@@ -36,6 +36,7 @@ type
     exploreStage: int
     knownExtractors: Table[ResourceKind, HashSet[Location]]
     depletedExtractors: Table[ResourceKind, HashSet[Location]]
+    knownStations: Table[int, HashSet[Location]]
     pendingUnclip: bool
     unclipKind: ResourceKind
     unclipLocation: Location
@@ -131,6 +132,9 @@ proc resourceInventoryFeature(agent: RaceCarAgent, kind: ResourceKind): int =
   of rkGermanium: agent.cfg.features.invGermanium
   of rkSilicon: agent.cfg.features.invSilicon
 
+proc seekKnownStation(agent: RaceCarAgent, tagId: int): Option[int32]
+proc seekKnownExtractor(agent: RaceCarAgent, kind: ResourceKind): Option[int32]
+
 proc ensureResourceTarget(agent: RaceCarAgent, kind: ResourceKind, amount: int) =
   case kind
   of rkCarbon:
@@ -179,10 +183,21 @@ proc handleUnclip(
       return true
     let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
     if assemblerNearby.isSome():
+      let dist = manhattan(agent.location, assemblerNearby.get())
+      if dist <= 1:
+        doAction(agent.cfg.actions.noop.int32)
+        log "crafting gear at assembler"
+        return true
       let action = agent.cfg.aStar(agent.location, assemblerNearby.get(), agent.map)
       if action.isSome():
         doAction(action.get().int32)
+        log "moving to assembler to craft gear"
         return true
+    let knownAssembler = agent.seekKnownStation(agent.cfg.tags.assembler)
+    if knownAssembler.isSome():
+      doAction(knownAssembler.get())
+      log "seeking known assembler for gear crafting"
+      return true
     return false
 
   let target = agent.unclipLocation
@@ -191,9 +206,17 @@ proc handleUnclip(
     if vibe != agent.cfg.vibes.gear:
       doAction(agent.cfg.actions.vibeGear.int32)
       return true
+    doAction(agent.cfg.actions.noop.int32)
+    log "using gear on clipped extractor"
+    return true
   let action = agent.cfg.aStar(agent.location, target, agent.map)
   if action.isSome():
     doAction(action.get().int32)
+    return true
+  let knownExtractor = agent.seekKnownExtractor(kind)
+  if knownExtractor.isSome():
+    doAction(knownExtractor.get())
+    log "pathing to known clipped extractor"
     return true
   false
 
@@ -217,6 +240,29 @@ proc extractorTargets(agent: RaceCarAgent, kind: ResourceKind): seq[Location] =
       if agent.depletedExtractors.hasKey(kind) and location in agent.depletedExtractors[kind]:
         continue
       result.add(location)
+
+proc recordStation(agent: RaceCarAgent, tagId: int, location: Location) =
+  if not agent.knownStations.hasKey(tagId):
+    agent.knownStations[tagId] = initHashSet[Location]()
+  agent.knownStations[tagId].incl(location)
+
+proc stationTargets(agent: RaceCarAgent, tagId: int): seq[Location] =
+  if agent.knownStations.hasKey(tagId):
+    for location in agent.knownStations[tagId]:
+      result.add(location)
+
+proc seekKnownStation(agent: RaceCarAgent, tagId: int): Option[int32] =
+  var best: Option[int32]
+  var bestDist = high(int)
+  for location in agent.stationTargets(tagId):
+    let dist = manhattan(agent.location, location)
+    if dist >= bestDist:
+      continue
+    let action = agent.cfg.aStar(agent.location, location, agent.map)
+    if action.isSome():
+      bestDist = dist
+      best = some(action.get().int32)
+  best
 
 proc seekKnownExtractor(agent: RaceCarAgent, kind: ResourceKind): Option[int32] =
   var best: Option[int32]
@@ -316,6 +362,7 @@ proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
   result.exploreStage = 0
   result.knownExtractors = initTable[ResourceKind, HashSet[Location]]()
   result.depletedExtractors = initTable[ResourceKind, HashSet[Location]]()
+  result.knownStations = initTable[int, HashSet[Location]]()
   result.pendingUnclip = false
   result.unclipKind = rkCarbon
   result.unclipLocation = Location(x: 0, y: 0)
@@ -413,6 +460,10 @@ proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]])
                 agent.depletedExtractors[resource.get()].excl(location)
                 if agent.pendingUnclip and agent.unclipLocation == location:
                   agent.pendingUnclip = false
+            elif tagValue == agent.cfg.tags.charger or
+                tagValue == agent.cfg.tags.assembler or
+                tagValue == agent.cfg.tags.chest:
+              agent.recordStation(tagValue, location)
         else:
           agent.map[location] = @[]
         agent.seen.incl(location)
@@ -536,6 +587,19 @@ proc step*(
           agent.recharging = true
           doAction(action.get().int32)
           log "going to charger"
+          return
+      let chargerAction = agent.seekKnownStation(agent.cfg.tags.charger)
+      if chargerAction.isSome():
+        agent.recharging = true
+        doAction(chargerAction.get())
+        log "navigating to cached charger"
+        return
+      if invEnergy <= lowThreshold:
+        let exploreForCharger = agent.scoutAction()
+        if exploreForCharger.isSome():
+          agent.recharging = true
+          doAction(exploreForCharger.get())
+          log "scouting for charger"
           return
 
     if agent.handleUnclip(
