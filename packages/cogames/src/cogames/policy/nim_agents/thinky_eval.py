@@ -13,6 +13,8 @@ from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
+import cogames.policy.nim_agents.agents as na
+
 
 # Agent to evaluate
 AGENT_PATH = "cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy"
@@ -206,6 +208,7 @@ def run_eval(experiment_name: str, tag: str, mission_map: Dict[str, Mission], nu
 
 def main() -> None:
     fix_logger()
+    na.start_measure()
     mission_map = _load_all_missions()
     print("tag .. map name ............................... harts/A .. time")
     start = time.perf_counter()
@@ -223,6 +226,7 @@ def main() -> None:
     tm = f"{elapsed:.2f}"
     tag = "total"
     print(f"{tag:<6} {total_evals:<40} {hpa:>6}h {tm:>6}s")
+    na.end_measure()
 
 
 if __name__ == "__main__":

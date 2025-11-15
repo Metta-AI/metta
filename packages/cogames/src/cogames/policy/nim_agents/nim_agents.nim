@@ -1,6 +1,7 @@
 import
-  genny,
+  genny, fidget2/measure,
   random_agents, thinky_agents, race_car_agents, ladybug_agent
+
 
 proc ctrlCHandler() {.noconv.} =
   echo "\nNim DLL caught ctrl-c, exiting..."
@@ -10,9 +11,20 @@ proc nim_agents_init_chook*() =
   setControlCHook(ctrlCHandler)
   echo "NimAgents initialized"
 
+proc startMeasure() =
+  startTrace()
+
+proc endMeasure() =
+  try:
+    endTrace()
+    dumpMeasures(0.0, "tmp/trace.json")
+  except:
+    echo "Error ending measure: ", getCurrentExceptionMsg()
 
 exportProcs:
   nim_agents_init_chook
+  startMeasure
+  endMeasure
 
 exportRefObject RandomPolicy:
   constructor:

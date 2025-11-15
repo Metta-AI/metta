@@ -1,6 +1,7 @@
 
 import
   std/[strformat, strutils, tables, sets, options, algorithm],
+  fidget2/measure,
   jsony
 
 type
@@ -788,7 +789,7 @@ proc aStar*(
   currentLocation: Location,
   targetLocation: Location,
   map: Table[Location, seq[FeatureValue]]
-): Option[int] =
+): Option[int] {.measure.} =
   ## Navigate to the given location using A*. Returns the next action to take.
   if currentLocation == targetLocation:
     return none(int)
