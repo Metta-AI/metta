@@ -36,6 +36,9 @@ type
     exploreStage: int
     knownExtractors: Table[ResourceKind, HashSet[Location]]
     depletedExtractors: Table[ResourceKind, HashSet[Location]]
+    pendingUnclip: bool
+    unclipKind: ResourceKind
+    unclipLocation: Location
 
   RaceCarPolicy* = ref object
     agents*: seq[RaceCarAgent]
@@ -113,6 +116,86 @@ proc tagToResource(agent: RaceCarAgent, tagId: int): Option[ResourceKind] =
   if tagId == agent.cfg.tags.siliconExtractor:
     return some(rkSilicon)
   none(ResourceKind)
+
+proc gearInventoryFeature(agent: RaceCarAgent, kind: ResourceKind): int =
+  case kind
+  of rkCarbon: agent.cfg.features.invDecoder
+  of rkOxygen: agent.cfg.features.invModulator
+  of rkGermanium: agent.cfg.features.invScrambler
+  of rkSilicon: agent.cfg.features.invResonator
+
+proc resourceInventoryFeature(agent: RaceCarAgent, kind: ResourceKind): int =
+  case kind
+  of rkCarbon: agent.cfg.features.invCarbon
+  of rkOxygen: agent.cfg.features.invOxygen
+  of rkGermanium: agent.cfg.features.invGermanium
+  of rkSilicon: agent.cfg.features.invSilicon
+
+proc ensureResourceTarget(agent: RaceCarAgent, kind: ResourceKind, amount: int) =
+  case kind
+  of rkCarbon:
+    agent.carbonTarget = max(agent.carbonTarget, amount)
+  of rkOxygen:
+    agent.oxygenTarget = max(agent.oxygenTarget, amount)
+  of rkGermanium:
+    agent.germaniumTarget = max(agent.germaniumTarget, max(1, amount div 2))
+  of rkSilicon:
+    agent.siliconTarget = max(agent.siliconTarget, amount)
+
+proc inventoryByKind(kind: ResourceKind, invCarbon, invOxygen, invGermanium, invSilicon: int): int =
+  case kind
+  of rkCarbon: invCarbon
+  of rkOxygen: invOxygen
+  of rkGermanium: invGermanium
+  of rkSilicon: invSilicon
+
+proc handleUnclip(
+  agent: RaceCarAgent,
+  map: Table[Location, seq[FeatureValue]],
+  vibe: int,
+  invCarbon: int,
+  invOxygen: int,
+  invGermanium: int,
+  invSilicon: int,
+  doAction: proc(action: int)
+): bool =
+  if not agent.pendingUnclip:
+    return false
+
+  let kind = agent.unclipKind
+  let gearFeature = agent.gearInventoryFeature(kind)
+  let gearCount = agent.cfg.getInventory(map, gearFeature)
+
+  proc ensureInputTarget() =
+    agent.ensureResourceTarget(kind, 5)
+
+  if gearCount == 0:
+    let available = inventoryByKind(kind, invCarbon, invOxygen, invGermanium, invSilicon)
+    if available <= 0:
+      ensureInputTarget()
+      return false
+    if vibe != agent.cfg.vibes.gear:
+      doAction(agent.cfg.actions.vibeGear.int32)
+      return true
+    let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
+    if assemblerNearby.isSome():
+      let action = agent.cfg.aStar(agent.location, assemblerNearby.get(), agent.map)
+      if action.isSome():
+        doAction(action.get().int32)
+        return true
+    return false
+
+  let target = agent.unclipLocation
+  let dist = manhattan(agent.location, target)
+  if dist <= 1:
+    if vibe != agent.cfg.vibes.gear:
+      doAction(agent.cfg.actions.vibeGear.int32)
+      return true
+  let action = agent.cfg.aStar(agent.location, target, agent.map)
+  if action.isSome():
+    doAction(action.get().int32)
+    return true
+  false
 
 proc recordExtractor(agent: RaceCarAgent, kind: ResourceKind, location: Location) =
   if not agent.knownExtractors.hasKey(kind):
@@ -233,6 +316,9 @@ proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
   result.exploreStage = 0
   result.knownExtractors = initTable[ResourceKind, HashSet[Location]]()
   result.depletedExtractors = initTable[ResourceKind, HashSet[Location]]()
+  result.pendingUnclip = false
+  result.unclipKind = rkCarbon
+  result.unclipLocation = Location(x: 0, y: 0)
 
 proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]]) =
   ## Update the big map with the small visible map.
@@ -319,6 +405,14 @@ proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]])
               agent.recordExtractor(resource.get(), location)
               if remainingUses == 0 or clipped:
                 agent.markExtractorDepleted(resource.get(), location)
+                if clipped and not agent.pendingUnclip:
+                  agent.pendingUnclip = true
+                  agent.unclipKind = resource.get()
+                  agent.unclipLocation = location
+              elif agent.depletedExtractors.hasKey(resource.get()):
+                agent.depletedExtractors[resource.get()].excl(location)
+                if agent.pendingUnclip and agent.unclipLocation == location:
+                  agent.pendingUnclip = false
         else:
           agent.map[location] = @[]
         agent.seen.incl(location)
@@ -443,6 +537,16 @@ proc step*(
           doAction(action.get().int32)
           log "going to charger"
           return
+
+    if agent.handleUnclip(
+        map,
+        vibe,
+        invCarbon,
+        invOxygen,
+        invGermanium,
+        invSilicon,
+        proc(action: int) = doAction(action)):
+      return
 
     # Deposit heart into the chest.
     if invHeart > 0:
