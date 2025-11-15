@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run
 import os
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated, Literal, Optional
 
 import typer
 from rich.console import Console
@@ -16,7 +16,7 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 
-repo_root = get_repo_root()
+checked_in_bin = get_repo_root() / "metta" / "setup" / "installer" / "bin"
 local_bin = Path.home() / ".local" / "bin"
 
 
@@ -25,7 +25,9 @@ def _local_bin_is_in_path() -> bool:
     return str(local_bin) in path_dirs
 
 
-def _check_existing(target_symlink: Path, wrapper_script: Path) -> Optional[str]:
+def _check_existing(
+    target_symlink: Path, wrapper_script: Path
+) -> Optional[Literal["ours", "other-but-same-content", "other"]]:
     if not target_symlink.exists():
         return None
 
@@ -90,7 +92,7 @@ def setup_path(force: bool, quiet: bool, target_symlink: Path, wrapper_script: P
         success(f"{name} command is now available")
     else:
         warning(f"{local_bin} is not in your PATH")
-        info("""
+        info(f"""
         To use {name} globally, add this to your shell profile:
           export PATH="$HOME/.local/bin:$PATH"
 
@@ -101,8 +103,8 @@ def setup_path(force: bool, quiet: bool, target_symlink: Path, wrapper_script: P
 
 
 desired_symlinks = [
-    (local_bin / "metta", repo_root / "metta" / "setup" / "installer" / "bin" / "metta"),
-    (local_bin / "cogames", repo_root / "metta" / "setup" / "installer" / "bin" / "cogames"),
+    (local_bin / "metta", checked_in_bin / "metta"),
+    (local_bin / "cogames", checked_in_bin / "cogames"),
 ]
 
 
