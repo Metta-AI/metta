@@ -59,9 +59,9 @@ EVALS: List[Tuple[str, str, int]] = [
     ("diagnostic_radial", "", 1),
     # Hello World evals
     ("distant_resources", "", NUM_COGS),
-    ("quadrant_buildings", "", NUM_COGS)
+    ("quadrant_buildings", "buggy", NUM_COGS) # Not enough charger for such distances.
     ("vibe_check", "", NUM_COGS),
-    ("easy_hearts", "", NUM_COGS),
+    ("easy_hearts", "buggy", NUM_COGS),
     ("oxygen_bottleneck_easy", "", NUM_COGS),
     ("oxygen_bottleneck_standard", "", NUM_COGS),
     ("oxygen_bottleneck_hard", "", NUM_COGS),
