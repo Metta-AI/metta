@@ -18,7 +18,7 @@ Example labels:
   - small_extractor_hub_30_lonely_heart (single variant)
   - small_extractor_hub_30_lonely_heart_pack_rat (2 variants)
   - small_extractor_hub_30_lonely_heart_heart_chorus_pack_rat (3 variants)
-  - medium_collect_resources_spread_lonely_heart_heart_chorus_pack_rat_neutral_faced (all 4)
+  - medium_collect_resources_spread_lonely_heart_heart_chorus_pack_rat (all 3)
 """
 
 from __future__ import annotations
@@ -168,12 +168,8 @@ def make_curriculum(
             change_vibe.enabled = True
             change_vibe.number_of_vibes = len(vibes.VIBES)
 
-            # Restore full vibe names (neutral_faced reduces this to ['default'])
+            # Restore full vibe names for consistent action space
             env.game.vibe_names = [vibe.name for vibe in vibes.VIBES]
-
-            # Note: For neutral_faced, this means the vibe action exists but
-            # assembler protocols still only accept 'default' vibe, so it's
-            # effectively a no-op from a gameplay perspective
 
         # Create a single-task generator for this combination
         task_gen = cc.single_task(env)

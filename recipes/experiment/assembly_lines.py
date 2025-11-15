@@ -393,7 +393,10 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
             rng=rng,
         )
 
-        env_cfg.label = f"{room_size}_{chain_length}chain_{num_sinks}sinks_{terrain}"
+        # Create hierarchical label for curriculum tracking
+        # Format: chain_<length>_sink_<count>_<room_size>_<terrain>
+        # This groups tasks by their key difficulty dimensions
+        env_cfg.label = f"chain_{chain_length}_sink_{num_sinks}_{room_size}_{terrain}"
         return env_cfg
 
 
@@ -412,7 +415,7 @@ def make_task_generator_cfg(
 
 
 def train(
-    curriculum_style: str = "level_0",
+    curriculum_style: str = "all_room_sizes",
 ) -> TrainTool:
     task_generator_cfg = make_task_generator_cfg(**curriculum_args[curriculum_style])
 

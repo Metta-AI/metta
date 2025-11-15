@@ -5,7 +5,6 @@ Each variant modifies agent behavior or reward structure:
   - lonely_heart: Solo-focused behavior
   - heart_chorus: Cooperative behavior
   - pack_rat: Resource hoarding
-  - neutral_faced: Baseline/neutral behavior
 """
 
 from __future__ import annotations
@@ -13,8 +12,8 @@ from __future__ import annotations
 from itertools import combinations
 from typing import Sequence
 
-# The 4 core variants we want to explore
-CORE_VARIANTS = ["lonely_heart", "heart_chorus", "pack_rat", "neutral_faced"]
+# The 3 core variants we want to explore
+CORE_VARIANTS = ["lonely_heart", "heart_chorus", "pack_rat"]
 
 
 def get_single_variants() -> list[tuple[str, ...]]:
@@ -23,28 +22,27 @@ def get_single_variants() -> list[tuple[str, ...]]:
 
 
 def get_variant_pairs() -> list[tuple[str, ...]]:
-    """Get all 2-variant combinations (6 total)."""
+    """Get all 2-variant combinations (3 total)."""
     return list(combinations(CORE_VARIANTS, 2))
 
 
 def get_variant_triples() -> list[tuple[str, ...]]:
-    """Get all 3-variant combinations (4 total)."""
+    """Get all 3-variant combinations (1 total)."""
     return list(combinations(CORE_VARIANTS, 3))
 
 
 def get_all_variants() -> tuple[str, ...]:
-    """Get all 4 variants combined."""
+    """Get all 3 variants combined."""
     return tuple(CORE_VARIANTS)
 
 
 def get_all_combinations() -> list[tuple[str, ...]]:
-    """Get all non-empty combinations of the 4 core variants (15 total).
+    """Get all non-empty combinations of the 3 core variants (7 total).
 
     Returns combinations in order of increasing size:
-    - 4 singles
-    - 6 pairs
-    - 4 triples
-    - 1 quad (all variants)
+    - 3 singles
+    - 3 pairs
+    - 1 triple (all variants)
     """
     result: list[tuple[str, ...]] = []
     result.extend(get_single_variants())
@@ -69,7 +67,7 @@ def get_variant_description(variants: Sequence[str]) -> str:
     if len(variants) == 1:
         return f"Single variant: {variants[0]}"
     elif len(variants) == len(CORE_VARIANTS):
-        return "All 4 core variants"
+        return "All 3 core variants"
     else:
         return f"{len(variants)}-variant combination: {', '.join(variants)}"
 
