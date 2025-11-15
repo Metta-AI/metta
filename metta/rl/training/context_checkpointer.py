@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import ComponentContext, DistributedHelper, TrainerComponent
+from metta.rl.training.optimizer import is_schedulefree_optimizer
 
 logger = logging.getLogger(__name__)
 
@@ -70,9 +71,23 @@ class ContextCheckpointer(TrainerComponent):
         optimizer_state = payload.get("optimizer_state")
         context.state.optimizer_state = optimizer_state
         if optimizer_state:
+            # Defensive: skip restore if saved param groups lack keys the current optimizer expects.
+            current_groups = context.optimizer.param_groups
+            saved_groups = optimizer_state.get("param_groups", [])
+            if current_groups and saved_groups:
+                required = set(current_groups[0].keys())
+                if any(required - set(g.keys()) for g in saved_groups):
+                    logger.warning(
+                        "Checkpoint optimizer state missing required param_group keys %s; skipping restore.",
+                        required,
+                    )
+                    optimizer_state = None
+                    context.state.optimizer_state = None
+
             try:
-                context.optimizer.load_state_dict(optimizer_state)
-            except ValueError as exc:  # pragma: no cover - mismatch rare but we log it
+                if optimizer_state:
+                    context.optimizer.load_state_dict(optimizer_state)
+            except (ValueError, KeyError) as exc:  # pragma: no cover - mismatch rare but we log it
                 logger.warning("Failed to load optimizer state from checkpoint: %s", exc)
             finally:
                 # Drop reference to the restored state to avoid retaining GPU buffers
