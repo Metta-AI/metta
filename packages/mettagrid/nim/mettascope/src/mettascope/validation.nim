@@ -211,49 +211,65 @@ proc validateInventoryList*(inventoryList: JsonNode, fieldName: string, issues: 
         ))
 
 proc validateInventoryFormat*(inventory: JsonNode, fieldName: string, issues: var seq[ValidationIssue]) =
-  ## Validate inventory format: single inventory list or time series of [step, inventory_list] pairs.
+  ## Validate inventory: flat array of item IDs, or time series of [step, inventory_array] pairs.
   if inventory.kind == JNull:
     return
 
   validateType(inventory, "array", fieldName, issues)
-  if inventory.kind == JArray and inventory.len == 0:
+  if inventory.kind != JArray:
     return
 
-  # Check if it's a single inventory list (never changed during replay)
-  # Single inventory format: [[item_id, amount], [item_id, amount], ...]
-  var isSingleInventory = true
-  for item in inventory.getElems():
-    if item.kind != JArray or item.len != 2:
-      isSingleInventory = false
-      break
-    let itemId = item[0]
-    let amount = item[1]
-    if itemId.kind != JInt or (amount.kind notin {JInt, JFloat}):
-      isSingleInventory = false
-      break
-
-  if isSingleInventory:
-    validateInventoryList(inventory, fieldName, issues)
+  if inventory.len == 0:
     return
 
-  # Check if it's a time series format: [[step, inventory_list], ...]
-  for item in inventory.getElems():
-    if item.kind != JArray or item.len != 2:
+  # Check if this is a time series format [[step, inventory_array], ...]
+  # Time series: first element is [step, inventory_array] where step is int and inventory_array is array
+  let firstItem = inventory[0]
+  if firstItem.kind == JArray and firstItem.len == 2:
+    let step = firstItem[0]
+    let inventoryArray = firstItem[1]
+    if step.kind == JInt and step.getInt() >= 0 and inventoryArray.kind == JArray:
+      # This is time series format: [[step, [item_id, item_id, ...]], ...]
+      for item in inventory.getElems():
+        if item.kind != JArray or item.len != 2:
+          issues.add(ValidationIssue(
+            message: &"'{fieldName}' time series items must be [step, inventory_array] pairs",
+            field: fieldName
+          ))
+          continue
+
+        let tsStep = item[0]
+        let tsInventory = item[1]
+
+        if tsStep.kind != JInt or tsStep.getInt() < 0:
+          issues.add(ValidationIssue(
+            message: &"'{fieldName}' time series step must be non-negative integer",
+            field: fieldName
+          ))
+
+        if tsInventory.kind != JArray:
+          issues.add(ValidationIssue(
+            message: &"'{fieldName}' inventory must be array of item IDs, got {tsInventory.kind}",
+            field: fieldName
+          ))
+          continue
+
+        # Validate the inventory array contents
+        for itemId in tsInventory.getElems():
+          if itemId.kind != JInt or itemId.getInt() < 0:
+            issues.add(ValidationIssue(
+              message: &"'{fieldName}' item IDs must be non-negative integers, got {itemId}",
+              field: fieldName
+            ))
+      return
+
+  # Otherwise, treat as single inventory array that does not change over time: [item_id, item_id, ...]
+  for itemId in inventory.getElems():
+    if itemId.kind != JInt or itemId.getInt() < 0:
       issues.add(ValidationIssue(
-        message: &"'{fieldName}' time series items must be [step, inventory_list] pairs",
+        message: &"'{fieldName}' item IDs must be non-negative integers, got {itemId}",
         field: fieldName
       ))
-
-    let step = item[0]
-    let inventoryList = item[1]
-
-    if step.kind != JInt or step.getInt() < 0:
-      issues.add(ValidationIssue(
-        message: &"'{fieldName}' time series step must be non-negative",
-        field: fieldName
-      ))
-
-    validateInventoryList(inventoryList, fieldName, issues)
 
 proc validateLocation*(location: JsonNode, objName: string, issues: var seq[ValidationIssue]) =
   ## Validate location field format: single [x, y] or time series of [step, [x, y]] pairs.
@@ -298,9 +314,10 @@ proc validateLocation*(location: JsonNode, objName: string, issues: var seq[Vali
 
       if coords.kind != JArray or coords.len != 2:
         issues.add(ValidationIssue(
-          message: &"{fieldName} coordinates must be [x, y]",
+          message: &"{fieldName} coordinates must be [x, y] array, got {coords.kind}",
           field: fieldName
         ))
+        continue  # Skip coordinate validation if coords is not an array
 
       if coords.kind == JArray:
         for i, coord in coords.getElems():
@@ -310,12 +327,13 @@ proc validateLocation*(location: JsonNode, objName: string, issues: var seq[Vali
               field: fieldName
             ))
 
-    # Must start with step 0
-    if location.len > 0 and location[0][0].getInt() != 0:
-      issues.add(ValidationIssue(
-        message: &"{fieldName} must start with step 0",
-        field: fieldName
-      ))
+    # Must start with step 0 (only check if we have valid time series data)
+    if location.len > 0 and location[0].kind == JArray and location[0].len >= 1 and location[0][0].kind == JInt:
+      if location[0][0].getInt() != 0:
+        issues.add(ValidationIssue(
+          message: &"{fieldName} must start with step 0",
+          field: fieldName
+        ))
 
 proc validateActionIdRange*(actionIds: JsonNode, objName: string, actionNames: seq[string], issues: var seq[ValidationIssue]) =
   ## Validate that action_id values are within the valid range.
