@@ -14,6 +14,7 @@ from mettagrid.config.mettagrid_config import EnvSupervisorConfig, MettaGridConf
 NIM_TEACHER_POLICY = "nim_thinky"
 DEFAULT_MISSION = "evals.extractor_hub_30"
 DEFAULT_VARIANTS: tuple[str, ...] = ("lonely_heart",)
+SUPERVISED_RESUME_POLICY_URI: str | None = "file://local.root.20251115.022755:v95.mpt"
 
 
 def _load_env_from_mission(
@@ -36,6 +37,7 @@ def train(
     max_steps: int = 1000,
     total_timesteps: int = 262_144,
     vectorization: Literal["serial", "multiprocessing"] = "serial",
+    resume_policy_uri: str | None = SUPERVISED_RESUME_POLICY_URI,
 ) -> TrainTool:
     """Train via supervised imitation from the Nim scripted policy."""
 
@@ -56,7 +58,7 @@ def train(
     )
 
     tool.trainer.behavior_cloning.policy_uri = NIM_TEACHER_POLICY
-    tool.trainer.behavior_cloning.student_led = False
+    tool.trainer.behavior_cloning.student_led = True
 
     tool.trainer.total_timesteps = total_timesteps
     tool.trainer.minibatch_size = 512
@@ -73,5 +75,8 @@ def train(
     tool.evaluator.epoch_interval = 0
     tool.checkpointer.epoch_interval = 1
     tool.training_env.seed = 0
+
+    if resume_policy_uri:
+        tool.initial_policy_uri = resume_policy_uri
 
     return tool
