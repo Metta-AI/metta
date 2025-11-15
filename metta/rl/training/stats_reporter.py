@@ -1,7 +1,7 @@
 """Statistics reporting and aggregation."""
 
 import logging
-from collections import defaultdict
+from collections import defaultdict, deque
 from contextlib import nullcontext
 from typing import Any, ContextManager, Optional, Protocol
 
@@ -111,6 +111,7 @@ class StatsReporterConfig(Config):
     """How often to compute weight metrics (0 disables)."""
     dormant_neuron_threshold: float = 1e-6
     """Threshold for considering a neuron dormant based on mean absolute weight magnitude."""
+    rolling_window: int = Field(default=20, ge=1, description="Number of epochs for metric rolling averages")
 
 
 class StatsReporterState(Config):
@@ -120,6 +121,7 @@ class StatsReporterState(Config):
     grad_stats: dict = Field(default_factory=dict)
     area_under_reward: float = 0.0
     """Cumulative area under the reward curve"""
+    rolling_stats: dict[str, deque[float]] = Field(default_factory=dict)
 
 
 class NoOpStatsReporter(TrainerComponent):
@@ -169,6 +171,7 @@ class StatsReporter(TrainerComponent):
         self._wandb_run = wandb_run
         self._state = StatsReporterState()
         self._latest_payload: dict[str, float] | None = None
+        self._state.rolling_stats = {}
 
     @property
     def wandb_run(self) -> WandbRun | None:
@@ -323,6 +326,8 @@ class StatsReporter(TrainerComponent):
             trainer_config=trainer_cfg,
         )
 
+        self._augment_with_rolling_averages(processed)
+
         timing_info = compute_timing_stats(timer=timer, agent_step=agent_step)
         self._normalize_steps_per_second(timing_info, agent_step)
 
@@ -351,6 +356,21 @@ class StatsReporter(TrainerComponent):
             agent_step=agent_step,
             epoch=epoch,
         )
+
+    def _augment_with_rolling_averages(self, processed: dict[str, Any]) -> None:
+        env_stats = processed.get("environment_stats")
+        if not isinstance(env_stats, dict):
+            return
+        for key, value in list(env_stats.items()):
+            scalar = _to_scalar(value)
+            if scalar is None:
+                continue
+            history = self._state.rolling_stats.get(key)
+            if history is None:
+                history = deque(maxlen=self._config.rolling_window)
+                self._state.rolling_stats[key] = history
+            history.append(scalar)
+            env_stats[f"{key}.avg"] = sum(history) / len(history)
 
     def _normalize_steps_per_second(self, timing_info: dict[str, Any], agent_step: int) -> None:
         """Adjust SPS to account for agent steps accumulated before a resume."""
