@@ -3,7 +3,7 @@ requires = [
   "setuptools==80.9.0",
   "wheel==0.45.1",
   "numpy==2.3.3",
-  "torch==2.9.0",
+  "torch==2.9.0+cu130",
   "setuptools_scm==8.1.0",
 ]
 build-backend = "setuptools.build_meta"
@@ -13,7 +13,8 @@ name = "pufferlib-core"
 description = "PufferLib core functionality with vectorized environments and reinforcement learning"
 readme = "README.md"
 requires-python = ">=3.8"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "Joseph Suarez", email = "jsuarez@openai.com" }]
 keywords = ["reinforcement-learning", "machine-learning", "multi-agent", "vectorized-environments"]
 classifiers = [
