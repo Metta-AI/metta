@@ -147,29 +147,6 @@ class ResourceBottleneckVariant(MissionVariant):
             extractor.efficiency = max(1, int(extractor.efficiency) - 50)
 
 
-class NeutralFacedVariant(MissionVariant):
-    name: str = "neutral_faced"
-    description: str = "Disable vibe swapping; keep neutral face."
-
-    @override
-    def modify_env(self, mission, env):
-        change_vibe = env.game.actions.change_vibe
-        # Fully neutralize the vibe mechanic
-        change_vibe.enabled = False
-        change_vibe.number_of_vibes = 1
-        env.game.vibe_names = ["default"]
-
-        neutral_vibe_name = "default"
-        # Make assembler/chest behavior neutral-only.
-        for name, obj in env.game.objects.items():
-            if isinstance(obj, AssemblerConfig) and obj.protocols:
-                primary_protocol = obj.protocols[0].model_copy(deep=True)
-                primary_protocol.vibes = [neutral_vibe_name]
-                obj.protocols = [primary_protocol]
-            elif isinstance(obj, ChestConfig) and name == "chest":
-                obj.vibe_transfers = {neutral_vibe_name: {"heart": 255}}
-
-
 class SingleToolUnclipVariant(MissionVariant):
     name: str = "single_tool_unclip"
     description: str = "Only one tool is available: the decoder."
@@ -578,36 +555,63 @@ class EmptyBaseVariant(BaseHubVariant):
         node.corner_bundle = "custom"
 
 
+class TraderVariant(MissionVariant):
+    name: str = "trader"
+    description: str = "Agents can trade resources with each other."
+
+    @override
+    def modify_env(self, mission, env):
+        env.game.agent.vibe_transfers.update(
+            {
+                "carbon_a": {"carbon": 1},
+                "carbon_b": {"carbon": 10},
+                "oxygen_a": {"oxygen": 1},
+                "oxygen_b": {"oxygen": 10},
+                "germanium_a": {"germanium": 1},
+                "germanium_b": {"germanium": 4},
+                "silicon_a": {"silicon": 10},
+                "silicon_b": {"silicon": 50},
+                "heart_a": {"heart": 1},
+                "heart_b": {"heart": 4},
+            }
+        )
+
+
 # TODO - validate that all variant names are unique
 VARIANTS: list[MissionVariant] = [
-    MinedOutVariant(),
-    DarkSideVariant(),
-    SuperChargedVariant(),
-    RoughTerrainVariant(),
-    SolarFlareVariant(),
-    HeartChorusVariant(),
-    VibeCheckMin2Variant(),
-    DesertVariant(),
-    ForestVariant(),
-    CityVariant(),
     CavesVariant(),
-    SingleResourceUniformVariant(),
-    EmptyBaseVariant(),
-    LonelyHeartVariant(),
-    PackRatVariant(),
-    EnergizedVariant(),
-    NeutralFacedVariant(),
-    SingleToolUnclipVariant(),
-    ResourceBottleneckVariant(),
-    CompassVariant(),
-    Small50Variant(),
-    CogToolsOnlyVariant(),
-    InventoryHeartTuneVariant(),
     ChestHeartTuneVariant(),
-    ExtractorHeartTuneVariant(),
-    QuadrantBuildingsVariant(),
+    CityVariant(),
     ClipHubStationsVariant(),
-    CyclicalUnclipVariant(),
     ClipPeriodOnVariant(),
+    CogToolsOnlyVariant(),
+    CompassVariant(),
+    CyclicalUnclipVariant(),
+    DarkSideVariant(),
+    DesertVariant(),
+    EmptyBaseVariant(),
+    EnergizedVariant(),
+    ExtractorHeartTuneVariant(),
+    ForestVariant(),
+    HeartChorusVariant(),
+    InventoryHeartTuneVariant(),
+    LonelyHeartVariant(),
+    MinedOutVariant(),
+    PackRatVariant(),
+    QuadrantBuildingsVariant(),
+    ResourceBottleneckVariant(),
+    RoughTerrainVariant(),
+    SingleResourceUniformVariant(),
+    SingleToolUnclipVariant(),
+    Small50Variant(),
+    SolarFlareVariant(),
+    SuperChargedVariant(),
+    TraderVariant(),
+    VibeCheckMin2Variant(),
     *DIFFICULTY_VARIANTS,
+]
+
+# Hidden variants registry: Remains usable but will NOT appear in `cogames variants` listing
+HIDDEN_VARIANTS: list[MissionVariant] = [
+    # Example: ExperimentalVariant(),  # keep empty by default
 ]

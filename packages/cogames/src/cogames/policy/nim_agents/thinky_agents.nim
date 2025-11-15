@@ -258,7 +258,6 @@ proc step*(
         map[location] = @[]
       map[location].add(FeatureValue(featureId: featureId.int, value: value.int))
 
-
     #agent.cfg.drawMap(map, initHashSet[Location]())
     updateMap(agent, map)
     #agent.cfg.drawMap(agent.map, agent.seen)
@@ -283,10 +282,16 @@ proc step*(
     log "active recipe: " & $activeRecipe
 
     if activeRecipe.pattern.len > 0:
+      # Split the cost evenly across the agents.
       agent.carbonTarget = max(agent.carbonTarget, activeRecipe.carbonCost div activeRecipe.pattern.len)
       agent.oxygenTarget = max(agent.oxygenTarget, activeRecipe.oxygenCost div activeRecipe.pattern.len)
       agent.germaniumTarget = max(agent.germaniumTarget, activeRecipe.germaniumCost div activeRecipe.pattern.len)
       agent.siliconTarget = max(agent.siliconTarget, activeRecipe.siliconCost div activeRecipe.pattern.len)
+    else:
+      agent.carbonTarget = max(agent.carbonTarget, activeRecipe.carbonCost)
+      agent.oxygenTarget = max(agent.oxygenTarget, activeRecipe.oxygenCost)
+      agent.germaniumTarget = max(agent.germaniumTarget, activeRecipe.germaniumCost)
+      agent.siliconTarget = max(agent.siliconTarget, activeRecipe.siliconCost)
 
     # Are we running low on energy?
     if invEnergy < MaxEnergy div 4:
