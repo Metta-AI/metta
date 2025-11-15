@@ -5,8 +5,8 @@ Agent/Policy utilities for metta packages.
 ## Installation
 
 ```bash
-# Install using uv
-uv sync --inexact
+# Install using the uv helper (auto-selects CUDA backend)
+./scripts/uv-sync.sh --inexact
 ```
 
 ## Development

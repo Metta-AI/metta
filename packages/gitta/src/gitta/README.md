@@ -18,8 +18,8 @@ A Python library for Git operations, GitHub API interactions, and AI-powered PR 
 ### From Monorepo (Current)
 
 ```bash
-# Install the metta workspace which includes gitta
-uv sync
+# Install the metta workspace which includes gitta (auto-selects CUDA backend)
+./scripts/uv-sync.sh
 ```
 
 ### Standalone (Future)

@@ -23,7 +23,7 @@ RUN apt-get install -y kubectl
 RUN bash install.sh --profile softmax-docker --non-interactive
 
 # Pre-build all packages to avoid OOM during container startup
-RUN uv sync --all-extras --frozen && \
+RUN ./scripts/uv-sync.sh --all-extras --frozen && \
     uv run python -c "import metta.app_backend.eval_task_orchestrator" && \
     uv run python -c "import metta.app_backend.eval_task_worker"
 

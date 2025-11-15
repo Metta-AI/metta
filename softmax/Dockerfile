@@ -12,7 +12,7 @@ RUN bash ./devops/tools/install-system.sh
 
 # Install dependencies for softmax package only
 WORKDIR /workspace/metta/softmax
-RUN uv sync --frozen --no-dev
+RUN ../scripts/uv-sync.sh --frozen --no-dev
 
 # Verify imports work
 RUN uv run python -c "import softmax.dashboard.report" 

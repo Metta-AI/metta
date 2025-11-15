@@ -5,8 +5,8 @@ Common utilities shared across metta packages.
 ## Installation
 
 ```bash
-# Install using uv
-uv sync --inexact
+# Install using uv helper (detects CUDA backend automatically)
+./scripts/uv-sync.sh --inexact
 ```
 
 ## Development

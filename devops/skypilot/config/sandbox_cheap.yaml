@@ -41,7 +41,7 @@ run: |
   . .venv/bin/activate
 
   echo "Setting up Python environment..."
-  uv sync
+  ./scripts/uv-sync.sh
 
   bash ./devops/skypilot/config/lifecycle/configure_environment.sh
 

@@ -2,6 +2,7 @@ import os
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
@@ -33,7 +34,9 @@ class CoreSetup(SetupModule):
             sys.exit(1)
 
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
-        cmd = ["uv", "sync"]
+        repo_root = Path(__file__).resolve().parents[3]
+        uv_sync_script = repo_root / "scripts" / "uv-sync.sh"
+        cmd = [str(uv_sync_script)]
         cmd.extend(["--force-reinstall", "--no-cache"] if force else [])
         env = os.environ.copy()
         env["METTAGRID_FORCE_NIM_BUILD"] = "1"

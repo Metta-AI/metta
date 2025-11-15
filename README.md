@@ -160,6 +160,22 @@ metta install      # Install additional components
 metta configure    # Reconfigure for a different profile
 ```
 
+### PyTorch backend selection
+
+All developer workflows should use `./scripts/uv-sync.sh` instead of invoking `uv sync` directly. The wrapper runs
+`uv sync` and then reinstalls `torch==2.9.1` via `uv pip install --torch-backend=${UV_TORCH_BACKEND:-auto}` so each
+machine automatically pulls the correct CUDA or CPU wheel. Override the backend when needed:
+
+```bash
+# Detect the backend automatically (default)
+./scripts/uv-sync.sh
+
+# Force a specific backend, e.g. CUDA 13.0
+UV_TORCH_BACKEND=cu130 ./scripts/uv-sync.sh
+```
+
+See `docs/repo_organization.md` for more details on the helper script and backend overrides.
+
 ## Usage
 
 The repository contains command-line tools in the `tools/` directory.

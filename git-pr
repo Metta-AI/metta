@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+REPO_ROOT=$(git rev-parse --show-toplevel)
+
 # Ensure not on main branch
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 if [ "$BRANCH" = "main" ]; then
@@ -19,7 +21,7 @@ if [ -n "$(git status --porcelain)" ]; then
 fi
 
 # Make sure everything is up to date
-uv sync
+"$REPO_ROOT"/scripts/uv-sync.sh
 
 # Lint and format
 uv run metta lint --fix

@@ -8,6 +8,7 @@ Usage:
 
 import argparse
 import glob
+import os
 import re
 import subprocess
 import sys
@@ -201,10 +202,10 @@ def main():
         # Step 2: Sync dependencies
         print("\n📦 Syncing dependencies...")
         if not args.dry_run:
-            run_command(["uv", "sync"], cwd=project_root)
+            run_command([os.path.join(project_root, "scripts", "uv-sync.sh")], cwd=project_root)
             print("✓ Dependencies synced")
         else:
-            print("(dry-run: would run 'uv sync')")
+            print("(dry-run: would run './scripts/uv-sync.sh')")
 
         # Step 3: Build the package
         print(f"\n🔨 Building {args.package_name}...")
