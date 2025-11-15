@@ -162,7 +162,7 @@ def run_eval(experiment_name: str, tag: str, mission_map: Dict[str, Mission], nu
     start = time.perf_counter()
     try:
         if experiment_name not in mission_map:
-            return
+            return 0.0
 
         base_mission = mission_map[experiment_name]
         mission = base_mission.with_variants([NumCogsVariant(num_cogs=num_cogs)])
@@ -201,6 +201,7 @@ def run_eval(experiment_name: str, tag: str, mission_map: Dict[str, Mission], nu
         elapsed = time.perf_counter() - start
         error_message = str(e)
         print(f"{tag:<6} {experiment_name:<40} {error_message}")
+        return 0.0
 
 
 def main() -> None:
