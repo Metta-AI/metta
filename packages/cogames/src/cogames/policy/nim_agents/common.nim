@@ -696,7 +696,8 @@ proc getNearbyUnseen*(
   cfg: Config,
   currentLocation: Location,
   map: Table[Location, seq[FeatureValue]],
-  seen: HashSet[Location]
+  seen: HashSet[Location],
+  unreachables: HashSet[Location]
 ): Option[Location] =
   ## Get if there is a nearby location that is unseen.
   var
@@ -705,7 +706,7 @@ proc getNearbyUnseen*(
     closestDistance = 9999
   for spiralLocation in spiral:
     let location = spiralLocation + currentLocation
-    if location notin seen:
+    if location notin seen and location notin unreachables:
       let distance = manhattan(location, currentLocation)
       if distance < closestDistance:
         closestDistance = distance
