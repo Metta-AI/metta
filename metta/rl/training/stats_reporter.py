@@ -361,15 +361,23 @@ class StatsReporter(TrainerComponent):
         env_stats = processed.get("environment_stats")
         if not isinstance(env_stats, dict):
             return
-        for key, value in list(env_stats.items()):
+
+        tracked_keys = set(env_stats.keys()) | set(self._state.rolling_stats.keys())
+        window = self._config.rolling_window
+
+        for key in tracked_keys:
+            value = env_stats.get(key)
             scalar = _to_scalar(value)
-            if scalar is None:
-                continue
             history = self._state.rolling_stats.get(key)
             if history is None:
-                history = deque(maxlen=self._config.rolling_window)
+                history = deque(maxlen=window)
                 self._state.rolling_stats[key] = history
+            if scalar is None:
+                scalar = history[-1] if history else None
+            if scalar is None:
+                continue
             history.append(scalar)
+            env_stats.setdefault(key, scalar)
             env_stats[f"{key}.avg"] = sum(history) / len(history)
 
     def _normalize_steps_per_second(self, timing_info: dict[str, Any], agent_step: int) -> None:
