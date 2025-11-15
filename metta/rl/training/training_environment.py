@@ -15,7 +15,7 @@ from pydantic import Field
 from torch import Tensor
 
 from metta.cogworks.curriculum import Curriculum, CurriculumConfig, env_curriculum
-from metta.rl.batch import calculate_batch_sizes
+from metta.rl.training.batch import calculate_batch_sizes
 from metta.rl.vecenv import make_vecenv
 from mettagrid.base_config import Config
 from mettagrid.builder.envs import make_arena
