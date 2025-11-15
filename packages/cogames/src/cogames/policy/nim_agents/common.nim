@@ -1,6 +1,7 @@
 
 import
   std/[strformat, strutils, tables, sets, options, algorithm],
+  fidget2/measure,
   jsony
 
 type
@@ -788,7 +789,7 @@ proc aStar*(
   currentLocation: Location,
   targetLocation: Location,
   map: Table[Location, seq[FeatureValue]]
-): Option[int] =
+): Option[int] {.measure.} =
   ## Navigate to the given location using A*. Returns the next action to take.
   if currentLocation == targetLocation:
     return none(int)
@@ -861,3 +862,8 @@ proc aStar*(
 
   # No path found — fall back to greedy single-step
   return none(int)
+
+proc remove*[T](seq: var seq[T], item: T) =
+  let index = seq.find(item)
+  if index != -1:
+    seq.delete(index)
