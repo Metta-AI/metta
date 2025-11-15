@@ -83,6 +83,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "notebookwidgets": {"enabled": False},
             "scratchpad": {"enabled": False},
             "pr-similarity": {"enabled": False},
+            "binary-symlinks": {"enabled": True},
         }
     },
     UserType.SOFTMAX: {
@@ -103,6 +104,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "helm": {"enabled": True},
             "pr-similarity": {"enabled": True},
             "ide-extensions": {"enabled": True},
+            "binary-symlinks": {"enabled": True},
         }
     },
 }

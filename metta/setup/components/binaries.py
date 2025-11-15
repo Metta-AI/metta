@@ -1,23 +1,48 @@
-#!/usr/bin/env -S uv run
 import os
 from pathlib import Path
-from typing import Annotated, Literal, Optional
-
-import typer
-from rich.console import Console
+from typing import Literal, Optional
 
 from metta.common.util.fs import get_repo_root
+from metta.setup.components.base import SetupModule
+from metta.setup.registry import register_module
 from metta.setup.utils import debug, error, info, success, warning
-
-console = Console()
-app = typer.Typer(
-    help="Symlink setup for global metta command",
-    rich_markup_mode="rich",
-    no_args_is_help=True,
-)
 
 checked_in_bin = get_repo_root() / "metta" / "setup" / "installer" / "bin"
 local_bin = Path.home() / ".local" / "bin"
+
+
+@register_module
+class BinarySymlinksSetup(SetupModule):
+    always_required = True
+
+    @property
+    def name(self) -> str:
+        return "binary-symlinks"
+
+    @property
+    def description(self) -> str:
+        return "Binaries for metta and cogames CLIs"
+
+    def check_installed(self) -> bool:
+        needs_install = False
+        for target_symlink, wrapper_script in desired_symlinks:
+            status = _check_existing(target_symlink, wrapper_script)
+            name = target_symlink.name
+            if status in ("ours", "other-but-same-content"):
+                debug(f"{name} command is properly installed")
+            elif status == "other":
+                info(f"""
+              {name} command is installed from a different checkout
+              Run 'metta install binary-symlinks --force' to reinstall from this checkout
+              """)
+            else:
+                debug(f"""{name} command is not installed""")
+                needs_install = True
+        return not needs_install
+
+    def install(self, non_interactive: bool = False, force: bool = False) -> None:
+        for target_symlink, wrapper_script in desired_symlinks:
+            setup_path(force=force, quiet=non_interactive, target_symlink=target_symlink, wrapper_script=wrapper_script)
 
 
 def _check_existing(
@@ -101,41 +126,3 @@ desired_symlinks = [
     (local_bin / "metta", checked_in_bin / "metta"),
     (local_bin / "cogames", checked_in_bin / "cogames"),
 ]
-
-
-@app.command(name="setup")
-def cmd_setup(
-    force: Annotated[
-        bool, typer.Option("--force", help="Create or replace symlink to make metta command globally available.")
-    ] = False,
-    quiet: Annotated[bool, typer.Option("--quiet", help="Do not print success messages.")] = False,
-):
-    for target_symlink, wrapper_script in desired_symlinks:
-        setup_path(force=force, quiet=quiet, target_symlink=target_symlink, wrapper_script=wrapper_script)
-
-
-@app.command(name="check")
-def cmd_check():
-    for target_symlink, wrapper_script in desired_symlinks:
-        status = _check_existing(target_symlink, wrapper_script)
-        name = target_symlink.name
-        if status in ("ours", "other-but-same-content"):
-            success(f"{name} command is properly installed")
-        elif status == "other":
-            warning(f"""
-            {name} command is installed from a different checkout
-            Run '{name} symlink-setup setup --force' to reinstall from this checkout
-            """)
-        else:
-            warning(f"""
-            {name} command is not installed
-            Run '{name} symlink-setup setup' to install
-            """)
-
-
-def main():
-    app()
-
-
-if __name__ == "__main__":
-    main()
