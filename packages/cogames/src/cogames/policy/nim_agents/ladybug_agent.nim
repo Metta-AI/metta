@@ -875,9 +875,6 @@ proc doAssemble(agent: LadybugAgent): int =
   )
   if exploreAction.isSome():
     return exploreAction.get()
-  if agent.state.currentGlyph != "heart_a":
-    agent.state.currentGlyph = "heart_a"
-    return agent.vibeAction("heart_a")
   let loc = agent.state.stations["assembler"].get()
   let nav = agent.navigateToAdjacent(loc.y, loc.x)
   if nav.isSome():
@@ -892,9 +889,6 @@ proc doDeliver(agent: LadybugAgent): int =
   )
   if exploreAction.isSome():
     return exploreAction.get()
-  if agent.state.currentGlyph != "default":
-    agent.state.currentGlyph = "default"
-    return agent.vibeAction("default")
   let loc = agent.state.stations["chest"].get()
   let nav = agent.navigateToAdjacent(loc.y, loc.x)
   if nav.isSome():
