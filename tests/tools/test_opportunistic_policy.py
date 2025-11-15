@@ -7,7 +7,6 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-import numpy as np
 import pytest
 
 import mettagrid.builder.envs as eb
@@ -15,7 +14,7 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from mettagrid import PufferMettaGridEnv, dtype_actions, dtype_observations
+from mettagrid import PufferMettaGridEnv, dtype_observations
 from mettagrid.config.mettagrid_config import EnvSupervisorConfig
 from mettagrid.simulator import Simulator
 
@@ -56,7 +55,7 @@ class TestBasicPolicyEnvironment:
         assert obs.shape[0] == env.num_agents
 
         # Test step
-        action = np.array([env.single_action_space.sample() for _ in range(env.num_agents)], dtype=dtype_actions)
+        action = env.action_space.sample()
         obs, reward, done, truncated, info = env.step(action)
 
         assert obs is not None
