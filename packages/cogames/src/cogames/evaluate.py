@@ -67,6 +67,7 @@ def evaluate(
             console.print(f"- {mission_name}")
 
     mission_results: list[MultiEpisodeRolloutResult] = []
+    all_replay_paths: list[str] = []
     for mission_name, env_cfg in missions:
         env_interface = PolicyEnvInterface.from_mg_cfg(env_cfg)
         policy_instances: list[MultiAgentPolicy] = [
@@ -95,10 +96,22 @@ def evaluate(
                 save_replay=save_replay,
             )
         mission_results.append(rollout_payload)
+        # Collect replay paths from this mission
+        if rollout_payload.replay_paths:
+            all_replay_paths.extend(rollout_payload.replay_paths)
 
     summaries = build_multi_episode_rollout_summaries(mission_results, num_policies=len(policy_specs))
     mission_names = [mission_name for mission_name, _ in missions]
     _output_results(console, policy_specs, mission_names, summaries, output_format)
+
+    # Print replay commands if replays were saved
+    if all_replay_paths:
+        console.print(f"\n[bold cyan]Replays saved ({len(all_replay_paths)} episodes)![/bold cyan]")
+        console.print("To watch a replay, run:")
+        console.print("[bold green]cogames replay <replay_path>[/bold green]")
+        console.print("\nExample:")
+        console.print(f"[bold green]cogames replay {all_replay_paths[0]}[/bold green]")
+
     return summaries
 
 
