@@ -182,9 +182,15 @@ class MapBuilder(ABC, Generic[ConfigT]):
 
         if Config._builder_cls:
             # Already bound to another MapBuilder class, so we need to clone it
-            class CloneConfig(Config):
-                pass
-
+            # Make the cloned class picklable by setting __module__ and __qualname__
+            CloneConfig = type(
+                f"{cls.__name__}Config",
+                (Config,),
+                {
+                    "__module__": cls.__module__,
+                    "__qualname__": f"{cls.__qualname__}.Config",
+                },
+            )
             Config = CloneConfig
 
         Config._builder_cls = cls

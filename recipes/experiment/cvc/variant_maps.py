@@ -160,7 +160,7 @@ def make_curriculum(
 
         # Normalize action space: ensure ALL tasks use the full vibe set
         # This is required for consistent action counts across all tasks
-        from cogames.cogs_vs_clips import vibes
+        from mettagrid.config import vibes
 
         change_vibe = getattr(env.game.actions, "change_vibe", None)
         if change_vibe is not None:
