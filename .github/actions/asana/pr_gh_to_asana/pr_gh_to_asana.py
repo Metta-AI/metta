@@ -2,6 +2,7 @@
 # /// script
 # requires-python = ">=3.12"
 # dependencies = [
+#   "asana>=5.2.2",
 #   "requests>=2.31.0",
 #   "vcrpy>=6.0.0",
 #   "pyyaml>=6.0.0"
@@ -229,9 +230,7 @@ if __name__ == "__main__":
             asana_task.synchronize_comments_in_asana(review_comments)
 
             # Synchronize review subtasks based on requested reviewers
-            asana_task.synchronize_review_subtasks(
-                pr.requested_reviewers, mapping.github_login_to_asana_email
-            )
+            asana_task.synchronize_review_subtasks(pr.requested_reviewers, mapping.github_login_to_asana_email)
 
             if "GITHUB_OUTPUT" in os.environ:
                 with open(os.environ["GITHUB_OUTPUT"], "a") as f:
