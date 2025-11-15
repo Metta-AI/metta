@@ -72,15 +72,11 @@ class ContextCheckpointer(TrainerComponent):
         context.state.optimizer_state = optimizer_state
         if optimizer_state:
             # Defensive: skip restore if saved param groups lack keys the current optimizer expects.
-            current_groups = context.optimizer.param_groups
-            saved_groups = optimizer_state.get("param_groups", [])
-            if current_groups and saved_groups:
-                required = set(current_groups[0].keys())
-                if any(required - set(g.keys()) for g in saved_groups):
-                    logger.warning(
-                        "Checkpoint optimizer state missing required param_group keys %s; skipping restore.",
-                        required,
-                    )
+            cg, sg = context.optimizer.param_groups, optimizer_state.get("param_groups", [])
+            if cg and sg:
+                req = set(cg[0])
+                if any(req - set(g) for g in sg):
+                    logger.warning("Checkpoint optimizer state missing param_group keys %s; skipping restore.", req)
                     optimizer_state = None
                     context.state.optimizer_state = None
 
