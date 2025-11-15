@@ -13,7 +13,6 @@ from gymnasium import spaces
 
 import pufferlib
 
-
 ACTION_VERB_COUNT = 7
 ACTION_ARGUMENT_COUNT = 8
 ACTION_SPACE_SIZE = ACTION_VERB_COUNT * ACTION_ARGUMENT_COUNT

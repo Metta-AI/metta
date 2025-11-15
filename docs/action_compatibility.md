@@ -205,8 +205,8 @@ _action_handlers.push_back(std::make_unique<AttackNearest>(...));
 
 ### 10. Action Space Flattening
 
-**Description**: Legacy builds exposed a two-element `[verb, argument]` action vector. Current builds flatten
-every verb/argument combination into a `gymnasium.spaces.Discrete(num_variants)` space.
+**Description**: Legacy builds exposed a two-element `[verb, argument]` action vector. Current builds flatten every
+verb/argument combination into a `gymnasium.spaces.Discrete(num_variants)` space.
 
 **Example**:
 
