@@ -7,14 +7,13 @@ import time
 import warnings
 from typing import Dict, List, Tuple
 
+import cogames.policy.nim_agents.agents as na
 from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
 from cogames.cogs_vs_clips.mission import Mission, NumCogsVariant
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
-import cogames.policy.nim_agents.agents as na
-
 
 # Agent to evaluate
 AGENT_PATH = "cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy"
