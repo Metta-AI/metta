@@ -3,8 +3,10 @@
 """CLI for CoGames - collection of environments for multi-agent cooperative and competitive games."""
 
 import importlib.metadata
+import importlib.util
 import json
 import logging
+import subprocess
 import sys
 from pathlib import Path
 from typing import Literal, Optional, TypeVar
@@ -21,7 +23,13 @@ from cogames import play as play_module
 from cogames import train as train_module
 from cogames.cli.base import console
 from cogames.cli.login import DEFAULT_COGAMES_SERVER, perform_login
-from cogames.cli.mission import describe_mission, get_mission_name_and_config, get_mission_names_and_configs
+from cogames.cli.mission import (
+    describe_mission,
+    get_mission_name_and_config,
+    get_mission_names_and_configs,
+    list_evals,
+    list_variants,
+)
 from cogames.cli.policy import (
     get_policy_spec,
     get_policy_specs_with_proportions,
@@ -43,6 +51,24 @@ logger = logging.getLogger("cogames.main")
 
 
 T = TypeVar("T")
+
+
+def _resolve_mettascope_script() -> Path:
+    spec = importlib.util.find_spec("mettagrid")
+    if spec is None or spec.origin is None:
+        raise FileNotFoundError("mettagrid package is not available; cannot locate MettaScope.")
+
+    package_dir = Path(spec.origin).resolve().parent
+    search_roots = (package_dir, *package_dir.parents)
+
+    for root in search_roots:
+        candidate = root / "nim" / "mettascope" / "src" / "mettascope.nim"
+        if candidate.exists():
+            return candidate
+
+    raise FileNotFoundError(
+        f"MettaScope sources not found relative to installed mettagrid package (searched from {package_dir})."
+    )
 
 
 app = typer.Typer(
@@ -111,10 +137,36 @@ def games_cmd(
         return
 
     try:
-        describe_mission(resolved_mission, env_cfg)
+        describe_mission(resolved_mission, env_cfg, mission_cfg)
     except ValueError as exc:  # pragma: no cover - user input
         console.print(f"[red]Error: {exc}[/red]")
         raise typer.Exit(1) from exc
+
+
+@app.command("evals", help="List all eval missions")
+def evals_cmd() -> None:
+    list_evals()
+
+
+@app.command("variants", help="List all available mission variants")
+def variants_cmd() -> None:
+    list_variants()
+
+
+@app.command(name="describe", help="Describe a mission and its configuration")
+def describe_cmd(
+    ctx: typer.Context,
+    mission: str = typer.Argument(..., help="Mission name (e.g., hello_world.open_world)"),
+    cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
+    variant: Optional[list[str]] = typer.Option(  # noqa: B008
+        None,
+        "--variant",
+        "-v",
+        help="Mission variant (can be used multiple times, e.g., --variant solar_flare --variant dark_side)",
+    ),
+) -> None:
+    resolved_mission, env_cfg, mission_cfg = get_mission_name_and_config(ctx, mission, variant, cogs)
+    describe_mission(resolved_mission, env_cfg, mission_cfg)
 
 
 @app.command(name="play", help="Play a game")
@@ -173,6 +225,35 @@ def play_cmd(
         game_name=resolved_mission,
         save_replay=save_replay_dir,
     )
+
+
+@app.command(name="replay", help="Replay a saved game using MettaScope")
+def replay_cmd(
+    replay_path: Path = typer.Argument(..., help="Path to the replay file"),  # noqa: B008
+) -> None:
+    """Replay a saved game using MettaScope visualization tool."""
+    if not replay_path.exists():
+        console.print(f"[red]Error: Replay file not found: {replay_path}[/red]")
+        raise typer.Exit(1)
+
+    try:
+        mettascope_path = _resolve_mettascope_script()
+    except FileNotFoundError as exc:
+        console.print(f"[red]Error locating MettaScope: {exc}[/red]")
+        raise typer.Exit(1) from exc
+
+    console.print(f"[cyan]Launching MettaScope to replay: {replay_path}[/cyan]")
+
+    try:
+        # Run nim with mettascope and replay argument
+        cmd = ["nim", "r", "-d:fidgetUseCached", str(mettascope_path), f"--replay:{replay_path}"]
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError as exc:
+        console.print(f"[red]Error running MettaScope: {exc}[/red]")
+        raise typer.Exit(1) from exc
+    except FileNotFoundError as exc:
+        console.print("[red]Error: 'nim' command not found. Please ensure Nim is installed and in your PATH.[/red]")
+        raise typer.Exit(1) from exc
 
 
 @app.command("make-mission", help="Create a new mission configuration")
@@ -310,10 +391,10 @@ def train_cmd(
 
 
 @app.command(
-    name="eval",
+    name="evaluate",
     help="Evaluate one or more policies on one or more missions",
 )
-@app.command("evaluate", hidden=True)
+@app.command("eval", hidden=True)
 def evaluate_cmd(
     ctx: typer.Context,
     missions: Optional[list[str]] = typer.Option(  # noqa: B008

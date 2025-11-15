@@ -6,8 +6,8 @@ from cogames.cogs_vs_clips.missions import (
     make_game,
 )
 from cogames.cogs_vs_clips.stations import CvCStationConfig
-from cogames.cogs_vs_clips.variants import InventoryHeartTuneVariant, NeutralFacedVariant
-from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig
+from cogames.cogs_vs_clips.variants import InventoryHeartTuneVariant
+from mettagrid.config.mettagrid_config import MettaGridConfig
 
 
 def test_make_cogs_vs_clips_scenario():
@@ -47,24 +47,6 @@ def test_make_cogs_vs_clips_scenario():
     # assert config.game.agent.resource_limits == {"heart": 10}
     # assert config.game.agent.rewards is not None
     # assert config.game.agent.rewards.inventory == {}
-
-
-def test_neutral_faced_variant_neutralizes_recipes():
-    mission = HarvestMission
-    assert mission.site is not None
-    mission = mission.with_variants([NeutralFacedVariant()])
-    env = mission.make_env()
-
-    change_vibe = env.game.actions.change_vibe
-    assert change_vibe.enabled is False
-    assert change_vibe.number_of_vibes == 1
-
-    for obj in env.game.objects.values():
-        if not isinstance(obj, AssemblerConfig):
-            continue
-        assert len(obj.protocols) == 1
-        protocol = obj.protocols[0]
-        assert protocol.vibes == ["default"]
 
 
 def test_inventory_heart_tune_caps_initial_inventory_to_limits():

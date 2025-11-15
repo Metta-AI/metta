@@ -150,11 +150,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             resource_name_to_id[resource_name] for resource_name in agent_props.get("soul_bound_resources", [])
         ]
 
-        # Convert shareable resources from names to IDs
-        shareable_resources = [
-            resource_name_to_id[resource_name] for resource_name in agent_props.get("shareable_resources", [])
-        ]
-
         # Convert inventory regeneration amounts from names to IDs
         inventory_regen_amounts = {}
         for resource_name, amount in agent_props.get("inventory_regen_amounts", {}).items():
@@ -165,6 +160,13 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             for resource_name in agent_props.get("diversity_tracked_resources", [])
             if resource_name in resource_name_to_id
         ]
+
+        # Convert vibe_transfers: vibe -> resource -> delta
+        vibe_transfers_map = {}
+        for vibe_name, resource_deltas in agent_props.get("vibe_transfers", {}).items():
+            vibe_id = vibe_name_to_id[vibe_name]
+            resource_deltas_cpp = {resource_name_to_id[resource]: delta for resource, delta in resource_deltas.items()}
+            vibe_transfers_map[vibe_id] = resource_deltas_cpp
 
         # Build inventory config with support for grouped limits
         limits_list = []
@@ -200,12 +202,11 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             inventory_config=inventory_config,
             stat_rewards=stat_rewards,
             stat_reward_max=stat_reward_max,
-            group_reward_pct=0.0,
             initial_inventory=initial_inventory,
             soul_bound_resources=soul_bound_resources,
-            shareable_resources=shareable_resources,
             inventory_regen_amounts=inventory_regen_amounts,
             diversity_tracked_resources=diversity_tracked_resources,
+            vibe_transfers=vibe_transfers_map,
         )
         cpp_agent_config.tag_ids = tag_ids
 
@@ -233,18 +234,22 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             objects_cpp_params[object_config.map_name or object_type] = cpp_wall_config
         elif isinstance(object_config, AssemblerConfig):
             protocols = []
-            seen_vibes = []
+            seen_vibes_and_min_agents = []
 
             for protocol_config in reversed(object_config.protocols):
                 # Convert vibe names to IDs
                 vibe_ids = sorted([vibe_name_to_id[vibe] for vibe in protocol_config.vibes])
                 # Check for duplicate vibes
-                if vibe_ids in seen_vibes:
-                    raise ValueError(f"Protocol with vibes {protocol_config.vibes} already exists in {object_type}")
-                seen_vibes.append(vibe_ids)
+                if (vibe_ids, protocol_config.min_agents) in seen_vibes_and_min_agents:
+                    raise ValueError(
+                        f"Protocol with vibes {protocol_config.vibes} and min_agents {protocol_config.min_agents} "
+                        f"already exists in {object_type}"
+                    )
+                seen_vibes_and_min_agents.append((vibe_ids, protocol_config.min_agents))
                 input_res = {resource_name_to_id[k]: int(v) for k, v in protocol_config.input_resources.items()}
                 output_res = {resource_name_to_id[k]: int(v) for k, v in protocol_config.output_resources.items()}
                 cpp_protocol = CppProtocol()
+                cpp_protocol.min_agents = protocol_config.min_agents
                 cpp_protocol.vibes = vibe_ids
                 cpp_protocol.input_resources = input_res
                 cpp_protocol.output_resources = output_res
