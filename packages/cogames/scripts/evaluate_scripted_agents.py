@@ -36,10 +36,7 @@ import logging
 from collections import defaultdict
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
-
-import matplotlib.pyplot as plt
-import numpy as np
+from typing import Any, Dict, List, Optional, Tuple
 
 from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVariant
@@ -51,6 +48,9 @@ from mettagrid.simulator.rollout import Rollout
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
+
+plt: Any | None = None
+np: Any | None = None
 
 
 def _ensure_vibe_supports_gear(env_cfg) -> None:
@@ -104,6 +104,45 @@ class AgentConfig:
     data_path: Optional[str] = None  # Optional checkpoint path
 
 
+@dataclass
+class AggregateMetrics:
+    """Rolling statistics for a grouping of EvalResults."""
+
+    count: int = 0
+    success_count: int = 0
+    total_reward_sum: float = 0.0
+    avg_reward_sum: float = 0.0
+
+    def update(self, result: EvalResult) -> None:
+        self.count += 1
+        self.success_count += int(result.success)
+        self.total_reward_sum += result.total_reward
+        self.avg_reward_sum += result.avg_reward_per_agent
+
+    def mean_total_reward(self) -> float:
+        return self.total_reward_sum / self.count if self.count else 0.0
+
+    def mean_agent_reward(self) -> float:
+        return self.avg_reward_sum / self.count if self.count else 0.0
+
+    def success_rate(self) -> float:
+        return self.success_count / self.count if self.count else 0.0
+
+
+@dataclass
+class AggregatedResults:
+    """Container for frequently accessed aggregations."""
+
+    by_agent: Dict[str, AggregateMetrics]
+    by_num_cogs: Dict[int, AggregateMetrics]
+    by_difficulty: Dict[str, AggregateMetrics]
+    by_experiment: Dict[str, AggregateMetrics]
+    by_agent_num_cogs: Dict[Tuple[str, int], AggregateMetrics]
+    by_agent_experiment: Dict[Tuple[str, str], AggregateMetrics]
+    by_agent_difficulty: Dict[Tuple[str, str], AggregateMetrics]
+    by_num_cogs_experiment: Dict[Tuple[int, str], AggregateMetrics]
+
+
 def is_clipping_difficulty(name: str) -> bool:
     """Check if a difficulty involves clipping."""
     return "clipped" in name.lower() or "clipping" in name.lower()
@@ -124,15 +163,66 @@ AGENT_CONFIGS: Dict[str, AgentConfig] = {
 }
 
 EXPERIMENT_MAP: Dict[str, Mission] = {}
+VARIANT_LOOKUP: Dict[str, MissionVariant] = {variant.name: variant for variant in VARIANTS}
 
 
-def load_eval_missions(module_path: str):
+def load_eval_missions(module_path: str) -> List[Mission]:
     """Dynamically import a module and return its EVAL_MISSIONS list."""
     module = importlib.import_module(module_path)
     missions = getattr(module, "EVAL_MISSIONS", None)
     if missions is None:
         raise AttributeError(f"Module '{module_path}' does not define EVAL_MISSIONS")
     return missions
+
+
+def aggregate_results(results: List[EvalResult]) -> AggregatedResults:
+    """Aggregate frequently reused statistics in a single pass."""
+
+    by_agent: defaultdict[str, AggregateMetrics] = defaultdict(AggregateMetrics)
+    by_num_cogs: defaultdict[int, AggregateMetrics] = defaultdict(AggregateMetrics)
+    by_difficulty: defaultdict[str, AggregateMetrics] = defaultdict(AggregateMetrics)
+    by_experiment: defaultdict[str, AggregateMetrics] = defaultdict(AggregateMetrics)
+    by_agent_num_cogs: defaultdict[Tuple[str, int], AggregateMetrics] = defaultdict(AggregateMetrics)
+    by_agent_experiment: defaultdict[Tuple[str, str], AggregateMetrics] = defaultdict(AggregateMetrics)
+    by_agent_difficulty: defaultdict[Tuple[str, str], AggregateMetrics] = defaultdict(AggregateMetrics)
+    by_num_cogs_experiment: defaultdict[Tuple[int, str], AggregateMetrics] = defaultdict(AggregateMetrics)
+
+    for result in results:
+        by_agent[result.agent].update(result)
+        by_num_cogs[result.num_cogs].update(result)
+        by_difficulty[result.difficulty].update(result)
+        by_experiment[result.experiment].update(result)
+        by_agent_num_cogs[(result.agent, result.num_cogs)].update(result)
+        by_agent_experiment[(result.agent, result.experiment)].update(result)
+        by_agent_difficulty[(result.agent, result.difficulty)].update(result)
+        by_num_cogs_experiment[(result.num_cogs, result.experiment)].update(result)
+
+    return AggregatedResults(
+        by_agent=dict(by_agent),
+        by_num_cogs=dict(by_num_cogs),
+        by_difficulty=dict(by_difficulty),
+        by_experiment=dict(by_experiment),
+        by_agent_num_cogs=dict(by_agent_num_cogs),
+        by_agent_experiment=dict(by_agent_experiment),
+        by_agent_difficulty=dict(by_agent_difficulty),
+        by_num_cogs_experiment=dict(by_num_cogs_experiment),
+    )
+
+
+def _ensure_plot_modules_loaded() -> Tuple[Any, Any]:
+    """Lazily import matplotlib/numpy so non-plot runs avoid the overhead."""
+
+    global plt, np
+    if plt is None or np is None:
+        import matplotlib
+
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt_mod  # type: ignore
+        import numpy as np_mod  # type: ignore
+
+        plt = plt_mod
+        np = np_mod
+    return plt, np
 
 
 def run_evaluation(
@@ -143,7 +233,7 @@ def run_evaluation(
     max_steps: int = 1000,
     seed: int = 42,
     repeats: int = 3,
-    experiment_map: Dict[str, Mission] | None = None,
+    experiment_map: Optional[Dict[str, Mission]] = None,
 ) -> List[EvalResult]:
     """Run evaluation for an agent configuration."""
     results = []
@@ -176,8 +266,7 @@ def run_evaluation(
             variant = None
             variant_label = "base"
             if variant_name:
-                # Find the variant by name
-                variant = next((v for v in VARIANTS if v.name == variant_name), None)
+                variant = VARIANT_LOOKUP.get(variant_name)
                 if variant is None:
                     logger.error(f"Unknown variant: {variant_name}")
                     continue
@@ -192,7 +281,7 @@ def run_evaluation(
 
                 try:
                     # Create mission and apply variant if specified
-                    mission_variants: list[MissionVariant] = [NumCogsVariant(num_cogs=num_cogs)]
+                    mission_variants: List[MissionVariant] = [NumCogsVariant(num_cogs=num_cogs)]
                     if variant:
                         mission_variants.insert(0, variant)
 
@@ -291,154 +380,133 @@ def run_evaluation(
     return results
 
 
-def print_summary(results: List[EvalResult]):
+def print_summary(results: List[EvalResult]) -> Optional[AggregatedResults]:
     """Print summary statistics."""
     if not results:
         logger.info("\nNo results to summarize.")
-        return
+        return None
+
+    aggregated = aggregate_results(results)
 
     logger.info(f"\n{'=' * 80}")
     logger.info("SUMMARY")
     logger.info(f"{'=' * 80}\n")
 
     total = len(results)
-    successes = sum(1 for r in results if r.success)
+    successes = sum(metrics.success_count for metrics in aggregated.by_agent.values())
     logger.info(f"Total tests: {total}")
     logger.info(f"Successes: {successes}/{total} ({100 * successes / total:.1f}%)")
 
     # By agent
     logger.info("\n## By Agent")
-    agents = sorted(set(r.agent for r in results))
+    agents = sorted(aggregated.by_agent)
     for agent in agents:
-        agent_results = [r for r in results if r.agent == agent]
-        agent_successes = sum(1 for r in agent_results if r.success)
-        avg_total_reward = sum(r.total_reward for r in agent_results) / len(agent_results)
-        avg_reward_per_agent = sum(r.avg_reward_per_agent for r in agent_results) / len(agent_results)
+        metrics = aggregated.by_agent[agent]
         logger.info(
-            f"  {agent}: {agent_successes}/{len(agent_results)} "
-            f"({100 * agent_successes / len(agent_results):.1f}%) "
-            f"avg_total={avg_total_reward:.2f} avg_per_agent={avg_reward_per_agent:.2f}"
+            f"  {agent}: {metrics.success_count}/{metrics.count} "
+            f"({100 * metrics.success_rate():.1f}%) "
+            f"avg_total={metrics.mean_total_reward():.2f} avg_per_agent={metrics.mean_agent_reward():.2f}"
         )
 
     # By agent count
     logger.info("\n## By Agent Count")
-    cogs = sorted(set(r.num_cogs for r in results))
-    for num_cogs in cogs:
-        cogs_results = [r for r in results if r.num_cogs == num_cogs]
-        cogs_successes = sum(1 for r in cogs_results if r.success)
-        avg_total_reward = sum(r.total_reward for r in cogs_results) / len(cogs_results)
-        avg_reward_per_agent = sum(r.avg_reward_per_agent for r in cogs_results) / len(cogs_results)
+    cogs_counts = sorted(aggregated.by_num_cogs)
+    for num_cogs in cogs_counts:
+        metrics = aggregated.by_num_cogs[num_cogs]
         logger.info(
-            f"  {num_cogs} agent(s): {cogs_successes}/{len(cogs_results)} "
-            f"({100 * cogs_successes / len(cogs_results):.1f}%) "
-            f"avg_total={avg_total_reward:.2f} avg_per_agent={avg_reward_per_agent:.2f}"
+            f"  {num_cogs} agent(s): {metrics.success_count}/{metrics.count} "
+            f"({100 * metrics.success_rate():.1f}%) "
+            f"avg_total={metrics.mean_total_reward():.2f} avg_per_agent={metrics.mean_agent_reward():.2f}"
         )
 
     # By variant
     logger.info("\n## By Variant")
-    variants = sorted(set(r.difficulty for r in results))
-    for var in variants:
-        var_results = [r for r in results if r.difficulty == var]
-        var_successes = sum(1 for r in var_results if r.success)
-        avg_total_reward = sum(r.total_reward for r in var_results) / len(var_results)
-        avg_reward_per_agent = sum(r.avg_reward_per_agent for r in var_results) / len(var_results)
+    variant_keys = sorted(aggregated.by_difficulty)
+    for variant_key in variant_keys:
+        metrics = aggregated.by_difficulty[variant_key]
         logger.info(
-            f"  {var:20s}: {var_successes}/{len(var_results)} "
-            f"({100 * var_successes / len(var_results):.1f}%) "
-            f"avg_total={avg_total_reward:.2f} avg_per_agent={avg_reward_per_agent:.2f}"
+            f"  {variant_key:20s}: {metrics.success_count}/{metrics.count} "
+            f"({100 * metrics.success_rate():.1f}%) "
+            f"avg_total={metrics.mean_total_reward():.2f} avg_per_agent={metrics.mean_agent_reward():.2f}"
         )
 
+    return aggregated
 
-def create_plots(results: List[EvalResult], output_dir: str = "eval_plots"):
+
+def create_plots(
+    results: List[EvalResult],
+    output_dir: str = "eval_plots",
+    aggregated: Optional[AggregatedResults] = None,
+) -> None:
     """Create comprehensive plots from evaluation results."""
-    import matplotlib
 
-    matplotlib.use("Agg")  # Non-interactive backend
+    if not results:
+        return
+
+    aggregate_cache = aggregated if aggregated is not None else aggregate_results(results)
+    _ensure_plot_modules_loaded()
 
     output_path = Path(output_dir)
     output_path.mkdir(exist_ok=True)
     logger.info(f"\nGenerating plots in {output_path}/...")
 
-    # Convert results to dicts for easier processing
-    data = defaultdict(lambda: defaultdict(list))
-
-    for r in results:
-        key = (r.agent, r.experiment, r.difficulty, r.num_cogs)
-        data[key]["total_rewards"].append(r.total_reward)
-        data[key]["avg_rewards"].append(r.avg_reward_per_agent)
-        data[key]["successes"].append(r.success)
-
-    # Aggregate data
-    aggregated = {}
-    for key, vals in data.items():
-        agent, experiment, difficulty, num_cogs = key
-        aggregated[key] = {
-            "agent": agent,
-            "experiment": experiment,
-            "difficulty": difficulty,
-            "num_cogs": num_cogs,
-            "avg_total_reward": np.mean(vals["total_rewards"]),
-            "avg_reward_per_agent": np.mean(vals["avg_rewards"]),
-            "success_rate": np.mean(vals["successes"]),
-        }
-
-    # Get unique values for each dimension
-    agents = sorted(set(r.agent for r in results))
-    experiments = sorted(set(r.experiment for r in results))
-    variants = sorted(set(r.difficulty for r in results))
-    num_cogs_list = sorted(set(r.num_cogs for r in results))
+    agents = sorted(aggregate_cache.by_agent)
+    experiments = sorted(aggregate_cache.by_experiment)
+    variants = sorted(aggregate_cache.by_difficulty)
+    num_cogs_list = sorted(aggregate_cache.by_num_cogs)
 
     # 1. Average reward per agent by agent type
-    _plot_by_agent(aggregated, agents, output_path)
+    _plot_by_agent(aggregate_cache, agents, output_path)
 
     # 2. Total reward by agent type
-    _plot_by_agent_total(aggregated, agents, output_path)
+    _plot_by_agent_total(aggregate_cache, agents, output_path)
 
     # 3. Average reward per agent by num_cogs
-    _plot_by_num_cogs(aggregated, num_cogs_list, agents, output_path)
+    _plot_by_num_cogs(aggregate_cache, num_cogs_list, agents, output_path)
 
     # 4. Total reward by num_cogs
-    _plot_by_num_cogs_total(aggregated, num_cogs_list, agents, output_path)
+    _plot_by_num_cogs_total(aggregate_cache, num_cogs_list, agents, output_path)
 
     # 5. Average reward per agent by eval environment
-    _plot_by_environment(aggregated, experiments, agents, output_path)
+    _plot_by_environment(aggregate_cache, experiments, agents, output_path)
 
     # 6. Total reward by eval environment
-    _plot_by_environment_total(aggregated, experiments, agents, output_path)
+    _plot_by_environment_total(aggregate_cache, experiments, agents, output_path)
 
     # 7. Average reward per agent by variant
-    _plot_by_difficulty(aggregated, variants, agents, output_path)
+    _plot_by_difficulty(aggregate_cache, variants, agents, output_path)
 
     # 8. Total reward by variant
-    _plot_by_difficulty_total(aggregated, variants, agents, output_path)
+    _plot_by_difficulty_total(aggregate_cache, variants, agents, output_path)
 
     # 8.5. Average reward per agent by environment, grouped by agent count
-    _plot_by_environment_by_cogs(aggregated, experiments, num_cogs_list, output_path)
+    _plot_by_environment_by_cogs(aggregate_cache, experiments, num_cogs_list, output_path)
 
     # 9. Heatmap: Environment x Agent (avg per agent)
-    _plot_heatmap_env_agent(aggregated, experiments, agents, output_path)
+    _plot_heatmap_env_agent(aggregate_cache, experiments, agents, output_path)
 
     # 10. Heatmap: Environment x Agent (total)
-    _plot_heatmap_env_agent_total(aggregated, experiments, agents, output_path)
+    _plot_heatmap_env_agent_total(aggregate_cache, experiments, agents, output_path)
 
     # 11. Heatmap: Variant x Agent (avg per agent)
-    _plot_heatmap_diff_agent(aggregated, variants, agents, output_path)
+    _plot_heatmap_diff_agent(aggregate_cache, variants, agents, output_path)
 
     # 12. Heatmap: Variant x Agent (total)
-    _plot_heatmap_diff_agent_total(aggregated, variants, agents, output_path)
+    _plot_heatmap_diff_agent_total(aggregate_cache, variants, agents, output_path)
 
     logger.info(f"✓ Plots saved to {output_path}/")
 
 
-def _plot_by_agent(aggregated, agents, output_path):
+def _plot_by_agent(aggregated: AggregatedResults, agents: List[str], output_path: Path) -> None:
     """Plot average reward per agent grouped by agent type."""
+    if not agents:
+        return
+
     fig, ax = plt.subplots(figsize=(10, 6))
-
-    agent_rewards = defaultdict(list)
-    for _key, vals in aggregated.items():
-        agent_rewards[vals["agent"]].append(vals["avg_reward_per_agent"])
-
-    avg_rewards = [np.mean(agent_rewards[agent]) for agent in agents]
+    avg_rewards: List[float] = []
+    for agent in agents:
+        metrics = aggregated.by_agent.get(agent)
+        avg_rewards.append(metrics.mean_agent_reward() if metrics else 0.0)
     colors = plt.get_cmap("Set2")(range(len(agents)))
 
     bars = ax.bar(agents, avg_rewards, color=colors, alpha=0.8, edgecolor="black")
@@ -459,15 +527,16 @@ def _plot_by_agent(aggregated, agents, output_path):
     plt.close()
 
 
-def _plot_by_agent_total(aggregated, agents, output_path):
+def _plot_by_agent_total(aggregated: AggregatedResults, agents: List[str], output_path: Path) -> None:
     """Plot total reward grouped by agent type."""
+    if not agents:
+        return
+
     fig, ax = plt.subplots(figsize=(10, 6))
-
-    agent_rewards = defaultdict(list)
-    for _key, vals in aggregated.items():
-        agent_rewards[vals["agent"]].append(vals["avg_total_reward"])
-
-    avg_rewards = [np.mean(agent_rewards[agent]) for agent in agents]
+    avg_rewards: List[float] = []
+    for agent in agents:
+        metrics = aggregated.by_agent.get(agent)
+        avg_rewards.append(metrics.mean_total_reward() if metrics else 0.0)
     colors = plt.get_cmap("Set2")(range(len(agents)))
 
     bars = ax.bar(agents, avg_rewards, color=colors, alpha=0.8, edgecolor="black")
@@ -488,32 +557,35 @@ def _plot_by_agent_total(aggregated, agents, output_path):
     plt.close()
 
 
-def _plot_by_num_cogs(aggregated, num_cogs_list, agents, output_path):
+def _plot_by_num_cogs(aggregated: AggregatedResults, num_cogs_list: List[int], agents: List[str], output_path: Path) -> None:
     """Plot average reward per agent by number of agents."""
+    if not num_cogs_list or not agents:
+        return
+
     fig, ax = plt.subplots(figsize=(12, 7))
 
     width = 0.35
     x = np.arange(len(num_cogs_list))
 
     for i, agent in enumerate(agents):
-        rewards = []
+        rewards: List[float] = []
         for num_cogs in num_cogs_list:
-            vals = [
-                v["avg_reward_per_agent"]
-                for k, v in aggregated.items()
-                if v["agent"] == agent and v["num_cogs"] == num_cogs
-            ]
-            rewards.append(np.mean(vals) if vals else 0)
+            metrics = aggregated.by_agent_num_cogs.get((agent, num_cogs))
+            rewards.append(metrics.mean_agent_reward() if metrics else 0.0)
 
         offset = width * (i - len(agents) / 2 + 0.5)
         bars = ax.bar(x + offset, rewards, width, label=agent, alpha=0.8, edgecolor="black")
 
-        # Add value labels
         for bar in bars:
             height = bar.get_height()
             if height > 0:
                 ax.text(
-                    bar.get_x() + bar.get_width() / 2.0, height, f"{height:.1f}", ha="center", va="bottom", fontsize=9
+                    bar.get_x() + bar.get_width() / 2.0,
+                    height,
+                    f"{height:.1f}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=9,
                 )
 
     ax.set_ylabel("Average Reward Per Agent", fontsize=12, fontweight="bold")
@@ -529,32 +601,37 @@ def _plot_by_num_cogs(aggregated, num_cogs_list, agents, output_path):
     plt.close()
 
 
-def _plot_by_num_cogs_total(aggregated, num_cogs_list, agents, output_path):
+def _plot_by_num_cogs_total(
+    aggregated: AggregatedResults, num_cogs_list: List[int], agents: List[str], output_path: Path
+) -> None:
     """Plot total reward by number of agents."""
+    if not num_cogs_list or not agents:
+        return
+
     fig, ax = plt.subplots(figsize=(12, 7))
 
     width = 0.35
     x = np.arange(len(num_cogs_list))
 
     for i, agent in enumerate(agents):
-        rewards = []
+        rewards: List[float] = []
         for num_cogs in num_cogs_list:
-            vals = [
-                v["avg_total_reward"]
-                for k, v in aggregated.items()
-                if v["agent"] == agent and v["num_cogs"] == num_cogs
-            ]
-            rewards.append(np.mean(vals) if vals else 0)
+            metrics = aggregated.by_agent_num_cogs.get((agent, num_cogs))
+            rewards.append(metrics.mean_total_reward() if metrics else 0.0)
 
         offset = width * (i - len(agents) / 2 + 0.5)
         bars = ax.bar(x + offset, rewards, width, label=agent, alpha=0.8, edgecolor="black")
 
-        # Add value labels
         for bar in bars:
             height = bar.get_height()
             if height > 0:
                 ax.text(
-                    bar.get_x() + bar.get_width() / 2.0, height, f"{height:.1f}", ha="center", va="bottom", fontsize=9
+                    bar.get_x() + bar.get_width() / 2.0,
+                    height,
+                    f"{height:.1f}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=9,
                 )
 
     ax.set_ylabel("Total Reward", fontsize=12, fontweight="bold")
@@ -570,22 +647,21 @@ def _plot_by_num_cogs_total(aggregated, num_cogs_list, agents, output_path):
     plt.close()
 
 
-def _plot_by_environment(aggregated, experiments, agents, output_path):
+def _plot_by_environment(aggregated: AggregatedResults, experiments: List[str], agents: List[str], output_path: Path) -> None:
     """Plot average reward per agent by eval environment."""
+    if not experiments or not agents:
+        return
+
     fig, ax = plt.subplots(figsize=(16, 8))
 
     width = 0.35
     x = np.arange(len(experiments))
 
     for i, agent in enumerate(agents):
-        rewards = []
+        rewards: List[float] = []
         for exp in experiments:
-            vals = [
-                v["avg_reward_per_agent"]
-                for k, v in aggregated.items()
-                if v["agent"] == agent and v["experiment"] == exp
-            ]
-            rewards.append(np.mean(vals) if vals else 0)
+            metrics = aggregated.by_agent_experiment.get((agent, exp))
+            rewards.append(metrics.mean_agent_reward() if metrics else 0.0)
 
         offset = width * (i - len(agents) / 2 + 0.5)
         ax.bar(x + offset, rewards, width, label=agent, alpha=0.8, edgecolor="black")
@@ -603,20 +679,23 @@ def _plot_by_environment(aggregated, experiments, agents, output_path):
     plt.close()
 
 
-def _plot_by_environment_total(aggregated, experiments, agents, output_path):
+def _plot_by_environment_total(
+    aggregated: AggregatedResults, experiments: List[str], agents: List[str], output_path: Path
+) -> None:
     """Plot total reward by eval environment."""
+    if not experiments or not agents:
+        return
+
     fig, ax = plt.subplots(figsize=(16, 8))
 
     width = 0.35
     x = np.arange(len(experiments))
 
     for i, agent in enumerate(agents):
-        rewards = []
+        rewards: List[float] = []
         for exp in experiments:
-            vals = [
-                v["avg_total_reward"] for k, v in aggregated.items() if v["agent"] == agent and v["experiment"] == exp
-            ]
-            rewards.append(np.mean(vals) if vals else 0)
+            metrics = aggregated.by_agent_experiment.get((agent, exp))
+            rewards.append(metrics.mean_total_reward() if metrics else 0.0)
 
         offset = width * (i - len(agents) / 2 + 0.5)
         ax.bar(x + offset, rewards, width, label=agent, alpha=0.8, edgecolor="black")
@@ -634,22 +713,26 @@ def _plot_by_environment_total(aggregated, experiments, agents, output_path):
     plt.close()
 
 
-def _plot_by_environment_by_cogs(aggregated, experiments, num_cogs_list, output_path):
+def _plot_by_environment_by_cogs(
+    aggregated: AggregatedResults,
+    experiments: List[str],
+    num_cogs_list: List[int],
+    output_path: Path,
+) -> None:
     """Plot average reward per agent by eval environment, grouped by agent count."""
+    if not experiments or not num_cogs_list:
+        return
+
     fig, ax = plt.subplots(figsize=(16, 8))
 
     width = 0.25
     x = np.arange(len(experiments))
 
     for i, num_cogs in enumerate(num_cogs_list):
-        rewards = []
+        rewards: List[float] = []
         for exp in experiments:
-            vals = [
-                v["avg_reward_per_agent"]
-                for k, v in aggregated.items()
-                if v["num_cogs"] == num_cogs and v["experiment"] == exp
-            ]
-            rewards.append(np.mean(vals) if vals else 0)
+            metrics = aggregated.by_num_cogs_experiment.get((num_cogs, exp))
+            rewards.append(metrics.mean_agent_reward() if metrics else 0.0)
 
         offset = width * (i - len(num_cogs_list) / 2 + 0.5)
         ax.bar(x + offset, rewards, width, label=f"{num_cogs} agent(s)", alpha=0.8, edgecolor="black")
@@ -667,22 +750,21 @@ def _plot_by_environment_by_cogs(aggregated, experiments, num_cogs_list, output_
     plt.close()
 
 
-def _plot_by_difficulty(aggregated, difficulties, agents, output_path):
+def _plot_by_difficulty(aggregated: AggregatedResults, difficulties: List[str], agents: List[str], output_path: Path) -> None:
     """Plot average reward per agent by difficulty variant."""
+    if not difficulties or not agents:
+        return
+
     fig, ax = plt.subplots(figsize=(16, 8))
 
     width = 0.35
     x = np.arange(len(difficulties))
 
     for i, agent in enumerate(agents):
-        rewards = []
+        rewards: List[float] = []
         for diff in difficulties:
-            vals = [
-                v["avg_reward_per_agent"]
-                for k, v in aggregated.items()
-                if v["agent"] == agent and v["difficulty"] == diff
-            ]
-            rewards.append(np.mean(vals) if vals else 0)
+            metrics = aggregated.by_agent_difficulty.get((agent, diff))
+            rewards.append(metrics.mean_agent_reward() if metrics else 0.0)
 
         offset = width * (i - len(agents) / 2 + 0.5)
         ax.bar(x + offset, rewards, width, label=agent, alpha=0.8, edgecolor="black")
@@ -700,20 +782,23 @@ def _plot_by_difficulty(aggregated, difficulties, agents, output_path):
     plt.close()
 
 
-def _plot_by_difficulty_total(aggregated, difficulties, agents, output_path):
+def _plot_by_difficulty_total(
+    aggregated: AggregatedResults, difficulties: List[str], agents: List[str], output_path: Path
+) -> None:
     """Plot total reward by difficulty variant."""
+    if not difficulties or not agents:
+        return
+
     fig, ax = plt.subplots(figsize=(16, 8))
 
     width = 0.35
     x = np.arange(len(difficulties))
 
     for i, agent in enumerate(agents):
-        rewards = []
+        rewards: List[float] = []
         for diff in difficulties:
-            vals = [
-                v["avg_total_reward"] for k, v in aggregated.items() if v["agent"] == agent and v["difficulty"] == diff
-            ]
-            rewards.append(np.mean(vals) if vals else 0)
+            metrics = aggregated.by_agent_difficulty.get((agent, diff))
+            rewards.append(metrics.mean_total_reward() if metrics else 0.0)
 
         offset = width * (i - len(agents) / 2 + 0.5)
         ax.bar(x + offset, rewards, width, label=agent, alpha=0.8, edgecolor="black")
@@ -731,36 +816,33 @@ def _plot_by_difficulty_total(aggregated, difficulties, agents, output_path):
     plt.close()
 
 
-def _plot_heatmap_env_agent(aggregated, experiments, agents, output_path):
+def _plot_heatmap_env_agent(
+    aggregated: AggregatedResults, experiments: List[str], agents: List[str], output_path: Path
+) -> None:
     """Create heatmap of Environment x Agent showing avg reward per agent."""
+    if not experiments or not agents:
+        return
+
     fig, ax = plt.subplots(figsize=(10, len(experiments) * 0.5 + 2))
 
     matrix = np.zeros((len(experiments), len(agents)))
     for i, exp in enumerate(experiments):
         for j, agent in enumerate(agents):
-            vals = [
-                v["avg_reward_per_agent"]
-                for k, v in aggregated.items()
-                if v["agent"] == agent and v["experiment"] == exp
-            ]
-            matrix[i, j] = np.mean(vals) if vals else 0
+            metrics = aggregated.by_agent_experiment.get((agent, exp))
+            matrix[i, j] = metrics.mean_agent_reward() if metrics else 0.0
 
     im = ax.imshow(matrix, cmap="YlOrRd", aspect="auto")
 
-    # Set ticks
     ax.set_xticks(np.arange(len(agents)))
     ax.set_yticks(np.arange(len(experiments)))
     ax.set_xticklabels(agents)
     ax.set_yticklabels(experiments)
 
-    # Rotate the x labels
     plt.setp(ax.get_xticklabels(), rotation=0, ha="center")
 
-    # Add colorbar
     cbar = plt.colorbar(im, ax=ax)
     cbar.set_label("Average Reward", rotation=270, labelpad=20, fontweight="bold")
 
-    # Add text annotations
     for i in range(len(experiments)):
         for j in range(len(agents)):
             ax.text(j, i, f"{matrix[i, j]:.1f}", ha="center", va="center", color="black", fontsize=9, fontweight="bold")
@@ -774,34 +856,33 @@ def _plot_heatmap_env_agent(aggregated, experiments, agents, output_path):
     plt.close()
 
 
-def _plot_heatmap_env_agent_total(aggregated, experiments, agents, output_path):
+def _plot_heatmap_env_agent_total(
+    aggregated: AggregatedResults, experiments: List[str], agents: List[str], output_path: Path
+) -> None:
     """Create heatmap of Environment x Agent showing total reward."""
+    if not experiments or not agents:
+        return
+
     fig, ax = plt.subplots(figsize=(10, len(experiments) * 0.5 + 2))
 
     matrix = np.zeros((len(experiments), len(agents)))
     for i, exp in enumerate(experiments):
         for j, agent in enumerate(agents):
-            vals = [
-                v["avg_total_reward"] for k, v in aggregated.items() if v["agent"] == agent and v["experiment"] == exp
-            ]
-            matrix[i, j] = np.mean(vals) if vals else 0
+            metrics = aggregated.by_agent_experiment.get((agent, exp))
+            matrix[i, j] = metrics.mean_total_reward() if metrics else 0.0
 
     im = ax.imshow(matrix, cmap="YlOrRd", aspect="auto")
 
-    # Set ticks
     ax.set_xticks(np.arange(len(agents)))
     ax.set_yticks(np.arange(len(experiments)))
     ax.set_xticklabels(agents)
     ax.set_yticklabels(experiments)
 
-    # Rotate the x labels
     plt.setp(ax.get_xticklabels(), rotation=0, ha="center")
 
-    # Add colorbar
     cbar = plt.colorbar(im, ax=ax)
     cbar.set_label("Total Reward", rotation=270, labelpad=20, fontweight="bold")
 
-    # Add text annotations
     for i in range(len(experiments)):
         for j in range(len(agents)):
             ax.text(j, i, f"{matrix[i, j]:.1f}", ha="center", va="center", color="black", fontsize=9, fontweight="bold")
@@ -815,36 +896,33 @@ def _plot_heatmap_env_agent_total(aggregated, experiments, agents, output_path):
     plt.close()
 
 
-def _plot_heatmap_diff_agent(aggregated, difficulties, agents, output_path):
+def _plot_heatmap_diff_agent(
+    aggregated: AggregatedResults, difficulties: List[str], agents: List[str], output_path: Path
+) -> None:
     """Create heatmap of Difficulty x Agent showing avg reward per agent."""
+    if not difficulties or not agents:
+        return
+
     fig, ax = plt.subplots(figsize=(10, len(difficulties) * 0.4 + 2))
 
     matrix = np.zeros((len(difficulties), len(agents)))
     for i, diff in enumerate(difficulties):
         for j, agent in enumerate(agents):
-            vals = [
-                v["avg_reward_per_agent"]
-                for k, v in aggregated.items()
-                if v["agent"] == agent and v["difficulty"] == diff
-            ]
-            matrix[i, j] = np.mean(vals) if vals else 0
+            metrics = aggregated.by_agent_difficulty.get((agent, diff))
+            matrix[i, j] = metrics.mean_agent_reward() if metrics else 0.0
 
     im = ax.imshow(matrix, cmap="YlGnBu", aspect="auto")
 
-    # Set ticks
     ax.set_xticks(np.arange(len(agents)))
     ax.set_yticks(np.arange(len(difficulties)))
     ax.set_xticklabels(agents)
     ax.set_yticklabels(difficulties)
 
-    # Rotate the x labels
     plt.setp(ax.get_xticklabels(), rotation=0, ha="center")
 
-    # Add colorbar
     cbar = plt.colorbar(im, ax=ax)
     cbar.set_label("Average Reward", rotation=270, labelpad=20, fontweight="bold")
 
-    # Add text annotations
     for i in range(len(difficulties)):
         for j in range(len(agents)):
             ax.text(j, i, f"{matrix[i, j]:.1f}", ha="center", va="center", color="black", fontsize=9, fontweight="bold")
@@ -858,34 +936,33 @@ def _plot_heatmap_diff_agent(aggregated, difficulties, agents, output_path):
     plt.close()
 
 
-def _plot_heatmap_diff_agent_total(aggregated, difficulties, agents, output_path):
+def _plot_heatmap_diff_agent_total(
+    aggregated: AggregatedResults, difficulties: List[str], agents: List[str], output_path: Path
+) -> None:
     """Create heatmap of Difficulty x Agent showing total reward."""
+    if not difficulties or not agents:
+        return
+
     fig, ax = plt.subplots(figsize=(10, len(difficulties) * 0.4 + 2))
 
     matrix = np.zeros((len(difficulties), len(agents)))
     for i, diff in enumerate(difficulties):
         for j, agent in enumerate(agents):
-            vals = [
-                v["avg_total_reward"] for k, v in aggregated.items() if v["agent"] == agent and v["difficulty"] == diff
-            ]
-            matrix[i, j] = np.mean(vals) if vals else 0
+            metrics = aggregated.by_agent_difficulty.get((agent, diff))
+            matrix[i, j] = metrics.mean_total_reward() if metrics else 0.0
 
     im = ax.imshow(matrix, cmap="YlGnBu", aspect="auto")
 
-    # Set ticks
     ax.set_xticks(np.arange(len(agents)))
     ax.set_yticks(np.arange(len(difficulties)))
     ax.set_xticklabels(agents)
     ax.set_yticklabels(difficulties)
 
-    # Rotate the x labels
     plt.setp(ax.get_xticklabels(), rotation=0, ha="center")
 
-    # Add colorbar
     cbar = plt.colorbar(im, ax=ax)
     cbar.set_label("Total Reward", rotation=270, labelpad=20, fontweight="bold")
 
-    # Add text annotations
     for i in range(len(difficulties)):
         for j in range(len(agents)):
             ax.text(j, i, f"{matrix[i, j]:.1f}", ha="center", va="center", color="black", fontsize=9, fontweight="bold")
@@ -1057,7 +1134,7 @@ def main():
         all_results.extend(results)
 
     # Print summary
-    print_summary(all_results)
+    aggregated_summary = print_summary(all_results)
 
     # Save results if requested
     if args.output:
@@ -1067,7 +1144,7 @@ def main():
 
     # Generate plots
     if not args.no_plots and all_results:
-        create_plots(all_results, output_dir=args.plot_dir)
+        create_plots(all_results, output_dir=args.plot_dir, aggregated=aggregated_summary)
 
 
 if __name__ == "__main__":
