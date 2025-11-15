@@ -376,6 +376,148 @@ class DoxascopeLogger:
 
         self.data.append(timestep_data)
 
+    def log_timestep_cogames(
+        self,
+        policies: list,
+        env_grid_objects: Dict,
+    ):
+        """Log memory vectors and positions for cogames-style rollouts.
+
+        This method is designed for cogames evaluations where each agent has its own
+        AgentPolicy instance, rather than a single batched multi-agent policy.
+
+        Args:
+            policies: List of AgentPolicy instances, one per agent
+            env_grid_objects: Dictionary of grid objects from the environment
+        """
+        if not self.enabled:
+            return
+
+        self.timestep += 1
+
+        if not policies:
+            return
+
+        # Get the underlying Policy from the first adapter
+        first_adapter = policies[0]
+        if not hasattr(first_adapter, '_policy'):
+            if self.timestep == 1:
+                logger.warning("Expected _SingleAgentAdapter with _policy attribute, got %s", type(first_adapter))
+            return
+
+        underlying_policy = first_adapter._policy
+
+        # Find the CortexTD component
+        cortex_component = self._find_cortex_component(underlying_policy)
+        if cortex_component is None:
+            if self.timestep == 1:
+                logger.warning("No CortexTD component found in policy")
+            return
+
+        # Get the current rollout state
+        rollout_state = cortex_component._rollout_current_state
+        rollout_env_ids = cortex_component._rollout_current_env_ids
+
+        if rollout_state is None or rollout_env_ids is None:
+            if self.timestep == 1:
+                logger.warning("Cortex rollout state not initialized yet")
+            return
+
+        # Build agent map
+        agent_map = self._build_agent_id_map(env_grid_objects)
+        timestep_data: Dict[str, Any] = {"timestep": self.timestep, "agents": []}
+
+        # Create env_id → batch_position mapping
+        env_id_to_batch_pos = {
+            int(env_id): i
+            for i, env_id in enumerate(rollout_env_ids.tolist())
+        }
+
+        # For each agent that was in this batch
+        for env_id, batch_pos in env_id_to_batch_pos.items():
+            agent_id = env_id  # In single-episode eval, env_id == agent_id
+
+            if agent_id not in agent_map:
+                continue
+
+            # Extract memory for this agent (at batch position batch_pos)
+            memory_vector = self._extract_cortex_memory_at_position(rollout_state, batch_pos)
+
+            if memory_vector is None:
+                continue
+
+            # Get position from grid objects
+            grid_obj_id = agent_map[agent_id]
+            grid_obj = env_grid_objects[grid_obj_id]
+            position = (grid_obj["r"], grid_obj["c"])
+
+            record = {
+                "agent_id": agent_id,
+                "memory_vector": memory_vector.cpu().numpy().astype(np.float32).tolist(),
+                "position": position,
+            }
+            timestep_data["agents"].append(record)
+
+        self.data.append(timestep_data)
+
+    def _find_cortex_component(self, policy: Any) -> Optional[Any]:
+        """Find the CortexTD component in a policy's component list.
+
+        Args:
+            policy: The underlying Policy object (e.g., PolicyAutoBuilder)
+
+        Returns:
+            The CortexTD component if found, None otherwise
+        """
+        if not hasattr(policy, 'components'):
+            return None
+
+        # Search through components for CortexTD
+        for comp in policy.components.values():
+            # Check by class name to avoid import dependencies
+            if comp.__class__.__name__ == 'CortexTD':
+                return comp
+
+        return None
+
+    def _extract_cortex_memory_at_position(
+        self,
+        rollout_state: Any,  # TensorDict
+        batch_pos: int
+    ) -> Optional[torch.Tensor]:
+        """Extract and flatten memory tensors for a specific batch position.
+
+        Args:
+            rollout_state: The TensorDict containing Cortex state
+            batch_pos: Position in the batch dimension
+
+        Returns:
+            Flattened memory vector for the agent at batch_pos
+        """
+        try:
+            # Import optree for flattening the TensorDict tree
+            import optree
+
+            # Flatten the entire state tree and extract at batch_pos
+            leaves, _ = optree.tree_flatten(rollout_state, namespace="torch")
+
+            # Extract the batch_pos slice from each leaf and concatenate
+            memory_parts = []
+            for leaf in leaves:
+                if isinstance(leaf, torch.Tensor) and leaf.shape[0] > batch_pos:
+                    # Extract the slice for this batch position and flatten
+                    memory_parts.append(leaf[batch_pos].flatten())
+
+            if not memory_parts:
+                return None
+
+            # Concatenate all memory components into one vector
+            return torch.cat(memory_parts, dim=0)
+
+        except Exception as e:
+            logger.warning(f"Failed to extract Cortex memory at position {batch_pos}: {e}")
+            return None
+
         """
         def _detect_architecture(self, policy: Any) -> str:
             ""

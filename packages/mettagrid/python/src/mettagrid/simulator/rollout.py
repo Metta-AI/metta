@@ -27,7 +27,7 @@ class Rollout:
         pass_sim_to_policies: bool = False,
         event_handlers: Optional[list[SimulatorEventHandler]] = None,
         stats_writer: Optional[StatsWriter] = None,
-        doxascope_logger: Optional[DoxascopeLogger] = None,
+        doxascope_logger: Optional[DoxascopeLogger] = None
     ):
         self._config = config
         self._policies = policies
@@ -51,6 +51,16 @@ class Rollout:
 
         self._doxascope_logger = doxascope_logger
 
+        ##### Configure Doxascope Logger if provided not configured #####
+        if self._doxascope_logger is not None and self._doxascope_logger.output_file is None:
+            # Use first policy's class name as the policy URI
+            policy_name = self._policies[0].__class__.__name__ if self._policies else "unknown"
+            self._doxascope_logger.configure(
+                policy_uri=policy_name,
+                object_type_names=self._sim.object_type_names,
+            )
+        #####
+
         sim = self._sim if self._pass_sim_to_policies else None
         # Reset policies and create agent policies if needed
         for policy in self._policies:
@@ -61,17 +71,6 @@ class Rollout:
         for i in range(len(self._policies)):
             start_time = time.time()
             action = self._policies[i].step(self._agents[i].observation)
-
-            if self._doxascope_logger.enabled:
-                # UNSURE IF THIS WILL WORK OOTB
-                metta_grid_env: MettaGridEnv = self._vecenv.driver_env  # type: ignore
-                env_grid_objects = metta_grid_env.grid_objects()
-
-                self._doxascope_logger.log_timestep(
-                    self._policies[i],
-                    self._policy_idxs, # TO DO: CURRENTLY UNDEFINED
-                    env_grid_objects,
-                )
 
             end_time = time.time()
             if (end_time - start_time) > self._max_action_time_ms:
@@ -86,6 +85,15 @@ class Rollout:
             self._renderer.render()
 
         self._sim.step()
+
+        #### Log Doxascope at end of Step ####
+        if self._doxascope_logger is not None and self._doxascope_logger.enabled:
+            env_grid_objects = self._sim.grid_objects()
+            self._doxascope_logger.log_timestep_cogames(
+                policies=self._policies,
+                env_grid_objects=env_grid_objects,
+            )
+        #####
 
     def run_until_done(self) -> None:
         """Run the rollout until completion or early exit."""

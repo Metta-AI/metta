@@ -16,6 +16,9 @@ from mettagrid.simulator.replay_log_writer import ReplayLogWriter
 from mettagrid.simulator.rollout import Rollout
 from mettagrid.types import EpisodeStats
 
+from metta.doxascope.doxascope_data import DoxascopeLogger
+
+
 _SKIP_STATS = [r"^action\.invalid_arg\..+$"]
 
 ProgressCallback = Callable[[int], None]
@@ -57,6 +60,7 @@ def multi_episode_rollout(
     save_replay: Optional[Path] = None,
     max_action_time_ms: int | None = None,
     event_handlers: Optional[list[SimulatorEventHandler]] = None,
+    doxascope_logger: Optional[DoxascopeLogger] = None, # Optional Doxascope Logger since e.g. train will use
 ) -> MultiEpisodeRolloutResult:
     """
     Runs rollout for multiple episodes, randomizing agent assignments for each episode in proportions
@@ -100,6 +104,7 @@ def multi_episode_rollout(
             agent_policies,
             max_action_time_ms=max_action_time_ms,
             event_handlers=handlers,
+            doxascope_logger=doxascope_logger # could be None
         )
 
         rollout.run_until_done()
