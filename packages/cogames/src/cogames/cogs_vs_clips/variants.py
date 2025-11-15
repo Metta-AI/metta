@@ -147,39 +147,6 @@ class ResourceBottleneckVariant(MissionVariant):
             extractor.efficiency = max(1, int(extractor.efficiency) - 50)
 
 
-class NeutralFacedVariant(MissionVariant):
-    name: str = "neutral_faced"
-    description: str = "Disable vibe swapping; keep neutral face."
-
-    @override
-    def modify_env(self, mission, env):
-        change_vibe = env.game.actions.change_vibe
-        # Fully neutralize the vibe mechanic
-        change_vibe.enabled = False
-        change_vibe.number_of_vibes = 1
-        neutral_vibe_name = "default"
-        env.game.vibe_names = [neutral_vibe_name]
-
-        # Remove vibe transfers that rely on non-existent vibes
-        def _strip_non_neutral_vibe_transfers(agent_cfg):
-            agent_cfg.vibe_transfers = {
-                vibe: transfers for vibe, transfers in agent_cfg.vibe_transfers.items() if vibe == neutral_vibe_name
-            }
-
-        _strip_non_neutral_vibe_transfers(env.game.agent)
-        for agent_cfg in env.game.agents:
-            _strip_non_neutral_vibe_transfers(agent_cfg)
-
-        # Make assembler/chest behavior neutral-only.
-        for name, obj in env.game.objects.items():
-            if isinstance(obj, AssemblerConfig) and obj.protocols:
-                primary_protocol = obj.protocols[0].model_copy(deep=True)
-                primary_protocol.vibes = [neutral_vibe_name]
-                obj.protocols = [primary_protocol]
-            elif isinstance(obj, ChestConfig) and name == "chest":
-                obj.vibe_transfers = {neutral_vibe_name: {"heart": 255}}
-
-
 class SingleToolUnclipVariant(MissionVariant):
     name: str = "single_tool_unclip"
     description: str = "Only one tool is available: the decoder."
@@ -630,7 +597,6 @@ VARIANTS: list[MissionVariant] = [
     InventoryHeartTuneVariant(),
     LonelyHeartVariant(),
     MinedOutVariant(),
-    NeutralFacedVariant(),
     PackRatVariant(),
     QuadrantBuildingsVariant(),
     ResourceBottleneckVariant(),
