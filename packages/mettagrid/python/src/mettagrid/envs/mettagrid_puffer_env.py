@@ -159,8 +159,6 @@ class MettaGridPufferEnv(PufferEnv):
             self._new_sim()
             sim = cast(Simulation, self._sim)
 
-        if actions.shape != self._buffers.actions.shape:
-            raise ValueError(f"Received actions of shape {actions.shape}, expected {self._buffers.actions.shape}")
         # Gymnasium returns int64 arrays by default when sampling MultiDiscrete spaces,
         # so coerce here to keep callers simple while preserving strict bounds checking.
         actions_to_copy = actions if actions.dtype == dtype_actions else np.asarray(actions, dtype=dtype_actions)
