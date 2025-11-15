@@ -55,7 +55,7 @@ class TestBasicPolicyEnvironment:
         assert obs.shape[0] == env.num_agents
 
         # Test step
-        action = env.action_space.sample()
+        action = np.array([env.single_action_space.sample() for _ in range(env.num_agents)], dtype=dtype_actions)
         obs, reward, done, truncated, info = env.step(action)
 
         assert obs is not None
