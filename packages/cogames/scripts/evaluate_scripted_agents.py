@@ -557,7 +557,12 @@ def _plot_by_agent_total(aggregated: AggregatedResults, agents: List[str], outpu
     plt.close()
 
 
-def _plot_by_num_cogs(aggregated: AggregatedResults, num_cogs_list: List[int], agents: List[str], output_path: Path) -> None:
+def _plot_by_num_cogs(
+    aggregated: AggregatedResults,
+    num_cogs_list: List[int],
+    agents: List[str],
+    output_path: Path,
+) -> None:
     """Plot average reward per agent by number of agents."""
     if not num_cogs_list or not agents:
         return
@@ -647,7 +652,12 @@ def _plot_by_num_cogs_total(
     plt.close()
 
 
-def _plot_by_environment(aggregated: AggregatedResults, experiments: List[str], agents: List[str], output_path: Path) -> None:
+def _plot_by_environment(
+    aggregated: AggregatedResults,
+    experiments: List[str],
+    agents: List[str],
+    output_path: Path,
+) -> None:
     """Plot average reward per agent by eval environment."""
     if not experiments or not agents:
         return
@@ -750,7 +760,12 @@ def _plot_by_environment_by_cogs(
     plt.close()
 
 
-def _plot_by_difficulty(aggregated: AggregatedResults, difficulties: List[str], agents: List[str], output_path: Path) -> None:
+def _plot_by_difficulty(
+    aggregated: AggregatedResults,
+    difficulties: List[str],
+    agents: List[str],
+    output_path: Path,
+) -> None:
     """Plot average reward per agent by difficulty variant."""
     if not difficulties or not agents:
         return
