@@ -40,6 +40,9 @@ type
     pendingUnclip: bool
     unclipKind: ResourceKind
     unclipLocation: Location
+    hasPendingGearInfo: bool
+    pendingGearFeature: int
+    pendingCraftKind: ResourceKind
 
   RaceCarPolicy* = ref object
     agents*: seq[RaceCarAgent]
@@ -118,12 +121,20 @@ proc tagToResource(agent: RaceCarAgent, tagId: int): Option[ResourceKind] =
     return some(rkSilicon)
   none(ResourceKind)
 
+proc unclipCraftKind(kind: ResourceKind): ResourceKind =
+  ## Map a clipped resource to the resource needed to craft its gear.
+  case kind
+  of rkOxygen: rkCarbon      # decoder crafted from carbon unclips oxygen
+  of rkCarbon: rkOxygen      # modulator crafted from oxygen unclips carbon
+  of rkGermanium: rkSilicon  # resonator crafted from silicon unclips germanium
+  of rkSilicon: rkGermanium  # scrambler crafted from germanium unclips silicon
+
 proc gearInventoryFeature(agent: RaceCarAgent, kind: ResourceKind): int =
   case kind
-  of rkCarbon: agent.cfg.features.invDecoder
-  of rkOxygen: agent.cfg.features.invModulator
-  of rkGermanium: agent.cfg.features.invScrambler
-  of rkSilicon: agent.cfg.features.invResonator
+  of rkOxygen: agent.cfg.features.invDecoder
+  of rkCarbon: agent.cfg.features.invModulator
+  of rkGermanium: agent.cfg.features.invResonator
+  of rkSilicon: agent.cfg.features.invScrambler
 
 proc resourceInventoryFeature(agent: RaceCarAgent, kind: ResourceKind): int =
   case kind
@@ -167,14 +178,19 @@ proc handleUnclip(
     return false
 
   let kind = agent.unclipKind
-  let gearFeature = agent.gearInventoryFeature(kind)
+  var craftKind = unclipCraftKind(kind)
+  var gearFeature = agent.gearInventoryFeature(kind)
+  if agent.hasPendingGearInfo:
+    if agent.pendingGearFeature != -1:
+      gearFeature = agent.pendingGearFeature
+    craftKind = agent.pendingCraftKind
   let gearCount = agent.cfg.getInventory(map, gearFeature)
 
   proc ensureInputTarget() =
-    agent.ensureResourceTarget(kind, 5)
+    agent.ensureResourceTarget(craftKind, 5)
 
   if gearCount == 0:
-    let available = inventoryByKind(kind, invCarbon, invOxygen, invGermanium, invSilicon)
+    let available = inventoryByKind(craftKind, invCarbon, invOxygen, invGermanium, invSilicon)
     if available <= 0:
       ensureInputTarget()
       return false
@@ -202,7 +218,7 @@ proc handleUnclip(
 
   let target = agent.unclipLocation
   let dist = manhattan(agent.location, target)
-  if dist <= 1:
+  if dist == 0:
     if vibe != agent.cfg.vibes.gear:
       doAction(agent.cfg.actions.vibeGear.int32)
       return true
@@ -366,6 +382,9 @@ proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
   result.pendingUnclip = false
   result.unclipKind = rkCarbon
   result.unclipLocation = Location(x: 0, y: 0)
+  result.hasPendingGearInfo = false
+  result.pendingGearFeature = -1
+  result.pendingCraftKind = rkCarbon
 
 proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]]) =
   ## Update the big map with the small visible map.
@@ -439,6 +458,9 @@ proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]])
           var tagValue = -1
           var remainingUses = -1
           var clipped = false
+          var gearFeatureOverride = -1
+          var gearCraftKind = rkCarbon
+          var gearInfoFound = false
           for feature in visible[visibleLocation]:
             if feature.featureId == agent.cfg.features.tag:
               tagValue = feature.value
@@ -446,6 +468,22 @@ proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]])
               remainingUses = feature.value
             elif feature.featureId == agent.cfg.features.clipped and feature.value > 0:
               clipped = true
+            elif feature.featureId == agent.cfg.features.protocolInputDecoder and feature.value > 0:
+              gearFeatureOverride = agent.cfg.features.invDecoder
+              gearCraftKind = rkCarbon
+              gearInfoFound = true
+            elif feature.featureId == agent.cfg.features.protocolInputModulator and feature.value > 0:
+              gearFeatureOverride = agent.cfg.features.invModulator
+              gearCraftKind = rkOxygen
+              gearInfoFound = true
+            elif feature.featureId == agent.cfg.features.protocolInputResonator and feature.value > 0:
+              gearFeatureOverride = agent.cfg.features.invResonator
+              gearCraftKind = rkSilicon
+              gearInfoFound = true
+            elif feature.featureId == agent.cfg.features.protocolInputScrambler and feature.value > 0:
+              gearFeatureOverride = agent.cfg.features.invScrambler
+              gearCraftKind = rkGermanium
+              gearInfoFound = true
           if tagValue != -1:
             let resource = agent.tagToResource(tagValue)
             if resource.isSome():
@@ -456,10 +494,21 @@ proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]])
                   agent.pendingUnclip = true
                   agent.unclipKind = resource.get()
                   agent.unclipLocation = location
+                  if gearInfoFound:
+                    agent.pendingGearFeature = gearFeatureOverride
+                    agent.pendingCraftKind = gearCraftKind
+                    agent.hasPendingGearInfo = true
+                  else:
+                    agent.pendingGearFeature = agent.gearInventoryFeature(agent.unclipKind)
+                    agent.pendingCraftKind = unclipCraftKind(agent.unclipKind)
+                    agent.hasPendingGearInfo = true
               elif agent.depletedExtractors.hasKey(resource.get()):
                 agent.depletedExtractors[resource.get()].excl(location)
                 if agent.pendingUnclip and agent.unclipLocation == location:
                   agent.pendingUnclip = false
+                  agent.hasPendingGearInfo = false
+                  agent.pendingGearFeature = -1
+                  agent.pendingCraftKind = rkCarbon
             elif tagValue == agent.cfg.tags.charger or
                 tagValue == agent.cfg.tags.assembler or
                 tagValue == agent.cfg.tags.chest:
