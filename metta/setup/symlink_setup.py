@@ -20,11 +20,6 @@ checked_in_bin = get_repo_root() / "metta" / "setup" / "installer" / "bin"
 local_bin = Path.home() / ".local" / "bin"
 
 
-def _local_bin_is_in_path() -> bool:
-    path_dirs = os.environ.get("PATH", "").split(os.pathsep)
-    return str(local_bin) in path_dirs
-
-
 def _check_existing(
     target_symlink: Path, wrapper_script: Path
 ) -> Optional[Literal["ours", "other-but-same-content", "other"]]:
@@ -88,7 +83,7 @@ def setup_path(force: bool, quiet: bool, target_symlink: Path, wrapper_script: P
         """)
         return
 
-    if _local_bin_is_in_path():
+    if str(local_bin) in os.environ.get("PATH", "").split(os.pathsep):
         success(f"{name} command is now available")
     else:
         warning(f"{local_bin} is not in your PATH")
