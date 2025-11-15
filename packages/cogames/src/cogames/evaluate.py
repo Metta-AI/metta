@@ -67,6 +67,7 @@ def evaluate(
             console.print(f"- {mission_name}")
 
     mission_results: list[MultiEpisodeRolloutResult] = []
+    all_replay_paths: list[str] = []
     for mission_name, env_cfg in missions:
         env_interface = PolicyEnvInterface.from_mg_cfg(env_cfg)
         policy_instances: list[MultiAgentPolicy] = [
@@ -95,11 +96,23 @@ def evaluate(
                 save_replay=save_replay,
             )
         mission_results.append(rollout_payload)
+        # Collect replay paths from this mission
+        if rollout_payload.replay_paths:
+            all_replay_paths.extend(rollout_payload.replay_paths)
 
-    summary = build_multi_episode_rollout_summaries(mission_results, num_policies=len(policy_specs))
+    summaries = build_multi_episode_rollout_summaries(mission_results, num_policies=len(policy_specs))
     mission_names = [mission_name for mission_name, _ in missions]
-    _output_results(console, policy_specs, mission_names, summary, output_format)
-    return summary
+    _output_results(console, policy_specs, mission_names, summaries, output_format)
+
+    # Print replay commands if replays were saved
+    if all_replay_paths:
+        console.print(f"\n[bold cyan]Replays saved ({len(all_replay_paths)} episodes)![/bold cyan]")
+        console.print("To watch a replay, run:")
+        console.print("[bold green]cogames replay <replay_path>[/bold green]")
+        console.print("\nExample:")
+        console.print(f"[bold green]cogames replay {all_replay_paths[0]}[/bold green]")
+
+    return summaries
 
 
 def _output_results(
@@ -156,6 +169,16 @@ def _output_results(
             )
     console.print(assignment_table)
 
+    console.print("\n[bold cyan]Average Game Stats[/bold cyan]")
+    game_stats_table = Table(show_header=True, header_style="bold magenta")
+    game_stats_table.add_column("Mission")
+    game_stats_table.add_column("Metric")
+    game_stats_table.add_column("Average", justify="right")
+    for mission_name, mission in mission_summaries:
+        for key, value in mission.avg_game_stats.items():
+            game_stats_table.add_row(mission_name, key, f"{value:.2f}")
+    console.print(game_stats_table)
+
     console.print("\n[bold cyan]Average Policy Stats[/bold cyan]")
     for i, policy_name in enumerate(display_names):
         policy_table = Table(title=policy_name, show_header=True, header_style="bold magenta")
@@ -171,17 +194,7 @@ def _output_results(
                 policy_table.add_row(mission_name, key, f"{value:.2f}")
         console.print(policy_table)
 
-    console.print("\n[bold cyan]Average Game Stats[/bold cyan]")
-    game_stats_table = Table(show_header=True, header_style="bold magenta")
-    game_stats_table.add_column("Mission")
-    game_stats_table.add_column("Metric")
-    game_stats_table.add_column("Average", justify="right")
-    for mission_name, mission in mission_summaries:
-        for key, value in mission.avg_game_stats.items():
-            game_stats_table.add_row(mission_name, key, f"{value:.2f}")
-    console.print(game_stats_table)
-
-    console.print("\n[bold cyan]Average Reward per Agent[/bold cyan]")
+    console.print("\n[bold cyan]Average Per-Agent Reward [/bold cyan]")
     summary_table = Table(show_header=True, header_style="bold magenta")
     summary_table.add_column("Mission")
     summary_table.add_column("Episode", justify="right")
