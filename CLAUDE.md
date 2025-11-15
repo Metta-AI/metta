@@ -431,7 +431,7 @@ workspaces and provides more flexible configuration options.
 
 Renovate groups related packages together to reduce PR noise:
 
-- **pytest ecosystem**: `pytest`, `pytest-cov`, `pytest-xdist`, `pytest-benchmark`, etc.
+- **pytest ecosystem**: `pytest`, `pytest-xdist`, `pytest-benchmark`, etc.
 - **Scientific computing**: `numpy`, `scipy`, `pandas`, `matplotlib`, `torch`, etc.
 - **RL ecosystem**: `gymnasium`, `pettingzoo`, `shimmy`, `pufferlib`
 - **Web framework**: `fastapi`, `uvicorn`, `starlette`, `pydantic`

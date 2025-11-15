@@ -1,6 +1,6 @@
 "use client";
 import clsx from "clsx";
-import { FC, use } from "react";
+import { FC, use, useState } from "react";
 
 import { ConfigNode, isArrayNode, isObjectNode, isScalarNode } from "./utils";
 import { YamlAny } from "./YamlAny";
@@ -40,11 +40,13 @@ export const YamlKeyValue: FC<{
         )}
         onClick={onClick}
       >
-        <YamlKey node={valueNode} />
+        <YamlKey node={valueNode} canExpand={false} />
         <YamlScalar node={valueNode} />
       </div>
     );
   }
+
+  const [isExpanded, setIsExpanded] = useState(true);
 
   const singleLine =
     (isArrayNode(valueNode) && valueNode.value.length === 0) ||
@@ -52,8 +54,16 @@ export const YamlKeyValue: FC<{
 
   return (
     <div className={clsx(singleLine && "flex gap-1")}>
-      <YamlKey node={valueNode} />
-      <div className={clsx(!singleLine && "ml-[2ch]")}>
+      <YamlKey
+        node={valueNode}
+        canExpand={!singleLine}
+        isExpanded={isExpanded}
+        onExpansionClick={() => setIsExpanded(!isExpanded)}
+      />
+
+      <div
+        className={clsx(!singleLine && "ml-[2ch]", !isExpanded && "hidden")}
+      >
         <YamlAny node={valueNode} />
       </div>
     </div>
