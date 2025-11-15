@@ -107,7 +107,7 @@ class MettaGridPufferEnv(PufferEnv):
         sim = cast(Simulation, self._sim)
         self.num_agents = sim.num_agents
 
-        super().__init__(buf=buf, expose_joint_action_space=False)
+        super().__init__(buf=buf)
 
     @property
     def env_cfg(self) -> MettaGridConfig:
@@ -157,13 +157,6 @@ class MettaGridPufferEnv(PufferEnv):
         if sim._c_sim.terminals().all() or sim._c_sim.truncations().all():
             self._new_sim()
             sim = cast(Simulation, self._sim)
-
-        if actions.shape != self._buffers.actions.shape:
-            raise ValueError(f"Received actions of shape {actions.shape}, expected {self._buffers.actions.shape}")
-        # Gymnasium returns int64 arrays by default when sampling discrete spaces,
-        # so coerce here to keep callers simple while preserving strict bounds checking.
-        actions_to_copy = actions if actions.dtype == dtype_actions else np.asarray(actions, dtype=dtype_actions)
-        np.copyto(self._buffers.actions, actions_to_copy, casting="safe")
 
         sim.step()
 
