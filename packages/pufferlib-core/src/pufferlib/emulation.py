@@ -89,6 +89,8 @@ def dtype_from_space(space):
             dtype.append((k, dtype_from_space(value)))
     elif isinstance(space, (pufferlib.spaces.Discrete)):
         dtype = (np.int32, ())
+    elif isinstance(space, (pufferlib.spaces.MultiDiscrete)):
+        dtype = (np.int32, (len(space.nvec),))
     else:
         dtype = (space.dtype, space.shape)
 
@@ -132,9 +134,13 @@ def emulate_observation_space(space):
 def emulate_action_space(space):
     if isinstance(space, pufferlib.spaces.Box):
         return space, space.dtype
-    if isinstance(space, pufferlib.spaces.Discrete):
+    elif isinstance(space, (pufferlib.spaces.Discrete, pufferlib.spaces.MultiDiscrete)):
         return space, np.int32
-    raise pufferlib.APIUsageError("Only gymnasium.spaces.Discrete action spaces are supported")
+
+    emulated_dtype = dtype_from_space(space)
+    leaves = flatten_space(space)
+    emulated_space = gymnasium.spaces.MultiDiscrete([e.n for e in leaves])
+    return emulated_space, emulated_dtype
 
 
 class GymnasiumPufferEnv(gymnasium.Env):
