@@ -9,6 +9,12 @@ const
   PutInventoryAmount = 10
 
 type
+  ResourceKind = enum
+    rkCarbon,
+    rkOxygen,
+    rkGermanium,
+    rkSilicon
+
   RaceCarAgent* = ref object
     agentId*: int
 
@@ -28,6 +34,8 @@ type
     maxEnergyObserved: int
     recharging: bool
     exploreStage: int
+    knownExtractors: Table[ResourceKind, HashSet[Location]]
+    depletedExtractors: Table[ResourceKind, HashSet[Location]]
 
   RaceCarPolicy* = ref object
     agents*: seq[RaceCarAgent]
@@ -94,6 +102,51 @@ proc scoutAction(agent: RaceCarAgent): Option[int32] =
   elif vec.y < 0:
     return some(agent.cfg.actions.moveNorth.int32)
   none(int32)
+
+proc tagToResource(agent: RaceCarAgent, tagId: int): Option[ResourceKind] =
+  if tagId == agent.cfg.tags.carbonExtractor:
+    return some(rkCarbon)
+  if tagId == agent.cfg.tags.oxygenExtractor:
+    return some(rkOxygen)
+  if tagId == agent.cfg.tags.germaniumExtractor:
+    return some(rkGermanium)
+  if tagId == agent.cfg.tags.siliconExtractor:
+    return some(rkSilicon)
+  none(ResourceKind)
+
+proc recordExtractor(agent: RaceCarAgent, kind: ResourceKind, location: Location) =
+  if not agent.knownExtractors.hasKey(kind):
+    agent.knownExtractors[kind] = initHashSet[Location]()
+  agent.knownExtractors[kind].incl(location)
+
+proc markExtractorDepleted(agent: RaceCarAgent, kind: ResourceKind, location: Location) =
+  if not agent.depletedExtractors.hasKey(kind):
+    agent.depletedExtractors[kind] = initHashSet[Location]()
+  if location in agent.depletedExtractors[kind]:
+    return
+  agent.depletedExtractors[kind].incl(location)
+  if agent.knownExtractors.hasKey(kind):
+    agent.knownExtractors[kind].excl(location)
+
+proc extractorTargets(agent: RaceCarAgent, kind: ResourceKind): seq[Location] =
+  if agent.knownExtractors.hasKey(kind):
+    for location in agent.knownExtractors[kind]:
+      if agent.depletedExtractors.hasKey(kind) and location in agent.depletedExtractors[kind]:
+        continue
+      result.add(location)
+
+proc seekKnownExtractor(agent: RaceCarAgent, kind: ResourceKind): Option[int32] =
+  var best: Option[int32]
+  var bestDist = high(int)
+  for location in agent.extractorTargets(kind):
+    let dist = manhattan(agent.location, location)
+    if dist >= bestDist:
+      continue
+    let action = agent.cfg.aStar(agent.location, location, agent.map)
+    if action.isSome():
+      bestDist = dist
+      best = some(action.get().int32)
+  best
 
 proc energyLowThreshold(agent: RaceCarAgent): int =
   let cap = max(agent.maxEnergyObserved, 1)
@@ -178,6 +231,8 @@ proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
   result.maxEnergyObserved = 0
   result.recharging = false
   result.exploreStage = 0
+  result.knownExtractors = initTable[ResourceKind, HashSet[Location]]()
+  result.depletedExtractors = initTable[ResourceKind, HashSet[Location]]()
 
 proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]]) =
   ## Update the big map with the small visible map.
@@ -248,6 +303,22 @@ proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]])
         let location = Location(x: x + agent.location.x, y: y + agent.location.y)
         if visibleLocation in visible:
           agent.map[location] = visible[visibleLocation]
+          var tagValue = -1
+          var remainingUses = -1
+          var clipped = false
+          for feature in visible[visibleLocation]:
+            if feature.featureId == agent.cfg.features.tag:
+              tagValue = feature.value
+            elif feature.featureId == agent.cfg.features.remainingUses:
+              remainingUses = feature.value
+            elif feature.featureId == agent.cfg.features.clipped and feature.value > 0:
+              clipped = true
+          if tagValue != -1:
+            let resource = agent.tagToResource(tagValue)
+            if resource.isSome():
+              agent.recordExtractor(resource.get(), location)
+              if remainingUses == 0 or clipped:
+                agent.markExtractorDepleted(resource.get(), location)
         else:
           agent.map[location] = @[]
         agent.seen.incl(location)
@@ -480,6 +551,11 @@ proc step*(
 
     # Is there carbon nearby?
     if agent.carbonTarget > 0 and invCarbon < agent.carbonTarget:
+      let knownCarbon = agent.seekKnownExtractor(rkCarbon)
+      if knownCarbon.isSome():
+        doAction(knownCarbon.get())
+        log "heading to known carbon extractor"
+        return
       var closeChest = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
       if closeChest.isSome():
         # Does it have the resources we need?
@@ -507,6 +583,11 @@ proc step*(
 
     # Is there silicon nearby?
     if agent.siliconTarget > 0 and invSilicon < agent.siliconTarget:
+      let knownSilicon = agent.seekKnownExtractor(rkSilicon)
+      if knownSilicon.isSome():
+        doAction(knownSilicon.get())
+        log "heading to known silicon extractor"
+        return
       var closeChest = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
       if closeChest.isSome():
         # Does it have the resources we need?
@@ -532,6 +613,11 @@ proc step*(
 
     # Is there oxygen nearby?
     if agent.oxygenTarget > 0 and invOxygen < agent.oxygenTarget:
+      let knownOxygen = agent.seekKnownExtractor(rkOxygen)
+      if knownOxygen.isSome():
+        doAction(knownOxygen.get())
+        log "heading to known oxygen extractor"
+        return
       var closeChest = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
       if closeChest.isSome():
         # Does it have the resources we need?
@@ -557,6 +643,11 @@ proc step*(
 
     # Is there germanium nearby?
     if agent.germaniumTarget > 0 and invGermanium < agent.germaniumTarget:
+      let knownGermanium = agent.seekKnownExtractor(rkGermanium)
+      if knownGermanium.isSome():
+        doAction(knownGermanium.get())
+        log "heading to known germanium extractor"
+        return
       var closeChest = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
       if closeChest.isSome():
         # Does it have the resources we need?
