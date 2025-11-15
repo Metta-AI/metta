@@ -33,4 +33,4 @@ else
 fi
 
 # Run metta using uv with the project directory
-exec uv run --project "$PROJECT_DIR" python packages/cogames/src/cogames/main.py "$@"
+exec uv run --project "$PROJECT_DIR" python -m cogames.main "$@"
