@@ -24,6 +24,7 @@ SEED = 42
 
 # Add/modify your evals here over time
 EVALS: List[Tuple[str, str, int]] = [
+    # Regular evals
     ("energy_starved", "n/a", NUM_COGS),
     ("oxygen_bottleneck", "n/a", NUM_COGS),
     ("extractor_hub_30", "n/a", NUM_COGS),
@@ -37,7 +38,7 @@ EVALS: List[Tuple[str, str, int]] = [
     ("divide_and_conquer", "n/a", NUM_COGS),
     ("go_together", "n/a", NUM_COGS),
     ("single_use_swarm", "n/a", NUM_COGS),
-
+    # Diagnostic evals
     ("diagnostic_chest_navigation1", "slow", 1),
     ("diagnostic_chest_navigation2", "slow", 1),
     ("diagnostic_chest_navigation3", "slow", 1),
@@ -55,7 +56,7 @@ EVALS: List[Tuple[str, str, int]] = [
     ("diagnostic_unclip_preseed", "n/a", 1),
     ("diagnostic_agile", "n/a", 1),
     ("diagnostic_radial", "n/a", 1),
-
+    # Hello World evals
     ("distant_resources", "n/a", NUM_COGS),
     ("quadrant_buildings", "n/a", NUM_COGS),
     ("single_use_swarm", "n/a", NUM_COGS),
@@ -82,12 +83,13 @@ EVALS: List[Tuple[str, str, int]] = [
     ("vibe_check_easy", "n/a", NUM_COGS),
     ("vibe_check_standard", "n/a", NUM_COGS),
     ("vibe_check_hard", "n/a", NUM_COGS),
-
+    # Hearts evals
     ("easy_large_hearts", "slow", NUM_COGS),
     ("easy_medium_hearts", "n/a", NUM_COGS),
     ("easy_small_hearts", "n/a", NUM_COGS),
     ("easy_hearts_training", "n/a", NUM_COGS),
 ]
+
 
 def fix_logger() -> None:
     # Silence torch elastic redirect note and similar warnings
@@ -168,7 +170,6 @@ def run_eval(experiment_name: str, tag: str, mission_map: Dict[str, Mission], nu
         env_cfg = mission.make_env()
         _ensure_vibe_supports_gear(env_cfg)
         env_cfg.game.max_steps = MAX_STEPS
-        max_steps = env_cfg.game.max_steps
 
         # Create policy and rollout
         pei = PolicyEnvInterface.from_mg_cfg(env_cfg)
@@ -189,7 +190,6 @@ def run_eval(experiment_name: str, tag: str, mission_map: Dict[str, Mission], nu
 
         total_reward = float(sum(rollout._sim.episode_rewards))
         hearts_per_agent = total_reward / max(1, num_cogs)
-        steps_taken = rollout._sim.current_step + 1
         elapsed = time.perf_counter() - start
 
         # One simple line per eval
@@ -217,7 +217,7 @@ def main() -> None:
         total_hpa += hpa
     success_rate = successful_evals / len(EVALS)
     elapsed = time.perf_counter() - start
-    total_evals = f"{len(EVALS)} evals {success_rate*100:.1f}% successful"
+    total_evals = f"{len(EVALS)} evals {success_rate * 100:.1f}% successful"
     hpa = f"{total_hpa:.2f}"
     tm = f"{elapsed:.2f}"
     tag = "total"
