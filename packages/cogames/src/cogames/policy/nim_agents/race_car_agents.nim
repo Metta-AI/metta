@@ -47,6 +47,8 @@ type
   RaceCarPolicy* = ref object
     agents*: seq[RaceCarAgent]
 
+var sharedStations: Table[int, HashSet[Location]]
+
 proc log(message: string) =
   when defined(debug) or defined(uncliplog):
     echo message
@@ -286,11 +288,18 @@ proc recordStation(agent: RaceCarAgent, tagId: int, location: Location) =
   if not agent.knownStations.hasKey(tagId):
     agent.knownStations[tagId] = initHashSet[Location]()
   agent.knownStations[tagId].incl(location)
+  if not sharedStations.hasKey(tagId):
+    sharedStations[tagId] = initHashSet[Location]()
+  sharedStations[tagId].incl(location)
 
 proc stationTargets(agent: RaceCarAgent, tagId: int): seq[Location] =
   if agent.knownStations.hasKey(tagId):
     for location in agent.knownStations[tagId]:
       result.add(location)
+  if sharedStations.hasKey(tagId):
+    for location in sharedStations[tagId]:
+      if location notin result:
+        result.add(location)
 
 proc seekKnownStation(agent: RaceCarAgent, tagId: int): Option[int32] =
   var best: Option[int32]
@@ -956,6 +965,7 @@ proc step*(
 
 proc newRaceCarPolicy*(environmentConfig: string): RaceCarPolicy =
   let cfg = parseConfig(environmentConfig)
+  sharedStations = initTable[int, HashSet[Location]]()
   var agents: seq[RaceCarAgent] = @[]
   for id in 0 ..< cfg.config.numAgents:
     agents.add(newRaceCarAgent(id, environmentConfig))
