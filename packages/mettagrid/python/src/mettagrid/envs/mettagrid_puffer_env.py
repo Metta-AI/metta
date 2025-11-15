@@ -158,6 +158,10 @@ class MettaGridPufferEnv(PufferEnv):
             self._new_sim()
             sim = cast(Simulation, self._sim)
 
+        if actions.shape != self._buffers.actions.shape:
+            raise ValueError(f"Received actions of shape {actions.shape}, expected {self._buffers.actions.shape}")
+        np.copyto(self._buffers.actions, actions, casting="safe")
+
         sim.step()
 
         # Do this after step() so that the trainer can use it if needed
@@ -179,6 +183,8 @@ class MettaGridPufferEnv(PufferEnv):
         teacher_actions = self._buffers.teacher_actions
         raw_observations = self._buffers.observations
         self._env_supervisor.step_batch(raw_observations, teacher_actions)
+
+        # print(f"teacher_actions: {teacher_actions}")
 
     @property
     def observations(self) -> np.ndarray:
