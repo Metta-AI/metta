@@ -487,14 +487,13 @@ class JobManager:
                                 last_metrics_fetch = now
 
                         # Check if terminal state reached
+                        # Note: ERROR and UNKNOWN can be transient, so we don't treat them as terminal
                         if status in (
                             "SUCCEEDED",
                             "FAILED",
                             "FAILED_SETUP",
                             "FAILED_DRIVER",
                             "CANCELLED",
-                            "UNKNOWN",
-                            "ERROR",
                         ):
                             # Mark job complete
                             if job_name in self._active_jobs:
