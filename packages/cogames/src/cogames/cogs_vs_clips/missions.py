@@ -13,7 +13,6 @@ from cogames.cogs_vs_clips.variants import (
     HeartChorusVariant,
     InventoryHeartTuneVariant,
     LonelyHeartVariant,
-    NeutralFacedVariant,
     PackRatVariant,
     VibeCheckMin2Variant,
 )
@@ -56,26 +55,24 @@ RepairMission = Mission(
 # Easy Hearts: simplified heart crafting and generous limits with extractor hub
 EasyHeartsTrainingMission = Mission(
     name="easy_hearts_training_facility",
-    description="Simplified heart crafting, generous caps, extractor base, neutral vibe.",
+    description="Simplified heart crafting with generous caps and extractor base.",
     site=TRAINING_FACILITY,
     variants=[
         LonelyHeartVariant(),
         HeartChorusVariant(),
         PackRatVariant(),
-        NeutralFacedVariant(),
     ],
 )
 
 # Easy Hearts: simplified heart crafting and generous limits with extractor hub
 EasyHeartsHelloWorldMission = Mission(
     name="easy_hearts_hello_world",
-    description="Simplified heart crafting, generous caps, extractor base, neutral vibe.",
+    description="Simplified heart crafting with generous caps and extractor base.",
     site=HELLO_WORLD,
     variants=[
         LonelyHeartVariant(),
         HeartChorusVariant(),
         PackRatVariant(),
-        NeutralFacedVariant(),
     ],
 )
 
