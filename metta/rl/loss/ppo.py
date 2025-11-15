@@ -11,8 +11,8 @@ from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext, TrainingEnvironment
+from metta.rl.training.batch import calculate_prioritized_sampling_params
 from metta.rl.utils import prepare_policy_forward_td
-from metta.utils.batch import calculate_prioritized_sampling_params
 from mettagrid.base_config import Config
 
 
