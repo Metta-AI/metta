@@ -862,3 +862,8 @@ proc aStar*(
 
   # No path found — fall back to greedy single-step
   return none(int)
+
+proc remove*[T](seq: var seq[T], item: T) =
+  let index = seq.find(item)
+  if index != -1:
+    seq.delete(index)

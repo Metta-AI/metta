@@ -32,6 +32,9 @@ type
 
     bump: bool
     offsets4: seq[Location]  # 4 cardinal but random for each agent
+    seenAssembler: bool
+    seenChest: bool
+    exploreLocations: seq[Location]
 
   ThinkyPolicy* = ref object
     agents*: seq[ThinkyAgent]
@@ -131,6 +134,14 @@ proc newThinkyAgent*(agentId: int, environmentConfig: string): ThinkyAgent =
   result.random.shuffle(offsets4)
   for i in 0 ..< offsets4.len:
     offsets4[i] = offsets4[i]
+
+  result.exploreLocations = @[
+    Location(x: -7, y: 0),
+    Location(x: 0, y: +7),
+    Location(x: +7, y: 0),
+    Location(x: 0, y: -7),
+  ]
+  result.random.shuffle(result.exploreLocations)
 
 proc updateMap(agent: ThinkyAgent, visible: Table[Location, seq[FeatureValue]]) {.measure.} =
   ## Update the big map with the small visible map.
@@ -567,115 +578,85 @@ proc step*(
       ):
         return
 
-    # Explore key locations around the start.
-    block:
-      let keyLocations = [
-        Location(x: -7, y: 0),
-        Location(x: 0, y: +7),
-        Location(x: +7, y: 0),
-        Location(x: 0, y: -7),
-      ]
-      for keyLocation in keyLocations:
-        let location = Location(x: 0, y: 0) + keyLocation
-        if location notin agent.seen:
-          measurePush("key location to explore")
-          let action = agent.cfg.aStar(agent.location, location, agent.map)
-          measurePop()
-          if action.isSome():
-            doAction(action.get().int32)
-            log "going to key location to explore"
-            return
-
     # Explore locations around the assembler.
     block:
-      let keyLocations = [
-        Location(x: -10, y: -10),
-        Location(x: -10, y: +10),
-        Location(x: +10, y: -10),
-        Location(x: +10, y: +10),
-      ]
-      let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
-      if assemblerNearby.isSome():
-        for keyLocation in keyLocations:
-          let location = assemblerNearby.get() + keyLocation
-          if location notin agent.seen:
-            let action = agent.cfg.aStar(agent.location, location, agent.map)
-            if action.isSome():
-              doAction(action.get().int32)
-              log "going to key location around the assembler to explore"
-              return
-
-    # Explore key locations around the chest.
-    block:
-      let keyLocations = [
-        Location(x: -3, y: 0),
-        Location(x: 0, y: +3),
-        Location(x: +3, y: 0),
-        Location(x: 0, y: -3),
-      ]
-      let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
-      if chestNearby.isSome():
-        for keyLocation in keyLocations:
-          let location = chestNearby.get() + keyLocation
-          if location notin agent.seen:
-            measurePush("key location around the chest to explore")
-            let action = agent.cfg.aStar(agent.location, location, agent.map)
-            measurePop()
-            if action.isSome():
-              doAction(action.get().int32)
-              log "going to key location around the chest to explore"
-              return
-
-    # Try to find a nearby unseen location nearest to the agent.
-    # measurePush("exploration")
-    # var unreachables: HashSet[Location]
-    # for i in 0 .. 100:
-    #   let unseenNearby = agent.cfg.getNearbyUnseen(agent.location, agent.map, agent.seen, unreachables)
-    #   if unseenNearby.isSome():
-    #     let action = agent.cfg.aStar(agent.location, unseenNearby.get(), agent.map)
-    #     if action.isSome():
-    #       doAction(action.get().int32)
-    #       log "going to unseen location nearest to agent"
-    #       return
-    #     else:
-    #       unreachables.incl(unseenNearby.get())
-    # measurePop()
+      if not agent.seenAssembler:
+        let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
+        if assemblerNearby.isSome():
+          agent.seenAssembler = true
+          let keyLocations = [
+            Location(x: -10, y: -10),
+            Location(x: -10, y: +10),
+            Location(x: +10, y: -10),
+            Location(x: +10, y: +10),
+          ]
+          for keyLocation in keyLocations:
+            let location = assemblerNearby.get() + keyLocation
+            agent.exploreLocations.add(location)
+      if not agent.seenChest:
+        let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
+        if chestNearby.isSome():
+          agent.seenChest = true
+          let keyLocations = [
+            Location(x: -3, y: 0),
+            Location(x: 0, y: +3),
+            Location(x: +3, y: 0),
+            Location(x: 0, y: -3),
+          ]
+          for keyLocation in keyLocations:
+            let location = chestNearby.get() + keyLocation
+            agent.exploreLocations.add(location)
 
     # Do Exploration.
-    measurePush("exploration")
-    var locationFound = false
-    var unexploredLocation: Location
-    var visited: HashSet[Location]
-    block exploration:
-      var seedLocation = agent.location
-      let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
-      if assemblerNearby.isSome():
-        seedLocation = assemblerNearby.get()
-      var queue: Deque[Location]
-      queue.addLast(seedLocation)
-      visited.incl(seedLocation)
-      while queue.len > 0:
-        let location = queue.popLast()
+    if agent.exploreLocations.len == 0:
+      measurePush("exploration")
+      var locationFound = false
+      var unexploredLocation: Location
+      var visited: HashSet[Location]
+      block exploration:
+        var seedLocation = agent.location
+        let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
+        if assemblerNearby.isSome():
+          seedLocation = assemblerNearby.get()
+        var queue: Deque[Location]
+        queue.addLast(seedLocation)
+        visited.incl(seedLocation)
+        while queue.len > 0:
+          let location = queue.popLast()
+          if location notin agent.seen:
+            locationFound = true
+            unexploredLocation = location
+            break exploration
+          for i, offset in Offsets4:
+            let neighbor = location + offset
+            # passable check
+            if agent.cfg.isWalkable(agent.map, neighbor):
+              if neighbor notin visited:
+                visited.incl(neighbor)
+                queue.addLast(neighbor)
+      if locationFound:
+        agent.exploreLocations.add(unexploredLocation)
+      else:
+        log "no unseen location found"
+        # agent.cfg.drawMap(agent.map, visited)
+      measurePop()
+
+    measurePush("explore locations")
+    log "explore locations: " & $agent.exploreLocations
+    if agent.exploreLocations.len > 0:
+      for location in agent.exploreLocations:
         if location notin agent.seen:
-          locationFound = true
-          unexploredLocation = location
-          break exploration
-        for i, offset in Offsets4:
-          let neighbor = location + offset
-          # passable check
-          if agent.cfg.isWalkable(agent.map, neighbor):
-            if neighbor notin visited:
-              visited.incl(neighbor)
-              queue.addLast(neighbor)
-    if locationFound:
-      let action = agent.cfg.aStar(agent.location, unexploredLocation, agent.map)
-      if action.isSome():
-        doAction(action.get().int32)
-        log "going to unseen location nearest to agent"
-        return
-    else:
-      log "no unseen location found"
-      # agent.cfg.drawMap(agent.map, visited)
+          let action = agent.cfg.aStar(agent.location, location, agent.map)
+          if action.isSome():
+            doAction(action.get().int32)
+            log "going to explore location: " & $location
+            return
+          else:
+            agent.exploreLocations.remove(location)
+            break
+        else:
+          agent.exploreLocations.remove(location)
+          break
     measurePop()
 
     # If all else fails, take a random move to explore the map or get unstuck.
