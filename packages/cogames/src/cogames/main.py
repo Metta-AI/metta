@@ -21,7 +21,13 @@ from cogames import play as play_module
 from cogames import train as train_module
 from cogames.cli.base import console
 from cogames.cli.login import DEFAULT_COGAMES_SERVER, perform_login
-from cogames.cli.mission import describe_mission, get_mission_name_and_config, get_mission_names_and_configs
+from cogames.cli.mission import (
+    describe_mission,
+    get_mission_name_and_config,
+    get_mission_names_and_configs,
+    list_evals,
+    list_variants,
+)
 from cogames.cli.policy import (
     get_policy_spec,
     get_policy_specs_with_proportions,
@@ -111,10 +117,36 @@ def games_cmd(
         return
 
     try:
-        describe_mission(resolved_mission, env_cfg)
+        describe_mission(resolved_mission, env_cfg, mission_cfg)
     except ValueError as exc:  # pragma: no cover - user input
         console.print(f"[red]Error: {exc}[/red]")
         raise typer.Exit(1) from exc
+
+
+@app.command("evals", help="List all eval missions")
+def evals_cmd() -> None:
+    list_evals()
+
+
+@app.command("variants", help="List all available mission variants")
+def variants_cmd() -> None:
+    list_variants()
+
+
+@app.command(name="describe", help="Describe a mission and its configuration")
+def describe_cmd(
+    ctx: typer.Context,
+    mission: str = typer.Argument(..., help="Mission name (e.g., hello_world.open_world)"),
+    cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
+    variant: Optional[list[str]] = typer.Option(  # noqa: B008
+        None,
+        "--variant",
+        "-v",
+        help="Mission variant (can be used multiple times, e.g., --variant solar_flare --variant dark_side)",
+    ),
+) -> None:
+    resolved_mission, env_cfg, mission_cfg = get_mission_name_and_config(ctx, mission, variant, cogs)
+    describe_mission(resolved_mission, env_cfg, mission_cfg)
 
 
 @app.command(name="play", help="Play a game")
@@ -310,10 +342,10 @@ def train_cmd(
 
 
 @app.command(
-    name="eval",
+    name="evaluate",
     help="Evaluate one or more policies on one or more missions",
 )
-@app.command("evaluate", hidden=True)
+@app.command("eval", hidden=True)
 def evaluate_cmd(
     ctx: typer.Context,
     missions: Optional[list[str]] = typer.Option(  # noqa: B008
