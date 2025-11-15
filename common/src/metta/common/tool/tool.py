@@ -29,6 +29,9 @@ class Tool(Config):
     """
 
     system: SystemConfig = Field(default_factory=SystemConfig)
+    description: str | None = Field(
+        default=None, description="Optional description for the tool (used by MCP and other tool discovery systems)"
+    )
 
     @classmethod
     def tool_type_name(cls) -> str:
