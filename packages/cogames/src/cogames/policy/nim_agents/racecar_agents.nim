@@ -48,7 +48,7 @@ type
     agents*: seq[RaceCarAgent]
 
 proc log(message: string) =
-  when defined(debug):
+  when defined(debug) or defined(uncliplog):
     echo message
 
 const the8Offsets = [
@@ -61,6 +61,13 @@ const the8Offsets = [
   Location(x: -1, y: +0),
   Location(x: -1, y: +1),
   Location(x: -1, y: -1),
+]
+
+const cardinalOffsets = [
+  Location(x: +1, y: +0),
+  Location(x: -1, y: +0),
+  Location(x: +0, y: +1),
+  Location(x: +0, y: -1),
 ]
 
 const scoutVectors = [
@@ -146,6 +153,23 @@ proc resourceInventoryFeature(agent: RaceCarAgent, kind: ResourceKind): int =
 proc seekKnownStation(agent: RaceCarAgent, tagId: int): Option[int32]
 proc seekKnownExtractor(agent: RaceCarAgent, kind: ResourceKind): Option[int32]
 
+proc approachAdjacent(agent: RaceCarAgent, target: Location): Option[int32] =
+  var best: Option[int32]
+  var bestDist = high(int)
+  for offset in cardinalOffsets:
+    let candidate = target + offset
+    if candidate == agent.location:
+      return some(agent.cfg.actions.noop.int32)
+    if not agent.cfg.isWalkable(agent.map, candidate):
+      continue
+    let action = agent.cfg.aStar(agent.location, candidate, agent.map)
+    if action.isSome():
+      let dist = manhattan(agent.location, candidate)
+      if dist < bestDist:
+        bestDist = dist
+        best = some(action.get().int32)
+  best
+
 proc ensureResourceTarget(agent: RaceCarAgent, kind: ResourceKind, amount: int) =
   case kind
   of rkCarbon:
@@ -218,16 +242,17 @@ proc handleUnclip(
 
   let target = agent.unclipLocation
   let dist = manhattan(agent.location, target)
-  if dist == 0:
+  if dist <= 1:
     if vibe != agent.cfg.vibes.gear:
       doAction(agent.cfg.actions.vibeGear.int32)
       return true
     doAction(agent.cfg.actions.noop.int32)
     log "using gear on clipped extractor"
     return true
-  let action = agent.cfg.aStar(agent.location, target, agent.map)
+  let action = agent.approachAdjacent(target)
   if action.isSome():
     doAction(action.get().int32)
+    log "moving adjacent to clipped extractor"
     return true
   let knownExtractor = agent.seekKnownExtractor(kind)
   if knownExtractor.isSome():
@@ -369,10 +394,10 @@ proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
   result.location = Location(x: 0, y: 0)
   result.lastActions = @[]
   result.recipes = @[]
-  result.carbonTarget = 0
-  result.oxygenTarget = 0
-  result.germaniumTarget = 0
-  result.siliconTarget = 0
+  result.carbonTarget = 10
+  result.oxygenTarget = 10
+  result.germaniumTarget = 1
+  result.siliconTarget = 20
   result.maxEnergyObserved = 0
   result.recharging = false
   result.exploreStage = 0
@@ -612,13 +637,17 @@ proc step*(
     log &"H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
 
     let activeRecipe = agent.getActiveRecipe()
-    log "active recipe: " & $activeRecipe
-
-    if activeRecipe.pattern.len > 0:
-      agent.carbonTarget = max(agent.carbonTarget, activeRecipe.carbonCost div activeRecipe.pattern.len)
-      agent.oxygenTarget = max(agent.oxygenTarget, activeRecipe.oxygenCost div activeRecipe.pattern.len)
-      agent.germaniumTarget = max(agent.germaniumTarget, activeRecipe.germaniumCost div activeRecipe.pattern.len)
-      agent.siliconTarget = max(agent.siliconTarget, activeRecipe.siliconCost div activeRecipe.pattern.len)
+    let heartVibes = [agent.cfg.vibes.heartA, agent.cfg.vibes.heartB]
+    var isHeartRecipe = false
+    for vibeKey in activeRecipe.pattern:
+      if vibeKey in heartVibes:
+        isHeartRecipe = true
+        break
+    if isHeartRecipe and activeRecipe.pattern.len > 0:
+      agent.carbonTarget = max(agent.carbonTarget, max(1, activeRecipe.carbonCost div activeRecipe.pattern.len))
+      agent.oxygenTarget = max(agent.oxygenTarget, max(1, activeRecipe.oxygenCost div activeRecipe.pattern.len))
+      agent.germaniumTarget = max(agent.germaniumTarget, max(1, activeRecipe.germaniumCost div activeRecipe.pattern.len))
+      agent.siliconTarget = max(agent.siliconTarget, max(1, activeRecipe.siliconCost div activeRecipe.pattern.len))
 
     agent.maxEnergyObserved = max(agent.maxEnergyObserved, invEnergy)
 
