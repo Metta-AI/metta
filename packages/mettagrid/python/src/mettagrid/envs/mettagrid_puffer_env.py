@@ -129,9 +129,7 @@ class MettaGridPufferEnv(PufferEnv):
         if self._sim is not None:
             self._sim.close()
 
-        self._sim = self._simulator.new_simulation(
-            self._current_cfg, self._current_seed, buffers=self._buffers
-        )
+        self._sim = self._simulator.new_simulation(self._current_cfg, self._current_seed, buffers=self._buffers)
 
         if self._env_supervisor_cfg.policy is not None:
             self._env_supervisor = initialize_or_load_policy(
@@ -154,9 +152,7 @@ class MettaGridPufferEnv(PufferEnv):
         return self._buffers.observations, {}
 
     @override
-    def step(
-        self, actions: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, List[Dict[str, Any]]]:
+    def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, List[Dict[str, Any]]]:
         sim = cast(Simulation, self._sim)
 
         if sim._c_sim.terminals().all() or sim._c_sim.truncations().all():
@@ -164,9 +160,7 @@ class MettaGridPufferEnv(PufferEnv):
             sim = cast(Simulation, self._sim)
 
         if actions.shape != self._buffers.actions.shape:
-            raise ValueError(
-                f"Received actions of shape {actions.shape}, expected {self._buffers.actions.shape}"
-            )
+            raise ValueError(f"Received actions of shape {actions.shape}, expected {self._buffers.actions.shape}")
         np.copyto(self._buffers.actions, actions, casting="safe")
 
         sim.step()
