@@ -355,10 +355,11 @@ pip install softmax-cogworks
 pip install softmax-backend-shared
 
 # Development setup (auto-detects CUDA vs CPU PyTorch wheels)
-./scripts/uv-sync.sh
+uv sync
+UV_TORCH_BACKEND=auto uv pip install --python .venv/bin/python torch==2.9.1
 
-> Need a specific backend? Export `UV_TORCH_BACKEND` (e.g., `cpu`, `cu130`, `cu121`) before
-> running `./scripts/uv-sync.sh` to override the default auto-detection.
+> Need a specific backend? Export `UV_TORCH_BACKEND` (e.g., `cpu`, `cu130`, `cu121`) on the second line to override
+> the default auto-detection.
 
 # What uv will show during build:
 # Built softmax-cogworks @ file:///workspace/cogworks

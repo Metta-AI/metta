@@ -476,7 +476,7 @@ Renovate groups related packages together to reduce PR noise:
 
    ```bash
    # Check for conflicts
-   ./scripts/uv-sync.sh --frozen --check
+   uv sync --frozen --check
 
    # Resolve conflicts by updating lock file
    uv lock --upgrade
@@ -486,7 +486,7 @@ Renovate groups related packages together to reduce PR noise:
 
    ```bash
    # Validate all packages can be installed together
-   ./scripts/uv-sync.sh --all-packages
+   uv sync --all-packages
 
    # Run consistency check script
    python devops/tools/check_dependency_consistency.py

@@ -162,19 +162,17 @@ metta configure    # Reconfigure for a different profile
 
 ### PyTorch backend selection
 
-All developer workflows should use `./scripts/uv-sync.sh` instead of invoking `uv sync` directly. The wrapper runs
-`uv sync` and then reinstalls `torch==2.9.1` via `uv pip install --torch-backend=${UV_TORCH_BACKEND:-auto}` so each
-machine automatically pulls the correct CUDA or CPU wheel. Override the backend when needed:
+After `uv sync`, reinstall torch with uv’s auto backend so each machine gets the right CUDA/CPU wheel:
 
 ```bash
-# Detect the backend automatically (default)
-./scripts/uv-sync.sh
+uv sync
+UV_TORCH_BACKEND=auto uv pip install --python .venv/bin/python torch==2.9.1
 
-# Force a specific backend, e.g. CUDA 13.0
-UV_TORCH_BACKEND=cu130 ./scripts/uv-sync.sh
+# Override when needed (e.g., force CUDA 13.0)
+UV_TORCH_BACKEND=cu130 uv pip install --python .venv/bin/python torch==2.9.1
 ```
 
-See `docs/repo_organization.md` for more details on the helper script and backend overrides.
+See `docs/repo_organization.md` for more details on backend overrides.
 
 ## Usage
 

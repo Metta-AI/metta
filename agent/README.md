@@ -5,8 +5,9 @@ Agent/Policy utilities for metta packages.
 ## Installation
 
 ```bash
-# Install using the uv helper (auto-selects CUDA backend)
-./scripts/uv-sync.sh --inexact
+# Install and then auto-select torch backend
+uv sync --inexact
+UV_TORCH_BACKEND=auto uv pip install --python .venv/bin/python torch==2.9.1
 ```
 
 ## Development

@@ -29,14 +29,14 @@ COPY devops/tools/install-system.sh /usr/local/bin/install-system.sh
 RUN chmod +x /usr/local/bin/install-system.sh
 RUN /usr/local/bin/install-system.sh
 
-COPY scripts/uv-sync.sh scripts/
 COPY packages/mettagrid/pyproject.toml packages/mettagrid/
 COPY app_backend/pyproject.toml app_backend/
 COPY common/pyproject.toml common/
 COPY agent/pyproject.toml agent/
 COPY experiments/pyproject.toml experiments/
 
-RUN ./scripts/uv-sync.sh --no-install-workspace --frozen
+RUN uv sync --no-install-workspace --frozen \
+ && UV_TORCH_BACKEND=auto uv pip install --python /workspace/metta/.venv/bin/python torch==2.9.1
 
 COPY . .
 
@@ -52,6 +52,7 @@ RUN git fetch
 RUN echo 'cd /workspace/metta' >> /root/.bashrc && \
     echo 'source /workspace/metta/.venv/bin/activate' >> /root/.bashrc
 
-RUN ./scripts/uv-sync.sh --locked
+RUN uv sync --locked \
+ && UV_TORCH_BACKEND=auto uv pip install --python /workspace/metta/.venv/bin/python torch==2.9.1
 
 ENTRYPOINT ["/bin/bash", "-c"]

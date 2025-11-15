@@ -36,7 +36,8 @@ run: |
   . .venv/bin/activate
 
   echo "Setting up Python environment..."
-  ./scripts/uv-sync.sh
+  uv sync
+  UV_TORCH_BACKEND="${UV_TORCH_BACKEND:-auto}" uv pip install --python .venv/bin/python torch==2.9.1
 
   bash ./devops/skypilot/config/lifecycle/configure_environment.sh
 

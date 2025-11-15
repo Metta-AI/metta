@@ -68,7 +68,8 @@ for cmd in uv bazel git g++ nimby nim; do
   fi
 done
 
-./scripts/uv-sync.sh
+uv sync
+UV_TORCH_BACKEND="${UV_TORCH_BACKEND:-auto}" uv pip install --python .venv/bin/python torch==2.9.1
 uv run python -m metta.setup.metta_cli install $PROFILE_ADDITION $NON_INTERACTIVE_ADDITION
 if [ "$INSTALL_CUDA_EXTRAS" = "1" ]; then
   if [ "$(uname -s)" = "Linux" ]; then

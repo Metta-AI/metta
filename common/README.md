@@ -5,8 +5,9 @@ Common utilities shared across metta packages.
 ## Installation
 
 ```bash
-# Install using uv helper (detects CUDA backend automatically)
-./scripts/uv-sync.sh --inexact
+# Install and then auto-select torch backend
+uv sync --inexact
+UV_TORCH_BACKEND=auto uv pip install --python .venv/bin/python torch==2.9.1
 ```
 
 ## Development
