@@ -48,16 +48,12 @@ const YamlKeyTooltip: FC<{ node: ConfigNode }> = ({ node }) => {
 export const YamlKey: FC<{
   node: ConfigNode;
   canExpand?: boolean;
-  isOpen?: boolean;
+  isExpanded?: boolean;
   onExpansionClick?: () => void;
-}> = ({ node, canExpand, isOpen, onExpansionClick }) => {
+}> = ({ node, canExpand, isExpanded, onExpansionClick }) => {
   const { unsetFields } = use(YamlContext);
   const disabled = unsetFields.has(node.path.join("."));
   const name = node.path[node.path.length - 1];
-
-  const toggle = () => {
-    onExpansionClick?.();
-  }
 
   const result = (
     <span
@@ -73,9 +69,9 @@ export const YamlKey: FC<{
       {canExpand && <div
         className={clsx(
           "scale-80 cursor-pointer",
-          isOpen ? "rotate-0" : "-rotate-90",
+          isExpanded ? "rotate-0" : "-rotate-90",
         )}
-        onClick={toggle}
+        onClick={() => onExpansionClick?.()}
       >
         &#9660;
       </div>

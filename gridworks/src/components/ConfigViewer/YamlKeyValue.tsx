@@ -46,10 +46,7 @@ export const YamlKeyValue: FC<{
     );
   }
 
-  const [showDetails, setShowDetails] = useState(true);
-  const onExpansionClick = () => {
-    setShowDetails(!showDetails);
-  }
+  const [isExpanded, setIsExpanded] = useState(true);
 
   const singleLine =
     (isArrayNode(valueNode) && valueNode.value.length === 0) ||
@@ -60,12 +57,12 @@ export const YamlKeyValue: FC<{
       <YamlKey
         node={valueNode}
         canExpand={!singleLine}
-        isOpen={showDetails}
-        onExpansionClick={onExpansionClick}
+        isExpanded={isExpanded}
+        onExpansionClick={() => setIsExpanded(!isExpanded)}
       />
 
       <div
-        className={clsx(!singleLine && "ml-[2ch]", !showDetails && "hidden")}
+        className={clsx(!singleLine && "ml-[2ch]", !isExpanded && "hidden")}
       >
         <YamlAny node={valueNode} />
       </div>
