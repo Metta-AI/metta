@@ -68,7 +68,6 @@ OxygenBottleneck = Mission(
         ResourceBottleneckVariant(resource=["oxygen"]),
         SingleResourceUniformVariant(building_name="oxygen_extractor"),
         PackRatVariant(),
-        #
     ],
 )
 
@@ -130,7 +129,6 @@ EnergyStarved = Mission(
         EmptyBaseVariant(),
         ResourceBottleneckVariant(resource=["energy"]),
         DarkSideVariant(),
-        #
     ],
 )
 
@@ -254,7 +252,6 @@ QuadrantBuildings = Mission(
     variants=[
         EmptyBaseVariant(),
         QuadrantBuildingsVariant(),
-        #
     ],
 )
 
@@ -301,7 +298,6 @@ SingleUseSwarm = Mission(
         EmptyBaseVariant(),
         SingleUseSwarmVariant(),
         PackRatVariant(),
-        #
     ],
 )
 
