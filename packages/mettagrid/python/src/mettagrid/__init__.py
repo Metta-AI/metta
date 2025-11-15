@@ -54,6 +54,7 @@ _LAZY_ATTRS: Dict[str, Tuple[str, str]] = {
     "GameMap": ("mettagrid.map_builder.map_builder", "GameMap"),
     # C++ types
     "dtype_observations": ("mettagrid.mettagrid_c", "dtype_observations"),
+    "dtype_actions": ("mettagrid.mettagrid_c", "dtype_actions"),
 }
 
 if TYPE_CHECKING:
@@ -74,6 +75,9 @@ __all__ = [
     "PufferMettaGridEnv",
     # Supporting classes
     "GameMap",
+    # C++ types
+    "dtype_observations",
+    "dtype_actions",
 ]
 
 

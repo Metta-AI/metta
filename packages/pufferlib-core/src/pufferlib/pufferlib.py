@@ -42,7 +42,7 @@ def set_buffers(env, buf=None):
 
 
 class PufferEnv:
-    def __init__(self, buf=None):
+    def __init__(self, buf=None, *, expose_joint_action_space: bool = True):
         if not hasattr(self, "single_observation_space"):
             raise APIUsageError(ENV_ERROR.format("single_observation_space"))
         if not hasattr(self, "single_action_space"):
@@ -63,8 +63,14 @@ class PufferEnv:
 
         set_buffers(self, buf)
 
-        self.action_space = pufferlib.spaces.joint_space(self.single_action_space, self.num_agents)
-        self.observation_space = pufferlib.spaces.joint_space(self.single_observation_space, self.num_agents)
+        self.joint_action_space = pufferlib.spaces.joint_space(self.single_action_space, self.num_agents)
+        if expose_joint_action_space:
+            self.action_space = self.joint_action_space
+        else:
+            self.action_space = self.single_action_space
+
+        self.joint_observation_space = pufferlib.spaces.joint_space(self.single_observation_space, self.num_agents)
+        self.observation_space = self.joint_observation_space
         self.agent_ids = np.arange(self.num_agents)
 
     @property

@@ -296,7 +296,7 @@ void _cat_dim1(float* x, float* y, float* output, int batch_size, int x_size, in
     }
 }
 
-void _argmax_multidiscrete(float* input, int* output, int batch_size, int logit_sizes[], int num_actions) {
+void _argmax_branching_discrete(float* input, int* output, int batch_size, int logit_sizes[], int num_actions) {
     int in_adr = 0;
     for (int b = 0; b < batch_size; b++) {
         for (int a = 0; a < num_actions; a++) {
@@ -316,7 +316,7 @@ void _argmax_multidiscrete(float* input, int* output, int batch_size, int logit_
     }
 }
 
-void _softmax_multidiscrete(float* input, int* output, int batch_size, int logit_sizes[], int num_actions) {
+void _softmax_branching_discrete(float* input, int* output, int batch_size, int logit_sizes[], int num_actions) {
     int in_adr = 0;
     for (int b = 0; b < batch_size; b++) {
         for (int a = 0; a < num_actions; a++) {
@@ -683,27 +683,27 @@ void cat_dim1(CatDim1* layer, float* x, float* y) {
     _cat_dim1(x, y, layer->output, layer->batch_size, layer->x_size, layer->y_size);
 }
 
-typedef struct Multidiscrete Multidiscrete;
-struct Multidiscrete {
+typedef struct BranchingDiscrete BranchingDiscrete;
+struct BranchingDiscrete {
     int batch_size;
     int logit_sizes[32];
     int num_actions;
 };
 
-Multidiscrete* make_multidiscrete(int batch_size, int logit_sizes[], int num_actions) {
-    Multidiscrete* layer = calloc(1, sizeof(Multidiscrete));
+BranchingDiscrete* make_branching_discrete(int batch_size, int logit_sizes[], int num_actions) {
+    BranchingDiscrete* layer = calloc(1, sizeof(BranchingDiscrete));
     layer->batch_size = batch_size;
     layer->num_actions = num_actions;
     memcpy(layer->logit_sizes, logit_sizes, num_actions*sizeof(int));
     return layer;
 }
 
-void argmax_multidiscrete(Multidiscrete* layer, float* input, int* output) {
-    _argmax_multidiscrete(input, output, layer->batch_size, layer->logit_sizes, layer->num_actions);
+void argmax_branching_discrete(BranchingDiscrete* layer, float* input, int* output) {
+    _argmax_branching_discrete(input, output, layer->batch_size, layer->logit_sizes, layer->num_actions);
 }
 
-void softmax_multidiscrete(Multidiscrete* layer, float* input, int* output) {
-    _softmax_multidiscrete(input, output, layer->batch_size, layer->logit_sizes, layer->num_actions);
+void softmax_branching_discrete(BranchingDiscrete* layer, float* input, int* output) {
+    _softmax_branching_discrete(input, output, layer->batch_size, layer->logit_sizes, layer->num_actions);
 }
 
 // Default models
@@ -716,7 +716,7 @@ struct Default {
     ReLU* relu1;
     Linear* actor;
     Linear* value_fn;
-    Multidiscrete* multidiscrete;
+    BranchingDiscrete* branching_discrete;
 };
 
 Default* make_default(Weights* weights, int num_agents, int input_dim, int hidden_dim, int action_dim) {
@@ -728,7 +728,7 @@ Default* make_default(Weights* weights, int num_agents, int input_dim, int hidde
     net->actor = make_linear(weights, num_agents, hidden_dim, action_dim);
     net->value_fn = make_linear(weights, num_agents, hidden_dim, 1);
     int logit_sizes[1] = {action_dim};
-    net->multidiscrete = make_multidiscrete(num_agents, logit_sizes, 1);
+    net->branching_discrete = make_branching_discrete(num_agents, logit_sizes, 1);
     return net;
 }
 
@@ -738,7 +738,7 @@ void free_default(Default* net) {
     free(net->relu1);
     free(net->actor);
     free(net->value_fn);
-    free(net->multidiscrete);
+    free(net->branching_discrete);
     free(net);
 }
 
@@ -747,7 +747,7 @@ void forward_default(Default* net, float* observations, int* actions) {
     relu(net->relu1, net->encoder->output);
     linear(net->actor, net->relu1->output);
     linear(net->value_fn, net->relu1->output);
-    softmax_multidiscrete(net->multidiscrete, net->actor->output, actions);
+    softmax_branching_discrete(net->branching_discrete, net->actor->output, actions);
 }
 
 typedef struct LinearLSTM LinearLSTM;
@@ -759,7 +759,7 @@ struct LinearLSTM {
     LSTM* lstm;
     Linear* actor;
     Linear* value_fn;
-    Multidiscrete* multidiscrete;
+    BranchingDiscrete* branching_discrete;
 };
 
 LinearLSTM* make_linearlstm(Weights* weights, int num_agents, int input_dim, int logit_sizes[], int num_actions) {
@@ -775,7 +775,7 @@ LinearLSTM* make_linearlstm(Weights* weights, int num_agents, int input_dim, int
     net->actor = make_linear(weights, num_agents, 128, atn_sum);
     net->value_fn = make_linear(weights, num_agents, 128, 1);
     net->lstm = make_lstm(weights, num_agents, 128, 128);
-    net->multidiscrete = make_multidiscrete(num_agents, logit_sizes, num_actions);
+    net->branching_discrete = make_branching_discrete(num_agents, logit_sizes, num_actions);
     return net;
 }
 
@@ -786,7 +786,7 @@ void free_linearlstm(LinearLSTM* net) {
     free(net->actor);
     free(net->value_fn);
     free(net->lstm);
-    free(net->multidiscrete);
+    free(net->branching_discrete);
     free(net);
 }
 
@@ -796,7 +796,7 @@ void forward_linearlstm(LinearLSTM* net, float* observations, int* actions) {
     lstm(net->lstm, net->gelu1->output);
     linear(net->actor, net->lstm->state_h);
     linear(net->value_fn, net->lstm->state_h);
-    softmax_multidiscrete(net->multidiscrete, net->actor->output, actions);
+    softmax_branching_discrete(net->branching_discrete, net->actor->output, actions);
 }
 
 typedef struct ConvLSTM ConvLSTM; struct ConvLSTM {
@@ -810,7 +810,7 @@ typedef struct ConvLSTM ConvLSTM; struct ConvLSTM {
     LSTM* lstm;
     Linear* actor;
     Linear* value_fn;
-    Multidiscrete* multidiscrete;
+    BranchingDiscrete* branching_discrete;
 };
 
 ConvLSTM* make_convlstm(Weights* weights, int num_agents, int input_dim,
@@ -828,7 +828,7 @@ ConvLSTM* make_convlstm(Weights* weights, int num_agents, int input_dim,
     net->value_fn = make_linear(weights, num_agents, hidden_dim, 1);
     net->lstm = make_lstm(weights, num_agents, hidden_dim, hidden_dim);
     int logit_sizes[1] = {action_dim};
-    net->multidiscrete = make_multidiscrete(num_agents, logit_sizes, 1);
+    net->branching_discrete = make_branching_discrete(num_agents, logit_sizes, 1);
     return net;
 }
 
@@ -842,7 +842,7 @@ void free_convlstm(ConvLSTM* net) {
     free(net->actor);
     free(net->value_fn);
     free(net->lstm);
-    free(net->multidiscrete);
+    free(net->branching_discrete);
     free(net);
 }
 
@@ -855,5 +855,5 @@ void forward_convlstm(ConvLSTM* net, float* observations, int* actions) {
     lstm(net->lstm, net->linear->output);
     linear(net->actor, net->lstm->state_h);
     linear(net->value_fn, net->lstm->state_h);
-    softmax_multidiscrete(net->multidiscrete, net->actor->output, actions);
+    softmax_branching_discrete(net->branching_discrete, net->actor->output, actions);
 }

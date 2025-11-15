@@ -202,7 +202,7 @@ class GymnasiumPufferEnv(gymnasium.Env):
         if self.done:
             raise pufferlib.APIUsageError("step() called after environment is done")
 
-        # Unpack actions from multidiscrete into the original action space
+        # Unpack actions from the emulated representation into the native space
         if self.is_atn_emulated:
             action = nativize(action, self.env.action_space, self.atn_dtype)
         elif isinstance(action, np.ndarray):
@@ -352,7 +352,7 @@ class PettingZooPufferEnv:
 
             self.is_action_checked = check_space(next(iter(actions.values())), self.single_action_space)
 
-        # Unpack actions from multidiscrete into the original action space
+        # Unpack actions from the emulated representation into the native space
         unpacked_actions = {}
         for agent, atn in actions.items():
             if agent not in self.possible_agents:

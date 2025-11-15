@@ -36,7 +36,7 @@ cdef extern from "puffernet.h":
         int input_size, int num_classes)
     void _cat_dim1(float* x, float* y, float* output,
         int batch_size, int x_size, int y_size)
-    void _argmax_multidiscrete(float* input, int* output,
+    void _argmax_branching_discrete(float* input, int* output,
         int batch_size, int logit_sizes[], int num_actions)
 
 def puf_linear_layer(cnp.ndarray input, cnp.ndarray weights, cnp.ndarray bias, cnp.ndarray output,
@@ -87,8 +87,8 @@ def puf_one_hot(cnp.ndarray input, cnp.ndarray output, int batch_size, int input
 def puf_cat_dim1(cnp.ndarray x, cnp.ndarray y, cnp.ndarray output, int batch_size, int x_size, int y_size):
     _cat_dim1(<float*> x.data, <float*> y.data, <float*> output.data, batch_size, x_size, y_size)
 
-def puf_argmax_multidiscrete(cnp.ndarray input, cnp.ndarray output,
+def puf_argmax_branching_discrete(cnp.ndarray input, cnp.ndarray output,
         int batch_size, cnp.ndarray logit_sizes, int num_actions):
-    _argmax_multidiscrete(<float*> input.data, <int*> output.data,
+    _argmax_branching_discrete(<float*> input.data, <int*> output.data,
         batch_size, <int*> logit_sizes.data, num_actions)
 
