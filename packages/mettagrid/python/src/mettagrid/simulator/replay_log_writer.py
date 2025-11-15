@@ -4,7 +4,7 @@ import json
 import logging
 import uuid
 import zlib
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import numpy as np
 
@@ -32,6 +32,7 @@ class ReplayLogWriter(SimulatorEventHandler):
         self._should_continue = True
         self.episodes: Dict[str, EpisodeReplay] = {}
         self._episode_urls: Dict[str, str] = {}
+        self._episode_paths: Dict[str, str] = {}
 
     def on_episode_start(self) -> None:
         """Start recording a new episode."""
@@ -67,6 +68,7 @@ class ReplayLogWriter(SimulatorEventHandler):
         self._episode_replay.write_replay(replay_path)
         url = http_url(replay_path)
         self._episode_urls[self._episode_id] = url
+        self._episode_paths[self._episode_id] = replay_path
         self._sim._context["replay_url"] = url
         logger.info("Wrote replay for episode %s to %s", self._episode_id, url)
         logger.info("Watch replay at %s", METTASCOPE_REPLAY_URL_PREFIX + url)
@@ -78,6 +80,10 @@ class ReplayLogWriter(SimulatorEventHandler):
     def get_written_replay_urls(self) -> Dict[str, str]:
         """Return URLs for every replay file that has been written to disk."""
         return dict(self._episode_urls)
+
+    def get_written_replay_paths(self) -> List[str]:
+        """Return file paths for every replay file that has been written to disk."""
+        return list(self._episode_paths.values())
 
 
 class EpisodeReplay:
