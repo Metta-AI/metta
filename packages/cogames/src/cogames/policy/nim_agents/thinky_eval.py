@@ -45,7 +45,7 @@ EVALS: List[Tuple[str, str, int]] = [
     ("diagnostic_chest_navigation3", "", 1),
     ("diagnostic_chest_deposit_near", "", 1),
     ("diagnostic_chest_deposit_search", "", 1),
-    ("diagnostic_charge_up", "", 1),
+    ("diagnostic_charge_up", "buggy", 1), # The cog needs to sacrifice itself to make hart.
     ("diagnostic_memory", "", 1),
     ("diagnostic_assemble_seeded_near", "", 1),
     ("diagnostic_assemble_seeded_search", "", 1),
