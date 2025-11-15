@@ -20,7 +20,7 @@ from metta.rl.policy_artifact import (
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
-from mettagrid.policy.policy import PolicySpec
+from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger(__name__)
@@ -214,14 +214,14 @@ class CheckpointManager:
             resolved_display_name = metadata.get("run_name") or metadata.get("checkpoint_name") or metadata.get("name")
 
         init_kwargs: dict[str, str | bool] = {
-            "policy_uri": normalized_uri,
+            "checkpoint_uri": normalized_uri,
             "device": device_value,
             "strict": strict,
         }
         if resolved_display_name:
             init_kwargs["display_name"] = resolved_display_name
         return PolicySpec(
-            class_path="metta.rl.policy_spec.CheckpointPolicy",
+            class_path="metta.rl.checkpoint_manager.CheckpointPolicy",
             init_kwargs=init_kwargs,
         )
 
@@ -399,3 +399,92 @@ class CheckpointManager:
             return local_max_checkpoint["uri"]
         elif remote_max_checkpoint:
             return remote_max_checkpoint["uri"]
+
+
+class CheckpointPolicy(MultiAgentPolicy):
+    """MultiAgentPolicy adapter that instantiates policies from stored checkpoints."""
+
+    def __init__(
+        self,
+        policy_env_info: PolicyEnvInterface,
+        *,
+        checkpoint_uri: str | None = None,
+        policy_uri: str | None = None,
+        device: str | torch.device = "cpu",
+        strict: bool = True,
+        display_name: str | None = None,
+    ) -> None:
+        super().__init__(policy_env_info)
+
+        uri = checkpoint_uri or policy_uri
+        if uri is None:
+            raise ValueError("checkpoint_uri or policy_uri is required")
+
+        torch_device = torch.device(device)
+        strict_value = strict
+        if isinstance(strict_value, str):
+            strict_value = strict_value.lower() not in {"0", "false", "no"}
+
+        artifact = CheckpointManager.load_artifact_from_uri(uri)
+        policy = artifact.instantiate(policy_env_info, device=torch_device, strict=strict_value)
+        policy = policy.to(torch_device)
+        policy.eval()
+
+        self._policy = policy
+        self._device = torch_device
+        self._display_name = display_name or uri
+
+    def _call_policy_method(self, name: str, *args: Any, **kwargs: Any) -> Any:
+        method = getattr(self._policy, name, None)
+        if callable(method):
+            return method(*args, **kwargs)
+        return None
+
+    @property
+    def display_name(self) -> str:
+        return self._display_name
+
+    def agent_policy(self, agent_id: int) -> AgentPolicy:
+        return self._policy.agent_policy(agent_id)
+
+    def load_policy_data(self, policy_data_path: str) -> None:
+        self._call_policy_method("load_policy_data", policy_data_path)
+
+    def save_policy_data(self, policy_data_path: str) -> None:
+        self._call_policy_method("save_policy_data", policy_data_path)
+
+    def reset(self) -> None:
+        self._call_policy_method("reset")
+
+    def step_batch(self, raw_observations, raw_actions) -> None:
+        if self._call_policy_method("step_batch", raw_observations, raw_actions) is None:
+            super().step_batch(raw_observations, raw_actions)
+
+    def to(self, device: torch.device) -> "CheckpointPolicy":  # pragma: no cover - convenience passthrough
+        self._device = device
+        new_policy = self._call_policy_method("to", device)
+        if new_policy is not None:
+            self._policy = new_policy
+        return self
+
+    def eval(self) -> "CheckpointPolicy":  # pragma: no cover - convenience passthrough
+        self._call_policy_method("eval")
+        return self
+
+    def train(self, mode: bool = True) -> "CheckpointPolicy":  # pragma: no cover - convenience passthrough
+        self._call_policy_method("train", mode)
+        return self
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        if not callable(self._policy):
+            raise TypeError(f"Underlying policy {type(self._policy).__name__} is not callable")
+        return self._policy(*args, **kwargs)
+
+    def forward(self, *args: Any, **kwargs: Any) -> Any:
+        return self.__call__(*args, **kwargs)
+
+    def __getattr__(self, item):  # pragma: no cover - passthrough
+        try:
+            return super().__getattribute__(item)
+        except AttributeError:
+            return getattr(self._policy, item)

@@ -16,6 +16,7 @@ from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.system_config import SystemConfig
 from mettagrid.base_config import Config
 from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 
@@ -187,6 +188,18 @@ class TestBasicSaveLoad:
         policy = initialize_or_load_policy(env_info, spec)
         assert getattr(policy, "display_name", "") == "friendly-name"
 
+    def test_policy_spec_from_uri(self, checkpoint_manager, mock_agent, mock_policy_architecture):
+        checkpoint_manager.save_agent(mock_agent, epoch=2, policy_architecture=mock_policy_architecture)
+        latest = checkpoint_manager.get_latest_checkpoint()
+        assert latest is not None
+
+        spec = CheckpointManager.policy_spec_from_uri(latest, display_name="custom", device="cpu")
+        assert isinstance(spec, PolicySpec)
+        assert spec.class_path == "metta.rl.checkpoint_manager.CheckpointPolicy"
+        assert spec.init_kwargs is not None
+        assert spec.init_kwargs["checkpoint_uri"] == CheckpointManager.normalize_uri(latest)
+        assert spec.init_kwargs["display_name"] == "custom"
+        assert spec.init_kwargs["device"] == "cpu"
 
 class TestErrorHandling:
     def test_load_from_empty_directory(self, checkpoint_manager):

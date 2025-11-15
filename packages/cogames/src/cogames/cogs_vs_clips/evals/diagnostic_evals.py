@@ -103,6 +103,8 @@ class _DiagnosticMissionBase(Mission):
             if self.dynamic_assembler_chorus:
                 self.assembler_heart_chorus = max(1, int(cfg.game.num_agents))
                 self._apply_assembler_requirements(cfg)
+            # Finally, normalize rewards so a single deposited heart yields at most 1 reward.
+            self._apply_heart_reward_cap(cfg)
             self.configure_env(cfg)
             return cfg
         finally:
@@ -137,6 +139,8 @@ class _DiagnosticMissionBase(Mission):
             if self.dynamic_assembler_chorus:
                 self.assembler_heart_chorus = max(1, int(cfg.game.num_agents))
                 self._apply_assembler_requirements(cfg)
+            # Finally, normalize rewards so a single deposited heart yields at most 1 reward.
+            self._apply_heart_reward_cap(cfg)
             self.configure_env(cfg)
 
         return _add_make_env_modifier(mission, _post)
@@ -217,6 +221,26 @@ class _DiagnosticMissionBase(Mission):
             for proto in cfg.game.clipper.unclipping_protocols:
                 new_up.append(proto.model_copy(update={"cooldown": 0}))
             cfg.game.clipper.unclipping_protocols = new_up
+
+    def _apply_heart_reward_cap(self, cfg: MettaGridConfig) -> None:
+        """Normalize diagnostics so a single deposited heart yields at most 1 reward per episode.
+
+        - Make each unit change of chest.heart.amount worth exactly 1.0 reward.
+        - Ensure all chests can store at most 1 heart so total reward per episode cannot exceed 1.
+        """
+        agent_cfg = cfg.game.agent
+        rewards = agent_cfg.rewards
+        stats = dict(rewards.stats or {})
+        stats["chest.heart.amount"] = 1.0
+        agent_cfg.rewards = rewards.model_copy(update={"stats": stats})
+
+        # Cap heart capacity for every chest used in diagnostics (communal or resource-specific).
+        for _name, obj in cfg.game.objects.items():
+            if not isinstance(obj, ChestConfig):
+                continue
+            limits = dict(obj.resource_limits or {})
+            limits["heart"] = 1
+            obj.resource_limits = limits
 
     def _ensure_minimal_heart_recipe(self, assembler: AssemblerConfig) -> None:
         minimal_inputs = {

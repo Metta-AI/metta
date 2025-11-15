@@ -24,6 +24,7 @@ from metta.sim.runner import SimulationRunResult, run_simulations
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.base_config import Config
+from mettagrid.policy.policy import PolicySpec
 
 logger = logging.getLogger(__name__)
 
@@ -157,8 +158,8 @@ class Evaluator(TrainerComponent):
 
         # Local evaluation
         if self._config.evaluate_local:
-            rollout_results = self._evaluate_local(policy_uri=policy_uri, simulations=sims)
-            render_eval_summary(rollout_results, policy_names=[policy_uri or "target policy"])
+            rollout_results, policy_spec = self._evaluate_local(policy_uri=policy_uri, simulations=sims)
+            render_eval_summary(rollout_results, policy_names=[self._spec_display_name(policy_spec)])
 
             # TODO: maybe a better way to get wandb run
             # TODO: Pasha: should also send epochs/episodes/metrics to stats-server
@@ -172,6 +173,17 @@ class Evaluator(TrainerComponent):
                     wandb_run=wandb_run,
                     should_finish_run=False,
                 )
+
+    def _build_policy_spec(self, policy_uri: str) -> PolicySpec:
+        return CheckpointManager.policy_spec_from_uri(
+            policy_uri,
+            device=self._device,
+        )
+
+    @staticmethod
+    def _spec_display_name(policy_spec: PolicySpec) -> str:
+        init_kwargs = policy_spec.init_kwargs or {}
+        return init_kwargs.get("display_name") or policy_spec.name
 
     def _build_simulations(self, curriculum: Curriculum) -> list[SimulationConfig]:
         sims = []
@@ -224,21 +236,17 @@ class Evaluator(TrainerComponent):
         self,
         policy_uri: str,
         simulations: list[SimulationConfig],
-    ) -> list[SimulationRunResult]:
+    ) -> tuple[list[SimulationRunResult], PolicySpec]:
         logger.info(f"Evaluating policy locally from {policy_uri}")
-
-        return run_simulations(
-            policy_specs=[
-                CheckpointManager.policy_spec_from_uri(
-                    policy_uri,
-                    device=self._device,
-                )
-            ],
+        policy_spec = self._build_policy_spec(policy_uri)
+        rollout_results = run_simulations(
+            policy_specs=[policy_spec],
             simulations=[sim.to_simulation_run_config() for sim in simulations],
             replay_dir=self._config.replay_dir,
             seed=self._system_cfg.seed,
             enable_replays=True,
         )
+        return rollout_results, policy_spec
 
     def on_epoch_end(self, epoch: int) -> None:
         if not self.should_evaluate(epoch):
