@@ -2,11 +2,28 @@ import os
 import platform
 import shutil
 import sys
+from pathlib import Path
 
 from setuptools import setup
 
 # Always build extensions
 BUILD_EXTENSIONS = True
+
+
+def _sync_cuda_home_env() -> None:
+    """Point CUDA_HOME at the directory containing nvcc if it's unset or stale."""
+    cuda_home = os.environ.get("CUDA_HOME")
+    if cuda_home:
+        nvcc_candidate = Path(cuda_home) / "bin" / "nvcc"
+        if nvcc_candidate.exists():
+            return
+
+    nvcc_path = shutil.which("nvcc")
+    if nvcc_path:
+        os.environ["CUDA_HOME"] = str(Path(nvcc_path).parent.parent)
+
+
+_sync_cuda_home_env()
 
 # Import torch for extensions
 try:
