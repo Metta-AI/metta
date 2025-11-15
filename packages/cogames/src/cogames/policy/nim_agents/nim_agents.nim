@@ -1,6 +1,6 @@
 import
   genny,
-  random_agents, thinky_agents, race_car_agents
+  random_agents, thinky_agents, race_car_agents, ladybug_agent
 
 proc ctrlCHandler() {.noconv.} =
   echo "\nNim DLL caught ctrl-c, exiting..."
@@ -31,6 +31,12 @@ exportRefObject RaceCarPolicy:
     newRaceCarPolicy(string)
   procs:
     stepBatch(RaceCarPolicy, pointer, int, int, int, int, pointer, int, pointer)
+
+exportRefObject LadybugPolicy:
+  constructor:
+    newLadybugPolicy(string)
+  procs:
+    stepBatch(LadybugPolicy, pointer, int, int, int, int, pointer, int, pointer)
 
 writeFiles("bindings/generated", "NimAgents")
 
