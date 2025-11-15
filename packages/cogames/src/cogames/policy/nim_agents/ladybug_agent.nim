@@ -62,6 +62,7 @@ const
   ResourceTypes = ["carbon", "oxygen", "germanium", "silicon"]
   StationKeys = ["assembler", "chest", "charger"]
   DirectionNames = ["north", "south", "east", "west"]
+  CardinalNeighbors = [(-1, 0), (1, 0), (0, -1), (0, 1)]
   DefaultHeartRecipe = [
     ("carbon", 2),
     ("oxygen", 2),
@@ -520,15 +521,15 @@ proc computeGoalCells(
 ): seq[(int, int)] =
   if not reachAdjacent:
     return @[(targetRow, targetCol)]
-  for (dr, dc) in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-    let nr = targetRow + dr
-    let nc = targetCol + dc
+  for delta in CardinalNeighbors:
+    let nr = targetRow + delta[0]
+    let nc = targetCol + delta[1]
     if agent.isTraversable(nr, nc):
       result.add((nr, nc))
   if result.len == 0:
-    for (dr, dc) in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-      let nr = targetRow + dr
-      let nc = targetCol + dc
+    for delta in CardinalNeighbors:
+      let nr = targetRow + delta[0]
+      let nc = targetCol + delta[1]
       if agent.isWithinBounds(nr, nc):
         result.add((nr, nc))
 
@@ -585,9 +586,9 @@ proc moveTowards(
         found = true
         goalReached = current
         break
-      for (dr, dc) in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-        let nr = current[0] + dr
-        let nc = current[1] + dc
+      for delta in CardinalNeighbors:
+        let nr = current[0] + delta[0]
+        let nc = current[1] + delta[1]
         if cameFrom.hasKey((nr, nc)):
           continue
         var canTraverse = agent.isTraversable(nr, nc)
@@ -635,24 +636,27 @@ proc directionDelta(direction: string): (int, int) =
   of "west": (0, -1)
   else: (0, 0)
 
-proc directionAction(agent: LadybugAgent, direction: string): int =
-  case direction
-  of "north": agent.cfg.actions.moveNorth
-  of "south": agent.cfg.actions.moveSouth
-  of "east": agent.cfg.actions.moveEast
-  of "west": agent.cfg.actions.moveWest
-  else: agent.cfg.actions.noop
+proc stepInDirection(agent: LadybugAgent, direction: string): Option[int] =
+  let delta = directionDelta(direction)
+  if delta == (0, 0):
+    return none(int)
+  let nr = agent.state.row + delta[0]
+  let nc = agent.state.col + delta[1]
+  if not agent.isTraversable(nr, nc):
+    return none(int)
+  let action = agent.moveTowards(nr, nc)
+  if action == agent.cfg.actions.noop:
+    return none(int)
+  some(action)
 
 proc tryRandomDirection(agent: LadybugAgent): int =
   var dirs = @DirectionNames
   agent.random.shuffle(dirs)
   for dir in dirs:
-    let delta = directionDelta(dir)
-    let nr = agent.state.row + delta[0]
-    let nc = agent.state.col + delta[1]
-    if agent.isTraversable(nr, nc):
+    let action = agent.stepInDirection(dir)
+    if action.isSome():
       clearCachedPath(agent)
-      return agent.directionAction(dir)
+      return action.get()
   return agent.cfg.actions.noop
 
 proc explore(agent: LadybugAgent): int =
@@ -702,30 +706,19 @@ proc explore(agent: LadybugAgent): int =
           return agent.moveTowards(assemblerLoc.y, assemblerLoc.x, reachAdjacent = true)
 
   if agent.state.explorationDirection.len > 0:
-    let delta = directionDelta(agent.state.explorationDirection)
-    let nr = agent.state.row + delta[0]
-    let nc = agent.state.col + delta[1]
-    let action = agent.moveTowards(nr, nc)
-    if action != agent.cfg.actions.noop:
-      return action
+    let action = agent.stepInDirection(agent.state.explorationDirection)
+    if action.isSome():
+      return action.get()
     agent.state.explorationDirection = ""
 
   var dirs = @DirectionNames
   agent.random.shuffle(dirs)
   for dir in dirs:
-    let delta = directionDelta(dir)
-    let nr = agent.state.row + delta[0]
-    let nc = agent.state.col + delta[1]
-    if agent.isTraversable(nr, nc):
+    let action = agent.stepInDirection(dir)
+    if action.isSome():
       agent.state.explorationDirection = dir
       agent.state.explorationDirectionSetStep = agent.state.stepCount
-      let delta = directionDelta(dir)
-      let nr = agent.state.row + delta[0]
-      let nc = agent.state.col + delta[1]
-      let action = agent.moveTowards(nr, nc)
-      if action != agent.cfg.actions.noop:
-        return action
-      agent.state.explorationDirection = ""
+      return action.get()
   return agent.tryRandomDirection()
 
 proc exploreUntil(agent: LadybugAgent, condition: proc (): bool, reason: string): Option[int] =
