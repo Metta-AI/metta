@@ -195,37 +195,6 @@ class CheckpointManager:
         return artifact.instantiate(game_rules, device)
 
     @staticmethod
-    def policy_spec_from_uri(
-        uri: str,
-        *,
-        device: torch.device | str = "cpu",
-        strict: bool = True,
-        display_name: str | None = None,
-    ) -> PolicySpec:
-        normalized_uri = CheckpointManager.normalize_uri(uri)
-        device_value = str(device)
-
-        resolved_display_name = display_name
-        if resolved_display_name is None:
-            try:
-                metadata = CheckpointManager.get_policy_metadata(normalized_uri)
-            except Exception:
-                metadata = {}
-            resolved_display_name = metadata.get("run_name") or metadata.get("checkpoint_name") or metadata.get("name")
-
-        init_kwargs: dict[str, str | bool] = {
-            "checkpoint_uri": normalized_uri,
-            "device": device_value,
-            "strict": strict,
-        }
-        if resolved_display_name:
-            init_kwargs["display_name"] = resolved_display_name
-        return PolicySpec(
-            class_path="metta.rl.checkpoint_manager.CheckpointPolicy",
-            init_kwargs=init_kwargs,
-        )
-
-    @staticmethod
     def load_artifact_from_uri(uri: str) -> PolicyArtifact:
         """Load a policy from a URI (file://, s3://, or mock://).
 
@@ -400,45 +369,50 @@ class CheckpointManager:
         elif remote_max_checkpoint:
             return remote_max_checkpoint["uri"]
 
+    @staticmethod
+    def policy_spec_from_uri(
+        uri: str,
+        *,
+        display_name: str | None = None,
+        device: str | torch.device | None = None,
+    ) -> PolicySpec:
+        """Build a PolicySpec that loads a checkpoint via CheckpointPolicy."""
+        normalized_uri = CheckpointManager.normalize_uri(uri)
+        init_kwargs = {
+            "checkpoint_uri": normalized_uri,
+            "display_name": display_name or normalized_uri,
+        }
+        if device is not None:
+            init_kwargs["device"] = str(device)
+        return PolicySpec(
+            class_path="metta.rl.checkpoint_manager.CheckpointPolicy",
+            init_kwargs=init_kwargs,
+        )
+
 
 class CheckpointPolicy(MultiAgentPolicy):
-    """MultiAgentPolicy adapter that instantiates policies from stored checkpoints."""
+    """Policy wrapper that instantiates a checkpoint on demand."""
 
     def __init__(
         self,
         policy_env_info: PolicyEnvInterface,
         *,
-        checkpoint_uri: str | None = None,
-        policy_uri: str | None = None,
+        checkpoint_uri: str,
         device: str | torch.device = "cpu",
         strict: bool = True,
         display_name: str | None = None,
-    ) -> None:
+    ):
         super().__init__(policy_env_info)
 
-        uri = checkpoint_uri or policy_uri
-        if uri is None:
-            raise ValueError("checkpoint_uri or policy_uri is required")
+        self._checkpoint_uri = checkpoint_uri
+        self._display_name = display_name or checkpoint_uri
+        self._device = torch.device(device)
 
-        torch_device = torch.device(device)
-        strict_value = strict
-        if isinstance(strict_value, str):
-            strict_value = strict_value.lower() not in {"0", "false", "no"}
-
-        artifact = CheckpointManager.load_artifact_from_uri(uri)
-        policy = artifact.instantiate(policy_env_info, device=torch_device, strict=strict_value)
-        policy = policy.to(torch_device)
+        artifact = CheckpointManager.load_artifact_from_uri(checkpoint_uri)
+        policy = artifact.instantiate(policy_env_info, device=self._device, strict=strict)
+        policy = policy.to(self._device)
         policy.eval()
-
         self._policy = policy
-        self._device = torch_device
-        self._display_name = display_name or uri
-
-    def _call_policy_method(self, name: str, *args: Any, **kwargs: Any) -> Any:
-        method = getattr(self._policy, name, None)
-        if callable(method):
-            return method(*args, **kwargs)
-        return None
 
     @property
     def display_name(self) -> str:
@@ -448,43 +422,17 @@ class CheckpointPolicy(MultiAgentPolicy):
         return self._policy.agent_policy(agent_id)
 
     def load_policy_data(self, policy_data_path: str) -> None:
-        self._call_policy_method("load_policy_data", policy_data_path)
+        self._policy.load_policy_data(policy_data_path)
 
     def save_policy_data(self, policy_data_path: str) -> None:
-        self._call_policy_method("save_policy_data", policy_data_path)
+        self._policy.save_policy_data(policy_data_path)
 
     def reset(self) -> None:
-        self._call_policy_method("reset")
+        if hasattr(self._policy, "reset"):
+            self._policy.reset()
 
     def step_batch(self, raw_observations, raw_actions) -> None:
-        if self._call_policy_method("step_batch", raw_observations, raw_actions) is None:
-            super().step_batch(raw_observations, raw_actions)
+        return self._policy.step_batch(raw_observations, raw_actions)
 
-    def to(self, device: torch.device) -> "CheckpointPolicy":  # pragma: no cover - convenience passthrough
-        self._device = device
-        new_policy = self._call_policy_method("to", device)
-        if new_policy is not None:
-            self._policy = new_policy
-        return self
-
-    def eval(self) -> "CheckpointPolicy":  # pragma: no cover - convenience passthrough
-        self._call_policy_method("eval")
-        return self
-
-    def train(self, mode: bool = True) -> "CheckpointPolicy":  # pragma: no cover - convenience passthrough
-        self._call_policy_method("train", mode)
-        return self
-
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        if not callable(self._policy):
-            raise TypeError(f"Underlying policy {type(self._policy).__name__} is not callable")
-        return self._policy(*args, **kwargs)
-
-    def forward(self, *args: Any, **kwargs: Any) -> Any:
-        return self.__call__(*args, **kwargs)
-
-    def __getattr__(self, item):  # pragma: no cover - passthrough
-        try:
-            return super().__getattribute__(item)
-        except AttributeError:
-            return getattr(self._policy, item)
+    def __getattr__(self, name: str):
+        return getattr(self._policy, name)
