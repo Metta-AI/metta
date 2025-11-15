@@ -33,7 +33,7 @@ Renovate groups related packages to reduce PR noise:
 
 | Group          | Packages                                                   |
 | -------------- | ---------------------------------------------------------- |
-| **pytest**     | `pytest`, `pytest-cov`, `pytest-xdist`, `pytest-benchmark` |
+| **pytest**     | `pytest`, `pytest-xdist`, `pytest-benchmark`               |
 | **scientific** | `numpy`, `scipy`, `pandas`, `matplotlib`, `torch`          |
 | **rl**         | `gymnasium`, `pettingzoo`, `shimmy`, `pufferlib`           |
 | **web**        | `fastapi`, `uvicorn`, `starlette`, `pydantic`              |
