@@ -107,8 +107,8 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
         num_vibes = int(getattr(change_vibe_cfg, "number_of_vibes", 0))
         if num_vibes <= 1:
             return self._actions.noop.Noop()
-
-        # Raise an exception if the vibe doesn't exist
+        # Raise loudly if the requested vibe isn't registered instead of silently
+        # falling back to noop; otherwise config issues become very hard to spot.
         vibe = VIBE_BY_NAME.get(vibe_name)
         if vibe is None:
             raise Exception(f"No valid vibes called {vibe_name}")
