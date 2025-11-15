@@ -319,15 +319,15 @@ Key design choices:
 - Add guidance (`CompassVariant`) on distance-heavy tasks to reduce pure exploration failure modes.
 - Raise agent caps modestly (`PackRatVariant`) to avoid early inventory stalls but keep routing relevant.
 - Shape reward on vibe missions (`HeartChorusVariant`) so partial progress is scored.
-- Neutralize vibes on non-vibe-focused tasks (`NeutralFacedVariant`) to focus on the primary challenge.
+- Keep vibe mechanics intact unless the mission explicitly focuses on vibe manipulation.
 
 Included missions and variants:
 
 - oxygen_bottleneck: `EmptyBaseVariant(missing=["oxygen_extractor"])`, `ResourceBottleneckVariant(["oxygen"])`,
-  `SingleResourceUniformVariant("oxygen_extractor")`, `NeutralFacedVariant`, `PackRatVariant`
-- energy_starved: `EmptyBaseVariant`, `DarkSideVariant`, `NeutralFacedVariant`, `PackRatVariant`
+  `SingleResourceUniformVariant("oxygen_extractor")`, `PackRatVariant`
+- energy_starved: `EmptyBaseVariant`, `DarkSideVariant`, `PackRatVariant`
 - distant_resources: `EmptyBaseVariant`, `CompassVariant`, `DistantResourcesVariant`
-- quadrant_buildings: `EmptyBaseVariant`, `QuadrantBuildingsVariant`, `CompassVariant`, `NeutralFacedVariant`
+- quadrant_buildings: `EmptyBaseVariant`, `QuadrantBuildingsVariant`, `CompassVariant`
 - single_use_swarm: `EmptyBaseVariant`, `SingleUseSwarmVariant`, `CompassVariant`, `PackRatVariant`
 - vibe_check: `HeartChorusVariant`, `VibeCheckMin2Variant`
 

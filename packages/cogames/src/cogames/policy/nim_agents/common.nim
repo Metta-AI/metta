@@ -9,6 +9,10 @@ type
     name*: string
     normalization*: float
 
+  AssemblerProtocol* = object
+    inputResources*: Table[string, int]
+    outputResources*: Table[string, int]
+
   PolicyConfig* = object
     numAgents*: int
     obsWidth*: int
@@ -16,6 +20,7 @@ type
     actions*: seq[string]
     tags*: seq[string]
     obsFeatures*: seq[ConfigFeature]
+    assemblerProtocols*: seq[AssemblerProtocol]
 
   Config* = object
     config*: PolicyConfig
@@ -23,6 +28,7 @@ type
     features*: Features
     tags*: Tags
     vibes*: Vibes
+    assemblerProtocols*: seq[AssemblerProtocol]
 
   FeatureValue* = object
     featureId*: int
@@ -361,6 +367,7 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
   try:
     var config = environmentConfig.fromJson(PolicyConfig)
     result = Config(config: config)
+    result.assemblerProtocols = config.assemblerProtocols
 
     for feature in config.obsFeatures:
       case feature.name:
@@ -633,9 +640,14 @@ proc getLastAction*(cfg: Config, visible: Table[Location, seq[FeatureValue]]): i
   ## Get the last action of the visible map.
   cfg.getFeature(visible, cfg.features.lastAction)
 
-proc getInventory*(cfg: Config, visible: Table[Location, seq[FeatureValue]], inventoryId: int): int =
+proc getInventory*(
+  cfg: Config,
+  visible: Table[Location, seq[FeatureValue]],
+  inventoryId: int,
+  location: Location = Location(x: 0, y: 0)
+): int =
   ## Get the inventory of the visible map.
-  result = cfg.getFeature(visible, inventoryId)
+  result = cfg.getFeature(visible, inventoryId, location)
   # Missing inventory is 0.
   if result == -1:
     result = 0
