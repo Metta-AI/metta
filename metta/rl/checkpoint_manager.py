@@ -373,14 +373,15 @@ class CheckpointManager:
     def policy_spec_from_uri(
         uri: str,
         *,
-        display_name: str | None = None,
         device: str | torch.device | None = None,
+        strict: bool = True,
+        display_name: str | None = None,
     ) -> PolicySpec:
-        """Build a PolicySpec that loads a checkpoint via CheckpointPolicy."""
         normalized_uri = CheckpointManager.normalize_uri(uri)
-        init_kwargs = {
+        init_kwargs: dict[str, str | bool] = {
             "checkpoint_uri": normalized_uri,
             "display_name": display_name or normalized_uri,
+            "strict": strict,
         }
         if device is not None:
             init_kwargs["device"] = str(device)
@@ -391,8 +392,6 @@ class CheckpointManager:
 
 
 class CheckpointPolicy(MultiAgentPolicy):
-    """Policy wrapper that instantiates a checkpoint on demand."""
-
     def __init__(
         self,
         policy_env_info: PolicyEnvInterface,
@@ -403,16 +402,13 @@ class CheckpointPolicy(MultiAgentPolicy):
         display_name: str | None = None,
     ):
         super().__init__(policy_env_info)
-
-        self._checkpoint_uri = checkpoint_uri
-        self._display_name = display_name or checkpoint_uri
-        self._device = torch.device(device)
-
+        torch_device = torch.device(device)
         artifact = CheckpointManager.load_artifact_from_uri(checkpoint_uri)
-        policy = artifact.instantiate(policy_env_info, device=self._device, strict=strict)
-        policy = policy.to(self._device)
+        policy = artifact.instantiate(policy_env_info, device=torch_device, strict=strict)
+        policy = policy.to(torch_device)
         policy.eval()
         self._policy = policy
+        self._display_name = display_name or checkpoint_uri
 
     @property
     def display_name(self) -> str:
@@ -420,19 +416,6 @@ class CheckpointPolicy(MultiAgentPolicy):
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         return self._policy.agent_policy(agent_id)
-
-    def load_policy_data(self, policy_data_path: str) -> None:
-        self._policy.load_policy_data(policy_data_path)
-
-    def save_policy_data(self, policy_data_path: str) -> None:
-        self._policy.save_policy_data(policy_data_path)
-
-    def reset(self) -> None:
-        if hasattr(self._policy, "reset"):
-            self._policy.reset()
-
-    def step_batch(self, raw_observations, raw_actions) -> None:
-        return self._policy.step_batch(raw_observations, raw_actions)
 
     def __getattr__(self, name: str):
         return getattr(self._policy, name)
