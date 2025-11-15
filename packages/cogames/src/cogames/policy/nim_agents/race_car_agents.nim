@@ -48,6 +48,11 @@ type
     agents*: seq[RaceCarAgent]
 
 var sharedStations: Table[int, HashSet[Location]]
+var sharedUnclipPending: bool
+var sharedUnclipKind: ResourceKind
+var sharedUnclipLocation: Location
+var sharedGearFeature: int
+var sharedCraftKind: ResourceKind
 
 proc log(message: string) =
   when defined(debug) or defined(uncliplog):
@@ -84,6 +89,12 @@ const scoutVectors = [
 ]
 
 const scoutBaseDistances = @[8, 16, 24, 32, 40]
+
+proc isHeartCamper(agent: RaceCarAgent): bool =
+  agent.agentId mod 4 < 2
+
+proc isGearSpecialist(agent: RaceCarAgent): bool =
+  agent.agentId mod 4 == 3
 
 proc assignedScoutVector(agent: RaceCarAgent): Location =
   scoutVectors[agent.agentId mod scoutVectors.len]
@@ -524,17 +535,26 @@ proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]])
               agent.recordExtractor(resource.get(), location)
               if remainingUses == 0 or clipped:
                 agent.markExtractorDepleted(resource.get(), location)
-                if clipped and not agent.pendingUnclip:
+                if clipped:
                   agent.pendingUnclip = true
                   agent.unclipKind = resource.get()
                   agent.unclipLocation = location
+                  sharedUnclipPending = true
+                  sharedUnclipKind = resource.get()
+                  sharedUnclipLocation = location
                   if gearInfoFound:
                     agent.pendingGearFeature = gearFeatureOverride
                     agent.pendingCraftKind = gearCraftKind
+                    sharedGearFeature = gearFeatureOverride
+                    sharedCraftKind = gearCraftKind
                     agent.hasPendingGearInfo = true
                   else:
-                    agent.pendingGearFeature = agent.gearInventoryFeature(agent.unclipKind)
-                    agent.pendingCraftKind = unclipCraftKind(agent.unclipKind)
+                    let defaultGear = agent.gearInventoryFeature(agent.unclipKind)
+                    let defaultCraft = unclipCraftKind(agent.unclipKind)
+                    agent.pendingGearFeature = defaultGear
+                    agent.pendingCraftKind = defaultCraft
+                    sharedGearFeature = defaultGear
+                    sharedCraftKind = defaultCraft
                     agent.hasPendingGearInfo = true
               elif agent.depletedExtractors.hasKey(resource.get()):
                 agent.depletedExtractors[resource.get()].excl(location)
@@ -543,6 +563,10 @@ proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]])
                   agent.hasPendingGearInfo = false
                   agent.pendingGearFeature = -1
                   agent.pendingCraftKind = rkCarbon
+                if sharedUnclipPending and sharedUnclipLocation == location:
+                  sharedUnclipPending = false
+                  sharedGearFeature = -1
+                  sharedCraftKind = rkCarbon
             elif tagValue == agent.cfg.tags.charger or
                 tagValue == agent.cfg.tags.assembler or
                 tagValue == agent.cfg.tags.chest:
@@ -699,6 +723,21 @@ proc step*(
         proc(action: int) = doAction(action)):
       return
 
+    if sharedUnclipPending:
+      if agent.isGearSpecialist():
+        agent.pendingUnclip = true
+        agent.unclipKind = sharedUnclipKind
+        agent.unclipLocation = sharedUnclipLocation
+        if sharedGearFeature != -1:
+          agent.pendingGearFeature = sharedGearFeature
+          agent.pendingCraftKind = sharedCraftKind
+          agent.hasPendingGearInfo = true
+      else:
+        if not agent.isHeartCamper():
+          agent.pendingUnclip = false
+    else:
+      agent.pendingUnclip = false
+
     # Deposit heart into the chest.
     if invHeart > 0:
       # Reset the targets when we deposit hearts.
@@ -720,6 +759,30 @@ proc step*(
           doAction(action.get().int32)
           log "going to chest"
           return
+
+    if sharedUnclipPending and agent.isHeartCamper():
+      if vibe != agent.cfg.vibes.heartA:
+        doAction(agent.cfg.actions.vibeHeartA.int32)
+        log "heart camper switching to heart vibe"
+        return
+      let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
+      if assemblerNearby.isSome():
+        let dist = manhattan(agent.location, assemblerNearby.get())
+        if dist > 1:
+          let action = agent.cfg.aStar(agent.location, assemblerNearby.get(), agent.map)
+          if action.isSome():
+            doAction(action.get().int32)
+            log "heart camper returning to assembler"
+            return
+        else:
+          doAction(agent.cfg.actions.noop.int32)
+          log "heart camper holding assembler flank"
+          return
+      let assemblerAction = agent.seekKnownStation(agent.cfg.tags.assembler)
+      if assemblerAction.isSome():
+        doAction(assemblerAction.get())
+        log "heart camper seeking known assembler"
+        return
 
     if invCarbon >= agent.carbonTarget and invOxygen >= agent.oxygenTarget and invGermanium >= agent.germaniumTarget and invSilicon >= agent.siliconTarget:
       # We have all the resources we need, so we can build a heart.
@@ -966,6 +1029,11 @@ proc step*(
 proc newRaceCarPolicy*(environmentConfig: string): RaceCarPolicy =
   let cfg = parseConfig(environmentConfig)
   sharedStations = initTable[int, HashSet[Location]]()
+  sharedUnclipPending = false
+  sharedUnclipKind = rkCarbon
+  sharedUnclipLocation = Location(x: 0, y: 0)
+  sharedGearFeature = -1
+  sharedCraftKind = rkCarbon
   var agents: seq[RaceCarAgent] = @[]
   for id in 0 ..< cfg.config.numAgents:
     agents.add(newRaceCarAgent(id, environmentConfig))
