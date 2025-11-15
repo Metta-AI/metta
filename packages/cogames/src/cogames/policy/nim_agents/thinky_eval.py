@@ -26,7 +26,7 @@ SEED = 42
 # Add/modify your evals here over time
 EVALS: List[Tuple[str, str, int]] = [
     # Regular evals
-    ("energy_starved", "buggy", NUM_COGS), # E is very hard, max E is 256, but agents think its 100.
+    ("energy_starved", "buggy", NUM_COGS),  # E is very hard, max E is 256, but agents think its 100.
     ("oxygen_bottleneck", "", NUM_COGS),
     ("extractor_hub_30", "", NUM_COGS),
     ("extractor_hub_50", "", NUM_COGS),
@@ -45,7 +45,7 @@ EVALS: List[Tuple[str, str, int]] = [
     ("diagnostic_chest_navigation3", "", 1),
     ("diagnostic_chest_deposit_near", "", 1),
     ("diagnostic_chest_deposit_search", "", 1),
-    ("diagnostic_charge_up", "buggy", 1), # The cog needs to sacrifice itself to make hart.
+    ("diagnostic_charge_up", "buggy", 1),  # The cog needs to sacrifice itself to make hart.
     ("diagnostic_memory", "", 1),
     ("diagnostic_assemble_seeded_near", "", 1),
     ("diagnostic_assemble_seeded_search", "", 1),
@@ -58,36 +58,36 @@ EVALS: List[Tuple[str, str, int]] = [
     ("diagnostic_agile", "", 1),
     ("diagnostic_radial", "", 1),
     # Hello World evals
-    ("distant_resources", "k/e", NUM_COGS), # Not enough time for such distances.
-    ("quadrant_buildings", "buggy", NUM_COGS), # Not enough charger for such distances.
+    ("distant_resources", "k/e", NUM_COGS),  # Not enough time for such distances.
+    ("quadrant_buildings", "buggy", NUM_COGS),  # Not enough charger for such distances.
     ("vibe_check", "", NUM_COGS),
     ("easy_hearts", "buggy", NUM_COGS),
     ("oxygen_bottleneck_easy", "", NUM_COGS),
     ("oxygen_bottleneck_standard", "", NUM_COGS),
-    ("oxygen_bottleneck_hard", "buggy", NUM_COGS), # Not enough charger for such distances.
+    ("oxygen_bottleneck_hard", "buggy", NUM_COGS),  # Not enough charger for such distances.
     ("energy_starved_easy", "", NUM_COGS),
-    ("energy_starved_standard", "buggy", NUM_COGS), # E drain too high.
-    ("energy_starved_hard", "buggy", NUM_COGS), # E drain too high.
+    ("energy_starved_standard", "buggy", NUM_COGS),  # E drain too high.
+    ("energy_starved_hard", "buggy", NUM_COGS),  # E drain too high.
     ("unclipping_easy", "n/a", NUM_COGS),
     ("unclipping_standard", "n/a", NUM_COGS),
     ("unclipping_hard", "n/a", NUM_COGS),
     ("distant_resources_easy", "", NUM_COGS),
-    ("distant_resources_standard", "k/e", NUM_COGS), # Not enough time for such distances.
-    ("distant_resources_hard", "buggy", NUM_COGS), # Not enough time for such distances.
+    ("distant_resources_standard", "k/e", NUM_COGS),  # Not enough time for such distances.
+    ("distant_resources_hard", "buggy", NUM_COGS),  # Not enough time for such distances.
     ("quadrant_buildings_easy", "", NUM_COGS),
-    ("quadrant_buildings_standard", "buggy", NUM_COGS), # Not enough charger for such distances.
-    ("quadrant_buildings_hard", "buggy", NUM_COGS), # Not enough charger for such distances.
+    ("quadrant_buildings_standard", "buggy", NUM_COGS),  # Not enough charger for such distances.
+    ("quadrant_buildings_hard", "buggy", NUM_COGS),  # Not enough charger for such distances.
     ("single_use_swarm_easy", "k/e", NUM_COGS),
-    ("single_use_swarm_standard", "buggy", NUM_COGS), # Not enough time for such distances.
-    ("single_use_swarm_hard", "buggy", NUM_COGS), # E drain too high.
-    ("vibe_check_easy", "buggy", NUM_COGS), # No/invalid recipes available.
+    ("single_use_swarm_standard", "buggy", NUM_COGS),  # Not enough time for such distances.
+    ("single_use_swarm_hard", "buggy", NUM_COGS),  # E drain too high.
+    ("vibe_check_easy", "buggy", NUM_COGS),  # No/invalid recipes available.
     ("vibe_check_standard", "", NUM_COGS),
-    ("vibe_check_hard", "k/e", NUM_COGS), # Not enough time for such distances.
+    ("vibe_check_hard", "k/e", NUM_COGS),  # Not enough time for such distances.
     # Hearts evals
     ("easy_large_hearts", "slow", NUM_COGS),
     ("easy_medium_hearts", "", NUM_COGS),
     ("easy_small_hearts", "k/e", NUM_COGS),
-    ("easy_hearts_training", "buggy", NUM_COGS), # No/invalid recipes available.
+    ("easy_hearts_training", "buggy", NUM_COGS),  # No/invalid recipes available.
 ]
 
 
@@ -215,7 +215,7 @@ def main() -> None:
     num_evals = 0
     for experiment_name, tag, num_cogs in EVALS:
         if tag != "":
-          continue
+            continue
         num_evals += 1
         hpa = run_eval(experiment_name, tag, mission_map, num_cogs)
         if hpa > 0:
