@@ -497,25 +497,23 @@ def create_plots(
     logger.info(f"✓ Plots saved to {output_path}/")
 
 
-def _plot_by_agent(aggregated: AggregatedResults, agents: List[str], output_path: Path) -> None:
-    """Plot average reward per agent grouped by agent type."""
-    if not agents:
-        return
-
+def _plot_single_bar(
+    labels: List[str],
+    values: List[float],
+    ylabel: str,
+    xlabel: str,
+    title: str,
+    filename: str,
+    output_path: Path,
+) -> None:
     fig, ax = plt.subplots(figsize=(10, 6))
-    avg_rewards: List[float] = []
-    for agent in agents:
-        metrics = aggregated.by_agent.get(agent)
-        avg_rewards.append(metrics.mean_agent_reward() if metrics else 0.0)
-    colors = plt.get_cmap("Set2")(range(len(agents)))
-
-    bars = ax.bar(agents, avg_rewards, color=colors, alpha=0.8, edgecolor="black")
-    ax.set_ylabel("Average Reward Per Agent", fontsize=12, fontweight="bold")
-    ax.set_xlabel("Agent Type", fontsize=12, fontweight="bold")
-    ax.set_title("Average Reward Per Agent by Type", fontsize=14, fontweight="bold")
+    colors = plt.get_cmap("Set2")(range(len(labels)))
+    bars = ax.bar(labels, values, color=colors, alpha=0.8, edgecolor="black")
+    ax.set_ylabel(ylabel, fontsize=12, fontweight="bold")
+    ax.set_xlabel(xlabel, fontsize=12, fontweight="bold")
+    ax.set_title(title, fontsize=14, fontweight="bold")
     ax.grid(axis="y", alpha=0.3)
 
-    # Add value labels on bars
     for bar in bars:
         height = bar.get_height()
         ax.text(
@@ -523,8 +521,65 @@ def _plot_by_agent(aggregated: AggregatedResults, agents: List[str], output_path
         )
 
     plt.tight_layout()
-    plt.savefig(output_path / "reward_by_agent.png", dpi=150, bbox_inches="tight")
+    plt.savefig(output_path / filename, dpi=150, bbox_inches="tight")
     plt.close()
+
+
+def _plot_grouped_bars(
+    x_labels: List[str],
+    series_labels: List[str],
+    value_lookup,
+    ylabel: str,
+    xlabel: str,
+    title: str,
+    filename: str,
+    output_path: Path,
+    width: float = 0.35,
+    figsize: Tuple[int, int] = (16, 8),
+) -> None:
+    if not x_labels or not series_labels:
+        return
+
+    fig, ax = plt.subplots(figsize=figsize)
+    x = np.arange(len(x_labels))
+
+    for i, series in enumerate(series_labels):
+        rewards: List[float] = [value_lookup(series, label) for label in x_labels]
+        offset = width * (i - len(series_labels) / 2 + 0.5)
+        ax.bar(x + offset, rewards, width, label=series, alpha=0.8, edgecolor="black")
+
+    ax.set_ylabel(ylabel, fontsize=12, fontweight="bold")
+    ax.set_xlabel(xlabel, fontsize=12, fontweight="bold")
+    ax.set_title(title, fontsize=14, fontweight="bold")
+    ax.set_xticks(x)
+    ax.set_xticklabels(x_labels, rotation=45, ha="right")
+    ax.legend(fontsize=11)
+    ax.grid(axis="y", alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(output_path / filename, dpi=150, bbox_inches="tight")
+    plt.close()
+
+
+def _plot_by_agent(aggregated: AggregatedResults, agents: List[str], output_path: Path) -> None:
+    """Plot average reward per agent grouped by agent type."""
+    if not agents:
+        return
+
+    avg_rewards: List[float] = []
+    for agent in agents:
+        metrics = aggregated.by_agent.get(agent)
+        avg_rewards.append(metrics.mean_agent_reward() if metrics else 0.0)
+
+    _plot_single_bar(
+        labels=agents,
+        values=avg_rewards,
+        ylabel="Average Reward Per Agent",
+        xlabel="Agent Type",
+        title="Average Reward Per Agent by Type",
+        filename="reward_by_agent.png",
+        output_path=output_path,
+    )
 
 
 def _plot_by_agent_total(aggregated: AggregatedResults, agents: List[str], output_path: Path) -> None:
@@ -532,29 +587,20 @@ def _plot_by_agent_total(aggregated: AggregatedResults, agents: List[str], outpu
     if not agents:
         return
 
-    fig, ax = plt.subplots(figsize=(10, 6))
-    avg_rewards: List[float] = []
+    total_rewards: List[float] = []
     for agent in agents:
         metrics = aggregated.by_agent.get(agent)
-        avg_rewards.append(metrics.mean_total_reward() if metrics else 0.0)
-    colors = plt.get_cmap("Set2")(range(len(agents)))
+        total_rewards.append(metrics.mean_total_reward() if metrics else 0.0)
 
-    bars = ax.bar(agents, avg_rewards, color=colors, alpha=0.8, edgecolor="black")
-    ax.set_ylabel("Total Reward", fontsize=12, fontweight="bold")
-    ax.set_xlabel("Agent Type", fontsize=12, fontweight="bold")
-    ax.set_title("Total Reward by Agent Type", fontsize=14, fontweight="bold")
-    ax.grid(axis="y", alpha=0.3)
-
-    # Add value labels on bars
-    for bar in bars:
-        height = bar.get_height()
-        ax.text(
-            bar.get_x() + bar.get_width() / 2.0, height, f"{height:.2f}", ha="center", va="bottom", fontweight="bold"
-        )
-
-    plt.tight_layout()
-    plt.savefig(output_path / "total_reward_by_agent.png", dpi=150, bbox_inches="tight")
-    plt.close()
+    _plot_single_bar(
+        labels=agents,
+        values=total_rewards,
+        ylabel="Total Reward",
+        xlabel="Agent Type",
+        title="Total Reward by Agent Type",
+        filename="total_reward_by_agent.png",
+        output_path=output_path,
+    )
 
 
 def _plot_by_num_cogs(
@@ -567,43 +613,21 @@ def _plot_by_num_cogs(
     if not num_cogs_list or not agents:
         return
 
-    fig, ax = plt.subplots(figsize=(12, 7))
-
-    width = 0.35
-    x = np.arange(len(num_cogs_list))
-
-    for i, agent in enumerate(agents):
-        rewards: List[float] = []
-        for num_cogs in num_cogs_list:
-            metrics = aggregated.by_agent_num_cogs.get((agent, num_cogs))
-            rewards.append(metrics.mean_agent_reward() if metrics else 0.0)
-
-        offset = width * (i - len(agents) / 2 + 0.5)
-        bars = ax.bar(x + offset, rewards, width, label=agent, alpha=0.8, edgecolor="black")
-
-        for bar in bars:
-            height = bar.get_height()
-            if height > 0:
-                ax.text(
-                    bar.get_x() + bar.get_width() / 2.0,
-                    height,
-                    f"{height:.1f}",
-                    ha="center",
-                    va="bottom",
-                    fontsize=9,
-                )
-
-    ax.set_ylabel("Average Reward Per Agent", fontsize=12, fontweight="bold")
-    ax.set_xlabel("Number of Agents", fontsize=12, fontweight="bold")
-    ax.set_title("Average Reward Per Agent by Team Size", fontsize=14, fontweight="bold")
-    ax.set_xticks(x)
-    ax.set_xticklabels(num_cogs_list)
-    ax.legend(fontsize=11)
-    ax.grid(axis="y", alpha=0.3)
-
-    plt.tight_layout()
-    plt.savefig(output_path / "reward_by_num_cogs.png", dpi=150, bbox_inches="tight")
-    plt.close()
+    _plot_grouped_bars(
+        x_labels=num_cogs_list,
+        series_labels=agents,
+        value_lookup=lambda agent, num_cogs: (
+            aggregated.by_agent_num_cogs.get((agent, int(num_cogs))).mean_agent_reward()
+            if aggregated.by_agent_num_cogs.get((agent, int(num_cogs)))
+            else 0.0
+        ),
+        ylabel="Average Reward Per Agent",
+        xlabel="Number of Agents",
+        title="Average Reward Per Agent by Team Size",
+        filename="reward_by_num_cogs.png",
+        output_path=output_path,
+        figsize=(12, 7),
+    )
 
 
 def _plot_by_num_cogs_total(
@@ -613,43 +637,21 @@ def _plot_by_num_cogs_total(
     if not num_cogs_list or not agents:
         return
 
-    fig, ax = plt.subplots(figsize=(12, 7))
-
-    width = 0.35
-    x = np.arange(len(num_cogs_list))
-
-    for i, agent in enumerate(agents):
-        rewards: List[float] = []
-        for num_cogs in num_cogs_list:
-            metrics = aggregated.by_agent_num_cogs.get((agent, num_cogs))
-            rewards.append(metrics.mean_total_reward() if metrics else 0.0)
-
-        offset = width * (i - len(agents) / 2 + 0.5)
-        bars = ax.bar(x + offset, rewards, width, label=agent, alpha=0.8, edgecolor="black")
-
-        for bar in bars:
-            height = bar.get_height()
-            if height > 0:
-                ax.text(
-                    bar.get_x() + bar.get_width() / 2.0,
-                    height,
-                    f"{height:.1f}",
-                    ha="center",
-                    va="bottom",
-                    fontsize=9,
-                )
-
-    ax.set_ylabel("Total Reward", fontsize=12, fontweight="bold")
-    ax.set_xlabel("Number of Agents", fontsize=12, fontweight="bold")
-    ax.set_title("Total Reward by Team Size", fontsize=14, fontweight="bold")
-    ax.set_xticks(x)
-    ax.set_xticklabels(num_cogs_list)
-    ax.legend(fontsize=11)
-    ax.grid(axis="y", alpha=0.3)
-
-    plt.tight_layout()
-    plt.savefig(output_path / "total_reward_by_num_cogs.png", dpi=150, bbox_inches="tight")
-    plt.close()
+    _plot_grouped_bars(
+        x_labels=num_cogs_list,
+        series_labels=agents,
+        value_lookup=lambda agent, num_cogs: (
+            aggregated.by_agent_num_cogs.get((agent, int(num_cogs))).mean_total_reward()
+            if aggregated.by_agent_num_cogs.get((agent, int(num_cogs)))
+            else 0.0
+        ),
+        ylabel="Total Reward",
+        xlabel="Number of Agents",
+        title="Total Reward by Team Size",
+        filename="total_reward_by_num_cogs.png",
+        output_path=output_path,
+        figsize=(12, 7),
+    )
 
 
 def _plot_by_environment(
@@ -662,31 +664,20 @@ def _plot_by_environment(
     if not experiments or not agents:
         return
 
-    fig, ax = plt.subplots(figsize=(16, 8))
-
-    width = 0.35
-    x = np.arange(len(experiments))
-
-    for i, agent in enumerate(agents):
-        rewards: List[float] = []
-        for exp in experiments:
-            metrics = aggregated.by_agent_experiment.get((agent, exp))
-            rewards.append(metrics.mean_agent_reward() if metrics else 0.0)
-
-        offset = width * (i - len(agents) / 2 + 0.5)
-        ax.bar(x + offset, rewards, width, label=agent, alpha=0.8, edgecolor="black")
-
-    ax.set_ylabel("Average Reward Per Agent", fontsize=12, fontweight="bold")
-    ax.set_xlabel("Eval Environment", fontsize=12, fontweight="bold")
-    ax.set_title("Average Reward by Eval Environment", fontsize=14, fontweight="bold")
-    ax.set_xticks(x)
-    ax.set_xticklabels(experiments, rotation=45, ha="right")
-    ax.legend(fontsize=11)
-    ax.grid(axis="y", alpha=0.3)
-
-    plt.tight_layout()
-    plt.savefig(output_path / "reward_by_environment.png", dpi=150, bbox_inches="tight")
-    plt.close()
+    _plot_grouped_bars(
+        x_labels=experiments,
+        series_labels=agents,
+        value_lookup=lambda agent, exp: (
+            aggregated.by_agent_experiment.get((agent, exp)).mean_agent_reward()
+            if aggregated.by_agent_experiment.get((agent, exp))
+            else 0.0
+        ),
+        ylabel="Average Reward Per Agent",
+        xlabel="Eval Environment",
+        title="Average Reward by Eval Environment",
+        filename="reward_by_environment.png",
+        output_path=output_path,
+    )
 
 
 def _plot_by_environment_total(
@@ -696,31 +687,20 @@ def _plot_by_environment_total(
     if not experiments or not agents:
         return
 
-    fig, ax = plt.subplots(figsize=(16, 8))
-
-    width = 0.35
-    x = np.arange(len(experiments))
-
-    for i, agent in enumerate(agents):
-        rewards: List[float] = []
-        for exp in experiments:
-            metrics = aggregated.by_agent_experiment.get((agent, exp))
-            rewards.append(metrics.mean_total_reward() if metrics else 0.0)
-
-        offset = width * (i - len(agents) / 2 + 0.5)
-        ax.bar(x + offset, rewards, width, label=agent, alpha=0.8, edgecolor="black")
-
-    ax.set_ylabel("Total Reward", fontsize=12, fontweight="bold")
-    ax.set_xlabel("Eval Environment", fontsize=12, fontweight="bold")
-    ax.set_title("Total Reward by Eval Environment", fontsize=14, fontweight="bold")
-    ax.set_xticks(x)
-    ax.set_xticklabels(experiments, rotation=45, ha="right")
-    ax.legend(fontsize=11)
-    ax.grid(axis="y", alpha=0.3)
-
-    plt.tight_layout()
-    plt.savefig(output_path / "total_reward_by_environment.png", dpi=150, bbox_inches="tight")
-    plt.close()
+    _plot_grouped_bars(
+        x_labels=experiments,
+        series_labels=agents,
+        value_lookup=lambda agent, exp: (
+            aggregated.by_agent_experiment.get((agent, exp)).mean_total_reward()
+            if aggregated.by_agent_experiment.get((agent, exp))
+            else 0.0
+        ),
+        ylabel="Total Reward",
+        xlabel="Eval Environment",
+        title="Total Reward by Eval Environment",
+        filename="total_reward_by_environment.png",
+        output_path=output_path,
+    )
 
 
 def _plot_by_environment_by_cogs(
@@ -733,31 +713,22 @@ def _plot_by_environment_by_cogs(
     if not experiments or not num_cogs_list:
         return
 
-    fig, ax = plt.subplots(figsize=(16, 8))
-
-    width = 0.25
-    x = np.arange(len(experiments))
-
-    for i, num_cogs in enumerate(num_cogs_list):
-        rewards: List[float] = []
-        for exp in experiments:
-            metrics = aggregated.by_num_cogs_experiment.get((num_cogs, exp))
-            rewards.append(metrics.mean_agent_reward() if metrics else 0.0)
-
-        offset = width * (i - len(num_cogs_list) / 2 + 0.5)
-        ax.bar(x + offset, rewards, width, label=f"{num_cogs} agent(s)", alpha=0.8, edgecolor="black")
-
-    ax.set_ylabel("Average Reward Per Agent", fontsize=12, fontweight="bold")
-    ax.set_xlabel("Eval Environment", fontsize=12, fontweight="bold")
-    ax.set_title("Average Reward by Eval Environment (Grouped by Agent Count)", fontsize=14, fontweight="bold")
-    ax.set_xticks(x)
-    ax.set_xticklabels(experiments, rotation=45, ha="right")
-    ax.legend(fontsize=11)
-    ax.grid(axis="y", alpha=0.3)
-
-    plt.tight_layout()
-    plt.savefig(output_path / "reward_by_environment_by_cogs.png", dpi=150, bbox_inches="tight")
-    plt.close()
+    labels = [f"{n} agent(s)" for n in num_cogs_list]
+    _plot_grouped_bars(
+        x_labels=experiments,
+        series_labels=labels,
+        value_lookup=lambda label, exp: (
+            aggregated.by_num_cogs_experiment.get((int(label.split()[0]), exp)).mean_agent_reward()
+            if aggregated.by_num_cogs_experiment.get((int(label.split()[0]), exp))
+            else 0.0
+        ),
+        ylabel="Average Reward Per Agent",
+        xlabel="Eval Environment",
+        title="Average Reward by Eval Environment (Grouped by Agent Count)",
+        filename="reward_by_environment_by_cogs.png",
+        output_path=output_path,
+        width=0.25,
+    )
 
 
 def _plot_by_difficulty(
@@ -770,31 +741,20 @@ def _plot_by_difficulty(
     if not difficulties or not agents:
         return
 
-    fig, ax = plt.subplots(figsize=(16, 8))
-
-    width = 0.35
-    x = np.arange(len(difficulties))
-
-    for i, agent in enumerate(agents):
-        rewards: List[float] = []
-        for diff in difficulties:
-            metrics = aggregated.by_agent_difficulty.get((agent, diff))
-            rewards.append(metrics.mean_agent_reward() if metrics else 0.0)
-
-        offset = width * (i - len(agents) / 2 + 0.5)
-        ax.bar(x + offset, rewards, width, label=agent, alpha=0.8, edgecolor="black")
-
-    ax.set_ylabel("Average Reward Per Agent", fontsize=12, fontweight="bold")
-    ax.set_xlabel("Difficulty Variant", fontsize=12, fontweight="bold")
-    ax.set_title("Average Reward by Difficulty Variant", fontsize=14, fontweight="bold")
-    ax.set_xticks(x)
-    ax.set_xticklabels(difficulties, rotation=45, ha="right")
-    ax.legend(fontsize=11)
-    ax.grid(axis="y", alpha=0.3)
-
-    plt.tight_layout()
-    plt.savefig(output_path / "reward_by_difficulty.png", dpi=150, bbox_inches="tight")
-    plt.close()
+    _plot_grouped_bars(
+        x_labels=difficulties,
+        series_labels=agents,
+        value_lookup=lambda agent, diff: (
+            aggregated.by_agent_difficulty.get((agent, diff)).mean_agent_reward()
+            if aggregated.by_agent_difficulty.get((agent, diff))
+            else 0.0
+        ),
+        ylabel="Average Reward Per Agent",
+        xlabel="Difficulty Variant",
+        title="Average Reward by Difficulty Variant",
+        filename="reward_by_difficulty.png",
+        output_path=output_path,
+    )
 
 
 def _plot_by_difficulty_total(
@@ -804,31 +764,20 @@ def _plot_by_difficulty_total(
     if not difficulties or not agents:
         return
 
-    fig, ax = plt.subplots(figsize=(16, 8))
-
-    width = 0.35
-    x = np.arange(len(difficulties))
-
-    for i, agent in enumerate(agents):
-        rewards: List[float] = []
-        for diff in difficulties:
-            metrics = aggregated.by_agent_difficulty.get((agent, diff))
-            rewards.append(metrics.mean_total_reward() if metrics else 0.0)
-
-        offset = width * (i - len(agents) / 2 + 0.5)
-        ax.bar(x + offset, rewards, width, label=agent, alpha=0.8, edgecolor="black")
-
-    ax.set_ylabel("Total Reward", fontsize=12, fontweight="bold")
-    ax.set_xlabel("Difficulty Variant", fontsize=12, fontweight="bold")
-    ax.set_title("Total Reward by Difficulty Variant", fontsize=14, fontweight="bold")
-    ax.set_xticks(x)
-    ax.set_xticklabels(difficulties, rotation=45, ha="right")
-    ax.legend(fontsize=11)
-    ax.grid(axis="y", alpha=0.3)
-
-    plt.tight_layout()
-    plt.savefig(output_path / "total_reward_by_difficulty.png", dpi=150, bbox_inches="tight")
-    plt.close()
+    _plot_grouped_bars(
+        x_labels=difficulties,
+        series_labels=agents,
+        value_lookup=lambda agent, diff: (
+            aggregated.by_agent_difficulty.get((agent, diff)).mean_total_reward()
+            if aggregated.by_agent_difficulty.get((agent, diff))
+            else 0.0
+        ),
+        ylabel="Total Reward",
+        xlabel="Difficulty Variant",
+        title="Total Reward by Difficulty Variant",
+        filename="total_reward_by_difficulty.png",
+        output_path=output_path,
+    )
 
 
 def _plot_heatmap_env_agent(
