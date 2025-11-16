@@ -34,7 +34,6 @@ class CvCWallConfig(CvCStationConfig):
 class ExtractorConfig(CvCStationConfig):
     """Base class for all extractor configs."""
 
-    max_uses: int = Field(default=1000)
     efficiency: int = Field(default=100)
 
 
@@ -61,12 +60,13 @@ class ChargerConfig(ExtractorConfig):
 
 # Time consuming but easy to mine.
 class CarbonExtractorConfig(ExtractorConfig):
+    max_uses: int = Field(default=25)
+
     def station_cfg(self) -> AssemblerConfig:
         return AssemblerConfig(
             name="carbon_extractor",
             map_char="C",
             render_symbol=vibes.VIBE_BY_NAME["carbon_a"].symbol,
-            # Protocols
             max_uses=self.max_uses,
             protocols=[
                 ProtocolConfig(
@@ -80,15 +80,15 @@ class CarbonExtractorConfig(ExtractorConfig):
         )
 
 
-# Accumulates oxygen over time, needs to be emptied periodically.
-# Takes a lot of space, relative to usage needs.
+# Accumulates over time.
 class OxygenExtractorConfig(ExtractorConfig):
+    max_uses: int = Field(default=5)
+
     def station_cfg(self) -> AssemblerConfig:
         return AssemblerConfig(
             name="oxygen_extractor",
             map_char="O",
             render_symbol=vibes.VIBE_BY_NAME["oxygen_a"].symbol,
-            # Protocols
             max_uses=self.max_uses,
             allow_partial_usage=True,  # can use it while its on cooldown
             protocols=[
@@ -115,8 +115,8 @@ class GermaniumExtractorConfig(ExtractorConfig):
             name="germanium_extractor",
             map_char="G",
             render_symbol=vibes.VIBE_BY_NAME["germanium_a"].symbol,
-            # Protocols
-            max_uses=self.max_uses,
+            # Germanium is inherently a single use resource.
+            max_uses=1,
             protocols=[
                 ProtocolConfig(
                     # For the 1 agent protocol, we set min_agents to zero so it's visible when no
@@ -132,16 +132,16 @@ class GermaniumExtractorConfig(ExtractorConfig):
         )
 
 
+# Bulky and energy intensive.
 class SiliconExtractorConfig(ExtractorConfig):
-    max_uses: int = Field(default=100)  # Silicon has lower default than other extractors
+    max_uses: int = Field(default=10)
 
     def station_cfg(self) -> AssemblerConfig:
         return AssemblerConfig(
             name="silicon_extractor",
             map_char="S",
             render_symbol=vibes.VIBE_BY_NAME["silicon_a"].symbol,
-            # Protocols
-            max_uses=self.max_uses,  # Use direct value, no division
+            max_uses=self.max_uses,
             protocols=[
                 ProtocolConfig(
                     input_resources={"energy": 25},
@@ -198,7 +198,7 @@ class CvCAssemblerConfig(CvCStationConfig):
                     input_resources={
                         "carbon": 2 * (self.first_heart_cost + self.additional_heart_cost * i),
                         "oxygen": 2 * (self.first_heart_cost + self.additional_heart_cost * i),
-                        "germanium": max(1, (self.first_heart_cost + self.additional_heart_cost * i) // 2),
+                        "germanium": max(1, (self.first_heart_cost + self.additional_heart_cost * i) // 5),
                         "silicon": 5 * (self.first_heart_cost + self.additional_heart_cost * i),
                         "energy": 2 * (self.first_heart_cost + self.additional_heart_cost * i),
                     },
