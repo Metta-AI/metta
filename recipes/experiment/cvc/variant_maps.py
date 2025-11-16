@@ -178,22 +178,15 @@ def make_curriculum(
     # Merge all task generators into a unified curriculum
     merged_tasks = cc.merge(all_task_generators)
 
-    # Default LP algorithm config
+    # Default LP algorithm config: Use dual-pool for exploration-exploitation balance
     # Note: With duplicate tasks (many task_ids mapping to same config via merge),
     # we need fewer samples per task_id for LP calculation since tasks get evicted frequently
     if algorithm_config is None:
-        algorithm_config = LearningProgressConfig(
-            use_bidirectional=True,
-            ema_timescale=0.01,
-            num_active_tasks=256,
-            slow_timescale_factor=0.2,
-            rand_task_rate=0.01,
-            exploration_bonus=0.1,
+        algorithm_config = LearningProgressConfig.default_dual_pool(
+            num_explore_tasks=50,  # Exploration pool
+            num_exploit_tasks=200,  # Exploitation pool
             min_samples_for_lp=5,  # Reduced from 10 to work with duplicate tasks
-            lp_score_temperature=0.0,
-            z_score_amplification=10.0,
-            show_curriculum_troubleshooting_logging=True,
-            early_progress_amplification=0.5,
+            promotion_min_samples=3,  # Lower threshold for faster promotion with duplicate tasks
         )
 
     curriculum_config = merged_tasks.to_curriculum(

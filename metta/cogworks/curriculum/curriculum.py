@@ -4,19 +4,40 @@ This module contains the main Curriculum class that orchestrates automatic curri
 learning. The curriculum maintains a pool of active tasks, uses TaskGenerators to create
 new tasks, and delegates to CurriculumAlgorithms for intelligent selection and eviction.
 
-Key components:
-- Curriculum: Main orchestrator managing the task pool lifecycle
-- CurriculumConfig: Configuration for curriculum behavior and algorithm selection
-- CurriculumTask: Wrapper holding task_id, env_cfg, and performance metrics
-- DiscreteRandomCurriculum: Simple reference algorithm for uniform random sampling
+Key Components:
+    - Curriculum: Main orchestrator managing the task pool lifecycle
+    - CurriculumConfig: Configuration for curriculum behavior and algorithm selection
+    - CurriculumTask: Wrapper holding task_id, env_cfg, and performance metrics
+    - DiscreteRandomCurriculum: Simple reference algorithm for uniform random sampling
 
-Separation of concerns:
-- TaskGenerator creates environment configs (what tasks look like)
-- CurriculumAlgorithm decides which tasks to sample/evict (how to select)
-- Curriculum manages the pool and coordinates between them (orchestration)
+Separation of Concerns:
+    - TaskGenerator creates environment configs (what tasks look like)
+    - CurriculumAlgorithm decides which tasks to sample/evict (how to select)
+    - Curriculum manages the pool and coordinates between them (orchestration)
 
-Why this file: Central point of curriculum API and simple/reference implementations.
-Complex algorithms live in their own files (e.g., learning_progress_algorithm.py).
+Dual-Pool Integration:
+    The Curriculum class seamlessly supports both single-pool and dual-pool architectures:
+    - Single-pool: Traditional curriculum with one unified task pool
+    - Dual-pool: Exploration-exploitation with separate explore/exploit pools
+
+    Dual-pool features:
+    - Pool-aware task creation: New tasks always created in explore pool
+    - Adaptive sampling: Bootstrap phase (100% explore) → Steady-state (EER-based)
+    - Automatic promotion: Tasks with strong LP automatically move to exploit pool
+    - Transparent integration: No code changes needed, controlled by algorithm config
+
+    The Curriculum class handles dual-pool mode transparently by:
+    1. Querying algorithm for target pool during task creation
+    2. Using pool-specific task selection during sampling
+    3. Maintaining task lifecycle across both pools
+
+Why This File:
+    Central point of curriculum API and simple/reference implementations. Complex
+    algorithms live in their own files (e.g., learning_progress_algorithm.py).
+
+See Also:
+    - learning_progress_algorithm.py: Dual-pool implementation with adaptive EER
+    - task_tracker.py: DualPoolTaskTracker for managing two independent pools
 """
 
 from __future__ import annotations
@@ -180,12 +201,20 @@ class Curriculum(StatsLogger):
         the same task_id simultaneously. The task remains in the pool after
         selection and is only removed via eviction.
 
+        In dual-pool mode, new tasks are always created in the explore pool.
+
         Returns:
             CurriculumTask: A task sampled from the pool based on learning progress scores
         """
+        # Determine target pool for new task creation (dual-pool mode only)
+        creation_pool = None
+        if self._algorithm is not None and hasattr(self._algorithm, "is_dual_pool_mode"):
+            if self._algorithm.is_dual_pool_mode():
+                creation_pool = self._algorithm.select_pool_for_creation()
+
         # Curriculum always manages the task pool - no delegation
         if len(self._tasks) < self._num_active_tasks:
-            task = self._create_task()
+            task = self._create_task(pool=creation_pool)
         else:
             # At capacity - check if any task meets eviction criteria first
             task = None
@@ -200,7 +229,7 @@ class Curriculum(StatsLogger):
                     evict_candidate = self._algorithm.recommend_eviction(evictable_tasks)
                     if evict_candidate is not None:
                         self._evict_specific_task(evict_candidate)
-                        task = self._create_task()
+                        task = self._create_task(pool=creation_pool)
 
             # If no eviction happened, choose from existing tasks
             if task is None:
@@ -215,9 +244,23 @@ class Curriculum(StatsLogger):
         return task
 
     def _initialize_at_capacity(self) -> None:
-        """Initialize the task pool to full capacity."""
-        while len(self._tasks) < self._num_active_tasks:
-            self._create_task()
+        """Initialize the task pool to full capacity.
+
+        In dual-pool mode, only the explore pool is filled initially. The exploit pool
+        fills gradually through promotion during training.
+        """
+        # Determine target pool and initial capacity for initialization
+        creation_pool = None
+        target_capacity = self._num_active_tasks
+
+        if self._algorithm is not None and hasattr(self._algorithm, "is_dual_pool_mode"):
+            if self._algorithm.is_dual_pool_mode():
+                creation_pool = self._algorithm.select_pool_for_creation()
+                # In dual-pool mode, only fill explore pool initially
+                target_capacity = self._algorithm.hypers.num_explore_tasks
+
+        while len(self._tasks) < target_capacity:
+            self._create_task(pool=creation_pool)
 
     def _evict_specific_task(self, task_id: int) -> None:
         """Evict a specific task by ID."""
@@ -238,25 +281,65 @@ class Curriculum(StatsLogger):
         Samples with replacement - the same task can be selected multiple times
         across different environments. Tasks are weighted by their learning
         progress scores (high LP = higher probability).
+
+        In dual-pool mode, selects pool first (based on phase and EER), then
+        samples from that pool.
         """
         if self._algorithm is not None:
-            # Get algorithm's task selection preferences
-            task_scores = self._algorithm.score_tasks(list(self._tasks.keys()))
-            if task_scores:
-                # Convert scores to probabilities for sampling
-                task_ids = list(task_scores.keys())
-                scores = list(task_scores.values())
-                total_score = sum(scores)
-                if total_score > 0:
-                    probabilities = [score / total_score for score in scores]
-                    selected_id = self._rng.choices(task_ids, weights=probabilities)[0]
-                    return self._tasks[selected_id]
+            # Dual-pool mode: select pool first, then sample from it
+            if hasattr(self._algorithm, "is_dual_pool_mode") and self._algorithm.is_dual_pool_mode():
+                # Select which pool to sample from
+                selected_pool = self._algorithm.select_pool_for_sampling()
+
+                # Get tasks from the selected pool
+                pool_task_ids = self._algorithm.get_pool_task_ids(selected_pool)
+
+                # Filter to only tasks we have in our curriculum (defensive)
+                available_task_ids = [tid for tid in pool_task_ids if tid in self._tasks]
+
+                if not available_task_ids:
+                    # Pool is empty, fallback to random selection from all tasks
+                    return self._tasks[self._rng.choice(list(self._tasks.keys()))]
+
+                # Score tasks from the selected pool
+                task_scores = self._algorithm.score_tasks(available_task_ids)
+                if task_scores:
+                    task_ids = list(task_scores.keys())
+                    scores = list(task_scores.values())
+                    total_score = sum(scores)
+                    if total_score > 0:
+                        probabilities = [score / total_score for score in scores]
+                        selected_id = self._rng.choices(task_ids, weights=probabilities)[0]
+                        return self._tasks[selected_id]
+
+                # Fallback to random from pool
+                return self._tasks[self._rng.choice(available_task_ids)]
+            else:
+                # Single-pool mode: score all tasks
+                task_scores = self._algorithm.score_tasks(list(self._tasks.keys()))
+                if task_scores:
+                    # Convert scores to probabilities for sampling
+                    task_ids = list(task_scores.keys())
+                    scores = list(task_scores.values())
+                    total_score = sum(scores)
+                    if total_score > 0:
+                        probabilities = [score / total_score for score in scores]
+                        selected_id = self._rng.choices(task_ids, weights=probabilities)[0]
+                        return self._tasks[selected_id]
 
         # Fallback to random selection
         return self._tasks[self._rng.choice(list(self._tasks.keys()))]
 
-    def _create_task(self) -> CurriculumTask:
-        """Create a new task with a unique ID from Python's unlimited integer space."""
+    def _create_task(self, pool: Optional[str] = None) -> CurriculumTask:
+        """Create a new task with a unique ID from Python's unlimited integer space.
+
+        Args:
+            pool: For dual-pool mode, which pool to create the task in ('explore' or 'exploit').
+                  If None, uses single-pool mode.
+
+        Returns:
+            The newly created CurriculumTask
+        """
         # Use 53-bit integer space (2^53 - 1) to ensure compatibility with float64 storage
         # Float64 has 53 bits of mantissa precision, so integers up to 2^53 can be stored exactly
         # With ~1000 active tasks, collision probability is still negligible (~10^-13)
@@ -275,9 +358,9 @@ class Curriculum(StatsLogger):
         self._tasks[task_id] = task
         self._num_created += 1
 
-        # Notify algorithm of new task
+        # Notify algorithm of new task (pass pool for dual-pool mode)
         if self._algorithm is not None:
-            self._algorithm.on_task_created(task)
+            self._algorithm.on_task_created(task, pool=pool)
 
         return task
 

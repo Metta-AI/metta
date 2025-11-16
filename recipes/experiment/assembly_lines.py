@@ -419,18 +419,11 @@ def train(
 ) -> TrainTool:
     task_generator_cfg = make_task_generator_cfg(**curriculum_args[curriculum_style])
 
-    algorithm_config = LearningProgressConfig(
-        use_bidirectional=True,  # Default: bidirectional learning progress
-        ema_timescale=0.001,
-        num_active_tasks=256,
-        slow_timescale_factor=0.2,
-        rand_task_rate=0.01,
-        exploration_bonus=0.1,
-        min_samples_for_lp=10,  # Use exploration bonus for first 10 samples
-        lp_score_temperature=0.0,  # Z-score normalization for relative LP comparison
-        z_score_amplification=50.0,  # Amplification after z-score (only when temp=0)
-        show_curriculum_troubleshooting_logging=True,  # Enable per-task metrics for debugging
-        early_progress_amplification=0.5,  # 0.5 = OFF, low values (0.05) amplify unsolved tasks
+    # Use dual-pool curriculum with exploration-exploitation balance
+    algorithm_config = LearningProgressConfig.default_dual_pool(
+        num_explore_tasks=50,  # Exploration pool
+        num_exploit_tasks=200,  # Exploitation pool
+        # Note: num_active_tasks is automatically set to num_explore_tasks + num_exploit_tasks = 250
     )
 
     curriculum = CurriculumConfig(task_generator=task_generator_cfg, algorithm_config=algorithm_config)
