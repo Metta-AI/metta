@@ -356,7 +356,7 @@ pip install softmax-backend-shared
 
 # Development setup (auto-detects CUDA vs CPU PyTorch wheels)
 uv sync
-UV_TORCH_BACKEND=auto uv pip install --python .venv/bin/python torch==2.9.1
+UV_TORCH_BACKEND=auto uv pip install --python .venv/bin/python torch>=2.9.1
 
 > Need a specific backend? Export `UV_TORCH_BACKEND` (e.g., `cpu`, `cu130`, `cu121`) on the second line to override
 > the default auto-detection.

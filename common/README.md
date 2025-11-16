@@ -7,7 +7,7 @@ Common utilities shared across metta packages.
 ```bash
 # Install and then auto-select torch backend
 uv sync --inexact
-UV_TORCH_BACKEND=auto uv pip install --python .venv/bin/python torch==2.9.1
+UV_TORCH_BACKEND=auto uv pip install --python .venv/bin/python torch>=2.9.1
 ```
 
 ## Development

@@ -46,7 +46,7 @@ class CoreSetup(SetupModule):
             "install",
             "--python",
             str(Path.cwd() / ".venv/bin/python"),
-            "torch==2.9.1",
+            "torch>=2.9.1",
         ]
         env.setdefault("UV_TORCH_BACKEND", "auto")
         self.run_command(torch_cmd, non_interactive=non_interactive, env=env, capture_output=False)

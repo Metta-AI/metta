@@ -8,7 +8,6 @@ Usage:
 
 import argparse
 import glob
-import os
 import re
 import subprocess
 import sys
@@ -203,22 +202,9 @@ def main():
         print("\n📦 Syncing dependencies...")
         if not args.dry_run:
             run_command(["uv", "sync"], cwd=project_root)
-            torch_env = {"UV_TORCH_BACKEND": os.environ.get("UV_TORCH_BACKEND", "auto"), **os.environ}
-            run_command(
-                [
-                    "uv",
-                    "pip",
-                    "install",
-                    "--python",
-                    str(project_root / ".venv/bin/python"),
-                    "torch==2.9.1",
-                ],
-                cwd=project_root,
-                env=torch_env,
-            )
             print("✓ Dependencies synced")
         else:
-            print("(dry-run: would run 'uv sync' + torch reinstall with UV_TORCH_BACKEND=auto)'")
+            print("(dry-run: would run 'uv sync')")
 
         # Step 3: Build the package
         print(f"\n🔨 Building {args.package_name}...")

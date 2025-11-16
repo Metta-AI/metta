@@ -209,7 +209,7 @@ For local development, refer to the top-level [README.md](../README.md) in this 
 
 ### Bazel
 
-By default, `uv sync` followed by `UV_TORCH_BACKEND=auto uv pip install --python .venv/bin/python torch==2.9.1` will run
+By default, `uv sync` followed by `UV_TORCH_BACKEND=auto uv pip install --python .venv/bin/python torch>=2.9.1` will run
 the Bazel build automatically via the custom build backend. If you need to run C++ tests and benchmarks directly, you'll
 need to invoke `bazel` directly.
 

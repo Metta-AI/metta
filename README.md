@@ -166,10 +166,10 @@ After `uv sync`, reinstall torch with uv’s auto backend so each machine gets t
 
 ```bash
 uv sync
-UV_TORCH_BACKEND=auto uv pip install --python .venv/bin/python torch==2.9.1
+UV_TORCH_BACKEND=auto uv pip install --python .venv/bin/python torch>=2.9.1
 
 # Override when needed (e.g., force CUDA 13.0)
-UV_TORCH_BACKEND=cu130 uv pip install --python .venv/bin/python torch==2.9.1
+UV_TORCH_BACKEND=cu130 uv pip install --python .venv/bin/python torch>=2.9.1
 ```
 
 See `docs/repo_organization.md` for more details on backend overrides.

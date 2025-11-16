@@ -22,7 +22,6 @@ fi
 
 # Make sure everything is up to date
 uv sync
-UV_TORCH_BACKEND="${UV_TORCH_BACKEND:-auto}" uv pip install --python "$REPO_ROOT/.venv/bin/python" torch==2.9.1
 
 # Lint and format
 uv run metta lint --fix

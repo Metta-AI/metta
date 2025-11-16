@@ -20,7 +20,7 @@ A Python library for Git operations, GitHub API interactions, and AI-powered PR 
 ```bash
 # Install the metta workspace which includes gitta (auto-selects CUDA backend)
 uv sync
-UV_TORCH_BACKEND=auto uv pip install --python .venv/bin/python torch==2.9.1
+UV_TORCH_BACKEND=auto uv pip install --python .venv/bin/python torch>=2.9.1
 ```
 
 ### Standalone (Future)
