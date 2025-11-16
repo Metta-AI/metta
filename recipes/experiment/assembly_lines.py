@@ -149,8 +149,13 @@ def make_assembly_line_eval_env(
         terrains=[terrain],
     )
     task_generator = AssemblyLinesTaskGenerator(task_generator_cfg)
-    # different set of resources and converters for evals
-    return task_generator.get_task(random.randint(0, 1000000))
+    # Use deterministic seed based on task parameters for reproducible evaluation
+    seed = hash((chain_length, num_sinks, room_size, terrain)) % (2**31)
+    random.seed(seed)
+    env = task_generator.get_task(seed)
+    # Normalize heart reward to 0.333 for consistent reward scaling
+    env.game.agent.rewards.inventory["heart"] = 0.333
+    return env
 
 
 def make_assembly_line_eval_suite() -> list[SimulationConfig]:
@@ -319,7 +324,7 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
         self._make_resource_chain(chain_length, width + height / 2, cfg, rng)
         self._make_sinks(num_sinks, cfg, rng)
 
-        return make_assembly_lines(
+        env_cfg = make_assembly_lines(
             num_agents=1,
             max_steps=max_steps,
             game_objects=cfg.game_objects,
@@ -331,15 +336,28 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
             num_sinks=num_sinks,
         )
 
+        # Normalize heart reward to 0.333 for consistent reward scaling in training
+        # This matches the normalization used in evaluation and other recipes
+        env_cfg.game.agent.rewards.inventory["heart"] = 0.333
+
+        return env_cfg
+
     def calculate_max_steps(self, chain_length: int, num_sinks: int, width: int, height: int) -> int:
         avg_hop = width + height / 2
 
-        steps_per_attempt = 4 * avg_hop
+        # Increase steps_per_attempt from 4 to 6 for better coverage of complex terrain
+        steps_per_attempt = 6 * avg_hop
         sink_exploration_cost = steps_per_attempt * num_sinks
         chain_completion_cost = steps_per_attempt * chain_length
         target_completions = 10
 
-        return int(sink_exploration_cost + target_completions * chain_completion_cost)
+        base_steps = int(sink_exploration_cost + target_completions * chain_completion_cost)
+
+        # Add buffer for complex tasks (longer chains, multiple sinks, dense terrain)
+        # This helps prevent timeouts on difficult tasks
+        complexity_multiplier = 1.3 if chain_length >= 4 or num_sinks >= 2 else 1.0
+
+        return int(base_steps * complexity_multiplier)
 
     def _get_width_and_height(self, room_size: str, rng: random.Random):
         lo, hi = size_ranges[room_size]
@@ -350,12 +368,19 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
     def _calculate_max_steps(self, chain_length: int, num_sinks: int, width: int, height: int) -> int:
         avg_hop = width + height / 2
 
-        steps_per_attempt = 4 * avg_hop
+        # Increase steps_per_attempt from 4 to 6 for better coverage of complex terrain
+        steps_per_attempt = 6 * avg_hop
         sink_exploration_cost = steps_per_attempt * num_sinks
         chain_completion_cost = steps_per_attempt * chain_length
         target_completions = 10
 
-        return int(sink_exploration_cost + target_completions * chain_completion_cost)
+        base_steps = int(sink_exploration_cost + target_completions * chain_completion_cost)
+
+        # Add buffer for complex tasks (longer chains, multiple sinks, dense terrain)
+        # This helps prevent timeouts on difficult tasks
+        complexity_multiplier = 1.3 if chain_length >= 4 or num_sinks >= 2 else 1.0
+
+        return int(base_steps * complexity_multiplier)
 
     def _setup_task(self, rng: random.Random):
         cfg = self.config
@@ -405,8 +430,19 @@ def make_task_generator_cfg(
 
 
 def train(
-    curriculum_style: str = "level_0",
+    curriculum_style: str = "terrain_2",
 ) -> TrainTool:
+    """
+    Train ICL recipe with assembly line tasks.
+
+    Default curriculum_style is "terrain_2" which better matches evaluation difficulty:
+    - chain_lengths: [2, 3, 4] (matches eval range of 2-5)
+    - num_sinks: [0, 1, 2] (matches eval)
+    - room_sizes: ["tiny", "small"] (progression toward eval's medium/large)
+    - terrains: ["no-terrain", "sparse", "balanced", "dense"] (matches eval)
+
+    This reduces train/eval mismatch compared to "level_0" which only uses chain_length=1.
+    """
     task_generator_cfg = make_task_generator_cfg(**curriculum_args[curriculum_style])
     curriculum = CurriculumConfig(task_generator=task_generator_cfg, algorithm_config=LearningProgressConfig())
 
