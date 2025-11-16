@@ -35,8 +35,7 @@ COPY common/pyproject.toml common/
 COPY agent/pyproject.toml agent/
 COPY experiments/pyproject.toml experiments/
 
-RUN uv sync --no-install-workspace --frozen \
- && UV_TORCH_BACKEND=auto uv pip install --python /workspace/metta/.venv/bin/python torch==2.9.1
+RUN uv sync --no-install-workspace --frozen
 
 COPY . .
 
@@ -52,7 +51,6 @@ RUN git fetch
 RUN echo 'cd /workspace/metta' >> /root/.bashrc && \
     echo 'source /workspace/metta/.venv/bin/activate' >> /root/.bashrc
 
-RUN uv sync --locked \
- && UV_TORCH_BACKEND=auto uv pip install --python /workspace/metta/.venv/bin/python torch==2.9.1
+RUN uv sync --locked
 
 ENTRYPOINT ["/bin/bash", "-c"]

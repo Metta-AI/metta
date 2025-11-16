@@ -24,7 +24,6 @@ RUN bash install.sh --profile softmax-docker --non-interactive
 
 # Pre-build all packages to avoid OOM during container startup
 RUN uv sync --all-extras --frozen && \
-    UV_TORCH_BACKEND=auto uv pip install --python /workspace/metta/.venv/bin/python torch==2.9.1 && \
     uv run python -c "import metta.app_backend.eval_task_orchestrator" && \
     uv run python -c "import metta.app_backend.eval_task_worker"
 

@@ -12,8 +12,7 @@ RUN bash ./devops/tools/install-system.sh
 
 # Install dependencies for softmax package only
 WORKDIR /workspace/metta/softmax
-RUN uv sync --frozen --no-dev \
- && UV_TORCH_BACKEND=auto uv pip install --python /workspace/metta/.venv/bin/python torch==2.9.1
+RUN uv sync --frozen --no-dev
 
 # Verify imports work
 RUN uv run python -c "import softmax.dashboard.report" 
