@@ -75,7 +75,7 @@ def _ensure_vibe_supports_gear(env_cfg) -> None:
         pass
 
 
-@dataclass
+@dataclass(slots=True)
 class EvalResult:
     """Results from a single evaluation run."""
 
@@ -94,7 +94,7 @@ class EvalResult:
     seed_used: int
 
 
-@dataclass
+@dataclass(slots=True)
 class AgentConfig:
     """Configuration for an agent policy."""
 
@@ -104,7 +104,7 @@ class AgentConfig:
     data_path: Optional[str] = None  # Optional checkpoint path
 
 
-@dataclass
+@dataclass(slots=True)
 class AggregateMetrics:
     """Rolling statistics for a grouping of EvalResults."""
 
@@ -129,7 +129,7 @@ class AggregateMetrics:
         return self.success_count / self.count if self.count else 0.0
 
 
-@dataclass
+@dataclass(slots=True)
 class AggregatedResults:
     """Container for frequently accessed aggregations."""
 
@@ -238,6 +238,7 @@ def run_evaluation(
     """Run evaluation for an agent configuration."""
     results = []
     experiment_lookup = experiment_map if experiment_map is not None else EXPERIMENT_MAP
+    num_cogs_variant_cache: Dict[int, NumCogsVariant] = {}
 
     logger.info(f"\n{'=' * 80}")
     logger.info(f"Evaluating: {agent_config.label}")
@@ -281,7 +282,7 @@ def run_evaluation(
 
                 try:
                     # Create mission and apply variant if specified
-                    mission_variants: List[MissionVariant] = [NumCogsVariant(num_cogs=num_cogs)]
+                    mission_variants: List[MissionVariant] = [num_cogs_variant_cache.setdefault(num_cogs, NumCogsVariant(num_cogs=num_cogs))]
                     if variant:
                         mission_variants.insert(0, variant)
 
@@ -437,6 +438,7 @@ def create_plots(
     results: List[EvalResult],
     output_dir: str = "eval_plots",
     aggregated: Optional[AggregatedResults] = None,
+    annotate_bars: bool = True,
 ) -> None:
     """Create comprehensive plots from evaluation results."""
 
@@ -462,10 +464,10 @@ def create_plots(
     _plot_by_agent_total(aggregate_cache, agents, output_path)
 
     # 3. Average reward per agent by num_cogs
-    _plot_by_num_cogs(aggregate_cache, num_cogs_list, agents, output_path)
+    _plot_by_num_cogs(aggregate_cache, num_cogs_list, agents, output_path, annotate=annotate_bars)
 
     # 4. Total reward by num_cogs
-    _plot_by_num_cogs_total(aggregate_cache, num_cogs_list, agents, output_path)
+    _plot_by_num_cogs_total(aggregate_cache, num_cogs_list, agents, output_path, annotate=annotate_bars)
 
     # 5. Average reward per agent by eval environment
     _plot_by_environment(aggregate_cache, experiments, agents, output_path)
@@ -679,6 +681,7 @@ def _plot_by_num_cogs(
     num_cogs_list: List[int],
     agents: List[str],
     output_path: Path,
+    annotate: bool,
 ) -> None:
     """Plot average reward per agent by number of agents."""
     if not num_cogs_list or not agents:
@@ -699,12 +702,16 @@ def _plot_by_num_cogs(
         output_path=output_path,
         figsize=(12, 7),
         rotation=0,
-        annotate=True,
+        annotate=annotate,
     )
 
 
 def _plot_by_num_cogs_total(
-    aggregated: AggregatedResults, num_cogs_list: List[int], agents: List[str], output_path: Path
+    aggregated: AggregatedResults,
+    num_cogs_list: List[int],
+    agents: List[str],
+    output_path: Path,
+    annotate: bool,
 ) -> None:
     """Plot total reward by number of agents."""
     if not num_cogs_list or not agents:
@@ -725,7 +732,7 @@ def _plot_by_num_cogs_total(
         output_path=output_path,
         figsize=(12, 7),
         rotation=0,
-        annotate=True,
+        annotate=annotate,
     )
 
 
