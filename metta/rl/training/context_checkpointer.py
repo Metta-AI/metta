@@ -5,7 +5,6 @@ from typing import Any, Dict, Optional
 
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import ComponentContext, DistributedHelper, TrainerComponent
-from metta.rl.training.optimizer import is_schedulefree_optimizer
 
 logger = logging.getLogger(__name__)
 
