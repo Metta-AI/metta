@@ -2,6 +2,7 @@ import os
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
@@ -38,4 +39,16 @@ class CoreSetup(SetupModule):
         env = os.environ.copy()
         env["METTAGRID_FORCE_NIM_BUILD"] = "1"
         self.run_command(cmd, non_interactive=non_interactive, env=env, capture_output=False)
+
+        # Ensure torch is installed with the correct backend for the host
+        torch_cmd = [
+            "uv",
+            "pip",
+            "install",
+            "--python",
+            str(Path.cwd() / ".venv/bin/python"),
+            "torch==2.9.1",
+        ]
+        env.setdefault("UV_TORCH_BACKEND", "auto")
+        self.run_command(torch_cmd, non_interactive=non_interactive, env=env, capture_output=False)
         success("Core dependencies installed")
