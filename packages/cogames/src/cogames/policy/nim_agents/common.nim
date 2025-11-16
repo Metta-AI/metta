@@ -1,6 +1,7 @@
 
 import
   std/[strformat, strutils, tables, sets, options, algorithm],
+  fidget2/measure,
   jsony
 
 type
@@ -9,6 +10,10 @@ type
     name*: string
     normalization*: float
 
+  AssemblerProtocol* = object
+    inputResources*: Table[string, int]
+    outputResources*: Table[string, int]
+
   PolicyConfig* = object
     numAgents*: int
     obsWidth*: int
@@ -16,6 +21,7 @@ type
     actions*: seq[string]
     tags*: seq[string]
     obsFeatures*: seq[ConfigFeature]
+    assemblerProtocols*: seq[AssemblerProtocol]
 
   Config* = object
     config*: PolicyConfig
@@ -23,6 +29,7 @@ type
     features*: Features
     tags*: Tags
     vibes*: Vibes
+    assemblerProtocols*: seq[AssemblerProtocol]
 
   FeatureValue* = object
     featureId*: int
@@ -361,6 +368,7 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
   try:
     var config = environmentConfig.fromJson(PolicyConfig)
     result = Config(config: config)
+    result.assemblerProtocols = config.assemblerProtocols
 
     for feature in config.obsFeatures:
       case feature.name:
@@ -689,7 +697,8 @@ proc getNearbyUnseen*(
   cfg: Config,
   currentLocation: Location,
   map: Table[Location, seq[FeatureValue]],
-  seen: HashSet[Location]
+  seen: HashSet[Location],
+  unreachables: HashSet[Location]
 ): Option[Location] =
   ## Get if there is a nearby location that is unseen.
   var
@@ -698,7 +707,7 @@ proc getNearbyUnseen*(
     closestDistance = 9999
   for spiralLocation in spiral:
     let location = spiralLocation + currentLocation
-    if location notin seen:
+    if location notin seen and location notin unreachables:
       let distance = manhattan(location, currentLocation)
       if distance < closestDistance:
         closestDistance = distance
@@ -780,7 +789,7 @@ proc aStar*(
   currentLocation: Location,
   targetLocation: Location,
   map: Table[Location, seq[FeatureValue]]
-): Option[int] =
+): Option[int] {.measure.} =
   ## Navigate to the given location using A*. Returns the next action to take.
   if currentLocation == targetLocation:
     return none(int)
@@ -853,3 +862,8 @@ proc aStar*(
 
   # No path found — fall back to greedy single-step
   return none(int)
+
+proc remove*[T](seq: var seq[T], item: T) =
+  let index = seq.find(item)
+  if index != -1:
+    seq.delete(index)

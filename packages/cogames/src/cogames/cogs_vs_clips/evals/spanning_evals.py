@@ -19,7 +19,6 @@ from cogames.cogs_vs_clips.variants import (
     EnergizedVariant,
     InventoryHeartTuneVariant,
     LonelyHeartVariant,
-    NeutralFacedVariant,
     PackRatVariant,
     QuadrantBuildingsVariant,
     ResourceBottleneckVariant,
@@ -68,9 +67,7 @@ OxygenBottleneck = Mission(
         EmptyBaseVariant(missing=["oxygen_extractor"]),
         ResourceBottleneckVariant(resource=["oxygen"]),
         SingleResourceUniformVariant(building_name="oxygen_extractor"),
-        NeutralFacedVariant(),
         PackRatVariant(),
-        #
     ],
 )
 
@@ -132,8 +129,6 @@ EnergyStarved = Mission(
         EmptyBaseVariant(),
         ResourceBottleneckVariant(resource=["energy"]),
         DarkSideVariant(),
-        NeutralFacedVariant(),
-        #
     ],
 )
 
@@ -146,7 +141,6 @@ OxygenBottleneckEasy = Mission(
     site=HELLO_WORLD,
     variants=[
         SingleResourceUniformVariant(building_name="oxygen_extractor"),
-        NeutralFacedVariant(),
         PackRatVariant(),
     ],
 )
@@ -181,7 +175,6 @@ EnergyStarvedEasy = Mission(
     variants=[
         SuperChargedVariant(),
         EnergizedVariant(),
-        NeutralFacedVariant(),
     ],
 )
 
@@ -214,7 +207,6 @@ DistantResources = Mission(
     variants=[
         EmptyBaseVariant(),
         DistantResourcesVariant(),
-        NeutralFacedVariant(),
     ],
 )
 
@@ -260,8 +252,6 @@ QuadrantBuildings = Mission(
     variants=[
         EmptyBaseVariant(),
         QuadrantBuildingsVariant(),
-        NeutralFacedVariant(),
-        #
     ],
 )
 
@@ -274,7 +264,6 @@ QuadrantBuildingsEasy = Mission(
         QuadrantBuildingsVariant(),
         CompassVariant(),
         PackRatVariant(),
-        NeutralFacedVariant(),
     ],
 )
 
@@ -284,7 +273,6 @@ QuadrantBuildingsStandard = Mission(
     site=HELLO_WORLD,
     variants=[
         QuadrantBuildingsVariant(),
-        NeutralFacedVariant(),
         EmptyBaseVariant(),
     ],
 )
@@ -309,9 +297,7 @@ SingleUseSwarm = Mission(
     variants=[
         EmptyBaseVariant(),
         SingleUseSwarmVariant(),
-        NeutralFacedVariant(),
         PackRatVariant(),
-        #
     ],
 )
 
@@ -364,7 +350,7 @@ VibeCheck = Mission(
 
 VibeCheckEasy = Mission(
     name="vibe_check_easy",
-    description="Easy: neutralized vibes and generous hearts; reward shaping for hearts.",
+    description="Easy: generous hearts with shaping rewards to guide coordination.",
     site=HELLO_WORLD,
     variants=[
         VibeCheckMin2Variant(),
@@ -396,45 +382,41 @@ VibeCheckHard = Mission(
 
 EasyHeartsTraining = Mission(
     name="easy_hearts_training",
-    description="Simplified heart crafting, generous caps, extractor base, neutral vibe.",
+    description="Simplified heart crafting with generous caps and extractor base.",
     site=TRAINING_FACILITY,
     variants=[
         LonelyHeartVariant(),
         PackRatVariant(),
-        NeutralFacedVariant(),
     ],
 )
 
 EasyHeartsSmallWorld = Mission(
     name="easy_small_hearts",
-    description="Simplified heart crafting, generous caps, extractor base, neutral vibe.",
+    description="Simplified heart crafting with generous caps and extractor base.",
     site=SMALL_HELLO_WORLD,
     variants=[
         LonelyHeartVariant(),
         PackRatVariant(),
-        NeutralFacedVariant(),
     ],
 )
 
 EasyHeartsMediumWorld = Mission(
     name="easy_medium_hearts",
-    description="Simplified heart crafting, generous caps, extractor base, neutral vibe.",
+    description="Simplified heart crafting with generous caps and extractor base.",
     site=MEDIUM_HELLO_WORLD,
     variants=[
         LonelyHeartVariant(),
         PackRatVariant(),
-        NeutralFacedVariant(),
     ],
 )
 
 EasyHeartsLargeWorld = Mission(
     name="easy_large_hearts",
-    description="Simplified heart crafting, generous caps, extractor base, neutral vibe.",
+    description="Simplified heart crafting with generous caps and extractor base.",
     site=LARGE_HELLO_WORLD,
     variants=[
         LonelyHeartVariant(),
         PackRatVariant(),
-        NeutralFacedVariant(),
     ],
 )
 
