@@ -14,6 +14,14 @@ if bindings_dir not in sys.path:
 na = importlib.import_module("nim_agents")
 
 
+def start_measure():
+    na.start_measure()
+
+
+def end_measure():
+    na.end_measure()
+
+
 class ThinkyAgentsMultiPolicy(NimMultiAgentPolicy):
     short_names = ["nim_thinky", "thinky"]
 
