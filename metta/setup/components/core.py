@@ -34,11 +34,29 @@ class CoreSetup(SetupModule):
             sys.exit(1)
 
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
-        cmd = ["uv", "sync"]
+        repo_root = Path(__file__).resolve().parents[3]
+        lock_path = repo_root / "uv.lock"
+        constraint_path = repo_root / ".uv-build-constraints.txt"
+
+        torch_ver = None
+        with lock_path.open("rb") as f:
+            import tomllib
+
+            data = tomllib.load(f)
+            for pkg in data.get("package", []):
+                if pkg.get("name") == "torch":
+                    torch_ver = pkg.get("version")
+                    break
+        if not torch_ver:
+            raise RuntimeError("torch not found in uv.lock")
+        constraint_path.write_text(f"torch=={torch_ver}\n")
+
+        cmd = ["uv", "sync", "--build-constraints", str(constraint_path)]
         cmd.extend(["--force-reinstall", "--no-cache"] if force else [])
         env = os.environ.copy()
         env["METTAGRID_FORCE_NIM_BUILD"] = "1"
         self.run_command(cmd, non_interactive=non_interactive, env=env, capture_output=False)
+
         # Ensure torch is installed with the correct backend for the host
         torch_cmd = [
             "uv",
