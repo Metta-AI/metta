@@ -183,10 +183,10 @@ def make_curriculum(
     # we need fewer samples per task_id for LP calculation since tasks get evicted frequently
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig.default_dual_pool(
-            num_explore_tasks=50,  # Exploration pool
+            num_explore_tasks=56,  # Exploration pool
             num_exploit_tasks=200,  # Exploitation pool
             min_samples_for_lp=5,  # Reduced from 10 to work with duplicate tasks
-            promotion_min_samples=3,  # Lower threshold for faster promotion with duplicate tasks
+            promotion_min_samples=5,  # Lower threshold for faster promotion with duplicate tasks
         )
 
     curriculum_config = merged_tasks.to_curriculum(
