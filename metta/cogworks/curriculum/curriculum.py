@@ -213,11 +213,18 @@ class Curriculum(StatsLogger):
                 creation_pool = self._algorithm.select_pool_for_creation()
 
         # Curriculum always manages the task pool - no delegation
+        task = None
         if len(self._tasks) < self._num_active_tasks:
-            task = self._create_task(pool=creation_pool)
-        else:
-            # At capacity - check if any task meets eviction criteria first
-            task = None
+            try:
+                task = self._create_task(pool=creation_pool)
+            except RuntimeError:
+                # Pool is full (e.g., explore pool at capacity in dual-pool mode)
+                # Will sample from existing tasks below
+                pass
+
+        # If we couldn't create a task, try eviction or choose existing
+        if task is None:
+            # At capacity or pool full - check if any task meets eviction criteria first
             if self._algorithm is not None:
                 evictable_tasks = [
                     tid
@@ -229,9 +236,13 @@ class Curriculum(StatsLogger):
                     evict_candidate = self._algorithm.recommend_eviction(evictable_tasks)
                     if evict_candidate is not None:
                         self._evict_specific_task(evict_candidate)
-                        task = self._create_task(pool=creation_pool)
+                        try:
+                            task = self._create_task(pool=creation_pool)
+                        except RuntimeError:
+                            # Still couldn't create (pool constraints), choose from existing
+                            pass
 
-            # If no eviction happened, choose from existing tasks
+            # If no eviction happened or creation still failed, choose from existing tasks
             if task is None:
                 task = self._choose_task()
 

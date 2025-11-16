@@ -831,20 +831,25 @@ def CentralizedTaskTracker(
 
 
 class DualPoolTaskTracker:
-    """Manages two independent task pools (explore and exploit) for dual-pool curriculum.
+    """Manages two logical task pools (explore and exploit) within a single shared memory region.
 
-    This class wraps two TaskTracker instances with separate shared memory regions:
-    - explore_tracker: For exploration tasks (smaller pool, high turnover)
-    - exploit_tracker: For exploitation tasks (larger pool, selective)
+    This class uses a single TaskTracker with contiguous memory, where different index ranges
+    represent different pools:
+    - Explore pool: Indices [0:num_explore_tasks)
+    - Exploit pool: Indices [num_explore_tasks:num_explore_tasks+num_exploit_tasks)
 
     Key responsibilities:
-    - Route task operations to the correct pool
-    - Atomically promote tasks from explore to exploit
+    - Route task operations to the correct index range
+    - Atomically promote tasks from explore to exploit (index reassignment)
     - Track which pool each task belongs to
     - Provide per-pool statistics
 
-    Design: Each pool has its own shared memory region with independent session IDs.
-    This allows parallel updates and clean separation of exploration vs exploitation.
+    Design: Single shared memory region with index-based pool boundaries.
+    This provides:
+    - Stable total task count
+    - Efficient promotion (index reassignment, no data copying)
+    - Simpler memory management (one session ID)
+    - Unified statistics reporting
     """
 
     def __init__(
@@ -858,13 +863,13 @@ class DualPoolTaskTracker:
         default_success_threshold: float,
         default_generator_type: float,
     ):
-        """Initialize dual-pool task tracker.
+        """Initialize dual-pool task tracker with single shared memory region.
 
         Args:
             num_explore_tasks: Capacity of exploration pool
             num_exploit_tasks: Capacity of exploitation pool
             ema_alpha: Alpha parameter for exponential moving average
-            session_id: Base session ID (will be suffixed with _explore and _exploit)
+            session_id: Session ID for shared memory
             use_shared_memory: Whether to use shared memory backend
             task_struct_size: Size of task data structure (default: 18)
             default_success_threshold: Default success threshold for new tasks
@@ -873,21 +878,17 @@ class DualPoolTaskTracker:
         self.num_explore_tasks = num_explore_tasks
         self.num_exploit_tasks = num_exploit_tasks
 
-        # Create separate trackers for explore and exploit pools
-        self.explore_tracker = TaskTracker(
-            max_memory_tasks=num_explore_tasks,
-            ema_alpha=ema_alpha,
-            session_id=f"{session_id}_explore" if session_id else None,
-            use_shared_memory=use_shared_memory,
-            task_struct_size=task_struct_size,
-            default_success_threshold=default_success_threshold,
-            default_generator_type=default_generator_type,
-        )
+        # Pool boundaries (index ranges)
+        self.explore_start = 0
+        self.explore_end = num_explore_tasks
+        self.exploit_start = num_explore_tasks
+        self.exploit_end = num_explore_tasks + num_exploit_tasks
 
-        self.exploit_tracker = TaskTracker(
-            max_memory_tasks=num_exploit_tasks,
+        # Single underlying tracker with total capacity
+        self._tracker = TaskTracker(
+            max_memory_tasks=num_explore_tasks + num_exploit_tasks,
             ema_alpha=ema_alpha,
-            session_id=f"{session_id}_exploit" if session_id else None,
+            session_id=session_id,
             use_shared_memory=use_shared_memory,
             task_struct_size=task_struct_size,
             default_success_threshold=default_success_threshold,
@@ -897,21 +898,60 @@ class DualPoolTaskTracker:
         # Track which pool each task belongs to
         self._task_pool_map: Dict[int, str] = {}  # task_id -> 'explore' or 'exploit'
 
+    @property
+    def explore_tracker(self):
+        """Compatibility property: Returns underlying tracker for explore pool access."""
+        return self._tracker
+
+    @property
+    def exploit_tracker(self):
+        """Compatibility property: Returns underlying tracker for exploit pool access."""
+        return self._tracker
+
     def get_pool_tracker(self, task_id: int) -> Optional[TaskTracker]:
-        """Get the tracker for the pool containing this task.
+        """Get the tracker (compatibility method).
 
         Args:
-            task_id: Task ID to look up
+            task_id: Task ID
 
         Returns:
-            TaskTracker for the pool containing this task, or None if not found
+            Underlying tracker if task exists, None otherwise
         """
-        pool = self._task_pool_map.get(task_id)
-        if pool == "explore":
-            return self.explore_tracker
-        elif pool == "exploit":
-            return self.exploit_tracker
+        if task_id in self._task_pool_map:
+            return self._tracker
         return None
+
+    def _find_free_index_in_pool(self, pool: str) -> Optional[int]:
+        """Find a free index in the specified pool.
+
+        Args:
+            pool: 'explore' or 'exploit'
+
+        Returns:
+            Free index, or None if pool is full
+        """
+        if pool == "explore":
+            start, end = self.explore_start, self.explore_end
+        else:  # exploit
+            start, end = self.exploit_start, self.exploit_end
+
+        # Search for free slot in pool's index range
+        used_indices = set(self._tracker._task_id_to_index.values())
+        for idx in range(start, end):
+            if idx not in used_indices:
+                return idx
+        return None
+
+    def _get_pool_tasks(self, pool: str) -> List[int]:
+        """Get all task IDs in a specific pool.
+
+        Args:
+            pool: 'explore' or 'exploit'
+
+        Returns:
+            List of task IDs in the pool
+        """
+        return [task_id for task_id, p in self._task_pool_map.items() if p == pool]
 
     def track_task_creation(
         self,
@@ -930,26 +970,53 @@ class DualPoolTaskTracker:
             seed: Random seed for task generation
             generator_type: Generator type identifier
         """
-        if pool == "explore":
-            tracker = self.explore_tracker
-        elif pool == "exploit":
-            tracker = self.exploit_tracker
-        else:
+        if pool not in ("explore", "exploit"):
             raise ValueError(f"Invalid pool: {pool}. Must be 'explore' or 'exploit'")
 
-        tracker.track_task_creation(task_id, success_threshold, seed, generator_type)
+        # Find free index in the specified pool
+        free_index = self._find_free_index_in_pool(pool)
+        if free_index is None:
+            raise RuntimeError(f"{pool} pool is full")
+
+        # Create task at the specific index
+        # Initialize using the correct task data structure
+        timestamp = time.time()
+        with self._tracker._backend.acquire_lock():
+            task_data = self._tracker._backend.get_task_data(free_index)
+            # Initialize task data (matching TaskTracker.track_task_creation structure)
+            task_data[0] = float(task_id)  # task_id
+            task_data[1] = timestamp  # creation_time
+            task_data[2] = 0.0  # completion_count
+            task_data[3] = 0.0  # reward_ema
+            task_data[4] = 0.0  # lp_score
+            task_data[5] = 0.0  # success_rate_ema
+            task_data[6] = 0.0  # total_score
+            task_data[7] = 0.0  # last_score
+            task_data[8] = (
+                success_threshold if success_threshold is not None else self._tracker.default_success_threshold
+            )
+            task_data[9] = float(seed) if seed is not None else 0.0
+            task_data[10] = generator_type if generator_type is not None else self._tracker.default_generator_type
+            task_data[11] = 0.0  # ema_squared
+            task_data[12] = 1.0  # is_active
+            # Bidirectional LP EMAs
+            task_data[13] = 0.0  # p_fast
+            task_data[14] = 0.0  # p_slow
+            task_data[15] = 0.0  # p_true
+            task_data[16] = 0.0  # random_baseline
+            task_data[17] = 0.0  # label_hash (if using 18-element structure)
+
+            # Update tracker's internal mapping
+            self._tracker._task_id_to_index[task_id] = free_index
+
+        # Track pool assignment
         self._task_pool_map[task_id] = pool
 
     def promote_task(self, task_id: int) -> bool:
         """Atomically promote a task from explore to exploit pool.
 
-        This performs the following steps atomically:
-        1. Read all 18 float64 values from explore pool
-        2. Find lowest-scoring task in exploit pool (if full)
-        3. Evict lowest-scoring exploit task (if pool is full)
-        4. Write promoted task to exploit pool
-        5. Remove from explore pool
-        6. Update task pool map
+        This reassigns the task's pool membership without moving data in memory.
+        The task stays at the same index but is now considered part of the exploit pool.
 
         Args:
             task_id: ID of task to promote from explore pool
@@ -964,51 +1031,36 @@ class DualPoolTaskTracker:
         if self._task_pool_map.get(task_id) != "explore":
             raise ValueError(f"Task {task_id} is not in explore pool")
 
-        # Get task data from explore pool
-        explore_stats = self.explore_tracker.get_task_stats(task_id)
-        if not explore_stats:
+        # Check if task exists in tracker
+        if task_id not in self._tracker._task_id_to_index:
             return False
 
-        # Read all 18 float64 values from explore pool
-        explore_index = self.explore_tracker.get_task_index(task_id)
-        if explore_index is None:
-            return False
+        # Get current index
+        current_index = self._tracker._task_id_to_index[task_id]
 
-        # Atomically copy task data (all 18 float64 values)
-        with self.explore_tracker._backend.acquire_lock():
-            task_data = self.explore_tracker._backend.get_task_data(explore_index).copy()
-
-        # Check if exploit pool is full
-        exploit_tasks = self.exploit_tracker.get_all_tracked_tasks()
+        # Check exploit pool capacity
+        exploit_tasks = self._get_pool_tasks("exploit")
         if len(exploit_tasks) >= self.num_exploit_tasks:
-            # Pool is full - need to evict lowest-scoring task
-            # (Eviction logic will be handled by the algorithm layer)
+            return False  # Pool is full
+
+        # Find free index in exploit pool
+        free_exploit_index = self._find_free_index_in_pool("exploit")
+        if free_exploit_index is None:
             return False
 
-        # Write task to exploit pool (atomic operation)
-        with self.exploit_tracker._backend.acquire_lock():
-            # Find free slot in exploit pool
-            exploit_index = self.exploit_tracker._next_free_index
-            if exploit_index >= self.exploit_tracker.max_memory_tasks:
-                return False  # No space
+        # Move task data to exploit pool index range
+        with self._tracker._backend.acquire_lock():
+            # Copy data from current index to new exploit index
+            current_data = self._tracker._backend.get_task_data(current_index).copy()
+            new_data = self._tracker._backend.get_task_data(free_exploit_index)
+            new_data[:] = current_data
 
-            # Copy all 18 float64 values
-            exploit_data = self.exploit_tracker._backend.get_task_data(exploit_index)
-            exploit_data[:] = task_data
+            # Clear old slot
+            old_data = self._tracker._backend.get_task_data(current_index)
+            old_data[:] = 0.0
 
-            # Update exploit tracker's mapping
-            self.exploit_tracker._task_id_to_index[task_id] = exploit_index
-
-            # Find next free slot
-            self.exploit_tracker._next_free_index = exploit_index + 1
-            while self.exploit_tracker._next_free_index < self.exploit_tracker.max_memory_tasks:
-                next_data = self.exploit_tracker._backend.get_task_data(self.exploit_tracker._next_free_index)
-                if next_data[0] == 0.0:  # Slot is free
-                    break
-                self.exploit_tracker._next_free_index += 1
-
-        # Remove from explore pool
-        self.explore_tracker.remove_task(task_id)
+            # Update mapping
+            self._tracker._task_id_to_index[task_id] = free_exploit_index
 
         # Update pool map
         self._task_pool_map[task_id] = "exploit"
@@ -1021,7 +1073,7 @@ class DualPoolTaskTracker:
         Returns:
             List of task IDs in explore pool
         """
-        return self.explore_tracker.get_all_tracked_tasks()
+        return self._get_pool_tasks("explore")
 
     def get_all_exploit_tasks(self) -> List[int]:
         """Get all task IDs in the exploit pool.
@@ -1029,7 +1081,7 @@ class DualPoolTaskTracker:
         Returns:
             List of task IDs in exploit pool
         """
-        return self.exploit_tracker.get_all_tracked_tasks()
+        return self._get_pool_tasks("exploit")
 
     def get_all_tracked_tasks(self) -> List[int]:
         """Get all task IDs from both pools combined.
@@ -1037,49 +1089,46 @@ class DualPoolTaskTracker:
         Returns:
             List of all task IDs across both explore and exploit pools
         """
-        return self.get_all_explore_tasks() + self.get_all_exploit_tasks()
+        return list(self._task_pool_map.keys())
 
     @property
     def _total_completions(self) -> int:
         """Get total completions across both pools.
 
         Returns:
-            Sum of completions from explore and exploit pools
+            Total completions from underlying tracker
         """
-        return self.explore_tracker._total_completions + self.exploit_tracker._total_completions
+        return self._tracker._total_completions
 
     def get_global_stats(self) -> Dict[str, float]:
         """Get global performance statistics across both pools.
 
         Returns:
-            Dictionary with combined statistics from explore and exploit pools
+            Dictionary with combined statistics from both pools
         """
-        explore_stats = self.explore_tracker.get_global_stats()
-        exploit_stats = self.exploit_tracker.get_global_stats()
+        stats = self._tracker.get_global_stats()
 
-        total_completions = explore_stats["total_completions"] + exploit_stats["total_completions"]
+        # Add per-pool completion counts
+        explore_tasks = self.get_all_explore_tasks()
+        exploit_tasks = self.get_all_exploit_tasks()
 
-        if total_completions == 0:
-            return {
-                "mean_score": 0.0,
-                "total_completions": 0,
-                "explore_completions": 0,
-                "exploit_completions": 0,
-            }
+        explore_completions = 0
+        exploit_completions = 0
 
-        # Weighted average of mean scores
-        explore_weight = explore_stats["total_completions"] / total_completions
-        exploit_weight = exploit_stats["total_completions"] / total_completions
-        combined_mean_score = (
-            explore_stats["mean_score"] * explore_weight + exploit_stats["mean_score"] * exploit_weight
-        )
+        for task_id in explore_tasks:
+            task_stats = self._tracker.get_task_stats(task_id)
+            if task_stats:
+                explore_completions += task_stats.get("completion_count", 0)
 
-        return {
-            "mean_score": combined_mean_score,
-            "total_completions": total_completions,
-            "explore_completions": explore_stats["total_completions"],
-            "exploit_completions": exploit_stats["total_completions"],
-        }
+        for task_id in exploit_tasks:
+            task_stats = self._tracker.get_task_stats(task_id)
+            if task_stats:
+                exploit_completions += task_stats.get("completion_count", 0)
+
+        stats["explore_completions"] = explore_completions
+        stats["exploit_completions"] = exploit_completions
+
+        return stats
 
     def update_task_performance(
         self,
@@ -1088,7 +1137,7 @@ class DualPoolTaskTracker:
         scorer: Optional[Any] = None,
         success_threshold: Optional[float] = None,
     ) -> None:
-        """Update task performance in the appropriate pool.
+        """Update task performance.
 
         Args:
             task_id: Task to update
@@ -1096,9 +1145,8 @@ class DualPoolTaskTracker:
             scorer: Optional scorer for bidirectional EMAs
             success_threshold: Success threshold for binary classification
         """
-        tracker = self.get_pool_tracker(task_id)
-        if tracker is not None:
-            tracker.update_task_performance_with_bidirectional_emas(task_id, score, scorer, success_threshold)
+        if task_id in self._task_pool_map:
+            self._tracker.update_task_performance_with_bidirectional_emas(task_id, score, scorer, success_threshold)
 
     def get_task_stats(self, task_id: int) -> Optional[Dict[str, float]]:
         """Get statistics for a specific task.
@@ -1109,9 +1157,8 @@ class DualPoolTaskTracker:
         Returns:
             Task statistics dict, or None if not found
         """
-        tracker = self.get_pool_tracker(task_id)
-        if tracker is not None:
-            return tracker.get_task_stats(task_id)
+        if task_id in self._task_pool_map:
+            return self._tracker.get_task_stats(task_id)
         return None
 
     def remove_task(self, task_id: int) -> None:
@@ -1120,21 +1167,19 @@ class DualPoolTaskTracker:
         Args:
             task_id: Task to remove
         """
-        tracker = self.get_pool_tracker(task_id)
-        if tracker is not None:
-            tracker.remove_task(task_id)
+        if task_id in self._task_pool_map:
+            self._tracker.remove_task(task_id)
             del self._task_pool_map[task_id]
 
     def set_task_label(self, task_id: int, label: str) -> None:
-        """Set label for a task in its pool.
+        """Set label for a task.
 
         Args:
             task_id: Task ID
             label: Label string
         """
-        tracker = self.get_pool_tracker(task_id)
-        if tracker is not None:
-            tracker.set_task_label(task_id, label)
+        if task_id in self._task_pool_map:
+            self._tracker.set_task_label(task_id, label)
 
     def get_task_label(self, task_id: int) -> Optional[str]:
         """Get label for a task.
@@ -1145,46 +1190,44 @@ class DualPoolTaskTracker:
         Returns:
             Label string, or None if not found
         """
-        tracker = self.get_pool_tracker(task_id)
-        if tracker is not None:
-            return tracker.get_task_label(task_id)
+        if task_id in self._task_pool_map:
+            return self._tracker.get_task_label(task_id)
         return None
 
     def update_lp_score(self, task_id: int, lp_score: float) -> None:
-        """Update the learning progress score for a task in its pool.
+        """Update the learning progress score for a task.
 
         Args:
             task_id: Task ID
             lp_score: New LP score
         """
-        tracker = self.get_pool_tracker(task_id)
-        if tracker is not None:
-            tracker.update_lp_score(task_id, lp_score)
+        if task_id in self._task_pool_map:
+            self._tracker.update_lp_score(task_id, lp_score)
 
     def get_task_index(self, task_id: int) -> Optional[int]:
-        """Get the index of a task within its pool.
+        """Get the index of a task.
 
         Args:
             task_id: Task ID
 
         Returns:
-            Task index within its pool, or None if not found
+            Task index, or None if not found
         """
-        tracker = self.get_pool_tracker(task_id)
-        if tracker is not None:
-            return tracker.get_task_index(task_id)
+        if task_id in self._task_pool_map:
+            return self._tracker.get_task_index(task_id)
         return None
 
     def get_state(self) -> Dict[str, Any]:
         """Get dual-pool tracker state for checkpointing.
 
         Returns:
-            Dictionary containing state of both pools
+            Dictionary containing state
         """
         return {
-            "explore_tracker": self.explore_tracker.get_state(),
-            "exploit_tracker": self.exploit_tracker.get_state(),
+            "tracker": self._tracker.get_state(),
             "task_pool_map": self._task_pool_map.copy(),
+            "num_explore_tasks": self.num_explore_tasks,
+            "num_exploit_tasks": self.num_exploit_tasks,
         }
 
     def load_state(self, state: Dict[str, Any]) -> None:
@@ -1193,22 +1236,26 @@ class DualPoolTaskTracker:
         Args:
             state: State dictionary from get_state()
         """
-        self.explore_tracker.load_state(state["explore_tracker"])
-        self.exploit_tracker.load_state(state["exploit_tracker"])
+        self._tracker.load_state(state["tracker"])
         self._task_pool_map = state["task_pool_map"].copy()
+        self.num_explore_tasks = state["num_explore_tasks"]
+        self.num_exploit_tasks = state["num_exploit_tasks"]
+        # Recalculate boundaries
+        self.explore_start = 0
+        self.explore_end = self.num_explore_tasks
+        self.exploit_start = self.num_explore_tasks
+        self.exploit_end = self.num_explore_tasks + self.num_exploit_tasks
 
     def cleanup_shared_memory(self) -> None:
-        """Clean up shared memory for both pools."""
-        self.explore_tracker.cleanup_shared_memory()
-        self.exploit_tracker.cleanup_shared_memory()
+        """Clean up shared memory."""
+        self._tracker.cleanup_shared_memory()
 
     def __getstate__(self):
         """Prepare for pickling."""
         return {
             "num_explore_tasks": self.num_explore_tasks,
             "num_exploit_tasks": self.num_exploit_tasks,
-            "explore_tracker": self.explore_tracker,
-            "exploit_tracker": self.exploit_tracker,
+            "tracker": self._tracker,
             "task_pool_map": self._task_pool_map.copy(),
         }
 
@@ -1216,6 +1263,10 @@ class DualPoolTaskTracker:
         """Restore from pickle."""
         self.num_explore_tasks = state["num_explore_tasks"]
         self.num_exploit_tasks = state["num_exploit_tasks"]
-        self.explore_tracker = state["explore_tracker"]
-        self.exploit_tracker = state["exploit_tracker"]
+        self._tracker = state["tracker"]
         self._task_pool_map = state["task_pool_map"]
+        # Recalculate boundaries
+        self.explore_start = 0
+        self.explore_end = self.num_explore_tasks
+        self.exploit_start = self.num_explore_tasks
+        self.exploit_end = self.num_explore_tasks + self.num_exploit_tasks

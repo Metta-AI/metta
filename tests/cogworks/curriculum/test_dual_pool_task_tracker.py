@@ -230,9 +230,10 @@ class TestDualPoolTaskTracker:
 
         # Get state
         state = dual_tracker.get_state()
-        assert "explore_tracker" in state
-        assert "exploit_tracker" in state
+        assert "tracker" in state  # New: single tracker instead of explore/exploit
         assert "task_pool_map" in state
+        assert "num_explore_tasks" in state
+        assert "num_exploit_tasks" in state
         assert state["task_pool_map"][1] == "explore"
         assert state["task_pool_map"][2] == "exploit"
 
@@ -338,12 +339,14 @@ class TestDualPoolTaskTrackerSharedMemory:
 
     def test_shared_memory_initialization(self, dual_tracker_shared):
         """Test that dual-pool tracker initializes with shared memory."""
+        # With new single-memory design, both properties return the same underlying tracker
+        assert dual_tracker_shared._tracker._backend.__class__.__name__ == "SharedMemoryBackend"
         assert dual_tracker_shared.explore_tracker._backend.__class__.__name__ == "SharedMemoryBackend"
         assert dual_tracker_shared.exploit_tracker._backend.__class__.__name__ == "SharedMemoryBackend"
 
-        # Check session IDs are suffixed correctly
-        assert dual_tracker_shared.explore_tracker._backend.session_id.endswith("_explore")
-        assert dual_tracker_shared.exploit_tracker._backend.session_id.endswith("_exploit")
+        # Both should point to same tracker (single shared memory region)
+        assert dual_tracker_shared.explore_tracker is dual_tracker_shared.exploit_tracker
+        assert dual_tracker_shared.explore_tracker is dual_tracker_shared._tracker
 
     def test_shared_memory_task_promotion(self, dual_tracker_shared):
         """Test task promotion with shared memory backend."""
