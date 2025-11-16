@@ -1,8 +1,6 @@
 #!/bin/bash
 set -e
 
-REPO_ROOT=$(git rev-parse --show-toplevel)
-
 # Ensure not on main branch
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 if [ "$BRANCH" = "main" ]; then

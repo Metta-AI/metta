@@ -18,9 +18,8 @@ A Python library for Git operations, GitHub API interactions, and AI-powered PR 
 ### From Monorepo (Current)
 
 ```bash
-# Install the metta workspace which includes gitta (auto-selects CUDA backend)
+# Install the metta workspace which includes gitta
 uv sync
-UV_TORCH_BACKEND=auto uv pip install --python .venv/bin/python torch>=2.9.1
 ```
 
 ### Standalone (Future)

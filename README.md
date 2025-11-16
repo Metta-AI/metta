@@ -160,20 +160,6 @@ metta install      # Install additional components
 metta configure    # Reconfigure for a different profile
 ```
 
-### PyTorch backend selection
-
-After `uv sync`, reinstall torch with uv’s auto backend so each machine gets the right CUDA/CPU wheel:
-
-```bash
-uv sync
-UV_TORCH_BACKEND=auto uv pip install --python .venv/bin/python torch>=2.9.1
-
-# Override when needed (e.g., force CUDA 13.0)
-UV_TORCH_BACKEND=cu130 uv pip install --python .venv/bin/python torch>=2.9.1
-```
-
-See `docs/repo_organization.md` for more details on backend overrides.
-
 ## Usage
 
 The repository contains command-line tools in the `tools/` directory.

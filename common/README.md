@@ -5,9 +5,8 @@ Common utilities shared across metta packages.
 ## Installation
 
 ```bash
-# Install and then auto-select torch backend
+# Install using uv
 uv sync --inexact
-UV_TORCH_BACKEND=auto uv pip install --python .venv/bin/python torch>=2.9.1
 ```
 
 ## Development
