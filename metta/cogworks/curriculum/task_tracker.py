@@ -1048,6 +1048,39 @@ class DualPoolTaskTracker:
         """
         return self.explore_tracker._total_completions + self.exploit_tracker._total_completions
 
+    def get_global_stats(self) -> Dict[str, float]:
+        """Get global performance statistics across both pools.
+
+        Returns:
+            Dictionary with combined statistics from explore and exploit pools
+        """
+        explore_stats = self.explore_tracker.get_global_stats()
+        exploit_stats = self.exploit_tracker.get_global_stats()
+
+        total_completions = explore_stats["total_completions"] + exploit_stats["total_completions"]
+
+        if total_completions == 0:
+            return {
+                "mean_score": 0.0,
+                "total_completions": 0,
+                "explore_completions": 0,
+                "exploit_completions": 0,
+            }
+
+        # Weighted average of mean scores
+        explore_weight = explore_stats["total_completions"] / total_completions
+        exploit_weight = exploit_stats["total_completions"] / total_completions
+        combined_mean_score = (
+            explore_stats["mean_score"] * explore_weight + exploit_stats["mean_score"] * exploit_weight
+        )
+
+        return {
+            "mean_score": combined_mean_score,
+            "total_completions": total_completions,
+            "explore_completions": explore_stats["total_completions"],
+            "exploit_completions": exploit_stats["total_completions"],
+        }
+
     def update_task_performance(
         self,
         task_id: int,
