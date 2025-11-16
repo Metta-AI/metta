@@ -528,7 +528,7 @@ def _plot_single_bar(
 def _plot_grouped_bars(
     x_labels: List[str],
     series_labels: List[str],
-    value_lookup,
+    value_lookup: Callable[[str, str], float],
     ylabel: str,
     xlabel: str,
     title: str,
@@ -571,6 +571,61 @@ def _plot_grouped_bars(
     ax.set_xticklabels(x_labels, rotation=rotation, ha="right")
     ax.legend(fontsize=11)
     ax.grid(axis="y", alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(output_path / filename, dpi=150, bbox_inches="tight")
+    plt.close()
+
+
+def _plot_heatmap(
+    x_labels: List[str],
+    y_labels: List[str],
+    value_lookup: Callable[[str, str], float],
+    title: str,
+    cbar_label: str,
+    filename: str,
+    output_path: Path,
+    cmap: str,
+    figsize: Tuple[int, int],
+    annotation_fmt: str = ".1f",
+) -> None:
+    if not x_labels or not y_labels:
+        return
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    matrix = np.zeros((len(y_labels), len(x_labels)))
+    for i, y in enumerate(y_labels):
+        for j, x in enumerate(x_labels):
+            matrix[i, j] = value_lookup(x, y)
+
+    im = ax.imshow(matrix, cmap=cmap, aspect="auto")
+
+    ax.set_xticks(np.arange(len(x_labels)))
+    ax.set_yticks(np.arange(len(y_labels)))
+    ax.set_xticklabels(x_labels)
+    ax.set_yticklabels(y_labels)
+    plt.setp(ax.get_xticklabels(), rotation=0, ha="center")
+
+    cbar = plt.colorbar(im, ax=ax)
+    cbar.set_label(cbar_label, rotation=270, labelpad=20, fontweight="bold")
+
+    for i in range(len(y_labels)):
+        for j in range(len(x_labels)):
+            ax.text(
+                j,
+                i,
+                f"{matrix[i, j]:{annotation_fmt}}",
+                ha="center",
+                va="center",
+                color="black",
+                fontsize=9,
+                fontweight="bold",
+            )
+
+    ax.set_title(title, fontsize=14, fontweight="bold", pad=20)
+    ax.set_xlabel("Agent", fontsize=12, fontweight="bold")
+    ax.set_ylabel("Environment" if "Environment" in title else "Difficulty", fontsize=12, fontweight="bold")
 
     plt.tight_layout()
     plt.savefig(output_path / filename, dpi=150, bbox_inches="tight")
@@ -804,160 +859,88 @@ def _plot_heatmap_env_agent(
     aggregated: AggregatedResults, experiments: List[str], agents: List[str], output_path: Path
 ) -> None:
     """Create heatmap of Environment x Agent showing avg reward per agent."""
-    if not experiments or not agents:
-        return
-
-    fig, ax = plt.subplots(figsize=(10, len(experiments) * 0.5 + 2))
-
-    matrix = np.zeros((len(experiments), len(agents)))
-    for i, exp in enumerate(experiments):
-        for j, agent in enumerate(agents):
-            metrics = aggregated.by_agent_experiment.get((agent, exp))
-            matrix[i, j] = metrics.mean_agent_reward() if metrics else 0.0
-
-    im = ax.imshow(matrix, cmap="YlOrRd", aspect="auto")
-
-    ax.set_xticks(np.arange(len(agents)))
-    ax.set_yticks(np.arange(len(experiments)))
-    ax.set_xticklabels(agents)
-    ax.set_yticklabels(experiments)
-
-    plt.setp(ax.get_xticklabels(), rotation=0, ha="center")
-
-    cbar = plt.colorbar(im, ax=ax)
-    cbar.set_label("Average Reward", rotation=270, labelpad=20, fontweight="bold")
-
-    for i in range(len(experiments)):
-        for j in range(len(agents)):
-            ax.text(j, i, f"{matrix[i, j]:.1f}", ha="center", va="center", color="black", fontsize=9, fontweight="bold")
-
-    ax.set_title("Average Reward: Environment × Agent", fontsize=14, fontweight="bold", pad=20)
-    ax.set_xlabel("Agent", fontsize=12, fontweight="bold")
-    ax.set_ylabel("Environment", fontsize=12, fontweight="bold")
-
-    plt.tight_layout()
-    plt.savefig(output_path / "heatmap_env_agent.png", dpi=150, bbox_inches="tight")
-    plt.close()
+    _plot_heatmap(
+        x_labels=agents,
+        y_labels=experiments,
+        value_lookup=lambda agent, exp: (
+            aggregated.by_agent_experiment.get((agent, exp)).mean_agent_reward()
+            if aggregated.by_agent_experiment.get((agent, exp))
+            else 0.0
+        ),
+        title="Average Reward: Environment x Agent",
+        cbar_label="Average Reward",
+        filename="heatmap_env_agent.png",
+        output_path=output_path,
+        cmap="YlOrRd",
+        figsize=(10, int(len(experiments) * 0.5 + 2)),
+        annotation_fmt=".1f",
+    )
 
 
 def _plot_heatmap_env_agent_total(
     aggregated: AggregatedResults, experiments: List[str], agents: List[str], output_path: Path
 ) -> None:
     """Create heatmap of Environment x Agent showing total reward."""
-    if not experiments or not agents:
-        return
-
-    fig, ax = plt.subplots(figsize=(10, len(experiments) * 0.5 + 2))
-
-    matrix = np.zeros((len(experiments), len(agents)))
-    for i, exp in enumerate(experiments):
-        for j, agent in enumerate(agents):
-            metrics = aggregated.by_agent_experiment.get((agent, exp))
-            matrix[i, j] = metrics.mean_total_reward() if metrics else 0.0
-
-    im = ax.imshow(matrix, cmap="YlOrRd", aspect="auto")
-
-    ax.set_xticks(np.arange(len(agents)))
-    ax.set_yticks(np.arange(len(experiments)))
-    ax.set_xticklabels(agents)
-    ax.set_yticklabels(experiments)
-
-    plt.setp(ax.get_xticklabels(), rotation=0, ha="center")
-
-    cbar = plt.colorbar(im, ax=ax)
-    cbar.set_label("Total Reward", rotation=270, labelpad=20, fontweight="bold")
-
-    for i in range(len(experiments)):
-        for j in range(len(agents)):
-            ax.text(j, i, f"{matrix[i, j]:.1f}", ha="center", va="center", color="black", fontsize=9, fontweight="bold")
-
-    ax.set_title("Total Reward: Environment × Agent", fontsize=14, fontweight="bold", pad=20)
-    ax.set_xlabel("Agent", fontsize=12, fontweight="bold")
-    ax.set_ylabel("Environment", fontsize=12, fontweight="bold")
-
-    plt.tight_layout()
-    plt.savefig(output_path / "heatmap_env_agent_total.png", dpi=150, bbox_inches="tight")
-    plt.close()
+    _plot_heatmap(
+        x_labels=agents,
+        y_labels=experiments,
+        value_lookup=lambda agent, exp: (
+            aggregated.by_agent_experiment.get((agent, exp)).mean_total_reward()
+            if aggregated.by_agent_experiment.get((agent, exp))
+            else 0.0
+        ),
+        title="Total Reward: Environment x Agent",
+        cbar_label="Total Reward",
+        filename="heatmap_env_agent_total.png",
+        output_path=output_path,
+        cmap="YlOrRd",
+        figsize=(10, int(len(experiments) * 0.5 + 2)),
+        annotation_fmt=".1f",
+    )
 
 
 def _plot_heatmap_diff_agent(
     aggregated: AggregatedResults, difficulties: List[str], agents: List[str], output_path: Path
 ) -> None:
     """Create heatmap of Difficulty x Agent showing avg reward per agent."""
-    if not difficulties or not agents:
-        return
-
-    fig, ax = plt.subplots(figsize=(10, len(difficulties) * 0.4 + 2))
-
-    matrix = np.zeros((len(difficulties), len(agents)))
-    for i, diff in enumerate(difficulties):
-        for j, agent in enumerate(agents):
-            metrics = aggregated.by_agent_difficulty.get((agent, diff))
-            matrix[i, j] = metrics.mean_agent_reward() if metrics else 0.0
-
-    im = ax.imshow(matrix, cmap="YlGnBu", aspect="auto")
-
-    ax.set_xticks(np.arange(len(agents)))
-    ax.set_yticks(np.arange(len(difficulties)))
-    ax.set_xticklabels(agents)
-    ax.set_yticklabels(difficulties)
-
-    plt.setp(ax.get_xticklabels(), rotation=0, ha="center")
-
-    cbar = plt.colorbar(im, ax=ax)
-    cbar.set_label("Average Reward", rotation=270, labelpad=20, fontweight="bold")
-
-    for i in range(len(difficulties)):
-        for j in range(len(agents)):
-            ax.text(j, i, f"{matrix[i, j]:.1f}", ha="center", va="center", color="black", fontsize=9, fontweight="bold")
-
-    ax.set_title("Average Reward: Difficulty × Agent", fontsize=14, fontweight="bold", pad=20)
-    ax.set_xlabel("Agent", fontsize=12, fontweight="bold")
-    ax.set_ylabel("Difficulty", fontsize=12, fontweight="bold")
-
-    plt.tight_layout()
-    plt.savefig(output_path / "heatmap_diff_agent.png", dpi=150, bbox_inches="tight")
-    plt.close()
+    _plot_heatmap(
+        x_labels=agents,
+        y_labels=difficulties,
+        value_lookup=lambda agent, diff: (
+            aggregated.by_agent_difficulty.get((agent, diff)).mean_agent_reward()
+            if aggregated.by_agent_difficulty.get((agent, diff))
+            else 0.0
+        ),
+        title="Average Reward: Difficulty x Agent",
+        cbar_label="Average Reward",
+        filename="heatmap_diff_agent.png",
+        output_path=output_path,
+        cmap="YlGnBu",
+        figsize=(10, int(len(difficulties) * 0.4 + 2)),
+        annotation_fmt=".1f",
+    )
 
 
 def _plot_heatmap_diff_agent_total(
     aggregated: AggregatedResults, difficulties: List[str], agents: List[str], output_path: Path
 ) -> None:
     """Create heatmap of Difficulty x Agent showing total reward."""
-    if not difficulties or not agents:
-        return
-
-    fig, ax = plt.subplots(figsize=(10, len(difficulties) * 0.4 + 2))
-
-    matrix = np.zeros((len(difficulties), len(agents)))
-    for i, diff in enumerate(difficulties):
-        for j, agent in enumerate(agents):
-            metrics = aggregated.by_agent_difficulty.get((agent, diff))
-            matrix[i, j] = metrics.mean_total_reward() if metrics else 0.0
-
-    im = ax.imshow(matrix, cmap="YlGnBu", aspect="auto")
-
-    ax.set_xticks(np.arange(len(agents)))
-    ax.set_yticks(np.arange(len(difficulties)))
-    ax.set_xticklabels(agents)
-    ax.set_yticklabels(difficulties)
-
-    plt.setp(ax.get_xticklabels(), rotation=0, ha="center")
-
-    cbar = plt.colorbar(im, ax=ax)
-    cbar.set_label("Total Reward", rotation=270, labelpad=20, fontweight="bold")
-
-    for i in range(len(difficulties)):
-        for j in range(len(agents)):
-            ax.text(j, i, f"{matrix[i, j]:.1f}", ha="center", va="center", color="black", fontsize=9, fontweight="bold")
-
-    ax.set_title("Total Reward: Difficulty × Agent", fontsize=14, fontweight="bold", pad=20)
-    ax.set_xlabel("Agent", fontsize=12, fontweight="bold")
-    ax.set_ylabel("Difficulty", fontsize=12, fontweight="bold")
-
-    plt.tight_layout()
-    plt.savefig(output_path / "heatmap_diff_agent_total.png", dpi=150, bbox_inches="tight")
-    plt.close()
+    _plot_heatmap(
+        x_labels=agents,
+        y_labels=difficulties,
+        value_lookup=lambda agent, diff: (
+            aggregated.by_agent_difficulty.get((agent, diff)).mean_total_reward()
+            if aggregated.by_agent_difficulty.get((agent, diff))
+            else 0.0
+        ),
+        title="Total Reward: Difficulty x Agent",
+        cbar_label="Total Reward",
+        filename="heatmap_diff_agent_total.png",
+        output_path=output_path,
+        cmap="YlGnBu",
+        figsize=(10, int(len(difficulties) * 0.4 + 2)),
+        annotation_fmt=".1f",
+    )
 
 
 def main():
