@@ -3,12 +3,12 @@
 from metta.rl.trainer_config import OptimizerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.tools.train import TrainTool
-
-# Import everything from the base arena recipe
 from recipes.experiment.arena import (
     make_curriculum,
     simulations,
 )
+
+DEFAULT_LR = OptimizerConfig.model_fields["learning_rate"].default
 
 
 def train(
@@ -24,7 +24,7 @@ def train(
     # Configure regular Adam optimizer (matching default)
     optimizer_config = OptimizerConfig(
         type="adam",
-        learning_rate=0.001153637,  # Same as default
+        learning_rate=DEFAULT_LR,
         beta1=0.9,
         beta2=0.999,
         eps=3.186531e-07,
@@ -57,7 +57,7 @@ def train_shaped(rewards: bool = True) -> TrainTool:
     # Configure regular Adam optimizer
     optimizer_config = OptimizerConfig(
         type="adam",
-        learning_rate=0.001153637,
+        learning_rate=DEFAULT_LR,
         beta1=0.9,
         beta2=0.999,
         eps=3.186531e-07,
