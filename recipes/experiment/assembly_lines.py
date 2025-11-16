@@ -324,6 +324,17 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
         self._make_resource_chain(chain_length, width + height / 2, cfg, rng)
         self._make_sinks(num_sinks, cfg, rng)
 
+        # CRITICAL FIX: Add ALL assembler types to game_objects to maintain config invariants
+        # The simulator requires all simulations to have the same object_type_names.
+        # By including all assembler types (even unused ones), we ensure consistency.
+        for assembler_name, assembler_config in self.assembler_types.items():
+            if assembler_name not in cfg.game_objects:
+                # Add unused assembler types with empty protocols so they exist in config
+                # but won't be placed in the map (map_builder_objects doesn't include them)
+                unused_assembler = assembler_config.copy()
+                unused_assembler.protocols = []  # No protocols = not usable, but exists in config
+                cfg.game_objects[assembler_name] = unused_assembler
+
         env_cfg = make_assembly_lines(
             num_agents=1,
             max_steps=max_steps,
