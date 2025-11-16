@@ -68,19 +68,8 @@ for cmd in uv bazel git g++ nimby nim; do
   fi
 done
 
-TORCH_CONSTRAINT_FILE=".uv-build-constraints.txt"
-python - << 'PY'
-import tomllib, sys
-from pathlib import Path
-data = tomllib.loads(Path('uv.lock').read_text())
-ver = next((p['version'] for p in data.get('package', []) if p.get('name') == 'torch'), None)
-if not ver:
-    sys.exit('torch not found in uv.lock')
-Path("$TORCH_CONSTRAINT_FILE").write_text(f"torch=={ver}\n")
-PY
-
-uv sync --build-constraints "$TORCH_CONSTRAINT_FILE"
-UV_TORCH_BACKEND="${UV_TORCH_BACKEND:-auto}" uv pip install --python .venv/bin/python torch > =2.9.1
+uv sync
+UV_TORCH_BACKEND="${UV_TORCH_BACKEND:-auto}" uv pip install --python .venv/bin/python torch==2.9.1
 uv run python -m metta.setup.metta_cli install $PROFILE_ADDITION $NON_INTERACTIVE_ADDITION
 if [ "$INSTALL_CUDA_EXTRAS" = "1" ]; then
   if [ "$(uname -s)" = "Linux" ]; then
