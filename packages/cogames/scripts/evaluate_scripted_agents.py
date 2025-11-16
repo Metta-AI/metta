@@ -36,7 +36,7 @@ import logging
 from collections import defaultdict
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVariant
@@ -536,6 +536,9 @@ def _plot_grouped_bars(
     output_path: Path,
     width: float = 0.35,
     figsize: Tuple[int, int] = (16, 8),
+    rotation: float = 45,
+    annotate: bool = False,
+    annotation_fmt: str = ".1f",
 ) -> None:
     if not x_labels or not series_labels:
         return
@@ -546,13 +549,26 @@ def _plot_grouped_bars(
     for i, series in enumerate(series_labels):
         rewards: List[float] = [value_lookup(series, label) for label in x_labels]
         offset = width * (i - len(series_labels) / 2 + 0.5)
-        ax.bar(x + offset, rewards, width, label=series, alpha=0.8, edgecolor="black")
+        bars = ax.bar(x + offset, rewards, width, label=series, alpha=0.8, edgecolor="black")
+
+        if annotate:
+            for bar in bars:
+                height = bar.get_height()
+                if height > 0:
+                    ax.text(
+                        bar.get_x() + bar.get_width() / 2.0,
+                        height,
+                        f"{height:{annotation_fmt}}",
+                        ha="center",
+                        va="bottom",
+                        fontsize=9,
+                    )
 
     ax.set_ylabel(ylabel, fontsize=12, fontweight="bold")
     ax.set_xlabel(xlabel, fontsize=12, fontweight="bold")
     ax.set_title(title, fontsize=14, fontweight="bold")
     ax.set_xticks(x)
-    ax.set_xticklabels(x_labels, rotation=45, ha="right")
+    ax.set_xticklabels(x_labels, rotation=rotation, ha="right")
     ax.legend(fontsize=11)
     ax.grid(axis="y", alpha=0.3)
 
@@ -627,6 +643,8 @@ def _plot_by_num_cogs(
         filename="reward_by_num_cogs.png",
         output_path=output_path,
         figsize=(12, 7),
+        rotation=0,
+        annotate=True,
     )
 
 
@@ -651,6 +669,8 @@ def _plot_by_num_cogs_total(
         filename="total_reward_by_num_cogs.png",
         output_path=output_path,
         figsize=(12, 7),
+        rotation=0,
+        annotate=True,
     )
 
 
