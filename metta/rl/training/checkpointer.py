@@ -75,6 +75,7 @@ class Checkpointer(TrainerComponent):
                 load_device = torch.device(self._distributed.config.device)
                 spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device=load_device)
                 policy = initialize_or_load_policy(policy_env_info, spec)
+                policy = self._ensure_save_capable(policy)
                 self._latest_policy_uri = normalized_uri
                 logger.info("Loaded policy from %s", normalized_uri)
             except FileNotFoundError:
@@ -87,7 +88,8 @@ class Checkpointer(TrainerComponent):
             return policy
 
         logger.info("Creating new policy for training run")
-        return self._policy_architecture.make_policy(policy_env_info)
+        fresh_policy = self._policy_architecture.make_policy(policy_env_info)
+        return self._ensure_save_capable(fresh_policy)
 
     def get_latest_policy_uri(self) -> Optional[str]:
         """Return the most recent checkpoint URI tracked by this component."""
@@ -122,27 +124,33 @@ class Checkpointer(TrainerComponent):
             return policy.module  # type: ignore[return-value]
         return policy
 
+    def _ensure_save_capable(self, policy: Policy) -> Policy:
+        """Attach a save_policy method if missing so saving is uniform."""
+        if hasattr(policy, "save_policy"):
+            return policy
+
+        def save_policy(destination: str | Path, *, policy_architecture: PolicyArchitecture) -> str:
+            path = Path(destination).expanduser()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            save_policy_artifact_safetensors(
+                path,
+                policy_architecture=policy_architecture,
+                state_dict=policy.state_dict(),
+            )
+            return f"file://{path.resolve()}"
+
+        policy.save_policy = save_policy.__get__(policy, policy.__class__)  # type: ignore[attr-defined]
+        return policy
+
     def _save_policy(self, epoch: int, *, force: bool = False) -> None:
-        policy = self._policy_to_save()
+        policy = self._ensure_save_capable(self._policy_to_save())
 
         filename = f"{self._checkpoint_manager.run_name}:v{epoch}.mpt"
         local_path = self._checkpoint_manager.checkpoint_dir / filename
         local_uri: str | None = None
 
-        if hasattr(policy, "save_policy"):
-            uri = policy.save_policy(local_path, policy_architecture=self._policy_architecture)
-            if uri.startswith("file://"):
-                local_uri = uri
-        else:
-            # Directly write artifact; all policies are expected to support save_policy, so hitting
-            # this path is an indicator that training started with a raw policy.
-            local_path.parent.mkdir(parents=True, exist_ok=True)
-            save_policy_artifact_safetensors(
-                local_path,
-                policy_architecture=self._policy_architecture,
-                state_dict=policy.state_dict(),
-            )
-            uri = f"file://{local_path.resolve()}"
+        uri = policy.save_policy(local_path, policy_architecture=self._policy_architecture)
+        if uri.startswith("file://"):
             local_uri = uri
 
         # Upload to remote if configured
