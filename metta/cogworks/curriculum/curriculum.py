@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import random
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Union
 
 if TYPE_CHECKING:
     from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
@@ -12,13 +12,12 @@ if TYPE_CHECKING:
 from pydantic import ConfigDict, Field
 
 from metta.cogworks.curriculum.curriculum_base import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask
-from metta.cogworks.curriculum.stats import SliceAnalyzer, StatsLogger
+from metta.cogworks.curriculum.stats import StatsLogger
 from metta.cogworks.curriculum.task_generator import AnyTaskGeneratorConfig, SingleTaskGenerator
 from mettagrid.base_config import Config
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
 logger = logging.getLogger(__name__)
-
 
 
 class DiscreteRandomConfig(CurriculumAlgorithmConfig):

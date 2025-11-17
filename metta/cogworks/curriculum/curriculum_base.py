@@ -12,8 +12,8 @@ from typing import Any, ClassVar, Dict, List, Optional
 
 from pydantic import ConfigDict, Field
 
-from mettagrid.base_config import Config
 from metta.cogworks.curriculum.stats import SliceAnalyzer, StatsLogger
+from mettagrid.base_config import Config
 
 
 class CurriculumTask:
