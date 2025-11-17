@@ -161,7 +161,8 @@ def load_policy(
         if not CHECKPOINT_MANAGER_AVAILABLE or CheckpointManager is None:
             raise ImportError("CheckpointManager not available. Install metta package to use S3 checkpoints.")
         logger.info(f"Loading policy from S3 URI: {checkpoint_path}")
-        policy = CheckpointManager.load_from_uri(checkpoint_path, policy_env_info, device)
+        policy_spec = CheckpointManager.policy_spec_from_uri(checkpoint_path, device=device)
+        policy = initialize_or_load_policy(policy_env_info, policy_spec)
         return policy
 
     # If policy_path is an S3 URI, use CheckpointManager (policy_path is the checkpoint URI)
@@ -169,7 +170,8 @@ def load_policy(
         if not CHECKPOINT_MANAGER_AVAILABLE or CheckpointManager is None:
             raise ImportError("CheckpointManager not available. Install metta package to use S3 checkpoints.")
         logger.info(f"Loading policy from S3 URI: {policy_path}")
-        policy = CheckpointManager.load_from_uri(policy_path, policy_env_info, device)
+        policy_spec = CheckpointManager.policy_spec_from_uri(policy_path, device=device)
+        policy = initialize_or_load_policy(policy_env_info, policy_spec)
         return policy
 
     # Otherwise, use the standard initialization path
