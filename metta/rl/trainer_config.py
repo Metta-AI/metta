@@ -21,7 +21,7 @@ class OptimizerConfig(Config):
     weight_decay: float = Field(default=0.01, ge=0)
     # ScheduleFree-specific parameters
     momentum: float = Field(default=0.9, ge=0, le=1.0)  # Beta parameter for ScheduleFree
-    warmup_steps: int = Field(default=1000, ge=0)  # Number of warmup steps for ScheduleFree
+    warmup_steps: Union[int, float] = Field(default=1000, ge=0)  # Number of warmup steps for ScheduleFree
 
     @field_validator('warmup_steps', mode='before')
     @classmethod
@@ -72,7 +72,7 @@ class BehaviorCloningConfig(Config):
 
 
 class TrainerConfig(Config):
-    total_timesteps: int = Field(default=50_000_000_000, gt=0)
+    total_timesteps: Union[int, float] = Field(default=50_000_000_000, gt=0)
     losses: LossesConfig = Field(default_factory=LossesConfig)
     optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig)
 
