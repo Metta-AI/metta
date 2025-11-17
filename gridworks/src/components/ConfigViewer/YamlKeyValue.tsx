@@ -34,6 +34,8 @@ export const YamlKeyValue: FC<{
     return false;
   }, [unsetFields, valueNode.path]);
 
+  const [isExpanded, setIsExpanded] = useState(true);
+
   if (disabled && !showDefaultValues) {
     return null;
   }
@@ -61,8 +63,6 @@ export const YamlKeyValue: FC<{
       </div>
     );
   }
-
-  const [isExpanded, setIsExpanded] = useState(true);
 
   const singleLine =
     (isArrayNode(valueNode) && valueNode.value.length === 0) ||
