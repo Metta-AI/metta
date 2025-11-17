@@ -198,17 +198,25 @@ sleep 30
 
 # Step 5: Copy setup script and run it
 echo -e "${YELLOW}[5/6] Running setup script on instance...${NC}"
+
+# Determine SSH key path
+SSH_KEY_PATH="$HOME/.ssh/${SSH_KEY_NAME}.pem"
+if [ ! -f "$SSH_KEY_PATH" ]; then
+  echo -e "${RED}Error: SSH key not found at $SSH_KEY_PATH${NC}"
+  exit 1
+fi
+
 echo "  Copying setup script..."
-scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+scp -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "$SCRIPT_DIR/setup-ami.sh" ubuntu@"$PUBLIC_IP":/tmp/setup-ami.sh
 
 echo "  Running setup script (this will take 10-15 minutes)..."
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+ssh -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   ubuntu@"$PUBLIC_IP" \
   "bash /tmp/setup-ami.sh"
 
 echo "  Rebooting instance to activate NVIDIA drivers..."
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+ssh -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   ubuntu@"$PUBLIC_IP" \
   "sudo reboot" || true
 
@@ -221,7 +229,7 @@ sleep 30
 
 # Verify GPU is working
 echo "  Verifying GPU access..."
-if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+if ssh -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   ubuntu@"$PUBLIC_IP" \
   "nvidia-smi" > /dev/null 2>&1; then
   echo -e "${GREEN}  ✓ GPU verified${NC}"
