@@ -169,7 +169,7 @@ of the legacy format conversion.
 
 1. **PolicyStore.policy_record() → policy_records()**: Single-item wrapper with minimal value
 2. **MettaAgent.\_create_policy() → create_agent()**: Pure delegation
-3. **PolicyStore.create() → __init__()**: Factory that just calls constructor
+3. **PolicyStore.create() → **init**()**: Factory that just calls constructor
 4. **URI loading chains**: Multiple levels for simple dispatch
 
 ### Medium-Value Chains (Architecture-Dependent)
@@ -236,4 +236,3 @@ and environment setup chains are generally well-designed and serve clear archite
 The codebase demonstrates good separation of concerns in most areas, with call chains that add meaningful value at each
 level. The identified simplification opportunities are relatively minor and focused on removing single-method delegation
 rather than major architectural changes.
-
