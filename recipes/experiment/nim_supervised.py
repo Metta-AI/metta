@@ -14,7 +14,9 @@ from mettagrid.config.mettagrid_config import EnvSupervisorConfig, MettaGridConf
 NIM_TEACHER_POLICY = "nim_thinky"
 DEFAULT_MISSION = "evals.extractor_hub_30"
 DEFAULT_VARIANTS: tuple[str, ...] = ("lonely_heart",)
-SUPERVISED_RESUME_POLICY_URI: str | None = "file://local.root.20251115.022755:v95.mpt"
+SUPERVISED_RESUME_POLICY_URI: str | None = None
+LEARNING_RATE = 0.001153637 * 0.01
+REPLAY_INTERVAL = 10
 
 
 def _load_env_from_mission(
@@ -35,9 +37,10 @@ def train(
     variants: Iterable[str] | None = DEFAULT_VARIANTS,
     cogs: int = 1,
     max_steps: int = 1000,
-    total_timesteps: int = 262_144,
+    total_timesteps: int = 262_144 * 10,
     vectorization: Literal["serial", "multiprocessing"] = "serial",
     resume_policy_uri: str | None = SUPERVISED_RESUME_POLICY_URI,
+    learning_rate: float = LEARNING_RATE,
 ) -> TrainTool:
     """Train via supervised imitation from the Nim scripted policy."""
 
@@ -62,8 +65,9 @@ def train(
 
     tool.trainer.total_timesteps = total_timesteps
     tool.trainer.minibatch_size = 512
-    tool.trainer.batch_size = 4096
+    tool.trainer.batch_size = 4096 * 4
     tool.trainer.bptt_horizon = 16
+    tool.trainer.optimizer.learning_rate = learning_rate
 
     tool.trainer.losses.supervisor.teacher_random_walk_prob = 0.2
 
@@ -75,6 +79,8 @@ def train(
     tool.evaluator.epoch_interval = 0
     tool.checkpointer.epoch_interval = 1
     tool.training_env.seed = 0
+
+    tool.evaluator.epoch_interval = REPLAY_INTERVAL
 
     if resume_policy_uri:
         tool.initial_policy_uri = resume_policy_uri
