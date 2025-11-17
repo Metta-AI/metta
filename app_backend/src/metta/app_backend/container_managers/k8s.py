@@ -6,6 +6,7 @@ from typing import Dict, List
 
 from metta.app_backend.container_managers.base import AbstractContainerManager
 from metta.app_backend.worker_managers.worker import Worker
+from metta.common.datadog.config import datadog_config
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +90,7 @@ class K8sPodManager(AbstractContainerManager):
 
     def _datadog_env_vars(self) -> List[Dict[str, object]]:
         dd_env: Dict[str, str] = {
-            key: value for key, value in os.environ.items() if key.startswith("DD_") and key != "DD_AGENT_HOST"
+            key: value for key, value in datadog_config.to_env_dict().items() if key != "DD_AGENT_HOST"
         }
         dd_env["DD_SERVICE"] = "eval-worker"
 
