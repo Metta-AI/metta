@@ -27,8 +27,18 @@ class OptimizerConfig(Config):
     @classmethod
     def convert_warmup_to_int(cls, v):
         """Convert warmup_steps to int if it's a float."""
-        if isinstance(v, (float, int)):
-            return int(v)
+        if isinstance(v, float):
+            # Round to handle floating point precision issues
+            return int(round(v))
+        elif isinstance(v, int):
+            return v
+        elif isinstance(v, str):
+            # Handle string representations of numbers
+            try:
+                float_val = float(v)
+                return int(round(float_val))
+            except (ValueError, TypeError):
+                pass
         return v
 
 
@@ -74,8 +84,18 @@ class TrainerConfig(Config):
         This allows sweeps to use float distributions (e.g., log_normal)
         while ensuring the actual value is always an integer.
         """
-        if isinstance(v, (float, int)):
-            return int(v)
+        if isinstance(v, float):
+            # Round to handle floating point precision issues
+            return int(round(v))
+        elif isinstance(v, int):
+            return v
+        elif isinstance(v, str):
+            # Handle string representations of numbers
+            try:
+                float_val = float(v)
+                return int(round(float_val))
+            except (ValueError, TypeError):
+                pass
         return v
 
     require_contiguous_env_ids: bool = False
