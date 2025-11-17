@@ -16,7 +16,7 @@ DEFAULT_MISSION = "evals.extractor_hub_30"
 DEFAULT_VARIANTS: tuple[str, ...] = ("lonely_heart",)
 SUPERVISED_RESUME_POLICY_URI: str | None = None
 RANDOM_WALK_PROB = 0.2
-LEARNING_RATE = 0.001153637 * 0.01
+LEARNING_RATE = 0.001153637 * 0.1
 REPLAY_INTERVAL = 10
 
 
@@ -62,7 +62,7 @@ def train(
     )
 
     tool.trainer.behavior_cloning.policy_uri = NIM_TEACHER_POLICY
-    tool.trainer.behavior_cloning.student_led = True
+    tool.trainer.behavior_cloning.student_led = False
 
     tool.trainer.total_timesteps = total_timesteps
     tool.trainer.minibatch_size = 512
