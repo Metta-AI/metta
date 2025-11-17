@@ -417,6 +417,7 @@ def run_evaluation(
                         run_index=run_idx + 1,
                     )
                 )
+                completed_runs += 1
 
     return results
 
