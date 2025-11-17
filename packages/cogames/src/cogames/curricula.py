@@ -15,9 +15,9 @@ class RotationSupplier:
         self.rotation = deque(missions)
 
     def __call__(self) -> MettaGridConfig:
-        _, cfg = self.rotation[0]
+        # Rotate left and return the new head in one step
         self.rotation.rotate(-1)
-        return cfg
+        return self.rotation[0][1]
 
 
 def make_rotation(missions: list[tuple[str, MettaGridConfig]]) -> Callable[[], MettaGridConfig]:
