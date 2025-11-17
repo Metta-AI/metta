@@ -22,7 +22,7 @@ def _single_use_extractor_kwargs() -> dict:
     return {
         "carbon_extractor": CarbonExtractorConfig(max_uses=1),
         "oxygen_extractor": OxygenExtractorConfig(max_uses=1),
-        "germanium_extractor": GermaniumExtractorConfig(max_uses=1),
+        "germanium_extractor": GermaniumExtractorConfig(),
         "silicon_extractor": SiliconExtractorConfig(max_uses=1),
     }
 
