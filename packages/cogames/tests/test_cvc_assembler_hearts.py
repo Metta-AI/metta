@@ -110,8 +110,8 @@ def _expected_inputs(num_hearts: int) -> dict[str, int]:
         "carbon": scale,
         "oxygen": scale,
         "germanium": max(1, scale // 10),
-        "silicon": max(1, (5 * scale) // 2),
-        "energy": scale,
+        "silicon": 3 * scale,
+        "energy": 0,
     }
 
 
@@ -154,7 +154,6 @@ def test_single_heart_recipe_consumes_first_cost_and_pools_resources() -> None:
         assert after[north]["oxygen"] < before[north]["oxygen"]
         assert after[east]["silicon"] < before[east]["silicon"]
         assert after[south]["silicon"] < before[south]["silicon"]
-        assert after[south]["energy"] < before[south]["energy"]
     finally:
         sim.close()
 

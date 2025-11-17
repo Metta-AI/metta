@@ -48,7 +48,7 @@ class ChargerConfig(ExtractorConfig):
             max_uses=0,  # unlimited uses
             protocols=[
                 ProtocolConfig(
-                    output_resources={"energy": 25 * self.efficiency // 100},
+                    output_resources={"energy": 50 * self.efficiency // 100},
                     cooldown=10,
                 )
             ],
@@ -122,7 +122,7 @@ class GermaniumExtractorConfig(ExtractorConfig):
                     # For the 1 agent protocol, we set min_agents to zero so it's visible when no
                     # agents are adjacent to the extractor.
                     min_agents=(additional_agents + 1) if additional_agents >= 1 else 0,
-                    output_resources={"germanium": max(1, (self.efficiency + additional_agents * self.synergy) // 4)},
+                    output_resources={"germanium": max(1, (self.efficiency + additional_agents * self.synergy) // 2)},
                 )
                 for additional_agents in range(4)
             ],
@@ -145,7 +145,7 @@ class SiliconExtractorConfig(ExtractorConfig):
             protocols=[
                 ProtocolConfig(
                     input_resources={"energy": 25},
-                    output_resources={"silicon": max(1, int(25 * self.efficiency // 100) // 2)},
+                    output_resources={"silicon": max(1, int(15 * self.efficiency // 100))},
                 )
             ],
             # Clipping
@@ -199,8 +199,7 @@ class CvCAssemblerConfig(CvCStationConfig):
                         "carbon": self.first_heart_cost + self.additional_heart_cost * i,
                         "oxygen": self.first_heart_cost + self.additional_heart_cost * i,
                         "germanium": max(1, (self.first_heart_cost + self.additional_heart_cost * i) // 10),
-                        "silicon": max(1, (5 * (self.first_heart_cost + self.additional_heart_cost * i)) // 2),
-                        "energy": self.first_heart_cost + self.additional_heart_cost * i,
+                        "silicon": 3 * (self.first_heart_cost + self.additional_heart_cost * i),
                     },
                     output_resources={"heart": i + 1},
                 )
