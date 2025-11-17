@@ -1,7 +1,7 @@
 from pydantic import Field
 
-from cogames.cogs_vs_clips import vibes
 from mettagrid.base_config import Config
+from mettagrid.config import vibes
 from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, GridObjectConfig, ProtocolConfig, WallConfig
 
 resources = [
@@ -124,7 +124,7 @@ class GermaniumExtractorConfig(ExtractorConfig):
                     min_agents=(additional_agents + 1) if additional_agents >= 1 else 0,
                     output_resources={"germanium": self.efficiency + additional_agents * self.synergy},
                 )
-                for additional_agents in range(1, 4)
+                for additional_agents in range(4)
             ],
             # Clipping
             start_clipped=self.start_clipped,

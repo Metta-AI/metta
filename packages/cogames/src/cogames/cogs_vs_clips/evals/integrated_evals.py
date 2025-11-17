@@ -4,7 +4,7 @@ import logging
 
 from cogames.cogs_vs_clips.mission import Mission, Site
 from cogames.cogs_vs_clips.procedural import MachinaArena
-from cogames.cogs_vs_clips.sites import HELLO_WORLD, TRAINING_FACILITY
+from cogames.cogs_vs_clips.sites import HELLO_WORLD
 from cogames.cogs_vs_clips.variants import (
     DarkSideVariant,
     DistantResourcesVariant,
@@ -12,7 +12,6 @@ from cogames.cogs_vs_clips.variants import (
     ExtractorHeartTuneVariant,
     HeartChorusVariant,
     LonelyHeartVariant,
-    NeutralFacedVariant,
     PackRatVariant,
     QuadrantBuildingsVariant,
     ResourceBottleneckVariant,
@@ -57,7 +56,6 @@ OxygenBottleneck = Mission(
         ExtractorHeartTuneVariant(hearts=10),
         ResourceBottleneckVariant(resource="oxygen"),
         SingleResourceUniformVariant(building_name="oxygen_extractor"),
-        #        NeutralFacedVariant(),
         PackRatVariant(),
     ],
 )
@@ -71,7 +69,6 @@ EnergyStarved = Mission(
         EmptyBaseVariant(),
         ResourceBottleneckVariant(resource="energy"),
         DarkSideVariant(),
-        #        NeutralFacedVariant(),
     ],
 )
 
@@ -84,7 +81,6 @@ DistantResources = Mission(
     variants=[
         EmptyBaseVariant(),
         DistantResourcesVariant(),
-        #        NeutralFacedVariant(),
     ],
 )
 
@@ -97,7 +93,6 @@ QuadrantBuildings = Mission(
     variants=[
         EmptyBaseVariant(),
         QuadrantBuildingsVariant(),
-        #        NeutralFacedVariant(),
     ],
 )
 
@@ -110,7 +105,6 @@ SingleUseSwarm = Mission(
     variants=[
         EmptyBaseVariant(),
         SingleUseSwarmVariant(),
-        #        NeutralFacedVariant(),
         PackRatVariant(),
     ],
 )
@@ -130,13 +124,12 @@ VibeCheck = Mission(
 
 EasyHeartsMission = Mission(
     name="easy_hearts",
-    description="Simplified heart crafting, generous caps, extractor base, neutral vibe.",
-    site=TRAINING_FACILITY,
+    description="Simplified heart crafting with generous caps and extractor base.",
+    site=HELLO_WORLD,
     variants=[
         LonelyHeartVariant(),
         HeartChorusVariant(),
         PackRatVariant(),
-        NeutralFacedVariant(),
     ],
 )
 

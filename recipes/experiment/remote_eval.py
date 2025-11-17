@@ -6,7 +6,7 @@ from pydantic import Field
 
 from metta.app_backend.clients.stats_client import HttpStatsClient
 from metta.common.tool.tool import ToolResult, ToolWithResult
-from metta.rl.checkpoint_manager import CheckpointManager
+from metta.sim.handle_results import to_eval_results
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.utils.auto_config import auto_replay_dir
@@ -27,7 +27,7 @@ class ExecuteRemoteEvalTool(ToolWithResult):
 
     def run_job(self) -> ToolResult:
         # Will error if stats_server_uri does not exist or we are not not authenticated with it
-        stats_client = HttpStatsClient.create(self.stats_server_uri)
+        _ = HttpStatsClient.create(self.stats_server_uri)
 
         eval_tool = EvaluateTool(
             simulations=self.simulations,
@@ -39,9 +39,10 @@ class ExecuteRemoteEvalTool(ToolWithResult):
             eval_task_id=self.eval_task_id,
             push_metrics_to_wandb=self.push_metrics_to_wandb,
         )
-        normalized_uri = CheckpointManager.normalize_uri(self.policy_uri)
-
-        eval_results = eval_tool.eval_policy(normalized_uri=normalized_uri, stats_client=stats_client)
+        return_code, msg, results = eval_tool.handle_single_policy_uri(self.policy_uri)
+        if return_code != 0:
+            return ToolResult(result="failure", error=msg)
+        eval_results = to_eval_results(results, num_policies=1, target_policy_idx=0)
         if len(eval_results.scores.simulation_scores) == 0:
             return ToolResult(result="failure", error="No simulations were run")
         elif len(eval_results.scores.simulation_scores) != len(self.simulations):

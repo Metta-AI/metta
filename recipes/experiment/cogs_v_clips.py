@@ -10,10 +10,14 @@ from __future__ import annotations
 from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
-from cogames.cli.mission import parse_variants
+from cogames.cli.mission import find_mission, parse_variants
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
-from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVariant
-from metta.cogworks.curriculum.curriculum import CurriculumAlgorithmConfig, CurriculumConfig
+from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, NumCogsVariant
+from cogames.cogs_vs_clips.missions import MISSIONS
+from metta.cogworks.curriculum.curriculum import (
+    CurriculumAlgorithmConfig,
+    CurriculumConfig,
+)
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
@@ -57,8 +61,6 @@ COORDINATION_MISSIONS: tuple[str, ...] = (
     "collect_resources_spread",
 )
 
-_MISSION_BY_NAME: dict[str, Mission] = {mission.name: mission for mission in EVAL_MISSIONS}
-
 
 def _normalize_variant_names(
     *,
@@ -78,21 +80,28 @@ def _normalize_variant_names(
 def _clamp_agent_inventory(env: MettaGridConfig) -> None:
     agent = env.game.agent
 
-    def clamp(mapping: dict[str | tuple[str, ...], int]) -> None:
+    for mapping in (agent.resource_limits, agent.initial_inventory):
         for key, value in list(mapping.items()):
             if isinstance(value, int) and value > 255:
                 mapping[key] = 255
 
-    clamp(agent.resource_limits)
-    clamp(agent.initial_inventory)
     if agent.default_resource_limit > 255:
         agent.default_resource_limit = 255
 
 
-def _parse_variant_objects(names: Sequence[str] | None) -> list[MissionVariant]:
-    if not names:
-        return []
-    return parse_variants(list(names))
+def _resolve_mission_template(name: str) -> Mission:
+    for mission in MISSIONS:
+        if mission.name == name or mission.full_name() == name:
+            return mission
+
+    if MAP_MISSION_DELIMITER not in name:
+        return find_mission(name, None)
+
+    if name.count(MAP_MISSION_DELIMITER) > 1:
+        raise ValueError(f"Mission name can contain at most one '{MAP_MISSION_DELIMITER}' delimiter")
+
+    site_name, mission_name = name.split(MAP_MISSION_DELIMITER)
+    return find_mission(site_name, mission_name)
 
 
 def _resolve_eval_variants(
@@ -113,7 +122,7 @@ def _prepare_mission(
     variant_names: Sequence[str] | None = None,
 ) -> Mission:
     mission = base_mission
-    variant_objects = _parse_variant_objects(variant_names)
+    variant_objects = parse_variants(list(variant_names)) if variant_names else []
     if variant_objects:
         mission = mission.with_variants(variant_objects)
     mission = mission.with_variants([NumCogsVariant(num_cogs=num_cogs)])
@@ -179,9 +188,7 @@ def make_training_env(
     variants: Optional[Sequence[str]] = None,
 ) -> MettaGridConfig:
     """Create a single training environment from a mission."""
-    mission_template = _MISSION_BY_NAME.get(mission)
-    if mission_template is None:
-        raise ValueError(f"Mission '{mission}' not found in EVAL_MISSIONS")
+    mission_template = _resolve_mission_template(mission)
 
     variant_names = _normalize_variant_names(variants=variants)
     mission = _prepare_mission(
@@ -197,19 +204,14 @@ def make_training_env(
     # If vibe swapping is disabled, prune stale vibe transfers to avoid invalid IDs.
     change_vibe_action = getattr(env.game.actions, "change_vibe", None)
     if change_vibe_action is not None and change_vibe_action.number_of_vibes <= 1:
-        allowed_vibes = set(env.game.vibe_names or [])
-        if not allowed_vibes:
-            allowed_vibes = {"default"}
-            env.game.vibe_names = ["default"]
+        allowed_vibes = env.game.vibe_names or ["default"]
+        env.game.vibe_names = list(allowed_vibes)
 
         chest = env.game.objects.get("chest")
-        if chest is not None and hasattr(chest, "vibe_transfers"):
-            try:
-                chest.vibe_transfers = {
-                    vibe: transfers for vibe, transfers in chest.vibe_transfers.items() if vibe in allowed_vibes
-                }
-            except Exception:
-                pass
+        vibe_transfers = getattr(chest, "vibe_transfers", None) if chest is not None else None
+        if isinstance(vibe_transfers, dict):
+            allowed = set(allowed_vibes)
+            chest.vibe_transfers = {vibe: transfers for vibe, transfers in vibe_transfers.items() if vibe in allowed}
 
     return env
 

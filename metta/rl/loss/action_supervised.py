@@ -16,8 +16,8 @@ from metta.rl.training import ComponentContext
 
 
 class ActionSupervisedConfig(LossConfig):
-    action_loss_coef: float = Field(default=0.75, ge=0)
-    value_loss_coef: float = Field(default=1.5, ge=0)
+    action_loss_coef: float = Field(default=0.6, ge=0)
+    value_loss_coef: float = Field(default=1.0, ge=0)
     gae_gamma: float = Field(default=0.977, ge=0, le=1.0)  # pulling from our PPO config
     gae_lambda: float = Field(default=0.891477, ge=0, le=1.0)  # pulling from our PPO config
     vf_clip_coef: float = Field(default=0.1, ge=0)  # pulling from our PPO config
@@ -50,10 +50,7 @@ class ActionSupervisedConfig(LossConfig):
 # --------------------------ActionSupervised Loss----------------------------------
 class ActionSupervised(Loss):
     __slots__ = (
-        "action_loss_coef",
-        "value_loss_coef",
         "norm_adv",
-        "vf_clip_coef",
         "gae_gamma",
         "gae_lambda",
         "add_action_loss_to_rewards",
@@ -77,10 +74,7 @@ class ActionSupervised(Loss):
             loss_config = getattr(trainer_cfg.losses, instance_name, None)
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
         # unpack config into slots
-        self.action_loss_coef = self.cfg.action_loss_coef
-        self.value_loss_coef = self.cfg.value_loss_coef
         self.norm_adv = self.cfg.norm_adv
-        self.vf_clip_coef = self.cfg.vf_clip_coef
         self.gae_gamma = self.cfg.gae_gamma
         self.gae_lambda = self.cfg.gae_lambda
         self.add_action_loss_to_rewards = self.cfg.add_action_loss_to_rewards
@@ -155,7 +149,7 @@ class ActionSupervised(Loss):
         # so that's slick. But that means we shouldn't write this policy td to shared_loss_data when using PPO!
         # That means that when using PPO we need to write a separate gather here.
 
-        actor_loss = -policy_td["act_log_prob"].mean() * self.action_loss_coef
+        actor_loss = -policy_td["act_log_prob"].mean() * self.cfg.action_loss_coef
 
         self.loss_tracker["supervised_action_loss"].append(float(actor_loss.item()))
 
@@ -195,14 +189,14 @@ class ActionSupervised(Loss):
             v_loss_unclipped = (newvalue - returns) ** 2
             v_clipped = old_values + torch.clamp(
                 newvalue - old_values,
-                -self.vf_clip_coef,
-                self.vf_clip_coef,
+                -self.cfg.vf_clip_coef,
+                self.cfg.vf_clip_coef,
             )
             v_loss_clipped = (v_clipped - returns) ** 2
-            value_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean() * self.value_loss_coef
+            value_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean() * self.cfg.value_loss_coef
         else:
             new_values = policy_td["values"].view(returns.shape)
-            value_loss = 0.5 * ((new_values - returns) ** 2).mean() * self.value_loss_coef
+            value_loss = 0.5 * ((new_values - returns) ** 2).mean() * self.cfg.value_loss_coef
 
         self.loss_tracker["supervised_value_loss"].append(float(value_loss.item()))
 
