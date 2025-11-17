@@ -192,6 +192,8 @@ def make_curriculum(
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
     variants: Optional[Sequence[str]] = None,
+    num_active_tasks: int = 256,
+    max_steps_choices: Optional[Sequence[int]] = None,
 ) -> CurriculumConfig:
     """Create a curriculum for CoGs vs Clips training."""
     if base_missions is None:
@@ -206,8 +208,8 @@ def make_curriculum(
         )
         mission_tasks = cc.bucketed(mission_env)
 
-        mission_tasks.add_bucket("game.max_steps", [750, 1000, 1250, 1500])
-        mission_tasks.add_bucket("game.agent.rewards.inventory.heart", [0.1, 0.333, 0.5, 1.0])
+        mission_tasks.add_bucket("game.max_steps", list(max_steps_choices or [750]))
+        mission_tasks.add_bucket("game.agent.rewards.inventory.heart", [0.333])
 
         all_mission_tasks.append(mission_tasks)
 
@@ -218,15 +220,16 @@ def make_curriculum(
             use_bidirectional=True,
             ema_timescale=0.001,
             exploration_bonus=0.1,
-            max_memory_tasks=2000,
-            max_slice_axes=4,
+            max_memory_tasks=max(512, num_active_tasks),
+            max_slice_axes=2,
             enable_detailed_slice_logging=enable_detailed_slice_logging,
         )
 
-    return merged_tasks.to_curriculum(
-        num_active_tasks=1500,
+    curriculum = merged_tasks.to_curriculum(
+        num_active_tasks=num_active_tasks,
         algorithm_config=algorithm_config,
     )
+    return curriculum
 
 
 def train(
@@ -238,6 +241,8 @@ def train(
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
     mission: str | None = None,
+    curriculum_num_active_tasks: int = 256,
+    curriculum_max_steps: Optional[Sequence[int]] = None,
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips."""
 
@@ -254,6 +259,8 @@ def train(
         base_missions=base_missions,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         variants=variants,
+        num_active_tasks=curriculum_num_active_tasks,
+        max_steps_choices=curriculum_max_steps,
     )
 
     trainer_cfg = TrainerConfig(
