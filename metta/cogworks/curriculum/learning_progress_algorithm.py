@@ -203,55 +203,48 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def _get_bidirectional_learning_progress_score(self, task_id: int) -> float:
         """Calculate bidirectional learning progress score for a task."""
+        cached = self._score_cache.get(task_id) if task_id in self._cache_valid_tasks else None
+        if cached is not None:
+            return cached
 
-        def compute_score() -> float:
-            task_stats = self.task_tracker.get_task_stats(task_id)
-            if not task_stats or task_stats["completion_count"] < 2:
-                return self.hypers.exploration_bonus
-            if task_id not in self._outcomes or len(self._outcomes[task_id]) < 2:
-                return self.hypers.exploration_bonus
-
+        task_stats = self.task_tracker.get_task_stats(task_id)
+        if not task_stats or task_stats["completion_count"] < 2:
+            score = self.hypers.exploration_bonus
+        elif task_id not in self._outcomes or len(self._outcomes[task_id]) < 2:
+            score = self.hypers.exploration_bonus
+        else:
             self._ensure_progress_ready()
             idx = self._task_index_cache.get(task_id)
             if idx is not None and self._task_dist is not None and 0 <= idx < len(self._task_dist):
-                return float(self._task_dist[idx])
-            return self.hypers.exploration_bonus
+                score = float(self._task_dist[idx])
+            else:
+                score = self.hypers.exploration_bonus
 
-        return self._get_score_with_cache(task_id, compute_score)
+        self._score_cache[task_id] = score
+        self._cache_valid_tasks.add(task_id)
+        return score
 
     def _get_basic_learning_progress_score(self, task_id: int) -> float:
         """Calculate basic learning progress score using EMA variance."""
+        cached = self._score_cache.get(task_id) if task_id in self._cache_valid_tasks else None
+        if cached is not None:
+            return cached
 
-        def compute_score() -> float:
-            task_stats = self.task_tracker.get_task_stats(task_id)
-            if not task_stats or task_stats["completion_count"] < 2:
-                return self.hypers.exploration_bonus
-            if task_id not in self._task_emas:
-                return self.hypers.exploration_bonus
-
+        task_stats = self.task_tracker.get_task_stats(task_id)
+        if not task_stats or task_stats["completion_count"] < 2:
+            score = self.hypers.exploration_bonus
+        elif task_id not in self._task_emas:
+            score = self.hypers.exploration_bonus
+        else:
             ema_score, ema_squared, num_samples = self._task_emas[task_id]
 
-            # Calculate variance from EMA
             variance = max(0.0, ema_squared - ema_score * ema_score)
             std_dev = np.sqrt(variance)
-
-            # Learning progress is approximated by variance in performance
             learning_progress = std_dev
-
-            # Add exploration bonus for tasks with few samples
             if num_samples < 10:
                 learning_progress += self.hypers.exploration_bonus * (10 - num_samples) / 10
+            score = learning_progress
 
-            return learning_progress
-
-        return self._get_score_with_cache(task_id, compute_score)
-
-    def _get_score_with_cache(self, task_id: int, compute_fn: Callable[[], float]) -> float:
-        """Shared cache wrapper for per-task scoring paths."""
-        if task_id in self._cache_valid_tasks and task_id in self._score_cache:
-            return self._score_cache[task_id]
-
-        score = compute_fn()
         self._score_cache[task_id] = score
         self._cache_valid_tasks.add(task_id)
         return score
