@@ -46,7 +46,7 @@ import json
 import logging
 import os
 from collections import defaultdict
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -189,6 +189,7 @@ AGENT_CONFIGS: Dict[str, AgentConfig] = {
 }
 
 EXPERIMENT_MAP: Dict[str, Mission] = {}
+VARIANT_LOOKUP: Dict[str, MissionVariant] = {v.name: v for v in VARIANTS}
 
 
 def load_eval_missions(module_path: str):
@@ -200,6 +201,87 @@ def load_eval_missions(module_path: str):
     return missions
 
 
+def _run_case(
+    exp_name: str,
+    variant_name: str | None,
+    num_cogs: int,
+    base_mission: Mission,
+    variant: MissionVariant | None,
+    clip_period: int,
+    max_steps: int,
+    seed: int,
+    runs_per_case: int,
+    agent_config: AgentConfig,
+) -> List[EvalResult]:
+    mission_variants: List[MissionVariant] = [NumCogsVariant(num_cogs=num_cogs)]
+    if variant:
+        mission_variants.insert(0, variant)
+
+    try:
+        mission = base_mission.with_variants(mission_variants)
+        env_config = mission.make_env()
+        _ensure_vibe_supports_gear(env_config)
+        if variant is None or getattr(variant, "max_steps_override", None) is None:
+            env_config.game.max_steps = max_steps
+
+        actual_max_steps = env_config.game.max_steps
+        policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
+        policy = load_policy(policy_env_info, agent_config.policy_path, agent_config.data_path)
+        agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
+
+        case_results: List[EvalResult] = []
+        for run_idx in range(runs_per_case):
+            run_seed = seed + run_idx
+            rollout = Rollout(
+                env_config,
+                agent_policies,
+                render_mode="none",
+                seed=run_seed,
+                pass_sim_to_policies=True,
+            )
+            rollout.run_until_done()
+
+            total_reward = float(sum(rollout._sim.episode_rewards))
+            final_step = rollout._sim.current_step
+            case_results.append(
+                EvalResult(
+                    agent=agent_config.label,
+                    experiment=exp_name,
+                    num_cogs=num_cogs,
+                    difficulty=variant_name or "base",
+                    clip_period=clip_period,
+                    total_reward=total_reward,
+                    avg_reward_per_agent=total_reward / max(1, num_cogs),
+                    hearts_assembled=int(total_reward),
+                    steps_taken=final_step + 1,
+                    max_steps=actual_max_steps,
+                    success=total_reward > 0,
+                    seed_used=run_seed,
+                    run_index=run_idx + 1,
+                )
+            )
+        return case_results
+    except Exception:
+        return [
+            EvalResult(
+                agent=agent_config.label,
+                experiment=exp_name,
+                num_cogs=num_cogs,
+                difficulty=variant_name or "base",
+                clip_period=clip_period,
+                total_reward=0.0,
+                avg_reward_per_agent=0.0,
+                hearts_assembled=0,
+                steps_taken=0,
+                max_steps=max_steps,
+                success=False,
+                seed_used=seed + run_idx,
+                run_index=run_idx + 1,
+            )
+            for run_idx in range(runs_per_case)
+        ]
+
+
 def run_evaluation(
     agent_config: AgentConfig,
     experiments: List[str],
@@ -208,6 +290,7 @@ def run_evaluation(
     max_steps: int = 1000,
     seed: int = 42,
     repeats: int = 3,
+    jobs: int = 0,
     experiment_map: Dict[str, Mission] | None = None,
 ) -> List[EvalResult]:
     """Run evaluation for an agent configuration."""
