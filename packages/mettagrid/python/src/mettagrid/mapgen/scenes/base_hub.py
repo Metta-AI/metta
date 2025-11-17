@@ -20,7 +20,7 @@ class BaseHubConfig(SceneConfig):
     hub_height: int = 21
     include_inner_wall: bool = True
     # Make an empty buffer around the hub on the full grid (in tiles)
-    outer_clearance: int = 5
+    outer_clearance: int = 3
     # Order: top-left, top-right, bottom-left, bottom-right.
     # Notes:
     # - If corner_objects is provided (len==4), BaseHub will use that set directly.
