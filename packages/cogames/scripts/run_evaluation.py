@@ -361,12 +361,7 @@ def run_evaluation(
             actual_max_steps = env_config.game.max_steps
 
             policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
-            policy = load_policy(
-                policy_env_info,
-                agent_config.policy_path,
-                agent_config.data_path,
-                device=torch.device("cpu"),
-            )
+            policy = load_policy(policy_env_info, agent_config.policy_path, agent_config.data_path)
             agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
 
             for run_idx in range(runs_per_case):
@@ -917,7 +912,7 @@ def main():
     all_results = []
     for config in configs:
         # Use specified variants, or default to no variants (base missions)
-        variants = args.variants if args.variants else []
+        variants = args.variants or []
 
         # Use specified cogs or default to [1, 2, 4]
         cogs_list = args.cogs if args.cogs else [1, 2, 4]
