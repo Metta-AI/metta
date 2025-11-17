@@ -239,15 +239,18 @@ setting breakpoints in the C++ source files.
 ### Prerequisites
 
 1. **VSCode Extension**: Install the
-   [Python C++ Debugger](https://marketplace.visualstudio.com/items?itemName=benjamin-simmonds.pythoncpp-debug) extension (`pythoncpp`)
+   [Python C++ Debugger](https://marketplace.visualstudio.com/items?itemName=benjamin-simmonds.pythoncpp-debug)
+   extension (`pythoncpp`)
 2. **Debug Build**: Always build with `DEBUG=1` to enable debug symbols and dSYM generation
 
 ### Setup
 
 The repository includes pre-configured launch configurations in `.vscode/launch.json`:
 
-- **MettaGrid Demo** and other pythoncpp configurations - Combined Python + C++ debugging session for the demo script (requires the pythoncpp extension)
-- **_C++ Attach** - Attach C++ debugger to any running Python process (shared by all configurations but can be ran manually).
+- **MettaGrid Demo** and other pythoncpp configurations - Combined Python + C++ debugging session for the demo script
+  (requires the pythoncpp extension)
+- **\_C++ Attach** - Attach C++ debugger to any running Python process (shared by all configurations but can be ran
+  manually).
 
 ### Quick Start
 
@@ -278,7 +281,7 @@ The repository includes pre-configured launch configurations in `.vscode/launch.
 
 3. **Launch debugger** using the "MettaGrid Demo" or any other pythoncpp configuration from the VSCode Run panel.
 
-4. **Alternatively**, you can use the "_C++ Attach" configuration to attach the debugger to any running Python process.
+4. **Alternatively**, you can use the "\_C++ Attach" configuration to attach the debugger to any running Python process.
    It will ask you to select a process - type "metta" or "python" to filter the list.
 
 ### Testing C++ Debugging
@@ -336,5 +339,7 @@ Add the test call early in any Python entrypoint that uses mettagrid:
 
 ### Important Notes
 
-- **Always use `DEBUG=1`**: Without this environment variable, dSYM files won't be generated and C++ breakpoints won't work.
-- **Source maps**: The launch config includes source maps to correctly locate C++ files in the packages/mettagrid's workspace.
+- **Always use `DEBUG=1`**: Without this environment variable, dSYM files won't be generated and C++ breakpoints won't
+  work.
+- **Source maps**: The launch config includes source maps to correctly locate C++ files in the packages/mettagrid's
+  workspace.
