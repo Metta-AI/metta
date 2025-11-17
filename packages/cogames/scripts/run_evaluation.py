@@ -30,6 +30,9 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
 
+import matplotlib
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -380,7 +383,7 @@ def _bar_plot(
 
     if len(series_labels) == 1:
         vals = [value_fn(series_labels[0], lbl) for lbl in x_labels]
-        bars = ax.bar(x, vals, color=colors, alpha=0.8, edgecolor="black")
+        bars = list(ax.bar(x, vals, color=colors, alpha=0.8, edgecolor="black"))
     else:
         bars = []
         for i, series in enumerate(series_labels):
@@ -457,10 +460,6 @@ def _heatmap(
 def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> None:
     if not results:
         return
-
-    import matplotlib
-
-    matplotlib.use("Agg")
 
     output_path = Path(output_dir)
     output_path.mkdir(exist_ok=True)
