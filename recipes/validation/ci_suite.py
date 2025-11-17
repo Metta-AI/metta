@@ -79,7 +79,7 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
             "trainer.total_timesteps": "10000",
             "checkpointer.epoch_interval": "1",
             "num_cogs": "4",
-            "variants": '["lonely_heart","heart_chorus","pack_rat","neutral_faced"]',
+            "variants": "lonely_heart,heart_chorus,pack_rat,neutral_faced",
         },
         timeout_s=300,
         group=group,

@@ -94,7 +94,7 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
             "run": cvc_small_train_name,
             "trainer.total_timesteps": "2000000000",
             "num_cogs": "4",
-            "variants": '["lonely_heart","heart_chorus","pack_rat","neutral_faced"]',
+            "variants": "lonely_heart,heart_chorus,pack_rat,neutral_faced",
         },
         timeout_s=172800,
         remote=RemoteConfig(gpus=4, nodes=4),

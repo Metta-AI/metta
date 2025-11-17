@@ -3,6 +3,7 @@
 invokes the function, and then runs the tool defined by the config."""
 
 import argparse
+import collections.abc
 import copy
 import functools
 import inspect
@@ -180,6 +181,26 @@ def type_parse(value: Any, annotation: Any) -> Any:
     """Type-aware coercion using Pydantic when a function annotation is present."""
     if annotation is inspect._empty:
         return value
+
+    # Parse comma-separated strings into lists for sequence-typed parameters
+    # This provides a shell-safe alternative to JSON (e.g., "a,b,c" -> ["a", "b", "c"])
+    if isinstance(value, str) and "," in value:
+        origin = getattr(annotation, "__origin__", None)
+
+        # Check if target type is a sequence (list, tuple, Sequence, etc.)
+        is_sequence = origin in (list, tuple, collections.abc.Sequence)
+
+        # Also check Optional[list[T]] / Union[list[T], None] cases
+        if not is_sequence and hasattr(annotation, "__args__"):
+            for arg in annotation.__args__:
+                arg_origin = getattr(arg, "__origin__", None)
+                if arg_origin in (list, tuple, collections.abc.Sequence):
+                    is_sequence = True
+                    break
+
+        if is_sequence:
+            value = [v.strip() for v in value.split(",")]
+
     adapter = TypeAdapter(annotation)
     return adapter.validate_python(value)
 
