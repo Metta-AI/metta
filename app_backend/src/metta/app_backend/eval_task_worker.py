@@ -68,6 +68,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
         env = os.environ.copy()
         for key in ["PYTHONPATH", "UV_PROJECT", "UV_PROJECT_ENVIRONMENT"]:
             env.pop(key, None)
+        env["DISABLE_RICH_LOGGING"] = "1"
 
         if capture_output:
             # Redirect stderr to stdout to get chronologically interspersed output (like 2>&1)
@@ -222,7 +223,8 @@ class SimTaskExecutor(AbstractTaskExecutor):
             return TaskResult(
                 success=False,
                 log_path=log_path,
-                error="Job failed with return code " + str(result.returncode),
+                error="Job failed with return code " + str(result.returncode) + " and output: " + result.stdout,
+                warnings=[result.stderr],
             )
 
 

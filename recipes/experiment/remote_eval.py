@@ -6,7 +6,6 @@ from pydantic import Field
 
 from metta.app_backend.clients.stats_client import HttpStatsClient
 from metta.common.tool.tool import ToolResult, ToolWithResult
-from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.handle_results import to_eval_results
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
@@ -40,11 +39,9 @@ class ExecuteRemoteEvalTool(ToolWithResult):
             eval_task_id=self.eval_task_id,
             push_metrics_to_wandb=self.push_metrics_to_wandb,
         )
-        policy_spec = CheckpointManager.policy_spec_from_uri(
-            self.policy_uri,
-            device="cpu",
-        )
-        results = eval_tool.eval_policy(policy_spec)
+        return_code, msg, results = eval_tool.handle_single_policy_uri(self.policy_uri)
+        if return_code != 0:
+            return ToolResult(result="failure", error=msg)
         eval_results = to_eval_results(results, num_policies=1, target_policy_idx=0)
         if len(eval_results.scores.simulation_scores) == 0:
             return ToolResult(result="failure", error="No simulations were run")
