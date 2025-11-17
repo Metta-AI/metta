@@ -56,7 +56,7 @@ proc getMinimalReplay(fileName: string = "sample.json.z"): JsonNode =
         "is_frozen": false,
         "freeze_duration": 0,
         "orientation": 1,
-        "inventory": [[0, []], [20, [[0, 2], [1, 1]]]],
+        "inventory": [[0, []], [100, [1]], [200, [1, 1]]],
         "inventory_max": 10,
         "color": 1,
       },
