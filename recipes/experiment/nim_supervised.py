@@ -14,7 +14,9 @@ from mettagrid.config.mettagrid_config import EnvSupervisorConfig, MettaGridConf
 NIM_TEACHER_POLICY = "nim_thinky"
 DEFAULT_MISSION = "evals.extractor_hub_30"
 DEFAULT_VARIANTS: tuple[str, ...] = ("lonely_heart",)
-SUPERVISED_RESUME_POLICY_URI: str | None = "file://local.root.20251115.022755:v95.mpt"
+# SUPERVISED_RESUME_POLICY_URI: str | None = "file://local.root.20251115.022755:v95.mpt"
+SUPERVISED_RESUME_POLICY_URI: str | None = None
+RANDOM_WALK_PROB = 0.2
 
 
 def _load_env_from_mission(
@@ -65,7 +67,7 @@ def train(
     tool.trainer.batch_size = 4096
     tool.trainer.bptt_horizon = 16
 
-    tool.trainer.losses.supervisor.teacher_random_walk_prob = 0.2
+    tool.trainer.losses.supervisor.teacher_random_walk_prob = RANDOM_WALK_PROB
 
     tool.wandb.enabled = False
     tool.system.vectorization = vectorization
