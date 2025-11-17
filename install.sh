@@ -100,7 +100,8 @@ else
 fi
 
 echo "Installing bootstrap dependencies..."
-uv run python -m metta.setup.components.system_packages.bootstrap $BOOTSTRAP_NON_INTERACTIVE
+# Use --no-sync so we don't attempt a dependency sync before Bazel/Nim/Nimby exist
+uv run --no-sync python -m metta.setup.components.system_packages.bootstrap $BOOTSTRAP_NON_INTERACTIVE
 
 uv sync
 uv run python -m metta.setup.metta_cli install $PROFILE_ADDITION $NON_INTERACTIVE_ADDITION
