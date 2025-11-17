@@ -37,6 +37,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set PR assignee to author if unassigned
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Only set assignee if PR has no assignee yet (don't override manual assignments)
+          assignee_count=$(gh pr view ${{ github.event.pull_request.number }} --json assignees --jq '.assignees | length')
+          if [ "$assignee_count" -eq 0 ]; then
+            echo "No assignee set, assigning to PR author: ${{ github.event.pull_request.user.login }}"
+            gh pr edit ${{ github.event.pull_request.number }} --add-assignee ${{ github.event.pull_request.user.login }}
+          else
+            echo "PR already has assignee(s), skipping auto-assignment"
+          fi
+
       - name: Sync PR Task (GH to Asana)
         id: ensure-asana-task
         uses: ./.github/actions/asana/pr_gh_to_asana
