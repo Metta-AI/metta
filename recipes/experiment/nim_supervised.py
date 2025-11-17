@@ -11,14 +11,6 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import EnvSupervisorConfig, MettaGridConfig
 
-NIM_TEACHER_POLICY = "nim_thinky"
-DEFAULT_MISSION = "evals.extractor_hub_30"
-DEFAULT_VARIANTS: tuple[str, ...] = ("lonely_heart",)
-SUPERVISED_RESUME_POLICY_URI: str | None = None
-RANDOM_WALK_PROB = 0.2
-LEARNING_RATE = 0.001153637 * 0.1
-REPLAY_INTERVAL = 10
-
 
 def _load_env_from_mission(
     mission: str,
@@ -34,14 +26,14 @@ def _load_env_from_mission(
 
 def train(
     *,
-    mission: str = DEFAULT_MISSION,
-    variants: Iterable[str] | None = DEFAULT_VARIANTS,
+    mission: str = "evals.extractor_hub_30",
+    variants: Iterable[str] | None = ("lonely_heart",),
     cogs: int = 1,
     max_steps: int = 1000,
     total_timesteps: int = 262_144 * 10,
     vectorization: Literal["serial", "multiprocessing"] = "serial",
-    resume_policy_uri: str | None = SUPERVISED_RESUME_POLICY_URI,
-    learning_rate: float = LEARNING_RATE,
+    resume_policy_uri: str | None = None,
+    learning_rate: float = 0.001153637 * 0.1,
 ) -> TrainTool:
     """Train via supervised imitation from the Nim scripted policy."""
 
@@ -52,7 +44,7 @@ def train(
     tool = TrainTool(
         training_env=TrainingEnvironmentConfig(
             curriculum=curriculum,
-            supervisor=EnvSupervisorConfig(policy=NIM_TEACHER_POLICY),
+            supervisor=EnvSupervisorConfig(policy="nim_thinky"),
             num_workers=1,
             async_factor=1,
             forward_pass_minibatch_target_size=1024,
@@ -61,7 +53,7 @@ def train(
         evaluator=EvaluatorConfig(simulations=[SimulationConfig(suite=mission, name="nim_supervised", env=eval_env)]),
     )
 
-    tool.trainer.behavior_cloning.policy_uri = NIM_TEACHER_POLICY
+    tool.trainer.behavior_cloning.policy_uri = "nim_thinky"
     tool.trainer.behavior_cloning.student_led = False
 
     tool.trainer.total_timesteps = total_timesteps
@@ -70,7 +62,7 @@ def train(
     tool.trainer.bptt_horizon = 16
     tool.trainer.optimizer.learning_rate = learning_rate
 
-    tool.trainer.losses.supervisor.teacher_random_walk_prob = RANDOM_WALK_PROB
+    tool.trainer.losses.supervisor.teacher_random_walk_prob = 0.2
 
     tool.wandb.enabled = False
     tool.system.vectorization = vectorization
@@ -81,7 +73,7 @@ def train(
     tool.checkpointer.epoch_interval = 1
     tool.training_env.seed = 0
 
-    tool.evaluator.epoch_interval = REPLAY_INTERVAL
+    tool.evaluator.epoch_interval = 0
 
     if resume_policy_uri:
         tool.initial_policy_uri = resume_policy_uri
