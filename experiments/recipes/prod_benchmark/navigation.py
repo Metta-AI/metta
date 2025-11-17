@@ -15,7 +15,7 @@ from metta.map.terrain_from_numpy import NavigationFromNumpy
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.system_config import SystemConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.rl.trainer_config import TrainerConfig
+from metta.rl.trainer_config import OptimizerConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import make_sweep, SweepParameters as SP, Distribution as D
 from metta.tools.eval import EvaluateTool
@@ -51,7 +51,15 @@ def _resolve_policy_architecture(name: str) -> PolicyArchitecture:
 
 
 def _build_trainer(total_timesteps: int = BENCHMARK_TIMESTEPS) -> TrainerConfig:
-    return TrainerConfig(total_timesteps=total_timesteps, losses=LossesConfig())
+    return TrainerConfig(
+        total_timesteps=total_timesteps,
+        losses=LossesConfig(),
+        optimizer=OptimizerConfig(
+            type="adamw_schedulefree",
+            weight_decay=0.01,
+            warmup_steps=1_000,
+        ),
+    )
 
 
 def _build_system(seed: int) -> SystemConfig:

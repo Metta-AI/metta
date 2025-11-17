@@ -204,7 +204,7 @@ def sweep(sweep_name: str) -> SweepTool:
         5 - Launch tmux session: `tmux new -s sweep`
         6 - Launch the sweep: `uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.sweep sweep_name="ak.abes.10081528" --gpus=4 nodes=2`
         7 - Detach when you want: CTRL+B then d
-        8 - Attach to look at status/output: `tmux attach -t sweep_configs`
+        8 - Attach to look at status/output: `tmux attach -t sweep`
 
     Please tag Axel (akerbec@softmax.ai) on any bug report.
     """
