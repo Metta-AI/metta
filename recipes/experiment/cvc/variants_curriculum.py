@@ -11,6 +11,7 @@ import time
 from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
+from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig, ProtocolConfig
 from cogames.cogs_vs_clips.evals.diagnostic_evals import (
     DIAGNOSTIC_EVALS,
 )
@@ -69,6 +70,28 @@ DIAGNOSTIC_MISSIONS: tuple[str, ...] = (
 def get_all_variant_names() -> list[str]:
     """Get all variant names from VARIANTS."""
     return [variant.name for variant in VARIANTS]
+
+
+def _deduplicate_assembler_protocols(env: MettaGridConfig) -> None:
+    """Deduplicate assembler protocols to prevent C++ config errors.
+
+    Multiple variants can create duplicate protocols with the same vibes and min_agents.
+    This function removes duplicates, keeping the first occurrence of each unique combination.
+    """
+    assembler = env.game.objects.get("assembler")
+    if not isinstance(assembler, AssemblerConfig):
+        return
+
+    seen = set()
+    deduplicated = []
+    for protocol in assembler.protocols:
+        # Create a key from vibes (sorted for consistency) and min_agents
+        key = (tuple(sorted(protocol.vibes)), protocol.min_agents)
+        if key not in seen:
+            seen.add(key)
+            deduplicated.append(protocol)
+
+    assembler.protocols = deduplicated
 
 
 def make_curriculum(
@@ -141,6 +164,8 @@ def make_curriculum(
                     except ValueError:
                         # Skip missions that don't exist
                         continue
+                    # Deduplicate assembler protocols to avoid C++ config errors
+                    _deduplicate_assembler_protocols(mission_env)
                 else:
                     # Use the mission template directly (works for both eval and diagnostic missions)
                     mission = cogs_v_clips._prepare_mission(
@@ -150,6 +175,10 @@ def make_curriculum(
                     )
                     mission_env = mission.make_env()
                     cogs_v_clips._clamp_agent_inventory(mission_env)
+
+                # Deduplicate assembler protocols to avoid C++ config errors
+                # Multiple variants (e.g., CogToolsOnlyVariant + clipping variants) can create duplicates
+                _deduplicate_assembler_protocols(mission_env)
 
                 # Give each environment a label so per-label rewards can be tracked in stats/W&B.
                 # Use mission_name + variant_name as the label to distinguish variant combinations.
