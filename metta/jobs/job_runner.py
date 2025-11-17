@@ -346,12 +346,13 @@ class RemoteJob(Job):
 
         # Convert args dict to list of "key=value" strings for launch.py
         # Serialize lists/dicts to JSON for proper parsing
+        # Use single quotes around JSON to protect from shell interpretation
         import json
 
         arg_list = []
         for k, v in config.args.items():
             if isinstance(v, (list, dict)):
-                arg_list.append(f"{k}={json.dumps(v)}")
+                arg_list.append(f"{k}='{json.dumps(v)}'")
             else:
                 arg_list.append(f"{k}={v}")
 
