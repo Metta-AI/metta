@@ -301,12 +301,11 @@ def run_evaluation(
     experiment_lookup = experiment_map if experiment_map is not None else EXPERIMENT_MAP
     num_cogs_variant_cache: Dict[int, NumCogsVariant] = {}
 
-    logger.info(f"\n{'=' * 80}")
-    logger.info(f"Evaluating: {agent_config.label}")
-    logger.info(f"Experiments: {len(experiments)}")
-    logger.info(f"Variants: {len(variants) if variants else 0} (none = base mission)")
-    logger.info(f"Agent counts: {cogs_list}")
-    logger.info(f"{'=' * 80}\n")
+    logger.info(
+        "\n{0}\nEvaluating: {1}\nExperiments: {2}\nVariants: {3} (none = base mission)\nAgent counts: {4}\n{0}\n".format(
+            "=" * 80, agent_config.label, len(experiments), len(variant_list), cogs_list
+        )
+    )
 
     runs_per_case = max(1, int(repeats))
     variant_list = variants if variants else [None]
@@ -328,11 +327,25 @@ def run_evaluation(
             continue
 
         clip_period = getattr(variant, "extractor_clip_period", 0) if variant else 0
-        has_override = bool(
-            variant is not None and hasattr(variant, "max_steps_override") and variant.max_steps_override is not None
-        )
-
         logger.info(f"[{case_idx}/{total_cases}] {exp_name} | {variant_name or 'base'} | {num_cogs} agent(s)")
+        def append_result(total_reward: float, steps_taken: int, max_steps_val: int, success: bool, seed_used: int, run_index: int) -> None:
+            results.append(
+                EvalResult(
+                    agent=agent_config.label,
+                    experiment=exp_name,
+                    num_cogs=num_cogs,
+                    difficulty=variant_name or "base",
+                    clip_period=clip_period,
+                    total_reward=total_reward,
+                    avg_reward_per_agent=total_reward / max(1, num_cogs),
+                    hearts_assembled=int(total_reward),
+                    steps_taken=steps_taken,
+                    max_steps=max_steps_val,
+                    success=success,
+                    seed_used=seed_used,
+                    run_index=run_index,
+                )
+            )
 
         mission_variants: List[MissionVariant] = [
             num_cogs_variant_cache.setdefault(num_cogs, NumCogsVariant(num_cogs=num_cogs))
@@ -344,7 +357,11 @@ def run_evaluation(
             mission = base_mission.with_variants(mission_variants)
             env_config = mission.make_env()
             _ensure_vibe_supports_gear(env_config)
-            if not has_override:
+            if not (
+                variant is not None
+                and hasattr(variant, "max_steps_override")
+                and variant.max_steps_override is not None
+            ):
                 env_config.game.max_steps = max_steps
 
             actual_max_steps = env_config.game.max_steps
@@ -370,52 +387,34 @@ def run_evaluation(
                 rollout.run_until_done()
 
                 total_reward = float(sum(rollout._sim.episode_rewards))
-                avg_reward_per_agent = total_reward / max(1, num_cogs)
                 final_step = rollout._sim.current_step
 
-                result = EvalResult(
-                    agent=agent_config.label,
-                    experiment=exp_name,
-                    num_cogs=num_cogs,
-                    difficulty=variant_name or "base",
-                    clip_period=clip_period,
+                append_result(
                     total_reward=total_reward,
-                    avg_reward_per_agent=avg_reward_per_agent,
-                    hearts_assembled=int(total_reward),
                     steps_taken=final_step + 1,
-                    max_steps=actual_max_steps,
+                    max_steps_val=actual_max_steps,
                     success=total_reward > 0,
                     seed_used=run_seed,
                     run_index=run_idx + 1,
                 )
-                results.append(result)
 
                 completed_runs += 1
-                status = "✓" if result.success else "✗"
+                status = "✓" if total_reward > 0 else "✗"
                 logger.info(
                     f"  [run {run_idx + 1}/{runs_per_case}] {status} Total: {total_reward:.1f}, "
-                    f"Avg/Agent: {avg_reward_per_agent:.1f}, Steps: {final_step + 1}/{actual_max_steps} "
+                    f"Avg/Agent: {total_reward / max(1, num_cogs):.1f}, Steps: {final_step + 1}/{actual_max_steps} "
                     f"(seed={run_seed}, progress {completed_runs}/{total_tests})"
                 )
         except Exception as e:  # noqa: BLE001
             logger.error(f"  ✗ Error: {e}")
             for run_idx in range(runs_per_case):
-                results.append(
-                    EvalResult(
-                        agent=agent_config.label,
-                        experiment=exp_name,
-                        num_cogs=num_cogs,
-                        difficulty=variant_name or "base",
-                        clip_period=clip_period,
-                        total_reward=0.0,
-                        avg_reward_per_agent=0.0,
-                        hearts_assembled=0,
-                        steps_taken=0,
-                        max_steps=max_steps,
-                        success=False,
-                        seed_used=seed + run_idx,
-                        run_index=run_idx + 1,
-                    )
+                append_result(
+                    total_reward=0.0,
+                    steps_taken=0,
+                    max_steps_val=max_steps,
+                    success=False,
+                    seed_used=seed + run_idx,
+                    run_index=run_idx + 1,
                 )
                 completed_runs += 1
 
