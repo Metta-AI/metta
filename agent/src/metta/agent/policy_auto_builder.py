@@ -17,7 +17,7 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 logger = logging.getLogger("metta_agent")
 
 
-def log_on_master_with_level(log_level: logging.Level, *args, **argv) -> None:
+def log_on_master_with_level(log_level: str | int, *args, **argv) -> None:
     if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
         logger.log(log_level, *args, **argv)
 
