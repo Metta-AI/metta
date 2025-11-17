@@ -82,7 +82,7 @@ class WandbSetup(SetupModule):
 
     def check_connected_as(self) -> str | None:
         try:
-            result = subprocess.run(["wandb", "login"], capture_output=True, text=True)
+            result = subprocess.run(["uv", "run", "wandb", "login"], capture_output=True, text=True)
             # W&B outputs login status to stderr, not stdout
             output = result.stderr if result.stderr else result.stdout
             if result.returncode == 0 and "Currently logged in as:" in output:
