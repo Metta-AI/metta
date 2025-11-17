@@ -116,14 +116,7 @@ class JobConfig(Config):
             # Build tools/run.py command from recipe + args + overrides
             cmd = ["uv", "run", "./tools/run.py", self.recipe]
             for k, v in self.args.items():
-                # Serialize lists/dicts to JSON for proper parsing
-                # Use single quotes around JSON to protect from shell interpretation
-                if isinstance(v, (list, dict)):
-                    import json
-
-                    cmd.append(f"{k}='{json.dumps(v)}'")
-                else:
-                    cmd.append(f"{k}={v}")
+                cmd.append(f"{k}={v}")
             for k, v in self.overrides.items():
                 cmd.append(f"{k}={v}")
             return cmd

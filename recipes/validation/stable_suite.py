@@ -126,7 +126,7 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
         args={
             "run": cogames_train_name,
             "mission": "training_facility.harvest",
-            "variant": ["standard"],
+            "variant": "standard",
             "steps": "100000",
             "checkpoints": f"/tmp/{cogames_train_name}",
             "s3_uri": cogames_s3_uri,
@@ -143,7 +143,7 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
         recipe="recipes.prod.cogames.evaluate",
         args={
             "mission": "training_facility.harvest",
-            "variant": ["standard"],
+            "variant": "standard",
             "policy_uri": cogames_s3_uri,
             "episodes": "20",
         },
