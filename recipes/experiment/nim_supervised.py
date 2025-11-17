@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Iterable, Literal, Sequence
 
 from cogames.cli.mission import get_all_eval_missions, get_all_missions, get_mission
-from metta.cogworks.curriculum import Curriculum, merge, single_task
+from metta.cogworks.curriculum import CurriculumConfig, merge, single_task
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.train import TrainTool
@@ -37,9 +37,8 @@ def train(
 ) -> TrainTool:
     """Train via supervised imitation from the Nim scripted policy."""
 
-    env_cfg = _load_env_from_mission(mission, tuple(variants) if variants else None, cogs, max_steps)
-    curriculum = single_task(env_cfg).to_curriculum()
-    eval_env = env_cfg.model_copy(deep=True)
+    curriculum = create_cogames_curriculum(variants=variants, cogs=cogs, max_steps=max_steps)
+    eval_env = _load_env_from_mission(mission, tuple(variants) if variants else None, cogs, max_steps)
 
     tool = TrainTool(
         training_env=TrainingEnvironmentConfig(
@@ -86,7 +85,7 @@ def create_cogames_curriculum(
     variants: Iterable[str] | None = None,
     cogs: int = 1,
     max_steps: int = 1000,
-) -> Curriculum:
+) -> CurriculumConfig:
     """Create a curriculum that contains all the cogames missions (except for evals).
 
     Args:
@@ -95,7 +94,7 @@ def create_cogames_curriculum(
         max_steps: Maximum steps per episode for each mission
 
     Returns:
-        A Curriculum instance that rotates through all non-eval missions
+        A CurriculumConfig that rotates through all non-eval missions
     """
     all_missions = get_all_missions()
     eval_missions = set(get_all_eval_missions())
@@ -110,9 +109,7 @@ def create_cogames_curriculum(
         task_generators.append(single_task(env_cfg))
 
     if len(task_generators) == 1:
-        curriculum_config = task_generators[0].to_curriculum()
+        return task_generators[0].to_curriculum()
     else:
         merged = merge(task_generators)
-        curriculum_config = merged.to_curriculum()
-
-    return curriculum_config.make()
+        return merged.to_curriculum()
