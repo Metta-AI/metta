@@ -1,24 +1,27 @@
 # Dual-Pool Curriculum Implementation Plan
 
-**Status**: In Progress (Phase 6 Complete - 95% Done - Production Ready!)
-**Created**: 2025-11-16
-**Target Branch**: `msb_curr_simple_v3` (or new feature branch)
-**Estimated Effort**: 3-5 days
+**Status**: In Progress (Phase 6 Complete - 95% Done - Production Ready!) **Created**: 2025-11-16 **Target Branch**:
+`msb_curr_simple_v3` (or new feature branch) **Estimated Effort**: 3-5 days
 
 ## Overview
 
-Implement the dual-pool exploration-exploitation architecture as specified in `bidirectional_lp_curriculum.tex`. This architecture separates exploration and exploitation into two distinct task pools with adaptive sampling based on promotion success rates.
+Implement the dual-pool exploration-exploitation architecture as specified in `bidirectional_lp_curriculum.tex`. This
+architecture separates exploration and exploitation into two distinct task pools with adaptive sampling based on
+promotion success rates.
 
-**Key Innovation**: Self-tuning Explore-Exploit Ratio (ρ) that adapts based on whether exploration is finding valuable tasks, eliminating manual tuning of exploration rates.
+**Key Innovation**: Self-tuning Explore-Exploit Ratio (ρ) that adapts based on whether exploration is finding valuable
+tasks, eliminating manual tuning of exploration rates.
 
 ## Architecture Summary
 
 ### Single-Pool (Current)
+
 - One shared memory pool with N tasks
 - Exploration bonus for under-sampled tasks
 - Percentile-based eviction
 
 ### Dual-Pool (New)
+
 - Two shared memory pools: explore (N=50) and exploit (N=200)
 - Tasks promote from explore → exploit when they reach S_min samples and score above minimum exploit task
 - Adaptive sampling ratio ρ ∈ [0.05, 0.95] based on promotion rate
@@ -27,13 +30,16 @@ Implement the dual-pool exploration-exploitation architecture as specified in `b
 ## Implementation Phases
 
 ### Phase 1: Core Infrastructure ✅ Complete
+
 **Goal**: Add configuration and basic dual-pool structure without breaking existing code
 
 **Files Modified**:
+
 - `metta/cogworks/curriculum/learning_progress_algorithm.py` ✅
 - `tests/cogworks/curriculum/test_dual_pool_config.py` ✅ (new)
 
 **Tasks**:
+
 - [x] Add dual-pool configuration parameters to `LearningProgressConfig`
   - [x] `use_dual_pool: bool = False`
   - [x] `num_explore_tasks: int = 50`
@@ -49,21 +55,26 @@ Implement the dual-pool exploration-exploitation architecture as specified in `b
 - [x] Fix recursion issue with `object.__setattr__`
 
 **Validation**:
+
 - [x] Existing single-pool tests still pass (91 passed, 2 skipped)
 - [x] Config validation works correctly (13 new tests all pass)
 - [x] All parameter validations working (bounds, positive values, etc.)
 
-**Summary**: Phase 1 complete! Configuration infrastructure is in place with comprehensive validation. Ready to move to Phase 2.
+**Summary**: Phase 1 complete! Configuration infrastructure is in place with comprehensive validation. Ready to move to
+Phase 2.
 
 ---
 
 ### Phase 2: Dual-Pool Task Tracker ✅ Complete
+
 **Goal**: Create infrastructure for two independent task pools in shared memory
 
 **Files to Modify**:
+
 - `metta/cogworks/curriculum/task_tracker.py` (major changes)
 
 **New Components**:
+
 - [ ] Create `DualPoolTaskTracker` class that manages two `TaskTracker` instances
   - [ ] `explore_tracker: TaskTracker` with session_id suffix `_explore`
   - [ ] `exploit_tracker: TaskTracker` with session_id suffix `_exploit`
@@ -73,6 +84,7 @@ Implement the dual-pool exploration-exploitation architecture as specified in `b
   - [ ] Method: `get_all_exploit_tasks() -> List[int]`
 
 **Implementation Details**:
+
 ```python
 class DualPoolTaskTracker:
     def __init__(self, config: LearningProgressConfig):
@@ -100,6 +112,7 @@ class DualPoolTaskTracker:
 ```
 
 **Tasks**:
+
 - [x] Implement `DualPoolTaskTracker` class
 - [x] Add atomic promotion logic with locking
 - [x] Add task pool tracking (`_task_pool_map`)
@@ -108,6 +121,7 @@ class DualPoolTaskTracker:
 - [x] Implement `get_state()` and `load_state()` for checkpointing
 
 **Validation**:
+
 - [x] Unit test: Create dual-pool tracker
 - [x] Unit test: Track tasks in both pools
 - [x] Unit test: Promote task from explore to exploit
@@ -116,6 +130,7 @@ class DualPoolTaskTracker:
 - [x] Unit test: Handle promotion when exploit pool is full (eviction)
 
 **Summary**: Phase 2 complete! `DualPoolTaskTracker` class implemented with:
+
 - Two independent `TaskTracker` instances (explore and exploit pools)
 - Atomic task promotion with proper locking
 - Task pool routing via `_task_pool_map`
@@ -126,12 +141,15 @@ class DualPoolTaskTracker:
 ---
 
 ### Phase 3: Promotion Logic & EER ✅ Complete
+
 **Goal**: Implement promotion criteria and adaptive Explore-Exploit Ratio
 
 **Files to Modify**:
+
 - `metta/cogworks/curriculum/learning_progress_algorithm.py` ✅
 
 **New Components**:
+
 - [x] Add promotion tracking to `LearningProgressAlgorithm`
   - [x] `_promotion_window: deque[bool]` (sliding window for promotion success/fail)
   - [x] `_explore_exploit_ratio: float` (current ρ)
@@ -140,6 +158,7 @@ class DualPoolTaskTracker:
   - [x] `_current_phase: str` ('bootstrap' or 'steady_state')
 
 **Implementation Details**:
+
 ```python
 def _update_explore_exploit_ratio(self):
     """Update ρ based on recent promotion rate."""
@@ -169,6 +188,7 @@ def _update_explore_exploit_ratio(self):
 ```
 
 **Tasks**:
+
 - [x] Add promotion tracking data structures
 - [x] Implement `_check_promotion_eligibility(task_id: int) -> bool`
 - [x] Implement `_attempt_promotion(task_id: int) -> bool`
@@ -181,6 +201,7 @@ def _update_explore_exploit_ratio(self):
 - [x] Update `get_state()` and `load_state()` for dual-pool state
 
 **Validation**:
+
 - [ ] Unit test: Promotion eligibility (S_min threshold)
 - [ ] Unit test: Promotion criterion (score comparison)
 - [ ] Unit test: EER update calculation
@@ -189,6 +210,7 @@ def _update_explore_exploit_ratio(self):
 - [ ] Unit test: Bootstrap phase transitions to steady state
 
 **Summary**: Phase 3 complete! Promotion logic and adaptive EER fully implemented:
+
 - Promotion eligibility checking based on S_min threshold
 - Automatic promotion attempts during task updates
 - Score-based promotion with eviction of lowest-scoring exploit tasks
@@ -201,13 +223,16 @@ def _update_explore_exploit_ratio(self):
 ---
 
 ### Phase 4: Task Selection & Sampling ✅ Complete
+
 **Goal**: Implement dual-pool task selection with adaptive sampling
 
 **Files to Modify**:
+
 - `metta/cogworks/curriculum/curriculum.py` ✅
 - `metta/cogworks/curriculum/learning_progress_algorithm.py` ✅
 
 **Implementation Details**:
+
 ```python
 def get_task(self) -> CurriculumTask:
     """Sample task from appropriate pool based on ρ."""
@@ -245,6 +270,7 @@ def get_task(self) -> CurriculumTask:
 ```
 
 **Tasks**:
+
 - [x] Modify `Curriculum.get_task()` to handle dual-pool sampling
 - [x] Modify `Curriculum._choose_task()` for pool-based selection
 - [x] Modify `Curriculum._create_task()` to accept pool parameter
@@ -258,6 +284,7 @@ def get_task(self) -> CurriculumTask:
 - [x] Ensure LP scoring works within each pool independently
 
 **Validation**:
+
 - [ ] Unit test: Bootstrap phase samples 100% from explore
 - [ ] Unit test: Steady state samples according to ρ
 - [ ] Unit test: LP scoring within explore pool
@@ -265,6 +292,7 @@ def get_task(self) -> CurriculumTask:
 - [ ] Integration test: Full sampling loop with promotion
 
 **Summary**: Phase 4 complete! Dual-pool task selection and sampling fully implemented:
+
 - Pool selection logic: bootstrap (100% explore) vs steady-state (EER-based)
 - Task creation always in explore pool
 - Task sampling from selected pool with LP-weighted probability
@@ -274,13 +302,16 @@ def get_task(self) -> CurriculumTask:
 ---
 
 ### Phase 5: Statistics & Monitoring ✅ Planning
+
 **Goal**: Add comprehensive dual-pool metrics and logging
 
 **Files to Modify**:
+
 - `metta/cogworks/curriculum/learning_progress_algorithm.py`
 - `metta/rl/training/stats_reporter.py`
 
 **New Metrics**:
+
 ```python
 def get_dual_pool_stats(self) -> Dict[str, float]:
     """Return dual-pool specific statistics."""
@@ -315,6 +346,7 @@ def get_dual_pool_stats(self) -> Dict[str, float]:
 ```
 
 **Tasks**:
+
 - [ ] Implement `get_dual_pool_stats()` method
 - [ ] Add per-epoch counters for explore/exploit samples
 - [ ] Implement per-pool Gini coefficient calculations
@@ -324,6 +356,7 @@ def get_dual_pool_stats(self) -> Dict[str, float]:
 - [ ] Implement epoch boundary reset for per-epoch counters
 
 **Validation**:
+
 - [ ] Verify ρ is logged correctly
 - [ ] Verify promotion rate calculation is accurate
 - [ ] Verify per-pool Gini coefficients
@@ -332,13 +365,16 @@ def get_dual_pool_stats(self) -> Dict[str, float]:
 ---
 
 ### Phase 6: Task Creation & Pool Management ✅ Planning
+
 **Goal**: Handle task creation in explore pool and pool filling
 
 **Files to Modify**:
+
 - `metta/cogworks/curriculum/curriculum.py`
 - `metta/cogworks/curriculum/learning_progress_algorithm.py`
 
 **Implementation Details**:
+
 ```python
 def _ensure_explore_pool_full(self):
     """Maintain explore pool at capacity by creating new tasks."""
@@ -371,6 +407,7 @@ def _handle_task_promotion(self, task_id: int):
 ```
 
 **Tasks**:
+
 - [ ] Implement `_ensure_explore_pool_full()` to maintain capacity
 - [ ] Add task creation logic specific to explore pool
 - [ ] Handle promotion success: backfill explore pool
@@ -380,6 +417,7 @@ def _handle_task_promotion(self, task_id: int):
 - [ ] Ensure task IDs are unique across both pools
 
 **Validation**:
+
 - [ ] Test explore pool maintains capacity
 - [ ] Test exploit pool fills during bootstrap
 - [ ] Test promotion with eviction from exploit pool
@@ -389,13 +427,16 @@ def _handle_task_promotion(self, task_id: int):
 ---
 
 ### Phase 7: Checkpointing & State Management ✅ Planning
+
 **Goal**: Ensure dual-pool state can be saved and restored
 
 **Files to Modify**:
+
 - `metta/cogworks/curriculum/learning_progress_algorithm.py`
 - `metta/cogworks/curriculum/curriculum.py`
 
 **Implementation Details**:
+
 ```python
 def get_state(self) -> Dict[str, Any]:
     """Serialize dual-pool state."""
@@ -434,6 +475,7 @@ def load_state(self, state: Dict[str, Any]) -> None:
 ```
 
 **Tasks**:
+
 - [ ] Implement `get_state()` for dual-pool
 - [ ] Implement `load_state()` for dual-pool
 - [ ] Save/restore ρ and promotion statistics
@@ -443,6 +485,7 @@ def load_state(self, state: Dict[str, Any]) -> None:
 - [ ] Test checkpoint → resume → verify ρ trajectory continues correctly
 
 **Validation**:
+
 - [ ] Test save and load state
 - [ ] Test checkpoint mid-bootstrap phase
 - [ ] Test checkpoint mid-steady-state phase
@@ -452,9 +495,11 @@ def load_state(self, state: Dict[str, Any]) -> None:
 ---
 
 ### Phase 8: Testing & Validation ✅ Complete
+
 **Goal**: Comprehensive testing of dual-pool implementation
 
 **New Test Files**:
+
 - `tests/cogworks/curriculum/test_dual_pool_tracker.py`
 - `tests/cogworks/curriculum/test_dual_pool_algorithm.py`
 - `tests/cogworks/curriculum/test_dual_pool_integration.py`
@@ -462,6 +507,7 @@ def load_state(self, state: Dict[str, Any]) -> None:
 **Test Coverage**:
 
 #### Unit Tests
+
 - [ ] `test_dual_pool_config` - Configuration validation
 - [ ] `test_dual_pool_tracker_creation` - Two separate pools created
 - [ ] `test_task_promotion_atomic` - Atomic copy of 18 float64 values
@@ -475,6 +521,7 @@ def load_state(self, state: Dict[str, Any]) -> None:
 - [ ] `test_per_pool_gini` - Gini calculations per pool
 
 #### Integration Tests
+
 - [x] `test_full_bootstrap_to_steady_state` - Complete phase transition
 - [x] `test_promotion_backfill` - Task creation after promotion (handled by curriculum)
 - [x] `test_exploit_pool_eviction` - Eviction when promoting with full exploit pool
@@ -482,19 +529,23 @@ def load_state(self, state: Dict[str, Any]) -> None:
 - [x] `test_checkpoint_restore_dual_pool` - Save/load state preserves behavior
 
 #### End-to-End Tests
+
 - [x] `test_dual_pool_bootstrap_phase` - Bootstrap behavior (100% explore sampling)
 - [x] `test_dual_pool_promotion_logic` - Task promotion with score checks
 - [x] `test_dual_pool_statistics` - All statistics reported correctly
 - [x] `test_dual_pool_edge_cases` - Empty pools, single-pool fallback
 
 **Validation Criteria**:
+
 - [x] All existing single-pool tests still pass (139 tests pass!)
 - [x] All new dual-pool tests pass (15 integration tests pass!)
 - [x] Promotion logic respects score thresholds
 - [x] ρ trajectory is smooth and bounded
 - [x] Phase transitions (bootstrap → steady_state) work correctly
 
-**Summary**: Phase 8 complete! Created comprehensive integration test suite (`test_dual_pool_integration.py`) with 16 tests covering:
+**Summary**: Phase 8 complete! Created comprehensive integration test suite (`test_dual_pool_integration.py`) with 16
+tests covering:
+
 - Bootstrap phase behavior (100% explore sampling)
 - Task promotion criteria (min samples + score threshold)
 - Exploit pool filling and eviction
@@ -509,14 +560,17 @@ All 139 curriculum tests pass with no regressions!
 ---
 
 ### Phase 9: Documentation & Examples ✅ Planning
+
 **Goal**: Provide clear usage examples and documentation
 
 **Files to Create/Modify**:
+
 - `docs/dual_pool_tutorial.md`
 - `examples/dual_pool_curriculum_example.py`
 - Update `README.md` with dual-pool section
 
 **Documentation Tasks**:
+
 - [ ] Write tutorial: "Getting Started with Dual-Pool Curriculum"
 - [ ] Write guide: "When to Use Dual-Pool vs Single-Pool"
 - [ ] Write guide: "Tuning Dual-Pool Hyperparameters"
@@ -526,6 +580,7 @@ All 139 curriculum tests pass with no regressions!
 - [ ] Add troubleshooting section
 
 **Example Code**:
+
 ```python
 # examples/dual_pool_curriculum_example.py
 from metta.cogworks.curriculum import CurriculumConfig
@@ -584,9 +639,11 @@ for step in range(num_steps):
 ---
 
 ### Phase 10: Performance Optimization ✅ Planning
+
 **Goal**: Ensure dual-pool has acceptable performance overhead
 
 **Optimization Tasks**:
+
 - [ ] Profile: Measure overhead of promotion checks
 - [ ] Profile: Measure sliding window update cost
 - [ ] Profile: Compare dual-pool vs single-pool sampling time
@@ -596,6 +653,7 @@ for step in range(num_steps):
 - [ ] Benchmark: Compare memory usage dual vs single pool
 
 **Performance Targets**:
+
 - [ ] Promotion check overhead: < 5% of total sampling time
 - [ ] EER update overhead: < 1% of total sampling time
 - [ ] Memory overhead: < 2x single-pool (should be ~1.25x in practice)
@@ -606,6 +664,7 @@ for step in range(num_steps):
 ## File Modification Summary
 
 ### Major Changes Required
+
 1. **`learning_progress_algorithm.py`** (largest changes)
    - Add dual-pool config parameters
    - Add promotion logic and EER tracking
@@ -624,6 +683,7 @@ for step in range(num_steps):
    - Handle dual-pool checkpointing
 
 ### Minor Changes Required
+
 4. **`curriculum_env.py`** (minimal changes)
    - Already compatible, may need label tracking updates
 
@@ -636,6 +696,7 @@ for step in range(num_steps):
 ## Testing Strategy
 
 ### Test Pyramid
+
 ```
            /\
           /  \    E2E Tests (5)
@@ -649,6 +710,7 @@ for step in range(num_steps):
 ```
 
 ### Test Execution Plan
+
 1. Run existing single-pool tests → ensure no regression
 2. Run new dual-pool unit tests → verify components
 3. Run integration tests → verify interactions
@@ -658,11 +720,13 @@ for step in range(num_steps):
 ## Configuration Migration
 
 ### Backward Compatibility
+
 - Default: `use_dual_pool=False` (existing single-pool behavior)
 - No breaking changes to existing configs
 - Dual-pool params ignored when `use_dual_pool=False`
 
 ### New Configuration Pattern
+
 ```python
 # Old (still works)
 lp_config = LearningProgressConfig(
@@ -682,6 +746,7 @@ lp_config = LearningProgressConfig(
 ## Metrics & Monitoring
 
 ### Critical Metrics to Watch
+
 1. **`dual_pool/explore_exploit_ratio`** - Most important! Should adapt over training
 2. **`dual_pool/promotion_rate`** - Should correlate with ρ changes
 3. **`gini/explore_pool_occupancy`** - Should be lower than exploit (more uniform)
@@ -690,16 +755,19 @@ lp_config = LearningProgressConfig(
 ### Expected Metric Trajectories
 
 **Bootstrap Phase** (first ~1000 steps with defaults):
+
 - `explore_exploit_ratio` = 1.0 (forced)
 - `exploit_pool_size` grows from 0 → 200
 - `promotion_rate` ≈ 0.8-1.0 (most tasks promote)
 
 **Early Steady State** (steps 1000-5000):
+
 - `explore_exploit_ratio` drops to ~0.3-0.7 (adapting)
 - `promotion_rate` stabilizes at ~0.1-0.3
 - High variance in ρ as system explores parameter space
 
 **Late Steady State** (steps 5000+):
+
 - `explore_exploit_ratio` converges to stable value
 - `promotion_rate` becomes more stable
 - Exploit pool contains best historical tasks
@@ -707,6 +775,7 @@ lp_config = LearningProgressConfig(
 ## Risk Mitigation
 
 ### Technical Risks
+
 1. **Risk**: Promotion logic has race conditions
    - **Mitigation**: Atomic copy with proper locking, extensive unit tests
 
@@ -720,6 +789,7 @@ lp_config = LearningProgressConfig(
    - **Mitigation**: Profile early, optimize hot paths, cache eligibility
 
 ### Implementation Risks
+
 1. **Risk**: Breaking existing single-pool code
    - **Mitigation**: Comprehensive regression testing, feature flag
 
@@ -732,6 +802,7 @@ lp_config = LearningProgressConfig(
 ## Success Criteria
 
 ### Functionality
+
 - [ ] Can toggle between single and dual pool with config flag
 - [ ] Bootstrap phase automatically fills exploit pool
 - [ ] ρ adapts based on promotion rate
@@ -740,11 +811,13 @@ lp_config = LearningProgressConfig(
 - [ ] Checkpoints save and restore dual-pool state
 
 ### Performance
+
 - [ ] Sample efficiency ≥ single-pool on complex task distributions
 - [ ] Overhead < 10% compared to single-pool
 - [ ] ρ converges to stable value by 10k steps
 
 ### Code Quality
+
 - [ ] All tests pass (existing + new)
 - [ ] Test coverage > 80% for new code
 - [ ] No linter errors
@@ -753,19 +826,19 @@ lp_config = LearningProgressConfig(
 
 ## Timeline Estimate
 
-| Phase | Task | Estimated Time |
-|-------|------|----------------|
-| 1 | Core Infrastructure | 3-4 hours |
-| 2 | Dual-Pool Task Tracker | 6-8 hours |
-| 3 | Promotion Logic & EER | 6-8 hours |
-| 4 | Task Selection & Sampling | 4-6 hours |
-| 5 | Statistics & Monitoring | 4-5 hours |
-| 6 | Task Creation & Pool Management | 3-4 hours |
-| 7 | Checkpointing | 3-4 hours |
-| 8 | Testing & Validation | 8-10 hours |
-| 9 | Documentation & Examples | 3-4 hours |
-| 10 | Performance Optimization | 3-4 hours |
-| **Total** | | **43-57 hours** |
+| Phase     | Task                            | Estimated Time  |
+| --------- | ------------------------------- | --------------- |
+| 1         | Core Infrastructure             | 3-4 hours       |
+| 2         | Dual-Pool Task Tracker          | 6-8 hours       |
+| 3         | Promotion Logic & EER           | 6-8 hours       |
+| 4         | Task Selection & Sampling       | 4-6 hours       |
+| 5         | Statistics & Monitoring         | 4-5 hours       |
+| 6         | Task Creation & Pool Management | 3-4 hours       |
+| 7         | Checkpointing                   | 3-4 hours       |
+| 8         | Testing & Validation            | 8-10 hours      |
+| 9         | Documentation & Examples        | 3-4 hours       |
+| 10        | Performance Optimization        | 3-4 hours       |
+| **Total** |                                 | **43-57 hours** |
 
 **Calendar Time**: 3-5 days with dedicated focus
 
@@ -781,6 +854,7 @@ lp_config = LearningProgressConfig(
 ## Notes & Open Questions
 
 ### Design Decisions to Make
+
 - [ ] **Promotion failure policy**: Keep task in explore or replace with new task?
   - **Recommendation**: Keep task (give more chances), but configurable
 - [ ] **Demotion**: Allow tasks to move exploit → explore if performance degrades?
@@ -791,12 +865,14 @@ lp_config = LearningProgressConfig(
   - **Recommendation**: Strict (exact match) for clean phase transition
 
 ### Questions for Math/Theory Review
+
 - [ ] Is α_EER = 0.9 the right default? Should it be lower for faster adaptation?
 - [ ] Should W (window size) scale with pool sizes?
 - [ ] What are the stability guarantees for ρ convergence?
 - [ ] Can we prove bounds on bootstrap phase duration?
 
 ### Future Enhancements (Out of Scope for v1)
+
 - Multi-tier pools (explore, develop, exploit)
 - Adaptive pool sizes based on ρ
 - Per-label dual pools
@@ -812,7 +888,4 @@ lp_config = LearningProgressConfig(
 
 ---
 
-**Last Updated**: 2025-11-16
-**Assigned To**: TBD
-**Reviewer**: TBD
-
+**Last Updated**: 2025-11-16 **Assigned To**: TBD **Reviewer**: TBD
