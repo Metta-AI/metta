@@ -1,17 +1,18 @@
 """Curriculum helpers for cycling through CoGames maps."""
 
 from collections import deque
-from dataclasses import dataclass
 from typing import Callable
 
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
 
-@dataclass
 class RotationSupplier:
     """Picklable callable that cycles through (name, cfg) tuples."""
 
-    rotation: deque
+    __slots__ = ("rotation",)
+
+    def __init__(self, missions: list[tuple[str, MettaGridConfig]]) -> None:
+        self.rotation = deque(missions)
 
     def __call__(self) -> MettaGridConfig:
         _, cfg = self.rotation[0]
@@ -23,4 +24,4 @@ def make_rotation(missions: list[tuple[str, MettaGridConfig]]) -> Callable[[], M
     if not missions:
         raise ValueError("Must have at least one mission in rotation")
 
-    return RotationSupplier(deque(missions))
+    return RotationSupplier(missions)
