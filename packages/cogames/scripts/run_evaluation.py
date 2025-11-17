@@ -284,9 +284,15 @@ def run_evaluation(
     runs_per_case = max(1, int(repeats))
     variant_list = variants or [None]
 
+    header = "\n{sep}\nEvaluating: {agent}\nExperiments: {exp}\nVariants: {var_count} (none = base mission)\n"
+    header += "Agent counts: {cogs}\n{sep}\n"
     logger.info(
-        "\n{0}\nEvaluating: {1}\nExperiments: {2}\nVariants: {3} (none = base mission)\nAgent counts: {4}\n{0}\n".format(
-            "=" * 80, agent_config.label, len(experiments), len(variant_list), cogs_list
+        header.format(
+            sep="=" * 80,
+            agent=agent_config.label,
+            exp=len(experiments),
+            var_count=len(variant_list),
+            cogs=cogs_list,
         )
     )
     total_cases = len(experiments) * len(variant_list) * len(cogs_list)
@@ -308,16 +314,28 @@ def run_evaluation(
 
         clip_period = getattr(variant, "extractor_clip_period", 0) if variant else 0
         logger.info(f"[{case_idx}/{total_cases}] {exp_name} | {variant_name or 'base'} | {num_cogs} agent(s)")
-        def append_result(total_reward: float, steps_taken: int, max_steps_val: int, success: bool, seed_used: int, run_index: int) -> None:
+
+        def append_result(
+            total_reward: float,
+            steps_taken: int,
+            max_steps_val: int,
+            success: bool,
+            seed_used: int,
+            run_index: int,
+            exp: str = exp_name,
+            var_label: str = variant_name or "base",
+            cp: int = clip_period,
+            nc: int = num_cogs,
+        ) -> None:
             results.append(
                 EvalResult(
                     agent=agent_config.label,
-                    experiment=exp_name,
-                    num_cogs=num_cogs,
-                    difficulty=variant_name or "base",
-                    clip_period=clip_period,
+                    experiment=exp,
+                    num_cogs=nc,
+                    difficulty=var_label,
+                    clip_period=cp,
                     total_reward=total_reward,
-                    avg_reward_per_agent=total_reward / max(1, num_cogs),
+                    avg_reward_per_agent=total_reward / max(1, nc),
                     hearts_assembled=int(total_reward),
                     steps_taken=steps_taken,
                     max_steps=max_steps_val,
