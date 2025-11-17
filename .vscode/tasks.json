@@ -6,11 +6,6 @@
       "command": "DEBUG=1 uv sync --inexact",
       "label": "uv sync",
       "group": "build",
-      "options": {
-        "env": {
-          "DEBUG": "1",
-        },
-      },
     },
     {
       "label": "build all",
