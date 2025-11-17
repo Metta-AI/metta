@@ -351,7 +351,7 @@ def list_missions() -> None:
     console.print("\n[bold green]Examples:[/bold green]")
     console.print("  [bold]cogames play[/bold] --mission [blue]training_facility.harvest[/blue]")
     console.print(
-        "  [bold]cogames play[/bold] --mission [blue]hello_world.explore[/blue] --variant [yellow]mined_out[/yellow]"
+        "  [bold]cogames play[/bold] --mission [blue]hello_world.open_world[/blue] --variant [yellow]mined_out[/yellow]"
     )
     console.print(
         "  [bold]cogames play[/bold] --mission [blue]machina_1.open_world[/blue] "
