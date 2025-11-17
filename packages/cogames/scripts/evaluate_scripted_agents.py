@@ -526,17 +526,16 @@ def create_plots(
 
     for spec in group_specs:
         _plot_grouped_bars(
-            x_labels=spec.get("x_labels", []),
-            series_labels=spec.get("series", []),
+            x_labels=spec["x_labels"],
+            series_labels=spec["series"],
             value_lookup=spec["lookup"],
             ylabel=spec["ylabel"],
             xlabel=spec["xlabel"],
             title=spec["title"],
             filename=spec["filename"],
             output_path=output_path,
-            figsize=spec.get("figsize", (16, 8)),
+            figsize=spec.get("figsize", (12, 7)),
             rotation=spec.get("rotation", 45),
-            annotate=annotate_bars,
         )
 
     heatmap_specs = [
