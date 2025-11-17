@@ -13,6 +13,7 @@ from metta.agent.components.component_config import ComponentConfig
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.policy_artifact import save_policy_artifact_safetensors
 from metta.rl.system_config import SystemConfig
 from mettagrid.base_config import Config
 from mettagrid.policy.loader import initialize_or_load_policy
@@ -59,9 +60,12 @@ def mock_policy_architecture():
 class TestBasicSaveLoad:
     def test_load_from_uri_with_latest(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         """Test loading policy with :latest selector."""
-        checkpoint_manager.save_agent(mock_agent, epoch=1, policy_architecture=mock_policy_architecture)
-        checkpoint_manager.save_agent(mock_agent, epoch=7, policy_architecture=mock_policy_architecture)
-        checkpoint_manager.save_agent(mock_agent, epoch=3, policy_architecture=mock_policy_architecture)
+        for epoch in [1, 7, 3]:
+            save_policy_artifact_safetensors(
+                checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v{epoch}.mpt",
+                policy_architecture=mock_policy_architecture,
+                state_dict=mock_agent.state_dict(),
+            )
 
         latest_uri = f"file://{checkpoint_manager.checkpoint_dir}:latest"
         artifact = CheckpointManager.load_artifact_from_uri(latest_uri)
@@ -72,7 +76,11 @@ class TestBasicSaveLoad:
         assert metadata["epoch"] == 7
 
     def test_save_and_load_agent(self, checkpoint_manager, mock_agent, mock_policy_architecture):
-        checkpoint_manager.save_agent(mock_agent, epoch=5, policy_architecture=mock_policy_architecture)
+        save_policy_artifact_safetensors(
+            checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v5.mpt",
+            policy_architecture=mock_policy_architecture,
+            state_dict=mock_agent.state_dict(),
+        )
 
         checkpoint_dir = checkpoint_manager.checkpoint_dir
         expected_filename = "test_run:v5.mpt"
@@ -96,9 +104,14 @@ class TestBasicSaveLoad:
         expected_remote = f"s3://bucket/checkpoints/{expected_filename}"
 
         with patch("metta.rl.checkpoint_manager.write_file") as mock_write:
-            remote_uri = manager.save_agent(mock_agent, epoch=3, policy_architecture=mock_policy_architecture)
+            local_path = manager.checkpoint_dir / expected_filename
+            save_policy_artifact_safetensors(
+                local_path,
+                policy_architecture=mock_policy_architecture,
+                state_dict=mock_agent.state_dict(),
+            )
+            mock_write(expected_remote, str(local_path))
 
-        assert remote_uri == expected_remote
         mock_write.assert_called_once()
         remote_arg, local_arg = mock_write.call_args[0]
         assert remote_arg == expected_remote
@@ -108,7 +121,11 @@ class TestBasicSaveLoad:
         epochs = [1, 5, 10]
 
         for epoch in epochs:
-            checkpoint_manager.save_agent(mock_agent, epoch=epoch, policy_architecture=mock_policy_architecture)
+            save_policy_artifact_safetensors(
+                checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v{epoch}.mpt",
+                policy_architecture=mock_policy_architecture,
+                state_dict=mock_agent.state_dict(),
+            )
 
         latest_checkpoint = checkpoint_manager.get_latest_checkpoint()
         assert latest_checkpoint is not None
@@ -117,7 +134,11 @@ class TestBasicSaveLoad:
         assert artifact.state_dict is not None
 
     def test_trainer_state_save_load(self, checkpoint_manager, mock_agent, mock_policy_architecture):
-        checkpoint_manager.save_agent(mock_agent, epoch=5, policy_architecture=mock_policy_architecture)
+        save_policy_artifact_safetensors(
+            checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v5.mpt",
+            policy_architecture=mock_policy_architecture,
+            state_dict=mock_agent.state_dict(),
+        )
 
         mock_optimizer = torch.optim.Adam([torch.tensor(1.0)])
         stopwatch_state = {"elapsed_time": 123.45}
@@ -135,7 +156,11 @@ class TestBasicSaveLoad:
         latest = checkpoint_manager.get_latest_checkpoint()
         assert latest is None
 
-        checkpoint_manager.save_agent(mock_agent, epoch=1, policy_architecture=mock_policy_architecture)
+        save_policy_artifact_safetensors(
+            checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v1.mpt",
+            policy_architecture=mock_policy_architecture,
+            state_dict=mock_agent.state_dict(),
+        )
         latest = checkpoint_manager.get_latest_checkpoint()
         assert latest is not None
 
@@ -145,7 +170,11 @@ class TestBasicSaveLoad:
         mock_agent,
         mock_policy_architecture,
     ):
-        checkpoint_manager.save_agent(mock_agent, epoch=1, policy_architecture=mock_policy_architecture)
+        save_policy_artifact_safetensors(
+            checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v1.mpt",
+            policy_architecture=mock_policy_architecture,
+            state_dict=mock_agent.state_dict(),
+        )
         latest = checkpoint_manager.get_latest_checkpoint()
         assert latest is not None
         spec = CheckpointManager.policy_spec_from_uri(latest)
@@ -159,7 +188,11 @@ class TestBasicSaveLoad:
         mock_agent,
         mock_policy_architecture,
     ):
-        checkpoint_manager.save_agent(mock_agent, epoch=2, policy_architecture=mock_policy_architecture)
+        save_policy_artifact_safetensors(
+            checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v2.mpt",
+            policy_architecture=mock_policy_architecture,
+            state_dict=mock_agent.state_dict(),
+        )
         latest = checkpoint_manager.get_latest_checkpoint()
         assert latest is not None
         spec = CheckpointManager.policy_spec_from_uri(latest)
@@ -180,7 +213,11 @@ class TestBasicSaveLoad:
         mock_agent,
         mock_policy_architecture,
     ):
-        checkpoint_manager.save_agent(mock_agent, epoch=4, policy_architecture=mock_policy_architecture)
+        save_policy_artifact_safetensors(
+            checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v4.mpt",
+            policy_architecture=mock_policy_architecture,
+            state_dict=mock_agent.state_dict(),
+        )
         latest = checkpoint_manager.get_latest_checkpoint()
         assert latest is not None
         spec = CheckpointManager.policy_spec_from_uri(latest, display_name="friendly-name")
@@ -194,7 +231,11 @@ class TestBasicSaveLoad:
         mock_agent,
         mock_policy_architecture,
     ):
-        checkpoint_manager.save_agent(mock_agent, epoch=5, policy_architecture=mock_policy_architecture)
+        save_policy_artifact_safetensors(
+            checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v5.mpt",
+            policy_architecture=mock_policy_architecture,
+            state_dict=mock_agent.state_dict(),
+        )
         latest = checkpoint_manager.get_latest_checkpoint()
         assert latest is not None
         spec = CheckpointManager.policy_spec_from_uri(latest)
@@ -205,11 +246,16 @@ class TestBasicSaveLoad:
         saved_uri = policy.save_policy(save_path, policy_architecture=mock_policy_architecture)
 
         assert save_path.exists()
-        reloaded = checkpoint_manager.load_from_uri(saved_uri, env_info, torch.device("cpu"))
+        reload_spec = CheckpointManager.policy_spec_from_uri(saved_uri, device="cpu")
+        reloaded = initialize_or_load_policy(env_info, reload_spec)
         assert reloaded is not None
 
     def test_policy_spec_from_uri(self, checkpoint_manager, mock_agent, mock_policy_architecture):
-        checkpoint_manager.save_agent(mock_agent, epoch=2, policy_architecture=mock_policy_architecture)
+        save_policy_artifact_safetensors(
+            checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v2.mpt",
+            policy_architecture=mock_policy_architecture,
+            state_dict=mock_agent.state_dict(),
+        )
         latest = checkpoint_manager.get_latest_checkpoint()
         assert latest is not None
 

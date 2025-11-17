@@ -10,6 +10,7 @@ from pydantic import Field
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.common.util.file import write_file
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.policy_artifact import save_policy_artifact_safetensors
 from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config
 from mettagrid.policy.loader import initialize_or_load_policy
@@ -133,13 +134,16 @@ class Checkpointer(TrainerComponent):
             if uri.startswith("file://"):
                 local_uri = uri
         else:
-            uri = self._checkpoint_manager.save_agent(
-                policy,
-                epoch,
+            # Directly write artifact; all policies are expected to support save_policy, so hitting
+            # this path is an indicator that training started with a raw policy.
+            local_path.parent.mkdir(parents=True, exist_ok=True)
+            save_policy_artifact_safetensors(
+                local_path,
                 policy_architecture=self._policy_architecture,
+                state_dict=policy.state_dict(),
             )
-            if uri.startswith("file://"):
-                local_uri = uri
+            uri = f"file://{local_path.resolve()}"
+            local_uri = uri
 
         # Upload to remote if configured
         if getattr(self._checkpoint_manager, "_remote_prefix", None):

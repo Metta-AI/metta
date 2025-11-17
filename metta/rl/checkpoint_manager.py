@@ -9,7 +9,7 @@ import boto3
 import torch
 
 from metta.agent.mocks import MockAgent
-from metta.agent.policy import Policy, PolicyArchitecture
+from metta.agent.policy import PolicyArchitecture
 from metta.common.util.file import local_copy, write_file
 from metta.common.util.uri import ParsedURI
 from metta.rl.policy_artifact import (
@@ -190,11 +190,6 @@ class CheckpointManager:
         return self._remote_prefix is not None
 
     @staticmethod
-    def load_from_uri(uri: str, policy_env_info: PolicyEnvInterface, device: torch.device) -> Policy:
-        artifact = CheckpointManager.load_artifact_from_uri(uri)
-        return artifact.instantiate(policy_env_info, device)
-
-    @staticmethod
     def load_artifact_from_uri(uri: str) -> PolicyArtifact:
         """Load a policy from a URI (file://, s3://, or mock://).
 
@@ -275,38 +270,6 @@ class CheckpointManager:
         if "loss_states" in state:
             result["loss_states"] = state["loss_states"]
         return result
-
-    def save_agent(
-        self,
-        agent: Policy,
-        epoch: int,
-        *,
-        policy_architecture: PolicyArchitecture,
-    ) -> str:
-        """Save agent checkpoint to disk and upload to remote storage if configured.
-
-        The serialized artifact always includes the policy weights and architecture metadata.
-
-        Returns URI of saved checkpoint (s3:// if remote prefix configured, otherwise file://).
-        """
-        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        filename = f"{self.run_name}:v{epoch}.mpt"
-        checkpoint_path = self.checkpoint_dir / filename
-
-        save_policy_artifact_safetensors(
-            checkpoint_path,
-            policy_architecture=policy_architecture,
-            state_dict=agent.state_dict(),
-        )
-
-        remote_uri = None
-        if self._remote_prefix:
-            remote_uri = f"{self._remote_prefix}/{filename}"
-            write_file(remote_uri, str(checkpoint_path))
-
-        if remote_uri:
-            return remote_uri
-        return f"file://{checkpoint_path.resolve()}"
 
     def save_trainer_state(
         self,
