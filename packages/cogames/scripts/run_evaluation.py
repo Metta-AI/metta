@@ -425,6 +425,8 @@ def _heatmap(
     value_fn,
     output_path: Path,
     figsize: tuple[float, float],
+    xlabel: str,
+    ylabel: str,
 ):
     matrix = np.array([[value_fn(x, y) for x in x_labels] for y in y_labels])
     fig, ax = plt.subplots(figsize=figsize)
@@ -444,8 +446,8 @@ def _heatmap(
             ax.text(j, i, f"{matrix[i, j]:.1f}", ha="center", va="center", color="black", fontsize=9, fontweight="bold")
 
     ax.set_title(title, fontsize=14, fontweight="bold", pad=20)
-    ax.set_xlabel(x_labels and x_labels[0].__class__.__name__ or "X", fontsize=12, fontweight="bold")
-    ax.set_ylabel(y_labels and y_labels[0].__class__.__name__ or "Y", fontsize=12, fontweight="bold")
+    ax.set_xlabel(xlabel, fontsize=12, fontweight="bold")
+    ax.set_ylabel(ylabel, fontsize=12, fontweight="bold")
 
     plt.tight_layout()
     plt.savefig(output_path / filename, dpi=150, bbox_inches="tight")
@@ -613,6 +615,8 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
             "y_labels": experiments,
             "fn": lambda agent, exp: lookup(agent, exp, None, None, "avg_reward_per_agent"),
             "figsize": (10, len(experiments) * 0.5 + 2),
+            "xlabel": "Agent",
+            "ylabel": "Environment",
         },
         {
             "filename": "heatmap_env_agent_total.png",
@@ -621,6 +625,8 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
             "y_labels": experiments,
             "fn": lambda agent, exp: lookup(agent, exp, None, None, "avg_total_reward"),
             "figsize": (10, len(experiments) * 0.5 + 2),
+            "xlabel": "Agent",
+            "ylabel": "Environment",
         },
         {
             "filename": "heatmap_diff_agent.png",
@@ -629,6 +635,8 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
             "y_labels": variants,
             "fn": lambda agent, diff: lookup(agent, None, diff, None, "avg_reward_per_agent"),
             "figsize": (10, len(variants) * 0.4 + 2),
+            "xlabel": "Agent",
+            "ylabel": "Difficulty",
         },
         {
             "filename": "heatmap_diff_agent_total.png",
@@ -637,6 +645,8 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
             "y_labels": variants,
             "fn": lambda agent, diff: lookup(agent, None, diff, None, "avg_total_reward"),
             "figsize": (10, len(variants) * 0.4 + 2),
+            "xlabel": "Agent",
+            "ylabel": "Difficulty",
         },
     ]
 
@@ -649,6 +659,8 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
             value_fn=spec["fn"],
             output_path=output_path,
             figsize=spec["figsize"],
+            xlabel=spec["xlabel"],
+            ylabel=spec["ylabel"],
         )
 
     logger.info(f"✓ Plots saved to {output_path}/")
