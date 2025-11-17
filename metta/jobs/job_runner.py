@@ -345,7 +345,15 @@ class RemoteJob(Job):
             raise ValueError("RemoteJob requires config.remote to be set (or job_id for resuming)")
 
         # Convert args dict to list of "key=value" strings for launch.py
-        arg_list = [f"{k}={v}" for k, v in config.args.items()]
+        # Serialize lists/dicts to JSON for proper parsing
+        import json
+
+        arg_list = []
+        for k, v in config.args.items():
+            if isinstance(v, (list, dict)):
+                arg_list.append(f"{k}={json.dumps(v)}")
+            else:
+                arg_list.append(f"{k}={v}")
 
         if config.remote:
             base_args = [f"--gpus={config.remote.gpus}", f"--nodes={config.remote.nodes}"]
