@@ -31,6 +31,7 @@ DEFAULT_LORA_TARGETS = ["q_proj", "k_proj", "v_proj", "o_proj"]
 def train(
     *,
     curriculum: Optional[CurriculumConfig] = None,
+    enable_detailed_slice_logging: bool = False,
     model_name: Optional[str] = None,
     attn_implementation: Optional[str] = None,
     policy_architecture: Optional[PolicyArchitecture] = None,
@@ -55,10 +56,13 @@ def train(
         config_kwargs["model_name"] = model_name or "HuggingFaceTB/SmolLM2-135M"
         policy_architecture = SmolLLMConfig(**config_kwargs)
 
-    resolved_curriculum = curriculum or smollm_recipe.make_curriculum()
+    resolved_curriculum = curriculum or smollm_recipe.make_curriculum(
+        enable_detailed_slice_logging=enable_detailed_slice_logging,
+    )
 
     tool = base_train(
         curriculum=resolved_curriculum,
+        enable_detailed_slice_logging=enable_detailed_slice_logging,
         policy_architecture=policy_architecture,
     )
 

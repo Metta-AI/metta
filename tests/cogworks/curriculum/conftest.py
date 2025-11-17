@@ -25,6 +25,7 @@ def curriculum_config(arena_env):
     """Create a basic curriculum configuration."""
     return CurriculumConfig(
         task_generator=SingleTaskGenerator.Config(env=arena_env),
+        max_task_id=1000,
         num_active_tasks=50,
     )
 
@@ -35,8 +36,9 @@ def learning_progress_algorithm():
     return LearningProgressConfig(
         ema_timescale=0.001,
         exploration_bonus=0.1,
-        num_active_tasks=1000,
-        use_shared_memory=False,
+        max_memory_tasks=1000,
+        max_slice_axes=3,
+        enable_detailed_slice_logging=False,
     )
 
 

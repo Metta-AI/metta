@@ -47,6 +47,7 @@ def _select_attn_implementation(attn_implementation: Optional[str]) -> Optional[
 def train(
     *,
     curriculum: Optional[CurriculumConfig] = None,
+    enable_detailed_slice_logging: bool = False,
     freeze_llm: bool = True,
     model_name: Optional[str] = None,
     attn_implementation: Optional[str] = None,
@@ -63,10 +64,13 @@ def train(
         config_kwargs["model_name"] = model_name or "HuggingFaceTB/SmolLM2-135M"
         policy_architecture = SmolLLMConfig(**config_kwargs)
 
-    resolved_curriculum = curriculum or make_curriculum()
+    resolved_curriculum = curriculum or make_curriculum(
+        enable_detailed_slice_logging=enable_detailed_slice_logging,
+    )
 
     tool = base_train(
         curriculum=resolved_curriculum,
+        enable_detailed_slice_logging=enable_detailed_slice_logging,
         policy_architecture=policy_architecture,
     )
 
@@ -129,6 +133,7 @@ __all__ = [
 def make_curriculum(
     arena_env: Optional[MettaGridConfig] = None,
     *,
+    enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
 ) -> CurriculumConfig:
     """SmolLLM-friendly arena curriculum that avoids legacy converter fields."""
@@ -144,17 +149,12 @@ def make_curriculum(
 
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
-            use_bidirectional=True,  # Default: bidirectional learning progress
+            use_bidirectional=True,
             ema_timescale=0.001,
-            num_active_tasks=256,
-            slow_timescale_factor=0.2,
-            rand_task_rate=0.01,
             exploration_bonus=0.1,
-            min_samples_for_lp=10,  # Use exploration bonus for first 10 samples
-            lp_score_temperature=0.0,  # Z-score normalization for relative LP comparison
-            z_score_amplification=10.0,  # Amplification after z-score (only when temp=0)
-            show_curriculum_troubleshooting_logging=True,  # Enable per-task metrics for debugging
-            early_progress_amplification=0.5,  # 0.5 = OFF, low values (0.05) amplify unsolved tasks
+            max_memory_tasks=1000,
+            max_slice_axes=5,
+            enable_detailed_slice_logging=enable_detailed_slice_logging,
         )
 
     return tasks.to_curriculum(algorithm_config=algorithm_config)

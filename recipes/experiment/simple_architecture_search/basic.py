@@ -67,6 +67,7 @@ def mettagrid(num_agents: int = 24) -> MettaGridConfig:
 
 def make_curriculum(
     arena_env: Optional[MettaGridConfig] = None,
+    enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
 ) -> CurriculumConfig:
     arena_env = arena_env or mettagrid()
@@ -83,17 +84,12 @@ def make_curriculum(
 
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
-            use_bidirectional=True,  # Default: bidirectional learning progress
+            use_bidirectional=True,  # Enable bidirectional learning progress by default
             ema_timescale=0.001,
-            num_active_tasks=256,
-            slow_timescale_factor=0.2,
-            rand_task_rate=0.01,
             exploration_bonus=0.1,
-            min_samples_for_lp=10,  # Use exploration bonus for first 10 samples
-            lp_score_temperature=0.0,  # Z-score normalization for relative LP comparison
-            z_score_amplification=10.0,  # Amplification after z-score (only when temp=0)
-            show_curriculum_troubleshooting_logging=True,  # Enable per-task metrics for debugging
-            early_progress_amplification=0.5,  # 0.5 = OFF, low values (0.05) amplify unsolved tasks
+            max_memory_tasks=1000,
+            max_slice_axes=5,  # More slices for arena complexity
+            enable_detailed_slice_logging=enable_detailed_slice_logging,
         )
 
     return arena_tasks.to_curriculum(algorithm_config=algorithm_config)
@@ -114,9 +110,10 @@ def simulations(env: Optional[MettaGridConfig] = None) -> list[SimulationConfig]
 
 def train(
     curriculum: Optional[CurriculumConfig] = None,
+    enable_detailed_slice_logging: bool = False,
     arch_type: str = "fast",
 ) -> TrainTool:
-    curriculum = curriculum or make_curriculum()
+    curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
     eval_simulations = simulations()
     policy_architecture = ARCHITECTURES[arch_type]

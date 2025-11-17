@@ -319,17 +319,10 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
         self._make_resource_chain(chain_length, width + height / 2, cfg, rng)
         self._make_sinks(num_sinks, cfg, rng)
 
-        # Ensure ALL possible assembler types are defined in game_objects
-        # to maintain consistent object_type_names across all curriculum tasks.
-        # Only the ones in cfg.game_objects will be placed on the map, but
-        # all must be defined for simulator invariant checking.
-        all_game_objects = ASSEMBLER_TYPES.copy()
-        all_game_objects.update(cfg.game_objects)
-
         return make_assembly_lines(
             num_agents=1,
             max_steps=max_steps,
-            game_objects=all_game_objects,
+            game_objects=cfg.game_objects,
             map_builder_objects=cfg.map_builder_objects,
             width=width,
             height=height,
@@ -393,10 +386,7 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
             rng=rng,
         )
 
-        # Create hierarchical label for curriculum tracking
-        # Format: chain_<length>_sink_<count>_<room_size>_<terrain>
-        # This groups tasks by their key difficulty dimensions
-        env_cfg.label = f"chain_{chain_length}_sink_{num_sinks}_{room_size}_{terrain}"
+        env_cfg.label = f"{room_size}_{chain_length}chain_{num_sinks}sinks_{terrain}"
         return env_cfg
 
 
@@ -415,18 +405,10 @@ def make_task_generator_cfg(
 
 
 def train(
-    curriculum_style: str = "all_room_sizes",
+    curriculum_style: str = "level_0",
 ) -> TrainTool:
     task_generator_cfg = make_task_generator_cfg(**curriculum_args[curriculum_style])
-
-    # Use dual-pool curriculum with exploration-exploitation balance
-    algorithm_config = LearningProgressConfig.default_dual_pool(
-        num_explore_tasks=50,  # Exploration pool
-        num_exploit_tasks=200,  # Exploitation pool
-        # Note: num_active_tasks is automatically set to num_explore_tasks + num_exploit_tasks = 250
-    )
-
-    curriculum = CurriculumConfig(task_generator=task_generator_cfg, algorithm_config=algorithm_config)
+    curriculum = CurriculumConfig(task_generator=task_generator_cfg, algorithm_config=LearningProgressConfig())
 
     policy_config = ViTDefaultConfig()
 

@@ -219,8 +219,11 @@ def make_training_env(
 def make_curriculum(
     num_cogs: int = 4,
     base_missions: Optional[list[str]] = None,
+    enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
     variants: Optional[Sequence[str]] = None,
+    num_active_tasks: int = 256,
+    max_steps_choices: Optional[Sequence[int]] = None,
 ) -> CurriculumConfig:
     """Create a curriculum for CoGs vs Clips training."""
     if base_missions is None:
@@ -235,8 +238,8 @@ def make_curriculum(
         )
         mission_tasks = cc.bucketed(mission_env)
 
-        mission_tasks.add_bucket("game.max_steps", [750, 1000, 1250, 1500])
-        mission_tasks.add_bucket("game.agent.rewards.inventory.heart", [0.1, 0.333, 0.5, 1.0])
+        mission_tasks.add_bucket("game.max_steps", list(max_steps_choices or [750]))
+        mission_tasks.add_bucket("game.agent.rewards.inventory.heart", [0.333])
 
         all_mission_tasks.append(mission_tasks)
 
@@ -244,33 +247,32 @@ def make_curriculum(
 
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
-            use_bidirectional=True,  # Default: bidirectional learning progress
+            use_bidirectional=True,
             ema_timescale=0.001,
-            num_active_tasks=256,
-            slow_timescale_factor=0.2,
-            rand_task_rate=0.01,
             exploration_bonus=0.1,
-            min_samples_for_lp=10,  # Use exploration bonus for first 10 samples
-            lp_score_temperature=0.0,  # Z-score normalization for relative LP comparison
-            z_score_amplification=50.0,  # Amplification after z-score (only when temp=0)
-            show_curriculum_troubleshooting_logging=True,  # Enable per-task metrics for debugging
-            early_progress_amplification=0.5,  # 0.5 = OFF, low values (0.05) amplify unsolved tasks
+            max_memory_tasks=max(512, num_active_tasks),
+            max_slice_axes=2,
+            enable_detailed_slice_logging=enable_detailed_slice_logging,
         )
 
-    return merged_tasks.to_curriculum(
-        num_active_tasks=1500,
+    curriculum = merged_tasks.to_curriculum(
+        num_active_tasks=num_active_tasks,
         algorithm_config=algorithm_config,
     )
+    return curriculum
 
 
 def train(
     num_cogs: int = 4,
     curriculum: Optional[CurriculumConfig] = None,
     base_missions: Optional[list[str]] = None,
+    enable_detailed_slice_logging: bool = False,
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
     mission: str | None = None,
+    curriculum_num_active_tasks: int = 256,
+    curriculum_max_steps: Optional[Sequence[int]] = None,
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips."""
 
@@ -285,7 +287,10 @@ def train(
     resolved_curriculum = curriculum or make_curriculum(
         num_cogs=num_cogs,
         base_missions=base_missions,
+        enable_detailed_slice_logging=enable_detailed_slice_logging,
         variants=variants,
+        num_active_tasks=curriculum_num_active_tasks,
+        max_steps_choices=curriculum_max_steps,
     )
 
     trainer_cfg = TrainerConfig(

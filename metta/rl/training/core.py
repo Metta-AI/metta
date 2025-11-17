@@ -165,14 +165,7 @@ class CoreTrainingLoop:
             with context.stopwatch("_rollout.send"):
                 env.send_actions(td["actions"].cpu().numpy())
 
-            # Handle both dict and list info formats
-            # If info is a dict, wrap it in a list; if it's already a list, use as-is
-            infos_list: list[dict[str, Any]] = []
-            if info:
-                if isinstance(info, dict):
-                    infos_list = [info]
-                elif isinstance(info, list):
-                    infos_list = info
+            infos_list: list[dict[str, Any]] = list(info) if info else []
             if infos_list:
                 raw_infos.extend(infos_list)
 

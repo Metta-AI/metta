@@ -1,403 +1,50 @@
-"""Learning progress curriculum algorithm with dual-pool exploration-exploitation.
+"""
+Learning Progress Algorithm with integrated bidirectional scoring.
 
-This module implements the Learning Progress (LP) algorithm - a curriculum learning approach
-that prioritizes tasks where the agent is learning fastest. It tracks fast/slow EMAs of task
-performance to identify learning opportunities, then samples tasks proportionally to their
-learning progress scores.
-
-Core Algorithm (Single-Pool):
-    1. Track task performance using exponential moving averages (fast and slow)
-    2. Compute learning progress as the rate of performance change (|fast - slow|)
-    3. Apply exploration bonus to under-sampled tasks
-    4. Transform scores with z-score normalization and sigmoid for sampling probabilities
-    5. Sample tasks proportionally to their scores (high LP → more likely to be selected)
-
-Dual-Pool Architecture (Optional):
-    Extends single-pool LP with exploration-exploitation balance:
-
-    Pools:
-        - Explore pool (N=50): High-turnover pool for discovering new learning opportunities
-        - Exploit pool (N=200): Selective pool for tasks with proven learning progress
-
-    Phases:
-        1. Bootstrap: 100% exploration until exploit pool fills
-        2. Steady-state: Adaptive sampling based on Explore-Exploit Ratio (EER/ρ)
-
-    Promotion:
-        - Tasks reaching S_min samples become eligible for promotion
-        - Only tasks with positive LP scores are promoted
-        - Exploit pool evicts lowest-scoring tasks when full
-        - Explore pool backfilled with new random tasks
-
-    Adaptive EER:
-        - ρ adapts based on promotion success rate via exponential moving average
-        - High promotion success → increase ρ (more exploration)
-        - Low promotion success → decrease ρ (more exploitation)
-        - Bounded by ρ_min and ρ_max to ensure both pools are sampled
-
-Key Components:
-    - LearningProgressConfig: Comprehensive configuration with sensible defaults
-    - LearningProgressAlgorithm: Main algorithm coordinating scorer, tracker, and stats
-    - DualPoolTaskTracker: Manages two independent task pools with atomic promotion
-    - LPScorer: Strategy pattern for bidirectional/basic LP scoring
-
-Design Philosophy:
-    - All state (EMAs, counts, EER) lives in shared memory for true multi-process training
-    - Strategy pattern for scoring allows swapping between bidirectional/basic/custom
-    - Stateless algorithms make checkpointing and debugging straightforward
-    - Dual-pool is optional and controlled by configuration (no code changes needed)
-
-Configuration Helpers:
-    - LearningProgressConfig.default(): Balanced single-pool config
-    - LearningProgressConfig.stable(): Stable config for noisy environments
-    - LearningProgressConfig.default_dual_pool(): Production dual-pool config
-
-Why Separate File:
-    This is a complex algorithm (1300+ lines) with many configuration options and moving
-    parts. Keeping it separate from the simple DiscreteRandomCurriculum maintains clarity
-    and allows the two approaches to evolve independently.
-
-See Also:
-    - task_tracker.py: TaskTracker and DualPoolTaskTracker for performance tracking
-    - lp_scorers.py: Scoring strategies (bidirectional/basic LP)
-    - curriculum.py: Main Curriculum class using this algorithm
+Provides intelligent task selection based on bidirectional learning progress analysis,
+using fast and slow exponential moving averages to detect learning opportunities.
 """
 
-import random
-import uuid
-from collections import deque
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Callable, Dict, List, Optional
 
-from pydantic import model_validator
+import numpy as np
 
-from .curriculum_base import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask
-from .lp_scorers import BasicLPScorer, BidirectionalLPScorer, LPScorer
-from .task_tracker import DualPoolTaskTracker, TaskTracker
+from .curriculum import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask
+from .task_tracker import TaskTracker
+
+# Constants for bidirectional learning progress
+DEFAULT_SUCCESS_RATE = 0.0
+DEFAULT_WEIGHT = 1.0
+RANDOM_BASELINE_CAP = 0.75
 
 
 class LearningProgressConfig(CurriculumAlgorithmConfig):
     """Configuration for learning progress with bidirectional scoring as default."""
 
-    type: Literal["learning_progress"] = "learning_progress"
+    type: str = "learning_progress"
 
     # Bidirectional learning progress settings (now default)
     use_bidirectional: bool = True
-    use_baseline_normalization: bool = (
-        True  # Normalize by baseline to get "mastery" score p_i = (TSR_i - B_i) / (1.0 - B_i)
-    )
-    # EMA Timescale: Controls convergence speed of fast EMA
-    # - 0.1 (default): Converges in ~10 samples, responsive to recent changes
-    # - 0.01-0.05: Slower convergence, more stable for noisy environments
-    # - 0.001: Very slow (1000+ samples), delays LP signal but maximum stability
-    # Lower values delay learning progress signal development - Gini may stay near 0
-    ema_timescale: float = 0.1
-    slow_timescale_factor: float = 0.2  # Multiplier for slow EMA timescale (slow = ema_timescale * this)
+    ema_timescale: float = 0.001
     exploration_bonus: float = 0.1
-    progress_smoothing: float = 0.0  # For bidirectional reweighting (set to 0 to avoid artificial floor)
-    performance_bonus_weight: float = 0.0  # Weight for performance bonus in LP calculation
-    lp_score_temperature: float = 0.0  # Temperature for rescaling LP scores before sigmoid
-    # Special values for lp_score_temperature:
-    # - > 0: Divide LP by temperature (low temp amplifies differences)
-    # - = 0: Apply z-score normalization (standardize to mean=0, std=1) before sigmoid (DEFAULT)
-    #        This centers LP scores and makes sigmoid more sensitive to relative differences
-    z_score_amplification: float = 10.0  # Amplification factor after z-score normalization
-    # Only applies when lp_score_temperature = 0 (z-score mode). Higher values increase selectivity
-    # by spreading out the z-scored distribution before sigmoid. Default 10.0 provides strong selectivity
-    # while maintaining z-score's scale-invariance. Set to 1.0 for no amplification (uniform sampling).
-    early_progress_amplification: float = 0.5  # Reweight performance signals before LP calculation
-    # Note: 0.5 is effectively OFF (R(p) ≈ p). Low values (e.g., 0.05) amplify signal from
-    # unsolved tasks (p~0) and dampen signal from partially-solved tasks (p~0.5).
-    # High values would reweight toward higher performance tasks.
+    progress_smoothing: float = 0.05  # For bidirectional reweighting
 
     # Task distribution and sampling
     num_active_tasks: int = 1000
-    rand_task_rate: float = 0.01  # Reduced from 0.25 in refactor for better curriculum learning
+    rand_task_rate: float = 0.25
     sample_threshold: int = 10
     memory: int = 25
-    eviction_threshold_percentile: float = 0.4  # Bottom percentile for task eviction
 
-    # Memory management for label tracking
-    max_inactive_labels_retained: int = 100  # Max inactive labels to keep for historical stats (prevents memory leak)
-
-    # Basic EMA mode parameters (when use_bidirectional=False)
-    basic_ema_initial_alpha: float = 0.3  # Initial learning rate for basic EMA
-    basic_ema_alpha_decay: float = 0.2  # Decay factor for basic EMA alpha
-    min_samples_for_lp: int = 10  # Minimum samples before using LP score (use exploration bonus until then)
-
-    # Task tracker EMA configuration
-    task_tracker_ema_alpha: float = 0.02  # Learning rate for task tracker EMAs (reward, success rate)
-
-    # Task creation defaults
-    task_default_success_threshold: float = 0.5  # Default success threshold for new tasks
-    task_default_generator_type: float = 0.0  # Default generator type identifier for tasks
-
-    # Memory backend configuration
-    task_struct_size: int = 18  # Size of task data structure in shared memory (17 metrics + label_hash)
-    use_shared_memory: bool = True  # Enabled by default for production use
-    session_id: Optional[str] = None  # Session ID for shared memory, None = auto-generate shared ID
-
-    # Logging configuration
-    show_curriculum_troubleshooting_logging: bool = False  # Show high-cardinality per-task metrics for debugging
-
-    # ========== Dual-Pool Architecture Configuration ==========
-    # Enable dual-pool exploration-exploitation with separate explore and exploit pools
-    use_dual_pool: bool = False  # Toggle between single-pool (default) and dual-pool architecture
-
-    # Pool sizes (only used when use_dual_pool=True)
-    num_explore_tasks: int = 50  # Exploration pool capacity
-    num_exploit_tasks: int = 200  # Exploitation pool capacity
-
-    # Promotion criteria (only used when use_dual_pool=True)
-    promotion_min_samples: int = 5  # Minimum samples before task is eligible for promotion
-
-    # Adaptive Explore-Exploit Ratio (EER) parameters (only used when use_dual_pool=True)
-    explore_exploit_ratio_init: float = 0.5  # Initial EER value (probability of sampling from explore pool)
-    explore_exploit_ratio_min: float = 0.05  # Minimum EER bound
-    explore_exploit_ratio_max: float = 0.95  # Maximum EER bound
-    explore_exploit_ratio_alpha: float = 0.9  # EER learning rate (higher = slower adaptation)
-    promotion_rate_window: int = 1000  # Sliding window size for promotion rate calculation
-
-    @model_validator(mode="after")
-    def _validate_and_initialize(self) -> "LearningProgressConfig":
-        """Validate configuration and initialize derived parameters.
-
-        This ensures:
-        1. Session ID is generated when using shared memory
-        2. Dual-pool parameters are validated when dual-pool is enabled
-        3. EER bounds are sensible
-        """
-        # Generate session ID for shared memory if not provided
-        if self.use_shared_memory and self.session_id is None:
-            # Generate a unique session ID that will be shared across processes
-            # This happens once at config creation time, before pickling
-            self.session_id = f"lp_{uuid.uuid4().hex[:8]}"
-
-        # Validate dual-pool configuration
-        if self.use_dual_pool:
-            # Validate pool sizes
-            if self.num_explore_tasks <= 0:
-                raise ValueError(f"num_explore_tasks must be positive, got {self.num_explore_tasks}")
-            if self.num_exploit_tasks <= 0:
-                raise ValueError(f"num_exploit_tasks must be positive, got {self.num_exploit_tasks}")
-
-            # Validate promotion parameters
-            if self.promotion_min_samples <= 0:
-                raise ValueError(f"promotion_min_samples must be positive, got {self.promotion_min_samples}")
-
-            # Validate EER bounds
-            if not 0.0 <= self.explore_exploit_ratio_min <= 1.0:
-                raise ValueError(f"explore_exploit_ratio_min must be in [0, 1], got {self.explore_exploit_ratio_min}")
-            if not 0.0 <= self.explore_exploit_ratio_max <= 1.0:
-                raise ValueError(f"explore_exploit_ratio_max must be in [0, 1], got {self.explore_exploit_ratio_max}")
-            if self.explore_exploit_ratio_min >= self.explore_exploit_ratio_max:
-                raise ValueError(
-                    f"explore_exploit_ratio_min ({self.explore_exploit_ratio_min}) must be "
-                    f"< explore_exploit_ratio_max ({self.explore_exploit_ratio_max})"
-                )
-            if not 0.0 <= self.explore_exploit_ratio_init <= 1.0:
-                raise ValueError(f"explore_exploit_ratio_init must be in [0, 1], got {self.explore_exploit_ratio_init}")
-
-            # Validate EER learning rate
-            if not 0.0 < self.explore_exploit_ratio_alpha < 1.0:
-                raise ValueError(
-                    f"explore_exploit_ratio_alpha must be in (0, 1), got {self.explore_exploit_ratio_alpha}"
-                )
-
-            # Validate promotion rate window
-            if self.promotion_rate_window <= 0:
-                raise ValueError(f"promotion_rate_window must be positive, got {self.promotion_rate_window}")
-
-            # Override num_active_tasks to be sum of pool sizes for consistency
-            # Use object.__setattr__ to bypass validation and avoid recursion
-            object.__setattr__(self, "num_active_tasks", self.num_explore_tasks + self.num_exploit_tasks)
-
-        return self
+    # Performance and memory management
+    max_memory_tasks: int = 1000
+    max_slice_axes: int = 3  # Updated terminology
+    enable_detailed_slice_logging: bool = False  # Updated terminology
 
     def algorithm_type(self) -> str:
         return "learning_progress"
 
     def create(self, num_tasks: int) -> "LearningProgressAlgorithm":
         return LearningProgressAlgorithm(num_tasks, self)
-
-    # Configuration Presets for Common Use Cases
-    # These provide sensible defaults for different training scenarios
-
-    @classmethod
-    def default(cls, num_active_tasks: int = 256, **overrides) -> "LearningProgressConfig":
-        """Standard configuration with balanced learning speed.
-
-        Best for: Most RL environments with moderate complexity
-        - Bidirectional LP for intelligent task selection
-        - Fast EMA convergence (~10 samples)
-        - Strong z-score amplification for selectivity
-
-        Args:
-            num_active_tasks: Number of tasks to keep in active pool
-            **overrides: Override any parameter
-        """
-        defaults = {
-            "use_bidirectional": True,
-            "ema_timescale": 0.1,
-            "num_active_tasks": num_active_tasks,
-            "slow_timescale_factor": 0.2,
-            "rand_task_rate": 0.01,
-            "exploration_bonus": 0.1,
-            "min_samples_for_lp": 10,
-            "lp_score_temperature": 0.0,
-            "z_score_amplification": 10.0,
-            "show_curriculum_troubleshooting_logging": False,
-            "early_progress_amplification": 0.5,
-        }
-        defaults.update(overrides)
-        return cls(**defaults)
-
-    @classmethod
-    def stable(cls, num_active_tasks: int = 256, **overrides) -> "LearningProgressConfig":
-        """Stable configuration for noisy/stochastic environments.
-
-        Best for: Environments with high variance or randomness
-        - Slower EMA convergence for stability (~100 samples)
-        - Higher exploration bonus
-        - More gradual learning progress signal development
-
-        Args:
-            num_active_tasks: Number of tasks to keep in active pool
-            **overrides: Override any parameter
-        """
-        defaults = {
-            "use_bidirectional": True,
-            "ema_timescale": 0.01,  # 10x slower
-            "num_active_tasks": num_active_tasks,
-            "slow_timescale_factor": 0.2,
-            "rand_task_rate": 0.02,  # More exploration
-            "exploration_bonus": 0.15,  # Higher exploration
-            "min_samples_for_lp": 20,  # More samples before LP
-            "lp_score_temperature": 0.0,
-            "z_score_amplification": 5.0,  # Less aggressive
-            "show_curriculum_troubleshooting_logging": False,
-            "early_progress_amplification": 0.5,
-        }
-        defaults.update(overrides)
-        return cls(**defaults)
-
-    @classmethod
-    def fast_learning(cls, num_active_tasks: int = 256, **overrides) -> "LearningProgressConfig":
-        """Fast learning configuration for quickly-adapting agents.
-
-        Best for: Simple environments where agent learns rapidly
-        - Very fast EMA convergence (~5 samples)
-        - Low exploration bonus (focus on LP)
-        - Strong selectivity for high-LP tasks
-
-        Args:
-            num_active_tasks: Number of tasks to keep in active pool
-            **overrides: Override any parameter
-        """
-        defaults = {
-            "use_bidirectional": True,
-            "ema_timescale": 0.2,  # 2x faster
-            "num_active_tasks": num_active_tasks,
-            "slow_timescale_factor": 0.2,
-            "rand_task_rate": 0.005,  # Less exploration
-            "exploration_bonus": 0.05,  # Lower exploration
-            "min_samples_for_lp": 5,  # Quick LP signal
-            "lp_score_temperature": 0.0,
-            "z_score_amplification": 15.0,  # More aggressive
-            "show_curriculum_troubleshooting_logging": False,
-            "early_progress_amplification": 0.5,
-        }
-        defaults.update(overrides)
-        return cls(**defaults)
-
-    @classmethod
-    def arena_legacy(cls, num_active_tasks: int = 256, **overrides) -> "LearningProgressConfig":
-        """Legacy arena configuration (from before refactor).
-
-        Best for: Reproducing old arena training runs
-        - Very slow EMA for maximum stability (1000+ samples)
-        - High z-score amplification
-
-        Args:
-            num_active_tasks: Number of tasks to keep in active pool
-            **overrides: Override any parameter
-        """
-        defaults = {
-            "use_bidirectional": True,
-            "ema_timescale": 0.001,  # Very slow (legacy setting)
-            "num_active_tasks": num_active_tasks,
-            "slow_timescale_factor": 0.2,
-            "rand_task_rate": 0.01,
-            "exploration_bonus": 0.1,
-            "min_samples_for_lp": 10,
-            "lp_score_temperature": 0.0,
-            "z_score_amplification": 10.0,
-            "show_curriculum_troubleshooting_logging": True,
-            "early_progress_amplification": 0.5,
-        }
-        defaults.update(overrides)
-        return cls(**defaults)
-
-    @classmethod
-    def default_dual_pool(
-        cls,
-        num_explore_tasks: int = 50,
-        num_exploit_tasks: int = 200,
-        **overrides,
-    ) -> "LearningProgressConfig":
-        """Create a dual-pool configuration with sensible production defaults.
-
-        Best for: Production training with exploration-exploitation balance
-        - Dual-pool architecture (explore: 50, exploit: 200)
-        - Adaptive EER based on promotion success
-        - Stable EMA settings for reliable LP signals
-        - Strong selectivity for focusing on high-LP tasks
-
-        Args:
-            num_explore_tasks: Size of exploration pool (default: 50)
-            num_exploit_tasks: Size of exploitation pool (default: 200)
-            **overrides: Override any parameter
-
-        Example:
-            # Use defaults
-            config = LearningProgressConfig.default_dual_pool()
-
-            # Customize pool sizes
-            config = LearningProgressConfig.default_dual_pool(
-                num_explore_tasks=100,
-                num_exploit_tasks=400,
-            )
-
-            # Override other parameters
-            config = LearningProgressConfig.default_dual_pool(
-                ema_timescale=0.01,
-                z_score_amplification=30.0,
-            )
-        """
-        defaults = {
-            # Enable dual-pool
-            "use_dual_pool": True,
-            "num_explore_tasks": num_explore_tasks,
-            "num_exploit_tasks": num_exploit_tasks,
-            # Production-ready defaults for bidirectional LP
-            "use_bidirectional": True,
-            "ema_timescale": 0.001,  # Slower EMA for more stable LP signals
-            "slow_timescale_factor": 0.2,
-            "rand_task_rate": 0.01,
-            "exploration_bonus": 0.1,
-            "min_samples_for_lp": 10,
-            "lp_score_temperature": 0.0,  # Use z-score normalization
-            "z_score_amplification": 50.0,  # Strong selectivity
-            "early_progress_amplification": 0.5,  # Effectively off
-            # Dual-pool specific
-            "promotion_min_samples": 5,
-            "explore_exploit_ratio_init": 0.5,
-            "explore_exploit_ratio_alpha": 0.9,  # Slow EER adaptation
-            "promotion_rate_window": 1000,
-            # Enable troubleshooting logging for production monitoring
-            "show_curriculum_troubleshooting_logging": True,
-        }
-        defaults.update(overrides)
-        return cls(**defaults)
 
 
 class LearningProgressAlgorithm(CurriculumAlgorithm):
@@ -415,100 +62,192 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self.num_tasks = num_tasks
         self.hypers: LearningProgressConfig = hypers
 
-        # Initialize task tracker (single-pool or dual-pool based on configuration)
-        self.task_tracker: Union[TaskTracker, DualPoolTaskTracker]
-        if hypers.use_dual_pool:
-            # Dual-pool mode: separate explore and exploit pools
-            self.task_tracker = DualPoolTaskTracker(
-                num_explore_tasks=hypers.num_explore_tasks,
-                num_exploit_tasks=hypers.num_exploit_tasks,
-                ema_alpha=hypers.task_tracker_ema_alpha,
-                session_id=hypers.session_id if hypers.use_shared_memory else None,
-                use_shared_memory=hypers.use_shared_memory,
-                task_struct_size=hypers.task_struct_size,
-                default_success_threshold=hypers.task_default_success_threshold,
-                default_generator_type=hypers.task_default_generator_type,
-            )
+        # Initialize task tracker (moved from modules to curriculum folder)
+        self.task_tracker = TaskTracker(max_memory_tasks=hypers.max_memory_tasks)
+
+        # Note: slice_analyzer is already initialized in parent class via StatsLogger
+
+        # Initialize scoring method (bidirectional by default)
+        if hypers.use_bidirectional:
+            self._init_bidirectional_scoring()
         else:
-            # Single-pool mode: traditional single task tracker
-            self.task_tracker = TaskTracker(
-                max_memory_tasks=hypers.num_active_tasks,
-                ema_alpha=hypers.task_tracker_ema_alpha,
-                session_id=hypers.session_id if hypers.use_shared_memory else None,
-                use_shared_memory=hypers.use_shared_memory,
-                task_struct_size=hypers.task_struct_size,
-                default_success_threshold=hypers.task_default_success_threshold,
-                default_generator_type=hypers.task_default_generator_type,
-            )
+            self._init_basic_scoring()
 
-        # Initialize scorer strategy (pass tracker for shared memory EMA access)
-        # For dual-pool, scorer will work with whichever pool the task is in
-        if hypers.use_dual_pool:
-            # Create scorer that can access both pools
-            # We'll need to pass the appropriate tracker when scoring
-            self.scorer: LPScorer = (
-                BidirectionalLPScorer(hypers, self.task_tracker.explore_tracker)
-                if hypers.use_bidirectional
-                else BasicLPScorer(hypers, self.task_tracker.explore_tracker)
-            )
-        else:
-            self.scorer: LPScorer = (
-                BidirectionalLPScorer(hypers, self.task_tracker)
-                if hypers.use_bidirectional
-                else BasicLPScorer(hypers, self.task_tracker)
-            )
+        # Cache for expensive statistics computation
+        self._stats_cache: Dict[str, Any] = {}
+        self._stats_cache_valid = False
+        self._pending_updates: list[tuple[int, float]] = []
+        self._flush_threshold = 32
+        self._progress_dirty = True
+        self._task_index_cache: dict[int, int] = {}
 
-        # Track label sampling and eviction (labels themselves are in TaskTracker shared memory)
-        self._label_sampling_counts: Dict[str, int] = {}  # label -> cumulative sampling count (episodes started)
-        self._label_eviction_counts: Dict[str, int] = {}  # label -> eviction count (cumulative)
+    def get_base_stats(self) -> Dict[str, float]:
+        """Get basic statistics that all algorithms must provide."""
+        base_stats = {"num_tasks": self.num_tasks, **self.slice_analyzer.get_base_stats()}
 
-        # Per-epoch tracking (for gini calculation and epoch-level metrics)
-        self._label_evictions_this_epoch: Dict[str, int] = {}  # label -> evictions this epoch
-        self._label_sampling_counts_this_epoch: Dict[str, int] = {}  # label -> samples this epoch
+        # Add task tracker stats with prefix for test compatibility
+        tracker_stats = self.task_tracker.get_global_stats()
+        for key, value in tracker_stats.items():
+            base_stats[f"tracker/{key}"] = value
 
-        # Track which labels are currently active (have tasks in pool)
-        self._active_labels: set[str] = set()
-
-        # Track recently inactive labels to manage memory
-        self._inactive_labels_fifo: list[str] = []  # FIFO queue of inactive labels for cleanup
-
-        # Dual-pool specific state (only used when use_dual_pool=True)
-        if hypers.use_dual_pool:
-            # Explore-Exploit Ratio tracking
-            self._explore_exploit_ratio = hypers.explore_exploit_ratio_init
-            self._promotion_window: deque[bool] = deque(maxlen=hypers.promotion_rate_window)
-
-            # Cumulative promotion stats
-            self._num_promotions = 0
-            self._num_promotion_attempts = 0
-
-            # Phase tracking
-            self._current_phase: Literal["bootstrap", "steady_state"] = "bootstrap"
+        return base_stats
 
     def stats(self, prefix: str = "") -> Dict[str, float]:
         """Get all statistics with optional prefix. Always includes learning progress stats."""
-        # Use the StatsLogger implementation
-        return super().stats(prefix)
+        cache_key = prefix if prefix else "_default"
+
+        if self._stats_cache_valid and cache_key in self._stats_cache:
+            return self._stats_cache[cache_key]
+
+        # Get base stats (required)
+        stats = self.get_base_stats()
+
+        if self.enable_detailed_logging:
+            detailed = self.get_detailed_stats()
+            stats.update(detailed)
+
+        # Add prefix to all keys
+        if prefix:
+            stats = {f"{prefix}{k}": v for k, v in stats.items()}
+
+        # Cache result
+        self._stats_cache[cache_key] = stats
+        self._stats_cache_valid = True
+
+        return stats
+
+    def _init_bidirectional_scoring(self):
+        """Initialize bidirectional EMA tracking (integrated from BidirectionalLearningProgressScorer)."""
+        # Bidirectional learning progress tracking
+        self._outcomes: Dict[int, List[float]] = {}
+        self._p_fast: Optional[np.ndarray] = None
+        self._p_slow: Optional[np.ndarray] = None
+        self._p_true: Optional[np.ndarray] = None
+        self._random_baseline: Optional[np.ndarray] = None
+        self._task_success_rate: np.ndarray = np.array([])
+        self._counter: Dict[int, int] = {}
+        self._update_mask: np.ndarray = np.array([])
+        self._sample_levels: np.ndarray = np.array([])
+
+        # Cache for task distribution and scores
+        self._task_dist: Optional[np.ndarray] = None
+        self._stale_dist = True
+        self._score_cache: Dict[int, float] = {}
+        self._cache_valid_tasks: set[int] = set()
+        self._progress_dirty = True
+
+    def _init_basic_scoring(self):
+        """Initialize basic EMA tracking (fallback method)."""
+        # EMA tracking for each task: task_id -> (ema_score, ema_squared, num_samples)
+        self._task_emas: Dict[int, tuple[float, float, int]] = {}
+        # Ensure cache is initialized for basic scoring mode
+        if not hasattr(self, "_score_cache"):
+            self._score_cache: Dict[int, float] = {}
+        if not hasattr(self, "_cache_valid_tasks"):
+            self._cache_valid_tasks: set[int] = set()
 
     def score_tasks(self, task_ids: List[int]) -> Dict[int, float]:
-        """Score tasks using the configured method (bidirectional by default).
-
-        In dual-pool mode, routes scoring to the appropriate pool for each task.
-        """
-        if isinstance(self.task_tracker, DualPoolTaskTracker):
-            # Dual-pool mode: score tasks from their respective pools
-            scores = {}
-            for task_id in task_ids:
-                pool_tracker = self.task_tracker.get_pool_tracker(task_id)
-                if pool_tracker is not None:
-                    scores[task_id] = self.scorer.score_task(task_id, pool_tracker)
-                else:
-                    # Task not found, give it lowest score
-                    scores[task_id] = 0.0
-            return scores
+        """Score tasks using the configured method (bidirectional by default)."""
+        if self.hypers.use_bidirectional:
+            return self._score_tasks_bidirectional(task_ids)
         else:
-            # Single-pool mode: standard scoring
-            return {task_id: self.scorer.score_task(task_id, self.task_tracker) for task_id in task_ids}
+            return self._score_tasks_basic(task_ids)
+
+    def _score_tasks_bidirectional(self, task_ids: List[int]) -> Dict[int, float]:
+        """Score tasks using bidirectional learning progress."""
+        return self._score_tasks_common(
+            task_ids, self._get_bidirectional_learning_progress_score, ensure_progress_ready=True
+        )
+
+    def _score_tasks_basic(self, task_ids: List[int]) -> Dict[int, float]:
+        """Score tasks using basic EMA variance method."""
+        return self._score_tasks_common(task_ids, self._get_basic_learning_progress_score)
+
+    def _score_tasks_common(
+        self,
+        task_ids: List[int],
+        scorer: Callable[[int], float],
+        *,
+        ensure_progress_ready: bool = False,
+    ) -> Dict[int, float]:
+        """Shared scaffolding for task scoring across modes."""
+        self._flush_pending_updates()
+        if ensure_progress_ready:
+            self._ensure_progress_ready()
+
+        return {task_id: scorer(task_id) for task_id in task_ids}
+
+    def _flush_pending_updates(self) -> None:
+        if not self._pending_updates:
+            return
+
+        if self.hypers.use_bidirectional:
+            for task_id, score in self._pending_updates:
+                self._update_bidirectional_ema(task_id, score)
+        else:
+            for task_id, score in self._pending_updates:
+                self._update_basic_ema(task_id, score)
+
+        self._pending_updates.clear()
+        self._progress_dirty = True
+        self._cache_valid_tasks.clear()
+
+    def _ensure_progress_ready(self) -> None:
+        if not self.hypers.use_bidirectional:
+            return
+        if self._progress_dirty:
+            self._update_bidirectional_progress()
+            if self._task_dist is None or self._stale_dist:
+                self._calculate_task_distribution()
+            self._progress_dirty = False
+
+    def _get_bidirectional_learning_progress_score(self, task_id: int) -> float:
+        """Calculate bidirectional learning progress score for a task."""
+        cached = self._score_cache.get(task_id) if task_id in self._cache_valid_tasks else None
+        if cached is not None:
+            return cached
+
+        task_stats = self.task_tracker.get_task_stats(task_id)
+        if not task_stats or task_stats["completion_count"] < 2:
+            score = self.hypers.exploration_bonus
+        elif task_id not in self._outcomes or len(self._outcomes[task_id]) < 2:
+            score = self.hypers.exploration_bonus
+        else:
+            self._ensure_progress_ready()
+            idx = self._task_index_cache.get(task_id)
+            if idx is not None and self._task_dist is not None and 0 <= idx < len(self._task_dist):
+                score = float(self._task_dist[idx])
+            else:
+                score = self.hypers.exploration_bonus
+
+        self._score_cache[task_id] = score
+        self._cache_valid_tasks.add(task_id)
+        return score
+
+    def _get_basic_learning_progress_score(self, task_id: int) -> float:
+        """Calculate basic learning progress score using EMA variance."""
+        cached = self._score_cache.get(task_id) if task_id in self._cache_valid_tasks else None
+        if cached is not None:
+            return cached
+
+        task_stats = self.task_tracker.get_task_stats(task_id)
+        if not task_stats or task_stats["completion_count"] < 2:
+            score = self.hypers.exploration_bonus
+        elif task_id not in self._task_emas:
+            score = self.hypers.exploration_bonus
+        else:
+            ema_score, ema_squared, num_samples = self._task_emas[task_id]
+
+            variance = max(0.0, ema_squared - ema_score * ema_score)
+            std_dev = np.sqrt(variance)
+            learning_progress = std_dev
+            if num_samples < 10:
+                learning_progress += self.hypers.exploration_bonus * (10 - num_samples) / 10
+            score = learning_progress
+
+        self._score_cache[task_id] = score
+        self._cache_valid_tasks.add(task_id)
+        return score
 
     def recommend_eviction(self, task_ids: List[int]) -> Optional[int]:
         """Recommend which task to evict based on learning progress."""
@@ -539,730 +278,387 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         scores = self.score_tasks(all_task_ids)
         task_score = scores.get(task_id, 0.0)
 
-        # Evict if this task is in the bottom N% of learning progress scores
+        # Evict if this task is in the bottom 40% of learning progress scores
         # This ensures eviction happens more readily with small task pools
         sorted_scores = sorted(scores.values())
-        threshold_index = max(0, int(len(sorted_scores) * self.hypers.eviction_threshold_percentile))
+        threshold_index = max(0, int(len(sorted_scores) * 0.4))
         threshold_score = sorted_scores[threshold_index] if sorted_scores else 0.0
 
         return task_score <= threshold_score
 
     def on_task_evicted(self, task_id: int) -> None:
         """Clean up when a task is evicted."""
-        # Get label BEFORE removing task (otherwise data is gone)
-        evicted_label = self.task_tracker.get_task_label(task_id)
-
-        # Remove from task tracker (handles its own locking)
+        # Remove from task tracker
         self.task_tracker.remove_task(task_id)
+
+        # Drop slice tracking data to avoid unbounded growth
+        self.slice_analyzer.remove_task(task_id)
 
         # Learning progress specific cleanup
         self._remove_task_from_scoring(task_id)
 
-        # Track eviction by label
-        if evicted_label:
-            # Track cumulative eviction count for this label
-            self._label_eviction_counts[evicted_label] = self._label_eviction_counts.get(evicted_label, 0) + 1
-
-            # Track per-epoch eviction count (for gini calculation)
-            self._label_evictions_this_epoch[evicted_label] = self._label_evictions_this_epoch.get(evicted_label, 0) + 1
-
-            # Check if this label still has any active tasks
-            # get_all_tracked_tasks() only returns ACTIVE tasks, so this is safe
-            all_active_labels = set()
-            for tid in self.task_tracker.get_all_tracked_tasks():
-                label = self.task_tracker.get_task_label(tid)
-                if label:
-                    all_active_labels.add(label)
-
-            if evicted_label not in all_active_labels:
-                # No more tasks with this label - remove from active set and track as inactive
-                self._active_labels.discard(evicted_label)
-                self._inactive_labels_fifo.append(evicted_label)
-
-                # Clean up old inactive labels to prevent memory leak
-                self._cleanup_old_inactive_labels()
-
         # Invalidate stats cache when task state changes
         self.invalidate_cache()
-
-    def _cleanup_old_inactive_labels(self) -> None:
-        """Clean up old inactive labels to prevent unbounded memory growth.
-
-        Keeps only the most recent N inactive labels as specified by
-        max_inactive_labels_retained config parameter.
-        """
-        max_retained = self.hypers.max_inactive_labels_retained
-
-        # Remove old labels if we exceed the limit
-        while len(self._inactive_labels_fifo) > max_retained:
-            old_label = self._inactive_labels_fifo.pop(0)
-
-            # Only clean up if this label is still inactive (not reactivated)
-            if old_label not in self._active_labels:
-                # Clean up cumulative stats for this label
-                # (completion counts are now in TaskTracker shared memory, no cleanup needed)
-                self._label_sampling_counts.pop(old_label, None)
-                self._label_eviction_counts.pop(old_label, None)
-
-                # Note: We don't clean up per-epoch counters here as they're reset each epoch anyway
 
     def _remove_task_from_scoring(self, task_id: int) -> None:
         """Remove task from scoring system."""
-        self.scorer.remove_task(task_id)
-
-    def on_task_sampled(self, task_id: int) -> None:
-        """Track that a task was sampled (selected for an episode).
-
-        Args:
-            task_id: The ID of the task that was sampled
-        """
-        # Track sampling counts per label (both cumulative and per-epoch)
-        label = self.task_tracker.get_task_label(task_id)
-        if label:
-            self._label_sampling_counts[label] = self._label_sampling_counts.get(label, 0) + 1
-            self._label_sampling_counts_this_epoch[label] = self._label_sampling_counts_this_epoch.get(label, 0) + 1
-
-    def get_and_reset_evictions_this_epoch(self) -> Dict[str, int]:
-        """Get per-epoch evictions and reset the counter.
-
-        Returns:
-            Dictionary mapping label -> eviction count this epoch
-        """
-        evictions = self._label_evictions_this_epoch.copy()
-        self._label_evictions_this_epoch.clear()
-        return evictions
-
-    def get_and_reset_sampling_counts_this_epoch(self) -> Dict[str, int]:
-        """Get per-epoch sampling counts and reset the counter.
-
-        Returns:
-            Dictionary mapping label -> sampling count this epoch
-        """
-        sampling_counts = self._label_sampling_counts_this_epoch.copy()
-        self._label_sampling_counts_this_epoch.clear()
-        return sampling_counts
-
-    def reset_epoch_counters(self) -> None:
-        """Reset per-epoch counters at the start of a new epoch.
-
-        This is called by the training infrastructure at epoch boundaries
-        to ensure per-epoch metrics start fresh.
-        """
-        self._label_sampling_counts_this_epoch.clear()
-        self._label_evictions_this_epoch.clear()
+        if self.hypers.use_bidirectional:
+            self._outcomes.pop(task_id, None)
+            self._counter.pop(task_id, None)
+            self._score_cache.pop(task_id, None)
+            self._cache_valid_tasks.discard(task_id)
+            self._stale_dist = True
+            self._progress_dirty = True
+        else:
+            self._task_emas.pop(task_id, None)
+            self._score_cache.pop(task_id, None)
+            self._cache_valid_tasks.discard(task_id)
 
     def update_task_performance(self, task_id: int, score: float) -> None:
-        """Update task performance atomically.
+        """Update task performance using the appropriate scoring method."""
+        # Update task tracker
+        self.task_tracker.update_task_performance(task_id, score)
 
-        Stage 3 Atomic Update: All EMA updates happen in ONE lock acquisition:
-        1. Basic EMAs (completion_count, reward_ema, success_rate_ema, ema_squared)
-        2. Bidirectional EMAs (p_fast, p_slow, p_true, random_baseline)
-
-        LP score calculation is deferred until sampling time (lazy evaluation via _stale_dist flag).
-        This reduces from 4+ lock acquisitions to 1.
-
-        Dual-Pool Mode: After updating performance, check if task is eligible for promotion.
-        """
-        # Atomic update: All EMAs in one lock
-        if isinstance(self.task_tracker, DualPoolTaskTracker):
-            # Dual-pool mode: update task in its current pool
-            self.task_tracker.update_task_performance(
-                task_id=task_id,
-                score=score,
-                scorer=self.scorer if hasattr(self.scorer, "config") else None,
-            )
+        if self.hypers.use_bidirectional:
+            self._pending_updates.append((task_id, score))
+            if len(self._pending_updates) >= self._flush_threshold:
+                self._flush_pending_updates()
         else:
-            # Single-pool mode: use standard update
-            self.task_tracker.update_task_performance_with_bidirectional_emas(
-                task_id=task_id,
-                score=score,
-                scorer=self.scorer if hasattr(self.scorer, "config") else None,
-            )
+            self._update_basic_ema(task_id, score)
 
-        # Dual-pool: Check for promotion after update
-        if self.hypers.use_dual_pool and isinstance(self.task_tracker, DualPoolTaskTracker):
-            # Check if task is eligible and attempt promotion
-            if self._check_promotion_eligibility(task_id):
-                self._num_promotion_attempts += 1
-                promoted = self._attempt_promotion(task_id)
-
-                # Record promotion outcome in sliding window
-                self._promotion_window.append(promoted)
-
-                # Update EER based on promotion rate
-                self._update_explore_exploit_ratio()
-
-                # Update phase (bootstrap -> steady_state)
-                self._update_phase()
-
-        # Mark distribution as stale - LP scores will be recalculated on next sampling
-        self.scorer.invalidate_cache()
-
-        # Note: Completion counts are now tracked in TaskTracker shared memory
-        # No local label tracking needed here
-
-        # Invalidate stats cache when task performance changes
+        # Invalidate stats cache
         self.invalidate_cache()
 
-    def _choose_task_from_list(self, task_ids: List[int]) -> int:
-        """Choose a task from the provided list based on scores."""
-        if not task_ids:
-            raise ValueError("Cannot choose from empty task list")
-
-        scores = self.score_tasks(task_ids)
-        if not scores:
-            return random.choice(task_ids)
-
-        # Convert scores to probabilities for sampling
-        total_score = sum(scores.values())
-        if total_score <= 0:
-            return random.choice(task_ids)
-
-        # Create weighted probability distribution
-        weights = [scores.get(task_id, 0.0) for task_id in task_ids]
-        return random.choices(task_ids, weights=weights)[0]
-
-    def get_task_lp_score(self, task_id: int) -> float:
-        """Get final learning progress score (sampling probability) for a specific task."""
-        return self.scorer.score_task(task_id, self.task_tracker)
-
-    def on_task_created(self, task: CurriculumTask, pool: Optional[str] = None) -> None:
-        """Handle task creation by tracking it in the appropriate pool.
-
-        Args:
-            task: The curriculum task being created
-            pool: For dual-pool mode, which pool to create in ('explore' or 'exploit').
-                  If None, uses single-pool mode or defaults to 'explore'.
-        """
-        if isinstance(self.task_tracker, DualPoolTaskTracker):
-            # Dual-pool mode: track in specified pool (default to explore)
-            target_pool = pool if pool is not None else "explore"
-            self.task_tracker.track_task_creation(task._task_id, target_pool)
-
-            # Check if task was actually tracked
-            pool_tracker = self.task_tracker.get_pool_tracker(task._task_id)
-            if pool_tracker is None:
-                # Task wasn't tracked (pool is full), don't add label
-                return
-
-            # Initialize LP score to exploration bonus for new tasks
-            pool_tracker.update_lp_score(task._task_id, self.hypers.exploration_bonus)
+    def get_stats(self) -> Dict[str, float]:
+        """Get learning progress statistics (compatibility method for tests)."""
+        if self.hypers.use_bidirectional:
+            return self._get_bidirectional_detailed_stats()
         else:
-            # Single-pool mode: standard tracking
-            self.task_tracker.track_task_creation(task._task_id)
+            return self._get_basic_detailed_stats()
 
-            # Check if task was actually tracked (might fail if tracker is full)
-            if task._task_id not in self.task_tracker._task_id_to_index:
-                # Task wasn't tracked (tracker is full), don't add label
-                return
+    def update_task_with_slice_values(self, task_id: int, score: float, slice_values: Dict[str, Any]) -> None:
+        """Update task performance including slice values for analysis."""
+        # First update performance
+        self.update_task_performance(task_id, score)
 
-            # Initialize LP score to exploration bonus for new tasks
-            self.task_tracker.update_lp_score(task._task_id, self.hypers.exploration_bonus)
+        # Then update slice analyzer
+        self.slice_analyzer.update_task_completion(task_id, slice_values, score)
 
-        # Handle label tracking (common for both modes)
-        label = task.get_label()
-        if label:
-            # Store label in TaskTracker's shared memory
-            if isinstance(self.task_tracker, DualPoolTaskTracker):
-                self.task_tracker.set_task_label(task._task_id, label)
-            else:
-                self.task_tracker.set_task_label(task._task_id, label)
+    def _update_bidirectional_ema(self, task_id: int, score: float) -> None:
+        """Update bidirectional EMA tracking for a task with new score."""
+        # Convert score to success rate (assuming score is between 0 and 1)
+        success_rate = max(0.0, min(1.0, score))
 
-            # If label was inactive, remove it from the inactive queue (reactivating it)
-            if label in self._inactive_labels_fifo:
-                self._inactive_labels_fifo.remove(label)
+        # Initialize outcomes for new tasks
+        if task_id not in self._outcomes:
+            self._outcomes[task_id] = []
 
-            self._active_labels.add(label)
+        # Add outcome and maintain memory limit
+        self._outcomes[task_id].append(success_rate)
+        self._outcomes[task_id] = self._outcomes[task_id][-self.hypers.memory :]
+
+        # Update counter
+        if task_id not in self._counter:
+            self._counter[task_id] = 0
+        self._counter[task_id] += 1
+
+        self._stale_dist = True
+        self._progress_dirty = True
+        self._invalidate_task_cache(task_id)
+
+    def _update_basic_ema(self, task_id: int, score: float) -> None:
+        """Update basic EMA tracking for a task with new score."""
+        if task_id not in self._task_emas:
+            self._task_emas[task_id] = (score, score * score, 1)
+        else:
+            ema_score, ema_squared, num_samples = self._task_emas[task_id]
+
+            # Update EMAs
+            alpha = min(1.0, self.hypers.ema_timescale * num_samples)
+            new_ema_score = (1 - alpha) * ema_score + alpha * score
+            new_ema_squared = (1 - alpha) * ema_squared + alpha * (score * score)
+
+            self._task_emas[task_id] = (new_ema_score, new_ema_squared, num_samples + 1)
+
+        # Invalidate cache for this task when EMA is updated
+        self._invalidate_task_cache(task_id)
+
+    def _invalidate_task_cache(self, task_id: int) -> None:
+        """Clear cached score state for a task."""
+        self._cache_valid_tasks.discard(task_id)
+
+    def on_task_created(self, task: CurriculumTask) -> None:
+        """Handle task creation by tracking it."""
+        self.task_tracker.track_task_creation(task._task_id)
+
+        # Extract and update slice values if available
+        slice_values = task.get_slice_values()
+        if slice_values:
+            # Initial tracking with neutral score
+            self.slice_analyzer.update_task_completion(task._task_id, slice_values, 0.5)
 
         # Invalidate stats cache when task state changes
         self.invalidate_cache()
 
-    def get_pool_composition_stats(self) -> Dict[str, Dict[str, int]]:
-        """Get pool composition and sampling statistics by label.
-
-        Returns:
-            Dictionary with 'pool_composition' and 'sampling_counts' keys,
-            each containing label->count mappings.
-        """
-        # Count labels currently in pool from TaskTracker shared memory
-        pool_composition = {}
-        for task_id in self.task_tracker.get_all_tracked_tasks():
-            label = self.task_tracker.get_task_label(task_id)
-            if label:
-                pool_composition[label] = pool_composition.get(label, 0) + 1
-
-        # Return per-epoch sampling counts (reset each epoch)
-        return {
-            "pool_composition": pool_composition,
-            "sampling_counts": self._label_sampling_counts_this_epoch.copy(),
-        }
-
-    def get_base_stats(self) -> Dict[str, float]:
-        """Get basic statistics that all algorithms must provide.
-
-        Note: Called per-worker in vectorized environments, so keep lightweight.
-        Expensive calculations like Gini are in calculate_gini_coefficients().
-        """
-        # Start with number of tasks
-        stats = {
-            "num_tasks": self.num_tasks,
-        }
-
-        # Add task tracker global stats with prefix
-        tracker_stats = self.task_tracker.get_global_stats()
-        for key, value in tracker_stats.items():
-            stats[f"tracker/{key}"] = value
-
-        # Add pool composition and sampling statistics
-        composition_data = self.get_pool_composition_stats()
-
-        for label, count in composition_data["pool_composition"].items():
-            stats[f"pool_composition/{label}"] = float(count)
-
-        for label, count in composition_data["sampling_counts"].items():
-            stats[f"sampling_counts/{label}"] = float(count)
-
-        for label, count in self._label_eviction_counts.items():
-            stats[f"eviction_counts/{label}"] = float(count)
-
-        return stats
-
-    def _calculate_gini_coefficient(self, values: List[float]) -> float:
-        """Calculate Gini coefficient for a distribution.
-
-        Measures inequality in sampling/distribution:
-        - 0 = perfect equality (all values equal)
-        - 1 = perfect inequality (one value has everything)
-
-        Args:
-            values: List of counts/frequencies
-
-        Returns:
-            Gini coefficient between 0 and 1
-        """
-        import logging
-        import math
-
-        logger = logging.getLogger(__name__)
-
-        if not values or len(values) == 0:
-            return 0.0
-
-        # Handle case with all zeros
-        total = sum(values)
-        if total == 0:
-            return 0.0
-
-        # Check for NaN or inf
-        if any(math.isnan(v) or math.isinf(v) for v in values):
-            logger.warning(f"Gini calculation received NaN or Inf values: {values[:10]}...")
-            return 0.0
-
-        # Sort values in ascending order
-        sorted_values = sorted(values)
-        n = len(sorted_values)
-
-        # Calculate Gini coefficient using the formula:
-        # G = (2 * sum(i * x_i)) / (n * sum(x_i)) - (n + 1) / n
-        cumsum = 0.0
-        for i, value in enumerate(sorted_values, start=1):
-            cumsum += i * value
-
-        gini = (2.0 * cumsum) / (n * total) - (n + 1.0) / n
-
-        # Sanity check result
-        if math.isnan(gini) or math.isinf(gini):
-            logger.error(f"Gini calculation produced NaN/Inf! cumsum={cumsum}, n={n}, total={total}")
-            return 0.0
-
-        return gini
-
-    def calculate_gini_coefficients(self) -> Dict[str, float]:
-        """Calculate Gini coefficients at each stage of the LP calculation pipeline.
-
-        This is an expensive operation that should be called once per epoch from
-        the centralized stats reporter, not from each worker in vectorized environments.
-
-        This helps diagnose where selectivity is lost in the chain:
-        1. Raw LP scores (task-level)
-        2. Raw LP scores aggregated by label
-        3. Z-scored LP scores (task-level)
-        4. Final sampling probabilities (task-level)
-        5. Sampling counts aggregated by label
-        6. Eviction counts aggregated by label
-        7. Pool composition aggregated by label
-
-        Returns:
-            Dictionary of Gini coefficients at each pipeline stage
-        """
-        gini_stats = {}
-
-        # Get all tracked tasks
-        all_task_ids = self.task_tracker.get_all_tracked_tasks()
-
-        if not all_task_ids:
-            return gini_stats
-
-        # Collect task-level data
-        completion_counts = []
-        raw_lp_scores = []  # Actual raw LP: |p_fast - p_slow|
-        z_scored_lp_scores = []
-        sampling_probs = []
-        task_labels_list = []
-
-        for task_id in all_task_ids:
-            task_stats = self.task_tracker.get_task_stats(task_id)
-            if task_stats:
-                completion_count = float(task_stats["completion_count"])
-                completion_counts.append(completion_count)
-
-                # Get final sampling probability (after all transformations)
-                sampling_prob = self.scorer.score_task(task_id, self.task_tracker)
-                sampling_probs.append(float(sampling_prob))
-                z_scored_lp_scores.append(float(sampling_prob))  # Currently same as sampling_prob
-
-                # Get actual raw learning progress: |p_fast - p_slow|
-                # This is the true LP signal before smoothing/normalization
-                p_fast = float(task_stats.get("p_fast", 0.0))
-                p_slow = float(task_stats.get("p_slow", 0.0))
-                raw_lp = abs(p_fast - p_slow)
-                raw_lp_scores.append(raw_lp)
-
-                label = self.task_tracker.get_task_label(task_id)
-                task_labels_list.append(label if label else "unknown")
-
-                if self.hypers.show_curriculum_troubleshooting_logging:
-                    gini_stats[f"task_metrics/{task_id}/completion_count"] = completion_count
-                    gini_stats[f"task_metrics/{task_id}/raw_lp"] = raw_lp
-                    gini_stats[f"task_metrics/{task_id}/sampling_prob"] = sampling_prob
-
-        if completion_counts:
-            gini_stats["curriculum_gini/pool_occupancy"] = self._calculate_gini_coefficient(completion_counts)
-
-        if raw_lp_scores:
-            gini_stats["curriculum_gini/raw_lp_scores"] = self._calculate_gini_coefficient(raw_lp_scores)
-            # Debug stats for raw LP
-            import statistics
-
-            gini_stats["debug/raw_lp_mean"] = float(statistics.mean(raw_lp_scores))
-            gini_stats["debug/raw_lp_std"] = float(statistics.stdev(raw_lp_scores)) if len(raw_lp_scores) > 1 else 0.0
-            gini_stats["debug/raw_lp_max"] = float(max(raw_lp_scores))
-            gini_stats["debug/raw_lp_min"] = float(min(raw_lp_scores))
-            gini_stats["debug/raw_lp_nonzero_count"] = float(sum(1 for x in raw_lp_scores if x > 1e-10))
-
-        if raw_lp_scores and task_labels_list:
-            label_lp_sums = {}
-            for label, lp in zip(task_labels_list, raw_lp_scores, strict=True):
-                label_lp_sums[label] = label_lp_sums.get(label, 0.0) + lp
-
-            if label_lp_sums:
-                label_lp_values = list(label_lp_sums.values())
-                gini_stats["curriculum_gini/raw_lp_by_label"] = self._calculate_gini_coefficient(label_lp_values)
-
-        if z_scored_lp_scores:
-            gini_stats["curriculum_gini/zscored_lp_scores"] = self._calculate_gini_coefficient(
-                [abs(z) for z in z_scored_lp_scores]
-            )
-
-        if sampling_probs:
-            gini_stats["curriculum_gini/sampling_probs"] = self._calculate_gini_coefficient(sampling_probs)
-
-        if sampling_probs and task_labels_list:
-            label_prob_sums = {}
-            for label, prob in zip(task_labels_list, sampling_probs, strict=True):
-                label_prob_sums[label] = label_prob_sums.get(label, 0.0) + prob
-
-            if label_prob_sums:
-                label_prob_values = list(label_prob_sums.values())
-                gini_stats["curriculum_gini/sampling_probs_by_label"] = self._calculate_gini_coefficient(
-                    label_prob_values
-                )
-
-        if self._label_sampling_counts_this_epoch:
-            label_sampling_values = list(self._label_sampling_counts_this_epoch.values())
-            gini_stats["curriculum_gini/sampling_by_label"] = self._calculate_gini_coefficient(label_sampling_values)
-
-        if self._label_eviction_counts:
-            label_eviction_values = list(self._label_eviction_counts.values())
-            if label_eviction_values and sum(label_eviction_values) > 0:
-                gini_stats["curriculum_gini/evictions_by_label"] = self._calculate_gini_coefficient(
-                    label_eviction_values
-                )
-
-        composition_data = self.get_pool_composition_stats()
-        if composition_data["pool_composition"]:
-            pool_comp_values = list(composition_data["pool_composition"].values())
-            gini_stats["curriculum_gini/pool_composition_by_label"] = self._calculate_gini_coefficient(pool_comp_values)
-
-        # Selectivity loss: how much inequality is reduced in the transformation pipeline
-        if "curriculum_gini/raw_lp_scores" in gini_stats and "curriculum_gini/sampling_probs" in gini_stats:
-            selectivity_loss = (
-                gini_stats["curriculum_gini/raw_lp_scores"] - gini_stats["curriculum_gini/sampling_probs"]
-            )
-            gini_stats["curriculum_gini/selectivity_loss_lp_to_prob"] = selectivity_loss
-
-        if "curriculum_gini/raw_lp_by_label" in gini_stats and "curriculum_gini/sampling_probs_by_label" in gini_stats:
-            label_prob_selectivity_loss = (
-                gini_stats["curriculum_gini/raw_lp_by_label"] - gini_stats["curriculum_gini/sampling_probs_by_label"]
-            )
-            gini_stats["curriculum_gini/selectivity_loss_lp_label_to_prob_label"] = label_prob_selectivity_loss
-
-        if "curriculum_gini/raw_lp_by_label" in gini_stats and "curriculum_gini/sampling_by_label" in gini_stats:
-            label_selectivity_loss = (
-                gini_stats["curriculum_gini/raw_lp_by_label"] - gini_stats["curriculum_gini/sampling_by_label"]
-            )
-            gini_stats["curriculum_gini/selectivity_loss_lp_label_to_sampling_label"] = label_selectivity_loss
-
-        return gini_stats
-
     def get_detailed_stats(self) -> Dict[str, float]:
         """Get detailed stats including learning progress and slice distribution analysis."""
-        stats = {}
+        stats = super().get_detailed_stats()  # Gets slice analyzer stats
 
-        # Learning progress stats from scorer with lp/ prefix
-        lp_stats = self.scorer.get_stats()
+        # Always include learning progress stats (not just when detailed logging is enabled)
+        if self.hypers.use_bidirectional:
+            lp_stats = self._get_bidirectional_detailed_stats()
+        else:
+            lp_stats = self._get_basic_detailed_stats()
+
+        # Add lp/ prefix to learning progress stats
         for key, value in lp_stats.items():
             stats[f"lp/{key}"] = value
 
-        # Dual-pool statistics
-        if self.hypers.use_dual_pool and isinstance(self.task_tracker, DualPoolTaskTracker):
-            # Pool sizes
-            num_explore = len(self.task_tracker.get_all_explore_tasks())
-            num_exploit = len(self.task_tracker.get_all_exploit_tasks())
-            stats["dual_pool/num_explore_tasks"] = float(num_explore)
-            stats["dual_pool/num_exploit_tasks"] = float(num_exploit)
+        return stats
 
-            # Explore-Exploit Ratio
-            stats["dual_pool/explore_exploit_ratio"] = self._explore_exploit_ratio
+    def _get_bidirectional_detailed_stats(self) -> Dict[str, float]:
+        """Get detailed bidirectional learning progress statistics."""
+        if not self._outcomes:
+            return {
+                "num_tracked_tasks": 0.0,
+                "mean_task_success_rate": 0.0,
+                "mean_learning_progress": 0.0,
+                "num_active_tasks": 0.0,
+            }
 
-            # Promotion statistics
-            stats["dual_pool/num_promotions"] = float(self._num_promotions)
-            stats["dual_pool/num_promotion_attempts"] = float(self._num_promotion_attempts)
-            if self._num_promotion_attempts > 0:
-                stats["dual_pool/promotion_success_rate"] = self._num_promotions / self._num_promotion_attempts
-            else:
-                stats["dual_pool/promotion_success_rate"] = 0.0
+        self._update_bidirectional_progress()
 
-            # Recent promotion rate (from sliding window)
-            if len(self._promotion_window) > 0:
-                stats["dual_pool/recent_promotion_rate"] = sum(self._promotion_window) / len(self._promotion_window)
-            else:
-                stats["dual_pool/recent_promotion_rate"] = 0.0
+        stats = {
+            "num_tracked_tasks": float(len(self._outcomes)),
+            "mean_task_success_rate": float(np.mean(self._task_success_rate))
+            if len(self._task_success_rate) > 0
+            else 0.0,
+        }
 
-            # Phase indicator
-            stats["dual_pool/is_bootstrap_phase"] = 1.0 if self._current_phase == "bootstrap" else 0.0
-            stats["dual_pool/is_steady_state_phase"] = 1.0 if self._current_phase == "steady_state" else 0.0
+        if self._task_dist is not None and len(self._task_dist) > 0:
+            stats.update(
+                {
+                    "mean_sample_prob": float(np.mean(self._task_dist)),
+                    "num_zeros_lp_dist": float(np.sum(self._task_dist == 0)),
+                    "mean_learning_progress": float(np.mean(self._learning_progress())),
+                }
+            )
+        else:
+            stats.update(
+                {
+                    "mean_sample_prob": 0.0,
+                    "num_zeros_lp_dist": 0.0,
+                    "mean_learning_progress": 0.0,
+                }
+            )
 
         return stats
 
-    # ========== Dual-Pool Public Methods ==========
+    def _get_basic_detailed_stats(self) -> Dict[str, float]:
+        """Get detailed basic learning progress statistics."""
+        if not self._task_emas:
+            return {
+                "num_tracked_tasks": 0.0,
+                "mean_num_samples": 0.0,
+                "mean_ema_score": 0.0,
+                "mean_learning_progress": 0.0,
+            }
 
-    def is_dual_pool_mode(self) -> bool:
-        """Check if dual-pool mode is enabled."""
-        return self.hypers.use_dual_pool
+        num_samples_list = [num_samples for _, _, num_samples in self._task_emas.values()]
+        ema_scores = [ema_score for ema_score, _, _ in self._task_emas.values()]
 
-    def get_current_phase(self) -> str:
-        """Get current dual-pool phase ('bootstrap' or 'steady_state').
+        # Calculate mean learning progress from EMA data
+        learning_progress_scores = []
+        for ema_score, ema_squared, _num_samples in self._task_emas.values():
+            variance = max(0.0, ema_squared - ema_score * ema_score)
+            std_dev = np.sqrt(variance)
+            learning_progress_scores.append(std_dev)
 
-        Returns:
-            'bootstrap' if exploit pool is filling, 'steady_state' otherwise.
-            Returns 'single_pool' if not in dual-pool mode.
-        """
-        if not self.hypers.use_dual_pool:
-            return "single_pool"
-        return self._current_phase
-
-    def select_pool_for_sampling(self) -> str:
-        """Select which pool to sample tasks from based on phase and EER.
-
-        Bootstrap Phase: Always returns 'explore' (100% exploration)
-        Steady-State Phase: Returns 'explore' with probability ρ, 'exploit' with probability 1-ρ
-
-        Returns:
-            'explore' or 'exploit' pool name
-        """
-        if not self.hypers.use_dual_pool:
-            raise RuntimeError("select_pool_for_sampling called in single-pool mode")
-
-        if self._current_phase == "bootstrap":
-            # Bootstrap: 100% explore until exploit pool is full
-            return "explore"
-        else:
-            # Steady-state: Sample based on EER
-            if random.random() < self._explore_exploit_ratio:
-                return "explore"
-            else:
-                return "exploit"
-
-    def select_pool_for_creation(self) -> str:
-        """Select which pool to create new tasks in.
-
-        All new tasks are created in the explore pool. This ensures:
-        1. New tasks get sufficient evaluation before promotion
-        2. Exploit pool only contains validated tasks
-        3. Exploration is always testing new hypotheses
-
-        Returns:
-            'explore' - all new tasks go to explore pool
-        """
-        if not self.hypers.use_dual_pool:
-            raise RuntimeError("select_pool_for_creation called in single-pool mode")
-
-        return "explore"
-
-    def get_pool_task_ids(self, pool: str) -> List[int]:
-        """Get all task IDs from a specific pool.
-
-        Args:
-            pool: 'explore' or 'exploit'
-
-        Returns:
-            List of task IDs in the specified pool
-        """
-        if not self.hypers.use_dual_pool:
-            raise RuntimeError("get_pool_task_ids called in single-pool mode")
-
-        assert isinstance(self.task_tracker, DualPoolTaskTracker)
-
-        if pool == "explore":
-            return self.task_tracker.get_all_explore_tasks()
-        elif pool == "exploit":
-            return self.task_tracker.get_all_exploit_tasks()
-        else:
-            raise ValueError(f"Invalid pool: {pool}. Must be 'explore' or 'exploit'")
-
-    # ========== Dual-Pool Internal Methods ==========
-
-    def _check_promotion_eligibility(self, task_id: int) -> bool:
-        """Check if a task in explore pool is eligible for promotion.
-
-        A task is eligible if:
-        1. It's in the explore pool
-        2. It has at least S_min samples (promotion_min_samples)
-
-        Args:
-            task_id: Task ID to check
-
-        Returns:
-            True if task is eligible for promotion
-        """
-        if not self.hypers.use_dual_pool:
-            return False
-
-        assert isinstance(self.task_tracker, DualPoolTaskTracker)
-
-        # Check if task is in explore pool
-        if self.task_tracker._task_pool_map.get(task_id) != "explore":
-            return False
-
-        # Check if task has enough samples
-        stats = self.task_tracker.get_task_stats(task_id)
-        if stats is None:
-            return False
-
-        return stats["completion_count"] >= self.hypers.promotion_min_samples
-
-    def _attempt_promotion(self, task_id: int) -> bool:
-        """Attempt to promote a task from explore to exploit pool.
-
-        Promotion succeeds if:
-        1. Task is eligible (has S_min samples)
-        2. Task's score is higher than the lowest-scoring task in exploit pool
-        3. Exploit pool has space OR lowest-scoring task can be evicted
-
-        Args:
-            task_id: Task ID to promote
-
-        Returns:
-            True if promotion succeeded, False otherwise
-        """
-        if not self.hypers.use_dual_pool or not self._check_promotion_eligibility(task_id):
-            return False
-
-        assert isinstance(self.task_tracker, DualPoolTaskTracker)
-
-        # Get task score
-        task_score = self.scorer.score_task(task_id, self.task_tracker.explore_tracker)
-
-        # Only promote tasks with positive learning progress
-        # Tasks with negative/zero LP are not making progress and shouldn't be exploited
-        if task_score <= 0.0:
-            return False
-
-        # Get all exploit tasks and their scores
-        exploit_task_ids = self.task_tracker.get_all_exploit_tasks()
-
-        # If exploit pool is not full, promote task with positive LP
-        if len(exploit_task_ids) < self.hypers.num_exploit_tasks:
-            success = self.task_tracker.promote_task(task_id)
-            if success:
-                self._num_promotions += 1
-            return success
-
-        # Exploit pool is full - check if task score is higher than minimum
-        exploit_scores = {
-            tid: self.scorer.score_task(tid, self.task_tracker.exploit_tracker) for tid in exploit_task_ids
+        return {
+            "num_tracked_tasks": float(len(self._task_emas)),
+            "mean_num_samples": float(np.mean(num_samples_list)),
+            "mean_ema_score": float(np.mean(ema_scores)),
+            "mean_learning_progress": float(np.mean(learning_progress_scores)) if learning_progress_scores else 0.0,
         }
 
-        if not exploit_scores:
-            return False
+    # Bidirectional learning progress implementation (integrated from modules)
 
-        min_exploit_score = min(exploit_scores.values())
-        min_exploit_task = min(exploit_scores.items(), key=lambda x: x[1])[0]
-
-        # Only promote if score is higher than minimum exploit task
-        if task_score > min_exploit_score:
-            # Evict lowest-scoring exploit task
-            self.task_tracker.remove_task(min_exploit_task)
-
-            # Promote task
-            success = self.task_tracker.promote_task(task_id)
-            if success:
-                self._num_promotions += 1
-            return success
-
-        return False
-
-    def _update_explore_exploit_ratio(self) -> None:
-        """Update Explore-Exploit Ratio (ρ) based on recent promotion rate.
-
-        The EER is updated using an exponential moving average:
-            ρ(k+1) = α_EER * ρ(k) + (1 - α_EER) * r_promote(k)
-
-        where r_promote is the promotion rate from the sliding window.
-
-        The updated ρ is clipped to [ρ_min, ρ_max] bounds.
-        """
-        if not self.hypers.use_dual_pool or len(self._promotion_window) == 0:
+    def _update_bidirectional_progress(self):
+        """Update bidirectional learning progress tracking with current task success rates."""
+        if not self._outcomes:
             return
 
-        # Calculate promotion rate from sliding window
-        num_promotions_in_window = sum(self._promotion_window)
-        window_size = len(self._promotion_window)
+        # Get all tracked task IDs
+        task_ids = sorted(self._outcomes.keys())
+        num_tasks = len(task_ids)
+        self._task_index_cache = {task_id: idx for idx, task_id in enumerate(task_ids)}
 
-        r_promote = num_promotions_in_window / window_size if window_size > 0 else 0.0
+        if num_tasks == 0:
+            return
 
-        # EMA update
-        alpha_eer = self.hypers.explore_exploit_ratio_alpha
-        self._explore_exploit_ratio = alpha_eer * self._explore_exploit_ratio + (1 - alpha_eer) * r_promote
-
-        # Clip to bounds
-        self._explore_exploit_ratio = max(
-            self.hypers.explore_exploit_ratio_min,
-            min(self._explore_exploit_ratio, self.hypers.explore_exploit_ratio_max),
+        # Calculate task success rates
+        task_success_rates = np.array(
+            [
+                np.mean(self._outcomes[task_id]) if self._outcomes[task_id] else DEFAULT_SUCCESS_RATE
+                for task_id in task_ids
+            ]
         )
 
-    def _update_phase(self) -> None:
-        """Update phase from bootstrap to steady_state when exploit pool is full."""
-        if not self.hypers.use_dual_pool:
+        # Handle NaN values
+        task_success_rates = np.nan_to_num(task_success_rates, nan=DEFAULT_SUCCESS_RATE)
+
+        # Initialize random baseline if needed
+        if self._random_baseline is None or len(self._random_baseline) != num_tasks:
+            # Random baseline should represent baseline/random performance, typically around 0.5
+            # Don't use actual task performance as baseline - that defeats the purpose
+            self._random_baseline = np.full(num_tasks, 0.5)
+
+        # Create update mask for tasks with sufficient data
+        self._update_mask = np.array([len(self._outcomes[task_id]) >= 2 for task_id in task_ids])
+
+        if not np.any(self._update_mask):
             return
 
-        assert isinstance(self.task_tracker, DualPoolTaskTracker)
+        # Handle division by zero in normalization
+        denominator = 1.0 - self._random_baseline[self._update_mask]
+        denominator = np.where(denominator <= 0, 1.0, denominator)
 
-        if self._current_phase == "bootstrap":
-            exploit_tasks = self.task_tracker.get_all_exploit_tasks()
-            if len(exploit_tasks) >= self.hypers.num_exploit_tasks:
-                self._current_phase = "steady_state"
+        # Allow negative normalized rates for bidirectional algorithm
+        # This captures the full range of performance relative to baseline
+        normalized_task_success_rates = (
+            task_success_rates[self._update_mask] - self._random_baseline[self._update_mask]
+        ) / denominator
+
+        # Initialize or update fast and slow EMAs
+        if self._p_fast is None or len(self._p_fast) != num_tasks:
+            self._p_fast = np.zeros(num_tasks)
+            self._p_slow = np.zeros(num_tasks)
+            self._p_true = np.zeros(num_tasks)
+
+            self._p_fast[self._update_mask] = normalized_task_success_rates
+            self._p_slow[self._update_mask] = normalized_task_success_rates
+            self._p_true[self._update_mask] = task_success_rates[self._update_mask]
+        else:
+            # Resize arrays if needed
+            if (
+                self._p_fast is not None
+                and self._p_slow is not None
+                and self._p_true is not None
+                and len(self._p_fast) != num_tasks
+            ):
+                new_p_fast = np.zeros(num_tasks)
+                new_p_slow = np.zeros(num_tasks)
+                new_p_true = np.zeros(num_tasks)
+
+                min_len = min(len(self._p_fast), num_tasks)
+                new_p_fast[:min_len] = self._p_fast[:min_len]
+                new_p_slow[:min_len] = self._p_slow[:min_len]
+                new_p_true[:min_len] = self._p_true[:min_len]
+
+                self._p_fast = new_p_fast
+                self._p_slow = new_p_slow
+                self._p_true = new_p_true
+
+            # Update EMAs (with None checks)
+            if self._p_fast is not None and self._p_slow is not None and self._p_true is not None:
+                # Fast EMA uses the configured timescale
+                self._p_fast[self._update_mask] = (
+                    normalized_task_success_rates * self.hypers.ema_timescale
+                    + self._p_fast[self._update_mask] * (1.0 - self.hypers.ema_timescale)
+                )
+                # Slow EMA uses a much slower timescale for better differentiation
+                slow_timescale = self.hypers.ema_timescale * 0.2
+                self._p_slow[self._update_mask] = normalized_task_success_rates * slow_timescale + self._p_slow[
+                    self._update_mask
+                ] * (1.0 - slow_timescale)
+                self._p_true[self._update_mask] = task_success_rates[
+                    self._update_mask
+                ] * self.hypers.ema_timescale + self._p_true[self._update_mask] * (1.0 - self.hypers.ema_timescale)
+
+        self._task_success_rate = task_success_rates
+        self._stale_dist = True
+
+    def _learning_progress(self, reweight: bool = True) -> np.ndarray:
+        """Calculate learning progress as the difference between fast and slow moving averages."""
+        if self._p_fast is None or self._p_slow is None:
+            return np.array([])
+
+        fast = self._reweight(self._p_fast) if reweight else self._p_fast
+        slow = self._reweight(self._p_slow) if reweight else self._p_slow
+
+        # Learning progress is the absolute difference between fast and slow EMAs
+        # This captures variability/change regardless of absolute performance level
+        lp = np.abs(fast - slow)
+
+        # Add a small amount based on fast EMA to slightly favor above-baseline tasks
+        # but still prioritize change/variance
+        performance_bonus = np.maximum(fast, 0) * 0.1
+
+        return lp + performance_bonus
+
+    def _reweight(self, probs: np.ndarray) -> np.ndarray:
+        """Apply progress smoothing reweighting to probability values."""
+        numerator = probs * (1.0 - self.hypers.progress_smoothing)
+        denominator = probs + self.hypers.progress_smoothing * (1.0 - 2.0 * probs)
+
+        # Handle division by zero
+        denominator = np.where(denominator <= 0, 1.0, denominator)
+        result = numerator / denominator
+        return result
+
+    def _sigmoid(self, x: np.ndarray) -> np.ndarray:
+        """Apply sigmoid function to array values."""
+        return 1 / (1 + np.exp(-np.clip(x, -500, 500)))  # Clip to prevent overflow
+
+    def _calculate_task_distribution(self):
+        """Calculate task distribution based on bidirectional learning progress."""
+        if not self._outcomes:
+            self._task_dist = np.array([])
+            self._stale_dist = False
+            return
+
+        num_tasks = len(self._outcomes)
+        task_dist = np.ones(num_tasks) / num_tasks
+
+        learning_progress = self._learning_progress()
+
+        if len(learning_progress) == 0:
+            self._task_dist = task_dist
+            self._stale_dist = False
+            return
+
+        # Find tasks with positive learning progress (actual learning/change)
+        # Don't just reward any positive performance - focus on learning progress
+        posidxs = [i for i, lp in enumerate(learning_progress) if lp > 0]
+
+        any_progress = len(posidxs) > 0
+        subprobs = learning_progress[posidxs] if any_progress else learning_progress
+
+        # Standardize and apply sigmoid
+        std = np.std(subprobs)
+        if std > 0:
+            subprobs = (subprobs - np.mean(subprobs)) / std
+        else:
+            subprobs = subprobs - np.mean(subprobs)
+
+        subprobs = self._sigmoid(subprobs)
+
+        # Normalize to sum to 1
+        sum_probs = np.sum(subprobs)
+        if sum_probs > 0:
+            subprobs = subprobs / sum_probs
+        else:
+            subprobs = np.ones_like(subprobs) / len(subprobs)
+
+        # Assign probabilities
+        if any_progress:
+            task_dist = np.zeros(len(learning_progress))
+            task_dist[posidxs] = subprobs
+        else:
+            task_dist = subprobs
+
+        self._task_dist = task_dist.astype(np.float32)
+        self._stale_dist = False
 
     def get_state(self) -> Dict[str, Any]:
         """Get learning progress algorithm state for checkpointing."""
@@ -1270,105 +666,47 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             "type": self.hypers.algorithm_type(),
             "hypers": self.hypers.model_dump(),
             "task_tracker": self.task_tracker.get_state(),
-            "scorer": self.scorer.get_state(),
-            "label_tracking": {
-                # Labels are now stored in TaskTracker shared memory
-                # Only save sampling/eviction counts and active label metadata
-                "label_sampling_counts": self._label_sampling_counts,
-                "label_eviction_counts": self._label_eviction_counts,
-                "active_labels": list(self._active_labels),
-                "inactive_labels_fifo": self._inactive_labels_fifo,
-            },
         }
 
-        # Add dual-pool state if enabled
-        if self.hypers.use_dual_pool:
-            state["dual_pool"] = {
-                "explore_exploit_ratio": self._explore_exploit_ratio,
-                "promotion_window": list(self._promotion_window),
-                "num_promotions": self._num_promotions,
-                "num_promotion_attempts": self._num_promotion_attempts,
-                "current_phase": self._current_phase,
-            }
+        # Save bidirectional scoring state
+        if hasattr(self, "_outcomes"):
+            state.update(
+                {
+                    "outcomes": {k: v for k, v in self._outcomes.items()},
+                    "counter": self._counter,
+                    "p_fast": self._p_fast.tolist() if self._p_fast is not None else None,
+                    "p_slow": self._p_slow.tolist() if self._p_slow is not None else None,
+                    "p_true": self._p_true.tolist() if self._p_true is not None else None,
+                    "random_baseline": self._random_baseline.tolist() if self._random_baseline is not None else None,
+                    "task_success_rate": self._task_success_rate.tolist(),
+                    "update_mask": self._update_mask.tolist(),
+                    "sample_levels": self._sample_levels.tolist(),
+                    "task_dist": self._task_dist.tolist() if self._task_dist is not None else None,
+                    "stale_dist": self._stale_dist,
+                    "score_cache": self._score_cache,
+                    "cache_valid_tasks": list(self._cache_valid_tasks),
+                }
+            )
 
         return state
 
     def load_state(self, state: Dict[str, Any]) -> None:
         """Load learning progress algorithm state from checkpoint."""
-        import logging
-
-        logger = logging.getLogger(__name__)
-
         # Restore task tracker
         self.task_tracker.load_state(state["task_tracker"])
 
-        # Log what was restored
-        num_tasks = len(self.task_tracker.get_all_tracked_tasks())
-        total_completions = self.task_tracker._total_completions
-        logger.info(
-            f"LP Algorithm: Loaded {num_tasks} tasks from checkpoint with {total_completions} total completions"
-        )
-
-        # Restore scorer state
-        if "scorer" in state:
-            self.scorer.load_state(state["scorer"])
-
-        # Restore label tracking state (if available, for backward compatibility)
-        # Labels themselves are now in TaskTracker shared memory
-        if "label_tracking" in state:
-            label_data = state["label_tracking"]
-            self._label_sampling_counts = label_data.get("label_sampling_counts", {})
-            self._label_eviction_counts = label_data.get("label_eviction_counts", {})
-            self._active_labels = set(label_data.get("active_labels", []))
-            self._inactive_labels_fifo = label_data.get("inactive_labels_fifo", [])
-
-        # Restore dual-pool state if available
-        if self.hypers.use_dual_pool and "dual_pool" in state:
-            dual_pool_data = state["dual_pool"]
-            self._explore_exploit_ratio = dual_pool_data.get(
-                "explore_exploit_ratio", self.hypers.explore_exploit_ratio_init
-            )
-            promotion_window_list = dual_pool_data.get("promotion_window", [])
-            self._promotion_window = deque(promotion_window_list, maxlen=self.hypers.promotion_rate_window)
-            self._num_promotions = dual_pool_data.get("num_promotions", 0)
-            self._num_promotion_attempts = dual_pool_data.get("num_promotion_attempts", 0)
-            self._current_phase = dual_pool_data.get("current_phase", "bootstrap")
-            logger.info(
-                f"LP Algorithm: Restored dual-pool state - "
-                f"EER={self._explore_exploit_ratio:.3f}, "
-                f"phase={self._current_phase}, "
-                f"promotions={self._num_promotions}"
-            )
-
-        # Fix LP scores for tasks loaded from old checkpoints
-        # Tasks with 0 completions should have exploration_bonus, not 0.0
-        fixed_count = 0
-        for task_id in self.task_tracker.get_all_tracked_tasks():
-            stats = self.task_tracker.get_task_stats(task_id)
-            if stats and stats["completion_count"] == 0 and stats["lp_score"] == 0.0:
-                self.task_tracker.update_lp_score(task_id, self.hypers.exploration_bonus)
-                fixed_count += 1
-
-        if fixed_count > 0:
-            bonus = self.hypers.exploration_bonus
-            logger.info(f"LP Algorithm: Fixed {fixed_count} tasks with 0 completions to exploration_bonus={bonus}")
-
-    def cleanup_shared_memory(self) -> None:
-        """Clean up shared memory resources with better error handling."""
-        task_tracker = getattr(self, "task_tracker", None)
-        if task_tracker is None:
-            return
-
-        try:
-            task_tracker.cleanup_shared_memory()
-        except Exception as e:
-            # Log but don't raise - cleanup should be best-effort
-            import logging
-
-            logging.warning(f"Failed to cleanup shared memory: {e}")
-
-    def __del__(self):
-        """Cleanup when object is destroyed."""
-        hypers = getattr(self, "hypers", None)
-        if hypers is not None and getattr(hypers, "use_shared_memory", False):
-            self.cleanup_shared_memory()
+        # Restore bidirectional scoring state
+        if "outcomes" in state:
+            self._outcomes = state["outcomes"]
+            self._counter = state["counter"]
+            self._p_fast = np.array(state["p_fast"]) if state["p_fast"] is not None else None
+            self._p_slow = np.array(state["p_slow"]) if state["p_slow"] is not None else None
+            self._p_true = np.array(state["p_true"]) if state["p_true"] is not None else None
+            self._random_baseline = np.array(state["random_baseline"]) if state["random_baseline"] is not None else None
+            self._task_success_rate = np.array(state["task_success_rate"])
+            self._update_mask = np.array(state["update_mask"])
+            self._sample_levels = np.array(state["sample_levels"])
+            self._task_dist = np.array(state["task_dist"]) if state["task_dist"] is not None else None
+            self._stale_dist = state["stale_dist"]
+            self._score_cache = state["score_cache"]
+            self._cache_valid_tasks = set(state["cache_valid_tasks"])

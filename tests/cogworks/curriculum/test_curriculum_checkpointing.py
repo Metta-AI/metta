@@ -32,14 +32,11 @@ class TestCurriculumStateSerialization:
         curriculum_config = CurriculumConfig(
             task_generator=task_generator_config,
             num_active_tasks=10,
-            seed=42,
-            algorithm_config=LearningProgressConfig(
-                num_active_tasks=100, use_bidirectional=True, use_shared_memory=False
-            ),
+            algorithm_config=LearningProgressConfig(num_active_tasks=10, max_memory_tasks=100, use_bidirectional=True),
         )
 
         # Create curriculum with fixed seed for reproducibility
-        curriculum = Curriculum(curriculum_config)
+        curriculum = Curriculum(curriculum_config, seed=42)
 
         # Generate some tasks and performance data
         task_ids = []
@@ -87,11 +84,10 @@ class TestCurriculumStateSerialization:
         curriculum_config = CurriculumConfig(
             task_generator=task_generator_config,
             num_active_tasks=10,
-            algorithm_config=LearningProgressConfig(num_active_tasks=10, use_shared_memory=False),
+            algorithm_config=LearningProgressConfig(num_active_tasks=10),
         )
 
-        curriculum_config_seed42 = curriculum_config.model_copy(update={"seed": 42})
-        curriculum1 = Curriculum(curriculum_config_seed42)
+        curriculum1 = Curriculum(curriculum_config, seed=42)
 
         # Generate tasks and performance data
         original_tasks = {}
@@ -114,8 +110,7 @@ class TestCurriculumStateSerialization:
         state = curriculum1.get_state()
 
         # Create new curriculum with different seed and load state
-        curriculum_config_seed999 = curriculum_config.model_copy(update={"seed": 999})
-        curriculum2 = Curriculum(curriculum_config_seed999)  # Different seed
+        curriculum2 = Curriculum(curriculum_config, seed=999)  # Different seed
         curriculum2.load_state(state)
 
         # Verify state restoration
@@ -143,13 +138,10 @@ class TestCurriculumStateSerialization:
         curriculum_config = CurriculumConfig(
             task_generator=task_generator_config,
             num_active_tasks=8,
-            algorithm_config=LearningProgressConfig(
-                num_active_tasks=50, use_bidirectional=True, use_shared_memory=False
-            ),
+            algorithm_config=LearningProgressConfig(num_active_tasks=8, use_bidirectional=True, max_memory_tasks=50),
         )
 
-        curriculum_config_seed123 = curriculum_config.model_copy(update={"seed": 123})
-        curriculum = Curriculum(curriculum_config_seed123)
+        curriculum = Curriculum(curriculum_config, seed=123)
 
         # Generate tasks and performance data to populate algorithm state
         for _ in range(20):
@@ -163,40 +155,31 @@ class TestCurriculumStateSerialization:
         algorithm = curriculum._algorithm
         state = algorithm.get_state()
 
-        # Verify state structure - new architecture with separate components
+        # Verify state structure
         assert state["type"] == "learning_progress"
         assert "task_tracker" in state
-        assert "scorer" in state  # Scorer is now separate component
-        assert "hypers" in state
-
-        # Verify scorer state (bidirectional-specific)
-        scorer_state = state["scorer"]
-        # Note: After Stage 2 simplification, ALL state (EMAs, LP scores) is in task_tracker's
-        # shared memory. Scorer only stores the stale flag.
-        assert "stale_dist" in scorer_state
-        # Verify stale_dist is always True after serialization (forces recalculation on load)
-        assert scorer_state["stale_dist"] is True
+        assert "outcomes" in state
+        assert "counter" in state
+        assert "p_fast" in state
+        assert "p_slow" in state
 
         # Verify task tracker state
         task_tracker_state = state["task_tracker"]
         assert "max_memory_tasks" in task_tracker_state
         assert "task_memory" in task_tracker_state
-        assert "global_total_completions" in task_tracker_state
-        assert "global_sum_scores" in task_tracker_state
-        assert "tracker_type" in task_tracker_state
+        assert "completion_history" in task_tracker_state
 
         # Test loading state
         new_algorithm = curriculum_config.algorithm_config.create(8)
         new_algorithm.load_state(state)
 
-        # Verify state was loaded correctly - check task IDs match
-        original_task_ids = set(algorithm.task_tracker._task_id_to_index.keys())
-        loaded_task_ids = set(new_algorithm.task_tracker._task_id_to_index.keys())
-        assert original_task_ids == loaded_task_ids
+        # Verify state was loaded correctly
+        assert len(algorithm.task_tracker._task_memory) == len(new_algorithm.task_tracker._task_memory)
+        assert algorithm.task_tracker._cached_total_completions == new_algorithm.task_tracker._cached_total_completions
 
     def test_task_tracker_state(self):
         """Test TaskTracker state serialization."""
-        tracker = TaskTracker(max_memory_tasks=100, use_shared_memory=False)
+        tracker = TaskTracker(max_memory_tasks=100)
 
         # Add some tasks and performance data
         for i in range(10):
@@ -211,22 +194,19 @@ class TestCurriculumStateSerialization:
         # Verify state structure
         assert "max_memory_tasks" in state
         assert "task_memory" in state
-        assert "global_total_completions" in state
-        assert "global_sum_scores" in state
+        assert "task_creation_order" in state
+        assert "completion_history" in state
         assert "cached_total_completions" in state
-        assert "tracker_type" in state
+        assert "cache_valid" in state
 
         # Test loading state
-        new_tracker = TaskTracker(max_memory_tasks=50, use_shared_memory=False)
+        new_tracker = TaskTracker(max_memory_tasks=50)
         new_tracker.load_state(state)
 
-        # Verify state was loaded correctly - check task IDs match
-        original_task_ids = set(tracker._task_id_to_index.keys())
-        loaded_task_ids = set(new_tracker._task_id_to_index.keys())
-        assert original_task_ids == loaded_task_ids
-
-        # Verify completion counts match
-        assert state["cached_total_completions"] > 0
+        # Verify state was loaded correctly
+        assert len(tracker._task_memory) == len(new_tracker._task_memory)
+        assert tracker._cached_total_completions == new_tracker._cached_total_completions
+        assert len(tracker._completion_history) == len(new_tracker._completion_history)
 
     def test_file_size_limits(self):
         """Test that checkpoint files don't become too large."""
@@ -237,11 +217,10 @@ class TestCurriculumStateSerialization:
         curriculum_config = CurriculumConfig(
             task_generator=task_generator_config,
             num_active_tasks=1000,
-            algorithm_config=LearningProgressConfig(num_active_tasks=5000, use_shared_memory=False),
+            algorithm_config=LearningProgressConfig(num_active_tasks=1000, max_memory_tasks=5000),
         )
 
-        curriculum_config_seed456 = curriculum_config.model_copy(update={"seed": 456})
-        curriculum = Curriculum(curriculum_config_seed456)
+        curriculum = Curriculum(curriculum_config, seed=456)
 
         # Generate many tasks with performance data
         for _ in range(500):
@@ -269,8 +248,7 @@ class TestCurriculumStateSerialization:
 
         curriculum_config1 = CurriculumConfig(task_generator=task_generator_config, num_active_tasks=10)
 
-        curriculum_config1_seed42 = curriculum_config1.model_copy(update={"seed": 42})
-        curriculum = Curriculum(curriculum_config1_seed42)
+        curriculum = Curriculum(curriculum_config1, seed=42)
 
         # Generate some tasks
         for _ in range(5):
@@ -286,8 +264,7 @@ class TestCurriculumStateSerialization:
             num_active_tasks=20,  # Different number of active tasks
         )
 
-        curriculum_config2_seed789 = curriculum_config2.model_copy(update={"seed": 789})
-        curriculum2 = Curriculum(curriculum_config2_seed789)
+        curriculum2 = Curriculum(curriculum_config2, seed=789)
 
         # Loading should work even with config mismatch
         # The warning will be logged but we just verify loading succeeds
@@ -304,8 +281,7 @@ class TestCurriculumStateSerialization:
 
         curriculum_config = CurriculumConfig(task_generator=task_generator_config, num_active_tasks=10)
 
-        curriculum_config_seed42 = curriculum_config.model_copy(update={"seed": 42})
-        curriculum = Curriculum(curriculum_config_seed42)
+        curriculum = Curriculum(curriculum_config, seed=42)
 
         # Create corrupted state (missing required fields)
         corrupted_state = {
@@ -325,8 +301,7 @@ class TestCurriculumStateSerialization:
 
         curriculum_config = CurriculumConfig(task_generator=task_generator_config, num_active_tasks=10)
 
-        curriculum_config_seed123 = curriculum_config.model_copy(update={"seed": 123})
-        curriculum = Curriculum(curriculum_config_seed123)
+        curriculum = Curriculum(curriculum_config, seed=123)
 
         # Generate some tasks to advance random state
         for _ in range(10):
@@ -336,8 +311,7 @@ class TestCurriculumStateSerialization:
         state = curriculum.get_state()
 
         # Create new curriculum and load state
-        curriculum_config_seed0 = curriculum_config.model_copy(update={"seed": 0})
-        curriculum2 = Curriculum(curriculum_config_seed0)  # Different initial seed
+        curriculum2 = Curriculum(curriculum_config, seed=0)  # Different initial seed
         curriculum2.load_state(state)
 
         # Generate more tasks and verify they're deterministic
@@ -363,11 +337,10 @@ class TestCheckpointManagerIntegration:
             curriculum_config = CurriculumConfig(
                 task_generator=task_generator_config,
                 num_active_tasks=10,
-                algorithm_config=LearningProgressConfig(num_active_tasks=10, use_shared_memory=False),
+                algorithm_config=LearningProgressConfig(num_active_tasks=10),
             )
 
-            curriculum_config_seed42 = curriculum_config.model_copy(update={"seed": 42})
-            curriculum = Curriculum(curriculum_config_seed42)
+            curriculum = Curriculum(curriculum_config, seed=42)
 
             # Generate some tasks and performance data
             for _ in range(10):
@@ -435,8 +408,7 @@ class TestTaskRecreation:
 
         curriculum_config = CurriculumConfig(task_generator=task_generator_config, num_active_tasks=10)
 
-        curriculum_config_seed42 = curriculum_config.model_copy(update={"seed": 42})
-        curriculum = Curriculum(curriculum_config_seed42)
+        curriculum = Curriculum(curriculum_config, seed=42)
 
         # Generate some tasks
         original_tasks = {}
@@ -453,8 +425,7 @@ class TestTaskRecreation:
 
         # Save and load state
         state = curriculum.get_state()
-        curriculum_config_seed999 = curriculum_config.model_copy(update={"seed": 999})
-        curriculum2 = Curriculum(curriculum_config_seed999)
+        curriculum2 = Curriculum(curriculum_config, seed=999)
         curriculum2.load_state(state)
 
         # Verify that tasks can be retrieved and have proper data
@@ -482,8 +453,7 @@ class TestTaskRecreation:
 
         curriculum_config = CurriculumConfig(task_generator=task_generator_config, num_active_tasks=1000)
 
-        curriculum_config_seed42 = curriculum_config.model_copy(update={"seed": 42})
-        curriculum = Curriculum(curriculum_config_seed42)
+        curriculum = Curriculum(curriculum_config, seed=42)
 
         # Generate many tasks
         for _ in range(100):
@@ -494,8 +464,7 @@ class TestTaskRecreation:
         state = curriculum.get_state()
 
         start_time = time.time()
-        curriculum_config_seed999 = curriculum_config.model_copy(update={"seed": 999})
-        curriculum2 = Curriculum(curriculum_config_seed999)
+        curriculum2 = Curriculum(curriculum_config, seed=999)
         curriculum2.load_state(state)
         load_time = time.time() - start_time
 
@@ -522,8 +491,7 @@ class TestCurriculumRoundtripBehavior:
         )
 
         # Create original curriculum
-        curriculum_config_seed42 = curriculum_config.model_copy(update={"seed": 42})
-        curriculum1 = Curriculum(curriculum_config_seed42)
+        curriculum1 = Curriculum(curriculum_config, seed=42)
 
         # Simulate training activity
         task_selections = []
@@ -539,8 +507,7 @@ class TestCurriculumRoundtripBehavior:
 
         # Checkpoint and restore
         state = curriculum1.get_state()
-        curriculum_config_seed999 = curriculum_config.model_copy(update={"seed": 999})
-        curriculum2 = Curriculum(curriculum_config_seed999)  # Different seed
+        curriculum2 = Curriculum(curriculum_config, seed=999)  # Different seed
         curriculum2.load_state(state)
 
         # Continue activity and verify consistent behavior
@@ -572,13 +539,12 @@ class TestCurriculumRoundtripBehavior:
             task_generator=task_generator_config,
             num_active_tasks=15,
             algorithm_config=LearningProgressConfig(
-                num_active_tasks=100, use_bidirectional=True, use_shared_memory=False, ema_timescale=0.01
+                num_active_tasks=15, use_bidirectional=True, max_memory_tasks=100, ema_timescale=0.01
             ),
         )
 
         # Create and train original curriculum
-        curriculum_config_seed123 = curriculum_config.model_copy(update={"seed": 123})
-        curriculum1 = Curriculum(curriculum_config_seed123)
+        curriculum1 = Curriculum(curriculum_config, seed=123)
 
         # Create diverse task performance to trigger learning progress
         task_performance = {}
@@ -609,8 +575,7 @@ class TestCurriculumRoundtripBehavior:
 
         # Checkpoint and restore
         state = curriculum1.get_state()
-        curriculum_config_seed456 = curriculum_config.model_copy(update={"seed": 456})
-        curriculum2 = Curriculum(curriculum_config_seed456)  # Different seed
+        curriculum2 = Curriculum(curriculum_config, seed=456)  # Different seed
         curriculum2.load_state(state)
 
         # Verify algorithm state preservation
@@ -651,14 +616,12 @@ class TestCurriculumRoundtripBehavior:
         curriculum_config = CurriculumConfig(
             task_generator=task_generator_config,
             num_active_tasks=10,
-            algorithm_config=LearningProgressConfig(num_active_tasks=10, use_shared_memory=False),
+            algorithm_config=LearningProgressConfig(num_active_tasks=10),
         )
 
         # Create two identical curricula
-        curriculum_config_seed789 = curriculum_config.model_copy(update={"seed": 789})
-        curriculum1 = Curriculum(curriculum_config_seed789)
-        curriculum_config_seed789 = curriculum_config.model_copy(update={"seed": 789})
-        curriculum2 = Curriculum(curriculum_config_seed789)
+        curriculum1 = Curriculum(curriculum_config, seed=789)
+        curriculum2 = Curriculum(curriculum_config, seed=789)
 
         # Run identical training on both
         for _ in range(25):
@@ -676,8 +639,7 @@ class TestCurriculumRoundtripBehavior:
 
         # Checkpoint curriculum1 and restore to curriculum3
         state = curriculum1.get_state()
-        curriculum_config_seed999 = curriculum_config.model_copy(update={"seed": 999})
-        curriculum3 = Curriculum(curriculum_config_seed999)  # Different seed
+        curriculum3 = Curriculum(curriculum_config, seed=999)  # Different seed
         curriculum3.load_state(state)
 
         # Continue with curriculum2 and curriculum3 - they should be identical
@@ -702,13 +664,10 @@ class TestCurriculumRoundtripBehavior:
         curriculum_config = CurriculumConfig(
             task_generator=task_generator_config,
             num_active_tasks=8,
-            algorithm_config=LearningProgressConfig(
-                num_active_tasks=8, use_bidirectional=True, use_shared_memory=False
-            ),
+            algorithm_config=LearningProgressConfig(num_active_tasks=8, use_bidirectional=True),
         )
 
-        curriculum_config_seed333 = curriculum_config.model_copy(update={"seed": 333})
-        curriculum = Curriculum(curriculum_config_seed333)
+        curriculum = Curriculum(curriculum_config, seed=333)
 
         # Build up task history
         task_history = {}
@@ -740,8 +699,7 @@ class TestCurriculumRoundtripBehavior:
 
         # Checkpoint and restore
         state = curriculum.get_state()
-        curriculum_config_seed777 = curriculum_config.model_copy(update={"seed": 777})
-        curriculum2 = Curriculum(curriculum_config_seed777)
+        curriculum2 = Curriculum(curriculum_config, seed=777)
         curriculum2.load_state(state)
 
         # Verify all task states are identical
@@ -779,16 +737,14 @@ class TestCurriculumRoundtripBehavior:
         curriculum_config = CurriculumConfig(task_generator=task_generator_config, num_active_tasks=5)
 
         # Create curriculum but don't use it much
-        curriculum_config_seed444 = curriculum_config.model_copy(update={"seed": 444})
-        curriculum1 = Curriculum(curriculum_config_seed444)
+        curriculum1 = Curriculum(curriculum_config, seed=444)
 
         # Just create the initial task pool, no additional activity
         assert len(curriculum1._tasks) == 5  # Should be initialized at capacity
 
         # Checkpoint immediately
         state = curriculum1.get_state()
-        curriculum_config_seed555 = curriculum_config.model_copy(update={"seed": 555})
-        curriculum2 = Curriculum(curriculum_config_seed555)
+        curriculum2 = Curriculum(curriculum_config, seed=555)
         curriculum2.load_state(state)
 
         # Should restore successfully
