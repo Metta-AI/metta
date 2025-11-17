@@ -41,6 +41,12 @@ DEFAULT_CURRICULUM_MISSIONS: tuple[str, ...] = (
     "go_together",
 )
 
+COORDINATION_MISSIONS: tuple[str, ...] = (
+    "go_together",
+    "divide_and_conquer",
+    "collect_resources_spread",
+)
+
 
 def _normalize_variant_names(
     *,
@@ -420,9 +426,10 @@ def train_coordination(
     eval_difficulty: str | None = "standard",
     mission: str | None = None,
 ) -> TrainTool:
-    """Train on the unified CoGs vs Clips mission set."""
-    return train_all_maps(
+    """Train on coordination-heavy missions or a specific target map."""
+    return train(
         num_cogs=num_cogs,
+        base_missions=list(COORDINATION_MISSIONS),
         variants=variants,
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
