@@ -5,6 +5,7 @@ from typing import Any, Callable, Iterable, Literal, Optional
 
 import numpy as np
 from pydantic import Field
+from pydantic.json_schema import SkipJsonSchema
 
 from metta.rl.training.component import TrainerComponent
 from mettagrid.base_config import Config
@@ -65,7 +66,7 @@ class HyperUpdateRule(Config):
 
     # Metric-derived fields
     metric_key: Optional[str] = None
-    transform: Optional[Callable[[float], float]] = None
+    transform: Optional[SkipJsonSchema[Callable[[float], float]]] = None
     ema_beta: Optional[float] = Field(default=None, ge=0.0, lt=1.0)
     min_value: Optional[float] = None
     max_value: Optional[float] = None
