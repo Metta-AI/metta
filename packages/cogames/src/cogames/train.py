@@ -36,25 +36,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("cogames.pufferlib")
 
-# Clamp limits to the maximum the C++ InventoryConfig supports (uint8)
-def _clamp_agent_inventory(cfg: MettaGridConfig, *, cap: int = 255) -> None:
-    try:
-        agent = cfg.game.agent
-    except Exception:
-        return
-
-    for mapping_name in ("resource_limits", "initial_inventory"):
-        mapping = getattr(agent, mapping_name, None)
-        if not isinstance(mapping, dict):
-            continue
-        for key, value in list(mapping.items()):
-            if isinstance(value, int) and value > cap:
-                mapping[key] = cap
-
-    default_limit = getattr(agent, "default_resource_limit", None)
-    if isinstance(default_limit, int) and default_limit > cap:
-        agent.default_resource_limit = cap
-
 
 def _largest_divisor_at_most(value: int, limit: int) -> int:
     for candidate in range(min(value, limit), 0, -1):
@@ -444,13 +425,9 @@ class _EnvCreator:
             supplied = self._env_cfg_supplier()
             if not isinstance(supplied, MettaGridConfig):  # pragma: no cover - defensive
                 raise TypeError("env_cfg_supplier must return a MettaGridConfig")
-            cfg = supplied.model_copy(deep=True)
-            _clamp_agent_inventory(cfg)
-            return cfg
+            return supplied.model_copy(deep=True)
         assert self._env_cfg is not None
-        cfg = self._env_cfg.model_copy(deep=True)
-        _clamp_agent_inventory(cfg)
-        return cfg
+        return self._env_cfg.model_copy(deep=True)
 
     def __call__(
         self,

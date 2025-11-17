@@ -25,6 +25,16 @@ from mettagrid.mettagrid_c import ResourceModConfig as CppResourceModConfig
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
 
 
+def _clamp_limits(limits_list: list[tuple[list[int], int]], cap: int = 255) -> list[tuple[list[int], int]]:
+    """Clamp inventory limits to a uint8-compatible cap."""
+    return [(ids, min(limit, cap)) for ids, limit in limits_list]
+
+
+def _clamp_inventory_values(mapping: dict[int, int], cap: int = 255) -> dict[int, int]:
+    """Clamp inventory values (initial inventory) to uint8-compatible cap."""
+    return {k: min(v, cap) for k, v in mapping.items()}
+
+
 def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     """Convert a GameConfig to a CppGameConfig."""
     if isinstance(mettagrid_config, GameConfig):
@@ -138,6 +148,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         initial_inventory = {}
         for k, v in agent_props["initial_inventory"].items():
             initial_inventory[resource_name_to_id[k]] = v
+        initial_inventory = _clamp_inventory_values(initial_inventory)
 
         # Map team IDs to conventional group names
         team_names = {0: "red", 1: "blue", 2: "green", 3: "yellow", 4: "purple", 5: "orange"}
@@ -190,7 +201,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             if resource_name not in configured_resources:
                 limits_list.append(([resource_name_to_id[resource_name]], default_resource_limit))
 
-        inventory_config = CppInventoryConfig(limits=limits_list)
+        inventory_config = CppInventoryConfig(limits=_clamp_limits(limits_list))
 
         cpp_agent_config = CppAgentConfig(
             type_id=0,
@@ -288,6 +299,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             for resource, amount in object_config.initial_inventory.items():
                 resource_id = resource_name_to_id[resource]
                 initial_inventory_cpp[resource_id] = amount
+            initial_inventory_cpp = _clamp_inventory_values(initial_inventory_cpp)
 
             # Create inventory config with limits
             limits_list = []
@@ -295,7 +307,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 resource_id = resource_name_to_id[resource]
                 limits_list.append([[resource_id], limit])
 
-            inventory_config = CppInventoryConfig(limits=limits_list)
+            inventory_config = CppInventoryConfig(limits=_clamp_limits(limits_list))
 
             cpp_chest_config = CppChestConfig(
                 type_id=type_id_by_type_name[object_type], type_name=object_type, initial_vibe=object_config.vibe
