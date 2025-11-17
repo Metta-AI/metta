@@ -294,6 +294,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Remove from task tracker
         self.task_tracker.remove_task(task_id)
 
+        # Drop slice tracking data to avoid unbounded growth
+        self.slice_analyzer.remove_task(task_id)
+
         # Learning progress specific cleanup
         self._remove_task_from_scoring(task_id)
 

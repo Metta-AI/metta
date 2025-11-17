@@ -162,6 +162,16 @@ class SliceAnalyzer:
         # Invalidate density cache when completion data changes
         self._density_cache_valid = False
 
+    def remove_task(self, task_id: int) -> None:
+        """Remove all slice-tracking state for a task to prevent unbounded growth."""
+        for slice_name, task_map in list(self._slice_tracking.items()):
+            task_map.pop(task_id, None)
+            if not task_map:
+                # Keep bins/history/cache intact; we only remove tracking entries
+                self._slice_tracking.pop(slice_name, None)
+
+        # No need to touch completion counts/history; they are aggregate and bounded by deque maxlen.
+
     def get_slice_distribution_stats(self) -> Dict[str, Dict[str, float]]:
         """Get probability distribution statistics across parameter slices."""
         # Return cached result if valid
