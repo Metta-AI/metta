@@ -1,5 +1,5 @@
 import
-  std/[math],
+  std/[math, strutils],
   opengl, boxy/[shaders], shady, vmath, pixie
 
 ## Drawer for a single quad covering the map with texture and shader.
@@ -53,6 +53,8 @@ proc newGridQuad*(imagePath: string, tilesX, tilesY: int): ShaderQuad =
       (
         "gridVert",
         toGLSL(gridVert, "300 es", "precision highp float;\n")
+          .replace("uint(2)", "2")
+          .replace("mod(gl_VertexID, 2)", "gl_VertexID % 2")
       ),
       (
         "gridFrag",

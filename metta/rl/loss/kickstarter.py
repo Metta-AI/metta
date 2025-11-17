@@ -69,10 +69,10 @@ class Kickstarter(Loss):
         # Load teacher. Lazy import to avoid circular dependency
         from metta.rl.checkpoint_manager import CheckpointManager
 
-        game_rules = getattr(self.env, "policy_env_info", None)
-        if game_rules is None:
+        policy_env_info = getattr(self.env, "policy_env_info", None)
+        if policy_env_info is None:
             raise RuntimeError("Environment metadata is required to instantiate teacher policy")
-        self.teacher_policy = CheckpointManager.load_from_uri(self.cfg.teacher_uri, game_rules, self.device)
+        self.teacher_policy = CheckpointManager.load_from_uri(self.cfg.teacher_uri, policy_env_info, self.device)
 
     def get_experience_spec(self) -> Composite:
         # Get action space size for logits shape
