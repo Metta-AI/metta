@@ -135,9 +135,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             stat_reward_max[stat_name] = v
 
         # Process potential initial inventory
-        initial_inventory = {
-            resource_name_to_id[k]: min(v, 255) for k, v in agent_props["initial_inventory"].items()
-        }
+        initial_inventory = {resource_name_to_id[k]: min(v, 255) for k, v in agent_props["initial_inventory"].items()}
 
         # Map team IDs to conventional group names
         team_names = {0: "red", 1: "blue", 2: "green", 3: "yellow", 4: "purple", 5: "orange"}
