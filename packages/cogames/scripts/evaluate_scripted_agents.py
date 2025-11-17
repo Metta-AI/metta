@@ -616,10 +616,8 @@ def _plot_grouped_bars(
     filename: str,
     output_path: Path,
     width: float = 0.35,
-    figsize: Tuple[int, int] = (16, 8),
+    figsize: Tuple[int, int] = (12, 7),
     rotation: float = 45,
-    annotate: bool = False,
-    annotation_fmt: str = ".1f",
 ) -> None:
     if not x_labels or not series_labels:
         return
@@ -628,29 +626,16 @@ def _plot_grouped_bars(
     x = np.arange(len(x_labels))
 
     for i, series in enumerate(series_labels):
-        rewards: List[float] = [value_lookup(series, label) for label in x_labels]
+        rewards = [value_lookup(series, label) for label in x_labels]
         offset = width * (i - len(series_labels) / 2 + 0.5)
-        bars = ax.bar(x + offset, rewards, width, label=series, alpha=0.8, edgecolor="black")
-
-        if annotate:
-            for bar in bars:
-                height = bar.get_height()
-                if height > 0:
-                    ax.text(
-                        bar.get_x() + bar.get_width() / 2.0,
-                        height,
-                        f"{height:{annotation_fmt}}",
-                        ha="center",
-                        va="bottom",
-                        fontsize=9,
-                    )
+        ax.bar(x + offset, rewards, width, label=str(series), edgecolor="black", alpha=0.8)
 
     ax.set_ylabel(ylabel, fontsize=12, fontweight="bold")
     ax.set_xlabel(xlabel, fontsize=12, fontweight="bold")
     ax.set_title(title, fontsize=14, fontweight="bold")
     ax.set_xticks(x)
     ax.set_xticklabels(x_labels, rotation=rotation, ha="right")
-    ax.legend(fontsize=11)
+    ax.legend(fontsize=10)
     ax.grid(axis="y", alpha=0.3)
 
     plt.tight_layout()
@@ -668,45 +653,21 @@ def _plot_heatmap(
     output_path: Path,
     cmap: str,
     figsize: Tuple[int, int],
-    annotation_fmt: str = ".1f",
 ) -> None:
     if not x_labels or not y_labels:
         return
 
     fig, ax = plt.subplots(figsize=figsize)
-
-    matrix = np.zeros((len(y_labels), len(x_labels)))
-    for i, y in enumerate(y_labels):
-        for j, x in enumerate(x_labels):
-            matrix[i, j] = value_lookup(x, y)
-
+    matrix = [[value_lookup(x, y) for x in x_labels] for y in y_labels]
     im = ax.imshow(matrix, cmap=cmap, aspect="auto")
 
-    ax.set_xticks(np.arange(len(x_labels)))
-    ax.set_yticks(np.arange(len(y_labels)))
-    ax.set_xticklabels(x_labels)
-    ax.set_yticklabels(y_labels)
-    plt.setp(ax.get_xticklabels(), rotation=0, ha="center")
+    ax.set_xticks(np.arange(len(x_labels)), labels=x_labels)
+    ax.set_yticks(np.arange(len(y_labels)), labels=y_labels)
 
-    cbar = plt.colorbar(im, ax=ax)
-    cbar.set_label(cbar_label, rotation=270, labelpad=20, fontweight="bold")
-
-    for i in range(len(y_labels)):
-        for j in range(len(x_labels)):
-            ax.text(
-                j,
-                i,
-                f"{matrix[i, j]:{annotation_fmt}}",
-                ha="center",
-                va="center",
-                color="black",
-                fontsize=9,
-                fontweight="bold",
-            )
-
-    ax.set_title(title, fontsize=14, fontweight="bold", pad=20)
-    ax.set_xlabel("Agent", fontsize=12, fontweight="bold")
-    ax.set_ylabel("Environment" if "Environment" in title else "Difficulty", fontsize=12, fontweight="bold")
+    plt.colorbar(im, ax=ax, label=cbar_label)
+    ax.set_title(title, fontsize=14, fontweight="bold", pad=10)
+    ax.set_xlabel("Agent" if "Agent" in title else "Axis")
+    ax.set_ylabel("Environment" if "Environment" in title else "Difficulty")
 
     plt.tight_layout()
     plt.savefig(output_path / filename, dpi=150, bbox_inches="tight")
