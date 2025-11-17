@@ -284,6 +284,63 @@ The repository includes pre-configured launch configurations in `.vscode/launch.
    Python process within `packages/mettagrid`. It's going to ask you to select a process to attach to. You can type
    "metta" and pick the first one on the list.
 
+### Testing C++ Debugging
+
+To verify that C++ breakpoints are working correctly, use a simple test that calls from Python into C++:
+
+#### Quick Test Method
+
+1. **Add a test call** to any Python entrypoint that uses mettagrid:
+
+   ```python
+   def test_cpp_debugging() -> None:
+       """Test function to trigger C++ code for debugging."""
+       try:
+           from mettagrid.mettagrid_c import PackedCoordinate
+
+           # Call a simple C++ function
+           packed = PackedCoordinate.pack(5, 10)
+           print(f"C++ test: PackedCoordinate.pack(5, 10) = {packed}")
+
+           # Unpack it back
+           r, c = PackedCoordinate.unpack(packed)
+           print(f"C++ test: PackedCoordinate.unpack({packed}) = ({r}, {c})")
+       except Exception as e:
+           print(f"C++ debugging test failed: {e}")
+
+   # Call at module level or early in your script
+   test_cpp_debugging()
+   ```
+
+2. **Set a C++ breakpoint** in the corresponding C++ implementation:
+   - Open `packages/mettagrid/cpp/include/mettagrid/systems/packed_coordinate.hpp`
+   - Find the `pack()` or `unpack()` function implementation
+   - Set a breakpoint inside the function body (e.g., on the return statement)
+
+3. **Launch your debug configuration** (e.g., "MettaGrid Debug")
+
+4. **Verify the breakpoint hits** when the Python code calls `PackedCoordinate.pack()`
+
+5. **Check the call stack** shows the full path: Python → pybind11 → C++
+
+#### Where to Add the Test
+
+Add the test call early in any Python entrypoint that uses mettagrid:
+
+- Demo scripts (e.g., `packages/mettagrid/demos/demo_train_*.py`)
+- CLI entrypoints (e.g., `packages/cogames/src/cogames/main.py`)
+- Tool runners (e.g., `common/src/metta/common/tool/run_tool.py`)
+- Training scripts (e.g., `metta/tools/train.py`)
+
+#### What This Confirms
+
+- C++ extension loads correctly
+- Debug symbols are available
+- Breakpoints can be set and hit in C++ code
+- Call stack traversal works between Python and C++
+
+**Note**: This test is only for verifying your debugging setup. Remove it before committing.
+
 ### Configuration Files
 
 - **`.bazelrc`** - Defines the `--config=dbg` build mode with debug flags (`-g`, `-O0`, `--apple_generate_dsym`)
