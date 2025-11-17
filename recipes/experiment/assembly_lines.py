@@ -99,11 +99,13 @@ curriculum_args = {
         "terrains": ["no-terrain", "sparse", "balanced", "dense"],
     },
     "terrain_2_progressive": {
-        # Start easier, curriculum will gradually add harder tasks
-        "chain_lengths": [2, 3],  # Start without chain_length=4
-        "num_sinks": [0, 1],  # Start without 2 sinks
-        "room_sizes": ["tiny", "small"],
-        "terrains": ["no-terrain", "sparse", "balanced"],  # Start without dense
+        # Progressive curriculum: starts with easiest tasks, automatically progresses to harder ones
+        # The learning progress algorithm will sample easier tasks more initially, then shift to harder
+        # tasks as the agent learns. This follows curriculum learning principles (Bengio et al., 2009).
+        "chain_lengths": [1, 2, 3],  # Start with chain_length=1 for basic pattern learning
+        "num_sinks": [0, 1],  # Start without 2 sinks to reduce initial complexity
+        "room_sizes": ["tiny", "small"],  # Small rooms for easier navigation
+        "terrains": ["no-terrain", "sparse", "balanced"],  # Exclude dense terrain initially
     },
 }
 
@@ -447,51 +449,121 @@ def make_task_generator_cfg(
     )
 
 
+def _compute_curriculum_difficulty(curriculum_style: str) -> dict[str, bool]:
+    """
+    Compute curriculum difficulty characteristics based on task parameters.
+
+    Returns:
+        Dictionary with difficulty flags:
+        - has_dense_terrain: Whether curriculum includes dense terrain
+        - has_long_chains: Whether curriculum includes chain_length >= 4
+        - has_multiple_sinks: Whether curriculum includes num_sinks >= 2
+        - starts_with_basics: Whether curriculum includes chain_length=1
+    """
+    cfg = curriculum_args.get(curriculum_style, curriculum_args["level_0"])
+    return {
+        "has_dense_terrain": "dense" in cfg.get("terrains", []),
+        "has_long_chains": any(cl >= 4 for cl in cfg.get("chain_lengths", [])),
+        "has_multiple_sinks": any(ns >= 2 for ns in cfg.get("num_sinks", [])),
+        "starts_with_basics": 1 in cfg.get("chain_lengths", []),
+    }
+
+
+def _make_algorithm_config(curriculum_style: str) -> LearningProgressConfig:
+    """
+    Create learning progress algorithm configuration based on curriculum difficulty.
+
+    Follows curriculum learning principles:
+    - Epsilon-greedy exploration: rand_task_rate balances exploration vs exploitation
+    - Learning progress: Algorithm identifies tasks at "zone of proximal development"
+    - Slow adaptation: ema_timescale prevents premature curriculum shifts
+    - Exploration bonus: Favors under-explored tasks to ensure coverage
+
+    Args:
+        curriculum_style: Name of curriculum style from curriculum_args
+
+    Returns:
+        LearningProgressConfig with settings appropriate for curriculum difficulty
+    """
+    difficulty = _compute_curriculum_difficulty(curriculum_style)
+
+    # Base settings: Default LearningProgressConfig values are good starting points
+    # Default: rand_task_rate=0.25, ema_timescale=0.001, exploration_bonus=0.1
+    base_config = {
+        "use_bidirectional": True,  # Use bidirectional learning progress (default)
+    }
+
+    # Adjust based on curriculum difficulty
+    if difficulty["has_dense_terrain"] and difficulty["has_long_chains"]:
+        # Hardest curricula: dense terrain + long chains
+        # Need very conservative settings to prevent collapse
+        # Theory: High exploration prevents premature focus on unsolvable tasks
+        return LearningProgressConfig(
+            rand_task_rate=0.65,  # 65% random exploration (epsilon-greedy)
+            ema_timescale=0.0001,  # Slow adaptation: ~10k episodes to shift curriculum
+            exploration_bonus=0.25,  # Moderate bonus for under-explored tasks
+            **base_config,
+        )
+    elif difficulty["has_dense_terrain"] or difficulty["has_long_chains"]:
+        # Medium-hard curricula: either dense terrain OR long chains
+        # Moderate settings to balance exploration and learning progress
+        return LearningProgressConfig(
+            rand_task_rate=0.5,  # 50% random exploration
+            ema_timescale=0.0003,  # Moderate adaptation: ~3k episodes to shift
+            exploration_bonus=0.15,  # Standard bonus for exploration
+            **base_config,
+        )
+    elif not difficulty["starts_with_basics"]:
+        # Progressive curricula that don't start with chain_length=1
+        # Need conservative settings to prevent premature hard task sampling
+        return LearningProgressConfig(
+            rand_task_rate=0.6,  # 60% random exploration
+            ema_timescale=0.0002,  # Slow adaptation: ~5k episodes to shift
+            exploration_bonus=0.2,  # Higher bonus to favor easier tasks
+            **base_config,
+        )
+    else:
+        # Progressive curricula starting with basics (chain_length=1)
+        # Can use more standard settings as agent can learn from start
+        # Theory: Agent can learn basics, so algorithm can be more responsive
+        return LearningProgressConfig(
+            rand_task_rate=0.4,  # 40% random exploration (more learning-progress driven)
+            ema_timescale=0.0005,  # Moderate adaptation: ~2k episodes to shift
+            exploration_bonus=0.15,  # Standard exploration bonus
+            **base_config,
+        )
+
+
 def train(
     curriculum_style: str = "terrain_2_progressive",
 ) -> TrainTool:
     """
-    Train ICL recipe with assembly line tasks.
+    Train ICL recipe with assembly line tasks using automatic curriculum progression.
 
-    Default curriculum_style is "terrain_2_progressive" which starts easier and gradually adds harder tasks:
-    - Starts with: chain_lengths=[2, 3], num_sinks=[0, 1], terrains without "dense"
-    - Final target: chain_lengths=[2, 3, 4], num_sinks=[0, 1, 2], all terrains including dense
-    - room_sizes: ["tiny", "small"] (progression toward eval's medium/large)
+    The curriculum learning algorithm automatically samples tasks based on learning progress:
+    - Tasks with high learning progress (variance in performance) are sampled more
+    - As agent masters easier tasks, harder tasks naturally get sampled more
+    - This creates automatic progression from easy → hard without manual intervention
 
-    This progressive approach prevents collapse by ensuring agent learns on easier tasks first.
-    The curriculum algorithm will naturally sample easier tasks more often until agent is ready.
+    Default curriculum_style is "terrain_2_progressive":
+    - Starts with: chain_lengths=[1, 2, 3], num_sinks=[0, 1], terrains without "dense"
+    - Agent learns chain_length=1 first, then progresses to 2, then 3
+    - Algorithm settings are tuned for progressive curricula starting with basics
+
+    Args:
+        curriculum_style: Name of curriculum from curriculum_args dict
+
+    Returns:
+        TrainTool configured for ICL training with automatic curriculum progression
     """
+    if curriculum_style not in curriculum_args:
+        raise ValueError(
+            f"Unknown curriculum_style: {curriculum_style}. "
+            f"Available: {list(curriculum_args.keys())}"
+        )
+
     task_generator_cfg = make_task_generator_cfg(**curriculum_args[curriculum_style])
-
-    # More conservative settings for harder curricula to prevent collapse
-    # Hard curricula include dense terrain and/or chain_length=4 from the start
-    # These cause performance collapse if sampled too early (see graphs showing drops to 0)
-    hard_curricula = ["terrain_2", "terrain_3", "terrain_4", "full"]
-    is_hard_curriculum = curriculum_style in hard_curricula
-
-    if is_hard_curriculum:
-        # Even more conservative for hard curricula that start with difficult tasks
-        # Prevents curriculum from sampling dense terrain + chain_length=4 before agent is ready
-        algorithm_config = LearningProgressConfig(
-            # Very high random exploration to prevent premature focus on hard tasks
-            rand_task_rate=0.6,  # Increased from 0.5 to 0.6 (60% random, 40% learning-progress)
-            # Very slow adaptation to prevent rapid curriculum shifts that cause collapse
-            ema_timescale=0.0001,  # Slower from 0.0003 to 0.0001 (10x slower than default)
-            # High exploration bonus to heavily favor under-explored easier tasks
-            exploration_bonus=0.3,  # Increased from 0.2 to 0.3 (more weight to easier tasks)
-            use_bidirectional=True,
-        )
-    else:
-        # VERY conservative settings for progressive curricula (level_1, terrain_2_progressive, etc.)
-        # This ensures algorithm heavily favors easier tasks initially and only slowly progresses
-        # to harder tasks as agent improves, preventing collapse from premature hard task sampling
-        algorithm_config = LearningProgressConfig(
-            rand_task_rate=0.7,  # 70% random exploration (was 0.5) - more exploration of easier tasks
-            ema_timescale=0.00005,  # Very slow adaptation (was 0.0003) - prevent rapid shifts to hard tasks
-            exploration_bonus=0.4,  # High bonus for easier tasks (was 0.2) - heavily favor easier tasks
-            use_bidirectional=True,
-        )
-
+    algorithm_config = _make_algorithm_config(curriculum_style)
     curriculum = CurriculumConfig(task_generator=task_generator_cfg, algorithm_config=algorithm_config)
 
     policy_config = ViTDefaultConfig()
