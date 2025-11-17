@@ -8,7 +8,6 @@ import torch
 from pydantic import Field
 
 from metta.agent.policy import Policy, PolicyArchitecture
-from metta.common.util.file import write_file
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.policy_artifact import save_policy_artifact_safetensors
 from metta.rl.training import DistributedHelper, TrainerComponent
@@ -92,10 +91,8 @@ class Checkpointer(TrainerComponent):
         return self._ensure_save_capable(fresh_policy)
 
     def get_latest_policy_uri(self) -> Optional[str]:
-        """Return the most recent checkpoint URI tracked by this component."""
-        if self._latest_policy_uri:
-            return self._latest_policy_uri
-        return self._checkpoint_manager.get_latest_checkpoint()
+        """Return the most recent checkpoint URI."""
+        return self._checkpoint_manager.get_latest_checkpoint() or self._latest_policy_uri
 
     # ------------------------------------------------------------------
     # Callback entry-points
@@ -146,15 +143,13 @@ class Checkpointer(TrainerComponent):
         policy = self._ensure_save_capable(self._policy_to_save())
 
         filename = f"{self._checkpoint_manager.run_name}:v{epoch}.mpt"
-        local_path = self._checkpoint_manager.checkpoint_dir / filename
+        dest_uri = (
+            f"{self._checkpoint_manager._remote_prefix}/{filename}"
+            if getattr(self._checkpoint_manager, "_remote_prefix", None)
+            else f"file://{(self._checkpoint_manager.checkpoint_dir / filename).resolve()}"
+        )
 
-        uri = policy.save_policy(local_path, policy_architecture=self._policy_architecture)
-
-        # Upload to remote if configured
-        if getattr(self._checkpoint_manager, "_remote_prefix", None):
-            remote_uri = f"{self._checkpoint_manager._remote_prefix}/{filename}"
-            write_file(remote_uri, str(local_path))
-            uri = remote_uri
+        uri = policy.save_policy(dest_uri, policy_architecture=self._policy_architecture)
 
         self._latest_policy_uri = uri
         self.context.latest_policy_uri_value = uri
