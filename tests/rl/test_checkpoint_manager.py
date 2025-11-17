@@ -201,6 +201,7 @@ class TestBasicSaveLoad:
         assert spec.init_kwargs["display_name"] == "custom"
         assert spec.init_kwargs["device"] == "cpu"
 
+
 class TestErrorHandling:
     def test_load_from_empty_directory(self, checkpoint_manager):
         result = checkpoint_manager.load_trainer_state()
