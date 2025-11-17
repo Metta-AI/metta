@@ -74,7 +74,7 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
     )
 
     # ========================================
-    # CvC Small Maps - Stable Tests
+    # CvC Unified - Stable Tests
     # ========================================
 
     # 200-epoch mettabox sanity check (~105M timesteps)
@@ -82,7 +82,7 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
     cvc_small_200ep_timesteps = 200 * 524_288  # 200 epochs * default batch size
     cvc_small_train_200ep = JobConfig(
         name=cvc_small_200ep_name,
-        module="recipes.prod.cvc.small_maps.train",
+        module="recipes.prod.cvc.all_maps.train",
         args=[
             f"run={cvc_small_200ep_name}",
             f"trainer.total_timesteps={cvc_small_200ep_timesteps}",
@@ -100,7 +100,7 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
     cvc_small_train_name = f"{prefix}.cvc_small_multi_gpu_2b"
     cvc_small_train_2b = JobConfig(
         name=cvc_small_train_name,
-        module="recipes.prod.cvc.small_maps.train",
+        module="recipes.prod.cvc.all_maps.train",
         args=[
             f"run={cvc_small_train_name}",
             "trainer.total_timesteps=2000000000",

@@ -31,34 +31,14 @@ from mettagrid.config.mettagrid_config import MettaGridConfig
 DEFAULT_CURRICULUM_MISSIONS: tuple[str, ...] = (
     "extractor_hub_30",
     "extractor_hub_50",
-    "collect_resources_classic",
-    "collect_resources_spread",
-    "oxygen_bottleneck",
-    "energy_starved",
-)
-
-SMALL_MAP_MISSIONS: tuple[str, ...] = (
-    "extractor_hub_30",
-    "collect_resources_classic",
-    "oxygen_bottleneck",
-)
-
-MEDIUM_MAP_MISSIONS: tuple[str, ...] = (
-    "extractor_hub_50",
-    "collect_resources_spread",
-    "energy_starved",
-)
-
-LARGE_MAP_MISSIONS: tuple[str, ...] = (
     "extractor_hub_70",
-    "collect_far",
-    "divide_and_conquer",
-)
-
-COORDINATION_MISSIONS: tuple[str, ...] = (
-    "go_together",
-    "divide_and_conquer",
+    "collect_resources_classic",
     "collect_resources_spread",
+    "collect_far",
+    "oxygen_bottleneck",
+    "energy_starved",
+    "divide_and_conquer",
+    "go_together",
 )
 
 
@@ -389,10 +369,9 @@ def train_small_maps(
     eval_difficulty: str | None = "standard",
     mission: str | None = None,
 ) -> TrainTool:
-    """Train on small maps (30x30, classic layouts) or a specific mission."""
-    return train(
+    """Train on the unified CoGs vs Clips mission set."""
+    return train_all_maps(
         num_cogs=num_cogs,
-        base_missions=list(SMALL_MAP_MISSIONS),
         variants=variants,
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
@@ -407,10 +386,9 @@ def train_medium_maps(
     eval_difficulty: str | None = "standard",
     mission: str | None = None,
 ) -> TrainTool:
-    """Train on medium maps (50x50 layouts) or a specific mission."""
-    return train(
+    """Train on the unified CoGs vs Clips mission set."""
+    return train_all_maps(
         num_cogs=num_cogs,
-        base_missions=list(MEDIUM_MAP_MISSIONS),
         variants=variants,
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
@@ -425,10 +403,9 @@ def train_large_maps(
     eval_difficulty: str | None = "standard",
     mission: str | None = None,
 ) -> TrainTool:
-    """Train on large maps with more agents or focus on one mission."""
-    return train(
+    """Train on the unified CoGs vs Clips mission set."""
+    return train_all_maps(
         num_cogs=num_cogs,
-        base_missions=list(LARGE_MAP_MISSIONS),
         variants=variants,
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
@@ -443,10 +420,27 @@ def train_coordination(
     eval_difficulty: str | None = "standard",
     mission: str | None = None,
 ) -> TrainTool:
-    """Train on coordination-heavy missions or a specific target map."""
+    """Train on the unified CoGs vs Clips mission set."""
+    return train_all_maps(
+        num_cogs=num_cogs,
+        variants=variants,
+        eval_variants=eval_variants,
+        eval_difficulty=eval_difficulty,
+        mission=mission,
+    )
+
+
+def train_all_maps(
+    num_cogs: int = 4,
+    variants: Optional[Sequence[str]] = None,
+    eval_variants: Optional[Sequence[str]] = None,
+    eval_difficulty: str | None = "standard",
+    mission: str | None = None,
+) -> TrainTool:
+    """Train on all CoGs vs Clips missions in one curriculum."""
     return train(
         num_cogs=num_cogs,
-        base_missions=list(COORDINATION_MISSIONS),
+        base_missions=list(DEFAULT_CURRICULUM_MISSIONS),
         variants=variants,
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
@@ -467,4 +461,5 @@ __all__ = [
     "train_medium_maps",
     "train_large_maps",
     "train_coordination",
+    "train_all_maps",
 ]
