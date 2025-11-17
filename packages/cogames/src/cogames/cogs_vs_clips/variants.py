@@ -3,7 +3,7 @@ from typing import Iterable, Sequence, override
 from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_VARIANTS
 from cogames.cogs_vs_clips.mission import MissionVariant
 from cogames.cogs_vs_clips.procedural import BaseHubVariant, MachinaArenaVariant
-from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, ProtocolConfig
+from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, ProtocolConfig, ResourceLimitsConfig
 from mettagrid.mapgen.scenes.base_hub import DEFAULT_EXTRACTORS as HUB_EXTRACTORS
 from mettagrid.mapgen.scenes.building_distributions import DistributionConfig, DistributionType
 
@@ -32,6 +32,10 @@ class DarkSideVariant(MissionVariant):
 class LonelyHeartVariant(MissionVariant):
     name: str = "lonely_heart"
     description: str = "Making hearts for one agent is easy."
+
+    @override
+    def compat(self, mission):
+        return hasattr(mission, "assembler") and hasattr(mission, "germanium_extractor")
 
     @override
     def modify_mission(self, mission):
@@ -195,6 +199,10 @@ class VibeCheckMin2Variant(MissionVariant):
     min_vibes: int = 2
 
     @override
+    def compat(self, mission):
+        return hasattr(mission, "assembler")
+
+    @override
     def modify_env(self, mission, env):
         assembler = env.game.objects["assembler"]
         if not isinstance(assembler, AssemblerConfig):
@@ -223,6 +231,10 @@ class Small50Variant(MissionVariant):
 class CogToolsOnlyVariant(MissionVariant):
     name: str = "cog_tools_only"
     description: str = "Gear tools (decoder/modulator/scrambler/resonator) require only the 'gear/cog' vibe."
+
+    @override
+    def compat(self, mission):
+        return hasattr(mission, "assembler")
 
     @override
     def modify_env(self, mission, env) -> None:
@@ -259,15 +271,9 @@ class InventoryHeartTuneVariant(MissionVariant):
         if hearts > 0:
             agent_cfg = env.game.agent
             agent_cfg.initial_inventory = dict(agent_cfg.initial_inventory)
-            resource_limits = dict(agent_cfg.resource_limits)
 
             def _limit_for(resource: str) -> int:
-                if resource in resource_limits:
-                    return int(resource_limits[resource])
-                for key, limit in resource_limits.items():
-                    if isinstance(key, tuple) and resource in key:
-                        return int(limit)
-                return int(agent_cfg.default_resource_limit)
+                return agent_cfg.get_limit(resource)
 
             for resource_name, per_heart_value in per_heart.items():
                 current = int(agent_cfg.initial_inventory.get(resource_name, 0))
@@ -277,15 +283,29 @@ class InventoryHeartTuneVariant(MissionVariant):
 
         if self.heart_capacity is not None:
             agent_cfg = env.game.agent
-            limits = dict(agent_cfg.resource_limits)
-            limits["heart"] = max(int(limits.get("heart", 0)), int(self.heart_capacity))
-            agent_cfg.resource_limits = limits
+            # Find existing heart limit or create new one
+            heart_limit_obj = None
+            for resource_limit in agent_cfg.resource_limits:
+                if "heart" in resource_limit.resources:
+                    heart_limit_obj = resource_limit
+                    break
+
+            if heart_limit_obj is not None:
+                heart_limit_obj.limit = max(int(heart_limit_obj.limit), int(self.heart_capacity))
+            else:
+                agent_cfg.resource_limits.append(
+                    ResourceLimitsConfig(name="heart", limit=int(self.heart_capacity), resources=["heart"])
+                )
 
 
 class ChestHeartTuneVariant(MissionVariant):
     name: str = "chest_heart_tune"
     description: str = "Tune chest starting inventory to N hearts worth of inputs."
     hearts: int = 2
+
+    @override
+    def compat(self, mission):
+        return hasattr(mission, "chest") and hasattr(mission, "assembler")
 
     @override
     def modify_env(self, mission, env) -> None:

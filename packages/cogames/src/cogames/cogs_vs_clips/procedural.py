@@ -3,7 +3,7 @@ from typing import Any, Literal, override
 
 import numpy as np
 
-from cogames.cogs_vs_clips.mission import MissionVariant
+from cogames.cogs_vs_clips.mission import Mission, MissionVariant
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.mapgen.area import AreaWhere
 from mettagrid.mapgen.mapgen import MapGen, MapGenConfig
@@ -366,6 +366,10 @@ class EnvNodeVariant[T](MissionVariant, ABC):
 
 
 class MapGenVariant(EnvNodeVariant[MapGenConfig]):
+    @override
+    def compat(self, mission: Mission) -> bool:
+        return isinstance(mission.site.map_builder, MapGenConfig)
+
     @classmethod
     def extract_node(cls, env: MettaGridConfig) -> MapGenConfig:
         map_builder = env.game.map_builder
@@ -375,6 +379,14 @@ class MapGenVariant(EnvNodeVariant[MapGenConfig]):
 
 
 class BaseHubVariant(EnvNodeVariant[BaseHubConfig]):
+    @override
+    def compat(self, mission: Mission) -> bool:
+        if not isinstance(mission.site.map_builder, MapGenConfig):
+            return False
+        # Check if the instance would be compatible
+        # We can't fully check without creating the env, but we can check the type
+        return True
+
     @classmethod
     def extract_node(cls, env: MettaGridConfig) -> BaseHubConfig:
         map_builder = env.game.map_builder
@@ -390,6 +402,14 @@ class BaseHubVariant(EnvNodeVariant[BaseHubConfig]):
 
 
 class MachinaArenaVariant(EnvNodeVariant[MachinaArenaConfig]):
+    @override
+    def compat(self, mission: Mission) -> bool:
+        if not isinstance(mission.site.map_builder, MapGenConfig):
+            return False
+        # Check if the instance would be MachinaArena.Config
+        # We can't fully check without creating the env, but we can check the type
+        return True
+
     @classmethod
     def extract_node(cls, env: MettaGridConfig) -> MachinaArenaConfig:
         map_builder = env.game.map_builder

@@ -1315,7 +1315,11 @@ def _(
     )
 
     # Force more frequent conversion by limiting ore storage
-    mg_config2.game.agent.resource_limits = {"ore_red": 10}  # Can only hold 10 ore max
+    from mettagrid.config.mettagrid_config import ResourceLimitsConfig
+
+    mg_config2.game.agent.resource_limits = [
+        ResourceLimitsConfig(name="ore_red", limit=10, resources=["ore_red"])
+    ]  # Can only hold 10 ore max
 
     # Use action failure penalty for efficiency (encourages purposeful movement)
     mg_config2.game.agent.action_failure_penalty = 0.01

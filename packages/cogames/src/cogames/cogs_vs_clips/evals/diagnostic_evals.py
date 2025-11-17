@@ -6,7 +6,13 @@ from typing import Callable, Dict
 from pydantic import Field
 
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, Site
-from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, MettaGridConfig, ProtocolConfig
+from mettagrid.config.mettagrid_config import (
+    AssemblerConfig,
+    ChestConfig,
+    MettaGridConfig,
+    ProtocolConfig,
+    ResourceLimitsConfig,
+)
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 
 RESOURCE_NAMES: tuple[str, ...] = ("carbon", "oxygen", "germanium", "silicon")
@@ -235,9 +241,16 @@ class _DiagnosticMissionBase(Mission):
         for _name, obj in cfg.game.objects.items():
             if not isinstance(obj, ChestConfig):
                 continue
-            limits = dict(obj.resource_limits or {})
-            limits["heart"] = 1
-            obj.resource_limits = limits
+            # Find existing heart limit or create new one
+            current_limit = obj.get_limit("heart")
+            if current_limit is not None:
+                # Find the existing resource_limit object to update it
+                for resource_limit in obj.resource_limits:
+                    if "heart" in resource_limit.resources:
+                        resource_limit.limit = 1
+                        break
+            else:
+                obj.resource_limits.append(ResourceLimitsConfig(name="heart", limit=1, resources=["heart"]))
 
     def _ensure_minimal_heart_recipe(self, assembler: AssemblerConfig) -> None:
         minimal_inputs = {
