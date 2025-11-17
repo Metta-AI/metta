@@ -109,7 +109,7 @@ def _expected_inputs(num_hearts: int) -> dict[str, int]:
     return {
         "carbon": scale,
         "oxygen": scale,
-        "germanium": max(1, scale // 4),
+        "germanium": max(1, scale // 10),
         "silicon": max(1, (5 * scale) // 2),
         "energy": scale,
     }

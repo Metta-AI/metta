@@ -198,7 +198,7 @@ class CvCAssemblerConfig(CvCStationConfig):
                     input_resources={
                         "carbon": self.first_heart_cost + self.additional_heart_cost * i,
                         "oxygen": self.first_heart_cost + self.additional_heart_cost * i,
-                        "germanium": max(1, (self.first_heart_cost + self.additional_heart_cost * i) // 4),
+                        "germanium": max(1, (self.first_heart_cost + self.additional_heart_cost * i) // 10),
                         "silicon": max(1, (5 * (self.first_heart_cost + self.additional_heart_cost * i)) // 2),
                         "energy": self.first_heart_cost + self.additional_heart_cost * i,
                     },
