@@ -64,6 +64,7 @@ from mettagrid.simulator.rollout import Rollout
 # Import CheckpointManager for S3 support
 try:
     from metta.rl.checkpoint_manager import CheckpointManager
+
     CHECKPOINT_MANAGER_AVAILABLE = True
 except ImportError:
     CHECKPOINT_MANAGER_AVAILABLE = False
@@ -158,9 +159,7 @@ def load_policy(
     # If checkpoint_path is an S3 URI, use CheckpointManager
     if checkpoint_path and is_s3_uri(checkpoint_path):
         if not CHECKPOINT_MANAGER_AVAILABLE or CheckpointManager is None:
-            raise ImportError(
-                "CheckpointManager not available. Install metta package to use S3 checkpoints."
-            )
+            raise ImportError("CheckpointManager not available. Install metta package to use S3 checkpoints.")
         logger.info(f"Loading policy from S3 URI: {checkpoint_path}")
         policy = CheckpointManager.load_from_uri(checkpoint_path, policy_env_info, device)
         return policy
@@ -168,9 +167,7 @@ def load_policy(
     # If policy_path is an S3 URI, use CheckpointManager (policy_path is the checkpoint URI)
     if is_s3_uri(policy_path):
         if not CHECKPOINT_MANAGER_AVAILABLE or CheckpointManager is None:
-            raise ImportError(
-                "CheckpointManager not available. Install metta package to use S3 checkpoints."
-            )
+            raise ImportError("CheckpointManager not available. Install metta package to use S3 checkpoints.")
         logger.info(f"Loading policy from S3 URI: {policy_path}")
         policy = CheckpointManager.load_from_uri(policy_path, policy_env_info, device)
         return policy
@@ -995,7 +992,8 @@ def main():
         default=None,
         help=(
             "Path to checkpoint file for trained policies (optional). "
-            "Supports local paths (e.g., './checkpoints/model.pt') or S3 URIs (e.g., 's3://bucket/path/checkpoint.mpt'). "
+            "Supports local paths (e.g., './checkpoints/model.pt') or S3 URIs "
+            "(e.g., 's3://bucket/path/checkpoint.mpt'). "
             "If --agent is an S3 URI, this argument is ignored."
         ),
     )
