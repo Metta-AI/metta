@@ -368,57 +368,6 @@ def play_training_env(
 # Convenience entrypoints ----------------------------------------------------
 
 
-def train_small_maps(
-    num_cogs: int = 4,
-    variants: Optional[Sequence[str]] = None,
-    eval_variants: Optional[Sequence[str]] = None,
-    eval_difficulty: str | None = "standard",
-    mission: str | None = None,
-) -> TrainTool:
-    """Train on the unified CoGs vs Clips mission set."""
-    return train_all_maps(
-        num_cogs=num_cogs,
-        variants=variants,
-        eval_variants=eval_variants,
-        eval_difficulty=eval_difficulty,
-        mission=mission,
-    )
-
-
-def train_medium_maps(
-    num_cogs: int = 4,
-    variants: Optional[Sequence[str]] = None,
-    eval_variants: Optional[Sequence[str]] = None,
-    eval_difficulty: str | None = "standard",
-    mission: str | None = None,
-) -> TrainTool:
-    """Train on the unified CoGs vs Clips mission set."""
-    return train_all_maps(
-        num_cogs=num_cogs,
-        variants=variants,
-        eval_variants=eval_variants,
-        eval_difficulty=eval_difficulty,
-        mission=mission,
-    )
-
-
-def train_large_maps(
-    num_cogs: int = 8,
-    variants: Optional[Sequence[str]] = None,
-    eval_variants: Optional[Sequence[str]] = None,
-    eval_difficulty: str | None = "standard",
-    mission: str | None = None,
-) -> TrainTool:
-    """Train on the unified CoGs vs Clips mission set."""
-    return train_all_maps(
-        num_cogs=num_cogs,
-        variants=variants,
-        eval_variants=eval_variants,
-        eval_difficulty=eval_difficulty,
-        mission=mission,
-    )
-
-
 def train_coordination(
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
@@ -464,9 +413,6 @@ __all__ = [
     "evaluate",
     "play",
     "play_training_env",
-    "train_small_maps",
-    "train_medium_maps",
-    "train_large_maps",
     "train_coordination",
     "train_all_maps",
 ]
