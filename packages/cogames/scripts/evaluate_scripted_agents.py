@@ -143,11 +143,6 @@ class AggregatedResults:
     by_num_cogs_experiment: Dict[Tuple[int, str], AggregateMetrics]
 
 
-def is_clipping_difficulty(name: str) -> bool:
-    """Check if a difficulty involves clipping."""
-    return "clipped" in name.lower() or "clipping" in name.lower()
-
-
 # Available agents
 AGENT_CONFIGS: Dict[str, AgentConfig] = {
     "baseline": AgentConfig(
@@ -757,94 +752,6 @@ def _plot_heatmap(
     plt.tight_layout()
     plt.savefig(output_path / filename, dpi=150, bbox_inches="tight")
     plt.close()
-
-
-def _plot_heatmap_env_agent(
-    aggregated: AggregatedResults, experiments: List[str], agents: List[str], output_path: Path
-) -> None:
-    """Create heatmap of Environment x Agent showing avg reward per agent."""
-    _plot_heatmap(
-        x_labels=agents,
-        y_labels=experiments,
-        value_lookup=lambda agent, exp: (
-            aggregated.by_agent_experiment.get((agent, exp)).mean_agent_reward()
-            if aggregated.by_agent_experiment.get((agent, exp))
-            else 0.0
-        ),
-        title="Average Reward: Environment x Agent",
-        cbar_label="Average Reward",
-        filename="heatmap_env_agent.png",
-        output_path=output_path,
-        cmap="YlOrRd",
-        figsize=(10, int(len(experiments) * 0.5 + 2)),
-        annotation_fmt=".1f",
-    )
-
-
-def _plot_heatmap_env_agent_total(
-    aggregated: AggregatedResults, experiments: List[str], agents: List[str], output_path: Path
-) -> None:
-    """Create heatmap of Environment x Agent showing total reward."""
-    _plot_heatmap(
-        x_labels=agents,
-        y_labels=experiments,
-        value_lookup=lambda agent, exp: (
-            aggregated.by_agent_experiment.get((agent, exp)).mean_total_reward()
-            if aggregated.by_agent_experiment.get((agent, exp))
-            else 0.0
-        ),
-        title="Total Reward: Environment x Agent",
-        cbar_label="Total Reward",
-        filename="heatmap_env_agent_total.png",
-        output_path=output_path,
-        cmap="YlOrRd",
-        figsize=(10, int(len(experiments) * 0.5 + 2)),
-        annotation_fmt=".1f",
-    )
-
-
-def _plot_heatmap_diff_agent(
-    aggregated: AggregatedResults, difficulties: List[str], agents: List[str], output_path: Path
-) -> None:
-    """Create heatmap of Difficulty x Agent showing avg reward per agent."""
-    _plot_heatmap(
-        x_labels=agents,
-        y_labels=difficulties,
-        value_lookup=lambda agent, diff: (
-            aggregated.by_agent_difficulty.get((agent, diff)).mean_agent_reward()
-            if aggregated.by_agent_difficulty.get((agent, diff))
-            else 0.0
-        ),
-        title="Average Reward: Difficulty x Agent",
-        cbar_label="Average Reward",
-        filename="heatmap_diff_agent.png",
-        output_path=output_path,
-        cmap="YlGnBu",
-        figsize=(10, int(len(difficulties) * 0.4 + 2)),
-        annotation_fmt=".1f",
-    )
-
-
-def _plot_heatmap_diff_agent_total(
-    aggregated: AggregatedResults, difficulties: List[str], agents: List[str], output_path: Path
-) -> None:
-    """Create heatmap of Difficulty x Agent showing total reward."""
-    _plot_heatmap(
-        x_labels=agents,
-        y_labels=difficulties,
-        value_lookup=lambda agent, diff: (
-            aggregated.by_agent_difficulty.get((agent, diff)).mean_total_reward()
-            if aggregated.by_agent_difficulty.get((agent, diff))
-            else 0.0
-        ),
-        title="Total Reward: Difficulty x Agent",
-        cbar_label="Total Reward",
-        filename="heatmap_diff_agent_total.png",
-        output_path=output_path,
-        cmap="YlGnBu",
-        figsize=(10, int(len(difficulties) * 0.4 + 2)),
-        annotation_fmt=".1f",
-    )
 
 
 def main():
