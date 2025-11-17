@@ -40,12 +40,11 @@ class ReplayTool(Tool):
     def invoke(self, args: dict[str, str]) -> int | None:
         normalized_uri = CheckpointManager.normalize_uri(self.policy_uri) if self.policy_uri else None
         policy_spec = self._build_policy_spec(normalized_uri)
-        policy_specs = [policy_spec]
 
         simulation_run = self.sim.to_simulation_run_config()
 
         simulation_results = run_simulations(
-            policy_specs=policy_specs,
+            policy_specs=[policy_spec],
             simulations=[simulation_run],
             replay_dir=self.replay_dir,
             seed=self.system.seed,
