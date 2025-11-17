@@ -2,54 +2,33 @@
 """
 Evaluation Script for Policies
 
-Tests any policy including:
-- Scripted agents: baseline, ladybug
-- NIM agents: thinky, nim_random, nim_race_car
-- Any custom policy via full class path
-- Trained policies from S3 or local checkpoints
+Supports:
+- Built-in shorthands: baseline, ladybug (`--agent all` runs both)
+- Any policy via full class path
+- Local or S3 checkpoints when CheckpointManager is available
 
-Usage:
-  # Evaluate all predefined agents
+Usage snippets:
   uv run python packages/cogames/scripts/run_evaluation.py --agent all
-
-  # Evaluate specific scripted agent (shorthand)
-  uv run python packages/cogames/scripts/run_evaluation.py \\
+  uv run python packages/cogames/scripts/run_evaluation.py \
       --agent baseline --experiments oxygen_bottleneck --cogs 1
-
-  # Evaluate NIM agent (shorthand)
-  uv run python packages/cogames/scripts/run_evaluation.py \\
-      --agent thinky --experiments oxygen_bottleneck --cogs 1
-
-  # Evaluate ladybug (unclipping agent) with specific config
-  uv run python packages/cogames/scripts/run_evaluation.py \\
-      --agent ladybug --mission-set integrated_evals --cogs 2 4
-
-  # Evaluate with full policy path and local checkpoint
-  uv run python packages/cogames/scripts/run_evaluation.py \\
-      --agent cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy \\
-      --checkpoint ./checkpoints/model.pt --experiments oxygen_bottleneck --cogs 1
-
-  # Evaluate with S3 checkpoint URI
-  uv run python packages/cogames/scripts/run_evaluation.py \\
-      --agent cogames.policy.lstm.LSTMPolicy \\
-      --checkpoint s3://bucket/path/to/checkpoint.mpt --experiments oxygen_bottleneck --cogs 1
-
-  # Evaluate directly from S3 URI (policy_path is the checkpoint URI)
-  uv run python packages/cogames/scripts/run_evaluation.py \\
-      --agent s3://bucket/path/to/checkpoint.mpt --experiments oxygen_bottleneck --cogs 1
+  uv run python packages/cogames/scripts/run_evaluation.py \
+      --agent cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy --cogs 1
+  uv run python packages/cogames/scripts/run_evaluation.py \
+      --agent cogames.policy.lstm.LSTMPolicy --checkpoint s3://bucket/path/model.mpt --cogs 1
+  uv run python packages/cogames/scripts/run_evaluation.py \
+      --agent s3://bucket/path/model.mpt --cogs 1
 """
 
 import argparse
 import importlib
 import json
 import logging
-from collections import defaultdict
+import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
 
-import matplotlib.pyplot as plt
-import numpy as np
 import torch
 
 from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
@@ -57,11 +36,10 @@ from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVarian
 from cogames.cogs_vs_clips.missions import MISSIONS as ALL_MISSIONS
 from cogames.cogs_vs_clips.variants import VARIANTS
 from mettagrid.policy.loader import initialize_or_load_policy
-from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
+from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
 
-# Import CheckpointManager for S3 support
 try:
     from metta.rl.checkpoint_manager import CheckpointManager
 
@@ -75,38 +53,28 @@ logger = logging.getLogger(__name__)
 
 
 def _ensure_vibe_supports_gear(env_cfg) -> None:
-    """
-    Ensure the change_vibe action space is large enough to include the 'gear' vibe
-    if any assembler protocol uses it.
-    """
-    try:
-        assembler = env_cfg.game.objects.get("assembler")
-        uses_gear = False
-        if assembler is not None and hasattr(assembler, "protocols"):
-            for proto in assembler.protocols:
-                if any(v == "gear" for v in getattr(proto, "vibes", [])):
-                    uses_gear = True
-                    break
-        if uses_gear:
-            change_vibe = env_cfg.game.actions.change_vibe
-            if getattr(change_vibe, "number_of_vibes", 0) < 8:
-                change_vibe.number_of_vibes = 8
-    except Exception:
-        # Best-effort; if anything fails, leave as-is.
-        pass
+    assembler = env_cfg.game.objects.get("assembler")
+    uses_gear = False
+    if assembler is not None and hasattr(assembler, "protocols"):
+        for proto in assembler.protocols:
+            if any(v == "gear" for v in getattr(proto, "vibes", [])):
+                uses_gear = True
+                break
+    if uses_gear:
+        change_vibe = env_cfg.game.actions.change_vibe
+        if getattr(change_vibe, "number_of_vibes", 0) < 8:
+            change_vibe.number_of_vibes = 8
 
 
 @dataclass
 class EvalResult:
-    """Results from a single evaluation run."""
-
     agent: str
     experiment: str
     num_cogs: int
     difficulty: str
     clip_period: int
-    total_reward: float  # Total reward across all agents
-    avg_reward_per_agent: float  # Average reward per agent
+    total_reward: float
+    avg_reward_per_agent: float
     hearts_assembled: int
     steps_taken: int
     max_steps: int
@@ -117,21 +85,13 @@ class EvalResult:
 
 @dataclass
 class AgentConfig:
-    """Configuration for an agent policy."""
-
     key: str
     label: str
-    policy_path: str  # Fully-qualified policy class path
-    data_path: Optional[str] = None  # Optional checkpoint path
-
-
-def is_clipping_difficulty(name: str) -> bool:
-    """Check if a difficulty involves clipping."""
-    return "clipped" in name.lower() or "clipping" in name.lower()
+    policy_path: str
+    data_path: Optional[str] = None
 
 
 def is_s3_uri(path: str) -> bool:
-    """Check if a path is an S3 URI."""
     return path.startswith("s3://") if path else False
 
 
@@ -140,47 +100,25 @@ def load_policy(
     policy_path: str,
     checkpoint_path: Optional[str] = None,
     device: Optional[torch.device] = None,
-) -> "MultiAgentPolicy":
-    """
-    Load a policy from either a class path (with optional local checkpoint) or an S3 URI.
+):
+    device = device or torch.device("cpu")
 
-    Args:
-        policy_env_info: Policy environment interface
-        policy_path: Policy class path (e.g., 'cogames.policy.lstm.LSTMPolicy') or S3 URI
-        checkpoint_path: Optional local checkpoint path (ignored if policy_path is S3 URI)
-        device: Optional device for loading (defaults to CPU)
-
-    Returns:
-        Initialized MultiAgentPolicy
-    """
-    if device is None:
-        device = torch.device("cpu")
-
-    # If checkpoint_path is an S3 URI, use CheckpointManager
     if checkpoint_path and is_s3_uri(checkpoint_path):
         if not CHECKPOINT_MANAGER_AVAILABLE or CheckpointManager is None:
             raise ImportError("CheckpointManager not available. Install metta package to use S3 checkpoints.")
-        logger.info(f"Loading policy from S3 URI: {checkpoint_path}")
-        policy = CheckpointManager.load_from_uri(checkpoint_path, policy_env_info, device)
-        return policy
+        return CheckpointManager.load_from_uri(checkpoint_path, policy_env_info, device)
 
-    # If policy_path is an S3 URI, use CheckpointManager (policy_path is the checkpoint URI)
     if is_s3_uri(policy_path):
         if not CHECKPOINT_MANAGER_AVAILABLE or CheckpointManager is None:
             raise ImportError("CheckpointManager not available. Install metta package to use S3 checkpoints.")
-        logger.info(f"Loading policy from S3 URI: {policy_path}")
-        policy = CheckpointManager.load_from_uri(policy_path, policy_env_info, device)
-        return policy
+        return CheckpointManager.load_from_uri(policy_path, policy_env_info, device)
 
-    # Otherwise, use the standard initialization path
-    policy_spec = PolicySpec(
-        class_path=policy_path,
-        data_path=checkpoint_path,
+    return initialize_or_load_policy(
+        policy_env_info,
+        PolicySpec(class_path=policy_path, data_path=checkpoint_path),
     )
-    return initialize_or_load_policy(policy_env_info, policy_spec)
 
 
-# Available agents
 AGENT_CONFIGS: Dict[str, AgentConfig] = {
     "baseline": AgentConfig(
         key="baseline",
@@ -195,15 +133,96 @@ AGENT_CONFIGS: Dict[str, AgentConfig] = {
 }
 
 EXPERIMENT_MAP: Dict[str, Mission] = {}
+VARIANT_LOOKUP: Dict[str, MissionVariant] = {v.name: v for v in VARIANTS}
 
 
-def load_eval_missions(module_path: str):
-    """Dynamically import a module and return its EVAL_MISSIONS list."""
+def load_eval_missions(module_path: str) -> List[Mission]:
     module = importlib.import_module(module_path)
     missions = getattr(module, "EVAL_MISSIONS", None)
     if missions is None:
         raise AttributeError(f"Module '{module_path}' does not define EVAL_MISSIONS")
     return missions
+
+
+def _run_case(
+    exp_name: str,
+    variant_name: Optional[str],
+    num_cogs: int,
+    base_mission: Mission,
+    variant: Optional[MissionVariant],
+    clip_period: int,
+    max_steps: int,
+    seed: int,
+    runs_per_case: int,
+    agent_config: AgentConfig,
+) -> List[EvalResult]:
+    mission_variants: List[MissionVariant] = [NumCogsVariant(num_cogs=num_cogs)]
+    if variant:
+        mission_variants.insert(0, variant)
+    try:
+        mission = base_mission.with_variants(mission_variants)
+        env_config = mission.make_env()
+        _ensure_vibe_supports_gear(env_config)
+        if variant is None or getattr(variant, "max_steps_override", None) is None:
+            env_config.game.max_steps = max_steps
+
+        actual_max_steps = env_config.game.max_steps
+        policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
+        policy = load_policy(policy_env_info, agent_config.policy_path, agent_config.data_path)
+        agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
+
+        out: List[EvalResult] = []
+        for run_idx in range(runs_per_case):
+            run_seed = seed + run_idx
+            rollout = Rollout(
+                env_config,
+                agent_policies,
+                render_mode="none",
+                seed=run_seed,
+                pass_sim_to_policies=True,
+            )
+            rollout.run_until_done()
+
+            total_reward = float(sum(rollout._sim.episode_rewards))
+            final_step = rollout._sim.current_step
+            out.append(
+                EvalResult(
+                    agent=agent_config.label,
+                    experiment=exp_name,
+                    num_cogs=num_cogs,
+                    difficulty=variant_name or "base",
+                    clip_period=clip_period,
+                    total_reward=total_reward,
+                    avg_reward_per_agent=total_reward / max(1, num_cogs),
+                    hearts_assembled=int(total_reward),
+                    steps_taken=final_step + 1,
+                    max_steps=actual_max_steps,
+                    success=total_reward > 0,
+                    seed_used=run_seed,
+                    run_index=run_idx + 1,
+                )
+            )
+        return out
+    except Exception:
+        # Use a fresh index to avoid referencing run_idx when the failure occurs before the loop above runs.
+        return [
+            EvalResult(
+                agent=agent_config.label,
+                experiment=exp_name,
+                num_cogs=num_cogs,
+                difficulty=variant_name or "base",
+                clip_period=clip_period,
+                total_reward=0.0,
+                avg_reward_per_agent=0.0,
+                hearts_assembled=0,
+                steps_taken=0,
+                max_steps=max_steps,
+                success=False,
+                seed_used=seed + i,
+                run_index=i + 1,
+            )
+            for i in range(runs_per_case)
+        ]
 
 
 def run_evaluation(
@@ -214,156 +233,73 @@ def run_evaluation(
     max_steps: int = 1000,
     seed: int = 42,
     repeats: int = 3,
-    experiment_map: Dict[str, Mission] | None = None,
+    jobs: int = 0,
+    experiment_map: Optional[Dict[str, Mission]] = None,
 ) -> List[EvalResult]:
-    """Run evaluation for an agent configuration."""
-    results = []
+    results: List[EvalResult] = []
     experiment_lookup = experiment_map if experiment_map is not None else EXPERIMENT_MAP
+    runs_per_case = max(1, int(repeats))
+    variant_list = variants or [None]
 
     logger.info(f"\n{'=' * 80}")
     logger.info(f"Evaluating: {agent_config.label}")
     logger.info(f"Experiments: {len(experiments)}")
-    logger.info(f"Variants: {len(variants) if variants else 0} (none = base mission)")
+    logger.info(f"Variants: {len(variant_list)} (none = base mission)")
     logger.info(f"Agent counts: {cogs_list}")
     logger.info(f"{'=' * 80}\n")
 
-    runs_per_case = max(1, int(repeats))
-    total_cases = len(experiments) * max(1, len(variants)) * len(cogs_list)
-    total_tests = total_cases * runs_per_case
-    case_counter = 0
-    completed_runs = 0
-
+    cases: List[tuple[str, Optional[str], int, Mission, Optional[MissionVariant], int]] = []
     for exp_name in experiments:
-        if exp_name not in experiment_lookup:
+        base_mission = experiment_lookup.get(exp_name)
+        if base_mission is None:
             logger.error(f"Unknown experiment: {exp_name}")
             continue
-
-        base_mission = experiment_lookup[exp_name]
-
-        # If no variants specified, run with base mission
-        variant_list = variants if variants else [None]
-
         for variant_name in variant_list:
-            variant = None
-            variant_label = "base"
-            if variant_name:
-                # Find the variant by name
-                variant = next((v for v in VARIANTS if v.name == variant_name), None)
-                if variant is None:
-                    logger.error(f"Unknown variant: {variant_name}")
-                    continue
-                variant_label = variant_name
-
+            variant = VARIANT_LOOKUP.get(variant_name) if variant_name else None
+            if variant_name and variant is None:
+                logger.error(f"Unknown variant: {variant_name}")
+                continue
+            clip_period = getattr(variant, "extractor_clip_period", 0) if variant else 0
             for num_cogs in cogs_list:
-                case_counter += 1
-                logger.info(f"[{case_counter}/{total_cases}] {exp_name} | {variant_label} | {num_cogs} agent(s)")
+                cases.append((exp_name, variant_name, num_cogs, base_mission, variant, clip_period))
 
-                # Get clip period for metadata (if applicable)
-                clip_period = getattr(variant, "extractor_clip_period", 0) if variant else 0
+    total_cases = len(cases)
+    total_tests = total_cases * runs_per_case
+    completed = 0
+    max_workers = jobs if jobs > 0 else max(1, os.cpu_count() or 1)
 
-                try:
-                    # Create mission and apply variant if specified
-                    mission_variants: list[MissionVariant] = [NumCogsVariant(num_cogs=num_cogs)]
-                    if variant:
-                        mission_variants.insert(0, variant)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_map = {
+            executor.submit(
+                _run_case,
+                exp_name,
+                variant_name,
+                num_cogs,
+                base_mission,
+                variant,
+                clip_period,
+                max_steps,
+                seed,
+                runs_per_case,
+                agent_config,
+            ): (exp_name, variant_name, num_cogs)
+            for exp_name, variant_name, num_cogs, base_mission, variant, clip_period in cases
+        }
 
-                    mission = base_mission.with_variants(mission_variants)
-
-                    env_config = mission.make_env()
-                    # Ensure 'gear' vibe is representable in the action space when required.
-                    _ensure_vibe_supports_gear(env_config)
-                    # Only override max_steps if variant doesn't specify it
-                    has_override = bool(
-                        (variant is not None)
-                        and hasattr(variant, "max_steps_override")
-                        and variant.max_steps_override is not None
-                    )
-                    if not has_override:
-                        env_config.game.max_steps = max_steps
-
-                    # Get the actual max_steps from env_config (after all modifications)
-                    actual_max_steps = env_config.game.max_steps
-
-                    # Create policy using generic initialization or S3 URI
-                    policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
-
-                    policy = load_policy(
-                        policy_env_info,
-                        agent_config.policy_path,
-                        agent_config.data_path,
-                        device=torch.device("cpu"),
-                    )
-                    agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
-
-                    # Run repeated trials with seed offsets
-                    for run_idx in range(runs_per_case):
-                        run_seed = seed + run_idx
-                        # Create rollout with run-specific seed
-                        rollout = Rollout(
-                            env_config,
-                            agent_policies,
-                            render_mode="none",
-                            seed=run_seed,
-                            pass_sim_to_policies=True,
-                        )
-                        rollout.run_until_done()
-
-                        total_reward = float(sum(rollout._sim.episode_rewards))
-                        avg_reward_per_agent = total_reward / max(1, num_cogs)
-                        final_step = rollout._sim.current_step
-
-                        result = EvalResult(
-                            agent=agent_config.label,
-                            experiment=exp_name,
-                            num_cogs=num_cogs,
-                            difficulty=variant_label,
-                            clip_period=clip_period,
-                            total_reward=total_reward,
-                            avg_reward_per_agent=avg_reward_per_agent,
-                            hearts_assembled=int(total_reward),
-                            steps_taken=final_step + 1,
-                            max_steps=actual_max_steps,
-                            success=total_reward > 0,
-                            seed_used=run_seed,
-                            run_index=run_idx + 1,
-                        )
-                        results.append(result)
-
-                        completed_runs += 1
-                        status = "✓" if result.success else "✗"
-                        logger.info(
-                            f"  [run {run_idx + 1}/{runs_per_case}] {status} Total: {total_reward:.1f}, "
-                            f"Avg/Agent: {avg_reward_per_agent:.1f}, Steps: {final_step + 1}/{actual_max_steps} "
-                            f"(seed={run_seed}, progress {completed_runs}/{total_tests})"
-                        )
-
-                except Exception as e:
-                    logger.error(f"  ✗ Error: {e}")
-                    # Record failure
-                    for run_idx in range(runs_per_case):
-                        result = EvalResult(
-                            agent=agent_config.label,
-                            experiment=exp_name,
-                            num_cogs=num_cogs,
-                            difficulty=variant_label,
-                            clip_period=clip_period,
-                            total_reward=0.0,
-                            avg_reward_per_agent=0.0,
-                            hearts_assembled=0,
-                            steps_taken=0,
-                            max_steps=max_steps,
-                            success=False,
-                            run_index=run_idx + 1,
-                            seed_used=seed + run_idx,
-                        )
-                        results.append(result)
-                        completed_runs += 1
+        for idx, future in enumerate(as_completed(future_map), start=1):
+            exp_name, variant_name, num_cogs = future_map[future]
+            case_results = future.result()
+            results.extend(case_results)
+            completed += len(case_results)
+            logger.info(
+                f"[{idx}/{total_cases}] {exp_name} | {variant_name or 'base'} | {num_cogs} agent(s) "
+                f"(progress {completed}/{total_tests})"
+            )
 
     return results
 
 
 def print_summary(results: List[EvalResult]):
-    """Print summary statistics."""
     if not results:
         logger.info("\nNo results to summarize.")
         return
@@ -377,7 +313,6 @@ def print_summary(results: List[EvalResult]):
     logger.info(f"Total tests: {total}")
     logger.info(f"Successes: {successes}/{total} ({100 * successes / total:.1f}%)")
 
-    # By agent
     logger.info("\n## By Agent")
     agents = sorted(set(r.agent for r in results))
     for agent in agents:
@@ -391,7 +326,6 @@ def print_summary(results: List[EvalResult]):
             f"avg_total={avg_total_reward:.2f} avg_per_agent={avg_reward_per_agent:.2f}"
         )
 
-    # By agent count
     logger.info("\n## By Agent Count")
     cogs = sorted(set(r.num_cogs for r in results))
     for num_cogs in cogs:
@@ -405,770 +339,359 @@ def print_summary(results: List[EvalResult]):
             f"avg_total={avg_total_reward:.2f} avg_per_agent={avg_reward_per_agent:.2f}"
         )
 
-    # By variant
     logger.info("\n## By Variant")
-    variants = sorted(set(r.difficulty for r in results))
-    for var in variants:
-        var_results = [r for r in results if r.difficulty == var]
+    variants_present = sorted(set(r.difficulty for r in results))
+    for variant_key in variants_present:
+        var_results = [r for r in results if r.difficulty == variant_key]
         var_successes = sum(1 for r in var_results if r.success)
         avg_total_reward = sum(r.total_reward for r in var_results) / len(var_results)
         avg_reward_per_agent = sum(r.avg_reward_per_agent for r in var_results) / len(var_results)
         logger.info(
-            f"  {var:20s}: {var_successes}/{len(var_results)} "
+            f"  {variant_key:20s}: {var_successes}/{len(var_results)} "
             f"({100 * var_successes / len(var_results):.1f}%) "
             f"avg_total={avg_total_reward:.2f} avg_per_agent={avg_reward_per_agent:.2f}"
         )
 
 
-def create_plots(results: List[EvalResult], output_dir: str = "eval_plots"):
-    """Create comprehensive plots from evaluation results."""
+def _lazy_plot_imports():
     import matplotlib
 
-    matplotlib.use("Agg")  # Non-interactive backend
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt_mod  # type: ignore
+    import numpy as np_mod  # type: ignore
 
+    return plt_mod, np_mod
+
+
+def create_plots(results: List[EvalResult], output_dir: str = "eval_plots"):
+    if not results:
+        return
+    plt, np = _lazy_plot_imports()
     output_path = Path(output_dir)
     output_path.mkdir(exist_ok=True)
     logger.info(f"\nGenerating plots in {output_path}/...")
 
-    # Convert results to dicts for easier processing
-    data = defaultdict(lambda: defaultdict(list))
-
-    for r in results:
-        key = (r.agent, r.experiment, r.difficulty, r.num_cogs)
-        data[key]["total_rewards"].append(r.total_reward)
-        data[key]["avg_rewards"].append(r.avg_reward_per_agent)
-        data[key]["successes"].append(r.success)
-
-    # Aggregate data
-    aggregated = {}
-    for key, vals in data.items():
-        agent, experiment, difficulty, num_cogs = key
-        aggregated[key] = {
-            "agent": agent,
-            "experiment": experiment,
-            "difficulty": difficulty,
-            "num_cogs": num_cogs,
-            "avg_total_reward": np.mean(vals["total_rewards"]),
-            "avg_reward_per_agent": np.mean(vals["avg_rewards"]),
-            "success_rate": np.mean(vals["successes"]),
-        }
-
-    # Get unique values for each dimension
     agents = sorted(set(r.agent for r in results))
     experiments = sorted(set(r.experiment for r in results))
     variants = sorted(set(r.difficulty for r in results))
     num_cogs_list = sorted(set(r.num_cogs for r in results))
 
-    # 1. Average reward per agent by agent type
-    _plot_by_agent(aggregated, agents, output_path)
+    def mean(vals):
+        return sum(vals) / len(vals) if vals else 0.0
 
-    # 2. Total reward by agent type
-    _plot_by_agent_total(aggregated, agents, output_path)
+    def plot_bar(filename, title, xlabel, ylabel, labels, series, lookup, rotation=45, figsize=(12, 7)):
+        fig, ax = plt.subplots(figsize=figsize)
+        x = np.arange(len(labels))
+        if len(series) == 1:
+            vals = [lookup(series[0], lbl) for lbl in labels]
+            ax.bar(x, vals)
+        else:
+            width = 0.8 / len(series)
+            for i, s in enumerate(series):
+                vals = [lookup(s, lbl) for lbl in labels]
+                ax.bar(x + i * width, vals, width, label=str(s))
+            ax.legend()
+        ax.set_ylabel(ylabel)
+        ax.set_xlabel(xlabel)
+        ax.set_title(title)
+        ax.set_xticks(x + (0 if len(series) == 1 else (0.4)))
+        ax.set_xticklabels(labels, rotation=rotation)
+        fig.tight_layout()
+        fig.savefig(output_path / filename)
+        plt.close(fig)
 
-    # 3. Average reward per agent by num_cogs
-    _plot_by_num_cogs(aggregated, num_cogs_list, agents, output_path)
+    def lookup_agent(agent, key, fn):
+        vals = [r for r in results if r.agent == agent and key(r)]
+        return mean([fn(r) for r in vals])
 
-    # 4. Total reward by num_cogs
-    _plot_by_num_cogs_total(aggregated, num_cogs_list, agents, output_path)
+    def lookup_pair(a, b, fn):
+        vals = [r for r in results if a(r) and b(r)]
+        return mean([fn(r) for r in vals])
 
-    # 5. Average reward per agent by eval environment
-    _plot_by_environment(aggregated, experiments, agents, output_path)
+    plot_bar(
+        "reward_by_agent.png",
+        "Average Reward Per Agent by Type",
+        "Agent Type",
+        "Average Reward Per Agent",
+        agents,
+        ["value"],
+        lambda _s, a: lookup_agent(a, lambda _r: True, lambda r: r.avg_reward_per_agent),
+        rotation=0,
+        figsize=(10, 6),
+    )
 
-    # 6. Total reward by eval environment
-    _plot_by_environment_total(aggregated, experiments, agents, output_path)
+    plot_bar(
+        "total_reward_by_agent.png",
+        "Total Reward by Agent Type",
+        "Agent Type",
+        "Total Reward",
+        agents,
+        ["value"],
+        lambda _s, a: lookup_agent(a, lambda _r: True, lambda r: r.total_reward),
+        rotation=0,
+        figsize=(10, 6),
+    )
 
-    # 7. Average reward per agent by variant
-    _plot_by_difficulty(aggregated, variants, agents, output_path)
+    plot_bar(
+        "reward_by_num_cogs.png",
+        "Average Reward Per Agent by Team Size",
+        "Number of Agents",
+        "Average Reward Per Agent",
+        num_cogs_list,
+        agents,
+        lambda agent, cogs: lookup_pair(
+            lambda r: r.agent == agent,
+            lambda r: r.num_cogs == cogs,
+            lambda r: r.avg_reward_per_agent,
+        ),
+        rotation=0,
+    )
 
-    # 8. Total reward by variant
-    _plot_by_difficulty_total(aggregated, variants, agents, output_path)
+    plot_bar(
+        "total_reward_by_num_cogs.png",
+        "Total Reward by Team Size",
+        "Number of Agents",
+        "Total Reward",
+        num_cogs_list,
+        agents,
+        lambda agent, cogs: lookup_pair(
+            lambda r: r.agent == agent,
+            lambda r: r.num_cogs == cogs,
+            lambda r: r.total_reward,
+        ),
+        rotation=0,
+    )
 
-    # 8.5. Average reward per agent by environment, grouped by agent count
-    _plot_by_environment_by_cogs(aggregated, experiments, num_cogs_list, output_path)
+    plot_bar(
+        "reward_by_environment.png",
+        "Average Reward by Eval Environment",
+        "Eval Environment",
+        "Average Reward Per Agent",
+        experiments,
+        agents,
+        lambda agent, exp: lookup_pair(
+            lambda r: r.agent == agent,
+            lambda r: r.experiment == exp,
+            lambda r: r.avg_reward_per_agent,
+        ),
+    )
 
-    # 9. Heatmap: Environment x Agent (avg per agent)
-    _plot_heatmap_env_agent(aggregated, experiments, agents, output_path)
+    plot_bar(
+        "total_reward_by_environment.png",
+        "Total Reward by Eval Environment",
+        "Eval Environment",
+        "Total Reward",
+        experiments,
+        agents,
+        lambda agent, exp: lookup_pair(
+            lambda r: r.agent == agent,
+            lambda r: r.experiment == exp,
+            lambda r: r.total_reward,
+        ),
+    )
 
-    # 10. Heatmap: Environment x Agent (total)
-    _plot_heatmap_env_agent_total(aggregated, experiments, agents, output_path)
+    plot_bar(
+        "reward_by_difficulty.png",
+        "Average Reward by Difficulty Variant",
+        "Difficulty Variant",
+        "Average Reward Per Agent",
+        variants,
+        agents,
+        lambda agent, diff: lookup_pair(
+            lambda r: r.agent == agent,
+            lambda r: r.difficulty == diff,
+            lambda r: r.avg_reward_per_agent,
+        ),
+    )
 
-    # 11. Heatmap: Variant x Agent (avg per agent)
-    _plot_heatmap_diff_agent(aggregated, variants, agents, output_path)
+    plot_bar(
+        "total_reward_by_difficulty.png",
+        "Total Reward by Difficulty Variant",
+        "Difficulty Variant",
+        "Total Reward",
+        variants,
+        agents,
+        lambda agent, diff: lookup_pair(
+            lambda r: r.agent == agent,
+            lambda r: r.difficulty == diff,
+            lambda r: r.total_reward,
+        ),
+    )
 
-    # 12. Heatmap: Variant x Agent (total)
-    _plot_heatmap_diff_agent_total(aggregated, variants, agents, output_path)
+    plot_bar(
+        "reward_by_environment_by_cogs.png",
+        "Average Reward by Eval Environment (Grouped by Agent Count)",
+        "Eval Environment",
+        "Average Reward Per Agent",
+        experiments,
+        num_cogs_list,
+        lambda cogs, exp: lookup_pair(
+            lambda r: r.num_cogs == cogs,
+            lambda r: r.experiment == exp,
+            lambda r: r.avg_reward_per_agent,
+        ),
+    )
+
+    # Heatmaps
+    def heatmap(filename, title, x_labels, y_labels, lookup_fn, figsize):
+        data = np.array([[lookup_fn(x, y) for x in x_labels] for y in y_labels])
+        fig, ax = plt.subplots(figsize=figsize)
+        im = ax.imshow(data, cmap="YlOrRd")
+        ax.set_xticks(np.arange(len(x_labels)))
+        ax.set_yticks(np.arange(len(y_labels)))
+        ax.set_xticklabels(x_labels, rotation=45, ha="right")
+        ax.set_yticklabels(y_labels)
+        ax.set_title(title)
+        fig.colorbar(im, ax=ax)
+        fig.tight_layout()
+        fig.savefig(output_path / filename)
+        plt.close(fig)
+
+    heatmap(
+        "heatmap_env_agent.png",
+        "Average Reward: Environment x Agent",
+        agents,
+        experiments,
+        lambda agent, exp: lookup_pair(
+            lambda r: r.agent == agent,
+            lambda r: r.experiment == exp,
+            lambda r: r.avg_reward_per_agent,
+        ),
+        figsize=(10, len(experiments) * 0.5 + 2),
+    )
+
+    heatmap(
+        "heatmap_env_agent_total.png",
+        "Total Reward: Environment x Agent",
+        agents,
+        experiments,
+        lambda agent, exp: lookup_pair(
+            lambda r: r.agent == agent,
+            lambda r: r.experiment == exp,
+            lambda r: r.total_reward,
+        ),
+        figsize=(10, len(experiments) * 0.5 + 2),
+    )
+
+    heatmap(
+        "heatmap_diff_agent.png",
+        "Average Reward: Difficulty x Agent",
+        agents,
+        variants,
+        lambda agent, diff: lookup_pair(
+            lambda r: r.agent == agent,
+            lambda r: r.difficulty == diff,
+            lambda r: r.avg_reward_per_agent,
+        ),
+        figsize=(10, len(variants) * 0.4 + 2),
+    )
+
+    heatmap(
+        "heatmap_diff_agent_total.png",
+        "Total Reward: Difficulty x Agent",
+        agents,
+        variants,
+        lambda agent, diff: lookup_pair(
+            lambda r: r.agent == agent,
+            lambda r: r.difficulty == diff,
+            lambda r: r.total_reward,
+        ),
+        figsize=(10, len(variants) * 0.4 + 2),
+    )
 
     logger.info(f"✓ Plots saved to {output_path}/")
 
 
-def _plot_by_agent(aggregated, agents, output_path):
-    """Plot average reward per agent grouped by agent type."""
-    fig, ax = plt.subplots(figsize=(10, 6))
-
-    agent_rewards = defaultdict(list)
-    for _key, vals in aggregated.items():
-        agent_rewards[vals["agent"]].append(vals["avg_reward_per_agent"])
-
-    avg_rewards = [np.mean(agent_rewards[agent]) for agent in agents]
-    colors = plt.get_cmap("Set2")(range(len(agents)))
-
-    bars = ax.bar(agents, avg_rewards, color=colors, alpha=0.8, edgecolor="black")
-    ax.set_ylabel("Average Reward Per Agent", fontsize=12, fontweight="bold")
-    ax.set_xlabel("Agent Type", fontsize=12, fontweight="bold")
-    ax.set_title("Average Reward Per Agent by Type", fontsize=14, fontweight="bold")
-    ax.grid(axis="y", alpha=0.3)
-
-    # Add value labels on bars
-    for bar in bars:
-        height = bar.get_height()
-        ax.text(
-            bar.get_x() + bar.get_width() / 2.0, height, f"{height:.2f}", ha="center", va="bottom", fontweight="bold"
-        )
-
-    plt.tight_layout()
-    plt.savefig(output_path / "reward_by_agent.png", dpi=150, bbox_inches="tight")
-    plt.close()
-
-
-def _plot_by_agent_total(aggregated, agents, output_path):
-    """Plot total reward grouped by agent type."""
-    fig, ax = plt.subplots(figsize=(10, 6))
-
-    agent_rewards = defaultdict(list)
-    for _key, vals in aggregated.items():
-        agent_rewards[vals["agent"]].append(vals["avg_total_reward"])
-
-    avg_rewards = [np.mean(agent_rewards[agent]) for agent in agents]
-    colors = plt.get_cmap("Set2")(range(len(agents)))
-
-    bars = ax.bar(agents, avg_rewards, color=colors, alpha=0.8, edgecolor="black")
-    ax.set_ylabel("Total Reward", fontsize=12, fontweight="bold")
-    ax.set_xlabel("Agent Type", fontsize=12, fontweight="bold")
-    ax.set_title("Total Reward by Agent Type", fontsize=14, fontweight="bold")
-    ax.grid(axis="y", alpha=0.3)
-
-    # Add value labels on bars
-    for bar in bars:
-        height = bar.get_height()
-        ax.text(
-            bar.get_x() + bar.get_width() / 2.0, height, f"{height:.2f}", ha="center", va="bottom", fontweight="bold"
-        )
-
-    plt.tight_layout()
-    plt.savefig(output_path / "total_reward_by_agent.png", dpi=150, bbox_inches="tight")
-    plt.close()
-
-
-def _plot_by_num_cogs(aggregated, num_cogs_list, agents, output_path):
-    """Plot average reward per agent by number of agents."""
-    fig, ax = plt.subplots(figsize=(12, 7))
-
-    width = 0.35
-    x = np.arange(len(num_cogs_list))
-
-    for i, agent in enumerate(agents):
-        rewards = []
-        for num_cogs in num_cogs_list:
-            vals = [
-                v["avg_reward_per_agent"]
-                for k, v in aggregated.items()
-                if v["agent"] == agent and v["num_cogs"] == num_cogs
-            ]
-            rewards.append(np.mean(vals) if vals else 0)
-
-        offset = width * (i - len(agents) / 2 + 0.5)
-        bars = ax.bar(x + offset, rewards, width, label=agent, alpha=0.8, edgecolor="black")
-
-        # Add value labels
-        for bar in bars:
-            height = bar.get_height()
-            if height > 0:
-                ax.text(
-                    bar.get_x() + bar.get_width() / 2.0, height, f"{height:.1f}", ha="center", va="bottom", fontsize=9
-                )
-
-    ax.set_ylabel("Average Reward Per Agent", fontsize=12, fontweight="bold")
-    ax.set_xlabel("Number of Agents", fontsize=12, fontweight="bold")
-    ax.set_title("Average Reward Per Agent by Team Size", fontsize=14, fontweight="bold")
-    ax.set_xticks(x)
-    ax.set_xticklabels(num_cogs_list)
-    ax.legend(fontsize=11)
-    ax.grid(axis="y", alpha=0.3)
-
-    plt.tight_layout()
-    plt.savefig(output_path / "reward_by_num_cogs.png", dpi=150, bbox_inches="tight")
-    plt.close()
-
-
-def _plot_by_num_cogs_total(aggregated, num_cogs_list, agents, output_path):
-    """Plot total reward by number of agents."""
-    fig, ax = plt.subplots(figsize=(12, 7))
-
-    width = 0.35
-    x = np.arange(len(num_cogs_list))
-
-    for i, agent in enumerate(agents):
-        rewards = []
-        for num_cogs in num_cogs_list:
-            vals = [
-                v["avg_total_reward"]
-                for k, v in aggregated.items()
-                if v["agent"] == agent and v["num_cogs"] == num_cogs
-            ]
-            rewards.append(np.mean(vals) if vals else 0)
-
-        offset = width * (i - len(agents) / 2 + 0.5)
-        bars = ax.bar(x + offset, rewards, width, label=agent, alpha=0.8, edgecolor="black")
-
-        # Add value labels
-        for bar in bars:
-            height = bar.get_height()
-            if height > 0:
-                ax.text(
-                    bar.get_x() + bar.get_width() / 2.0, height, f"{height:.1f}", ha="center", va="bottom", fontsize=9
-                )
-
-    ax.set_ylabel("Total Reward", fontsize=12, fontweight="bold")
-    ax.set_xlabel("Number of Agents", fontsize=12, fontweight="bold")
-    ax.set_title("Total Reward by Team Size", fontsize=14, fontweight="bold")
-    ax.set_xticks(x)
-    ax.set_xticklabels(num_cogs_list)
-    ax.legend(fontsize=11)
-    ax.grid(axis="y", alpha=0.3)
-
-    plt.tight_layout()
-    plt.savefig(output_path / "total_reward_by_num_cogs.png", dpi=150, bbox_inches="tight")
-    plt.close()
-
-
-def _plot_by_environment(aggregated, experiments, agents, output_path):
-    """Plot average reward per agent by eval environment."""
-    fig, ax = plt.subplots(figsize=(16, 8))
-
-    width = 0.35
-    x = np.arange(len(experiments))
-
-    for i, agent in enumerate(agents):
-        rewards = []
-        for exp in experiments:
-            vals = [
-                v["avg_reward_per_agent"]
-                for k, v in aggregated.items()
-                if v["agent"] == agent and v["experiment"] == exp
-            ]
-            rewards.append(np.mean(vals) if vals else 0)
-
-        offset = width * (i - len(agents) / 2 + 0.5)
-        ax.bar(x + offset, rewards, width, label=agent, alpha=0.8, edgecolor="black")
-
-    ax.set_ylabel("Average Reward Per Agent", fontsize=12, fontweight="bold")
-    ax.set_xlabel("Eval Environment", fontsize=12, fontweight="bold")
-    ax.set_title("Average Reward by Eval Environment", fontsize=14, fontweight="bold")
-    ax.set_xticks(x)
-    ax.set_xticklabels(experiments, rotation=45, ha="right")
-    ax.legend(fontsize=11)
-    ax.grid(axis="y", alpha=0.3)
-
-    plt.tight_layout()
-    plt.savefig(output_path / "reward_by_environment.png", dpi=150, bbox_inches="tight")
-    plt.close()
-
-
-def _plot_by_environment_total(aggregated, experiments, agents, output_path):
-    """Plot total reward by eval environment."""
-    fig, ax = plt.subplots(figsize=(16, 8))
-
-    width = 0.35
-    x = np.arange(len(experiments))
-
-    for i, agent in enumerate(agents):
-        rewards = []
-        for exp in experiments:
-            vals = [
-                v["avg_total_reward"] for k, v in aggregated.items() if v["agent"] == agent and v["experiment"] == exp
-            ]
-            rewards.append(np.mean(vals) if vals else 0)
-
-        offset = width * (i - len(agents) / 2 + 0.5)
-        ax.bar(x + offset, rewards, width, label=agent, alpha=0.8, edgecolor="black")
-
-    ax.set_ylabel("Total Reward", fontsize=12, fontweight="bold")
-    ax.set_xlabel("Eval Environment", fontsize=12, fontweight="bold")
-    ax.set_title("Total Reward by Eval Environment", fontsize=14, fontweight="bold")
-    ax.set_xticks(x)
-    ax.set_xticklabels(experiments, rotation=45, ha="right")
-    ax.legend(fontsize=11)
-    ax.grid(axis="y", alpha=0.3)
-
-    plt.tight_layout()
-    plt.savefig(output_path / "total_reward_by_environment.png", dpi=150, bbox_inches="tight")
-    plt.close()
-
-
-def _plot_by_environment_by_cogs(aggregated, experiments, num_cogs_list, output_path):
-    """Plot average reward per agent by eval environment, grouped by agent count."""
-    fig, ax = plt.subplots(figsize=(16, 8))
-
-    width = 0.25
-    x = np.arange(len(experiments))
-
-    for i, num_cogs in enumerate(num_cogs_list):
-        rewards = []
-        for exp in experiments:
-            vals = [
-                v["avg_reward_per_agent"]
-                for k, v in aggregated.items()
-                if v["num_cogs"] == num_cogs and v["experiment"] == exp
-            ]
-            rewards.append(np.mean(vals) if vals else 0)
-
-        offset = width * (i - len(num_cogs_list) / 2 + 0.5)
-        ax.bar(x + offset, rewards, width, label=f"{num_cogs} agent(s)", alpha=0.8, edgecolor="black")
-
-    ax.set_ylabel("Average Reward Per Agent", fontsize=12, fontweight="bold")
-    ax.set_xlabel("Eval Environment", fontsize=12, fontweight="bold")
-    ax.set_title("Average Reward by Eval Environment (Grouped by Agent Count)", fontsize=14, fontweight="bold")
-    ax.set_xticks(x)
-    ax.set_xticklabels(experiments, rotation=45, ha="right")
-    ax.legend(fontsize=11)
-    ax.grid(axis="y", alpha=0.3)
-
-    plt.tight_layout()
-    plt.savefig(output_path / "reward_by_environment_by_cogs.png", dpi=150, bbox_inches="tight")
-    plt.close()
-
-
-def _plot_by_difficulty(aggregated, difficulties, agents, output_path):
-    """Plot average reward per agent by difficulty variant."""
-    fig, ax = plt.subplots(figsize=(16, 8))
-
-    width = 0.35
-    x = np.arange(len(difficulties))
-
-    for i, agent in enumerate(agents):
-        rewards = []
-        for diff in difficulties:
-            vals = [
-                v["avg_reward_per_agent"]
-                for k, v in aggregated.items()
-                if v["agent"] == agent and v["difficulty"] == diff
-            ]
-            rewards.append(np.mean(vals) if vals else 0)
-
-        offset = width * (i - len(agents) / 2 + 0.5)
-        ax.bar(x + offset, rewards, width, label=agent, alpha=0.8, edgecolor="black")
-
-    ax.set_ylabel("Average Reward Per Agent", fontsize=12, fontweight="bold")
-    ax.set_xlabel("Difficulty Variant", fontsize=12, fontweight="bold")
-    ax.set_title("Average Reward by Difficulty Variant", fontsize=14, fontweight="bold")
-    ax.set_xticks(x)
-    ax.set_xticklabels(difficulties, rotation=45, ha="right")
-    ax.legend(fontsize=11)
-    ax.grid(axis="y", alpha=0.3)
-
-    plt.tight_layout()
-    plt.savefig(output_path / "reward_by_difficulty.png", dpi=150, bbox_inches="tight")
-    plt.close()
-
-
-def _plot_by_difficulty_total(aggregated, difficulties, agents, output_path):
-    """Plot total reward by difficulty variant."""
-    fig, ax = plt.subplots(figsize=(16, 8))
-
-    width = 0.35
-    x = np.arange(len(difficulties))
-
-    for i, agent in enumerate(agents):
-        rewards = []
-        for diff in difficulties:
-            vals = [
-                v["avg_total_reward"] for k, v in aggregated.items() if v["agent"] == agent and v["difficulty"] == diff
-            ]
-            rewards.append(np.mean(vals) if vals else 0)
-
-        offset = width * (i - len(agents) / 2 + 0.5)
-        ax.bar(x + offset, rewards, width, label=agent, alpha=0.8, edgecolor="black")
-
-    ax.set_ylabel("Total Reward", fontsize=12, fontweight="bold")
-    ax.set_xlabel("Difficulty Variant", fontsize=12, fontweight="bold")
-    ax.set_title("Total Reward by Difficulty Variant", fontsize=14, fontweight="bold")
-    ax.set_xticks(x)
-    ax.set_xticklabels(difficulties, rotation=45, ha="right")
-    ax.legend(fontsize=11)
-    ax.grid(axis="y", alpha=0.3)
-
-    plt.tight_layout()
-    plt.savefig(output_path / "total_reward_by_difficulty.png", dpi=150, bbox_inches="tight")
-    plt.close()
-
-
-def _plot_heatmap_env_agent(aggregated, experiments, agents, output_path):
-    """Create heatmap of Environment x Agent showing avg reward per agent."""
-    fig, ax = plt.subplots(figsize=(10, len(experiments) * 0.5 + 2))
-
-    matrix = np.zeros((len(experiments), len(agents)))
-    for i, exp in enumerate(experiments):
-        for j, agent in enumerate(agents):
-            vals = [
-                v["avg_reward_per_agent"]
-                for k, v in aggregated.items()
-                if v["agent"] == agent and v["experiment"] == exp
-            ]
-            matrix[i, j] = np.mean(vals) if vals else 0
-
-    im = ax.imshow(matrix, cmap="YlOrRd", aspect="auto")
-
-    # Set ticks
-    ax.set_xticks(np.arange(len(agents)))
-    ax.set_yticks(np.arange(len(experiments)))
-    ax.set_xticklabels(agents)
-    ax.set_yticklabels(experiments)
-
-    # Rotate the x labels
-    plt.setp(ax.get_xticklabels(), rotation=0, ha="center")
-
-    # Add colorbar
-    cbar = plt.colorbar(im, ax=ax)
-    cbar.set_label("Average Reward", rotation=270, labelpad=20, fontweight="bold")
-
-    # Add text annotations
-    for i in range(len(experiments)):
-        for j in range(len(agents)):
-            ax.text(j, i, f"{matrix[i, j]:.1f}", ha="center", va="center", color="black", fontsize=9, fontweight="bold")
-
-    ax.set_title("Average Reward: Environment × Agent", fontsize=14, fontweight="bold", pad=20)
-    ax.set_xlabel("Agent", fontsize=12, fontweight="bold")
-    ax.set_ylabel("Environment", fontsize=12, fontweight="bold")
-
-    plt.tight_layout()
-    plt.savefig(output_path / "heatmap_env_agent.png", dpi=150, bbox_inches="tight")
-    plt.close()
-
-
-def _plot_heatmap_env_agent_total(aggregated, experiments, agents, output_path):
-    """Create heatmap of Environment x Agent showing total reward."""
-    fig, ax = plt.subplots(figsize=(10, len(experiments) * 0.5 + 2))
-
-    matrix = np.zeros((len(experiments), len(agents)))
-    for i, exp in enumerate(experiments):
-        for j, agent in enumerate(agents):
-            vals = [
-                v["avg_total_reward"] for k, v in aggregated.items() if v["agent"] == agent and v["experiment"] == exp
-            ]
-            matrix[i, j] = np.mean(vals) if vals else 0
-
-    im = ax.imshow(matrix, cmap="YlOrRd", aspect="auto")
-
-    # Set ticks
-    ax.set_xticks(np.arange(len(agents)))
-    ax.set_yticks(np.arange(len(experiments)))
-    ax.set_xticklabels(agents)
-    ax.set_yticklabels(experiments)
-
-    # Rotate the x labels
-    plt.setp(ax.get_xticklabels(), rotation=0, ha="center")
-
-    # Add colorbar
-    cbar = plt.colorbar(im, ax=ax)
-    cbar.set_label("Total Reward", rotation=270, labelpad=20, fontweight="bold")
-
-    # Add text annotations
-    for i in range(len(experiments)):
-        for j in range(len(agents)):
-            ax.text(j, i, f"{matrix[i, j]:.1f}", ha="center", va="center", color="black", fontsize=9, fontweight="bold")
-
-    ax.set_title("Total Reward: Environment × Agent", fontsize=14, fontweight="bold", pad=20)
-    ax.set_xlabel("Agent", fontsize=12, fontweight="bold")
-    ax.set_ylabel("Environment", fontsize=12, fontweight="bold")
-
-    plt.tight_layout()
-    plt.savefig(output_path / "heatmap_env_agent_total.png", dpi=150, bbox_inches="tight")
-    plt.close()
-
-
-def _plot_heatmap_diff_agent(aggregated, difficulties, agents, output_path):
-    """Create heatmap of Difficulty x Agent showing avg reward per agent."""
-    fig, ax = plt.subplots(figsize=(10, len(difficulties) * 0.4 + 2))
-
-    matrix = np.zeros((len(difficulties), len(agents)))
-    for i, diff in enumerate(difficulties):
-        for j, agent in enumerate(agents):
-            vals = [
-                v["avg_reward_per_agent"]
-                for k, v in aggregated.items()
-                if v["agent"] == agent and v["difficulty"] == diff
-            ]
-            matrix[i, j] = np.mean(vals) if vals else 0
-
-    im = ax.imshow(matrix, cmap="YlGnBu", aspect="auto")
-
-    # Set ticks
-    ax.set_xticks(np.arange(len(agents)))
-    ax.set_yticks(np.arange(len(difficulties)))
-    ax.set_xticklabels(agents)
-    ax.set_yticklabels(difficulties)
-
-    # Rotate the x labels
-    plt.setp(ax.get_xticklabels(), rotation=0, ha="center")
-
-    # Add colorbar
-    cbar = plt.colorbar(im, ax=ax)
-    cbar.set_label("Average Reward", rotation=270, labelpad=20, fontweight="bold")
-
-    # Add text annotations
-    for i in range(len(difficulties)):
-        for j in range(len(agents)):
-            ax.text(j, i, f"{matrix[i, j]:.1f}", ha="center", va="center", color="black", fontsize=9, fontweight="bold")
-
-    ax.set_title("Average Reward: Difficulty × Agent", fontsize=14, fontweight="bold", pad=20)
-    ax.set_xlabel("Agent", fontsize=12, fontweight="bold")
-    ax.set_ylabel("Difficulty", fontsize=12, fontweight="bold")
-
-    plt.tight_layout()
-    plt.savefig(output_path / "heatmap_diff_agent.png", dpi=150, bbox_inches="tight")
-    plt.close()
-
-
-def _plot_heatmap_diff_agent_total(aggregated, difficulties, agents, output_path):
-    """Create heatmap of Difficulty x Agent showing total reward."""
-    fig, ax = plt.subplots(figsize=(10, len(difficulties) * 0.4 + 2))
-
-    matrix = np.zeros((len(difficulties), len(agents)))
-    for i, diff in enumerate(difficulties):
-        for j, agent in enumerate(agents):
-            vals = [
-                v["avg_total_reward"] for k, v in aggregated.items() if v["agent"] == agent and v["difficulty"] == diff
-            ]
-            matrix[i, j] = np.mean(vals) if vals else 0
-
-    im = ax.imshow(matrix, cmap="YlGnBu", aspect="auto")
-
-    # Set ticks
-    ax.set_xticks(np.arange(len(agents)))
-    ax.set_yticks(np.arange(len(difficulties)))
-    ax.set_xticklabels(agents)
-    ax.set_yticklabels(difficulties)
-
-    # Rotate the x labels
-    plt.setp(ax.get_xticklabels(), rotation=0, ha="center")
-
-    # Add colorbar
-    cbar = plt.colorbar(im, ax=ax)
-    cbar.set_label("Total Reward", rotation=270, labelpad=20, fontweight="bold")
-
-    # Add text annotations
-    for i in range(len(difficulties)):
-        for j in range(len(agents)):
-            ax.text(j, i, f"{matrix[i, j]:.1f}", ha="center", va="center", color="black", fontsize=9, fontweight="bold")
-
-    ax.set_title("Total Reward: Difficulty × Agent", fontsize=14, fontweight="bold", pad=20)
-    ax.set_xlabel("Agent", fontsize=12, fontweight="bold")
-    ax.set_ylabel("Difficulty", fontsize=12, fontweight="bold")
-
-    plt.tight_layout()
-    plt.savefig(output_path / "heatmap_diff_agent_total.png", dpi=150, bbox_inches="tight")
-    plt.close()
-
-
 def main():
-    parser = argparse.ArgumentParser(description="Evaluate policies across missions")
-    parser.add_argument(
-        "--agent",
-        type=str,
-        nargs="*",
-        default=None,
-        help=(
-            "Agent(s)/policy to evaluate. Can specify multiple. Can be:\n"
-            "  - Shorthand: 'baseline', 'ladybug', 'thinky', 'all'\n"
-            "  - Full policy path: 'cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy'\n"
-            "  - S3 URI: 's3://bucket/path/to/checkpoint.mpt' (loads policy directly from S3)\n"
-            "  - Other registered names: 'nim_thinky', 'nim_random', 'unclipping', etc.\n"
-            "  - Default: ladybug and thinky"
-        ),
-    )
-    parser.add_argument(
-        "--checkpoint",
-        type=str,
-        default=None,
-        help=(
-            "Path to checkpoint file for trained policies (optional). "
-            "Supports local paths (e.g., './checkpoints/model.pt') or S3 URIs "
-            "(e.g., 's3://bucket/path/checkpoint.mpt'). "
-            "If --agent is an S3 URI, this argument is ignored."
-        ),
-    )
-    parser.add_argument(
-        "--experiments",
-        nargs="*",
-        default=None,
-        help="Experiments to test (default: all). Use class names like 'OxygenBottleneck'",
-    )
-    parser.add_argument(
-        "--variants",
-        nargs="*",
-        default=None,
-        help=(
-            "Mission variants to test (default: none, runs base missions). "
-            "Available variants from VARIANTS in variants.py"
-        ),
-    )
-    parser.add_argument(
-        "--cogs",
-        nargs="*",
-        type=int,
-        default=None,
-        help="Agent counts to test (default: 1, 2, 4)",
-    )
-    parser.add_argument("--steps", type=int, default=1000, help="Max steps per episode (default: 1000)")
-    parser.add_argument("--seed", type=int, default=42, help="Random seed (default: 42)")
+    parser = argparse.ArgumentParser(description="Evaluate scripted or custom agents.")
+    parser.add_argument("--agent", nargs="*", default=None, help="Agent key, class path, or S3 URI")
+    parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path (or S3 URI)")
+    parser.add_argument("--experiments", nargs="*", default=None, help="Experiments to run")
+    parser.add_argument("--variants", nargs="*", default=None, help="Variants to apply")
+    parser.add_argument("--cogs", nargs="*", type=int, default=None, help="Agent counts to test")
+    parser.add_argument("--steps", type=int, default=1000, help="Max steps per episode")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--output", type=str, default=None, help="Output JSON file for results")
-    parser.add_argument(
-        "--plot-dir",
-        type=str,
-        default="eval_plots",
-        help="Directory to save plots (default: eval_plots)",
-    )
-    parser.add_argument(
-        "--no-plots",
-        action="store_true",
-        help="Skip generating plots",
-    )
+    parser.add_argument("--plot-dir", type=str, default="eval_plots", help="Directory to save plots")
+    parser.add_argument("--no-plots", action="store_true", help="Skip generating plots")
     parser.add_argument(
         "--mission-set",
-        choices=["eval_missions", "integrated_evals", "diagnostic_evals", "spanning_evals", "all"],
+        choices=["eval_missions", "integrated_evals", "spanning_evals", "diagnostic_evals", "all"],
         default="all",
-        help=(
-            "Mission set selector. "
-            "'all' runs on all three mission sets (eval_missions, integrated_evals, diagnostic_evals); "
-            "Or specify individual sets: 'eval_missions', 'integrated_evals', 'diagnostic_evals'"
-        ),
     )
-    parser.add_argument(
-        "--repeats",
-        type=int,
-        default=3,
-        help="Number of runs per case with different seeds (default: 3)",
-    )
+    parser.add_argument("--repeats", type=int, default=3, help="Runs per case")
+    parser.add_argument("--jobs", type=int, default=0, help="Max parallel cases (0 = CPU count)")
 
     args = parser.parse_args()
 
-    # Select mission set based on argument
-    mission_set = args.mission_set
-
-    if mission_set == "all":
-        # Load all mission sets
+    if args.mission_set == "all":
         missions_list = []
         missions_list.extend(load_eval_missions("cogames.cogs_vs_clips.evals.eval_missions"))
         missions_list.extend(load_eval_missions("cogames.cogs_vs_clips.evals.integrated_evals"))
         missions_list.extend(load_eval_missions("cogames.cogs_vs_clips.evals.spanning_evals"))
-        missions_list.extend([mission_cls() for mission_cls in DIAGNOSTIC_EVALS])  # type: ignore[call-arg]
-        # Also include training facility missions and other missions from main MISSIONS registry
-        # Filter out duplicates (missions already in eval sets)
+        missions_list.extend([mission_cls() for mission_cls in DIAGNOSTIC_EVALS])
         eval_mission_names = {m.name for m in missions_list}
         for mission in ALL_MISSIONS:
             if mission.name not in eval_mission_names:
                 missions_list.append(mission)
-    elif mission_set == "diagnostic_evals":
-        missions_list = [mission_cls() for mission_cls in DIAGNOSTIC_EVALS]  # type: ignore[call-arg]
-    elif mission_set == "eval_missions":
+    elif args.mission_set == "diagnostic_evals":
+        missions_list = [mission_cls() for mission_cls in DIAGNOSTIC_EVALS]
+    elif args.mission_set == "eval_missions":
         missions_list = load_eval_missions("cogames.cogs_vs_clips.evals.eval_missions")
-    elif mission_set == "integrated_evals":
+    elif args.mission_set == "integrated_evals":
         missions_list = load_eval_missions("cogames.cogs_vs_clips.evals.integrated_evals")
-    elif mission_set == "spanning_evals":
+    elif args.mission_set == "spanning_evals":
         missions_list = load_eval_missions("cogames.cogs_vs_clips.evals.spanning_evals")
     else:
-        raise ValueError(f"Unknown mission set: {mission_set}")
+        raise ValueError(f"Unknown mission set: {args.mission_set}")
 
-    experiment_map = {mission.name: mission for mission in missions_list}  # type: ignore[misc]
-
-    # Add fallback lookup from ALL_MISSIONS for missions not in eval sets (e.g., training facility missions)
-    # This allows --experiments to work with missions like "harvest", "assemble", etc.
+    experiment_map = {mission.name: mission for mission in missions_list}
     for mission in ALL_MISSIONS:
-        if mission.name not in experiment_map:
-            experiment_map[mission.name] = mission
-
+        experiment_map.setdefault(mission.name, mission)
     global EXPERIMENT_MAP
-    EXPERIMENT_MAP = experiment_map  # type: ignore[assignment]
+    EXPERIMENT_MAP = experiment_map
 
-    # Determine which agents to test based on --agent argument
-    # Can be: "all", a shorthand like "baseline", or a full policy path
-    # Default to ladybug and thinky if nothing specified
-    if args.agent is None or len(args.agent) == 0:
-        # Default: ladybug and thinky
-        agent_keys = ["ladybug", "thinky"]
-    else:
-        agent_keys = args.agent
-
-    configs = []
+    agent_keys = args.agent if args.agent else ["ladybug"]
+    configs: List[AgentConfig] = []
     for agent_key in agent_keys:
         if agent_key == "all":
-            # Add all predefined configs
             configs.extend(list(AGENT_CONFIGS.values()))
         elif agent_key in AGENT_CONFIGS:
-            # Use predefined config
             configs.append(AGENT_CONFIGS[agent_key])
+        elif is_s3_uri(agent_key):
+            label = Path(agent_key).stem if "/" in agent_key else agent_key
+            configs.append(AgentConfig(key="custom", label=f"s3_{label}", policy_path=agent_key, data_path=None))
         else:
-            # Treat as a policy class path (full or shorthand) or S3 URI
-            if is_s3_uri(agent_key):
-                # If agent_key is an S3 URI, use it as the checkpoint and ignore --checkpoint
-                label = Path(agent_key).stem if "/" in agent_key else agent_key
-                configs.append(
-                    AgentConfig(
-                        key="custom",
-                        label=f"s3_{label}",
-                        policy_path=agent_key,  # S3 URI will be detected in load_policy
-                        data_path=None,  # Ignore --checkpoint when using S3 URI as agent
-                    )
-                )
-            else:
-                # Regular policy class path
-                label = agent_key.rsplit(".", 1)[-1] if "." in agent_key else agent_key
-                configs.append(
-                    AgentConfig(
-                        key="custom",
-                        label=label,
-                        policy_path=agent_key,
-                        data_path=args.checkpoint,
-                    )
-                )
+            label = agent_key.rsplit(".", 1)[-1] if "." in agent_key else agent_key
+            configs.append(AgentConfig(key="custom", label=label, policy_path=agent_key, data_path=args.checkpoint))
 
-    # Determine experiments
-    if args.experiments:
-        experiments = args.experiments
-    else:
-        experiments = list(experiment_map.keys())
+    experiments = args.experiments if args.experiments else list(experiment_map.keys())
 
-    # Run evaluations
-    all_results = []
+    all_results: List[EvalResult] = []
     for config in configs:
-        # Use specified variants, or default to no variants (base missions)
         variants = args.variants if args.variants else []
-
-        # Use specified cogs or default to [1, 2, 4]
         cogs_list = args.cogs if args.cogs else [1, 2, 4]
-
-        results = run_evaluation(
-            agent_config=config,
-            experiments=experiments,
-            variants=variants,
-            cogs_list=cogs_list,
-            experiment_map=experiment_map,  # type: ignore[arg-type]
-            max_steps=args.steps,
-            seed=args.seed,
-            repeats=args.repeats,
+        all_results.extend(
+            run_evaluation(
+                agent_config=config,
+                experiments=experiments,
+                variants=variants,
+                cogs_list=cogs_list,
+                experiment_map=experiment_map,
+                max_steps=args.steps,
+                seed=args.seed,
+                repeats=args.repeats,
+                jobs=args.jobs,
+            )
         )
-        all_results.extend(results)
 
-    # Print summary
     print_summary(all_results)
 
-    # Save results if requested
     if args.output:
         with open(args.output, "w") as f:
             json.dump([asdict(r) for r in all_results], f, indent=2)
         logger.info(f"\nResults saved to: {args.output}")
 
-    # Generate plots
     if not args.no_plots and all_results:
         create_plots(all_results, output_dir=args.plot_dir)
 
