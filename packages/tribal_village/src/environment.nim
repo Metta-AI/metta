@@ -1571,25 +1571,36 @@ proc newEnvironment*(config: EnvironmentConfig): Environment =
 env = newEnvironment()
 
 
-proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
+proc step*(env: Environment, actions: ptr array[MapAgents, uint8]) =
   ## Step the environment
   inc env.currentStep
   # Single RNG for entire step - more efficient than multiple initRand calls
   var stepRng = initRand(env.currentStep)
 
-  for id, action in actions[]:
+  for id, actionValue in actions[]:
     let agent = env.agents[id]
     if agent.frozen > 0:
       continue
 
-    case action[0]:
+    let decoded = decodeAction(actionValue)
+    let verb = decoded.verb.int
+    let argument = decoded.argument.int
+
+    if verb < 0 or verb >= ActionVerbCount:
+      inc env.stats[id].actionInvalid
+      continue
+    if argument < 0 or argument >= ActionArgumentCount:
+      inc env.stats[id].actionInvalid
+      continue
+
+    case verb:
     of 0: env.noopAction(id, agent)
-    of 1: env.moveAction(id, agent, action[1].int)
-    of 2: env.attackAction(id, agent, action[1].int)
-    of 3: env.useAction(id, agent, action[1].int)  # Use terrain/buildings
-    of 4: env.swapAction(id, agent, action[1].int)
-    of 5: env.putAction(id, agent, action[1].int)  # Give to teammate
-    of 6: env.plantAction(id, agent, action[1].int)  # Plant lantern
+    of 1: env.moveAction(id, agent, argument)
+    of 2: env.attackAction(id, agent, argument)
+    of 3: env.useAction(id, agent, argument)  # Use terrain/buildings
+    of 4: env.swapAction(id, agent, argument)
+    of 5: env.putAction(id, agent, argument)  # Give to teammate
+    of 6: env.plantAction(id, agent, argument)  # Plant lantern
     else: inc env.stats[id].actionInvalid
 
   # Combined single-pass object updates and tumor collection

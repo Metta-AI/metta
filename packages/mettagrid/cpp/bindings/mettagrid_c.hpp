@@ -164,7 +164,7 @@ private:
                             ObservationCoord obs_height,
                             size_t agent_idx,
                             ActionType action);
-  void _compute_observations(py::array_t<ActionType, py::array::c_style> actions);
+  void _compute_observations(const std::vector<ActionType>& executed_actions);
   void _step();
 
   void _handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type);

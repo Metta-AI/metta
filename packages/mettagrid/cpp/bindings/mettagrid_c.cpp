@@ -237,14 +237,10 @@ void MettaGrid::_init_buffers(unsigned int num_agents) {
   auto obs_size = _observations.size();
   std::fill(obs_ptr, obs_ptr + obs_size, EmptyTokenByte);
 
-  // Compute initial observations
-  auto zero_actions =
-      py::array_t<ActionType, py::array::c_style>(std::vector<ssize_t>{static_cast<ssize_t>(_agents.size())});
-  std::fill(static_cast<ActionType*>(zero_actions.request().ptr),
-            static_cast<ActionType*>(zero_actions.request().ptr) + zero_actions.size(),
-            static_cast<ActionType>(0));
-
-  _compute_observations(zero_actions);
+  // Compute initial observations. Every agent starts with a noop.
+  std::vector<ActionType> executed_actions(_agents.size());
+  std::fill(executed_actions.begin(), executed_actions.end(), ActionType(0));
+  _compute_observations(executed_actions);
 }
 
 void MettaGrid::init_action_handlers(const GameConfig& game_config) {
@@ -454,18 +450,10 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   _stats->add("tokens_free_space", static_cast<size_t>(observation_view.shape(1)) - tokens_written);
 }
 
-void MettaGrid::_compute_observations(const py::array_t<ActionType, py::array::c_style> actions) {
-  auto info = actions.request();
-
-  // Actions must be 1D now
-  if (info.ndim != 1) {
-    throw std::runtime_error("actions must be 1D array");
-  }
-
-  auto actions_view = actions.unchecked<1>();
+void MettaGrid::_compute_observations(const std::vector<ActionType>& executed_actions) {
   for (size_t idx = 0; idx < _agents.size(); idx++) {
     auto& agent = _agents[idx];
-    ActionType action_idx = actions_view(idx);
+    ActionType action_idx = executed_actions[idx];
     _compute_observation(agent->location.r, agent->location.c, obs_width, obs_height, idx, action_idx);
   }
 }
@@ -502,6 +490,9 @@ void MettaGrid::_step() {
   std::iota(agent_indices.begin(), agent_indices.end(), 0);
   std::shuffle(agent_indices.begin(), agent_indices.end(), _rng);
 
+  std::vector<ActionType> executed_actions(_agents.size());
+  // Fill with noop. Replace this with the actual action if it's successful.
+  std::fill(executed_actions.begin(), executed_actions.end(), ActionType(0));
   // Process actions by priority levels (highest to lowest)
   for (unsigned char offset = 0; offset <= _max_action_priority; offset++) {
     unsigned char current_priority = _max_action_priority - offset;
@@ -520,7 +511,11 @@ void MettaGrid::_step() {
       }
 
       auto* agent = _agents[agent_idx];
-      _action_success[agent_idx] = action.handle(*agent);
+      bool success = action.handle(*agent);
+      _action_success[agent_idx] = success;
+      if (success) {
+        executed_actions[agent_idx] = action_idx;
+      }
     }
   }
 
@@ -564,7 +559,7 @@ void MettaGrid::_step() {
   }
 
   // Compute observations for next step
-  _compute_observations(_actions);
+  _compute_observations(executed_actions);
 
   // Compute stat-based rewards for all agents
   for (auto& agent : _agents) {

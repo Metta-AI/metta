@@ -103,7 +103,6 @@ echo "Installing bootstrap dependencies..."
 uv run python -m metta.setup.components.system_packages.bootstrap $BOOTSTRAP_NON_INTERACTIVE
 
 uv sync
-uv run python -m metta.setup.metta_cli symlink-setup setup --quiet
 uv run python -m metta.setup.metta_cli install $PROFILE_ADDITION $NON_INTERACTIVE_ADDITION
 if [ "$INSTALL_CUDA_EXTRAS" = "1" ]; then
   if [ "$(uname -s)" = "Linux" ]; then
