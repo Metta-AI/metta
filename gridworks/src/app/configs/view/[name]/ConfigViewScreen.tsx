@@ -2,14 +2,14 @@ import { FC } from "react";
 
 import { ConfigViewer } from "@/components/ConfigViewer";
 import { Tab, Tabs } from "@/components/Tabs";
-import { Config } from "@/lib/api";
+import { MakerConfig } from "@/lib/api";
 
 import { ExploreNamedMettaGridConfigs } from "./ExploreNamedMettaGridConfigs";
 import { ExploreSimulations } from "./ExploreSimulations";
 import { MapSection } from "./MapSection";
 import { RunToolSection } from "./RunToolSection";
 
-export const ConfigViewScreen: FC<{ cfg: Config }> = ({ cfg }) => {
+export const ConfigViewScreen: FC<{ cfg: MakerConfig }> = ({ cfg }) => {
   const tabs: Tab[] = [];
 
   if (cfg.maker.kind === "List[SimulationConfig]") {

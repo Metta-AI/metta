@@ -74,9 +74,9 @@ class AgentConfig(GridObjectConfig):
         stat_reward_max: dict[str, float] = {},
         initial_inventory: dict[int, int] = {},
         soul_bound_resources: list[int] | None = None,
-        shareable_resources: list[int] | None = None,
         inventory_regen_amounts: dict[int, int] | None = None,
         diversity_tracked_resources: list[int] | None = None,
+        vibe_transfers: dict[int, dict[int, int]] | None = None,
     ) -> None: ...
     type_id: int
     type_name: str
@@ -90,9 +90,9 @@ class AgentConfig(GridObjectConfig):
     stat_reward_max: dict[str, float]  # Added this
     initial_inventory: dict[int, int]
     soul_bound_resources: list[int]
-    shareable_resources: list[int]
     inventory_regen_amounts: dict[int, int]
     diversity_tracked_resources: list[int]
+    vibe_transfers: dict[int, dict[int, int]]
 
 class ActionConfig:
     def __init__(

@@ -101,7 +101,11 @@ def log_training_progress(
     heart_value = None
     heart_rate = None
     if metrics:
-        heart_value = metrics.get("env_agent/heart.gained") or metrics.get("overview/heart.gained")
+        heart_value = (
+            metrics.get("env_agent/heart.gained.avg")
+            or metrics.get("env_agent/heart.gained")
+            or metrics.get("overview/heart.gained")
+        )
         heart_rate = metrics.get("env_agent/heart.gained.rate")
 
     if should_use_rich_console():
