@@ -76,6 +76,8 @@ def version_ge(current: str, required: str) -> bool:
         current_parts.extend(["0"] * (max_len - len(current_parts)))
         required_parts.extend(["0"] * (max_len - len(required_parts)))
 
+        if len(current_parts) != len(required_parts):
+            raise ValueError("Mismatched lengths: current_parts and required_parts must have the same length") from None
         for c, r in zip(current_parts, required_parts, strict=True):
             c_int = int(c) if c.isdigit() else 0
             r_int = int(r) if r.isdigit() else 0
@@ -438,10 +440,35 @@ def install_nim_via_nimby(run_command=None, non_interactive: bool = False) -> No
             error(f"Failed to download Nimby: {e}")
             raise
 
+        # Move nimby to bin directory
+        nim_bin_dir.mkdir(parents=True, exist_ok=True)
+        final_nimby_path = nim_bin_dir / "nimby"
+        if final_nimby_path.exists():
+            final_nimby_path.unlink()
+        nimby_path.rename(final_nimby_path)
+
+        # Verify nimby installation
+        if not final_nimby_path.exists() or not os.access(final_nimby_path, os.X_OK):
+            error("Failed to install nimby: binary not found or not executable")
+            raise RuntimeError("Nimby installation failed")
+
+        try:
+            verify_result = subprocess.run(
+                [str(final_nimby_path), "--version"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            installed_nimby_version = verify_result.stdout.strip().split()[-1].replace("v", "")
+            info(f"Successfully installed nimby version {installed_nimby_version}")
+        except subprocess.CalledProcessError as e:
+            error(f"Failed to verify nimby installation: {e}")
+            raise RuntimeError("Nimby installation verification failed") from e
+
         # Run nimby to install nim
         info(f"Installing Nim version {REQUIRED_NIM_VERSION}...")
         result = subprocess.run(
-            [str(nimby_path), "use", REQUIRED_NIM_VERSION],
+            [str(final_nimby_path), "use", REQUIRED_NIM_VERSION],
             cwd=tmpdir,
             check=False,
             capture_output=True,
@@ -450,13 +477,6 @@ def install_nim_via_nimby(run_command=None, non_interactive: bool = False) -> No
         if result.returncode != 0:
             error(f"Failed to install Nim version {REQUIRED_NIM_VERSION}: {result.stderr}")
             raise RuntimeError("Nim installation failed")
-
-        # Move nimby to bin directory
-        nim_bin_dir.mkdir(parents=True, exist_ok=True)
-        final_nimby_path = nim_bin_dir / "nimby"
-        if final_nimby_path.exists():
-            final_nimby_path.unlink()
-        nimby_path.rename(final_nimby_path)
 
     link_nim_bins(nim_bin_dir)
 
