@@ -249,6 +249,9 @@ class Curriculum(StatsLogger):
         # Invalidate stats cache since task performance affects curriculum stats
         self.invalidate_cache()
 
+        # Invalidate selection cache so updated scores are used
+        self._cached_task_scores = {}
+
     def get_base_stats(self) -> Dict[str, float]:
         """Get basic curriculum statistics."""
         base_stats: Dict[str, float] = {

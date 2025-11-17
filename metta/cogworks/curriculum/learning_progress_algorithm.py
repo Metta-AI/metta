@@ -300,6 +300,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Learning progress specific cleanup
         self._remove_task_from_scoring(task_id)
 
+        # Drop any queued updates for this task to prevent resurrection
+        if self._pending_updates:
+            self._pending_updates = [(tid, score) for tid, score in self._pending_updates if tid != task_id]
+
         # Invalidate stats cache when task state changes
         self.invalidate_cache()
 
@@ -316,6 +320,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             self._task_emas.pop(task_id, None)
             self._score_cache.pop(task_id, None)
             self._cache_valid_tasks.discard(task_id)
+
+        if self._pending_updates:
+            self._pending_updates = [(tid, score) for tid, score in self._pending_updates if tid != task_id]
 
     def update_task_performance(self, task_id: int, score: float) -> None:
         """Update task performance using the appropriate scoring method."""
