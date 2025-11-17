@@ -379,11 +379,12 @@ def _bar_plot(
 ):
     fig, ax = plt.subplots(figsize=figsize)
     x = np.arange(len(x_labels))
-    colors = plt.get_cmap("Set2")(range(len(series_labels))) if len(series_labels) > 1 else None
+    # Always materialize at least one color so single-series plots have an explicit color
+    colors = plt.get_cmap("Set2")(range(max(1, len(series_labels))))
 
     if len(series_labels) == 1:
         vals = [value_fn(series_labels[0], lbl) for lbl in x_labels]
-        bars = list(ax.bar(x, vals, color=colors, alpha=0.8, edgecolor="black"))
+        bars = list(ax.bar(x, vals, color=colors[0], alpha=0.8, edgecolor="black"))
     else:
         bars = []
         for i, series in enumerate(series_labels):
