@@ -97,6 +97,20 @@ jobs:
         run: |
           sky api login -e https://skypilot-api.softmax-research.net --token ${{ secrets.SKYPILOT_SERVICE_ACCOUNT_TOKEN }}
 
+      - name: Check and stash uncommitted changes
+        run: |
+          echo "Checking git status before stable release..."
+          git status
+
+          if [ -n "$(git status --porcelain)" ]; then
+            echo ""
+            echo "⚠️  Found uncommitted changes. Stashing them to ensure clean state for remote jobs..."
+            git stash push -m "GitHub Actions: Auto-stash before stable release"
+            echo "✅ Changes stashed successfully"
+          else
+            echo "✅ Working tree is clean"
+          fi
+
       - name: Run stable release process
         id: release
         run: |
