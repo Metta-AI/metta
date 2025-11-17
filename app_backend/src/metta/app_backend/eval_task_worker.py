@@ -182,7 +182,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
             "uv",
             "run",
             "tools/run.py",
-            "recipes.experiment.remote_eval",
+            "recipes.experiment.remote_eval.eval",
             f"policy_uri={normalized}",
             f"simulations_json_base64_path={os.path.abspath(file_path)}",
             f"eval_task_id={str(task.id)}",
