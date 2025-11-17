@@ -40,7 +40,11 @@ class ExecuteRemoteEvalTool(ToolWithResult):
             eval_task_id=self.eval_task_id,
             push_metrics_to_wandb=self.push_metrics_to_wandb,
         )
-        results = eval_tool.eval_policy(normalized_uri=CheckpointManager.normalize_uri(self.policy_uri))
+        policy_spec = CheckpointManager.policy_spec_from_uri(
+            self.policy_uri,
+            device="cpu",
+        )
+        results = eval_tool.eval_policy(policy_spec)
         eval_results = to_eval_results(results, num_policies=1, target_policy_idx=0)
         if len(eval_results.scores.simulation_scores) == 0:
             return ToolResult(result="failure", error="No simulations were run")
