@@ -482,11 +482,13 @@ def train(
             use_bidirectional=True,
         )
     else:
-        # Standard conservative settings for easier curricula (level_1, terrain_2_progressive, etc.)
+        # VERY conservative settings for progressive curricula (level_1, terrain_2_progressive, etc.)
+        # This ensures algorithm heavily favors easier tasks initially and only slowly progresses
+        # to harder tasks as agent improves, preventing collapse from premature hard task sampling
         algorithm_config = LearningProgressConfig(
-            rand_task_rate=0.5,  # 50% random exploration
-            ema_timescale=0.0003,  # Slow adaptation (3x slower than default)
-            exploration_bonus=0.2,  # Moderate exploration bonus
+            rand_task_rate=0.7,  # 70% random exploration (was 0.5) - more exploration of easier tasks
+            ema_timescale=0.00005,  # Very slow adaptation (was 0.0003) - prevent rapid shifts to hard tasks
+            exploration_bonus=0.4,  # High bonus for easier tasks (was 0.2) - heavily favor easier tasks
             use_bidirectional=True,
         )
 
