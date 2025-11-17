@@ -1,6 +1,6 @@
-from typing import Any, ClassVar, Literal, Optional
+from typing import Any, ClassVar, Literal, Optional, Union
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.training import HeartbeatConfig
@@ -22,6 +22,14 @@ class OptimizerConfig(Config):
     # ScheduleFree-specific parameters
     momentum: float = Field(default=0.9, ge=0, le=1.0)  # Beta parameter for ScheduleFree
     warmup_steps: int = Field(default=1000, ge=0)  # Number of warmup steps for ScheduleFree
+
+    @field_validator('warmup_steps', mode='before')
+    @classmethod
+    def convert_warmup_to_int(cls, v):
+        """Convert warmup_steps to int if it's a float."""
+        if isinstance(v, (float, int)):
+            return int(v)
+        return v
 
 
 class InitialPolicyConfig(Config):
@@ -57,6 +65,18 @@ class TrainerConfig(Config):
     total_timesteps: int = Field(default=50_000_000_000, gt=0)
     losses: LossesConfig = Field(default_factory=LossesConfig)
     optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig)
+
+    @field_validator('total_timesteps', mode='before')
+    @classmethod
+    def convert_timesteps_to_int(cls, v):
+        """Convert total_timesteps to int if it's a float.
+
+        This allows sweeps to use float distributions (e.g., log_normal)
+        while ensuring the actual value is always an integer.
+        """
+        if isinstance(v, (float, int)):
+            return int(v)
+        return v
 
     require_contiguous_env_ids: bool = False
     verbose: bool = True
