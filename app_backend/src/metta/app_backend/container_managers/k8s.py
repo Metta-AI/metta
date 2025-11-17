@@ -84,24 +84,21 @@ class K8sPodManager(AbstractContainerManager):
                 "valueFrom": {"fieldRef": {"fieldPath": "metadata.name"}},
             },
         ]
-
-        env.extend(self._datadog_env_vars())
-        return env
-
-    def _datadog_env_vars(self) -> List[Dict[str, object]]:
-        dd_env: Dict[str, str] = {
-            key: value for key, value in datadog_config.to_env_dict().items() if key != "DD_AGENT_HOST"
+        dd_env: dict[str, str | dict[str, dict[str, str]]] = {
+            key: value
+            for key, value in datadog_config.to_env_dict().items()
+            if key
+            in (
+                "DD_ENV",
+                "DD_TRACE_ENABLED",
+                "DD_VERSION",
+                "DD_TAGS",
+            )
         }
-        dd_env["DD_SERVICE"] = "eval-worker"
+        dd_env.update({"DD_SERVICE": "eval-worker", "DD_AGENT_HOST": {"fieldRef": {"fieldPath": "status.hostIP"}}})
 
-        dd_env_vars: List[Dict[str, object]] = [{"name": key, "value": value} for key, value in dd_env.items()]
-        dd_env_vars.append(
-            {
-                "name": "DD_AGENT_HOST",
-                "valueFrom": {"fieldRef": {"fieldPath": "status.hostIP"}},
-            }
-        )
-        return dd_env_vars
+        env.extend([{"name": key, "value": value} for key, value in dd_env.items()])
+        return env
 
     def start_worker_container(
         self,
