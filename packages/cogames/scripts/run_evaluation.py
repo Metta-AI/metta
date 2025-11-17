@@ -2,41 +2,21 @@
 """
 Evaluation Script for Policies
 
-Tests any policy including:
-- Scripted agents: baseline, ladybug
-- NIM agents: thinky, nim_random, nim_race_car
-- Any custom policy via full class path
-- Trained policies from S3 or local checkpoints
+Supports:
+- Built-in shorthands: baseline, ladybug (`--agent all` runs both)
+- Any policy via full class path
+- Local or S3 checkpoints when CheckpointManager is available
 
-Usage:
-  # Evaluate all predefined agents
+Usage snippets:
   uv run python packages/cogames/scripts/run_evaluation.py --agent all
-
-  # Evaluate specific scripted agent (shorthand)
   uv run python packages/cogames/scripts/run_evaluation.py \\
       --agent baseline --experiments oxygen_bottleneck --cogs 1
-
-  # Evaluate NIM agent (shorthand)
   uv run python packages/cogames/scripts/run_evaluation.py \\
-      --agent thinky --experiments oxygen_bottleneck --cogs 1
-
-  # Evaluate ladybug (unclipping agent) with specific config
+      --agent cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy --cogs 1
   uv run python packages/cogames/scripts/run_evaluation.py \\
-      --agent ladybug --mission-set integrated_evals --cogs 2 4
-
-  # Evaluate with full policy path and local checkpoint
+      --agent cogames.policy.lstm.LSTMPolicy --checkpoint s3://bucket/path/model.mpt --cogs 1
   uv run python packages/cogames/scripts/run_evaluation.py \\
-      --agent cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy \\
-      --checkpoint ./checkpoints/model.pt --experiments oxygen_bottleneck --cogs 1
-
-  # Evaluate with S3 checkpoint URI
-  uv run python packages/cogames/scripts/run_evaluation.py \\
-      --agent cogames.policy.lstm.LSTMPolicy \\
-      --checkpoint s3://bucket/path/to/checkpoint.mpt --experiments oxygen_bottleneck --cogs 1
-
-  # Evaluate directly from S3 URI (policy_path is the checkpoint URI)
-  uv run python packages/cogames/scripts/run_evaluation.py \\
-      --agent s3://bucket/path/to/checkpoint.mpt --experiments oxygen_bottleneck --cogs 1
+      --agent s3://bucket/path/model.mpt --cogs 1
 """
 
 import argparse
@@ -873,14 +853,8 @@ def main():
     global EXPERIMENT_MAP
     EXPERIMENT_MAP = experiment_map  # type: ignore[assignment]
 
-    # Determine which agents to test based on --agent argument
-    # Can be: "all", a shorthand like "baseline", or a full policy path
-    # Default to ladybug and thinky if nothing specified
-    if args.agent is None or len(args.agent) == 0:
-        # Default: ladybug and thinky
-        agent_keys = ["ladybug", "thinky"]
-    else:
-        agent_keys = args.agent
+    # Agents: "all", built-in shorthand (baseline/ladybug), or full policy path/S3 URI
+    agent_keys = args.agent if args.agent else ["ladybug"]
 
     configs = []
     for agent_key in agent_keys:
