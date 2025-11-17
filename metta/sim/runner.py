@@ -62,7 +62,7 @@ def run_simulations(
             max_action_time_ms=simulation.max_action_time_ms,
             event_handlers=[replay_writer] if replay_writer else None,
         )
-        on_progress(f"Finished rollout for simulation {simulation.env.name}")
+        on_progress(f"Finished rollout for simulation {i}")
 
         replay_urls = replay_writer.get_written_replay_urls() if replay_writer else {}
 
