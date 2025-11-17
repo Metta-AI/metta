@@ -55,20 +55,20 @@ def _smollm_config(
         "model_name": model_name or "HuggingFaceTB/SmolLM-360M",
         "attn_implementation": "flash_attention_2",
         "torch_dtype": "bfloat16",
-        "mem_len": int(mem_len) if mem_len is not None else 128,
+        "mem_len": int(mem_len) if mem_len is not None else 16,
     }
 
     # Trainer configuration
     trainer_updates = {
         "compile": False,
-        "batch_size": 32768,
-        "minibatch_size": 512,
-        "bptt_horizon": 512,
+        "batch_size": 131072,
+        "minibatch_size": 4096,
+        "bptt_horizon": 16,
     }
 
     # Environment configuration
     env_updates = {
-        "forward_pass_minibatch_target_size": 48,
+        "forward_pass_minibatch_target_size": 4096,
         "auto_workers": False,
         "num_workers": 1,
         "async_factor": 1,
