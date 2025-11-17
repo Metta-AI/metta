@@ -9,7 +9,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
 
-from .curriculum import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask
+from .curriculum_base import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask
 from .task_tracker import TaskTracker
 
 # Constants for bidirectional learning progress
