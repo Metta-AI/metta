@@ -228,11 +228,11 @@ uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --va
 
 ```bash
 # Run full evaluation suite
-uv run python packages/cogames/scripts/evaluate_scripted_agents.py
+uv run python packages/cogames/scripts/run_evaluation.py
 
 # Evaluate specific agent
-uv run python packages/cogames/scripts/evaluate_scripted_agents.py --agent simple
-uv run python packages/cogames/scripts/evaluate_scripted_agents.py --agent unclipping
+uv run python packages/cogames/scripts/run_evaluation.py --agent simple
+uv run python packages/cogames/scripts/run_evaluation.py --agent unclipping
 ```
 
 ## Evaluation Results
