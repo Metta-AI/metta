@@ -53,7 +53,7 @@ class Checkpointer(TrainerComponent):
     # ------------------------------------------------------------------
     def load_or_create_policy(
         self,
-        game_rules: PolicyEnvInterface,
+        policy_env_info: PolicyEnvInterface,
         *,
         policy_uri: Optional[str] = None,
     ) -> Policy:
@@ -69,7 +69,7 @@ class Checkpointer(TrainerComponent):
             normalized_uri = CheckpointManager.normalize_uri(candidate_uri)
             try:
                 load_device = torch.device(self._distributed.config.device)
-                policy = self._checkpoint_manager.load_from_uri(normalized_uri, game_rules, load_device)
+                policy = self._checkpoint_manager.load_from_uri(normalized_uri, policy_env_info, load_device)
                 self._latest_policy_uri = normalized_uri
                 logger.info("Loaded policy from %s", normalized_uri)
             except FileNotFoundError:
@@ -82,7 +82,7 @@ class Checkpointer(TrainerComponent):
             return policy
 
         logger.info("Creating new policy for training run")
-        return self._policy_architecture.make_policy(game_rules)
+        return self._policy_architecture.make_policy(policy_env_info)
 
     def get_latest_policy_uri(self) -> Optional[str]:
         """Return the most recent checkpoint URI tracked by this component."""

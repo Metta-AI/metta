@@ -22,6 +22,30 @@ const ToggleDebugItem: FC = () => {
   );
 };
 
+const ToggleDefaultValuesItem: FC = () => {
+  const closeDropdown = useCloseDropdown();
+  const { showDefaultValues, setShowDefaultValues } = use(YamlContext);
+  return (
+    <DropdownMenuActionItem
+      title="Show Default Values"
+      icon={showDefaultValues ? CheckIcon : EmptyIcon}
+      onClick={() => {
+        setShowDefaultValues(!showDefaultValues);
+        closeDropdown();
+      }}
+    />
+  );
+};
+
 export const Menu: FC = () => {
-  return <CornerMenu renderItems={() => <ToggleDebugItem />} />;
+  return (
+    <CornerMenu
+      renderItems={() => (
+        <>
+          <ToggleDefaultValuesItem />
+          <ToggleDebugItem />
+        </>
+      )}
+    />
+  );
 };

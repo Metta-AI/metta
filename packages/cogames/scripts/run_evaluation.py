@@ -6,27 +6,37 @@ Tests any policy including:
 - Scripted agents: baseline, ladybug
 - NIM agents: thinky, nim_random, nim_race_car
 - Any custom policy via full class path
+- Trained policies from S3 or local checkpoints
 
 Usage:
   # Evaluate all predefined agents
-  uv run python packages/cogames/scripts/evaluate_scripted_agents.py --agent all
+  uv run python packages/cogames/scripts/run_evaluation.py --agent all
 
   # Evaluate specific scripted agent (shorthand)
-  uv run python packages/cogames/scripts/evaluate_scripted_agents.py \\
+  uv run python packages/cogames/scripts/run_evaluation.py \\
       --agent baseline --experiments oxygen_bottleneck --cogs 1
 
   # Evaluate NIM agent (shorthand)
-  uv run python packages/cogames/scripts/evaluate_scripted_agents.py \\
+  uv run python packages/cogames/scripts/run_evaluation.py \\
       --agent thinky --experiments oxygen_bottleneck --cogs 1
 
   # Evaluate ladybug (unclipping agent) with specific config
-  uv run python packages/cogames/scripts/evaluate_scripted_agents.py \\
+  uv run python packages/cogames/scripts/run_evaluation.py \\
       --agent ladybug --mission-set integrated_evals --cogs 2 4
 
-  # Evaluate with full policy path and checkpoint
-  uv run python packages/cogames/scripts/evaluate_scripted_agents.py \\
+  # Evaluate with full policy path and local checkpoint
+  uv run python packages/cogames/scripts/run_evaluation.py \\
       --agent cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy \\
       --checkpoint ./checkpoints/model.pt --experiments oxygen_bottleneck --cogs 1
+
+  # Evaluate with S3 checkpoint URI
+  uv run python packages/cogames/scripts/run_evaluation.py \\
+      --agent cogames.policy.lstm.LSTMPolicy \\
+      --checkpoint s3://bucket/path/to/checkpoint.mpt --experiments oxygen_bottleneck --cogs 1
+
+  # Evaluate directly from S3 URI (policy_path is the checkpoint URI)
+  uv run python packages/cogames/scripts/run_evaluation.py \\
+      --agent s3://bucket/path/to/checkpoint.mpt --experiments oxygen_bottleneck --cogs 1
 """
 
 import argparse
@@ -40,14 +50,25 @@ from typing import Dict, List, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
 
 from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVariant
+from cogames.cogs_vs_clips.missions import MISSIONS as ALL_MISSIONS
 from cogames.cogs_vs_clips.variants import VARIANTS
 from mettagrid.policy.loader import initialize_or_load_policy
-from mettagrid.policy.policy import PolicySpec
+from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
+
+# Import CheckpointManager for S3 support
+try:
+    from metta.rl.checkpoint_manager import CheckpointManager
+
+    CHECKPOINT_MANAGER_AVAILABLE = True
+except ImportError:
+    CHECKPOINT_MANAGER_AVAILABLE = False
+    CheckpointManager = None
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -107,6 +128,56 @@ class AgentConfig:
 def is_clipping_difficulty(name: str) -> bool:
     """Check if a difficulty involves clipping."""
     return "clipped" in name.lower() or "clipping" in name.lower()
+
+
+def is_s3_uri(path: str) -> bool:
+    """Check if a path is an S3 URI."""
+    return path.startswith("s3://") if path else False
+
+
+def load_policy(
+    policy_env_info: PolicyEnvInterface,
+    policy_path: str,
+    checkpoint_path: Optional[str] = None,
+    device: Optional[torch.device] = None,
+) -> "MultiAgentPolicy":
+    """
+    Load a policy from either a class path (with optional local checkpoint) or an S3 URI.
+
+    Args:
+        policy_env_info: Policy environment interface
+        policy_path: Policy class path (e.g., 'cogames.policy.lstm.LSTMPolicy') or S3 URI
+        checkpoint_path: Optional local checkpoint path (ignored if policy_path is S3 URI)
+        device: Optional device for loading (defaults to CPU)
+
+    Returns:
+        Initialized MultiAgentPolicy
+    """
+    if device is None:
+        device = torch.device("cpu")
+
+    # If checkpoint_path is an S3 URI, use CheckpointManager
+    if checkpoint_path and is_s3_uri(checkpoint_path):
+        if not CHECKPOINT_MANAGER_AVAILABLE or CheckpointManager is None:
+            raise ImportError("CheckpointManager not available. Install metta package to use S3 checkpoints.")
+        logger.info(f"Loading policy from S3 URI: {checkpoint_path}")
+        policy = CheckpointManager.load_from_uri(checkpoint_path, policy_env_info, device)
+        return policy
+
+    # If policy_path is an S3 URI, use CheckpointManager (policy_path is the checkpoint URI)
+    if is_s3_uri(policy_path):
+        if not CHECKPOINT_MANAGER_AVAILABLE or CheckpointManager is None:
+            raise ImportError("CheckpointManager not available. Install metta package to use S3 checkpoints.")
+        logger.info(f"Loading policy from S3 URI: {policy_path}")
+        policy = CheckpointManager.load_from_uri(policy_path, policy_env_info, device)
+        return policy
+
+    # Otherwise, use the standard initialization path
+    policy_spec = PolicySpec(
+        class_path=policy_path,
+        data_path=checkpoint_path,
+    )
+    return initialize_or_load_policy(policy_env_info, policy_spec)
 
 
 # Available agents
@@ -213,15 +284,15 @@ def run_evaluation(
                     # Get the actual max_steps from env_config (after all modifications)
                     actual_max_steps = env_config.game.max_steps
 
-                    # Create policy using generic initialization
+                    # Create policy using generic initialization or S3 URI
                     policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
 
-                    policy_spec = PolicySpec(
-                        class_path=agent_config.policy_path,
-                        data_path=agent_config.data_path,
+                    policy = load_policy(
+                        policy_env_info,
+                        agent_config.policy_path,
+                        agent_config.data_path,
+                        device=torch.device("cpu"),
                     )
-
-                    policy = initialize_or_load_policy(policy_env_info, policy_spec)
                     agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
 
                     # Run repeated trials with seed offsets
@@ -910,6 +981,7 @@ def main():
             "Agent(s)/policy to evaluate. Can specify multiple. Can be:\n"
             "  - Shorthand: 'baseline', 'ladybug', 'thinky', 'all'\n"
             "  - Full policy path: 'cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy'\n"
+            "  - S3 URI: 's3://bucket/path/to/checkpoint.mpt' (loads policy directly from S3)\n"
             "  - Other registered names: 'nim_thinky', 'nim_random', 'unclipping', etc.\n"
             "  - Default: ladybug and thinky"
         ),
@@ -918,7 +990,12 @@ def main():
         "--checkpoint",
         type=str,
         default=None,
-        help="Path to checkpoint file for trained policies (optional)",
+        help=(
+            "Path to checkpoint file for trained policies (optional). "
+            "Supports local paths (e.g., './checkpoints/model.pt') or S3 URIs "
+            "(e.g., 's3://bucket/path/checkpoint.mpt'). "
+            "If --agent is an S3 URI, this argument is ignored."
+        ),
     )
     parser.add_argument(
         "--experiments",
@@ -985,6 +1062,12 @@ def main():
         missions_list.extend(load_eval_missions("cogames.cogs_vs_clips.evals.integrated_evals"))
         missions_list.extend(load_eval_missions("cogames.cogs_vs_clips.evals.spanning_evals"))
         missions_list.extend([mission_cls() for mission_cls in DIAGNOSTIC_EVALS])  # type: ignore[call-arg]
+        # Also include training facility missions and other missions from main MISSIONS registry
+        # Filter out duplicates (missions already in eval sets)
+        eval_mission_names = {m.name for m in missions_list}
+        for mission in ALL_MISSIONS:
+            if mission.name not in eval_mission_names:
+                missions_list.append(mission)
     elif mission_set == "diagnostic_evals":
         missions_list = [mission_cls() for mission_cls in DIAGNOSTIC_EVALS]  # type: ignore[call-arg]
     elif mission_set == "eval_missions":
@@ -997,6 +1080,13 @@ def main():
         raise ValueError(f"Unknown mission set: {mission_set}")
 
     experiment_map = {mission.name: mission for mission in missions_list}  # type: ignore[misc]
+
+    # Add fallback lookup from ALL_MISSIONS for missions not in eval sets (e.g., training facility missions)
+    # This allows --experiments to work with missions like "harvest", "assemble", etc.
+    for mission in ALL_MISSIONS:
+        if mission.name not in experiment_map:
+            experiment_map[mission.name] = mission
+
     global EXPERIMENT_MAP
     EXPERIMENT_MAP = experiment_map  # type: ignore[assignment]
 
@@ -1018,16 +1108,29 @@ def main():
             # Use predefined config
             configs.append(AGENT_CONFIGS[agent_key])
         else:
-            # Treat as a policy class path (full or shorthand)
-            label = agent_key.rsplit(".", 1)[-1] if "." in agent_key else agent_key
-            configs.append(
-                AgentConfig(
-                    key="custom",
-                    label=label,
-                    policy_path=agent_key,
-                    data_path=args.checkpoint,
+            # Treat as a policy class path (full or shorthand) or S3 URI
+            if is_s3_uri(agent_key):
+                # If agent_key is an S3 URI, use it as the checkpoint and ignore --checkpoint
+                label = Path(agent_key).stem if "/" in agent_key else agent_key
+                configs.append(
+                    AgentConfig(
+                        key="custom",
+                        label=f"s3_{label}",
+                        policy_path=agent_key,  # S3 URI will be detected in load_policy
+                        data_path=None,  # Ignore --checkpoint when using S3 URI as agent
+                    )
                 )
-            )
+            else:
+                # Regular policy class path
+                label = agent_key.rsplit(".", 1)[-1] if "." in agent_key else agent_key
+                configs.append(
+                    AgentConfig(
+                        key="custom",
+                        label=label,
+                        policy_path=agent_key,
+                        data_path=args.checkpoint,
+                    )
+                )
 
     # Determine experiments
     if args.experiments:
