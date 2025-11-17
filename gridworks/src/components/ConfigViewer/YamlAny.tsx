@@ -8,7 +8,8 @@ import { YamlScalar } from "./YamlScalar";
 
 export const YamlAny: FC<{
   node: ConfigNode;
-}> = ({ node }) => {
+  disabled?: boolean;
+}> = ({ node, disabled }) => {
   if (isArrayNode(node)) {
     return <YamlArray node={node} />;
   }
@@ -17,7 +18,7 @@ export const YamlAny: FC<{
   }
 
   if (isScalarNode(node)) {
-    return <YamlScalar node={node} />;
+    return <YamlScalar node={node} disabled={disabled} />;
   }
 
   if (node.value === undefined) {
