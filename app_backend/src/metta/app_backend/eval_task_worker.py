@@ -222,7 +222,8 @@ class SimTaskExecutor(AbstractTaskExecutor):
             return TaskResult(
                 success=False,
                 log_path=log_path,
-                error="Job failed with return code " + str(result.returncode),
+                error="Job failed with return code " + str(result.returncode) + " and output: " + result.stdout,
+                warnings=[result.stderr],
             )
 
 
