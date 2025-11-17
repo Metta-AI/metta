@@ -70,7 +70,7 @@ class CarbonExtractorConfig(ExtractorConfig):
             max_uses=self.max_uses,
             protocols=[
                 ProtocolConfig(
-                    output_resources={"carbon": 4 * self.efficiency // 100},
+                    output_resources={"carbon": 2 * self.efficiency // 100},
                     cooldown=0,
                 )
             ],
@@ -93,7 +93,7 @@ class OxygenExtractorConfig(ExtractorConfig):
             allow_partial_usage=True,  # can use it while its on cooldown
             protocols=[
                 ProtocolConfig(
-                    output_resources={"oxygen": 20},
+                    output_resources={"oxygen": 10},
                     cooldown=int(10_000 / self.efficiency),
                 )
             ],
@@ -122,7 +122,7 @@ class GermaniumExtractorConfig(ExtractorConfig):
                     # For the 1 agent protocol, we set min_agents to zero so it's visible when no
                     # agents are adjacent to the extractor.
                     min_agents=(additional_agents + 1) if additional_agents >= 1 else 0,
-                    output_resources={"germanium": self.efficiency + additional_agents * self.synergy},
+                    output_resources={"germanium": max(1, (self.efficiency + additional_agents * self.synergy) // 2)},
                 )
                 for additional_agents in range(4)
             ],
@@ -145,7 +145,7 @@ class SiliconExtractorConfig(ExtractorConfig):
             protocols=[
                 ProtocolConfig(
                     input_resources={"energy": 25},
-                    output_resources={"silicon": max(1, int(25 * self.efficiency // 100))},
+                    output_resources={"silicon": max(1, int(15 * self.efficiency // 100))},
                 )
             ],
             # Clipping
@@ -196,11 +196,10 @@ class CvCAssemblerConfig(CvCStationConfig):
                 ProtocolConfig(
                     vibes=["heart_a"] * (i + 1),
                     input_resources={
-                        "carbon": 2 * (self.first_heart_cost + self.additional_heart_cost * i),
-                        "oxygen": 2 * (self.first_heart_cost + self.additional_heart_cost * i),
-                        "germanium": max(1, (self.first_heart_cost + self.additional_heart_cost * i) // 5),
-                        "silicon": 5 * (self.first_heart_cost + self.additional_heart_cost * i),
-                        "energy": 2 * (self.first_heart_cost + self.additional_heart_cost * i),
+                        "carbon": self.first_heart_cost + self.additional_heart_cost * i,
+                        "oxygen": self.first_heart_cost + self.additional_heart_cost * i,
+                        "germanium": max(1, (self.first_heart_cost + self.additional_heart_cost * i) // 10),
+                        "silicon": 3 * (self.first_heart_cost + self.additional_heart_cost * i),
                     },
                     output_resources={"heart": i + 1},
                 )
