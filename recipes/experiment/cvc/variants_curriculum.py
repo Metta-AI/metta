@@ -1,14 +1,12 @@
-"""Full curriculum for CoGs vs Clips with learning progress.
+"""Variants curriculum for CoGs vs Clips with learning progress.
 
-This curriculum includes:
-- All missions from the base curriculum (recipes/experiment/cogs_v_clips.py)
-- All eval_missions where scripted agents perform well
-- Training facility missions (harvest, assemble, vibe_check, repair, unclip_drills, signs_and_portents, easy_hearts)
-- Diagnostic missions where scripted agents get reward
+This curriculum takes a set of maps and creates a curriculum over every possible variant
+in variants.py. For each map, it creates separate curriculum tasks for each variant.
 """
 
 from __future__ import annotations
 
+import json
 import subprocess
 import time
 from typing import Optional, Sequence
@@ -27,6 +25,7 @@ from cogames.cogs_vs_clips.missions import (
     RepairMission,
     VibeCheckMission,
 )
+from cogames.cogs_vs_clips.variants import VARIANTS
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -41,55 +40,6 @@ from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
 from recipes.experiment import cogs_v_clips
 
-# Missions from eval_missions where scripted agents perform well
-MISSIONS: tuple[str, ...] = (
-    "go_together",  # 55.0% success, 5.22 avg reward
-    "oxygen_bottleneck",  # 51.2% success, 3.02 avg reward
-    "collect_resources_classic",  # 50.0% success, 4.90 avg reward
-    "collect_resources_spread",  # 50.0% success, 4.45 avg reward
-    "extractor_hub_70",  # 43.8% success, 1.79 avg reward
-    "extractor_hub_30",
-    "extractor_hub_50",
-    "single_use_swarm",  # 42.5% success, 0.46 avg reward
-)
-
-
-# Diagnostic missions where scripted agents can get reward
-# These test core skills: assembly, extraction, basic navigation
-DIAGNOSTIC_MISSIONS: tuple[str, ...] = (
-    "diagnostic_assemble_seeded_near",
-    "diagnostic_assemble_seeded_search",
-    "diagnostic_extract_missing_carbon",
-    "diagnostic_extract_missing_oxygen",
-    "diagnostic_extract_missing_germanium",
-    "diagnostic_extract_missing_silicon",
-    "diagnostic_radial",
-)
-
-# Training facility missions
-# NOTE: We exclude 'easy_hearts' here because it disables vibe swapping
-# (change_vibe.number_of_vibes = 1), which makes its action space incompatible
-# with the rest of the curriculum in a vectorized training setup.
-TRAINING_FACILITY_MISSIONS: tuple[str, ...] = (
-    "harvest",
-    "assemble",
-    "vibe_check",
-    "repair",
-    "unclip_drills",
-    "signs_and_portents",
-)
-
-FULL_CURRICULUM_MISSIONS: tuple[str, ...] = (
-    *cogs_v_clips.DEFAULT_CURRICULUM_MISSIONS,  # Base curriculum missions
-    *MISSIONS,  # All eval missions
-    # Training facility missions we currently support in this repo
-    "harvest",
-    "assemble",
-    "vibe_check",
-    "repair",
-    *DIAGNOSTIC_MISSIONS,  # Diagnostic missions
-)
-
 # Create mission name mapping for eval missions and training facility missions
 _MISSION_BY_NAME: dict[str, Mission] = {}
 for mission in EVAL_MISSIONS:
@@ -101,37 +51,59 @@ TRAINING_FACILITY_MISSION_OBJECTS = [
     AssembleMission,
     VibeCheckMission,
     RepairMission,
-    # Note: 'easy_hearts' is intentionally omitted from the full curriculum
-    # for now due to its reduced vibe action space (see comment above).
 ]
 for mission in TRAINING_FACILITY_MISSION_OBJECTS:
     _MISSION_BY_NAME[mission.name] = mission
 
+# Diagnostic missions where scripted agents can get reward
+DIAGNOSTIC_MISSIONS: tuple[str, ...] = (
+    "diagnostic_assemble_seeded_near",
+    "diagnostic_assemble_seeded_search",
+    "diagnostic_extract_missing_carbon",
+    "diagnostic_extract_missing_oxygen",
+    "diagnostic_extract_missing_germanium",
+    "diagnostic_extract_missing_silicon",
+    "diagnostic_radial",
+)
+
+
+def get_all_variant_names() -> list[str]:
+    """Get all variant names from VARIANTS."""
+    return [variant.name for variant in VARIANTS]
+
 
 def make_curriculum(
+    base_missions: list[str],
     num_cogs: int = 4,
-    base_missions: Optional[list[str]] = None,
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
-    variants: Optional[Sequence[str]] = None,
+    exclude_variants: Optional[Sequence[str]] = None,
 ) -> CurriculumConfig:
-    """Create a full curriculum for CoGs vs Clips training with learning progress.
+    """Create a variants curriculum for CoGs vs Clips training with learning progress.
 
-    This curriculum includes all missions from the base curriculum, successful eval missions,
-    and diagnostic missions where scripted agents can get reward.
+    This curriculum takes a set of maps and creates a curriculum over every possible variant.
+    For each map, it creates separate curriculum tasks for each variant individually.
 
     Args:
+        base_missions: List of mission names to include (required)
         num_cogs: Number of agents per mission
-        base_missions: Optional list of mission names to include (defaults to FULL_CURRICULUM_MISSIONS)
         enable_detailed_slice_logging: Enable detailed logging for curriculum slices
         algorithm_config: Optional curriculum algorithm configuration
-        variants: Optional mission variants to apply
+        exclude_variants: Optional list of variant names to exclude from the curriculum
 
     Returns:
         A CurriculumConfig with learning progress algorithm
     """
-    if base_missions is None:
-        base_missions = list(FULL_CURRICULUM_MISSIONS)
+    if not base_missions:
+        raise ValueError("base_missions must be provided and non-empty")
+
+    # Get all variant names, excluding any that should be skipped
+    all_variant_names = get_all_variant_names()
+    if exclude_variants:
+        exclude_set = set(exclude_variants)
+        variant_names = [v for v in all_variant_names if v not in exclude_set]
+    else:
+        variant_names = all_variant_names
 
     all_mission_tasks = []
     for mission_name in base_missions:
@@ -148,56 +120,68 @@ def make_curriculum(
                     mission_template = temp_mission
                     break
 
-        if mission_template is None:
-            # Fall back to make_training_env for standard missions
+        # For each variant, create a separate curriculum task
+        for variant_name in variant_names:
             try:
-                mission_env = cogs_v_clips.make_training_env(
-                    num_cogs=num_cogs,
-                    mission=mission_name,
-                    variants=variants,
-                )
-            except ValueError:
-                # Skip missions that don't exist
+                if mission_template is None:
+                    # Fall back to make_training_env for standard missions
+                    try:
+                        mission_env = cogs_v_clips.make_training_env(
+                            num_cogs=num_cogs,
+                            mission=mission_name,
+                            variants=[variant_name],
+                        )
+                    except ValueError:
+                        # Skip missions that don't exist
+                        continue
+                else:
+                    # Use the mission template directly (works for both eval and diagnostic missions)
+                    mission = cogs_v_clips._prepare_mission(
+                        mission_template,
+                        num_cogs=num_cogs,
+                        variant_names=[variant_name],
+                    )
+                    mission_env = mission.make_env()
+                    cogs_v_clips._clamp_agent_inventory(mission_env)
+
+                # Give each environment a label so per-label rewards can be tracked in stats/W&B.
+                # Use mission_name + variant_name as the label to distinguish variant combinations.
+                label = f"{mission_name}_{variant_name}"
+                try:
+                    mission_env.label = label  # type: ignore[attr-defined]
+                except Exception:
+                    # Best-effort; if the config does not support labels, leave it as default.
+                    pass
+
+                # Set stats rewards directly (can't use curriculum buckets for dict keys with dots)
+                # Reward for gaining resources (not just having them) to avoid rewarding initial inventory
+                if not mission_env.game.agent.rewards.stats:
+                    mission_env.game.agent.rewards.stats = {}
+                # Set small rewards for resource collection - reward agents for gaining resources
+                # These are fixed values since curriculum buckets can't handle dict keys with dots
+                mission_env.game.agent.rewards.stats.setdefault("carbon.gained", 0.01)
+                mission_env.game.agent.rewards.stats.setdefault("oxygen.gained", 0.01)
+                mission_env.game.agent.rewards.stats.setdefault("germanium.gained", 0.01)
+                mission_env.game.agent.rewards.stats.setdefault("silicon.gained", 0.01)
+
+                mission_tasks = cc.bucketed(mission_env)
+
+                # Add curriculum buckets for learning progress
+                mission_tasks.add_bucket("game.max_steps", [750, 1000, 1250, 1500])
+                # Note: stats rewards with dots in key names can't be set via curriculum buckets
+                # We use inventory rewards for heart which get converted to stats internally
+                mission_tasks.add_bucket("game.agent.rewards.inventory.heart", [0.1, 0.333, 0.5, 1.0])
+
+                all_mission_tasks.append(mission_tasks)
+            except Exception as e:
+                # Log the error but continue - some variant combinations may be incompatible
+                import logging
+
+                logging.warning(f"Failed to create mission-variant combination {mission_name}+{variant_name}: {e}")
                 continue
-        else:
-            # Use the mission template directly (works for both eval and diagnostic missions)
-            variant_names = cogs_v_clips._normalize_variant_names(variants=variants)
-            mission = cogs_v_clips._prepare_mission(
-                mission_template,
-                num_cogs=num_cogs,
-                variant_names=variant_names,
-            )
-            mission_env = mission.make_env()
-            cogs_v_clips._clamp_agent_inventory(mission_env)
 
-        # Give each environment a label so per-label rewards can be tracked in stats/W&B.
-        # Use the mission name as the label, which is stable across curriculum tasks.
-        try:
-            mission_env.label = mission_name  # type: ignore[attr-defined]
-        except Exception:
-            # Best-effort; if the config does not support labels, leave it as default.
-            pass
-
-        # Set stats rewards directly (can't use curriculum buckets for dict keys with dots)
-        # Reward for gaining resources (not just having them) to avoid rewarding initial inventory
-        if not mission_env.game.agent.rewards.stats:
-            mission_env.game.agent.rewards.stats = {}
-        # Set small rewards for resource collection - reward agents for gaining resources
-        # These are fixed values since curriculum buckets can't handle dict keys with dots
-        mission_env.game.agent.rewards.stats.setdefault("carbon.gained", 0.01)
-        mission_env.game.agent.rewards.stats.setdefault("oxygen.gained", 0.01)
-        mission_env.game.agent.rewards.stats.setdefault("germanium.gained", 0.01)
-        mission_env.game.agent.rewards.stats.setdefault("silicon.gained", 0.01)
-
-        mission_tasks = cc.bucketed(mission_env)
-
-        # Add curriculum buckets for learning progress
-        mission_tasks.add_bucket("game.max_steps", [750, 1000, 1250, 1500])
-        # Note: stats rewards with dots in key names can't be set via curriculum buckets
-        # We use inventory rewards for heart which get converted to stats internally
-        mission_tasks.add_bucket("game.agent.rewards.inventory.heart", [0.1, 0.333, 0.5, 1.0])
-
-        all_mission_tasks.append(mission_tasks)
+    if not all_mission_tasks:
+        raise ValueError(f"No valid mission-variant combinations found for missions: {base_missions}")
 
     merged_tasks = cc.merge(all_mission_tasks)
 
@@ -218,40 +202,40 @@ def make_curriculum(
 
 
 def train(
+    base_missions: list[str],
     num_cogs: int = 4,
     curriculum: Optional[CurriculumConfig] = None,
-    base_missions: Optional[list[str]] = None,
     enable_detailed_slice_logging: bool = False,
-    variants: Optional[Sequence[str]] = None,
+    exclude_variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
 ) -> TrainTool:
-    """Create a training tool for CoGs vs Clips with full curriculum.
+    """Create a training tool for CoGs vs Clips with variants curriculum.
 
     Args:
+        base_missions: List of mission names to include (required)
         num_cogs: Number of agents per mission
-        curriculum: Optional curriculum configuration (defaults to full curriculum)
-        base_missions: Optional list of mission names to include
+        curriculum: Optional curriculum configuration (defaults to variants curriculum)
         enable_detailed_slice_logging: Enable detailed logging for curriculum slices
-        variants: Optional mission variants to apply during training
+        exclude_variants: Optional list of variant names to exclude from the curriculum
         eval_variants: Optional mission variants to apply during evaluation
         eval_difficulty: Difficulty variant for evaluation
 
     Returns:
-        A TrainTool configured with the full curriculum
+        A TrainTool configured with the variants curriculum
     """
     resolved_curriculum = curriculum or make_curriculum(
-        num_cogs=num_cogs,
         base_missions=base_missions,
+        num_cogs=num_cogs,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
-        variants=variants,
+        exclude_variants=exclude_variants,
     )
 
     trainer_cfg = TrainerConfig(
         losses=LossesConfig(),
     )
 
-    resolved_eval_variants = cogs_v_clips._resolve_eval_variants(variants, eval_variants)
+    resolved_eval_variants = cogs_v_clips._resolve_eval_variants(None, eval_variants)
     eval_suite = cogs_v_clips.make_eval_suite(
         num_cogs=num_cogs,
         difficulty=eval_difficulty,
@@ -305,35 +289,48 @@ def play(
 
 
 def experiment(
+    base_missions: list[str],
     run_name: Optional[str] = None,
     num_cogs: int = 4,
     heartbeat_timeout: int = 3600,
     skip_git_check: bool = True,
+    exclude_variants: Optional[list[str]] = None,
     additional_args: Optional[list[str]] = None,
 ) -> None:
     """Submit a training job on AWS with 4 GPUs.
 
     Args:
+        base_missions: List of mission names to include (required)
         run_name: Optional run name. If not provided, generates one with timestamp.
         num_cogs: Number of agents per mission (default: 4).
         heartbeat_timeout: Heartbeat timeout in seconds (default: 3600).
         skip_git_check: Whether to skip git check (default: True).
+        exclude_variants: Optional list of variant names to exclude from the curriculum.
         additional_args: Additional arguments to pass to the training command.
     """
     if run_name is None:
-        run_name = f"full_curriculum_{time.strftime('%Y-%m-%d_%H%M%S')}"
+        run_name = f"variants_curriculum_{time.strftime('%Y-%m-%d_%H%M%S')}"
 
     cmd = [
         "./devops/skypilot/launch.py",
-        "recipes.experiment.cvc.full_curriculum.train",
+        "recipes.experiment.cvc.variants_curriculum.train",
         f"run={run_name}",
         f"num_cogs={num_cogs}",
         "--gpus=4",
         f"--heartbeat-timeout={heartbeat_timeout}",
     ]
 
+    # Pass base_missions as a JSON list argument for hydra/omegaconf
+    # Format: base_missions=["mission1","mission2","mission3"]
+    missions_str = json.dumps(base_missions)
+    cmd.append(f"base_missions={missions_str}")
+
     if skip_git_check:
         cmd.append("--skip-git-check")
+
+    if exclude_variants:
+        exclude_str = json.dumps(exclude_variants)
+        cmd.append(f"exclude_variants={exclude_str}")
 
     if additional_args:
         cmd.extend(additional_args)
@@ -352,6 +349,6 @@ __all__ = [
     "evaluate",
     "play",
     "experiment",
-    "FULL_CURRICULUM_MISSIONS",
+    "get_all_variant_names",
     "DIAGNOSTIC_MISSIONS",
 ]
