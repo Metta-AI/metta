@@ -282,7 +282,9 @@ def run_evaluation(
 
                 try:
                     # Create mission and apply variant if specified
-                    mission_variants: List[MissionVariant] = [num_cogs_variant_cache.setdefault(num_cogs, NumCogsVariant(num_cogs=num_cogs))]
+                    mission_variants: List[MissionVariant] = [
+                        num_cogs_variant_cache.setdefault(num_cogs, NumCogsVariant(num_cogs=num_cogs))
+                    ]
                     if variant:
                         mission_variants.insert(0, variant)
 
@@ -440,91 +442,214 @@ def create_plots(
     aggregated: Optional[AggregatedResults] = None,
     annotate_bars: bool = True,
 ) -> None:
-    """Create comprehensive plots from evaluation results."""
+    """Create plots with minimal boilerplate via plot specs."""
 
     if not results:
         return
 
-    aggregate_cache = aggregated if aggregated is not None else aggregate_results(results)
+    agg = aggregated if aggregated is not None else aggregate_results(results)
     _ensure_plot_modules_loaded()
 
     output_path = Path(output_dir)
     output_path.mkdir(exist_ok=True)
     logger.info(f"\nGenerating plots in {output_path}/...")
 
-    agents = sorted(aggregate_cache.by_agent)
-    experiments = sorted(aggregate_cache.by_experiment)
-    variants = sorted(aggregate_cache.by_difficulty)
-    num_cogs_list = sorted(aggregate_cache.by_num_cogs)
+    agents = sorted(agg.by_agent)
+    experiments = sorted(agg.by_experiment)
+    variants = sorted(agg.by_difficulty)
+    num_cogs_list = sorted(agg.by_num_cogs)
 
-    # 1. Average reward per agent by agent type
-    _plot_by_agent(aggregate_cache, agents, output_path)
+    def _val(metric: Optional[AggregateMetrics], getter: Callable[[AggregateMetrics], float]) -> float:
+        return getter(metric) if metric else 0.0
 
-    # 2. Total reward by agent type
-    _plot_by_agent_total(aggregate_cache, agents, output_path)
+    group_specs = [
+        # Single-series bars (series label ignored)
+        {
+            "filename": "reward_by_agent.png",
+            "title": "Average Reward Per Agent by Type",
+            "xlabel": "Agent Type",
+            "ylabel": "Average Reward Per Agent",
+            "x_labels": agents,
+            "series": ["value"],
+            "lookup": lambda _s, a: _val(agg.by_agent.get(a), AggregateMetrics.mean_agent_reward),
+            "figsize": (10, 6),
+            "rotation": 0,
+        },
+        {
+            "filename": "total_reward_by_agent.png",
+            "title": "Total Reward by Agent Type",
+            "xlabel": "Agent Type",
+            "ylabel": "Total Reward",
+            "x_labels": agents,
+            "series": ["value"],
+            "lookup": lambda _s, a: _val(agg.by_agent.get(a), AggregateMetrics.mean_total_reward),
+            "figsize": (10, 6),
+            "rotation": 0,
+        },
+        # Grouped bars
+        {
+            "filename": "reward_by_num_cogs.png",
+            "title": "Average Reward Per Agent by Team Size",
+            "xlabel": "Number of Agents",
+            "ylabel": "Average Reward Per Agent",
+            "x_labels": num_cogs_list,
+            "series": agents,
+            "lookup": lambda agent, cogs: _val(
+                agg.by_agent_num_cogs.get((agent, cogs)), AggregateMetrics.mean_agent_reward
+            ),
+            "figsize": (12, 7),
+            "rotation": 0,
+        },
+        {
+            "filename": "total_reward_by_num_cogs.png",
+            "title": "Total Reward by Team Size",
+            "xlabel": "Number of Agents",
+            "ylabel": "Total Reward",
+            "x_labels": num_cogs_list,
+            "series": agents,
+            "lookup": lambda agent, cogs: _val(
+                agg.by_agent_num_cogs.get((agent, cogs)), AggregateMetrics.mean_total_reward
+            ),
+            "figsize": (12, 7),
+            "rotation": 0,
+        },
+        {
+            "filename": "reward_by_environment.png",
+            "title": "Average Reward by Eval Environment",
+            "xlabel": "Eval Environment",
+            "ylabel": "Average Reward Per Agent",
+            "x_labels": experiments,
+            "series": agents,
+            "lookup": lambda agent, exp: _val(
+                agg.by_agent_experiment.get((agent, exp)), AggregateMetrics.mean_agent_reward
+            ),
+        },
+        {
+            "filename": "total_reward_by_environment.png",
+            "title": "Total Reward by Eval Environment",
+            "xlabel": "Eval Environment",
+            "ylabel": "Total Reward",
+            "x_labels": experiments,
+            "series": agents,
+            "lookup": lambda agent, exp: _val(
+                agg.by_agent_experiment.get((agent, exp)), AggregateMetrics.mean_total_reward
+            ),
+        },
+        {
+            "filename": "reward_by_difficulty.png",
+            "title": "Average Reward by Difficulty Variant",
+            "xlabel": "Difficulty Variant",
+            "ylabel": "Average Reward Per Agent",
+            "x_labels": variants,
+            "series": agents,
+            "lookup": lambda agent, diff: _val(
+                agg.by_agent_difficulty.get((agent, diff)), AggregateMetrics.mean_agent_reward
+            ),
+        },
+        {
+            "filename": "total_reward_by_difficulty.png",
+            "title": "Total Reward by Difficulty Variant",
+            "xlabel": "Difficulty Variant",
+            "ylabel": "Total Reward",
+            "x_labels": variants,
+            "series": agents,
+            "lookup": lambda agent, diff: _val(
+                agg.by_agent_difficulty.get((agent, diff)), AggregateMetrics.mean_total_reward
+            ),
+        },
+        {
+            "filename": "reward_by_environment_by_cogs.png",
+            "title": "Average Reward by Eval Environment (Grouped by Agent Count)",
+            "xlabel": "Eval Environment",
+            "ylabel": "Average Reward Per Agent",
+            "x_labels": experiments,
+            "series": num_cogs_list,
+            "lookup": lambda cogs, exp: _val(
+                agg.by_num_cogs_experiment.get((cogs, exp)), AggregateMetrics.mean_agent_reward
+            ),
+        },
+    ]
 
-    # 3. Average reward per agent by num_cogs
-    _plot_by_num_cogs(aggregate_cache, num_cogs_list, agents, output_path, annotate=annotate_bars)
-
-    # 4. Total reward by num_cogs
-    _plot_by_num_cogs_total(aggregate_cache, num_cogs_list, agents, output_path, annotate=annotate_bars)
-
-    # 5. Average reward per agent by eval environment
-    _plot_by_environment(aggregate_cache, experiments, agents, output_path)
-
-    # 6. Total reward by eval environment
-    _plot_by_environment_total(aggregate_cache, experiments, agents, output_path)
-
-    # 7. Average reward per agent by variant
-    _plot_by_difficulty(aggregate_cache, variants, agents, output_path)
-
-    # 8. Total reward by variant
-    _plot_by_difficulty_total(aggregate_cache, variants, agents, output_path)
-
-    # 8.5. Average reward per agent by environment, grouped by agent count
-    _plot_by_environment_by_cogs(aggregate_cache, experiments, num_cogs_list, output_path)
-
-    # 9. Heatmap: Environment x Agent (avg per agent)
-    _plot_heatmap_env_agent(aggregate_cache, experiments, agents, output_path)
-
-    # 10. Heatmap: Environment x Agent (total)
-    _plot_heatmap_env_agent_total(aggregate_cache, experiments, agents, output_path)
-
-    # 11. Heatmap: Variant x Agent (avg per agent)
-    _plot_heatmap_diff_agent(aggregate_cache, variants, agents, output_path)
-
-    # 12. Heatmap: Variant x Agent (total)
-    _plot_heatmap_diff_agent_total(aggregate_cache, variants, agents, output_path)
-
-    logger.info(f"✓ Plots saved to {output_path}/")
-
-
-def _plot_single_bar(
-    labels: List[str],
-    values: List[float],
-    ylabel: str,
-    xlabel: str,
-    title: str,
-    filename: str,
-    output_path: Path,
-) -> None:
-    fig, ax = plt.subplots(figsize=(10, 6))
-    colors = plt.get_cmap("Set2")(range(len(labels)))
-    bars = ax.bar(labels, values, color=colors, alpha=0.8, edgecolor="black")
-    ax.set_ylabel(ylabel, fontsize=12, fontweight="bold")
-    ax.set_xlabel(xlabel, fontsize=12, fontweight="bold")
-    ax.set_title(title, fontsize=14, fontweight="bold")
-    ax.grid(axis="y", alpha=0.3)
-
-    for bar in bars:
-        height = bar.get_height()
-        ax.text(
-            bar.get_x() + bar.get_width() / 2.0, height, f"{height:.2f}", ha="center", va="bottom", fontweight="bold"
+    for spec in group_specs:
+        _plot_grouped_bars(
+            x_labels=spec.get("x_labels", []),
+            series_labels=spec.get("series", []),
+            value_lookup=spec["lookup"],
+            ylabel=spec["ylabel"],
+            xlabel=spec["xlabel"],
+            title=spec["title"],
+            filename=spec["filename"],
+            output_path=output_path,
+            figsize=spec.get("figsize", (16, 8)),
+            rotation=spec.get("rotation", 45),
+            annotate=annotate_bars,
         )
 
-    plt.tight_layout()
-    plt.savefig(output_path / filename, dpi=150, bbox_inches="tight")
-    plt.close()
+    heatmap_specs = [
+        {
+            "filename": "heatmap_env_agent.png",
+            "title": "Average Reward: Environment x Agent",
+            "cbar": "Average Reward",
+            "x_labels": agents,
+            "y_labels": experiments,
+            "lookup": lambda agent, exp: _val(
+                agg.by_agent_experiment.get((agent, exp)), AggregateMetrics.mean_agent_reward
+            ),
+            "cmap": "YlOrRd",
+            "height": max(2, int(len(experiments) * 0.5 + 2)),
+        },
+        {
+            "filename": "heatmap_env_agent_total.png",
+            "title": "Total Reward: Environment x Agent",
+            "cbar": "Total Reward",
+            "x_labels": agents,
+            "y_labels": experiments,
+            "lookup": lambda agent, exp: _val(
+                agg.by_agent_experiment.get((agent, exp)), AggregateMetrics.mean_total_reward
+            ),
+            "cmap": "YlOrRd",
+            "height": max(2, int(len(experiments) * 0.5 + 2)),
+        },
+        {
+            "filename": "heatmap_diff_agent.png",
+            "title": "Average Reward: Difficulty x Agent",
+            "cbar": "Average Reward",
+            "x_labels": agents,
+            "y_labels": variants,
+            "lookup": lambda agent, diff: _val(
+                agg.by_agent_difficulty.get((agent, diff)), AggregateMetrics.mean_agent_reward
+            ),
+            "cmap": "YlGnBu",
+            "height": max(2, int(len(variants) * 0.4 + 2)),
+        },
+        {
+            "filename": "heatmap_diff_agent_total.png",
+            "title": "Total Reward: Difficulty x Agent",
+            "cbar": "Total Reward",
+            "x_labels": agents,
+            "y_labels": variants,
+            "lookup": lambda agent, diff: _val(
+                agg.by_agent_difficulty.get((agent, diff)), AggregateMetrics.mean_total_reward
+            ),
+            "cmap": "YlGnBu",
+            "height": max(2, int(len(variants) * 0.4 + 2)),
+        },
+    ]
+
+    for spec in heatmap_specs:
+        _plot_heatmap(
+            x_labels=spec.get("x_labels", []),
+            y_labels=spec.get("y_labels", []),
+            value_lookup=spec["lookup"],
+            title=spec["title"],
+            cbar_label=spec["cbar"],
+            filename=spec["filename"],
+            output_path=output_path,
+            cmap=spec.get("cmap", "YlGnBu"),
+            figsize=(10, spec.get("height", 5)),
+        )
+
+    logger.info(f"✓ Plots saved to {output_path}/")
 
 
 def _plot_grouped_bars(
@@ -632,234 +757,6 @@ def _plot_heatmap(
     plt.tight_layout()
     plt.savefig(output_path / filename, dpi=150, bbox_inches="tight")
     plt.close()
-
-
-def _plot_by_agent(aggregated: AggregatedResults, agents: List[str], output_path: Path) -> None:
-    """Plot average reward per agent grouped by agent type."""
-    if not agents:
-        return
-
-    avg_rewards: List[float] = []
-    for agent in agents:
-        metrics = aggregated.by_agent.get(agent)
-        avg_rewards.append(metrics.mean_agent_reward() if metrics else 0.0)
-
-    _plot_single_bar(
-        labels=agents,
-        values=avg_rewards,
-        ylabel="Average Reward Per Agent",
-        xlabel="Agent Type",
-        title="Average Reward Per Agent by Type",
-        filename="reward_by_agent.png",
-        output_path=output_path,
-    )
-
-
-def _plot_by_agent_total(aggregated: AggregatedResults, agents: List[str], output_path: Path) -> None:
-    """Plot total reward grouped by agent type."""
-    if not agents:
-        return
-
-    total_rewards: List[float] = []
-    for agent in agents:
-        metrics = aggregated.by_agent.get(agent)
-        total_rewards.append(metrics.mean_total_reward() if metrics else 0.0)
-
-    _plot_single_bar(
-        labels=agents,
-        values=total_rewards,
-        ylabel="Total Reward",
-        xlabel="Agent Type",
-        title="Total Reward by Agent Type",
-        filename="total_reward_by_agent.png",
-        output_path=output_path,
-    )
-
-
-def _plot_by_num_cogs(
-    aggregated: AggregatedResults,
-    num_cogs_list: List[int],
-    agents: List[str],
-    output_path: Path,
-    annotate: bool,
-) -> None:
-    """Plot average reward per agent by number of agents."""
-    if not num_cogs_list or not agents:
-        return
-
-    _plot_grouped_bars(
-        x_labels=num_cogs_list,
-        series_labels=agents,
-        value_lookup=lambda agent, num_cogs: (
-            aggregated.by_agent_num_cogs.get((agent, int(num_cogs))).mean_agent_reward()
-            if aggregated.by_agent_num_cogs.get((agent, int(num_cogs)))
-            else 0.0
-        ),
-        ylabel="Average Reward Per Agent",
-        xlabel="Number of Agents",
-        title="Average Reward Per Agent by Team Size",
-        filename="reward_by_num_cogs.png",
-        output_path=output_path,
-        figsize=(12, 7),
-        rotation=0,
-        annotate=annotate,
-    )
-
-
-def _plot_by_num_cogs_total(
-    aggregated: AggregatedResults,
-    num_cogs_list: List[int],
-    agents: List[str],
-    output_path: Path,
-    annotate: bool,
-) -> None:
-    """Plot total reward by number of agents."""
-    if not num_cogs_list or not agents:
-        return
-
-    _plot_grouped_bars(
-        x_labels=num_cogs_list,
-        series_labels=agents,
-        value_lookup=lambda agent, num_cogs: (
-            aggregated.by_agent_num_cogs.get((agent, int(num_cogs))).mean_total_reward()
-            if aggregated.by_agent_num_cogs.get((agent, int(num_cogs)))
-            else 0.0
-        ),
-        ylabel="Total Reward",
-        xlabel="Number of Agents",
-        title="Total Reward by Team Size",
-        filename="total_reward_by_num_cogs.png",
-        output_path=output_path,
-        figsize=(12, 7),
-        rotation=0,
-        annotate=annotate,
-    )
-
-
-def _plot_by_environment(
-    aggregated: AggregatedResults,
-    experiments: List[str],
-    agents: List[str],
-    output_path: Path,
-) -> None:
-    """Plot average reward per agent by eval environment."""
-    if not experiments or not agents:
-        return
-
-    _plot_grouped_bars(
-        x_labels=experiments,
-        series_labels=agents,
-        value_lookup=lambda agent, exp: (
-            aggregated.by_agent_experiment.get((agent, exp)).mean_agent_reward()
-            if aggregated.by_agent_experiment.get((agent, exp))
-            else 0.0
-        ),
-        ylabel="Average Reward Per Agent",
-        xlabel="Eval Environment",
-        title="Average Reward by Eval Environment",
-        filename="reward_by_environment.png",
-        output_path=output_path,
-    )
-
-
-def _plot_by_environment_total(
-    aggregated: AggregatedResults, experiments: List[str], agents: List[str], output_path: Path
-) -> None:
-    """Plot total reward by eval environment."""
-    if not experiments or not agents:
-        return
-
-    _plot_grouped_bars(
-        x_labels=experiments,
-        series_labels=agents,
-        value_lookup=lambda agent, exp: (
-            aggregated.by_agent_experiment.get((agent, exp)).mean_total_reward()
-            if aggregated.by_agent_experiment.get((agent, exp))
-            else 0.0
-        ),
-        ylabel="Total Reward",
-        xlabel="Eval Environment",
-        title="Total Reward by Eval Environment",
-        filename="total_reward_by_environment.png",
-        output_path=output_path,
-    )
-
-
-def _plot_by_environment_by_cogs(
-    aggregated: AggregatedResults,
-    experiments: List[str],
-    num_cogs_list: List[int],
-    output_path: Path,
-) -> None:
-    """Plot average reward per agent by eval environment, grouped by agent count."""
-    if not experiments or not num_cogs_list:
-        return
-
-    labels = [f"{n} agent(s)" for n in num_cogs_list]
-    _plot_grouped_bars(
-        x_labels=experiments,
-        series_labels=labels,
-        value_lookup=lambda label, exp: (
-            aggregated.by_num_cogs_experiment.get((int(label.split()[0]), exp)).mean_agent_reward()
-            if aggregated.by_num_cogs_experiment.get((int(label.split()[0]), exp))
-            else 0.0
-        ),
-        ylabel="Average Reward Per Agent",
-        xlabel="Eval Environment",
-        title="Average Reward by Eval Environment (Grouped by Agent Count)",
-        filename="reward_by_environment_by_cogs.png",
-        output_path=output_path,
-        width=0.25,
-    )
-
-
-def _plot_by_difficulty(
-    aggregated: AggregatedResults,
-    difficulties: List[str],
-    agents: List[str],
-    output_path: Path,
-) -> None:
-    """Plot average reward per agent by difficulty variant."""
-    if not difficulties or not agents:
-        return
-
-    _plot_grouped_bars(
-        x_labels=difficulties,
-        series_labels=agents,
-        value_lookup=lambda agent, diff: (
-            aggregated.by_agent_difficulty.get((agent, diff)).mean_agent_reward()
-            if aggregated.by_agent_difficulty.get((agent, diff))
-            else 0.0
-        ),
-        ylabel="Average Reward Per Agent",
-        xlabel="Difficulty Variant",
-        title="Average Reward by Difficulty Variant",
-        filename="reward_by_difficulty.png",
-        output_path=output_path,
-    )
-
-
-def _plot_by_difficulty_total(
-    aggregated: AggregatedResults, difficulties: List[str], agents: List[str], output_path: Path
-) -> None:
-    """Plot total reward by difficulty variant."""
-    if not difficulties or not agents:
-        return
-
-    _plot_grouped_bars(
-        x_labels=difficulties,
-        series_labels=agents,
-        value_lookup=lambda agent, diff: (
-            aggregated.by_agent_difficulty.get((agent, diff)).mean_total_reward()
-            if aggregated.by_agent_difficulty.get((agent, diff))
-            else 0.0
-        ),
-        ylabel="Total Reward",
-        xlabel="Difficulty Variant",
-        title="Total Reward by Difficulty Variant",
-        filename="total_reward_by_difficulty.png",
-        output_path=output_path,
-    )
 
 
 def _plot_heatmap_env_agent(
