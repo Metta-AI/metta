@@ -10,6 +10,7 @@ import re
 import subprocess
 import sys
 import warnings
+from typing import Any
 
 # Suppress Pydantic warnings from SkyPilot dependencies before importing sky
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic._internal._generate_schema")
@@ -20,7 +21,7 @@ import yaml
 import gitta as git
 from devops.skypilot.utils.job_helpers import (
     check_git_state,
-    display_job_summary,
+    display_task_summary,
     launch_task,
     set_task_secrets,
 )
@@ -30,33 +31,32 @@ from metta.common.util.fs import cd_repo_root
 from metta.common.util.text_styles import red
 from metta.tools.utils.auto_config import auto_run_name
 
-logger = logging.getLogger("launch.py")
+logger = logging.getLogger(__name__)
 
 
-def _validate_sky_cluster_name(run_name: str) -> bool:
-    """Validate that we will meet Sky's cluster naming requirements.
+def _validate_sky_task_name(run_name: str) -> bool:
+    """Validate that we will meet Sky's task naming requirements.
 
-    Sky requires cluster names to:
+    Sky requires task names to:
     - Start with a letter (a-z or A-Z)
     - Contain only letters, numbers, dashes, underscores, or dots
     - End with a letter or number
     """
-    # Sky's regex pattern: [a-zA-Z]([-_.a-zA-Z0-9]*[a-zA-Z0-9])?
     pattern = r"^[a-zA-Z]([-_.a-zA-Z0-9]*[a-zA-Z0-9])?$"
     valid = bool(re.match(pattern, run_name))
 
     if not valid:
-        print(red(f"[VALIDATION] ❌ Invalid run name: '{run_name}'"), flush=True)
-        print("Sky cluster names must:", flush=True)
-        print("  - Start with a letter (not a number)", flush=True)
-        print("  - Contain only letters, numbers, dashes, underscores, or dots", flush=True)
-        print("  - End with a letter or number", flush=True)
-        print(flush=True)
+        print(red(f"[VALIDATION] ❌ Invalid run name: '{run_name}'"))
+        print("Sky task names must:")
+        print("  - Start with a letter (not a number)")
+        print("  - Contain only letters, numbers, dashes, underscores, or dots")
+        print("  - End with a letter or number")
+        print()
 
     return valid
 
 
-def _validate_run_tool(module_path: str, run_id: str, filtered_args: list) -> bool:
+def _validate_run_tool(module_path: str, args: list) -> bool:
     """Validate that run.py can successfully create a tool config with the given arguments.
 
     Returns:
@@ -65,9 +65,9 @@ def _validate_run_tool(module_path: str, run_id: str, filtered_args: list) -> bo
     # Build the run.py command
     run_cmd = ["uv", "run", "--active", "tools/run.py", module_path, "--dry-run"]
 
-    # Add args if provided (run= is already included in filtered_args)
-    if filtered_args:
-        run_cmd.extend(filtered_args)
+    # Add args if provided
+    if args:
+        run_cmd.extend(args)
     try:
         subprocess.run(run_cmd, capture_output=True, text=True, check=True)
         print("[VALIDATION] ✅ Configuration validation successful")
@@ -91,7 +91,7 @@ def patch_task(
     nodes: int | None,
     no_spot: bool = False,
 ) -> sky.Task:
-    overrides = {}
+    overrides: dict[str, Any] = {}
     if cpus:
         overrides["cpus"] = cpus
     if overrides:
@@ -99,7 +99,7 @@ def patch_task(
     if nodes:
         task.num_nodes = nodes
 
-    new_resources_list = list(task.resources)
+    new_resources_list: list[sky.Resources] = list(task.resources)
 
     if gpus:
         new_resources_list = []
@@ -154,15 +154,15 @@ Examples:
     )
 
     # Launch-specific flags
-    parser.add_argument("--run", type=str, default=None, help="Run ID for the job")
-    parser.add_argument("--git-ref", type=str, default=None)
-    parser.add_argument("--gpus", type=int, default=None)
-    parser.add_argument("--nodes", type=int, default=None)
-    parser.add_argument("--cpus", type=int, default=None)
+    parser.add_argument("--run", type=str, help="Run ID for the job")
+    parser.add_argument("--git-ref", type=str)
+    parser.add_argument("--gpus", type=int)
+    parser.add_argument("--nodes", type=int)
+    parser.add_argument("--cpus", type=int)
     parser.add_argument("--dry-run", action="store_true", help="Show job summary without launching")
     parser.add_argument(
         "--dump-config",
-        choices=["json", "yaml", "pretty"],
+        choices=["json", "yaml"],
         help="Dump task configuration in specified format and exit",
     )
     parser.add_argument("--no-spot", action="store_true", help="Disable spot instances")
@@ -183,12 +183,8 @@ Examples:
     )
     parser.add_argument("--skip-git-check", action="store_true", help="Skip git state validation and GitHub API calls")
     parser.add_argument("-c", "--confirm", action="store_true", help="Show confirmation prompt")
-    parser.add_argument(
-        "--github-pat", type=str, default=None, help="GitHub PAT token for posting status updates (repo scope)"
-    )
-    parser.add_argument(
-        "--discord-webhook-url", type=str, default=None, help="Discord webhook URL for status update channel"
-    )
+    parser.add_argument("--github-pat", type=str, help="GitHub PAT token for posting status updates (repo scope)")
+    parser.add_argument("--discord-webhook-url", type=str, help="Discord webhook URL for status update channel")
     parser.add_argument(
         "--run-ci-tests",
         action="store_true",
@@ -254,14 +250,15 @@ Examples:
     assert commit_hash
 
     # Validate the run.py tool configuration early to catch errors before setting up the task
-    if not _validate_run_tool(module_path, run_id, filtered_args):
+    if not _validate_run_tool(module_path, filtered_args):
         return 1
 
     # Validate the provided run name
-    if not _validate_sky_cluster_name(run_id):
+    if not _validate_sky_task_name(run_id):
         return 1
 
     task = sky.Task.from_yaml("./devops/skypilot/config/skypilot_run.yaml")
+    task._user_specified_yaml = None
 
     # Prepare environment variables including status parameters
     env_updates = dict(
@@ -303,30 +300,17 @@ Examples:
         if args.dump_config == "json":
             print(json.dumps(config_dict, indent=2))
         elif args.dump_config == "yaml":
-            # Output raw YAML (compact form)
-            if isinstance(task_config, dict):
-                print(yaml.dump(config_dict))
-            else:
-                print(task_config)
-        elif args.dump_config == "pretty":
             # Pretty print the YAML
             print(yaml.dump(config_dict, default_flow_style=False, sort_keys=False))
         return 0
 
-    extra_details = {}
-    if args.copies > 1:
-        extra_details["copies"] = args.copies
-
-    display_job_summary(
-        job_name=run_id,
+    display_task_summary(
         cmd=f"{module_path} (args: {filtered_args})",
-        task_args=[],  # We're showing args differently now
         commit_hash=commit_hash,
         git_ref=args.git_ref,
-        timeout_hours=args.max_runtime_hours,
         task=task,
         skip_github=args.skip_git_check,
-        **extra_details,
+        copies=args.copies,
     )
 
     # For --dry-run, just exit after showing summary
@@ -342,15 +326,8 @@ Examples:
     set_task_secrets(task)
 
     # Launch the task(s)
-    if args.copies == 1:
+    for _ in range(args.copies):
         launch_task(task)
-    else:
-        for _ in range(1, args.copies + 1):
-            copy_task = copy.deepcopy(task)
-            copy_task = copy_task.update_envs({"METTA_RUN_ID": run_id})
-            copy_task.name = run_id
-            copy_task.validate_name()
-            launch_task(copy_task)
 
     return 0
 

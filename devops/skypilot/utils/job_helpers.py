@@ -5,7 +5,7 @@ import re
 import time
 from io import StringIO, TextIOBase
 from pathlib import Path
-from typing import cast
+from typing import Optional, cast
 
 import sky
 import sky.exceptions
@@ -14,7 +14,7 @@ from sky.server.common import RequestId, get_server_url
 
 import gitta as git
 from metta.common.util.git_repo import REPO_SLUG
-from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
+from metta.common.util.text_styles import blue, bold, green, red, yellow
 
 logger = logging.getLogger(__name__)
 
@@ -68,18 +68,15 @@ def check_git_state(commit_hash: str) -> str | None:
     return None
 
 
-def display_job_summary(
-    job_name: str,
+def display_task_summary(
     cmd: str,
-    task_args: list[str],
     commit_hash: str,
-    git_ref: str | None = None,
-    timeout_hours: float | None = None,
-    task: sky.Task | None = None,
+    task: sky.Task,
+    git_ref: Optional[str] = None,
     skip_github: bool = False,
-    **kwargs,
+    copies: int = 1,
 ) -> None:
-    """Display a summary of the job that will be launched.
+    """Display a summary of the task that will be launched.
 
     Args:
         skip_github: If True, skip GitHub API calls (for testing/CI)
@@ -91,43 +88,39 @@ def display_job_summary(
     print(bold(blue("Job details:")))
     print(f"{divider}")
 
-    print(f"{bold('Name:')} {yellow(job_name)}")
+    print(f"{bold('Name:')} {yellow(task.name)}")
 
-    # Extract resource info from task if provided
-    if task:
-        if task.resources:
-            resource = list(task.resources)[0]  # Get first resource option
+    # Extract resource info from task
+    if task.resources:
+        resource = list(task.resources)[0]  # Get first resource option
 
-            # GPU info
-            if hasattr(resource, "accelerators") and resource.accelerators:
-                gpu_info = []
-                for gpu_type, count in resource.accelerators.items():
-                    gpu_info.append(f"{count}x {gpu_type}")
-                print(f"{bold('GPUs:')} {yellow(', '.join(gpu_info))}")
+        # GPU info
+        if resource.accelerators:
+            gpu_info: list[str] = []
+            for gpu_type, count in resource.accelerators.items():
+                gpu_info.append(f"{count}x {gpu_type}")
+            print(f"{bold('GPUs:')} {yellow(', '.join(gpu_info))}")
 
-            # CPU info
-            if hasattr(resource, "cpus") and resource.cpus:
-                print(f"{bold('CPUs:')} {yellow(str(resource.cpus))}")
+        # CPU info
+        if resource.cpus:
+            print(f"{bold('CPUs:')} {yellow(str(resource.cpus))}")
 
-            # Spot instance info
-            if hasattr(resource, "use_spot"):
-                spot_status = "Yes" if resource.use_spot else "No"
-                print(f"{bold('Spot Instances:')} {yellow(spot_status)}")
+        # Spot instance info
+        spot_status = "Yes" if resource.use_spot else "No"
+        print(f"{bold('Spot Instances:')} {yellow(spot_status)}")
 
-        # Node count
-        if task.num_nodes and task.num_nodes > 1:
-            print(f"{bold('Nodes:')} {yellow(str(task.num_nodes))}")
+    # Node count
+    if task.num_nodes and task.num_nodes > 1:
+        print(f"{bold('Nodes:')} {yellow(str(task.num_nodes))}")
 
-    # Display any additional job details from kwargs (excluding 'task')
-    for key, value in kwargs.items():
-        if value is not None and key != "task":
-            # Convert snake_case to Title Case for display
-            display_key = key.replace("_", " ").title()
-            print(f"{bold(display_key + ':')} {yellow(str(value))}")
+    # Display any additional job details from kwargs
+    if copies != 1:
+        print(f"{bold('Copies:')} {yellow(copies)}")
 
     # Display timeout information with prominence
+    timeout_hours = task.envs.get("MAX_RUNTIME_HOURS")
     if timeout_hours:
-        timeout_mins = int(timeout_hours * 60)
+        timeout_mins = int(float(timeout_hours) * 60)
         hours = timeout_mins // 60
         mins = timeout_mins % 60
 
@@ -170,15 +163,6 @@ def display_job_summary(
 
     print(blue("-" * divider_length))
     print(f"\n{bold('Command:')} {yellow(cmd)}")
-
-    if task_args:
-        print(bold("Task Arguments:"))
-        for i, arg in enumerate(task_args):
-            if "=" in arg:
-                key, value = arg.split("=", 1)
-                print(f"  {i + 1}. {yellow(key)}={cyan(value)}")
-            else:
-                print(f"  {i + 1}. {yellow(arg)}")
 
     print(f"\n{divider}")
 
