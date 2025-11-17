@@ -186,26 +186,9 @@ def train_with_checkpoints(
                     console.print(f"     └─ checkpoints/ ({num_checkpoints} .pt files)")
 
     if not actual_checkpoint_dir.exists():
-        console.print(f"[yellow]Warning: Checkpoint directory {actual_checkpoint_dir} does not exist![/yellow]")
-        console.print("[yellow]Trying to find any checkpoint directory...[/yellow]")
-
-        # Try to find any recent training run
-        if train_dir.exists():
-            for run_dir in sorted(train_dir.iterdir(), reverse=True):
-                if run_dir.is_dir() and (run_dir / "checkpoints").exists():
-                    checkpoint_subdir = run_dir / "checkpoints"
-                    # Look for policy checkpoints (.mpt files), exclude trainer_state.mpt
-                    all_mpt = sorted(checkpoint_subdir.glob("*.mpt"))
-                    checkpoints = [f for f in all_mpt if f.name != "trainer_state.mpt"]
-                    if checkpoints:
-                        console.print(
-                            f"[green]Found {len(checkpoints)} policy checkpoints in: {checkpoint_subdir}[/green]"
-                        )
-                        actual_checkpoint_dir = checkpoint_subdir
-                        break
-
-        if not actual_checkpoint_dir.exists():
-            return []
+        console.print(f"[red]Error: Checkpoint directory {actual_checkpoint_dir} does not exist![/red]")
+        console.print("[red]Training may have failed or saved checkpoints to a different location.[/red]")
+        return []
 
     # Look for policy checkpoint files (.mpt), not trainer state files (.pt)
     # Explicitly exclude trainer_state.pt
@@ -647,6 +630,12 @@ def main(
             mission=mission,
             console=console,
         )
+
+    # Verify we have checkpoints before proceeding
+    if not checkpoint_paths:
+        console.print("[red]Error: No checkpoints available for tournament![/red]")
+        console.print("[yellow]Training may have failed. Check the training logs above.[/yellow]")
+        raise typer.Exit(1)
 
     # Step 2: Build policy pool with checkpoints
     policy_pool = build_policy_pool(checkpoint_paths, console)
