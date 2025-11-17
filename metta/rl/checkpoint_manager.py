@@ -321,15 +321,18 @@ class CheckpointManager:
 
     def get_latest_checkpoint(self) -> str | None:
         local_max_checkpoint = _latest_checkpoint(f"file://{self.checkpoint_dir}")
-        remote_max_checkpoint = None
-        if self._remote_prefix:
-            _latest_checkpoint(self._remote_prefix)
+        remote_max_checkpoint = _latest_checkpoint(self._remote_prefix) if self._remote_prefix else None
+
+        if local_max_checkpoint and remote_max_checkpoint:
+            if remote_max_checkpoint["epoch"] > local_max_checkpoint["epoch"]:
+                # Prefer remote if ahead; ensure we don't silently resume behind.
+                return remote_max_checkpoint["uri"]
+            return local_max_checkpoint["uri"]
 
         if local_max_checkpoint:
-            if remote_max_checkpoint and remote_max_checkpoint["epoch"] > local_max_checkpoint["epoch"]:
-                raise ValueError("Invalid setup - trying to resume with a remote checkpoint ahead of local")
             return local_max_checkpoint["uri"]
-        elif remote_max_checkpoint:
+
+        if remote_max_checkpoint:
             return remote_max_checkpoint["uri"]
 
     @staticmethod
@@ -382,6 +385,9 @@ class CheckpointPolicy(MultiAgentPolicy):
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         return self._policy.agent_policy(agent_id)
+
+    def __call__(self, *args, **kwargs):
+        return self._policy(*args, **kwargs)
 
     def save_policy(
         self,
