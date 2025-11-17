@@ -8,10 +8,11 @@ import src/environment
 
 when isMainModule:
   var env = newEnvironment()
-  var actions: array[MapAgents, array[2, uint8]]
+  var actions: array[MapAgents, uint8]
   var rng = initRand(42)
   for step in 0 ..< 500:
     for i in 0 ..< MapAgents:
-      actions[i][0] = uint8(rng.rand(0 .. 6))
-      actions[i][1] = uint8(rng.rand(0 .. 7))
+      let verb = uint8(rng.rand(0 .. 6))
+      let argument = uint8(rng.rand(0 .. 7))
+      actions[i] = encodeAction(verb, argument)
     env.step(addr actions)

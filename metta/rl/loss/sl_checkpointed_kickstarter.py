@@ -11,7 +11,6 @@ from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext
 from metta.rl.utils import prepare_policy_forward_td
-from mettagrid.policy.loader import initialize_or_load_policy
 
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
@@ -81,15 +80,14 @@ class SLCheckpointedKickstarter(Loss):
         self._terminating_epoch = self.cfg.terminating_epoch
         self._final_checkpoint = self.cfg.final_checkpoint
 
-        game_rules = getattr(self.env, "policy_env_info", None)
-        if game_rules is None:
+        policy_env_info = getattr(self.env, "policy_env_info", None)
+        if policy_env_info is None:
             raise RuntimeError("Environment metadata is required to instantiate teacher policy")
 
         # Lazy import to avoid circular dependency
         from metta.rl.checkpoint_manager import CheckpointManager
 
-        teacher_spec = CheckpointManager.policy_spec_from_uri(self.cfg.teacher_uri, device=str(self.device))
-        self.teacher_policy = initialize_or_load_policy(game_rules, teacher_spec)
+        self.teacher_policy = CheckpointManager.load_from_uri(self.cfg.teacher_uri, policy_env_info, self.device)
 
         self.teacher_policy_spec = self.teacher_policy.get_agent_experience_spec()
 
@@ -188,12 +186,12 @@ class SLCheckpointedKickstarter(Loss):
         from metta.rl.checkpoint_manager import CheckpointManager
 
         new_uri = self._construct_checkpoint_uri(checkpointed_epoch)
-        game_rules = getattr(self.env, "policy_env_info", None)
-        if game_rules is None:
+        policy_env_info = getattr(self.env, "policy_env_info", None)
+        if policy_env_info is None:
             raise RuntimeError("Environment metadata is required to reload teacher policy")
 
-        teacher_spec = CheckpointManager.policy_spec_from_uri(new_uri, device=str(self.device))
-        self.teacher_policy = initialize_or_load_policy(game_rules, teacher_spec)
+        # Load new teacher policy
+        self.teacher_policy = CheckpointManager.load_from_uri(new_uri, policy_env_info, self.device)
 
         # Detach gradient
         for param in self.teacher_policy.parameters():

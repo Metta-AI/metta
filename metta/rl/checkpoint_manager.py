@@ -190,9 +190,9 @@ class CheckpointManager:
         return self._remote_prefix is not None
 
     @staticmethod
-    def load_from_uri(uri: str, game_rules: PolicyEnvInterface, device: torch.device) -> Policy:
+    def load_from_uri(uri: str, policy_env_info: PolicyEnvInterface, device: torch.device) -> Policy:
         artifact = CheckpointManager.load_artifact_from_uri(uri)
-        return artifact.instantiate(game_rules, device)
+        return artifact.instantiate(policy_env_info, device)
 
     @staticmethod
     def load_artifact_from_uri(uri: str) -> PolicyArtifact:
