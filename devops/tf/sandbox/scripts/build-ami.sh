@@ -9,12 +9,11 @@
 #
 # Prerequisites:
 # - AWS CLI configured with appropriate credentials
-# - Default VPC available (standard in all AWS accounts)
-# - Session Manager plugin installed (aws ssm start-session)
+# - SSH key pair in AWS (or create one with: aws ec2 create-key-pair --key-name ami-builder)
 #
 # Usage:
 #   cd devops/tf/sandbox
-#   ./scripts/build-ami.sh [--instance-type TYPE]
+#   ./scripts/build-ami.sh --ssh-key KEY_NAME [--instance-type TYPE]
 
 set -euo pipefail
 
@@ -29,11 +28,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TF_DIR="$(dirname "$SCRIPT_DIR")"
 REGION="us-east-1"
 INSTANCE_TYPE="${INSTANCE_TYPE:-g5.12xlarge}"
+SSH_KEY_NAME="${SSH_KEY_NAME:-}"
 AMI_NAME="researcher-sandbox-$(date +%Y%m%d-%H%M%S)"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
   case $1 in
+    --ssh-key)
+      SSH_KEY_NAME="$2"
+      shift 2
+      ;;
     --instance-type)
       INSTANCE_TYPE="$2"
       shift 2
@@ -42,6 +46,7 @@ while [[ $# -gt 0 ]]; do
       echo "Usage: $0 [OPTIONS]"
       echo ""
       echo "Options:"
+      echo "  --ssh-key KEY_NAME         SSH key name for accessing instance (required)"
       echo "  --instance-type TYPE       Instance type (default: g5.12xlarge)"
       echo "  --help                     Show this help message"
       exit 0
@@ -54,6 +59,17 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# Validate SSH key
+if [ -z "$SSH_KEY_NAME" ]; then
+  echo -e "${RED}Error: SSH key name is required${NC}"
+  echo "Usage: $0 --ssh-key YOUR_KEY_NAME"
+  echo ""
+  echo "To create a new SSH key:"
+  echo "  aws ec2 create-key-pair --key-name ami-builder --query 'KeyMaterial' --output text > ~/.ssh/ami-builder.pem"
+  echo "  chmod 400 ~/.ssh/ami-builder.pem"
+  exit 1
+fi
+
 echo -e "${GREEN}=========================================="
 echo "Automated AMI Builder"
 echo "==========================================${NC}"
@@ -61,8 +77,8 @@ echo ""
 echo "Configuration:"
 echo "  Region:         $REGION"
 echo "  Instance Type:  $INSTANCE_TYPE"
+echo "  SSH Key:        $SSH_KEY_NAME"
 echo "  AMI Name:       $AMI_NAME"
-echo "  Access Method:  AWS SSM (no SSH key needed)"
 echo ""
 
 # Step 1: Setup infrastructure for AMI build
@@ -92,56 +108,28 @@ if [ "$SUBNET_ID" == "None" ] || [ -z "$SUBNET_ID" ]; then
   exit 1
 fi
 
-# Create temporary security group for AMI build (no inbound rules needed for SSM)
+# Create temporary security group for AMI build
 SG_NAME="ami-builder-temp-$(date +%s)"
 SECURITY_GROUP_ID=$(aws ec2 create-security-group \
   --region "$REGION" \
   --group-name "$SG_NAME" \
-  --description "Temporary security group for AMI builder (SSM access)" \
+  --description "Temporary security group for AMI builder" \
   --vpc-id "$VPC_ID" \
   --query 'GroupId' \
   --output text)
 
-# Create IAM role for SSM access
-ROLE_NAME="ami-builder-temp-$(date +%s)"
-aws iam create-role \
-  --role-name "$ROLE_NAME" \
-  --assume-role-policy-document '{
-    "Version": "2012-10-17",
-    "Statement": [{
-      "Effect": "Allow",
-      "Principal": {"Service": "ec2.amazonaws.com"},
-      "Action": "sts:AssumeRole"
-    }]
-  }' \
+# Allow SSH from anywhere (temporary, only for AMI build)
+aws ec2 authorize-security-group-ingress \
+  --region "$REGION" \
+  --group-id "$SECURITY_GROUP_ID" \
+  --protocol tcp \
+  --port 22 \
+  --cidr 0.0.0.0/0 \
   > /dev/null
-
-# Attach SSM policy to role
-aws iam attach-role-policy \
-  --role-name "$ROLE_NAME" \
-  --policy-arn "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore" \
-  > /dev/null
-
-# Create instance profile
-PROFILE_NAME="ami-builder-temp-$(date +%s)"
-aws iam create-instance-profile \
-  --instance-profile-name "$PROFILE_NAME" \
-  > /dev/null
-
-# Add role to instance profile
-aws iam add-role-to-instance-profile \
-  --instance-profile-name "$PROFILE_NAME" \
-  --role-name "$ROLE_NAME" \
-  > /dev/null
-
-# Wait for instance profile to be ready
-echo "  Waiting for IAM resources to propagate..."
-sleep 10
 
 echo "  VPC ID:           $VPC_ID (default)"
 echo "  Subnet ID:        $SUBNET_ID"
-echo "  Security Group:   $SECURITY_GROUP_ID (no inbound rules - SSM)"
-echo "  IAM Profile:      $PROFILE_NAME"
+echo "  Security Group:   $SECURITY_GROUP_ID (temporary)"
 
 # Step 2: Find latest Ubuntu 22.04 AMI with GPU support
 echo -e "${YELLOW}[2/6] Finding latest Ubuntu 22.04 AMI...${NC}"
@@ -162,7 +150,7 @@ INSTANCE_ID=$(aws ec2 run-instances \
   --region "$REGION" \
   --image-id "$BASE_AMI" \
   --instance-type "$INSTANCE_TYPE" \
-  --iam-instance-profile "Name=$PROFILE_NAME" \
+  --key-name "$SSH_KEY_NAME" \
   --subnet-id "$SUBNET_ID" \
   --security-group-ids "$SECURITY_GROUP_ID" \
   --metadata-options "HttpTokens=required,HttpPutResponseHopLimit=1" \
@@ -190,133 +178,52 @@ cleanup() {
     aws ec2 delete-security-group --region "$REGION" --group-id "$SECURITY_GROUP_ID" > /dev/null 2>&1 || true
   fi
 
-  # Delete IAM resources
-  if [ -n "${PROFILE_NAME:-}" ] && [ -n "${ROLE_NAME:-}" ]; then
-    echo "  Deleting IAM resources..."
-    aws iam remove-role-from-instance-profile --instance-profile-name "$PROFILE_NAME" --role-name "$ROLE_NAME" > /dev/null 2>&1 || true
-    aws iam delete-instance-profile --instance-profile-name "$PROFILE_NAME" > /dev/null 2>&1 || true
-    aws iam detach-role-policy --role-name "$ROLE_NAME" --policy-arn "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore" > /dev/null 2>&1 || true
-    aws iam delete-role --role-name "$ROLE_NAME" > /dev/null 2>&1 || true
-  fi
-
   echo -e "${GREEN}Cleanup complete${NC}"
 }
 trap cleanup EXIT
 
-# Step 4: Wait for instance to be running and SSM ready
+# Step 4: Wait for instance to be running and get public IP
 echo -e "${YELLOW}[4/6] Waiting for instance to be running...${NC}"
 aws ec2 wait instance-running --region "$REGION" --instance-ids "$INSTANCE_ID"
 
-echo "  Waiting for SSM agent to be ready (this may take 1-2 minutes)..."
-MAX_ATTEMPTS=30
-ATTEMPT=0
-while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
-  if aws ssm describe-instance-information \
-    --region "$REGION" \
-    --filters "Key=InstanceIds,Values=$INSTANCE_ID" \
-    --query 'InstanceInformationList[0].PingStatus' \
-    --output text 2>/dev/null | grep -q "Online"; then
-    echo "  SSM agent is ready!"
-    break
-  fi
-  ATTEMPT=$((ATTEMPT + 1))
-  sleep 10
-done
-
-if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
-  echo -e "${RED}Error: SSM agent did not become ready${NC}"
-  exit 1
-fi
-
-# Step 5: Run setup script via SSM
-echo -e "${YELLOW}[5/6] Running setup script on instance...${NC}"
-
-# Upload setup script content as a command
-echo "  Uploading and executing setup script (this will take 10-15 minutes)..."
-SETUP_SCRIPT=$(cat "$SCRIPT_DIR/setup-ami.sh")
-COMMAND_ID=$(aws ssm send-command \
+PUBLIC_IP=$(aws ec2 describe-instances \
   --region "$REGION" \
   --instance-ids "$INSTANCE_ID" \
-  --document-name "AWS-RunShellScript" \
-  --parameters "commands=[\"$SETUP_SCRIPT\"]" \
-  --timeout-seconds 1800 \
-  --query 'Command.CommandId' \
+  --query 'Reservations[0].Instances[0].PublicIpAddress' \
   --output text)
 
-# Wait for command to complete
-echo "  Waiting for setup to complete..."
-aws ssm wait command-executed \
-  --region "$REGION" \
-  --command-id "$COMMAND_ID" \
-  --instance-id "$INSTANCE_ID" 2>&1 || true
+echo "  Public IP: $PUBLIC_IP"
+echo "  Waiting 30 seconds for SSH to be ready..."
+sleep 30
 
-# Check command status
-STATUS=$(aws ssm get-command-invocation \
-  --region "$REGION" \
-  --command-id "$COMMAND_ID" \
-  --instance-id "$INSTANCE_ID" \
-  --query 'Status' \
-  --output text)
+# Step 5: Copy setup script and run it
+echo -e "${YELLOW}[5/6] Running setup script on instance...${NC}"
+echo "  Copying setup script..."
+scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  "$SCRIPT_DIR/setup-ami.sh" ubuntu@"$PUBLIC_IP":/tmp/setup-ami.sh
 
-if [ "$STATUS" != "Success" ]; then
-  echo -e "${RED}  Setup script failed with status: $STATUS${NC}"
-  echo "  Getting output..."
-  aws ssm get-command-invocation \
-    --region "$REGION" \
-    --command-id "$COMMAND_ID" \
-    --instance-id "$INSTANCE_ID" \
-    --query 'StandardErrorContent' \
-    --output text
-  exit 1
-fi
+echo "  Running setup script (this will take 10-15 minutes)..."
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  ubuntu@"$PUBLIC_IP" \
+  "bash /tmp/setup-ami.sh"
 
 echo "  Rebooting instance to activate NVIDIA drivers..."
-aws ssm send-command \
-  --region "$REGION" \
-  --instance-ids "$INSTANCE_ID" \
-  --document-name "AWS-RunShellScript" \
-  --parameters 'commands=["sudo reboot"]' \
-  > /dev/null
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  ubuntu@"$PUBLIC_IP" \
+  "sudo reboot" || true
 
 echo "  Waiting 60 seconds for reboot..."
 sleep 60
 
-# Wait for instance to be running again and SSM to be ready
+# Wait for instance to be running again
 aws ec2 wait instance-running --region "$REGION" --instance-ids "$INSTANCE_ID"
-echo "  Waiting for SSM agent to come back online..."
-ATTEMPT=0
-while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
-  if aws ssm describe-instance-information \
-    --region "$REGION" \
-    --filters "Key=InstanceIds,Values=$INSTANCE_ID" \
-    --query 'InstanceInformationList[0].PingStatus' \
-    --output text 2>/dev/null | grep -q "Online"; then
-    echo "  SSM agent is back online!"
-    break
-  fi
-  ATTEMPT=$((ATTEMPT + 1))
-  sleep 10
-done
+sleep 30
 
 # Verify GPU is working
 echo "  Verifying GPU access..."
-GPU_CHECK=$(aws ssm send-command \
-  --region "$REGION" \
-  --instance-ids "$INSTANCE_ID" \
-  --document-name "AWS-RunShellScript" \
-  --parameters 'commands=["nvidia-smi"]' \
-  --query 'Command.CommandId' \
-  --output text)
-
-sleep 5
-GPU_STATUS=$(aws ssm get-command-invocation \
-  --region "$REGION" \
-  --command-id "$GPU_CHECK" \
-  --instance-id "$INSTANCE_ID" \
-  --query 'Status' \
-  --output text 2>&1 || echo "Failed")
-
-if [ "$GPU_STATUS" == "Success" ]; then
+if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  ubuntu@"$PUBLIC_IP" \
+  "nvidia-smi" > /dev/null 2>&1; then
   echo -e "${GREEN}  ✓ GPU verified${NC}"
 else
   echo -e "${RED}  ✗ GPU verification failed${NC}"

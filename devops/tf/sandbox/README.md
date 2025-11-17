@@ -16,23 +16,27 @@ workloads.
 
 **Note:** The AMI can be built independently of the Terraform infrastructure deployment.
 
+**First, create an SSH key:**
+
+```bash
+aws ec2 create-key-pair --key-name ami-builder --query 'KeyMaterial' --output text > ~/.ssh/ami-builder.pem
+chmod 400 ~/.ssh/ami-builder.pem
+```
+
+**Then build the AMI:**
+
 ```bash
 cd devops/tf/sandbox
-./scripts/build-ami.sh
+./scripts/build-ami.sh --ssh-key ami-builder
 ```
 
 This takes ~20 minutes and:
 
-- Uses default VPC and creates temporary resources (security group, IAM role)
-- Launches temp g5.12xlarge instance with SSM access (no SSH key needed!)
+- Uses default VPC and creates temporary security group
+- Launches temp g5.12xlarge instance
 - Installs Docker, NVIDIA drivers, uv, cogames CLI, mettagrid package
 - Creates AMI
-- Cleans up automatically (instance, security group, IAM resources)
-
-**Prerequisites:**
-
-- AWS CLI configured with appropriate credentials
-- Session Manager plugin: `brew install --cask session-manager-plugin` (macOS) or [install guide](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html)
+- Cleans up automatically (instance + security group)
 
 ### 2. Deploy Infrastructure via Spacelift
 
