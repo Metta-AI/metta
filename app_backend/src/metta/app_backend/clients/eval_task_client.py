@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 from metta.app_backend.clients.base_client import BaseAppBackendClient
 from metta.app_backend.routes.eval_task_routes import (
+    EvalTaskResponse,
     GitHashesRequest,
     GitHashesResponse,
     TaskAvgRuntimeResponse,
@@ -30,6 +31,9 @@ class EvalTaskClient(BaseAppBackendClient):
 
     async def claim_tasks(self, request: TaskClaimRequest) -> TaskClaimResponse:
         return await self._make_request(TaskClaimResponse, "POST", "/tasks/claim", json=request.model_dump(mode="json"))
+
+    async def get_task_by_id(self, task_id: str) -> EvalTaskResponse:
+        return await self._make_request(EvalTaskResponse, "GET", f"/tasks/{task_id}")
 
     async def get_claimed_tasks(self, assignee: str | None = None) -> TasksResponse:
         params = {"assignee": assignee} if assignee is not None else {}

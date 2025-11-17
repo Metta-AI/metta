@@ -1,13 +1,16 @@
+from typing import Any
+
 from typing_extensions import TypedDict
 
 from mettagrid.base_config import Config
 
 
-class ErrorResult(TypedDict):
-    error: str
+class ConfigWithExtraInfo(TypedDict):
+    value: Any
+    unset_fields: list[str]
 
 
-def dump_config_with_implicit_info(config: Config | list[Config] | dict[str, Config]) -> dict:
+def extend_config(config: Config | list[Config] | dict[str, Config]) -> ConfigWithExtraInfo:
     fields_unset: list[str] = []
 
     def traverse(obj: Config, prefix: str = ""):

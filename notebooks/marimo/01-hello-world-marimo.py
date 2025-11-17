@@ -1666,7 +1666,7 @@ def _(
         run_name_from_ckpt = metadata["run_name"]
 
         trained_artifact = CheckpointManager.load_from_uri(
-            str(latest_ckpt), game_rules, device
+            str(latest_ckpt), policy_env_info, device
         )
         trained_policy = trained_artifact.policy
         if trained_policy is None:
