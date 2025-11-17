@@ -195,13 +195,13 @@ run: |
         > /etc/ssh/sshd_config.d/metta.conf
     else
       # Best-effort inline edits
-      sed -i 's/^#\?PasswordAuthentication .*/PasswordAuthentication no/g' /etc/ssh/sshd_config || true
-      if grep -q '^PermitRootLogin' /etc/ssh/sshd_config 2>/dev/null; then
-        sed -i 's/^PermitRootLogin .*/PermitRootLogin prohibit-password/g' /etc/ssh/sshd_config || true
+      sed -i "s/^#\?PasswordAuthentication .*/PasswordAuthentication no/g" /etc/ssh/sshd_config || true
+      if grep -q "^PermitRootLogin" /etc/ssh/sshd_config 2>/dev/null; then
+        sed -i "s/^PermitRootLogin .*/PermitRootLogin prohibit-password/g" /etc/ssh/sshd_config || true
       else
         echo "PermitRootLogin prohibit-password" >> /etc/ssh/sshd_config || true
       fi
-      if ! grep -q '^PubkeyAuthentication' /etc/ssh/sshd_config 2>/dev/null; then
+      if ! grep -q "^PubkeyAuthentication" /etc/ssh/sshd_config 2>/dev/null; then
         echo "PubkeyAuthentication yes" >> /etc/ssh/sshd_config || true
       fi
     fi
