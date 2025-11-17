@@ -48,6 +48,7 @@ class EvaluatorConfig(Config):
     replay_dir: Optional[str] = None
     skip_git_check: bool = Field(default=False)
     git_hash: str | None = Field(default=None)
+    verbose: bool = Field(default=False)
     allow_eval_without_stats: bool = Field(
         default=False,
         description="Allow evaluations to run without stats infrastructure (useful for local development/testing)",
@@ -159,7 +160,9 @@ class Evaluator(TrainerComponent):
         # Local evaluation
         if self._config.evaluate_local:
             rollout_results, policy_spec = self._evaluate_local(policy_uri=policy_uri, simulations=sims)
-            render_eval_summary(rollout_results, policy_names=[self._spec_display_name(policy_spec)])
+            render_eval_summary(
+                rollout_results, policy_names=[self._spec_display_name(policy_spec)], verbose=self._config.verbose
+            )
 
             # TODO: maybe a better way to get wandb run
             # TODO: Pasha: should also send epochs/episodes/metrics to stats-server
