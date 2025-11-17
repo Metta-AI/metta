@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, Iterable, List
 
 import torch
 from tensordict import TensorDict
@@ -76,6 +76,9 @@ class Experience:
 
         self._range_tensor = torch.arange(total_agents, device=self.device, dtype=torch.int32)
 
+        # Keys to use when writing into the buffer; defaults to all spec keys. Scheduler updates per loss gate activity.
+        self._store_keys: List[Any] = list(self.buffer.keys(include_nested=True, leaves_only=True))
+
     def _check_for_duplicate_keys(self, experience_spec: Composite) -> None:
         """Check for duplicate keys in the experience spec."""
         all_keys = list(experience_spec.keys(include_nested=True, leaves_only=True))
@@ -95,7 +98,11 @@ class Experience:
         t_in_row_val = self.t_in_row[env_id.start].item()
         row_ids = self.row_slot_ids[env_id]
 
-        self.buffer.update_at_(data_td.select(*self.buffer.keys(include_nested=True)), (row_ids, t_in_row_val))
+        # Scheduler updates these keys based on the active losses for the epoch.
+        if self._store_keys:
+            self.buffer.update_at_(data_td.select(*self._store_keys), (row_ids, t_in_row_val))
+        else:
+            raise ValueError("No store keys set. set_store_keys() was likely used incorrectly.")
 
         self.t_in_row[env_id] += 1
 
@@ -161,6 +168,26 @@ class Experience:
                 stats["actions_std"] = actions.std().item()
 
         return stats
+
+    # ----------------- Dynamic store key management -----------------
+    @property
+    def store_keys(self) -> List[Any]:
+        """Return the list of keys that will be written on the next store call."""
+        return list(self._store_keys)
+
+    def set_store_keys(self, keys: Iterable[Any]) -> None:
+        """Restrict which keys are written when storing experience. Otherwise, the buffer will throw an error if it
+        looks for keys that are not in the tensor dict when calling store().
+        """
+        all_keys = set(self.buffer.keys(include_nested=True, leaves_only=True))
+        missing = [k for k in keys if k not in all_keys]
+        if missing:
+            raise KeyError(f"Attempted to set unknown experience keys: {missing}")
+        self._store_keys = list(keys)
+
+    def reset_store_keys(self) -> None:
+        """Reset store keys so that all spec keys are written on store."""
+        self._store_keys = list(self.buffer.keys(include_nested=True, leaves_only=True))
 
     def give_me_empty_md_td(self) -> TensorDict:
         return TensorDict(
