@@ -475,7 +475,7 @@ class SingleUseSwarmVariant(MissionVariant):
     @override
     def modify_mission(self, mission):
         # Make each extractor single-use
-        for res in ("carbon", "oxygen", "germanium", "silicon"):
+        for res in ("carbon", "oxygen", "silicon"):
             extractor = getattr(mission, f"{res}_extractor", None)
             if extractor is not None:
                 extractor.max_uses = 1
