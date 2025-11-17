@@ -6,7 +6,6 @@ in variants.py. For each map, it creates separate curriculum tasks for each vari
 
 from __future__ import annotations
 
-import json
 import subprocess
 import time
 from typing import Optional, Sequence
@@ -73,11 +72,11 @@ def get_all_variant_names() -> list[str]:
 
 
 def make_curriculum(
-    base_missions: list[str],
+    base_missions: list[str] | str,
     num_cogs: int = 4,
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
-    exclude_variants: Optional[Sequence[str]] = None,
+    exclude_variants: Optional[Sequence[str] | str] = None,
 ) -> CurriculumConfig:
     """Create a variants curriculum for CoGs vs Clips training with learning progress.
 
@@ -85,17 +84,25 @@ def make_curriculum(
     For each map, it creates separate curriculum tasks for each variant individually.
 
     Args:
-        base_missions: List of mission names to include (required)
+        base_missions: List of mission names to include (required), or comma-separated string
         num_cogs: Number of agents per mission
         enable_detailed_slice_logging: Enable detailed logging for curriculum slices
         algorithm_config: Optional curriculum algorithm configuration
-        exclude_variants: Optional list of variant names to exclude from the curriculum
+        exclude_variants: Optional list of variant names to exclude, or comma-separated string
 
     Returns:
         A CurriculumConfig with learning progress algorithm
     """
+    # Handle comma-separated string input (for shell compatibility)
+    if isinstance(base_missions, str):
+        base_missions = [m.strip() for m in base_missions.split(",") if m.strip()]
+
     if not base_missions:
         raise ValueError("base_missions must be provided and non-empty")
+
+    # Handle comma-separated string for exclude_variants
+    if isinstance(exclude_variants, str):
+        exclude_variants = [v.strip() for v in exclude_variants.split(",") if v.strip()]
 
     # Get all variant names, excluding any that should be skipped
     all_variant_names = get_all_variant_names()
@@ -202,22 +209,22 @@ def make_curriculum(
 
 
 def train(
-    base_missions: list[str],
+    base_missions: list[str] | str,
     num_cogs: int = 4,
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
-    exclude_variants: Optional[Sequence[str]] = None,
+    exclude_variants: Optional[Sequence[str] | str] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips with variants curriculum.
 
     Args:
-        base_missions: List of mission names to include (required)
+        base_missions: List of mission names to include (required), or comma-separated string
         num_cogs: Number of agents per mission
         curriculum: Optional curriculum configuration (defaults to variants curriculum)
         enable_detailed_slice_logging: Enable detailed logging for curriculum slices
-        exclude_variants: Optional list of variant names to exclude from the curriculum
+        exclude_variants: Optional list of variant names to exclude, or comma-separated string
         eval_variants: Optional mission variants to apply during evaluation
         eval_difficulty: Difficulty variant for evaluation
 
@@ -320,16 +327,16 @@ def experiment(
         f"--heartbeat-timeout={heartbeat_timeout}",
     ]
 
-    # Pass base_missions as a JSON list argument for hydra/omegaconf
-    # Format: base_missions=["mission1","mission2","mission3"]
-    missions_str = json.dumps(base_missions)
+    # Pass base_missions as comma-separated string (shell-safe format)
+    # The make_curriculum function will parse it back into a list
+    missions_str = ",".join(base_missions)
     cmd.append(f"base_missions={missions_str}")
 
     if skip_git_check:
         cmd.append("--skip-git-check")
 
     if exclude_variants:
-        exclude_str = json.dumps(exclude_variants)
+        exclude_str = ",".join(exclude_variants)
         cmd.append(f"exclude_variants={exclude_str}")
 
     if additional_args:
