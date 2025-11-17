@@ -15,7 +15,7 @@ type
     # Built-in AI controller (when using BuiltinAI)
     aiController*: Controller
     # External action callback (when using ExternalNN)
-    externalActionCallback*: proc(): array[MapAgents, array[2, uint8]]
+    externalActionCallback*: proc(): array[MapAgents, uint8]
 
 # Global agent controller instance
 var globalController*: AgentController
@@ -28,7 +28,7 @@ proc newBuiltinAIController*(seed: int = int(nowSeconds() * 1000)): AgentControl
     externalActionCallback: nil
   )
 
-proc newExternalNNController*(actionCallback: proc(): array[MapAgents, array[2, uint8]]): AgentController =
+proc newExternalNNController*(actionCallback: proc(): array[MapAgents, uint8]): AgentController =
   ## Create a new controller using external neural network
   AgentController(
     controllerType: ExternalNN,
@@ -51,24 +51,24 @@ proc initGlobalController*(controllerType: ControllerType, seed: int = int(nowSe
     # Start automatic play mode for external controller
     play = true
 
-proc setExternalActionCallback*(callback: proc(): array[MapAgents, array[2, uint8]]) =
+proc setExternalActionCallback*(callback: proc(): array[MapAgents, uint8]) =
   ## Set the external action callback for neural network control
   if globalController != nil and globalController.controllerType == ExternalNN:
     globalController.externalActionCallback = callback
 
-proc getActions*(env: Environment): array[MapAgents, array[2, uint8]] =
+proc getActions*(env: Environment): array[MapAgents, uint8] =
   ## Get actions for all agents using the configured controller
   if globalController == nil:
     # NO CONTROLLER - return NOOP actions (agents won't move, proving Python control is required)
-    var noopActions: array[MapAgents, array[2, uint8]]
+    var noopActions: array[MapAgents, uint8]
     for i in 0..<MapAgents:
-      noopActions[i] = [0'u8, 0'u8]  # NOOP action
+      noopActions[i] = encodeAction(0'u8, 0'u8)  # NOOP action
     return noopActions
   
   case globalController.controllerType:
   of BuiltinAI:
     # Use built-in AI controller
-    var actions: array[MapAgents, array[2, uint8]]
+    var actions: array[MapAgents, uint8]
     for i, agent in env.agents:
       actions[i] = globalController.aiController.decideAction(env, i)
     globalController.aiController.updateController()
@@ -87,13 +87,14 @@ proc getActions*(env: Environment): array[MapAgents, array[2, uint8]] =
           let content = readFile(actionsFile)
           let lines = content.replace("\r", "").replace("\n\n", "\n").split('\n')
           if lines.len >= MapAgents:
-            var fileActions: array[MapAgents, array[2, uint8]]
+            var fileActions: array[MapAgents, uint8]
             for i in 0..<MapAgents:
               if i < lines.len:
                 let parts = lines[i].split(',')
                 if parts.len >= 2:
-                  fileActions[i][0] = parseInt(parts[0]).uint8
-                  fileActions[i][1] = parseInt(parts[1]).uint8
+                  fileActions[i] = encodeAction(parseInt(parts[0]).uint8, parseInt(parts[1]).uint8)
+                elif parts.len == 1 and parts[0].len > 0:
+                  fileActions[i] = parseInt(parts[0]).uint8
                   
             # Delete the file after reading to avoid stale actions
             try:
