@@ -34,7 +34,7 @@ def train_shaped(
     policy_architecture: PolicyArchitecture | None = None,
 ):
     """Train with HRM policy architecture using shaped rewards (defaults to HRMTinyConfig)."""
-    tool = base.train_shaped(rewards=rewards, converters=converters)
+    tool = base.train_shaped(rewards=rewards)
     # Update policy architecture
     tool = tool.model_copy(update={"policy_architecture": policy_architecture or HRMTinyConfig()})
     return tool
