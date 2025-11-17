@@ -77,18 +77,6 @@ def _normalize_variant_names(
     return names
 
 
-def _clamp_agent_inventory(env: MettaGridConfig) -> None:
-    agent = env.game.agent
-
-    for mapping in (agent.resource_limits, agent.initial_inventory):
-        for key, value in list(mapping.items()):
-            if isinstance(value, int) and value > 255:
-                mapping[key] = 255
-
-    if agent.default_resource_limit > 255:
-        agent.default_resource_limit = 255
-
-
 def _resolve_mission_template(name: str) -> Mission:
     for mission in MISSIONS:
         if mission.name == name or mission.full_name() == name:
@@ -171,7 +159,6 @@ def make_eval_suite(
         )
 
         env_cfg = mission.make_env()
-        _clamp_agent_inventory(env_cfg)
         sim = SimulationConfig(
             suite="cogs_vs_clips",
             name=f"{mission_template.name}_{num_cogs}cogs",
@@ -197,9 +184,6 @@ def make_training_env(
         variant_names=variant_names,
     )
     env = mission.make_env()
-
-    # Guard against upstream modifiers pushing limits beyond supported bounds.
-    _clamp_agent_inventory(env)
 
     # If vibe swapping is disabled, prune stale vibe transfers to avoid invalid IDs.
     change_vibe_action = getattr(env.game.actions, "change_vibe", None)
