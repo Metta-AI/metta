@@ -249,11 +249,11 @@ class InventoryHeartTuneVariant(MissionVariant):
 
         heart_cost = mission.assembler.first_heart_cost
         per_heart = {
-            "carbon": heart_cost * 2,
-            "oxygen": heart_cost * 2,
-            "germanium": max(heart_cost // 2, 1),
-            "silicon": heart_cost * 5,
-            "energy": heart_cost * 2,
+            "carbon": heart_cost,
+            "oxygen": heart_cost,
+            "germanium": max(heart_cost // 10, 1),
+            "silicon": max(1, (5 * heart_cost) // 2),
+            "energy": heart_cost,
         }
 
         if hearts > 0:
@@ -294,10 +294,10 @@ class ChestHeartTuneVariant(MissionVariant):
             return
         heart_cost = mission.assembler.first_heart_cost
         per_heart = {
-            "carbon": heart_cost * 2,
-            "oxygen": heart_cost * 2,
-            "germanium": max(heart_cost // 2, 1),
-            "silicon": heart_cost * 5,
+            "carbon": heart_cost,
+            "oxygen": heart_cost,
+            "germanium": max(heart_cost // 10, 1),
+            "silicon": max(1, (5 * heart_cost) // 2),
         }
         chest_cfg = env.game.objects["chest"]
         if not isinstance(chest_cfg, ChestConfig):
@@ -320,10 +320,10 @@ class ExtractorHeartTuneVariant(MissionVariant):
             return
         heart_cost = mission.assembler.first_heart_cost
         one_heart = {
-            "carbon": heart_cost * 2,
-            "oxygen": heart_cost * 2,
-            "germanium": max(heart_cost // 2, 1),
-            "silicon": heart_cost * 5,
+            "carbon": heart_cost,
+            "oxygen": heart_cost,
+            "germanium": max(heart_cost // 10, 1),
+            "silicon": max(1, (5 * heart_cost) // 2),
         }
 
         # Carbon per-use depends on efficiency
