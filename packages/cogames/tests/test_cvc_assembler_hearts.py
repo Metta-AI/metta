@@ -123,21 +123,24 @@ def test_single_heart_recipe_consumes_first_cost_and_pools_resources() -> None:
     sim = _make_simulation()
     try:
         positions, assembler_pos = _agent_positions(sim)
-        p = positions
+        north = positions[(1, 2)]
+        west = positions[(2, 1)]
+        east = positions[(2, 3)]
+        south = positions[(3, 2)]
 
         _assign_inventories(
             sim,
             {
-                p[(1, 2)]: {"carbon": 10, "oxygen": 10},
-                p[(2, 1)]: {"carbon": 10, "energy": 5},
-                p[(2, 3)]: {"oxygen": 10, "silicon": 20},
-                p[(3, 2)]: {"germanium": 5, "silicon": 30, "energy": 15},
+                north: {"carbon": 10, "oxygen": 10},
+                west: {"carbon": 10, "energy": 5},
+                east: {"oxygen": 10, "silicon": 20},
+                south: {"germanium": 5, "silicon": 30, "energy": 15},
             },
         )
 
-        _step(sim, {p[(2, 1)]: "change_vibe_heart_a"})
+        _step(sim, {west: "change_vibe_heart_a"})
         before = _capture_inventories(sim)
-        _step(sim, {p[(2, 1)]: _move_action((2, 1), assembler_pos)})
+        _step(sim, {west: _move_action((2, 1), assembler_pos)})
         after = _capture_inventories(sim)
 
         expected_inputs = _expected_inputs(1)
@@ -145,13 +148,13 @@ def test_single_heart_recipe_consumes_first_cost_and_pools_resources() -> None:
             assert _total(before, resource) - _total(after, resource) == expected, resource
         assert _total(after, "heart") - _total(before, "heart") == 1
 
-        assert after[p[(1, 2)]]["carbon"] < before[p[(1, 2)]]["carbon"]
-        assert after[p[(2, 1)]]["carbon"] < before[p[(2, 1)]]["carbon"]
-        assert after[p[(2, 3)]]["oxygen"] < before[p[(2, 3)]]["oxygen"]
-        assert after[p[(1, 2)]]["oxygen"] < before[p[(1, 2)]]["oxygen"]
-        assert after[p[(2, 3)]]["silicon"] < before[p[(2, 3)]]["silicon"]
-        assert after[p[(3, 2)]]["silicon"] < before[p[(3, 2)]]["silicon"]
-        assert after[p[(3, 2)]]["energy"] < before[p[(3, 2)]]["energy"]
+        assert after[north]["carbon"] < before[north]["carbon"]
+        assert after[west]["carbon"] < before[west]["carbon"]
+        assert after[east]["oxygen"] < before[east]["oxygen"]
+        assert after[north]["oxygen"] < before[north]["oxygen"]
+        assert after[east]["silicon"] < before[east]["silicon"]
+        assert after[south]["silicon"] < before[south]["silicon"]
+        assert after[south]["energy"] < before[south]["energy"]
     finally:
         sim.close()
 
@@ -160,24 +163,27 @@ def test_multi_heart_recipe_uses_additional_cost_and_shared_inventories() -> Non
     sim = _make_simulation()
     try:
         positions, assembler_pos = _agent_positions(sim)
-        p = positions
+        north = positions[(1, 2)]
+        west = positions[(2, 1)]
+        east = positions[(2, 3)]
+        south = positions[(3, 2)]
 
         _assign_inventories(
             sim,
             {
-                p[(1, 2)]: {"carbon": 15, "oxygen": 15},
-                p[(2, 1)]: {"carbon": 15, "energy": 10},
-                p[(2, 3)]: {"oxygen": 15, "silicon": 35},
-                p[(3, 2)]: {"germanium": 7, "silicon": 40, "energy": 20},
+                north: {"carbon": 15, "oxygen": 15},
+                west: {"carbon": 15, "energy": 10},
+                east: {"oxygen": 15, "silicon": 35},
+                south: {"germanium": 7, "silicon": 40, "energy": 20},
             },
         )
 
         _step(
             sim,
-            {p[(2, 1)]: "change_vibe_heart_a", p[(1, 2)]: "change_vibe_heart_a"},
+            {west: "change_vibe_heart_a", north: "change_vibe_heart_a"},
         )
         before = _capture_inventories(sim)
-        _step(sim, {p[(2, 1)]: _move_action((2, 1), assembler_pos)})
+        _step(sim, {west: _move_action((2, 1), assembler_pos)})
         after = _capture_inventories(sim)
 
         expected_inputs = _expected_inputs(2)
@@ -185,10 +191,10 @@ def test_multi_heart_recipe_uses_additional_cost_and_shared_inventories() -> Non
             assert _total(before, resource) - _total(after, resource) == expected, resource
         assert _total(after, "heart") - _total(before, "heart") == 2
 
-        carbon_consumers = sum(after[a]["carbon"] < before[a]["carbon"] for a in (p[(1, 2)], p[(2, 1)]))
+        carbon_consumers = sum(after[agent_id]["carbon"] < before[agent_id]["carbon"] for agent_id in (north, west))
         assert carbon_consumers == 2
 
-        silicon_consumers = sum(after[a]["silicon"] < before[a]["silicon"] for a in (p[(2, 3)], p[(3, 2)]))
+        silicon_consumers = sum(after[agent_id]["silicon"] < before[agent_id]["silicon"] for agent_id in (east, south))
         assert silicon_consumers == 2
     finally:
         sim.close()
