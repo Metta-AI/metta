@@ -301,28 +301,24 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._remove_task_from_scoring(task_id)
 
         # Drop any queued updates for this task to prevent resurrection
-        if self._pending_updates:
-            self._pending_updates = [(tid, score) for tid, score in self._pending_updates if tid != task_id]
+        self._drop_pending_updates(task_id)
 
         # Invalidate stats cache when task state changes
         self.invalidate_cache()
 
     def _remove_task_from_scoring(self, task_id: int) -> None:
         """Remove task from scoring system."""
+        self._invalidate_task_score(task_id)
+
         if self.hypers.use_bidirectional:
             self._outcomes.pop(task_id, None)
             self._counter.pop(task_id, None)
-            self._score_cache.pop(task_id, None)
-            self._cache_valid_tasks.discard(task_id)
             self._stale_dist = True
             self._progress_dirty = True
         else:
             self._task_emas.pop(task_id, None)
-            self._score_cache.pop(task_id, None)
-            self._cache_valid_tasks.discard(task_id)
 
-        if self._pending_updates:
-            self._pending_updates = [(tid, score) for tid, score in self._pending_updates if tid != task_id]
+        self._drop_pending_updates(task_id)
 
     def update_task_performance(self, task_id: int, score: float) -> None:
         """Update task performance using the appropriate scoring method."""
@@ -374,7 +370,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         self._stale_dist = True
         self._progress_dirty = True
-        self._invalidate_task_cache(task_id)
+        self._invalidate_task_score(task_id)
 
     def _update_basic_ema(self, task_id: int, score: float) -> None:
         """Update basic EMA tracking for a task with new score."""
@@ -391,11 +387,17 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             self._task_emas[task_id] = (new_ema_score, new_ema_squared, num_samples + 1)
 
         # Invalidate cache for this task when EMA is updated
-        self._invalidate_task_cache(task_id)
+        self._invalidate_task_score(task_id)
 
-    def _invalidate_task_cache(self, task_id: int) -> None:
+    def _invalidate_task_score(self, task_id: int) -> None:
         """Clear cached score state for a task."""
+        self._score_cache.pop(task_id, None)
         self._cache_valid_tasks.discard(task_id)
+
+    def _drop_pending_updates(self, task_id: int) -> None:
+        if not self._pending_updates:
+            return
+        self._pending_updates = [(tid, score) for tid, score in self._pending_updates if tid != task_id]
 
     def on_task_created(self, task: CurriculumTask) -> None:
         """Handle task creation by tracking it."""
