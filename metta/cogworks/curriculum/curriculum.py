@@ -210,6 +210,10 @@ class Curriculum(StatsLogger):
         if self._algorithm is None:
             return {}
 
+        # Return cached scores if already computed and still valid
+        if self._cached_task_scores:
+            return self._cached_task_scores
+
         self._cached_task_scores = self._algorithm.score_tasks(list(self._tasks.keys()))
         return self._cached_task_scores
 
