@@ -301,14 +301,14 @@ def run_evaluation(
     experiment_lookup = experiment_map if experiment_map is not None else EXPERIMENT_MAP
     num_cogs_variant_cache: Dict[int, NumCogsVariant] = {}
 
+    runs_per_case = max(1, int(repeats))
+    variant_list = variants or [None]
+
     logger.info(
         "\n{0}\nEvaluating: {1}\nExperiments: {2}\nVariants: {3} (none = base mission)\nAgent counts: {4}\n{0}\n".format(
             "=" * 80, agent_config.label, len(experiments), len(variant_list), cogs_list
         )
     )
-
-    runs_per_case = max(1, int(repeats))
-    variant_list = variants if variants else [None]
     total_cases = len(experiments) * len(variant_list) * len(cogs_list)
     total_tests = total_cases * runs_per_case
     completed_runs = 0
@@ -357,11 +357,7 @@ def run_evaluation(
             mission = base_mission.with_variants(mission_variants)
             env_config = mission.make_env()
             _ensure_vibe_supports_gear(env_config)
-            if not (
-                variant is not None
-                and hasattr(variant, "max_steps_override")
-                and variant.max_steps_override is not None
-            ):
+            if variant is None or getattr(variant, "max_steps_override", None) is None:
                 env_config.game.max_steps = max_steps
 
             actual_max_steps = env_config.game.max_steps
