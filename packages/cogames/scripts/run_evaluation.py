@@ -204,6 +204,7 @@ def _run_case(
             )
         return out
     except Exception:
+        # Use a fresh index to avoid referencing run_idx when the failure occurs before the loop above runs.
         return [
             EvalResult(
                 agent=agent_config.label,
@@ -217,10 +218,10 @@ def _run_case(
                 steps_taken=0,
                 max_steps=max_steps,
                 success=False,
-                seed_used=seed + run_idx,
-                run_index=run_idx + 1,
+                seed_used=seed + i,
+                run_index=i + 1,
             )
-            for run_idx in range(runs_per_case)
+            for i in range(runs_per_case)
         ]
 
 
