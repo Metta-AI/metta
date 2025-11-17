@@ -121,18 +121,14 @@ class PullRequest:
                 filtered_events.append(event)
         return filtered_events
 
-    @property
-    def last_event(self):
-        return self.events[-1] if self.events else None
-
     def print_debug_info(self):
         print(f"assignees: {self.assignees}")
         print(f"author: {self.author}")
         print(f"reviewers: {self.reviewers}")
         print(f"commenters: {self.commenters}")
+        print(f"requested_reviewers: {self.requested_reviewers}")
         print(f"github_logins: {self.github_logins}")
         print(f"event stream: {self.events}")
-        print(f"last event: {self.last_event}")
 
     @staticmethod
     def _extract_asana_urls_from_description(description: str) -> list[str]:

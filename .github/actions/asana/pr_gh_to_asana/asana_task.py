@@ -118,6 +118,7 @@ class AsanaTask:
                 description,
                 task_completed,
                 assignee,
+                collaborators,
                 github_url,
                 pr_author,
             )
@@ -284,6 +285,27 @@ class AsanaTask:
             print(f"[update] Task update failed: {e}")
             raise Exception(f"Asana API Error (update): {e}") from e
 
+    def add_followers_if_needed(self, gid: str, current_followers: list[str], new_followers: list[str]) -> None:
+        """Add new followers to the task if they're not already following"""
+        print(f"[add_followers_if_needed] Current followers: {current_followers}")
+        print(f"[add_followers_if_needed] Desired followers: {new_followers}")
+
+        # Find followers to add (those in new_followers but not in current_followers)
+        followers_to_add = [f for f in new_followers if f not in current_followers]
+
+        if not followers_to_add:
+            print("[add_followers_if_needed] No new followers to add")
+            return
+
+        print(f"[add_followers_if_needed] Adding followers: {followers_to_add}")
+        body = {"data": {"followers": followers_to_add}}
+
+        try:
+            self.tasks_api.add_followers_for_task(body, gid, {})
+            print(f"[add_followers_if_needed] Successfully added {len(followers_to_add)} followers")
+        except Exception as e:
+            print(f"[add_followers_if_needed] Failed to add followers: {e}")
+
     def update_if_needed(
         self,
         data: dict,
@@ -291,6 +313,7 @@ class AsanaTask:
         description: str,
         task_completed: bool,
         assignee: str | None,
+        collaborators: list[str],
         github_url: str,
         pr_author: str | None,
     ) -> None:
@@ -300,6 +323,7 @@ class AsanaTask:
         current_completed = data.get("completed") or False
         current_assignee = (data.get("assignee") or {}).get("email") or ""
         current_permalink_url = data.get("permalink_url") or ""
+        current_followers = [f.get("email") for f in data.get("followers", []) if f.get("email")]
 
         print("[update_if_needed] Current vs new values:")
         print(f"  title: '{current_title}' vs '{title}'")
@@ -331,6 +355,9 @@ class AsanaTask:
             )
         else:
             print("[update_if_needed] No changes needed")
+
+        # Always sync followers (add new ones if needed)
+        self.add_followers_if_needed(data["gid"], current_followers, collaborators)
 
     def ensure_github_url_in_task(
         self,
