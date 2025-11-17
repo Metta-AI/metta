@@ -58,7 +58,7 @@ class K8sPodManager(AbstractContainerManager):
                         "resources": {
                             "requests": {
                                 "cpu": "3",
-                                "memory": "1Gi",
+                                "memory": "12Gi",
                             },
                         },
                     }
