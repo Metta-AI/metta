@@ -107,11 +107,11 @@ def _expected_inputs(num_hearts: int) -> dict[str, int]:
     assert num_hearts >= 1
     scale = FIRST_HEART_COST + ADDITIONAL_HEART_COST * (num_hearts - 1)
     return {
-        "carbon": 2 * scale,
-        "oxygen": 2 * scale,
-        "germanium": max(1, scale // 2),
-        "silicon": 5 * scale,
-        "energy": 2 * scale,
+        "carbon": scale,
+        "oxygen": scale,
+        "germanium": max(1, scale // 4),
+        "silicon": max(1, (5 * scale) // 2),
+        "energy": scale,
     }
 
 
