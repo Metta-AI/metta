@@ -269,6 +269,19 @@ def aggregate_results(results: List[EvalResult]) -> AggregatedResults:
     )
 
 
+@dataclass(slots=True)
+class EvalCase:
+    """Inputs required to run one mission/variant/cog evaluation."""
+
+    experiment: str
+    variant_label: str
+    num_cogs: int
+    base_mission: Mission
+    variant: Optional[MissionVariant]
+    clip_period: int
+    has_override: bool
+
+
 def _ensure_plot_modules_loaded() -> Tuple[Any, Any]:
     """Lazily import matplotlib/numpy so non-plot runs avoid the overhead."""
 
@@ -285,6 +298,52 @@ def _ensure_plot_modules_loaded() -> Tuple[Any, Any]:
     return plt, np
 
 
+def _build_eval_cases(
+    experiments: List[str],
+    variants: List[str],
+    cogs_list: List[int],
+    experiment_lookup: Dict[str, Mission],
+    num_cogs_variant_cache: Dict[int, NumCogsVariant],
+) -> List[EvalCase]:
+    cases: List[EvalCase] = []
+
+    for exp_name in experiments:
+        base_mission = experiment_lookup.get(exp_name)
+        if base_mission is None:
+            logger.error(f"Unknown experiment: {exp_name}")
+            continue
+
+        variant_list = variants if variants else [None]
+        for variant_name in variant_list:
+            variant = VARIANT_LOOKUP.get(variant_name) if variant_name else None
+            if variant_name and variant is None:
+                logger.error(f"Unknown variant: {variant_name}")
+                continue
+
+            clip_period = getattr(variant, "extractor_clip_period", 0) if variant else 0
+            has_override = bool(
+                variant is not None and hasattr(variant, "max_steps_override") and variant.max_steps_override is not None
+            )
+
+            for num_cogs in cogs_list:
+                # Pre-create and cache NumCogsVariant for reuse across cases
+                num_cogs_variant_cache.setdefault(num_cogs, NumCogsVariant(num_cogs=num_cogs))
+
+                cases.append(
+                    EvalCase(
+                        experiment=exp_name,
+                        variant_label=variant_name or "base",
+                        num_cogs=num_cogs,
+                        base_mission=base_mission,
+                        variant=variant,
+                        clip_period=clip_period,
+                        has_override=has_override,
+                    )
+                )
+
+    return cases
+
+
 def run_evaluation(
     agent_config: AgentConfig,
     experiments: List[str],
@@ -296,7 +355,7 @@ def run_evaluation(
     experiment_map: Optional[Dict[str, Mission]] = None,
 ) -> List[EvalResult]:
     """Run evaluation for an agent configuration."""
-    results = []
+    results: List[EvalResult] = []
     experiment_lookup = experiment_map if experiment_map is not None else EXPERIMENT_MAP
     num_cogs_variant_cache: Dict[int, NumCogsVariant] = {}
 
@@ -308,129 +367,92 @@ def run_evaluation(
     logger.info(f"{'=' * 80}\n")
 
     runs_per_case = max(1, int(repeats))
-    total_cases = len(experiments) * max(1, len(variants)) * len(cogs_list)
-    total_tests = total_cases * runs_per_case
-    case_counter = 0
-    completed_runs = 0
+    cases = _build_eval_cases(experiments, variants, cogs_list, experiment_lookup, num_cogs_variant_cache)
+    total_tests = len(cases) * runs_per_case
 
-    for exp_name in experiments:
-        if exp_name not in experiment_lookup:
-            logger.error(f"Unknown experiment: {exp_name}")
-            continue
+    for idx, case in enumerate(cases, start=1):
+        logger.info(f"[{idx}/{len(cases)}] {case.experiment} | {case.variant_label} | {case.num_cogs} agent(s)")
 
-        base_mission = experiment_lookup[exp_name]
+        mission_variants: List[MissionVariant] = [num_cogs_variant_cache[case.num_cogs]]
+        if case.variant:
+            mission_variants.insert(0, case.variant)
 
-        # If no variants specified, run with base mission
-        variant_list = variants if variants else [None]
+        try:
+            mission = case.base_mission.with_variants(mission_variants)
+            env_config = mission.make_env()
+            _ensure_vibe_supports_gear(env_config)
+            if not case.has_override:
+                env_config.game.max_steps = max_steps
 
-        for variant_name in variant_list:
-            variant = None
-            variant_label = "base"
-            if variant_name:
-                variant = VARIANT_LOOKUP.get(variant_name)
-                if variant is None:
-                    logger.error(f"Unknown variant: {variant_name}")
-                    continue
-                variant_label = variant_name
+            actual_max_steps = env_config.game.max_steps
 
-            for num_cogs in cogs_list:
-                case_counter += 1
-                logger.info(f"[{case_counter}/{total_cases}] {exp_name} | {variant_label} | {num_cogs} agent(s)")
+            policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
+            policy = load_policy(
+                policy_env_info,
+                agent_config.policy_path,
+                agent_config.data_path,
+                device=torch.device("cpu"),
+            )
+            agent_policies = [policy.agent_policy(i) for i in range(case.num_cogs)]
 
-                # Get clip period for metadata (if applicable)
-                clip_period = getattr(variant, "extractor_clip_period", 0) if variant else 0
+            for run_idx in range(runs_per_case):
+                run_seed = seed + run_idx
+                rollout = Rollout(
+                    env_config,
+                    agent_policies,
+                    render_mode="none",
+                    seed=run_seed,
+                    pass_sim_to_policies=True,
+                )
+                rollout.run_until_done()
 
-                try:
-                    mission_variants: List[MissionVariant] = [
-                        num_cogs_variant_cache.setdefault(num_cogs, NumCogsVariant(num_cogs=num_cogs))
-                    ]
-                    if variant:
-                        mission_variants.insert(0, variant)
+                total_reward = float(sum(rollout._sim.episode_rewards))
+                avg_reward_per_agent = total_reward / max(1, case.num_cogs)
+                final_step = rollout._sim.current_step
 
-                    mission = base_mission.with_variants(mission_variants)
-                    env_config = mission.make_env()
-                    _ensure_vibe_supports_gear(env_config)
-                    has_override = bool(
-                        (variant is not None)
-                        and hasattr(variant, "max_steps_override")
-                        and variant.max_steps_override is not None
+                result = EvalResult(
+                    agent=agent_config.label,
+                    experiment=case.experiment,
+                    num_cogs=case.num_cogs,
+                    difficulty=case.variant_label,
+                    clip_period=case.clip_period,
+                    total_reward=total_reward,
+                    avg_reward_per_agent=avg_reward_per_agent,
+                    hearts_assembled=int(total_reward),
+                    steps_taken=final_step + 1,
+                    max_steps=actual_max_steps,
+                    success=total_reward > 0,
+                    seed_used=run_seed,
+                    run_index=run_idx + 1,
+                )
+                results.append(result)
+
+                status = "✓" if result.success else "✗"
+                logger.info(
+                    f"  [run {run_idx + 1}/{runs_per_case}] {status} Total: {total_reward:.1f}, "
+                    f"Avg/Agent: {avg_reward_per_agent:.1f}, Steps: {final_step + 1}/{actual_max_steps} "
+                    f"(seed={run_seed}, progress {len(results)}/{total_tests})"
+                )
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"  ✗ Error: {e}")
+            for run_idx in range(runs_per_case):
+                results.append(
+                    EvalResult(
+                        agent=agent_config.label,
+                        experiment=case.experiment,
+                        num_cogs=case.num_cogs,
+                        difficulty=case.variant_label,
+                        clip_period=case.clip_period,
+                        total_reward=0.0,
+                        avg_reward_per_agent=0.0,
+                        hearts_assembled=0,
+                        steps_taken=0,
+                        max_steps=max_steps,
+                        success=False,
+                        seed_used=seed + run_idx,
+                        run_index=run_idx + 1,
                     )
-                    if not has_override:
-                        env_config.game.max_steps = max_steps
-
-                    actual_max_steps = env_config.game.max_steps
-
-                    # Create policy using generic initialization or S3 URI
-                    policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
-
-                    policy = load_policy(
-                        policy_env_info,
-                        agent_config.policy_path,
-                        agent_config.data_path,
-                        device=torch.device("cpu"),
-                    )
-                    agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
-
-                    for run_idx in range(runs_per_case):
-                        run_seed = seed + run_idx
-                        rollout = Rollout(
-                            env_config,
-                            agent_policies,
-                            render_mode="none",
-                            seed=run_seed,
-                            pass_sim_to_policies=True,
-                        )
-                        rollout.run_until_done()
-
-                        total_reward = float(sum(rollout._sim.episode_rewards))
-                        avg_reward_per_agent = total_reward / max(1, num_cogs)
-                        final_step = rollout._sim.current_step
-
-                        result = EvalResult(
-                            agent=agent_config.label,
-                            experiment=exp_name,
-                            num_cogs=num_cogs,
-                            difficulty=variant_label,
-                            clip_period=clip_period,
-                            total_reward=total_reward,
-                            avg_reward_per_agent=avg_reward_per_agent,
-                            hearts_assembled=int(total_reward),
-                            steps_taken=final_step + 1,
-                            max_steps=actual_max_steps,
-                            success=total_reward > 0,
-                            seed_used=run_seed,
-                            run_index=run_idx + 1,
-                        )
-                        results.append(result)
-
-                        completed_runs += 1
-                        status = "✓" if result.success else "✗"
-                        logger.info(
-                            f"  [run {run_idx + 1}/{runs_per_case}] {status} Total: {total_reward:.1f}, "
-                            f"Avg/Agent: {avg_reward_per_agent:.1f}, Steps: {final_step + 1}/{actual_max_steps} "
-                            f"(seed={run_seed}, progress {completed_runs}/{total_tests})"
-                        )
-                except Exception as e:
-                    logger.error(f"  ✗ Error: {e}")
-                    for run_idx in range(runs_per_case):
-                        results.append(
-                            EvalResult(
-                                agent=agent_config.label,
-                                experiment=exp_name,
-                                num_cogs=num_cogs,
-                                difficulty=variant_label,
-                                clip_period=clip_period,
-                                total_reward=0.0,
-                                avg_reward_per_agent=0.0,
-                                hearts_assembled=0,
-                                steps_taken=0,
-                                max_steps=max_steps,
-                                success=False,
-                                seed_used=seed + run_idx,
-                                run_index=run_idx + 1,
-                            )
-                        )
-                        completed_runs += 1
+                )
 
     return results
 
