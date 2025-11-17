@@ -22,6 +22,7 @@ runs:
       run: |
         echo "${{ inputs.extra-dependencies }}" | sha256sum | cut -c1-16 > hash.txt
         echo "hash=$(cat hash.txt)" >> "$GITHUB_OUTPUT"
+        rm -f hash.txt
 
     - name: Install uv with built-in caching
       uses: astral-sh/setup-uv@v6

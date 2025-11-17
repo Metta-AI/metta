@@ -32,7 +32,47 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-environment
         with:
-          install-mode: runtime
+          install-mode: testing
+
+      - name: Setup Bazel caching
+        run: |
+          # Bazel's default ~/.cache/bazel contains internal state with symlinks,
+          # lock files, and files with future timestamps (2035) that cause
+          # "File exists" errors when actions/cache tries to extract them.
+          #
+          # Using --disk_cache and --repository_cache directories avoids these
+          # issues by caching only reusable artifacts:
+          # - Build outputs (disk_cache)
+          # - Downloaded external dependencies (repository_cache)
+
+          echo "build --disk_cache=$HOME/.bazel-disk-cache" >> packages/mettagrid/.bazelrc
+          echo "build --repository_cache=$HOME/.bazel-repo-cache" >> packages/mettagrid/.bazelrc
+
+          mkdir -p $HOME/.bazel-disk-cache
+          mkdir -p $HOME/.bazel-repo-cache
+
+      - name: Cache Bazel build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bazel-disk-cache
+            ~/.bazel-repo-cache
+          key: bazel-${{ runner.os }}-${{ hashFiles('packages/mettagrid/MODULE.bazel', 'packages/mettagrid/.bazelrc', '.bazelversion') }}
+          restore-keys: |
+            bazel-${{ runner.os }}-
+
+      - name: Cache PufferLib clone
+        uses: actions/cache@v4
+        with:
+          path: ~/pufferlib-cache
+          key: pufferlib-clone-${{ runner.os }}-${{ hashFiles('**/test_pufferlib_integration.py') }}
+          restore-keys: |
+            pufferlib-clone-${{ runner.os }}-
+
+      - name: Set PufferLib cache path
+        run: |
+          echo "PUFFERLIB_CACHE_DIR=$HOME/pufferlib-cache" >> $GITHUB_ENV
+          mkdir -p $HOME/pufferlib-cache
 
       - name: Configure Git
         run: |
