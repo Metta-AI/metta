@@ -142,22 +142,18 @@ class Checkpointer(TrainerComponent):
         policy.save_policy = save_policy.__get__(policy, policy.__class__)  # type: ignore[attr-defined]
         return policy
 
-    def _save_policy(self, epoch: int, *, force: bool = False) -> None:
+    def _save_policy(self, epoch: int) -> None:
         policy = self._ensure_save_capable(self._policy_to_save())
 
         filename = f"{self._checkpoint_manager.run_name}:v{epoch}.mpt"
         local_path = self._checkpoint_manager.checkpoint_dir / filename
-        local_uri: str | None = None
 
         uri = policy.save_policy(local_path, policy_architecture=self._policy_architecture)
-        if uri.startswith("file://"):
-            local_uri = uri
 
         # Upload to remote if configured
         if getattr(self._checkpoint_manager, "_remote_prefix", None):
             remote_uri = f"{self._checkpoint_manager._remote_prefix}/{filename}"
-            source_path = Path(local_path if local_uri is None else local_uri.replace("file://", ""))
-            write_file(remote_uri, str(source_path))
+            write_file(remote_uri, str(local_path))
             uri = remote_uri
 
         self._latest_policy_uri = uri
