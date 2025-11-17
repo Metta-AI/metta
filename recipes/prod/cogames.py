@@ -126,7 +126,7 @@ def build_eval_command(config: dict[str, Any], checkpoint_path: str) -> str:
 def train(
     mission: str = "training_facility.harvest",
     steps: int = 10000,
-    variant: list[str] | None = None,
+    variant: str | list[str] | None = None,
     checkpoints: str = "./train_dir",
     s3_uri: str | None = None,
 ) -> CogamesTrainTool:
@@ -135,14 +135,22 @@ def train(
     Args:
         mission: Mission name (e.g., training_facility.harvest)
         steps: Number of training steps
-        variant: List of mission variants to apply
+        variant: Mission variant(s) - single string or list of strings
         checkpoints: Local checkpoints directory
         s3_uri: Optional S3 URI to upload checkpoint after training
     """
+    # Convert variant to list if single string provided
+    if isinstance(variant, str):
+        variant_list = [variant]
+    elif variant is None:
+        variant_list = []
+    else:
+        variant_list = variant
+
     return CogamesTrainTool(
         mission=mission,
         steps=steps,
-        variant=variant or [],
+        variant=variant_list,
         checkpoints=checkpoints,
         s3_uri=s3_uri,
     )
@@ -151,7 +159,7 @@ def train(
 def evaluate(
     mission: str = "training_facility.harvest",
     policy_uri: str = "",
-    variant: list[str] | None = None,
+    variant: str | list[str] | None = None,
     episodes: int = 10,
 ) -> CogamesEvalTool:
     """Evaluate a cogames policy.
@@ -159,13 +167,21 @@ def evaluate(
     Args:
         mission: Mission name (e.g., training_facility.harvest)
         policy_uri: Policy URI (file://path or s3://path)
-        variant: List of mission variants to apply
+        variant: Mission variant(s) - single string or list of strings
         episodes: Number of evaluation episodes
     """
+    # Convert variant to list if single string provided
+    if isinstance(variant, str):
+        variant_list = [variant]
+    elif variant is None:
+        variant_list = []
+    else:
+        variant_list = variant
+
     return CogamesEvalTool(
         mission=mission,
         policy_uri=policy_uri,
-        variant=variant or [],
+        variant=variant_list,
         episodes=episodes,
     )
 
