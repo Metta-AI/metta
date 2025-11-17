@@ -25,7 +25,7 @@ def make_configs_router() -> APIRouter:
     repo_root = get_repo_root()
     registry = ConfigMakerRegistry(
         root_dirs=[
-            repo_root / "experiments",
+            repo_root / "recipes",
             repo_root / "packages/cogames/src/cogames",
         ]
     )

@@ -6,7 +6,7 @@
       "name": "Train Metta",
       "type": "debugpy",
       "request": "launch",
-      "module": "tools.run",
+      "module": "metta.common.tool.run_tool",
       "args": ["recipes.experiment.scratchpad.${env:USER}.train"],
       "cwd": "${workspaceFolder}",
       "env": {
@@ -66,7 +66,7 @@
       "name": "Evaluate",
       "type": "debugpy",
       "request": "launch",
-      "module": "tools.run",
+      "module": "metta.common.tool.run_tool",
       "args": ["recipes.experiment.scratchpad.${env:USER}.evaluate"],
       "cwd": "${workspaceFolder}",
       "env": {
@@ -80,7 +80,7 @@
       "name": "Generate Replay",
       "type": "debugpy",
       "request": "launch",
-      "module": "tools.run",
+      "module": "metta.common.tool.run_tool",
       "args": ["recipes.experiment.scratchpad.${env:USER}.replay"],
       "cwd": "${workspaceFolder}",
       "env": {
@@ -94,7 +94,7 @@
       "name": "Play Metta",
       "type": "debugpy",
       "request": "launch",
-      "module": "tools.run",
+      "module": "metta.common.tool.run_tool",
       "args": ["recipes.experiment.scratchpad.${env:USER}.play"],
       "cwd": "${workspaceFolder}",
       "env": {

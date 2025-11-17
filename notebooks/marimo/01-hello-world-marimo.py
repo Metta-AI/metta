@@ -529,8 +529,6 @@ def _(
     mg_config.game.global_obs.last_action = True
     mg_config.game.global_obs.last_reward = True
 
-    mg_config.game.global_obs.visitation_counts = False
-
     print("✅ Simple hallway environment: start with arena, add custom map")
     return (
         AgentRewards,
@@ -1668,7 +1666,7 @@ def _(
         run_name_from_ckpt = metadata["run_name"]
 
         trained_artifact = CheckpointManager.load_from_uri(
-            str(latest_ckpt), game_rules, device
+            str(latest_ckpt), policy_env_info, device
         )
         trained_policy = trained_artifact.policy
         if trained_policy is None:

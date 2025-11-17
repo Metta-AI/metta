@@ -303,3 +303,44 @@ mission = Mission(
 4. Use CLI commands (`missions`, `play`, `train`) to iterate quickly.
 5. When training, consider reducing `--parallel-envs`/`--num-workers` on macOS to avoid long startup times while
    generating large maps.
+
+---
+
+### Curated Integrated Evals (Scorable Baselines)
+
+We provide a small integrated evaluation set (see `cogs_vs_clips/evals/integrated_eval.py`) tuned to yield non-zero
+scores for baseline agents while leaving headroom for improvement. These are composed from procedural `HELLO_WORLD` maps
+with variants that balance approachability and challenge.
+
+Key design choices:
+
+- Pack the base hub lightly (`EmptyBaseVariant`) where appropriate to encourage early exploration without
+  over-constraining.
+- Add guidance (`CompassVariant`) on distance-heavy tasks to reduce pure exploration failure modes.
+- Raise agent caps modestly (`PackRatVariant`) to avoid early inventory stalls but keep routing relevant.
+- Shape reward on vibe missions (`HeartChorusVariant`) so partial progress is scored.
+- Keep vibe mechanics intact unless the mission explicitly focuses on vibe manipulation.
+
+Included missions and variants:
+
+- oxygen_bottleneck: `EmptyBaseVariant(missing=["oxygen_extractor"])`, `ResourceBottleneckVariant(["oxygen"])`,
+  `SingleResourceUniformVariant("oxygen_extractor")`, `PackRatVariant`
+- energy_starved: `EmptyBaseVariant`, `DarkSideVariant`, `PackRatVariant`
+- distant_resources: `EmptyBaseVariant`, `CompassVariant`, `DistantResourcesVariant`
+- quadrant_buildings: `EmptyBaseVariant`, `QuadrantBuildingsVariant`, `CompassVariant`
+- single_use_swarm: `EmptyBaseVariant`, `SingleUseSwarmVariant`, `CompassVariant`, `PackRatVariant`
+- vibe_check: `HeartChorusVariant`, `VibeCheckMin2Variant`
+
+Usage example:
+
+```bash
+uv run python packages/cogames/scripts/evaluate_scripted_agents.py \
+  --agent cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy \
+  --mission-set integrated_evals \
+  --cogs 4 \
+  --repeats 2
+```
+
+Recommendation: When designing new scorable baselines, combine one “shaping” variant (e.g., `CompassVariant`,
+`HeartChorusVariant`, `PackRatVariant`) with one “constraint” variant (e.g., `DarkSideVariant`,
+`ResourceBottleneckVariant`, `SingleUseSwarmVariant`) to keep tasks legible yet challenging.

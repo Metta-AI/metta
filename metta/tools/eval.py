@@ -1,33 +1,21 @@
-import json
 import logging
-import sys
-import uuid
-from datetime import datetime
+from functools import partial
 from typing import Sequence
 
-import torch
 from pydantic import Field
 
 from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
 from metta.common.tool import Tool
-from metta.common.wandb.context import WandbContext
-from metta.eval.eval_request_config import EvalResults
-from metta.eval.eval_service import evaluate_policy
-from metta.rl import stats as rl_stats
+from metta.common.wandb.context import WandbConfig, WandbContext
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.sim.handle_results import render_eval_summary, send_eval_results_to_wandb
+from metta.sim.runner import SimulationRunResult, run_simulations
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.utils.auto_config import auto_replay_dir, auto_wandb_config
-from metta.utils.uri import ParsedURI
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from metta.tools.utils.auto_config import auto_replay_dir, auto_stats_server_uri, auto_wandb_config
+from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.policy import PolicySpec
 
 logger = logging.getLogger(__name__)
-
-
-def _determine_run_name(policy_uri: str) -> str:
-    parsed = ParsedURI.parse(policy_uri)
-    if parsed.scheme == "file" and parsed.local_path is not None:
-        return f"eval_{parsed.local_path.stem}"
-    return f"eval_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
 
 class EvaluateTool(Tool):
@@ -39,110 +27,100 @@ class EvaluateTool(Tool):
 
     group: str | None = None  # Separate group parameter like in train.py
 
-    stats_dir: str | None = None  # The (local) directory where stats should be stored
-    stats_db_uri: str | None = None  # If set, export stats to this url (local path, wandb:// or s3://)
-    stats_server_uri: str | None = None  # If set, send stats to this http server
+    stats_server_uri: str | None = auto_stats_server_uri()
     register_missing_policies: bool = False
     eval_task_id: str | None = None
     push_metrics_to_wandb: bool = False
 
-    def _log_to_wandb(self, policy_uri: str, eval_results: EvalResults, stats_client: StatsClient | None):
-        if stats_client is None:
-            logger.info("Stats client is not set, skipping wandb logging")
-            return
+    def _build_policy_spec(self, normalized_uri: str) -> PolicySpec:
+        spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device="cpu")
+        return spec
 
-        if not self.push_metrics_to_wandb:
-            logger.info("Push metrics to wandb is not set, skipping wandb logging")
-            return
+    @staticmethod
+    def _spec_display_name(policy_spec: PolicySpec) -> str:
+        init_kwargs = policy_spec.init_kwargs or {}
+        return init_kwargs.get("display_name") or policy_spec.name
 
+    def _get_wandb_config(self, policy_uri: str) -> WandbConfig | None:
         run_name = CheckpointManager.get_policy_metadata(policy_uri).get("run_name")
         if run_name is None:
             logger.info("Could not determine run name, skipping wandb logging")
             return
 
-        # Resume the existing training run without overriding its group
         wandb = auto_wandb_config(run_name)
         if self.group:
             wandb.group = self.group
 
-        if not wandb.enabled:
-            logger.info("WandB is not enabled, skipping wandb logging")
-            return
+        return wandb
 
-        wandb_context = WandbContext(wandb, self)
-        with wandb_context as wandb_run:
-            if not wandb_run:
-                logger.info("Failed to initialize wandb run, skipping wandb logging")
-                return
-
-            logger.info(f"Initialized wandb run: {wandb_run.id}")
-
-            try:
-                (epoch, attributes) = stats_client.sql_query(
-                    f"""SELECT e.end_training_epoch, e.attributes
-                          FROM policies p join epochs e ON p.epoch_id = e.id
-                          WHERE p.url = '{policy_uri}'"""
-                ).rows[0]
-                agent_step = attributes.get("agent_step")
-                if agent_step is None:
-                    logger.info("Agent step is not set, skipping wandb logging")
-                    return
-
-                rl_stats.process_policy_evaluator_stats(policy_uri, eval_results, wandb_run, epoch, agent_step, False)
-            except IndexError:
-                # No rows returned; log with fallback step/epoch
-                logger.info(
-                    "No epoch metadata for %s in stats DB; logging eval metrics to WandB with default step/epoch=0",
-                    policy_uri,
-                )
-                try:
-                    rl_stats.process_policy_evaluator_stats(policy_uri, eval_results, wandb_run, 0, 0, False)
-                except Exception as e:
-                    logger.error("Fallback WandB logging failed: %s", e, exc_info=True)
-            except Exception as e:
-                logger.error(f"Error logging evaluation results to wandb: {e}", exc_info=True)
-                # Best-effort fallback logging with default indices
-                try:
-                    rl_stats.process_policy_evaluator_stats(policy_uri, eval_results, wandb_run, 0, 0, False)
-                except Exception as e2:
-                    logger.error("Fallback WandB logging failed: %s", e2, exc_info=True)
-
-    def eval_policy(self, normalized_uri: str, stats_client: StatsClient | None) -> EvalResults:
-        policy_env_info = PolicyEnvInterface.from_mg_cfg(self.simulations[0].env)
-
-        # Verify the checkpoint exists (always use CPU for simulations)
-        device = torch.device("cpu")
+    def _guess_epoch_and_agent_step(self, policy_uri: str) -> tuple[int, int] | None:
+        stats_client: StatsClient | None = None
+        if self.stats_server_uri is None:
+            logger.info("Stats client is not set, skipping wandb logging")
+            return None
+        stats_client = HttpStatsClient.create(self.stats_server_uri)
         try:
-            agent = CheckpointManager.load_from_uri(normalized_uri, policy_env_info, device)
-            metadata = CheckpointManager.get_policy_metadata(normalized_uri)
-            del agent
+            (epoch, attributes) = stats_client.sql_query(
+                f"""SELECT e.end_training_epoch, e.attributes
+                        FROM policies p join epochs e ON p.epoch_id = e.id
+                        WHERE p.url = '{policy_uri}'"""
+            ).rows[0]
+            agent_step = attributes.get("agent_step")
+            if agent_step is None:
+                logger.info("Agent step is not set, skipping wandb logging")
+                return None
+            return epoch, agent_step
+        except IndexError:
+            # No rows returned; log with fallback step/epoch
+            logger.info(
+                "No epoch metadata for %s in stats DB; logging eval metrics to WandB with default step/epoch=0",
+                policy_uri,
+            )
+            return 0, 0
         except Exception as e:
-            logger.warning(f"Failed to load policy from {normalized_uri}: {e}")
-            raise
+            logger.error(f"Error logging evaluation results to wandb: {e}", exc_info=True)
+            # Best-effort fallback logging with default indices
+            return 0, 0
 
-        eval_run_name = _determine_run_name(normalized_uri)
-
-        # Get eval_task_id from config if provided
-        eval_task_id = None
-        if self.eval_task_id:
-            eval_task_id = uuid.UUID(self.eval_task_id)
-
-        eval_results = evaluate_policy(
-            checkpoint_uri=normalized_uri,
-            simulations=list(self.simulations),
-            replay_dir=(
-                f"{self.replay_dir}/{eval_run_name}/{metadata.get('run_name', 'unknown')}"
-                if self.enable_replays
-                else None
-            ),
-            export_stats_db_uri=self.stats_db_uri,
-            stats_client=stats_client,
-            eval_task_id=eval_task_id,
+    def eval_policy(self, policy_spec: PolicySpec) -> list[SimulationRunResult]:
+        policy_initializers = [partial(initialize_or_load_policy, policy_spec=policy_spec)]
+        rollout_results = run_simulations(
+            policy_initializers=policy_initializers,
+            simulations=[sim.to_simulation_run_config() for sim in self.simulations],
+            replay_dir=self.replay_dir,
+            seed=self.system.seed,
+            enable_replays=True,
         )
+        return rollout_results
 
-        self._log_to_wandb(normalized_uri, eval_results, stats_client)
-
-        return eval_results
+    def handle_single_policy_uri(self, policy_uri: str) -> tuple[int, str, list[SimulationRunResult]]:
+        normalized_uri = CheckpointManager.normalize_uri(policy_uri)
+        policy_spec = self._build_policy_spec(normalized_uri)
+        rollout_results = self.eval_policy(policy_spec)
+        render_eval_summary(rollout_results, policy_names=[self._spec_display_name(policy_spec)])
+        if self.push_metrics_to_wandb:
+            guess = self._guess_epoch_and_agent_step(normalized_uri)
+            if guess is None:
+                msg = "Could not determine epoch or agent step, skipping wandb logging"
+                logger.info(msg)
+                return 1, msg, rollout_results
+            epoch, agent_step = guess
+            wandb_config = self._get_wandb_config(normalized_uri)
+            if wandb_config is not None:
+                with WandbContext(wandb_config, self) as wandb_run:
+                    if wandb_run:
+                        send_eval_results_to_wandb(
+                            rollout_results=rollout_results,
+                            epoch=epoch,
+                            agent_step=agent_step,
+                            wandb_run=wandb_run,
+                            during_training=False,
+                            should_finish_run=True,
+                        )
+                        return 0, "Logged eval results to wandb", rollout_results
+            return 1, "Wandb config invalid", rollout_results
+        else:
+            return 0, "No wandb logging", rollout_results
 
     def invoke(self, args: dict[str, str]) -> int | None:
         if self.policy_uris is None:
@@ -151,62 +129,5 @@ class EvaluateTool(Tool):
         if isinstance(self.policy_uris, str):
             self.policy_uris = [self.policy_uris]
 
-        for uri in self.policy_uris:
-            parsed_uri = ParsedURI.parse(uri)
-            if parsed_uri.scheme == "wandb":
-                raise ValueError(
-                    "Policy artifacts must be stored on local disk or S3. "
-                    "Download the checkpoint and re-run with a file:// or s3:// URI."
-                )
-
-        stats_client: StatsClient | None = None
-        if self.stats_server_uri is not None:
-            stats_client = HttpStatsClient.create(self.stats_server_uri)
-
-        all_results = {"simulations": [sim.full_name for sim in self.simulations], "policies": []}
-
         for policy_uri in self.policy_uris:
-            normalized_uri = CheckpointManager.normalize_uri(policy_uri)
-
-            # Verify the checkpoint exists and load metadata
-            try:
-                agent = CheckpointManager.load_artifact_from_uri(normalized_uri)
-                metadata = CheckpointManager.get_policy_metadata(normalized_uri)
-                del agent
-            except Exception as e:
-                logger.warning(f"Failed to load policy from {normalized_uri}: {e}")
-                continue
-
-            results = {"policy_uri": normalized_uri, "checkpoints": []}
-            eval_results = self.eval_policy(normalized_uri, stats_client)
-            metadata = CheckpointManager.get_policy_metadata(normalized_uri)
-            results["checkpoints"].append(
-                {
-                    "name": metadata.get("run_name", "unknown"),
-                    "uri": normalized_uri,
-                    "metrics": {
-                        "reward_avg": eval_results.scores.avg_simulation_score,
-                        "reward_avg_category_normalized": eval_results.scores.avg_category_score,
-                        "detailed": eval_results.scores.to_wandb_metrics_format(),
-                    },
-                    "replay_url": eval_results.replay_urls,
-                }
-            )
-            all_results["policies"].append(results)
-
-        # Output JSON results to stdout
-        # Ensure all logging is flushed before printing JSON
-        sys.stderr.flush()
-        sys.stdout.flush()
-
-        # Print JSON with a marker for easier extraction
-        print("===JSON_OUTPUT_START===")
-        print(json.dumps(all_results, indent=2))
-        print("===JSON_OUTPUT_END===")
-
-        # Fail if no policies were successfully evaluated
-        if not all_results["policies"]:
-            raise ValueError(
-                f"Failed to evaluate any policies. Attempted to load {len(self.policy_uris)} "
-                f"policy URIs but none succeeded."
-            )
+            self.handle_single_policy_uri(policy_uri)

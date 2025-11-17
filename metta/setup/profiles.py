@@ -83,6 +83,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "notebookwidgets": {"enabled": False},
             "scratchpad": {"enabled": False},
             "pr-similarity": {"enabled": False},
+            "binary-symlinks": {"enabled": True},
         }
     },
     UserType.SOFTMAX: {
@@ -97,12 +98,13 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "aws": {"enabled": True, "expected_connection": METTA_AWS_ACCOUNT_ID},
             "wandb": {"enabled": True, "expected_connection": METTA_WANDB_ENTITY},
             "skypilot": {"enabled": True, "expected_connection": METTA_SKYPILOT_URL},
-            "tailscale": {"enabled": True, "expected_connection": "@stem.ai"},
+            "tailscale": {"enabled": False, "expected_connection": "@stem.ai"},
             "notebookwidgets": {"enabled": False},
             "scratchpad": {"enabled": True},
             "helm": {"enabled": True},
             "pr-similarity": {"enabled": True},
             "ide-extensions": {"enabled": True},
+            "binary-symlinks": {"enabled": True},
         }
     },
 }

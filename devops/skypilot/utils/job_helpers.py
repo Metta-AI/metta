@@ -73,9 +73,14 @@ def display_job_summary(
     git_ref: str | None = None,
     timeout_hours: float | None = None,
     task: sky.Task | None = None,
+    skip_github: bool = False,
     **kwargs,
 ) -> None:
-    """Display a summary of the job that will be launched."""
+    """Display a summary of the job that will be launched.
+
+    Args:
+        skip_github: If True, skip GitHub API calls (for testing/CI)
+    """
     divider_length = 60
     divider = blue("=" * divider_length)
 
@@ -145,13 +150,20 @@ def display_job_summary(
         first_line = commit_message.split("\n")[0]
         print(f"{bold('Commit Message:')} {yellow(first_line)}")
 
-    pr_info = git.get_matched_pr(commit_hash, REPO_SLUG)
-    if pr_info:
-        pr_number, pr_title = pr_info
-        first_line = pr_title.split("\n")[0]
-        print(f"{bold('PR:')} {yellow(f'#{pr_number} - {first_line}')}")
-    else:
-        print(f"{bold('PR:')} {red('Not an open PR HEAD')}")
+    # Only check GitHub if not skipped (avoids API calls in tests/CI)
+    if not skip_github:
+        try:
+            pr_info = git.get_matched_pr(commit_hash, REPO_SLUG)
+            if pr_info:
+                pr_number, pr_title = pr_info
+                first_line = pr_title.split("\n")[0]
+                print(f"{bold('PR:')} {yellow(f'#{pr_number} - {first_line}')}")
+            else:
+                print(f"{bold('PR:')} {red('Not an open PR HEAD')}")
+        except git.GitError:
+            # GitHub API unavailable (rate limit, network error, etc.)
+            # This is non-critical info, so we just skip it
+            pass
 
     print(blue("-" * divider_length))
     print(f"\n{bold('Command:')} {yellow(cmd)}")
@@ -248,7 +260,7 @@ def check_job_statuses(job_ids: list[int]) -> dict[int, dict[str, str]]:
                 job = jobs_map[job_id]
 
                 # Calculate time ago
-                submitted_timestamp = job.get("submitted_at", time.time())
+                submitted_timestamp = job.get("submitted_at") or time.time()
                 time_diff = time.time() - submitted_timestamp
 
                 if time_diff < 60:
@@ -259,7 +271,7 @@ def check_job_statuses(job_ids: list[int]) -> dict[int, dict[str, str]]:
                     time_ago = f"{int(time_diff / 3600)} hours ago"
 
                 # Format duration
-                duration = job.get("job_duration", 0)
+                duration = job.get("job_duration") or 0
                 if duration:
                     duration_str = f"{int(duration)}s" if duration < 60 else f"{int(duration / 60)}m"
                 else:

@@ -43,6 +43,7 @@ class AgentRewards(Config):
     stats_max: dict[str, float] = Field(default_factory=dict)
 
 
+# TODO: this should probably subclass GridObjectConfig
 class AgentConfig(Config):
     """Python agent configuration."""
 
@@ -56,12 +57,9 @@ class AgentConfig(Config):
     action_failure_penalty: float = Field(default=0, ge=0)
     initial_inventory: dict[str, int] = Field(default_factory=dict)
     team_id: int = Field(default=0, ge=0, description="Team identifier for grouping agents")
-    tags: list[str] = Field(default_factory=list, description="Tags for this agent instance")
+    tags: list[str] = Field(default_factory=lambda: ["agent"], description="Tags for this agent instance")
     soul_bound_resources: list[str] = Field(
         default_factory=list, description="Resources that cannot be stolen during attacks"
-    )
-    shareable_resources: list[str] = Field(
-        default_factory=list, description="Resources that will be shared when we use another agent"
     )
     inventory_regen_amounts: dict[str, int] = Field(
         default_factory=dict, description="Resources to regenerate and their amounts per regeneration interval"
@@ -69,6 +67,9 @@ class AgentConfig(Config):
     diversity_tracked_resources: list[str] = Field(
         default_factory=list,
         description="Resource names that contribute to inventory diversity metrics",
+    )
+    vibe_transfers: dict[str, dict[str, int]] = Field(
+        default_factory=dict, description="Maps vibe name to resource deltas for agent-to-agent sharing"
     )
     initial_vibe: int = Field(default=0, ge=0, description="Initial vibe value for this agent instance")
 
@@ -190,9 +191,6 @@ class GlobalObsConfig(Config):
 
     last_reward: bool = Field(default=True)
 
-    # Controls whether visitation counts are included in observations
-    visitation_counts: bool = Field(default=False)
-
     # Compass token that points toward the assembler/hub center
     compass: bool = Field(default=False)
 
@@ -236,6 +234,9 @@ class WallConfig(GridObjectConfig):
 
 
 class ProtocolConfig(Config):
+    # Note that `vibes` implicitly also sets a minimum number of agents. So min_agents is useful
+    # when you want to set a minimum that's higher than the number of vibes.
+    min_agents: int = Field(default=0, ge=0, description="Number of agents required to use this protocol")
     vibes: list[str] = Field(default_factory=list)
     input_resources: dict[str, int] = Field(default_factory=dict)
     output_resources: dict[str, int] = Field(default_factory=dict)
@@ -262,13 +263,6 @@ class AssemblerConfig(GridObjectConfig):
         ),
     )
     max_uses: int = Field(default=0, ge=0, description="Maximum number of uses (0 = unlimited)")
-    exhaustion: float = Field(
-        default=0.0,
-        ge=0.0,
-        description=(
-            "Exhaustion rate - cooldown multiplier grows by (1 + exhaustion) after each use (0 = no exhaustion)"
-        ),
-    )
     clip_immune: bool = Field(
         default=False, description="If true, this assembler cannot be clipped by the Clipper system"
     )

@@ -140,7 +140,12 @@ find "/UI/Main":
           req.onError = proc(msg: string) =
             # TODO: Show error to user.
             echo "onError: " & msg
+            echo getCurrentException().getStackTrace()
           req.onResponse = proc(response: HttpResponse) =
+            if response.code != 200:
+              # TODO: Show error to user.
+              echo "Error loading replay: HTTP ", response.code, " ", response.body
+              return
             common.replay = loadReplay(response.body, commandLineReplay)
             onReplayLoaded()
         else:

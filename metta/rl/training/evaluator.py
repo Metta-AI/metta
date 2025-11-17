@@ -1,6 +1,9 @@
 """Policy evaluation management."""
 
+from __future__ import annotations
+
 import logging
+from functools import partial
 from typing import Any, Optional
 from uuid import UUID
 
@@ -11,17 +14,19 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum import Curriculum
 from metta.common.util.git_helpers import GitError, get_task_commit_hash
 from metta.common.util.git_repo import REPO_SLUG
-from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
-from metta.eval.eval_service import evaluate_policy
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import (
     evaluate_policy_remote_with_checkpoint_manager,
-    upload_replay_html,
 )
 from metta.rl.training import TrainerComponent
 from metta.rl.training.optimizer import is_schedulefree_optimizer
+from metta.sim.handle_results import render_eval_summary, send_eval_results_to_wandb
+from metta.sim.runner import SimulationRunResult, run_simulations
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.base_config import Config
+from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.policy import PolicySpec
 
 logger = logging.getLogger(__name__)
 
@@ -54,17 +59,6 @@ class EvaluatorConfig(Config):
 class NoOpEvaluator(TrainerComponent):
     """No-op evaluator for when evaluation is disabled."""
 
-    def __init__(self) -> None:
-        super().__init__()
-        self._latest_scores = EvalRewardSummary()
-
-    def get_latest_scores(self) -> EvalRewardSummary:
-        return self._latest_scores
-
-    def register(self, context) -> None:  # type: ignore[override]
-        super().register(context)
-        self.context.latest_eval_scores = self._latest_scores
-
     def on_epoch_end(self, epoch: int) -> None:  # type: ignore[override]
         pass
 
@@ -85,16 +79,11 @@ class Evaluator(TrainerComponent):
         self._device = device
         self._system_cfg = system_cfg
         self._stats_client = stats_client
-        self._latest_scores = EvalRewardSummary()
 
         self._configure_evaluation_settings(
             eval_cfg=self._config,
             stats_client=self._stats_client,
         )
-
-    def register(self, context) -> None:  # type: ignore[override]
-        super().register(context)
-        self.context.latest_eval_scores = self._latest_scores
 
     @staticmethod
     def _configure_evaluation_settings(
@@ -150,10 +139,10 @@ class Evaluator(TrainerComponent):
         epoch: int,
         agent_step: int,
         stats_epoch_id: Optional[UUID] = None,
-    ) -> EvalRewardSummary:
+    ) -> None:
         if not policy_uri:
             logger.warning("No policy URI available for evaluation")
-            return EvalRewardSummary()
+            return
 
         # Build simulation configurations
         sims = self._build_simulations(curriculum)
@@ -166,43 +155,37 @@ class Evaluator(TrainerComponent):
                     simulations=sims,
                     stats_epoch_id=stats_epoch_id,
                 )
-                # Remote evaluation doesn't return scores directly
-                # They would be reported through other channels
-                self.context.latest_eval_scores = self._latest_scores
-                return self._latest_scores
             except Exception as e:
                 logger.error(f"Failed to evaluate policy remotely: {e}", exc_info=True)
-                if not self._config.evaluate_local:
-                    return EvalRewardSummary()
-                logger.info("Falling back to local evaluation")
 
         # Local evaluation
         if self._config.evaluate_local:
-            evaluation_results = self._evaluate_local(
-                policy_uri=policy_uri,
-                simulations=sims,
-                stats_epoch_id=stats_epoch_id,
-            )
+            rollout_results, policy_spec = self._evaluate_local(policy_uri=policy_uri, simulations=sims)
+            render_eval_summary(rollout_results, policy_names=[self._spec_display_name(policy_spec)])
 
-            # Upload replays if available
+            # TODO: maybe a better way to get wandb run
+            # TODO: Pasha: should also send epochs/episodes/metrics to stats-server
             stats_reporter = getattr(self.context, "stats_reporter", None)
-            if stats_reporter and evaluation_results.replay_urls:
-                wandb_run = getattr(stats_reporter, "wandb_run", None)
-                if wandb_run:
-                    upload_replay_html(
-                        replay_urls=evaluation_results.replay_urls,
-                        agent_step=agent_step,
-                        epoch=epoch,
-                        wandb_run=wandb_run,
-                        step_metric_key="metric/epoch",
-                        epoch_metric_key="metric/epoch",
-                    )
+            wandb_run = getattr(stats_reporter, "wandb_run", None)
+            if wandb_run:
+                send_eval_results_to_wandb(
+                    rollout_results=rollout_results,
+                    epoch=epoch,
+                    agent_step=agent_step,
+                    wandb_run=wandb_run,
+                    should_finish_run=False,
+                )
 
-            self._latest_scores = evaluation_results.scores
-            self.context.latest_eval_scores = self._latest_scores
-            return evaluation_results.scores
+    def _build_policy_spec(self, policy_uri: str) -> PolicySpec:
+        return CheckpointManager.policy_spec_from_uri(
+            policy_uri,
+            device=self._device,
+        )
 
-        return EvalRewardSummary()
+    @staticmethod
+    def _spec_display_name(policy_spec: PolicySpec) -> str:
+        init_kwargs = policy_spec.init_kwargs or {}
+        return init_kwargs.get("display_name") or policy_spec.name
 
     def _build_simulations(self, curriculum: Curriculum) -> list[SimulationConfig]:
         sims = []
@@ -255,19 +238,19 @@ class Evaluator(TrainerComponent):
         self,
         policy_uri: str,
         simulations: list[SimulationConfig],
-        stats_epoch_id: Optional[UUID] = None,
-    ) -> EvalResults:
+    ) -> tuple[list[SimulationRunResult], PolicySpec]:
         logger.info(f"Evaluating policy locally from {policy_uri}")
-        return evaluate_policy(
-            checkpoint_uri=policy_uri,
-            simulations=simulations,
-            replay_dir=self._config.replay_dir,
-            stats_epoch_id=stats_epoch_id,
-            stats_client=self._stats_client,
-        )
 
-    def get_latest_scores(self) -> EvalRewardSummary:
-        return self._latest_scores
+        policy_spec = self._build_policy_spec(policy_uri)
+        policy_initializers = [partial(initialize_or_load_policy, policy_spec=policy_spec)]
+        rollout_results = run_simulations(
+            policy_initializers=policy_initializers,
+            simulations=[sim.to_simulation_run_config() for sim in simulations],
+            replay_dir=self._config.replay_dir,
+            seed=self._system_cfg.seed,
+            enable_replays=True,
+        )
+        return rollout_results, policy_spec
 
     def on_epoch_end(self, epoch: int) -> None:
         if not self.should_evaluate(epoch):
@@ -283,53 +266,18 @@ class Evaluator(TrainerComponent):
             logger.warning("Evaluator: curriculum unavailable; skipping evaluation")
             return
 
-        stats_reporter = self.context.stats_reporter
-        stats_epoch_id = None
-
-        # Check if we have stats infrastructure available
-        if not stats_reporter:
-            if not self._config.allow_eval_without_stats:
-                logger.warning("Evaluator: skipping epoch %s because stats_reporter is not available", epoch)
-                return
-            logger.info("Evaluator: running without stats tracking (no stats_reporter)")
-        elif not hasattr(stats_reporter, "state") or stats_reporter.state is None:
-            if not self._config.allow_eval_without_stats:
-                logger.warning("Evaluator: skipping epoch %s because stats_reporter.state is not available", epoch)
-                return
-            logger.info("Evaluator: running without stats tracking (no stats_reporter.state)")
-        else:
-            stats_run_id = getattr(stats_reporter.state, "stats_run_id", None)
-            if not stats_run_id:
-                if not self._config.allow_eval_without_stats:
-                    logger.warning("Evaluator: skipping epoch %s because stats_run_id is not available", epoch)
-                    return
-                logger.info("Evaluator: running without stats tracking (no stats_run_id)")
-            else:
-                # We have full stats infrastructure - create stats epoch
-                stats_epoch_id = stats_reporter.create_epoch(
-                    stats_run_id,
-                    epoch,
-                    epoch,
-                    attributes={"source": "evaluation", "agent_step": self.context.agent_step},
-                )
-
         optimizer = getattr(self.context, "optimizer", None)
         is_schedulefree = optimizer is not None and is_schedulefree_optimizer(optimizer)
-        if is_schedulefree:
+        if is_schedulefree and optimizer is not None:
             optimizer.eval()
 
-        scores = self.evaluate(
+        self.evaluate(
             policy_uri=policy_uri,
             curriculum=curriculum,
             epoch=epoch,
             agent_step=self.context.agent_step,
-            stats_epoch_id=stats_epoch_id,
         )
 
         # Restore train mode after evaluation for ScheduleFree optimizers
-        if is_schedulefree:
+        if is_schedulefree and optimizer is not None:
             optimizer.train()
-
-        stats_reporter = getattr(self.context, "stats_reporter", None)
-        if stats_reporter and hasattr(stats_reporter, "update_eval_scores"):
-            stats_reporter.update_eval_scores(scores)

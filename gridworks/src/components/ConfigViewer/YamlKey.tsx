@@ -47,7 +47,10 @@ const YamlKeyTooltip: FC<{ node: ConfigNode }> = ({ node }) => {
 
 export const YamlKey: FC<{
   node: ConfigNode;
-}> = ({ node }) => {
+  canExpand?: boolean;
+  isExpanded?: boolean;
+  onExpansionClick?: () => void;
+}> = ({ node, canExpand, isExpanded, onExpansionClick }) => {
   const { unsetFields } = use(YamlContext);
   const disabled = unsetFields.has(node.path.join("."));
   const name = node.path[node.path.length - 1];
@@ -62,7 +65,17 @@ export const YamlKey: FC<{
     </span>
   );
   return (
-    <div className="flex">
+    <div className="flex gap-1">
+      {canExpand && <div
+        className={clsx(
+          "scale-80 cursor-pointer",
+          isExpanded ? "rotate-0" : "-rotate-90",
+        )}
+        onClick={() => onExpansionClick?.()}
+      >
+        &#9660;
+      </div>
+      }
       <Tooltip render={() => <YamlKeyTooltip node={node} />}>{result}</Tooltip>
     </div>
   );
