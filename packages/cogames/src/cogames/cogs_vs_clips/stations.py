@@ -122,7 +122,7 @@ class GermaniumExtractorConfig(ExtractorConfig):
                     # For the 1 agent protocol, we set min_agents to zero so it's visible when no
                     # agents are adjacent to the extractor.
                     min_agents=(additional_agents + 1) if additional_agents >= 1 else 0,
-                    output_resources={"germanium": max(1, (self.efficiency + additional_agents * self.synergy) // 2)},
+                    output_resources={"germanium": max(1, (self.efficiency + additional_agents * self.synergy) // 4)},
                 )
                 for additional_agents in range(4)
             ],
