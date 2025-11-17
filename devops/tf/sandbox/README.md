@@ -12,7 +12,29 @@ workloads.
 
 ## Quick Start
 
-### 1. Deploy via Spacelift
+### 1. Build AMI
+
+**Note:** The AMI can be built independently of the Terraform infrastructure deployment.
+
+```bash
+cd devops/tf/sandbox
+./scripts/build-ami.sh
+```
+
+This takes ~20 minutes and:
+
+- Uses default VPC and creates temporary resources (security group, IAM role)
+- Launches temp g5.12xlarge instance with SSM access (no SSH key needed!)
+- Installs Docker, NVIDIA drivers, uv, cogames CLI, mettagrid package
+- Creates AMI
+- Cleans up automatically (instance, security group, IAM resources)
+
+**Prerequisites:**
+
+- AWS CLI configured with appropriate credentials
+- Session Manager plugin: `brew install --cask session-manager-plugin` (macOS) or [install guide](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html)
+
+### 2. Deploy Infrastructure via Spacelift
 
 Create stack in [Spacelift UI](https://metta-ai.app.spacelift.io/):
 
@@ -21,21 +43,6 @@ Create stack in [Spacelift UI](https://metta-ai.app.spacelift.io/):
 - Integration: `softmax-aws`
 
 Review plan and apply.
-
-### 2. Build AMI
-
-```bash
-cd devops/tf/sandbox
-./scripts/build-ami.sh --ssh-key YOUR_AWS_KEY_NAME
-```
-
-This takes ~20 minutes and:
-
-- Gets VPC/subnet/security group from Spacelift outputs
-- Launches temp g5.12xlarge instance
-- Installs Docker, NVIDIA drivers, uv, cogames CLI, mettagrid package
-- Creates AMI
-- Cleans up automatically
 
 ## Configuration
 
