@@ -41,15 +41,16 @@ Usage:
 
 import argparse
 import importlib
+import itertools
 import json
 import logging
+import os
 from collections import defaultdict
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
-import matplotlib.pyplot as plt
-import numpy as np
 import torch
 
 from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
@@ -75,25 +76,18 @@ logger = logging.getLogger(__name__)
 
 
 def _ensure_vibe_supports_gear(env_cfg) -> None:
-    """
-    Ensure the change_vibe action space is large enough to include the 'gear' vibe
-    if any assembler protocol uses it.
-    """
-    try:
-        assembler = env_cfg.game.objects.get("assembler")
-        uses_gear = False
-        if assembler is not None and hasattr(assembler, "protocols"):
-            for proto in assembler.protocols:
-                if any(v == "gear" for v in getattr(proto, "vibes", [])):
-                    uses_gear = True
-                    break
-        if uses_gear:
-            change_vibe = env_cfg.game.actions.change_vibe
-            if getattr(change_vibe, "number_of_vibes", 0) < 8:
-                change_vibe.number_of_vibes = 8
-    except Exception:
-        # Best-effort; if anything fails, leave as-is.
-        pass
+    """Ensure the change_vibe action space can represent the 'gear' vibe when needed."""
+    assembler = env_cfg.game.objects.get("assembler")
+    uses_gear = False
+    if assembler is not None and hasattr(assembler, "protocols"):
+        for proto in assembler.protocols:
+            if any(v == "gear" for v in getattr(proto, "vibes", [])):
+                uses_gear = True
+                break
+    if uses_gear:
+        change_vibe = env_cfg.game.actions.change_vibe
+        if getattr(change_vibe, "number_of_vibes", 0) < 8:
+            change_vibe.number_of_vibes = 8
 
 
 @dataclass
