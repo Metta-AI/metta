@@ -188,6 +188,26 @@ class TestBasicSaveLoad:
         policy = initialize_or_load_policy(env_info, spec)
         assert getattr(policy, "display_name", "") == "friendly-name"
 
+    def test_checkpoint_policy_save_policy_round_trip(
+        self,
+        checkpoint_manager,
+        mock_agent,
+        mock_policy_architecture,
+    ):
+        checkpoint_manager.save_agent(mock_agent, epoch=5, policy_architecture=mock_policy_architecture)
+        latest = checkpoint_manager.get_latest_checkpoint()
+        assert latest is not None
+        spec = CheckpointManager.policy_spec_from_uri(latest)
+        env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
+        policy = initialize_or_load_policy(env_info, spec)
+
+        save_path = checkpoint_manager.checkpoint_dir / "resaved.mpt"
+        saved_uri = policy.save_policy(save_path, policy_architecture=mock_policy_architecture)
+
+        assert save_path.exists()
+        reloaded = checkpoint_manager.load_from_uri(saved_uri, env_info, torch.device("cpu"))
+        assert reloaded is not None
+
     def test_policy_spec_from_uri(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         checkpoint_manager.save_agent(mock_agent, epoch=2, policy_architecture=mock_policy_architecture)
         latest = checkpoint_manager.get_latest_checkpoint()

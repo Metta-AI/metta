@@ -1,15 +1,18 @@
 """Policy checkpoint management component."""
 
 import logging
+from pathlib import Path
 from typing import Optional
 
 import torch
 from pydantic import Field
 
 from metta.agent.policy import Policy, PolicyArchitecture
+from metta.common.util.file import write_file
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config
+from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger(__name__)
@@ -69,7 +72,8 @@ class Checkpointer(TrainerComponent):
             normalized_uri = CheckpointManager.normalize_uri(candidate_uri)
             try:
                 load_device = torch.device(self._distributed.config.device)
-                policy = self._checkpoint_manager.load_from_uri(normalized_uri, policy_env_info, load_device)
+                spec = CheckpointManager.policy_spec_from_uri(normalized_uri, device=load_device)
+                policy = initialize_or_load_policy(policy_env_info, spec)
                 self._latest_policy_uri = normalized_uri
                 logger.info("Loaded policy from %s", normalized_uri)
             except FileNotFoundError:
@@ -120,11 +124,30 @@ class Checkpointer(TrainerComponent):
     def _save_policy(self, epoch: int, *, force: bool = False) -> None:
         policy = self._policy_to_save()
 
-        uri = self._checkpoint_manager.save_agent(
-            policy,
-            epoch,
-            policy_architecture=self._policy_architecture,
-        )
+        filename = f"{self._checkpoint_manager.run_name}:v{epoch}.mpt"
+        local_path = self._checkpoint_manager.checkpoint_dir / filename
+        local_uri: str | None = None
+
+        if hasattr(policy, "save_policy"):
+            uri = policy.save_policy(local_path, policy_architecture=self._policy_architecture)
+            if uri.startswith("file://"):
+                local_uri = uri
+        else:
+            uri = self._checkpoint_manager.save_agent(
+                policy,
+                epoch,
+                policy_architecture=self._policy_architecture,
+            )
+            if uri.startswith("file://"):
+                local_uri = uri
+
+        # Upload to remote if configured
+        if getattr(self._checkpoint_manager, "_remote_prefix", None):
+            remote_uri = f"{self._checkpoint_manager._remote_prefix}/{filename}"
+            source_path = Path(local_path if local_uri is None else local_uri.replace("file://", ""))
+            write_file(remote_uri, str(source_path))
+            uri = remote_uri
+
         self._latest_policy_uri = uri
         self.context.latest_policy_uri_value = uri
         try:

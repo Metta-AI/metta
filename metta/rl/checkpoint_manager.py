@@ -403,7 +403,10 @@ class CheckpointPolicy(MultiAgentPolicy):
     ):
         super().__init__(policy_env_info)
         torch_device = torch.device(device)
+        self._checkpoint_uri = checkpoint_uri
         artifact = CheckpointManager.load_artifact_from_uri(checkpoint_uri)
+        self._artifact = artifact
+        self._policy_architecture = artifact.policy_architecture
         policy = artifact.instantiate(policy_env_info, device=torch_device, strict=strict)
         policy = policy.to(torch_device)
         policy.eval()
@@ -416,6 +419,42 @@ class CheckpointPolicy(MultiAgentPolicy):
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         return self._policy.agent_policy(agent_id)
+
+    def save_policy(
+        self,
+        destination: str | Path,
+        *,
+        policy_architecture: PolicyArchitecture | None = None,
+    ) -> str:
+        """Persist the wrapped policy to a URI or filesystem path."""
+        architecture = policy_architecture or self._policy_architecture
+        if architecture is None:
+            raise ValueError("policy_architecture is required to save policy")
+
+        parsed = ParsedURI.parse(str(destination))
+        if parsed.scheme in ("", "file") or parsed.local_path:
+            path = parsed.local_path or Path(str(destination)).expanduser()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            save_policy_artifact_safetensors(
+                path,
+                policy_architecture=architecture,
+                state_dict=self._policy.state_dict(),
+            )
+            return f"file://{path.resolve()}"
+
+        if parsed.scheme == "s3":
+            with tempfile.NamedTemporaryFile(suffix=".mpt") as tmp:
+                tmp_path = Path(tmp.name)
+                save_policy_artifact_safetensors(
+                    tmp_path,
+                    policy_architecture=architecture,
+                    state_dict=self._policy.state_dict(),
+                )
+                write_file(parsed.canonical, str(tmp_path))
+            return parsed.canonical
+
+        msg = f"Unsupported destination scheme for saving policy: {parsed.scheme or 'file'}"
+        raise ValueError(msg)
 
     def __getattr__(self, name: str):
         return getattr(self._policy, name)
