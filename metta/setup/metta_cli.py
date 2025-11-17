@@ -4,6 +4,7 @@ import re
 import subprocess
 import sys
 import webbrowser
+from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Optional
 
@@ -32,6 +33,15 @@ if TYPE_CHECKING:
 
 VERSION_PATTERN = re.compile(r"^(\d+\.\d+\.\d+(?:\.\d+)?)$")
 DEFAULT_INITIAL_VERSION = "0.0.0.1"
+
+
+class PRStatus(StrEnum):
+    """GitHub PR status filter options."""
+
+    OPEN = "open"
+    CLOSED = "closed"
+    MERGED = "merged"
+    ALL = "all"
 
 
 class MettaCLI:
@@ -609,6 +619,137 @@ def cmd_go(ctx: typer.Context):
 
     info(f"Opening {url}...")
     webbrowser.open(url)
+
+
+@app.command(name="pr-feed", help="Show PRs that touch a specific path")
+def cmd_pr_feed(
+    path: Annotated[str, typer.Argument(help="Path filter (e.g., metta/jobs)")],
+    status: Annotated[PRStatus, typer.Option("--status", help="PR status filter")] = PRStatus.OPEN,
+    num_days: Annotated[int, typer.Option("--num_days", help="Search PRs updated in last N days")] = 30,
+):
+    """Show PRs that touch files in a specific path.
+
+    Automatically fetches all pages within the time window.
+    """
+    import json
+    from datetime import datetime, timedelta, timezone
+
+    # Convert status to GraphQL enum
+    # Note: "closed" includes both CLOSED (without merge) and MERGED
+    status_mapping = {
+        PRStatus.OPEN: ("OPEN", "OPEN"),
+        PRStatus.CLOSED: ("CLOSED, MERGED", "CLOSED/MERGED"),
+        PRStatus.MERGED: ("MERGED", "MERGED"),
+        PRStatus.ALL: ("OPEN, CLOSED, MERGED", "ALL"),
+    }
+    states, status_display = status_mapping[status]
+
+    console = Console()
+    console.print(
+        f"🔍 Searching for [yellow]{status_display}[/yellow] PRs touching: [cyan]{path}[/cyan] (last {num_days} days)"
+    )
+    console.print()
+
+    # Calculate cutoff date
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=num_days)
+
+    try:
+        cursor = None
+        total_found = 0
+        page_num = 0
+
+        while True:
+            page_num += 1
+            # Build pagination parameter
+            after_clause = f', after: "{cursor}"' if cursor else ""
+
+            # Run GraphQL query via gh CLI (ordered by most recently updated)
+            query = f"""
+            query {{
+              repository(owner: "Metta-AI", name: "metta") {{
+                pullRequests(
+                  first: 100,
+                  states: [{states}],
+                  orderBy: {{field: UPDATED_AT, direction: DESC}}{after_clause}
+                ) {{
+                  pageInfo {{
+                    hasNextPage
+                    endCursor
+                  }}
+                  nodes {{
+                    number
+                    title
+                    url
+                    author {{ login }}
+                    updatedAt
+                    files(first: 100) {{
+                      nodes {{ path }}
+                    }}
+                  }}
+                }}
+              }}
+            }}
+            """
+
+            result = subprocess.run(
+                ["gh", "api", "graphql", "-f", f"query={query}"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            data = json.loads(result.stdout)
+            pull_requests = data["data"]["repository"]["pullRequests"]
+            prs = pull_requests["nodes"]
+            page_info = pull_requests["pageInfo"]
+
+            # Filter and display PRs that touch the specified path
+            page_matches = 0
+            oldest_pr_date = None
+
+            for pr in prs:
+                # Parse update date
+                updated = datetime.fromisoformat(pr["updatedAt"].replace("Z", "+00:00"))
+                oldest_pr_date = updated  # Track oldest in this batch
+
+                # Skip if older than cutoff
+                if updated < cutoff_date:
+                    break
+
+                # Check if touches our path
+                if any(file["path"].startswith(path) for file in pr["files"]["nodes"]):
+                    page_matches += 1
+                    total_found += 1
+                    updated_str = updated.strftime("%Y-%m-%d")
+
+                    console.print(f"[green]PR #{pr['number']}:[/green] {pr['title']}")
+                    console.print(f"  Author: [cyan]@{pr['author']['login']}[/cyan] • Updated: {updated_str}")
+                    console.print(f"  {pr['url']}")
+                    console.print()
+
+            # Check if we should continue
+            if not page_info["hasNextPage"]:
+                break
+
+            # Stop if we've gone past the cutoff date
+            if oldest_pr_date and oldest_pr_date < cutoff_date:
+                break
+
+            # Continue to next page
+            cursor = page_info["endCursor"]
+
+        # Summary
+        if total_found == 0:
+            console.print(f"[yellow]No {status_display} PRs found touching {path} in the last {num_days} days[/yellow]")
+        else:
+            console.print(f"[green]✅ Found {total_found} {status_display} PR(s)[/green]")
+
+    except subprocess.CalledProcessError as e:
+        error(f"Failed to fetch PRs: {e.stderr}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        error(f"Error: {e}")
+        raise typer.Exit(1) from e
 
 
 # Report env details command
