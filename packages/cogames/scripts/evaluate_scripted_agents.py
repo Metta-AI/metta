@@ -268,71 +268,91 @@ def run_evaluation(
                 # Get clip period for metadata (if applicable)
                 clip_period = getattr(variant, "extractor_clip_period", 0) if variant else 0
 
-                # Create mission and apply variant if specified
-                mission_variants: List[MissionVariant] = [
-                    num_cogs_variant_cache.setdefault(num_cogs, NumCogsVariant(num_cogs=num_cogs))
-                ]
-                if variant:
-                    mission_variants.insert(0, variant)
+                try:
+                    mission_variants: List[MissionVariant] = [
+                        num_cogs_variant_cache.setdefault(num_cogs, NumCogsVariant(num_cogs=num_cogs))
+                    ]
+                    if variant:
+                        mission_variants.insert(0, variant)
 
-                mission = base_mission.with_variants(mission_variants)
-
-                env_config = mission.make_env()
-                _ensure_vibe_supports_gear(env_config)
-                has_override = bool(
-                    (variant is not None)
-                    and hasattr(variant, "max_steps_override")
-                    and variant.max_steps_override is not None
-                )
-                if not has_override:
-                    env_config.game.max_steps = max_steps
-
-                actual_max_steps = env_config.game.max_steps
-
-                policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
-                policy_spec = PolicySpec(class_path=agent_config.policy_path, data_path=agent_config.data_path)
-                policy = initialize_or_load_policy(policy_env_info, policy_spec)
-                agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
-
-                for run_idx in range(runs_per_case):
-                    run_seed = seed + run_idx
-                    rollout = Rollout(
-                        env_config,
-                        agent_policies,
-                        render_mode="none",
-                        seed=run_seed,
-                        pass_sim_to_policies=True,
+                    mission = base_mission.with_variants(mission_variants)
+                    env_config = mission.make_env()
+                    _ensure_vibe_supports_gear(env_config)
+                    has_override = bool(
+                        (variant is not None)
+                        and hasattr(variant, "max_steps_override")
+                        and variant.max_steps_override is not None
                     )
-                    rollout.run_until_done()
+                    if not has_override:
+                        env_config.game.max_steps = max_steps
 
-                    total_reward = float(sum(rollout._sim.episode_rewards))
-                    avg_reward_per_agent = total_reward / max(1, num_cogs)
-                    final_step = rollout._sim.current_step
+                    actual_max_steps = env_config.game.max_steps
 
-                    result = EvalResult(
-                        agent=agent_config.label,
-                        experiment=exp_name,
-                        num_cogs=num_cogs,
-                        difficulty=variant_label,
-                        clip_period=clip_period,
-                        total_reward=total_reward,
-                        avg_reward_per_agent=avg_reward_per_agent,
-                        hearts_assembled=int(total_reward),
-                        steps_taken=final_step + 1,
-                        max_steps=actual_max_steps,
-                        success=total_reward > 0,
-                        seed_used=run_seed,
-                        run_index=run_idx + 1,
-                    )
-                    results.append(result)
+                    policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
+                    policy_spec = PolicySpec(class_path=agent_config.policy_path, data_path=agent_config.data_path)
+                    policy = initialize_or_load_policy(policy_env_info, policy_spec)
+                    agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
 
-                    completed_runs += 1
-                    status = "✓" if result.success else "✗"
-                    logger.info(
-                        f"  [run {run_idx + 1}/{runs_per_case}] {status} Total: {total_reward:.1f}, "
-                        f"Avg/Agent: {avg_reward_per_agent:.1f}, Steps: {final_step + 1}/{actual_max_steps} "
-                        f"(seed={run_seed}, progress {completed_runs}/{total_tests})"
-                    )
+                    for run_idx in range(runs_per_case):
+                        run_seed = seed + run_idx
+                        rollout = Rollout(
+                            env_config,
+                            agent_policies,
+                            render_mode="none",
+                            seed=run_seed,
+                            pass_sim_to_policies=True,
+                        )
+                        rollout.run_until_done()
+
+                        total_reward = float(sum(rollout._sim.episode_rewards))
+                        avg_reward_per_agent = total_reward / max(1, num_cogs)
+                        final_step = rollout._sim.current_step
+
+                        result = EvalResult(
+                            agent=agent_config.label,
+                            experiment=exp_name,
+                            num_cogs=num_cogs,
+                            difficulty=variant_label,
+                            clip_period=clip_period,
+                            total_reward=total_reward,
+                            avg_reward_per_agent=avg_reward_per_agent,
+                            hearts_assembled=int(total_reward),
+                            steps_taken=final_step + 1,
+                            max_steps=actual_max_steps,
+                            success=total_reward > 0,
+                            seed_used=run_seed,
+                            run_index=run_idx + 1,
+                        )
+                        results.append(result)
+
+                        completed_runs += 1
+                        status = "✓" if result.success else "✗"
+                        logger.info(
+                            f"  [run {run_idx + 1}/{runs_per_case}] {status} Total: {total_reward:.1f}, "
+                            f"Avg/Agent: {avg_reward_per_agent:.1f}, Steps: {final_step + 1}/{actual_max_steps} "
+                            f"(seed={run_seed}, progress {completed_runs}/{total_tests})"
+                        )
+                except Exception as e:
+                    logger.error(f"  ✗ Error: {e}")
+                    for run_idx in range(runs_per_case):
+                        results.append(
+                            EvalResult(
+                                agent=agent_config.label,
+                                experiment=exp_name,
+                                num_cogs=num_cogs,
+                                difficulty=variant_label,
+                                clip_period=clip_period,
+                                total_reward=0.0,
+                                avg_reward_per_agent=0.0,
+                                hearts_assembled=0,
+                                steps_taken=0,
+                                max_steps=max_steps,
+                                success=False,
+                                seed_used=seed + run_idx,
+                                run_index=run_idx + 1,
+                            )
+                        )
+                        completed_runs += 1
 
     return results
 
