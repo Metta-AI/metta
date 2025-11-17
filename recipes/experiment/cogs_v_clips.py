@@ -77,6 +77,18 @@ def _normalize_variant_names(
     return names
 
 
+def _clamp_agent_inventory(env: MettaGridConfig) -> None:
+    agent = env.game.agent
+
+    for mapping in (agent.resource_limits, agent.initial_inventory):
+        for key, value in list(mapping.items()):
+            if isinstance(value, int) and value > 255:
+                mapping[key] = 255
+
+    if agent.default_resource_limit > 255:
+        agent.default_resource_limit = 255
+
+
 def _resolve_mission_template(name: str) -> Mission:
     for mission in MISSIONS:
         if mission.name == name or mission.full_name() == name:
@@ -159,6 +171,7 @@ def make_eval_suite(
         )
 
         env_cfg = mission.make_env()
+        _clamp_agent_inventory(env_cfg)
         sim = SimulationConfig(
             suite="cogs_vs_clips",
             name=f"{mission_template.name}_{num_cogs}cogs",
@@ -185,6 +198,9 @@ def make_training_env(
     )
     env = mission.make_env()
 
+    # Guard against upstream modifiers pushing limits beyond supported bounds.
+    _clamp_agent_inventory(env)
+
     # If vibe swapping is disabled, prune stale vibe transfers to avoid invalid IDs.
     change_vibe_action = getattr(env.game.actions, "change_vibe", None)
     if change_vibe_action is not None and change_vibe_action.number_of_vibes <= 1:
@@ -203,7 +219,6 @@ def make_training_env(
 def make_curriculum(
     num_cogs: int = 4,
     base_missions: Optional[list[str]] = None,
-    enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
     variants: Optional[Sequence[str]] = None,
 ) -> CurriculumConfig:
@@ -229,12 +244,17 @@ def make_curriculum(
 
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
-            use_bidirectional=True,
+            use_bidirectional=True,  # Default: bidirectional learning progress
             ema_timescale=0.001,
+            num_active_tasks=256,
+            slow_timescale_factor=0.2,
+            rand_task_rate=0.01,
             exploration_bonus=0.1,
-            max_memory_tasks=2000,
-            max_slice_axes=4,
-            enable_detailed_slice_logging=enable_detailed_slice_logging,
+            min_samples_for_lp=10,  # Use exploration bonus for first 10 samples
+            lp_score_temperature=0.0,  # Z-score normalization for relative LP comparison
+            z_score_amplification=50.0,  # Amplification after z-score (only when temp=0)
+            show_curriculum_troubleshooting_logging=True,  # Enable per-task metrics for debugging
+            early_progress_amplification=0.5,  # 0.5 = OFF, low values (0.05) amplify unsolved tasks
         )
 
     return merged_tasks.to_curriculum(
@@ -247,7 +267,6 @@ def train(
     num_cogs: int = 4,
     curriculum: Optional[CurriculumConfig] = None,
     base_missions: Optional[list[str]] = None,
-    enable_detailed_slice_logging: bool = False,
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
@@ -266,7 +285,6 @@ def train(
     resolved_curriculum = curriculum or make_curriculum(
         num_cogs=num_cogs,
         base_missions=base_missions,
-        enable_detailed_slice_logging=enable_detailed_slice_logging,
         variants=variants,
     )
 

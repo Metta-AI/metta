@@ -20,15 +20,13 @@ from recipes.experiment.arena import (
 DEFAULT_LR = OptimizerConfig.model_fields["learning_rate"].default
 
 
-def train(
-    enable_detailed_slice_logging: bool = False,
-) -> TrainTool:
+def train() -> TrainTool:
     """Train with ScheduleFree AdamW optimizer.
 
     This uses the same configuration as the base arena recipe but with
     ScheduleFree AdamW optimizer instead of regular Adam.
     """
-    curriculum = make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
+    curriculum = make_curriculum()
 
     # Configure ScheduleFree AdamW optimizer
     optimizer_config = OptimizerConfig(

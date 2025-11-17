@@ -1,3 +1,15 @@
+"""Example curriculum configuration using bucketed task generation.
+
+This demo shows how to create a curriculum that varies multiple environment parameters:
+- Resource rewards (inventory values for different items)
+- Inventory capacity (max items per resource)
+- Attack costs (enabling/disabling attacks while keeping action space consistent)
+
+The bucketed approach samples from discrete parameter ranges to create diverse training tasks.
+This is a minimal example - real curricula would configure learning progress algorithm settings,
+adjust bucket weights based on difficulty, and potentially use task sets for staged training.
+"""
+
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
 from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
