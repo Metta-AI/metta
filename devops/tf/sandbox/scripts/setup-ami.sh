@@ -7,8 +7,8 @@
 # Installed software:
 # - Docker + NVIDIA Container Toolkit
 # - NVIDIA GPU drivers (535)
-# - Python 3.12 + uv
-# - Puffer and cogames repositories (from GitHub)
+# - uv (Python 3.12 environment manager)
+# - cogames CLI and mettagrid package
 #
 # Usage:
 #   1. Launch Ubuntu 22.04 GPU instance (g5.12xlarge)
@@ -76,12 +76,9 @@ else
   echo "NVIDIA Container Toolkit already installed"
 fi
 
-# Install Python and uv
-echo "[5/7] Installing Python 3.12 and uv..."
-sudo apt-get install -y software-properties-common
-sudo add-apt-repository -y ppa:deadsnakes/ppa
-sudo apt-get update
-sudo apt-get install -y python3.12 python3.12-venv python3-pip git
+# Install uv and git
+echo "[5/7] Installing uv and git..."
+sudo apt-get install -y git
 if ! command -v uv &> /dev/null; then
   curl -LsSf https://astral.sh/uv/install.sh | sh
   # Add uv to PATH for current session
@@ -89,26 +86,39 @@ if ! command -v uv &> /dev/null; then
   echo "uv installed successfully"
 else
   echo "uv already installed"
+  export PATH="$HOME/.cargo/bin:$PATH"
 fi
 
 # Install cogames and mettagrid packages
 echo "[6/7] Installing cogames and mettagrid..."
 cd /home/ubuntu
 
-# Install cogames CLI and mettagrid environment
-if ! ~/.cargo/bin/uv tool list | grep -q cogames; then
+# Create Python environment with uv
+if [ ! -d "sandbox-env" ]; then
+  echo "Creating Python 3.12 environment..."
+  ~/.cargo/bin/uv init -p 3.12 sandbox-env
+  cd sandbox-env
+
+  # Install cogames CLI as a tool
   echo "Installing cogames CLI..."
   ~/.cargo/bin/uv tool install cogames
-else
-  echo "cogames already installed"
-fi
 
-# Install mettagrid Python package for training
-if ! python3.12 -c "import mettagrid" 2> /dev/null; then
+  # Install mettagrid in the venv
   echo "Installing mettagrid package..."
   ~/.cargo/bin/uv pip install mettagrid
+
+  cd /home/ubuntu
+
+  # Add venv activation to bashrc
+  cat >> /home/ubuntu/.bashrc << 'BASHRC_EOF'
+
+# Activate sandbox Python environment
+source ~/sandbox-env/.venv/bin/activate
+BASHRC_EOF
+
+  echo "Python environment created and configured"
 else
-  echo "mettagrid already installed"
+  echo "sandbox-env already exists"
 fi
 
 # Create welcome message
@@ -127,8 +137,9 @@ Available Resources:
 
 - Pre-installed software:
   - Docker + NVIDIA Container Toolkit
-  - Python 3.12 + uv package manager
+  - Python 3.12 environment (via uv)
   - cogames CLI and mettagrid package
+  - Auto-activated Python environment on login
 
 Getting Started:
 ----------------

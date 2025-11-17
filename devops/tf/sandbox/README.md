@@ -33,7 +33,7 @@ This takes ~20 minutes and:
 
 - Gets VPC/subnet/security group from Spacelift outputs
 - Launches temp g5.12xlarge instance
-- Installs Docker, NVIDIA drivers, Python 3.12, cogames CLI, mettagrid package
+- Installs Docker, NVIDIA drivers, uv, cogames CLI, mettagrid package
 - Creates AMI
 - Cleans up automatically
 
