@@ -229,8 +229,13 @@ if __name__ == "__main__":
             review_comments = [e for e in pr.events if e["type"] == "review"]
             asana_task.synchronize_comments_in_asana(review_comments)
 
-            # Synchronize review subtasks based on requested reviewers
-            asana_task.synchronize_review_subtasks(pr.requested_reviewers, mapping.github_login_to_asana_email)
+            # Synchronize review subtasks based on PR state
+            if pr.is_open:
+                # PR is open - sync subtasks for requested reviewers
+                asana_task.synchronize_review_subtasks(pr.requested_reviewers, mapping.github_login_to_asana_email)
+            else:
+                # PR is closed or merged - close all review subtasks
+                asana_task.close_all_review_subtasks()
 
             if "GITHUB_OUTPUT" in os.environ:
                 with open(os.environ["GITHUB_OUTPUT"], "a") as f:

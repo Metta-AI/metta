@@ -540,6 +540,26 @@ class AsanaTask:
                     notes=f"Review requested from {reviewer_login}",
                 )
 
+    def close_all_review_subtasks(self) -> None:
+        """Close all review subtasks when PR is merged or closed"""
+        print("[close_all_review_subtasks] Closing all review subtasks")
+
+        existing_subtasks = self.get_subtasks()
+        review_subtask_prefix = "Review by "
+
+        closed_count = 0
+        for subtask in existing_subtasks:
+            if subtask["name"].startswith(review_subtask_prefix) and not subtask["completed"]:
+                try:
+                    body = {"data": {"completed": True}}
+                    self.tasks_api.update_task(body, subtask["gid"], {})
+                    print(f"[close_all_review_subtasks] Closed subtask: {subtask['name']}")
+                    closed_count += 1
+                except Exception as e:
+                    print(f"[close_all_review_subtasks] Failed to close subtask {subtask['gid']}: {e}")
+
+        print(f"[close_all_review_subtasks] Closed {closed_count} review subtasks")
+
     def synchronize_comments_in_asana(self, comments_from_github: list[dict]) -> None:
         """
         Synchronize review comments in Asana as multiple blocks.
