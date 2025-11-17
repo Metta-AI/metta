@@ -220,6 +220,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             else:
                 score = self.hypers.exploration_bonus
 
+        if score <= 0:
+            score = self.hypers.exploration_bonus
+
         self._score_cache[task_id] = score
         self._cache_valid_tasks.add(task_id)
         return score
@@ -662,6 +665,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def get_state(self) -> Dict[str, Any]:
         """Get learning progress algorithm state for checkpointing."""
+        # Ensure latest updates are applied so state is consistent
+        self._flush_pending_updates()
+        self._ensure_progress_ready()
+
         state = {
             "type": self.hypers.algorithm_type(),
             "hypers": self.hypers.model_dump(),

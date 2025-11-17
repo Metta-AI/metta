@@ -278,7 +278,9 @@ class Curriculum(StatsLogger):
             "seed": self._rng.getstate(),
             "num_created": self._num_created,
             "num_evicted": self._num_evicted,
+            "eviction_check_budget": self._eviction_check_budget,
             "tasks": {},
+            "cached_task_scores": self._cached_task_scores,
         }
 
         # Serialize task data (without env_cfg to save space)
@@ -306,6 +308,7 @@ class Curriculum(StatsLogger):
         # Restore counters
         self._num_created = state["num_created"]
         self._num_evicted = state["num_evicted"]
+        self._eviction_check_budget = state.get("eviction_check_budget", 0)
 
         # Restore random state
         self._rng.setstate(state["seed"])
@@ -331,6 +334,9 @@ class Curriculum(StatsLogger):
         # Restore algorithm state
         if self._algorithm is not None and "algorithm_state" in state:
             self._algorithm.load_state(state["algorithm_state"])
+
+        # Restore cached scores if present (they remain valid for current tasks set)
+        self._cached_task_scores = state.get("cached_task_scores", {})
 
 
 # Import concrete config classes at the end to avoid circular imports
