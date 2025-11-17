@@ -239,17 +239,15 @@ setting breakpoints in the C++ source files.
 ### Prerequisites
 
 1. **VSCode Extension**: Install the
-   [Python C++ Debugger](https://marketplace.visualstudio.com/items?itemName=benjamin-simmonds.pythoncpp-debug)
-   extension (`pythoncpp`)
+   [Python C++ Debugger](https://marketplace.visualstudio.com/items?itemName=benjamin-simmonds.pythoncpp-debug) extension (`pythoncpp`)
 2. **Debug Build**: Always build with `DEBUG=1` to enable debug symbols and dSYM generation
 
 ### Setup
 
 The repository includes pre-configured launch configurations in `.vscode/launch.json`:
 
-- **MettaGrid Debug** - Combined Python + C++ debugging session demo example(requires the extension).
-- **MettaGrid Debug Attach C++** - Attach C++ debugger to running Python process within MettaGrid(doesn't require the
-  extension).
+- **MettaGrid Demo** and other pythoncpp configurations - Combined Python + C++ debugging session for the demo script (requires the pythoncpp extension)
+- **_C++ Attach** - Attach C++ debugger to any running Python process (shared by all configurations but can be ran manually).
 
 ### Quick Start
 
@@ -275,14 +273,13 @@ The repository includes pre-configured launch configurations in `.vscode/launch.
      uv sync --reinstall-package mettagrid
      ```
 
-2. **Set breakpoints** in both Python and C++ files(eg: `packages/mettagrid/cpp/bindings/mettagrid_c.cpp`,
+2. **Set breakpoints** in both Python and C++ files (e.g., `packages/mettagrid/cpp/bindings/mettagrid_c.cpp`,
    `packages/mettagrid/demos/demo_train_pettingzoo.py`)
 
-3. **Launch debugger** using the "MettaGrid Debug" configuration from the VSCode Run panel
+3. **Launch debugger** using the "MettaGrid Demo" or any other pythoncpp configuration from the VSCode Run panel.
 
-4. **Alternatively**, you can use the "MettaGrid Debug Attach C++" configuration to attach the debugger to a running
-   Python process within `packages/mettagrid`. It's going to ask you to select a process to attach to. You can type
-   "metta" and pick the first one on the list.
+4. **Alternatively**, you can use the "_C++ Attach" configuration to attach the debugger to any running Python process.
+   It will ask you to select a process - type "metta" or "python" to filter the list.
 
 ### Testing C++ Debugging
 
@@ -317,11 +314,9 @@ To verify that C++ breakpoints are working correctly, use a simple test that cal
    - Find the `pack()` or `unpack()` function implementation
    - Set a breakpoint inside the function body (e.g., on the return statement)
 
-3. **Launch your debug configuration** (e.g., "MettaGrid Debug")
+3. **Launch your debug configuration** (e.g., "MettaGrid Demo" or any pythoncpp configuration)
 
 4. **Verify the breakpoint hits** when the Python code calls `PackedCoordinate.pack()`
-
-5. **Check the call stack** shows the full path: Python → pybind11 → C++
 
 #### Where to Add the Test
 
@@ -332,13 +327,6 @@ Add the test call early in any Python entrypoint that uses mettagrid:
 - Tool runners (e.g., `common/src/metta/common/tool/run_tool.py`)
 - Training scripts (e.g., `metta/tools/train.py`)
 
-#### What This Confirms
-
-- C++ extension loads correctly
-- Debug symbols are available
-- Breakpoints can be set and hit in C++ code
-- Call stack traversal works between Python and C++
-
 **Note**: This test is only for verifying your debugging setup. Remove it before committing.
 
 ### Configuration Files
@@ -348,7 +336,5 @@ Add the test call early in any Python entrypoint that uses mettagrid:
 
 ### Important Notes
 
-- **Always use `DEBUG=1`**: Without this environment variable, dSYM files won't be generated and C++ breakpoints won't
-  work
-- **Source maps**: The launch config includes source maps to correctly locate C++ files in the packages/mettagrid's
-  workspace
+- **Always use `DEBUG=1`**: Without this environment variable, dSYM files won't be generated and C++ breakpoints won't work.
+- **Source maps**: The launch config includes source maps to correctly locate C++ files in the packages/mettagrid's workspace.
