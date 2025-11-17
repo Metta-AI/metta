@@ -327,7 +327,7 @@ def submit_monitor_and_report(
 
     # Report on results
     print()  # Blank line before final report
-    report_on_jobs(job_manager, job_names, title=title)
+    report_on_jobs(job_manager, job_names, title=title, dump_failed_logs=no_interactive)
 
     # Check if all jobs passed
     all_passed = all(
