@@ -22,7 +22,6 @@ Before finalizing changes (e.g. before a commit), or upon request from the user:
 
 - Always add type annotations to function parameters
 - Add return type annotations to public API functions
-- Use `Optional[type]` instead of `type | None` for optional types
 - Follow selective annotation guidelines (see CLAUDE.md for details)
 - Run mypy to check type consistency before committing
 
