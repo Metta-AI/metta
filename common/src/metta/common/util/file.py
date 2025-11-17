@@ -113,7 +113,7 @@ def read(path: str) -> bytes:
         bucket, key = parsed.require_s3()
         try:
             body = boto3.client("s3").get_object(Bucket=bucket, Key=key)["Body"].read()
-            logger.info("Read %d B from %s", len(body), parsed.canonical)
+            logger.debug("Read %d B from %s", len(body), parsed.canonical)
             return body
         except NoCredentialsError:  # pragma: no cover - environment dependent
             logger.error("AWS credentials not found -- have you run devops/aws/setup_sso.py?", exc_info=True)
@@ -121,7 +121,7 @@ def read(path: str) -> bytes:
 
     if parsed.scheme == "file" and parsed.local_path is not None:
         data = parsed.local_path.read_bytes()
-        logger.info("Read %d B from %s", len(data), parsed.local_path)
+        logger.debug("Read %d B from %s", len(data), parsed.local_path)
         return data
 
     raise ValueError(f"Unsupported URI for read(): {path}")

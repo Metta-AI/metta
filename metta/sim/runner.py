@@ -37,6 +37,7 @@ def run_simulations(
     replay_dir: str | None,
     seed: int,
     enable_replays: bool = True,
+    on_progress: Callable[[str], None] = lambda x: None,
 ) -> list[SimulationRunResult]:
     simulation_rollouts: list[SimulationRunResult] = []
 
@@ -49,6 +50,7 @@ def run_simulations(
         env_interface = PolicyEnvInterface.from_mg_cfg(simulation.env)
         multi_agent_policies: list[MultiAgentPolicy] = [pi(env_interface) for pi in policy_initializers]
 
+        on_progress(f"Beginning rollout for simulation {simulation.env.name}")
         rollout_result = multi_episode_rollout(
             env_cfg=simulation.env,
             policies=multi_agent_policies,
@@ -60,6 +62,7 @@ def run_simulations(
             max_action_time_ms=simulation.max_action_time_ms,
             event_handlers=[replay_writer] if replay_writer else None,
         )
+        on_progress(f"Finished rollout for simulation {simulation.env.name}")
 
         replay_urls = replay_writer.get_written_replay_urls() if replay_writer else {}
 
