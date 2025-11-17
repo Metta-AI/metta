@@ -23,7 +23,6 @@ from cogames.cogs_vs_clips.evals.eval_missions import (
 from cogames.cogs_vs_clips.mission import Mission
 from cogames.cogs_vs_clips.missions import (
     AssembleMission,
-    EasyHeartsMission,
     HarvestMission,
     RepairMission,
     VibeCheckMission,
