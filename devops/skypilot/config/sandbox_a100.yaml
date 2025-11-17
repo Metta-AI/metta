@@ -100,6 +100,7 @@ run: |
       --ulimit memlock=-1:-1 \
       --ipc=host \
       --userns=host \
+      -p 2222:22 \
       --entrypoint /bin/sh \
       -v /mnt/s3/softmax-public:/mnt/s3/softmax-public \
       -v /mnt/s3/train_dir:/mnt/s3/train_dir \
@@ -132,10 +133,19 @@ run: |
   else
     echo "[RUN] Container exists; starting if stopped"
     docker start "$CONTAINER_NAME" >/dev/null
+    # Warn if SSH port is not mapped on pre-existing container
+    mapped_port=$(docker inspect -f '{{ (index (index .HostConfig.PortBindings "22/tcp") 0).HostPort }}' "$CONTAINER_NAME" 2>/dev/null || true)
+    if [ -z "$mapped_port" ]; then
+      echo "[RUN] WARNING: Existing container has no host port mapping for 22/tcp."
+      echo "               To enable container SSH, remove the container or recreate with port mapping (-p 2222:22)."
+    fi
   fi
 
   echo "[RUN] Running setup and environment configuration inside container..."
-  docker exec -i "$CONTAINER_NAME" bash -lc '
+  docker exec -i \
+    -e WANDB_PASSWORD="${WANDB_PASSWORD:-}" \
+    -e OBSERVATORY_TOKEN="${OBSERVATORY_TOKEN:-}" \
+    "$CONTAINER_NAME" bash -lc '
     set -e
     cd /workspace/metta
 
@@ -158,6 +168,62 @@ run: |
 
     echo "Sandbox setup complete. Ready for SSH."
   '
+
+  echo "[RUN] Ensuring OpenSSH server is installed and running inside container..."
+  # Install and configure sshd inside the container (idempotent)
+  docker exec -i "$CONTAINER_NAME" bash -lc '
+    set -euo pipefail
+    if ! command -v sshd >/dev/null 2>&1; then
+      if command -v apt-get >/dev/null 2>&1; then
+        apt-get update -y && apt-get install -y openssh-server
+      elif command -v microdnf >/dev/null 2>&1; then
+        microdnf install -y openssh-server openssh-clients && microdnf clean all || true
+      elif command -v yum >/dev/null 2>&1; then
+        yum install -y openssh-server openssh-clients || true
+      fi
+    fi
+    mkdir -p /var/run/sshd
+    mkdir -p /root/.ssh
+    chmod 700 /root/.ssh
+    # Harden and enable key-based root login only
+    if [ -d /etc/ssh/sshd_config.d ]; then
+      printf "%s\n%s\n%s\n%s\n" \
+        "PermitRootLogin prohibit-password" \
+        "PasswordAuthentication no" \
+        "PubkeyAuthentication yes" \
+        "UseDNS no" \
+        > /etc/ssh/sshd_config.d/metta.conf
+    else
+      # Best-effort inline edits
+      sed -i 's/^#\?PasswordAuthentication .*/PasswordAuthentication no/g' /etc/ssh/sshd_config || true
+      if grep -q '^PermitRootLogin' /etc/ssh/sshd_config 2>/dev/null; then
+        sed -i 's/^PermitRootLogin .*/PermitRootLogin prohibit-password/g' /etc/ssh/sshd_config || true
+      else
+        echo "PermitRootLogin prohibit-password" >> /etc/ssh/sshd_config || true
+      fi
+      if ! grep -q '^PubkeyAuthentication' /etc/ssh/sshd_config 2>/dev/null; then
+        echo "PubkeyAuthentication yes" >> /etc/ssh/sshd_config || true
+      fi
+    fi
+  '
+
+  # Copy host authorized_keys into the container's root user for key-based login
+  if [ -f "$HOME/.ssh/authorized_keys" ]; then
+    echo "[RUN] Installing authorized_keys into container root account"
+    cat "$HOME/.ssh/authorized_keys" | docker exec -i "$CONTAINER_NAME" bash -lc 'cat > /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys'
+  else
+    echo "[RUN] WARNING: No $HOME/.ssh/authorized_keys found on host; SSH into container may fail"
+  fi
+
+  # Start sshd in the background if not already running
+  if ! docker exec -i "$CONTAINER_NAME" bash -lc 'pgrep -x sshd >/dev/null 2>&1'; then
+    echo "[RUN] Starting sshd inside container on port 22 (host port 2222)"
+    docker exec -d "$CONTAINER_NAME" /usr/sbin/sshd -D || docker exec -d "$CONTAINER_NAME" nohup /usr/sbin/sshd -D >/dev/null 2>&1
+    sleep 1
+  fi
+
+  # Verify sshd is listening
+  docker exec -i "$CONTAINER_NAME" bash -lc 'ss -tlnp 2>/dev/null | grep -E "LISTEN.+:22\b" || netstat -tlnp 2>/dev/null | grep -E "LISTEN.+:22\b" || true'
 
 envs:
   GITHUB_REPOSITORY: Metta-AI/metta

@@ -8,6 +8,9 @@ import sys
 import time
 import warnings
 from typing import Any, Dict, List, Optional, Tuple
+from pathlib import Path
+import glob
+import re
 
 # Suppress Pydantic warnings from SkyPilot dependencies before importing sky
 # SkyPilot v0.10.3.post2 with Pydantic 2.12.3 generates UnsupportedFieldAttributeWarning
@@ -312,6 +315,83 @@ def wait_for_cluster_ready(cluster_name: str, timeout_seconds: int = 300) -> boo
     except Exception as e:
         print(f"\n{red('✗')} {str(e)}")
         return False
+
+
+def _find_sky_identity_for_cluster(cluster_name: str) -> Optional[str]:
+    """Return the IdentityFile path used by SkyPilot for the given cluster.
+
+    Searches files included via '~/.sky/generated/ssh/*' to find a block like:
+
+      Host <cluster_name>
+        IdentityFile /path/to/key
+
+    Returns the IdentityFile path if found, else None.
+    """
+    try:
+        ssh_include_dir = Path.home() / ".sky" / "generated" / "ssh"
+        if not ssh_include_dir.exists():
+            return None
+
+        for path_str in glob.glob(str(ssh_include_dir / "*")):
+            p = Path(path_str)
+            try:
+                content = p.read_text()
+            except Exception:
+                continue
+
+            # Find the Host <cluster_name> block
+            # Simple regex to capture lines between 'Host <name>' and next 'Host ' or EOF
+            host_re = re.compile(rf"^Host\s+{re.escape(cluster_name)}\n(?P<body>(?:^(?!Host\s).*$\n?)*)", re.MULTILINE)
+            m = host_re.search(content)
+            if not m:
+                continue
+            body = m.group("body")
+            for line in body.splitlines():
+                if line.strip().lower().startswith("identityfile"):
+                    # Return the remainder of the line after the keyword
+                    parts = line.strip().split(None, 1)
+                    if len(parts) == 2:
+                        return os.path.expanduser(parts[1])
+        return None
+    except Exception:
+        return None
+
+
+def _write_container_ssh_config(cluster_name: str, port: int = 2222, user: str = "root") -> Optional[str]:
+    """Create/update a local SSH config entry to access the container via ProxyJump.
+
+    Writes to '~/.sky/generated/ssh/<cluster_name>-container.conf' so it is auto-included
+    by the main SSH config (which includes ~/.sky/generated/ssh/*).
+
+    Returns the created host alias (e.g., '<cluster_name>-ctr') on success.
+    """
+    try:
+        alias = f"{cluster_name}-ctr"
+        ssh_dir = Path.home() / ".sky" / "generated" / "ssh"
+        ssh_dir.mkdir(parents=True, exist_ok=True)
+
+        identity = _find_sky_identity_for_cluster(cluster_name)
+
+        lines: List[str] = [
+            f"Host {alias}",
+            "  HostName 127.0.0.1",
+            f"  Port {port}",
+            f"  User {user}",
+            f"  ProxyJump {cluster_name}",
+            "  StrictHostKeyChecking no",
+            "  UserKnownHostsFile /dev/null",
+        ]
+        if identity:
+            lines.append(f"  IdentityFile {identity}")
+            lines.append("  IdentitiesOnly yes")
+
+        lines.append("")
+        content = "\n".join(lines)
+        out_path = ssh_dir / f"{cluster_name}-container.conf"
+        out_path.write_text(content)
+        return alias
+    except Exception:
+        return None
 
 
 def handle_check_mode(clusters):
@@ -656,6 +736,16 @@ Common management commands:
             print(f"\n{yellow('⚠')} Failed to persist cluster metadata on master: {str(e)}")
             print("   You can still run jobs, but auto-detection may not work in SSH sessions.")
 
+    # Create a local SSH alias to connect directly to the container on the head node
+    with spinner("Creating SSH alias for container", style=cyan):
+        alias = _write_container_ssh_config(cluster_name, port=2222, user="root")
+        if alias:
+            print(f"  {green('✓')} Added SSH alias: {bold(alias)}")
+            print(f"     Use: {green(f'ssh {alias}')} (proxies via {cluster_name})")
+        else:
+            print(f"  {yellow('⚠')} Failed to write SSH alias for container. You can still:")
+            print(f"     {green(f'ssh -J {cluster_name} -p 2222 root@127.0.0.1')}")
+
     # For multi-GPU sandboxes (multi-node OR >1 GPU per node) and not sweep-controller, copy helpful credentials
     do_bootstrap_incluster = (not args.sweep_controller) and (
         (args.nodes and int(args.nodes) > 1) or (args.gpus and int(args.gpus) > 1)
@@ -735,6 +825,11 @@ Common management commands:
     print(f"\n{green('✓')} Sandbox is ready!")
     print("\nConnect to your sandbox:")
     print(f"  {green(f'ssh {cluster_name}')}")
+    # If we created the container SSH alias earlier, surface it here as well
+    container_alias = f"{cluster_name}-ctr"
+    container_conf = Path.home() / ".sky" / "generated" / "ssh" / f"{cluster_name}-container.conf"
+    if container_conf.exists():
+        print(f"  {green(f'ssh {container_alias}')}  # connect directly to the container")
     print(f"\n\n⚠️ The cluster will be automatically stopped after {bold(str(autostop_hours))} hours.")
     print("To disable autostop:")
     print(f"  {green(f'uv run sky autostop --cancel {cluster_name}')}")
