@@ -23,16 +23,8 @@ find "/UI/Main/**/ObjectInfo/OpenConfig":
           else:
             let objConfig = replay.mgConfig["game"]["objects"][typeName]
             objConfig.pretty
-    if not dirExists("tmp"):
-      createDir("tmp")
     let typeName = selection.typeName
-    writeFile("tmp/" & typeName & "_config.json", text)
-    when defined(windows):
-      discard execShellCmd("notepad tmp/" & typeName & "_config.json")
-    elif defined(macosx):
-      discard execShellCmd("open -a TextEdit tmp/" & typeName & "_config.json")
-    else:
-      discard execShellCmd("xdg-open tmp/" & typeName & "_config.json")
+    openTempTextFile(typeName & "_config.json", text)
 
 proc updateObjectInfo*() =
   ## Updates the object info panel to display the current selection.
