@@ -98,6 +98,13 @@ curriculum_args = {
         "room_sizes": ["tiny", "small", "medium", "large"],
         "terrains": ["no-terrain", "sparse", "balanced", "dense"],
     },
+    "terrain_2_progressive": {
+        # Start easier, curriculum will gradually add harder tasks
+        "chain_lengths": [2, 3],  # Start without chain_length=4
+        "num_sinks": [0, 1],  # Start without 2 sinks
+        "room_sizes": ["tiny", "small"],
+        "terrains": ["no-terrain", "sparse", "balanced"],  # Start without dense
+    },
 }
 
 ASSEMBLER_TYPES = {
@@ -353,22 +360,11 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
 
         return env_cfg
 
-    def calculate_max_steps(self, chain_length: int, num_sinks: int, width: int, height: int) -> int:
-        avg_hop = width + height / 2
-
-        # Increase steps_per_attempt from 4 to 6 for better coverage of complex terrain
-        steps_per_attempt = 6 * avg_hop
-        sink_exploration_cost = steps_per_attempt * num_sinks
-        chain_completion_cost = steps_per_attempt * chain_length
-        target_completions = 10
-
-        base_steps = int(sink_exploration_cost + target_completions * chain_completion_cost)
-
-        # Add buffer for complex tasks (longer chains, multiple sinks, dense terrain)
-        # This helps prevent timeouts on difficult tasks
-        complexity_multiplier = 1.3 if chain_length >= 4 or num_sinks >= 2 else 1.0
-
-        return int(base_steps * complexity_multiplier)
+    def calculate_max_steps(
+        self, chain_length: int, num_sinks: int, width: int, height: int, terrain: str = "no-terrain"
+    ) -> int:
+        """Public API for calculating max_steps. Delegates to _calculate_max_steps."""
+        return self._calculate_max_steps(chain_length, num_sinks, width, height, terrain)
 
     def _get_width_and_height(self, room_size: str, rng: random.Random):
         lo, hi = size_ranges[room_size]
@@ -376,7 +372,7 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
         height = rng.randint(lo, hi)
         return width, height
 
-    def _calculate_max_steps(self, chain_length: int, num_sinks: int, width: int, height: int) -> int:
+    def _calculate_max_steps(self, chain_length: int, num_sinks: int, width: int, height: int, terrain: str) -> int:
         avg_hop = width + height / 2
 
         # Increase steps_per_attempt from 4 to 6 for better coverage of complex terrain
@@ -389,7 +385,16 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
 
         # Add buffer for complex tasks (longer chains, multiple sinks, dense terrain)
         # This helps prevent timeouts on difficult tasks
-        complexity_multiplier = 1.3 if chain_length >= 4 or num_sinks >= 2 else 1.0
+        # Increase complexity multiplier for harder tasks
+        # Dense terrain and chain_length=4 need significantly more steps
+        if terrain == "dense" and chain_length >= 4:
+            complexity_multiplier = 2.5  # Much more time for dense terrain + long chains
+        elif terrain == "dense":
+            complexity_multiplier = 1.8  # Dense terrain needs more steps even for shorter chains
+        elif chain_length >= 4 or num_sinks >= 2:
+            complexity_multiplier = 1.5  # More time for complex tasks
+        else:
+            complexity_multiplier = 1.0
 
         return int(base_steps * complexity_multiplier)
 
@@ -400,7 +405,7 @@ class AssemblyLinesTaskGenerator(TaskGenerator):
         room_size = rng.choice(cfg.room_sizes)
         terrain = rng.choice(cfg.terrains)
         width, height = self._get_width_and_height(room_size, rng)
-        max_steps = self._calculate_max_steps(chain_length, num_sinks, width, height)
+        max_steps = self._calculate_max_steps(chain_length, num_sinks, width, height, terrain)
         return chain_length, num_sinks, room_size, width, height, max_steps, terrain
 
     def _generate_task(
@@ -441,21 +446,38 @@ def make_task_generator_cfg(
 
 
 def train(
-    curriculum_style: str = "terrain_2",
+    curriculum_style: str = "level_1",
 ) -> TrainTool:
     """
     Train ICL recipe with assembly line tasks.
 
-    Default curriculum_style is "terrain_2" which better matches evaluation difficulty:
-    - chain_lengths: [2, 3, 4] (matches eval range of 2-5)
-    - num_sinks: [0, 1, 2] (matches eval)
-    - room_sizes: ["tiny", "small"] (progression toward eval's medium/large)
-    - terrains: ["no-terrain", "sparse", "balanced", "dense"] (matches eval)
+    Default curriculum_style is "level_1" which starts with easier tasks:
+    - chain_lengths: [1, 2] (starts with single-step, adds 2-step chains)
+    - num_sinks: [0, 1]
+    - room_sizes: ["tiny"]
+    - terrains: ["no-terrain"] (no obstacles initially)
 
-    This reduces train/eval mismatch compared to "level_0" which only uses chain_length=1.
+    This ensures the agent learns basic task completion before facing harder challenges.
+    Once stable, you can manually progress to "level_2", "terrain_1", then "terrain_2".
     """
     task_generator_cfg = make_task_generator_cfg(**curriculum_args[curriculum_style])
-    curriculum = CurriculumConfig(task_generator=task_generator_cfg, algorithm_config=LearningProgressConfig())
+    # Make curriculum progression more conservative to prevent collapse
+    # These settings help the agent learn gradually without getting stuck on hard tasks
+    algorithm_config = LearningProgressConfig(
+        # Increase random exploration to prevent getting stuck on hard tasks
+        # Higher rand_task_rate means more random task selection, preventing premature focus on hard tasks
+        rand_task_rate=0.5,  # Default is 0.25, increase to 0.5 for more exploration
+        # Slower EMA timescale for more stable learning progress detection
+        # Lower ema_timescale means slower adaptation, preventing rapid curriculum shifts
+        ema_timescale=0.0003,  # Default is 0.001, make it slower (0.0003 = 3x slower)
+        # More exploration bonus to encourage trying easier tasks
+        # Higher exploration_bonus gives more weight to under-explored tasks
+        exploration_bonus=0.2,  # Default is 0.1, increase to 0.2 for more exploration
+        # Use bidirectional learning progress for better task selection
+        use_bidirectional=True,
+    )
+
+    curriculum = CurriculumConfig(task_generator=task_generator_cfg, algorithm_config=algorithm_config)
 
     policy_config = ViTDefaultConfig()
 
