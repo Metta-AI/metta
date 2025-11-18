@@ -36,6 +36,11 @@ datadog:
     - "env:production"
 
 # DaemonSet agent configuration
+clusterAgent:
+  replicas: 2
+  pdb:
+    create: true
+
 agents:
   enabled: true
   useHostNetwork: true
