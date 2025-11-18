@@ -382,7 +382,6 @@ class MapSeedVariant(MapGenVariant):
         mission = base_mission.with_variants([MapSeedVariant(seed=1234)])
         env_cfg = mission.make_env()
 
-    It does not need to be exposed via the CLI variants registry to be useful.
     """
 
     name: str = "map_seed"
