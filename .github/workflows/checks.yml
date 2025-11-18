@@ -366,3 +366,49 @@ jobs:
             } else {
               core.info('All test jobs completed successfully');
             }
+
+  cleanup-cancelled-runs:
+    name: "Cleanup Cancelled Runs"
+    needs: [tests-summary]
+    # Only run on main branch pushes to clean up red X's from superseded runs
+    # Runs even if tests were cancelled/failed (always()) to ensure cleanup happens
+    # TEMPORARY: Allow testing on this branch - remove before merging to main
+    if: |
+      always() && (
+        (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+        (github.event_name == 'workflow_dispatch') ||
+        (github.event_name == 'push' && github.ref == 'refs/heads/akshay/jobs-shouldnt-cause-x-red-on-main')
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      contents: read
+    outputs:
+      deleted-count: ${{ steps.cleanup.outputs.deleted-count }}
+      status: ${{ steps.cleanup.outcome }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cleanup cancelled runs from concurrency
+        id: cleanup
+        continue-on-error: true
+        uses: ./.github/actions/cleanup-cancelled-runs
+        with:
+          workflow-file: "checks.yml"
+          max-deletions: "10"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # TEMPORARY: Enable dry-run for testing - set to "false" when ready for production
+          dry-run: "true"
+
+      - name: Report cleanup status
+        if: always()
+        run: |
+          if [ "${{ steps.cleanup.outcome }}" == "success" ]; then
+            echo "✅ Cleanup completed successfully"
+            echo "Deleted runs: ${{ steps.cleanup.outputs.deleted-count || '0' }}"
+          else
+            echo "⚠️ Cleanup job completed with status: ${{ steps.cleanup.outcome }}"
+            echo "This is non-blocking - workflow will continue"
+          fi
