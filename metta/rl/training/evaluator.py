@@ -248,6 +248,7 @@ class Evaluator(TrainerComponent):
             replay_dir=self._config.replay_dir,
             seed=self._system_cfg.seed,
             enable_replays=True,
+            on_progress=logger.info,
         )
         return rollout_results, policy_spec
 

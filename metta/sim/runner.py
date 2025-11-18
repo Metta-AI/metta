@@ -38,6 +38,7 @@ def run_simulations(
     replay_dir: str | None,
     seed: int,
     enable_replays: bool = True,
+    on_progress: Callable[[str], None] = lambda x: None,
 ) -> list[SimulationRunResult]:
     if not policy_specs:
         msg = "At least one policy spec is required"
@@ -45,7 +46,7 @@ def run_simulations(
 
     simulation_rollouts: list[SimulationRunResult] = []
 
-    for simulation in simulations:
+    for i, simulation in enumerate(simulations):
         proportions = simulation.proportions
         env_interface = PolicyEnvInterface.from_mg_cfg(simulation.env)
         multi_agent_policies: list[MultiAgentPolicy] = [
@@ -59,6 +60,7 @@ def run_simulations(
             unique_dir.mkdir(parents=True, exist_ok=True)
             replay_writer = ReplayLogWriter(str(unique_dir))
 
+        on_progress(f"Beginning rollout for simulation {i + 1} of {len(simulations)}")
         rollout_result = multi_episode_rollout(
             env_cfg=simulation.env,
             policies=multi_agent_policies,
@@ -70,6 +72,7 @@ def run_simulations(
             max_action_time_ms=simulation.max_action_time_ms,
             event_handlers=[replay_writer] if replay_writer else None,
         )
+        on_progress(f"Finished rollout for simulation {i}")
 
         replay_urls = replay_writer.get_written_replay_urls() if replay_writer else {}
 

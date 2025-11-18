@@ -41,7 +41,7 @@ class ReplayLogWriter(SimulatorEventHandler):
         self._episode_replay = EpisodeReplay(self._sim)
         assert self._episode_id is not None
         self.episodes[self._episode_id] = self._episode_replay
-        logger.info("Started recording episode %s", self._episode_id)
+        logger.debug("Started recording episode %s", self._episode_id)
 
     def on_step(
         self,
@@ -71,8 +71,8 @@ class ReplayLogWriter(SimulatorEventHandler):
         self._episode_paths[self._episode_id] = replay_path
         self._sim._context["replay_url"] = url
         logger.info("Wrote replay for episode %s to %s", self._episode_id, url)
-        logger.info("Watch replay at %s", METTASCOPE_REPLAY_URL_PREFIX + url)
-        logger.info(
+        logger.debug("Watch replay at %s", METTASCOPE_REPLAY_URL_PREFIX + url)
+        logger.debug(
             "Watch locally: "
             + f"nim r -d:fidgetUseCached packages/mettagrid/nim/mettascope/src/mettascope.nim --replay={replay_path}"
         )
