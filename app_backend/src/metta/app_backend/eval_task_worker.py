@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 import boto3
+from ddtrace.trace import tracer
 
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.routes.eval_task_routes import (
@@ -276,6 +277,45 @@ class EvalTaskWorker:
             else ""
         )
 
+    @trace("worker.attempt_task")
+    async def attempt_task(self, task: EvalTaskResponse) -> None:
+        logger.info(f"Processing task {task.id}")
+        span = tracer.current_span()
+        if span:
+            span.set_tags(
+                {
+                    f"task.{key}": value
+                    for key, value in task.model_dump(mode="json").items()
+                    if key in ["id", "policy_id", "policy_uri", "policy_name", "git_hash", "user_id", "assignee"]
+                }
+            )
+            span.resource = str(task.id)
+
+        try:
+            task_result = await self._task_executor.execute_task(task)
+            status: TaskStatus = "done" if task_result.success else "error"
+
+            logger.info(f"Task {task.id} completed with status {status}")
+            warnings = None
+            if task_result.warnings is not None and len(task_result.warnings) > 0:
+                warnings = task_result.warnings
+
+            await self._update_task_status(
+                task.id,
+                status,
+                error_reason=task_result.error,
+                log_path=task_result.log_path,
+                warnings=warnings,
+            )
+            logger.info(f"Task {task.id} updated to {status}")
+        except Exception as e:
+            logger.error(f"Task failed: {e}", exc_info=True)
+            await self._update_task_status(
+                task.id,
+                "error",
+                error_reason=str(e),
+            )
+
     async def run(self) -> None:
         logger.info("Starting eval worker")
         logger.info(f"Worker id: {self._assignee}")
@@ -286,31 +326,7 @@ class EvalTaskWorker:
 
                 if claimed_tasks.tasks:
                     task: EvalTaskResponse = min(claimed_tasks.tasks, key=lambda x: x.assigned_at or datetime.min)
-                    logger.info(f"Processing task {task.id}")
-                    try:
-                        task_result = await self._task_executor.execute_task(task)
-                        status = "done" if task_result.success else "error"
-
-                        logger.info(f"Task {task.id} completed with status {status}")
-                        warnings = None
-                        if task_result.warnings is not None and len(task_result.warnings) > 0:
-                            warnings = task_result.warnings
-
-                        await self._update_task_status(
-                            task.id,
-                            status,
-                            error_reason=task_result.error,
-                            log_path=task_result.log_path,
-                            warnings=warnings,
-                        )
-                        logger.info(f"Task {task.id} updated to {status}")
-                    except Exception as e:
-                        logger.error(f"Task failed: {e}", exc_info=True)
-                        await self._update_task_status(
-                            task.id,
-                            "error",
-                            str(e),
-                        )
+                    await self._attempt_task(task)
                 else:
                     logger.debug("No tasks claimed")
 
