@@ -72,11 +72,6 @@ def mettagrid(num_agents: int = 24) -> MettaGridConfig:
         # "blueprint": 1,
     }
 
-    # Easy converter: 1 battery_red to 1 heart (instead of 3 to 1)
-    altar = arena_env.game.objects.get("altar")
-    if hasattr(altar, "input_resources"):
-        altar.input_resources["battery_red"] = 1
-
     arena_env.game.map_builder.width = 70
     arena_env.game.map_builder.height = 70
     arena_env.game.actions.attack.enabled = False
