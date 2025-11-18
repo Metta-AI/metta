@@ -736,10 +736,6 @@ proc apply*(replay: Replay, step: int, objects: seq[ReplayEntity]) =
     entity.usesCount.add(obj.usesCount)
     entity.maxUses = obj.maxUses
     entity.allowPartialUsage = obj.allowPartialUsage
-
-    if obj.protocols.len > 0:
-      let protocolStr = toJson(obj.protocols)
-      echo &"adding protocols: {protocolStr}"
     entity.protocols = obj.protocols
 
   # Extend the max steps.
