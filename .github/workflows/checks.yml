@@ -372,13 +372,7 @@ jobs:
     needs: [tests-summary]
     # Only run on main branch pushes to clean up red X's from superseded runs
     # Runs even if tests were cancelled/failed (always()) to ensure cleanup happens
-    # TEMPORARY: Allow testing on this branch - remove before merging to main
-    if: |
-      always() && (
-        (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-        (github.event_name == 'workflow_dispatch') ||
-        (github.event_name == 'push' && github.ref == 'refs/heads/akshay/jobs-shouldnt-cause-x-red-on-main')
-      )
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -399,8 +393,6 @@ jobs:
           workflow-file: "checks.yml"
           max-deletions: "10"
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          # TEMPORARY: Enable dry-run for testing - set to "false" when ready for production
-          dry-run: "true"
 
       - name: Report cleanup status
         if: always()
