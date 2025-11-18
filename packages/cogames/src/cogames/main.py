@@ -27,6 +27,7 @@ from cogames.cli.mission import (
     describe_mission,
     get_mission_name_and_config,
     get_mission_names_and_configs,
+    list_missions,
     list_evals,
     list_variants,
 )
@@ -107,7 +108,12 @@ def games_cmd(
     ),
     print_cvc_config: bool = typer.Option(False, "--print-cvc-config", help="Print Mission config (CVC config)"),
     print_mg_config: bool = typer.Option(False, "--print-mg-config", help="Print MettaGridConfig"),
+    site: Optional[str] = typer.Argument(None, help="Site to list missions for (e.g., training_facility)"),
 ) -> None:
+    if mission is None:
+        list_missions(site)
+        return
+
     resolved_mission, env_cfg, mission_cfg = get_mission_name_and_config(ctx, mission, variant, cogs)
 
     if print_cvc_config or print_mg_config:
