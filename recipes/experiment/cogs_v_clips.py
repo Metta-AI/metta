@@ -47,6 +47,21 @@ COORDINATION_MISSIONS: tuple[str, ...] = (
     "collect_resources_spread",
 )
 
+PROC_MAP_MISSIONS: tuple[str, ...] = tuple(
+    f"hello_world{MAP_MISSION_DELIMITER}{mission}"
+    for mission in (
+        "open_world",
+        "hello_world_unclip",
+        "clipping",
+        "oxygen_bottleneck",
+        "energy_starved",
+        "distant_resources",
+        "quadrant_buildings",
+        "single_use_swarm",
+        "vibe_check",
+        "easy_hearts",
+    )
+)
 
 def _normalize_variant_names(
     *,
@@ -386,14 +401,14 @@ def train_coordination(
     )
 
 
-def train_all_maps(
+def train_fixed_maps(
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
     mission: str | None = None,
 ) -> TrainTool:
-    """Train on all CoGs vs Clips missions in one curriculum."""
+    """Train on fixed-map CoGs vs Clips missions in one curriculum."""
     return train(
         num_cogs=num_cogs,
         base_missions=list(DEFAULT_CURRICULUM_MISSIONS),
@@ -402,6 +417,28 @@ def train_all_maps(
         eval_difficulty=eval_difficulty,
         mission=mission,
     )
+
+
+def train_proc_maps(
+    num_cogs: int = 4,
+    variants: Optional[Sequence[str]] = None,
+    eval_variants: Optional[Sequence[str]] = None,
+    eval_difficulty: str | None = "standard",
+    mission: str | None = None,
+) -> TrainTool:
+    """Train on procedural MachinaArena map missions."""
+    return train(
+        num_cogs=num_cogs,
+        base_missions=list(PROC_MAP_MISSIONS),
+        variants=variants,
+        eval_variants=eval_variants,
+        eval_difficulty=eval_difficulty,
+        mission=mission,
+    )
+
+
+# Backward compatibility alias while downstreams migrate from the old name.
+train_all_maps = train_fixed_maps
 
 
 __all__ = [
@@ -414,5 +451,7 @@ __all__ = [
     "play",
     "play_training_env",
     "train_coordination",
+    "train_fixed_maps",
+    "train_proc_maps",
     "train_all_maps",
 ]
