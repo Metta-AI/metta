@@ -107,15 +107,10 @@ def train(
     eval_simulations = simulations()
 
     losses_cfg = LossesConfig()
-    # # classic PPO, disagregated into actor and critic losses
-    losses_cfg.ppo.enabled = False
-    losses_cfg.ppo_actor.enabled = True
-    losses_cfg.ppo_critic.enabled = True
 
     # # action supervised with PPO critic loss
-    # losses_cfg.ppo.enabled = False
+    # losses_cfg.ppo_actor.enabled = False
     # losses_cfg.action_supervisor.enabled = True
-    # losses_cfg.ppo_critic.enabled = True
     # losses_cfg.ppo_critic.sample_enabled = False
     # # losses_cfg.ppo_critic.train_forward_enabled = False
     # losses_cfg.ppo_critic.rollout_forward_enabled = False
@@ -135,7 +130,6 @@ def train(
         stats_server_uri=None,
         stats_reporter=StatsReporterConfig(
             report_to_wandb=False,
-            report_to_stats_client=False,
             report_to_console=True,
         ),
     )

@@ -147,7 +147,6 @@ class PPO(Loss):
         """This is the PPO algorithm training loop."""
         config = self.cfg
         stop_update_epoch = False
-        self.policy.reset_memory()
         self.burn_in_steps_iter = 0
         if config.target_kl is not None and mb_idx > 0:
             avg_kl = np.mean(self.loss_tracker["approx_kl"]) if self.loss_tracker["approx_kl"] else 0.0
@@ -173,7 +172,7 @@ class PPO(Loss):
         policy_td, B, TT = prepare_policy_forward_td(minibatch, self.policy_experience_spec, clone=False)
 
         flat_actions = minibatch["actions"].reshape(B * TT, -1)
-
+        self.policy.reset_memory()
         policy_td = self.policy.forward(policy_td, action=flat_actions)
         shared_loss_data["policy_td"] = policy_td.reshape(B, TT)
 

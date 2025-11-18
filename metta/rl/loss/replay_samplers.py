@@ -4,8 +4,8 @@ import torch
 from tensordict import TensorDict
 from torch import Tensor
 
+from metta.rl.training.batch import calculate_prioritized_sampling_params
 from metta.rl.training.experience import Experience
-from metta.utils.batch import calculate_prioritized_sampling_params
 
 
 def sequential_sample(buffer: Experience, mb_idx: int) -> tuple[TensorDict, Tensor]:

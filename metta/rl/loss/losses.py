@@ -20,12 +20,12 @@ if TYPE_CHECKING:
 
 
 class LossesConfig(Config):
-    # PPO in a single file enabled by default below
-    ppo: PPOConfig = Field(default_factory=lambda: PPOConfig(enabled=True))
+    # ENABLED BY DEFAULT: PPO split into two terms for flexibility, simplicity, and separation of concerns
+    ppo_actor: PPOActorConfig = Field(default_factory=lambda: PPOActorConfig(enabled=True))
+    ppo_critic: PPOCriticConfig = Field(default_factory=lambda: PPOCriticConfig(enabled=True))
 
-    # PPO divorced into two terms offered below for more flexibility
-    ppo_actor: PPOActorConfig = Field(default_factory=lambda: PPOActorConfig(enabled=False))
-    ppo_critic: PPOCriticConfig = Field(default_factory=lambda: PPOCriticConfig(enabled=False))
+    # our original PPO in a single file
+    ppo: PPOConfig = Field(default_factory=lambda: PPOConfig(enabled=False))
 
     # other aux losses below
     contrastive: contrastive_config.ContrastiveConfig = Field(
@@ -37,6 +37,10 @@ class LossesConfig(Config):
 
     def _configs(self) -> dict[str, LossConfig]:
         loss_configs: dict[str, LossConfig] = {}
+        if self.ppo_critic.enabled:
+            loss_configs["ppo_critic"] = self.ppo_critic
+        if self.ppo_actor.enabled:
+            loss_configs["ppo_actor"] = self.ppo_actor
         if self.ppo.enabled:
             loss_configs["ppo"] = self.ppo
         if self.contrastive.enabled:
@@ -45,10 +49,6 @@ class LossesConfig(Config):
             loss_configs["action_supervisor"] = self.action_supervisor
         if self.grpo.enabled:
             loss_configs["grpo"] = self.grpo
-        if self.ppo_critic.enabled:
-            loss_configs["ppo_critic"] = self.ppo_critic
-        if self.ppo_actor.enabled:
-            loss_configs["ppo_actor"] = self.ppo_actor
         if self.kickstarter.enabled:
             loss_configs["kickstarter"] = self.kickstarter
         return loss_configs

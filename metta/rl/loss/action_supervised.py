@@ -12,6 +12,7 @@ from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.loss.replay_samplers import sequential_sample
 from metta.rl.training import ComponentContext
+from metta.rl.utils import prepare_policy_forward_td
 
 
 class ActionSupervisedConfig(LossConfig):
@@ -123,11 +124,7 @@ class ActionSupervised(Loss):
         # then clean up the below since the sampler runs the policy in training.
         # add the gather here, going of the policy's full logprobs
         if self.train_forward_enabled:
-            policy_td = minibatch.select(*self.policy_experience_spec.keys(include_nested=True))
-            B, TT = policy_td.batch_size
-            policy_td = policy_td.reshape(B * TT)
-            policy_td.set("bptt", torch.full((B * TT,), TT, device=policy_td.device, dtype=torch.long))
-            policy_td.set("batch", torch.full((B * TT,), B, device=policy_td.device, dtype=torch.long))
+            policy_td, B, TT = prepare_policy_forward_td(minibatch, self.policy_experience_spec, clone=False)
             flat_actions = minibatch["actions"].reshape(B * TT, -1)
             self.policy.reset_memory()
             policy_td = self.policy.forward(policy_td, action=flat_actions)

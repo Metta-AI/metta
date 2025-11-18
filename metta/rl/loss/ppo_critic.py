@@ -12,6 +12,7 @@ from metta.rl.advantage import compute_advantage
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.loss.replay_samplers import prio_sample
 from metta.rl.training import ComponentContext, TrainingEnvironment
+from metta.rl.utils import prepare_policy_forward_td
 
 
 class PPOCriticConfig(LossConfig):
@@ -155,21 +156,19 @@ class PPOCritic(Loss):
 
         # forward the policy if called for
         if self.train_forward_enabled:
-            policy_td = minibatch.select(*self.policy_experience_spec.keys(include_nested=True))
-            B, TT = policy_td.batch_size
-            policy_td = policy_td.reshape(B * TT)
-            policy_td.set("bptt", torch.full((B * TT,), TT, device=policy_td.device, dtype=torch.long))
-            policy_td.set("batch", torch.full((B * TT,), B, device=policy_td.device, dtype=torch.long))
+            policy_td, B, TT = prepare_policy_forward_td(minibatch, self.policy_experience_spec, clone=False)
             flat_actions = minibatch["actions"].reshape(B * TT, -1)
             self.policy.reset_memory()
             policy_td = self.policy.forward(policy_td, action=flat_actions)
-            shared_loss_data["policy_td"] = policy_td.reshape(B, TT)
+            policy_td = policy_td.reshape(B, TT)
+            shared_loss_data["policy_td"] = policy_td
 
         # compute value loss
         old_values = minibatch["values"]
         returns = shared_loss_data["advantages"] + minibatch["values"]
         minibatch["returns"] = returns
         policy_td = shared_loss_data.get("policy_td", None)
+        newvalue_reshaped = None
         if policy_td is not None:
             newvalue = policy_td["values"]
             newvalue_reshaped = newvalue.view(returns.shape)
@@ -191,11 +190,11 @@ class PPOCritic(Loss):
 
     def on_train_phase_end(self, context: ComponentContext) -> None:
         """Compute value-function explained variance for logging, mirroring monolithic PPO."""
-        if self.replay is None:
-            return
         with torch.no_grad():
             y_pred = self.replay.buffer["values"].flatten()
             y_true = self.advantages.flatten() + self.replay.buffer["values"].flatten()
             var_y = y_true.var()
             ev = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
             self.loss_tracker["explained_variance"].append(float(ev))
+
+        super().on_train_phase_end(context)
