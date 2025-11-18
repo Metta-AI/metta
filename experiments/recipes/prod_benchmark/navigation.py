@@ -236,6 +236,7 @@ def sweep(sweep_name: str) -> SweepTool:
     parameters = [
         SP.LEARNING_RATE,
         SP.PPO_CLIP_COEF,
+        SP.PPO_ENT_COEF,
         SP.PPO_GAE_LAMBDA,
         SP.PPO_VF_COEF,
         SP.ADAM_EPS,
