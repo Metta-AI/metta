@@ -11,6 +11,11 @@ logger = logging.getLogger(__name__)
 @functools.cache
 def init_tracing():
     if datadog_config.DD_TRACE_ENABLED:
+        if datadog_config.DD_LOGS_INJECTION:
+            # Inject trace identifiers into stdlib logging records for log/trace correlation
+            from ddtrace import patch
+
+            patch(logging=True)
         logger.info(
             f"Datadog tracing enabled: service={datadog_config.DD_SERVICE}, "
             f"env={datadog_config.DD_ENV}, agent={datadog_config.DD_AGENT_HOST}"

@@ -8,7 +8,7 @@ from metta.common.util.lazypath import LazyPath
 # Repo root path calculation
 REPO_ROOT = Path(__file__).resolve().parents[5]  # Navigate up to repo root
 
-OBSERVATORY_AUTH_SERVER_URL = "https://observatory.softmax-research.net/api"
+OBSERVATORY_AUTH_SERVER_URL = "https://softmax.com/api"
 PROD_STATS_SERVER_URI = "https://api.observatory.softmax-research.net"
 DEV_STATS_SERVER_URI = "http://localhost:8000"
 PROD_OBSERVATORY_FRONTEND_URL = "https://observatory.softmax-research.net"
