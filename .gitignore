@@ -145,3 +145,8 @@ packages/cogames/src/cogames/policy/nim_agents/bindings/generated
 .terraform*
 terraform.tfstate
 .cache/torch_ext/
+
+# Python import analysis
+tools/dev/python_imports/cycles_report.json
+tools/dev/python_imports/architecture_report.json
+tools/dev/python_imports/analysis_summary.md

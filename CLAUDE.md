@@ -524,10 +524,16 @@ The `dependency-validation.yml` workflow automatically:
 
 ### Code Style Guidelines
 
+- **Import specification**: For comprehensive Python import management rules including circular dependency resolution,
+  architectural layers, and TYPE_CHECKING restrictions, see `tools/dev/python_imports/SPECIFICATION.md`
 - **Import placement**: All imports MUST be at the top of the file, never inside functions or methods
   - Follow PEP 8 import ordering: standard library, third-party, local imports
   - Each group separated by a blank line
-  - No imports inside function bodies, even for lazy loading
+  - Use `from __future__ import annotations` when type hints reference forward types
+  - For detailed rules on circular dependencies, lazy loading, and exceptions, see
+    `tools/dev/python_imports/SPECIFICATION.md`
+- **Lazy loading exception**: Module-level `__getattr__` patterns are permitted for documented performance optimization
+  (see SPECIFICATION.md §6.2)
 - Use modern Python typing syntax (PEP 585: `list[str]` instead of `List[str]`)
 - Use `Optional[type]` instead of `type | None` for optional types
 - Follow selective type annotation guidelines:
@@ -578,6 +584,118 @@ The `dependency-validation.yml` workflow automatically:
       def value(self):  # Public property
           return self._value
   ```
+
+#### Python Imports & Circular Dependencies
+
+Prevent circular import errors by using consistent patterns.
+
+**Quick rules:**
+
+1. **Start every file with:**
+
+   ```python
+   from __future__ import annotations
+   ```
+
+   This enables automatic forward references in type hints.
+
+2. **Import shared types from `types.py` files:**
+
+   ```python
+   from mettagrid.types import Action
+   from metta.common.types import WandbConfig
+   ```
+
+3. **Always use absolute imports:**
+
+   ```python
+   # Correct - absolute imports
+   from metta.cogworks.curriculum.types import CurriculumTask
+   from metta.cogworks.curriculum.stats import StatsLogger
+   # Avoid - relative imports
+   from .types import CurriculumTask
+   from ..common.types import Config
+   ```
+
+   Absolute imports are clearer, work when running files directly, and give better error messages.
+
+4. **For cross-package imports that might create cycles, use module imports:**
+   ```python
+   import mettagrid.simulator.simulator as simulator
+   sim = simulator.Simulation()
+   ```
+
+**Why?**
+
+- `from __future__ import annotations` makes forward references work automatically
+- Absolute imports are unambiguous, work when running files directly, and give better error messages
+- Extracting shared types to `types.py` breaks most circular dependencies
+- Module imports (`import X as X_mod`) prevent remaining cycles
+
+**When you hit a circular import:**
+
+1. **Extract shared types** - Move types to `types.py` at the lowest common package:
+   - Cross-package types → `common/src/metta/common/types.py`
+   - Mettagrid-only types → `packages/mettagrid/python/src/mettagrid/types.py`
+   - Package-specific → `<package>/types.py`
+
+   **What belongs in types.py (keep it light):**
+   - Data classes and dataclasses
+   - TypedDict definitions
+   - Type aliases
+   - Enums
+   - Simple Pydantic models (config-only, no business logic)
+
+   **What does NOT belong in types.py:**
+   - Classes with `__init__` logic beyond simple assignment
+   - Classes inheriting from implementation bases (e.g., `StatsLogger`)
+   - Abstract base classes with concrete method implementations
+   - Any class importing heavy dependencies
+
+   If extraction would make types.py "heavy", the cycle can likely be broken another way (e.g., using base class type
+   instead of Union, which removes the need to import subclasses).
+
+2. **Convert to module import** - Use `import X as X_mod` instead of `from X import Y`
+
+3. **If still stuck** - Ask for review (rare)
+
+**Performance exceptions allowed:**
+
+- `__init__.py` SHOULD use lazy loading via `__getattr__` when package has heavy imports (torch, gymnasium, pufferlib,
+  pandas, scipy, boto3, etc.)
+- `__init__.py` with only light imports SHOULD use direct imports (lazy loading adds unnecessary complexity)
+- Optional dependencies can use try/except imports
+- Backend selection (CUDA/Triton) can use conditional imports
+
+**Not allowed:**
+
+- Local imports inside functions/methods to work around circular dependencies
+- Use the resolution protocol above instead (extract types or module imports)
+
+**Architecture layers (for reference):**
+
+```
+Foundation:     common
+Environment:    mettagrid.config → mettagrid.simulator → mettagrid.policy/envs
+Agent:          agent (neural components)
+RL Core:        metta.rl (training, losses, vecenv)
+Applications:   metta.sim, metta.cogworks, recipes
+Services:       app_backend, tools
+```
+
+Lower layers provide abstractions for higher layers. Don't import upward.
+
+**Examples:**
+
+- ✓ `from mettagrid.types import Action` - absolute import, shared type
+- ✓ `from metta.cogworks.curriculum.types import CurriculumTask` - absolute import
+- ✓ `import mettagrid.simulator.simulator as sim` - module import prevents cycles
+- ✗ `from .types import CurriculumTask` - relative import, use absolute
+- ✗ `from mettagrid.simulator import Action` - unclear source, use types.py
+- ✗ `from mettagrid.simulator.simulator import Simulation` in `mettagrid.simulator.interface` - creates cycle
+- ✗ `from metta.rl import Trainer` in `agent/` - violates layer ordering
+
+**For detailed Python Imports specification:** See `tools/dev/python_imports/SPECIFICATION.md`
 
 ### Project-Specific Patterns
 
