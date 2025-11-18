@@ -129,7 +129,7 @@ def train(
         wandb=WandbConfig.Off(),
         stats_server_uri=None,
         stats_reporter=StatsReporterConfig(
-            report_to_wandb=False,
+            # report_to_wandb=False,
             report_to_console=True,
         ),
     )
