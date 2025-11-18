@@ -40,9 +40,14 @@ RepairMission = Mission(
     description="Repair disabled stations to restore their functionality.",
     site=TRAINING_FACILITY,
     num_cogs=2,
-    variants=[InventoryHeartTuneVariant(hearts=1), ExtractorHeartTuneVariant(hearts=10),
-               LonelyHeartVariant(), ClipPeriodOnVariant(), ClipHubStationsVariant()],
-) # If you get only two hearts you failed.
+    variants=[
+        InventoryHeartTuneVariant(hearts=1),
+        ExtractorHeartTuneVariant(hearts=10),
+        LonelyHeartVariant(),
+        ClipPeriodOnVariant(),
+        ClipHubStationsVariant(),
+    ],
+)  # If you get only two hearts you failed.
 
 
 # Easy Hearts: simplified heart crafting and generous limits with extractor hub

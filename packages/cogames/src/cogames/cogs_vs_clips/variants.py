@@ -71,7 +71,7 @@ class LonelyHeartVariant(MissionVariant):
 
 
 class SuperChargedVariant(MissionVariant):
-    name: str = "super_charged" 
+    name: str = "super_charged"
     description: str = "The sun is shining on you. You recharge faster."
 
     @override

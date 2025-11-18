@@ -295,7 +295,7 @@ SingleUseSwarm = Mission(
     site=HELLO_WORLD,
     variants=[
         SingleUseSwarmVariant(),
-         ],
+    ],
 )
 
 # Single Use Swarm tiers
