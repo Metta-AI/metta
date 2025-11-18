@@ -12,11 +12,11 @@ def run_arena_train_and_eval(run_name: str) -> None:
     This keeps train+eval in the same job so the checkpoint is available locally.
     """
     # Train briefly with frequent checkpoints
-    trainer_overrides = {
-        "trainer.total_timesteps": 100,
-        "checkpointer.epoch_interval": 1,
-    }
-    arena_train(**trainer_overrides, run=run_name)
+    arena_train(
+        run=run_name,
+        trainer={"total_timesteps": 100, "epoch_length": 10},
+        checkpointer={"epoch_interval": 1},
+    )
 
     # Evaluate latest checkpoint from the run's checkpoints dir
     ckpt_dir = Path("./train_dir") / run_name / "checkpoints"
