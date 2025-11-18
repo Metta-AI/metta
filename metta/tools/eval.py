@@ -30,6 +30,7 @@ class EvaluateTool(Tool):
     stats_server_uri: str | None = auto_stats_server_uri()
     register_missing_policies: bool = False
     eval_task_id: str | None = None
+    verbose: bool = False
     push_metrics_to_wandb: bool = False
 
     def _build_policy_spec(self, normalized_uri: str) -> PolicySpec:
@@ -97,7 +98,7 @@ class EvaluateTool(Tool):
         normalized_uri = CheckpointManager.normalize_uri(policy_uri)
         policy_spec = self._build_policy_spec(normalized_uri)
         rollout_results = self.eval_policy(policy_spec)
-        render_eval_summary(rollout_results, policy_names=[self._spec_display_name(policy_spec)])
+        render_eval_summary(rollout_results, policy_names=[self._spec_display_name(policy_spec)], verbose=self.verbose)
         if self.push_metrics_to_wandb:
             guess = self._guess_epoch_and_agent_step(normalized_uri)
             if guess is None:
