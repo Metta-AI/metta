@@ -168,7 +168,6 @@ def make_curriculum(
                 variant_names=variant_names,
             )
             mission_env = mission.make_env()
-            cogs_v_clips._clamp_agent_inventory(mission_env)
 
         # Give each environment a label so per-label rewards can be tracked in stats/W&B.
         # Use the mission name as the label, which is stable across curriculum tasks.

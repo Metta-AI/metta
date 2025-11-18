@@ -60,6 +60,11 @@ class PullRequest:
         self.is_open = self.state == "open"
         self.task_completed = not self.is_open
 
+        # Extract requested reviewers (people who have been asked to review but haven't yet)
+        self.requested_reviewers = [
+            reviewer["login"] for reviewer in d.get("requested_reviewers", []) if reviewer.get("login")
+        ]
+
         self.reviewers = [
             review["user"]["login"]
             for review in d.get("retrieved_reviews", [])
@@ -70,7 +75,9 @@ class PullRequest:
             for review in d.get("retrieved_comments", [])
             if review.get("user") and review["user"].get("login")
         ]
-        self.github_logins = set(self.assignees + self.reviewers + self.commenters + [self.author])
+        self.github_logins = set(
+            self.assignees + self.reviewers + self.commenters + self.requested_reviewers + [self.author]
+        )
 
         self.retrieved_reviews = d.get("retrieved_reviews", [])
         self.retrieved_timeline = d.get("retrieved_timeline", [])
@@ -114,18 +121,14 @@ class PullRequest:
                 filtered_events.append(event)
         return filtered_events
 
-    @property
-    def last_event(self):
-        return self.events[-1] if self.events else None
-
     def print_debug_info(self):
         print(f"assignees: {self.assignees}")
         print(f"author: {self.author}")
         print(f"reviewers: {self.reviewers}")
         print(f"commenters: {self.commenters}")
+        print(f"requested_reviewers: {self.requested_reviewers}")
         print(f"github_logins: {self.github_logins}")
         print(f"event stream: {self.events}")
-        print(f"last event: {self.last_event}")
 
     @staticmethod
     def _extract_asana_urls_from_description(description: str) -> list[str]:
