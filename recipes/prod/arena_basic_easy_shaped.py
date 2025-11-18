@@ -14,8 +14,10 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.common.wandb.context import WandbConfig
+from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.training import EvaluatorConfig, StatsReporterConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
@@ -102,7 +104,11 @@ def train(
     curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
     eval_simulations = simulations()
-    trainer_cfg = TrainerConfig()
+    losses_cfg = LossesConfig()
+    losses_cfg.ppo.enabled = False
+    losses_cfg.ppo_actor.enabled = True
+    losses_cfg.ppo_value.enabled = True
+    trainer_cfg = TrainerConfig(losses=losses_cfg)
 
     if policy_architecture is None:
         policy_architecture = ViTDefaultConfig()
@@ -113,6 +119,13 @@ def train(
         evaluator=EvaluatorConfig(simulations=eval_simulations),
         policy_architecture=policy_architecture,
         torch_profiler=TorchProfilerConfig(),
+        wandb=WandbConfig.Off(),
+        stats_server_uri=None,
+        stats_reporter=StatsReporterConfig(
+            report_to_wandb=False,
+            report_to_stats_client=False,
+            report_to_console=True,
+        ),
     )
 
 

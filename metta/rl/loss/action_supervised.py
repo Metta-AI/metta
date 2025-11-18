@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.loss.loss import Loss, LossConfig
-from metta.rl.loss.replay_samplers import sample_minibatch_sequential
+from metta.rl.loss.replay_samplers import sequential_sample
 from metta.rl.training import ComponentContext
 
 
@@ -134,7 +134,7 @@ class ActionSupervised(Loss):
         mb_idx: int,
     ) -> tuple[Tensor, TensorDict, bool]:
         if self.use_own_sampling:
-            minibatch, _ = sample_minibatch_sequential(self.replay, mb_idx)
+            minibatch, _ = sequential_sample(self.replay, mb_idx)
             shared_loss_data["sampled_mb"] = minibatch
             # this writes to the same key that ppo uses, assuming we're using only one method of sampling at a time
 
@@ -143,7 +143,7 @@ class ActionSupervised(Loss):
         # av update the below to use the sampler. forward then in the rollout. Should overtake prio sampler rollout.
         # use loss run gate accordingly
         # then clean up the below since the sampler runs the policy in training.
-
+        # add the gather here, going of the policy's full logprobs
         policy_td = minibatch.select(*self.policy_experience_spec.keys(include_nested=True))
         B, TT = policy_td.batch_size
         flat_policy_td = policy_td.reshape(B * TT)

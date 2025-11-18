@@ -5,6 +5,7 @@ import torch
 from pydantic import Field
 from tensordict import TensorDict
 from torch import Tensor
+from torchrl.data import Composite, UnboundedContinuous
 
 from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
@@ -73,6 +74,9 @@ class PPOActor(Loss):
     ):
         super().__init__(policy, trainer_cfg, env, device, instance_name, loss_config)
 
+    def get_experience_spec(self) -> Composite:
+        return Composite(act_log_prob=UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32))
+
     def run_train(
         self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int
     ) -> tuple[Tensor, TensorDict, bool]:
@@ -92,23 +96,19 @@ class PPOActor(Loss):
         logratio = torch.clamp(new_logprob - old_logprob, -10, 10)
         importance_sampling_ratio = logratio.exp()
 
-        importance_sampling_ratio = self._importance_ratio(new_logprob, old_logprob)
-
         # Re-compute advantages with new ratios (V-trace)
         adv = compute_advantage(
             minibatch["values"],
             minibatch["rewards"],
             minibatch["dones"],
             importance_sampling_ratio,
-            minibatch["advantages"],
+            shared_loss_data["advantages"],
             cfg.gamma,
             cfg.gae_lambda,
             cfg.vtrace.rho_clip,
             cfg.vtrace.c_clip,
             self.device,
         )
-
-        shared_loss_data["PPOActor"]["advantages"] = adv
 
         # Normalize advantages with distributed support, then apply prioritized weights
         adv = normalize_advantage_distributed(adv, cfg.norm_adv)

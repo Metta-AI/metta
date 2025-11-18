@@ -10,6 +10,7 @@ from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.loss.loss import Loss, LossConfig
+from metta.rl.loss.replay_samplers import sequential_sample
 from metta.rl.training import ComponentContext, TrainingEnvironment
 from metta.utils.batch import calculate_prioritized_sampling_params
 from mettagrid.base_config import Config
@@ -161,6 +162,7 @@ class PPO(Loss):
             advantages=self.advantages,
             prio_alpha=config.prioritized_experience_replay.prio_alpha,
             prio_beta=self.anneal_beta,
+            mb_idx=mb_idx,
         )
 
         shared_loss_data["sampled_mb"] = minibatch  # one loss should write the sampled mb for others to use
@@ -341,9 +343,22 @@ class PPO(Loss):
         advantages: Tensor,
         prio_alpha: float,
         prio_beta: float,
+        mb_idx: int,
     ) -> tuple[TensorDict, Tensor, Tensor]:
         """Sample a prioritized minibatch."""
-        # Prioritized sampling based on advantage magnitude
+        if prio_alpha <= 0.0:
+            # Deterministic sequential sampling when alpha == 0
+            minibatch, idx = sequential_sample(self.replay, mb_idx)
+            with torch.no_grad():
+                minibatch["advantages"] = advantages[idx]
+                minibatch["returns"] = advantages[idx] + minibatch["values"]
+                prio_weights = torch.ones(
+                    (idx.shape[0], 1),
+                    device=minibatch.device,
+                    dtype=minibatch["values"].dtype,
+                )
+            return minibatch, idx, prio_weights
+
         adv_magnitude = advantages.abs().sum(dim=1)
         prio_weights = torch.nan_to_num(adv_magnitude**prio_alpha, 0, 0, 0)
         prio_probs = (prio_weights + 1e-6) / (prio_weights.sum() + 1e-6)

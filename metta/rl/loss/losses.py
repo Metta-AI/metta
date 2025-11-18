@@ -9,6 +9,8 @@ from metta.rl.loss.action_supervised import ActionSupervisedConfig
 from metta.rl.loss.grpo import GRPOConfig
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.loss.ppo import PPOConfig
+from metta.rl.loss.ppo_actor import PPOActorConfig
+from metta.rl.loss.ppo_value import PPOValueConfig
 from metta.rl.training import TrainingEnvironment
 from mettagrid.base_config import Config
 
@@ -17,13 +19,18 @@ if TYPE_CHECKING:
 
 
 class LossesConfig(Config):
-    # PPO (Proximal Policy Optimization) is enabled by default as it's the primary
-    # reinforcement learning algorithm used in most training scenarios
+    # PPO in a single file enabled by default below
     ppo: PPOConfig = Field(default_factory=lambda: PPOConfig(enabled=True))
+
+    # PPO divorced into two terms offered below for more flexibility
+    ppo_actor: PPOActorConfig = Field(default_factory=lambda: PPOActorConfig(enabled=False))
+    ppo_value: PPOValueConfig = Field(default_factory=lambda: PPOValueConfig(enabled=False))
+
+    # other aux losses below
     contrastive: contrastive_config.ContrastiveConfig = Field(
         default_factory=lambda: contrastive_config.ContrastiveConfig(enabled=False)
     )
-    supervisor: ActionSupervisedConfig = Field(default_factory=lambda: ActionSupervisedConfig(enabled=False))
+    action_supervisor: ActionSupervisedConfig = Field(default_factory=lambda: ActionSupervisedConfig(enabled=False))
     grpo: GRPOConfig = Field(default_factory=lambda: GRPOConfig(enabled=False))
 
     def _configs(self) -> dict[str, LossConfig]:
@@ -32,10 +39,14 @@ class LossesConfig(Config):
             loss_configs["ppo"] = self.ppo
         if self.contrastive.enabled:
             loss_configs["contrastive"] = self.contrastive
-        if self.supervisor.enabled:
-            loss_configs["supervisor"] = self.supervisor
+        if self.action_supervisor.enabled:
+            loss_configs["action_supervisor"] = self.action_supervisor
         if self.grpo.enabled:
             loss_configs["grpo"] = self.grpo
+        if self.ppo_value.enabled:
+            loss_configs["ppo_value"] = self.ppo_value
+        if self.ppo_actor.enabled:
+            loss_configs["ppo_actor"] = self.ppo_actor
         return loss_configs
 
     def init_losses(

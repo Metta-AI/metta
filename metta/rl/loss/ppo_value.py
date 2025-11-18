@@ -1,22 +1,30 @@
 from typing import Any
 
+import numpy as np
 import torch
 from pydantic import Field
-from tensordict import TensorDict
+from tensordict import NonTensorData, TensorDict
 from torch import Tensor
+from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 from metta.agent.policy import Policy
+from metta.rl.advantage import compute_advantage
 from metta.rl.loss.loss import Loss, LossConfig
+from metta.rl.loss.replay_samplers import prio_sample
 from metta.rl.training import ComponentContext, TrainingEnvironment
-from mettagrid.base_config import Composite, UnboundedContinuous
 
 
 class PPOValueConfig(LossConfig):
     vf_clip_coef: float = Field(default=0.1, ge=0)
-    # Value term weight from sweep
     vf_coef: float = Field(default=0.897619, ge=0)
     # Value loss clipping toggle
     clip_vloss: bool = True
+    gamma: float = Field(default=0.977, ge=0, le=1.0)
+    gae_lambda: float = Field(default=0.891477, ge=0, le=1.0)
+    prio_alpha: float = Field(default=0.0, ge=0, le=1.0)
+    prio_beta0: float = Field(default=0.6, ge=0, le=1.0)
+    sample_enabled: bool = Field(default=True)  # if true, this loss samples from buffer during training
+    train_forward_enabled: bool = Field(default=True)  # if true, this forwards the policy under training
 
     def create(
         self,
@@ -41,7 +49,11 @@ class PPOValueConfig(LossConfig):
 class PPOValue(Loss):
     """PPO value loss."""
 
-    __slots__ = ()
+    __slots__ = (
+        "advantages",
+        "burn_in_steps",
+        "burn_in_steps_iter",
+    )
 
     def __init__(
         self,
@@ -53,19 +65,96 @@ class PPOValue(Loss):
         loss_config: Any,
     ):
         super().__init__(policy, trainer_cfg, env, device, instance_name, loss_config)
+        self.advantages = torch.tensor(0.0, dtype=torch.float32, device=self.device)
+
+        if hasattr(self.policy, "burn_in_steps"):
+            self.burn_in_steps = self.policy.burn_in_steps
+        else:
+            self.burn_in_steps = 0
+        self.burn_in_steps_iter = 0
 
     def get_experience_spec(self) -> Composite:
+        act_space = self.env.single_action_space
+        act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
+        scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
+
         return Composite(
-            values=UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32),
+            actions=UnboundedDiscrete(shape=torch.Size([]), dtype=act_dtype),
+            values=scalar_f32,
+            rewards=scalar_f32,
+            dones=scalar_f32,
+            truncateds=scalar_f32,
         )
+
+    def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
+        """Rollout step: forward policy and store experience with optional burn-in."""
+        with torch.no_grad():
+            self.policy.forward(td)
+
+        if self.burn_in_steps_iter < self.burn_in_steps:
+            self.burn_in_steps_iter += 1
+            return
+
+        env_slice = context.training_env_id
+        if env_slice is None:
+            raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
+        self.replay.store(data_td=td, env_id=env_slice)
 
     def run_train(
         self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int
     ) -> tuple[Tensor, TensorDict, bool]:
-        minibatch = shared_loss_data["sampled_mb"]
+        # compute advantages on the first mb
+        if mb_idx == 0:
+            advantages = torch.zeros_like(self.replay.buffer["values"], device=self.device)
+            self.advantages = compute_advantage(
+                self.replay.buffer["values"],
+                self.replay.buffer["rewards"],
+                self.replay.buffer["dones"],
+                torch.ones_like(self.replay.buffer["values"]),
+                advantages,
+                self.cfg.gamma,
+                self.cfg.gae_lambda,
+                1.0,  # v-trace is used in PPO actor instead. 1.0 means no v-trace
+                1.0,  # v-trace is used in PPO actor instead. 1.0 means no v-trace
+                self.device,
+            )
+
+        # sample from the buffer if called for
+        if self.cfg.sample_enabled:
+            minibatch, indices, prio_weights = prio_sample(
+                buffer=self.replay,
+                mb_idx=mb_idx,
+                epoch=context.epoch,
+                total_timesteps=self.trainer_cfg.total_timesteps,
+                batch_size=self.trainer_cfg.batch_size,
+                prio_alpha=self.cfg.prio_alpha,
+                prio_beta0=self.cfg.prio_beta0,
+                advantages=self.advantages,
+            )
+            # mb data should have been computed with policy under torch.no_grad()
+            shared_loss_data["sampled_mb"] = minibatch
+            shared_loss_data["indices"] = NonTensorData(indices)
+            shared_loss_data["prio_weights"] = prio_weights
+            shared_loss_data["advantages"] = self.advantages[indices]
+        else:
+            minibatch = shared_loss_data["sampled_mb"]
+
+        # forward the policy if called for
+        if self.cfg.train_forward_enabled:
+            policy_td = minibatch.select(*self.policy_experience_spec.keys(include_nested=True))
+            B, TT = policy_td.batch_size
+            policy_td = policy_td.reshape(B * TT)
+            policy_td.set("bptt", torch.full((B * TT,), TT, device=policy_td.device, dtype=torch.long))
+            policy_td.set("batch", torch.full((B * TT,), B, device=policy_td.device, dtype=torch.long))
+            flat_actions = minibatch["actions"].reshape(B * TT, -1)
+            self.policy.reset_memory()
+            policy_td = self.policy.forward(policy_td, action=flat_actions)
+            shared_loss_data["policy_td"] = policy_td.reshape(B, TT)
+
+        # compute value loss
         old_values = minibatch["values"]
-        returns = minibatch["returns"]
-        # returns = shared_loss_data["PPOActor"]["advantages"] + old_values # av fresher update?
+        returns = shared_loss_data["advantages"] + minibatch["values"]
+        minibatch["returns"] = returns
         policy_td = shared_loss_data.get("policy_td", None)
         if policy_td is not None:
             newvalue = policy_td["values"]
