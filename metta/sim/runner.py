@@ -1,6 +1,6 @@
 import uuid
 from pathlib import Path
-from typing import Sequence
+from typing import Callable, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
 
