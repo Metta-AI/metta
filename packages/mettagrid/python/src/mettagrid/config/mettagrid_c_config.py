@@ -171,17 +171,11 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
         # First, handle explicitly configured limits (both individual and grouped)
         configured_resources = set()
-        for key, limit_value in agent_props["resource_limits"].items():
-            if isinstance(key, str):
-                # Single resource limit
-                limits_list.append(([resource_name_to_id[key]], limit_value))
-                configured_resources.add(key)
-            elif isinstance(key, tuple):
-                # Grouped resources with shared limit
-                resource_ids = [resource_name_to_id[name] for name in key]
-                if resource_ids:
-                    limits_list.append((resource_ids, limit_value))
-                    configured_resources.update(key)
+        for resource_limit in agent_props["resource_limits"].values():
+            # Convert resource names to IDs
+            resource_ids = [resource_name_to_id[name] for name in resource_limit["resources"]]
+            limits_list.append((resource_ids, resource_limit["limit"]))
+            configured_resources.update(resource_limit["resources"])
 
         # Add default limits for unconfigured resources
         for resource_name in resource_names:
@@ -289,9 +283,14 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
             # Create inventory config with limits
             limits_list = []
-            for resource, limit in object_config.resource_limits.items():
-                resource_id = resource_name_to_id[resource]
-                limits_list.append([[resource_id], min(limit, 255)])
+            for resource_limit in object_config.resource_limits.values():
+                # resources is always a list of strings
+                resource_list = resource_limit.resources
+
+                # Convert resource names to IDs
+                resource_ids = [resource_name_to_id[name] for name in resource_list if name in resource_name_to_id]
+                if resource_ids:
+                    limits_list.append((resource_ids, min(resource_limit.limit, 255)))
 
             inventory_config = CppInventoryConfig(limits=limits_list)
 

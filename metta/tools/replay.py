@@ -48,16 +48,13 @@ class ReplayTool(Tool):
             simulations=[simulation_run],
             replay_dir=self.replay_dir,
             seed=self.system.seed,
-            enable_replays=True,
         )
 
         result = simulation_results[0]
-        replay_urls = result.replay_urls
-        if not replay_urls:
-            logger.error("No replay URLs found in simulation results", exc_info=True)
+        replay_url = result.results.episodes[0].replay_path
+        if not replay_url:
+            logger.error("No replay path found in simulation results", exc_info=True)
             return 1
-
-        replay_url = next(iter(replay_urls.values()))
 
         if self.launch_viewer:
             launch_mettascope(replay_url)

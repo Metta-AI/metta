@@ -1,5 +1,4 @@
-import uuid
-from pathlib import Path
+import logging
 from typing import Callable, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -9,7 +8,8 @@ from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult, multi_episode_rollout
-from mettagrid.simulator.replay_log_writer import ReplayLogWriter
+
+logger = logging.getLogger(__name__)
 
 
 class SimulationRunConfig(BaseModel):
@@ -28,7 +28,6 @@ class SimulationRunResult(BaseModel):
 
     run: SimulationRunConfig
     results: MultiEpisodeRolloutResult
-    replay_urls: dict[str, str]
 
 
 def run_simulations(
@@ -37,7 +36,6 @@ def run_simulations(
     simulations: Sequence[SimulationRunConfig],
     replay_dir: str | None,
     seed: int,
-    enable_replays: bool = True,
     on_progress: Callable[[str], None] = lambda x: None,
 ) -> list[SimulationRunResult]:
     if not policy_specs:
@@ -47,17 +45,11 @@ def run_simulations(
 
     for i, simulation in enumerate(simulations):
         proportions = simulation.proportions
+
         env_interface = PolicyEnvInterface.from_mg_cfg(simulation.env)
         multi_agent_policies: list[MultiAgentPolicy] = [
             initialize_or_load_policy(env_interface, spec) for spec in policy_specs
         ]
-
-        replay_writer: ReplayLogWriter | None = None
-        if enable_replays and replay_dir:
-            replay_root = Path(replay_dir).expanduser()
-            unique_dir = replay_root / uuid.uuid4().hex[:12]
-            unique_dir.mkdir(parents=True, exist_ok=True)
-            replay_writer = ReplayLogWriter(str(unique_dir))
 
         on_progress(f"Beginning rollout for simulation {i + 1} of {len(simulations)}")
         rollout_result = multi_episode_rollout(
@@ -66,20 +58,17 @@ def run_simulations(
             episodes=simulation.num_episodes,
             seed=seed,
             proportions=proportions,
+            save_replay=replay_dir,
             # TODO: support this if and only if we also reflect that it happened in results
             # max_time_s=simulation.max_time_s,
             max_action_time_ms=simulation.max_action_time_ms,
-            event_handlers=[replay_writer] if replay_writer else None,
         )
         on_progress(f"Finished rollout for simulation {i}")
-
-        replay_urls = replay_writer.get_written_replay_urls() if replay_writer else {}
 
         simulation_rollouts.append(
             SimulationRunResult(
                 run=simulation,
                 results=rollout_result,
-                replay_urls=replay_urls,
             )
         )
 
