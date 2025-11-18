@@ -74,12 +74,11 @@ proc updateObjectInfo*() =
   if selection.isAgent:
     addParam("Agent ID", $selection.agentId)
     addParam("Reward", $selection.totalReward.at)
-    if replay.config.game.vibeNames.len > 0:
-      let vibeId = selection.vibeId.at
-      if vibeId >= 0 and vibeId < replay.config.game.vibeNames.len:
-        let vibeName = replay.config.game.vibeNames[vibeId]
-        vibeArea.find("**/Icon").fills[0].imageRef = "../../vibe" / vibeName
-        vibeArea.show()
+    let vibeId = selection.vibeId.at
+    let vibeName = getVibeName(vibeId)
+    if vibeName != $vibeId:  # Only show if we have a valid name
+      vibeArea.find("**/Icon").fills[0].imageRef = "../../vibe" / vibeName
+      vibeArea.show()
 
   if selection.cooldownRemaining.at > 0:
     addParam("Cooldown Remaining", $selection.cooldownRemaining.at)
@@ -119,16 +118,11 @@ proc updateObjectInfo*() =
   proc addProtocol(protocol: Protocol) =
     var protocolNode = recipe.copy()
     for vibe in protocol.vibes:
-      protocolNode.find("**/Vibes").addVibe($vibe)
+      protocolNode.find("**/Vibes").addVibe(vibe.getVibeName())
     for resource in protocol.inputs:
       protocolNode.find("**/Inputs").addResource(resource)
     for resource in protocol.outputs:
       protocolNode.find("**/Outputs").addResource(resource)
-    var vibeStrings: seq[string]
-    for vibe in protocol.vibes:
-      vibeStrings.add($vibe)
-    let vibeStr = vibeStrings.join(", ")
-    echo &"adding protocol: {vibeStr}"
     recipeArea.addChild(protocolNode)
 
   for protocol in selection.protocols:
