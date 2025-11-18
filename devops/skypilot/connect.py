@@ -34,7 +34,7 @@ def main():
 
     print("Looking up EC2 instance...")
 
-    REGIONS = get_regions_from_yaml(Path("devops/skypilot/config/sk_train.yaml"))
+    REGIONS = get_regions_from_yaml(Path("devops/skypilot/config/skypilot_run.yaml"))
 
     instance = None
     for region in REGIONS:
@@ -83,12 +83,21 @@ def main():
     inner_ssh_command = shlex.join(["ssh", "-t", "-i", key_path, f"ubuntu@{instance}", job_host_command])
 
     print("Looking up jobs controller...")
-    jobs_controller_name = get_jobs_controller_name()
-
-    full_command = shlex.join(["ssh", "-t", jobs_controller_name, inner_ssh_command])
-    print(f"Connecting with: {bold(full_command)}")
-
-    subprocess.run(full_command, shell=True)
+    try:
+        jobs_controller_name = get_jobs_controller_name()
+        full_command = shlex.join(["ssh", "-t", jobs_controller_name, inner_ssh_command])
+        print(f"Connecting via jobs controller: {bold(full_command)}")
+        subprocess.run(full_command, shell=True, check=False)
+    except (ValueError, Exception) as e:
+        print(f"Warning: Could not connect via jobs controller ({e})")
+        print("Attempting direct connection to EC2 instance...")
+        print(f"Note: You may need to have SSH access configured for: {instance}")
+        direct_command = shlex.join(["ssh", "-t", "-i", key_path, f"ubuntu@{instance}", job_host_command])
+        print(f"Direct connection command: {bold(direct_command)}")
+        print("If this fails, ensure you have:")
+        print("  1. SSH key access to the instance")
+        print("  2. Or VPN/Tailscale access to the jobs controller")
+        subprocess.run(direct_command, shell=True)
 
 
 if __name__ == "__main__":

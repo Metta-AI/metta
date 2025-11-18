@@ -2,7 +2,7 @@
 # Start Datadog agent as a background daemon in SkyPilot jobs
 # This script is called during the run phase after environment setup
 
-set -euo pipefail
+set -e  # Exit on error, but allow commands that might fail
 
 AGENT_BINARY="/opt/datadog-agent/bin/agent/agent"
 
@@ -11,8 +11,8 @@ if [ ! -f "$AGENT_BINARY" ]; then
     exit 0
 fi
 
-# Check if agent is already running
-if pgrep -f "datadog-agent.*run" > /dev/null; then
+# Check if agent is already running (pgrep returns non-zero if not found, which is OK)
+if pgrep -f "datadog-agent.*run" > /dev/null 2>&1; then
     echo "[DATADOG] Agent is already running"
     exit 0
 fi
@@ -38,6 +38,10 @@ if ps -p "$AGENT_PID" > /dev/null; then
 else
     echo "[DATADOG] WARNING: Agent process died immediately after startup"
     echo "[DATADOG] Check logs: /tmp/datadog-agent.log"
+    if [ -f /tmp/datadog-agent.log ]; then
+        echo "[DATADOG] Last 20 lines of agent log:"
+        tail -20 /tmp/datadog-agent.log || true
+    fi
     exit 1
 fi
 

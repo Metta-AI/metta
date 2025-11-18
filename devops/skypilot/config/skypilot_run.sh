@@ -208,10 +208,17 @@ start_monitors() {
 }
 
 start_datadog_agent() {
-  if [ -f ./devops/skypilot/config/lifecycle/start_datadog_agent.sh ]; then
-    bash ./devops/skypilot/config/lifecycle/start_datadog_agent.sh || echo "[WARN] Datadog agent startup failed, continuing without it"
+  local script_path="./devops/skypilot/config/lifecycle/start_datadog_agent.sh"
+  if [ -f "$script_path" ]; then
+    echo "[INFO] Starting Datadog agent..."
+    if bash "$script_path"; then
+      echo "[INFO] Datadog agent startup completed"
+    else
+      local exit_code=$?
+      echo "[WARN] Datadog agent startup failed with exit code $exit_code, continuing without it"
+    fi
   else
-    echo "[INFO] Datadog agent startup script not found, skipping"
+    echo "[INFO] Datadog agent startup script not found at $script_path, skipping"
   fi
 }
 
