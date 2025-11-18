@@ -177,7 +177,7 @@ def validate_policy_in_isolation(
             console.print("[dim]Cleaned up validation environment[/dim]")
 
 
-def create_submission_zip(include_files: list[Path], console: Console) -> Path:
+def create_submission_zip(include_files: list[Path], policy_spec: PolicySpec, console: Console) -> Path:
     """Create a zip file containing all include-files.
 
     Maintains directory structure exactly as provided.
@@ -190,6 +190,9 @@ def create_submission_zip(include_files: list[Path], console: Console) -> Path:
     console.print("[yellow]Creating submission zip...[/yellow]")
 
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+        # Write policy spec as a json file
+        zipf.writestr(data=policy_spec.model_dump_json(), zinfo_or_arcname="policy_spec.json")
+
         for file_path in include_files:
             if file_path.is_dir():
                 # Add all files in directory recursively
@@ -210,7 +213,7 @@ def create_submission_zip(include_files: list[Path], console: Console) -> Path:
 
 def upload_submission(
     zip_path: Path,
-    submission_name: str | None,
+    submission_name: str,
     login_server_url: str,
     submit_server_url: str,
     console: Console,
@@ -238,14 +241,12 @@ def upload_submission(
     try:
         with open(zip_path, "rb") as f:
             files = {"file": ("submission.zip", f, "application/zip")}
-            data = {}
-            if submission_name:
-                data["name"] = submission_name
+            data = {"name": submission_name}
 
             headers = {"X-Auth-Token": token}
 
             response = httpx.post(
-                f"{submit_server_url}/cogames/submit_policy",
+                f"{submit_server_url}/stats/policies/submit",
                 files=files,
                 data=data,
                 headers=headers,
@@ -274,7 +275,7 @@ def upload_submission(
 def submit_command(
     ctx: typer.Context,
     policy: str,
-    name: str | None = None,
+    name: str,
     include_files: list[str] | None = None,
     login_server: str = DEFAULT_COGAMES_SERVER,
     server: str = DEFAULT_SUBMIT_SERVER,
@@ -360,7 +361,7 @@ def submit_command(
 
     # Create submission zip
     try:
-        zip_path = create_submission_zip(validated_paths, console)
+        zip_path = create_submission_zip(validated_paths, policy_spec, console)
     except Exception as e:
         console.print(f"[red]Error creating zip:[/red] {e}")
         return
