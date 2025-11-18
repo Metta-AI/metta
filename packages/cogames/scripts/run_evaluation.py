@@ -59,17 +59,17 @@ logger = logging.getLogger(__name__)
 
 
 def _ensure_vibe_supports_gear(env_cfg) -> None:
-    assembler = env_cfg.game.objects.get("assembler")
-    uses_gear = False
-    if assembler is not None and hasattr(assembler, "protocols"):
-        for proto in assembler.protocols:
-            if any(v == "gear" for v in getattr(proto, "vibes", [])):
-                uses_gear = True
-                break
-    if uses_gear:
-        change_vibe = env_cfg.game.actions.change_vibe
-        if getattr(change_vibe, "number_of_vibes", 0) < 8:
-            change_vibe.number_of_vibes = 8
+        assembler = env_cfg.game.objects.get("assembler")
+        uses_gear = False
+        if assembler is not None and hasattr(assembler, "protocols"):
+            for proto in assembler.protocols:
+                if any(v == "gear" for v in getattr(proto, "vibes", [])):
+                    uses_gear = True
+                    break
+        if uses_gear:
+            change_vibe = env_cfg.game.actions.change_vibe
+            if getattr(change_vibe, "number_of_vibes", 0) < 8:
+                change_vibe.number_of_vibes = 8
 
 
 @dataclass
@@ -919,8 +919,19 @@ def main():
         elif agent_key in AGENT_CONFIGS:
             configs.append(AGENT_CONFIGS[agent_key])
         elif is_s3_uri(agent_key):
-            label = Path(agent_key).stem if "/" in agent_key else agent_key
-            configs.append(AgentConfig(key="custom", label=f"s3_{label}", policy_path=agent_key, data_path=None))
+            # Extract a readable label from S3 URI
+            # e.g., s3://softmax-public/policies/variants_curriculum_reward_caps/:latest
+            # -> variants_curriculum_reward_caps
+            uri_path = agent_key.replace("s3://", "").replace(":latest", "")
+            # Get the last component before the filename/version
+            parts = uri_path.split("/")
+            # Find the policy name (usually the directory name before :latest or the filename)
+            if len(parts) >= 2:
+                # e.g., softmax-public/policies/variants_curriculum_reward_caps
+                label = parts[-1] if parts[-1] else parts[-2]
+            else:
+                label = Path(agent_key).stem if "/" in agent_key else agent_key
+            configs.append(AgentConfig(key="custom", label=label, policy_path=agent_key, data_path=None))
         else:
             label = agent_key.rsplit(".", 1)[-1] if "." in agent_key else agent_key
             configs.append(AgentConfig(key="custom", label=label, policy_path=agent_key, data_path=args.checkpoint))
@@ -933,16 +944,16 @@ def main():
         cogs_list = args.cogs if args.cogs else [1, 2, 4]
         all_results.extend(
             run_evaluation(
-                agent_config=config,
-                experiments=experiments,
-                variants=variants,
-                cogs_list=cogs_list,
+            agent_config=config,
+            experiments=experiments,
+            variants=variants,
+            cogs_list=cogs_list,
                 experiment_map=experiment_map,
-                max_steps=args.steps,
-                seed=args.seed,
-                repeats=args.repeats,
+            max_steps=args.steps,
+            seed=args.seed,
+            repeats=args.repeats,
                 jobs=args.jobs,
-            )
+        )
         )
 
     print_summary(all_results)
