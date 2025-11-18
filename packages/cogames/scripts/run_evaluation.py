@@ -82,6 +82,8 @@ class EvalResult:
     total_reward: float
     avg_reward_per_agent: float
     hearts_assembled: int
+    heart_gained: float  # Total heart.gained stat across all agents
+    avg_heart_gained_per_agent: float  # Average heart.gained per agent
     steps_taken: int
     max_steps: int
     success: bool
@@ -172,6 +174,20 @@ def _run_case(
         if variant is None or getattr(variant, "max_steps_override", None) is None:
             env_config.game.max_steps = max_steps
 
+        # For evaluation, only heart rewards should count (not resource rewards)
+        # Initialize stats rewards dict if needed
+        if not env_config.game.agent.rewards.stats:
+            env_config.game.agent.rewards.stats = {}
+        # Set all resource rewards to 0
+        resource_stats = ["carbon.gained", "oxygen.gained", "germanium.gained", "silicon.gained"]
+        for resource_stat in resource_stats:
+            env_config.game.agent.rewards.stats[resource_stat] = 0.0
+        # Also set stats_max to 0 to ensure no resource rewards
+        if not env_config.game.agent.rewards.stats_max:
+            env_config.game.agent.rewards.stats_max = {}
+        for resource_stat in resource_stats:
+            env_config.game.agent.rewards.stats_max[resource_stat] = 0.0
+
         actual_max_steps = env_config.game.max_steps
         policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
         policy = load_policy(policy_env_info, agent_config.policy_path, agent_config.data_path)
@@ -190,7 +206,19 @@ def _run_case(
             rollout.run_until_done()
 
             total_reward = float(sum(rollout._sim.episode_rewards))
+            avg_reward_per_agent = total_reward / max(1, num_cogs)
             final_step = rollout._sim.current_step
+
+            # Extract heart.gained stat from episode stats
+            heart_gained = 0.0
+            episode_stats = rollout._sim.episode_stats
+            if "agent" in episode_stats:
+                agent_stats_list = episode_stats["agent"]
+                for agent_stats in agent_stats_list:
+                    # heart.gained is tracked per agent
+                    heart_gained += float(agent_stats.get("heart.gained", 0.0))
+            avg_heart_gained_per_agent = heart_gained / max(1, num_cogs)
+
             out.append(
                 EvalResult(
                     agent=agent_config.label,
@@ -199,8 +227,10 @@ def _run_case(
                     difficulty=variant_name or "base",
                     clip_period=clip_period,
                     total_reward=total_reward,
-                    avg_reward_per_agent=total_reward / max(1, num_cogs),
+                    avg_reward_per_agent=avg_reward_per_agent,
                     hearts_assembled=int(total_reward),
+                    heart_gained=heart_gained,
+                    avg_heart_gained_per_agent=avg_heart_gained_per_agent,
                     steps_taken=final_step + 1,
                     max_steps=actual_max_steps,
                     success=total_reward > 0,
@@ -221,6 +251,8 @@ def _run_case(
                 total_reward=0.0,
                 avg_reward_per_agent=0.0,
                 hearts_assembled=0,
+                heart_gained=0.0,
+                avg_heart_gained_per_agent=0.0,
                 steps_taken=0,
                 max_steps=max_steps,
                 success=False,
@@ -458,6 +490,136 @@ def _heatmap(
     plt.close()
 
 
+def _plot_heart_gained_by_agent(aggregated: Dict, agents: List[str], lookup, output_path: Path) -> None:
+    """Plot average heart.gained per agent by agent type."""
+    _bar_plot(
+        filename="heart_gained_by_agent.png",
+        title="Average Heart Gained Per Agent by Type",
+        xlabel="Agent Type",
+        ylabel="Average Heart Gained Per Agent",
+        x_labels=agents,
+        series_labels=["value"],
+        value_fn=lambda _s, a: lookup(a, None, None, None, "avg_heart_gained_per_agent"),
+        output_path=output_path,
+        rotation=0,
+        figsize=(10, 6),
+    )
+
+
+def _plot_heart_gained_by_agent_total(aggregated: Dict, agents: List[str], lookup, output_path: Path) -> None:
+    """Plot total heart.gained by agent type."""
+    _bar_plot(
+        filename="total_heart_gained_by_agent.png",
+        title="Total Heart Gained by Agent Type",
+        xlabel="Agent Type",
+        ylabel="Total Heart Gained",
+        x_labels=agents,
+        series_labels=["value"],
+        value_fn=lambda _s, a: lookup(a, None, None, None, "avg_heart_gained"),
+        output_path=output_path,
+        rotation=0,
+        figsize=(10, 6),
+    )
+
+
+def _plot_heart_gained_by_num_cogs(
+    aggregated: Dict, num_cogs_list: List[int], agents: List[str], lookup, output_path: Path
+) -> None:
+    """Plot average heart.gained per agent by team size."""
+    _bar_plot(
+        filename="heart_gained_by_num_cogs.png",
+        title="Average Heart Gained Per Agent by Team Size",
+        xlabel="Number of Agents",
+        ylabel="Average Heart Gained Per Agent",
+        x_labels=[str(c) for c in num_cogs_list],
+        series_labels=agents,
+        value_fn=lambda agent, c: lookup(agent, None, None, int(c), "avg_heart_gained_per_agent"),
+        output_path=output_path,
+        rotation=0,
+    )
+
+
+def _plot_heart_gained_by_num_cogs_total(
+    aggregated: Dict, num_cogs_list: List[int], agents: List[str], lookup, output_path: Path
+) -> None:
+    """Plot total heart.gained by team size."""
+    _bar_plot(
+        filename="total_heart_gained_by_num_cogs.png",
+        title="Total Heart Gained by Team Size",
+        xlabel="Number of Agents",
+        ylabel="Total Heart Gained",
+        x_labels=[str(c) for c in num_cogs_list],
+        series_labels=agents,
+        value_fn=lambda agent, c: lookup(agent, None, None, int(c), "avg_heart_gained"),
+        output_path=output_path,
+        rotation=0,
+    )
+
+
+def _plot_heart_gained_by_environment(
+    aggregated: Dict, experiments: List[str], agents: List[str], lookup, output_path: Path
+) -> None:
+    """Plot average heart.gained per agent by environment."""
+    _bar_plot(
+        filename="heart_gained_by_environment.png",
+        title="Average Heart Gained Per Agent by Eval Environment",
+        xlabel="Eval Environment",
+        ylabel="Average Heart Gained Per Agent",
+        x_labels=experiments,
+        series_labels=agents,
+        value_fn=lambda agent, exp: lookup(agent, exp, None, None, "avg_heart_gained_per_agent"),
+        output_path=output_path,
+    )
+
+
+def _plot_heart_gained_by_environment_total(
+    aggregated: Dict, experiments: List[str], agents: List[str], lookup, output_path: Path
+) -> None:
+    """Plot total heart.gained by environment."""
+    _bar_plot(
+        filename="total_heart_gained_by_environment.png",
+        title="Total Heart Gained by Eval Environment",
+        xlabel="Eval Environment",
+        ylabel="Total Heart Gained",
+        x_labels=experiments,
+        series_labels=agents,
+        value_fn=lambda agent, exp: lookup(agent, exp, None, None, "avg_heart_gained"),
+        output_path=output_path,
+    )
+
+
+def _plot_heart_gained_by_difficulty(
+    aggregated: Dict, variants: List[str], agents: List[str], lookup, output_path: Path
+) -> None:
+    """Plot average heart.gained per agent by difficulty variant."""
+    _bar_plot(
+        filename="heart_gained_by_difficulty.png",
+        title="Average Heart Gained Per Agent by Difficulty Variant",
+        xlabel="Difficulty Variant",
+        ylabel="Average Heart Gained Per Agent",
+        x_labels=variants,
+        series_labels=agents,
+        value_fn=lambda agent, diff: lookup(agent, None, diff, None, "avg_heart_gained_per_agent"),
+        output_path=output_path,
+    )
+
+
+def _plot_heart_gained_by_difficulty_total(
+    aggregated: Dict, variants: List[str], agents: List[str], lookup, output_path: Path
+) -> None:
+    """Plot total heart.gained by difficulty variant."""
+    _bar_plot(
+        filename="total_heart_gained_by_difficulty.png",
+        title="Total Heart Gained by Difficulty Variant",
+        xlabel="Difficulty Variant",
+        ylabel="Total Heart Gained",
+        x_labels=variants,
+        series_labels=agents,
+        value_fn=lambda agent, diff: lookup(agent, None, diff, None, "avg_heart_gained"),
+        output_path=output_path,
+    )
+
+
 def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> None:
     if not results:
         return
@@ -471,6 +633,8 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
         key = (r.agent, r.experiment, r.difficulty, r.num_cogs)
         data[key]["total_rewards"].append(r.total_reward)
         data[key]["avg_rewards"].append(r.avg_reward_per_agent)
+        data[key]["heart_gained"].append(r.heart_gained)
+        data[key]["avg_heart_gained"].append(r.avg_heart_gained_per_agent)
         data[key]["successes"].append(r.success)
 
     aggregated: Dict[tuple[str, str, str, int], Dict[str, float | str | int]] = {}
@@ -483,6 +647,8 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
             "num_cogs": num_cogs,
             "avg_total_reward": _mean(vals["total_rewards"]),
             "avg_reward_per_agent": _mean(vals["avg_rewards"]),
+            "avg_heart_gained": _mean(vals["heart_gained"]),
+            "avg_heart_gained_per_agent": _mean(vals["avg_heart_gained"]),
             "success_rate": _mean(vals["successes"]),
         }
 
@@ -492,8 +658,8 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
     num_cogs_list = sorted(set(r.num_cogs for r in results))
 
     def lookup(agent: str | None, exp: str | None, diff: str | None, num_cogs: int | None, field: str) -> float:
-        vals = [
-            v[field]
+        vals: List[float] = [
+            float(v[field])
             for v in aggregated.values()
             if (agent is None or v["agent"] == agent)
             and (exp is None or v["experiment"] == exp)
@@ -648,6 +814,26 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
             "xlabel": "Agent",
             "ylabel": "Difficulty",
         },
+        {
+            "filename": "heatmap_env_diff.png",
+            "title": "Average Reward: Environment × Difficulty",
+            "x_labels": experiments,
+            "y_labels": variants,
+            "fn": lambda exp, diff: lookup(None, exp, diff, None, "avg_reward_per_agent"),
+            "figsize": (max(12, len(experiments) * 0.6), len(variants) * 0.4 + 2),
+            "xlabel": "Environment",
+            "ylabel": "Difficulty",
+        },
+        {
+            "filename": "heatmap_env_diff_total.png",
+            "title": "Total Reward: Environment × Difficulty",
+            "x_labels": experiments,
+            "y_labels": variants,
+            "fn": lambda exp, diff: lookup(None, exp, diff, None, "avg_total_reward"),
+            "figsize": (max(12, len(experiments) * 0.6), len(variants) * 0.4 + 2),
+            "xlabel": "Environment",
+            "ylabel": "Difficulty",
+        },
     ]
 
     for spec in heatmap_specs:
@@ -662,6 +848,16 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
             xlabel=spec["xlabel"],
             ylabel=spec["ylabel"],
         )
+
+    # Heart.gained plots (mirroring reward plots)
+    _plot_heart_gained_by_agent(aggregated, agents, lookup, output_path)
+    _plot_heart_gained_by_agent_total(aggregated, agents, lookup, output_path)
+    _plot_heart_gained_by_num_cogs(aggregated, num_cogs_list, agents, lookup, output_path)
+    _plot_heart_gained_by_num_cogs_total(aggregated, num_cogs_list, agents, lookup, output_path)
+    _plot_heart_gained_by_environment(aggregated, experiments, agents, lookup, output_path)
+    _plot_heart_gained_by_environment_total(aggregated, experiments, agents, lookup, output_path)
+    _plot_heart_gained_by_difficulty(aggregated, variants, agents, lookup, output_path)
+    _plot_heart_gained_by_difficulty_total(aggregated, variants, agents, lookup, output_path)
 
     logger.info(f"✓ Plots saved to {output_path}/")
 
@@ -693,13 +889,13 @@ def main():
         missions_list.extend(load_eval_missions("cogames.cogs_vs_clips.evals.eval_missions"))
         missions_list.extend(load_eval_missions("cogames.cogs_vs_clips.evals.integrated_evals"))
         missions_list.extend(load_eval_missions("cogames.cogs_vs_clips.evals.spanning_evals"))
-        missions_list.extend([mission_cls() for mission_cls in DIAGNOSTIC_EVALS])
+        missions_list.extend([mission_cls() for mission_cls in DIAGNOSTIC_EVALS])  # type: ignore[call-arg]
         eval_mission_names = {m.name for m in missions_list}
         for mission in ALL_MISSIONS:
             if mission.name not in eval_mission_names:
                 missions_list.append(mission)
     elif args.mission_set == "diagnostic_evals":
-        missions_list = [mission_cls() for mission_cls in DIAGNOSTIC_EVALS]
+        missions_list = [mission_cls() for mission_cls in DIAGNOSTIC_EVALS]  # type: ignore[call-arg]
     elif args.mission_set == "eval_missions":
         missions_list = load_eval_missions("cogames.cogs_vs_clips.evals.eval_missions")
     elif args.mission_set == "integrated_evals":
