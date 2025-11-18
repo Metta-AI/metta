@@ -122,7 +122,7 @@ class GermaniumExtractorConfig(ExtractorConfig):
                     # For the 1 agent protocol, we set min_agents to zero so it's visible when no
                     # agents are adjacent to the extractor.
                     min_agents=(additional_agents + 1) if additional_agents >= 1 else 0,
-                    output_resources={"germanium": max(1, (self.efficiency + additional_agents * self.synergy) // 2)},
+                    output_resources={"germanium": self.efficiency + additional_agents * self.synergy},
                 )
                 for additional_agents in range(4)
             ],
@@ -198,7 +198,7 @@ class CvCAssemblerConfig(CvCStationConfig):
                     input_resources={
                         "carbon": self.first_heart_cost + self.additional_heart_cost * i,
                         "oxygen": self.first_heart_cost + self.additional_heart_cost * i,
-                        "germanium": max(1, (self.first_heart_cost + self.additional_heart_cost * i) // 10),
+                        "germanium": max(1, (self.first_heart_cost + self.additional_heart_cost * i) // 5),
                         "silicon": 3 * (self.first_heart_cost + self.additional_heart_cost * i),
                     },
                     output_resources={"heart": i + 1},
