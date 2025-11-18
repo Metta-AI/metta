@@ -174,7 +174,6 @@ def make_curriculum(
                         variant_names=[variant_name],
                     )
                     mission_env = mission.make_env()
-                    cogs_v_clips._clamp_agent_inventory(mission_env)
 
                 # Deduplicate assembler protocols to avoid C++ config errors
                 # Multiple variants (e.g., CogToolsOnlyVariant + clipping variants) can create duplicates
@@ -231,13 +230,8 @@ def make_curriculum(
     merged_tasks = cc.merge(all_mission_tasks)
 
     if algorithm_config is None:
-        algorithm_config = LearningProgressConfig(
-            use_bidirectional=True,
-            ema_timescale=0.001,
-            exploration_bonus=0.1,
-            max_memory_tasks=2000,
-            max_slice_axes=4,
-            enable_detailed_slice_logging=enable_detailed_slice_logging,
+        algorithm_config = LearningProgressConfig.default(
+            num_active_tasks=2000,
         )
 
     return merged_tasks.to_curriculum(
