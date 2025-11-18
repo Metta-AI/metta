@@ -110,12 +110,15 @@ class TestBasicSaveLoad:
                 policy_architecture=mock_policy_architecture,
                 state_dict=mock_agent.state_dict(),
             )
-            mock_write(expected_remote, str(local_path))
 
-        mock_write.assert_called_once()
-        remote_arg, local_arg = mock_write.call_args[0]
-        assert remote_arg == expected_remote
-        assert Path(local_arg).name == expected_filename
+            # Upload via the actual policy save path
+            env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
+            policy_spec = CheckpointManager.policy_spec_from_uri(f"file://{local_path}")
+            policy = initialize_or_load_policy(env_info, policy_spec)
+            remote_uri = policy.save_policy(expected_remote, policy_architecture=mock_policy_architecture)
+
+        assert remote_uri == expected_remote
+        mock_write.assert_called_once_with(expected_remote, str(local_path))
 
     def test_multiple_epoch_saves_and_selection(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         epochs = [1, 5, 10]
