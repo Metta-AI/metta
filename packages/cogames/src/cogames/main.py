@@ -549,11 +549,11 @@ def submit_cmd(
         "-p",
         help=f"Policy specification: {policy_arg_example}",
     ),
-    name: Optional[str] = typer.Option(
-        None,
+    name: str = typer.Option(
+        ...,
         "--name",
         "-n",
-        help="Optional name for the submission",
+        help="Policy name for the submission",
     ),
     include_files: Optional[list[str]] = typer.Option(  # noqa: B008
         None,

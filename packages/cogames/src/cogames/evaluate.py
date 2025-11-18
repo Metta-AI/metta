@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
-from pathlib import Path
 from typing import Literal, Optional, TypeAlias
 
 import numpy as np
@@ -48,7 +47,7 @@ def evaluate(
     action_timeout_ms: int,
     seed: int = 42,
     output_format: Optional[Literal["yaml", "json"]] = None,
-    save_replay: Optional[Path] = None,
+    save_replay: Optional[str] = None,
 ) -> MissionResultsSummary:
     if not missions:
         raise ValueError("At least one mission must be provided for evaluation.")
@@ -97,8 +96,9 @@ def evaluate(
             )
         mission_results.append(rollout_payload)
         # Collect replay paths from this mission
-        if rollout_payload.replay_paths:
-            all_replay_paths.extend(rollout_payload.replay_paths)
+        for episode in rollout_payload.episodes:
+            if episode.replay_path:
+                all_replay_paths.append(episode.replay_path)
 
     summaries = build_multi_episode_rollout_summaries(mission_results, num_policies=len(policy_specs))
     mission_names = [mission_name for mission_name, _ in missions]

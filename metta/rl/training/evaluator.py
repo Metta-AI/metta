@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import logging
-from functools import partial
+import uuid
 from typing import Any, Optional
-from uuid import UUID
 
 import torch
 from pydantic import Field
@@ -14,18 +13,16 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum import Curriculum
 from metta.common.util.git_helpers import GitError, get_task_commit_hash
 from metta.common.util.git_repo import REPO_SLUG
+from metta.common.wandb.context import WandbRun
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.evaluate import (
-    evaluate_policy_remote_with_checkpoint_manager,
-)
 from metta.rl.training import TrainerComponent
 from metta.rl.training.optimizer import is_schedulefree_optimizer
-from metta.sim.handle_results import render_eval_summary, send_eval_results_to_wandb
-from metta.sim.runner import SimulationRunResult, run_simulations
+from metta.sim.handle_results import render_eval_summary
+from metta.sim.remote import evaluate_remotely
+from metta.sim.simulate_and_record import ObservatoryWriter, WandbWriter, simulate_and_record
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.base_config import Config
-from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import PolicySpec
 
 logger = logging.getLogger(__name__)
@@ -71,61 +68,32 @@ class Evaluator(TrainerComponent):
         self,
         config: EvaluatorConfig,
         device: torch.device,
-        system_cfg: Any,
+        seed: int,
+        run_name: str,
         stats_client: Optional[StatsClient] = None,
+        wandb_run: Optional[WandbRun] = None,
     ):
         super().__init__()
         self._master_only = True
         self._config = config
         self._device = device
-        self._system_cfg = system_cfg
+        self._seed = seed
+        self._run_name = run_name
         self._stats_client = stats_client
+        self._wandb_run = wandb_run
 
-        self._configure_evaluation_settings(
-            eval_cfg=self._config,
-            stats_client=self._stats_client,
-        )
+        self._replay_dir = config.replay_dir or auto_replay_dir()
+        self._evaluate_remote = config.evaluate_remote and stats_client is not None
 
-    @staticmethod
-    def _configure_evaluation_settings(
-        *,
-        eval_cfg: EvaluatorConfig,
-        stats_client: Optional[StatsClient],
-    ) -> None:
-        # Set default replay directory
-        if eval_cfg.replay_dir is None:
-            eval_cfg.replay_dir = auto_replay_dir()
-            logger.info(f"Setting replay_dir to {eval_cfg.replay_dir}")
-
-        # Configure remote evaluations
-        if not eval_cfg.evaluate_remote:
-            return
-
-        # Check prerequisites for remote evaluations
-        if not stats_client:
-            eval_cfg.evaluate_remote = False
-            logger.info("Not connected to stats server, disabling remote evaluations")
-            return
-
-        if not eval_cfg.epoch_interval:
-            eval_cfg.evaluate_remote = False
-            logger.info("Epoch interval set to 0, disabling remote evaluations")
-            return
-
-        # Get git hash if not already set
-        if not eval_cfg.git_hash:
+        self._git_hash = config.git_hash
+        if self._evaluate_remote and not self._git_hash:
             try:
-                eval_cfg.git_hash = get_task_commit_hash(
+                self._git_hash = get_task_commit_hash(
                     target_repo=REPO_SLUG,
-                    skip_git_check=eval_cfg.skip_git_check,
+                    skip_git_check=config.skip_git_check,
                 )
             except GitError as e:
                 raise GitError(f"{e}\n\nYou can skip this check with evaluator.skip_git_check=true") from e
-
-            if eval_cfg.git_hash:
-                logger.info(f"Git hash for remote evaluations: {eval_cfg.git_hash}")
-            else:
-                logger.info("No git hash available for remote evaluations")
 
     def should_evaluate(self, epoch: int) -> bool:
         interval = self._config.epoch_interval
@@ -133,13 +101,39 @@ class Evaluator(TrainerComponent):
             return False
         return epoch % interval == 0
 
+    def _create_policy_version(
+        self,
+        *,
+        stats_client: StatsClient,
+        policy_spec: PolicySpec,
+        epoch: int,
+        agent_step: int,
+    ) -> uuid.UUID:
+        """Write evaluation results to the observatory by creating a DuckDB and uploading it."""
+
+        # Create or get policy
+        policy_id = stats_client.create_policy(
+            name=self._run_name,
+            attributes={},
+            is_system_policy=False,
+        )
+
+        # Create policy version
+        policy_version_id = stats_client.create_policy_version(
+            policy_id=policy_id.id,
+            git_hash=self._git_hash,
+            policy_spec=policy_spec.model_dump(mode="json"),
+            attributes={"epoch": epoch, "agent_step": agent_step},
+        )
+
+        return policy_version_id.id
+
     def evaluate(
         self,
         policy_uri: Optional[str],
         curriculum: Any,
         epoch: int,
         agent_step: int,
-        stats_epoch_id: Optional[UUID] = None,
     ) -> None:
         if not policy_uri:
             logger.warning("No policy URI available for evaluation")
@@ -147,37 +141,56 @@ class Evaluator(TrainerComponent):
 
         # Build simulation configurations
         sims = self._build_simulations(curriculum)
+        policy_spec = self._build_policy_spec(policy_uri)
+        policy_version_id: uuid.UUID | None = None
+        if self._stats_client:
+            policy_version_id = self._create_policy_version(
+                stats_client=self._stats_client,
+                policy_spec=policy_spec,
+                epoch=epoch,
+                agent_step=agent_step,
+            )
 
-        # Try remote evaluation first if configured
-        if self._config.evaluate_remote:
-            try:
-                self._evaluate_remote(
-                    policy_uri=policy_uri,
-                    simulations=sims,
-                    stats_epoch_id=stats_epoch_id,
-                )
-            except Exception as e:
-                logger.error(f"Failed to evaluate policy remotely: {e}", exc_info=True)
+        # Remote evaluation
+        if self._evaluate_remote and self._stats_client and policy_version_id:
+            response = evaluate_remotely(
+                policy_version_id, [sim.to_simulation_run_config() for sim in sims], self._stats_client, self._git_hash
+            )
+            logger.info(f"Created remote evaluation task {response}")
 
         # Local evaluation
         if self._config.evaluate_local:
-            rollout_results, policy_spec = self._evaluate_local(policy_uri=policy_uri, simulations=sims)
+            logger.info(f"Evaluating policy locally from {policy_uri}")
+
+            observatory_writer = None
+            if self._stats_client and policy_version_id:
+                policy_version_id_str = str(policy_version_id)
+                observatory_writer = ObservatoryWriter(
+                    stats_client=self._stats_client,
+                    policy_version_ids=[policy_version_id_str],
+                    primary_policy_version_id=policy_version_id_str,
+                )
+
+            wandb_writer = None
+            if self._wandb_run:
+                wandb_writer = WandbWriter(
+                    wandb_run=self._wandb_run,
+                    epoch=epoch,
+                    agent_step=agent_step,
+                )
+
+            rollout_results = simulate_and_record(
+                policy_specs=[policy_spec],
+                simulations=[sim.to_simulation_run_config() for sim in sims],
+                replay_dir=self._replay_dir,
+                seed=self._seed,
+                observatory_writer=observatory_writer,
+                wandb_writer=wandb_writer,
+                on_progress=logger.info,
+            )
             render_eval_summary(
                 rollout_results, policy_names=[self._spec_display_name(policy_spec)], verbose=self._config.verbose
             )
-
-            # TODO: maybe a better way to get wandb run
-            # TODO: Pasha: should also send epochs/episodes/metrics to stats-server
-            stats_reporter = getattr(self.context, "stats_reporter", None)
-            wandb_run = getattr(stats_reporter, "wandb_run", None)
-            if wandb_run:
-                send_eval_results_to_wandb(
-                    rollout_results=rollout_results,
-                    epoch=epoch,
-                    agent_step=agent_step,
-                    wandb_run=wandb_run,
-                    should_finish_run=False,
-                )
 
     def _build_policy_spec(self, policy_uri: str) -> PolicySpec:
         return CheckpointManager.policy_spec_from_uri(
@@ -218,43 +231,6 @@ class Evaluator(TrainerComponent):
         sims.extend(self._config.simulations)
 
         return sims
-
-    def _evaluate_remote(
-        self,
-        policy_uri: str,
-        simulations: list[SimulationConfig],
-        stats_epoch_id: Optional[UUID] = None,
-    ) -> None:
-        logger.info(f"Evaluating policy remotely from {policy_uri}")
-        stats_reporter = getattr(self.context, "stats_reporter", None)
-        wandb_run = getattr(stats_reporter, "wandb_run", None) if stats_reporter else None
-        evaluate_policy_remote_with_checkpoint_manager(
-            policy_uri=policy_uri,
-            simulations=simulations,
-            stats_epoch_id=stats_epoch_id,
-            stats_client=self._stats_client,
-            wandb_run=wandb_run,
-            evaluation_cfg=self._config,
-        )
-
-    def _evaluate_local(
-        self,
-        policy_uri: str,
-        simulations: list[SimulationConfig],
-    ) -> tuple[list[SimulationRunResult], PolicySpec]:
-        logger.info(f"Evaluating policy locally from {policy_uri}")
-
-        policy_spec = self._build_policy_spec(policy_uri)
-        policy_initializers = [partial(initialize_or_load_policy, policy_spec=policy_spec)]
-        rollout_results = run_simulations(
-            policy_initializers=policy_initializers,
-            simulations=[sim.to_simulation_run_config() for sim in simulations],
-            replay_dir=self._config.replay_dir,
-            seed=self._system_cfg.seed,
-            enable_replays=True,
-            on_progress=logger.info,
-        )
-        return rollout_results, policy_spec
 
     def on_epoch_end(self, epoch: int) -> None:
         if not self.should_evaluate(epoch):

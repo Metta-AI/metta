@@ -37,7 +37,6 @@ class LiteEvalTool(Tool):
             simulations=self.simulations,
             replay_dir=self.replay_dir,
             seed=self.system.seed,
-            enable_replays=True,
         )
         render_eval_summary(simulation_results, policy_names=[spec.name for spec in self.policy_specs])
         return 0
