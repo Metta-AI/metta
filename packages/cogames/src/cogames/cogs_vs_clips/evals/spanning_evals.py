@@ -17,6 +17,7 @@ from cogames.cogs_vs_clips.variants import (
     DistantResourcesVariant,
     EmptyBaseVariant,
     EnergizedVariant,
+    ExtractorHeartTuneVariant,
     InventoryHeartTuneVariant,
     LonelyHeartVariant,
     PackRatVariant,
@@ -26,7 +27,6 @@ from cogames.cogs_vs_clips.variants import (
     SingleResourceUniformVariant,
     SingleToolUnclipVariant,
     SingleUseSwarmVariant,
-    ExtractorHeartTuneVariant,
     SuperChargedVariant,
     VibeCheckMin2Variant,
 )
