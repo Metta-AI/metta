@@ -29,15 +29,30 @@ def is_superseded_run(cancelled_run, all_runs) -> bool:
     """
     ref_key = cancelled_run.head_branch or cancelled_run.head_sha
 
+    # PyGithub returns datetime objects, not strings
+    cancelled_created = (
+        cancelled_run.created_at
+        if isinstance(cancelled_run.created_at, datetime)
+        else datetime.fromisoformat(str(cancelled_run.created_at).replace("Z", "+00:00"))
+    )
+
     # Find newer runs on the same branch/ref
-    newer_runs = [
-        run
-        for run in all_runs
-        if run.id != cancelled_run.id
-        and (run.head_branch or run.head_sha) == ref_key
-        and datetime.fromisoformat(run.created_at.replace("Z", "+00:00"))
-        > datetime.fromisoformat(cancelled_run.created_at.replace("Z", "+00:00"))
-    ]
+    newer_runs = []
+    for run in all_runs:
+        if run.id == cancelled_run.id:
+            continue
+        if (run.head_branch or run.head_sha) != ref_key:
+            continue
+
+        # Handle datetime comparison
+        run_created = (
+            run.created_at
+            if isinstance(run.created_at, datetime)
+            else datetime.fromisoformat(str(run.created_at).replace("Z", "+00:00"))
+        )
+
+        if run_created > cancelled_created:
+            newer_runs.append(run)
 
     # Check if any newer run is successful or in-progress
     has_newer_successful_run = any(
@@ -76,7 +91,9 @@ def main():
     print(f"Max deletions per run: {max_deletions}")
 
     # Initialize GitHub client
-    g = Github(github_token)
+    from github import Auth
+
+    g = Github(auth=Auth.Token(github_token))
     repo = g.get_repo(github_repository)
 
     # Get workflow by file name
