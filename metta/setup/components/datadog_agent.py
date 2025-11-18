@@ -29,7 +29,12 @@ class DatadogAgentSetup(SetupModule):
         return platform.system() == "Linux"
 
     def check_installed(self) -> bool:
-        # Check if datadog-agent service exists
+        # Check if datadog-agent binary exists (works in Docker and regular systems)
+        agent_binary = "/opt/datadog-agent/bin/agent/agent"
+        if os.path.exists(agent_binary):
+            return True
+
+        # Fallback: check for systemd service (for non-Docker environments)
         try:
             result = subprocess.run(
                 ["systemctl", "status", "datadog-agent"],
@@ -40,7 +45,7 @@ class DatadogAgentSetup(SetupModule):
             # Service exists if systemctl can find it (even if not running)
             return result.returncode != 4  # 4 means service not found
         except FileNotFoundError:
-            # systemctl not available
+            # systemctl not available (e.g., in Docker containers)
             return False
 
     def _get_dd_api_key(self) -> str | None:
@@ -113,3 +118,54 @@ class DatadogAgentSetup(SetupModule):
             return
 
         success("Datadog agent installed successfully.")
+
+    def _start_agent_process(self) -> subprocess.Popen | None:
+        """Start Datadog agent as a background process (Docker-compatible).
+
+        Returns:
+            Popen process object if started successfully, None otherwise.
+        """
+        agent_binary = "/opt/datadog-agent/bin/agent/agent"
+
+        if not os.path.exists(agent_binary):
+            warning("Datadog agent binary not found. Cannot start agent.")
+            return None
+
+        try:
+            # Start agent in background
+            process = subprocess.Popen(
+                [agent_binary, "run"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,  # Detach from parent
+            )
+            info(f"Started Datadog agent process (PID: {process.pid})")
+            return process
+        except Exception as e:
+            warning(f"Failed to start Datadog agent: {e}")
+            return None
+
+    def _verify_agent_running(self) -> bool:
+        """Verify that Datadog agent is actually running.
+
+        Returns:
+            True if agent is running, False otherwise.
+        """
+        agent_binary = "/opt/datadog-agent/bin/agent/agent"
+
+        if not os.path.exists(agent_binary):
+            return False
+
+        try:
+            # Check agent status
+            result = subprocess.run(
+                [agent_binary, "status"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            # Agent is running if status command succeeds
+            return result.returncode == 0
+        except Exception:
+            return False

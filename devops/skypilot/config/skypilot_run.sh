@@ -207,6 +207,14 @@ start_monitors() {
   fi
 }
 
+start_datadog_agent() {
+  if [ -f ./devops/skypilot/config/lifecycle/start_datadog_agent.sh ]; then
+    bash ./devops/skypilot/config/lifecycle/start_datadog_agent.sh || echo "[WARN] Datadog agent startup failed, continuing without it"
+  else
+    echo "[INFO] Datadog agent startup script not found, skipping"
+  fi
+}
+
 run_cmd() {
   echo "[INFO] Starting process (node rank: $RANK)"
 
@@ -232,6 +240,7 @@ run_cmd() {
   echo "[INFO] Started process with PID: $CMD_PID, PGID: $CMD_PGID"
 
   start_monitors
+  start_datadog_agent
 
   wait "$CMD_PID"
   CMD_EXIT=$?
