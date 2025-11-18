@@ -31,8 +31,9 @@ type
     siliconTarget: int
 
     bump: bool
-  offsets4: seq[Location]  # 4 cardinal but random for each agent
-  sosOverride: bool        # panic mode for single_use_swarm: go straight to deposits
+    offsets4: seq[Location]  # 4 cardinal but random for each agent
+    sosOverride: bool        # panic mode for single_use_swarm: go straight to deposits
+    assemblerLocation: Option[Location]
     seenAssembler: bool
     seenChest: bool
     exploreLocations: seq[Location]
@@ -197,6 +198,7 @@ proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
 
   # Single-use swarm maps have max_uses==1; set SOS mode when detected later.
   result.sosOverride = false
+  result.assemblerLocation = none(Location)
 
 proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]]) {.measure.} =
   ## Update the big map with the small visible map.
@@ -383,9 +385,10 @@ proc step*(
 
     updateMap(agent, map)
 
-    # Detect nearby clipped extractors to drive gear crafting/usage.
+    # Detect clipped extractors and the assembler to drive gear crafting.
     var clippedTarget: Option[Location]
     var clippedGearFeature: Option[int]
+    var bestClipDist = high(int)
     for (loc, feats) in map.pairs:
       var tagId = -1
       for fv in feats:
@@ -394,13 +397,21 @@ proc step*(
           break
       if tagId == -1:
         continue
+
+      let worldLoc = agent.location + loc
+      if tagId == agent.cfg.tags.assembler:
+        agent.seenAssembler = true
+        agent.assemblerLocation = some(worldLoc)
+
       if agent.isClipped(feats):
         let gearFeature = agent.gearForTag(tagId)
         if gearFeature.isSome():
-          clippedTarget = some(agent.location + loc)
-          clippedGearFeature = gearFeature
-          agent.bumpGearPrereqs(gearFeature.get())
-          break
+          let dist = manhattan(agent.location, worldLoc)
+          if dist < bestClipDist:
+            bestClipDist = dist
+            clippedTarget = some(worldLoc)
+            clippedGearFeature = gearFeature
+            agent.bumpGearPrereqs(gearFeature.get())
     
 
     let
@@ -458,17 +469,6 @@ proc step*(
           doAction(action.get().int32)
           log "going to charger"
           return
-      elif not agent.hasKnownCharger():
-        # No charger seen yet and low on energy: take a short exploratory step only.
-        for offset in agent.offsets4:
-          let candidate = agent.location + offset
-          if not agent.cfg.isWalkable(agent.map, candidate):
-            continue
-          let stepAction = agent.cfg.aStar(agent.location, candidate, agent.map)
-          if stepAction.isSome():
-            doAction(stepAction.get().int32)
-            log "no charger known: probing for charger"
-            return
 
     # Charge opportunistically.
     if invEnergy < MaxEnergy - 20:
@@ -487,24 +487,21 @@ proc step*(
     if clippedGearFeature.isSome():
       let neededGear = clippedGearFeature.get()
       let haveGear = agent.cfg.getInventory(map, neededGear)
-      # Only chase unclipping if extractor is nearby to avoid wasting time.
-      if clippedTarget.isNone() or manhattan(agent.location, clippedTarget.get()) > 4:
-        discard
-      elif haveGear == 0:
+      if haveGear == 0:
         # Gather resources and craft gear at assembler using gear vibe.
         if vibe != agent.cfg.vibes.gear:
           doAction(agent.cfg.actions.vibeGear.int32)
           log "switching to gear vibe to craft unclipping tool"
           return
-        let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
-        if assemblerNearby.isSome():
-          let action = agent.cfg.aStar(agent.location, assemblerNearby.get(), agent.map)
+        # If we know where the assembler is, head there; otherwise keep exploring (no camping).
+        if agent.assemblerLocation.isSome():
+          let action = agent.cfg.aStar(agent.location, agent.assemblerLocation.get(), agent.map)
           if action.isSome():
             doAction(action.get().int32)
-            log "heading to assembler to craft gear"
+            log "heading to known assembler to craft gear"
             return
       else:
-        # We have the gear—go unclip the extractor.
+        # We have the gear—go unclip the extractor if we know where it is.
         if clippedTarget.isSome():
           let target = clippedTarget.get()
           let action = agent.cfg.aStar(agent.location, target, agent.map)
