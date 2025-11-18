@@ -14,7 +14,7 @@ from enum import Enum, auto
 from typing import Any, Callable, Optional
 
 from metta.common.util.constants import SOFTMAX_S3_POLICY_PREFIX
-from metta.sweep.models import JobDefinition
+from metta.sweep.models import JobDefinition, JobStatus
 from metta.sweep.protocols import Dispatcher, Store
 
 logger = logging.getLogger(__name__)
@@ -461,6 +461,17 @@ class SweepOrchestrator(ABC):
                     self.failed.add(trial_id)
                     self.running.discard(trial_id)
                     self.on_trial_failed(trial, getattr(run, "error", "Unknown error"))
+                continue
+
+            # Check if run is stale (no updates for 20+ minutes)
+            if hasattr(run, 'status') and run.status() == JobStatus.STALE:
+                if trial_id not in self.failed:
+                    logger.warning(f"Trial {trial_id} is STALE (no updates for 20+ minutes), marking as failed")
+                    self._update_trial_state(trial_id, TrialState.FAILED,
+                                           reason="Run stale - no updates for 20+ minutes")
+                    self.failed.add(trial_id)
+                    self.running.discard(trial_id)
+                    self.on_trial_failed(trial, "Job stale - no updates for 20+ minutes")
                 continue
 
             # Check state transitions (not mutually exclusive - a run can have multiple states true)

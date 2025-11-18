@@ -1,14 +1,12 @@
 """Small-map CoGs vs Clips entry points."""
 
-from typing import Optional, Sequence
 
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
 from metta.sweep.core import make_sweep
 from metta.tools.stub import StubTool
-from recipes.experiment.cogs_v_clips import play
+from recipes.experiment.cogs_v_clips import play, train_small_maps
 from recipes.experiment.cogs_v_clips import train_small_maps as train
-from recipes.experiment.cogs_v_clips import train_small_maps
 
 
 def train_sweep():
@@ -125,11 +123,6 @@ def sweep(sweep_name: str):
         ),
     ]
 
-    # Disable in-training evaluations for sweep efficiency
-    train_overrides = {
-        'evaluator.epoch_interval': 0,
-    }
-
     return make_sweep(
         name=sweep_name,
         recipe="recipes.prod.cvc.small_maps",
@@ -139,8 +132,7 @@ def sweep(sweep_name: str):
         cost_metric="metric/agent_step",
         parameters=parameters,
         max_trials=900,  # Large number of trials for comprehensive exploration
-        num_parallel_trials=1,
-        train_overrides=train_overrides,
+        num_parallel_trials=4,
     )
 
 
