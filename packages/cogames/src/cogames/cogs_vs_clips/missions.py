@@ -6,7 +6,6 @@ from cogames.cogs_vs_clips.mission import Mission
 from cogames.cogs_vs_clips.mission_utils import get_map
 from cogames.cogs_vs_clips.sites import HELLO_WORLD, MACHINA_1, TRAINING_FACILITY
 from cogames.cogs_vs_clips.variants import (
-    ChestHeartTuneVariant,
     ClipHubStationsVariant,
     ClipPeriodOnVariant,
     ExtractorHeartTuneVariant,
@@ -43,7 +42,7 @@ RepairMission = Mission(
     num_cogs=2,
     variants=[InventoryHeartTuneVariant(hearts=1), ExtractorHeartTuneVariant(hearts=10),
                LonelyHeartVariant(), ClipPeriodOnVariant(), ClipHubStationsVariant()],
-)
+) # If you get only two hearts you failed.
 
 
 # Easy Hearts: simplified heart crafting and generous limits with extractor hub
