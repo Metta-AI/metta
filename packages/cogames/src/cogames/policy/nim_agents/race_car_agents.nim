@@ -31,7 +31,8 @@ type
     siliconTarget: int
 
     bump: bool
-    offsets4: seq[Location]  # 4 cardinal but random for each agent
+  offsets4: seq[Location]  # 4 cardinal but random for each agent
+  sosOverride: bool        # panic mode for single_use_swarm: go straight to deposits
     seenAssembler: bool
     seenChest: bool
     exploreLocations: seq[Location]
@@ -56,6 +57,27 @@ proc isClipped(agent: RaceCarAgent, features: seq[FeatureValue]): bool =
     if fv.featureId == agent.cfg.features.clipped and fv.value > 0:
       return true
   false
+
+proc hasKnownCharger(agent: RaceCarAgent): bool =
+  for loc, feats in agent.map.pairs:
+    for fv in feats:
+      if fv.featureId == agent.cfg.features.tag and fv.value == agent.cfg.tags.charger:
+        return true
+  false
+
+proc bumpGearPrereqs(agent: RaceCarAgent, gearFeature: int) =
+  ## Raise resource targets to craft the gear needed for unclipping.
+  case gearFeature
+  of agent.cfg.features.invDecoder:  # decoder crafted from carbon
+    agent.carbonTarget = max(agent.carbonTarget, 20)
+  of agent.cfg.features.invModulator:  # modulator crafted from oxygen
+    agent.oxygenTarget = max(agent.oxygenTarget, 20)
+  of agent.cfg.features.invResonator:  # resonator crafted from silicon
+    agent.siliconTarget = max(agent.siliconTarget, 15)
+  of agent.cfg.features.invScrambler:  # scrambler crafted from germanium
+    agent.germaniumTarget = max(agent.germaniumTarget, 5)
+  else:
+    discard
 
 proc log(message: string) =
   when defined(debug):
@@ -158,8 +180,23 @@ proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
     Location(x: 0, y: +7),
     Location(x: +7, y: 0),
     Location(x: 0, y: -7),
+    Location(x: -15, y: 0),
+    Location(x: 0, y: +15),
+    Location(x: +15, y: 0),
+    Location(x: 0, y: -15),
+    Location(x: -20, y: 0),
+    Location(x: 0, y: +20),
+    Location(x: +20, y: 0),
+    Location(x: 0, y: -20),
+    Location(x: -15, y: -15),
+    Location(x: -15, y: +15),
+    Location(x: +15, y: -15),
+    Location(x: +15, y: +15),
   ]
   result.random.shuffle(result.exploreLocations)
+
+  # Single-use swarm maps have max_uses==1; set SOS mode when detected later.
+  result.sosOverride = false
 
 proc updateMap(agent: RaceCarAgent, visible: Table[Location, seq[FeatureValue]]) {.measure.} =
   ## Update the big map with the small visible map.
@@ -362,6 +399,7 @@ proc step*(
         if gearFeature.isSome():
           clippedTarget = some(agent.location + loc)
           clippedGearFeature = gearFeature
+          agent.bumpGearPrereqs(gearFeature.get())
           break
     
 
@@ -377,6 +415,16 @@ proc step*(
       invModulator = agent.cfg.getInventory(map, agent.cfg.features.invModulator)
       invResonator = agent.cfg.getInventory(map, agent.cfg.features.invResonator)
       invScrambler = agent.cfg.getInventory(map, agent.cfg.features.invScrambler)
+
+    # Detect single-use swarm (max_uses 1) to prioritize immediate harvest.
+    if not agent.sosOverride:
+      for feats in map.values:
+        for fv in feats:
+          if fv.featureId == agent.cfg.features.remainingUses and fv.value == 1:
+            agent.sosOverride = true
+            break
+        if agent.sosOverride:
+          break
 
     log &"vibe:{vibe} H:{invHeart} E:{invEnergy} C:{invCarbon} O2:{invOxygen} Ge:{invGermanium} Si:{invSilicon} D:{invDecoder} M:{invModulator} R:{invResonator} S:{invScrambler}"
 
@@ -410,6 +458,17 @@ proc step*(
           doAction(action.get().int32)
           log "going to charger"
           return
+      elif not agent.hasKnownCharger():
+        # No charger seen yet and low on energy: take a short exploratory step only.
+        for offset in agent.offsets4:
+          let candidate = agent.location + offset
+          if not agent.cfg.isWalkable(agent.map, candidate):
+            continue
+          let stepAction = agent.cfg.aStar(agent.location, candidate, agent.map)
+          if stepAction.isSome():
+            doAction(stepAction.get().int32)
+            log "no charger known: probing for charger"
+            return
 
     # Charge opportunistically.
     if invEnergy < MaxEnergy - 20:
@@ -428,7 +487,10 @@ proc step*(
     if clippedGearFeature.isSome():
       let neededGear = clippedGearFeature.get()
       let haveGear = agent.cfg.getInventory(map, neededGear)
-      if haveGear == 0:
+      # Only chase unclipping if extractor is nearby to avoid wasting time.
+      if clippedTarget.isNone() or manhattan(agent.location, clippedTarget.get()) > 4:
+        discard
+      elif haveGear == 0:
         # Gather resources and craft gear at assembler using gear vibe.
         if vibe != agent.cfg.vibes.gear:
           doAction(agent.cfg.actions.vibeGear.int32)
@@ -484,6 +546,16 @@ proc step*(
         doAction(agent.cfg.actions.vibeHeartA.int32)
         log "vibing heart for assembler"
         return
+
+      # In single-use swarm, prioritize nearest assembler or chest immediately.
+      if agent.sosOverride:
+        let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
+        if chestNearby.isSome():
+          let action = agent.cfg.aStar(agent.location, chestNearby.get(), agent.map)
+          if action.isSome():
+            doAction(action.get().int32)
+            log "sos deposit at chest"
+            return
 
       let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
       if assemblerNearby.isSome():
