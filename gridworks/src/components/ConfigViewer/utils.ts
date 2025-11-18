@@ -29,7 +29,7 @@ export function isObjectNode(
   return typeof node.value === "object" && node.value !== null;
 }
 
-export function jsonToYaml(rootNode: ConfigNode): string {
+export function configToYaml(rootNode: ConfigNode): string {
   let output: string = "";
 
   function convert(node: ConfigNode): void {

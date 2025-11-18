@@ -4,7 +4,7 @@ import { FC, useState } from "react";
 import { Menu } from "./Menu";
 import { YamlAny } from "./YamlAny";
 import { YamlContext } from "./YamlContext";
-import { jsonToYaml } from "./utils";
+import { configToYaml } from "./utils";
 
 export const ConfigViewer: FC<{
   value: unknown;
@@ -20,7 +20,7 @@ export const ConfigViewer: FC<{
 
   function handleCopyAsYaml() {
     if (typeof navigator !== "undefined" && navigator.clipboard) {
-      navigator.clipboard.writeText(jsonToYaml({
+      navigator.clipboard.writeText(configToYaml({
         value,
         path: [],
         depth: 0,
