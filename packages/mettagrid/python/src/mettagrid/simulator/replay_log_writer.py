@@ -142,28 +142,18 @@ class EpisodeReplay:
                 self.total_rewards,
             )
 
-            self._seq_key_merge(self.objects[i], step=current_step, update_object=update_object)
+            grid_obj = self.objects[i]
+            for key, value in update_object.items():
+                if key not in grid_obj:
+                    grid_obj[key] = [[current_step, value]] if current_step == 0 else [[0, 0], [current_step, value]]
+                elif grid_obj[key][-1][1] != value:
+                    grid_obj[key].append([current_step, value])
+
+            for key in list(grid_obj.keys()):
+                if key not in update_object and grid_obj[key][-1][1] != 0:
+                    grid_obj[key].append([current_step, 0])
 
         self.step = current_step
-
-    def _seq_key_merge(self, grid_object: dict, step: int, update_object: dict):
-        """Add a sequence keys to replay grid object."""
-        for key, value in update_object.items():
-            if key not in grid_object:
-                # Add new key.
-                if step == 0:
-                    grid_object[key] = [[step, value]]
-                else:
-                    grid_object[key] = [[0, 0], [step, value]]
-            else:
-                # Only add new entry if it has changed:
-                if grid_object[key][-1][1] != value:
-                    grid_object[key].append([step, value])
-        # If key has vanished, add a zero entry.
-        for key in grid_object.keys():
-            if key not in update_object:
-                if grid_object[key][-1][1] != 0:
-                    grid_object[key].append([step, 0])
 
     def get_replay_data(self):
         """Gets full replay as a tree of plain python dictionaries."""
