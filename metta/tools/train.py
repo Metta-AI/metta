@@ -15,7 +15,7 @@ from metta.cogworks.curriculum import Curriculum
 from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger, init_logging
-from metta.common.wandb.context import WandbConfig, WandbContext
+from metta.common.wandb.context import WandbConfig, WandbContext, WandbRun
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.trainer import Trainer
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
@@ -157,6 +157,7 @@ class TrainTool(Tool):
                     checkpoint_manager=checkpoint_manager,
                     stats_client=stats_client,
                     policy_checkpointer=policy_checkpointer,
+                    run_name=self.run,
                     wandb_run=wandb_run,
                 )
 
@@ -230,7 +231,8 @@ class TrainTool(Tool):
         checkpoint_manager: CheckpointManager,
         stats_client: Optional[StatsClient],
         policy_checkpointer: Checkpointer,
-        wandb_run,
+        run_name: str,
+        wandb_run: WandbRun | None,
     ) -> None:
         components: list[TrainerComponent] = []
 
@@ -262,8 +264,10 @@ class TrainTool(Tool):
                 Evaluator(
                     config=self.evaluator,
                     device=torch.device(self.system.device),
-                    system_cfg=self.system,
+                    seed=self.system.seed,
+                    run_name=run_name,
                     stats_client=stats_client,
+                    wandb_run=wandb_run,
                 )
             )
 

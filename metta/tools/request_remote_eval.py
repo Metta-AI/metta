@@ -1,13 +1,12 @@
 import logging
+import uuid
 from typing import Sequence
 
-from metta.app_backend.clients.stats_client import HttpStatsClient
-from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool.tool import Tool
 from metta.common.util.git_helpers import get_task_commit_hash
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.sim.simulation_config import SimulationConfig
-from metta.sim.utils import get_or_create_policy_ids
+from metta.sim.remote import evaluate_remotely
+from metta.sim.runner import SimulationRunConfig
 from metta.tools.utils.auto_config import auto_stats_server_uri
 
 logger = logging.getLogger(__name__)
@@ -17,28 +16,18 @@ logger = logging.getLogger(__name__)
 class RequestRemoteEvalTool(Tool):
     stats_server_uri: str | None = auto_stats_server_uri()
 
-    policy_uri: str
-    simulations: Sequence[SimulationConfig]
+    policy_version_id: str
+    simulations: Sequence[SimulationRunConfig]
 
     def invoke(self, args: dict[str, str]) -> int | None:
-        # Errors if stats_server_uri is not set or authentication fails
-        stats_client = HttpStatsClient.create(self.stats_server_uri)
-        normalized_uri = CheckpointManager.normalize_uri(self.policy_uri)
-        policy_id = get_or_create_policy_ids(stats_client, [(normalized_uri, "")])[normalized_uri]
+        if self.stats_server_uri is None:
+            raise ValueError("stats_server_uri is required")
 
+        stats_client = StatsClient.create(self.stats_server_uri)
         git_hash = get_task_commit_hash(skip_git_check=True)
 
-        task = stats_client.create_task(
-            TaskCreateRequest(
-                policy_id=policy_id,
-                sim_suite=self.simulations[0].suite,
-                attributes={
-                    "git_hash": git_hash,
-                    "simulations": [sim.model_dump() for sim in self.simulations],
-                },
-            )
-        )
+        task = evaluate_remotely(uuid.UUID(self.policy_version_id), self.simulations, stats_client, git_hash)
 
-        logger.info(f"Policy evaluator: created task {task.id} for {normalized_uri} on {self.simulations[0].name}")
+        logger.info(f"Policy evaluator: created task {task}")
 
         return 0
