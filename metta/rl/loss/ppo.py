@@ -10,7 +10,6 @@ from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.loss.loss import Loss, LossConfig
-from metta.rl.loss.replay_samplers import sequential_sample
 from metta.rl.training import ComponentContext, TrainingEnvironment
 from metta.rl.training.batch import calculate_prioritized_sampling_params
 from metta.rl.utils import prepare_policy_forward_td
@@ -343,18 +342,18 @@ class PPO(Loss):
         mb_idx: int,
     ) -> tuple[TensorDict, Tensor, Tensor]:
         """Sample a prioritized minibatch."""
-        if prio_alpha <= 0.0:
-            # Deterministic sequential sampling when alpha == 0
-            minibatch, idx = sequential_sample(self.replay, mb_idx)
-            with torch.no_grad():
-                minibatch["advantages"] = advantages[idx]
-                minibatch["returns"] = advantages[idx] + minibatch["values"]
-                prio_weights = torch.ones(
-                    (idx.shape[0], 1),
-                    device=minibatch.device,
-                    dtype=minibatch["values"].dtype,
-                )
-            return minibatch, idx, prio_weights
+        # if prio_alpha <= 0.0:
+        #     # Deterministic sequential sampling when alpha == 0
+        #     minibatch, idx = sequential_sample(self.replay, mb_idx)
+        #     with torch.no_grad():
+        #         minibatch["advantages"] = advantages[idx]
+        #         minibatch["returns"] = advantages[idx] + minibatch["values"]
+        #         prio_weights = torch.ones(
+        #             (idx.shape[0], 1),
+        #             device=minibatch.device,
+        #             dtype=minibatch["values"].dtype,
+        #         )
+        #     return minibatch, idx, prio_weights
 
         adv_magnitude = advantages.abs().sum(dim=1)
         prio_weights = torch.nan_to_num(adv_magnitude**prio_alpha, 0, 0, 0)
@@ -362,6 +361,11 @@ class PPO(Loss):
 
         # Sample segment indices
         idx = torch.multinomial(prio_probs, self.replay.minibatch_segments)
+        print(f"idx shape is {idx.shape}. from self.replay.buffer.shape {self.replay.buffer.shape}")
+        print(f"prio_probs.shape: {prio_probs.shape}")
+        print(f"self.replay.minibatch_segments: {self.replay.minibatch_segments}")
+        while 1:
+            pass
 
         minibatch = self.replay.buffer[idx]
 
