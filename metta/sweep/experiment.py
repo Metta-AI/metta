@@ -464,7 +464,7 @@ class SweepOrchestrator(ABC):
                 continue
 
             # Check if run is stale (no updates for 20+ minutes)
-            if hasattr(run, 'status') and run.status() == JobStatus.STALE:
+            if hasattr(run, 'status') and run.status == JobStatus.STALE:
                 if trial_id not in self.failed:
                     logger.warning(f"Trial {trial_id} is STALE (no updates for 20+ minutes), marking as failed")
                     self._update_trial_state(trial_id, TrialState.FAILED,
