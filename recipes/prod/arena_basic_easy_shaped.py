@@ -14,7 +14,6 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.common.wandb.context import WandbConfig
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, StatsReporterConfig, TrainingEnvironmentConfig
@@ -131,11 +130,11 @@ def train(
         evaluator=EvaluatorConfig(simulations=eval_simulations),
         policy_architecture=policy_architecture,
         torch_profiler=TorchProfilerConfig(),
-        wandb=WandbConfig.Off(),
+        # wandb=WandbConfig.Off(),
         stats_server_uri=None,
         stats_reporter=StatsReporterConfig(
             # report_to_wandb=False,
-            report_to_console=True,
+            # report_to_console=True,
         ),
     )
 
