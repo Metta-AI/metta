@@ -22,6 +22,11 @@ def train_sweep():
         variants=["heart_chorus", "pack_rat", "lonely_heart"],
     )
 
+def train_sweep_single_variant(): 
+    return train_small_maps(
+        num_cogs=4,
+        variants=["heart_chorus"]
+    )
 
 def evaluate_stub(*args, **kwargs) -> StubTool:
     """Stub evaluator for sweep runs.
