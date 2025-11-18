@@ -21,6 +21,15 @@ def _format_total_steps(total_timesteps: int) -> str:
     return f"{total_timesteps:,}"
 
 
+def _format_epoch_time(seconds: float) -> str:
+    """Format epoch time in minutes:seconds format."""
+    if seconds <= 0:
+        return "0:00"
+    minutes = int(seconds // 60)
+    secs = int(seconds % 60)
+    return f"{minutes}:{secs:02d}"
+
+
 def _create_progress_table(epoch: int, run_name: str | None) -> Table:
     if run_name:
         title = f"[bold cyan]{run_name} · Training Progress - Epoch {epoch}[/bold cyan]"
@@ -45,6 +54,7 @@ def log_rich_progress(
     run_name: str | None,
     heart_value: float | None,
     heart_rate: float | None,
+    epoch_time: float,
 ) -> None:
     """Render training progress in a rich table."""
 
@@ -54,11 +64,16 @@ def log_rich_progress(
     total_steps_str = _format_total_steps(total_timesteps)
     progress_pct = (agent_step / total_timesteps) * 100 if total_timesteps > 0 else 0.0
     sps_display = f"{steps_per_sec:,.0f} SPS"
+    epoch_time_display = _format_epoch_time(epoch_time)
     heart_display = ""
     if heart_value is not None:
         heart_display = f"heart.g {heart_value:.3f}"
         if heart_rate is not None:
             heart_display += f" ({heart_rate:.3f}/s)"
+
+    values_display = f"epoch-time: {epoch_time_display}"
+    if heart_display:
+        values_display += f" | {heart_display}"
 
     table.add_row(
         "Steps",
@@ -69,7 +84,7 @@ def log_rich_progress(
     table.add_row(
         "Time",
         f"Train: {train_pct:.0f}% | Rollout: {rollout_pct:.0f}% | Stats: {stats_pct:.0f}%",
-        heart_display,
+        values_display,
     )
 
     console.print(table)
@@ -120,6 +135,7 @@ def log_training_progress(
             run_name=run_name,
             heart_value=heart_value,
             heart_rate=heart_rate,
+            epoch_time=total_time,
         )
     else:
         label = run_name if run_name else "training"
@@ -128,10 +144,12 @@ def log_training_progress(
         else:
             progress_str = f"{agent_step:,}"
 
+        epoch_time_str = _format_epoch_time(total_time)
         message = (
             f"{label} _ epoch {epoch} _ {progress_str} _ "
             f"{_human_readable_si(steps_per_sec, 'sps')} _ "
-            f"train {train_pct:.0f}% _ rollout {rollout_pct:.0f}% _ stats {stats_pct:.0f}%"
+            f"train {train_pct:.0f}% _ rollout {rollout_pct:.0f}% _ stats {stats_pct:.0f}% _ "
+            f"epoch-time: {epoch_time_str}"
         )
         if heart_value is not None:
             segment = f"heart.gained {heart_value:.3f}"

@@ -49,7 +49,6 @@ class TestNewPolicySystem:
             simulations=[sim_run_config],
             replay_dir=None,
             seed=0,
-            enable_replays=False,
         )
 
         assert results
