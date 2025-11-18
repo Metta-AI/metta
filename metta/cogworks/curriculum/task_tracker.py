@@ -364,21 +364,6 @@ class TaskTracker:
                 task_data[15] = p_true
                 task_data[16] = random_baseline
 
-                # Update tracked task metrics for wandb (if this is a tracked task)
-                if hasattr(scorer, "_tracked_task_ids") and task_id in scorer._tracked_task_ids:
-                    if task_id in scorer._tracked_task_metrics:
-                        lp = p_fast - p_slow
-                        scorer._tracked_task_metrics[task_id].update(
-                            {
-                                "mean_reward": task_success_rate,
-                                "fast_ema": p_fast,
-                                "slow_ema": p_slow,
-                                "raw_lp": lp,
-                                "raw_reward": score,
-                                "clamped_reward": score,
-                            }
-                        )
-
             # === PART 3: Write all basic values ===
             task_data[2] = float(new_completion_count)
             task_data[3] = new_reward_ema

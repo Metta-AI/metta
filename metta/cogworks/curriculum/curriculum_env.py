@@ -30,7 +30,6 @@ class CurriculumEnv(PufferEnv):
     This wrapper:
     - Handles task selection and completion through the curriculum
     - ALWAYS emits per-label episode counts (needed for basic curriculum monitoring)
-    - Optionally tracks first 3 tasks for debugging (if show_curriculum_troubleshooting_logging=True)
     - All other curriculum stats are collected centrally at epoch boundaries by StatsReporter
     """
 
@@ -55,16 +54,6 @@ class CurriculumEnv(PufferEnv):
         self._enable_per_label_tracking = False
         if curriculum._algorithm is not None:
             self._enable_per_label_tracking = curriculum._algorithm.hypers.show_curriculum_troubleshooting_logging
-
-        # Tracked task attributes (only if troubleshooting enabled)
-        if self._enable_per_label_tracking:
-            self._tracked_task_ids = []
-            self._tracked_task_completions_this_epoch = {}
-            self._tracked_task_completions_baseline = {}
-        else:
-            self._tracked_task_ids = None
-            self._tracked_task_completions_this_epoch = None
-            self._tracked_task_completions_baseline = None
 
     def reset(self, *args, **kwargs):
         """Reset the environment and get a new task from curriculum."""
@@ -156,17 +145,6 @@ class CurriculumEnv(PufferEnv):
                     infos["env_curriculum_stats/per_label_samples_this_epoch"].get(label, 0) + 1
                 )
 
-            # Track task completions for troubleshooting (ONLY if flag enabled)
-            if self._enable_per_label_tracking:
-                task_id = self._current_task._task_id
-                if task_id not in self._tracked_task_ids and len(self._tracked_task_ids) < 3:
-                    self._tracked_task_ids.append(task_id)
-
-                if task_id in self._tracked_task_ids:
-                    self._tracked_task_completions_this_epoch[task_id] = (
-                        self._tracked_task_completions_this_epoch.get(task_id, 0) + 1
-                    )
-
             # Get new task with retry logic for invalid configurations
             max_retries = 10
             for attempt in range(max_retries):
@@ -213,9 +191,6 @@ class CurriculumEnv(PufferEnv):
             "_curriculum",
             "_current_task",
             "_enable_per_label_tracking",
-            "_tracked_task_ids",
-            "_tracked_task_completions_this_epoch",
-            "_tracked_task_completions_baseline",
             "step",
             "reset",
         ):

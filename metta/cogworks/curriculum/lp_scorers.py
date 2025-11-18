@@ -150,10 +150,6 @@ class BidirectionalLPScorer(LPScorer):
         # Distribution staleness flag (only state we keep)
         self._stale_dist = True
 
-        # Track first 3 tasks for detailed wandb metrics
-        self._tracked_task_ids: Dict[int, int] = {}  # Maps task_id -> position (0, 1, 2)
-        self._tracked_task_metrics: Dict[int, Dict[str, float]] = {}  # Store latest metrics for each tracked task
-
     def _get_ema_from_shared_memory(self, task_id: int, tracker: TaskTracker) -> tuple[float, float, float, float]:
         """Get EMA values from shared memory for a task.
 
@@ -209,20 +205,11 @@ class BidirectionalLPScorer(LPScorer):
             return self.config.exploration_bonus
 
     def update_with_score(self, task_id: int, score: float) -> None:
-        """Track task for detailed wandb metrics.
+        """Mark distribution as stale after task update.
 
         Stage 3: EMA updates now happen atomically in TaskTracker.
-        This method only registers tasks for tracking (first 3 tasks get detailed metrics).
+        This method marks the distribution as stale for recalculation.
         """
-        # Track first 3 unique tasks for detailed wandb metrics
-        if task_id not in self._tracked_task_ids and len(self._tracked_task_ids) < 3:
-            next_position = len(self._tracked_task_ids)
-            self._tracked_task_ids[task_id] = next_position
-            self._tracked_task_metrics[task_id] = {}
-
-        # Note: EMA updates and tracked task metrics are now handled atomically
-        # in TaskTracker.update_task_performance_with_bidirectional_emas()
-
         # Mark distribution as stale - it will be recalculated on next score_task() call
         self._stale_dist = True
 
@@ -281,14 +268,6 @@ class BidirectionalLPScorer(LPScorer):
                     "mean_learning_progress": 0.0,
                 }
             )
-
-        # Add detailed metrics for tracked tasks (first 3 tasks) if troubleshooting logging is enabled
-        if self.config.show_curriculum_troubleshooting_logging:
-            for task_id, position in self._tracked_task_ids.items():
-                if task_id in self._tracked_task_metrics:
-                    metrics = self._tracked_task_metrics[task_id]
-                    for metric_name, value in metrics.items():
-                        stats[f"tracked_task_{position}/{metric_name}"] = float(value)
 
         return stats
 
@@ -358,18 +337,6 @@ class BidirectionalLPScorer(LPScorer):
 
         # Write updated EMAs back to shared memory
         self._write_ema_to_shared_memory(task_id, tracker, p_fast, p_slow, p_true, random_baseline)
-
-        # Store EMA values for tracked tasks (for wandb)
-        if task_id in self._tracked_task_ids and task_id in self._tracked_task_metrics:
-            lp = p_fast - p_slow
-            self._tracked_task_metrics[task_id].update(
-                {
-                    "mean_reward": task_success_rate,
-                    "fast_ema": p_fast,
-                    "slow_ema": p_slow,
-                    "raw_lp": lp,
-                }
-            )
 
         # Mark distribution as stale since EMAs changed
         self._stale_dist = True
@@ -517,16 +484,6 @@ class BidirectionalLPScorer(LPScorer):
         for i, task_id in enumerate(task_ids):
             lp_score = float(task_dist[i])
             tracker.update_lp_score(task_id, lp_score)
-
-            # Update tracked task metrics for wandb logging
-            if task_id in self._tracked_task_ids:
-                raw_lp = learning_progress[i] if i < len(learning_progress) else 0.0
-                self._tracked_task_metrics[task_id].update(
-                    {
-                        "raw_lp": raw_lp,
-                        "final_score": lp_score,
-                    }
-                )
 
         self._stale_dist = False
 

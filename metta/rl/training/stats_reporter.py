@@ -374,6 +374,10 @@ class StatsReporter(TrainerComponent):
         window = self._config.rolling_window
 
         for key in tracked_keys:
+            # Skip rolling averages for per_label_completions stats (they should remain as raw counts)
+            if "per_label_completions" in key:
+                continue
+
             value = env_stats.get(key)
             scalar = _to_scalar(value)
             history = self._state.rolling_stats.get(key)
