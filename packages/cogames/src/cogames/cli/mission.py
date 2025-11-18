@@ -15,6 +15,7 @@ from cogames.cogs_vs_clips.evals.spanning_evals import EVAL_MISSIONS as SPANNING
 from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, MissionVariant, NumCogsVariant
 from cogames.cogs_vs_clips.missions import MISSIONS
 from cogames.cogs_vs_clips.procedural import MachinaArena
+from cogames.cogs_vs_clips.sites import SITES
 from cogames.cogs_vs_clips.variants import HIDDEN_VARIANTS, VARIANTS
 from cogames.game import load_mission_config, load_mission_config_from_python
 from mettagrid import MettaGridConfig
@@ -334,33 +335,26 @@ def list_variants() -> None:
     console.print(variant_table)
 
 
-def list_missions(site_filter: Optional[str] = None) -> None:
-    """List missions using short names when possible."""
+def list_missions() -> None:
+    """Print a table listing all available missions."""
 
-    if not MISSIONS:
+    if not SITES:
         console.print("No missions found")
         return
 
-    normalized_filter = site_filter.rstrip(".") if site_filter is not None else None
-    missions = [mission for mission in MISSIONS if normalized_filter is None or mission.site.name == normalized_filter]
-
-    if normalized_filter is not None and not missions:
-        console.print(f"[red]No missions found for site '{normalized_filter}'[/red]")
-        return
-
-    missions = _dedupe_missions(missions)
+    missions = _dedupe_missions(MISSIONS)
     counts = _mission_name_counts(missions)
-    missions.sort(key=lambda m: (m.site.name, _canonical_mission_name(m, counts=counts)))
 
     table = Table(show_header=True, header_style="bold magenta", box=box.ROUNDED, padding=(0, 1))
     table.add_column("Mission", style="blue", no_wrap=True)
-    table.add_column("Site", style="white", no_wrap=True)
     table.add_column("Cogs", style="green", justify="center")
     table.add_column("Map Size", style="green", justify="center")
     table.add_column("Description", style="white")
 
-    for mission in missions:
-        site = mission.site
+    core_sites = [site for site in SITES if any(m.site.name == site.name for m in missions)]
+    for idx, site in enumerate(core_sites):
+        site_missions = [mission for mission in missions if mission.site.name == site.name]
+
         try:
             map_builder = site.map_builder
             if hasattr(map_builder, "width") and hasattr(map_builder, "height"):
@@ -372,34 +366,50 @@ def list_missions(site_filter: Optional[str] = None) -> None:
 
         agent_range = f"{site.min_cogs}-{site.max_cogs}"
         table.add_row(
-            _canonical_mission_name(mission, counts=counts),
-            site.name,
+            f"[bold white]{site.name}[/bold white]",
             agent_range,
             map_size,
-            mission.description,
+            f"[dim]{site.description}[/dim]",
+            end_section=True,
         )
+
+        for mission_idx, mission in enumerate(site_missions):
+            is_last_mission = mission_idx == len(site_missions) - 1
+            is_last_site = idx == len(core_sites) - 1
+
+            table.add_row(
+                _canonical_mission_name(mission, counts=counts),
+                "",
+                "",
+                mission.description,
+            )
+
+            if not is_last_mission:
+                table.add_row("", "", "", "")
+            elif not is_last_site:
+                table.add_row("", "", "", "", end_section=True)
 
     console.print(table)
 
-    console.print("\nTo set [bold blue]-m[/bold blue]:")
-    console.print("  • Use the mission name (e.g., [blue]harvest[/blue])")
-    console.print("  • If a name is ambiguous, qualify it: [blue]hello_world.open_world[/blue]")
-    console.print("  • Or pass a mission config file path")
-    if normalized_filter is None:
-        console.print("  • Filter by site: [blue]cogames missions training_facility[/blue]")
-    console.print("\nVariants:")
-    console.print("  • Repeat [yellow]--variant <name>[/yellow] (e.g., --variant solar_flare)")
-    console.print("\nCogs:")
-    console.print("  • [green]--cogs N[/green] or [green]-c N[/green]")
+    console.print("\nTo specify a [bold blue] -m [MISSION][/bold blue], you can:")
+    console.print("  • Use a mission name from above (e.g., [blue]harvest[/blue])")
+    console.print("  • Use a path to a mission configuration file, e.g. path/to/mission.yaml")
+    console.print("\nTo specify [bold yellow] -v [VARIANT][/bold yellow] modifiers:")
+    console.print("  • Use multiple --variant flags: [yellow]--variant solar_flare --variant dark_side[/yellow]")
+    console.print("  • Or use the short form: [yellow]-v solar_flare -v rough_terrain[/yellow]")
+    console.print("\nTo specify number of cogs:")
+    console.print("  • Use [green]--cogs N[/green] or [green]-c N[/green] (e.g., [green]-c 4[/green])")
     console.print("\n[bold green]Examples:[/bold green]")
-    console.print("  cogames missions")
-    console.print("  cogames missions training_facility")
-    console.print("  cogames play --mission [blue]harvest[/blue]")
+    console.print("  [bold]cogames play[/bold] --mission [blue]harvest[/blue]")
     console.print(
-        "  cogames play --mission [blue]hello_world.open_world[/blue] "
-        "--variant [yellow]solar_flare[/yellow] --variant [yellow]rough_terrain[/yellow] --cogs [green]8[/green]"
+        "  [bold]cogames play[/bold] --mission [blue]hello_world.open_world[/blue] --variant [yellow]mined_out[/yellow]"
     )
-    console.print("  cogames train --mission [blue]harvest[/blue] --cogs [green]4[/green]")
+    console.print(
+        "  [bold]cogames play[/bold] --mission [blue]machina_1.open_world[/blue] "
+        "--variant [yellow]solar_flare[/yellow] --variant [yellow]rough_terrain[/yellow] "
+        "--cogs [green]8[/green]"
+    )
+    console.print("  [bold]cogames train[/bold] --mission [blue]harvest[/blue] --cogs [green]4[/green]")
 
 
 def list_evals() -> None:
