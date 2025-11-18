@@ -1,78 +1,48 @@
-"""Learning progress curriculum algorithm with dual-pool exploration-exploitation.
+"""Learning progress curriculum algorithm.
 
 This module implements the Learning Progress (LP) algorithm - a curriculum learning approach
 that prioritizes tasks where the agent is learning fastest. It tracks fast/slow EMAs of task
 performance to identify learning opportunities, then samples tasks proportionally to their
 learning progress scores.
 
-Core Algorithm (Single-Pool):
+Core Algorithm:
     1. Track task performance using exponential moving averages (fast and slow)
     2. Compute learning progress as the rate of performance change (|fast - slow|)
     3. Apply exploration bonus to under-sampled tasks
     4. Transform scores with z-score normalization and sigmoid for sampling probabilities
     5. Sample tasks proportionally to their scores (high LP → more likely to be selected)
 
-Dual-Pool Architecture (Optional):
-    Extends single-pool LP with exploration-exploitation balance:
-
-    Pools:
-        - Explore pool (N=50): High-turnover pool for discovering new learning opportunities
-        - Exploit pool (N=200): Selective pool for tasks with proven learning progress
-
-    Phases:
-        1. Bootstrap: 100% exploration until exploit pool fills
-        2. Steady-state: Adaptive sampling based on Explore-Exploit Ratio (EER/ρ)
-
-    Promotion:
-        - Tasks reaching S_min samples become eligible for promotion
-        - Only tasks with positive LP scores are promoted
-        - Exploit pool evicts lowest-scoring tasks when full
-        - Explore pool backfilled with new random tasks
-
-    Adaptive EER:
-        - ρ adapts based on promotion success rate via exponential moving average
-        - High promotion success → increase ρ (more exploration)
-        - Low promotion success → decrease ρ (more exploitation)
-        - Bounded by ρ_min and ρ_max to ensure both pools are sampled
-
 Key Components:
     - LearningProgressConfig: Comprehensive configuration with sensible defaults
     - LearningProgressAlgorithm: Main algorithm coordinating scorer, tracker, and stats
-    - DualPoolTaskTracker: Manages two independent task pools with atomic promotion
+    - TaskTracker: Manages task performance tracking
     - LPScorer: Strategy pattern for bidirectional/basic LP scoring
 
 Design Philosophy:
-    - All state (EMAs, counts, EER) lives in shared memory for true multi-process training
+    - All state (EMAs, counts) lives in shared memory for true multi-process training
     - Strategy pattern for scoring allows swapping between bidirectional/basic/custom
     - Stateless algorithms make checkpointing and debugging straightforward
-    - Dual-pool is optional and controlled by configuration (no code changes needed)
 
 Configuration Helpers:
-    - LearningProgressConfig.default(): Balanced single-pool config
+    - LearningProgressConfig.default(): Balanced config
     - LearningProgressConfig.stable(): Stable config for noisy environments
-    - LearningProgressConfig.default_dual_pool(): Production dual-pool config
-
-Why Separate File:
-    This is a complex algorithm (1300+ lines) with many configuration options and moving
-    parts. Keeping it separate from the simple DiscreteRandomCurriculum maintains clarity
-    and allows the two approaches to evolve independently.
+    - LearningProgressConfig.fast_learning(): Fast adaptation for quick learners
 
 See Also:
-    - task_tracker.py: TaskTracker and DualPoolTaskTracker for performance tracking
+    - task_tracker.py: TaskTracker for performance tracking
     - lp_scorers.py: Scoring strategies (bidirectional/basic LP)
     - curriculum.py: Main Curriculum class using this algorithm
 """
 
 import random
 import uuid
-from collections import deque
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import model_validator
 
 from .curriculum_base import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask
 from .lp_scorers import BasicLPScorer, BidirectionalLPScorer, LPScorer
-from .task_tracker import DualPoolTaskTracker, TaskTracker
+from .task_tracker import TaskTracker
 
 
 class LearningProgressConfig(CurriculumAlgorithmConfig):
@@ -139,77 +109,17 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     # Logging configuration
     show_curriculum_troubleshooting_logging: bool = False  # Show high-cardinality per-task metrics for debugging
 
-    # ========== Dual-Pool Architecture Configuration ==========
-    # Enable dual-pool exploration-exploitation with separate explore and exploit pools
-    use_dual_pool: bool = False  # Toggle between single-pool (default) and dual-pool architecture
-
-    # Pool sizes (only used when use_dual_pool=True)
-    num_explore_tasks: int = 50  # Exploration pool capacity
-    num_exploit_tasks: int = 200  # Exploitation pool capacity
-
-    # Promotion criteria (only used when use_dual_pool=True)
-    promotion_min_samples: int = 5  # Minimum samples before task is eligible for promotion
-
-    # Adaptive Explore-Exploit Ratio (EER) parameters (only used when use_dual_pool=True)
-    explore_exploit_ratio_init: float = 0.5  # Initial EER value (probability of sampling from explore pool)
-    explore_exploit_ratio_min: float = 0.05  # Minimum EER bound
-    explore_exploit_ratio_max: float = 0.95  # Maximum EER bound
-    explore_exploit_ratio_alpha: float = 0.9  # EER learning rate (higher = slower adaptation)
-    promotion_rate_window: int = 1000  # Sliding window size for promotion rate calculation
-
     @model_validator(mode="after")
     def _validate_and_initialize(self) -> "LearningProgressConfig":
         """Validate configuration and initialize derived parameters.
 
-        This ensures:
-        1. Session ID is generated when using shared memory
-        2. Dual-pool parameters are validated when dual-pool is enabled
-        3. EER bounds are sensible
+        This ensures session ID is generated when using shared memory.
         """
         # Generate session ID for shared memory if not provided
         if self.use_shared_memory and self.session_id is None:
             # Generate a unique session ID that will be shared across processes
             # This happens once at config creation time, before pickling
             self.session_id = f"lp_{uuid.uuid4().hex[:8]}"
-
-        # Validate dual-pool configuration
-        if self.use_dual_pool:
-            # Validate pool sizes
-            if self.num_explore_tasks <= 0:
-                raise ValueError(f"num_explore_tasks must be positive, got {self.num_explore_tasks}")
-            if self.num_exploit_tasks <= 0:
-                raise ValueError(f"num_exploit_tasks must be positive, got {self.num_exploit_tasks}")
-
-            # Validate promotion parameters
-            if self.promotion_min_samples <= 0:
-                raise ValueError(f"promotion_min_samples must be positive, got {self.promotion_min_samples}")
-
-            # Validate EER bounds
-            if not 0.0 <= self.explore_exploit_ratio_min <= 1.0:
-                raise ValueError(f"explore_exploit_ratio_min must be in [0, 1], got {self.explore_exploit_ratio_min}")
-            if not 0.0 <= self.explore_exploit_ratio_max <= 1.0:
-                raise ValueError(f"explore_exploit_ratio_max must be in [0, 1], got {self.explore_exploit_ratio_max}")
-            if self.explore_exploit_ratio_min >= self.explore_exploit_ratio_max:
-                raise ValueError(
-                    f"explore_exploit_ratio_min ({self.explore_exploit_ratio_min}) must be "
-                    f"< explore_exploit_ratio_max ({self.explore_exploit_ratio_max})"
-                )
-            if not 0.0 <= self.explore_exploit_ratio_init <= 1.0:
-                raise ValueError(f"explore_exploit_ratio_init must be in [0, 1], got {self.explore_exploit_ratio_init}")
-
-            # Validate EER learning rate
-            if not 0.0 < self.explore_exploit_ratio_alpha < 1.0:
-                raise ValueError(
-                    f"explore_exploit_ratio_alpha must be in (0, 1), got {self.explore_exploit_ratio_alpha}"
-                )
-
-            # Validate promotion rate window
-            if self.promotion_rate_window <= 0:
-                raise ValueError(f"promotion_rate_window must be positive, got {self.promotion_rate_window}")
-
-            # Override num_active_tasks to be sum of pool sizes for consistency
-            # Use object.__setattr__ to bypass validation and avoid recursion
-            object.__setattr__(self, "num_active_tasks", self.num_explore_tasks + self.num_exploit_tasks)
 
         return self
 
@@ -337,68 +247,6 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
         defaults.update(overrides)
         return cls(**defaults)
 
-    @classmethod
-    def default_dual_pool(
-        cls,
-        num_explore_tasks: int = 50,
-        num_exploit_tasks: int = 200,
-        **overrides,
-    ) -> "LearningProgressConfig":
-        """Create a dual-pool configuration with sensible production defaults.
-
-        Best for: Production training with exploration-exploitation balance
-        - Dual-pool architecture (explore: 50, exploit: 200)
-        - Adaptive EER based on promotion success
-        - Stable EMA settings for reliable LP signals
-        - Strong selectivity for focusing on high-LP tasks
-
-        Args:
-            num_explore_tasks: Size of exploration pool (default: 50)
-            num_exploit_tasks: Size of exploitation pool (default: 200)
-            **overrides: Override any parameter
-
-        Example:
-            # Use defaults
-            config = LearningProgressConfig.default_dual_pool()
-
-            # Customize pool sizes
-            config = LearningProgressConfig.default_dual_pool(
-                num_explore_tasks=100,
-                num_exploit_tasks=400,
-            )
-
-            # Override other parameters
-            config = LearningProgressConfig.default_dual_pool(
-                ema_timescale=0.01,
-                z_score_amplification=30.0,
-            )
-        """
-        defaults = {
-            # Enable dual-pool
-            "use_dual_pool": True,
-            "num_explore_tasks": num_explore_tasks,
-            "num_exploit_tasks": num_exploit_tasks,
-            # Production-ready defaults for bidirectional LP
-            "use_bidirectional": True,
-            "ema_timescale": 0.001,  # Slower EMA for more stable LP signals
-            "slow_timescale_factor": 0.2,
-            "rand_task_rate": 0.01,
-            "exploration_bonus": 0.1,
-            "min_samples_for_lp": 10,
-            "lp_score_temperature": 0.0,  # Use z-score normalization
-            "z_score_amplification": 50.0,  # Strong selectivity
-            "early_progress_amplification": 0.5,  # Effectively off
-            # Dual-pool specific
-            "promotion_min_samples": 5,
-            "explore_exploit_ratio_init": 0.5,
-            "explore_exploit_ratio_alpha": 0.9,  # Slow EER adaptation
-            "promotion_rate_window": 1000,
-            # Enable troubleshooting logging for production monitoring
-            "show_curriculum_troubleshooting_logging": True,
-        }
-        defaults.update(overrides)
-        return cls(**defaults)
-
 
 class LearningProgressAlgorithm(CurriculumAlgorithm):
     """
@@ -415,48 +263,23 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self.num_tasks = num_tasks
         self.hypers: LearningProgressConfig = hypers
 
-        # Initialize task tracker (single-pool or dual-pool based on configuration)
-        self.task_tracker: Union[TaskTracker, DualPoolTaskTracker]
-        if hypers.use_dual_pool:
-            # Dual-pool mode: separate explore and exploit pools
-            self.task_tracker = DualPoolTaskTracker(
-                num_explore_tasks=hypers.num_explore_tasks,
-                num_exploit_tasks=hypers.num_exploit_tasks,
-                ema_alpha=hypers.task_tracker_ema_alpha,
-                session_id=hypers.session_id if hypers.use_shared_memory else None,
-                use_shared_memory=hypers.use_shared_memory,
-                task_struct_size=hypers.task_struct_size,
-                default_success_threshold=hypers.task_default_success_threshold,
-                default_generator_type=hypers.task_default_generator_type,
-            )
-        else:
-            # Single-pool mode: traditional single task tracker
-            self.task_tracker = TaskTracker(
-                max_memory_tasks=hypers.num_active_tasks,
-                ema_alpha=hypers.task_tracker_ema_alpha,
-                session_id=hypers.session_id if hypers.use_shared_memory else None,
-                use_shared_memory=hypers.use_shared_memory,
-                task_struct_size=hypers.task_struct_size,
-                default_success_threshold=hypers.task_default_success_threshold,
-                default_generator_type=hypers.task_default_generator_type,
-            )
+        # Initialize task tracker
+        self.task_tracker = TaskTracker(
+            max_memory_tasks=hypers.num_active_tasks,
+            ema_alpha=hypers.task_tracker_ema_alpha,
+            session_id=hypers.session_id if hypers.use_shared_memory else None,
+            use_shared_memory=hypers.use_shared_memory,
+            task_struct_size=hypers.task_struct_size,
+            default_success_threshold=hypers.task_default_success_threshold,
+            default_generator_type=hypers.task_default_generator_type,
+        )
 
         # Initialize scorer strategy (pass tracker for shared memory EMA access)
-        # For dual-pool, scorer will work with whichever pool the task is in
-        if hypers.use_dual_pool:
-            # Create scorer that can access both pools
-            # We'll need to pass the appropriate tracker when scoring
-            self.scorer: LPScorer = (
-                BidirectionalLPScorer(hypers, self.task_tracker.explore_tracker)
-                if hypers.use_bidirectional
-                else BasicLPScorer(hypers, self.task_tracker.explore_tracker)
-            )
-        else:
-            self.scorer: LPScorer = (
-                BidirectionalLPScorer(hypers, self.task_tracker)
-                if hypers.use_bidirectional
-                else BasicLPScorer(hypers, self.task_tracker)
-            )
+        self.scorer: LPScorer = (
+            BidirectionalLPScorer(hypers, self.task_tracker)
+            if hypers.use_bidirectional
+            else BasicLPScorer(hypers, self.task_tracker)
+        )
 
         # Track label sampling and eviction (labels themselves are in TaskTracker shared memory)
         self._label_sampling_counts: Dict[str, int] = {}  # label -> cumulative sampling count (episodes started)
@@ -472,43 +295,14 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Track recently inactive labels to manage memory
         self._inactive_labels_fifo: list[str] = []  # FIFO queue of inactive labels for cleanup
 
-        # Dual-pool specific state (only used when use_dual_pool=True)
-        if hypers.use_dual_pool:
-            # Explore-Exploit Ratio tracking
-            self._explore_exploit_ratio = hypers.explore_exploit_ratio_init
-            self._promotion_window: deque[bool] = deque(maxlen=hypers.promotion_rate_window)
-
-            # Cumulative promotion stats
-            self._num_promotions = 0
-            self._num_promotion_attempts = 0
-
-            # Phase tracking
-            self._current_phase: Literal["bootstrap", "steady_state"] = "bootstrap"
-
     def stats(self, prefix: str = "") -> Dict[str, float]:
         """Get all statistics with optional prefix. Always includes learning progress stats."""
         # Use the StatsLogger implementation
         return super().stats(prefix)
 
     def score_tasks(self, task_ids: List[int]) -> Dict[int, float]:
-        """Score tasks using the configured method (bidirectional by default).
-
-        In dual-pool mode, routes scoring to the appropriate pool for each task.
-        """
-        if isinstance(self.task_tracker, DualPoolTaskTracker):
-            # Dual-pool mode: score tasks from their respective pools
-            scores = {}
-            for task_id in task_ids:
-                pool_tracker = self.task_tracker.get_pool_tracker(task_id)
-                if pool_tracker is not None:
-                    scores[task_id] = self.scorer.score_task(task_id, pool_tracker)
-                else:
-                    # Task not found, give it lowest score
-                    scores[task_id] = 0.0
-            return scores
-        else:
-            # Single-pool mode: standard scoring
-            return {task_id: self.scorer.score_task(task_id, self.task_tracker) for task_id in task_ids}
+        """Score tasks using the configured method (bidirectional by default)."""
+        return {task_id: self.scorer.score_task(task_id, self.task_tracker) for task_id in task_ids}
 
     def recommend_eviction(self, task_ids: List[int]) -> Optional[int]:
         """Recommend which task to evict based on learning progress."""
@@ -661,39 +455,13 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         LP score calculation is deferred until sampling time (lazy evaluation via _stale_dist flag).
         This reduces from 4+ lock acquisitions to 1.
 
-        Dual-Pool Mode: After updating performance, check if task is eligible for promotion.
         """
         # Atomic update: All EMAs in one lock
-        if isinstance(self.task_tracker, DualPoolTaskTracker):
-            # Dual-pool mode: update task in its current pool
-            self.task_tracker.update_task_performance(
-                task_id=task_id,
-                score=score,
-                scorer=self.scorer if hasattr(self.scorer, "config") else None,
-            )
-        else:
-            # Single-pool mode: use standard update
-            self.task_tracker.update_task_performance_with_bidirectional_emas(
-                task_id=task_id,
-                score=score,
-                scorer=self.scorer if hasattr(self.scorer, "config") else None,
-            )
-
-        # Dual-pool: Check for promotion after update
-        if self.hypers.use_dual_pool and isinstance(self.task_tracker, DualPoolTaskTracker):
-            # Check if task is eligible and attempt promotion
-            if self._check_promotion_eligibility(task_id):
-                self._num_promotion_attempts += 1
-                promoted = self._attempt_promotion(task_id)
-
-                # Record promotion outcome in sliding window
-                self._promotion_window.append(promoted)
-
-                # Update EER based on promotion rate
-                self._update_explore_exploit_ratio()
-
-                # Update phase (bootstrap -> steady_state)
-                self._update_phase()
+        self.task_tracker.update_task_performance_with_bidirectional_emas(
+            task_id=task_id,
+            score=score,
+            scorer=self.scorer if hasattr(self.scorer, "config") else None,
+        )
 
         # Mark distribution as stale - LP scores will be recalculated on next sampling
         self.scorer.invalidate_cache()
@@ -726,47 +494,28 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         """Get final learning progress score (sampling probability) for a specific task."""
         return self.scorer.score_task(task_id, self.task_tracker)
 
-    def on_task_created(self, task: CurriculumTask, pool: Optional[str] = None) -> None:
-        """Handle task creation by tracking it in the appropriate pool.
+    def on_task_created(self, task: CurriculumTask) -> None:
+        """Handle task creation by tracking it.
 
         Args:
             task: The curriculum task being created
-            pool: For dual-pool mode, which pool to create in ('explore' or 'exploit').
-                  If None, uses single-pool mode or defaults to 'explore'.
         """
-        if isinstance(self.task_tracker, DualPoolTaskTracker):
-            # Dual-pool mode: track in specified pool (default to explore)
-            target_pool = pool if pool is not None else "explore"
-            self.task_tracker.track_task_creation(task._task_id, target_pool)
+        # Track the task
+        self.task_tracker.track_task_creation(task._task_id)
 
-            # Check if task was actually tracked
-            pool_tracker = self.task_tracker.get_pool_tracker(task._task_id)
-            if pool_tracker is None:
-                # Task wasn't tracked (pool is full), don't add label
-                return
+        # Check if task was actually tracked (might fail if tracker is full)
+        if task._task_id not in self.task_tracker._task_id_to_index:
+            # Task wasn't tracked (tracker is full), don't add label
+            return
 
-            # Initialize LP score to exploration bonus for new tasks
-            pool_tracker.update_lp_score(task._task_id, self.hypers.exploration_bonus)
-        else:
-            # Single-pool mode: standard tracking
-            self.task_tracker.track_task_creation(task._task_id)
+        # Initialize LP score to exploration bonus for new tasks
+        self.task_tracker.update_lp_score(task._task_id, self.hypers.exploration_bonus)
 
-            # Check if task was actually tracked (might fail if tracker is full)
-            if task._task_id not in self.task_tracker._task_id_to_index:
-                # Task wasn't tracked (tracker is full), don't add label
-                return
-
-            # Initialize LP score to exploration bonus for new tasks
-            self.task_tracker.update_lp_score(task._task_id, self.hypers.exploration_bonus)
-
-        # Handle label tracking (common for both modes)
+        # Handle label tracking
         label = task.get_label()
         if label:
             # Store label in TaskTracker's shared memory
-            if isinstance(self.task_tracker, DualPoolTaskTracker):
-                self.task_tracker.set_task_label(task._task_id, label)
-            else:
-                self.task_tracker.set_task_label(task._task_id, label)
+            self.task_tracker.set_task_label(task._task_id, label)
 
             # If label was inactive, remove it from the inactive queue (reactivating it)
             if label in self._inactive_labels_fifo:
@@ -1024,245 +773,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         for key, value in lp_stats.items():
             stats[f"lp/{key}"] = value
 
-        # Dual-pool statistics
-        if self.hypers.use_dual_pool and isinstance(self.task_tracker, DualPoolTaskTracker):
-            # Pool sizes
-            num_explore = len(self.task_tracker.get_all_explore_tasks())
-            num_exploit = len(self.task_tracker.get_all_exploit_tasks())
-            stats["dual_pool/num_explore_tasks"] = float(num_explore)
-            stats["dual_pool/num_exploit_tasks"] = float(num_exploit)
-
-            # Explore-Exploit Ratio
-            stats["dual_pool/explore_exploit_ratio"] = self._explore_exploit_ratio
-
-            # Promotion statistics
-            stats["dual_pool/num_promotions"] = float(self._num_promotions)
-            stats["dual_pool/num_promotion_attempts"] = float(self._num_promotion_attempts)
-            if self._num_promotion_attempts > 0:
-                stats["dual_pool/promotion_success_rate"] = self._num_promotions / self._num_promotion_attempts
-            else:
-                stats["dual_pool/promotion_success_rate"] = 0.0
-
-            # Recent promotion rate (from sliding window)
-            if len(self._promotion_window) > 0:
-                stats["dual_pool/recent_promotion_rate"] = sum(self._promotion_window) / len(self._promotion_window)
-            else:
-                stats["dual_pool/recent_promotion_rate"] = 0.0
-
-            # Phase indicator
-            stats["dual_pool/is_bootstrap_phase"] = 1.0 if self._current_phase == "bootstrap" else 0.0
-            stats["dual_pool/is_steady_state_phase"] = 1.0 if self._current_phase == "steady_state" else 0.0
-
         return stats
-
-    # ========== Dual-Pool Public Methods ==========
-
-    def is_dual_pool_mode(self) -> bool:
-        """Check if dual-pool mode is enabled."""
-        return self.hypers.use_dual_pool
-
-    def get_current_phase(self) -> str:
-        """Get current dual-pool phase ('bootstrap' or 'steady_state').
-
-        Returns:
-            'bootstrap' if exploit pool is filling, 'steady_state' otherwise.
-            Returns 'single_pool' if not in dual-pool mode.
-        """
-        if not self.hypers.use_dual_pool:
-            return "single_pool"
-        return self._current_phase
-
-    def select_pool_for_sampling(self) -> str:
-        """Select which pool to sample tasks from based on phase and EER.
-
-        Bootstrap Phase: Always returns 'explore' (100% exploration)
-        Steady-State Phase: Returns 'explore' with probability ρ, 'exploit' with probability 1-ρ
-
-        Returns:
-            'explore' or 'exploit' pool name
-        """
-        if not self.hypers.use_dual_pool:
-            raise RuntimeError("select_pool_for_sampling called in single-pool mode")
-
-        if self._current_phase == "bootstrap":
-            # Bootstrap: 100% explore until exploit pool is full
-            return "explore"
-        else:
-            # Steady-state: Sample based on EER
-            if random.random() < self._explore_exploit_ratio:
-                return "explore"
-            else:
-                return "exploit"
-
-    def select_pool_for_creation(self) -> str:
-        """Select which pool to create new tasks in.
-
-        All new tasks are created in the explore pool. This ensures:
-        1. New tasks get sufficient evaluation before promotion
-        2. Exploit pool only contains validated tasks
-        3. Exploration is always testing new hypotheses
-
-        Returns:
-            'explore' - all new tasks go to explore pool
-        """
-        if not self.hypers.use_dual_pool:
-            raise RuntimeError("select_pool_for_creation called in single-pool mode")
-
-        return "explore"
-
-    def get_pool_task_ids(self, pool: str) -> List[int]:
-        """Get all task IDs from a specific pool.
-
-        Args:
-            pool: 'explore' or 'exploit'
-
-        Returns:
-            List of task IDs in the specified pool
-        """
-        if not self.hypers.use_dual_pool:
-            raise RuntimeError("get_pool_task_ids called in single-pool mode")
-
-        assert isinstance(self.task_tracker, DualPoolTaskTracker)
-
-        if pool == "explore":
-            return self.task_tracker.get_all_explore_tasks()
-        elif pool == "exploit":
-            return self.task_tracker.get_all_exploit_tasks()
-        else:
-            raise ValueError(f"Invalid pool: {pool}. Must be 'explore' or 'exploit'")
-
-    # ========== Dual-Pool Internal Methods ==========
-
-    def _check_promotion_eligibility(self, task_id: int) -> bool:
-        """Check if a task in explore pool is eligible for promotion.
-
-        A task is eligible if:
-        1. It's in the explore pool
-        2. It has at least S_min samples (promotion_min_samples)
-
-        Args:
-            task_id: Task ID to check
-
-        Returns:
-            True if task is eligible for promotion
-        """
-        if not self.hypers.use_dual_pool:
-            return False
-
-        assert isinstance(self.task_tracker, DualPoolTaskTracker)
-
-        # Check if task is in explore pool
-        if self.task_tracker._task_pool_map.get(task_id) != "explore":
-            return False
-
-        # Check if task has enough samples
-        stats = self.task_tracker.get_task_stats(task_id)
-        if stats is None:
-            return False
-
-        return stats["completion_count"] >= self.hypers.promotion_min_samples
-
-    def _attempt_promotion(self, task_id: int) -> bool:
-        """Attempt to promote a task from explore to exploit pool.
-
-        Promotion succeeds if:
-        1. Task is eligible (has S_min samples)
-        2. Task's score is higher than the lowest-scoring task in exploit pool
-        3. Exploit pool has space OR lowest-scoring task can be evicted
-
-        Args:
-            task_id: Task ID to promote
-
-        Returns:
-            True if promotion succeeded, False otherwise
-        """
-        if not self.hypers.use_dual_pool or not self._check_promotion_eligibility(task_id):
-            return False
-
-        assert isinstance(self.task_tracker, DualPoolTaskTracker)
-
-        # Get task score
-        task_score = self.scorer.score_task(task_id, self.task_tracker.explore_tracker)
-
-        # Only promote tasks with positive learning progress
-        # Tasks with negative/zero LP are not making progress and shouldn't be exploited
-        if task_score <= 0.0:
-            return False
-
-        # Get all exploit tasks and their scores
-        exploit_task_ids = self.task_tracker.get_all_exploit_tasks()
-
-        # If exploit pool is not full, promote task with positive LP
-        if len(exploit_task_ids) < self.hypers.num_exploit_tasks:
-            success = self.task_tracker.promote_task(task_id)
-            if success:
-                self._num_promotions += 1
-            return success
-
-        # Exploit pool is full - check if task score is higher than minimum
-        exploit_scores = {
-            tid: self.scorer.score_task(tid, self.task_tracker.exploit_tracker) for tid in exploit_task_ids
-        }
-
-        if not exploit_scores:
-            return False
-
-        min_exploit_score = min(exploit_scores.values())
-        min_exploit_task = min(exploit_scores.items(), key=lambda x: x[1])[0]
-
-        # Only promote if score is higher than minimum exploit task
-        if task_score > min_exploit_score:
-            # Evict lowest-scoring exploit task
-            self.task_tracker.remove_task(min_exploit_task)
-
-            # Promote task
-            success = self.task_tracker.promote_task(task_id)
-            if success:
-                self._num_promotions += 1
-            return success
-
-        return False
-
-    def _update_explore_exploit_ratio(self) -> None:
-        """Update Explore-Exploit Ratio (ρ) based on recent promotion rate.
-
-        The EER is updated using an exponential moving average:
-            ρ(k+1) = α_EER * ρ(k) + (1 - α_EER) * r_promote(k)
-
-        where r_promote is the promotion rate from the sliding window.
-
-        The updated ρ is clipped to [ρ_min, ρ_max] bounds.
-        """
-        if not self.hypers.use_dual_pool or len(self._promotion_window) == 0:
-            return
-
-        # Calculate promotion rate from sliding window
-        num_promotions_in_window = sum(self._promotion_window)
-        window_size = len(self._promotion_window)
-
-        r_promote = num_promotions_in_window / window_size if window_size > 0 else 0.0
-
-        # EMA update
-        alpha_eer = self.hypers.explore_exploit_ratio_alpha
-        self._explore_exploit_ratio = alpha_eer * self._explore_exploit_ratio + (1 - alpha_eer) * r_promote
-
-        # Clip to bounds
-        self._explore_exploit_ratio = max(
-            self.hypers.explore_exploit_ratio_min,
-            min(self._explore_exploit_ratio, self.hypers.explore_exploit_ratio_max),
-        )
-
-    def _update_phase(self) -> None:
-        """Update phase from bootstrap to steady_state when exploit pool is full."""
-        if not self.hypers.use_dual_pool:
-            return
-
-        assert isinstance(self.task_tracker, DualPoolTaskTracker)
-
-        if self._current_phase == "bootstrap":
-            exploit_tasks = self.task_tracker.get_all_exploit_tasks()
-            if len(exploit_tasks) >= self.hypers.num_exploit_tasks:
-                self._current_phase = "steady_state"
 
     def get_state(self) -> Dict[str, Any]:
         """Get learning progress algorithm state for checkpointing."""
@@ -1280,16 +791,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                 "inactive_labels_fifo": self._inactive_labels_fifo,
             },
         }
-
-        # Add dual-pool state if enabled
-        if self.hypers.use_dual_pool:
-            state["dual_pool"] = {
-                "explore_exploit_ratio": self._explore_exploit_ratio,
-                "promotion_window": list(self._promotion_window),
-                "num_promotions": self._num_promotions,
-                "num_promotion_attempts": self._num_promotion_attempts,
-                "current_phase": self._current_phase,
-            }
 
         return state
 
@@ -1321,24 +822,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             self._label_eviction_counts = label_data.get("label_eviction_counts", {})
             self._active_labels = set(label_data.get("active_labels", []))
             self._inactive_labels_fifo = label_data.get("inactive_labels_fifo", [])
-
-        # Restore dual-pool state if available
-        if self.hypers.use_dual_pool and "dual_pool" in state:
-            dual_pool_data = state["dual_pool"]
-            self._explore_exploit_ratio = dual_pool_data.get(
-                "explore_exploit_ratio", self.hypers.explore_exploit_ratio_init
-            )
-            promotion_window_list = dual_pool_data.get("promotion_window", [])
-            self._promotion_window = deque(promotion_window_list, maxlen=self.hypers.promotion_rate_window)
-            self._num_promotions = dual_pool_data.get("num_promotions", 0)
-            self._num_promotion_attempts = dual_pool_data.get("num_promotion_attempts", 0)
-            self._current_phase = dual_pool_data.get("current_phase", "bootstrap")
-            logger.info(
-                f"LP Algorithm: Restored dual-pool state - "
-                f"EER={self._explore_exploit_ratio:.3f}, "
-                f"phase={self._current_phase}, "
-                f"promotions={self._num_promotions}"
-            )
 
         # Fix LP scores for tasks loaded from old checkpoints
         # Tasks with 0 completions should have exploration_bonus, not 0.0

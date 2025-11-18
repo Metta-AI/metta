@@ -12,33 +12,20 @@ Core Components:
 
 Key Features:
     - Bidirectional Learning Progress: Tracks fast/slow EMAs to detect learning opportunities
-    - Dual-Pool Architecture: Separate exploration and exploitation pools with adaptive sampling
     - Shared Memory Backend: True multi-process training with atomic updates
-    - Comprehensive Statistics: Per-task metrics, Gini coefficients, pool statistics
+    - Comprehensive Statistics: Per-task metrics, Gini coefficients, and learning progress tracking
     - Flexible Task Generation: Support for parameterized, bucketed, and merged task distributions
 
-Curriculum Modes:
-    1. Single-Pool (default): Traditional curriculum with one unified task pool
-    2. Dual-Pool: Exploration-exploitation balance with separate pools and adaptive EER
-       - Bootstrap phase: 100% exploration until exploit pool fills
-       - Steady-state: Adaptive sampling based on promotion success rate
-
 Quick Start:
-    # Single-pool curriculum
+    # Basic curriculum with learning progress
     config = LearningProgressConfig(
         use_bidirectional=True,
         num_active_tasks=256,
     )
 
-    # Dual-pool curriculum with exploration-exploitation
-    config = LearningProgressConfig.default_dual_pool(
-        num_explore_tasks=50,
-        num_exploit_tasks=200,
-    )
-
 See Also:
-    - learning_progress_algorithm.py: Core LP algorithm and dual-pool implementation
-    - task_tracker.py: Performance tracking and DualPoolTaskTracker
+    - learning_progress_algorithm.py: Core LP algorithm with bidirectional scoring
+    - task_tracker.py: Performance tracking with shared memory support
     - curriculum.py: Main Curriculum class coordinating all components
 """
 
