@@ -9,6 +9,7 @@ class DatadogConfig(BaseSettings):
 
     # Core settings
     DD_TRACE_ENABLED: bool = Field(default=False, description="Enable Datadog tracing")
+    DD_LOGS_INJECTION: bool = Field(default=True, description="Inject trace ids into logs for correlation")
     DD_SERVICE: str = Field(default="metta", description="Service name")
     DD_ENV: str = Field(default="development", description="Environment (production, staging, development)")
     DD_VERSION: str | None = Field(default=None, description="Service version (e.g., git commit hash)")
