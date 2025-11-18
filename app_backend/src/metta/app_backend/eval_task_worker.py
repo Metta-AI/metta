@@ -36,6 +36,7 @@ from metta.common.tool.tool import ToolResult
 from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import SOFTMAX_S3_BASE, SOFTMAX_S3_BUCKET
 from metta.common.util.git_repo import REPO_URL
+from metta.common.util.log_config import init_suppress_warnings
 from metta.rl.checkpoint_manager import CheckpointManager
 
 logger = logging.getLogger(__name__)
@@ -337,6 +338,7 @@ def init_logging():
 
 async def main() -> None:
     init_logging()
+    init_suppress_warnings()
     init_tracing()
 
     backend_url = os.environ["BACKEND_URL"]
