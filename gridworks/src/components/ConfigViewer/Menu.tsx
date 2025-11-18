@@ -5,6 +5,7 @@ import { useCloseDropdown } from "../Dropdown/DropdownContext";
 import { DropdownMenuActionItem } from "../Dropdown/DropdownMenuActionItem";
 import { CheckIcon } from "../icons/CheckIcon";
 import { EmptyIcon } from "../icons/EmptyIcon";
+import { CopyIcon } from "../icons/CopyIcon";
 import { YamlContext } from "./YamlContext";
 
 const ToggleDebugItem: FC = () => {
@@ -37,13 +38,32 @@ const ToggleDefaultValuesItem: FC = () => {
   );
 };
 
-export const Menu: FC = () => {
+const CopyAsYaml: FC<{
+  onCopy?: () => void;
+}> = ({ onCopy }) => {
+  const closeDropdown = useCloseDropdown();
+  return (
+    <DropdownMenuActionItem
+      title="Copy as YAML"
+      icon={CopyIcon}
+      onClick={() => {
+        onCopy?.();
+        closeDropdown();
+      }}
+    />
+  );
+};
+
+export const Menu: FC<{
+  onCopyAsYaml?: () => void;
+}> = ({ onCopyAsYaml }) => {
   return (
     <CornerMenu
       renderItems={() => (
         <>
           <ToggleDefaultValuesItem />
           <ToggleDebugItem />
+          <CopyAsYaml onCopy={onCopyAsYaml} />
         </>
       )}
     />
