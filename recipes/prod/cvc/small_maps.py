@@ -20,9 +20,6 @@ def train_sweep():
     return train_small_maps(
         num_cogs=4,
         variants=["heart_chorus", "pack_rat", "lonely_heart"],
-        eval_variants=None,
-        eval_difficulty="standard",
-        mission=None,
     )
 
 

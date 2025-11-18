@@ -887,7 +887,7 @@ class SweepOrchestrator(ABC):
 
     # ============= Optional Hooks (Can Override) =============
 
-    def on_trial_completed(self, trial: Trial, observation: Observation) -> None:
+    def on_trial_completed(self, trial: Trial, observation: Observation) -> None:  # noqa: B027
         """Hook called when a trial completes successfully.
 
         Override to update strategy-specific state, models, etc.
