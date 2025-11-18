@@ -110,6 +110,9 @@ class EpisodeReplay:
             "objects": self.objects,
         }
 
+        # Seed replay with initial object snapshots so validators see agents/objects even at step 0.
+        self._log_initial_state()
+
     def log_step(self, current_step: int, actions: np.ndarray, rewards: np.ndarray):
         """Log a single step of the episode."""
         self.total_rewards += rewards
@@ -175,6 +178,26 @@ class EpisodeReplay:
         compressed_data = zlib.compress(replay_bytes)  # Compress the bytes
 
         write_data(path, compressed_data, content_type="application/x-compress")
+
+    def _log_initial_state(self) -> None:
+        """Capture a step-0 snapshot of all grid objects for validation/replay tools."""
+        zero_actions = np.zeros((self.sim.num_agents, 2), dtype=int)
+        zero_rewards = np.zeros(self.sim.num_agents)
+        zero_success = np.zeros(self.sim.num_agents, dtype=bool)
+
+        for i, grid_object in enumerate(self.sim.grid_objects().values()):
+            if len(self.objects) <= i:
+                self.objects.append({})
+
+            update_object = format_grid_object(
+                grid_object,
+                zero_actions,
+                zero_success,
+                zero_rewards,
+                self.total_rewards,
+            )
+
+            self._seq_key_merge(self.objects[i], step=0, update_object=update_object)
 
     @staticmethod
     def _validate_non_empty_string_list(values: list[str], field_name: str) -> None:
