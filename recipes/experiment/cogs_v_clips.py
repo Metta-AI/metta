@@ -438,10 +438,6 @@ def train_proc_maps(
     )
 
 
-# Backward compatibility alias while downstreams migrate from the old name.
-train_all_maps = train_fixed_maps
-
-
 __all__ = [
     "make_eval_suite",
     "make_training_env",
