@@ -39,6 +39,24 @@ type
   RaceCarPolicy* = ref object
     agents*: seq[RaceCarAgent]
 
+# Map clipped extractor -> required gear inventory feature id.
+proc gearForTag(agent: RaceCarAgent, tagId: int): Option[int] =
+  if tagId == agent.cfg.tags.oxygenExtractor:
+    return some(agent.cfg.features.invDecoder)
+  if tagId == agent.cfg.tags.carbonExtractor:
+    return some(agent.cfg.features.invModulator)
+  if tagId == agent.cfg.tags.germaniumExtractor:
+    return some(agent.cfg.features.invResonator)
+  if tagId == agent.cfg.tags.siliconExtractor:
+    return some(agent.cfg.features.invScrambler)
+  none(int)
+
+proc isClipped(agent: RaceCarAgent, features: seq[FeatureValue]): bool =
+  for fv in features:
+    if fv.featureId == agent.cfg.features.clipped and fv.value > 0:
+      return true
+  false
+
 proc log(message: string) =
   when defined(debug):
     echo message
@@ -328,6 +346,25 @@ proc step*(
 
     updateMap(agent, map)
 
+    # Detect nearby clipped extractors to drive gear crafting/usage.
+    var clippedTarget: Option[Location]
+    var clippedGearFeature: Option[int]
+    for (loc, feats) in map.pairs:
+      var tagId = -1
+      for fv in feats:
+        if fv.featureId == agent.cfg.features.tag:
+          tagId = fv.value
+          break
+      if tagId == -1:
+        continue
+      if agent.isClipped(feats):
+        let gearFeature = agent.gearForTag(tagId)
+        if gearFeature.isSome():
+          clippedTarget = some(agent.location + loc)
+          clippedGearFeature = gearFeature
+          break
+    
+
     let
       vibe = agent.cfg.getVibe(map, Location(x: 0, y: 0))
       invEnergy = agent.cfg.getInventory(map, agent.cfg.features.invEnergy)
@@ -385,6 +422,33 @@ proc step*(
           if action.isSome():
             doAction(action.get().int32)
             log "charge nearby might as well charge"
+            return
+
+    # If a clipped extractor is visible, ensure we have the right gear.
+    if clippedGearFeature.isSome():
+      let neededGear = clippedGearFeature.get()
+      let haveGear = agent.cfg.getInventory(map, neededGear)
+      if haveGear == 0:
+        # Gather resources and craft gear at assembler using gear vibe.
+        if vibe != agent.cfg.vibes.gear:
+          doAction(agent.cfg.actions.vibeGear.int32)
+          log "switching to gear vibe to craft unclipping tool"
+          return
+        let assemblerNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.assembler)
+        if assemblerNearby.isSome():
+          let action = agent.cfg.aStar(agent.location, assemblerNearby.get(), agent.map)
+          if action.isSome():
+            doAction(action.get().int32)
+            log "heading to assembler to craft gear"
+            return
+      else:
+        # We have the gear—go unclip the extractor.
+        if clippedTarget.isSome():
+          let target = clippedTarget.get()
+          let action = agent.cfg.aStar(agent.location, target, agent.map)
+          if action.isSome():
+            doAction(action.get().int32)
+            log "moving to clipped extractor to unclip"
             return
 
     # Deposit heart into the chest.

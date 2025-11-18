@@ -47,7 +47,7 @@ class RandomAgentsMultiPolicy(NimMultiAgentPolicy):
 class RaceCarAgentsMultiPolicy(NimMultiAgentPolicy):
     short_names = [
         "nim_race_car",
-        "nim_racecar",
+        "racecar",
     ]
 
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_ids: Sequence[int] | None = None):
