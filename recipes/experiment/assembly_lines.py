@@ -531,7 +531,7 @@ def _make_algorithm_config(curriculum_style: str) -> LearningProgressConfig:
             ema_timescale=0.0005,  # Moderate adaptation: ~2k episodes to shift
             exploration_bonus=0.15,  # Standard exploration bonus
             **base_config,
-        )
+    )
 
 
 def train(
