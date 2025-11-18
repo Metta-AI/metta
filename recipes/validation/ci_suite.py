@@ -31,8 +31,8 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
     arena_train_name = f"{group}.arena_train"
     arena_eval_name = f"{group}.arena_eval"
     arena_play_name = f"{group}.arena_play"
-    cvc_small_train_name = f"{group}.cvc_small_train"
-    cvc_small_play_name = f"{group}.cvc_small_play"
+    cvc_small_train_name = f"{group}.cvc_fixed_maps_train"
+    cvc_small_play_name = f"{group}.cvc_fixed_maps_play"
 
     arena_train = JobConfig(
         name=arena_train_name,
@@ -69,10 +69,10 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
         group=group,  # Tag with group for monitoring
     )
 
-    # CvC Small Maps - Train just enough to get a single checkpoint
+    # CvC Unified - Train just enough to get a single checkpoint
     cvc_small_train = JobConfig(
         name=cvc_small_train_name,
-        module="recipes.prod.cvc.small_maps.train",
+        module="recipes.prod.cvc.fixed_maps.train",
         args=[
             f"run={cvc_small_train_name}",
             "trainer.total_timesteps=100",
@@ -85,10 +85,10 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
         group=group,
     )
 
-    # CvC Small Maps - Play test with random policy
+    # CvC Unified - Play test with random policy
     cvc_small_play = JobConfig(
         name=cvc_small_play_name,
-        module="recipes.prod.cvc.small_maps.play",
+        module="recipes.prod.cvc.fixed_maps.play",
         args=["max_steps=10", "render=log", "open_browser_on_start=False"],  # Headless mode for CI
         timeout_s=60,
         group=group,  # Tag with group for monitoring
