@@ -33,7 +33,7 @@ class SimulationRunResult(BaseModel):
 
 def run_simulations(
     *,
-    policy_specs: Sequence[PolicySpec] | None = None,
+    policy_specs: Sequence[PolicySpec],
     simulations: Sequence[SimulationRunConfig],
     replay_dir: str | None,
     seed: int,
@@ -41,8 +41,7 @@ def run_simulations(
     on_progress: Callable[[str], None] = lambda x: None,
 ) -> list[SimulationRunResult]:
     if not policy_specs:
-        msg = "At least one policy spec is required"
-        raise ValueError(msg)
+        raise ValueError("At least one policy spec is required")
 
     simulation_rollouts: list[SimulationRunResult] = []
 
