@@ -47,7 +47,7 @@ class SummarySpec(BaseModel):
 
 
 class FetchSpec(BaseModel):
-    samples: int | None = 2000
+    samples: int | None = 10000
     min_step: int | None = None
     max_step: int | None = None
     keys: list[str] | None = None  # will default to [metric_key]
@@ -69,8 +69,17 @@ class TTestSpec(BaseModel):
 
 class PowerSpec(BaseModel):
     enabled: bool = False
+    # Smallest effect size of interest (SESOI), in units of the summary statistic
     target_effect_size: float = 0.2
-    beta: float = 0.8
+    target_power: float = 0.8
+    # Monte Carlo configuration
+    n_sim: int = 5000
+    sample_sizes: list[int] = Field(
+        default_factory=lambda: [5, 10, 15, 20, 40]
+    )  # candidate Ns to evaluate
+    # Normality and resampling behaviour for the simulated experiments
+    normality_alpha: float = 0.05
+    use_bootstrap: bool = True
 
 
 class OutputSpec(BaseModel):
@@ -581,9 +590,7 @@ class CompareTool(Tool):
                 else None
             )
             power_info = (
-                self._power_info(len(diffs), np.std(diffs, ddof=1))
-                if self.power.enabled
-                else None
+                self._power_info("paired", diffs) if self.power.enabled else None
             )
 
             self._print_results(
@@ -646,14 +653,8 @@ class CompareTool(Tool):
                 if self.ttest.enabled
                 else None
             )
-            pooled_std = float(
-                np.sqrt(
-                    np.var(control_arr, ddof=1) / len(control_arr)
-                    + np.var(candidate_arr, ddof=1) / len(candidate_arr)
-                )
-            )
             power_info = (
-                self._power_info(len(control_arr) + len(candidate_arr), pooled_std)
+                self._power_info("unpaired", control_arr, candidate_arr)
                 if self.power.enabled
                 else None
             )
@@ -752,9 +753,21 @@ class CompareTool(Tool):
                     print(f"    t_stat: {tvals['t_stat']}")
                     print(f"    p_value: {tvals['p_value']}")
         if power is not None:
-            print("  power:")
-            for k in sorted(power.keys()):
-                print(f"    {k}: {power[k]}")
+            print("  power (Monte Carlo):")
+            curve = power.get("curve") if isinstance(power, dict) else None
+            if isinstance(curve, list):
+                print("    N, estimated_power")
+                for pt in curve:
+                    n_val = pt.get("N")
+                    p_val = pt.get("power")
+                    if n_val is not None and p_val is not None:
+                        print(f"      {int(n_val)}: {float(p_val):.3f}")
+            # Print metadata (alpha, beta, etc.) if present
+            if isinstance(power, dict):
+                for k in sorted(power.keys()):
+                    if k == "curve":
+                        continue
+                    print(f"    {k}: {power[k]}")
         print("")
 
     def _write_csv(
@@ -781,26 +794,171 @@ class CompareTool(Tool):
             w.writerow(["result", "ci_low", f"{ci[0]:.9g}", ""])
             w.writerow(["result", "ci_high", f"{ci[1]:.9g}", ""])
 
-    def _power_info(self, n: int, scale: float) -> dict[str, Any]:
-        # Simple normal-approx power calc for mean difference
-        # target_effect_size is in units of the summary statistic; scale ~ std error proxy
-        alpha = self.bootstrap.alpha
-        side = self.bootstrap.side
-        dist = NormalDist()
-        if side == "two-sided":
-            z_alpha = dist.inv_cdf(1 - alpha / 2)
-        else:
-            z_alpha = dist.inv_cdf(1 - alpha)
-        z_beta = dist.inv_cdf(self.power.beta)
-        # Required N under normal approx: (z_alpha + z_beta)^2 * sigma^2 / d^2
-        # We approximate sigma by `scale` argument (caller chooses)
-        d = max(1e-12, abs(self.power.target_effect_size))
-        required_n = ((z_alpha + z_beta) ** 2) * (scale**2) / (d**2)
+    def _power_info(
+        self,
+        mode: Literal["paired", "unpaired"],
+        pilot_control: np.ndarray,
+        pilot_candidate: Optional[np.ndarray] = None,
+    ) -> dict[str, Any]:
+        """
+        Monte Carlo power analysis using pilot statistics and SESOI.
+
+        For paired mode, `pilot_control` is interpreted as the vector of paired
+        differences (candidate - control) from the pilot study.
+
+        For unpaired mode, `pilot_control` and `pilot_candidate` are the pilot
+        samples from each arm.
+        """
+        if not self.power.enabled:
+            return {}
+
+        alpha = float(self.bootstrap.alpha)
+        sesoi = float(self.power.target_effect_size)
+        n_sim = max(1, int(self.power.n_sim))
+        sample_sizes = sorted({int(n) for n in self.power.sample_sizes if n > 0})
+        if not sample_sizes:
+            return {
+                "warning": "No positive sample sizes provided for power.sample_sizes"
+            }
+
+        results: list[dict[str, Any]] = []
+
+        if mode == "paired":
+            diffs = np.asarray(pilot_control, dtype=float)
+            if diffs.size < 2:
+                return {"warning": "Need at least 2 paired samples for power analysis"}
+            s_diff = float(np.std(diffs, ddof=1))
+            if s_diff <= 0:
+                return {
+                    "warning": "Zero variance in pilot paired differences; cannot estimate power"
+                }
+
+            for N in sample_sizes:
+                reject_count = 0
+                for _ in range(n_sim):
+                    sim_diffs = np.random.normal(loc=sesoi, scale=s_diff, size=int(N))
+                    # Normality check on simulated diffs
+                    is_normal = False
+                    if sim_diffs.size >= 3:
+                        try:
+                            _, p_norm = st.shapiro(sim_diffs)
+                            is_normal = bool(
+                                p_norm >= float(self.power.normality_alpha)
+                            )
+                        except Exception:  # noqa: BLE001
+                            is_normal = False
+
+                    if is_normal:
+                        # One-sided t-test: H1: mean(diff) > 0
+                        res = st.ttest_1samp(
+                            sim_diffs,
+                            popmean=0.0,
+                            alternative="greater",
+                        )
+                        p_val = float(res.pvalue)
+                        if p_val <= alpha:
+                            reject_count += 1
+                    elif self.power.use_bootstrap:
+                        # BCa bootstrap on the simulated paired differences
+                        try:
+                            n_resamples = min(self.bootstrap.n_resamples, 2000)
+                            _, (ci_lo, _), _ = _paired_bootstrap_ci(
+                                diffs=sim_diffs,
+                                n_resamples=n_resamples,
+                                alpha=alpha,
+                                method=self.bootstrap.method,
+                                side="greater",
+                            )
+                            # Approximate significance: lower bound > 0
+                            if ci_lo > 0:
+                                reject_count += 1
+                        except Exception:  # noqa: BLE001
+                            # Fail safe: treat as non-significant
+                            pass
+                power_est = float(reject_count) / float(n_sim)
+                results.append({"N": int(N), "power": power_est})
+
+        else:  # mode == "unpaired"
+            if pilot_candidate is None:
+                return {
+                    "warning": "pilot_candidate is required for unpaired power analysis"
+                }
+            control = np.asarray(pilot_control, dtype=float)
+            candidate = np.asarray(pilot_candidate, dtype=float)
+            if control.size < 2 or candidate.size < 2:
+                return {
+                    "warning": "Need at least 2 samples per group for unpaired power analysis"
+                }
+
+            mu_control = float(np.mean(control))
+            sd_control = float(np.std(control, ddof=1))
+            sd_candidate = float(np.std(candidate, ddof=1))
+            if sd_control <= 0 or sd_candidate <= 0:
+                return {
+                    "warning": "Zero variance in pilot samples; cannot estimate unpaired power"
+                }
+
+            for N in sample_sizes:
+                reject_count = 0
+                for _ in range(n_sim):
+                    sim_control = np.random.normal(
+                        loc=mu_control, scale=sd_control, size=int(N)
+                    )
+                    sim_candidate = np.random.normal(
+                        loc=mu_control + sesoi,
+                        scale=sd_candidate,
+                        size=int(N),
+                    )
+
+                    # Normality check on both groups
+                    is_normal = False
+                    if sim_control.size >= 3 and sim_candidate.size >= 3:
+                        try:
+                            _, p_c = st.shapiro(sim_control)
+                            _, p_t = st.shapiro(sim_candidate)
+                            is_normal = bool(
+                                (p_c >= float(self.power.normality_alpha))
+                                and (p_t >= float(self.power.normality_alpha))
+                            )
+                        except Exception:  # noqa: BLE001
+                            is_normal = False
+
+                    if is_normal:
+                        # Welch's t-test, one-sided H1: candidate > control
+                        res = st.ttest_ind(
+                            sim_candidate,
+                            sim_control,
+                            equal_var=False,
+                            nan_policy="raise",
+                            alternative="greater",
+                        )
+                        p_val = float(res.pvalue)
+                        if p_val <= alpha:
+                            reject_count += 1
+                    elif self.power.use_bootstrap:
+                        try:
+                            n_resamples = min(self.bootstrap.n_resamples, 2000)
+                            _, (ci_lo, _), _ = _unpaired_bootstrap_ci(
+                                control=sim_control,
+                                candidate=sim_candidate,
+                                n_resamples=n_resamples,
+                                alpha=alpha,
+                                method=self.bootstrap.method,
+                                side="greater",
+                            )
+                            if ci_lo > 0:
+                                reject_count += 1
+                        except Exception:  # noqa: BLE001
+                            pass
+                power_est = float(reject_count) / float(n_sim)
+                results.append({"N": int(N), "power": power_est})
+
         return {
-            "approx_required_N": float(required_n),
-            "alpha": float(alpha),
-            "beta": float(self.power.beta),
-            "target_effect_size": float(self.power.target_effect_size),
+            "curve": results,
+            "alpha": alpha,
+            "target_power": float(self.power.target_power),
+            "target_effect_size": sesoi,
+            "n_sim": float(n_sim),
         }
 
 
