@@ -44,5 +44,3 @@ agents:
       operator: Equal
       value: eval-worker
       effect: NoSchedule
-  nodeSelector:
-    workload-type: eval-worker
