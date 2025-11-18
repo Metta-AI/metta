@@ -205,6 +205,15 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         """Close the environment."""
         self._vecenv.close()
 
+    def reset_epoch_counters(self) -> None:
+        """Reset per-epoch counters in curriculum environments at the start of a new epoch.
+
+        This resets counters in the curriculum algorithm (e.g., sampling counts per label)
+        that accumulate during the epoch and need to be cleared at epoch boundaries.
+        """
+        if self._curriculum is not None and hasattr(self._curriculum, "reset_epoch_counters"):
+            self._curriculum.reset_epoch_counters()
+
     @property
     def policy_env_info(self) -> PolicyEnvInterface:
         return self._policy_env_info
