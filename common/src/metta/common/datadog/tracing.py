@@ -15,23 +15,10 @@ def init_tracing():
         if datadog_config.DD_LOGS_INJECTION:
             # Inject trace identifiers into stdlib logging records for log/trace correlation
             from ddtrace import patch
-            from ddtrace.contrib.logging import TraceLogFilter
 
             patch(logging=True)
-
-            dd_handler = logging.StreamHandler(sys.stdout)
-            dd_handler.setFormatter(
-                logging.Formatter(
-                    "%(asctime)s [%(name)s] %(levelname)s "
-                    "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s "
-                    "dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s]: %(message)s"
-                )
-            )
-
-            dd_handler.addFilter(TraceLogFilter())
-            logging.getLogger().addHandler(dd_handler)
             logger.info(
-                f"Datadog tracing enabled: service={datadog_config.DD_SERVICE}, "
+                f"Datadog tracing enabled with log injection: service={datadog_config.DD_SERVICE}, "
                 f"env={datadog_config.DD_ENV}, agent={datadog_config.DD_AGENT_HOST}"
             )
         tracer.enabled = True
