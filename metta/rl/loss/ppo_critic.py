@@ -151,6 +151,16 @@ class PPOCritic(Loss):
         else:
             minibatch = shared_loss_data["sampled_mb"]
             indices = shared_loss_data["indices"]
+            if isinstance(indices, NonTensorData):
+                indices = indices.data
+
+            if "prio_weights" not in shared_loss_data:
+                # just in case ppo_actor runs after this and is expecting
+                shared_loss_data["prio_weights"] = torch.ones(
+                    (minibatch.shape[0], 1),
+                    device=self.device,
+                    dtype=torch.float32,
+                )
 
         shared_loss_data["advantages"] = self.advantages[indices]
 
@@ -169,22 +179,48 @@ class PPOCritic(Loss):
         minibatch["returns"] = returns
         policy_td = shared_loss_data.get("policy_td", None)
         newvalue_reshaped = None
+        importance_sampling_ratio = None
+
         if policy_td is not None:
             newvalue = policy_td["values"]
             newvalue_reshaped = newvalue.view(returns.shape)
 
-        if self.cfg.clip_vloss and newvalue_reshaped is not None:
-            v_loss_unclipped = (newvalue_reshaped - returns) ** 2
-            vf_clip_coef = self.cfg.vf_clip_coef
-            v_clipped = old_values + torch.clamp(
-                newvalue_reshaped - old_values,
-                -vf_clip_coef,
-                vf_clip_coef,
-            )
-            v_loss_clipped = (v_clipped - returns) ** 2
-            v_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
+            # Calculate importance sampling ratio for replay buffer update
+            old_logprob = minibatch["act_log_prob"]
+            new_logprob = policy_td["act_log_prob"].reshape(old_logprob.shape)
+            logratio = torch.clamp(new_logprob - old_logprob, -10, 10)
+            importance_sampling_ratio = logratio.exp()
+
+        if newvalue_reshaped is not None:
+            if self.cfg.clip_vloss:
+                v_loss_unclipped = (newvalue_reshaped - returns) ** 2
+                vf_clip_coef = self.cfg.vf_clip_coef
+                v_clipped = old_values + torch.clamp(
+                    newvalue_reshaped - old_values,
+                    -vf_clip_coef,
+                    vf_clip_coef,
+                )
+                v_loss_clipped = (v_clipped - returns) ** 2
+                v_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
+            else:
+                v_loss = 0.5 * ((newvalue_reshaped - returns) ** 2).mean()
+
+            # Update values and ratio in experience buffer
+            if importance_sampling_ratio is not None:
+                update_td = TensorDict(
+                    {
+                        "values": newvalue.view(minibatch["values"].shape).detach(),
+                        "ratio": importance_sampling_ratio.detach(),
+                    },
+                    batch_size=minibatch.batch_size,
+                )
+                self.replay.update(indices, update_td)
         else:
             v_loss = 0.5 * ((old_values - returns) ** 2).mean()
+
+        # Scale value loss by coefficient
+        v_loss = v_loss * self.cfg.vf_coef
+        self.loss_tracker["value_loss"].append(float(v_loss.item()))
 
         return v_loss, shared_loss_data, False
 
