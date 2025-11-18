@@ -17,6 +17,7 @@ from mettagrid import MettaGridConfig, PufferMettaGridEnv
 from mettagrid.config.mettagrid_config import EnvSupervisorConfig
 from mettagrid.envs.early_reset_handler import EarlyResetHandler
 from mettagrid.envs.stats_tracker import StatsTracker
+from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.policy.loader import (
     find_policy_checkpoints,
     get_policy_class_shorthand,
@@ -436,6 +437,14 @@ class _EnvCreator:
         seed: Optional[int] = None,
     ) -> PufferMettaGridEnv:
         target_cfg = cfg.model_copy(deep=True) if cfg is not None else self.clone_cfg()
+
+        # If this mission uses MapGen and the builder seed is unset, derive a deterministic
+        # MapGen seed from the per-env seed provided by the vectorized runner. This gives us:
+        # - diverse maps across envs/resets when MapGenConfig.seed is None
+        # - fully reproducible behavior when rerun with the same top-level --seed
+        map_builder = getattr(target_cfg.game, "map_builder", None)
+        if isinstance(map_builder, MapGen.Config) and seed is not None and map_builder.seed is None:
+            map_builder.seed = seed
         simulator = Simulator()
         simulator.add_event_handler(StatsTracker(NoopStatsWriter()))
         simulator.add_event_handler(EarlyResetHandler())
