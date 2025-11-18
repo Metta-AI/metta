@@ -24,6 +24,7 @@ Isolating it here makes it easy to swap implementations, test independently, and
 about thread safety and resource cleanup without cluttering higher-level code.
 """
 
+import logging
 import uuid
 from abc import ABC, abstractmethod
 from contextlib import nullcontext
@@ -163,6 +164,10 @@ class SharedMemoryBackend(TaskMemoryBackend):
         self.max_tasks = max_tasks
         self.task_struct_size = task_struct_size
 
+        # Initialize shared memory handle to None (set by _init_shared_memory)
+        self._task_array_shm = None
+        self._task_array = None
+
         # Generate session ID if not provided (fallback for non-config usage)
         if session_id is None:
             session_id = f"cur_{uuid.uuid4().hex[:6]}"
@@ -239,24 +244,38 @@ class SharedMemoryBackend(TaskMemoryBackend):
 
     def cleanup(self):
         """Clean up shared memory resources."""
+        logger = logging.getLogger(__name__)
+
+        if self._task_array_shm is None:
+            return
+
         try:
-            if hasattr(self, "_task_array_shm"):
-                self._task_array_shm.close()
-                if self._created_shared_memory:
-                    try:
-                        self._task_array_shm.unlink()
-                    except FileNotFoundError:
-                        pass
-        except Exception:
-            pass  # Best-effort cleanup
+            self._task_array_shm.close()
+            if self._created_shared_memory:
+                try:
+                    self._task_array_shm.unlink()
+                except FileNotFoundError:
+                    # Already unlinked by another process - this is fine
+                    pass
+        except Exception as e:
+            logger.warning(
+                f"Failed to cleanup shared memory (session={self.session_id}, name={self._task_array_name}): {e}"
+            )
 
     def __del__(self):
         """Cleanup on destruction."""
+        # Only access _task_array_shm if it was initialized
+        if not hasattr(self, "_task_array_shm") or self._task_array_shm is None:
+            return
+
+        logger = logging.getLogger(__name__)
+        session_id = getattr(self, "session_id", "unknown")
+        name = getattr(self, "_task_array_name", "unknown")
+
         try:
-            if hasattr(self, "_task_array_shm"):
-                self._task_array_shm.close()
-        except Exception:
-            pass
+            self._task_array_shm.close()
+        except Exception as e:
+            logger.warning(f"Failed to close shared memory in destructor (session={session_id}, name={name}): {e}")
 
     def __getstate__(self):
         """Prepare for pickling - save connection parameters."""
@@ -272,18 +291,19 @@ class SharedMemoryBackend(TaskMemoryBackend):
         self.max_tasks = state["max_tasks"]
         self.task_struct_size = state["task_struct_size"]
         self.session_id = state["session_id"]
-        self._created_shared_memory = False  # Worker processes never created it, only connect
+
+        # Initialize shared memory handle to None (set by _init_shared_memory)
+        self._task_array_shm = None
+        self._task_array = None
+
+        # Worker processes never created it, only connect
+        self._created_shared_memory = False
 
         # Set shared memory names before reconnecting
         self._task_array_name = f"ta_{self.session_id}"
-        self._created_shared_memory = False
 
         # Reconnect to existing shared memory
         self._init_shared_memory()
 
         # Recreate lock (each process needs its own lock object pointing to the shared lock)
         self._lock = Lock()
-
-
-# Backwards compatibility alias
-SharedTaskMemory = SharedMemoryBackend
