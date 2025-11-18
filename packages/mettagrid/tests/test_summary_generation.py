@@ -6,7 +6,6 @@ from mettagrid.simulator.multi_episode.summary import build_multi_episode_rollou
 
 
 def test_build_results_summary_multi_mission_policy_episode() -> None:
-
     mission_one = MultiEpisodeRolloutResult(
         episodes=[
             EpisodeRolloutResult(
