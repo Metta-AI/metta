@@ -34,8 +34,8 @@ from rich.console import Console
 from rich.table import Table
 
 from metta.rl.checkpoint_manager import CheckpointManager
+from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.policy.utils import initialize_or_load_policy
 from mettagrid.simulator.multi_episode.rollout import multi_episode_rollout
 from mettagrid.simulator.rollout import Rollout
 
@@ -579,7 +579,7 @@ def main(
         "--run",
         help="Run name for training checkpoint directory (defaults to mission name)",
     ),
-    max_epochs: int = typer.Option(1000, "--max-epochs", help="Maximum training epochs (1000 epochs = ~1M steps)"),
+    max_epochs: int = typer.Option(146500, "--max-epochs", help="Maximum training epochs (~150M steps)"),
     checkpoint_interval: int = typer.Option(50, "--checkpoint-interval", help="Save checkpoint every N epochs"),
     num_episodes: int = typer.Option(50, "--num-episodes", "-n", help="Number of tournament episodes"),
     seed: int = typer.Option(42, "--seed", "-s", help="Random seed"),
