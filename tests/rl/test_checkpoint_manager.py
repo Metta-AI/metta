@@ -117,8 +117,11 @@ class TestBasicSaveLoad:
             policy = initialize_or_load_policy(env_info, policy_spec)
             remote_uri = policy.save_policy(expected_remote, policy_architecture=mock_policy_architecture)
 
-        assert remote_uri == expected_remote
-        mock_write.assert_called_once_with(expected_remote, str(local_path))
+            assert remote_uri == expected_remote
+            mock_write.assert_called_once()
+            remote_arg, local_arg = mock_write.call_args[0]
+            assert remote_arg == expected_remote
+            assert Path(local_arg).name == Path(expected_filename).name
 
     def test_multiple_epoch_saves_and_selection(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         epochs = [1, 5, 10]

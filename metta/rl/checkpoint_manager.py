@@ -401,6 +401,7 @@ class CheckpointPolicy(MultiAgentPolicy):
             raise ValueError("policy_architecture is required to save policy")
 
         parsed = ParsedURI.parse(str(destination))
+        # Resolve destination and write locally first
         if parsed.scheme in ("", "file") or parsed.local_path:
             path = parsed.local_path or Path(str(destination)).expanduser()
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -412,14 +413,16 @@ class CheckpointPolicy(MultiAgentPolicy):
             return f"file://{path.resolve()}"
 
         if parsed.scheme == "s3":
-            with tempfile.NamedTemporaryFile(suffix=".mpt") as tmp:
-                tmp_path = Path(tmp.name)
-                save_policy_artifact_safetensors(
-                    tmp_path,
-                    policy_architecture=architecture,
-                    state_dict=self._policy.state_dict(),
-                )
-                write_file(parsed.canonical, str(tmp_path))
+            # Write locally (same filename) into checkpoint_dir, then upload
+            filename = Path(parsed.canonical).name
+            local_path = Path.cwd() / filename
+            local_path.parent.mkdir(parents=True, exist_ok=True)
+            save_policy_artifact_safetensors(
+                local_path,
+                policy_architecture=architecture,
+                state_dict=self._policy.state_dict(),
+            )
+            write_file(parsed.canonical, str(local_path))
             return parsed.canonical
 
         msg = f"Unsupported destination scheme for saving policy: {parsed.scheme or 'file'}"
