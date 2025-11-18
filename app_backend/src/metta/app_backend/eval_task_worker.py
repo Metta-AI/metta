@@ -23,6 +23,7 @@ from datetime import datetime
 
 import boto3
 
+from common.src.metta.common.util.log_config import init_suppress_warnings
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.routes.eval_task_routes import (
     EvalTaskResponse,
@@ -337,6 +338,7 @@ def init_logging():
 
 async def main() -> None:
     init_logging()
+    init_suppress_warnings()
     init_tracing()
 
     backend_url = os.environ["BACKEND_URL"]

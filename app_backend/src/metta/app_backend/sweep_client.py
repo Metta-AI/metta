@@ -4,6 +4,7 @@ from typing import Optional
 
 import httpx
 
+from common.src.metta.common.util.log_config import init_suppress_warnings
 from metta.app_backend.routes.sweep_routes import (
     RunIdResponse,
     SweepCreateResponse,
@@ -76,6 +77,7 @@ def generate_run_id_for_sweep(
 if __name__ == "__main__":
     # Example usage
     init_logging()
+    init_suppress_warnings()
     client = SweepClient()
 
     # Initialize a sweep

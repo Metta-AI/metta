@@ -20,6 +20,7 @@ from datetime import datetime, timedelta, timezone
 from ddtrace.trace import tracer
 from pydantic import BaseModel
 
+from common.src.metta.common.util.log_config import init_suppress_warnings
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.container_managers.factory import create_container_manager
 from metta.app_backend.routes.eval_task_routes import (
@@ -266,6 +267,7 @@ def init_logging():
 
 async def main() -> None:
     init_logging()
+    init_suppress_warnings()
     init_tracing()
 
     backend_url = os.environ.get("BACKEND_URL", DEV_STATS_SERVER_URI)
