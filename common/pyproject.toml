@@ -23,6 +23,7 @@ dev = [
   "pytest-cov>=6.1.1",
   "pytest-benchmark>=5.1.0",
   "ruff>=0.11.13",
+  "ddtrace>=3.18.1",
 ]
 
 [tool.setuptools.packages.find]

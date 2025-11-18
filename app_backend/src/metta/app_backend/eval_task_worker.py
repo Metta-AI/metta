@@ -342,22 +342,20 @@ class EvalTaskWorker:
                 await asyncio.sleep(10)
 
 
-def init_logging():
-    # Configure root logger
+# Simpler than meta.common's init_logging, but maybe we should just use that
+def _init_logging() -> None:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
         handlers=[logging.StreamHandler(sys.stdout)],
     )
-
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 async def main() -> None:
-    init_logging()
-    init_suppress_warnings()
+    _init_logging()
     init_tracing()
-
+    init_suppress_warnings()
     backend_url = os.environ["BACKEND_URL"]
     assignee = os.environ["WORKER_ASSIGNEE"]
     machine_token = os.environ["MACHINE_TOKEN"]
