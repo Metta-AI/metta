@@ -91,19 +91,16 @@ class K8sPodManager(AbstractContainerManager):
             in (
                 "DD_ENV",
                 "DD_TRACE_ENABLED",
+                "DD_LOGS_INJECTION",
                 "DD_VERSION",
                 "DD_TAGS",
             )
         }
         dd_env.update({"DD_SERVICE": "eval-worker"})
 
-        # Add all string values to env
+        # Add Datadog values; DD_AGENT_HOST is valueFrom, others are strings
         env.extend([{"name": key, "value": value} for key, value in dd_env.items()])
-
-        # Add the special valueFrom case separately
         env.append({"name": "DD_AGENT_HOST", "valueFrom": {"fieldRef": {"fieldPath": "status.hostIP"}}})
-
-        env.extend([{"name": key, "value": value} for key, value in dd_env.items()])
         return env
 
     def start_worker_container(

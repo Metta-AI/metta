@@ -65,7 +65,7 @@ function.
 
 ### 2.1 Environment Creation Chain
 
-**Location**: `/private/tmp/metta/experiments/recipes/arena.py`
+**Location**: `/private/tmp/metta/recipes/experiment/arena.py`
 
 **Chain**: `train()` → `make_curriculum()` → `make_env()`
 
