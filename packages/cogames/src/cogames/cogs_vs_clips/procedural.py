@@ -374,6 +374,26 @@ class MapGenVariant(EnvNodeVariant[MapGenConfig]):
         return map_builder
 
 
+class MapSeedVariant(MapGenVariant):
+    """Variant that sets the MapGen seed for deterministic map generation.
+
+    This is primarily meant for programmatic control from experiments / pipelines:
+
+        mission = base_mission.with_variants([MapSeedVariant(seed=1234)])
+        env_cfg = mission.make_env()
+
+    It does not need to be exposed via the CLI variants registry to be useful.
+    """
+
+    name: str = "map_seed"
+    description: str = "Set MapGen seed for deterministic map generation."
+    seed: int
+
+    @override
+    def modify_node(self, node: MapGenConfig) -> None:
+        node.seed = int(self.seed)
+
+
 class BaseHubVariant(EnvNodeVariant[BaseHubConfig]):
     @classmethod
     def extract_node(cls, env: MettaGridConfig) -> BaseHubConfig:

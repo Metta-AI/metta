@@ -426,6 +426,13 @@ def evaluate_cmd(
         min=1,
     ),
     steps: Optional[int] = typer.Option(1000, "--steps", "-s", help="Max steps per episode", min=1),
+    seed: int = typer.Option(42, "--seed", help="Base random seed for evaluation", min=0),
+    map_seed: Optional[int] = typer.Option(
+        None,
+        "--map-seed",
+        help="Override MapGen seed for procedural maps (defaults to --seed if not set)",
+        min=0,
+    ),
     format_: Optional[Literal["yaml", "json"]] = typer.Option(
         None,
         "--format",
@@ -442,6 +449,17 @@ def evaluate_cmd(
 ) -> None:
     selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs, steps=steps)
 
+    # Optionally override MapGen seed so maps are reproducible across runs.
+    # This uses --map-seed if provided, otherwise reuses the main --seed.
+    from mettagrid.mapgen.mapgen import MapGen
+
+    effective_map_seed: Optional[int] = map_seed if map_seed is not None else seed
+    if effective_map_seed is not None:
+        for _, env_cfg in selected_missions:
+            map_builder = getattr(env_cfg.game, "map_builder", None)
+            if isinstance(map_builder, MapGen.Config):
+                map_builder.seed = effective_map_seed
+
     policy_specs = get_policy_specs_with_proportions(ctx, policies)
 
     console.print(
@@ -455,6 +473,7 @@ def evaluate_cmd(
         proportions=[spec.proportion for spec in policy_specs],
         action_timeout_ms=action_timeout_ms,
         episodes=episodes,
+        seed=seed,
         output_format=format_,
         save_replay=save_replay_dir,
     )
