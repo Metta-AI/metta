@@ -98,6 +98,7 @@ class K8sPodManager(AbstractContainerManager):
         }
         dd_env.update({"DD_SERVICE": "eval-worker"})
 
+        # Add Datadog values; DD_AGENT_HOST is valueFrom, others are strings
         env.extend([{"name": key, "value": value} for key, value in dd_env.items()])
         env.append({"name": "DD_AGENT_HOST", "valueFrom": {"fieldRef": {"fieldPath": "status.hostIP"}}})
         return env
