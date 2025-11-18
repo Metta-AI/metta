@@ -104,10 +104,20 @@ def train(
     curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
     eval_simulations = simulations()
+    # # classic PPO, disagregated into actor and critic losses
+    # losses_cfg = LossesConfig()
+    # losses_cfg.ppo.enabled = False
+    # losses_cfg.ppo_actor.enabled = True
+    # losses_cfg.ppo_critic.enabled = True
+
+    # action supervised with PPO critic loss
     losses_cfg = LossesConfig()
     losses_cfg.ppo.enabled = False
-    losses_cfg.ppo_actor.enabled = True
-    losses_cfg.ppo_value.enabled = True
+    losses_cfg.action_supervisor.enabled = True
+    losses_cfg.ppo_critic.enabled = True
+    losses_cfg.ppo_critic.sample_enabled = False
+    # losses_cfg.ppo_critic.train_forward_enabled = False
+    losses_cfg.ppo_critic.rollout_forward_enabled = False
     trainer_cfg = TrainerConfig(losses=losses_cfg)
 
     if policy_architecture is None:

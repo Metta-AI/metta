@@ -14,7 +14,7 @@ from metta.rl.loss.replay_samplers import prio_sample
 from metta.rl.training import ComponentContext, TrainingEnvironment
 
 
-class PPOValueConfig(LossConfig):
+class PPOCriticConfig(LossConfig):
     vf_clip_coef: float = Field(default=0.1, ge=0)
     vf_coef: float = Field(default=0.897619, ge=0)
     # Value loss clipping toggle
@@ -23,8 +23,11 @@ class PPOValueConfig(LossConfig):
     gae_lambda: float = Field(default=0.891477, ge=0, le=1.0)
     prio_alpha: float = Field(default=0.0, ge=0, le=1.0)
     prio_beta0: float = Field(default=0.6, ge=0, le=1.0)
+
+    # control flow for forwarding and sampling. clunky but needed if other losses want to drive (e.g. action supervised)
     sample_enabled: bool = Field(default=True)  # if true, this loss samples from buffer during training
     train_forward_enabled: bool = Field(default=True)  # if true, this forwards the policy under training
+    rollout_forward_enabled: bool = Field(default=True)  # if true, this forwards the policy under rollout
 
     def create(
         self,
@@ -34,9 +37,9 @@ class PPOValueConfig(LossConfig):
         device: torch.device,
         instance_name: str,
         loss_config: Any,
-    ) -> "PPOValue":
+    ) -> "PPOCritic":
         """Points to the PPO class for initialization."""
-        return PPOValue(
+        return PPOCritic(
             policy,
             trainer_cfg,
             env,
@@ -46,13 +49,16 @@ class PPOValueConfig(LossConfig):
         )
 
 
-class PPOValue(Loss):
+class PPOCritic(Loss):
     """PPO value loss."""
 
     __slots__ = (
         "advantages",
         "burn_in_steps",
         "burn_in_steps_iter",
+        "sample_enabled",
+        "train_forward_enabled",
+        "rollout_forward_enabled",
     )
 
     def __init__(
@@ -66,6 +72,9 @@ class PPOValue(Loss):
     ):
         super().__init__(policy, trainer_cfg, env, device, instance_name, loss_config)
         self.advantages = torch.tensor(0.0, dtype=torch.float32, device=self.device)
+        self.sample_enabled = self.cfg.sample_enabled
+        self.train_forward_enabled = self.cfg.train_forward_enabled
+        self.rollout_forward_enabled = self.cfg.rollout_forward_enabled
 
         if hasattr(self.policy, "burn_in_steps"):
             self.burn_in_steps = self.policy.burn_in_steps
@@ -88,6 +97,9 @@ class PPOValue(Loss):
 
     def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
         """Rollout step: forward policy and store experience with optional burn-in."""
+        if not self.rollout_forward_enabled:
+            return
+
         with torch.no_grad():
             self.policy.forward(td)
 
@@ -120,7 +132,7 @@ class PPOValue(Loss):
             )
 
         # sample from the buffer if called for
-        if self.cfg.sample_enabled:
+        if self.sample_enabled:
             minibatch, indices, prio_weights = prio_sample(
                 buffer=self.replay,
                 mb_idx=mb_idx,
@@ -135,12 +147,14 @@ class PPOValue(Loss):
             shared_loss_data["sampled_mb"] = minibatch
             shared_loss_data["indices"] = NonTensorData(indices)
             shared_loss_data["prio_weights"] = prio_weights
-            shared_loss_data["advantages"] = self.advantages[indices]
         else:
             minibatch = shared_loss_data["sampled_mb"]
+            indices = shared_loss_data["indices"]
+
+        shared_loss_data["advantages"] = self.advantages[indices]
 
         # forward the policy if called for
-        if self.cfg.train_forward_enabled:
+        if self.train_forward_enabled:
             policy_td = minibatch.select(*self.policy_experience_spec.keys(include_nested=True))
             B, TT = policy_td.batch_size
             policy_td = policy_td.reshape(B * TT)

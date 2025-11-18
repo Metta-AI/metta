@@ -10,7 +10,7 @@ from metta.rl.loss.grpo import GRPOConfig
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.loss.ppo import PPOConfig
 from metta.rl.loss.ppo_actor import PPOActorConfig
-from metta.rl.loss.ppo_value import PPOValueConfig
+from metta.rl.loss.ppo_critic import PPOCriticConfig
 from metta.rl.training import TrainingEnvironment
 from mettagrid.base_config import Config
 
@@ -24,7 +24,7 @@ class LossesConfig(Config):
 
     # PPO divorced into two terms offered below for more flexibility
     ppo_actor: PPOActorConfig = Field(default_factory=lambda: PPOActorConfig(enabled=False))
-    ppo_value: PPOValueConfig = Field(default_factory=lambda: PPOValueConfig(enabled=False))
+    ppo_critic: PPOCriticConfig = Field(default_factory=lambda: PPOCriticConfig(enabled=False))
 
     # other aux losses below
     contrastive: contrastive_config.ContrastiveConfig = Field(
@@ -43,8 +43,8 @@ class LossesConfig(Config):
             loss_configs["action_supervisor"] = self.action_supervisor
         if self.grpo.enabled:
             loss_configs["grpo"] = self.grpo
-        if self.ppo_value.enabled:
-            loss_configs["ppo_value"] = self.ppo_value
+        if self.ppo_critic.enabled:
+            loss_configs["ppo_critic"] = self.ppo_critic
         if self.ppo_actor.enabled:
             loss_configs["ppo_actor"] = self.ppo_actor
         return loss_configs
