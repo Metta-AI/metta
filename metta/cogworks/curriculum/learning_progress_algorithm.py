@@ -34,7 +34,10 @@ See Also:
     - curriculum.py: Main Curriculum class using this algorithm
 """
 
+import logging
+import math
 import random
+import statistics
 import uuid
 from typing import Any, Dict, List, Literal, Optional
 
@@ -589,9 +592,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         Returns:
             Gini coefficient between 0 and 1
         """
-        import logging
-        import math
-
         logger = logging.getLogger(__name__)
 
         if not values or len(values) == 0:
@@ -691,8 +691,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if raw_lp_scores:
             gini_stats["curriculum_gini/raw_lp_scores"] = self._calculate_gini_coefficient(raw_lp_scores)
             # Debug stats for raw LP
-            import statistics
-
             gini_stats["debug/raw_lp_mean"] = float(statistics.mean(raw_lp_scores))
             gini_stats["debug/raw_lp_std"] = float(statistics.stdev(raw_lp_scores)) if len(raw_lp_scores) > 1 else 0.0
             gini_stats["debug/raw_lp_max"] = float(max(raw_lp_scores))
@@ -796,8 +794,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def load_state(self, state: Dict[str, Any]) -> None:
         """Load learning progress algorithm state from checkpoint."""
-        import logging
-
         logger = logging.getLogger(__name__)
 
         # Restore task tracker
@@ -846,8 +842,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             task_tracker.cleanup_shared_memory()
         except Exception as e:
             # Log but don't raise - cleanup should be best-effort
-            import logging
-
             logging.warning(f"Failed to cleanup shared memory: {e}")
 
     def __del__(self):

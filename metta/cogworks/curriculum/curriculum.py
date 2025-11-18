@@ -396,8 +396,6 @@ class Curriculum(StatsLogger):
 
     def get_state(self) -> Dict[str, Any]:
         """Get curriculum state for checkpointing."""
-        import logging
-
         logger = logging.getLogger(__name__)
 
         state = {
@@ -431,8 +429,6 @@ class Curriculum(StatsLogger):
 
     def load_state(self, state: Dict[str, Any]) -> None:
         """Load curriculum state from checkpoint."""
-        import logging
-
         logger = logging.getLogger(__name__)
 
         num_tasks_to_load = len(state.get("tasks", {}))

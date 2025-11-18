@@ -17,6 +17,7 @@ The curriculum is agnostic to how tasks are actually used - this wrapper impleme
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from pufferlib import PufferEnv
@@ -55,9 +56,15 @@ class CurriculumEnv(PufferEnv):
         if curriculum._algorithm is not None:
             self._enable_per_label_tracking = curriculum._algorithm.hypers.show_curriculum_troubleshooting_logging
 
-    def reset(self, *args, **kwargs):
-        """Reset the environment and get a new task from curriculum."""
-        # Get a new task from curriculum, with retry logic for invalid configurations
+    def _get_task_with_retries(self, context: str = "") -> None:
+        """Get a new task from curriculum with retry logic for invalid configurations.
+
+        Args:
+            context: Optional context string for logging (e.g., "on reset", "on episode completion")
+
+        Raises:
+            AssertionError/ValueError: If all retries are exhausted
+        """
         max_retries = 10
         for attempt in range(max_retries):
             try:
@@ -68,11 +75,11 @@ class CurriculumEnv(PufferEnv):
                 # Handle configuration errors (e.g., agent count mismatch, map too small)
                 if attempt < max_retries - 1:
                     # Log warning and try a new task
-                    import logging
-
                     logger = logging.getLogger(__name__)
+                    context_msg = f" {context}" if context else ""
                     logger.warning(
-                        f"Task configuration error (attempt {attempt + 1}/{max_retries}): {e}. Resampling new task..."
+                        f"Task configuration error{context_msg} "
+                        f"(attempt {attempt + 1}/{max_retries}): {e}. Resampling new task..."
                     )
                     # Mark the task as invalid so it can be evicted
                     if hasattr(self._current_task, "_task_id"):
@@ -80,13 +87,18 @@ class CurriculumEnv(PufferEnv):
                     continue
                 else:
                     # All retries exhausted - re-raise the error
-                    import logging
-
                     logger = logging.getLogger(__name__)
+                    context_msg = f" {context}" if context else ""
                     logger.error(
-                        f"Failed to find valid task configuration after {max_retries} attempts. Last error: {e}"
+                        f"Failed to find valid task configuration after {max_retries} attempts{context_msg}. "
+                        f"Last error: {e}"
                     )
                     raise
+
+    def reset(self, *args, **kwargs):
+        """Reset the environment and get a new task from curriculum."""
+        # Get a new task from curriculum, with retry logic for invalid configurations
+        self._get_task_with_retries(context="on reset")
 
         obs, info = self._env.reset(*args, **kwargs)
         return obs, info
@@ -122,8 +134,6 @@ class CurriculumEnv(PufferEnv):
             mean_reward = float(episode_rewards.mean())
 
             # Debug logging for reward tracking (can be removed after verification)
-            import logging
-
             logger = logging.getLogger(__name__)
             logger.debug(
                 f"Task {self._current_task._task_id} (label={self._current_task.get_label()}) "
@@ -146,37 +156,7 @@ class CurriculumEnv(PufferEnv):
                 )
 
             # Get new task with retry logic for invalid configurations
-            max_retries = 10
-            for attempt in range(max_retries):
-                try:
-                    self._current_task = self._curriculum.get_task()
-                    self._env.set_mg_config(self._current_task.get_env_cfg())
-                    break  # Success - exit retry loop
-                except (AssertionError, ValueError) as e:
-                    # Handle configuration errors (e.g., agent count mismatch, map too small)
-                    if attempt < max_retries - 1:
-                        # Log warning and try a new task
-                        import logging
-
-                        logger = logging.getLogger(__name__)
-                        logger.warning(
-                            f"Task configuration error on episode completion "
-                            f"(attempt {attempt + 1}/{max_retries}): {e}. Resampling new task..."
-                        )
-                        # Mark the task as invalid so it can be evicted
-                        if hasattr(self._current_task, "_task_id"):
-                            self._current_task.complete(-1.0)  # Mark as failed
-                        continue
-                    else:
-                        # All retries exhausted - re-raise the error
-                        import logging
-
-                        logger = logging.getLogger(__name__)
-                        logger.error(
-                            f"Failed to find valid task configuration after {max_retries} attempts "
-                            f"on episode completion. Last error: {e}"
-                        )
-                        raise
+            self._get_task_with_retries(context="on episode completion")
 
         return obs, rewards, terminals, truncations, infos
 
@@ -191,6 +171,7 @@ class CurriculumEnv(PufferEnv):
             "_curriculum",
             "_current_task",
             "_enable_per_label_tracking",
+            "_get_task_with_retries",
             "step",
             "reset",
         ):

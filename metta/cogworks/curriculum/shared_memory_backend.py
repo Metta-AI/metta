@@ -24,6 +24,7 @@ Isolating it here makes it easy to swap implementations, test independently, and
 about thread safety and resource cleanup without cluttering higher-level code.
 """
 
+import uuid
 from abc import ABC, abstractmethod
 from contextlib import nullcontext
 from multiprocessing import Lock, shared_memory
@@ -164,8 +165,6 @@ class SharedMemoryBackend(TaskMemoryBackend):
 
         # Generate session ID if not provided (fallback for non-config usage)
         if session_id is None:
-            import uuid
-
             session_id = f"cur_{uuid.uuid4().hex[:6]}"
         self.session_id = session_id
 
