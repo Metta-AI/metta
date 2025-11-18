@@ -14,7 +14,7 @@ from mettagrid.policy.policy import PolicySpec
 logger = logging.getLogger(__name__)
 
 
-class LiteEvalTool(Tool):
+class MultiPolicyEvalTool(Tool):
     policy_specs: Sequence[PolicySpec] = Field(description="Policy specs to evaluate")
     simulations: Sequence[SimulationRunConfig] = Field(description="Simulations to evaluate")
     replay_dir: str = Field(default_factory=auto_replay_dir)
@@ -23,7 +23,7 @@ class LiteEvalTool(Tool):
     log_to_wandb: bool = Field(default=False, description="Whether to log to wandb")
 
     @model_validator(mode="after")
-    def validate(self) -> "LiteEvalTool":
+    def validate(self) -> "MultiPolicyEvalTool":
         for simulation in self.simulations:
             if simulation.proportions is not None and len(simulation.proportions) != len(self.policy_specs):
                 raise ValueError("Number of proportions must match number of policies.")
