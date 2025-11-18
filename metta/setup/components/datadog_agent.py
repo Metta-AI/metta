@@ -85,9 +85,12 @@ class DatadogAgentSetup(SetupModule):
         if tags:
             env["DD_TAGS"] = " ".join(tags)
 
-        # Check if already installed
-        if self.check_installed():
-            info("Datadog agent already installed.")
+        # Check if already installed - verify binary exists (not just systemd service)
+        agent_binary = "/opt/datadog-agent/bin/agent/agent"
+        binary_exists = os.path.exists(agent_binary)
+
+        if binary_exists:
+            info("Datadog agent already installed (binary found).")
             # Just restart with new config/tags if needed
             restart_cmd = ["systemctl", "restart", "datadog-agent"]
             if which("sudo"):
@@ -100,6 +103,9 @@ class DatadogAgentSetup(SetupModule):
             except subprocess.CalledProcessError:
                 warning(f"Failed to restart Datadog agent using {' '.join(restart_cmd)}.")
             return
+        elif self.check_installed() and not binary_exists:
+            # Systemd service exists but binary doesn't - need to reinstall
+            info("Datadog service found but binary missing. Reinstalling...")
 
         info("Installing Datadog agent...")
 
