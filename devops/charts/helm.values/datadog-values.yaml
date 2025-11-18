@@ -39,3 +39,10 @@ datadog:
 agents:
   enabled: true
   useHostNetwork: true
+  tolerations:
+    - key: workload-type
+      operator: Equal
+      value: eval-worker
+      effect: NoSchedule
+  nodeSelector:
+    workload-type: eval-worker
