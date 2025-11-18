@@ -31,34 +31,36 @@ from mettagrid.config.mettagrid_config import MettaGridConfig
 DEFAULT_CURRICULUM_MISSIONS: tuple[str, ...] = (
     "extractor_hub_30",
     "extractor_hub_50",
-    "collect_resources_classic",
-    "collect_resources_spread",
-    "oxygen_bottleneck",
-    "energy_starved",
-)
-
-SMALL_MAP_MISSIONS: tuple[str, ...] = (
-    "extractor_hub_30",
-    "collect_resources_classic",
-    "oxygen_bottleneck",
-)
-
-MEDIUM_MAP_MISSIONS: tuple[str, ...] = (
-    "extractor_hub_50",
-    "collect_resources_spread",
-    "energy_starved",
-)
-
-LARGE_MAP_MISSIONS: tuple[str, ...] = (
     "extractor_hub_70",
+    "collect_resources_classic",
+    "collect_resources_spread",
     "collect_far",
+    "oxygen_bottleneck",
+    "energy_starved",
     "divide_and_conquer",
+    "go_together",
 )
 
 COORDINATION_MISSIONS: tuple[str, ...] = (
     "go_together",
     "divide_and_conquer",
     "collect_resources_spread",
+)
+
+PROC_MAP_MISSIONS: tuple[str, ...] = tuple(
+    f"hello_world{MAP_MISSION_DELIMITER}{mission}"
+    for mission in (
+        "open_world",
+        "hello_world_unclip",
+        "clipping",
+        "oxygen_bottleneck",
+        "energy_starved",
+        "distant_resources",
+        "quadrant_buildings",
+        "single_use_swarm",
+        "vibe_check",
+        "easy_hearts",
+    )
 )
 
 
@@ -382,60 +384,6 @@ def play_training_env(
 # Convenience entrypoints ----------------------------------------------------
 
 
-def train_small_maps(
-    num_cogs: int = 4,
-    variants: Optional[Sequence[str]] = None,
-    eval_variants: Optional[Sequence[str]] = None,
-    eval_difficulty: str | None = "standard",
-    mission: str | None = None,
-) -> TrainTool:
-    """Train on small maps (30x30, classic layouts) or a specific mission."""
-    return train(
-        num_cogs=num_cogs,
-        base_missions=list(SMALL_MAP_MISSIONS),
-        variants=variants,
-        eval_variants=eval_variants,
-        eval_difficulty=eval_difficulty,
-        mission=mission,
-    )
-
-
-def train_medium_maps(
-    num_cogs: int = 4,
-    variants: Optional[Sequence[str]] = None,
-    eval_variants: Optional[Sequence[str]] = None,
-    eval_difficulty: str | None = "standard",
-    mission: str | None = None,
-) -> TrainTool:
-    """Train on medium maps (50x50 layouts) or a specific mission."""
-    return train(
-        num_cogs=num_cogs,
-        base_missions=list(MEDIUM_MAP_MISSIONS),
-        variants=variants,
-        eval_variants=eval_variants,
-        eval_difficulty=eval_difficulty,
-        mission=mission,
-    )
-
-
-def train_large_maps(
-    num_cogs: int = 8,
-    variants: Optional[Sequence[str]] = None,
-    eval_variants: Optional[Sequence[str]] = None,
-    eval_difficulty: str | None = "standard",
-    mission: str | None = None,
-) -> TrainTool:
-    """Train on large maps with more agents or focus on one mission."""
-    return train(
-        num_cogs=num_cogs,
-        base_missions=list(LARGE_MAP_MISSIONS),
-        variants=variants,
-        eval_variants=eval_variants,
-        eval_difficulty=eval_difficulty,
-        mission=mission,
-    )
-
-
 def train_coordination(
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
@@ -454,6 +402,42 @@ def train_coordination(
     )
 
 
+def train_fixed_maps(
+    num_cogs: int = 4,
+    variants: Optional[Sequence[str]] = None,
+    eval_variants: Optional[Sequence[str]] = None,
+    eval_difficulty: str | None = "standard",
+    mission: str | None = None,
+) -> TrainTool:
+    """Train on fixed-map CoGs vs Clips missions in one curriculum."""
+    return train(
+        num_cogs=num_cogs,
+        base_missions=list(DEFAULT_CURRICULUM_MISSIONS),
+        variants=variants,
+        eval_variants=eval_variants,
+        eval_difficulty=eval_difficulty,
+        mission=mission,
+    )
+
+
+def train_proc_maps(
+    num_cogs: int = 4,
+    variants: Optional[Sequence[str]] = None,
+    eval_variants: Optional[Sequence[str]] = None,
+    eval_difficulty: str | None = "standard",
+    mission: str | None = None,
+) -> TrainTool:
+    """Train on procedural MachinaArena map missions."""
+    return train(
+        num_cogs=num_cogs,
+        base_missions=list(PROC_MAP_MISSIONS),
+        variants=variants,
+        eval_variants=eval_variants,
+        eval_difficulty=eval_difficulty,
+        mission=mission,
+    )
+
+
 __all__ = [
     "make_eval_suite",
     "make_training_env",
@@ -463,8 +447,7 @@ __all__ = [
     "evaluate",
     "play",
     "play_training_env",
-    "train_small_maps",
-    "train_medium_maps",
-    "train_large_maps",
     "train_coordination",
+    "train_fixed_maps",
+    "train_proc_maps",
 ]
