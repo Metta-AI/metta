@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from .models import JobDefinition, RunInfo
+    from metta.sweep.models import JobDefinition, RunInfo
 
 
 @runtime_checkable

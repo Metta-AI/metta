@@ -20,7 +20,7 @@ Implementation notes:
   inside Protein conditions on them implicitly.
 - We source the hyperparameters for in-progress runs from the run summary field
   "sweep/suggestion", which is present because training jobs initialize the
-  run with the suggestion in `initial_summary` (see AdaptiveController).
+  run with the suggestion in `initial_summary`.
 """
 
 from __future__ import annotations
@@ -31,8 +31,8 @@ from typing import Any
 
 from pydantic import Field
 
-from metta.adaptive.models import JobDefinition, JobStatus, RunInfo
-from metta.adaptive.utils import (
+from metta.sweep.models import JobDefinition, JobStatus, RunInfo
+from metta.sweep.utils import (
     create_eval_job,
     create_training_job,
     generate_run_id,

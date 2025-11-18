@@ -248,9 +248,32 @@ def sweep(sweep_name: str) -> SweepTool:
         eval_entrypoint="evaluate_stub",
         # Typically, "evaluator/eval_{suite}/score"
         objective="experience/rewards",
+        cost_metric="metric/agent_step",
         parameters=parameters,
         max_trials=80,
         # Default value is 1. We don't recommend going higher than 4.
         # The faster each individual trial, the lower you should set this number.
         num_parallel_trials=4,
+    )
+
+def sweep_quick(sweep_name: str) -> SweepTool:
+    parameters = [
+        SP.LEARNING_RATE,
+        SP.PPO_CLIP_COEF,
+        SP.PPO_GAE_LAMBDA,
+        SP.PPO_VF_COEF,
+        SP.ADAM_EPS,
+    ]
+    train_overrides = {'trainer.total_timesteps': 75_000}
+
+    return make_sweep(
+        name=sweep_name,
+        recipe="recipes.prod.arena_basic_easy_shaped",
+        train_entrypoint="train",
+        eval_entrypoint="evaluate_in_sweep",
+        objective="evaluator/eval_sweep/score",
+        parameters=parameters,
+        max_trials=80,
+        train_overrides=train_overrides,
+        num_parallel_trials=2,
     )

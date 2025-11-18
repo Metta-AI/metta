@@ -3,10 +3,8 @@
 import logging
 from unittest.mock import MagicMock
 
-from metta.adaptive import AdaptiveConfig
-from metta.adaptive.adaptive_controller import AdaptiveController
-from metta.adaptive.models import JobTypes, RunInfo
-from metta.adaptive.stores.wandb import WandbStore
+from metta.sweep.models import JobTypes, RunInfo
+from metta.sweep.stores import WandbStore
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig
 from metta.sweep.schedulers.batched_synced import BatchedSyncedOptimizingScheduler, BatchedSyncedSchedulerConfig
 
@@ -64,18 +62,6 @@ def test_suggestion_stored_at_init():
 
     # Create scheduler
     scheduler = BatchedSyncedOptimizingScheduler(scheduler_config)
-
-    # Create adaptive config
-    adaptive_config = AdaptiveConfig(max_parallel=2, monitoring_interval=1, resume=False)
-
-    # Create controller (not used directly, but validates configuration)
-    _ = AdaptiveController(
-        experiment_id="test_sweep",
-        scheduler=scheduler,
-        dispatcher=mock_dispatcher,
-        store=mock_store,
-        config=adaptive_config,
-    )
 
     # Manually trigger one schedule cycle
     # This simulates what happens in the run loop
@@ -191,18 +177,6 @@ def test_suggestion_not_duplicated_on_eval():
 
     state = SchedulerState(runs_in_training={"test_sweep_trial_0001"}, runs_in_eval=set(), runs_completed=set())
     scheduler = BatchedSyncedOptimizingScheduler(scheduler_config, state=state)
-
-    # Create adaptive config
-    adaptive_config = AdaptiveConfig(max_parallel=2, monitoring_interval=1, resume=False)
-
-    # Create controller (not used directly, but validates configuration)
-    _ = AdaptiveController(
-        experiment_id="test_sweep",
-        scheduler=scheduler,
-        dispatcher=mock_dispatcher,
-        store=mock_store,
-        config=adaptive_config,
-    )
 
     # Schedule eval job
     jobs = scheduler.schedule([mock_run], available_training_slots=2)

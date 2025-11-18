@@ -13,7 +13,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from metta.adaptive.models import JobStatus, RunInfo
+from metta.sweep.models import JobStatus, RunInfo
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig
 from metta.sweep.schedulers.batched_synced import (
     BatchedSyncedOptimizingScheduler,

@@ -50,8 +50,6 @@ class ProteinOptimizer:
             "suggestions_per_pareto": protein_settings.get("suggestions_per_pareto", 256),
             "seed_with_search_center": protein_settings.get("seed_with_search_center", True),
             "expansion_rate": protein_settings.get("expansion_rate", 0.25),
-            "acquisition_fn": protein_settings.get("acquisition_fn", "naive"),
-            "ucb_beta": protein_settings.get("ucb_beta", 2.0),
             "randomize_acquisition": protein_settings.get("randomize_acquisition", False),
         }
 

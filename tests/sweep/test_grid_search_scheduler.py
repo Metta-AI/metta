@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from metta.adaptive.models import JobTypes, RunInfo
+from metta.sweep.models import JobTypes, RunInfo
 from metta.sweep.core import CategoricalParameterConfig
 from metta.sweep.schedulers.grid_search import GridSearchScheduler, GridSearchSchedulerConfig
 
@@ -253,7 +253,7 @@ def test_grid_scheduler_eval_throttling():
         ),
     ]
     jobs = scheduler.schedule(runs_train_done, available_training_slots=5)
-    from metta.adaptive.models import JobTypes
+    from metta.sweep.models import JobTypes
 
     # Exactly one eval should be scheduled due to throttle
     eval_jobs = [j for j in jobs if j.type == JobTypes.LAUNCH_EVAL]

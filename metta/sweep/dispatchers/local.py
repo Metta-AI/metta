@@ -1,11 +1,12 @@
 """Local dispatcher implementation for running jobs as subprocesses."""
 
 import logging
+import os
 import subprocess
 import threading
 
-from metta.adaptive.models import JobDefinition
-from metta.adaptive.utils import get_display_id
+from metta.sweep.models import JobDefinition
+from metta.sweep.utils import get_display_id
 
 logger = logging.getLogger(__name__)
 
@@ -13,10 +14,11 @@ logger = logging.getLogger(__name__)
 class LocalDispatcher:
     """Runs jobs as local subprocesses."""
 
-    def __init__(self, capture_output: bool = True):
+    def __init__(self, capture_output: bool = True, torchrun: bool = False):
         self._processes: dict[str, subprocess.Popen] = {}  # pid -> process
         self._run_to_pid: dict[str, str] = {}  # run_id -> pid for debugging
         self._capture_output = capture_output
+        self._torchrun = torchrun  # Whether to use run.sh for torchrun support
         self._output_threads: dict[str, threading.Thread] = {}  # pid -> output thread
 
     def _reap_finished_processes(self):
@@ -78,7 +80,12 @@ class LocalDispatcher:
         self._reap_finished_processes()
 
         # Build command
-        cmd_parts = ["uv", "run", "./tools/run.py", job.cmd]
+        if self._torchrun:
+            # Use run.sh for torchrun/distributed training support
+            cmd_parts = ["./devops/run.sh", job.cmd]
+        else:
+            # Use direct uv run for single-GPU execution
+            cmd_parts = ["uv", "run", "./tools/run.py", job.cmd]
 
         # Add all arguments directly (no --args or --overrides flags)
         # First add job args, then overrides
@@ -94,6 +101,12 @@ class LocalDispatcher:
         logger.info(f"Dispatching {display_id}: {' '.join(cmd_parts)}")
 
         try:
+            # Prepare environment - ensure NO_TORCH is not set when using torchrun
+            env = os.environ.copy()
+            if self._torchrun:
+                # Clear NO_TORCH to ensure run.sh uses torchrun
+                env.pop('NO_TORCH', None)
+
             # Configure subprocess output handling
             if self._capture_output:
                 # Capture output for streaming and logging
@@ -103,6 +116,7 @@ class LocalDispatcher:
                     stderr=subprocess.STDOUT,  # Combine stderr with stdout
                     text=True,
                     bufsize=1,  # Line buffered
+                    env=env,
                 )
             else:
                 # Production mode - discard output to avoid potential deadlock
@@ -111,6 +125,7 @@ class LocalDispatcher:
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     text=True,
+                    env=env,
                 )
 
             # Use PID as the dispatch_id
