@@ -27,8 +27,8 @@ from cogames.cli.mission import (
     describe_mission,
     get_mission_name_and_config,
     get_mission_names_and_configs,
-    list_missions,
     list_evals,
+    list_missions,
     list_variants,
 )
 from cogames.cli.policy import (
