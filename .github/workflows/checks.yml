@@ -370,9 +370,13 @@ jobs:
   cleanup-cancelled-runs:
     name: "Cleanup Cancelled Runs"
     needs: [tests-summary]
-    # Only run on main branch pushes to clean up red X's from superseded runs
+    # Only run on merges to main (not PR updates or direct pushes)
     # Runs even if tests were cancelled/failed (always()) to ensure cleanup happens
-    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: |
+      always() &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      (contains(github.event.head_commit.message, 'Merge pull request') || contains(github.event.head_commit.message, 'Merge branch'))
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
