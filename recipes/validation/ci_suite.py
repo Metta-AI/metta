@@ -58,6 +58,7 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
         dependency_names=[arena_train_name],
         timeout_s=300,
         group=group,
+        metadata={"skip_ci": True},  # mark as skipped in CI until artifact handoff is fixed
     )
 
     # Play test with random policy (run with minimal steps)
