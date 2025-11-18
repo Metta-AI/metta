@@ -15,7 +15,6 @@ or failed for other reasons.
 
 import os
 import sys
-from datetime import datetime
 
 from github import Github
 
@@ -29,12 +28,8 @@ def is_superseded_run(cancelled_run, all_runs) -> bool:
     """
     ref_key = cancelled_run.head_branch or cancelled_run.head_sha
 
-    # PyGithub returns datetime objects, not strings
-    cancelled_created = (
-        cancelled_run.created_at
-        if isinstance(cancelled_run.created_at, datetime)
-        else datetime.fromisoformat(str(cancelled_run.created_at).replace("Z", "+00:00"))
-    )
+    # PyGithub always returns datetime objects for created_at
+    cancelled_created = cancelled_run.created_at
 
     # Find newer runs on the same branch/ref
     newer_runs = []
@@ -44,14 +39,8 @@ def is_superseded_run(cancelled_run, all_runs) -> bool:
         if (run.head_branch or run.head_sha) != ref_key:
             continue
 
-        # Handle datetime comparison
-        run_created = (
-            run.created_at
-            if isinstance(run.created_at, datetime)
-            else datetime.fromisoformat(str(run.created_at).replace("Z", "+00:00"))
-        )
-
-        if run_created > cancelled_created:
+        # PyGithub always returns datetime objects, can compare directly
+        if run.created_at > cancelled_created:
             newer_runs.append(run)
 
     # Check if any newer run is successful or in-progress
