@@ -148,7 +148,7 @@ class Checkpointer(TrainerComponent):
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
         local_path = checkpoint_dir / filename
 
-        local_uri = policy.save_policy(f"file://{local_path.resolve()}", policy_architecture=self._policy_architecture)
+        local_uri = policy.save_policy(local_path, policy_architecture=self._policy_architecture)
 
         uri = local_uri
         if getattr(self._checkpoint_manager, "_remote_prefix", None):
