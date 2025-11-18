@@ -31,12 +31,12 @@ import numpy as np
 import torch
 import typer
 from rich.console import Console
-from rich.progress import track
 from rich.table import Table
 
 from metta.rl.checkpoint_manager import CheckpointManager
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.utils import initialize_or_load_policy
+from mettagrid.simulator.multi_episode.rollout import multi_episode_rollout
 from mettagrid.simulator.rollout import Rollout
 
 try:
@@ -238,9 +238,13 @@ def build_policy_pool(
 
     # Add baseline policies for comparison
     baseline_templates = [
-        ("mettagrid.policy.random.RandomMultiAgentPolicy", None, "Random"),
+        ("mettagrid.policy.random_agent.RandomMultiAgentPolicy", None, "Random"),
         ("cogames.policy.scripted_agent.baseline_agent.BaselinePolicy", None, "Baseline"),
         ("cogames.policy.scripted_agent.unclipping_agent.UnclippingPolicy", None, "Unclipping"),
+        ("cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy", None, "Thinky"),
+        ("cogames.policy.nim_agents.agents.RaceCarAgentsMultiPolicy", None, "RaceCar"),
+        ("cogames.policy.nim_agents.agents.LadyBugAgentsMultiPolicy", None, "LadyBug"),
+        ("cogames.policy.nim_agents.agents.RandomAgentsMultiPolicy", None, "NimRandom"),
     ]
 
     # Add a few of each baseline
@@ -320,40 +324,40 @@ def run_tournament(
     random.seed(seed)
     np.random.seed(seed)
 
-    # Run episodes
-    console.print(f"\n[cyan]Running {num_episodes} episodes...[/cyan]")
+    # Get fresh env_cfg for tournament
+    _, env_cfg, _ = get_mission(mission_id, variants_arg=None)
+    if env_cfg.game.num_agents != team_size:
+        env_cfg.game.num_agents = team_size
+
+    # Run episodes using multi_episode_rollout
+    console.print(f"\n[cyan]Running {num_episodes} episodes with multi_episode_rollout...[/cyan]")
+
+    # Use uniform proportions for all policies
+    proportions = [1.0] * len(policy_instances)
+
+    progress_counter = {"count": 0}
+
+    def progress_callback(episode_idx: int) -> None:
+        progress_counter["count"] = episode_idx + 1
+        if (episode_idx + 1) % 10 == 0 or episode_idx + 1 == num_episodes:
+            console.print(f"  Completed {episode_idx + 1}/{num_episodes} episodes")
+
+    rollout_result = multi_episode_rollout(
+        env_cfg=env_cfg,
+        policies=policy_instances,
+        episodes=num_episodes,
+        seed=seed,
+        proportions=proportions,
+        progress_callback=progress_callback,
+        max_action_time_ms=10000,
+    )
+
+    # Convert multi_episode_rollout results to GameResult format
     game_results = []
+    for episode_id in range(len(rollout_result.stats)):
+        episode_stats = rollout_result.stats[episode_id]
+        episode_assignments = rollout_result.assignments[episode_id]
 
-    for episode_id in track(range(num_episodes), description="Running episodes"):
-        # Create fresh env_cfg for each episode to avoid state pollution
-        _, env_cfg, _ = get_mission(mission_id, variants_arg=None)
-        if env_cfg.game.num_agents != team_size:
-            env_cfg.game.num_agents = team_size
-
-        sampled_indices = random.sample(range(len(policy_pool)), team_size)
-
-        agent_policies = []
-        for agent_id in range(team_size):
-            policy_idx = sampled_indices[agent_id]
-            policy = policy_instances[policy_idx]
-            agent_policy = policy.agent_policy(agent_id)
-            agent_policies.append(agent_policy)
-
-        rollout = Rollout(
-            env_cfg,
-            agent_policies,
-            max_action_time_ms=10000,
-            render_mode=None,
-            seed=seed + episode_id,
-            pass_sim_to_policies=True,
-        )
-
-        step_count = 0
-        while not rollout.is_done() and step_count < max_steps:
-            rollout.step()
-            step_count += 1
-
-        episode_stats = rollout._sim.episode_stats
         game_stats = episode_stats.get("game", {})
         total_hearts = float(game_stats.get("chest.heart.amount", 0.0))
 
@@ -366,10 +370,10 @@ def run_tournament(
         game_results.append(
             GameResult(
                 episode_id=episode_id,
-                policy_indices=sampled_indices,
+                policy_indices=episode_assignments.tolist(),
                 total_hearts=total_hearts,
                 per_agent_hearts=per_agent_hearts,
-                steps=step_count,
+                steps=0,  # multi_episode_rollout doesn't track steps
             )
         )
 
