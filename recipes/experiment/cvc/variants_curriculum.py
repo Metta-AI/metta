@@ -205,10 +205,10 @@ def make_curriculum(
 
                 # Add buckets for stats rewards (now supported with dict keys containing dots)
                 # Reward for gaining resources (not just having them) to avoid rewarding initial inventory
-                mission_tasks.add_bucket("game.agent.rewards.stats.carbon.gained", [0.005, 0.01, 0.015, 0.02])
-                mission_tasks.add_bucket("game.agent.rewards.stats.oxygen.gained", [0.005, 0.01, 0.015, 0.02])
-                mission_tasks.add_bucket("game.agent.rewards.stats.germanium.gained", [0.005, 0.01, 0.015, 0.02])
-                mission_tasks.add_bucket("game.agent.rewards.stats.silicon.gained", [0.005, 0.01, 0.015, 0.02])
+                mission_tasks.add_bucket("game.agent.rewards.stats.carbon.gained", [0.0, 0.005, 0.01, 0.015, 0.02])
+                mission_tasks.add_bucket("game.agent.rewards.stats.oxygen.gained", [0.0, 0.005, 0.01, 0.015, 0.02])
+                mission_tasks.add_bucket("game.agent.rewards.stats.germanium.gained", [0.0, 0.005, 0.01, 0.015, 0.02])
+                mission_tasks.add_bucket("game.agent.rewards.stats.silicon.gained", [0.0, 0.005, 0.01, 0.015, 0.02])
 
                 # Cap resource rewards to prevent hoarding - max 1.0 reward per resource type per episode
                 # This prevents agents from getting unlimited reward by collecting more and more resources
