@@ -40,7 +40,11 @@ class Config(BaseModel):
         return field_type
 
     def override(self, key: str, value: Any) -> Self:
-        """Override a value in the config."""
+        """Override a value in the config.
+
+        Supports dictionary keys with dots by checking if the remaining path (including dots)
+        exists as a single key in the dict before splitting further.
+        """
         key_path = key.split(".")
 
         def fail(error: str) -> NoReturn:
@@ -50,13 +54,35 @@ class Config(BaseModel):
 
         inner_cfg: Config | dict[str, Any] = self
         traversed_path: list[str] = []
-        for key_part in key_path[:-1]:
+        i = 0
+        while i < len(key_path) - 1:
+            key_part = key_path[i]
+
             if isinstance(inner_cfg, dict):
-                if key_part not in inner_cfg:
-                    fail(f"key {key} not found")
-                inner_cfg = inner_cfg[key_part]
-                traversed_path.append(key_part)
-                continue
+                # Check if the key_part exists in the dict
+                if key_part in inner_cfg:
+                    inner_cfg = inner_cfg[key_part]
+                    traversed_path.append(key_part)
+                    i += 1
+                    continue
+
+                # If key_part doesn't exist, check if remaining path (with dots) exists as a single key
+                # This handles cases like stats["carbon.gained"] where the key contains dots
+                remaining_path = ".".join(key_path[i:])
+                if remaining_path in inner_cfg:
+                    # We found the full path as a single key - set it directly
+                    inner_cfg[remaining_path] = value
+                    return self
+
+                # If we're at the last part before the final key, allow creating new dict keys
+                # This allows creating new keys like stats["silicon.gained"]
+                if i == len(key_path) - 2:
+                    # We're about to set the final key, so create it with the remaining path
+                    inner_cfg[remaining_path] = value
+                    return self
+
+                # Otherwise, this is an error (can't traverse further)
+                fail(f"key {key} not found in dict at path {'.'.join(traversed_path)}")
 
             if not hasattr(inner_cfg, key_part):
                 failed_path = ".".join(traversed_path + [key_part])
@@ -76,6 +102,7 @@ class Config(BaseModel):
 
             inner_cfg = next_inner_cfg
             traversed_path.append(key_part)
+            i += 1
 
         # We allow dicts to get new keys, but not Configs. This is because we want to allow overrides like
         # env_cfg.game.agent.rewards.inventory.ore_red = 0.1
@@ -87,7 +114,18 @@ class Config(BaseModel):
                 fail(f"key {key} not found")
 
         if isinstance(inner_cfg, dict):
-            inner_cfg[key_path[-1]] = value
+            # Final key - check if it exists, or if the full remaining path (with dots) exists
+            final_key = key_path[-1]
+            if final_key in inner_cfg:
+                inner_cfg[final_key] = value
+            else:
+                # Check if remaining path (including final key) exists as a single key with dots
+                remaining = ".".join(key_path[i:])
+                if remaining in inner_cfg:
+                    inner_cfg[remaining] = value
+                else:
+                    # Create new key (allows new dict keys to be added)
+                    inner_cfg[final_key] = value
             return self
 
         cls = type(inner_cfg)
