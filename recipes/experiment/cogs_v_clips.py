@@ -63,6 +63,7 @@ PROC_MAP_MISSIONS: tuple[str, ...] = tuple(
     )
 )
 
+
 def _normalize_variant_names(
     *,
     initial: Optional[Sequence[str]] = None,
@@ -453,5 +454,4 @@ __all__ = [
     "train_coordination",
     "train_fixed_maps",
     "train_proc_maps",
-    "train_all_maps",
 ]
