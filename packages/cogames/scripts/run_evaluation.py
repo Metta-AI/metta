@@ -24,11 +24,17 @@ import importlib
 import json
 import logging
 import os
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
 
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 
 from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
@@ -353,251 +359,309 @@ def print_summary(results: List[EvalResult]):
         )
 
 
-def _lazy_plot_imports():
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt_mod  # type: ignore
-    import numpy as np_mod  # type: ignore
-
-    return plt_mod, np_mod
+def _mean(values: List[float]) -> float:
+    return float(np.mean(values)) if values else 0.0
 
 
-def create_plots(results: List[EvalResult], output_dir: str = "eval_plots"):
+def _bar_plot(
+    filename: str,
+    title: str,
+    xlabel: str,
+    ylabel: str,
+    x_labels: List[str],
+    series_labels: List[str],
+    value_fn,
+    output_path: Path,
+    width: float = 0.35,
+    rotation: int = 45,
+    figsize: tuple[int, int] = (12, 7),
+    annotate: bool = True,
+):
+    fig, ax = plt.subplots(figsize=figsize)
+    x = np.arange(len(x_labels))
+    # Always materialize at least one color so single-series plots have an explicit color
+    colors = plt.get_cmap("Set2")(range(max(1, len(series_labels))))
+
+    if len(series_labels) == 1:
+        vals = [value_fn(series_labels[0], lbl) for lbl in x_labels]
+        bars = list(ax.bar(x, vals, color=colors[0], alpha=0.8, edgecolor="black"))
+    else:
+        bars = []
+        for i, series in enumerate(series_labels):
+            vals = [value_fn(series, lbl) for lbl in x_labels]
+            offset = width * (i - len(series_labels) / 2 + 0.5)
+            bars.extend(
+                ax.bar(x + offset, vals, width, label=str(series), color=colors[i], alpha=0.8, edgecolor="black")
+            )
+        ax.legend(fontsize=11)
+
+    ax.set_ylabel(ylabel, fontsize=12, fontweight="bold")
+    ax.set_xlabel(xlabel, fontsize=12, fontweight="bold")
+    ax.set_title(title, fontsize=14, fontweight="bold")
+    ax.set_xticks(x)
+    ax.set_xticklabels(x_labels, rotation=rotation, ha="right")
+    ax.grid(axis="y", alpha=0.3)
+
+    if annotate:
+        for bar in bars:
+            height = bar.get_height()
+            if height > 0:
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2.0,
+                    height,
+                    f"{height:.2f}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=9,
+                    fontweight="bold",
+                )
+
+    plt.tight_layout()
+    plt.savefig(output_path / filename, dpi=150, bbox_inches="tight")
+    plt.close()
+
+
+def _heatmap(
+    filename: str,
+    title: str,
+    x_labels: List[str],
+    y_labels: List[str],
+    value_fn,
+    output_path: Path,
+    figsize: tuple[float, float],
+    xlabel: str,
+    ylabel: str,
+):
+    matrix = np.array([[value_fn(x, y) for x in x_labels] for y in y_labels])
+    fig, ax = plt.subplots(figsize=figsize)
+    im = ax.imshow(matrix, cmap="YlOrRd", aspect="auto")
+
+    ax.set_xticks(np.arange(len(x_labels)))
+    ax.set_yticks(np.arange(len(y_labels)))
+    ax.set_xticklabels(x_labels)
+    ax.set_yticklabels(y_labels)
+    plt.setp(ax.get_xticklabels(), rotation=0, ha="center")
+
+    cbar = plt.colorbar(im, ax=ax)
+    cbar.set_label("Value", rotation=270, labelpad=20, fontweight="bold")
+
+    for i, _y in enumerate(y_labels):
+        for j, _x in enumerate(x_labels):
+            ax.text(j, i, f"{matrix[i, j]:.1f}", ha="center", va="center", color="black", fontsize=9, fontweight="bold")
+
+    ax.set_title(title, fontsize=14, fontweight="bold", pad=20)
+    ax.set_xlabel(xlabel, fontsize=12, fontweight="bold")
+    ax.set_ylabel(ylabel, fontsize=12, fontweight="bold")
+
+    plt.tight_layout()
+    plt.savefig(output_path / filename, dpi=150, bbox_inches="tight")
+    plt.close()
+
+
+def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> None:
     if not results:
         return
-    plt, np = _lazy_plot_imports()
+
     output_path = Path(output_dir)
     output_path.mkdir(exist_ok=True)
     logger.info(f"\nGenerating plots in {output_path}/...")
+
+    data: defaultdict[tuple[str, str, str, int], defaultdict[str, List[float]]] = defaultdict(lambda: defaultdict(list))
+    for r in results:
+        key = (r.agent, r.experiment, r.difficulty, r.num_cogs)
+        data[key]["total_rewards"].append(r.total_reward)
+        data[key]["avg_rewards"].append(r.avg_reward_per_agent)
+        data[key]["successes"].append(r.success)
+
+    aggregated: Dict[tuple[str, str, str, int], Dict[str, float | str | int]] = {}
+    for key, vals in data.items():
+        agent, experiment, difficulty, num_cogs = key
+        aggregated[key] = {
+            "agent": agent,
+            "experiment": experiment,
+            "difficulty": difficulty,
+            "num_cogs": num_cogs,
+            "avg_total_reward": _mean(vals["total_rewards"]),
+            "avg_reward_per_agent": _mean(vals["avg_rewards"]),
+            "success_rate": _mean(vals["successes"]),
+        }
 
     agents = sorted(set(r.agent for r in results))
     experiments = sorted(set(r.experiment for r in results))
     variants = sorted(set(r.difficulty for r in results))
     num_cogs_list = sorted(set(r.num_cogs for r in results))
 
-    def mean(vals):
-        return sum(vals) / len(vals) if vals else 0.0
+    def lookup(agent: str | None, exp: str | None, diff: str | None, num_cogs: int | None, field: str) -> float:
+        vals = [
+            v[field]
+            for v in aggregated.values()
+            if (agent is None or v["agent"] == agent)
+            and (exp is None or v["experiment"] == exp)
+            and (diff is None or v["difficulty"] == diff)
+            and (num_cogs is None or v["num_cogs"] == num_cogs)
+        ]
+        return float(np.mean(vals)) if vals else 0.0
 
-    def plot_bar(filename, title, xlabel, ylabel, labels, series, lookup, rotation=45, figsize=(12, 7)):
-        fig, ax = plt.subplots(figsize=figsize)
-        x = np.arange(len(labels))
-        if len(series) == 1:
-            vals = [lookup(series[0], lbl) for lbl in labels]
-            ax.bar(x, vals)
-        else:
-            width = 0.8 / len(series)
-            for i, s in enumerate(series):
-                vals = [lookup(s, lbl) for lbl in labels]
-                ax.bar(x + i * width, vals, width, label=str(s))
-            ax.legend()
-        ax.set_ylabel(ylabel)
-        ax.set_xlabel(xlabel)
-        ax.set_title(title)
-        ax.set_xticks(x + (0 if len(series) == 1 else (0.4)))
-        ax.set_xticklabels(labels, rotation=rotation)
-        fig.tight_layout()
-        fig.savefig(output_path / filename)
-        plt.close(fig)
+    # Bar plots configured declaratively to keep styling consistent and code short.
+    bar_specs = [
+        {
+            "filename": "reward_by_agent.png",
+            "title": "Average Reward Per Agent by Type",
+            "xlabel": "Agent Type",
+            "ylabel": "Average Reward Per Agent",
+            "x_labels": agents,
+            "series": ["value"],
+            "fn": lambda _s, a: lookup(a, None, None, None, "avg_reward_per_agent"),
+            "rotation": 0,
+            "figsize": (10, 6),
+        },
+        {
+            "filename": "total_reward_by_agent.png",
+            "title": "Total Reward by Agent Type",
+            "xlabel": "Agent Type",
+            "ylabel": "Total Reward",
+            "x_labels": agents,
+            "series": ["value"],
+            "fn": lambda _s, a: lookup(a, None, None, None, "avg_total_reward"),
+            "rotation": 0,
+            "figsize": (10, 6),
+        },
+        {
+            "filename": "reward_by_num_cogs.png",
+            "title": "Average Reward Per Agent by Team Size",
+            "xlabel": "Number of Agents",
+            "ylabel": "Average Reward Per Agent",
+            "x_labels": [str(c) for c in num_cogs_list],
+            "series": agents,
+            "fn": lambda agent, c: lookup(agent, None, None, int(c), "avg_reward_per_agent"),
+            "rotation": 0,
+        },
+        {
+            "filename": "total_reward_by_num_cogs.png",
+            "title": "Total Reward by Team Size",
+            "xlabel": "Number of Agents",
+            "ylabel": "Total Reward",
+            "x_labels": [str(c) for c in num_cogs_list],
+            "series": agents,
+            "fn": lambda agent, c: lookup(agent, None, None, int(c), "avg_total_reward"),
+            "rotation": 0,
+        },
+        {
+            "filename": "reward_by_environment.png",
+            "title": "Average Reward by Eval Environment",
+            "xlabel": "Eval Environment",
+            "ylabel": "Average Reward Per Agent",
+            "x_labels": experiments,
+            "series": agents,
+            "fn": lambda agent, exp: lookup(agent, exp, None, None, "avg_reward_per_agent"),
+        },
+        {
+            "filename": "total_reward_by_environment.png",
+            "title": "Total Reward by Eval Environment",
+            "xlabel": "Eval Environment",
+            "ylabel": "Total Reward",
+            "x_labels": experiments,
+            "series": agents,
+            "fn": lambda agent, exp: lookup(agent, exp, None, None, "avg_total_reward"),
+        },
+        {
+            "filename": "reward_by_difficulty.png",
+            "title": "Average Reward by Difficulty Variant",
+            "xlabel": "Difficulty Variant",
+            "ylabel": "Average Reward Per Agent",
+            "x_labels": variants,
+            "series": agents,
+            "fn": lambda agent, diff: lookup(agent, None, diff, None, "avg_reward_per_agent"),
+        },
+        {
+            "filename": "total_reward_by_difficulty.png",
+            "title": "Total Reward by Difficulty Variant",
+            "xlabel": "Difficulty Variant",
+            "ylabel": "Total Reward",
+            "x_labels": variants,
+            "series": agents,
+            "fn": lambda agent, diff: lookup(agent, None, diff, None, "avg_total_reward"),
+        },
+        {
+            "filename": "reward_by_environment_by_cogs.png",
+            "title": "Average Reward by Eval Environment (Grouped by Agent Count)",
+            "xlabel": "Eval Environment",
+            "ylabel": "Average Reward Per Agent",
+            "x_labels": experiments,
+            "series": [str(c) for c in num_cogs_list],
+            "fn": lambda cogs, exp: lookup(None, exp, None, int(cogs), "avg_reward_per_agent"),
+        },
+    ]
 
-    def lookup_agent(agent, key, fn):
-        vals = [r for r in results if r.agent == agent and key(r)]
-        return mean([fn(r) for r in vals])
+    for spec in bar_specs:
+        _bar_plot(
+            filename=spec["filename"],
+            title=spec["title"],
+            xlabel=spec["xlabel"],
+            ylabel=spec["ylabel"],
+            x_labels=spec["x_labels"],
+            series_labels=spec["series"],
+            value_fn=spec["fn"],
+            output_path=output_path,
+            rotation=spec.get("rotation", 45),
+            figsize=spec.get("figsize", (12, 7)),
+        )
 
-    def lookup_pair(a, b, fn):
-        vals = [r for r in results if a(r) and b(r)]
-        return mean([fn(r) for r in vals])
+    heatmap_specs = [
+        {
+            "filename": "heatmap_env_agent.png",
+            "title": "Average Reward: Environment × Agent",
+            "x_labels": agents,
+            "y_labels": experiments,
+            "fn": lambda agent, exp: lookup(agent, exp, None, None, "avg_reward_per_agent"),
+            "figsize": (10, len(experiments) * 0.5 + 2),
+            "xlabel": "Agent",
+            "ylabel": "Environment",
+        },
+        {
+            "filename": "heatmap_env_agent_total.png",
+            "title": "Total Reward: Environment × Agent",
+            "x_labels": agents,
+            "y_labels": experiments,
+            "fn": lambda agent, exp: lookup(agent, exp, None, None, "avg_total_reward"),
+            "figsize": (10, len(experiments) * 0.5 + 2),
+            "xlabel": "Agent",
+            "ylabel": "Environment",
+        },
+        {
+            "filename": "heatmap_diff_agent.png",
+            "title": "Average Reward: Difficulty × Agent",
+            "x_labels": agents,
+            "y_labels": variants,
+            "fn": lambda agent, diff: lookup(agent, None, diff, None, "avg_reward_per_agent"),
+            "figsize": (10, len(variants) * 0.4 + 2),
+            "xlabel": "Agent",
+            "ylabel": "Difficulty",
+        },
+        {
+            "filename": "heatmap_diff_agent_total.png",
+            "title": "Total Reward: Difficulty × Agent",
+            "x_labels": agents,
+            "y_labels": variants,
+            "fn": lambda agent, diff: lookup(agent, None, diff, None, "avg_total_reward"),
+            "figsize": (10, len(variants) * 0.4 + 2),
+            "xlabel": "Agent",
+            "ylabel": "Difficulty",
+        },
+    ]
 
-    plot_bar(
-        "reward_by_agent.png",
-        "Average Reward Per Agent by Type",
-        "Agent Type",
-        "Average Reward Per Agent",
-        agents,
-        ["value"],
-        lambda _s, a: lookup_agent(a, lambda _r: True, lambda r: r.avg_reward_per_agent),
-        rotation=0,
-        figsize=(10, 6),
-    )
-
-    plot_bar(
-        "total_reward_by_agent.png",
-        "Total Reward by Agent Type",
-        "Agent Type",
-        "Total Reward",
-        agents,
-        ["value"],
-        lambda _s, a: lookup_agent(a, lambda _r: True, lambda r: r.total_reward),
-        rotation=0,
-        figsize=(10, 6),
-    )
-
-    plot_bar(
-        "reward_by_num_cogs.png",
-        "Average Reward Per Agent by Team Size",
-        "Number of Agents",
-        "Average Reward Per Agent",
-        num_cogs_list,
-        agents,
-        lambda agent, cogs: lookup_pair(
-            lambda r: r.agent == agent,
-            lambda r: r.num_cogs == cogs,
-            lambda r: r.avg_reward_per_agent,
-        ),
-        rotation=0,
-    )
-
-    plot_bar(
-        "total_reward_by_num_cogs.png",
-        "Total Reward by Team Size",
-        "Number of Agents",
-        "Total Reward",
-        num_cogs_list,
-        agents,
-        lambda agent, cogs: lookup_pair(
-            lambda r: r.agent == agent,
-            lambda r: r.num_cogs == cogs,
-            lambda r: r.total_reward,
-        ),
-        rotation=0,
-    )
-
-    plot_bar(
-        "reward_by_environment.png",
-        "Average Reward by Eval Environment",
-        "Eval Environment",
-        "Average Reward Per Agent",
-        experiments,
-        agents,
-        lambda agent, exp: lookup_pair(
-            lambda r: r.agent == agent,
-            lambda r: r.experiment == exp,
-            lambda r: r.avg_reward_per_agent,
-        ),
-    )
-
-    plot_bar(
-        "total_reward_by_environment.png",
-        "Total Reward by Eval Environment",
-        "Eval Environment",
-        "Total Reward",
-        experiments,
-        agents,
-        lambda agent, exp: lookup_pair(
-            lambda r: r.agent == agent,
-            lambda r: r.experiment == exp,
-            lambda r: r.total_reward,
-        ),
-    )
-
-    plot_bar(
-        "reward_by_difficulty.png",
-        "Average Reward by Difficulty Variant",
-        "Difficulty Variant",
-        "Average Reward Per Agent",
-        variants,
-        agents,
-        lambda agent, diff: lookup_pair(
-            lambda r: r.agent == agent,
-            lambda r: r.difficulty == diff,
-            lambda r: r.avg_reward_per_agent,
-        ),
-    )
-
-    plot_bar(
-        "total_reward_by_difficulty.png",
-        "Total Reward by Difficulty Variant",
-        "Difficulty Variant",
-        "Total Reward",
-        variants,
-        agents,
-        lambda agent, diff: lookup_pair(
-            lambda r: r.agent == agent,
-            lambda r: r.difficulty == diff,
-            lambda r: r.total_reward,
-        ),
-    )
-
-    plot_bar(
-        "reward_by_environment_by_cogs.png",
-        "Average Reward by Eval Environment (Grouped by Agent Count)",
-        "Eval Environment",
-        "Average Reward Per Agent",
-        experiments,
-        num_cogs_list,
-        lambda cogs, exp: lookup_pair(
-            lambda r: r.num_cogs == cogs,
-            lambda r: r.experiment == exp,
-            lambda r: r.avg_reward_per_agent,
-        ),
-    )
-
-    # Heatmaps
-    def heatmap(filename, title, x_labels, y_labels, lookup_fn, figsize):
-        data = np.array([[lookup_fn(x, y) for x in x_labels] for y in y_labels])
-        fig, ax = plt.subplots(figsize=figsize)
-        im = ax.imshow(data, cmap="YlOrRd")
-        ax.set_xticks(np.arange(len(x_labels)))
-        ax.set_yticks(np.arange(len(y_labels)))
-        ax.set_xticklabels(x_labels, rotation=45, ha="right")
-        ax.set_yticklabels(y_labels)
-        ax.set_title(title)
-        fig.colorbar(im, ax=ax)
-        fig.tight_layout()
-        fig.savefig(output_path / filename)
-        plt.close(fig)
-
-    heatmap(
-        "heatmap_env_agent.png",
-        "Average Reward: Environment x Agent",
-        agents,
-        experiments,
-        lambda agent, exp: lookup_pair(
-            lambda r: r.agent == agent,
-            lambda r: r.experiment == exp,
-            lambda r: r.avg_reward_per_agent,
-        ),
-        figsize=(10, len(experiments) * 0.5 + 2),
-    )
-
-    heatmap(
-        "heatmap_env_agent_total.png",
-        "Total Reward: Environment x Agent",
-        agents,
-        experiments,
-        lambda agent, exp: lookup_pair(
-            lambda r: r.agent == agent,
-            lambda r: r.experiment == exp,
-            lambda r: r.total_reward,
-        ),
-        figsize=(10, len(experiments) * 0.5 + 2),
-    )
-
-    heatmap(
-        "heatmap_diff_agent.png",
-        "Average Reward: Difficulty x Agent",
-        agents,
-        variants,
-        lambda agent, diff: lookup_pair(
-            lambda r: r.agent == agent,
-            lambda r: r.difficulty == diff,
-            lambda r: r.avg_reward_per_agent,
-        ),
-        figsize=(10, len(variants) * 0.4 + 2),
-    )
-
-    heatmap(
-        "heatmap_diff_agent_total.png",
-        "Total Reward: Difficulty x Agent",
-        agents,
-        variants,
-        lambda agent, diff: lookup_pair(
-            lambda r: r.agent == agent,
-            lambda r: r.difficulty == diff,
-            lambda r: r.total_reward,
-        ),
-        figsize=(10, len(variants) * 0.4 + 2),
-    )
+    for spec in heatmap_specs:
+        _heatmap(
+            filename=spec["filename"],
+            title=spec["title"],
+            x_labels=spec["x_labels"],
+            y_labels=spec["y_labels"],
+            value_fn=spec["fn"],
+            output_path=output_path,
+            figsize=spec["figsize"],
+            xlabel=spec["xlabel"],
+            ylabel=spec["ylabel"],
+        )
 
     logger.info(f"✓ Plots saved to {output_path}/")
 
