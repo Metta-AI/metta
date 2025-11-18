@@ -343,8 +343,6 @@ def list_missions() -> None:
         return
 
     missions = _dedupe_missions(MISSIONS)
-    counts = _mission_name_counts(missions)
-
     table = Table(show_header=True, header_style="bold magenta", box=box.ROUNDED, padding=(0, 1))
     table.add_column("Mission", style="blue", no_wrap=True)
     table.add_column("Cogs", style="green", justify="center")
@@ -378,7 +376,7 @@ def list_missions() -> None:
             is_last_site = idx == len(core_sites) - 1
 
             table.add_row(
-                _canonical_mission_name(mission, counts=counts),
+                mission.name,
                 "",
                 "",
                 mission.description,
