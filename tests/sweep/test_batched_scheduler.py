@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from metta.adaptive.models import JobTypes, RunInfo
+from metta.sweep.models import JobTypes, RunInfo
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig
 from metta.sweep.schedulers.batched_synced import (
     BatchedSyncedOptimizingScheduler,

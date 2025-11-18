@@ -7,7 +7,7 @@ from typing import Any, List, Optional
 import wandb
 from dateutil import parser
 
-from metta.adaptive.models import RunInfo
+from metta.sweep.models import RunInfo
 from metta.common.util.retry import retry_on_exception
 
 logger = logging.getLogger(__name__)

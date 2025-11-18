@@ -10,7 +10,7 @@ categorical parameter, ensuring:
 from datetime import datetime, timezone
 from typing import Any
 
-from metta.adaptive.models import JobTypes, RunInfo
+from metta.sweep.models import JobTypes, RunInfo
 from metta.sweep.core import CategoricalParameterConfig
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
 from metta.sweep.schedulers.batched_synced import (

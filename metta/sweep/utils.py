@@ -5,7 +5,7 @@ import logging
 import time
 from typing import Any, Dict, Optional
 
-from metta.adaptive.models import JobDefinition, JobTypes, RunInfo
+from metta.sweep.models import JobDefinition, JobTypes, RunInfo
 from metta.common.util.constants import PROD_STATS_SERVER_URI, SOFTMAX_S3_POLICY_PREFIX
 
 logger = logging.getLogger(__name__)
@@ -90,14 +90,15 @@ def get_display_id(run_id: str) -> str:
     """Extract clean display ID from run ID.
 
     Args:
-        run_id: Full run ID (e.g., "experiment_name_trial_0001_a1b2c3")
+        run_id: Full run ID (e.g., "experiment_name_trial_0001_abc")
 
     Returns:
-        Cleaned display ID (e.g., "trial_0001")
+        Cleaned display ID (e.g., "0001_abc" or just "0001" if no hash)
     """
     if "_trial_" in run_id:
         # Extract everything after "_trial_"
         trial_part = run_id.split("_trial_")[-1]
+        # Keep the trial number and hash if present (e.g., "14_abc")
         run_id = trial_part
     return run_id
 

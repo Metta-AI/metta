@@ -14,7 +14,7 @@ from mettagrid.base_config import Config
 
 if TYPE_CHECKING:
     # For type checking only; avoid runtime import cycles
-    from metta.tools.sweep import SweepTool
+    from metta.sweep.tools import SweepTool
 
 
 class Distribution(StrEnum):
@@ -221,6 +221,7 @@ def make_sweep(
     parameters: Union[Dict[str, ParameterSpec], List[Dict[str, ParameterSpec]]],
     max_trials: int = 10,
     num_parallel_trials: int = 1,
+    cost_metric: Optional[str] = None,
     train_overrides: Optional[Dict] = None,
     eval_overrides: Optional[Dict] = None,
     # Catch all for un-exposed tool overrides.
@@ -237,6 +238,7 @@ def make_sweep(
             eval_entrypoint: Evaluation entrypoint function
             num_trials: Number of trials
             num_parallel_trials: Max parallel jobs
+            cost_metric: Optional metric key to use for cost tracking (e.g. "overview/gpu_hours")
             train_overrides: Optional overrides for training configuration
             eval_overrides: Optional overrides for evaluation configuration
             **advanced: Additional SweepTool options
@@ -261,7 +263,7 @@ def make_sweep(
 
     # Local imports to avoid circular dependencies
     from metta.sweep.protein_config import ProteinConfig, ProteinSettings
-    from metta.tools.sweep import SweepSchedulerType, SweepTool
+    from metta.sweep.tools import SweepTool
 
     protein_config = ProteinConfig(
         metric=objective,
@@ -270,26 +272,30 @@ def make_sweep(
         settings=ProteinSettings(),
     )
 
-    scheduler_type = SweepSchedulerType.ASYNC_CAPPED
-    scheduler_config = {
-        "max_concurrent_evals": advanced.pop("max_concurrent_evals", min(2, num_parallel_trials)),
-        "liar_strategy": advanced.pop("liar_strategy", "best"),
-    }
+    # Extract max_concurrent_evals for max_parallel setting (default to num_parallel_trials)
+    max_parallel = advanced.pop("max_concurrent_evals", num_parallel_trials)
+    # Remove liar_strategy as it's not used in the new architecture
+    advanced.pop("liar_strategy", None)
 
-    return SweepTool(
+    # Build the SweepTool with cost_key if provided
+    tool_kwargs = dict(
         sweep_name=name,
         protein_config=protein_config,
         recipe_module=recipe,
         train_entrypoint=train_entrypoint,
         eval_entrypoint=eval_entrypoint,
         max_trials=max_trials,
-        max_parallel_jobs=num_parallel_trials,
-        scheduler_type=scheduler_type,
+        max_parallel=max_parallel,
         train_overrides=train_overrides or {},
         eval_overrides=eval_overrides or {},
-        **scheduler_config,
         **advanced,
     )
+
+    # Add cost_key if specified
+    if cost_metric is not None:
+        tool_kwargs['cost_key'] = cost_metric
+
+    return SweepTool(**tool_kwargs)
 
 
 def grid_search(
@@ -301,6 +307,7 @@ def grid_search(
     parameters: Union[Dict[str, Any], List[Dict[str, Any]]],
     max_trials: int = 10,
     num_parallel_trials: int = 1,
+    cost_metric: Optional[str] = None,
     train_overrides: Optional[Dict] = None,
     eval_overrides: Optional[Dict] = None,
     # Catch all for un-exposed tool overrides.
@@ -321,6 +328,7 @@ def grid_search(
             eval_entrypoint: Evaluation entrypoint function
             max_trials: Maximum number of trials to schedule (cap on grid size)
             num_parallel_trials: Max parallel jobs
+            cost_metric: Optional metric key to use for cost tracking (e.g. "overview/gpu_hours")
             train_overrides: Optional overrides for training configuration
             eval_overrides: Optional overrides for evaluation configuration
             **advanced: Additional SweepTool options
@@ -344,26 +352,60 @@ def grid_search(
         parameters = flat_params
 
     # Local imports to avoid circular dependencies
-    from metta.tools.sweep import SweepSchedulerType, SweepTool
+    from metta.sweep.protein_config import ProteinConfig, ProteinSettings
+    from metta.sweep.tools import SweepTool
 
-    scheduler_type = SweepSchedulerType.GRID_SEARCH
+    # Convert grid search parameters to categorical parameters for Protein
+    # Grid search is emulated as Bayesian optimization with categorical choices
+    protein_params = {}
+    if isinstance(parameters, dict):
+        # Single parameter set - convert to categorical choices
+        for key, values in parameters.items():
+            if isinstance(values, list):
+                protein_params[key] = CategoricalParameterConfig(choices=values)
+            else:
+                # Single value - just use it as a fixed override
+                if train_overrides is None:
+                    train_overrides = {}
+                train_overrides[key] = values
+    elif isinstance(parameters, list):
+        # List of parameter dicts - need to extract all unique values per key
+        all_keys = set()
+        for param_dict in parameters:
+            all_keys.update(param_dict.keys())
 
-    # No additional scheduler-config knobs for grid search beyond tool kwargs
-    scheduler_config: Dict[str, Any] = {}
+        for key in all_keys:
+            values = list(set(param_dict.get(key) for param_dict in parameters if key in param_dict))
+            if len(values) > 1:
+                protein_params[key] = CategoricalParameterConfig(choices=values)
+            elif len(values) == 1:
+                if train_overrides is None:
+                    train_overrides = {}
+                train_overrides[key] = values[0]
 
-    return SweepTool(
+    protein_config = ProteinConfig(
+        metric=objective,
+        goal=advanced.pop("goal", "maximize"),
+        parameters=protein_params,
+        settings=ProteinSettings(),
+    )
+
+    # Build the SweepTool with cost_key if provided
+    tool_kwargs = dict(
         sweep_name=name,
-        # Do not construct a ProteinConfig; grid path uses grid_parameters + grid_metric
+        protein_config=protein_config,
         recipe_module=recipe,
         train_entrypoint=train_entrypoint,
         eval_entrypoint=eval_entrypoint,
         max_trials=max_trials,
-        max_parallel_jobs=num_parallel_trials,
-        scheduler_type=scheduler_type,
+        max_parallel=num_parallel_trials,
         train_overrides=train_overrides or {},
         eval_overrides=eval_overrides or {},
-        grid_parameters=parameters,  # categorical choices
-        grid_metric=objective,
-        **scheduler_config,
         **advanced,
     )
+
+    # Add cost_key if specified
+    if cost_metric is not None:
+        tool_kwargs['cost_key'] = cost_metric
+
+    return SweepTool(**tool_kwargs)

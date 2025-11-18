@@ -7,7 +7,6 @@ from copy import deepcopy
 import numpy as np
 import torch
 from pyro.contrib import gp as gp
-from torch.distributions import Normal
 
 from mettagrid.util.dict_utils import unroll_nested_dict
 
@@ -250,8 +249,6 @@ class Protein:
         suggestions_per_pareto=256,
         seed_with_search_center=True,
         expansion_rate=0.25,
-        acquisition_fn="naive",
-        ucb_beta=2.0,
         randomize_acquisition=False,
     ):
         self.hyperparameters = Hyperparameters(sweep_config)
@@ -263,39 +260,12 @@ class Protein:
         self.resample_frequency = resample_frequency
         self.max_suggestion_cost = max_suggestion_cost
         self.expansion_rate = expansion_rate
-        self.acquisition_fn = acquisition_fn
-        self.ucb_beta = ucb_beta
         self.randomize_acquisition = randomize_acquisition
         self.success_observations = []
         self.failure_observations = []
         self.suggestion_idx = 0
         self.gp_score, self.score_opt = create_gp(self.hyperparameters.num)
         self.gp_cost, self.cost_opt = create_gp(self.hyperparameters.num)
-
-        # Validate acquisition function
-        if acquisition_fn not in ["naive", "ei", "ucb"]:
-            raise ValueError(f"Invalid acquisition function: {acquisition_fn}. Must be one of: 'naive', 'ei', 'ucb'")
-
-    def _compute_ucb(self, mean, std, beta=None):
-        """UCB in standardized space: maximize direction*mu + beta*sd"""
-        if beta is None:
-            beta = self.ucb_beta
-        return self.hyperparameters.optimize_direction * mean + beta * std
-
-    def _compute_naive_acquisition(self, gp_y_norm, gp_log_c_norm, max_c_mask):
-        """Compute the original naive acquisition function.
-
-        Args:
-            gp_y_norm: Normalized predicted scores
-            gp_log_c_norm: Normalized predicted log costs
-            max_c_mask: Mask for maximum cost constraint
-
-        Returns:
-            Acquisition scores"""
-        target = (1 + self.expansion_rate) * np.random.rand()
-        weight = np.maximum(1 - abs(target - gp_log_c_norm), 0.0)
-        suggestion_scores = self.hyperparameters.optimize_direction * max_c_mask * (gp_y_norm * weight)
-        return suggestion_scores
 
     def suggest(self, n_suggestions=1, fill=None):
         info = {}
@@ -371,10 +341,26 @@ class Protein:
         # Rest of the method remains the same (GP-based path)...
 
         # === Train score GP on standardized outputs with progressive fallback ===
+        """
+        Progressive Fallback Strategy for Robust GP Training
+
+        Gaussian Process training can fail due to numerical instabilities, particularly
+        when the kernel matrix becomes ill-conditioned (near-singular). This commonly
+        happens when:
+        - Observations are very similar (duplicate or near-duplicate parameters)
+        - Observation noise is very low
+        - The kernel lengthscales are inappropriate for the data scale
+
+        Our progressive fallback strategy ensures the optimizer remains functional even
+        with problematic data by progressively reducing the dataset size until training
+        succeeds.
+        """
         params = np.array([e["input"] for e in self.success_observations])
         y = np.array([e["output"] for e in self.success_observations])
 
         # Progressive fallback: try with N, N/2, N/4, ... observations
+        # This binary reduction ensures we quickly find a trainable subset while
+        # keeping the most informative observations (best performers)
         n_obs = len(self.success_observations)
         subset_size = n_obs
         subset_indices = list(range(n_obs))  # Initialize with all indices
@@ -383,34 +369,43 @@ class Protein:
         while subset_size >= 10 and not gp_trained:
             try:
                 # Select subset of observations
+                # When reducing dataset size, keep the best performers to maintain
+                # information about promising regions of the parameter space
                 if subset_size == n_obs:
-                    # Use all observations
+                    # First attempt: use all observations
                     subset_indices = list(range(n_obs))
                 else:
-                    # Use best subset_size observations
+                    # Subsequent attempts: keep only the best performers
+                    # This biases the GP toward successful regions but ensures stability
                     if self.hyperparameters.optimize_direction == 1:
-                        # Maximization: higher is better
+                        # Maximization: keep observations with highest scores
                         subset_indices = np.argsort(y)[-subset_size:]
                     else:
-                        # Minimization: lower is better
+                        # Minimization: keep observations with lowest scores
                         subset_indices = np.argsort(y)[:subset_size]
 
                 # Get subset data
                 params_subset = params[subset_indices]
                 y_subset = y[subset_indices]
 
-                # Standardize outputs
+                # Standardize outputs for numerical stability
+                # Z-score normalization ensures the GP operates on a consistent scale
+                # regardless of the actual score magnitudes
                 y_mean = float(np.mean(y_subset))
-                y_std = float(np.std(y_subset) + 1e-12)
+                y_std = float(np.std(y_subset) + 1e-12)  # Add epsilon to prevent division by zero
                 y_z = (y_subset - y_mean) / y_std
 
                 # Convert to tensors
                 params_t = torch.from_numpy(params_subset).float()
 
                 # Try to train GP
+                # This involves:
+                # 1. Setting the training data
+                # 2. Optimizing kernel hyperparameters via marginal likelihood
+                # 3. Computing the Cholesky decomposition of the kernel matrix
                 self.gp_score.set_data(params_t, torch.from_numpy(y_z).float())
                 self.gp_score.train()
-                gp.util.train(self.gp_score, self.score_opt)
+                gp.util.train(self.gp_score, self.score_opt)  # MLL optimization
                 self.gp_score.eval()
 
                 gp_trained = True
@@ -418,13 +413,17 @@ class Protein:
                     logger.debug(f"GP trained with {subset_size}/{n_obs} best observations")
 
             except (torch._C._LinAlgError, RuntimeError):
-                # Cholesky decomposition failed, try with fewer observations
+                # Cholesky decomposition failed - kernel matrix is ill-conditioned
+                # This is the most common failure mode for GPs
+                # Reduce dataset size by half and retry
                 subset_size = subset_size // 2
                 if subset_size >= 10:
                     logger.debug(f"GP failed with {subset_size * 2} observations, trying {subset_size}...")
                 continue
 
         # If GP training failed completely, fall back to random sampling
+        # This ensures the optimizer never crashes, though it loses the benefits
+        # of Bayesian optimization for this iteration
         if not gp_trained:
             logger.debug("GP training failed, falling back to random sampling")
             if n_suggestions == 1:
@@ -499,35 +498,11 @@ class Protein:
             max_c_mask = np.ones_like(max_c_mask, dtype=bool)
             cost_threshold_relaxed = True
 
-        # Choose acquisition function
-        if self.acquisition_fn == "ei":
-            # EI in standardized units
-            direction = self.hyperparameters.optimize_direction
-            # Use subset for best_obs if subset was used
-            if subset_size < n_obs:
-                y_for_best = y[subset_indices]
-            else:
-                y_for_best = y
-            best_obs = np.max(y_for_best) if direction == 1 else np.min(y_for_best)
-            best_std = (best_obs - y_mean) / y_std
-            impr = (mu - best_std) if direction == 1 else (best_std - mu)
-            z = impr / sd
-            N01 = Normal(0.0, 1.0)
-            z_t = torch.from_numpy(z)
-            cdf = N01.cdf(z_t).numpy()
-            pdf = torch.exp(N01.log_prob(z_t)).numpy()
-            ei_scores = impr * cdf + sd * pdf
-            suggestion_scores = max_c_mask * ei_scores
-        elif self.acquisition_fn == "ucb":
-            # UCB: maximize direction*mu + beta*sd  (mu, sd standardized)
-            beta = np.random.exponential(self.ucb_beta) if self.randomize_acquisition else self.ucb_beta
-            ucb_scores = self._compute_ucb(mu, sd, beta=beta)
-            suggestion_scores = max_c_mask * ucb_scores
-        else:  # naive
-            # Clamp weight to nonnegative
-            target = (1 + self.expansion_rate) * np.random.rand()
-            weight = np.maximum(1 - np.abs(target - gp_log_c_norm), 0.0)
-            suggestion_scores = self.hyperparameters.optimize_direction * max_c_mask * (gp_y_norm * weight)
+        # Compute naive acquisition function
+        # The naive approach uses a weighted combination of normalized score and cost
+        target = (1 + self.expansion_rate) * np.random.rand()
+        weight = np.maximum(1 - np.abs(target - gp_log_c_norm), 0.0)
+        suggestion_scores = self.hyperparameters.optimize_direction * max_c_mask * (gp_y_norm * weight)
 
         # Get top-k suggestions if requested
         if n_suggestions == 1:
@@ -537,16 +512,10 @@ class Protein:
                 cost=float(gp_c[best_idx]),
                 score=float(mu_raw[best_idx]),
                 rating=float(suggestion_scores[best_idx]),
-                acquisition_fn=self.acquisition_fn,
                 randomize_acquisition=self.randomize_acquisition,
             )
             if cost_threshold_relaxed:
                 info["cost_threshold_relaxed"] = True
-
-            # Add randomized parameter values to info if randomization was used
-            if self.randomize_acquisition:
-                if self.acquisition_fn == "ucb" and "beta" in locals():
-                    info["ucb_beta_used"] = beta
             best = suggestions_t[best_idx].numpy()
             return self.hyperparameters.to_dict(best, fill), info
         else:
@@ -561,14 +530,10 @@ class Protein:
                     cost=float(gp_c[idx]),
                     score=float(mu_raw[idx]),
                     rating=float(suggestion_scores[idx]),
-                    acquisition_fn=self.acquisition_fn,
                     randomize_acquisition=self.randomize_acquisition,
                 )
                 if cost_threshold_relaxed:
                     info["cost_threshold_relaxed"] = True
-                if self.randomize_acquisition:
-                    if self.acquisition_fn == "ucb" and "beta" in locals():
-                        info["ucb_beta_used"] = beta
 
                 suggestion = suggestions_t[idx].numpy()
                 results.append((self.hyperparameters.to_dict(suggestion, fill), info))
