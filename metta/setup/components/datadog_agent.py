@@ -109,7 +109,13 @@ class DatadogAgentSetup(SetupModule):
 
         info("Installing Datadog agent...")
 
+        # The install script needs to run with proper permissions
         install_cmd = 'bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)"'
+
+        # Try with sudo if available
+        if which("sudo"):
+            install_cmd = f"sudo {install_cmd}"
+
         result = subprocess.run(
             install_cmd,
             shell=True,
@@ -119,8 +125,14 @@ class DatadogAgentSetup(SetupModule):
             check=False,
         )
 
+        # Check if binary exists even if return code is non-zero (install script may return non-zero on warnings)
+        agent_binary = "/opt/datadog-agent/bin/agent/agent"
+        if os.path.exists(agent_binary):
+            success("Datadog agent installed successfully (binary found).")
+            return
+
         if result.returncode != 0:
-            error(f"Failed to install Datadog agent: {result.stdout}\n{result.stderr}")
+            error(f"Failed to install Datadog agent (exit code {result.returncode}): {result.stdout}\n{result.stderr}")
             return
 
         success("Datadog agent installed successfully.")
