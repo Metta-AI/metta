@@ -47,17 +47,14 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
         group=group,
     )
 
-    # Evaluate the trained policy from the training run by first copying the latest checkpoint locally.
+    # Evaluate the trained policy from the training run
+    # TODO: make this use s3 and not local file when github ci perms are set to be able to fetch from s3
+
+    # policy_uri = "s3://softmax-public/policies/{arena_train_name}:latest"
     arena_eval = JobConfig(
         name=arena_eval_name,
-        module="recipes.validation.utils.copy_and_eval",
-        args=[
-            f"src_dir=./train_dir/{arena_train_name}/checkpoints/",
-            f"dest_dir=./train_dir/{arena_train_name}/checkpoints/",
-            "eval_module=recipes.prod.arena_basic_easy_shaped",
-            "eval_fn=evaluate_latest_in_dir",
-            "eval_arg_name=dir_path",
-        ],
+        module="recipes.prod.arena_basic_easy_shaped.evaluate_latest_in_dir",
+        args=[f"dir_path=./train_dir/{arena_train_name}/checkpoints/"],
         dependency_names=[arena_train_name],
         timeout_s=300,
         group=group,
