@@ -1,6 +1,7 @@
 import std/[json, tables],
   boxy, fidget2/[hybridrender],
-  zippy, vmath, jsony
+  zippy, vmath, jsony,
+  ./validation
 
 type
 
@@ -492,6 +493,13 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
     jsonObj = convertReplayV1ToV2(jsonObj)
 
   doAssert jsonObj["version"].getInt == 2
+
+  # Check for validation issues and log them to console
+  let issues = validateReplay(jsonObj)
+  if issues.len > 0:
+    issues.prettyPrint()
+  else:
+    echo "No validation issues found"
 
   let replay = Replay(
     version: jsonObj["version"].getInt,

@@ -38,6 +38,7 @@ class ExecuteRemoteEvalTool(ToolWithResult):
             stats_server_uri=self.stats_server_uri,
             eval_task_id=self.eval_task_id,
             push_metrics_to_wandb=self.push_metrics_to_wandb,
+            verbose=True,
         )
         return_code, msg, results = eval_tool.handle_single_policy_uri(self.policy_uri)
         if return_code != 0:
