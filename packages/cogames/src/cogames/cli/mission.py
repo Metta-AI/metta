@@ -1,4 +1,5 @@
 import re
+from collections import Counter
 from pathlib import Path
 from typing import Optional
 
@@ -11,10 +12,9 @@ from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS as CORE_EVAL_MISSIONS
 from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS as INTEGRATED_EVAL_MISSIONS
 from cogames.cogs_vs_clips.evals.spanning_evals import EVAL_MISSIONS as SPANNING_EVAL_MISSIONS
-from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, MissionVariant, NumCogsVariant, Site
+from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, MissionVariant, NumCogsVariant
 from cogames.cogs_vs_clips.missions import MISSIONS
 from cogames.cogs_vs_clips.procedural import MachinaArena
-from cogames.cogs_vs_clips.sites import SITES
 from cogames.cogs_vs_clips.variants import HIDDEN_VARIANTS, VARIANTS
 from cogames.game import load_mission_config, load_mission_config_from_python
 from mettagrid import MettaGridConfig
@@ -28,6 +28,63 @@ EVAL_MISSIONS_ALL: list[Mission] = [
     *SPANNING_EVAL_MISSIONS,
     *[mission_cls() for mission_cls in DIAGNOSTIC_EVALS],  # type: ignore[call-arg]
 ]
+
+
+def _mission_name_counts(missions: list[Mission]) -> Counter[str]:
+    """Count how many times each short mission name appears."""
+    return Counter(mission.name for mission in missions)
+
+
+def _dedupe_missions(missions: list[Mission]) -> list[Mission]:
+    """Remove duplicate (site, mission) pairs while preserving order."""
+    seen_keys: set[tuple[str, str]] = set()
+    unique: list[Mission] = []
+    for mission in missions:
+        key = (mission.site.name, mission.name)
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        unique.append(mission)
+    return unique
+
+
+def _canonical_mission_name(mission: Mission, *, counts: Counter[str]) -> str:
+    """Prefer the short name unless it collides with another mission."""
+    if counts[mission.name] == 1:
+        return mission.name
+    return mission.full_name()
+
+
+def _mission_identifiers(
+    missions: list[Mission],
+    *,
+    include_legacy: bool,
+) -> list[str]:
+    """Return deduplicated identifiers users can pass to the CLI.
+
+    - Prefer short names when unique.
+    - Keep `site.mission` names available for backwards compatibility.
+    """
+    unique_missions = _dedupe_missions(missions)
+    counts = _mission_name_counts(unique_missions)
+
+    identifiers: list[str] = []
+    seen: set[str] = set()
+
+    for mission in unique_missions:
+        name = _canonical_mission_name(mission, counts=counts)
+        if name not in seen:
+            identifiers.append(name)
+            seen.add(name)
+
+    if include_legacy:
+        for mission in unique_missions:
+            legacy = mission.full_name()
+            if legacy not in seen:
+                identifiers.append(legacy)
+                seen.add(legacy)
+
+    return identifiers
 
 
 def parse_variants(variants_arg: Optional[list[str]]) -> list[MissionVariant]:
@@ -49,7 +106,7 @@ def parse_variants(variants_arg: Optional[list[str]]) -> list[MissionVariant]:
     all_variants = [*VARIANTS, *HIDDEN_VARIANTS]
     for name in variants_arg:
         # Find matching variant class by instantiating and checking the name
-        variant: MissionVariant | None = None
+        variant: Optional[MissionVariant] = None
         for v in all_variants:
             if v.name == name:
                 variant = v
@@ -67,27 +124,13 @@ def parse_variants(variants_arg: Optional[list[str]]) -> list[MissionVariant]:
 
 
 def get_all_missions() -> list[str]:
-    """Get all core mission names in the format site.mission (excludes evals)."""
-    return [mission.full_name() for mission in MISSIONS]
+    """Get all core mission names preferring short names when unique."""
+    return _mission_identifiers(MISSIONS, include_legacy=False)
 
 
 def get_all_eval_missions() -> list[str]:
-    """Get all eval mission names in the format site.mission."""
-    return [mission.full_name() for mission in EVAL_MISSIONS_ALL]
-
-
-def get_site_by_name(site_name: str) -> Site:
-    """Get a site by name.
-
-    Raises:
-        ValueError: If site not found
-    """
-    matching_sites = [site for site in SITES if site.name == site_name]
-    if not matching_sites:
-        raise ValueError(f"Could not find site {site_name}")
-    elif len(matching_sites) > 1:
-        raise ValueError(f"Invalid site catalog: more than one site named {site_name}")
-    return matching_sites[0]
+    """Get all eval mission names preferring short names when unique."""
+    return _mission_identifiers(EVAL_MISSIONS_ALL, include_legacy=False)
 
 
 def get_mission_name_and_config(
@@ -160,7 +203,8 @@ def _get_missions_by_possible_wildcard(
     if "*" in mission_arg:
         # Convert shell-style wildcard to regex pattern
         regex_pattern = mission_arg.replace(".", "\\.").replace("*", ".*")
-        missions = [m for m in (get_all_missions() + get_all_eval_missions()) if re.search(regex_pattern, m)]
+        available = _mission_identifiers([*MISSIONS, *EVAL_MISSIONS_ALL], include_legacy=True)
+        missions = [m for m in available if re.search(regex_pattern, m)]
         # Drop the Mission (3rd element) for wildcard results
         return [
             (name, env_cfg)
@@ -171,24 +215,48 @@ def _get_missions_by_possible_wildcard(
     return [(name, env_cfg)]
 
 
-def find_mission(
-    site_name: str,
-    mission_name: str | None = None,  # None means first mission on the site
+def _find_mission(
+    identifier: str,
+    mission_name: Optional[str],
+    *,
+    include_evals: bool,
 ) -> Mission:
-    for mission in MISSIONS:
-        if mission.site.name != site_name:
-            continue
-        if mission_name is not None and mission.name != mission_name:
-            continue
-        return mission
+    """Resolve a mission by name or site-qualified name.
 
-    if mission_name is not None:
-        raise ValueError(f"Mission {mission_name} not available on site {site_name}")
-    else:
-        if site_name in [site.name for site in SITES]:
-            raise ValueError(f"No missions available on site {site_name}")
-        else:
-            raise ValueError(f"Could not find mission name or site {site_name}")
+    Rules:
+      - If mission_name is None and identifier matches a unique mission name, return it.
+      - Otherwise treat identifier as a site name and optionally filter by mission_name.
+      - If identifier is only a site name, the first mission on that site is returned
+        to preserve previous behaviour.
+    """
+    mission_pool = _dedupe_missions([*MISSIONS, *(EVAL_MISSIONS_ALL if include_evals else [])])
+
+    if mission_name is None and MAP_MISSION_DELIMITER not in identifier:
+        name_matches = [mission for mission in mission_pool if mission.name == identifier]
+        if len(name_matches) == 1:
+            return name_matches[0]
+        if len(name_matches) > 1:
+            choices = ", ".join(sorted(m.full_name() for m in name_matches))
+            raise ValueError(f"Mission name '{identifier}' is ambiguous. Try one of: {choices}")
+
+    site_matches = [mission for mission in mission_pool if mission.site.name == identifier]
+    if mission_name is None:
+        if site_matches:
+            return site_matches[0]
+        raise ValueError(f"Could not find mission name or site {identifier}")
+
+    filtered = [mission for mission in site_matches if mission.name == mission_name]
+    if filtered:
+        return filtered[0]
+
+    if site_matches:
+        raise ValueError(f"Mission {mission_name} not available on site {identifier}")
+    raise ValueError(f"Could not find mission name or site {identifier}")
+
+
+def find_mission(identifier: str, mission_name: Optional[str] = None) -> Mission:
+    """Public helper that searches only the core mission catalog."""
+    return _find_mission(identifier, mission_name, include_evals=False)
 
 
 def get_mission(
@@ -226,39 +294,26 @@ def get_mission(
     # Parse variants if provided
     variants = parse_variants(variants_arg)
 
-    # Otherwise, treat it as a fully qualified mission name, or as a site name
-    if (delim_count := mission_arg.count(MAP_MISSION_DELIMITER)) == 0:
-        site_name, mission_name = mission_arg, None
-    elif delim_count > 1:
+    if mission_arg.count(MAP_MISSION_DELIMITER) > 1:
         raise ValueError(f"Mission name can contain at most one `{MAP_MISSION_DELIMITER}` delimiter")
-    else:
-        site_name, mission_name = mission_arg.split(MAP_MISSION_DELIMITER)
 
-    try:
-        mission = find_mission(site_name, mission_name)
-    except ValueError:
-        # Fallback to eval registry
-        for m in EVAL_MISSIONS_ALL:
-            if m.site.name != site_name:
-                continue
-            if mission_name is not None and m.name != mission_name:
-                continue
-            mission = m
-            break
-        else:
-            # Re-raise original error if not found in evals either
-            raise
+    if MAP_MISSION_DELIMITER in mission_arg:
+        site_name, mission_name = mission_arg.split(MAP_MISSION_DELIMITER)
+        mission = _find_mission(site_name, mission_name, include_evals=True)
+    else:
+        mission = _find_mission(mission_arg, None, include_evals=True)
     # Apply variants
     mission = mission.with_variants(variants)
 
     if cogs is not None:
         mission = mission.with_variants([NumCogsVariant(num_cogs=cogs)])
 
-    return (
-        mission.full_name(),
-        mission.make_env(),
+    canonical_name = _canonical_mission_name(
         mission,
+        counts=_mission_name_counts(_dedupe_missions([*MISSIONS, *EVAL_MISSIONS_ALL])),
     )
+
+    return (canonical_name, mission.make_env(), mission)
 
 
 def list_variants() -> None:
@@ -280,34 +335,32 @@ def list_variants() -> None:
 
 
 def list_missions(site_filter: Optional[str] = None) -> None:
-    """List missions: sites only by default; expand sub-missions when a site is provided."""
+    """List missions using short names when possible."""
 
-    if not SITES:
+    if not MISSIONS:
         console.print("No missions found")
         return
 
     normalized_filter = site_filter.rstrip(".") if site_filter is not None else None
+    missions = [mission for mission in MISSIONS if normalized_filter is None or mission.site.name == normalized_filter]
 
-    # Create a single table for all missions
+    if normalized_filter is not None and not missions:
+        console.print(f"[red]No missions found for site '{normalized_filter}'[/red]")
+        return
+
+    missions = _dedupe_missions(missions)
+    counts = _mission_name_counts(missions)
+    missions.sort(key=lambda m: (m.site.name, _canonical_mission_name(m, counts=counts)))
+
     table = Table(show_header=True, header_style="bold magenta", box=box.ROUNDED, padding=(0, 1))
     table.add_column("Mission", style="blue", no_wrap=True)
+    table.add_column("Site", style="white", no_wrap=True)
     table.add_column("Cogs", style="green", justify="center")
     table.add_column("Map Size", style="green", justify="center")
     table.add_column("Description", style="white")
 
-    core_sites = [site for site in SITES if any(m.site.name == site.name for m in MISSIONS)]
-
-    if normalized_filter is not None:
-        core_sites = [site for site in core_sites if site.name == normalized_filter]
-        if not core_sites:
-            console.print(f"[red]No missions found for site '{normalized_filter}'[/red]")
-            return
-
-    for site in core_sites:
-        # Get missions for this site
-        site_missions = [mission for mission in MISSIONS if mission.site.name == site.name]
-
-        # Get map size from the map builder
+    for mission in missions:
+        site = mission.site
         try:
             map_builder = site.map_builder
             if hasattr(map_builder, "width") and hasattr(map_builder, "height"):
@@ -317,41 +370,23 @@ def list_missions(site_filter: Optional[str] = None) -> None:
         except Exception:
             map_size = "N/A"
 
-        # Add site header row with map size and agent range
         agent_range = f"{site.min_cogs}-{site.max_cogs}"
         table.add_row(
-            f"[bold white]{site.name}[/bold white]",
+            _canonical_mission_name(mission, counts=counts),
+            site.name,
             agent_range,
             map_size,
-            f"[dim]{site.description}[/dim]",
-            end_section=normalized_filter is None,
+            mission.description,
         )
-
-        if normalized_filter is None:
-            continue
-
-        # Add missions for this site
-        for mission_idx, mission in enumerate(site_missions):
-            is_last_mission = mission_idx == len(site_missions) - 1
-
-            # Add mission row with description in column
-            table.add_row(
-                mission.full_name(),
-                "",
-                "",
-                mission.description,
-            )
-
-            # Add blank row for spacing between missions (except before section separator)
-            if not is_last_mission:
-                table.add_row("", "", "", "")
 
     console.print(table)
 
     console.print("\nTo set [bold blue]-m[/bold blue]:")
-    console.print("  • Use [blue]<site>.<mission>[/blue] (e.g., training_facility.open_world)")
+    console.print("  • Use the mission name (e.g., [blue]harvest[/blue])")
+    console.print("  • If a name is ambiguous, qualify it: [blue]hello_world.open_world[/blue]")
     console.print("  • Or pass a mission config file path")
-    console.print("  • List a site's missions: [blue]cogames missions training_facility[/blue]")
+    if normalized_filter is None:
+        console.print("  • Filter by site: [blue]cogames missions training_facility[/blue]")
     console.print("\nVariants:")
     console.print("  • Repeat [yellow]--variant <name>[/yellow] (e.g., --variant solar_flare)")
     console.print("\nCogs:")
@@ -359,75 +394,60 @@ def list_missions(site_filter: Optional[str] = None) -> None:
     console.print("\n[bold green]Examples:[/bold green]")
     console.print("  cogames missions")
     console.print("  cogames missions training_facility")
-    console.print("  cogames play --mission [blue]training_facility.open_world[/blue]")
+    console.print("  cogames play --mission [blue]harvest[/blue]")
     console.print(
-        "  cogames play --mission [blue]machina_1.open_world[/blue] "
+        "  cogames play --mission [blue]hello_world.open_world[/blue] "
         "--variant [yellow]solar_flare[/yellow] --variant [yellow]rough_terrain[/yellow] --cogs [green]8[/green]"
     )
-    console.print("  cogames train --mission [blue]<site>.<mission>[/blue] --cogs [green]4[/green]")
+    console.print("  cogames train --mission [blue]harvest[/blue] --cogs [green]4[/green]")
 
 
 def list_evals() -> None:
     """Print a table listing all available eval missions."""
-    evals = EVAL_MISSIONS_ALL
-    if not evals:
+    if not EVAL_MISSIONS_ALL:
         console.print("No eval missions found")
         return
 
-    # Group missions by site
-    missions_by_site: dict[str, list[Mission]] = {}
-    for m in evals:
-        missions_by_site.setdefault(m.site.name, []).append(m)
+    missions_unique = _dedupe_missions(EVAL_MISSIONS_ALL)
+    counts = _mission_name_counts(missions_unique)
+    missions = sorted(
+        missions_unique,
+        key=lambda m: (m.site.name, _canonical_mission_name(m, counts=counts)),
+    )
 
     table = Table(show_header=True, header_style="bold magenta", box=box.ROUNDED, padding=(0, 1))
     table.add_column("Mission", style="blue", no_wrap=True)
+    table.add_column("Site", style="white", no_wrap=True)
     table.add_column("Cogs", style="green", justify="center")
     table.add_column("Map Size", style="green", justify="center")
     table.add_column("Description", style="white")
 
-    site_names = sorted(missions_by_site.keys())
-    for idx, site_name in enumerate(site_names):
-        site = next((s for s in SITES if s.name == site_name), None)
-        # Determine map size if possible
+    for mission in missions:
+        site = mission.site
         try:
-            if site is not None and hasattr(site.map_builder, "width") and hasattr(site.map_builder, "height"):
-                map_size = f"{site.map_builder.width}x{site.map_builder.height}"  # type: ignore[attr-defined]
+            map_builder = site.map_builder
+            if hasattr(map_builder, "width") and hasattr(map_builder, "height"):
+                map_size = f"{map_builder.width}x{map_builder.height}"  # type: ignore[attr-defined]
             else:
                 map_size = "N/A"
         except Exception:
             map_size = "N/A"
 
-        agent_range = f"{site.min_cogs}-{site.max_cogs}" if site is not None else ""
-        description = site.description if site is not None else ""
+        agent_range = f"{site.min_cogs}-{site.max_cogs}"
         table.add_row(
-            f"[bold white]{site_name}[/bold white]",
+            _canonical_mission_name(mission, counts=counts),
+            site.name,
             agent_range,
             map_size,
-            f"[dim]{description}[/dim]",
-            end_section=True,
+            mission.description,
         )
-
-        site_missions = missions_by_site[site_name]
-        for mission_idx, mission in enumerate(site_missions):
-            is_last_mission = mission_idx == len(site_missions) - 1
-            is_last_site = idx == len(site_names) - 1
-            table.add_row(
-                mission.full_name(),
-                "",
-                "",
-                mission.description,
-            )
-            if not is_last_mission:
-                table.add_row("", "", "", "")
-            elif not is_last_site:
-                table.add_row("", "", "", "", end_section=True)
 
     console.print(table)
     console.print("\nTo play an eval mission:")
-    console.print("  [bold]cogames play[/bold] --mission [blue]evals.divide_and_conquer[/blue]")
+    console.print("  [bold]cogames play[/bold] --mission [blue]evals.oxygen_bottleneck[/blue]")
 
 
-def describe_mission(mission_name: str, game_config: MettaGridConfig, mission_cfg: Mission | None = None) -> None:
+def describe_mission(mission_name: str, game_config: MettaGridConfig, mission_cfg: Optional[Mission] = None) -> None:
     """Print detailed information about a specific mission.
 
     Args:

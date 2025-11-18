@@ -89,7 +89,12 @@ app = typer.Typer(
 @app.command("mission", hidden=True)
 def games_cmd(
     ctx: typer.Context,
-    mission: Optional[str] = typer.Option(None, "--mission", "-m", help="Name of the mission"),
+    mission: Optional[str] = typer.Option(
+        None,
+        "--mission",
+        "-m",
+        help="Name of the mission (e.g., harvest; qualify with hello_world.open_world if needed)",
+    ),
     cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
     variant: Optional[list[str]] = typer.Option(  # noqa: B008
         None,
@@ -164,7 +169,7 @@ def variants_cmd() -> None:
 @app.command(name="describe", help="Describe a mission and its configuration")
 def describe_cmd(
     ctx: typer.Context,
-    mission: str = typer.Argument(..., help="Mission name (e.g., hello_world.open_world)"),
+    mission: str = typer.Argument(..., help="Mission name (e.g., harvest)"),
     cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
     variant: Optional[list[str]] = typer.Option(  # noqa: B008
         None,
@@ -409,7 +414,7 @@ def evaluate_cmd(
         None,
         "--mission",
         "-m",
-        help="Missions to evaluate (supports wildcards, e.g., --mission training_facility.*)",
+        help="Missions to evaluate (supports wildcards, e.g., --mission open_world or hello_world.*)",
     ),
     cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
     variant: Optional[list[str]] = typer.Option(  # noqa: B008

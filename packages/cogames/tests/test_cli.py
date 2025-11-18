@@ -8,7 +8,7 @@ cogames_root = Path(__file__).parent.parent
 
 
 def test_missions_list_command():
-    """Test that 'cogames missions' lists only top-level missions."""
+    """Test that 'cogames missions' lists missions with short names."""
     result = subprocess.run(
         ["uv", "run", "cogames", "missions"],
         cwd=cogames_root,
@@ -21,16 +21,17 @@ def test_missions_list_command():
 
     # Check that the output contains expected content
     output = result.stdout
-    assert "training_facility" in output
+    assert "Mission" in output
+    assert "Site" in output
+    assert "harvest" in output
     assert "training_facility.harvest" not in output
     assert "Cogs" in output
-    assert "Map Size" in output
 
 
 def test_missions_describe_command():
-    """Test that 'cogames missions <mission_name>' describes a specific mission."""
+    """Test that 'cogames missions <mission_name>' describes a specific mission using short names."""
     result = subprocess.run(
-        ["uv", "run", "cogames", "missions", "-m", "training_facility"],
+        ["uv", "run", "cogames", "missions", "-m", "harvest"],
         cwd=cogames_root,
         capture_output=True,
         text=True,
@@ -41,7 +42,7 @@ def test_missions_describe_command():
 
     # Check that the output contains expected game details
     output = result.stdout
-    assert "training_facility" in output
+    assert "harvest" in output
     assert "Mission Configuration:" in output
     assert "Number of agents:" in output
     assert "Available Actions:" in output
@@ -60,8 +61,10 @@ def test_missions_list_for_specific_site():
     assert result.returncode == 0, f"Command failed with stderr: {result.stderr}"
 
     output = result.stdout
-    assert "training_facility.harvest" in output
-    assert "hello_world." not in output
+    table_section = output.split("To set")[0]
+    assert "training_facility" in table_section
+    assert "harvest" in table_section
+    assert "hello_world" not in table_section
 
 
 def test_missions_nonexistent_mission():
@@ -116,7 +119,7 @@ def test_make_mission_command():
                 "cogames",
                 "make-mission",
                 "-m",
-                "training_facility",
+                "harvest",
                 "--output",
                 str(tmp_path),
             ],
