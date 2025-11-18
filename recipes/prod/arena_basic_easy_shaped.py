@@ -107,9 +107,9 @@ def train(
 
     losses_cfg = LossesConfig()
     # # classic PPO, disagregated into actor and critic losses
-    # losses_cfg.ppo.enabled = False
-    # losses_cfg.ppo_actor.enabled = True
-    # losses_cfg.ppo_critic.enabled = True
+    losses_cfg.ppo.enabled = False
+    losses_cfg.ppo_actor.enabled = True
+    losses_cfg.ppo_critic.enabled = True
 
     # # action supervised with PPO critic loss
     # losses_cfg.ppo.enabled = False
