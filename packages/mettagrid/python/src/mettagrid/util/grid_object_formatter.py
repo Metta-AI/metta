@@ -84,7 +84,6 @@ def format_assembler_properties(grid_object: dict, update_object: dict) -> None:
 
     update_object["protocols"] = []
     for protocol in grid_object.get("protocols", []):
-        print(f"DEBUG: protocol type: {type(protocol)}, keys: {list(protocol.keys()) if isinstance(protocol, dict) else 'not dict'}")
         update_protocol = {}
         update_protocol["minAgents"] = protocol.get("min_agents", 0)
         update_protocol["vibes"] = protocol.get("vibes", [])
