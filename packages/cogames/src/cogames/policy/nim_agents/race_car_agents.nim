@@ -151,7 +151,7 @@ proc newRaceCarAgent*(agentId: int, environmentConfig: string): RaceCarAgent =
   var offsets4 = Offsets4
   result.random.shuffle(offsets4)
   for i in 0 ..< offsets4.len:
-    offsets4[i] = offsets4[i]
+    result.offsets4[i] = offsets4[i]
 
   result.exploreLocations = @[
     Location(x: -7, y: 0),
