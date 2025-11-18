@@ -198,7 +198,11 @@ class TestBulkEpisodeUpload:
     @pytest.mark.asyncio
     @patch("metta.app_backend.routes.stats_routes.aioboto3")
     async def test_bulk_upload_multiple_episodes(
-        self, mock_aioboto3: MagicMock, test_client: TestClient, test_user_headers: dict[str, str], stats_repo: MettaRepo
+        self,
+        mock_aioboto3: MagicMock,
+        test_client: TestClient,
+        test_user_headers: dict[str, str],
+        stats_repo: MettaRepo,
     ):
         """Test uploading multiple episodes at once."""
         # Mock S3 client with proper async context manager
@@ -259,7 +263,11 @@ class TestBulkEpisodeUpload:
     @pytest.mark.asyncio
     @patch("metta.app_backend.routes.stats_routes.aioboto3")
     async def test_metric_aggregation(
-        self, mock_aioboto3: MagicMock, test_client: TestClient, test_user_headers: dict[str, str], stats_repo: MettaRepo
+        self,
+        mock_aioboto3: MagicMock,
+        test_client: TestClient,
+        test_user_headers: dict[str, str],
+        stats_repo: MettaRepo,
     ):
         """Test that agent metrics are correctly aggregated to policy metrics."""
         # Mock S3 client with proper async context manager
@@ -349,7 +357,11 @@ class TestBulkEpisodeUpload:
     @pytest.mark.asyncio
     @patch("metta.app_backend.routes.stats_routes.aioboto3")
     async def test_non_reward_metrics_filtered(
-        self, mock_aioboto3: MagicMock, test_client: TestClient, test_user_headers: dict[str, str], stats_repo: MettaRepo
+        self,
+        mock_aioboto3: MagicMock,
+        test_client: TestClient,
+        test_user_headers: dict[str, str],
+        stats_repo: MettaRepo,
     ):
         """Test that only 'reward' metrics are stored (whitelist)."""
         # Mock S3 client with proper async context manager

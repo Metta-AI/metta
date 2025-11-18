@@ -315,6 +315,7 @@ def render_eval_summary(
                 lines.append(f"  Viewer: {viewer_url}")
             logger.info("\n%s", "\n".join(lines))
 
+
 def write_eval_results_to_observatory(
     *,
     policy_version_ids: list[str],
