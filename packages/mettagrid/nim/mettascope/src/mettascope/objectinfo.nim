@@ -1,5 +1,5 @@
 import
-  std/[os, json, strformat, strutils],
+  std/[os, json],
   fidget2,
   common, panels, replays
 
@@ -76,9 +76,9 @@ proc updateObjectInfo*() =
     addParam("Reward", $selection.totalReward.at)
     let vibeId = selection.vibeId.at
     let vibeName = getVibeName(vibeId)
-    if vibeName != $vibeId:  # Only show if we have a valid name
-      vibeArea.find("**/Icon").fills[0].imageRef = "../../vibe" / vibeName
-      vibeArea.show()
+
+    vibeArea.find("**/Icon").fills[0].imageRef = "../../vibe" / vibeName
+    vibeArea.show()
 
   if selection.cooldownRemaining.at > 0:
     addParam("Cooldown Remaining", $selection.cooldownRemaining.at)
