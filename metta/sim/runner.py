@@ -37,10 +37,11 @@ def run_simulations(
     replay_dir: str | None,
     seed: int,
     enable_replays: bool = True,
+    on_progress: Callable[[str], None] = lambda x: None,
 ) -> list[SimulationRunResult]:
     simulation_rollouts: list[SimulationRunResult] = []
 
-    for simulation in simulations:
+    for i, simulation in enumerate(simulations):
         proportions = simulation.proportions
         replay_writer: ReplayLogWriter | None = None
         if enable_replays and replay_dir:
@@ -49,6 +50,7 @@ def run_simulations(
         env_interface = PolicyEnvInterface.from_mg_cfg(simulation.env)
         multi_agent_policies: list[MultiAgentPolicy] = [pi(env_interface) for pi in policy_initializers]
 
+        on_progress(f"Beginning rollout for simulation {i + 1} of {len(simulations)}")
         rollout_result = multi_episode_rollout(
             env_cfg=simulation.env,
             policies=multi_agent_policies,
@@ -60,6 +62,7 @@ def run_simulations(
             max_action_time_ms=simulation.max_action_time_ms,
             event_handlers=[replay_writer] if replay_writer else None,
         )
+        on_progress(f"Finished rollout for simulation {i}")
 
         replay_urls = replay_writer.get_written_replay_urls() if replay_writer else {}
 

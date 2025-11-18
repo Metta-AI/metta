@@ -65,7 +65,7 @@ def write_data(path: str, data: Union[str, bytes], *, content_type: str = "appli
         bucket, key = parsed.require_s3()
         try:
             boto3.client("s3").put_object(Body=data, Bucket=bucket, Key=key, ContentType=content_type)
-            logger.info("Wrote %d B → %s", len(data), http_url(parsed.canonical))
+            logger.debug("Wrote %d B → %s", len(data), http_url(parsed.canonical))
             return
         except NoCredentialsError as e:  # pragma: no cover - environment dependent
             logger.error("AWS credentials not found; run 'aws sso login --profile softmax'", exc_info=True)
@@ -75,7 +75,7 @@ def write_data(path: str, data: Union[str, bytes], *, content_type: str = "appli
         local_path = parsed.local_path
         local_path.parent.mkdir(parents=True, exist_ok=True)
         local_path.write_bytes(data)
-        logger.info("Wrote %d B → %s", len(data), local_path)
+        logger.debug("Wrote %d B → %s", len(data), local_path)
         return
 
     raise ValueError(f"Unsupported URI for write_data: {path}")
@@ -90,14 +90,14 @@ def write_file(path: str, local_file: str, *, content_type: str = "application/o
     if parsed.scheme == "s3":
         bucket, key = parsed.require_s3()
         boto3.client("s3").upload_file(local_file, bucket, key, ExtraArgs={"ContentType": content_type})
-        logger.info("Uploaded %s → %s (size %d B)", local_file, parsed.canonical, os.path.getsize(local_file))
+        logger.debug("Uploaded %s → %s (size %d B)", local_file, parsed.canonical, os.path.getsize(local_file))
         return
 
     if parsed.scheme == "file" and parsed.local_path is not None:
         dst = parsed.local_path
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(local_file, dst)
-        logger.info("Copied %s → %s (size %d B)", local_file, dst, Path(local_file).stat().st_size)
+        logger.debug("Copied %s → %s (size %d B)", local_file, dst, Path(local_file).stat().st_size)
         return
 
     raise ValueError(f"Unsupported URI for write_file: {path}")
@@ -113,7 +113,7 @@ def read(path: str) -> bytes:
         bucket, key = parsed.require_s3()
         try:
             body = boto3.client("s3").get_object(Bucket=bucket, Key=key)["Body"].read()
-            logger.info("Read %d B from %s", len(body), parsed.canonical)
+            logger.debug("Read %d B from %s", len(body), parsed.canonical)
             return body
         except NoCredentialsError:  # pragma: no cover - environment dependent
             logger.error("AWS credentials not found -- have you run devops/aws/setup_sso.py?", exc_info=True)
@@ -121,7 +121,7 @@ def read(path: str) -> bytes:
 
     if parsed.scheme == "file" and parsed.local_path is not None:
         data = parsed.local_path.read_bytes()
-        logger.info("Read %d B from %s", len(data), parsed.local_path)
+        logger.debug("Read %d B from %s", len(data), parsed.local_path)
         return data
 
     raise ValueError(f"Unsupported URI for read(): {path}")
