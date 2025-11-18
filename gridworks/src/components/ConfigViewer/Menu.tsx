@@ -38,16 +38,16 @@ const ToggleDefaultValuesItem: FC = () => {
   );
 };
 
-const CopyAsYaml: FC<{
-  onCopy?: () => void;
-}> = ({ onCopy }) => {
+const CopyAsYamlItem: FC<{
+  onCopyAsYaml?: () => void;
+}> = ({ onCopyAsYaml }) => {
   const closeDropdown = useCloseDropdown();
   return (
     <DropdownMenuActionItem
       title="Copy as YAML"
       icon={CopyIcon}
       onClick={() => {
-        onCopy?.();
+        onCopyAsYaml?.();
         closeDropdown();
       }}
     />
@@ -63,7 +63,7 @@ export const Menu: FC<{
         <>
           <ToggleDefaultValuesItem />
           <ToggleDebugItem />
-          <CopyAsYaml onCopy={onCopyAsYaml} />
+          <CopyAsYamlItem onCopyAsYaml={onCopyAsYaml} />
         </>
       )}
     />
