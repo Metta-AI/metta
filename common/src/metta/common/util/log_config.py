@@ -248,3 +248,12 @@ def init_suppress_warnings() -> None:
 
     # Silence PyTorch distributed elastic warning about redirects on MacOS/Windows
     logging.getLogger("torch.distributed.elastic.multiprocessing.redirects").setLevel(logging.ERROR)
+
+
+def init_mettagrid_system_environment() -> None:
+    """Initialize environment variables for headless operation."""
+    os.environ.setdefault("GLFW_PLATFORM", "osmesa")  # Use OSMesa as the GLFW backend
+    os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+    os.environ.setdefault("MPLBACKEND", "Agg")
+    os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
+    os.environ.setdefault("DISPLAY", "")
