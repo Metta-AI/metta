@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 import boto3
+from ddtrace.trace import tracer
 
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.routes.eval_task_routes import (
@@ -36,6 +37,7 @@ from metta.common.tool.tool import ToolResult
 from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import SOFTMAX_S3_BASE, SOFTMAX_S3_BUCKET
 from metta.common.util.git_repo import REPO_URL
+from metta.common.util.log_config import init_suppress_warnings
 from metta.rl.checkpoint_manager import CheckpointManager
 
 logger = logging.getLogger(__name__)
@@ -68,6 +70,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
         env = os.environ.copy()
         for key in ["PYTHONPATH", "UV_PROJECT", "UV_PROJECT_ENVIRONMENT"]:
             env.pop(key, None)
+        env["DISABLE_RICH_LOGGING"] = "1"
 
         if capture_output:
             # Redirect stderr to stdout to get chronologically interspersed output (like 2>&1)
@@ -182,7 +185,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
             "uv",
             "run",
             "tools/run.py",
-            "recipes.experiment.remote_eval",
+            "recipes.experiment.remote_eval.eval",
             f"policy_uri={normalized}",
             f"simulations_json_base64_path={os.path.abspath(file_path)}",
             f"eval_task_id={str(task.id)}",
@@ -222,7 +225,8 @@ class SimTaskExecutor(AbstractTaskExecutor):
             return TaskResult(
                 success=False,
                 log_path=log_path,
-                error="Job failed with return code " + str(result.returncode),
+                error="Job failed with return code " + str(result.returncode) + " and output: " + result.stdout,
+                warnings=[result.stderr],
             )
 
 
@@ -273,6 +277,45 @@ class EvalTaskWorker:
             else ""
         )
 
+    @trace("worker.attempt_task")
+    async def attempt_task(self, task: EvalTaskResponse) -> None:
+        logger.info(f"Processing task {task.id}")
+        span = tracer.current_span()
+        if span:
+            span.set_tags(
+                {
+                    f"task.{key}": value
+                    for key, value in task.model_dump(mode="json").items()
+                    if key in ["id", "policy_id", "policy_uri", "policy_name", "git_hash", "user_id", "assignee"]
+                }
+            )
+            span.resource = str(task.id)
+
+        try:
+            task_result = await self._task_executor.execute_task(task)
+            status: TaskStatus = "done" if task_result.success else "error"
+
+            logger.info(f"Task {task.id} completed with status {status}")
+            warnings = None
+            if task_result.warnings is not None and len(task_result.warnings) > 0:
+                warnings = task_result.warnings
+
+            await self._update_task_status(
+                task.id,
+                status,
+                error_reason=task_result.error,
+                log_path=task_result.log_path,
+                warnings=warnings,
+            )
+            logger.info(f"Task {task.id} updated to {status}")
+        except Exception as e:
+            logger.error(f"Task failed: {e}", exc_info=True)
+            await self._update_task_status(
+                task.id,
+                "error",
+                error_reason=str(e),
+            )
+
     async def run(self) -> None:
         logger.info("Starting eval worker")
         logger.info(f"Worker id: {self._assignee}")
@@ -283,31 +326,7 @@ class EvalTaskWorker:
 
                 if claimed_tasks.tasks:
                     task: EvalTaskResponse = min(claimed_tasks.tasks, key=lambda x: x.assigned_at or datetime.min)
-                    logger.info(f"Processing task {task.id}")
-                    try:
-                        task_result = await self._task_executor.execute_task(task)
-                        status = "done" if task_result.success else "error"
-
-                        logger.info(f"Task {task.id} completed with status {status}")
-                        warnings = None
-                        if task_result.warnings is not None and len(task_result.warnings) > 0:
-                            warnings = task_result.warnings
-
-                        await self._update_task_status(
-                            task.id,
-                            status,
-                            error_reason=task_result.error,
-                            log_path=task_result.log_path,
-                            warnings=warnings,
-                        )
-                        logger.info(f"Task {task.id} updated to {status}")
-                    except Exception as e:
-                        logger.error(f"Task failed: {e}", exc_info=True)
-                        await self._update_task_status(
-                            task.id,
-                            "error",
-                            str(e),
-                        )
+                    await self.attempt_task(task)
                 else:
                     logger.debug("No tasks claimed")
 
@@ -335,6 +354,7 @@ def init_logging():
 
 async def main() -> None:
     init_logging()
+    init_suppress_warnings()
     init_tracing()
 
     backend_url = os.environ["BACKEND_URL"]

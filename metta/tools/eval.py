@@ -30,6 +30,7 @@ class EvaluateTool(Tool):
     stats_server_uri: str | None = auto_stats_server_uri()
     register_missing_policies: bool = False
     eval_task_id: str | None = None
+    verbose: bool = False
     push_metrics_to_wandb: bool = False
 
     def _build_policy_spec(self, normalized_uri: str) -> PolicySpec:
@@ -93,6 +94,35 @@ class EvaluateTool(Tool):
         )
         return rollout_results
 
+    def handle_single_policy_uri(self, policy_uri: str) -> tuple[int, str, list[SimulationRunResult]]:
+        normalized_uri = CheckpointManager.normalize_uri(policy_uri)
+        policy_spec = self._build_policy_spec(normalized_uri)
+        rollout_results = self.eval_policy(policy_spec)
+        render_eval_summary(rollout_results, policy_names=[self._spec_display_name(policy_spec)], verbose=self.verbose)
+        if self.push_metrics_to_wandb:
+            guess = self._guess_epoch_and_agent_step(normalized_uri)
+            if guess is None:
+                msg = "Could not determine epoch or agent step, skipping wandb logging"
+                logger.info(msg)
+                return 1, msg, rollout_results
+            epoch, agent_step = guess
+            wandb_config = self._get_wandb_config(normalized_uri)
+            if wandb_config is not None:
+                with WandbContext(wandb_config, self) as wandb_run:
+                    if wandb_run:
+                        send_eval_results_to_wandb(
+                            rollout_results=rollout_results,
+                            epoch=epoch,
+                            agent_step=agent_step,
+                            wandb_run=wandb_run,
+                            during_training=False,
+                            should_finish_run=True,
+                        )
+                        return 0, "Logged eval results to wandb", rollout_results
+            return 1, "Wandb config invalid", rollout_results
+        else:
+            return 0, "No wandb logging", rollout_results
+
     def invoke(self, args: dict[str, str]) -> int | None:
         if self.policy_uris is None:
             raise ValueError("policy_uris is required")
@@ -101,25 +131,4 @@ class EvaluateTool(Tool):
             self.policy_uris = [self.policy_uris]
 
         for policy_uri in self.policy_uris:
-            normalized_uri = CheckpointManager.normalize_uri(policy_uri)
-            policy_spec = self._build_policy_spec(normalized_uri)
-            rollout_results = self.eval_policy(policy_spec)
-            render_eval_summary(rollout_results, policy_names=[self._spec_display_name(policy_spec)])
-            if self.push_metrics_to_wandb:
-                guess = self._guess_epoch_and_agent_step(normalized_uri)
-                if guess is None:
-                    logger.info("Could not determine epoch or agent step, skipping wandb logging")
-                    continue
-                epoch, agent_step = guess
-                wandb_config = self._get_wandb_config(normalized_uri)
-                if wandb_config is not None:
-                    with WandbContext(wandb_config, self) as wandb_run:
-                        if wandb_run:
-                            send_eval_results_to_wandb(
-                                rollout_results=rollout_results,
-                                epoch=epoch,
-                                agent_step=agent_step,
-                                wandb_run=wandb_run,
-                                during_training=False,
-                                should_finish_run=True,
-                            )
+            self.handle_single_policy_uri(policy_uri)
