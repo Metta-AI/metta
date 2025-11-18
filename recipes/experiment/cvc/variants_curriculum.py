@@ -200,6 +200,15 @@ def make_curriculum(
                 mission_env.game.agent.rewards.stats.setdefault("germanium.gained", 0.01)
                 mission_env.game.agent.rewards.stats.setdefault("silicon.gained", 0.01)
 
+                # Cap resource rewards to prevent hoarding - max 1.0 reward per resource type per episode
+                # This prevents agents from getting unlimited reward by collecting more and more resources
+                if not mission_env.game.agent.rewards.stats_max:
+                    mission_env.game.agent.rewards.stats_max = {}
+                mission_env.game.agent.rewards.stats_max.setdefault("carbon.gained", 1.0)
+                mission_env.game.agent.rewards.stats_max.setdefault("oxygen.gained", 1.0)
+                mission_env.game.agent.rewards.stats_max.setdefault("germanium.gained", 1.0)
+                mission_env.game.agent.rewards.stats_max.setdefault("silicon.gained", 1.0)
+
                 mission_tasks = cc.bucketed(mission_env)
 
                 # Add curriculum buckets for learning progress
