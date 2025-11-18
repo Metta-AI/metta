@@ -109,12 +109,16 @@ def multi_episode_rollout(
 
         rollout.run_until_done()
 
+        replay_path = None
+        if episode_replay_writer is not None:
+            replay_path = episode_replay_writer.get_written_replay_paths()[0]
+
         result = EpisodeRolloutResult(
             assignments=assignments.copy(),
             rewards=np.array(rollout._sim.episode_rewards, dtype=float),
             action_timeouts=np.array(rollout.timeout_counts, dtype=float),
             stats=rollout._sim.episode_stats,
-            replay_path=episode_replay_writer.get_written_replay_paths()[0] if episode_replay_writer is not None else None,
+            replay_path=replay_path,
         )
 
         episode_results.append(result)
@@ -122,6 +126,4 @@ def multi_episode_rollout(
         if progress_callback is not None:
             progress_callback(episode_idx)
 
-    return MultiEpisodeRolloutResult(
-        episodes=episode_results
-    )
+    return MultiEpisodeRolloutResult(episodes=episode_results)

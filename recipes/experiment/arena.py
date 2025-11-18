@@ -12,7 +12,6 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.request_remote_eval import RequestRemoteEvalTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 
@@ -133,7 +132,3 @@ def replay(policy_uri: Optional[str] = None) -> ReplayTool:
 
 def play(policy_uri: Optional[str] = None) -> PlayTool:
     return PlayTool(sim=simulations()[0], policy_uri=policy_uri)
-
-
-def request_remote_eval(policy_uri: str) -> RequestRemoteEvalTool:
-    return RequestRemoteEvalTool(policy_uri=policy_uri, simulations=simulations())
