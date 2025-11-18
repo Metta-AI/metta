@@ -36,7 +36,11 @@ class LossesConfig(Config):
     kickstarter: KickstarterConfig = Field(default_factory=lambda: KickstarterConfig(enabled=False))
 
     def _configs(self) -> dict[str, LossConfig]:
+        # losses are run in the order they are listed here. This is not ideal and we should refactor this config.
+        # also, the way it's setup doesn't let the experimenter give names to losses.
         loss_configs: dict[str, LossConfig] = {}
+        if self.action_supervisor.enabled:
+            loss_configs["action_supervisor"] = self.action_supervisor
         if self.ppo_critic.enabled:
             loss_configs["ppo_critic"] = self.ppo_critic
         if self.ppo_actor.enabled:
@@ -45,8 +49,6 @@ class LossesConfig(Config):
             loss_configs["ppo"] = self.ppo
         if self.contrastive.enabled:
             loss_configs["contrastive"] = self.contrastive
-        if self.action_supervisor.enabled:
-            loss_configs["action_supervisor"] = self.action_supervisor
         if self.grpo.enabled:
             loss_configs["grpo"] = self.grpo
         if self.kickstarter.enabled:
