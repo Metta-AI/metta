@@ -348,10 +348,14 @@ proc step*(
 
     if activeRecipe.pattern.len > 0:
       # Split the cost evenly across the agents.
-      agent.carbonTarget = max(agent.carbonTarget, activeRecipe.carbonCost div activeRecipe.pattern.len)
-      agent.oxygenTarget = max(agent.oxygenTarget, activeRecipe.oxygenCost div activeRecipe.pattern.len)
-      agent.germaniumTarget = max(agent.germaniumTarget, activeRecipe.germaniumCost div activeRecipe.pattern.len)
-      agent.siliconTarget = max(agent.siliconTarget, activeRecipe.siliconCost div activeRecipe.pattern.len)
+      proc divUp(a, b: int): int =
+        ## Like div, but rounds up instead of down.
+        let extra = if a mod b > 0: 1 else: 0
+        return a div b + extra
+      agent.carbonTarget = max(agent.carbonTarget, activeRecipe.carbonCost.divUp(activeRecipe.pattern.len))
+      agent.oxygenTarget = max(agent.oxygenTarget, activeRecipe.oxygenCost.divUp(activeRecipe.pattern.len))
+      agent.germaniumTarget = max(agent.germaniumTarget, activeRecipe.germaniumCost.divUp(activeRecipe.pattern.len))
+      agent.siliconTarget = max(agent.siliconTarget, activeRecipe.siliconCost.divUp(activeRecipe.pattern.len))
     else:
       agent.carbonTarget = max(agent.carbonTarget, activeRecipe.carbonCost)
       agent.oxygenTarget = max(agent.oxygenTarget, activeRecipe.oxygenCost)
