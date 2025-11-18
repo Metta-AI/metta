@@ -279,12 +279,14 @@ def list_variants() -> None:
     console.print(variant_table)
 
 
-def list_missions() -> None:
-    """Print a table listing all available missions."""
+def list_missions(site_filter: Optional[str] = None) -> None:
+    """List missions: sites only by default; expand sub-missions when a site is provided."""
 
     if not SITES:
         console.print("No missions found")
         return
+
+    normalized_filter = site_filter.rstrip(".") if site_filter is not None else None
 
     # Create a single table for all missions
     table = Table(show_header=True, header_style="bold magenta", box=box.ROUNDED, padding=(0, 1))
@@ -294,7 +296,14 @@ def list_missions() -> None:
     table.add_column("Description", style="white")
 
     core_sites = [site for site in SITES if any(m.site.name == site.name for m in MISSIONS)]
-    for idx, site in enumerate(core_sites):
+
+    if normalized_filter is not None:
+        core_sites = [site for site in core_sites if site.name == normalized_filter]
+        if not core_sites:
+            console.print(f"[red]No missions found for site '{normalized_filter}'[/red]")
+            return
+
+    for site in core_sites:
         # Get missions for this site
         site_missions = [mission for mission in MISSIONS if mission.site.name == site.name]
 
@@ -315,13 +324,15 @@ def list_missions() -> None:
             agent_range,
             map_size,
             f"[dim]{site.description}[/dim]",
-            end_section=True,
+            end_section=normalized_filter is None,
         )
+
+        if normalized_filter is None:
+            continue
 
         # Add missions for this site
         for mission_idx, mission in enumerate(site_missions):
             is_last_mission = mission_idx == len(site_missions) - 1
-            is_last_site = idx == len(core_sites) - 1
 
             # Add mission row with description in column
             table.add_row(
@@ -334,33 +345,26 @@ def list_missions() -> None:
             # Add blank row for spacing between missions (except before section separator)
             if not is_last_mission:
                 table.add_row("", "", "", "")
-            elif not is_last_site:
-                # Add separator after last mission if not the last site
-                table.add_row("", "", "", "", end_section=True)
 
     console.print(table)
 
-    console.print("\nTo specify a [bold blue] -m [MISSION][/bold blue], you can:")
-    console.print("  • Use a mission name from above (e.g., [blue]training_facility.harvest[/blue])")
-    console.print("  • Use a path to a mission configuration file, e.g. path/to/mission.yaml")
-    console.print("\nTo specify [bold yellow] -v [VARIANT][/bold yellow] modifiers:")
-    console.print("  • Use multiple --variant flags: [yellow]--variant solar_flare --variant dark_side[/yellow]")
-    console.print("  • Or use the short form: [yellow]-v solar_flare -v rough_terrain[/yellow]")
-    console.print("\nTo specify number of cogs:")
-    console.print("  • Use [green]--cogs N[/green] or [green]-c N[/green] (e.g., [green]-c 4[/green])")
+    console.print("\nTo set [bold blue]-m[/bold blue]:")
+    console.print("  • Use [blue]<site>.<mission>[/blue] (e.g., training_facility.open_world)")
+    console.print("  • Or pass a mission config file path")
+    console.print("  • List a site's missions: [blue]cogames missions training_facility[/blue]")
+    console.print("\nVariants:")
+    console.print("  • Repeat [yellow]--variant <name>[/yellow] (e.g., --variant solar_flare)")
+    console.print("\nCogs:")
+    console.print("  • [green]--cogs N[/green] or [green]-c N[/green]")
     console.print("\n[bold green]Examples:[/bold green]")
-    console.print("  [bold]cogames play[/bold] --mission [blue]training_facility.harvest[/blue]")
+    console.print("  cogames missions")
+    console.print("  cogames missions training_facility")
+    console.print("  cogames play --mission [blue]training_facility.open_world[/blue]")
     console.print(
-        "  [bold]cogames play[/bold] --mission [blue]hello_world.explore[/blue] --variant [yellow]mined_out[/yellow]"
+        "  cogames play --mission [blue]machina_1.open_world[/blue] "
+        "--variant [yellow]solar_flare[/yellow] --variant [yellow]rough_terrain[/yellow] --cogs [green]8[/green]"
     )
-    console.print(
-        "  [bold]cogames play[/bold] --mission [blue]machina_1.open_world[/blue] "
-        "--variant [yellow]solar_flare[/yellow] --variant [yellow]rough_terrain[/yellow] "
-        "--cogs [green]8[/green]"
-    )
-    console.print(
-        "  [bold]cogames train[/bold] --mission [blue]training_facility.harvest[/blue] --cogs [green]4[/green]"
-    )
+    console.print("  cogames train --mission [blue]<site>.<mission>[/blue] --cogs [green]4[/green]")
 
 
 def list_evals() -> None:
