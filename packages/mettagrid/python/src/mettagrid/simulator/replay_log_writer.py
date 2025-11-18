@@ -111,16 +111,12 @@ class EpisodeReplay:
             "objects": self.objects,
         }
 
-        # Capture the environment's starting state (step 0) before any actions are taken.
-        initial_step = sim.current_step
-        self._log_state(
-            step=initial_step,
+        # Log the environment's initial state (usually step 0) through the normal step path.
+        self.log_step(
+            current_step=sim.current_step,
             actions=sim._c_sim.actions(),  # type: ignore[attr-defined]
             rewards=sim._c_sim.rewards(),  # type: ignore[attr-defined]
-            action_success=sim.action_success,
-            apply_rewards=False,
         )
-        self.step = initial_step
 
     def log_step(self, current_step: int, actions: np.ndarray, rewards: np.ndarray):
         """Log a single step of the episode."""
@@ -132,13 +128,22 @@ class EpisodeReplay:
                 "Probably a vecenv issue."
             )
 
-        self._log_state(
-            step=current_step,
-            actions=actions,
-            rewards=rewards,
-            action_success=self.sim.action_success,
-            apply_rewards=True,
-        )
+        self.total_rewards += rewards
+
+        for i, grid_object in enumerate(self.sim.grid_objects().values()):
+            if len(self.objects) <= i:
+                self.objects.append({})
+
+            update_object = format_grid_object(
+                grid_object,
+                actions,
+                self.sim.action_success,
+                rewards,
+                self.total_rewards,
+            )
+
+            self._seq_key_merge(self.objects[i], step=current_step, update_object=update_object)
+
         self.step = current_step
 
     def _seq_key_merge(self, grid_object: dict, step: int, update_object: dict):
@@ -183,35 +188,6 @@ class EpisodeReplay:
         compressed_data = zlib.compress(replay_bytes)  # Compress the bytes
 
         write_data(path, compressed_data, content_type="application/x-compress")
-
-    def _log_state(
-        self,
-        step: int,
-        actions: np.ndarray,
-        rewards: np.ndarray,
-        action_success: np.ndarray | list,
-        *,
-        apply_rewards: bool,
-    ) -> None:
-        """Record the current grid objects at a specific step."""
-        if apply_rewards:
-            self.total_rewards += rewards
-
-        for i, grid_object in enumerate(self.sim.grid_objects().values()):
-            if len(self.objects) <= i:
-                self.objects.append({})
-
-            update_object = format_grid_object(
-                grid_object,
-                actions,
-                action_success,
-                rewards,
-                self.total_rewards,
-            )
-
-            self._seq_key_merge(self.objects[i], step=step, update_object=update_object)
-
-        # No additional bookkeeping needed; caller handles step tracking.
 
     @staticmethod
     def _validate_non_empty_string_list(values: list[str], field_name: str) -> None:
