@@ -13,6 +13,7 @@ def copy_latest_checkpoint(src_dir: str, dest_dir: str) -> Path:
 
     If no local checkpoints are found, attempts to pull the latest via CheckpointManager
     (supports remote prefixes) based on the run and data_dir inferred from src_dir.
+    As an additional guard, searches the entire train_dir for a checkpoint matching the run name.
 
     Returns the destination path of the copied file.
     Raises FileNotFoundError if no checkpoints are found locally or remotely.
@@ -25,6 +26,17 @@ def copy_latest_checkpoint(src_dir: str, dest_dir: str) -> Path:
     if checkpoints:
         latest = checkpoints[-1]
         dest_path = dest / latest.name
+        shutil.copy2(latest, dest_path)
+        return dest_path
+
+    # Broader local search: look anywhere under train_dir for this run's checkpoints
+    run_name = src.parent.name
+    root_train_dir = Path("./train_dir")
+    candidates = sorted(root_train_dir.rglob(f"{run_name}:v*.mpt"), key=lambda x: x.stat().st_mtime)
+    if candidates:
+        latest = candidates[-1]
+        dest_path = dest / latest.name
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(latest, dest_path)
         return dest_path
 
