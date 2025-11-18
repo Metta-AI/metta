@@ -182,7 +182,9 @@ def _truncate_name(name: str, max_length: int = 60) -> str:
     return name[-max_length:]
 
 
-def render_eval_summary(rollout_results: list[SimulationRunResult], policy_names: list[str]) -> None:
+def render_eval_summary(
+    rollout_results: list[SimulationRunResult], policy_names: list[str], verbose: bool = False
+) -> None:
     policy_names = [_truncate_name(name) for name in policy_names]
     summaries = build_multi_episode_rollout_summaries(
         [result.results for result in rollout_results], num_policies=len(policy_names)
@@ -211,7 +213,7 @@ def render_eval_summary(rollout_results: list[SimulationRunResult], policy_names
             text_output = console.export_text()
             logger.info("\n%s", text_output)
 
-    if len(policy_names) > 1:
+    if len(policy_names) > 1 and verbose:
         _print("\n[bold cyan]Policy Assignments[/bold cyan]")
         assignment_table = Table(show_header=True, header_style="bold magenta")
         assignment_table.add_column("Simulation")
@@ -226,17 +228,18 @@ def render_eval_summary(rollout_results: list[SimulationRunResult], policy_names
                 )
         _print(assignment_table)
 
-    _print("\n[bold cyan]Average Game Stats[/bold cyan]")
-    game_stats_table = Table(show_header=True, header_style="bold magenta")
-    game_stats_table.add_column("Simulation")
-    game_stats_table.add_column("Metric")
-    game_stats_table.add_column("Average", justify="right")
-    for s_name, s in sim_summaries:
-        for key, value in s.avg_game_stats.items():
-            game_stats_table.add_row(s_name, key, f"{value:.2f}")
-    _print(game_stats_table)
+    if verbose:
+        _print("\n[bold cyan]Average Game Stats[/bold cyan]")
+        game_stats_table = Table(show_header=True, header_style="bold magenta")
+        game_stats_table.add_column("Simulation")
+        game_stats_table.add_column("Metric")
+        game_stats_table.add_column("Average", justify="right")
+        for s_name, s in sim_summaries:
+            for key, value in s.avg_game_stats.items():
+                game_stats_table.add_row(s_name, key, f"{value:.2f}")
+        _print(game_stats_table)
 
-    if any(policy.action_timeouts for s in summaries for policy in s.policy_summaries):
+    if verbose and any(policy.action_timeouts for s in summaries for policy in s.policy_summaries):
         _print("\n[bold cyan]Action Generation Timeouts per Policy[/bold cyan]")
         timeouts_table = Table(show_header=True, header_style="bold magenta")
         timeouts_table.add_column("Simulation")
@@ -252,20 +255,21 @@ def render_eval_summary(rollout_results: list[SimulationRunResult], policy_names
                     )
         _print(timeouts_table)
 
-    _print("\n[bold cyan]Average Policy Stats[/bold cyan]")
-    for i, policy_name in enumerate(policy_names):
-        policy_table = Table(title=policy_name, show_header=True, header_style="bold magenta")
-        policy_table.add_column("Simulation")
-        policy_table.add_column("Metric")
-        policy_table.add_column("Average", justify="right")
-        for s_name, s in sim_summaries:
-            metrics = s.policy_summaries[i].avg_agent_metrics
-            if not metrics:
-                policy_table.add_row(s_name, "-", "-")
-                continue
-            for key, value in metrics.items():
-                policy_table.add_row(s_name, key, f"{value:.2f}")
-        _print(policy_table)
+    if verbose:
+        _print("\n[bold cyan]Average Policy Stats[/bold cyan]")
+        for i, policy_name in enumerate(policy_names):
+            policy_table = Table(title=policy_name, show_header=True, header_style="bold magenta")
+            policy_table.add_column("Simulation")
+            policy_table.add_column("Metric")
+            policy_table.add_column("Average", justify="right")
+            for s_name, s in sim_summaries:
+                metrics = s.policy_summaries[i].avg_agent_metrics
+                if not metrics:
+                    policy_table.add_row(s_name, "-", "-")
+                    continue
+                for key, value in metrics.items():
+                    policy_table.add_row(s_name, key, f"{value:.2f}")
+            _print(policy_table)
 
     _print("\n[bold cyan]Average Per-Agent Reward [/bold cyan]")
     summary_table = Table(show_header=True, header_style="bold magenta")
