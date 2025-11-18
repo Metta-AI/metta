@@ -171,7 +171,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
         # First, handle explicitly configured limits (both individual and grouped)
         configured_resources = set()
-        for resource_limit in agent_props["resource_limits"]:
+        for resource_limit in agent_props["resource_limits"].values():
             # Convert resource names to IDs
             resource_ids = [resource_name_to_id[name] for name in resource_limit["resources"]]
             limits_list.append((resource_ids, resource_limit["limit"]))
@@ -283,7 +283,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
             # Create inventory config with limits
             limits_list = []
-            for resource_limit in object_config.resource_limits:
+            for resource_limit in object_config.resource_limits.values():
                 # resources is always a list of strings
                 resource_list = resource_limit.resources
 

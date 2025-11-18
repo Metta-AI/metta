@@ -11,31 +11,21 @@ bindings_dir = os.path.join(current_dir, "bindings/generated")
 if bindings_dir not in sys.path:
     sys.path.append(bindings_dir)
 
-# Lazy import - will be loaded when needed
-_na_module = None
-
-
-def _get_nim_agents_module():
-    """Lazy import of nim_agents module."""
-    global _na_module
-    if _na_module is None:
-        _na_module = importlib.import_module("nim_agents")
-    return _na_module
+na = importlib.import_module("nim_agents")
 
 
 def start_measure():
-    _get_nim_agents_module().start_measure()
+    na.start_measure()
 
 
 def end_measure():
-    _get_nim_agents_module().end_measure()
+    na.end_measure()
 
 
 class ThinkyAgentsMultiPolicy(NimMultiAgentPolicy):
     short_names = ["nim_thinky", "thinky"]
 
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_ids: Sequence[int] | None = None):
-        na = _get_nim_agents_module()
         super().__init__(
             policy_env_info,
             nim_policy_factory=na.ThinkyPolicy,
@@ -47,7 +37,6 @@ class RandomAgentsMultiPolicy(NimMultiAgentPolicy):
     short_names = ["nim_random"]
 
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_ids: Sequence[int] | None = None):
-        na = _get_nim_agents_module()
         super().__init__(
             policy_env_info,
             nim_policy_factory=na.RandomPolicy,
@@ -59,7 +48,6 @@ class RaceCarAgentsMultiPolicy(NimMultiAgentPolicy):
     short_names = ["nim_race_car"]
 
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_ids: Sequence[int] | None = None):
-        na = _get_nim_agents_module()
         super().__init__(
             policy_env_info,
             nim_policy_factory=na.RaceCarPolicy,
@@ -71,7 +59,6 @@ class LadyBugAgentsMultiPolicy(NimMultiAgentPolicy):
     short_names = ["nim_ladybug"]
 
     def __init__(self, policy_env_info: PolicyEnvInterface, agent_ids: Sequence[int] | None = None):
-        na = _get_nim_agents_module()
         super().__init__(
             policy_env_info,
             nim_policy_factory=na.LadybugPolicy,

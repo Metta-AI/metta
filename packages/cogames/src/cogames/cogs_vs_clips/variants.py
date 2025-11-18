@@ -34,10 +34,6 @@ class LonelyHeartVariant(MissionVariant):
     description: str = "Making hearts for one agent is easy."
 
     @override
-    def compat(self, mission):
-        return hasattr(mission, "assembler") and hasattr(mission, "germanium_extractor")
-
-    @override
     def modify_mission(self, mission):
         mission.assembler.first_heart_cost = 1
         mission.assembler.additional_heart_cost = 0
@@ -199,10 +195,6 @@ class VibeCheckMin2Variant(MissionVariant):
     min_vibes: int = 2
 
     @override
-    def compat(self, mission):
-        return hasattr(mission, "assembler")
-
-    @override
     def modify_env(self, mission, env):
         assembler = env.game.objects["assembler"]
         if not isinstance(assembler, AssemblerConfig):
@@ -231,10 +223,6 @@ class Small50Variant(MissionVariant):
 class CogToolsOnlyVariant(MissionVariant):
     name: str = "cog_tools_only"
     description: str = "Gear tools (decoder/modulator/scrambler/resonator) require only the 'gear/cog' vibe."
-
-    @override
-    def compat(self, mission):
-        return hasattr(mission, "assembler")
 
     @override
     def modify_env(self, mission, env) -> None:
@@ -273,7 +261,7 @@ class InventoryHeartTuneVariant(MissionVariant):
             agent_cfg.initial_inventory = dict(agent_cfg.initial_inventory)
 
             def _limit_for(resource: str) -> int:
-                return agent_cfg.get_limit(resource)
+                return agent_cfg.get_limit_for_resource(resource)
 
             for resource_name, per_heart_value in per_heart.items():
                 current = int(agent_cfg.initial_inventory.get(resource_name, 0))
@@ -283,29 +271,17 @@ class InventoryHeartTuneVariant(MissionVariant):
 
         if self.heart_capacity is not None:
             agent_cfg = env.game.agent
-            # Find existing heart limit or create new one
-            heart_limit_obj = None
-            for resource_limit in agent_cfg.resource_limits:
-                if "heart" in resource_limit.resources:
-                    heart_limit_obj = resource_limit
-                    break
-
-            if heart_limit_obj is not None:
-                heart_limit_obj.limit = max(int(heart_limit_obj.limit), int(self.heart_capacity))
-            else:
-                agent_cfg.resource_limits.append(
-                    ResourceLimitsConfig(name="heart", limit=int(self.heart_capacity), resources=["heart"])
-                )
+            hearts_limit = agent_cfg.resource_limits.get("heart")
+            if hearts_limit is None:
+                hearts_limit = ResourceLimitsConfig(limit=self.heart_capacity, resources=["heart"])
+            hearts_limit.limit = max(int(hearts_limit.limit), int(self.heart_capacity))
+            agent_cfg.resource_limits["heart"] = hearts_limit
 
 
 class ChestHeartTuneVariant(MissionVariant):
     name: str = "chest_heart_tune"
     description: str = "Tune chest starting inventory to N hearts worth of inputs."
     hearts: int = 2
-
-    @override
-    def compat(self, mission):
-        return hasattr(mission, "chest") and hasattr(mission, "assembler")
 
     @override
     def modify_env(self, mission, env) -> None:

@@ -90,7 +90,7 @@ class EvalVariant(MissionVariant):
 
         # Global quality-of-life tweaks for evals
         # 1) Double agent inventory caps for core resources and gear
-        for limit in env.game.agent.resource_limits:
+        for limit in env.game.agent.resource_limits.values():
             for resource in (
                 "carbon",
                 "oxygen",

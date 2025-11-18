@@ -242,15 +242,9 @@ class _DiagnosticMissionBase(Mission):
             if not isinstance(obj, ChestConfig):
                 continue
             # Find existing heart limit or create new one
-            current_limit = obj.get_limit("heart")
-            if current_limit is not None:
-                # Find the existing resource_limit object to update it
-                for resource_limit in obj.resource_limits:
-                    if "heart" in resource_limit.resources:
-                        resource_limit.limit = 1
-                        break
-            else:
-                obj.resource_limits.append(ResourceLimitsConfig(name="heart", limit=1, resources=["heart"]))
+            heart_limit = obj.resource_limits.get("heart", ResourceLimitsConfig(limit=1, resources=["heart"]))
+            heart_limit.limit = 1
+            obj.resource_limits["heart"] = heart_limit
 
     def _ensure_minimal_heart_recipe(self, assembler: AssemblerConfig) -> None:
         minimal_inputs = {

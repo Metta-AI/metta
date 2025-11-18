@@ -18,9 +18,9 @@ class TestChest:
                 "down": {"gold": 1},  # When showing deposit vibe, deposit 1 gold
                 "up": {"gold": -1},  # When showing withdraw vibe, withdraw 1 gold
             },
-            resource_limits=[
-                ResourceLimitsConfig(name="gold", limit=100, resources=["gold"])
-            ],  # Chest can hold up to 100 gold
+            resource_limits={
+                "gold": ResourceLimitsConfig(limit=100, resources=["gold"]),
+            },
         )
 
         cfg = cfg.with_ascii_map(

@@ -38,10 +38,10 @@ def create_basic_config() -> GameConfig:
         max_steps=100,
         agent=AgentConfig(
             freeze_duration=0,
-            resource_limits=[
-                ResourceLimitsConfig(name="ore", limit=10, resources=["ore"]),
-                ResourceLimitsConfig(name="wood", limit=10, resources=["wood"]),
-            ],
+            resource_limits={
+                "ore": ResourceLimitsConfig(limit=10, resources=["ore"]),
+                "wood": ResourceLimitsConfig(limit=10, resources=["wood"]),
+            },
         ),
         actions=ActionsConfig(move=MoveActionConfig(), noop=NoopActionConfig()),
         objects={"wall": WallConfig()},
@@ -197,10 +197,10 @@ class TestResourceRequirements:
             obs=basic_config.obs,
             agent=AgentConfig(
                 freeze_duration=0,
-                resource_limits=[
-                    ResourceLimitsConfig(name="ore", limit=10, resources=["ore"]),
-                    ResourceLimitsConfig(name="wood", limit=10, resources=["wood"]),
-                ],
+                resource_limits={
+                    "ore": ResourceLimitsConfig(limit=10, resources=["ore"]),
+                    "wood": ResourceLimitsConfig(limit=10, resources=["wood"]),
+                },
                 initial_inventory={"ore": 5, "wood": 3},
             ),
             actions=ActionsConfig(

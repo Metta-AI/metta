@@ -110,11 +110,11 @@ class TestProgrammaticEnvironments:
                             "battery_red": 0.8,
                         },
                     ),
-                    resource_limits=[
-                        ResourceLimitsConfig(name="heart", limit=255, resources=["heart"]),
-                        ResourceLimitsConfig(name="ore_red", limit=10, resources=["ore_red"]),
-                        ResourceLimitsConfig(name="battery_red", limit=5, resources=["battery_red"]),
-                    ],
+                    resource_limits={
+                        "heart": ResourceLimitsConfig(limit=255, resources=["heart"]),
+                        "ore_red": ResourceLimitsConfig(limit=10, resources=["ore_red"]),
+                        "battery_red": ResourceLimitsConfig(limit=5, resources=["battery_red"]),
+                    },
                 ),
                 map_builder=RandomMapBuilder.Config(
                     agents=2,
@@ -133,9 +133,9 @@ class TestProgrammaticEnvironments:
         assert rewards["battery_red"] == 0.8
 
         # Verify resource limits
-        assert config.game.agent.get_limit("heart") == 255
-        assert config.game.agent.get_limit("ore_red") == 10
-        assert config.game.agent.get_limit("battery_red") == 5
+        assert config.game.agent.get_limit_for_resource("heart") == 255
+        assert config.game.agent.get_limit_for_resource("ore_red") == 10
+        assert config.game.agent.get_limit_for_resource("battery_red") == 5
 
     def test_config_with_teams(self):
         """Test creating an environment with agent teams."""

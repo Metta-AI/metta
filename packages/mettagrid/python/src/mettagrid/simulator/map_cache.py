@@ -15,6 +15,12 @@ import numpy as np
 
 from mettagrid.map_builder.map_builder import GameMap, MapBuilderConfig
 
+"""
+This is an LLM Generated memory cache for GameMap objects across processes. Ideally
+we make MapGen fast enough to not need this, but for now it allows training on
+large maps.
+"""
+
 logger = logging.getLogger(__name__)
 
 # Global cache registry file and lock - these coordinate access across processes

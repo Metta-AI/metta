@@ -180,18 +180,16 @@ class Mission(Config):
                 ),
             ),
             agent=AgentConfig(
-                resource_limits=[
-                    ResourceLimitsConfig(name="heart", limit=self.heart_capacity, resources=["heart"]),
-                    ResourceLimitsConfig(name="energy", limit=self.energy_capacity, resources=["energy"]),
-                    ResourceLimitsConfig(
-                        name="cargo", limit=self.cargo_capacity, resources=["carbon", "oxygen", "germanium", "silicon"]
+                resource_limits={
+                    "heart": ResourceLimitsConfig(limit=self.heart_capacity, resources=["heart"]),
+                    "energy": ResourceLimitsConfig(limit=self.energy_capacity, resources=["energy"]),
+                    "cargo": ResourceLimitsConfig(
+                        limit=self.cargo_capacity, resources=["carbon", "oxygen", "germanium", "silicon"]
                     ),
-                    ResourceLimitsConfig(
-                        name="gear",
-                        limit=self.gear_capacity,
-                        resources=["scrambler", "modulator", "decoder", "resonator"],
+                    "gear": ResourceLimitsConfig(
+                        limit=self.gear_capacity, resources=["scrambler", "modulator", "decoder", "resonator"]
                     ),
-                ],
+                },
                 rewards=AgentRewards(
                     stats={"chest.heart.amount": 1 / num_cogs},
                 ),

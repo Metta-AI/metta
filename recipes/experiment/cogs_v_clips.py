@@ -32,25 +32,6 @@ from mettagrid.config.mettagrid_config import MettaGridConfig
 DEFAULT_CURRICULUM_MISSIONS: list[str] = [
     "extractor_hub_30",
     "extractor_hub_50",
-    "collect_resources_classic",
-    "collect_resources_spread",
-    "oxygen_bottleneck",
-    "energy_starved",
-]
-
-SMALL_MAP_MISSIONS: list[str] = [
-    "extractor_hub_30",
-    "collect_resources_classic",
-    "oxygen_bottleneck",
-]
-
-MEDIUM_MAP_MISSIONS: list[str] = [
-    "extractor_hub_50",
-    "collect_resources_spread",
-    "energy_starved",
-]
-
-LARGE_MAP_MISSIONS: list[str] = [
     "extractor_hub_70",
     "collect_resources_classic",
     "collect_resources_spread",
@@ -97,23 +78,6 @@ def _normalize_variant_names(
             if name not in names:
                 names.append(name)
     return names
-
-
-def _clamp_agent_inventory(env: MettaGridConfig) -> None:
-    agent = env.game.agent
-
-    # Clamp resource limits (list of ResourceLimitsConfig objects)
-    for resource_limit in agent.resource_limits:
-        if resource_limit.limit > 255:
-            resource_limit.limit = 255
-
-    # Clamp initial inventory (dict[str, int])
-    for key, value in list(agent.initial_inventory.items()):
-        if isinstance(value, int) and value > 255:
-            agent.initial_inventory[key] = 255
-
-    if agent.default_resource_limit > 255:
-        agent.default_resource_limit = 255
 
 
 def _resolve_mission_template(name: str) -> Mission:
@@ -456,84 +420,6 @@ def play_training_env(
     )
 
 
-# Convenience entrypoints ----------------------------------------------------
-
-
-def train_small_maps(
-    num_cogs: int = 4,
-    variants: Optional[Sequence[str]] = None,
-    eval_variants: Optional[Sequence[str]] = None,
-    eval_difficulty: str | None = "standard",
-    mission: str | None = None,
-) -> TrainTool:
-    """Train on small maps (30x30, classic layouts) or a specific mission."""
-    if mission is not None:
-        return train_single_mission(
-            mission=mission,
-            num_cogs=num_cogs,
-            variants=variants,
-            eval_variants=eval_variants,
-            eval_difficulty=eval_difficulty,
-        )
-    return train(
-        num_cogs=num_cogs,
-        base_missions=list(SMALL_MAP_MISSIONS),
-        variants=variants,
-        eval_variants=eval_variants,
-        eval_difficulty=eval_difficulty,
-    )
-
-
-def train_medium_maps(
-    num_cogs: int = 4,
-    variants: Optional[Sequence[str]] = None,
-    eval_variants: Optional[Sequence[str]] = None,
-    eval_difficulty: str | None = "standard",
-    mission: str | None = None,
-) -> TrainTool:
-    """Train on medium maps (50x50 layouts) or a specific mission."""
-    if mission is not None:
-        return train_single_mission(
-            mission=mission,
-            num_cogs=num_cogs,
-            variants=variants,
-            eval_variants=eval_variants,
-            eval_difficulty=eval_difficulty,
-        )
-    return train(
-        num_cogs=num_cogs,
-        base_missions=list(MEDIUM_MAP_MISSIONS),
-        variants=variants,
-        eval_variants=eval_variants,
-        eval_difficulty=eval_difficulty,
-    )
-
-
-def train_large_maps(
-    num_cogs: int = 8,
-    variants: Optional[Sequence[str]] = None,
-    eval_variants: Optional[Sequence[str]] = None,
-    eval_difficulty: str | None = "standard",
-    mission: str | None = None,
-) -> TrainTool:
-    """Train on large maps with more agents or focus on one mission."""
-    if mission is not None:
-        return train_single_mission(
-            mission=mission,
-            num_cogs=num_cogs,
-            variants=variants,
-            eval_variants=eval_variants,
-            eval_difficulty=eval_difficulty,
-        )
-    return train(
-        num_cogs=num_cogs,
-        base_missions=list(LARGE_MAP_MISSIONS),
-        variants=variants,
-        eval_variants=eval_variants,
-        eval_difficulty=eval_difficulty,
-    )
-
-
 def train_coordination(
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
@@ -542,20 +428,13 @@ def train_coordination(
     mission: str | None = None,
 ) -> TrainTool:
     """Train on coordination-heavy missions or a specific target map."""
-    if mission is not None:
-        return train_single_mission(
-            mission=mission,
-            num_cogs=num_cogs,
-            variants=variants,
-            eval_variants=eval_variants,
-            eval_difficulty=eval_difficulty,
-        )
     return train(
         num_cogs=num_cogs,
         base_missions=list(COORDINATION_MISSIONS),
         variants=variants,
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
+        mission=mission,
     )
 
 
@@ -605,9 +484,6 @@ __all__ = [
     "evaluate",
     "play",
     "play_training_env",
-    "train_small_maps",
-    "train_medium_maps",
-    "train_large_maps",
     "train_coordination",
     "train_fixed_maps",
     "train_proc_maps",

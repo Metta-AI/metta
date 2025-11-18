@@ -82,6 +82,11 @@ class Simulation:
         with self._timer("sim.init.create_c_sim"):
             self.__c_sim = MettaGridCpp(c_cfg, map_grid, self._seed)
 
+        # Compute action_ids from config actions
+        self._action_ids: dict[str, int] = {
+            action.name: idx for idx, action in enumerate(self._config.game.actions.actions())
+        }
+
         # Set buffers on C++ simulation if provided (for PufferEnv shared memory)
         if buffers is not None:
             self.__c_sim.set_buffers(
@@ -188,14 +193,11 @@ class Simulation:
 
     @property
     def action_ids(self) -> dict[str, int]:
-        if not hasattr(self, "_action_ids"):
-            # Build action_ids from config actions (order determines index)
-            self._action_ids = {action.name: idx for idx, action in enumerate(self._config.game.actions.actions())}
         return self._action_ids
 
     @property
     def action_names(self) -> list[str]:
-        return list(self.action_ids.keys())
+        return list(self._action_ids.keys())
 
     @property
     def object_type_names(self) -> list[str]:

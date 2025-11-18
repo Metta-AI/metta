@@ -30,11 +30,11 @@ def create_test_sim(initial_inventory: dict[str, int] | None = None) -> Simulati
         actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
         objects={"wall": WallConfig()},
         agent=AgentConfig(
-            resource_limits=[
-                ResourceLimitsConfig(name="wood", limit=10, resources=["wood"]),
-                ResourceLimitsConfig(name="stone", limit=10, resources=["stone"]),
-                ResourceLimitsConfig(name="iron", limit=10, resources=["iron"]),
-            ],
+            resource_limits={
+                "wood": ResourceLimitsConfig(limit=10, resources=["wood"]),
+                "stone": ResourceLimitsConfig(limit=10, resources=["stone"]),
+                "iron": ResourceLimitsConfig(limit=10, resources=["iron"]),
+            },
             initial_inventory=initial_inventory,
         ),
     )

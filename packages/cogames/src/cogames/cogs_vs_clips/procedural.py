@@ -366,10 +366,6 @@ class EnvNodeVariant[T](MissionVariant, ABC):
 
 
 class MapGenVariant(EnvNodeVariant[MapGenConfig]):
-    @override
-    def compat(self, mission: Mission) -> bool:
-        return isinstance(mission.site.map_builder, MapGenConfig)
-
     @classmethod
     def extract_node(cls, env: MettaGridConfig) -> MapGenConfig:
         map_builder = env.game.map_builder
@@ -381,42 +377,41 @@ class MapGenVariant(EnvNodeVariant[MapGenConfig]):
 class BaseHubVariant(EnvNodeVariant[BaseHubConfig]):
     @override
     def compat(self, mission: Mission) -> bool:
-        if not isinstance(mission.site.map_builder, MapGenConfig):
+        env = mission.make_env()
+        if not isinstance(env.game.map_builder, MapGen.Config):
             return False
-        # Check if the instance would be compatible
-        # We can't fully check without creating the env, but we can check the type
-        return True
+        instance = env.game.map_builder.instance
+        if not isinstance(instance, BaseHub.Config):
+            return False
+        if isinstance(instance, RandomTransform.Config) and isinstance(instance.scene, BaseHub.Config):
+            return True
+        if isinstance(instance, MachinaArena.Config):
+            return True
+        return False
 
     @classmethod
     def extract_node(cls, env: MettaGridConfig) -> BaseHubConfig:
-        map_builder = env.game.map_builder
-        if not isinstance(map_builder, MapGen.Config):
-            raise TypeError("BaseHubVariant can only be applied to MapGen.Config builders")
-        instance = map_builder.instance
+        assert isinstance(env.game.map_builder, MapGen.Config)
+        instance = env.game.map_builder.instance
+
         if isinstance(instance, RandomTransform.Config) and isinstance(instance.scene, BaseHub.Config):
             return instance.scene
+
         elif isinstance(instance, MachinaArena.Config):
             return instance.hub
-        else:
-            raise TypeError("BaseHubVariant can only be applied RandomTransform/BaseHub or MachinaArena scenes")
+
+        raise TypeError("BaseHubVariant can only be applied RandomTransform/BaseHub or MachinaArena scenes")
 
 
 class MachinaArenaVariant(EnvNodeVariant[MachinaArenaConfig]):
-    @override
     def compat(self, mission: Mission) -> bool:
-        if not isinstance(mission.site.map_builder, MapGenConfig):
-            return False
-        # Check if the instance would be MachinaArena.Config
-        # We can't fully check without creating the env, but we can check the type
-        return True
+        env = mission.make_env()
+        return isinstance(env.game.map_builder, MapGen.Config) and isinstance(
+            env.game.map_builder.instance, MachinaArena.Config
+        )
 
     @classmethod
     def extract_node(cls, env: MettaGridConfig) -> MachinaArenaConfig:
-        map_builder = env.game.map_builder
-        if not isinstance(map_builder, MapGen.Config):
-            raise TypeError("MachinaArenaVariant can only be applied to MapGen.Config builders")
-        instance = map_builder.instance
-        if isinstance(instance, MachinaArena.Config):
-            return instance
-        else:
-            raise TypeError("MachinaArenaVariant can only be applied to MachinaArena.Config scenes")
+        assert isinstance(env.game.map_builder, MapGen.Config)
+        assert isinstance(env.game.map_builder.instance, MachinaArena.Config)
+        return env.game.map_builder.instance
