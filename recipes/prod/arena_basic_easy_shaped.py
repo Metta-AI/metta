@@ -108,6 +108,11 @@ def train(
 
     losses_cfg = LossesConfig()
 
+    # OG PPO
+    losses_cfg.ppo_actor.enabled = False
+    losses_cfg.ppo_critic.enabled = False
+    losses_cfg.ppo.enabled = True
+
     # # action supervised with PPO critic loss
     # losses_cfg.ppo_actor.enabled = False
     # losses_cfg.action_supervisor.enabled = True
