@@ -437,11 +437,11 @@ proc validateProtocol*(protocol: JsonNode, protocolIndex: int, objName: string, 
 
   # Validate vibes array contains integers
   if protocol["vibes"].kind == JArray:
-    for i, vibe in protocol["vibes"]:
+    for i, vibe in protocol["vibes"].getElems():
       validateType(vibe, "int", &"{protocolName}.vibes[{i}]", issues)
 
   # Validate inputs and outputs arrays
-  for i, itemAmount in protocol["inputs"]:
+  for i, itemAmount in protocol["inputs"].getElems():
     if itemAmount.kind == JArray and itemAmount.len == 2:
       let itemId = itemAmount[0]
       let count = itemAmount[1]
@@ -458,7 +458,7 @@ proc validateProtocol*(protocol: JsonNode, protocolIndex: int, objName: string, 
         field: &"{protocolName}.inputs[{i}]"
       ))
 
-  for i, itemAmount in protocol["outputs"]:
+  for i, itemAmount in protocol["outputs"].getElems():
     if itemAmount.kind == JArray and itemAmount.len == 2:
       let itemId = itemAmount[0]
       let count = itemAmount[1]
