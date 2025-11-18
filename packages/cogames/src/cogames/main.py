@@ -9,7 +9,7 @@ import logging
 import subprocess
 import sys
 from pathlib import Path
-from typing import Literal, Optional, TypeVar
+from typing import Any, Literal, Optional, TypeVar
 
 import typer
 import yaml  # type: ignore[import]
@@ -40,6 +40,7 @@ from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, submit_command
 from cogames.cli.utils import init_suppress_warnings
 from cogames.curricula import make_rotation
 from cogames.device import resolve_training_device
+from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.policy.loader import discover_and_register_policies
 from mettagrid.policy.policy_registry import get_policy_registry
 from mettagrid.renderer.renderer import RenderMode
@@ -391,21 +392,22 @@ def train_cmd(
 
     # Optional MapGen seed override for deterministic procedural maps during training.
     # We keep this opt-in (via --map-seed) to avoid reducing map diversity by default.
-    from mettagrid.mapgen.mapgen import MapGen
 
     if map_seed is not None:
-        if env_cfg is not None:
-            mb = getattr(env_cfg.game, "map_builder", None)
+        def _maybe_seed(cfg: Any) -> None:
+            mb = getattr(cfg.game, "map_builder", None)
             if isinstance(mb, MapGen.Config) and mb.seed is None:
                 mb.seed = map_seed
+
+        if env_cfg is not None:
+            _maybe_seed(env_cfg)
+
         if supplier is not None:
             base_supplier = supplier
 
-            def _seeded_supplier():
+            def _seeded_supplier() -> Any:
                 cfg = base_supplier()
-                mb = getattr(cfg.game, "map_builder", None)
-                if isinstance(mb, MapGen.Config) and mb.seed is None:
-                    mb.seed = map_seed
+                _maybe_seed(cfg)
                 return cfg
 
             supplier = _seeded_supplier
