@@ -34,9 +34,10 @@ from rich.console import Console
 from rich.table import Table
 
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.sim.runner import SimulationRunConfig, run_simulations
 from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator.multi_episode.rollout import multi_episode_rollout
 from mettagrid.simulator.rollout import Rollout
 
 try:
@@ -311,8 +312,10 @@ def run_tournament(
                 # For regular policies (non-.mpt), use the standard loading mechanism
                 policy = initialize_or_load_policy(
                     policy_env_info,
-                    policy_cfg.class_path,
-                    policy_cfg.data_path,
+                    PolicySpec(
+                        class_path=policy_cfg.class_path,
+                        data_path=policy_cfg.data_path,
+                    ),
                 )
 
             policy_instances.append(policy)
@@ -329,28 +332,44 @@ def run_tournament(
     if env_cfg.game.num_agents != team_size:
         env_cfg.game.num_agents = team_size
 
-    # Run episodes using multi_episode_rollout
-    console.print(f"\n[cyan]Running {num_episodes} episodes with multi_episode_rollout...[/cyan]")
+    # Run episodes using run_simulations
+    console.print(f"\n[cyan]Running {num_episodes} episodes with run_simulations...[/cyan]")
 
     # Use uniform proportions for all policies
     proportions = [1.0] * len(policy_instances)
 
-    progress_counter = {"count": 0}
+    def progress_callback(msg: str) -> None:
+        console.print(f"  {msg}")
 
-    def progress_callback(episode_idx: int) -> None:
-        progress_counter["count"] = episode_idx + 1
-        if (episode_idx + 1) % 10 == 0 or episode_idx + 1 == num_episodes:
-            console.print(f"  Completed {episode_idx + 1}/{num_episodes} episodes")
-
-    rollout_result = multi_episode_rollout(
-        env_cfg=env_cfg,
-        policies=policy_instances,
-        episodes=num_episodes,
-        seed=seed,
+    # Create simulation configuration
+    simulation_config = SimulationRunConfig(
+        env=env_cfg,
+        num_episodes=num_episodes,
         proportions=proportions,
-        progress_callback=progress_callback,
         max_action_time_ms=10000,
     )
+
+    # Create policy initializers that return the already-initialized instances
+    def make_policy_initializer(policy_instance):
+        def initializer(env_interface):
+            return policy_instance
+
+        return initializer
+
+    policy_initializers = [make_policy_initializer(policy) for policy in policy_instances]
+
+    # Run simulations
+    simulation_results = run_simulations(
+        policy_initializers=policy_initializers,
+        simulations=[simulation_config],
+        replay_dir=None,  # No replay recording for tournament
+        seed=seed,
+        enable_replays=False,
+        on_progress=progress_callback,
+    )
+
+    # Extract the rollout result from the first simulation
+    rollout_result = simulation_results[0].results
 
     # Convert multi_episode_rollout results to GameResult format
     game_results = []
