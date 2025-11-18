@@ -91,7 +91,8 @@ class EpisodeReplay:
 
     def __init__(self, sim: Simulation):
         self.sim = sim
-        self.step = 0
+        # Track the last step written to the replay; -1 means "nothing recorded yet".
+        self.step = -1
         self.objects: list[dict[str, Any]] = []
         self.total_rewards = np.zeros(sim.num_agents)
 
@@ -110,31 +111,35 @@ class EpisodeReplay:
             "objects": self.objects,
         }
 
-        # Seed replay with initial object snapshots so validators see agents/objects even at step 0.
-        self._log_initial_state()
+        # Capture the environment's starting state (step 0) before any actions are taken.
+        initial_step = sim.current_step
+        self._log_state(
+            step=initial_step,
+            actions=sim._c_sim.actions(),  # type: ignore[attr-defined]
+            rewards=sim._c_sim.rewards(),  # type: ignore[attr-defined]
+            action_success=sim.action_success,
+            apply_rewards=False,
+        )
+        self.step = initial_step
 
     def log_step(self, current_step: int, actions: np.ndarray, rewards: np.ndarray):
         """Log a single step of the episode."""
-        self.total_rewards += rewards
-        for i, grid_object in enumerate(self.sim.grid_objects().values()):
-            if len(self.objects) <= i:
-                self.objects.append({})
-
-            update_object = format_grid_object(
-                grid_object,
-                actions,
-                self.sim.action_success,
-                rewards,
-                self.total_rewards,
-            )
-
-            self._seq_key_merge(self.objects[i], self.step, update_object)
-        self.step += 1
-        if current_step != self.step:
+        expected_step = self.step + 1
+        if current_step != expected_step:
             raise ValueError(
-                f"Writing multiple steps at once: step {current_step} != Replay step {self.step}."
+                "Writing multiple steps at once: "
+                f"step {current_step} != expected replay step {expected_step}. "
                 "Probably a vecenv issue."
             )
+
+        self._log_state(
+            step=current_step,
+            actions=actions,
+            rewards=rewards,
+            action_success=self.sim.action_success,
+            apply_rewards=True,
+        )
+        self.step = current_step
 
     def _seq_key_merge(self, grid_object: dict, step: int, update_object: dict):
         """Add a sequence keys to replay grid object."""
@@ -179,11 +184,18 @@ class EpisodeReplay:
 
         write_data(path, compressed_data, content_type="application/x-compress")
 
-    def _log_initial_state(self) -> None:
-        """Capture a step-0 snapshot of all grid objects for validation/replay tools."""
-        zero_actions = np.zeros((self.sim.num_agents, 2), dtype=int)
-        zero_rewards = np.zeros(self.sim.num_agents)
-        zero_success = np.zeros(self.sim.num_agents, dtype=bool)
+    def _log_state(
+        self,
+        step: int,
+        actions: np.ndarray,
+        rewards: np.ndarray,
+        action_success: np.ndarray | list,
+        *,
+        apply_rewards: bool,
+    ) -> None:
+        """Record the current grid objects at a specific step."""
+        if apply_rewards:
+            self.total_rewards += rewards
 
         for i, grid_object in enumerate(self.sim.grid_objects().values()):
             if len(self.objects) <= i:
@@ -191,13 +203,15 @@ class EpisodeReplay:
 
             update_object = format_grid_object(
                 grid_object,
-                zero_actions,
-                zero_success,
-                zero_rewards,
+                actions,
+                action_success,
+                rewards,
                 self.total_rewards,
             )
 
-            self._seq_key_merge(self.objects[i], step=0, update_object=update_object)
+            self._seq_key_merge(self.objects[i], step=step, update_object=update_object)
+
+        # No additional bookkeeping needed; caller handles step tracking.
 
     @staticmethod
     def _validate_non_empty_string_list(values: list[str], field_name: str) -> None:
