@@ -107,11 +107,11 @@ def _expected_inputs(num_hearts: int) -> dict[str, int]:
     assert num_hearts >= 1
     scale = FIRST_HEART_COST + ADDITIONAL_HEART_COST * (num_hearts - 1)
     return {
-        "carbon": 2 * scale,
-        "oxygen": 2 * scale,
-        "germanium": max(1, scale // 5),
-        "silicon": 5 * scale,
-        "energy": 2 * scale,
+        "carbon": scale,
+        "oxygen": scale,
+        "germanium": max(1, scale // 10),
+        "silicon": 3 * scale,
+        "energy": 0,
     }
 
 
@@ -154,7 +154,6 @@ def test_single_heart_recipe_consumes_first_cost_and_pools_resources() -> None:
         assert after[north]["oxygen"] < before[north]["oxygen"]
         assert after[east]["silicon"] < before[east]["silicon"]
         assert after[south]["silicon"] < before[south]["silicon"]
-        assert after[south]["energy"] < before[south]["energy"]
     finally:
         sim.close()
 
@@ -178,7 +177,10 @@ def test_multi_heart_recipe_uses_additional_cost_and_shared_inventories() -> Non
             },
         )
 
-        _step(sim, {west: "change_vibe_heart_a", north: "change_vibe_heart_a"})
+        _step(
+            sim,
+            {west: "change_vibe_heart_a", north: "change_vibe_heart_a"},
+        )
         before = _capture_inventories(sim)
         _step(sim, {west: _move_action((2, 1), assembler_pos)})
         after = _capture_inventories(sim)

@@ -28,6 +28,7 @@ from cogames.cli.mission import (
     get_mission_name_and_config,
     get_mission_names_and_configs,
     list_evals,
+    list_missions,
     list_variants,
 )
 from cogames.cli.policy import (
@@ -37,6 +38,7 @@ from cogames.cli.policy import (
     policy_arg_w_proportion_example,
 )
 from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, submit_command
+from cogames.cli.utils import init_suppress_warnings
 from cogames.curricula import make_rotation
 from cogames.device import resolve_training_device
 from mettagrid.policy.loader import discover_and_register_policies
@@ -47,6 +49,7 @@ from mettagrid.simulator import Simulator
 # Always add current directory to Python path
 sys.path.insert(0, ".")
 
+init_suppress_warnings()
 logger = logging.getLogger("cogames.main")
 
 
@@ -105,7 +108,12 @@ def games_cmd(
     ),
     print_cvc_config: bool = typer.Option(False, "--print-cvc-config", help="Print Mission config (CVC config)"),
     print_mg_config: bool = typer.Option(False, "--print-mg-config", help="Print MettaGridConfig"),
+    site: Optional[str] = typer.Argument(None, help="Site to list missions for (e.g., training_facility)"),
 ) -> None:
+    if mission is None:
+        list_missions(site)
+        return
+
     resolved_mission, env_cfg, mission_cfg = get_mission_name_and_config(ctx, mission, variant, cogs)
 
     if print_cvc_config or print_mg_config:
