@@ -330,9 +330,11 @@ def list_missions(site_filter: Optional[str] = None) -> None:
         if normalized_filter is None:
             continue
 
+        # Add missions for this site
         for mission_idx, mission in enumerate(site_missions):
             is_last_mission = mission_idx == len(site_missions) - 1
 
+            # Add mission row with description in column
             table.add_row(
                 mission.full_name(),
                 "",
@@ -340,6 +342,7 @@ def list_missions(site_filter: Optional[str] = None) -> None:
                 mission.description,
             )
 
+            # Add blank row for spacing between missions (except before section separator)
             if not is_last_mission:
                 table.add_row("", "", "", "")
 
