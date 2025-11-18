@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 import gitta as git
 from metta.app_backend.auth import create_user_or_token_dependency
-from metta.app_backend.metta_repo import EvalTaskRow, FinishedTaskStatus, MettaRepo, TaskStatus
+from metta.app_backend.metta_repo import EvalTaskRow, FinishedTaskStatus, MettaRepo, TaskAttemptRow, TaskStatus
 from metta.app_backend.route_logger import timed_http_handler
 from metta.common.util.git_repo import REPO_SLUG
 
@@ -99,6 +99,10 @@ class TaskCountResponse(BaseModel):
 
 class TaskAvgRuntimeResponse(BaseModel):
     avg_runtime: float | None
+
+
+class TaskAttemptsResponse(BaseModel):
+    attempts: list[TaskAttemptRow]
 
 
 def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
@@ -265,6 +269,13 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
         if not task:
             raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
         return task
+
+    @router.get("/{task_id}/attempts", response_model=TaskAttemptsResponse)
+    @timed_http_handler
+    async def get_task_attempts(task_id: int) -> TaskAttemptsResponse:
+        """Get all attempts for a specific task."""
+        attempts = await stats_repo.get_task_attempts(task_id)
+        return TaskAttemptsResponse(attempts=attempts)
 
     @router.get("/{task_id}/logs/{log_type}")
     @timed_http_handler

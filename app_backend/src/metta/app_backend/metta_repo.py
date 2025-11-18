@@ -52,6 +52,23 @@ class EvalTaskRow(BaseModel):
     output_log_path: str | None = None
 
 
+class TaskAttemptRow(BaseModel):
+    """Row model for task_attempts table."""
+
+    model_config = {"from_attributes": True}
+
+    id: int
+    task_id: int
+    attempt_number: int
+    assigned_at: datetime | None
+    assignee: str | None
+    started_at: datetime | None
+    finished_at: datetime | None
+    output_log_path: str | None
+    status: TaskStatus
+    status_details: dict[str, Any] | None
+
+
 class SweepRow(BaseModel):
     id: uuid.UUID
     name: str
@@ -399,6 +416,20 @@ class MettaRepo:
             async with con.cursor(row_factory=class_row(EvalTaskRow)) as cur:
                 await cur.execute("SELECT * FROM eval_tasks_view WHERE id = %s", (task_id,))
                 return await cur.fetchone()
+
+    async def get_task_attempts(self, task_id: int) -> list[TaskAttemptRow]:
+        """Get all attempts for a task, ordered by attempt_number."""
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(TaskAttemptRow)) as cur:
+                await cur.execute(
+                    """
+                    SELECT * FROM task_attempts
+                    WHERE task_id = %s
+                    ORDER BY attempt_number ASC
+                    """,
+                    (task_id,),
+                )
+                return await cur.fetchall()
 
     async def get_all_tasks(
         self,
