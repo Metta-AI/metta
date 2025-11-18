@@ -326,7 +326,7 @@ class EvalTaskWorker:
 
                 if claimed_tasks.tasks:
                     task: EvalTaskResponse = min(claimed_tasks.tasks, key=lambda x: x.assigned_at or datetime.min)
-                    await self._attempt_task(task)
+                    await self.attempt_task(task)
                 else:
                     logger.debug("No tasks claimed")
 
