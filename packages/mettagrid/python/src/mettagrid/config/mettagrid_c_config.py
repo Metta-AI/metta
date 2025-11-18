@@ -437,6 +437,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         clipper_protocols = []
         for protocol_config in clipper.unclipping_protocols:
             cpp_protocol = CppProtocol()
+            cpp_protocol.min_agents = protocol_config.min_agents
             cpp_protocol.vibes = sorted([vibe_name_to_id[vibe] for vibe in protocol_config.vibes])
             cpp_protocol.input_resources = {
                 resource_name_to_id[k]: v for k, v in protocol_config.input_resources.items()

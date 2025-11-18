@@ -1,5 +1,5 @@
 import
-  std/[os, json, tables],
+  std/[os, json],
   fidget2,
   common, panels, replays
 
@@ -66,12 +66,11 @@ proc updateObjectInfo*() =
   if selection.isAgent:
     addParam("Agent ID", $selection.agentId)
     addParam("Reward", $selection.totalReward.at)
-    if replay.config.game.vibeNames.len > 0:
-      let vibeId = selection.vibeId.at
-      if vibeId >= 0 and vibeId < replay.config.game.vibeNames.len:
-        let vibeName = replay.config.game.vibeNames[vibeId]
-        vibeArea.find("**/Icon").fills[0].imageRef = "../../vibe" / vibeName
-        vibeArea.show()
+    let vibeId = selection.vibeId.at
+    let vibeName = getVibeName(vibeId)
+
+    vibeArea.find("**/Icon").fills[0].imageRef = "../../vibe" / vibeName
+    vibeArea.show()
 
   if selection.cooldownRemaining.at > 0:
     addParam("Cooldown Remaining", $selection.cooldownRemaining.at)
@@ -95,11 +94,6 @@ proc updateObjectInfo*() =
     i.find("**/Amount").text = $itemAmount.count
     area.addChild(i)
 
-  proc resourceTableToSeq(table: Table[string, int]): seq[ItemAmount] =
-    ## Converts a resource table to a sequence of item amounts.
-    for name, count in table:
-      let itemId = replay.itemNames.find(name)
-      result.add(ItemAmount(itemId: itemId, count: count))
 
   proc addVibe(area: Node, vibe: string) =
     let v = item.copy()
@@ -113,28 +107,18 @@ proc updateObjectInfo*() =
     for itemAmount in selection.inventory.at:
       inventory.addResource(itemAmount)
 
-  proc addRecipe(
-    vibes: seq[string],
-    inputs: seq[ItemAmount],
-    outputs: seq[ItemAmount],
-  ) =
-    var recipeNode = recipe.copy()
-    for vibe in vibes:
-      recipeNode.find("**/Vibes").addVibe(vibe)
-    for resource in inputs:
-      recipeNode.find("**/Inputs").addResource(resource)
-    for resource in outputs:
-      recipeNode.find("**/Outputs").addResource(resource)
-    recipeArea.addChild(recipeNode)
+  proc addProtocol(protocol: Protocol) =
+    var protocolNode = recipe.copy()
+    for vibe in protocol.vibes:
+      protocolNode.find("**/Vibes").addVibe(vibe.getVibeName())
+    for resource in protocol.inputs:
+      protocolNode.find("**/Inputs").addResource(resource)
+    for resource in protocol.outputs:
+      protocolNode.find("**/Outputs").addResource(resource)
+    recipeArea.addChild(protocolNode)
 
-  for name, obj in replay.config.game.objects:
-    if name == selection.typeName:
-      for recipe in obj.recipes:
-        addRecipe(
-          recipe.pattern,
-          recipe.protocol.inputResources.resourceTableToSeq,
-          recipe.protocol.outputResources.resourceTableToSeq
-        )
+  for protocol in selection.protocols:
+    addProtocol(protocol)
 
   x.position = vec2(0, 0)
   objectInfoPanel.node.removeChildren()
