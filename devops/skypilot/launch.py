@@ -20,7 +20,6 @@ import yaml
 
 import gitta as git
 from devops.skypilot.utils.job_helpers import (
-    check_git_state,
     display_task_summary,
     launch_task,
     set_task_secrets,
@@ -73,15 +72,39 @@ def _validate_run_tool(module_path: str, args: list) -> bool:
         print("[VALIDATION] ✅ Configuration validation successful")
         return True
     except subprocess.CalledProcessError as e:
-        print(red("[VALIDATION] ❌ Configuration validation failed"), flush=True)
+        print(red("[VALIDATION] ❌ Configuration validation failed"))
         if e.stdout:
-            print(e.stdout, flush=True)
+            print(e.stdout)
         if e.stderr:
-            print(red(e.stderr), flush=True)
+            print(red(e.stderr))
         return False
     except FileNotFoundError:
-        print(red("[VALIDATION] ❌ Could not find run.py or uv command"), flush=True)
+        print(red("[VALIDATION] ❌ Could not find run.py or uv command"))
         return False
+
+
+def check_git_state(commit_hash: str) -> str | None:
+    error_lines: list[str] = []
+
+    has_changes, status_output = git.has_uncommitted_changes()
+    if has_changes:
+        error_lines.append(red("❌ You have uncommitted changes that won't be reflected in the cloud job."))
+        error_lines.append("Options:")
+        error_lines.append("  - Commit: git add . && git commit -m 'your message'")
+        error_lines.append("  - Stash: git stash")
+        error_lines.append("\nDebug:\n" + status_output)
+        return "\n".join(error_lines)
+
+    if not git.is_commit_pushed(commit_hash):
+        commit_display = commit_hash[:8]
+        error_lines.append(
+            red(f"❌ Commit {commit_display} hasn't been pushed and won't be reflected in the cloud job.")
+        )
+        error_lines.append("Options:")
+        error_lines.append("  - Push: git push")
+        return "\n".join(error_lines)
+
+    return None
 
 
 def patch_task(
@@ -203,7 +226,7 @@ Examples:
 
     # Handle run ID extraction
     run_id = args.run
-    filtered_args = []
+    filtered_args: list[str] = []
 
     for arg in tool_args:
         if arg.startswith("run="):
@@ -228,7 +251,7 @@ Examples:
     if args.git_ref:
         commit_hash = git.resolve_git_ref(args.git_ref)
         if not commit_hash:
-            print(red(f"❌ Invalid git reference: '{args.git_ref}'"), flush=True)
+            print(red(f"❌ Invalid git reference: '{args.git_ref}'"))
             return 1
     else:
         commit_hash = git.get_current_commit()
@@ -237,14 +260,14 @@ Examples:
         if not args.skip_git_check:
             error_message = check_git_state(commit_hash)
             if error_message:
-                print(error_message, flush=True)
-                print("  - Skip check: add --skip-git-check flag", flush=True)
+                print(error_message)
+                print("  - Skip check: add --skip-git-check flag")
                 return 1
 
     # Validate module path (supports shorthand like 'arena.train' or two-token 'train arena')
     if not validate_module_path(module_path):
-        print(f"❌ Invalid module path: '{module_path}'", flush=True)
-        print("Module path should be like 'arena.train' or 'recipes.experiment.arena.train'", flush=True)
+        print(f"❌ Invalid module path: '{module_path}'")
+        print("Module path should be like 'arena.train' or 'recipes.experiment.arena.train'")
         return 1
 
     assert commit_hash
@@ -305,10 +328,9 @@ Examples:
         return 0
 
     display_task_summary(
-        cmd=f"{module_path} (args: {filtered_args})",
+        task=task,
         commit_hash=commit_hash,
         git_ref=args.git_ref,
-        task=task,
         skip_github=args.skip_git_check,
         copies=args.copies,
     )
@@ -334,6 +356,4 @@ Examples:
 
 if __name__ == "__main__":
     exit_code = main()
-    sys.stdout.flush()
-    sys.stderr.flush()
     sys.exit(exit_code)

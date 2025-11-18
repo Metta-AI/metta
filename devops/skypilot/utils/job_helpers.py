@@ -44,34 +44,9 @@ def launch_task(task: sky.Task) -> str:
     return request_id
 
 
-def check_git_state(commit_hash: str) -> str | None:
-    error_lines = []
-
-    has_changes, status_output = git.has_uncommitted_changes()
-    if has_changes:
-        error_lines.append(red("❌ You have uncommitted changes that won't be reflected in the cloud job."))
-        error_lines.append("Options:")
-        error_lines.append("  - Commit: git add . && git commit -m 'your message'")
-        error_lines.append("  - Stash: git stash")
-        error_lines.append("\nDebug:\n" + status_output)
-        return "\n".join(error_lines)
-
-    if not git.is_commit_pushed(commit_hash):
-        commit_display = commit_hash[:8]
-        error_lines.append(
-            red(f"❌ Commit {commit_display} hasn't been pushed and won't be reflected in the cloud job.")
-        )
-        error_lines.append("Options:")
-        error_lines.append("  - Push: git push")
-        return "\n".join(error_lines)
-
-    return None
-
-
 def display_task_summary(
-    cmd: str,
-    commit_hash: str,
     task: sky.Task,
+    commit_hash: str,
     git_ref: Optional[str] = None,
     skip_github: bool = False,
     copies: int = 1,
@@ -162,6 +137,8 @@ def display_task_summary(
             pass
 
     print(blue("-" * divider_length))
+
+    cmd = f"{task.envs['METTA_MODULE_PATH']} (args: {task.envs['METTA_ARGS']})"
     print(f"\n{bold('Command:')} {yellow(cmd)}")
 
     print(f"\n{divider}")
