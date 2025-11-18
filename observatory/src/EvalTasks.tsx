@@ -225,9 +225,7 @@ export function EvalTasks({ repo }: Props) {
 
         <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-end' }}>
           <div style={{ flex: '1' }}>
-            <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 500 }}>
-              Command
-            </label>
+            <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 500 }}>Command</label>
             <input
               type="text"
               value={command}
