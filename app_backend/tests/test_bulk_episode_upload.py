@@ -2,7 +2,7 @@
 
 import uuid
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import duckdb
 import pytest
@@ -88,19 +88,28 @@ class TestBulkEpisodeUpload:
         return db_path
 
     @pytest.mark.asyncio
-    @patch("metta.app_backend.routes.stats_routes.boto3")
+    @patch("metta.app_backend.routes.stats_routes.aioboto3")
     async def test_bulk_upload_route(
         self,
-        mock_boto3: MagicMock,
+        mock_aioboto3: MagicMock,
         test_client: TestClient,
         test_user_headers: dict[str, str],
         sample_duckdb: Path,
         stats_repo: MettaRepo,
     ):
         """Test the bulk upload route directly via HTTP."""
-        # Mock S3 client
-        mock_s3_client = MagicMock()
-        mock_boto3.client.return_value = mock_s3_client
+        # Mock S3 client with proper async context manager
+        mock_s3_client = AsyncMock()
+        mock_s3_client.upload_file = AsyncMock()
+        mock_s3_client.upload_fileobj = AsyncMock()
+
+        mock_client_context = AsyncMock()
+        mock_client_context.__aenter__.return_value = mock_s3_client
+        mock_client_context.__aexit__.return_value = None
+
+        mock_session = MagicMock()
+        mock_session.client.return_value = mock_client_context
+        mock_aioboto3.Session.return_value = mock_session
 
         with open(sample_duckdb, "rb") as f:
             files = {"file": ("episodes.duckdb", f, "application/octet-stream")}
@@ -140,11 +149,23 @@ class TestBulkEpisodeUpload:
             assert any(abs(m[1] - 15.0) < 0.01 for m in metrics)
 
     @pytest.mark.asyncio
-    @patch("metta.app_backend.routes.stats_routes.boto3")
+    @patch("metta.app_backend.routes.stats_routes.aioboto3")
     async def test_bulk_upload_client(
-        self, mock_boto3: MagicMock, stats_client: StatsClient, sample_duckdb: Path, stats_repo: MettaRepo
+        self, mock_aioboto3: MagicMock, stats_client: StatsClient, sample_duckdb: Path, stats_repo: MettaRepo
     ):
         """Test bulk upload via StatsClient."""
+        # Mock S3 client with proper async context manager
+        mock_s3_client = AsyncMock()
+        mock_s3_client.upload_file = AsyncMock()
+        mock_s3_client.upload_fileobj = AsyncMock()
+
+        mock_client_context = AsyncMock()
+        mock_client_context.__aenter__.return_value = mock_s3_client
+        mock_client_context.__aexit__.return_value = None
+
+        mock_session = MagicMock()
+        mock_session.client.return_value = mock_client_context
+        mock_aioboto3.Session.return_value = mock_session
         # Create a policy and policy version first
         policy_response = stats_client.create_policy(name="test_policy", attributes={}, is_system_policy=False)
         pv_response = stats_client.create_policy_version(
@@ -175,11 +196,23 @@ class TestBulkEpisodeUpload:
             assert row[0] >= 1
 
     @pytest.mark.asyncio
-    @patch("metta.app_backend.routes.stats_routes.boto3")
+    @patch("metta.app_backend.routes.stats_routes.aioboto3")
     async def test_bulk_upload_multiple_episodes(
-        self, mock_boto3: MagicMock, test_client: TestClient, test_user_headers: dict[str, str], stats_repo: MettaRepo
+        self, mock_aioboto3: MagicMock, test_client: TestClient, test_user_headers: dict[str, str], stats_repo: MettaRepo
     ):
         """Test uploading multiple episodes at once."""
+        # Mock S3 client with proper async context manager
+        mock_s3_client = AsyncMock()
+        mock_s3_client.upload_file = AsyncMock()
+        mock_s3_client.upload_fileobj = AsyncMock()
+
+        mock_client_context = AsyncMock()
+        mock_client_context.__aenter__.return_value = mock_s3_client
+        mock_client_context.__aexit__.return_value = None
+
+        mock_session = MagicMock()
+        mock_session.client.return_value = mock_client_context
+        mock_aioboto3.Session.return_value = mock_session
         # Create policy version in the database first
         pv_id = await self._create_policy_version(stats_repo)
 
@@ -224,11 +257,23 @@ class TestBulkEpisodeUpload:
             assert row[0] >= 3
 
     @pytest.mark.asyncio
-    @patch("metta.app_backend.routes.stats_routes.boto3")
+    @patch("metta.app_backend.routes.stats_routes.aioboto3")
     async def test_metric_aggregation(
-        self, mock_boto3: MagicMock, test_client: TestClient, test_user_headers: dict[str, str], stats_repo: MettaRepo
+        self, mock_aioboto3: MagicMock, test_client: TestClient, test_user_headers: dict[str, str], stats_repo: MettaRepo
     ):
         """Test that agent metrics are correctly aggregated to policy metrics."""
+        # Mock S3 client with proper async context manager
+        mock_s3_client = AsyncMock()
+        mock_s3_client.upload_file = AsyncMock()
+        mock_s3_client.upload_fileobj = AsyncMock()
+
+        mock_client_context = AsyncMock()
+        mock_client_context.__aenter__.return_value = mock_s3_client
+        mock_client_context.__aexit__.return_value = None
+
+        mock_session = MagicMock()
+        mock_session.client.return_value = mock_client_context
+        mock_aioboto3.Session.return_value = mock_session
         # Create two policy versions in the database
         pv1_id = await self._create_policy_version(stats_repo)
         pv2_id = await self._create_policy_version(stats_repo)
@@ -302,11 +347,23 @@ class TestBulkEpisodeUpload:
             assert any(abs(v - 20.0) < 0.01 for v in values[:10])
 
     @pytest.mark.asyncio
-    @patch("metta.app_backend.routes.stats_routes.boto3")
+    @patch("metta.app_backend.routes.stats_routes.aioboto3")
     async def test_non_reward_metrics_filtered(
-        self, mock_boto3: MagicMock, test_client: TestClient, test_user_headers: dict[str, str], stats_repo: MettaRepo
+        self, mock_aioboto3: MagicMock, test_client: TestClient, test_user_headers: dict[str, str], stats_repo: MettaRepo
     ):
         """Test that only 'reward' metrics are stored (whitelist)."""
+        # Mock S3 client with proper async context manager
+        mock_s3_client = AsyncMock()
+        mock_s3_client.upload_file = AsyncMock()
+        mock_s3_client.upload_fileobj = AsyncMock()
+
+        mock_client_context = AsyncMock()
+        mock_client_context.__aenter__.return_value = mock_s3_client
+        mock_client_context.__aexit__.return_value = None
+
+        mock_session = MagicMock()
+        mock_session.client.return_value = mock_client_context
+        mock_aioboto3.Session.return_value = mock_session
         # Create policy version in the database first
         pv_id = await self._create_policy_version(stats_repo)
 
