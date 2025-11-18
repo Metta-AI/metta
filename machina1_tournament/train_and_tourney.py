@@ -147,11 +147,11 @@ def train_with_checkpoints(
         "uv",
         "run",
         "./tools/run.py",
-        "experiments.recipes.cvc.small_maps.train",
+        "recipes.prod.cvc.small_maps.train",
         f"run={checkpoint_dir.name}",
         f"num_cogs={num_cogs}",
         f"mission={mission}",  # Train on specific mission
-        'variants=["lonely_heart","heart_chorus","pack_rat","neutral_faced"]',
+        'variants=["lonely_heart","heart_chorus","pack_rat"]',
         f"trainer.total_timesteps={total_timesteps}",
         f"checkpointer.epoch_interval={checkpoint_interval}",
         "evaluator.evaluate_local=true",  # Enable local evaluation
@@ -579,7 +579,7 @@ def main(
         "--run",
         help="Run name for training checkpoint directory (defaults to mission name)",
     ),
-    max_epochs: int = typer.Option(146500, "--max-epochs", help="Maximum training epochs (~150M steps)"),
+    max_epochs: int = typer.Option(1000, "--max-epochs", help="Maximum training epochs (1000 epochs = ~1M steps)"),
     checkpoint_interval: int = typer.Option(50, "--checkpoint-interval", help="Save checkpoint every N epochs"),
     num_episodes: int = typer.Option(50, "--num-episodes", "-n", help="Number of tournament episodes"),
     seed: int = typer.Option(42, "--seed", "-s", help="Random seed"),
