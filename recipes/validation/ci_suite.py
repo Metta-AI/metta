@@ -47,14 +47,11 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
         group=group,
     )
 
-    # Evaluate the trained policy from the training run
-    # TODO: make this use s3 and not local file when github ci perms are set to be able to fetch from s3
-
-    # policy_uri = "s3://softmax-public/policies/{arena_train_name}:latest"
+    # Evaluate the trained policy from the training run (fetch latest from S3 upload)
     arena_eval = JobConfig(
         name=arena_eval_name,
-        module="recipes.prod.arena_basic_easy_shaped.evaluate_latest_in_dir",
-        args=[f"dir_path=./train_dir/{arena_train_name}/checkpoints/"],
+        module="recipes.prod.arena_basic_easy_shaped.evaluate",
+        args=[f'policy_uris=["s3://softmax-public/policies/{arena_train_name}:latest"]'],
         dependency_names=[arena_train_name],
         timeout_s=300,
         group=group,
