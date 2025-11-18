@@ -20,6 +20,8 @@ import shlex
 import subprocess
 import sys
 import traceback
+from datetime import datetime
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Annotated, Callable, Sequence
 
@@ -179,17 +181,22 @@ def _run_cpp_benchmarks(*, verbose: bool = False, extra_args: Sequence[str] | No
     return CheckResult("C++ Benchmarks", passed)
 
 
-def _setup_recipe_logging(log_file: Path) -> None:
+def _setup_recipe_logging(log_file: Path, group: str) -> None:
     """Configure logging to write to file for recipe tests.
 
     All log messages (including from background threads) will be written to the log file.
     This keeps console output clean while still capturing detailed logs.
+    Uses rotating file handler to prevent unbounded log growth.
     """
 
     log_file.parent.mkdir(parents=True, exist_ok=True)
 
-    # Create file handler for all logs
-    file_handler = logging.FileHandler(log_file, mode="a")
+    # Create rotating file handler: max 10MB per file, keep 5 backups (50MB total)
+    file_handler = RotatingFileHandler(
+        log_file,
+        maxBytes=10 * 1024 * 1024,  # 10MB
+        backupCount=5,  # Keep 5 backup files
+    )
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(
         logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
@@ -203,6 +210,15 @@ def _setup_recipe_logging(log_file: Path) -> None:
     # Other loggers will use their default levels (typically WARNING)
     metta_logger = logging.getLogger("metta")
     metta_logger.setLevel(logging.DEBUG)
+
+    # Log run delimiter for easy identification in continuous stream
+    separator = "=" * 80
+    db_filename = f"{group}.sqlite"
+    metta_logger.info(separator)
+    metta_logger.info(f"CI RUN STARTED: {group}")
+    metta_logger.info(f"Database: {db_filename}")
+    metta_logger.info(f"Timestamp: {datetime.now().isoformat()}")
+    metta_logger.info(separator)
 
 
 def _run_recipe_tests(
@@ -240,7 +256,7 @@ def _run_recipe_tests(
 
         # Set up logging to file BEFORE creating JobManager
         log_file = jobs_dir / "ci_runner.log"
-        _setup_recipe_logging(log_file)
+        _setup_recipe_logging(log_file, group)
         console.print(f"💡 Detailed logs: tail -f {log_file}\n")
 
         # Create JobManager after logging is configured

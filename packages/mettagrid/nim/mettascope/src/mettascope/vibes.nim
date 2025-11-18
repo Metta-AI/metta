@@ -19,8 +19,7 @@ find "/UI/Main/**/VibePanel":
 
       # Check if vibeId is valid (within bounds of vibeNames)
       if vibeId < 0 or vibeId >= replay.config.game.vibeNames.len:
-        echo "invalid vibe id: ", vibeId, " (max: ",
-            replay.config.game.vibeNames.len - 1, ")"
+        echo "invalid vibe id: ", vibeId, " (max: ", replay.config.game.vibeNames.len - 1, ")"
         return
 
       # Get the vibe name and find the corresponding action
@@ -29,6 +28,7 @@ find "/UI/Main/**/VibePanel":
       if vibeActionId == -1:
         echo "vibe action not found: change_vibe_", vibeName
         return
+
       let shiftDown = window.buttonDown[KeyLeftShift] or window.buttonDown[KeyRightShift]
 
       if shiftDown:

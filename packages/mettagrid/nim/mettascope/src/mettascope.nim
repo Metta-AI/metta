@@ -135,16 +135,18 @@ find "/UI/Main":
       if commandLineReplay != "":
         if commandLineReplay.startsWith("http"):
           common.replay = EmptyReplay
-          echo "Loading replay from URL: ", commandLineReplay
+          echo "fetching replay from URL: ", commandLineReplay
           let req = startHttpRequest(commandLineReplay)
           req.onError = proc(msg: string) =
             # TODO: Show error to user.
             echo "onError: " & msg
+            echo getCurrentException().getStackTrace()
           req.onResponse = proc(response: HttpResponse) =
             if response.code != 200:
               # TODO: Show error to user.
               echo "Error loading replay: HTTP ", response.code, " ", response.body
               return
+            echo "replay fetched, loading..."
             common.replay = loadReplay(response.body, commandLineReplay)
             onReplayLoaded()
         else:
@@ -198,4 +200,6 @@ when isMainModule:
 
   while isRunning():
     tickFidget()
+    when not defined(emscripten):
+      pollHttp()
   closeFidget()

@@ -12,8 +12,8 @@ if TYPE_CHECKING:
 from .base import MiniscopeComponent
 
 try:
-    from cogames.cogs_vs_clips.vibes import VIBES as VIBE_DATA
-    from cogames.cogs_vs_clips.vibes import search_vibes
+    from mettagrid.config.vibes import VIBES as VIBE_DATA
+    from mettagrid.config.vibes import search_vibes
 except ImportError:
     VIBE_DATA = None
     search_vibes = None

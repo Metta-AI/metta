@@ -77,6 +77,25 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
     # CvC Small Maps - Stable Tests
     # ========================================
 
+    # 200-epoch mettabox sanity check (~105M timesteps)
+    cvc_small_200ep_name = f"{prefix}.cvc_small_mettabox_200ep"
+    cvc_small_200ep_timesteps = 200 * 524_288  # 200 epochs * default batch size
+    cvc_small_train_200ep = JobConfig(
+        name=cvc_small_200ep_name,
+        module="recipes.prod.cvc.small_maps.train",
+        args=[
+            f"run={cvc_small_200ep_name}",
+            f"trainer.total_timesteps={cvc_small_200ep_timesteps}",
+            "num_cogs=4",
+            'variants=["lonely_heart","heart_chorus","pack_rat"]',
+        ],
+        timeout_s=43200,
+        remote=RemoteConfig(gpus=1, nodes=1),
+        is_training_job=True,
+        metrics_to_track=["env_agent/heart.gained"],
+        acceptance_criteria=[AcceptanceCriterion(metric="env_agent/heart.gained", operator=">", threshold=0.0)],
+    )
+
     # Multi-GPU training - 2B timesteps
     cvc_small_train_name = f"{prefix}.cvc_small_multi_gpu_2b"
     cvc_small_train_2b = JobConfig(
@@ -86,7 +105,7 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
             f"run={cvc_small_train_name}",
             "trainer.total_timesteps=2000000000",
             "num_cogs=4",
-            'variants=["lonely_heart","heart_chorus","pack_rat","neutral_faced"]',
+            'variants=["lonely_heart","heart_chorus","pack_rat"]',
         ],
         timeout_s=172800,
         remote=RemoteConfig(gpus=4, nodes=4),
@@ -99,5 +118,6 @@ def get_stable_jobs(prefix: str) -> list[JobConfig]:
         arena_train_100m,
         arena_train_2b,
         arena_eval,
+        cvc_small_train_200ep,
         cvc_small_train_2b,
     ]

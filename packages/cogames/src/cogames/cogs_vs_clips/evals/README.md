@@ -568,17 +568,28 @@ uv run cogames play --mission evals.go_together --cogs 4 --difficulty standard
 
 ```bash
 # Evaluate a single agent on all missions and difficulties
-uv run python packages/cogames/scripts/evaluate_scripted_agents.py \
+uv run python packages/cogames/scripts/run_evaluation.py \
   --agent simple \
   --steps 1000 \
   --output eval_simple.json
 
 # Evaluate with specific difficulty filter
-uv run python packages/cogames/scripts/evaluate_scripted_agents.py \
+uv run python packages/cogames/scripts/run_evaluation.py \
   --agent coordinating \
   --difficulties clipped_oxygen clipped_silicon \
   --steps 1000 \
   --output eval_coordinating_clipped.json
+```
+
+### Spanning Eval Suite (Integrated Evals)
+
+```bash
+# Evaluate a policy on the integrated eval suite (spanning evals)
+uv run python packages/cogames/scripts/run_evaluation.py \
+  --agent cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy \
+  --mission-set integrated_evals \
+  --cogs 4 \
+  --repeats 2
 ```
 
 ### Testing Specific Scenarios
@@ -685,13 +696,14 @@ Why these choices:
 Run the set:
 
 ```bash
-uv run packages/cogames/scripts/evaluate_policies.py \
-  --eval-module cogames.cogs_vs_clips.evals.integrated_eval \
-  --policy cogames.policy.fast_agents.agents.ThinkyAgentsMultiPolicy \
-  --cogs 4 --repeats 2 --quiet
+uv run python packages/cogames/scripts/run_evaluation.py \
+  --agent cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy \
+  --mission-set integrated_evals \
+  --cogs 4 \
+  --repeats 2
 ```
 
-Tip: For quick CI smoke tests, pass `--sample 2` to evaluate a random subset deterministically with `--seed`.
+Tip: For quick CI smoke tests, restrict `--experiments` to a small subset of missions.
 
 ---
 

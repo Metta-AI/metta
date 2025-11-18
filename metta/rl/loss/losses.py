@@ -7,6 +7,7 @@ from metta.agent.policy import Policy
 from metta.rl.loss import contrastive_config
 from metta.rl.loss.action_supervised import ActionSupervisedConfig
 from metta.rl.loss.grpo import GRPOConfig
+from metta.rl.loss.kickstarter import KickstarterConfig
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.loss.ppo import PPOConfig
 from metta.rl.loss.ppo_actor import PPOActorConfig
@@ -32,6 +33,7 @@ class LossesConfig(Config):
     )
     action_supervisor: ActionSupervisedConfig = Field(default_factory=lambda: ActionSupervisedConfig(enabled=False))
     grpo: GRPOConfig = Field(default_factory=lambda: GRPOConfig(enabled=False))
+    kickstarter: KickstarterConfig = Field(default_factory=lambda: KickstarterConfig(enabled=False))
 
     def _configs(self) -> dict[str, LossConfig]:
         loss_configs: dict[str, LossConfig] = {}
@@ -47,6 +49,8 @@ class LossesConfig(Config):
             loss_configs["ppo_critic"] = self.ppo_critic
         if self.ppo_actor.enabled:
             loss_configs["ppo_actor"] = self.ppo_actor
+        if self.kickstarter.enabled:
+            loss_configs["kickstarter"] = self.kickstarter
         return loss_configs
 
     def init_losses(
