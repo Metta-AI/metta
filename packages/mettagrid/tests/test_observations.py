@@ -90,12 +90,15 @@ class TestObservations:
         compass_feature_id = basic_sim.config.game.id_map().feature_id("agent:compass")
         helper = ObservationHelper()
 
-        # Map agent_id -> (row, col)
+        # Map agent_id -> (row, col) using canonical locations field
         agent_positions: dict[int, tuple[int, int]] = {}
         for obj in basic_sim.grid_objects().values():
             type_name = obj["type_name"]
             if type_name in {"agent", "agent.agent"}:
-                agent_positions[int(obj["agent_id"])] = (int(obj["r"]), int(obj["c"]))
+                locations = obj.get("locations") or []
+                assert locations, "Agent objects must have at least one location"
+                c, r, *_ = locations[0]
+                agent_positions[int(obj["agent_id"])] = (int(r), int(c))
 
         map_center_row = basic_sim.map_height // 2
         map_center_col = basic_sim.map_width // 2

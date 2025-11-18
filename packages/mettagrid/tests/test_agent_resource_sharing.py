@@ -79,8 +79,18 @@ class TestAgentResourceSharing:
         agent0_after = agents_after[0]
         agent1_after = agents_after[1]
 
-        assert (agent0_after["r"], agent0_after["c"]) == (1, 1), "Agent 0 should still be at (1,1)"
-        assert (agent1_after["r"], agent1_after["c"]) == (1, 2), "Agent 1 should still be at (1,2)"
+        locations0 = agent0_after["locations"]
+        assert locations0, "Agent 0 must have at least one location"
+        assert len(locations0) == 1, "Agent 0 must be single-cell"
+        c0, r0 = locations0[0]
+
+        locations1 = agent1_after["locations"]
+        assert locations1, "Agent 1 must have at least one location"
+        assert len(locations1) == 1, "Agent 1 must be single-cell"
+        c1, r1 = locations1[0]
+
+        assert (r0, c0) == (1, 1), "Agent 0 should still be at (1,1)"
+        assert (r1, c1) == (1, 2), "Agent 1 should still be at (1,2)"
 
         # Agent 0 should have transferred resources according to vibe_transfers config
         # Energy: 10 -> 5 (agent 0), 10 -> 15 (agent 1)

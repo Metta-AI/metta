@@ -122,8 +122,8 @@ public:
   // Use L_inf distance here, since it's more natural for our grid world that L_2. L_1 could also be a reasonable
   // contender.
   GridCoord distance(Assembler& assembler_a, Assembler& assembler_b) const {
-    GridLocation location_a = assembler_a.location;
-    GridLocation location_b = assembler_b.location;
+    const GridLocation& location_a = assembler_a.location();
+    const GridLocation& location_b = assembler_b.location();
     return std::max(std::abs(location_a.r - location_b.r), std::abs(location_a.c - location_b.c));
   }
 
@@ -140,18 +140,18 @@ public:
     // Sort assemblers by their column. In the future we could consider sorting by row instead when
     // height > width.
     std::sort(sorted_assemblers.begin(), sorted_assemblers.end(), [](Assembler* a, Assembler* b) {
-      return a->location.c < b->location.c;
+      return a->location().c < b->location().c;
     });
 
     // For each assembler, find adjacent assemblers within scaled_cutoff_distance of each other.
     for (size_t i = 0; i < sorted_assemblers.size(); ++i) {
       Assembler* assembler_a = sorted_assemblers[i];
-      GridCoord a_x = assembler_a->location.c;
+      GridCoord a_x = assembler_a->location().c;
 
       // Check assemblers with x coordinates within cutoff_distance
       for (size_t j = i + 1; j < sorted_assemblers.size(); ++j) {
         Assembler* assembler_b = sorted_assemblers[j];
-        GridCoord b_x = assembler_b->location.c;
+        GridCoord b_x = assembler_b->location().c;
 
         // If x difference exceeds cutoff_distance, no need to check further
         if (b_x - a_x > scaled_cutoff_distance * length_scale) {

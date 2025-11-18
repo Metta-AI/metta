@@ -2,7 +2,14 @@
 
 from typing import Dict, Optional
 
+from mettagrid import locations
+
 from .symbol import get_symbol_for_object
+
+
+def _cells_for_object(obj: dict) -> list[tuple[int, int]]:
+    """Return normalized location coordinates for rendering."""
+    return locations(obj)
 
 
 class MapBuffer:
@@ -115,20 +122,24 @@ class MapBuffer:
             self._last_grid_objects = grid_objects
 
     def _compute_bounds(self, grid_objects: Dict[int, dict]) -> tuple[int, int, int, int]:
-        """Compute a bounding box for the provided grid objects."""
-        rows = []
-        cols = []
+        """Compute bounding box for grid objects."""
+        rows: list[int] = []
+        cols: list[int] = []
+
+        # Prefer walls to set bounds when present, otherwise use all cells.
         for obj in grid_objects.values():
             type_name = obj["type_name"]
             if type_name == "wall":
-                rows.append(obj["r"])
-                cols.append(obj["c"])
+                for c_loc, r_loc in _cells_for_object(obj):
+                    rows.append(r_loc)
+                    cols.append(c_loc)
+
         if not rows or not cols:
             for obj in grid_objects.values():
-                rows.append(obj["r"])
-                cols.append(obj["c"])
+                for c_loc, r_loc in _cells_for_object(obj):
+                    rows.append(r_loc)
+                    cols.append(c_loc)
 
-        # Handle empty grid case
         if not rows or not cols:
             return (0, 0, 1, 1)
 
@@ -185,20 +196,30 @@ class MapBuffer:
         empty_symbol = self._symbol_map.get("empty", "⬜")
         grid = [[empty_symbol for _ in range(view_width)] for _ in range(view_height)]
 
-        # Place objects in viewport
+        # Place objects in viewport using all occupied cells
         for obj in grid_objects.values():
-            obj_r = obj["r"]
-            obj_c = obj["c"]
-            r = obj_r - view_min_row
-            c = obj_c - view_min_col
-            # Skip objects outside viewport bounds
-            if 0 <= r < view_height and 0 <= c < view_width:
-                # Check if this is the highlighted agent
-                if self._highlighted_agent_id is not None and obj.get("agent_id") == self._highlighted_agent_id:
-                    # Use a distinctive symbol for highlighted agent
-                    grid[r][c] = "⭐"
-                else:
-                    grid[r][c] = get_symbol_for_object(obj, self._object_type_names, self._symbol_map)
+            cells = _cells_for_object(obj)
+            if not cells:
+                continue
+
+            # Canonical anchor is the first cell in `locations`
+            obj_c, obj_r = cells[0]
+            for obj_c_cell, obj_r_cell in cells:
+                r = obj_r_cell - view_min_row
+                c = obj_c_cell - view_min_col
+                if 0 <= r < view_height and 0 <= c < view_width:
+                    # If this is the highlighted agent, mark its location with a star
+                    if (
+                        self._highlighted_agent_id is not None
+                        and obj.get("agent_id") == self._highlighted_agent_id
+                        and obj_r is not None
+                        and obj_c is not None
+                        and obj_r_cell == obj_r
+                        and obj_c_cell == obj_c
+                    ):
+                        grid[r][c] = "⭐"
+                    else:
+                        grid[r][c] = get_symbol_for_object(obj, self._object_type_names, self._symbol_map)
 
         # Add selection cursor if in select mode
         if self._cursor_row is not None and self._cursor_col is not None:

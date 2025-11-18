@@ -49,7 +49,7 @@ protected:
     // Get the orientation from the action argument
     Orientation move_direction = static_cast<Orientation>(arg);
 
-    GridLocation current_location = actor.location;
+    GridLocation current_location = actor.locations[0];
     GridLocation target_location = current_location;
 
     // Get movement deltas for the direction

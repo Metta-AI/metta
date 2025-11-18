@@ -431,8 +431,8 @@ TEST_F(MettaGridCppTest, GridObjectManagement) {
   grid.add_object(agent);
 
   EXPECT_NE(agent->id, 0);  // Should have been assigned a valid ID
-  EXPECT_EQ(agent->location.r, 2);
-  EXPECT_EQ(agent->location.c, 3);
+  EXPECT_EQ(agent->locations[0].r, 2);
+  EXPECT_EQ(agent->locations[0].c, 3);
 
   // Verify we can retrieve the agent
   auto retrieved_agent = grid.object(agent->id);
@@ -462,17 +462,17 @@ TEST_F(MettaGridCppTest, ActionTracking) {
 
   EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 0.0f);
   noop.handle_action(*agent, 0);  // count 1, max 1
-  EXPECT_EQ(agent->location.r, 5);
-  EXPECT_EQ(agent->location.c, 5);
+  EXPECT_EQ(agent->locations[0].r, 5);
+  EXPECT_EQ(agent->locations[0].c, 5);
   EXPECT_EQ(agent->prev_location.r, 5);
   EXPECT_EQ(agent->prev_location.c, 5);
   EXPECT_EQ(agent->prev_action_name, "noop");
   EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 1.0f);
-  agent->location.r = 6;
-  agent->location.c = 6;
+  agent->locations[0].r = 6;
+  agent->locations[0].c = 6;
   noop.handle_action(*agent, 0);  // count 0, max 1
-  EXPECT_EQ(agent->location.r, 6);
-  EXPECT_EQ(agent->location.c, 6);
+  EXPECT_EQ(agent->locations[0].r, 6);
+  EXPECT_EQ(agent->locations[0].c, 6);
   EXPECT_EQ(agent->prev_location.r, 6);
   EXPECT_EQ(agent->prev_location.c, 6);
   EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 1.0f);
@@ -481,11 +481,11 @@ TEST_F(MettaGridCppTest, ActionTracking) {
   noop.handle_action(*agent, 0);  // count 2, max 2
   noop.handle_action(*agent, 0);  // count 3, max 3
   EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 3.0f);
-  agent->location.r = 7;
-  agent->location.c = 7;
+  agent->locations[0].r = 7;
+  agent->locations[0].c = 7;
   noop.handle_action(*agent, 0);  // count 0, max 3
-  EXPECT_EQ(agent->location.r, 7);
-  EXPECT_EQ(agent->location.c, 7);
+  EXPECT_EQ(agent->locations[0].r, 7);
+  EXPECT_EQ(agent->locations[0].c, 7);
   EXPECT_EQ(agent->prev_location.r, 7);
   EXPECT_EQ(agent->prev_location.c, 7);
   noop.handle_action(*agent, 0);  // count 1, max 3

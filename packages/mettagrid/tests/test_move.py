@@ -207,7 +207,9 @@ def test_8way_movement_obstacles():
     sim.step()
 
     objects = sim.grid_objects()
-    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (1, 1)
+    locations = objects[agent_id]["locations"]
+    c, r, *_ = locations[0]
+    assert (r, c) == (1, 1)
 
     # Try to move West into wall - should fail
     sim.agent(0).set_action(Action(name="move_west"))
@@ -216,7 +218,9 @@ def test_8way_movement_obstacles():
 
     # Position should remain unchanged
     objects = sim.grid_objects()
-    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (1, 1)
+    locations = objects[agent_id]["locations"]
+    c, r, *_ = locations[0]
+    assert (r, c) == (1, 1)
 
 
 def test_8way_movement_with_simple_environment():
@@ -258,7 +262,9 @@ def test_8way_movement_with_simple_environment():
     agent_id = next(id for id, obj in objects.items() if obj["type_name"] == "agent")
 
     # Get initial position (should be at center, row=2, col=3)
-    initial_pos = (objects[agent_id]["r"], objects[agent_id]["c"])
+    locations = objects[agent_id]["locations"]
+    c, r, *_ = locations[0]
+    initial_pos = (r, c)
 
     # Test a few diagonal movements
     # Move northeast
@@ -266,7 +272,9 @@ def test_8way_movement_with_simple_environment():
     sim.step()
 
     objects = sim.grid_objects()
-    pos_after_ne = (objects[agent_id]["r"], objects[agent_id]["c"])
+    locations = objects[agent_id]["locations"]
+    c, r, *_ = locations[0]
+    pos_after_ne = (r, c)
 
     # Should have moved up and right: row-1, col+1
     assert pos_after_ne[0] == initial_pos[0] - 1, "Should move up (row-1) for northeast"
@@ -277,7 +285,9 @@ def test_8way_movement_with_simple_environment():
     sim.step()
 
     objects = sim.grid_objects()
-    pos_after_sw = (objects[agent_id]["r"], objects[agent_id]["c"])
+    locations = objects[agent_id]["locations"]
+    c, r, *_ = locations[0]
+    pos_after_sw = (r, c)
 
     # Should be back at initial position
     assert pos_after_sw == initial_pos, f"After NE then SW, should be back at {initial_pos}, but at {pos_after_sw}"
@@ -328,7 +338,9 @@ def test_8way_movement_boundary_check():
     sim.step()
 
     objects = sim.grid_objects()
-    position = (objects[agent_id]["r"], objects[agent_id]["c"])
+    locations = objects[agent_id]["locations"]
+    c, r, *_ = locations[0]
+    position = (r, c)
 
     # Agent should be at (1, 1) - top-left open space, blocked by walls
     assert position == (1, 1), f"Agent should be at top-left corner (1,1), but is at {position}"
@@ -341,7 +353,9 @@ def test_8way_movement_boundary_check():
     assert not sim.agent(0).last_action_success, "Movement should fail when blocked by wall"
 
     objects = sim.grid_objects()
-    new_position = (objects[agent_id]["r"], objects[agent_id]["c"])
+    locations = objects[agent_id]["locations"]
+    c, r, *_ = locations[0]
+    new_position = (r, c)
     assert new_position == position, f"Agent should stay at {position} when blocked"
 
     # Try diagonal move toward boundary in different direction
@@ -356,7 +370,9 @@ def test_8way_movement_boundary_check():
     sim.step()
 
     objects = sim.grid_objects()
-    position = (objects[agent_id]["r"], objects[agent_id]["c"])
+    locations = objects[agent_id]["locations"]
+    c, r, *_ = locations[0]
+    position = (r, c)
 
     # Should be near bottom-right corner
     assert position == (3, 3), f"Agent should be at bottom-right corner (3,3), but is at {position}"
@@ -368,7 +384,9 @@ def test_8way_movement_boundary_check():
     assert not sim.agent(0).last_action_success, "Movement should fail at boundary"
 
     objects = sim.grid_objects()
-    final_position = (objects[agent_id]["r"], objects[agent_id]["c"])
+    locations = objects[agent_id]["locations"]
+    c, r, *_ = locations[0]
+    final_position = (r, c)
     assert final_position == position, "Agent should stay in place when blocked by boundary"
 
 

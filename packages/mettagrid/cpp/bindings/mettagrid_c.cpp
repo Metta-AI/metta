@@ -454,7 +454,8 @@ void MettaGrid::_compute_observations(const std::vector<ActionType>& executed_ac
   for (size_t idx = 0; idx < _agents.size(); idx++) {
     auto& agent = _agents[idx];
     ActionType action_idx = executed_actions[idx];
-    _compute_observation(agent->location.r, agent->location.c, obs_width, obs_height, idx, action_idx);
+    const auto& loc = agent->location();
+    _compute_observation(loc.r, loc.c, obs_width, obs_height, idx, action_idx);
   }
 }
 
@@ -681,34 +682,40 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
   bool use_type_filter = !ignore_type_ids.empty();
 
   for (unsigned int obj_id = 1; obj_id < _grid->objects.size(); obj_id++) {
-    auto obj = _grid->object(obj_id);
+    auto* obj = _grid->object(obj_id);
     if (!obj) continue;
 
     // Filter by type_id if specified (fast integer comparison)
-    if (use_type_filter) {
-      if (ignore_type_ids.find(obj->type_id) != ignore_type_ids.end()) {
-        continue;
-      }
+    if (use_type_filter && ignore_type_ids.find(obj->type_id) != ignore_type_ids.end()) {
+      continue;
     }
 
-    // Filter by bounding box if specified
+    // Filter by bounding box if specified. For bounded queries we include an
+    // object if ANY of its occupied locations intersect the box. Objects with
+    // empty location footprints are ignored.
     if (use_bounds) {
-      if (obj->location.r < min_row || obj->location.r >= max_row || obj->location.c < min_col ||
-          obj->location.c >= max_col) {
+      if (obj->locations.empty()) {
         continue;
       }
+      bool in_bounds = false;
+      for (const auto& loc : obj->locations) {
+        if (loc.r >= min_row && loc.r < max_row && loc.c >= min_col && loc.c < max_col) {
+          in_bounds = true;
+          break;
+        }
+      }
+      if (!in_bounds) continue;
     }
 
     py::dict obj_dict;
     obj_dict["id"] = obj_id;
     obj_dict["type_name"] = object_type_names[obj->type_id];
-    // Location here is defined as XYZ coordinates specifically to be used by MettaScope.
-    // We define that for location: x is column, y is row. Currently, no z for grid objects.
-    // Note: it might be different for matrix computations.
-    obj_dict["location"] = py::make_tuple(obj->location.c, obj->location.r);
 
-    obj_dict["r"] = obj->location.r;          // To remove
-    obj_dict["c"] = obj->location.c;          // To remove
+    // Anchor location for single-cell semantics (MettaScope and callers).
+    if (!obj->locations.empty()) {
+      const GridLocation& anchor = obj->locations.front();
+      obj_dict["location"] = py::make_tuple(anchor.c, anchor.r);
+    }
 
     // Inject observation features
     auto features = obj->obs_features();
@@ -822,6 +829,16 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       }
       obj_dict["vibe_transfers"] = vibe_transfers_dict;
     }
+
+    // Locations and presence: collect all occupied locations.
+    py::list locs;
+    if (!obj->locations.empty()) {
+      for (const auto& loc : obj->locations) {
+        // 2D grid: each entry is (c, r) for an occupied cell.
+        locs.append(py::make_tuple(loc.c, loc.r));
+      }
+    }
+    obj_dict["locations"] = locs;
 
     objects[py::int_(obj_id)] = obj_dict;
   }

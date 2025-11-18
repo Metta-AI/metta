@@ -36,6 +36,19 @@ cc_binary(
     ],
 )
 
+cc_binary(
+    name="test_grid_multicell_bin",
+    srcs=["test_grid_multicell.cpp"],
+    copts=COPTS + ["-Icpp/include/mettagrid", "-Itests"],
+    # linkopts=["-fsanitize=address"],  # Disabled - causes issues on macOS
+    linkstatic=True,  # Changed to True to ensure all symbols are linked
+    deps=[
+        "//:mettagrid_lib",
+        "@googletest//:gtest_main",
+        "@rules_python//python/cc:current_py_cc_libs",
+    ],
+)
+
 filegroup(
     name="mettagrid_sources",
     srcs=[
@@ -116,6 +129,15 @@ py_test(
 )
 
 py_test(
+    name="test_grid_multicell",
+    srcs=["run_test.py"],
+    main="run_test.py",
+    args=["--bin=test_grid_multicell_bin"],
+    data=[":test_grid_multicell_bin"],
+    size="small",
+)
+
+py_test(
     name="test_mettagrid",
     srcs=["run_test.py"],
     main="run_test.py",
@@ -157,6 +179,7 @@ test_suite(
     tests=[
         ":test_stats_tracker",
         ":test_grid_object",
+        ":test_grid_multicell",
         ":test_mettagrid",
         ":test_observations",
         ":test_clipper",

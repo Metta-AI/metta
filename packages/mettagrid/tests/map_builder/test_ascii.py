@@ -171,6 +171,31 @@ class TestAsciiMapBuilder:
         finally:
             os.unlink(temp_file)
 
+    def test_auto_group_types_populates_multi_cell_and_locations(self):
+        # 2x2 block of walls should be grouped into a single anchor at (0, 0)
+        # with a 4-cell footprint when "wall" is in auto_group_types.
+        config = AsciiMapBuilder.Config(
+            map_data=[list("##"), list("##")],
+            char_to_map_name={"#": "wall"},
+            auto_group_types=["wall"],
+        )
+        builder = AsciiMapBuilder(config)
+        game_map = builder.build()
+
+        # Grid should retain only the primary wall; all extras are set to empty.
+        expected_grid = np.array([["wall", "empty"], ["empty", "empty"]], dtype=map_grid_dtype)
+        assert np.array_equal(game_map.grid, expected_grid)
+
+        # multi_cell_groups carries the raw grouping metadata.
+        assert game_map.multi_cell_groups == [
+            (0, 0, [(0, 1), (1, 0), (1, 1)]),
+        ]
+
+        # locations_by_anchor exposes the full footprint in (row, col) order.
+        assert game_map.locations_by_anchor == {
+            (0, 0): [(0, 0), (0, 1), (1, 0), (1, 1)],
+        }
+
     def test_empty_legend_allowed(self):
         config = AsciiMapBuilder.Config(
             map_data=[list(v) for v in ["#@."]],

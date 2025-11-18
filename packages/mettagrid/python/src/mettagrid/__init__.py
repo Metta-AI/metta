@@ -52,6 +52,7 @@ _LAZY_ATTRS: Dict[str, Tuple[str, str]] = {
     "PufferMettaGridEnv": ("mettagrid.envs.mettagrid_puffer_env", "MettaGridPufferEnv"),
     # Supporting classes
     "GameMap": ("mettagrid.map_builder.map_builder", "GameMap"),
+    "locations": ("mettagrid.util.grid_object_formatter", "locations"),
     # C++ types
     "dtype_observations": ("mettagrid.mettagrid_c", "dtype_observations"),
 }
@@ -74,6 +75,7 @@ __all__ = [
     "PufferMettaGridEnv",
     # Supporting classes
     "GameMap",
+    "locations",
 ]
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from cogames.cogs_vs_clips.stations import CvCAssemblerConfig
+from mettagrid import locations
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.simulator import Simulation
 
@@ -58,10 +59,14 @@ def _agent_positions(sim: Simulation) -> tuple[dict[tuple[int, int], int], tuple
     assembler_pos: tuple[int, int] | None = None
     positions: dict[tuple[int, int], int] = {}
     for obj in sim.grid_objects().values():
+        cells = locations(obj)
+        if not cells:
+            continue
+        c, r = cells[0]
         if "agent_id" in obj:
-            positions[(obj["r"], obj["c"])] = obj["agent_id"]
+            positions[(r, c)] = obj["agent_id"]
         elif obj.get("type_name") == "assembler":
-            assembler_pos = (obj["r"], obj["c"])
+            assembler_pos = (r, c)
     assert assembler_pos is not None, "Assembler missing from map"
     return positions, assembler_pos
 

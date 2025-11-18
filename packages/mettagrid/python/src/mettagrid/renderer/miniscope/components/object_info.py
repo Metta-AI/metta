@@ -2,6 +2,7 @@
 
 from typing import TYPE_CHECKING, Dict
 
+from mettagrid import locations
 from mettagrid.renderer.miniscope.miniscope_panel import SIDEBAR_WIDTH, PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState, RenderMode
 
@@ -92,8 +93,11 @@ class ObjectInfoComponent(MiniscopeComponent):
 
         selected_obj = None
         for obj in grid_objects.values():
-            if obj["r"] == cursor_row and obj["c"] == cursor_col:
-                selected_obj = obj
+            for c, r in locations(obj):
+                if r == cursor_row and c == cursor_col:
+                    selected_obj = obj
+                    break
+            if selected_obj is not None:
                 break
 
         if selected_obj is None:
@@ -106,9 +110,10 @@ class ObjectInfoComponent(MiniscopeComponent):
             type_name = "<missing type_name>"
         lines.append(f"Type: {type_name}"[:width].ljust(width))
         lines.append(f"Cursor pos: ({cursor_row}, {cursor_col})"[:width].ljust(width))
-        actual_r = selected_obj.get("r", "?")
-        actual_c = selected_obj.get("c", "?")
-        lines.append(f"Object pos: ({actual_r}, {actual_c})"[:width].ljust(width))
+
+        # Derive object position from canonical locations footprint.
+        primary_c, primary_r = locations(selected_obj)[0]
+        lines.append(f"Object pos: ({primary_r}, {primary_c})"[:width].ljust(width))
 
         max_property_rows = max(1, panel_height - 6)
         properties_added = 0

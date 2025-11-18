@@ -1,9 +1,11 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CORE_GRID_OBJECT_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CORE_GRID_OBJECT_HPP_
 
+#include <cassert>
 #include <cstdint>
 #include <span>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "core/types.hpp"
@@ -62,27 +64,52 @@ struct GridObjectConfig {
 class GridObject : public HasVibe {
 public:
   GridObjectId id{};
-  GridLocation location{};
   TypeId type_id{};
   std::string type_name;
   std::vector<int> tag_ids;
 
+  // All occupied locations for this object. For single-cell objects this
+  // contains exactly one entry. For multi-cell objects the first entry is
+  // the anchor cell and additional entries represent the rest of the
+  // footprint. The footprint is seeded at construction time and remains
+  // stable; movement for single-cell objects is expressed by updating
+  // locations[0].
+  std::vector<GridLocation> locations;
+
   virtual ~GridObject() = default;
 
-  void init(TypeId object_type_id,
-            const std::string& object_type_name,
-            const GridLocation& object_location,
-            const std::vector<int>& tags,
-            ObservationType object_vibe = 0) {
-    this->type_id = object_type_id;
-    this->type_name = object_type_name;
-    this->location = object_location;
-    this->tag_ids = tags;
-    this->vibe = object_vibe;
+protected:
+  // Construct a GridObject with a fully-initialized, non-empty footprint.
+  // All callers must provide at least one location; this guarantees that
+  // helpers like location() and grid_objects() never see an empty footprint.
+  GridObject(TypeId object_type_id,
+             const std::string& object_type_name,
+             std::vector<GridLocation> object_locations,
+             const std::vector<int>& tags,
+             ObservationType object_vibe = 0)
+      : HasVibe(object_vibe),
+        id(0),
+        type_id(object_type_id),
+        type_name(object_type_name),
+        tag_ids(tags),
+        locations(std::move(object_locations)) {
+    assert(!locations.empty() && "GridObject constructed with empty locations");
+  }
+
+public:
+  // Anchor location for single-cell semantics; requires the object to have
+  // at least one populated location.
+  const GridLocation& location() const {
+    assert(!locations.empty() && "location() called on object with empty locations");
+    return locations.front();
   }
 
   virtual std::vector<PartialObservationToken> obs_features() const {
     return {};  // Default: no observable features
+  }
+
+  virtual bool supports_multi_cell() const {
+    return false;
   }
 };
 

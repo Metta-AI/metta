@@ -12,6 +12,15 @@ class TestGameMap:
         assert np.array_equal(game_map.grid, grid)
         assert game_map.grid.dtype == map_grid_dtype
 
+    def test_locations_by_anchor_derived_from_multi_cell_groups(self):
+        grid = np.array([["wall", "wall"], ["empty", "empty"]], dtype=map_grid_dtype)
+        multi = [(0, 0, [(0, 1)])]
+
+        game_map = GameMap(grid, multi_cell_groups=multi)
+
+        expected = {(0, 0): [(0, 0), (0, 1)]}
+        assert game_map.locations_by_anchor == expected
+
     def test_with_different_grid_sizes(self):
         # Test 1x1 grid
         small_grid = np.array([["wall"]], dtype=map_grid_dtype)

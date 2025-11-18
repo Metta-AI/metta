@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <vector>
 
 #include "config/observation_features.hpp"
 #include "systems/observation_encoder.hpp"
@@ -11,7 +12,11 @@ Agent::Agent(GridCoord r,
              const AgentConfig& config,
              const std::vector<std::string>* resource_names,
              const std::unordered_map<std::string, ObservationType>* feature_ids)
-    : GridObject(),
+    : GridObject(config.type_id,
+                 config.type_name,
+                 std::vector<GridLocation>{GridLocation(r, c)},
+                 config.tag_ids,
+                 config.initial_vibe),
       HasInventory(config.inventory_config, resource_names, feature_ids),
       group(config.group_id),
       frozen(0),
@@ -42,7 +47,6 @@ Agent::Agent(GridCoord r,
   }
 
   populate_initial_inventory(config.initial_inventory);
-  GridObject::init(config.type_id, config.type_name, GridLocation(r, c), config.tag_ids, config.initial_vibe);
 }
 
 void Agent::init(RewardType* reward_ptr) {

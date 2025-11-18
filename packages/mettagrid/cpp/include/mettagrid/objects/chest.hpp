@@ -64,12 +64,15 @@ public:
   const ObservationEncoder* obs_encoder = nullptr;
 
   Chest(GridCoord r, GridCoord c, const ChestConfig& cfg, StatsTracker* stats_tracker)
-      : GridObject(),
+      : GridObject(cfg.type_id,
+                   cfg.type_name,
+                   std::vector<GridLocation>{GridLocation(r, c)},
+                   cfg.tag_ids,
+                   cfg.initial_vibe),
         HasInventory(cfg.inventory_config),
         vibe_transfers(cfg.vibe_transfers),
         stats_tracker(stats_tracker),
         grid(nullptr) {
-    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c), cfg.tag_ids, cfg.initial_vibe);
     // Set initial inventory for all configured resources
     for (const auto& [resource, amount] : cfg.initial_inventory) {
       if (amount > 0) {

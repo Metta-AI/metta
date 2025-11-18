@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -23,54 +24,48 @@ class Clipper;
 
 class Assembler : public GridObject, public Usable {
 private:
-  // Surrounding positions in deterministic order: NW, N, NE, W, E, SW, S, SE
+  // Surrounding positions in deterministic order around the full assembler footprint.
   std::vector<std::pair<GridCoord, GridCoord>> get_surrounding_positions() const {
-    GridCoord r = location.r;
-    GridCoord c = location.c;
     std::vector<std::pair<GridCoord, GridCoord>> positions;
-    for (int i = -1; i <= 1; ++i) {
-      for (int j = -1; j <= 1; ++j) {
-        if (i == 0 && j == 0) continue;  // skip center
-        GridLocation position = {static_cast<GridCoord>(r + i), static_cast<GridCoord>(c + j)};
-        if (grid->is_valid_location(position)) {
-          positions.emplace_back(static_cast<GridCoord>(r + i), static_cast<GridCoord>(c + j));
+    if (!grid) return positions;
+
+    // Track assembler-occupied cells so we can exclude them from the perimeter.
+    std::set<std::pair<GridCoord, GridCoord>> assembler_cells;
+    for (const auto& loc : locations) {
+      assembler_cells.emplace(loc.r, loc.c);
+    }
+
+    std::set<std::pair<GridCoord, GridCoord>> unique_positions;
+    for (const auto& loc : locations) {
+      for (int dr = -1; dr <= 1; ++dr) {
+        for (int dc = -1; dc <= 1; ++dc) {
+          if (dr == 0 && dc == 0) continue;
+          GridCoord nr = static_cast<GridCoord>(loc.r + dr);
+          GridCoord nc = static_cast<GridCoord>(loc.c + dc);
+          GridLocation neighbor(nr, nc);
+          if (!grid->is_valid_location(neighbor)) continue;
+          std::pair<GridCoord, GridCoord> cell(nr, nc);
+          if (assembler_cells.count(cell) > 0) continue;
+          unique_positions.insert(cell);
         }
       }
+    }
+
+    positions.reserve(unique_positions.size());
+    for (const auto& cell : unique_positions) {
+      positions.push_back(cell);
     }
 
     return positions;
   }
 
-  // Get surrounding agents in upper-left-to-lower-right order starting from the given agent's position
-  std::vector<Agent*> get_surrounding_agents(const Agent* starting_agent) const {
+  // Get surrounding agents in deterministic upper-left-to-lower-right order.
+  std::vector<Agent*> get_surrounding_agents() const {
     std::vector<Agent*> agents;
     if (!grid) return agents;
 
     std::vector<std::pair<GridCoord, GridCoord>> positions = get_surrounding_positions();
 
-    // Find the starting agent's position in the surrounding positions
-    int start_index = -1;
-    if (starting_agent) {
-      for (size_t i = 0; i < positions.size(); i++) {
-        if (positions[i].first == starting_agent->location.r && positions[i].second == starting_agent->location.c) {
-          start_index = i;
-          break;
-        }
-      }
-
-      // The starting agent must be in one of the surrounding positions
-      if (start_index == -1) {
-        throw std::runtime_error("Starting agent is not in a surrounding position of the assembler");
-      }
-    }
-
-    // If starting agent was found in surrounding positions, reorder to start from there
-    if (start_index >= 0) {
-      // Rotate the positions vector to start from the starting_agent's position
-      std::rotate(positions.begin(), positions.begin() + start_index, positions.end());
-    }
-
-    // Collect agents from the reordered positions
     for (const auto& pos : positions) {
       GridCoord check_r = pos.first;
       GridCoord check_c = pos.second;
@@ -213,7 +208,12 @@ public:
   bool allow_partial_usage;
 
   Assembler(GridCoord r, GridCoord c, const AssemblerConfig& cfg)
-      : protocols(build_protocol_map(cfg.protocols)),
+      : GridObject(cfg.type_id,
+                   cfg.type_name,
+                   std::vector<GridLocation>{GridLocation(r, c)},
+                   cfg.tag_ids,
+                   cfg.initial_vibe),
+        protocols(build_protocol_map(cfg.protocols)),
         unclip_protocols(),
         is_clipped(cfg.start_clipped),
         clip_immune(cfg.clip_immune),
@@ -223,13 +223,16 @@ public:
         uses_count(0),
         max_uses(cfg.max_uses),
         grid(nullptr),
+        clipper_ptr(nullptr),
         current_timestep_ptr(nullptr),
         obs_encoder(nullptr),
-        allow_partial_usage(cfg.allow_partial_usage),
-        clipper_ptr(nullptr) {
-    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c), cfg.tag_ids, cfg.initial_vibe);
-  }
+        allow_partial_usage(cfg.allow_partial_usage) {}
   virtual ~Assembler() = default;
+
+  // Assemblers support multi-cell footprints (e.g., 2x2)
+  bool supports_multi_cell() const override {
+    return true;
+  }
 
   // Set grid access
   void set_grid(class Grid* grid_ptr) {
@@ -326,7 +329,7 @@ public:
   const Protocol* get_current_protocol() const {
     if (!grid) return nullptr;
     GroupVibe vibe = get_local_vibe();
-    size_t num_agents = get_surrounding_agents(nullptr).size();
+    size_t num_agents = get_surrounding_agents().size();
 
     auto protocols_to_use = protocols;
     if (is_clipped) {
@@ -427,7 +430,11 @@ public:
       }
     }
 
-    std::vector<Agent*> surrounding_agents = get_surrounding_agents(&actor);
+    std::vector<Agent*> surrounding_agents = get_surrounding_agents();
+    // Always include the acting agent in the resource-sharing neighborhood.
+    if (std::find(surrounding_agents.begin(), surrounding_agents.end(), &actor) == surrounding_agents.end()) {
+      surrounding_agents.push_back(&actor);
+    }
     if (!Assembler::can_afford_protocol(protocol_to_use, surrounding_agents)) {
       return false;
     }

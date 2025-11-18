@@ -5,12 +5,35 @@ from typing import Callable, Optional, Tuple, Union
 import numpy as np
 
 
+def locations(grid_object: dict) -> list[tuple[int, int]]:
+    """Return normalized (c, r) pairs for a grid object's footprint.
+
+    locations are expected to be a sequence of (c, r) entries produced
+    by env.grid_objects(). We treat the first entry as the anchor cell. Missing
+    or malformed data will raise naturally via KeyError/IndexError/TypeError.
+    """
+    raw_locs = grid_object["locations"]
+    normalized: list[tuple[int, int]] = []
+    for entry in raw_locs:
+        c, r = entry
+        normalized.append((int(c), int(r)))
+    return normalized
+
+
 def format_grid_object_base(grid_object: dict) -> dict:
     """Format the base properties common to all grid objects."""
     update_object = {}
     update_object["id"] = grid_object["id"]
     update_object["type_name"] = grid_object["type_name"]
-    update_object["location"] = grid_object["location"]
+
+    # Canonical spatial representation: all occupied locations.
+    # Single-cell objects have a single entry; each entry is a simple (c, r) pair.
+    update_object["locations"] = grid_object.get("locations", [])
+
+    # Backwards-compatible primary location for replay v2 schema: [c, r].
+    c, r = locations(grid_object)[0]
+    update_object["location"] = [c, r]
+
     update_object["orientation"] = grid_object.get("orientation", 0)
     update_object["inventory"] = list(grid_object.get("inventory", {}).items())
     update_object["inventory_max"] = grid_object.get("inventory_max", 0)
@@ -107,12 +130,13 @@ def format_grid_object(
     assert isinstance(grid_object["type_name"], str), (
         f"Expected grid_object['type_name'] to be a string, got {type(grid_object['type_name'])}"
     )
-    assert isinstance(grid_object["location"], (tuple, list)) and len(grid_object["location"]) == 2, (
-        f"Expected location to be tuple/list of 2 elements, got {type(grid_object['location'])}"
-    )
-    assert all(isinstance(coord, (int, float)) for coord in grid_object["location"]), (
-        "Expected all location coordinates to be numbers"
-    )
+
+    # locations are the canonical spatial representation for on-grid objects.
+    # Any object that reaches the replay/renderer pipeline must have at least
+    # one occupied cell in its footprint.
+    locs = grid_object["locations"]
+    assert isinstance(locs, (list, tuple)), f"Expected grid_object['locations'] to be a list/tuple, got {type(locs)}"
+    assert len(locs) > 0, "grid_object['locations'] must be non-empty for replays"
 
     update_object = format_grid_object_base(grid_object)
 

@@ -305,18 +305,16 @@ proc convertReplayV1ToV2(replayData: JsonNode): JsonNode =
   var maxX = 0
   var maxY = 0
   for gridObject in replayData["grid_objects"]:
-    # Expand position and layer series if present.
-    if "c" in gridObject:
-      gridObject["c"] = expandSequenceV2(gridObject["c"], maxSteps)
-    if "r" in gridObject:
-      gridObject["r"] = expandSequenceV2(gridObject["r"], maxSteps)
-
     var location = newJArray()
+
+    # New schema: all grid objects must provide a non-empty `locations` array
+    # of [c, r] entries. We treat the first entry as the anchor and keep it
+    # constant across all steps.
+    let loc0 = gridObject["locations"][0]
+    let x = loc0[0].getInt
+    let y = loc0[1].getInt
+
     for step in 0 ..< maxSteps:
-      let xNode = getAttrV1(gridObject, "c", step, newJInt(0))
-      let yNode = getAttrV1(gridObject, "r", step, newJInt(0))
-      let x = if xNode.kind == JInt: xNode.getInt else: 0
-      let y = if yNode.kind == JInt: yNode.getInt else: 0
       var double = newJArray()
       double.add(newJInt(x))
       double.add(newJInt(y))

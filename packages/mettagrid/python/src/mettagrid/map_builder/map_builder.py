@@ -27,8 +27,64 @@ class GameMap:
     # For the full list, see `mettagrid_c.cpp`.
     grid: MapGrid
 
-    def __init__(self, grid: MapGrid):
+    # Multi-cell footprints keyed by the primary (row, col) cell. Each value is
+    # a list of (row, col) coordinates, where the first entry is the anchor
+    # cell and subsequent entries are the rest of the footprint. For
+    # single-cell objects the footprint contains exactly one entry.
+    _locations_by_anchor: dict[tuple[int, int], list[tuple[int, int]]]
+
+    def __init__(
+        self,
+        grid: MapGrid,
+        *,
+        locations_by_anchor: (dict[tuple[int, int], list[tuple[int, int]]] | None) = None,
+        multi_cell_groups: (list[tuple[int, int, list[tuple[int, int]]]] | None) = None,
+    ) -> None:
         self.grid = grid
+
+        if locations_by_anchor is not None:
+            # Use the explicitly provided mapping as-is.
+            self._locations_by_anchor = locations_by_anchor
+        elif multi_cell_groups is not None:
+            # Derive locations_by_anchor from the old triple form.
+            derived: dict[tuple[int, int], list[tuple[int, int]]] = {}
+            for primary_r, primary_c, extra_cells in multi_cell_groups:
+                anchor = (int(primary_r), int(primary_c))
+                cells: list[tuple[int, int]] = [anchor]
+                for r, c in extra_cells:
+                    cells.append((int(r), int(c)))
+                derived[anchor] = cells
+            self._locations_by_anchor = derived
+        else:
+            # Default: no multi-cell footprints.
+            self._locations_by_anchor = {}
+
+    @property
+    def locations_by_anchor(self) -> dict[tuple[int, int], list[tuple[int, int]]]:
+        """Return multi-cell footprints keyed by their anchor (row, col).
+
+        - For anchors present in this mapping, the returned list contains the
+          full multi-cell footprint in (row, col) order.
+        - For other cells, callers should treat the footprint as a single
+          (row, col) entry at that coordinate.
+        """
+
+        return self._locations_by_anchor
+
+    @property
+    def multi_cell_groups(self) -> list[tuple[int, int, list[tuple[int, int]]]]:
+        """Compatibility view of locations_by_anchor as (r, c, extras).
+
+        Only anchors with more than one occupied cell are returned.
+        """
+
+        groups: list[tuple[int, int, list[tuple[int, int]]]] = []
+        for (r, c), cells in self._locations_by_anchor.items():
+            if not cells or len(cells) == 1:
+                continue
+            extras = [(er, ec) for (er, ec) in cells[1:]]
+            groups.append((r, c, extras))
+        return groups
 
 
 TBuilder = TypeVar("TBuilder", bound="MapBuilder[Any]")

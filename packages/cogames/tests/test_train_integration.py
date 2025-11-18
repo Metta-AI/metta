@@ -28,13 +28,13 @@ def test_env_config():
 
 @pytest.mark.timeout(120)
 def test_train_lstm_policy(test_env_config, temp_checkpoint_dir):
-    """Test training with LSTMPolicy for 1000 steps."""
+    """Test training with LSTMPolicy long enough to emit a checkpoint."""
     train(
         env_cfg=test_env_config,
         policy_class_path="mettagrid.policy.lstm.LSTMPolicy",
         device=torch.device("cpu"),
         initial_weights_path=None,
-        num_steps=1000,
+        num_steps=256,
         checkpoints_path=temp_checkpoint_dir,
         seed=42,
         batch_size=64,
@@ -67,7 +67,7 @@ def test_train_lstm_and_load_policy_data(test_env_config, temp_checkpoint_dir):
         policy_class_path="mettagrid.policy.lstm.LSTMPolicy",
         device=torch.device("cpu"),
         initial_weights_path=None,
-        num_steps=1000,
+        num_steps=256,
         checkpoints_path=temp_checkpoint_dir,
         seed=42,
         batch_size=64,

@@ -36,11 +36,26 @@ export class MettaObject {
   readonly name: string;
   readonly r: number;
   readonly c: number;
+  readonly cells: Cell[];
 
-  private constructor(data: { name: string; r: number; c: number }) {
+  private constructor(data: { name: string; r: number; c: number; cells?: Cell[] }) {
     this.name = data.name;
     this.r = data.r;
     this.c = data.c;
+
+    const dedup = new Map<string, Cell>();
+    const addCell = (cell: Cell) => {
+      const key = `${cell.r}:${cell.c}`;
+      if (dedup.has(key)) return;
+      dedup.set(key, cell);
+    };
+    for (const cell of data.cells ?? []) {
+      addCell(cell);
+    }
+
+    addCell({ r: data.r, c: data.c });
+
+    this.cells = Array.from(dedup.values());
   }
 
   static fromObjectName(
@@ -51,7 +66,7 @@ export class MettaObject {
     if (name === "empty") {
       return undefined;
     }
-    return new MettaObject({ name, r, c });
+    return new MettaObject({ name, r, c, cells: [{ r, c }] });
   }
 }
 
@@ -70,7 +85,15 @@ export class MettaGrid {
       .map(() => new Array(data.width).fill(null));
 
     for (const object of data.objects) {
-      this.grid[object.r][object.c] = object;
+      const cells = object.cells ?? [{ r: object.r, c: object.c }];
+      for (const cell of cells) {
+        if (!this.cellInGrid(cell)) {
+          throw new Error(
+            `Cell (${cell.r}, ${cell.c}) is out of bounds for object "${object.name}" at anchor (${object.r}, ${object.c}). Grid size: ${data.height}x${data.width}`
+          );
+        }
+        this.grid[cell.r][cell.c] = object;
+      }
     }
   }
 

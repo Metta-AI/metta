@@ -2,6 +2,7 @@
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CORE_GRID_HPP_
 
 #include <algorithm>
+#include <cassert>
 #include <memory>
 #include <vector>
 
@@ -53,32 +54,61 @@ public:
     return loc.r < height && loc.c < width;
   }
 
+  // Add a new object to the grid, occupying all of its locations. The
+  // object's footprint (locations) must be fully initialized before this
+  // call; we only validate and commit it.
   inline bool add_object(GridObject* obj) {
-    if (!is_valid_location(obj->location)) {
+    if (obj == nullptr) {
       return false;
     }
-    if (this->grid[obj->location.r][obj->location.c] != nullptr) {
+    if (obj->id != 0) {
+      return false;  // Already managed by some Grid
+    }
+    if (obj->locations.empty()) {
+      return false;
+    }
+    if (!obj->supports_multi_cell() && obj->locations.size() > 1) {
       return false;
     }
 
-    obj->id = static_cast<GridObjectId>(this->objects.size());
-    this->objects.push_back(std::unique_ptr<GridObject>(obj));
-    this->grid[obj->location.r][obj->location.c] = obj;
+    // Validate all locations are in-bounds and empty.
+    for (const auto& loc : obj->locations) {
+      if (!is_valid_location(loc)) {
+        return false;
+      }
+      if (grid[loc.r][loc.c] != nullptr) {
+        return false;
+      }
+    }
+
+    obj->id = static_cast<GridObjectId>(objects.size());
+    objects.push_back(std::unique_ptr<GridObject>(obj));
+
+    for (const auto& loc : obj->locations) {
+      grid[loc.r][loc.c] = obj;
+    }
     return true;
   }
 
+  // Move a single-cell object to a new location.
   inline bool move_object(GridObject& obj, const GridLocation& loc) {
     if (!is_valid_location(loc)) {
       return false;
     }
-
+    if (obj.id == 0) {
+      return false;  // Not yet managed by a Grid
+    }
+    if (obj.locations.size() != 1) {
+      return false;
+    }
     if (grid[loc.r][loc.c] != nullptr) {
       return false;
     }
 
+    GridLocation old = obj.locations[0];
+    grid[old.r][old.c] = nullptr;
+    obj.locations[0] = loc;
     grid[loc.r][loc.c] = &obj;
-    grid[obj.location.r][obj.location.c] = nullptr;
-    obj.location = loc;
     return true;
   }
 

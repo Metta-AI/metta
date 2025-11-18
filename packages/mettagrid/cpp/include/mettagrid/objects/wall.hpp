@@ -19,9 +19,12 @@ struct WallConfig : public GridObjectConfig {
 
 class Wall : public GridObject {
 public:
-  Wall(GridCoord r, GridCoord c, const WallConfig& cfg) {
-    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c), cfg.tag_ids, cfg.initial_vibe);
-  }
+  Wall(GridCoord r, GridCoord c, const WallConfig& cfg)
+      : GridObject(cfg.type_id,
+                   cfg.type_name,
+                   std::vector<GridLocation>{GridLocation(r, c)},
+                   cfg.tag_ids,
+                   cfg.initial_vibe) {}
 
   std::vector<PartialObservationToken> obs_features() const override {
     std::vector<PartialObservationToken> features;
@@ -35,6 +38,10 @@ public:
     if (this->vibe != 0) features.push_back({ObservationFeature::Vibe, static_cast<ObservationType>(this->vibe)});
 
     return features;
+  }
+
+  bool supports_multi_cell() const override {
+    return true;  // Walls can be grouped via auto_group_types
   }
 };
 

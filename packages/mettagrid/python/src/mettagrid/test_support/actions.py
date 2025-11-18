@@ -3,6 +3,7 @@ from typing import Any, Optional
 
 import numpy as np
 
+from mettagrid import locations
 from mettagrid.config.mettagrid_config import Direction
 from mettagrid.mettagrid_c import MettaGrid, dtype_actions
 from mettagrid.simulator import Action, Simulation
@@ -230,7 +231,8 @@ def attack(env: Simulation | MettaGrid, target_arg: int = 0, agent_idx: int = 0)
                     result["target_frozen"] = True
                     result["frozen_agent_id"] = obj_id
                     result["freeze_duration"] = freeze_after
-                    result["target_position"] = (obj_data["r"], obj_data["c"])
+                    c, r = locations(obj_data)[0]
+                    result["target_position"] = (int(r), int(c))
 
                     # Check for stolen resources
                     target_resources_before = obj_before.get("resources", {})
@@ -300,7 +302,8 @@ def get_agent_position(env: Simulation | MettaGrid, agent_idx: int = 0) -> tuple
     grid_objects = env.grid_objects() if isinstance(env, Simulation) else env.grid_objects()
     for _obj_id, obj_data in grid_objects.items():
         if "agent_id" in obj_data and obj_data.get("agent_id") == agent_idx:
-            return (obj_data["r"], obj_data["c"])
+            c, r = locations(obj_data)[0]
+            return int(r), int(c)
     raise ValueError(f"Agent {agent_idx} not found in grid objects")
 
 
