@@ -20,7 +20,6 @@ from datetime import datetime, timedelta, timezone
 from ddtrace.trace import tracer
 from pydantic import BaseModel
 
-from common.src.metta.common.util.log_config import init_suppress_warnings
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.container_managers.factory import create_container_manager
 from metta.app_backend.routes.eval_task_routes import (
@@ -35,6 +34,7 @@ from metta.app_backend.worker_managers.worker import Worker
 from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.collections import group_by
 from metta.common.util.constants import DEV_STATS_SERVER_URI
+from metta.common.util.log_config import init_suppress_warnings
 
 logger = logging.getLogger(__name__)
 

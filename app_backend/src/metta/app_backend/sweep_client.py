@@ -4,14 +4,13 @@ from typing import Optional
 
 import httpx
 
-from common.src.metta.common.util.log_config import init_suppress_warnings
 from metta.app_backend.routes.sweep_routes import (
     RunIdResponse,
     SweepCreateResponse,
     SweepInfo,
 )
 from metta.common.util.constants import DEV_STATS_SERVER_URI
-from metta.common.util.log_config import init_logging
+from metta.common.util.log_config import init_logging, init_suppress_warnings
 
 
 class SweepClient:
