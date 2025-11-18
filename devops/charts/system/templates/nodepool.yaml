@@ -6,8 +6,8 @@ spec:
   disruption:
     budgets:
     - nodes: 10%
-    consolidateAfter: 30s
-    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 15m
+    consolidationPolicy: WhenEmpty
   template:
     metadata:
       labels:
@@ -31,7 +31,7 @@ spec:
         - r
       - key: "eks.amazonaws.com/instance-cpu"
         operator: In
-        values: ["4", "8", "16", "32"]
+        values: ["4", "8"]
       - key: eks.amazonaws.com/instance-generation
         operator: Gt
         values:
