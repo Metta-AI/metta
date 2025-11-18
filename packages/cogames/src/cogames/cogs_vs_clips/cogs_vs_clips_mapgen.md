@@ -218,19 +218,13 @@ CLI variants are composed in order, so `cogames play -m machina_procedural.open_
 
 ### Seeds and Reproducibility
 
-- Passing `seed` into a `MapGen.Config` (`env.game.map_builder.seed`) guarantees deterministic terrain and building
-  placement for that mission/site.
-- The `cogames evaluate` CLI threads `--seed` (and optional `--map-seed`) into both the evaluation RNG and
-  `MapGenConfig.seed` for any missions whose `map_builder` is `MapGen.Config`, so integrated evals can be made fully
-  reproducible from the CLI.
-- The `cogames train` CLI supports `--map-seed` as an **opt-in** override. When provided, it sets `MapGenConfig.seed`
-  for all procedural training missions (both single-mission and curriculum/rotation setups), giving you deterministic
-  map layouts while leaving RL randomness controlled by `--seed`. When `MapGenConfig.seed` is left as `None`, the
-  vectorized env factory derives a deterministic per-env MapGen seed from the runner’s per-env seed, so a fixed `--seed`
-  gives you a reproducible _sequence_ of diverse maps.
-- The `cogames play` CLI uses `--seed` (and optional `--map-seed`) the same way as `evaluate`: `--seed` controls the
-  simulator/policy RNG, and `--map-seed` (or `--seed` by default) is written into `MapGenConfig.seed` when the mission
-  uses `MapGen.Config`, so interactive runs can also be made fully deterministic.
+- `MapGen.Config.seed` (`env.game.map_builder.seed`) controls **map layout**: set it for deterministic terrain/building
+  placement for a mission/site.
+- `cogames evaluate` and `cogames play` use `--seed` for the simulator/policy RNG and `--map-seed` (or `--seed` if
+  omitted) for `MapGenConfig.seed`, so runs can be made fully reproducible from the CLI.
+- `cogames train` treats `--map-seed` as an **opt-in** override: when set, all procedural training missions use that
+  fixed `MapGenConfig.seed`; when left `None`, the vectorized env factory derives per-env map seeds from the runner’s
+  RNG so a fixed `--seed` yields a reproducible but diverse map sequence.
 
 Example programmatic override using the shared `MapSeedVariant` helper:
 
