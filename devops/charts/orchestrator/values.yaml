@@ -24,11 +24,11 @@ secrets:
 
 resources:
   requests:
-    cpu: 100m
-    memory: 12Gi
+    cpu: 2500m
+    memory: 16Gi
   limits:
-    cpu: 1000m
-    memory: 64Gi
+    cpu: 4000m
+    memory: 48Gi
 
 # Datadog agent is deployed as a separate service
 # This controls how the orchestrator connects to Datadog
