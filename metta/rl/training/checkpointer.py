@@ -127,13 +127,13 @@ class Checkpointer(TrainerComponent):
         if hasattr(policy, "save_policy"):
             return policy
 
-        def save_policy(destination: str | Path, *, policy_architecture: PolicyArchitecture) -> str:
+        def save_policy(self, destination: str | Path, *, policy_architecture: PolicyArchitecture) -> str:
             path = Path(destination).expanduser()
             path.parent.mkdir(parents=True, exist_ok=True)
             save_policy_artifact_safetensors(
                 path,
                 policy_architecture=policy_architecture,
-                state_dict=policy.state_dict(),
+                state_dict=self.state_dict(),
             )
             return f"file://{path.resolve()}"
 

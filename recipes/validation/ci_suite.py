@@ -47,14 +47,15 @@ def get_ci_jobs(prefix: str | None = None) -> tuple[list[JobConfig], str]:
         group=group,
     )
 
-    # Combined train+eval smoke: run a tiny training (+checkpoint) and immediately eval within the same job.
+    # Evaluate the trained policy from the training run
+    # TODO: make this use s3 and not local file when github ci perms are set to be able to fetch from s3
+
+    # policy_uri = "s3://softmax-public/policies/{arena_train_name}:latest"
     arena_eval = JobConfig(
         name=arena_eval_name,
-        module="recipes.validation.oneoff.run_arena_train_and_eval",
-        args=[
-            f"run_name={arena_train_name}",
-        ],
-        dependency_names=[],
+        module="recipes.prod.arena_basic_easy_shaped.evaluate_latest_in_dir",
+        args=[f"dir_path=./train_dir/{arena_train_name}/checkpoints/"],
+        dependency_names=[arena_train_name],
         timeout_s=300,
         group=group,
     )
