@@ -19,7 +19,7 @@ class MultiPolicyEvalTool(Tool):
     simulations: Sequence[SimulationRunConfig] = Field(description="Simulations to evaluate")
     replay_dir: str = Field(default_factory=auto_replay_dir)
     stats_server_uri: str | None = Field(default_factory=auto_stats_server_uri)
-
+    verbose: bool = Field(default=True, description="Whether to log verbose output")
     log_to_wandb: bool = Field(default=False, description="Whether to log to wandb")
 
     @model_validator(mode="after")
@@ -38,5 +38,7 @@ class MultiPolicyEvalTool(Tool):
             replay_dir=self.replay_dir,
             seed=self.system.seed,
         )
-        render_eval_summary(simulation_results, policy_names=[spec.name for spec in self.policy_specs])
+        render_eval_summary(
+            simulation_results, policy_names=[spec.name for spec in self.policy_specs], verbose=self.verbose
+        )
         return 0
