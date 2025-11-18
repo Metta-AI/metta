@@ -419,11 +419,9 @@ def train(
 ) -> TrainTool:
     task_generator_cfg = make_task_generator_cfg(**curriculum_args[curriculum_style])
 
-    # Use dual-pool curriculum with exploration-exploitation balance
-    algorithm_config = LearningProgressConfig.default_dual_pool(
-        num_explore_tasks=50,  # Exploration pool
-        num_exploit_tasks=200,  # Exploitation pool
-        # Note: num_active_tasks is automatically set to num_explore_tasks + num_exploit_tasks = 250
+    # Use learning progress curriculum with balanced configuration
+    algorithm_config = LearningProgressConfig.default(
+        num_active_tasks=250,
     )
 
     curriculum = CurriculumConfig(task_generator=task_generator_cfg, algorithm_config=algorithm_config)
