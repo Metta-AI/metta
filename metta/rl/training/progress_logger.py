@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, Optional
+from typing import Dict
 
 from rich.table import Table
 
@@ -22,25 +22,17 @@ def _format_total_steps(total_timesteps: int) -> str:
 
 
 def _format_epoch_time(seconds: float) -> str:
-    """Format epoch time in minutes:seconds format."""
+    """Format epoch time as Xm Ys (dropping zero units)."""
     if seconds <= 0:
-        return "0:00"
+        return "0s"
     minutes = int(seconds // 60)
     secs = int(seconds % 60)
-    return f"{minutes}:{secs:02d}"
-
-
-def _create_progress_table(epoch: int, run_name: str | None) -> Table:
-    if run_name:
-        title = f"[bold cyan]{run_name} · Training Progress - Epoch {epoch}[/bold cyan]"
-    else:
-        title = f"[bold cyan]Training Progress - Epoch {epoch}[/bold cyan]"
-
-    table = Table(title=title, show_header=True, header_style="bold magenta")
-    table.add_column("Metrics", style="cyan", justify="left")
-    table.add_column("Progress", style="green", justify="right")
-    table.add_column("Values", style="yellow", justify="left")
-    return table
+    parts: list[str] = []
+    if minutes:
+        parts.append(f"{minutes}m")
+    if secs or not parts:
+        parts.append(f"{secs}s")
+    return " ".join(parts)
 
 
 def log_rich_progress(
@@ -52,28 +44,32 @@ def log_rich_progress(
     rollout_pct: float,
     stats_pct: float,
     run_name: str | None,
-    heart_value: float | None,
+    heart_value: float,
     heart_rate: float | None,
     epoch_time: float,
 ) -> None:
     """Render training progress in a rich table."""
 
     console = get_console()
-    table = _create_progress_table(epoch, run_name)
+    title = (
+        f"[bold cyan]{run_name} · Training Progress - Epoch {epoch}[/bold cyan]"
+        if run_name
+        else f"[bold cyan]Training Progress - Epoch {epoch}[/bold cyan]"
+    )
+    table = Table(title=title, show_header=True, header_style="bold magenta")
+    table.add_column("Metrics", style="cyan", justify="left")
+    table.add_column("Progress", style="green", justify="right")
+    table.add_column("Values", style="yellow", justify="left")
 
     total_steps_str = _format_total_steps(total_timesteps)
     progress_pct = (agent_step / total_timesteps) * 100 if total_timesteps > 0 else 0.0
     sps_display = f"{steps_per_sec:,.0f} SPS"
     epoch_time_display = _format_epoch_time(epoch_time)
-    heart_display = ""
-    if heart_value is not None:
-        heart_display = f"heart.g {heart_value:.3f}"
-        if heart_rate is not None:
-            heart_display += f" ({heart_rate:.3f}/s)"
+    heart_display = f"heart.g {heart_value:.3f}"
+    if heart_rate is not None:
+        heart_display += f" ({heart_rate:.3f}/s)"
 
-    values_display = f"epoch-time: {epoch_time_display}"
-    if heart_display:
-        values_display += f" | {heart_display}"
+    values_display = f"{epoch_time_display} | {heart_display}"
 
     table.add_row(
         "Steps",
@@ -100,7 +96,7 @@ def log_training_progress(
     rollout_time: float,
     stats_time: float,
     run_name: str | None,
-    metrics: Dict[str, float] | None,
+    metrics: Dict[str, float],
 ) -> None:
     """Log training progress with timing breakdown and optional metrics."""
 
@@ -113,15 +109,8 @@ def log_training_progress(
     else:
         steps_per_sec = train_pct = rollout_pct = stats_pct = 0.0
 
-    heart_value = None
-    heart_rate = None
-    if metrics:
-        heart_value = (
-            metrics.get("env_agent/heart.gained.avg")
-            or metrics.get("env_agent/heart.gained")
-            or metrics.get("overview/heart.gained")
-        )
-        heart_rate = metrics.get("env_agent/heart.gained.rate")
+    heart_value = metrics.get("env_agent/heart.gained", 0.0)
+    heart_rate = metrics.get("env_agent/heart.gained.rate")
 
     if should_use_rich_console():
         log_rich_progress(
@@ -149,13 +138,12 @@ def log_training_progress(
             f"{label} _ epoch {epoch} _ {progress_str} _ "
             f"{_human_readable_si(steps_per_sec, 'sps')} _ "
             f"train {train_pct:.0f}% _ rollout {rollout_pct:.0f}% _ stats {stats_pct:.0f}% _ "
-            f"epoch-time: {epoch_time_str}"
+            f"{epoch_time_str}"
         )
-        if heart_value is not None:
-            segment = f"heart.gained {heart_value:.3f}"
-            if heart_rate is not None:
-                segment += f" ({heart_rate:.3f}/s)"
-            message = f"{message} _ {segment}"
+        segment = f"heart.gained {heart_value:.3f}"
+        if heart_rate is not None:
+            segment += f" ({heart_rate:.3f}/s)"
+        message = f"{message} _ {segment}"
         logger.info(message)
 
 
@@ -198,9 +186,12 @@ class ProgressLogger(TrainerComponent):
         )
         self._previous_agent_step = ctx.agent_step
 
-    def _latest_metrics(self) -> Optional[Dict[str, float]]:
+    def _latest_metrics(self) -> Dict[str, float]:
         stats_reporter = getattr(self.context, "stats_reporter", None)
         if stats_reporter is None:
-            return None
+            return {}
         latest = getattr(stats_reporter, "get_latest_payload", None)
-        return latest() if latest else None
+        if not latest:
+            return {}
+        payload = latest()
+        return payload if payload else {}
