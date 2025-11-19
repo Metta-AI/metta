@@ -3,23 +3,17 @@
 
 This script submits:
 1. Variants curriculum experiments:
-   - Single map, all variants
-   - 3 small_maps, all variants
-   - All maps, all variants
+   - For each mission in DEFAULT_CURRICULUM_MISSIONS: all variants on that single mission (10 runs)
+   - All variants on all DEFAULT_CURRICULUM_MISSIONS (1 run)
 2. Full curriculum experiment:
    - All maps, standard variant
 """
 
+from recipes.experiment import cogs_v_clips
 from recipes.experiment.cvc import full_curriculum, variants_curriculum
 
-# Training facility missions (small, focused missions)
-SMALL_MAPS = ["harvest", "assemble", "vibe_check"]
-
-# Single map for testing
-SINGLE_MAP = ["vibe_check"]
-
-# All maps from full curriculum
-ALL_MAPS = list(full_curriculum.FULL_CURRICULUM_MISSIONS)
+# Default curriculum missions
+DEFAULT_MISSIONS = cogs_v_clips.DEFAULT_CURRICULUM_MISSIONS
 
 
 def submit_variants_experiments():
@@ -28,31 +22,27 @@ def submit_variants_experiments():
     print("Submitting Variants Curriculum Experiments")
     print("=" * 80)
 
-    # 1. Single map, all variants
-    print("\n1. Submitting: Single map (vibe_check), all variants")
+    # 1. For each mission in DEFAULT_CURRICULUM_MISSIONS: all variants on that single mission
+    print(f"\nSubmitting {len(DEFAULT_MISSIONS)} single-mission experiments (all variants each):")
+    for i, mission in enumerate(DEFAULT_MISSIONS, 1):
+        print(f"  {i}. {mission}")
+        # Sanitize mission name for run name (replace special chars)
+        safe_mission_name = mission.replace("_", "-")
+        variants_curriculum.experiment(
+            base_missions=[mission],
+            run_name=f"variants_curriculum_{safe_mission_name}_all_variants",
+            skip_git_check=True,
+        )
+
+    # 2. All variants on all DEFAULT_CURRICULUM_MISSIONS
+    print(f"\nSubmitting: All variants on all {len(DEFAULT_MISSIONS)} DEFAULT_CURRICULUM_MISSIONS")
     variants_curriculum.experiment(
-        base_missions=SINGLE_MAP,
-        run_name="variants_curriculum_single_map_all_variants",
+        base_missions=DEFAULT_MISSIONS,
+        run_name="variants_curriculum_all_default_missions_all_variants",
         skip_git_check=True,
     )
 
-    # 2. 3 small_maps, all variants
-    print("\n2. Submitting: 3 small_maps, all variants")
-    variants_curriculum.experiment(
-        base_missions=SMALL_MAPS,
-        run_name="variants_curriculum_3_small_maps_all_variants",
-        skip_git_check=True,
-    )
-
-    # 3. All maps, all variants
-    print("\n3. Submitting: All maps, all variants")
-    variants_curriculum.experiment(
-        base_missions=ALL_MAPS,
-        run_name="variants_curriculum_all_maps_all_variants",
-        skip_git_check=True,
-    )
-
-    print("\n✓ All variants_curriculum experiments submitted!")
+    print(f"\n✓ All {len(DEFAULT_MISSIONS) + 1} variants_curriculum experiments submitted!")
 
 
 def submit_full_curriculum_experiment():
