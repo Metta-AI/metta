@@ -12,7 +12,7 @@ async def _create_policy_with_scores(
     user_id: str,
     policy_name: str,
     sim_scores: list[dict[str, float]],
-) -> None:
+) -> uuid.UUID:
     policy_id = await stats_repo.upsert_policy(name=policy_name, user_id=user_id, attributes={})
     policy_version_id = await stats_repo.create_policy_version(
         policy_id=policy_id,
@@ -36,6 +36,24 @@ async def _create_policy_with_scores(
                 policy_versions=[(policy_version_id, 1)],
                 policy_metrics=[(policy_version_id, "reward", reward)],
             )
+
+    return policy_version_id
+
+
+async def _create_policy_version(
+    stats_repo: MettaRepo,
+    user_id: str,
+    policy_name: str,
+) -> uuid.UUID:
+    policy_id = await stats_repo.upsert_policy(name=policy_name, user_id=user_id, attributes={})
+    policy_version_id = await stats_repo.create_policy_version(
+        policy_id=policy_id,
+        s3_path=None,
+        git_hash=None,
+        policy_spec={},
+        attributes={},
+    )
+    return policy_version_id
 
 
 @pytest.mark.asyncio
@@ -102,3 +120,136 @@ async def test_leaderboard_and_me_routes(
         "arena-basic": 20.0,
         "arena-combat": 10.0,
     }
+
+
+@pytest.mark.asyncio
+async def test_leaderboard_policies_route_returns_tags_and_scores(
+    isolated_stats_repo: MettaRepo,
+    isolated_test_client: TestClient,
+) -> None:
+    user = "leaderboard@example.com"
+    policy_version_id = await _create_policy_with_scores(
+        isolated_stats_repo,
+        user,
+        "leaderboard-policy",
+        [
+            {
+                "arena-basic": 10.0,
+                "arena-combat": 20.0,
+            },
+            {
+                "arena-basic": 30.0,
+                "arena-combat": 0.0,
+            },
+        ],
+    )
+    await isolated_stats_repo.upsert_policy_version_tags(
+        policy_version_id,
+        {
+            "leaderboard-public": "true",
+            "cogames-submitted": "true",
+        },
+    )
+
+    empty_policy_version_id = await _create_policy_version(isolated_stats_repo, user, "pending-policy")
+    await isolated_stats_repo.upsert_policy_version_tags(
+        empty_policy_version_id,
+        {
+            "leaderboard-public": "true",
+            "cogames-submitted": "true",
+        },
+    )
+
+    headers = {"X-Auth-Request-Email": user}
+    response = isolated_test_client.post(
+        "/leaderboard/leaderboard_policies",
+        json={
+            "policy_version_tags": {
+                "leaderboard-public": "true",
+                "cogames-submitted": "true",
+            },
+            "score_group_episode_tags": [V0_LEADERBOARD_NAME_TAG_KEY],
+        },
+        headers=headers,
+    )
+    assert response.status_code == 200
+    entries = response.json()["entries"]
+    assert [entry["policy_version"]["id"] for entry in entries] == [
+        str(policy_version_id),
+        str(empty_policy_version_id),
+    ]
+
+    populated_entry = entries[0]
+    expected_scores = {
+        f"{V0_LEADERBOARD_NAME_TAG_KEY}:arena-basic": 20.0,
+        f"{V0_LEADERBOARD_NAME_TAG_KEY}:arena-combat": 10.0,
+    }
+    assert populated_entry["scores"] == expected_scores
+    assert populated_entry["avg_score"] == pytest.approx(15.0)
+    assert populated_entry["policy_version"]["tags"] == {
+        "leaderboard-public": "true",
+        "cogames-submitted": "true",
+    }
+
+    empty_entry = entries[1]
+    assert empty_entry["scores"] == {}
+    assert empty_entry["avg_score"] is None
+    assert empty_entry["policy_version"]["tags"] == {
+        "leaderboard-public": "true",
+        "cogames-submitted": "true",
+    }
+
+
+@pytest.mark.asyncio
+async def test_leaderboard_policies_filters_by_policy_version_id(
+    isolated_stats_repo: MettaRepo,
+    isolated_test_client: TestClient,
+) -> None:
+    user = "policy-filter@example.com"
+    matching_pv_id = await _create_policy_with_scores(
+        isolated_stats_repo,
+        user,
+        "filter-policy",
+        [
+            {
+                "arena-basic": 5.0,
+            }
+        ],
+    )
+    await isolated_stats_repo.upsert_policy_version_tags(
+        matching_pv_id,
+        {
+            "leaderboard-public": "true",
+        },
+    )
+
+    other_pv_id = await _create_policy_with_scores(
+        isolated_stats_repo,
+        user,
+        "other-policy",
+        [
+            {
+                "arena-basic": 9.0,
+            }
+        ],
+    )
+    await isolated_stats_repo.upsert_policy_version_tags(
+        other_pv_id,
+        {
+            "leaderboard-public": "true",
+        },
+    )
+
+    response = isolated_test_client.post(
+        "/leaderboard/leaderboard_policies",
+        json={
+            "policy_version_tags": {"leaderboard-public": "true"},
+            "score_group_episode_tags": [V0_LEADERBOARD_NAME_TAG_KEY],
+            "policy_version_id": str(matching_pv_id),
+        },
+        headers={"X-Auth-Request-Email": user},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["entries"]) == 1
+    assert body["entries"][0]["policy_version"]["id"] == str(matching_pv_id)
