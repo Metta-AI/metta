@@ -240,7 +240,7 @@ run_cmd() {
   # Create log directory for Datadog agent to collect
   TRAINING_LOG_DIR="/tmp/training_logs"
   mkdir -p "$TRAINING_LOG_DIR"
-  # Ensure directory is accessible by Datadog agent (which runs as a different user)
+  # Ensure directory is accessible by Datadog agent (which runs as dd-agent user)
   chmod 777 "$TRAINING_LOG_DIR"
 
   # Log files for Datadog collection
@@ -250,7 +250,7 @@ run_cmd() {
 
   # Create empty log files so Datadog agent can start collecting immediately
   touch "$TRAINING_STDOUT_LOG" "$TRAINING_STDERR_LOG" "$TRAINING_COMBINED_LOG"
-  # Ensure files are readable/writable by Datadog agent
+  # Ensure files are readable/writable by Datadog agent (dd-agent user)
   chmod 666 "$TRAINING_STDOUT_LOG" "$TRAINING_STDERR_LOG" "$TRAINING_COMBINED_LOG"
 
   # Use process substitution so $! is the trainer (not tee)
