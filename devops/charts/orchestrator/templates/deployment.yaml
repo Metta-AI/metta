@@ -41,6 +41,10 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.name
+        {{- if .Values.workerPodAnnotations }}
+        - name: WORKER_POD_ANNOTATIONS
+          value: {{ .Values.workerPodAnnotations | toJson | quote }}
+        {{- end }}
         - name: WANDB_API_KEY
           valueFrom:
             secretKeyRef:

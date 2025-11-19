@@ -2,7 +2,7 @@ import json
 import logging
 import os
 import subprocess
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from metta.app_backend.container_managers.base import AbstractContainerManager
 from metta.app_backend.worker_managers.worker import Worker
@@ -12,7 +12,9 @@ logger = logging.getLogger(__name__)
 
 
 class K8sPodManager(AbstractContainerManager):
-    def __init__(self, namespace: str | None = None, kubeconfig: str | None = None, wandb_api_key: str | None = None):
+    def __init__(
+        self, namespace: Optional[str] = None, kubeconfig: Optional[str] = None, wandb_api_key: Optional[str] = None
+    ):
         self._namespace = namespace or os.environ.get("KUBERNETES_NAMESPACE", "orchestrator")
         self._kubeconfig = kubeconfig or os.environ.get("KUBERNETES_KUBECONFIG", None)
         self._wandb_api_key = wandb_api_key or os.environ.get("WANDB_API_KEY", "")
@@ -31,16 +33,22 @@ class K8sPodManager(AbstractContainerManager):
         machine_token: str,
     ) -> dict:
         pod_name = self._format_container_name()
+        pod_annotations = self._get_worker_pod_annotations()
+        metadata = {
+            "name": pod_name,
+            "labels": {
+                "app": "eval-worker",
+                "created-by": "eval-task-orchestrator",
+            },
+        }
+
+        if pod_annotations:
+            metadata["annotations"] = pod_annotations
+
         return {
             "apiVersion": "v1",
             "kind": "Pod",
-            "metadata": {
-                "name": pod_name,
-                "labels": {
-                    "app": "eval-worker",
-                    "created-by": "eval-task-orchestrator",
-                },
-            },
+            "metadata": metadata,
             "spec": {
                 "restartPolicy": "Never",
                 "serviceAccountName": os.getenv("KUBERNETES_SERVICE_ACCOUNT", f"orchestrator-{self._namespace}"),
@@ -102,6 +110,23 @@ class K8sPodManager(AbstractContainerManager):
         env.extend([{"name": key, "value": value} for key, value in dd_env.items()])
         env.append({"name": "DD_AGENT_HOST", "valueFrom": {"fieldRef": {"fieldPath": "status.hostIP"}}})
         return env
+
+    def _get_worker_pod_annotations(self) -> dict[str, str]:
+        annotations_raw = os.environ.get("WORKER_POD_ANNOTATIONS")
+        if not annotations_raw:
+            return {}
+
+        try:
+            parsed_annotations = json.loads(annotations_raw)
+        except json.JSONDecodeError:
+            logger.warning("Invalid WORKER_POD_ANNOTATIONS JSON; ignoring configured annotations")
+            return {}
+
+        if not isinstance(parsed_annotations, dict):
+            logger.warning("WORKER_POD_ANNOTATIONS must decode to a mapping; ignoring configured annotations")
+            return {}
+
+        return {str(key): str(value) for key, value in parsed_annotations.items()}
 
     def start_worker_container(
         self,
