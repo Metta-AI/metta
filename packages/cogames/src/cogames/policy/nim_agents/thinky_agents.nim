@@ -146,6 +146,17 @@ proc newThinkyAgent*(agentId: int, environmentConfig: string): ThinkyAgent =
 proc updateMap(agent: ThinkyAgent, visible: Table[Location, seq[FeatureValue]]) {.measure.} =
   ## Update the big map with the small visible map.
 
+  let lastAction = agent.cfg.getLastAction(visible)
+
+  if agent.map.len == 0:
+    # Fresh episode; drop any stale remembered actions.
+    agent.lastActions.setLen(0)
+
+  if lastAction != -1:
+    agent.lastActions.add(lastAction)
+    if agent.lastActions.len > 2:
+      agent.lastActions.delete(0) # Keep only the last two environment-reported actions.
+
   if agent.map.len == 0:
     # First time we're called, just copy the visible map to the big map.
     agent.map = visible
@@ -157,7 +168,6 @@ proc updateMap(agent: ThinkyAgent, visible: Table[Location, seq[FeatureValue]]) 
     return
 
   var newLocation = agent.location
-  let lastAction = agent.cfg.getLastAction(visible)
   if lastAction == agent.cfg.actions.moveNorth:
     newLocation.y -= 1
   elif lastAction == agent.cfg.actions.moveSouth:
@@ -306,8 +316,6 @@ proc step*(
           log "Stuck prevention: south, north, south"
           doAction(agent.cfg.actions.noop.int32)
           return
-
-      agent.lastActions.add(action)
       agentAction[] = action.int32
 
     # Parse the tokens into a vision map.
