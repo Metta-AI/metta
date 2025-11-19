@@ -3,7 +3,7 @@ from typing import Any
 import numpy as np
 import torch
 from pydantic import Field
-from tensordict import TensorDict
+from tensordict import NonTensorData, TensorDict
 from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous
 
@@ -91,6 +91,19 @@ class PPOActor(Loss):
 
         logratio = torch.clamp(new_logprob - old_logprob, -10, 10)
         importance_sampling_ratio = logratio.exp()
+
+        indices = shared_loss_data.get("indices", None)
+        if isinstance(indices, NonTensorData):
+            indices = indices.data
+
+        if indices is not None:
+            update_td = TensorDict(
+                {
+                    "ratio": importance_sampling_ratio.detach(),
+                },
+                batch_size=minibatch.batch_size,
+            )
+            self.replay.update(indices, update_td)
 
         # Re-compute advantages with new ratios (V-trace)
         # Use gamma/lambda from critic to ensure consistency

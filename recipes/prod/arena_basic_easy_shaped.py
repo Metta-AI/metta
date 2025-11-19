@@ -113,11 +113,11 @@ def train(
     # losses_cfg.ppo.enabled = True
 
     # # action supervised with PPO critic loss
-    # losses_cfg.ppo_actor.enabled = False
-    # losses_cfg.action_supervisor.enabled = True
-    # losses_cfg.ppo_critic.sample_enabled = False
-    # losses_cfg.ppo_critic.train_forward_enabled = False
-    # losses_cfg.ppo_critic.rollout_forward_enabled = False
+    losses_cfg.ppo_actor.enabled = False
+    losses_cfg.action_supervisor.enabled = True
+    losses_cfg.ppo_critic.sample_enabled = False
+    losses_cfg.ppo_critic.train_forward_enabled = False
+    losses_cfg.ppo_critic.rollout_forward_enabled = False
 
     trainer_cfg = TrainerConfig(losses=losses_cfg)
 

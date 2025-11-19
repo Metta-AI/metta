@@ -157,7 +157,7 @@ class PPOCritic(Loss):
             if "prio_weights" not in shared_loss_data:
                 # just in case ppo_actor runs after this and is expecting
                 shared_loss_data["prio_weights"] = torch.ones(
-                    (minibatch.shape[0], 1),
+                    (minibatch.shape[0], minibatch.shape[1]),
                     device=self.device,
                     dtype=torch.float32,
                 )
@@ -183,17 +183,9 @@ class PPOCritic(Loss):
         minibatch["returns"] = returns
         policy_td = shared_loss_data.get("policy_td", None)
         newvalue_reshaped = None
-        importance_sampling_ratio = None
-
         if policy_td is not None:
             newvalue = policy_td["values"]
             newvalue_reshaped = newvalue.view(returns.shape)
-
-            # Calculate importance sampling ratio for replay buffer update
-            old_logprob = minibatch["act_log_prob"]
-            new_logprob = policy_td["act_log_prob"].reshape(old_logprob.shape)
-            logratio = torch.clamp(new_logprob - old_logprob, -10, 10)
-            importance_sampling_ratio = logratio.exp()
 
         if newvalue_reshaped is not None:
             if self.cfg.clip_vloss:
@@ -209,16 +201,14 @@ class PPOCritic(Loss):
             else:
                 v_loss = 0.5 * ((newvalue_reshaped - returns) ** 2).mean()
 
-            # Update values and ratio in experience buffer
-            if importance_sampling_ratio is not None:
-                update_td = TensorDict(
-                    {
-                        "values": newvalue.view(minibatch["values"].shape).detach(),
-                        "ratio": importance_sampling_ratio.detach(),
-                    },
-                    batch_size=minibatch.batch_size,
-                )
-                self.replay.update(indices, update_td)
+            # Update values in experience buffer
+            update_td = TensorDict(
+                {
+                    "values": newvalue.view(minibatch["values"].shape).detach(),
+                },
+                batch_size=minibatch.batch_size,
+            )
+            self.replay.update(indices, update_td)
         else:
             v_loss = 0.5 * ((old_values - returns) ** 2).mean()
 
