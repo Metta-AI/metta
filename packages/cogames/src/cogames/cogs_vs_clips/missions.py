@@ -2,9 +2,9 @@ from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
 from cogames.cogs_vs_clips.evals.eval_missions import EVAL_MISSIONS
 from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS as INTEGRATED_EVAL_MISSIONS
 from cogames.cogs_vs_clips.machina_missions_trainer import MACHINA_TRAINER_MISSIONS
-from cogames.cogs_vs_clips.mission import Mission, Site
+from cogames.cogs_vs_clips.mission import Mission
 from cogames.cogs_vs_clips.mission_utils import get_map
-from cogames.cogs_vs_clips.sites import HELLO_WORLD, MACHINA_1, TRAINING_FACILITY
+from cogames.cogs_vs_clips.sites import EASY_MODE, HELLO_WORLD, MACHINA_1, TRAINING_FACILITY
 from cogames.cogs_vs_clips.variants import (
     ClipHubStationsVariant,
     ClipPeriodOnVariant,
@@ -102,19 +102,10 @@ HelloWorldUnclipMission = Mission(
 
 
 # Easy Mode: Simplified training mission with extractor hub and generous variants
-# Define a dedicated site inline so it can be accessed as just "easy_mode"
-EASY_MODE_SITE = Site(
-    name="easy_mode",
-    description="Easy training configuration with simplified variants",
-    map_builder=get_map("evals/extractor_hub_30x30.map"),
-    min_cogs=1,
-    max_cogs=8,
-)
-
 EasyMode = Mission(
     name="easy_mode",
     description="Easy training: extractor_hub_30 with lonely_heart, heart_chorus, and pack_rat variants.",
-    site=EASY_MODE_SITE,
+    site=EASY_MODE,
     variants=[
         LonelyHeartVariant(),
         HeartChorusVariant(),
