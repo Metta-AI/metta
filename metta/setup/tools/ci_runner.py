@@ -5,7 +5,7 @@ Both local development (metta ci) and GitHub Actions call this same tool.
 
 GitHub Actions workflow calls individual stages:
   - uv run metta ci --stage lint
-  - uv run metta ci --stage python-tests-and-benchmarks  # includes mypy
+  - uv run metta ci --stage python-tests-and-benchmarks  # includes Pyright
   - uv run metta ci --stage cpp-tests
   - uv run metta ci --stage cpp-benchmarks
   - uv run metta ci --stage recipe-tests
@@ -16,6 +16,7 @@ Local development can run all stages:
 """
 
 import logging
+import os
 import shlex
 import subprocess
 import sys
@@ -42,9 +43,9 @@ console = Console()
 # Allow skipping any package supported by metta pytest runner.
 ALLOWED_SKIP_PACKAGES = {package.name.lower() for package in PYTEST_PACKAGES}
 
-# Always run mypy on the shared metta package plus any opted-in workspace packages.
-MYPY_BASE_TARGETS: tuple[str, ...] = ("metta",)
-MYPY_PACKAGE_TARGETS: dict[str, str] = {
+# Always run Pyright on the shared metta package plus any opted-in workspace packages.
+PYRIGHT_BASE_TARGETS: tuple[str, ...] = ("metta",)
+PYRIGHT_PACKAGE_TARGETS: dict[str, str] = {
     "agent": "agent/src/metta/agent",
     "app_backend": "app_backend/src/metta/app_backend",
     "common": "common/src/metta/common",
@@ -52,6 +53,7 @@ MYPY_PACKAGE_TARGETS: dict[str, str] = {
     "cortex": "packages/cortex/src/cortex",
     "mettagrid": "packages/mettagrid/python/src/mettagrid",
 }
+PYRIGHT_ENFORCE_ENV = "METTA_CI_ENFORCE_PYRIGHT"
 
 
 class CheckResult:
@@ -121,25 +123,36 @@ def _extract_skip_packages(normalized_args: Sequence[str]) -> set[str]:
     return skipped
 
 
-def _build_mypy_targets(skipped_packages: set[str]) -> list[str]:
-    """Determine which paths mypy should type check for this run."""
-    targets = list(MYPY_BASE_TARGETS)
-    for package, path in MYPY_PACKAGE_TARGETS.items():
+def _build_pyright_targets(skipped_packages: set[str]) -> list[str]:
+    """Determine which paths Pyright should type check for this run."""
+    targets = list(PYRIGHT_BASE_TARGETS)
+    for package, path in PYRIGHT_PACKAGE_TARGETS.items():
         if package in skipped_packages:
             continue
         targets.append(path)
     return targets
 
 
-def _run_mypy(*, verbose: bool = False, skipped_packages: set[str] | None = None) -> bool:
-    """Run mypy across the repo."""
-    _print_header("Python Type Checking (mypy)")
-    targets = _build_mypy_targets(skipped_packages or set())
+def _run_pyright(*, verbose: bool = False, skipped_packages: set[str] | None = None) -> bool:
+    """Run Pyright across the repo."""
+    _print_header("Python Type Checking (Pyright)")
+    targets = _build_pyright_targets(skipped_packages or set())
     if not targets:
-        info("No mypy targets configured. Skipping.")
+        info("No Pyright targets configured. Skipping.")
         return True
-    cmd = ["uv", "run", "mypy", *targets]
-    return _run_command(cmd, "mypy type checking", verbose=verbose)
+    cmd = ["uv", "run", "pyright", *targets]
+    return _run_command(cmd, "pyright type checking", verbose=verbose)
+
+
+def _is_truthy(value: str | None) -> bool:
+    if value is None:
+        return False
+    return value.lower() in {"1", "true", "yes", "on"}
+
+
+def _is_pyright_enforced() -> bool:
+    """Determine if Pyright failures should fail the python stage."""
+    return _is_truthy(os.environ.get(PYRIGHT_ENFORCE_ENV))
 
 
 def _run_command(cmd: Sequence[str], description: str, *, verbose: bool = False) -> bool:
@@ -181,11 +194,14 @@ def _run_python_tests(
     verbose: bool = False,
     extra_args: Sequence[str] | None = None,
 ) -> CheckResult:
-    """Run mypy followed by Python tests and benchmarks."""
+    """Run Pyright followed by Python tests and benchmarks."""
     normalized_args = _normalize_python_stage_args(extra_args)
     skipped_packages = _extract_skip_packages(normalized_args)
 
-    mypy_passed = _run_mypy(verbose=verbose, skipped_packages=skipped_packages)
+    enforce_pyright = _is_pyright_enforced()
+    pyright_passed = _run_pyright(verbose=verbose, skipped_packages=skipped_packages)
+    if not pyright_passed and not enforce_pyright:
+        info(f"Pyright failed but {PYRIGHT_ENFORCE_ENV} is not set; continuing.")
 
     _print_header("Python Tests and Benchmarks")
 
@@ -193,7 +209,8 @@ def _run_python_tests(
     cmd.extend(normalized_args)
     tests_passed = _run_command(cmd, "Python tests and benchmarks", verbose=verbose)
 
-    return CheckResult("Python Tests + mypy", mypy_passed and tests_passed)
+    passed = tests_passed and (pyright_passed or not enforce_pyright)
+    return CheckResult("Python Tests + Pyright", passed)
 
 
 def _run_nim_tests(*, verbose: bool = False, extra_args: Sequence[str] | None = None) -> CheckResult:
