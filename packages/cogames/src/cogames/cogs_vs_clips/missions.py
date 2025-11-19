@@ -8,6 +8,7 @@ from cogames.cogs_vs_clips.sites import HELLO_WORLD, MACHINA_1, TRAINING_FACILIT
 from cogames.cogs_vs_clips.variants import (
     ClipHubStationsVariant,
     ClipPeriodOnVariant,
+    EmptyBaseVariant,
     ExtractorHeartTuneVariant,
     HeartChorusVariant,
     InventoryHeartTuneVariant,
@@ -81,6 +82,7 @@ HelloWorldOpenWorldMission = Mission(
     name="open_world",
     description="Collect resources and assemble HEARTs.",
     site=HELLO_WORLD,
+    variants=[EmptyBaseVariant()],
 )
 
 
@@ -89,6 +91,7 @@ Machina1OpenWorldMission = Mission(
     name="open_world",
     description="Collect resources and assemble HEARTs.",
     site=MACHINA_1,
+    variants=[EmptyBaseVariant()],
 )
 
 
