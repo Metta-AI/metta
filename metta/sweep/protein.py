@@ -441,6 +441,13 @@ class Protein:
         candidates, pareto_idxs = pareto_points_oriented(
             self.success_observations, self.hyperparameters.optimize_direction
         )
+        if len(candidates) == 0:
+            # All observations were mutually dominated under strict epsilon; pick the best score as anchor.
+            logger.warning("[Protein] No Pareto candidates found; using best observed score as center.")
+            direction = self.hyperparameters.optimize_direction
+            scores = np.array([direction * e["output"] for e in self.success_observations])
+            best_idx = int(np.argmax(scores)) if len(scores) else 0
+            candidates = [self.success_observations[best_idx]]
         search_centers = np.stack([e["input"] for e in candidates])
         suggestions = self.hyperparameters.sample(
             len(candidates) * self.suggestions_per_pareto, mu=search_centers, scale=self.global_search_scale
