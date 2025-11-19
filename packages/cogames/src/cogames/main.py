@@ -331,7 +331,6 @@ def make_mission(
 @app.command(name="train", help="Train a policy on a mission")
 def train_cmd(
     ctx: typer.Context,
-    preset: Optional[str] = typer.Argument(None, help="Training preset (e.g., 'easy_mode')"),
     missions: Optional[list[str]] = typer.Option(None, "--mission", "-m", help="Missions to train on"),  # noqa: B008
     cogs: Optional[int] = typer.Option(None, "--cogs", "-c", help="Number of cogs (agents)"),
     variant: Optional[list[str]] = typer.Option(  # noqa: B008
@@ -381,20 +380,6 @@ def train_cmd(
     ),
     log_outputs: bool = typer.Option(False, "--log-outputs", help="Log training outputs"),
 ) -> None:
-    # Handle training presets
-    if preset == "easy_mode":
-        if missions is not None:
-            console.print("[yellow]Warning: --mission options will be overridden by easy_mode preset[/yellow]")
-        if variant is not None:
-            console.print("[yellow]Warning: --variant options will be overridden by easy_mode preset[/yellow]")
-        missions = ["evals.extractor_hub_30"]
-        variant = ["lonely_heart", "heart_chorus", "pack_rat"]
-        console.print("[cyan]Using easy_mode preset[/cyan]")
-    elif preset is not None:
-        console.print(f"[red]Error: Unknown preset '{preset}'[/red]")
-        console.print("Available presets: easy_mode")
-        raise typer.Exit(1)
-
     selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs)
     if len(selected_missions) == 1:
         mission_name, env_cfg = selected_missions[0]
