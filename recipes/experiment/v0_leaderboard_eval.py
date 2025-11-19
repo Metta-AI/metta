@@ -8,6 +8,8 @@ from metta.tools.utils.auto_config import auto_stats_server_uri
 
 logger = logging.getLogger(__name__)
 
+V0_LEADERBOARD_NAME_TAG_KEY = "v0-leaderboard-name"
+
 # Baseline UUIDs
 THINKY_UUID = "4f00146e-7a14-4b5d-b15e-6068f1b82de6"
 LADYBUG_UUID = "3e9fca78-f179-47d8-bb56-63108a3ff7d3"
@@ -30,7 +32,7 @@ def simulations(num_episodes: int = 1) -> Sequence[SimulationRunConfig]:
         num_episodes=num_episodes,
         proportions=[1.0, 0.0, 0.0],
         episode_tags={
-            "v0-leaderboard-name": "machina1-self-play",
+            V0_LEADERBOARD_NAME_TAG_KEY: "machina1-self-play",
             "type": "self_play",
         },
     )
@@ -42,7 +44,7 @@ def simulations(num_episodes: int = 1) -> Sequence[SimulationRunConfig]:
         num_episodes=num_episodes,
         proportions=[1.0, 1.0, 0.0],
         episode_tags={
-            "v0-leaderboard-name": "machina1-with-thinky",
+            V0_LEADERBOARD_NAME_TAG_KEY: "machina1-with-thinky",
             "type": "with_thinky",
         },
     )
@@ -54,7 +56,7 @@ def simulations(num_episodes: int = 1) -> Sequence[SimulationRunConfig]:
         num_episodes=num_episodes,
         proportions=[1.0, 0.0, 1.0],
         episode_tags={
-            "v0-leaderboard-name": "machina1-with-ladybug",
+            V0_LEADERBOARD_NAME_TAG_KEY: "machina1-with-ladybug",
             "type": "with_ladybug",
         },
     )
