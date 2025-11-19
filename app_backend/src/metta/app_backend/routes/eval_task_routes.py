@@ -147,7 +147,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
 
         task = await stats_repo.create_eval_task(
             command=request.command,
-            git_hash=request.git_hash,
+            git_hash=request.git_hash or await get_cached_latest_commit(),
             attributes=request.attributes,
             user_id=user,
             data_uri=data_uri,
