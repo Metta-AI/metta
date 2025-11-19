@@ -576,6 +576,50 @@ proc step*(
     if atMaxInventory:
       log "at max inventory"
 
+    block considerDumpAll:
+      let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
+      if chestNearby.isNone():
+        break considerDumpAll
+      let totalResourceInventory = invCarbon + invOxygen + invGermanium + invSilicon
+      if totalResourceInventory == 0:
+        break considerDumpAll
+      let chestLoc = chestNearby.get()
+      let mostlyGermanium = invGermanium * 100 div totalResourceInventory >= 65
+      var resourceTypesToDump = 0
+      if invCarbon > agent.carbonTarget + PutCarbonAmount:
+        inc resourceTypesToDump
+      if invOxygen > agent.oxygenTarget + PutOxygenAmount:
+        inc resourceTypesToDump
+      if invGermanium > agent.germaniumTarget + PutGermaniumAmount:
+        inc resourceTypesToDump
+      if invSilicon > agent.siliconTarget + PutSiliconAmount:
+        inc resourceTypesToDump
+      var chestLoad = 0
+      let chestFeatures = [
+        agent.cfg.features.invCarbon,
+        agent.cfg.features.invOxygen,
+        agent.cfg.features.invGermanium,
+        agent.cfg.features.invSilicon,
+      ]
+      for featureId in chestFeatures:
+        chestLoad += agent.cfg.getInventory(agent.map, featureId, chestLoc)
+      let chestNearFull = chestLoad >= MaxResourceInventory - 15
+      let dumpAllWorthwhile = (mostlyGermanium and invGermanium >= PutGermaniumAmount * 6 and resourceTypesToDump >= 1) or
+        (chestNearFull and resourceTypesToDump >= 1) or
+        (resourceTypesToDump >= 3 and totalResourceInventory >= MaxResourceInventory div 2)
+      if dumpAllWorthwhile:
+        if vibe != agent.cfg.vibes.default:
+          doAction(agent.cfg.actions.vibeDefault.int32)
+          log "switching to neutral to dump all resources at chest"
+          return
+        measurePush("dump all resources at chest")
+        let action = agent.cfg.aStar(agent.location, chestLoc, agent.map)
+        measurePop()
+        if action.isSome():
+          doAction(action.get().int32)
+          log "heading to chest for dump-all drop"
+          return
+
     if atMaxInventory and invCarbon > avgResource and invCarbon > agent.carbonTarget + PutCarbonAmount:
       let chestNearby = agent.cfg.getNearby(agent.location, agent.map, agent.cfg.tags.chest)
       if chestNearby.isSome():
