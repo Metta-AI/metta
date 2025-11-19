@@ -221,6 +221,20 @@ def _setup_recipe_logging(log_file: Path, group: str) -> None:
     metta_logger.info(separator)
 
 
+def _run_cleanup_cancelled_runs(*, verbose: bool = False, extra_args: Sequence[str] | None = None) -> CheckResult:
+    """Clean up cancelled workflow runs from concurrency settings."""
+    _ensure_no_extra_args("cleanup-cancelled-runs", extra_args)
+    _print_header("Cleanup Cancelled Runs")
+
+    cmd = [
+        "uv",
+        "run",
+        str(get_repo_root() / ".github/actions/cleanup-cancelled-runs/cleanup_cancelled_runs.py"),
+    ]
+    passed = _run_command(cmd, "Cleanup cancelled runs", verbose=verbose)
+    return CheckResult("Cleanup Cancelled Runs", passed)
+
+
 def _run_recipe_tests(
     *, verbose: bool = False, name_filter: str | None = None, no_interactive: bool = False, max_local_jobs: int = 2
 ) -> CheckResult:
@@ -310,6 +324,7 @@ stages: dict[str, StageRunner] = {
     "cpp-benchmarks": lambda v, args, name, _: _run_cpp_benchmarks(verbose=v, extra_args=args),
     "nim-tests": lambda v, args, name, _: _run_nim_tests(verbose=v, extra_args=args),
     "recipe-tests": lambda v, args, name, ni: _run_recipe_tests(verbose=v, name_filter=name, no_interactive=ni),
+    "cleanup-cancelled-runs": lambda v, args, name, _: _run_cleanup_cancelled_runs(verbose=v, extra_args=args),
 }
 
 
