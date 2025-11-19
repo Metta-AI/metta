@@ -239,6 +239,7 @@ def _():
                 return generate_valid_random_actions(self.env, self.num_agents)
 
             ar, ac = agent["r"], agent["c"]
+            # TODO: orientation no longer exists
             agent_ori = int(agent.get("agent:orientation", 0))
 
             # Check agent's ore inventory first

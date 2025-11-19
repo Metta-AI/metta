@@ -11,6 +11,7 @@ def format_grid_object_base(grid_object: dict) -> dict:
     update_object["id"] = grid_object["id"]
     update_object["type_name"] = grid_object["type_name"]
     update_object["location"] = grid_object["location"]
+    # Note, orientation no longer exists. It might in (old) replays, but we should be able to deprecate this.
     update_object["orientation"] = grid_object.get("orientation", 0)
     update_object["inventory"] = list(grid_object.get("inventory", {}).items())
     update_object["inventory_max"] = grid_object.get("inventory_max", 0)
