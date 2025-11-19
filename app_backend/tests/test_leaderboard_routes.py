@@ -3,7 +3,7 @@ import uuid
 import pytest
 from fastapi.testclient import TestClient
 
-from metta.app_backend.leaderboard_constants import V0_LEADERBOARD_NAME_TAG_KEY
+from metta.app_backend.leaderboard_constants import SUBMITTED_KEY, V0_LEADERBOARD_NAME_TAG_KEY
 from metta.app_backend.metta_repo import MettaRepo
 
 
@@ -123,7 +123,7 @@ async def test_leaderboard_and_me_routes(
 
 
 @pytest.mark.asyncio
-async def test_leaderboard_policies_route_returns_tags_and_scores(
+async def test_leaderboard_v2_route_returns_tags_and_scores(
     isolated_stats_repo: MettaRepo,
     isolated_test_client: TestClient,
 ) -> None:
@@ -143,35 +143,13 @@ async def test_leaderboard_policies_route_returns_tags_and_scores(
             },
         ],
     )
-    await isolated_stats_repo.upsert_policy_version_tags(
-        policy_version_id,
-        {
-            "leaderboard-public": "true",
-            "cogames-submitted": "true",
-        },
-    )
+    await isolated_stats_repo.upsert_policy_version_tags(policy_version_id, {SUBMITTED_KEY: "true"})
 
     empty_policy_version_id = await _create_policy_version(isolated_stats_repo, user, "pending-policy")
-    await isolated_stats_repo.upsert_policy_version_tags(
-        empty_policy_version_id,
-        {
-            "leaderboard-public": "true",
-            "cogames-submitted": "true",
-        },
-    )
+    await isolated_stats_repo.upsert_policy_version_tags(empty_policy_version_id, {SUBMITTED_KEY: "true"})
 
     headers = {"X-Auth-Request-Email": user}
-    response = isolated_test_client.post(
-        "/leaderboard/leaderboard_policies",
-        json={
-            "policy_version_tags": {
-                "leaderboard-public": "true",
-                "cogames-submitted": "true",
-            },
-            "score_group_episode_tags": [V0_LEADERBOARD_NAME_TAG_KEY],
-        },
-        headers=headers,
-    )
+    response = isolated_test_client.post("/leaderboard/v2", headers=headers)
     assert response.status_code == 200
     entries = response.json()["entries"]
     assert [entry["policy_version"]["id"] for entry in entries] == [
@@ -186,24 +164,18 @@ async def test_leaderboard_policies_route_returns_tags_and_scores(
     }
     assert populated_entry["scores"] == expected_scores
     assert populated_entry["avg_score"] == pytest.approx(15.0)
-    assert populated_entry["policy_version"]["tags"] == {
-        "leaderboard-public": "true",
-        "cogames-submitted": "true",
-    }
+    assert populated_entry["policy_version"]["tags"] == {SUBMITTED_KEY: "true"}
     assert populated_entry["policy_version"]["user_id"] == user
 
     empty_entry = entries[1]
     assert empty_entry["scores"] == {}
     assert empty_entry["avg_score"] is None
-    assert empty_entry["policy_version"]["tags"] == {
-        "leaderboard-public": "true",
-        "cogames-submitted": "true",
-    }
+    assert empty_entry["policy_version"]["tags"] == {SUBMITTED_KEY: "true"}
     assert empty_entry["policy_version"]["user_id"] == user
 
 
 @pytest.mark.asyncio
-async def test_leaderboard_policies_filters_by_policy_version_id(
+async def test_leaderboard_v2_filters_by_policy_version_id(
     isolated_stats_repo: MettaRepo,
     isolated_test_client: TestClient,
 ) -> None:
@@ -218,12 +190,7 @@ async def test_leaderboard_policies_filters_by_policy_version_id(
             }
         ],
     )
-    await isolated_stats_repo.upsert_policy_version_tags(
-        matching_pv_id,
-        {
-            "leaderboard-public": "true",
-        },
-    )
+    await isolated_stats_repo.upsert_policy_version_tags(matching_pv_id, {SUBMITTED_KEY: "true"})
 
     other_pv_id = await _create_policy_with_scores(
         isolated_stats_repo,
@@ -235,20 +202,10 @@ async def test_leaderboard_policies_filters_by_policy_version_id(
             }
         ],
     )
-    await isolated_stats_repo.upsert_policy_version_tags(
-        other_pv_id,
-        {
-            "leaderboard-public": "true",
-        },
-    )
+    await isolated_stats_repo.upsert_policy_version_tags(other_pv_id, {SUBMITTED_KEY: "true"})
 
     response = isolated_test_client.post(
-        "/leaderboard/leaderboard_policies",
-        json={
-            "policy_version_tags": {"leaderboard-public": "true"},
-            "score_group_episode_tags": [V0_LEADERBOARD_NAME_TAG_KEY],
-            "policy_version_id": str(matching_pv_id),
-        },
+        f"/leaderboard/v2/policy/{matching_pv_id}",
         headers={"X-Auth-Request-Email": user},
     )
     assert response.status_code == 200
@@ -256,3 +213,49 @@ async def test_leaderboard_policies_filters_by_policy_version_id(
     assert len(body["entries"]) == 1
     assert body["entries"][0]["policy_version"]["id"] == str(matching_pv_id)
     assert body["entries"][0]["policy_version"]["user_id"] == user
+
+
+@pytest.mark.asyncio
+async def test_leaderboard_v2_users_me_route_filters_by_user(
+    isolated_stats_repo: MettaRepo,
+    isolated_test_client: TestClient,
+) -> None:
+    user = "policy-owner@example.com"
+    other_user = "other@example.com"
+    owned_pv_id = await _create_policy_with_scores(
+        isolated_stats_repo,
+        user,
+        "owned-policy",
+        [
+            {
+                "arena-basic": 8.0,
+            }
+        ],
+    )
+    await isolated_stats_repo.upsert_policy_version_tags(owned_pv_id, {SUBMITTED_KEY: "true"})
+
+    other_pv_id = await _create_policy_with_scores(
+        isolated_stats_repo,
+        other_user,
+        "other-policy",
+        [
+            {
+                "arena-basic": 14.0,
+            }
+        ],
+    )
+    await isolated_stats_repo.upsert_policy_version_tags(other_pv_id, {SUBMITTED_KEY: "true"})
+
+    response = isolated_test_client.post(
+        "/leaderboard/v2/users/me",
+        json={
+            "policy_version_tags": {SUBMITTED_KEY: "true"},
+            "score_group_episode_tag": V0_LEADERBOARD_NAME_TAG_KEY,
+        },
+        headers={"X-Auth-Request-Email": user},
+    )
+    assert response.status_code == 200
+    entries = response.json()["entries"]
+    assert len(entries) == 1
+    assert entries[0]["policy_version"]["id"] == str(owned_pv_id)
+    assert entries[0]["policy_version"]["user_id"] == user

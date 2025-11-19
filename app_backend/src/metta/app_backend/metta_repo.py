@@ -866,7 +866,7 @@ ORDER BY pv.created_at DESC, pol.user_id, pv.id, et.value
     async def get_leaderboard_policies(
         self,
         policy_version_tags: dict[str, str],
-        score_group_episode_tags: list[str],
+        score_group_episode_tag: str,
         user_id: str | None = None,
         policy_version_id: uuid.UUID | None = None,
     ) -> list[LeaderboardPolicyEntry]:
@@ -899,11 +899,12 @@ ORDER BY pv.created_at DESC, pol.user_id, pv.id, et.value
 SELECT
     pv.id,
     pv.policy_id,
-    pv.version,
     pv.created_at,
     pol.created_at AS policy_created_at,
     pol.user_id,
-    pol.name
+    pol.name,
+    pv.version,
+    '{{}}'::jsonb AS tags
 FROM policy_versions pv
 JOIN policies pol ON pol.id = pv.policy_id
 {where_clause}
@@ -911,14 +912,14 @@ ORDER BY pol.created_at DESC, pv.created_at DESC
 """
 
         async with self.connect() as con:
-            async with con.cursor(row_factory=dict_row) as cur:
+            async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
                 await cur.execute(policy_query, params)  # type: ignore
                 policy_rows = await cur.fetchall()
 
             if not policy_rows:
                 return []
 
-            policy_version_ids = [row["id"] for row in policy_rows]
+            policy_version_ids = [row.id for row in policy_rows]
             scores_by_policy: dict[uuid.UUID, dict[str, float]] = {pv_id: {} for pv_id in policy_version_ids}
 
             async with con.cursor(row_factory=dict_row) as cur:
@@ -936,7 +937,7 @@ WHERE policy_version_id = ANY(%s)
             for tag_row in tag_rows:
                 tags_by_policy[tag_row["policy_version_id"]][tag_row["key"]] = tag_row["value"]
 
-            if score_group_episode_tags:
+            if score_group_episode_tag:
                 scores_query = """
 SELECT
     pv.id AS policy_version_id,
@@ -951,13 +952,13 @@ JOIN episode_policy_metrics epm
    AND epm.pv_internal_id = pv.internal_id
 JOIN episode_tags et ON et.episode_id = e.id
 WHERE epm.metric_name = 'reward'
-  AND et.key = ANY(%s)
+  AND et.key = %s
   AND pv.id = ANY(%s)
 GROUP BY pv.id, et.key, et.value
 """
 
                 async with con.cursor(row_factory=dict_row) as cur:
-                    await cur.execute(scores_query, (score_group_episode_tags, policy_version_ids))
+                    await cur.execute(scores_query, (score_group_episode_tag, policy_version_ids))
                     score_rows = await cur.fetchall()
 
                 for score_row in score_rows:
@@ -966,20 +967,11 @@ GROUP BY pv.id, et.key, et.value
                     scores_by_policy.setdefault(pv_id, {})[tag_identifier] = float(score_row["avg_reward_per_agent"])
 
         entries: list[LeaderboardPolicyEntry] = []
-        for row in policy_rows:
-            pv_id = row["id"]
+        for policy_row in policy_rows:
+            pv_id = policy_row.id
             scores = scores_by_policy.get(pv_id, {})
             avg_score = sum(scores.values()) / len(scores) if scores else None
-            policy_version = PublicPolicyVersionRow(
-                id=row["id"],
-                policy_id=row["policy_id"],
-                created_at=row["created_at"],
-                policy_created_at=row["policy_created_at"],
-                user_id=row["user_id"],
-                name=row["name"],
-                version=row["version"],
-                tags=tags_by_policy.get(pv_id, {}),
-            )
+            policy_version = policy_row.model_copy(update={"tags": tags_by_policy.get(pv_id, {})})
             entries.append(
                 LeaderboardPolicyEntry(
                     policy_version=policy_version,
