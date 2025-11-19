@@ -15,6 +15,7 @@ import typer
 import yaml  # type: ignore[import]
 from click.core import ParameterSource
 from packaging.version import Version
+from rich import box
 from rich.table import Table
 
 from cogames import evaluate as evaluate_module
@@ -688,6 +689,77 @@ def submit_cmd(
         dry_run=dry_run,
         skip_validation=skip_validation,
     )
+
+
+@app.command(name="docs", help="Print documentation")
+def docs_cmd(
+    doc_name: Optional[str] = typer.Argument(None, help="Document name to print"),
+) -> None:
+    """Print a documentation file.
+
+    Available documents:
+      - readme: README.md - CoGames overview and documentation
+      - mission: MISSION.md - Mission briefing for Machina VII Deployment
+      - technical_manual: TECHNICAL_MANUAL.md - Technical manual for Cogames
+      - scripted_agent: Scripted agent policy documentation
+      - evals: Evaluation missions documentation
+      - mapgen: Cogs vs Clips map generation documentation
+    """
+    # Hardcoded mapping of document names to file paths and descriptions
+    package_root = Path(__file__).parent.parent.parent
+    docs_map: dict[str, tuple[Path, str]] = {
+        "readme": (package_root / "README.md", "CoGames overview and documentation"),
+        "mission": (package_root / "MISSION.md", "Mission briefing for Machina VII Deployment"),
+        "technical_manual": (package_root / "TECHNICAL_MANUAL.md", "Technical manual for Cogames"),
+        "scripted_agent": (
+            Path(__file__).parent / "policy" / "scripted_agent" / "README.md",
+            "Scripted agent policy documentation",
+        ),
+        "evals": (
+            Path(__file__).parent / "cogs_vs_clips" / "evals" / "README.md",
+            "Evaluation missions documentation",
+        ),
+        "mapgen": (
+            Path(__file__).parent / "cogs_vs_clips" / "cogs_vs_clips_mapgen.md",
+            "Cogs vs Clips map generation documentation",
+        ),
+    }
+
+    # If no argument provided, show available documents
+    if doc_name is None:
+        from rich.table import Table
+
+        console.print("\n[bold cyan]Available Documents:[/bold cyan]\n")
+        table = Table(show_header=True, header_style="bold magenta", box=box.ROUNDED, padding=(0, 1))
+        table.add_column("Document", style="blue", no_wrap=True)
+        table.add_column("Description", style="white")
+
+        for name, (_, description) in sorted(docs_map.items()):
+            table.add_row(name, description)
+
+        console.print(table)
+        console.print("\nUsage: [bold]cogames docs <document_name>[/bold]")
+        console.print("Example: [bold]cogames docs mission[/bold]")
+        return
+
+    if doc_name not in docs_map:
+        available = ", ".join(sorted(docs_map.keys()))
+        console.print(f"[red]Error: Unknown document '{doc_name}'[/red]")
+        console.print(f"\nAvailable documents: {available}")
+        raise typer.Exit(1)
+
+    doc_path, _ = docs_map[doc_name]
+
+    if not doc_path.exists():
+        console.print(f"[red]Error: Document file not found: {doc_path}[/red]")
+        raise typer.Exit(1)
+
+    try:
+        content = doc_path.read_text()
+        console.print(content)
+    except Exception as exc:
+        console.print(f"[red]Error reading document: {exc}[/red]")
+        raise typer.Exit(1) from exc
 
 
 if __name__ == "__main__":
