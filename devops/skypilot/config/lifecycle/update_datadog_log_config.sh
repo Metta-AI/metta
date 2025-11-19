@@ -39,12 +39,14 @@ fi
 # Ensure log directory and files exist
 TRAINING_LOG_DIR="/tmp/training_logs"
 mkdir -p "$TRAINING_LOG_DIR"
+chmod 777 "$TRAINING_LOG_DIR"
+
 for log_file in "training_combined.log" "training_stdout.log" "training_stderr.log"; do
   log_path="${TRAINING_LOG_DIR}/${log_file}"
   if [ ! -f "$log_path" ]; then
     touch "$log_path"
-    chmod 644 "$log_path"
   fi
+  chmod 666 "$log_path"
 done
 
 # Create/update log collection config
