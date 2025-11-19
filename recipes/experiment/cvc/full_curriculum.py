@@ -22,7 +22,6 @@ from cogames.cogs_vs_clips.evals.eval_missions import (
 )
 from cogames.cogs_vs_clips.mission import Mission
 from cogames.cogs_vs_clips.missions import (
-    AssembleMission,
     HarvestMission,
     RepairMission,
     VibeCheckMission,
@@ -98,11 +97,11 @@ for mission in EVAL_MISSIONS:
 # Add training facility missions to the mapping
 TRAINING_FACILITY_MISSION_OBJECTS = [
     HarvestMission,
-    AssembleMission,
     VibeCheckMission,
     RepairMission,
     # Note: 'easy_hearts' is intentionally omitted from the full curriculum
     # for now due to its reduced vibe action space (see comment above).
+    # Note: 'assemble' is not a defined mission object - it may be resolved via make_training_env
 ]
 for mission in TRAINING_FACILITY_MISSION_OBJECTS:
     _MISSION_BY_NAME[mission.name] = mission
