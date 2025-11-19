@@ -57,15 +57,15 @@ def run_old_uris(policy_uris: Sequence[str] | str | None = None) -> MultiPolicyE
     return run(policy_specs)
 
 
-# ./tools/run.py recipes.experiment.multi_policy_eval.run_submission policy_uris="s3://observatory-private/cogames/submissions/hr1t9o9ool5j7bfhe5dz5dh6/629c6ef2-43ef-4164-bef3-e3c5b0bacc48.zip"
-def run_submission(policy_uris: Sequence[str] | str | None = None) -> MultiPolicyEvalTool:
-    if isinstance(policy_uris, str):
-        policy_uris = [policy_uris]
+# ./tools/run.py recipes.experiment.multi_policy_eval.run_submission s3_paths="s3://observatory-private/cogames/submissions/hr1t9o9ool5j7bfhe5dz5dh6/629c6ef2-43ef-4164-bef3-e3c5b0bacc48.zip"
+def run_submission(s3_paths: Sequence[str] | str | None = None) -> MultiPolicyEvalTool:
+    if isinstance(s3_paths, str):
+        s3_paths = [s3_paths]
     policy_specs = []
     # Keep all submission contexts open so their extracted code stays on sys.path
     with ExitStack() as stack:
-        for policy_uri in policy_uris or []:
-            submission_spec = stack.enter_context(policy_spec_from_s3_submission(policy_uri))
+        for s3_path in s3_paths or []:
+            submission_spec = stack.enter_context(policy_spec_from_s3_submission(s3_path))
             policy_specs.append(submission_spec)
 
         return run(policy_specs)

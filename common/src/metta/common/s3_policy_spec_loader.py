@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import stat
 import sys
 import tempfile
 import zipfile
@@ -45,11 +46,30 @@ def _load_policy_spec(extraction_root: Path) -> PolicySpec:
     return spec
 
 
+def _validate_archive_member(entry: zipfile.ZipInfo, destination_root: Path) -> None:
+    """Ensure a zip entry extracts within destination_root without using symlinks."""
+    member_path = Path(entry.filename)
+
+    if member_path.is_absolute():
+        raise ValueError(f"Submission archive contains absolute path: {entry.filename}")
+    if ".." in member_path.parts:
+        raise ValueError(f"Submission archive contains path traversal: {entry.filename}")
+    if stat.S_ISLNK(entry.external_attr >> 16):
+        raise ValueError(f"Submission archive contains symlink entry: {entry.filename}")
+
+    target_path = (destination_root / member_path).resolve()
+    if destination_root != target_path and destination_root not in target_path.parents:
+        raise ValueError(f"Submission archive entry escapes extraction directory: {entry.filename}")
+
+
 def _extract_submission_archive(archive_path: Path, destination: Path) -> None:
     """Extract a submission archive into destination."""
+    destination_root = destination.resolve()
     try:
         with zipfile.ZipFile(archive_path, "r") as archive:
-            archive.extractall(destination)
+            for entry in archive.infolist():
+                _validate_archive_member(entry, destination_root)
+            archive.extractall(destination_root)
     except zipfile.BadZipFile as exc:
         raise ValueError(f"Invalid submission archive: {archive_path}") from exc
 
