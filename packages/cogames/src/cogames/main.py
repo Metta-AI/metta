@@ -15,6 +15,7 @@ import typer
 import yaml  # type: ignore[import]
 from click.core import ParameterSource
 from packaging.version import Version
+from rich.panel import Panel
 from rich.table import Table
 
 from cogames import evaluate as evaluate_module
@@ -83,6 +84,66 @@ app = typer.Typer(
     pretty_exceptions_show_locals=False,
     callback=lambda: discover_and_register_policies("cogames.policy"),
 )
+
+
+@app.command(name="tutorial", help="Print instructions on how to play CvC and runs cogames play --mission tutorial")
+def tutorial_cmd(
+    ctx: typer.Context,
+) -> None:
+    """Run the CoGames tutorial."""
+    # Suppress logs during tutorial to keep instructions visible
+    logging.getLogger().setLevel(logging.ERROR)
+
+    console.print(
+        Panel.fit(
+            "[bold cyan]Welcome to CoGames Tutorial![/bold cyan]\n\n"
+            "Your goal is to learn the basics of survival and crafting.\n\n"
+            "Clicking allows you to inspect different objects in the environment.\n"
+            "To control your cog, click on them in the GUI.\n"
+            "Use WASD to move and select vibes from the menu to the right.\n\n"
+
+            "[bold]1. Energy Management[/bold]\n"
+            "   • You consume energy to move and work. Your battery recharges over time.\n"
+            "   • Watch your energy bar! If it's low, wait a few turns or visit a [yellow]+[/yellow] Charger.\n\n"
+            "[bold]2. Gather Materials[/bold]\n"
+            "   • Visit the Extractors in the corners to mine resources:\n"
+            "     [yellow]C[/yellow] Carbon, [yellow]O[/yellow] Oxygen, [yellow]G[/yellow] Germanium, "
+            "[yellow]S[/yellow] Silicon.\n"
+            "   • Walk into an extractor to mine. Note: Silicon ([yellow]S[/yellow]) costs 20 Energy to mine!\n\n"
+            "[bold]3. Craft a HEART[/bold]\n"
+            "   • Go to the Assembler [yellow]&[/yellow] in the center.\n"
+            "   • To craft, you must be adjacent to it and [bold]broadcast the correct Vibe[/bold].\n"
+            "   • [bold]Action:[/bold] Switch your vibe to [red]Heart A[/red] by clicking the icon in the top "
+            "right.\n"
+            "   • [bold]Recipe:[/bold] You need 10 Carbon, 10 Oxygen, 2 Germanium, 30 Silicon.\n\n"
+            "[bold]4. Deposit[/bold]\n"
+            "   • Bring the HEART to the Chest [yellow]C[/yellow] (usually near the center).\n"
+            "   • Switch your vibe to [red]Heart B[/red].\n"
+            "   • Walk into the Chest to deposit.\n"
+            "   • [red bold]WARNING![/red bold] If you have a neutral vibe selected you will deposit all your items, to get them out vibe the [bold yellow]object type A[/bold yellow] vibe. \n\n"
+            "Good luck! Press Enter to launch the simulation (similarly to how you would run [green]cogames play[/green]).",
+            title="Mission Briefing",
+            border_style="green",
+        )
+    )
+    input()
+
+    # Load tutorial mission
+    from cogames.cogs_vs_clips.tutorial_missions import TutorialMission
+
+    # Create environment config
+    env_cfg = TutorialMission.make_env()
+    # Force 1 agent for tutorial
+    env_cfg.game.num_agents = 1
+
+    # Run play
+    play_module.play(
+        console,
+        env_cfg=env_cfg,
+        policy_spec=get_policy_spec(ctx, "noop"),  # Default to noop, assuming human control
+        game_name="tutorial",
+        render_mode="gui",
+    )
 
 
 @app.command("missions", help="List all available missions, or describe a specific mission")
